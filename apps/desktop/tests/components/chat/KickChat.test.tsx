@@ -4,7 +4,7 @@ import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
-import type { ChatMessage } from "@/shared/chat-types";
+import type { ChatKnownUser, ChatMessage } from "@/shared/chat-types";
 import { installElectronAPIMock, renderWithProviders } from "../../test-utils";
 
 // U11 — capture ChatMessageList callbacks so tests can simulate toolbar clicks.
@@ -23,6 +23,22 @@ const unbanKickUserMock = vi.fn();
 const toastSuccessMock = vi.fn();
 const toastErrorMock = vi.fn();
 const recordModActionMock = vi.fn(async (_input: unknown) => 1);
+const primePersistedChatHistoryIntentAsyncMock = vi.fn(async (_intent: unknown) => false);
+const savePersistedChatHistoryMock = vi.fn(
+  async (_platform: unknown, _channel: unknown, _channelId: unknown, _messages: unknown) =>
+    undefined
+);
+
+vi.mock("@/store/persisted-chat-history", () => ({
+  primePersistedChatHistoryIntentAsync: (intent: unknown) =>
+    primePersistedChatHistoryIntentAsyncMock(intent),
+  savePersistedChatHistory: (
+    platform: unknown,
+    channel: unknown,
+    channelId: unknown,
+    messages: unknown
+  ) => savePersistedChatHistoryMock(platform, channel, channelId, messages),
+}));
 
 vi.mock("@/backend/api/platforms/kick/kick-mod-mutations", () => ({
   banKickUser: (...args: unknown[]) => banKickUserMock(...args),
@@ -149,6 +165,8 @@ const storeState = {
     kick: { platform: "kick", state: "disconnected", channels: [], isAuthenticated: false },
   },
   messagesByChannel: {} as Record<string, ChatMessage[]>,
+  usersByChannel: {} as Record<string, Record<string, ChatKnownUser>>,
+  chatterCountByChannel: {} as Record<string, number>,
   clearMessages: vi.fn(),
   setPaused: vi.fn(),
   addMessage: vi.fn(),
@@ -241,6 +259,11 @@ function renderKickChat(ui: ReactElement, queryClient?: QueryClient) {
 // Guards: Kick pin actions use the original chat message sender, surface auth/API failures, and keep retryable failures visible instead of silently leaving the dialog stuck
 // Guards: final-view cleanup skips prediction unsubscribe frames before closing the shared chat Pusher socket, preventing pusher-js "WebSocket is already in CLOSING or CLOSED state" console errors on unmount
 // Guards: the full-width composer footer paints above the message scroller so chat text cannot show behind its quick-emote row or padding.
+// Guards: Kick recent history is inserted before live chat joins or announces its connection.
+// Guards: persisted Kick history restoration finishes before connection markers or remote history can mutate the channel bucket.
+// Guards: history that resolves after a channel switch cannot mutate the prior channel's messages, pin, or moderator state.
+// Guards: unavailable recent history cannot disconnect or withhold live Kick chat.
+// Guards: viewers still observe ban UI without writing moderator-only history records.
 describe("KickChat", () => {
   beforeEach(() => {
     const api = installElectronAPIMock();
@@ -261,6 +284,7 @@ describe("KickChat", () => {
     storeState.connectionStatus.twitch.state = "disconnected";
     mockAuthState.kickConnected = false;
     storeState.messagesByChannel = {};
+    storeState.usersByChannel = {};
     chatInputProps.canSend = undefined;
     chatInputProps.viewerUserId = undefined;
     lastListProps.onBan = undefined;
@@ -277,17 +301,23 @@ describe("KickChat", () => {
     toastErrorMock.mockReset();
     recordModActionMock.mockReset();
     recordModActionMock.mockResolvedValue(1);
+    primePersistedChatHistoryIntentAsyncMock.mockClear();
+    primePersistedChatHistoryIntentAsyncMock.mockResolvedValue(false);
+    savePersistedChatHistoryMock.mockClear();
     vi.mocked(kickChatService.connect).mockClear();
+    vi.mocked(kickChatService.joinChannel).mockClear();
     vi.mocked(kickChatService.acquire).mockClear();
     vi.mocked(kickChatService.release).mockClear();
     vi.mocked(kickChatService.getActiveUserCount).mockClear();
     vi.mocked(kickChatService.getActiveUserCount).mockReturnValue(1);
     vi.mocked(kickChatService.setModeratorState).mockClear();
+    vi.mocked(kickChatService.emit).mockClear();
     vi.mocked(kickPredictionsService.acquire).mockClear();
     vi.mocked(kickPredictionsService.release).mockClear();
     loadGlobalEmotesMock.mockReset();
     storeState.addMessage = vi.fn();
     storeState.addMessageBatched = vi.fn();
+    storeState.prependMessages = vi.fn();
     storeState.deleteMessage = vi.fn();
     storeState.deleteMessagesByUser = vi.fn();
     useModeratedChannelsStore.getState().clear();
@@ -300,6 +330,29 @@ describe("KickChat", () => {
     renderKickChat(<KickChat channel="xqc" chatroomId={12345} />);
     expect(screen.getByTestId("message-list")).toBeInTheDocument();
     expect(screen.getByTestId("chat-input")).toBeInTheDocument();
+  });
+
+  it("opens Recent Chatters over the live chat without unmounting it", () => {
+    storeState.usersByChannel = {
+      "kick:xqc": {
+        chatter: {
+          userId: "1",
+          username: "chatter",
+          displayName: "Chatter",
+          color: "#53fc18",
+          role: "viewer",
+          badges: [],
+          lastSeen: new Date(),
+        },
+      },
+    };
+    renderKickChat(<KickChat channel="xqc" chatroomId={12345} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show recent chatters" }));
+
+    expect(screen.getByRole("heading", { name: "Recent Chatters" })).toBeInTheDocument();
+    expect(screen.getByText("Chatter")).toBeInTheDocument();
+    expect(screen.getByTestId("message-list")).toBeInTheDocument();
   });
 
   it("occludes the message scroller behind the full composer footer", () => {
@@ -390,7 +443,14 @@ describe("KickChat", () => {
       },
     }));
 
-    renderKickChat(<KickChat channel="xqc" channelId="411439" chatroomId={12345} />);
+    renderKickChat(
+      <KickChat
+        channel="xqc"
+        channelId="411439"
+        kickChannelId="668"
+        chatroomId={12345}
+      />
+    );
 
     await waitFor(() =>
       expect(useModeratedChannelsStore.getState().kickModeratedChannelSlugs.has("xqc")).toBe(true)
@@ -405,7 +465,9 @@ describe("KickChat", () => {
       status: 200,
     }));
 
-    renderKickChat(<KickChat channel="xqc" channelId="411439" chatroomId={12345} />);
+    renderKickChat(
+      <KickChat channel="xqc" channelId="411439" kickChannelId="668" chatroomId={12345} />
+    );
 
     await waitFor(() =>
       expect(useModeratedChannelsStore.getState().kickModeratedChannelSlugs.has("xqc")).toBe(true)
@@ -430,22 +492,293 @@ describe("KickChat", () => {
     expect(kickChatService.setModeratorState).toHaveBeenCalledWith("xqc", false);
   });
 
-  it("shows the connecting row before Kick token/network setup resolves", async () => {
+  it("does not show the connecting row before Kick token/network setup resolves", async () => {
     const api = installElectronAPIMock();
     api.auth.getToken = vi.fn(() => new Promise<never>(() => {}));
 
     renderKickChat(<KickChat channel="xqc" chatroomId={12345} />);
 
-    await waitFor(() => {
-      const addedTexts = (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls.map(
-        (call: unknown[]) => {
-          const msg = call[0] as { rawContent?: string } | undefined;
-          return msg?.rawContent;
-        }
-      );
-      expect(addedTexts).toContain("Connecting to channel...");
-    });
+    await waitFor(() => expect(api.auth.getToken).toHaveBeenCalled());
+    const addedTexts = (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls.map(
+      (call: unknown[]) => {
+        const msg = call[0] as { rawContent?: string } | undefined;
+        return msg?.rawContent;
+      }
+    );
+    expect(addedTexts).not.toContain("Connecting to channel...");
     expect(kickChatService.connect).not.toHaveBeenCalled();
+  });
+
+  it("inserts recent history before joining live chat and announcing connected", async () => {
+    type KickHistoryResult = Awaited<ReturnType<typeof window.electronAPI.chat.getKickHistory>>;
+    let resolveHistory!: (result: KickHistoryResult) => void;
+    window.electronAPI.chat.getKickHistory = vi.fn(
+      () =>
+        new Promise<KickHistoryResult>((resolve) => {
+          resolveHistory = resolve;
+        })
+    );
+
+    renderKickChat(
+      <KickChat channel="xqc" channelId="411439" kickChannelId="668" chatroomId={12345} />
+    );
+
+    await waitFor(() => expect(window.electronAPI.chat.getKickHistory).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("Loading recent messages…")).not.toBeInTheDocument();
+    expect(kickChatService.joinChannel).not.toHaveBeenCalled();
+    expect(
+      (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls.some(
+        ([message]) => (message as ChatMessage).rawContent === "Connected to the channel"
+      )
+    ).toBe(false);
+    expect(storeState.prependMessages).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveHistory({
+        success: true,
+        data: {
+          messages: [
+            {
+              id: "recent-message",
+              chatroom_id: 12345,
+              content: "before live chat",
+              type: "message",
+              created_at: "2026-08-05T00:00:00Z",
+              metadata: null,
+              sender: {
+                id: 42,
+                username: "viewer",
+                slug: "viewer",
+                identity: { color: "#ffffff", badges: [] },
+              },
+            },
+          ],
+          pinnedMessage: null,
+        },
+      });
+    });
+
+    await waitFor(() =>
+      expect(kickChatService.joinChannel).toHaveBeenCalledWith("xqc", 12345, 411439)
+    );
+    await waitFor(() =>
+      expect(
+        (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls.some(
+          ([message]) => (message as ChatMessage).rawContent === "Connected to the channel"
+        )
+      ).toBe(true)
+    );
+    expect(storeState.prependMessages).toHaveBeenCalledWith(
+      "kick:xqc",
+      expect.arrayContaining([expect.objectContaining({ id: "recent-message" })])
+    );
+    expect(storeState.prependMessages.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(kickChatService.joinChannel).mock.invocationCallOrder[0]
+    );
+    expect(vi.mocked(kickChatService.joinChannel).mock.invocationCallOrder[0]).toBeLessThan(
+      (storeState.addMessage as ReturnType<typeof vi.fn>).mock.invocationCallOrder.at(-1) ??
+        Number.MAX_SAFE_INTEGER
+    );
+  });
+
+  it("settles Kick history before showing connection state or joining live chat", async () => {
+    type KickHistoryResult = Awaited<ReturnType<typeof window.electronAPI.chat.getKickHistory>>;
+    let resolveHistory!: (result: KickHistoryResult) => void;
+    window.electronAPI.chat.getKickHistory = vi.fn(
+      () =>
+        new Promise<KickHistoryResult>((resolve) => {
+          resolveHistory = resolve;
+        })
+    );
+
+    renderKickChat(
+      <KickChat
+        channel="xqc"
+        channelId="411439"
+        kickChannelId="668"
+        chatroomId={12345}
+      />
+    );
+
+    await waitFor(() =>
+      expect(window.electronAPI.chat.getKickHistory).toHaveBeenCalledWith({
+        channelId: "668",
+        channelSlug: "xqc",
+      })
+    );
+    expect(kickChatService.joinChannel).not.toHaveBeenCalled();
+    expect(
+      (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls.some(
+        ([message]) => (message as ChatMessage).rawContent === "Connecting to channel..."
+      )
+    ).toBe(false);
+
+    await act(async () => {
+      resolveHistory({ success: true, data: { messages: [], pinnedMessage: null } });
+    });
+
+    await waitFor(() =>
+      expect(kickChatService.joinChannel).toHaveBeenCalledWith("xqc", 12345, 411439)
+    );
+    expect(
+      (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls.some(
+        ([message]) => (message as ChatMessage).rawContent === "Connecting to channel..."
+      )
+    ).toBe(true);
+  });
+
+  it("restores persisted history before adding connection state or requesting remote history", async () => {
+    let resolvePersistedHistory!: (restored: boolean) => void;
+    primePersistedChatHistoryIntentAsyncMock.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolvePersistedHistory = resolve;
+        })
+    );
+
+    renderKickChat(
+      <KickChat channel="xqc" channelId="411439" kickChannelId="668" chatroomId={12345} />
+    );
+
+    await waitFor(() => expect(primePersistedChatHistoryIntentAsyncMock).toHaveBeenCalledTimes(1));
+    expect(window.electronAPI.chat.getKickHistory).not.toHaveBeenCalled();
+    expect(
+      (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls.some(
+        ([message]) => (message as ChatMessage).rawContent === "Connecting to channel..."
+      )
+    ).toBe(false);
+
+    await act(async () => {
+      resolvePersistedHistory(false);
+    });
+
+    await waitFor(() => expect(window.electronAPI.chat.getKickHistory).toHaveBeenCalledTimes(1));
+    expect(
+      (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls.some(
+        ([message]) => (message as ChatMessage).rawContent === "Connecting to channel..."
+      )
+    ).toBe(true);
+  });
+
+  it("ignores history from a channel that resolves after switching channels", async () => {
+    type KickHistoryResult = Awaited<ReturnType<typeof window.electronAPI.chat.getKickHistory>>;
+    let resolveAlphaHistory!: (result: KickHistoryResult) => void;
+    window.electronAPI.chat.getKickHistory = vi.fn(({ channelId }): Promise<KickHistoryResult> => {
+      if (channelId !== "111") return Promise.resolve({ success: false });
+      return new Promise<KickHistoryResult>((resolve) => {
+        resolveAlphaHistory = resolve;
+      });
+    });
+
+    const { rerender } = renderKickChat(
+      <KickChat channel="alpha" channelId="111" kickChannelId="111" chatroomId={1001} />
+    );
+    await waitFor(() =>
+      expect(window.electronAPI.chat.getKickHistory).toHaveBeenCalledWith({
+        channelId: "111",
+        channelSlug: "alpha",
+      })
+    );
+
+    rerender(
+      <KickChat channel="beta" channelId="222" kickChannelId="222" chatroomId={2002} />
+    );
+    await waitFor(() =>
+      expect(kickChatService.joinChannel).toHaveBeenCalledWith("beta", 2002, 222)
+    );
+    expect(kickChatService.joinChannel).not.toHaveBeenCalledWith("alpha", 1001, 111);
+
+    await act(async () => {
+      resolveAlphaHistory({
+        success: true,
+        data: {
+          messages: [
+            {
+              id: "alpha-history",
+              chatroom_id: 1001,
+              content: "stale alpha history",
+              type: "message",
+              created_at: "2026-08-05T00:00:00Z",
+              metadata: null,
+              sender: {
+                id: 42,
+                username: "modder",
+                slug: "modder",
+                identity: {
+                  color: "#ffffff",
+                  badges: [{ type: "moderator", text: "Moderator" }],
+                },
+              },
+            },
+          ],
+          pinnedMessage: { id: "stale-alpha-pin" },
+        },
+      });
+    });
+
+    expect(storeState.prependMessages).not.toHaveBeenCalledWith("kick:alpha", expect.anything());
+    expect(kickChatService.emit).not.toHaveBeenCalledWith("pinnedMessage", expect.anything());
+    expect(kickChatService.setModeratorState).not.toHaveBeenCalledWith("alpha", true);
+  });
+
+  it("keeps live chat connected when recent history rejects", async () => {
+    window.electronAPI.chat.getKickHistory = vi.fn(async () => {
+      throw new Error("history unavailable");
+    });
+
+    renderKickChat(
+      <KickChat channel="xqc" channelId="411439" kickChannelId="668" chatroomId={12345} />
+    );
+
+    await waitFor(() =>
+      expect(kickChatService.joinChannel).toHaveBeenCalledWith("xqc", 12345, 411439)
+    );
+    await waitFor(() =>
+      expect(
+        (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls.some(
+          ([message]) => (message as ChatMessage).rawContent === "Connected to the channel"
+        )
+      ).toBe(true)
+    );
+    expect(storeState.prependMessages).not.toHaveBeenCalled();
+    expect(kickChatService.emit).not.toHaveBeenCalledWith("pinnedMessage", expect.anything());
+    expect(
+      screen.getByText("Kick history unavailable; showing session messages")
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("message-list")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-input")).toBeInTheDocument();
+  });
+
+  it("restores and saves bounded history for the exact Kick channel identity", async () => {
+    const observed = [
+      {
+        id: "observed-live",
+        platform: "kick",
+        type: "message",
+        channel: "xqc",
+      } as ChatMessage,
+    ];
+    storeState.messagesByChannel["kick:xqc"] = observed;
+
+    const { unmount } = renderKickChat(
+      <KickChat channel="xqc" channelId="411439" chatroomId={12345} />
+    );
+
+    await waitFor(() =>
+      expect(primePersistedChatHistoryIntentAsyncMock).toHaveBeenCalledWith({
+        platform: "kick",
+        normalizedChannel: "xqc",
+        channelId: "411439",
+        limit: DEFAULT_CHAT_DISPLAY_PREFERENCES.recentMessagesLimit,
+      })
+    );
+    unmount();
+
+    expect(savePersistedChatHistoryMock).toHaveBeenCalledWith("kick", "xqc", "411439", observed);
+    expect(kickChatService.release).toHaveBeenCalledWith("xqc");
+    expect(savePersistedChatHistoryMock.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(kickChatService.release).mock.invocationCallOrder.at(-1) ?? Number.MAX_SAFE_INTEGER
+    );
   });
 
   it("releases predictions without socket frames before releasing the final shared Kick chat socket", () => {
@@ -1019,6 +1352,35 @@ describe("KickChat", () => {
       deletedAt,
       deletedByUsername: "AutoMod",
     });
+  });
+
+  it("keeps observed ban UI for viewers without attempting moderator-only history persistence", () => {
+    const occurredAt = new Date("2026-06-29T17:40:00Z");
+    mockIsKickMod.value = false;
+    renderKickChat(<KickChat channel="xqc" channelId="channel-123" chatroomId={12345} />);
+
+    act(() => {
+      mockServiceHandlers.clearChat?.({
+        platform: "kick",
+        channel: "xqc",
+        targetUserId: "u1",
+        targetUsername: "spammer",
+        bannedByUsername: "KickMod",
+        duration: 600,
+        isClearAll: false,
+        timestamp: occurredAt,
+      });
+    });
+
+    expect(storeState.deleteMessagesByUser).toHaveBeenCalledWith(
+      "kick:xqc",
+      "u1",
+      expect.objectContaining({ deletedAt: occurredAt })
+    );
+    expect(storeState.addMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "ban", channel: "xqc" })
+    );
+    expect(recordModActionMock).not.toHaveBeenCalled();
   });
 
   it("records an observed Kick timeout from the platform event without claiming archive coverage", () => {

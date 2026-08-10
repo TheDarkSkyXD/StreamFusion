@@ -1236,6 +1236,8 @@ describe("ChatInput — subscriber-only preflight", () => {
 });
 
 // Guards: platform send rejections become the same single blocker banner as preflight restrictions.
+// Guards: authoritative room-mode changes promptly remove stale send blockers.
+// Guards: switching channels cannot inherit a room-mode blocker from the prior channel.
 describe("ChatInput — send rejection blockers", () => {
   it("restores the rejected draft and blocks retries after Twitch reports phone verification", async () => {
     infoBannerImpl.mockReturnValue(null);
@@ -1461,6 +1463,75 @@ describe("ChatInput — send rejection blockers", () => {
     );
     expect(screen.getByRole("button", { name: /subscribe/i })).toBeInTheDocument();
     expect(editor).toHaveTextContent("kick gated");
+  });
+
+  it("removes a stale Kick subscribers-only blocker when the current room turns the mode off", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    useRoomStateStore
+      .getState()
+      .updateRoomState("kick", "12345", { subscribersOnly: true });
+    vi.mocked(kickChatService.sendMessage).mockRejectedValueOnce(
+      new KickChatSendError({
+        ok: false,
+        kind: "forbidden",
+        message: "Subscribers-only chat is enabled",
+      })
+    );
+    renderInput({ platform: "kick", isAuthenticated: true, canSend: true });
+    const editor = getEditor();
+    typeInEditor(editor, "kick gated");
+
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+    expect(screen.queryByTestId("chat-send-blocker")).toBeNull();
+
+    act(() => {
+      useRoomStateStore
+        .getState()
+        .updateRoomState("kick", "12345", { subscribersOnly: false });
+    });
+
+    expect(screen.queryByTestId("chat-send-blocker")).toBeNull();
+  });
+
+  it("does not carry a Kick subscribers-only blocker into another channel", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    vi.mocked(kickChatService.sendMessage).mockRejectedValueOnce(
+      new KickChatSendError({
+        ok: false,
+        kind: "forbidden",
+        message: "Subscribers-only chat is enabled",
+      })
+    );
+    const { rerender } = renderInput({
+      platform: "kick",
+      isAuthenticated: true,
+      canSend: true,
+    });
+    const editor = getEditor();
+    typeInEditor(editor, "kick gated");
+
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+    expect(screen.getByTestId("chat-send-blocker")).toHaveTextContent(
+      "Subscribers-only chat is enabled"
+    );
+
+    rerender(
+      <TooltipProvider>
+        <ChatInput
+          channel="another-channel"
+          platform="kick"
+          channelId="67890"
+          isAuthenticated
+          canSend
+        />
+      </TooltipProvider>
+    );
+
+    expect(screen.queryByTestId("chat-send-blocker")).toBeNull();
   });
 
   it("keeps ordinary send failures as inline errors", async () => {

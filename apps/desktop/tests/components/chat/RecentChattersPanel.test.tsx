@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -51,9 +52,12 @@ function message(username: string, timestamp: Date, badges: ChatBadge[] = []): C
 // Guards: The seen-in-chat total keeps updating beyond the 500-row recent-roster cap.
 // Guards: Chatter names use the same preference-resolved color and provider fallback as chat messages.
 // Guards: Live roster updates preserve the user's scroll position while rows reorder or gain badges.
+// Guards: Wheel and trackpad input over a populated roster never reaches a host page or chat scroller.
+// Guards: Escape closes the roster and restores keyboard focus to the control that opened it.
 // Guards: Every populated role section is an accessible collapsible whose live counts remain visible.
 // Guards: Roster totals and role headings remain readable without making user rows taller.
 // Guards: The host chat header owns the only visible close button; the overlay does not duplicate it.
+// Guards: Each populated role owns a bounded 12rem scroller rather than borrowing the outer roster.
 describe("RecentChattersPanel", () => {
   beforeEach(() => {
     useChatStore.getState().cleanupBatching();
@@ -99,6 +103,7 @@ describe("RecentChattersPanel", () => {
     );
 
     expect(screen.queryByRole("button", { name: "Close recent chatters" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Recent chatter groups")).not.toBeInTheDocument();
   });
 
   it("renders the exact Twitch provider badge image and version observed on the message", () => {
@@ -205,9 +210,7 @@ describe("RecentChattersPanel", () => {
     const base = Date.parse("2026-08-07T12:00:00.000Z");
     useChatStore.getState().replaceHistoricalMessages(
       "twitch:alpha",
-      Array.from({ length: 500 }, (_, index) =>
-        message(`history-${index}`, new Date(base + index))
-      )
+      Array.from({ length: 500 }, (_, index) => message(`history-${index}`, new Date(base + index)))
     );
 
     render(
@@ -310,7 +313,22 @@ describe("RecentChattersPanel", () => {
     expect(document.getElementById("recent-chatters-test-viewer-list")).toHaveAttribute("hidden");
   });
 
-  it("preserves scroll position across live additions, role re-sorts, and badge rehydration", () => {
+  it("renders a heavier chevron without changing the role toggle's accessible name", () => {
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": { viewer: chatter("viewer", "viewer") },
+      },
+    });
+
+    render(
+      <RecentChattersPanel id="recent-chatters-test" channelKey="twitch:alpha" onClose={vi.fn()} />
+    );
+
+    const toggle = screen.getByRole("button", { name: "Viewers, 1 chatter" });
+    expect(toggle.querySelector("svg")).toHaveAttribute("stroke-width", "3");
+  });
+
+  it("preserves a role's scroll position across live additions, re-sorts, and badge rehydration", () => {
     const viewers = Object.fromEntries(
       Array.from({ length: 20 }, (_, index) => {
         const username = `viewer-${index}`;
@@ -323,17 +341,15 @@ describe("RecentChattersPanel", () => {
       <RecentChattersPanel id="recent-chatters-test" channelKey="twitch:alpha" onClose={vi.fn()} />
     );
 
-    const scroller = screen.getByLabelText("Recent chatter groups");
+    const scroller = screen.getByRole("list", { name: "Viewers" });
     scroller.scrollTop = 140;
     fireEvent.scroll(scroller);
 
-    scroller.scrollTop = 190;
     act(() => {
       useChatStore.getState().addMessage(message("live-new", new Date("2026-08-07T12:01:00Z")));
     });
     expect(scroller.scrollTop).toBe(140);
 
-    scroller.scrollTop = 205;
     act(() => {
       useChatStore.getState().addMessage(message("viewer-0", new Date("2026-08-07T12:02:00Z")));
     });
@@ -348,7 +364,6 @@ describe("RecentChattersPanel", () => {
           ])
         );
     });
-    scroller.scrollTop = 220;
     act(() => {
       useChatStore.getState().rehydrateChannelBadges("twitch:alpha", (badges) =>
         badges.map((badge) => ({
@@ -362,6 +377,202 @@ describe("RecentChattersPanel", () => {
       "src",
       "https://static-cdn.jtvnw.net/badges/v1/subscriber-3/2"
     );
+  });
+
+  it("contains wheel input inside its own populated roster", () => {
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": { viewer: chatter("viewer", "viewer") },
+      },
+    });
+    const hostWheel = vi.fn();
+
+    render(
+      <div onWheel={hostWheel}>
+        <RecentChattersPanel
+          id="recent-chatters-test"
+          channelKey="twitch:alpha"
+          onClose={vi.fn()}
+        />
+      </div>
+    );
+
+    fireEvent.wheel(screen.getByLabelText("Recent chatter groups"), { deltaY: 80 });
+
+    expect(hostWheel).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Recent Chatters")).toHaveClass("absolute", "inset-0", "min-h-0");
+    expect(screen.getByLabelText("Recent chatter groups")).toHaveClass(
+      "min-h-0",
+      "flex-1",
+      "overflow-y-hidden",
+      "overscroll-y-contain"
+    );
+  });
+
+  it("gives every populated role its own bounded internal scroller", () => {
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": {
+          owner: chatter("owner", "broadcaster"),
+          mod: chatter("mod", "moderator"),
+          sub: chatter("sub", "subscriber"),
+          viewer: chatter("viewer", "viewer"),
+        },
+      },
+    });
+
+    render(
+      <RecentChattersPanel id="recent-chatters-test" channelKey="twitch:alpha" onClose={vi.fn()} />
+    );
+
+    expect(screen.getByLabelText("Recent chatter groups")).toHaveClass("overflow-y-hidden");
+
+    for (const label of ["Broadcaster", "Moderators", "Subscribers", "Viewers"]) {
+      expect(screen.getByRole("list", { name: label })).toHaveClass(
+        "max-h-48",
+        "overflow-y-auto",
+        "overscroll-y-contain"
+      );
+    }
+  });
+
+  it("resets each role scroll position when the panel switches channels", () => {
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": { alphaViewer: chatter("alphaViewer", "viewer") },
+        "twitch:beta": { betaViewer: chatter("betaViewer", "viewer") },
+      },
+    });
+
+    const { rerender } = render(
+      <RecentChattersPanel id="recent-chatters-test" channelKey="twitch:alpha" onClose={vi.fn()} />
+    );
+    const alphaList = screen.getByRole("list", { name: "Viewers" });
+    alphaList.scrollTop = 120;
+    fireEvent.scroll(alphaList);
+
+    rerender(
+      <RecentChattersPanel id="recent-chatters-test" channelKey="twitch:beta" onClose={vi.fn()} />
+    );
+
+    expect(screen.getByRole("list", { name: "Viewers" }).scrollTop).toBe(0);
+  });
+
+  it("keeps sibling roles and outer containers still when one role scrolls", () => {
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": {
+          mod: chatter("mod", "moderator"),
+          viewer: chatter("viewer", "viewer"),
+        },
+      },
+    });
+    const hostWheel = vi.fn();
+
+    render(
+      <div onWheel={hostWheel}>
+        <RecentChattersPanel
+          id="recent-chatters-test"
+          channelKey="twitch:alpha"
+          onClose={vi.fn()}
+        />
+      </div>
+    );
+
+    const outer = screen.getByLabelText("Recent chatter groups");
+    const moderators = screen.getByRole("list", { name: "Moderators" });
+    const viewers = screen.getByRole("list", { name: "Viewers" });
+    moderators.scrollTop = 80;
+    fireEvent.scroll(moderators);
+    fireEvent.wheel(moderators, { deltaY: 80 });
+
+    expect(moderators.scrollTop).toBe(80);
+    expect(viewers.scrollTop).toBe(0);
+    expect(outer.scrollTop).toBe(0);
+    expect(hostWheel).not.toHaveBeenCalled();
+  });
+
+  it("preserves a role's scroll position across collapse and reopen", () => {
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": { viewer: chatter("viewer", "viewer") },
+      },
+    });
+
+    render(
+      <RecentChattersPanel id="recent-chatters-test" channelKey="twitch:alpha" onClose={vi.fn()} />
+    );
+    const toggle = screen.getByRole("button", { name: /viewers/i });
+    const viewers = screen.getByRole("list", { name: "Viewers" });
+    viewers.scrollTop = 96;
+    fireEvent.scroll(viewers);
+
+    fireEvent.click(toggle);
+    fireEvent.click(toggle);
+
+    expect(screen.getByRole("list", { name: "Viewers" }).scrollTop).toBe(96);
+  });
+
+  it("keeps scroll state independent between simultaneous panels", () => {
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": { twitchViewer: chatter("twitchViewer", "viewer") },
+        "kick:alpha": { kickViewer: chatter("kickViewer", "viewer") },
+      },
+    });
+
+    render(
+      <>
+        <RecentChattersPanel id="twitch-recent" channelKey="twitch:alpha" onClose={vi.fn()} />
+        <RecentChattersPanel id="kick-recent" channelKey="kick:alpha" onClose={vi.fn()} />
+      </>
+    );
+    const [twitchScroller, kickScroller] = screen.getAllByRole("list", { name: "Viewers" });
+
+    twitchScroller.scrollTop = 120;
+    fireEvent.scroll(twitchScroller);
+    kickScroller.scrollTop = 35;
+    fireEvent.scroll(kickScroller);
+
+    expect(twitchScroller.scrollTop).toBe(120);
+    expect(kickScroller.scrollTop).toBe(35);
+  });
+
+  it("returns focus to its trigger when Escape closes it", () => {
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": { viewer: chatter("viewer", "viewer") },
+      },
+    });
+
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Open roster
+          </button>
+          {open ? (
+            <RecentChattersPanel
+              id="recent-chatters-test"
+              channelKey="twitch:alpha"
+              onClose={() => setOpen(false)}
+            />
+          ) : null}
+        </>
+      );
+    }
+
+    render(<Harness />);
+    const trigger = screen.getByRole("button", { name: "Open roster" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    screen.getByRole("button", { name: /viewers/i }).focus();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByLabelText("Recent Chatters")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 
   it("uses prominent high-contrast totals and role headings while rows stay compact", () => {

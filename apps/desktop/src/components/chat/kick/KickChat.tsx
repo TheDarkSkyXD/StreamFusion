@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type React from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { BsChevronDown, BsX } from "react-icons/bs";
 import { toast } from "sonner";
 import { MOD_LOG_QUERY_KEYS } from "@/hooks/mod-log-query-keys";
@@ -40,6 +40,10 @@ import type {
 } from "../../../shared/chat-types";
 import { useAuthStore } from "../../../store/auth-store";
 import { buildChannelKey, useChatStore } from "../../../store/chat-store";
+import {
+  primePersistedChatHistoryIntentAsync,
+  savePersistedChatHistory,
+} from "../../../store/persisted-chat-history";
 import { useEmoteStore } from "../../../store/emote-store";
 import { useModeratedChannelsStore } from "../../../store/moderated-channels-store";
 import { useRoomStateStore } from "../../../store/room-state-store";
@@ -59,13 +63,16 @@ import { StateAwareTimeoutAction } from "../mod/UserPopout/StateAwareTimeoutActi
 import { UserPopoutProvider } from "../mod/UserPopout/UserPopoutProvider";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { PredictionBanner } from "../PredictionBanner";
+import { RecentChattersButton, RecentChattersPanel } from "../RecentChattersPanel";
 import { seedKickChatHistory } from "./kick-chat-history";
 
 export interface KickChatProps {
   /** Channel name (slug) to join */
   channel: string;
-  /** Kick channel's internal db id — required for the v2 /messages history fetch. */
+  /** Kick broadcaster identity used by official APIs and live services. */
   channelId?: string;
+  /** Legacy Kick channel/db ID used only by the recent-message endpoint. */
+  kickChannelId?: string;
   /** Chatroom ID (required for Kick) */
   chatroomId?: number;
   /** Kick broadcaster user_id — used to resolve the channel's 7TV emotes. */
@@ -202,6 +209,7 @@ function createConnectionStatusMessage(
 export const KickChat: React.FC<KickChatProps> = ({
   channel,
   channelId,
+  kickChannelId,
   chatroomId,
   kickUserId,
   subscriberBadges,
@@ -227,6 +235,9 @@ export const KickChat: React.FC<KickChatProps> = ({
   const deleteMessage = useChatStore((state) => state.deleteMessage);
   const deleteMessagesByUser = useChatStore((state) => state.deleteMessagesByUser);
   const channelKey = buildChannelKey("kick", channel);
+  const recentChattersPanelId = useId();
+  const [showRecentChatters, setShowRecentChatters] = useState(false);
+  const [historyStatus, setHistoryStatus] = useState<"idle" | "unavailable">("idle");
 
   // Emote store — actions only; no render-time data needed here.
   const loadGlobalEmotes = useEmoteStore((state) => state.loadGlobalEmotes);
@@ -571,8 +582,17 @@ export const KickChat: React.FC<KickChatProps> = ({
         // Acquire a reference to the service (for multiview support)
         kickChatService.acquire(channel);
 
-        if (channel && chatroomId) {
-          addMessage(createConnectionStatusMessage(channel, "connecting"));
+        if (channel && channelId) {
+          const recentMessagesLimit =
+            useAuthStore.getState().preferences?.chatDisplay?.recentMessagesLimit ??
+            DEFAULT_CHAT_DISPLAY_PREFERENCES.recentMessagesLimit;
+          await primePersistedChatHistoryIntentAsync({
+            platform: "kick",
+            normalizedChannel: channel.toLowerCase(),
+            channelId,
+            limit: recentMessagesLimit,
+          });
+          if (!isMounted) return;
         }
 
         const kickToken = await window.electronAPI.auth.getToken("kick");
@@ -612,9 +632,7 @@ export const KickChat: React.FC<KickChatProps> = ({
 
         if (!isMounted) return;
 
-        // Identify channel ID for emotes (separate from the broadcaster
-        // channelId prop, which is used by the v2 history endpoint).
-        // Use chatroomId if available, otherwise channel slug.
+        // Use chatroomId for emote state when available, otherwise the slug.
         const emoteChannelId = chatroomId ? chatroomId.toString() : channel;
 
         if (isMounted && emoteChannelId) {
@@ -629,13 +647,12 @@ export const KickChat: React.FC<KickChatProps> = ({
         if (!isMounted) return;
 
         if (channel && chatroomId) {
-          // 1. Pull recent chat history into the store FIRST so it sits above
-          //    the live-session markers. The v2 fetch happens before Pusher
-          //    is subscribed (joinChannel below), so there's no race with
-          //    live messages.
-          if (channelId) {
-            await seedKickChatHistory({
-              channelId,
+          // 1. Seed recent history before subscribing to the live feed so the
+          //    first messages users see are in chronological session order.
+          if (kickChannelId) {
+            setHistoryStatus("idle");
+            const result = await seedKickChatHistory({
+              channelId: kickChannelId,
               channel,
               isMounted: () => isMounted,
               prependMessages,
@@ -661,15 +678,12 @@ export const KickChat: React.FC<KickChatProps> = ({
               },
             });
             if (!isMounted) return;
+            setHistoryStatus(result === "unavailable" ? "unavailable" : "idle");
           }
 
-          // 2. Subscribe to Pusher; live messages start flowing after this.
-          //    `channelId` here is the broadcaster's user_id (v2 channel
-          //    `data.id`) — passed to `joinChannel` so the optimistic-echo
-          //    broadcaster-badge synthesis in `sendMessage` can identify the
-          //    broadcaster's own messages. Distinct from chatroomId; if it
-          //    hasn't resolved yet we still join (Pusher receive-only) and
-          //    the badge synth falls back.
+          addMessage(createConnectionStatusMessage(channel, "connecting"));
+
+          // 2. Subscribe to Pusher after history has settled.
           const parsedBroadcasterId = Number(channelId);
           const broadcasterUserId = Number.isFinite(parsedBroadcasterId)
             ? parsedBroadcasterId
@@ -713,6 +727,16 @@ export const KickChat: React.FC<KickChatProps> = ({
       // In single-view: This will trigger shutdown when activeUsers reaches 0
       // In multi-view: Other components keep the service alive
       if (currentChannelRef.current?.channel) {
+        if (channelId) {
+          const releasedChannel = currentChannelRef.current.channel;
+          void savePersistedChatHistory(
+            "kick",
+            releasedChannel,
+            channelId,
+            useChatStore.getState().messagesByChannel[buildChannelKey("kick", releasedChannel)] ??
+              []
+          );
+        }
         // U1 — release the predictions service reference for this channel.
         // Pairs with the acquire() above. Safe to call even if acquire never
         // ran (no-op when the channelId is unknown).
@@ -740,6 +764,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   }, [
     channel,
     channelId,
+    kickChannelId,
     chatroomId,
     kickUserId,
     loadGlobalEmotes,
@@ -972,7 +997,7 @@ export const KickChat: React.FC<KickChatProps> = ({
           : undefined;
         const moderatorUsername = moderatorUser?.username || clear.bannedByUsername?.trim() || "";
         const moderatorUserId = moderatorUser?.userId || moderatorUsername;
-        if (channelId && moderatorUserId && moderatorUsername) {
+        if (isMod && channelId && moderatorUserId && moderatorUsername) {
           const occurredAt = clear.timestamp.getTime();
           void modLogWriter
             .record({
@@ -1140,6 +1165,7 @@ export const KickChat: React.FC<KickChatProps> = ({
     channelKey,
     channel,
     channelId,
+    isMod,
     kickRoomKey,
     kickUser?.id,
     setKickChannelModState,
@@ -1251,6 +1277,14 @@ export const KickChat: React.FC<KickChatProps> = ({
       ) : null}
 
       <div className="flex-1 min-h-0 relative">
+        {historyStatus === "unavailable" ? (
+          <div
+            className="border-b border-[var(--color-border)] px-3 py-1 text-xs text-neutral-400"
+            role="status"
+          >
+            Kick history unavailable; showing session messages
+          </div>
+        ) : null}
         {pinnedMessage && showPinned && (
           <PinnedMessageBanner
             pin={pinnedMessage}
@@ -1350,17 +1384,32 @@ export const KickChat: React.FC<KickChatProps> = ({
           <h2 className="font-semibold flex items-center gap-2">
             <span className="text-white">Chat</span>
           </h2>
+          <RecentChattersButton
+            panelId={recentChattersPanelId}
+            open={showRecentChatters}
+            onClick={() => setShowRecentChatters((open) => !open)}
+          />
         </div>
-        <ChatPanelTabs visibleTabs={visibleTabs}>
-          {{
-            chat: chatBody,
-            modlog: channelId ? (
-              <ModLogTab platform="kick" channelId={channelId} channelSlug={channel} />
-            ) : (
-              <div className="p-4 text-neutral-400">No channel selected.</div>
-            ),
-          }}
-        </ChatPanelTabs>
+        <div className="relative min-h-0 flex-1">
+          <ChatPanelTabs visibleTabs={visibleTabs}>
+            {{
+              chat: chatBody,
+              modlog: channelId ? (
+                <ModLogTab platform="kick" channelId={channelId} channelSlug={channel} />
+              ) : (
+                <div className="p-4 text-neutral-400">No channel selected.</div>
+              ),
+            }}
+          </ChatPanelTabs>
+          {showRecentChatters ? (
+            <RecentChattersPanel
+              key={channelKey}
+              id={recentChattersPanelId}
+              channelKey={channelKey}
+              onClose={() => setShowRecentChatters(false)}
+            />
+          ) : null}
+        </div>
 
         {/* U11/U13 — Generic mod-action confirm dialog for Kick. The pin dialog
          *  stays separate (plan decision #12). Kick has no scope-reconnect

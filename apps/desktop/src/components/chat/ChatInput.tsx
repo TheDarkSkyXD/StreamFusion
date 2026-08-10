@@ -785,6 +785,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const lastSubmittedDraftRef = useRef<SubmittedDraft | null>(null);
     const isSendingRef = useRef(false);
     const previousViewerChatContextRef = useRef("");
+    const previousSubscribersOnlyRef = useRef<{
+      context: string;
+      enabled: boolean;
+    } | null>(null);
     const lastQuickEmoteSendRef = useRef<{
       contextKey: string;
       sentAt: number;
@@ -794,9 +798,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       slowModeQuickEmoteSendTokenByContextRef.current = new Map();
     }
     const slowModeQuickEmoteSendTokenByContext = slowModeQuickEmoteSendTokenByContextRef.current;
-    messageRef.current = message;
-    emoteSlotsRef.current = emoteSlots;
-    cursorPositionRef.current = cursorPosition;
+    useLayoutEffect(() => {
+      messageRef.current = message;
+      emoteSlotsRef.current = emoteSlots;
+      cursorPositionRef.current = cursorPosition;
+    }, [cursorPosition, emoteSlots, message]);
 
     // Signed-in Kick user — needed to attach a sender identity to the optimistic
     // local echo of outbound messages. Kick's web v2 send path delivers the
@@ -829,7 +835,25 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       twitchVerificationRequirementRef.current = null;
       lastSubmittedDraftRef.current = null;
       setTwitchVerificationRequirement(null);
+      setActiveRoomBlocker(null);
+      setActiveBlockerCopy(null);
     }, [viewerChatContext]);
+    useEffect(() => {
+      const previous = previousSubscribersOnlyRef.current;
+      previousSubscribersOnlyRef.current = {
+        context: viewerChatContext,
+        enabled: roomState.subscribersOnly,
+      };
+      if (
+        previous?.context === viewerChatContext &&
+        previous.enabled &&
+        !roomState.subscribersOnly &&
+        activeRoomBlocker === "subscribersOnly"
+      ) {
+        setActiveRoomBlocker(null);
+        setActiveBlockerCopy(null);
+      }
+    }, [activeRoomBlocker, roomState.subscribersOnly, viewerChatContext]);
     useEffect(() => {
       if (platform !== "twitch") return;
 

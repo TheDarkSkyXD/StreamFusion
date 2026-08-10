@@ -36,6 +36,47 @@ const NEW_MESSAGES_DIVIDER_COLOR: Record<ChatPlatform, string> = {
   kick: "#53fc18",
 };
 
+interface ChatScrollerListeners {
+  clearKeyboardScrollIntent: EventListener;
+  clearPointerScrollIntent: EventListener;
+  onMouseEnterChat: EventListener;
+  onMouseLeaveChat: EventListener;
+  onPointerDown: EventListener;
+  onScrollerKeyDown: EventListener;
+  onScrollerScroll: EventListener;
+  onWheelScroll: EventListener;
+}
+
+function addChatScrollerListeners(
+  scroller: HTMLElement,
+  listeners: ChatScrollerListeners
+): void {
+  scroller.addEventListener("wheel", listeners.onWheelScroll, { passive: true });
+  scroller.addEventListener("pointerdown", listeners.onPointerDown, { passive: true });
+  scroller.addEventListener("pointerup", listeners.clearPointerScrollIntent, { passive: true });
+  scroller.addEventListener("pointercancel", listeners.clearPointerScrollIntent, { passive: true });
+  scroller.addEventListener("keydown", listeners.onScrollerKeyDown);
+  scroller.addEventListener("keyup", listeners.clearKeyboardScrollIntent);
+  scroller.addEventListener("scroll", listeners.onScrollerScroll, { passive: true });
+  scroller.addEventListener("mouseenter", listeners.onMouseEnterChat);
+  scroller.addEventListener("mouseleave", listeners.onMouseLeaveChat);
+}
+
+function removeChatScrollerListeners(
+  scroller: HTMLElement,
+  listeners: ChatScrollerListeners
+): void {
+  scroller.removeEventListener("wheel", listeners.onWheelScroll);
+  scroller.removeEventListener("pointerdown", listeners.onPointerDown);
+  scroller.removeEventListener("pointerup", listeners.clearPointerScrollIntent);
+  scroller.removeEventListener("pointercancel", listeners.clearPointerScrollIntent);
+  scroller.removeEventListener("keydown", listeners.onScrollerKeyDown);
+  scroller.removeEventListener("keyup", listeners.clearKeyboardScrollIntent);
+  scroller.removeEventListener("scroll", listeners.onScrollerScroll);
+  scroller.removeEventListener("mouseenter", listeners.onMouseEnterChat);
+  scroller.removeEventListener("mouseleave", listeners.onMouseLeaveChat);
+}
+
 function estimateDefaultItemHeight(chatDisplay: typeof DEFAULT_CHAT_DISPLAY_PREFERENCES): number {
   const lineHeight = chatDisplay.density === "compact" ? chatDisplay.fontSizePx * 1.2 : 22;
   const verticalPadding =
@@ -248,13 +289,13 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
       messages.length > 0 ? firstItemIndex + messages.length - 1 : firstItemIndex
     );
 
-    if (!isPaused) {
-      pausedBaselineLengthRef.current = messages.length;
-    } else if (!wasPausedRef.current) {
-      pausedBaselineLengthRef.current = previousMessageLengthRef.current;
-    }
+    const pausedBaselineLength = !isPaused
+      ? messages.length
+      : !wasPausedRef.current
+        ? previousMessageLengthRef.current
+        : pausedBaselineLengthRef.current;
     const pausedCount = isPaused
-      ? Math.max(0, messages.length - pausedBaselineLengthRef.current)
+      ? Math.max(0, messages.length - pausedBaselineLength)
       : 0;
     const pausedMessageCountLabel =
       pausedCount >= 20
@@ -262,8 +303,11 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
         : pausedCount === 1
           ? "1 new message"
           : `${pausedCount} new messages`;
-    wasPausedRef.current = isPaused;
-    previousMessageLengthRef.current = messages.length;
+    useLayoutEffect(() => {
+      pausedBaselineLengthRef.current = pausedBaselineLength;
+      wasPausedRef.current = isPaused;
+      previousMessageLengthRef.current = messages.length;
+    }, [isPaused, messages.length, pausedBaselineLength]);
 
     useEffect(() => {
       userScrolledUpRef.current = false;
@@ -406,29 +450,23 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
 
     const scrollerCallbackRef = useCallback(
       (el: HTMLElement | Window | null) => {
+        const listeners: ChatScrollerListeners = {
+          clearKeyboardScrollIntent,
+          clearPointerScrollIntent,
+          onMouseEnterChat,
+          onMouseLeaveChat,
+          onPointerDown,
+          onScrollerKeyDown,
+          onScrollerScroll,
+          onWheelScroll,
+        };
         if (scrollerRef.current instanceof HTMLElement) {
-          scrollerRef.current.removeEventListener("wheel", onWheelScroll);
-          scrollerRef.current.removeEventListener("pointerdown", onPointerDown);
-          scrollerRef.current.removeEventListener("pointerup", clearPointerScrollIntent);
-          scrollerRef.current.removeEventListener("pointercancel", clearPointerScrollIntent);
-          scrollerRef.current.removeEventListener("keydown", onScrollerKeyDown);
-          scrollerRef.current.removeEventListener("keyup", clearKeyboardScrollIntent);
-          scrollerRef.current.removeEventListener("scroll", onScrollerScroll);
-          scrollerRef.current.removeEventListener("mouseenter", onMouseEnterChat);
-          scrollerRef.current.removeEventListener("mouseleave", onMouseLeaveChat);
+          removeChatScrollerListeners(scrollerRef.current, listeners);
         }
         if (el instanceof HTMLElement) {
           scrollerRef.current = el;
           previousScrollerScrollTopRef.current = el.scrollTop;
-          el.addEventListener("wheel", onWheelScroll, { passive: true });
-          el.addEventListener("pointerdown", onPointerDown, { passive: true });
-          el.addEventListener("pointerup", clearPointerScrollIntent, { passive: true });
-          el.addEventListener("pointercancel", clearPointerScrollIntent, { passive: true });
-          el.addEventListener("keydown", onScrollerKeyDown);
-          el.addEventListener("keyup", clearKeyboardScrollIntent);
-          el.addEventListener("scroll", onScrollerScroll, { passive: true });
-          el.addEventListener("mouseenter", onMouseEnterChat);
-          el.addEventListener("mouseleave", onMouseLeaveChat);
+          addChatScrollerListeners(el, listeners);
         } else {
           scrollerRef.current = null;
         }

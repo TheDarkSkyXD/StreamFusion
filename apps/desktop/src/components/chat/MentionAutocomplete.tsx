@@ -6,7 +6,7 @@
  */
 
 import type React from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import type { ChatPlatform } from "../../shared/chat-types";
 import { buildChannelKey, useChatStore } from "../../store/chat-store";
@@ -251,13 +251,15 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
     onSelect,
     onClose,
   });
-  latestRef.current = {
-    suggestions: visibleSuggestions,
-    selectedIndex,
-    match,
-    onSelect,
-    onClose,
-  };
+  useLayoutEffect(() => {
+    latestRef.current = {
+      suggestions: visibleSuggestions,
+      selectedIndex,
+      match,
+      onSelect,
+      onClose,
+    };
+  }, [match, onClose, onSelect, selectedIndex, visibleSuggestions]);
 
   // Register keyboard handler exactly once per active session.
   useEffect(() => {

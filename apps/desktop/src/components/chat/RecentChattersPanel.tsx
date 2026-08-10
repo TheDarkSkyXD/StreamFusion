@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type UIEvent,
-} from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BsChevronDown, BsPeople, BsX } from "react-icons/bs";
 
 import type { ChatKnownUser, ChatKnownUserRole } from "../../shared/chat-types";
@@ -73,8 +65,11 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
   const [collapsedRoles, setCollapsedRoles] = useState<ReadonlySet<ChatKnownUserRole>>(
     () => new Set()
   );
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const savedScrollRef = useRef({ channelKey, top: 0 });
+  const roleScrollRefs = useRef<Partial<Record<ChatKnownUserRole, HTMLUListElement | null>>>({});
+  const savedRoleScrollRef = useRef<
+    Partial<Record<ChatKnownUserRole, { channelKey: string; top: number }>>
+  >({});
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const platform = channelKey.startsWith("twitch:") ? "twitch" : "kick";
 
   const groupedChatters = useMemo(() => {
@@ -103,21 +98,20 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
   }, [onClose]);
 
   useLayoutEffect(() => {
-    if (savedScrollRef.current.channelKey !== channelKey) {
-      savedScrollRef.current = { channelKey, top: 0 };
-    }
-    const scroller = scrollContainerRef.current;
-    if (scroller && scroller.scrollTop !== savedScrollRef.current.top) {
-      scroller.scrollTop = savedScrollRef.current.top;
-    }
-  }, [channelKey, chatters]);
+    returnFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => returnFocusRef.current?.focus();
+  }, []);
 
-  const handleScroll = useCallback(
-    (event: UIEvent<HTMLDivElement>) => {
-      savedScrollRef.current = { channelKey, top: event.currentTarget.scrollTop };
-    },
-    [channelKey]
-  );
+  useLayoutEffect(() => {
+    for (const { role } of ROLE_SECTIONS) {
+      const saved = savedRoleScrollRef.current[role];
+      if (saved?.channelKey === channelKey) continue;
+      savedRoleScrollRef.current[role] = { channelKey, top: 0 };
+      const scroller = roleScrollRefs.current[role];
+      if (scroller) scroller.scrollTop = 0;
+    }
+  }, [channelKey]);
 
   const toggleRole = useCallback((role: ChatKnownUserRole) => {
     setCollapsedRoles((current) => {
@@ -134,6 +128,7 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
     <aside
       id={id}
       aria-label="Recent Chatters"
+      onWheel={(event) => event.stopPropagation()}
       className="absolute inset-0 z-20 flex min-h-0 flex-col bg-[#171717]"
     >
       <div className="flex shrink-0 items-center border-b border-[var(--color-border)] px-3 py-2.5">
@@ -157,10 +152,8 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
         </div>
       ) : (
         <div
-          ref={scrollContainerRef}
           aria-label="Recent chatter groups"
-          onScroll={handleScroll}
-          className="min-h-0 flex-1 overflow-y-auto px-2 py-2 [overflow-anchor:none]"
+          className="flex min-h-0 flex-1 flex-col overflow-y-hidden overscroll-y-contain px-2 py-2 [overflow-anchor:none]"
         >
           {ROLE_SECTIONS.map(({ role, label }) => {
             const users = groupedChatters[role];
@@ -169,7 +162,11 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
             const toggleId = `${id}-${role}-toggle`;
             const listId = `${id}-${role}-list`;
             return (
-              <section key={role} aria-labelledby={toggleId} className="mb-3 last:mb-0">
+              <section
+                key={role}
+                aria-labelledby={toggleId}
+                className="mb-3 flex min-h-0 flex-col last:mb-0"
+              >
                 <button
                   id={toggleId}
                   type="button"
@@ -182,6 +179,7 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
                   <span className="flex min-w-0 items-center gap-1.5">
                     <BsChevronDown
                       aria-hidden="true"
+                      strokeWidth={3}
                       className={`size-3.5 shrink-0 transition-transform ${collapsed ? "-rotate-90" : ""}`}
                     />
                     <span className="uppercase tracking-wide">{label}</span>
@@ -190,42 +188,59 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
                     {users.length}
                   </span>
                 </button>
-                <div id={listId} hidden={collapsed}>
-                  <ul className="space-y-0.5">
-                    {users.map((user) => (
-                      <li
-                        key={user.username.toLowerCase()}
-                        className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5"
-                      >
-                        {(user.badges ?? []).some((badge) => Boolean(badge.imageUrl)) ? (
-                          <span className="flex shrink-0 items-center gap-1">
-                            {(user.badges ?? []).map((badge) => (
-                              <ProviderBadge
-                                key={`${badge.setId}:${badge.version}:${badge.imageUrl}`}
-                                badge={badge}
-                                platform={platform}
-                              />
-                            ))}
-                          </span>
-                        ) : null}
-                        <span
-                          className="min-w-0 truncate text-sm"
-                          style={{
-                            color: resolveChatUsernameColor({
-                              color: user.color,
-                              platform,
-                              readableColorForUncolored: chatDisplay.readableColorForUncolored,
-                              themeAdaptUsernameColor: chatDisplay.themeAdaptUsernameColor,
-                              username: user.username,
-                            }),
-                          }}
-                        >
-                          {user.displayName || user.username}
+                <ul
+                  id={listId}
+                  hidden={collapsed}
+                  ref={(element) => {
+                    roleScrollRefs.current[role] = element;
+                    const saved = savedRoleScrollRef.current[role];
+                    if (element && saved?.channelKey === channelKey) {
+                      element.scrollTop = saved.top;
+                    }
+                  }}
+                  aria-label={label}
+                  onScroll={(event) => {
+                    savedRoleScrollRef.current[role] = {
+                      channelKey,
+                      top: event.currentTarget.scrollTop,
+                    };
+                  }}
+                  onWheel={(event) => event.stopPropagation()}
+                  className="min-h-0 max-h-48 space-y-0.5 overflow-y-auto overscroll-y-contain [overflow-anchor:none]"
+                >
+                  {users.map((user) => (
+                    <li
+                      key={user.username.toLowerCase()}
+                      className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5"
+                    >
+                      {(user.badges ?? []).some((badge) => Boolean(badge.imageUrl)) ? (
+                        <span className="flex shrink-0 items-center gap-1">
+                          {(user.badges ?? []).map((badge) => (
+                            <ProviderBadge
+                              key={`${badge.setId}:${badge.version}:${badge.imageUrl}`}
+                              badge={badge}
+                              platform={platform}
+                            />
+                          ))}
                         </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                      ) : null}
+                      <span
+                        className="min-w-0 truncate text-sm"
+                        style={{
+                          color: resolveChatUsernameColor({
+                            color: user.color,
+                            platform,
+                            readableColorForUncolored: chatDisplay.readableColorForUncolored,
+                            themeAdaptUsernameColor: chatDisplay.themeAdaptUsernameColor,
+                            username: user.username,
+                          }),
+                        }}
+                      >
+                        {user.displayName || user.username}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </section>
             );
           })}

@@ -17,6 +17,8 @@ export interface ChatPanelProps {
   chatroomId?: number;
   /** Channel ID for Twitch (string) or Kick (number/string) */
   channelId?: string;
+  /** Kick legacy channel/db ID used by the recent-message endpoint */
+  kickChannelId?: string;
   /** Kick broadcaster user_id (for resolving 7TV channel emotes) */
   kickUserId?: string;
   /** Subscriber badges for Kick (if applicable) */
@@ -33,6 +35,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
   initialChannel = "",
   chatroomId,
   channelId,
+  kickChannelId,
   kickUserId,
   subscriberBadges,
   badgeCatalogState,
@@ -53,6 +56,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
       <KickChat
         channel={initialChannel}
         channelId={channelId}
+        kickChannelId={kickChannelId}
         chatroomId={chatroomId}
         kickUserId={kickUserId}
         subscriberBadges={subscriberBadges}

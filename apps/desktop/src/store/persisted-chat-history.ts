@@ -32,6 +32,7 @@ export const PERSISTED_CHAT_HISTORY_LIMITS = {
 type RestoredEntry = Omit<PersistedChatHistoryEntry, "messages"> & { messages: ChatMessage[] };
 
 let entries = new Map<string, RestoredEntry>();
+let sessionEntries = new Map<string, RestoredEntry>();
 let hydrationPromise: Promise<void> | undefined;
 let hydrated = false;
 let persistQueue = Promise.resolve();
@@ -134,7 +135,7 @@ export async function hydratePersistedChatHistory(): Promise<void> {
         }
       }
       entries = new Map(
-        boundedEntries([...restored.values()], now).map((entry) => [
+        boundedEntries([...restored.values(), ...sessionEntries.values()], now).map((entry) => [
           entryKey(entry.platform, entry.channel, entry.channelId),
           entry,
         ])
@@ -155,9 +156,10 @@ export function getPersistedChatHistory(
   channelId: string
 ): ChatMessage[] | undefined {
   const key = entryKey(platform, channel, channelId);
-  const entry = entries.get(key);
+  const entry = sessionEntries.get(key) ?? entries.get(key);
   if (!entry) return undefined;
   if (!isFresh(entry.savedAt)) {
+    sessionEntries.delete(key);
     entries.delete(key);
     return undefined;
   }
@@ -248,21 +250,29 @@ export function savePersistedChatHistory(
     .map((message) => ({ ...message, isHistorical: true }));
   if (historical.length === 0) return Promise.resolve();
 
+  const key = entryKey(platform, normalizedChannel, normalizedChannelId);
+  const now = Date.now();
+  sessionEntries.delete(key);
+  sessionEntries.set(key, {
+    platform,
+    channel: normalizedChannel,
+    channelId: normalizedChannelId,
+    savedAt: now,
+    messages: historical,
+  });
+  sessionEntries = new Map(
+    boundedEntries([...sessionEntries.values()], now).map((entry) => [
+      entryKey(entry.platform, entry.channel, entry.channelId),
+      entry,
+    ])
+  );
+
   persistQueue = persistQueue
     .catch(() => undefined)
     .then(async () => {
       await hydratePersistedChatHistory();
-      const key = entryKey(platform, normalizedChannel, normalizedChannelId);
       entries.delete(key);
-      const now = Date.now();
-      entries.set(key, {
-        platform,
-        channel: normalizedChannel,
-        channelId: normalizedChannelId,
-        savedAt: now,
-        messages: historical,
-      });
-      const bounded = boundedEntries([...entries.values()], now);
+      const bounded = boundedEntries([...entries.values(), ...sessionEntries.values()]);
       entries = new Map(
         bounded.map((entry) => [entryKey(entry.platform, entry.channel, entry.channelId), entry])
       );
@@ -274,6 +284,7 @@ export function savePersistedChatHistory(
 
 export function resetPersistedChatHistoryForTests(): void {
   entries = new Map();
+  sessionEntries = new Map();
   hydrationPromise = undefined;
   hydrated = false;
   persistQueue = Promise.resolve();

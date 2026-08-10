@@ -313,6 +313,7 @@ describe('chat-store badge rehydration', () => {
   });
 });
 
+// Guards: a batched duplicate is inspected once so high-volume chat does not repeat the full dedupe pass.
 describe('chat-store dedup prefers emote-rich duplicates (Kick optimistic-echo race)', () => {
   beforeEach(() => resetStore());
 
@@ -344,6 +345,38 @@ describe('chat-store dedup prefers emote-rich duplicates (Kick optimistic-echo r
     const msgs = messagesFor(defaultChannelKey('kick'));
     expect(msgs).toHaveLength(1);
     expect(msgs[0].content[0]).toMatchObject({ type: 'emote', name: 'PeepoClap' });
+  });
+
+  it('flushBatch inspects each duplicate message content once', () => {
+    resetStore({ batching: true, interval: 16 });
+    const id = 'race-single-pass';
+    const stored = makeMessage(id, 'kick');
+    const incoming = makeEmoteMessage(id, 'kick');
+    const storedContent = stored.content;
+    const incomingContent = incoming.content;
+    let contentReads = 0;
+
+    Object.defineProperty(stored, 'content', {
+      configurable: true,
+      get: () => {
+        contentReads += 1;
+        return storedContent;
+      },
+    });
+    Object.defineProperty(incoming, 'content', {
+      configurable: true,
+      get: () => {
+        contentReads += 1;
+        return incomingContent;
+      },
+    });
+
+    useChatStore.getState().addMessage(stored);
+    contentReads = 0;
+    useChatStore.getState().addMessageBatched(incoming, defaultChannelKey('kick'));
+    useChatStore.getState().flushBatch(buildChannelKey('kick', 'test'));
+
+    expect(contentReads).toBe(2);
   });
 });
 

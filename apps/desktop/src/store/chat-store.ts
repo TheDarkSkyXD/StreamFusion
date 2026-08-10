@@ -514,47 +514,15 @@ export const useChatStore = create<ChatState>()(
             ? MESSAGE_LIMIT_PAUSED
             : resolveMessageLimit();
 
-          // Dedupe is scoped to the channel's bucket: same id in two different
-          // channels is two distinct messages (matches the addMessage
-          // per-channel dedupe and KickTalk's per-room dedupe). The
-          // within-batch case still matters in multi-view: each chat panel
-          // subscribes to its shared service, so the same inbound message is
-          // enqueued once per mounted panel for THIS channel. Emote-richer
-          // preference resolves the Kick optimistic-echo race.
-          const bucket = state.messagesByChannel[channelKey] ?? [];
-          const idIndex = new Map<string, number>();
-          bucket.forEach((m, i) => idIndex.set(m.id, i));
-          const fresh: ChatMessage[] = [];
-          const bucketReplacements: { index: number; message: ChatMessage }[] = [];
-          for (const m of queued) {
-            const existingIdx = idIndex.get(m.id);
-            if (existingIdx === undefined) {
-              idIndex.set(m.id, bucket.length + fresh.length);
-              fresh.push(m);
-              continue;
-            }
-            const existing =
-              existingIdx < bucket.length
-                ? bucket[existingIdx]
-                : fresh[existingIdx - bucket.length];
-            const newHasEmotes = m.content.some((f) => f.type === "emote");
-            const existingHasEmotes = existing.content.some((f) => f.type === "emote");
-            if (newHasEmotes && !existingHasEmotes) {
-              if (existingIdx < bucket.length) {
-                bucketReplacements.push({ index: existingIdx, message: m });
-              } else {
-                fresh[existingIdx - bucket.length] = m;
-              }
-            }
-          }
-          if (fresh.length === 0 && bucketReplacements.length === 0) return state;
-
+          // Dedupe is scoped to this channel. applyBatchToBucket returns the
+          // original map when every queued message is already represented.
           const nextBuckets = applyBatchToBucket(
             state.messagesByChannel,
             channelKey,
             queued,
             bucketMaxMessages
           );
+          if (nextBuckets === state.messagesByChannel) return state;
 
           return {
             messagesByChannel: nextBuckets,

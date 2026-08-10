@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type React from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { BsChevronDown, BsX } from "react-icons/bs";
 import { toast } from "sonner";
 import { SevenTvCosmeticsClient } from "@/backend/services/chat/seven-tv-cosmetics-client";
@@ -64,6 +64,7 @@ import { StateAwareTimeoutAction } from "../mod/UserPopout/StateAwareTimeoutActi
 import { UserPopoutProvider } from "../mod/UserPopout/UserPopoutProvider";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { PredictionBanner } from "../PredictionBanner";
+import { RecentChattersButton, RecentChattersPanel } from "../RecentChattersPanel";
 import { ModerationFixtureLauncher } from "./ModerationFixtureLauncher";
 import { TwitchPinMessageDialog } from "./TwitchPinMessageDialog";
 import { seedTwitchChatHistory } from "./twitch-chat-history";
@@ -178,6 +179,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   const deleteMessage = useChatStore((state) => state.deleteMessage);
   const deleteMessagesByUser = useChatStore((state) => state.deleteMessagesByUser);
   const channelKey = buildChannelKey("twitch", channel);
+  const recentChattersPanelId = useId();
+  const [showRecentChatters, setShowRecentChatters] = useState(false);
   const [badgeCatalogStatus, setBadgeCatalogStatus] = useState<"loading" | "ready" | "failed">(
     "loading"
   );
@@ -1634,22 +1637,37 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           <h2 className="font-semibold flex items-center gap-2">
             <span className="text-white">Chat</span>
           </h2>
+          <RecentChattersButton
+            panelId={recentChattersPanelId}
+            open={showRecentChatters}
+            onClick={() => setShowRecentChatters((open) => !open)}
+          />
         </div>
-        <ChatPanelTabs visibleTabs={visibleTabs}>
-          {{
-            chat: chatBody,
-            modlog: channelId ? (
-              <ModLogTab platform="twitch" channelId={channelId} channelSlug={channel} />
-            ) : (
-              <div className="p-4 text-neutral-400">No channel selected.</div>
-            ),
-            engagement: channelId ? (
-              <EngagementTab channelId={channelId} />
-            ) : (
-              <div className="p-4 text-neutral-400">No channel selected.</div>
-            ),
-          }}
-        </ChatPanelTabs>
+        <div className="relative min-h-0 flex-1">
+          <ChatPanelTabs visibleTabs={visibleTabs}>
+            {{
+              chat: chatBody,
+              modlog: channelId ? (
+                <ModLogTab platform="twitch" channelId={channelId} channelSlug={channel} />
+              ) : (
+                <div className="p-4 text-neutral-400">No channel selected.</div>
+              ),
+              engagement: channelId ? (
+                <EngagementTab channelId={channelId} />
+              ) : (
+                <div className="p-4 text-neutral-400">No channel selected.</div>
+              ),
+            }}
+          </ChatPanelTabs>
+          {showRecentChatters ? (
+            <RecentChattersPanel
+              key={channelKey}
+              id={recentChattersPanelId}
+              channelKey={channelKey}
+              onClose={() => setShowRecentChatters(false)}
+            />
+          ) : null}
+        </div>
 
         {/* U11/U13/U15 — Generic mod-action confirm dialog. Branches on the
          *  pendingModAction `kind` so message-scoped actions (Timeout/Ban/...) and

@@ -3,6 +3,7 @@ import { ipcMain } from "electron";
 import { logger } from "@/backend/logging/logger";
 import { badgeResolver } from "@/backend/services/chat/badge-resolver";
 import { storageService } from "@/backend/services/storage-service";
+import { TWITCH_APP_CLIENT_ID } from "@/shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 
 interface MentionUserLookup {
@@ -143,18 +144,18 @@ async function fetchTwitchPinnedMessage(channel: string): Promise<unknown | null
 
 export function registerChatHandlers(): void {
   /**
-   * Fetch the v2 chat-history page for a Kick channel. The renderer uses this
+   * Fetch recent chat history for a Kick channel. The renderer uses this
    * on join to seed the chat with messages that landed before we connected,
    * matching the official site's behaviour.
    */
   ipcMain.handle(
     IPC_CHANNELS.CHAT_GET_KICK_HISTORY,
-    async (_event, params: { channelId: string }) => {
+    async (_event, params: { channelId: string; channelSlug: string }) => {
       try {
         const { getKickChannelHistory } = await import(
           "../../api/platforms/kick/endpoints/chat-endpoints"
         );
-        const history = await getKickChannelHistory(params.channelId);
+        const history = await getKickChannelHistory(params.channelId, params.channelSlug);
         return { success: true, data: history };
       } catch (error) {
         logger.error("IPC:Chat", "getKickChannelHistory failed", {
@@ -225,12 +226,11 @@ export function registerChatHandlers(): void {
         ? null
         : storageService.getAppToken("twitch");
       const accessToken = userToken?.accessToken || appToken?.accessToken || "";
-      const clientId = process.env.TWITCH_CLIENT_ID?.trim() ?? "";
       const catalog = await badgeResolver.loadBadgeCatalog(
         broadcasterId,
         channelLogin,
         accessToken,
-        clientId,
+        TWITCH_APP_CLIENT_ID,
         {
           forceRefresh:
             "forceRefresh" in params && typeof params.forceRefresh === "boolean"

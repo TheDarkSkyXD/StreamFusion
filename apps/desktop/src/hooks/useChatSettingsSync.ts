@@ -306,8 +306,8 @@ async function fetchPatchFor(
   if (platform === "twitch") {
     // Helix /chat/settings requires a Bearer token AND the Client-Id of the
     // app that minted it — Twitch returns 401 if they don't match. The
-    // VITE_-prefixed copy of TWITCH_CLIENT_ID is the only client_id the
-    // renderer can read; without it we can't make a well-formed Helix call.
+    // The renderer delegates this call to main so neither credential needs
+    // renderer-side build configuration.
     const result = await window.electronAPI.twitch.execute({
       operation: "get-chat-settings",
       broadcasterId: channelId,

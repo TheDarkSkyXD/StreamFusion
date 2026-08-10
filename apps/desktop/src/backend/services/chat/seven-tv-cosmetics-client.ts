@@ -21,7 +21,7 @@ export class SevenTvCosmeticsClient {
   private socket: WebSocket | null = null;
   private active = false;
   private reconnectTimer: symbol | null = null;
-  private heartbeatTimer: symbol | null = null;
+  private heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatIntervalMs: number | null = null;
   private connectionId = 0;
 
@@ -119,13 +119,15 @@ export class SevenTvCosmeticsClient {
   private resetHeartbeatTimer(connectionId: number): void {
     this.clearHeartbeatTimer();
     if (this.heartbeatIntervalMs === null) return;
-    const timer = Symbol("7tv-heartbeat");
     const delayMs = this.heartbeatIntervalMs * 3;
-    this.heartbeatTimer = timer;
-    void this.runHeartbeatDeadline(connectionId, timer, delayMs);
+    this.heartbeatTimer = setTimeout(() => {
+      this.heartbeatTimer = null;
+      this.replaceSocket(connectionId);
+    }, delayMs);
   }
 
   private clearHeartbeatTimer(): void {
+    if (this.heartbeatTimer !== null) clearTimeout(this.heartbeatTimer);
     this.heartbeatTimer = null;
   }
 
@@ -139,17 +141,6 @@ export class SevenTvCosmeticsClient {
     const timer = Symbol("7tv-reconnect");
     this.reconnectTimer = timer;
     void this.runReconnectDeadline(timer);
-  }
-
-  private async runHeartbeatDeadline(
-    connectionId: number,
-    timer: symbol,
-    delayMs: number
-  ): Promise<void> {
-    await sleep(delayMs);
-    if (this.heartbeatTimer !== timer) return;
-    this.heartbeatTimer = null;
-    this.replaceSocket(connectionId);
   }
 
   private async runReconnectDeadline(timer: symbol): Promise<void> {

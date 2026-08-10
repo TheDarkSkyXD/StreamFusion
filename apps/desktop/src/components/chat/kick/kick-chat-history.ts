@@ -6,9 +6,8 @@
  *
  * Why a module function and not a component or a hook:
  * - There's no UI to render — this is pure side-effect coordination.
- * - The fetch is fire-and-forget from KickChat: it runs in the background
- *   after the live Pusher subscription is up, then prepends history into the
- *   store so the live feed isn't disrupted by the latency of the v2 fetch.
+ * - KickChat awaits the fetch before subscribing to the live feed so history
+ *   is inserted before live messages and connection markers.
  *
  * Why messages get an `isHistorical: true` flag:
  *   so the renderer can dim them (opacity 0.6) and the user can visually tell
@@ -50,12 +49,16 @@ export interface SeedKickChatHistoryParams {
   onParsedMessages?: (messages: ChatMessage[]) => void;
 }
 
+export type KickChatHistoryResult = "loaded" | "empty" | "unavailable" | "disabled" | "cancelled";
+
 /**
  * Fetch + parse history for `channelId` and prepend it to the chat store.
  * Best-effort: any Cloudflare challenge / network failure resolves to a no-op
  * rather than throwing, so the caller can fall back to live-only.
  */
-export async function seedKickChatHistory(params: SeedKickChatHistoryParams): Promise<void> {
+export async function seedKickChatHistory(
+  params: SeedKickChatHistoryParams
+): Promise<KickChatHistoryResult> {
   const {
     channelId,
     channel,
@@ -77,9 +80,9 @@ export async function seedKickChatHistory(params: SeedKickChatHistoryParams): Pr
       : DEFAULT_CHAT_DISPLAY_PREFERENCES.recentMessagesLimit;
 
   try {
-    const result = await window.electronAPI.chat.getKickHistory({ channelId });
-    if (!isMounted()) return;
-    if (!result.success || !result.data) return;
+    const result = await window.electronAPI.chat.getKickHistory({ channelId, channelSlug: channel });
+    if (!isMounted()) return "cancelled";
+    if (!result.success || !result.data) return "unavailable";
 
     const { messages: rawMessages, pinnedMessage: rawPinned } = result.data;
 
@@ -109,7 +112,7 @@ export async function seedKickChatHistory(params: SeedKickChatHistoryParams): Pr
     }
 
     if (seedRecent && rawMessages.length > 0) {
-      // v2 returns newest-first; reverse so the prepended block lands in
+      // Kick returns newest-first; reverse so the prepended block lands in
       // chronological order (oldest at the top, newest just above the
       // already-stored Connecting/live entries). Cap to the most-recent
       // `limit` entries — slice the head of the newest-first array before
@@ -128,9 +131,12 @@ export async function seedKickChatHistory(params: SeedKickChatHistoryParams): Pr
     if (rawPinned) {
       onPinnedMessage(kickPinToNormalized(rawPinned as KickPinnedMessage));
     }
+    if (!seedRecent) return "disabled";
+    return rawMessages.length > 0 ? "loaded" : "empty";
   } catch (error) {
     logger.debug("UI:Chat:KickHistory", "seed failed", {
       error: error instanceof Error ? error.message : String(error),
     });
+    return "unavailable";
   }
 }

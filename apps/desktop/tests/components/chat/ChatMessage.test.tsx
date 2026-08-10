@@ -100,7 +100,7 @@ function setTwitchViewer(login = "darkskyfullofstars", displayName = "DarkSkyFul
 // Guards: pin-message tooltip uses Twitch's top-end placement while keeping text left-aligned
 // Guards: username hover keeps the message row background off while the username keeps its own Twitch hover state
 // Guards: chat row hover highlighting respects the saved smooth-hover preference without overriding reduced-motion users
-// Guards: parsed Twitch reply metadata renders the inline "Replying to @user" context above the child message
+// Guards: parsed Twitch reply metadata renders inline context without crashing when its body or author fields have malformed runtime types
 // Guards: long usernames keep the regular-message colon in the same wrap group as the name.
 // Guards: Twitch /me action messages keep visual space between username and action text.
 describe("ChatMessage", () => {
@@ -738,6 +738,46 @@ describe("ChatMessage", () => {
     );
     expect(preview.querySelectorAll("path")[1]?.getAttribute("d")).toBe(
       "m12 22-3-3H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4l-3 3Zm-2.172-5L12 19.172 14.172 17H19V5H5v12h4.828Z"
+    );
+  });
+
+  it("renders reply metadata without crashing when the parent message body is not a string", () => {
+    render(
+      <ChatMessage
+        message={baseMessage({
+          replyTo: {
+            parentMessageId: "parent-1",
+            parentUserId: "bot-1",
+            parentUsername: "fossabot",
+            parentDisplayName: "Fossabot",
+            parentMessageBody: { text: "unexpected payload" } as unknown as string,
+          },
+        })}
+      />
+    );
+
+    expect(screen.getByTestId("chat-message-reply-preview")).toHaveTextContent(
+      "Replying to @Fossabot"
+    );
+  });
+
+  it("renders an unknown reply author when the parent display fields are not strings", () => {
+    render(
+      <ChatMessage
+        message={baseMessage({
+          replyTo: {
+            parentMessageId: "parent-1",
+            parentUserId: "bot-1",
+            parentUsername: { login: "unexpected" } as unknown as string,
+            parentDisplayName: ["unexpected"] as unknown as string,
+            parentMessageBody: "valid body",
+          },
+        })}
+      />
+    );
+
+    expect(screen.getByTestId("chat-message-reply-preview")).toHaveTextContent(
+      "Replying to @unknown: valid body"
     );
   });
 });

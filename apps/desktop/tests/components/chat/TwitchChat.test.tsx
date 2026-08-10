@@ -2,7 +2,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
-import type { ChatMessage, NormalizedPinnedMessage } from "@/shared/chat-types";
+import type { ChatKnownUser, ChatMessage, NormalizedPinnedMessage } from "@/shared/chat-types";
 import { installElectronAPIMock, renderWithProviders as render } from "../../test-utils";
 
 // U11 — capture the latest ChatMessageList props so tests can simulate a
@@ -231,6 +231,8 @@ const storeState = {
     kick: { platform: "kick", state: "disconnected", channels: [], isAuthenticated: false },
   },
   messagesByChannel: {} as Record<string, ChatMessage[]>,
+  usersByChannel: {} as Record<string, Record<string, ChatKnownUser>>,
+  chatterCountByChannel: {} as Record<string, number>,
   clearMessages: vi.fn(),
   setPaused: vi.fn(),
   addMessage: vi.fn(),
@@ -440,6 +442,8 @@ describe("TwitchChat", () => {
     mockAuthState.twitchConnected = false;
     mockAuthState.twitchReconnectRequired = false;
     storeState.messagesByChannel = {};
+    storeState.usersByChannel = {};
+    storeState.chatterCountByChannel = {};
     chatInputProps.canSend = undefined;
     chatInputProps.viewerUserId = undefined;
     lastListProps.onBan = undefined;
@@ -538,6 +542,29 @@ describe("TwitchChat", () => {
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     expect(screen.getByTestId("message-list")).toBeInTheDocument();
     expect(screen.getByTestId("chat-input")).toBeInTheDocument();
+  });
+
+  it("opens Recent Chatters over the live chat without unmounting it", () => {
+    storeState.usersByChannel = {
+      "twitch:ninja": {
+        chatter: {
+          userId: "1",
+          username: "chatter",
+          displayName: "Chatter",
+          color: "#9146ff",
+          role: "subscriber",
+          badges: [],
+          lastSeen: new Date(),
+        },
+      },
+    };
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show recent chatters" }));
+
+    expect(screen.getByRole("heading", { name: "Recent Chatters" })).toBeInTheDocument();
+    expect(screen.getByText("Chatter")).toBeInTheDocument();
+    expect(screen.getByTestId("message-list")).toBeInTheDocument();
   });
 
   it("occludes the message scroller behind the full composer footer", () => {

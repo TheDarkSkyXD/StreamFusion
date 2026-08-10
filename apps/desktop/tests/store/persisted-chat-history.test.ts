@@ -44,6 +44,35 @@ beforeEach(() => {
 
 // Guards: cached history is restored only for the exact platform, normalized channel, and internal channel id, with timestamps revived as Dates.
 describe("persisted chat history", () => {
+  it("primes an immediate return before the asynchronous disk save completes", async () => {
+    let resolveStored!: (value: null) => void;
+    api.store.get = vi.fn(
+      () =>
+        new Promise<null>((resolve) => {
+          resolveStored = resolve;
+        })
+    );
+    api.store.set = vi.fn(async () => undefined);
+
+    const save = savePersistedChatHistory("kick", "xqc", "411439", [makeMessage("just-seen")]);
+
+    expect(
+      primePersistedChatHistoryIntent({
+        platform: "kick",
+        normalizedChannel: "xqc",
+        channelId: "411439",
+        limit: 50,
+      })
+    ).toBe(true);
+    expect(useChatStore.getState().messagesByChannel[buildChannelKey("kick", "xqc")]).toEqual([
+      expect.objectContaining({ id: "just-seen", isHistorical: true }),
+    ]);
+
+    await vi.waitFor(() => expect(api.store.get).toHaveBeenCalledTimes(1));
+    resolveStored(null);
+    await save;
+  });
+
   it("hydrates an exact Kick channel with Date timestamps", async () => {
     const message = makeMessage("cached-1");
     api.store.get = vi.fn(async () => ({

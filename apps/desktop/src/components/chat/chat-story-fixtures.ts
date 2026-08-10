@@ -276,6 +276,8 @@ function knownUsers(messages: ChatMessage[]): Record<string, ChatKnownUser> {
         displayName: message.displayName,
         color: message.color,
         avatarUrl: message.avatarUrl,
+        role: "viewer",
+        badges: message.badges,
         lastSeen: message.timestamp,
       },
     ])

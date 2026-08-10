@@ -301,6 +301,7 @@ class MockWebSocket {
 // Guards: every socket subscribes cosmetics and entitlements to the requested Twitch channel.
 // Guards: heartbeat loss and socket errors reconnect with bounded delays instead of leaving cosmetics stale or entering a tight loop.
 // Guards: retired sockets and explicit disconnects cannot create duplicate or zombie reconnects.
+// Guards: repeated server frames replace the heartbeat deadline instead of retaining superseded timers.
 describe("SevenTvCosmeticsClient lifecycle", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -373,6 +374,22 @@ describe("SevenTvCosmeticsClient lifecycle", () => {
     expect(MockWebSocket.instances).toHaveLength(2);
 
     client.disconnect();
+  });
+
+  it("keeps one heartbeat deadline while server frames continue", () => {
+    const client = new SevenTvCosmeticsClient("12345", () => undefined);
+    client.connect();
+    const socket = MockWebSocket.instances[0];
+    socket.open();
+    socket.message({ op: 1, d: { heartbeat_interval: 100 } });
+
+    for (let index = 0; index < 100; index += 1) {
+      socket.message({ op: 2, d: { index } });
+    }
+
+    expect(vi.getTimerCount()).toBe(1);
+    client.disconnect();
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("cancels an armed liveness deadline on explicit disconnect", async () => {

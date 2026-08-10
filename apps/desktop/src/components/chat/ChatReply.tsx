@@ -7,7 +7,8 @@ const REPLY_BUBBLE_PATHS = [
   "m12 22-3-3H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4l-3 3Zm-2.172-5L12 19.172 14.172 17H19V5H5v12h4.828Z",
 ] as const;
 
-function formatReplyUser(username: string): string {
+function formatReplyUser(username: unknown): string {
+  if (typeof username !== "string") return "@unknown";
   const trimmed = username.trim();
   if (!trimmed) return "@unknown";
   return trimmed.startsWith("@") ? trimmed : `@${trimmed}`;
@@ -31,8 +32,12 @@ function TwitchReplyBubbleIcon({ className }: { className?: string }) {
 }
 
 export function ChatMessageReplyPreview({ reply }: { reply: ReplyInfo }) {
-  const displayName = reply.parentDisplayName || reply.parentUsername;
-  const body = reply.parentMessageBody.trim();
+  const displayName =
+    typeof reply.parentDisplayName === "string" && reply.parentDisplayName
+      ? reply.parentDisplayName
+      : reply.parentUsername;
+  const body =
+    typeof reply.parentMessageBody === "string" ? reply.parentMessageBody.trim() : "";
 
   return (
     <div
