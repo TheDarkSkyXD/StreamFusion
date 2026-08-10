@@ -320,6 +320,16 @@ describe("KickClient", () => {
       expect(result).toEqual({ result: "recovered" });
     });
 
+    // Guards: transient HTTP 500 responses retry so Kick follow metadata batches survive brief upstream outages.
+    it("retries a transient 500 server error", async () => {
+      mockFetch
+        .mockResolvedValueOnce(jsonResponse({}, 500))
+        .mockResolvedValueOnce(jsonResponse({ result: "recovered" }));
+
+      await expect(kickClient.request("/channels")).resolves.toEqual({ result: "recovered" });
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
     it("throws on 403 without retry", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({}, 403));
 

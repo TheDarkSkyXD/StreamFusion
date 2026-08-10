@@ -493,12 +493,8 @@ class KickClient implements KickRequestor, IPlatformReader {
             continue;
           }
 
-          // Handle transient server errors (502, 503, 504) with retry
-          if (
-            response.statusCode === 502 ||
-            response.statusCode === 503 ||
-            response.statusCode === 504
-          ) {
+          // Handle transient server errors (500-504) with retry
+          if (response.statusCode >= 500 && response.statusCode <= 504) {
             attempt++;
             if (attempt > maxRetries) {
               throw new Error(`Kick API error: ${response.statusCode} (Max retries exceeded)`);

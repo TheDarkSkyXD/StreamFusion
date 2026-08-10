@@ -53,6 +53,7 @@ function spyNetRequest(
 }
 
 // Guards: authenticated Helix calls go directly from Electron main to Twitch with main-owned credentials.
+// Guards: transient HTTP 500 responses retry so followed-channel pagination survives brief Twitch outages.
 describe("TwitchRequestor", () => {
   let requestor: TwitchRequestor;
 
@@ -179,6 +180,19 @@ describe("TwitchRequestor", () => {
       expect(sleep).toHaveBeenCalledTimes(2);
       expect(sleep).toHaveBeenNthCalledWith(1, 1000);
       expect(sleep).toHaveBeenNthCalledWith(2, 2000);
+    });
+
+    it("retries a transient 500 response", async () => {
+      const { sleep } = await import("@/lib/sleep");
+      const spy = spyNetRequest(requestor, async () =>
+        spy.mock.calls.length === 1
+          ? { data: {}, status: 500, headers: {} }
+          : { data: { ok: true }, status: 200, headers: {} }
+      );
+
+      await expect(requestor.request("/channels/followed")).resolves.toEqual({ ok: true });
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(sleep).toHaveBeenCalledWith(1000);
     });
 
     it("throws after exhausting retries on server errors", async () => {

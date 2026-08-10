@@ -170,8 +170,8 @@ export class TwitchRequestor {
           throw new Error("Authentication failed");
         }
 
-        // Retry on transient server errors (502, 503, 504)
-        if (response.status >= 502 && response.status <= 504) {
+        // Retry on transient server errors (500-504)
+        if (response.status >= 500 && response.status <= 504) {
           if (attempt < this.MAX_RETRIES) {
             const delay = this.BASE_DELAY * 2 ** attempt;
             logger.warn("Twitch:Requestor", "Twitch API server error, retrying", {
