@@ -93,7 +93,7 @@ beforeEach(() => {
   toastSuccess.mockReset();
 });
 
-// Guards: Player controls expose searchable, accessible whole-second seek intervals for VODs and clips only.
+// Guards: Player controls expose searchable, accessible preset seek intervals plus a whole-second Custom option for VODs and clips only.
 // Guards: rewind and fast-forward values persist independently through the real seek interval store.
 describe("Settings seek intervals", () => {
   it("exposes both Xtra-style controls and filters them through Settings search", async () => {
@@ -106,27 +106,24 @@ describe("Settings seek intervals", () => {
     expect(
       screen.getByText("Seek intervals apply to VODs and clips. Live streams are unaffected.")
     ).toBeInTheDocument();
-    expect(screen.queryByRole("spinbutton", { name: "Fast forward" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Fast forward" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Clear search" }));
 
     const controls = [
       {
-        input: screen.getByRole("spinbutton", { name: "Rewind" }),
+        input: screen.getByRole("combobox", { name: "Rewind" }),
         description: "Seconds skipped backward in VODs and clips.",
       },
       {
-        input: screen.getByRole("spinbutton", { name: "Fast forward" }),
+        input: screen.getByRole("combobox", { name: "Fast forward" }),
         description: "Seconds skipped forward in VODs and clips.",
       },
     ];
 
     for (const { input, description } of controls) {
-      expect(input).toHaveValue(DEFAULT_SEEK_INTERVAL_SECONDS);
+      expect(input).toHaveTextContent(`${DEFAULT_SEEK_INTERVAL_SECONDS} seconds`);
       expect(input).toHaveAccessibleDescription(description);
-      expect(input).toHaveAttribute("min", "0");
-      expect(input).toHaveAttribute("step", "1");
-      expect(input).not.toHaveAttribute("max");
       input.focus();
       expect(input).toHaveFocus();
     }
@@ -138,7 +135,9 @@ describe("Settings seek intervals", () => {
     renderWithProviders(<SettingsPage />);
     await user.click(screen.getByText("Player controls"));
 
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Rewind" }), {
+    await user.click(screen.getByRole("combobox", { name: "Rewind" }));
+    await user.click(screen.getByRole("option", { name: "Custom" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Rewind custom seconds" }), {
       target: { value: "0" },
     });
 
@@ -149,9 +148,8 @@ describe("Settings seek intervals", () => {
       forwardSeconds: 25,
     });
 
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Fast forward" }), {
-      target: { value: "30" },
-    });
+    await user.click(screen.getByRole("combobox", { name: "Fast forward" }));
+    await user.click(screen.getByRole("option", { name: "30 seconds" }));
 
     expect(useSeekIntervalStore.getState().rewindSeconds).toBe(0);
     expect(useSeekIntervalStore.getState().forwardSeconds).toBe(30);

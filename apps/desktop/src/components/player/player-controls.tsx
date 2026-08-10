@@ -162,19 +162,25 @@ export function PlayerControls(props: PlayerControlsProps) {
 
   const [isVisible, setIsVisible] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isPointerInsideRef = useRef(false);
   const isHoveringControlsRef = useRef(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const isLive = !duration || duration === Infinity;
 
   const hideTimer = useManagedTimeout(() => setIsVisible(false));
 
   // Start idle timeout
   const startIdleTimeout = useCallback(() => {
+    if (!isLive && isPointerInsideRef.current) {
+      hideTimer.clear();
+      return;
+    }
     if (isPlaying && !isSettingsOpen) {
       hideTimer.start(isHoveringControlsRef.current ? 3000 : 1000);
     } else {
       hideTimer.clear();
     }
-  }, [isPlaying, isSettingsOpen, hideTimer]);
+  }, [isLive, isPlaying, isSettingsOpen, hideTimer]);
 
   // Handle mouse move anywhere on the overlay
   const handleMouseMove = useCallback(() => {
@@ -184,6 +190,7 @@ export function PlayerControls(props: PlayerControlsProps) {
 
   // Handle mouse leaving the player area (200ms quick hide)
   const handleMouseLeave = useCallback(() => {
+    isPointerInsideRef.current = false;
     if (isPlaying && !isSettingsOpen) {
       hideTimer.start(200);
     } else {
@@ -193,6 +200,7 @@ export function PlayerControls(props: PlayerControlsProps) {
 
   // Handle mouse entering the player area
   const handleMouseEnter = useCallback(() => {
+    isPointerInsideRef.current = true;
     setIsVisible(true);
     startIdleTimeout();
   }, [startIdleTimeout]);
@@ -234,8 +242,6 @@ export function PlayerControls(props: PlayerControlsProps) {
       startIdleTimeout();
     }
   }, [isPlaying, hideTimer, startIdleTimeout]);
-
-  const isLive = !duration || duration === Infinity;
 
   return (
     /* Parent Overlay - Handles Mouse Tracking & Video Clicks */

@@ -117,6 +117,73 @@ const SETTINGS_TABS = [
 // default tab.
 const DEV_ONLY_TABS = new Set<(typeof SETTINGS_TABS)[number]>(["logs", "report-bug"]);
 const HOME_CAROUSEL_INTERVAL_STEP_SECONDS = 5;
+const SEEK_INTERVAL_OPTIONS = [5, 10, 20, 30, 40, 50, 60, 70, 80, 90] as const;
+
+interface SeekIntervalSelectProps {
+  id: string;
+  descriptionId: string;
+  value: number;
+  onChange: (seconds: number) => void;
+}
+
+function SeekIntervalSelect({ id, descriptionId, value, onChange }: SeekIntervalSelectProps) {
+  const [isCustom, setIsCustom] = useState(
+    () => !SEEK_INTERVAL_OPTIONS.includes(value as (typeof SEEK_INTERVAL_OPTIONS)[number])
+  );
+  const selectedValue = isCustom ? "custom" : String(value);
+
+  return (
+    <div className="flex items-center gap-2">
+      <Select
+        value={selectedValue}
+        onValueChange={(nextValue) => {
+          if (nextValue === "custom") {
+            setIsCustom(true);
+            return;
+          }
+          setIsCustom(false);
+          onChange(Number(nextValue));
+        }}
+      >
+        <SelectTrigger
+          aria-describedby={descriptionId}
+          aria-label={id === "rewind-seconds" ? "Rewind" : "Fast forward"}
+          className="h-10 w-32"
+          id={id}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {SEEK_INTERVAL_OPTIONS.map((seconds) => (
+            <SelectItem key={seconds} value={String(seconds)}>
+              {seconds} seconds
+            </SelectItem>
+          ))}
+          <SelectItem value="custom">Custom</SelectItem>
+        </SelectContent>
+      </Select>
+      {isCustom && (
+        <div className="flex items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-background-tertiary)] pr-3 text-sm text-[var(--color-foreground-muted)] focus-within:ring-2 focus-within:ring-[var(--color-ring)]">
+          <input
+            aria-describedby={descriptionId}
+            aria-label={`${id === "rewind-seconds" ? "Rewind" : "Fast forward"} custom seconds`}
+            className="h-10 w-20 rounded-l-lg bg-transparent px-3 text-right tabular-nums text-[var(--color-foreground)] outline-none"
+            inputMode="numeric"
+            min={0}
+            onChange={(event) => {
+              const seconds = event.currentTarget.valueAsNumber;
+              if (Number.isSafeInteger(seconds) && seconds >= 0) onChange(seconds);
+            }}
+            step={1}
+            type="number"
+            value={value}
+          />
+          sec
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Numeric buffer controls surfaced in Settings → Buffer (U10). Each maps to one
 // BufferPreferences number field; ranges keep values in HLS.js-sane bounds.
@@ -1671,25 +1738,15 @@ export function SettingsPage() {
                                 Seconds skipped backward in VODs and clips.
                               </p>
                             </div>
-                            <div className="flex items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-background-tertiary)] pr-3 text-sm text-[var(--color-foreground-muted)] focus-within:ring-2 focus-within:ring-[var(--color-ring)]">
-                              <input
-                                aria-describedby="rewind-seconds-description"
-                                className="h-10 w-20 rounded-l-lg bg-transparent px-3 text-right tabular-nums text-[var(--color-foreground)] outline-none"
-                                id="rewind-seconds"
-                                inputMode="numeric"
-                                min={0}
-                                onChange={(event) => {
-                                  const seconds = event.currentTarget.valueAsNumber;
-                                  if (!Number.isSafeInteger(seconds) || seconds < 0) return;
-                                  setRewindSeconds(seconds);
-                                  notifySettingsSaved();
-                                }}
-                                step={1}
-                                type="number"
-                                value={rewindSeconds}
-                              />
-                              sec
-                            </div>
+                            <SeekIntervalSelect
+                              descriptionId="rewind-seconds-description"
+                              id="rewind-seconds"
+                              value={rewindSeconds}
+                              onChange={(seconds) => {
+                                setRewindSeconds(seconds);
+                                notifySettingsSaved();
+                              }}
+                            />
                           </div>
                         )}
 
@@ -1709,25 +1766,15 @@ export function SettingsPage() {
                                 Seconds skipped forward in VODs and clips.
                               </p>
                             </div>
-                            <div className="flex items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-background-tertiary)] pr-3 text-sm text-[var(--color-foreground-muted)] focus-within:ring-2 focus-within:ring-[var(--color-ring)]">
-                              <input
-                                aria-describedby="fast-forward-seconds-description"
-                                className="h-10 w-20 rounded-l-lg bg-transparent px-3 text-right tabular-nums text-[var(--color-foreground)] outline-none"
-                                id="fast-forward-seconds"
-                                inputMode="numeric"
-                                min={0}
-                                onChange={(event) => {
-                                  const seconds = event.currentTarget.valueAsNumber;
-                                  if (!Number.isSafeInteger(seconds) || seconds < 0) return;
-                                  setForwardSeconds(seconds);
-                                  notifySettingsSaved();
-                                }}
-                                step={1}
-                                type="number"
-                                value={forwardSeconds}
-                              />
-                              sec
-                            </div>
+                            <SeekIntervalSelect
+                              descriptionId="fast-forward-seconds-description"
+                              id="fast-forward-seconds"
+                              value={forwardSeconds}
+                              onChange={(seconds) => {
+                                setForwardSeconds(seconds);
+                                notifySettingsSaved();
+                              }}
+                            />
                           </div>
                         )}
                       </div>
