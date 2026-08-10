@@ -21,7 +21,7 @@
 
 ## 🛠 Tech Stack
 
-StreamFusion is built as a monorepo using **npm workspaces**, leveraging a powerful modern stack:
+StreamFusion is built as a **pnpm workspace**, leveraging a powerful modern stack:
 
 - **Core Framework**: [Electron](https://www.electronjs.org/) & [React](https://reactjs.org/)
 - **Build Tooling**: [Vite](https://vitejs.dev/) & [Electron-Vite](https://electron-vite.org/)
@@ -40,10 +40,11 @@ This project is organized as a monorepo:
 ```bash
 StreamFusion/
 ├── apps/
-│   ├── desktop/       # Main Electron application source code
-
-├── packages/          # Shared internal packages (if any)
-└── package.json       # Root configuration and workspace definitions
+│   ├── desktop/        # Main Electron application source code
+│   └── worker/         # Cloudflare Worker used by the desktop app
+├── pnpm-workspace.yaml # Workspace and dependency-security policy
+├── pnpm-lock.yaml      # Sole dependency lockfile
+└── package.json        # Root scripts and package-manager pin
 ```
 
 ## 🚀 Getting Started
@@ -52,8 +53,8 @@ StreamFusion/
 
 Ensure you have the following installed:
 
-- **Node.js** (v18.18 or higher recommended)
-- **npm** (comes with Node.js)
+- **Node.js** (v22 or later)
+- **Corepack** (included with supported Node.js releases)
 - **Git**
 
 ### Installation
@@ -66,8 +67,14 @@ Ensure you have the following installed:
 
 2.  **Install dependencies**:
     ```bash
-    npm install
+    corepack enable
+    pnpm install
     ```
+
+    pnpm 11.17.0 is pinned by the repository. Use pnpm for dependency changes and keep
+    `pnpm-lock.yaml` as the only lockfile; do not use `npm install`.
+    Use `pnpm add` and `pnpm remove` for package changes. Dependency lifecycle scripts
+    run only when the package is explicitly approved in the workspace `allowBuilds` policy.
 
 ### Running Locally
 
@@ -76,7 +83,9 @@ To start the desktop application in development mode with hot-reloading:
 ```bash
 npm start
 ```
-*Alternatively, you can run `npm run dev` directly inside `apps/desktop`.*
+
+`npm start` is the supported compatibility launcher. Other project commands use pnpm;
+for example, `pnpm --filter streamfusion dev` starts the desktop app directly.
 
 
 
@@ -94,10 +103,10 @@ Contributions are welcome! Please feel free to check out the [issues](https://gi
 
 The desktop app uses **ESLint** for linting and **Prettier** for formatting.
 
-- Check for errors: `npm run lint`
-- Auto-fix errors: `npm run lint:fix --workspace=streamfusion`
-- Format code: `npm run format --workspace=streamfusion`
-- Check formatting: `npm run format:check --workspace=streamfusion`
+- Check for errors: `pnpm lint`
+- Auto-fix errors: `pnpm --filter streamfusion lint:fix`
+- Format code: `pnpm --filter streamfusion format`
+- Check formatting: `pnpm --filter streamfusion format:check`
 
 ## 📝 License
 

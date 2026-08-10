@@ -11,7 +11,7 @@ export default defineConfig({
   build: {
     outDir: "out/utility",
     emptyOutDir: true,
-    target: "node20",
+    target: "node24",
     sourcemap: process.env.NODE_ENV !== "production",
     ssr: resolve(__dirname, "src/backend/utility/caption-recognizer.ts"),
     rollupOptions: {

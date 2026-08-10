@@ -81,6 +81,15 @@ export default tseslint.config(
     },
   },
   {
+    files: ["src/components/player/local-audio-capture-worklet.js"],
+    languageOptions: {
+      globals: {
+        AudioWorkletProcessor: "readonly",
+        registerProcessor: "readonly",
+      },
+    },
+  },
+  {
     files: reactFiles,
     plugins: {
       react,

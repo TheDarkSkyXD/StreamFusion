@@ -4,7 +4,7 @@
 const path = require("node:path");
 const readline = require("node:readline");
 
-const { launchNpmScript, runStartPicker } = require("./start-picker-lib");
+const { launchStartMode, runStartPicker } = require("./start-picker-lib");
 
 const interactive = Boolean(process.stdin.isTTY);
 let prompt;
@@ -29,8 +29,9 @@ runStartPicker({
   interactive,
   ask,
   launch: (mode) =>
-    launchNpmScript(mode, {
+    launchStartMode(mode, {
       cwd: path.resolve(__dirname, ".."),
+      electronArgs: process.argv.slice(2),
     }),
 })
   .then((code) => {

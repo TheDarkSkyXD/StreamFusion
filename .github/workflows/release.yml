@@ -1,137 +1,272 @@
-name: Release (Stable)
+name: Release
 
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'  # Match stable versions like v1.0.0, v2.1.3
-      - '!v*-*'                   # Exclude pre-release tags like v1.0.0-beta.1
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag (for example, v1.0.0-rc.1)
+        required: true
+        type: string
 
-# Ensure only one release job runs at a time
+permissions:
+  contents: read
+
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
-  # Build for all platforms
-  build:
-    name: Build (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            platform: win32
-            arch: x64
-
-          - os: macos-latest
-            platform: darwin
-            arch: x64
-          - os: macos-latest
-            platform: darwin-arm64
-            arch: arm64
-
+  verify:
+    name: Verify release
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.release.outputs.release_tag }}
+      version: ${{ steps.release.outputs.version }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
+      prerelease_label: ${{ steps.release.outputs.prerelease_label }}
     steps:
-      - name: Checkout code
+      - name: Checkout tagged source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Validate tag and package version
+        id: release
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          git show-ref --verify --quiet "refs/tags/$RELEASE_TAG" || {
+            echo "Release tag does not exist: $RELEASE_TAG" >&2
+            exit 1
+          }
+          node scripts/release-policy.mjs "$RELEASE_TAG" "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
-      - name: Rebuild native dependencies
-        run: npm run rebuild-deps -w streamfusion
-
-
-
-
-      - name: Run typecheck
-        run: npm run typecheck
-
-      - name: Build and package
+      - name: Validate dependency sources and lockfile
         run: |
-          npm run build --workspace=streamfusion
-          cd apps/desktop && npx electron-builder --publish never --${{ matrix.arch }}
+          pnpm lint:dependencies
+          pnpm lint:lockfile
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: streamfusion-${{ matrix.platform }}-${{ matrix.arch }}
-          path: |
-            apps/desktop/release/*.exe
-            apps/desktop/release/*.dmg
-            apps/desktop/release/*.zip
-            apps/desktop/release/*.yml
-            apps/desktop/release/*.json
-            apps/desktop/release/latest*
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level=high
 
-          retention-days: 5
-          if-no-files-found: warn
+      - name: Lint and typecheck
+        run: |
+          pnpm --filter streamfusion lint
+          pnpm typecheck
 
-  # Create GitHub Release
-  release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      contents: write
-    
+      - name: Test workspace
+        run: pnpm test
+
+      - name: Build worker dry run
+        run: pnpm --filter streamfusion-worker exec wrangler deploy --dry-run
+
+  build:
+    name: Package ${{ matrix.platform }} ${{ matrix.arch }}
+    needs: verify
+    environment: production-release
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            platform: windows
+            arch: x64
+            artifact_name: streamfusion-windows-x64
+          - runner: macos-15-intel
+            platform: macos
+            arch: x64
+            artifact_name: streamfusion-macos-x64
+          - runner: macos-15
+            platform: macos
+            arch: arm64
+            artifact_name: streamfusion-macos-arm64
     steps:
-      - name: Checkout code
+      - name: Checkout tagged source
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          ref: ${{ needs.verify.outputs.release_tag }}
 
-      - name: Download all artifacts
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Require signing and notarization credentials
+        shell: bash
+        env:
+          CSC_LINK: ${{ matrix.platform == 'windows' && secrets.WIN_CSC_LINK || secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'windows' && secrets.WIN_CSC_KEY_PASSWORD || secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          test -n "$CSC_LINK" || { echo "Missing code-signing certificate" >&2; exit 1; }
+          test -n "$CSC_KEY_PASSWORD" || { echo "Missing code-signing certificate password" >&2; exit 1; }
+          if [[ "${{ matrix.platform }}" == "macos" ]]; then
+            test -n "$APPLE_ID" || { echo "Missing APPLE_ID" >&2; exit 1; }
+            test -n "$APPLE_APP_SPECIFIC_PASSWORD" || { echo "Missing APPLE_APP_SPECIFIC_PASSWORD" >&2; exit 1; }
+            test -n "$APPLE_TEAM_ID" || { echo "Missing APPLE_TEAM_ID" >&2; exit 1; }
+          fi
+
+      - name: Rebuild native dependencies
+        run: pnpm --filter streamfusion exec electron-builder install-app-deps --arch ${{ matrix.arch }}
+
+      - name: Build desktop
+        run: pnpm --filter streamfusion build
+
+      - name: Package signed Windows application
+        if: matrix.platform == 'windows'
+        env:
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: >-
+          pnpm --filter streamfusion exec electron-builder
+          --win
+          --${{ matrix.arch }}
+          --publish never
+          -c.forceCodeSigning=true
+
+      - name: Verify Windows Authenticode signature
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -LiteralPath apps/desktop/release -Filter 'StreamFusion-*-Setup.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'Signed Windows installer was not produced' }
+          $signature = Get-AuthenticodeSignature -LiteralPath $installer.FullName
+          if ($signature.Status -ne 'Valid') {
+            throw "Invalid Authenticode signature: $($signature.Status) $($signature.StatusMessage)"
+          }
+
+      - name: Package signed and notarized macOS application
+        if: matrix.platform == 'macos'
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: >-
+          pnpm --filter streamfusion exec electron-builder
+          --mac
+          --${{ matrix.arch }}
+          --publish never
+          -c.forceCodeSigning=true
+          -c.mac.notarize=true
+
+      - name: Verify macOS signature, Gatekeeper, and notarization ticket
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          APP_PATH="$(find apps/desktop/release -type d -name 'StreamFusion.app' -print -quit)"
+          test -n "$APP_PATH" || { echo "Packaged StreamFusion.app was not found" >&2; exit 1; }
+          codesign --verify --deep --strict "$APP_PATH"
+          spctl --assess --type exec "$APP_PATH"
+          xcrun stapler validate "$APP_PATH"
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            apps/desktop/release/StreamFusion-*-Setup.exe
+            apps/desktop/release/StreamFusion-*-Setup.exe.blockmap
+            apps/desktop/release/StreamFusion-*-x64.dmg
+            apps/desktop/release/StreamFusion-*-x64.zip
+            apps/desktop/release/StreamFusion-*-arm64.dmg
+            apps/desktop/release/StreamFusion-*-arm64.zip
+            apps/desktop/release/latest.yml
+            apps/desktop/release/latest-mac.yml
+          if-no-files-found: error
+          retention-days: 5
+
+  release:
+    name: Publish GitHub release
+    needs: [verify, build]
+    environment: production-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify.outputs.release_tag }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.17.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Download packaged applications
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: List artifacts
-        run: find artifacts -type f -name "*" | head -50
+      - name: Validate and prepare release assets
+        run: node .github/scripts/merge_artifacts.js "${{ needs.verify.outputs.version }}"
 
-      - name: Install dependencies for merge script
-        run: npm install js-yaml
-
-      - name: Prepare release artifacts
-        run: node .github/scripts/merge_artifacts.js
-
-      - name: Get version from tag
-        id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: StreamFusion v${{ steps.version.outputs.version }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-          files: release-assets/*
-
-          body: |
-            ## StreamFusion v${{ steps.version.outputs.version }}
-
-            ### Downloads
-
-            | Platform | File |
-            |----------|------|
-            | Windows | `StreamFusion-${{ steps.version.outputs.version }}-Setup.exe` |
-            | macOS (Intel) | `StreamFusion-${{ steps.version.outputs.version }}-x64.dmg` |
-            | macOS (Apple Silicon) | `StreamFusion-${{ steps.version.outputs.version }}-arm64.dmg` |
-
-
-            ### Auto-Update
-
-            If you already have StreamFusion installed, you'll receive this update automatically.
-            Go to **Settings > Updates** to check for updates manually.
-            
-            ---
-            
+      - name: Publish release
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.verify.outputs.release_tag }}
+          VERSION: ${{ needs.verify.outputs.version }}
+          PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+        run: |
+          release_command=(
+            gh release create "$RELEASE_TAG"
+            release-assets/*
+            --verify-tag
+            --generate-notes
+            --title "StreamFusion v$VERSION"
+          )
+          if [[ "$PRERELEASE" == "true" ]]; then
+            release_command+=(--prerelease)
+          else
+            release_command+=(--latest)
+          fi
+          "${release_command[@]}"

@@ -1,8 +1,26 @@
 # StreamFusion pnpm Migration Plan
 
-**Status:** Draft — awaiting user approval  
-**Created:** 2026-08-02  
+**Status:** In progress — local migration and runtime verification complete; GitHub CI and user review pending
+**Created:** 2026-08-02
 **Scope:** Replace npm dependency management with pnpm, preserve `npm start`, reproduce every current dependency before upgrading packages, and harden dependency installation.
+
+## Execution status
+
+- [x] The user approved this migration plan.
+- [x] Stage 12 workflow definitions use pnpm 11.17.0, frozen installs, desktop and worker checks, and target-architecture native rebuilds.
+- [x] Dependabot remains on `package-ecosystem: npm`; that identifier targets the npm registry and does not select npm as the installer.
+- [x] Stage 14 active contributor, test, E2E, and HITL documentation uses pnpm while retaining `npm start`.
+- [x] Historical dependency-install examples now use pnpm after the user expanded the scope to every project instruction.
+- [x] Every original direct dependency was represented in the pnpm lockfile before upgrades; the migration intentionally removes `@lavamoat/allow-scripts` and redundant direct `@electron/rebuild`. The pre-migration checkpoint already contained the approved tRPC transport removal.
+- [x] Package policy, lockfile lint, peer checks, TypeScript 7 typecheck, ESLint, Storybook, desktop/worker tests, production builds, Wrangler dry-run, Windows packaging, FFmpeg recording tests, and packaged Electron 43 SQLite ABI checks pass.
+- [x] The final local gates pass: frozen installation, typecheck, lint, production build, the full 6,461-test suite, and `dist:win`.
+- [x] Ajv uses the compatible exact override `fast-uri@3.1.5`. Its release-age exception expires at normal eligibility (`2026-08-07T09:16:56.212Z`) and is guarded by a fail-closed, pacote-backed validator whose 22 policy tests pass. The production dependency audit is clean.
+- [x] The NSIS installer contains Electron 43.2.0, `better-sqlite3` 13.0.1, and `ffmpeg-static`; a read-only database backup copy reported SQLite integrity `ok` under Electron 43.2.0 / Node 24.18.0.
+- [ ] Run the migrated workflows on GitHub after the workspace manifest and lockfile are finalized.
+- [ ] Present the final migration diff and verification report for user review and approval.
+- [x] Electron MCP verified development through `npm start` against the retained isolated database copy: the app reported 70 follows and clean main, preload, and renderer logs.
+- [x] Electron MCP verified the packaged Windows app against its isolated profile: version IPC returned `1.0.0-beta.1`, the database array count was 0, and no console logs or errors were reported.
+- [x] Both verified apps were closed and the temporary Electron MCP project was unregistered. The user explicitly chose to retain the existing proof directories, so no deletion was performed.
 
 ## Non-negotiable boundaries
 
@@ -263,7 +281,7 @@ Update active documentation to explain:
 - `pnpm-lock.yaml` is the only accepted lockfile.
 - Dependency lifecycle scripts require explicit approval.
 
-Do not rewrite reference-folder content, historical plans, completed historical specifications, or old audit records merely to replace command names.
+Do not create or modify a reference folder. Historical dependency-install examples are included because the user explicitly requested pnpm anywhere dependencies are managed.
 
 ## Stage 15 — Verification gates
 

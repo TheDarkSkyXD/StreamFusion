@@ -3,6 +3,7 @@
     "version": "1.0.0",
     "private": true,
     "scripts": {
+        "preinstall": "node ../../scripts/require-pnpm.mjs",
         "deploy": "wrangler deploy",
         "smoke": "node scripts/smoke.mjs",
         "dev": "wrangler dev",
@@ -12,9 +13,10 @@
         "types": "wrangler types"
     },
     "devDependencies": {
-        "@cloudflare/workers-types": "^4.20240208.0",
-        "typescript": "^5.3.3",
-        "vitest": "^4.0.18",
-        "wrangler": "^4.36.0"
+        "@cloudflare/workers-types": "^5.20260728.1",
+        "@typescript/native": "npm:typescript@7.0.2",
+        "typescript": "npm:@typescript/typescript6@^6.0.2",
+        "vitest": "^4.1.10",
+        "wrangler": "^4.115.0"
     }
 }

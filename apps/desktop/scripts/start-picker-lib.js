@@ -55,38 +55,37 @@ async function runStartPicker({ interactive, ask, launch }) {
 }
 
 /**
- * Launch a public npm development script without adding another shell layer.
+ * Launch the shared development entry point without another package-manager process.
  *
- * @param {"dev" | "dev:electron" | "dev:mcp"} mode
+ * @param {"dev" | "dev:electron"} mode
  * @param {{
  *   spawn?: StartSpawn;
- *   platform?: NodeJS.Platform;
  *   execPath?: string;
  *   cwd?: string;
  *   env?: NodeJS.ProcessEnv;
+ *   electronArgs?: readonly string[];
  * }} [options]
  * @returns {Promise<number>}
  */
-function launchNpmScript(
+function launchStartMode(
   mode,
   {
     spawn = spawnChild,
-    platform = process.platform,
     execPath = process.execPath,
     cwd = process.cwd(),
     env = process.env,
+    electronArgs = [],
   } = {}
 ) {
-  const npmExecPath =
-    env.npm_execpath ||
-    (platform === "win32"
-      ? path.win32.join(path.win32.dirname(execPath), "node_modules", "npm", "bin", "npm-cli.js")
-      : null);
-  const command = npmExecPath ? execPath : "npm";
-  const args = npmExecPath ? [npmExecPath, "run", mode] : ["run", mode];
-  const child = spawn(command, args, {
+  const launchEnv = { ...env };
+  if (mode === "dev") launchEnv.STREAMFUSION_BROWSER_DEV = "1";
+
+  const startArgs = [path.resolve(__dirname, "start-dev.js")];
+  if (electronArgs.length > 0) startArgs.push("--", ...electronArgs);
+
+  const child = spawn(execPath, startArgs, {
     cwd,
-    env,
+    env: launchEnv,
     stdio: "inherit",
   });
 
@@ -99,6 +98,6 @@ function launchNpmScript(
 module.exports = {
   START_PROMPT,
   chooseStartMode,
-  launchNpmScript,
+  launchStartMode,
   runStartPicker,
 };

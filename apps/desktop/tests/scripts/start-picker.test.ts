@@ -5,15 +5,16 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   chooseStartMode,
-  launchNpmScript,
+  launchStartMode,
   runStartPicker,
 } from "../../scripts/start-picker-lib.js";
 
 // Guards: pressing Enter at the interactive start prompt launches Electron only by default.
 // Guards: piped and automation starts bypass the prompt and launch Electron only.
 // Guards: the picker exposes two human-facing modes while dev:mcp remains a direct automation script.
-// Guards: Windows launches npm through Node instead of spawning npm.cmd, which fails with EINVAL.
-// Guards: Windows still locates npm when npm_execpath is absent from the inherited environment.
+// Guards: picker modes launch start-dev.js through Node, avoiding npm.cmd/pnpm.cmd spawn EINVAL on Windows.
+// Guards: browser mode adds its development flag without mutating the inherited environment.
+// Guards: npm start forwards explicit Electron arguments after a separator so runtime proofs use their isolated profile.
 describe("start picker", () => {
   it("defaults to Electron-only when the interactive answer is empty", async () => {
     const ask = vi.fn().mockResolvedValue("");
@@ -75,7 +76,7 @@ describe("start picker", () => {
       readFileSync(resolve(__dirname, "../../../../package.json"), "utf8")
     ) as { scripts: Record<string, string> };
 
-    expect(rootPackage.scripts.start).toBe("npm start --prefix apps/desktop");
+    expect(rootPackage.scripts.start).toBe("pnpm --filter streamfusion start");
     expect(desktopPackage.scripts.start).toBe("node scripts/start-picker.js");
     expect(desktopPackage.scripts.dev).toBe(
       "cross-env STREAMFUSION_BROWSER_DEV=1 node scripts/start-dev.js"
@@ -86,57 +87,75 @@ describe("start picker", () => {
     );
   });
 
-  it("launches the selected npm script with inherited terminal IO and returns its exit code", async () => {
+  it("launches Electron mode through Node with inherited terminal IO and returns its exit code", async () => {
     const child = new EventEmitter();
     const spawn = vi.fn(() => child);
-    const env = {
-      TEST_ENV: "preserved",
-      npm_execpath: "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
-    };
+    const env = { TEST_ENV: "preserved" };
+    const startDevPath = resolve(__dirname, "../../scripts/start-dev.js");
 
-    const exitCode = launchNpmScript("dev:mcp", {
+    const exitCode = launchStartMode("dev:electron", {
       spawn,
-      platform: "win32",
       execPath: "C:\\Program Files\\nodejs\\node.exe",
       cwd: "C:\\repo\\apps\\desktop",
       env,
     });
 
-    expect(spawn).toHaveBeenCalledWith(
-      "C:\\Program Files\\nodejs\\node.exe",
-      ["C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js", "run", "dev:mcp"],
-      {
-        cwd: "C:\\repo\\apps\\desktop",
-        env,
-        stdio: "inherit",
-      }
-    );
+    expect(spawn).toHaveBeenCalledWith("C:\\Program Files\\nodejs\\node.exe", [startDevPath], {
+      cwd: "C:\\repo\\apps\\desktop",
+      env: { TEST_ENV: "preserved" },
+      stdio: "inherit",
+    });
 
     child.emit("exit", 7, null);
     await expect(exitCode).resolves.toBe(7);
   });
 
-  it("falls back to the npm CLI beside Node on Windows when npm_execpath is absent", async () => {
+  it("forwards explicit Electron arguments through start-dev after a separator", async () => {
     const child = new EventEmitter();
     const spawn = vi.fn(() => child);
+    const startDevPath = resolve(__dirname, "../../scripts/start-dev.js");
 
-    const exitCode = launchNpmScript("dev:electron", {
+    const exitCode = launchStartMode("dev:electron", {
       spawn,
-      platform: "win32",
       execPath: "C:\\Program Files\\nodejs\\node.exe",
       cwd: "C:\\repo\\apps\\desktop",
       env: { TEST_ENV: "preserved" },
+      electronArgs: ["--user-data-dir=C:\\proof-profile"],
     });
 
     expect(spawn).toHaveBeenCalledWith(
       "C:\\Program Files\\nodejs\\node.exe",
-      ["C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js", "run", "dev:electron"],
-      {
-        cwd: "C:\\repo\\apps\\desktop",
-        env: { TEST_ENV: "preserved" },
-        stdio: "inherit",
-      }
+      [startDevPath, "--", "--user-data-dir=C:\\proof-profile"],
+      expect.objectContaining({ cwd: "C:\\repo\\apps\\desktop", stdio: "inherit" })
     );
+
+    child.emit("exit", 0, null);
+    await expect(exitCode).resolves.toBe(0);
+  });
+
+  it("adds browser mode to the child environment without spawning a package manager", async () => {
+    const child = new EventEmitter();
+    const spawn = vi.fn(() => child);
+    const env = { TEST_ENV: "preserved", npm_execpath: "C:\\npm-cli.js" };
+    const startDevPath = resolve(__dirname, "../../scripts/start-dev.js");
+
+    const exitCode = launchStartMode("dev", {
+      spawn,
+      execPath: "C:\\Program Files\\nodejs\\node.exe",
+      cwd: "C:\\repo\\apps\\desktop",
+      env,
+    });
+
+    expect(spawn).toHaveBeenCalledWith("C:\\Program Files\\nodejs\\node.exe", [startDevPath], {
+      cwd: "C:\\repo\\apps\\desktop",
+      env: {
+        TEST_ENV: "preserved",
+        npm_execpath: "C:\\npm-cli.js",
+        STREAMFUSION_BROWSER_DEV: "1",
+      },
+      stdio: "inherit",
+    });
+    expect(env).toEqual({ TEST_ENV: "preserved", npm_execpath: "C:\\npm-cli.js" });
 
     child.emit("exit", 0, null);
     await expect(exitCode).resolves.toBe(0);

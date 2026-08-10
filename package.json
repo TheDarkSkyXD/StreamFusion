@@ -1,22 +1,35 @@
 {
-    "name": "streamfusion-monorepo",
-    "private": true,
-    "workspaces": [
-        "apps/*"
-    ],
-    "scripts": {
-        "start": "npm start --prefix apps/desktop",
-        "desktop": "npm start --workspace=streamfusion",
-        "build": "npm run build --workspace=streamfusion",
-        "dist": "npm run dist --workspace=streamfusion",
-        "dist:win": "npm run dist:win --workspace=streamfusion",
-        "dist:mac": "npm run dist:mac --workspace=streamfusion",
-        "dist:linux": "npm run dist:linux --workspace=streamfusion",
-        "lint": "npm run lint --workspace=streamfusion",
-        "test": "npm test --workspace=streamfusion",
-        "typecheck": "npm run typecheck --workspace=streamfusion"
-    },
-    "devDependencies": {
-        "@lavamoat/allow-scripts": "^5.1.0"
-    }
+  "name": "streamfusion-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "packageManager": "pnpm@11.17.0",
+  "engines": {
+    "pnpm": "11.17.0"
+  },
+  "scripts": {
+    "preinstall": "node scripts/require-pnpm.mjs",
+    "start": "pnpm --filter streamfusion start",
+    "desktop": "pnpm --filter streamfusion start",
+    "build": "pnpm --filter streamfusion build",
+    "dist": "pnpm --filter streamfusion dist",
+    "dist:win": "pnpm --filter streamfusion dist:win",
+    "dist:mac": "pnpm --filter streamfusion dist:mac",
+    "dist:linux": "pnpm --filter streamfusion dist:linux",
+    "lint": "pnpm run lint:dependencies && pnpm run lint:lockfile && pnpm --filter streamfusion lint",
+    "lint:dependencies": "node scripts/validate-dependency-sources.mjs",
+    "lint:lockfile": "eslint --config eslint.lockfile.config.mjs pnpm-lock.yaml package.json apps/*/package.json && pnpm run lint:release-age",
+    "lint:release-age": "node scripts/validate-lockfile-release-age.mjs",
+    "test": "pnpm --filter streamfusion test && pnpm --filter streamfusion-worker test",
+    "test:package-policy": "node --test scripts/package-policy.test.mjs scripts/validate-lockfile-release-age.test.mjs",
+    "test:release-policy": "node --test scripts/release-policy.test.mjs scripts/merge-artifacts.test.mjs scripts/release-workflow.test.mjs",
+    "typecheck": "pnpm --filter streamfusion typecheck && pnpm --filter streamfusion-worker typecheck"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5",
+    "eslint-plugin-lockfile": "^2.1.0",
+    "js-yaml": "^5.2.2",
+    "pacote": "21.5.1"
+  }
 }

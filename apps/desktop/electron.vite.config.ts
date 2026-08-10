@@ -38,7 +38,6 @@ export default defineConfig(({ command, mode }) => {
         main: {
             define: {
                 // Bake environment variables into the main process build
-                'process.env.TWITCH_CLIENT_ID': JSON.stringify(env.TWITCH_CLIENT_ID || ''),
                 'process.env.STREAMFUSION_WORKER_BASE_URL': JSON.stringify(env.STREAMFUSION_WORKER_BASE_URL || ''),
                 // Secrets are no longer baked in - handled by Cloudflare Worker
                 // 'process.env.TWITCH_CLIENT_SECRET': JSON.stringify(env.TWITCH_CLIENT_SECRET || ''),
@@ -97,7 +96,7 @@ export default defineConfig(({ command, mode }) => {
                     external: ['better-sqlite3'],
                 },
                 // Target Node.js version used by Electron
-                target: 'node20',
+                target: 'node24',
                 sourcemap: !isProduction,
             },
             esbuild: {

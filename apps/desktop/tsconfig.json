@@ -14,7 +14,6 @@
     "sourceMap": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
-    "baseUrl": ".",
     "outDir": "dist",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
@@ -22,16 +21,16 @@
     "jsx": "react-jsx",
     "paths": {
       "@backend/*": [
-        "src/backend/*"
+        "./src/backend/*"
       ],
       "@frontend/*": [
-        "src/frontend/*"
+        "./src/frontend/*"
       ],
       "@shared/*": [
-        "src/shared/*"
+        "./src/shared/*"
       ],
       "@/*": [
-        "src/*"
+        "./src/*"
       ]
     }
   },
