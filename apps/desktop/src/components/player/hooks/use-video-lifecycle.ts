@@ -358,17 +358,7 @@ function useVideoChurnDetection(): {
 
     // If mounted again within 1 second, increment churn counter
     if (timeSinceLastMount < 1000) {
-      setMountCount((prev) => {
-        const newCount = prev + 1;
-        if (newCount >= 3) {
-          setIsChurning(true);
-          logger.warn(
-            "Player:Hook:Lifecycle",
-            "video churn detected - component is being rapidly recreated"
-          );
-        }
-        return newCount;
-      });
+      setMountCount((prev) => prev + 1);
     } else {
       // Reset counters if enough time has passed
       setMountCount(1);
@@ -381,6 +371,15 @@ function useVideoChurnDetection(): {
       // This will be called on unmount, tracked on next mount
     };
   }, []);
+
+  useEffect(() => {
+    if (mountCount < 3 || isChurning) return;
+    setIsChurning(true);
+    logger.warn(
+      "Player:Hook:Lifecycle",
+      "video churn detected - component is being rapidly recreated"
+    );
+  }, [isChurning, mountCount]);
 
   return {
     isChurning,

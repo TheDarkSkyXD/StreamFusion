@@ -9,6 +9,7 @@ import { useSeekIntervalStore } from "@/store/seek-interval-store";
 
 import { useDefaultQuality } from "../hooks/use-default-quality";
 import { useFullscreen } from "../hooks/use-fullscreen";
+import { useOnDemandSeekRecovery } from "../hooks/use-on-demand-seek-recovery";
 import { usePictureInPicture } from "../hooks/use-picture-in-picture";
 import { usePlayerKeyboard } from "../hooks/use-player-keyboard";
 import { useResumePlayback } from "../hooks/use-resume-playback";
@@ -107,6 +108,31 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
   const [playbackRate, setPlaybackRate] = useState(1);
 
   const [hasError, setHasError] = useState(false);
+  const mediaKind =
+    streamUrl.toLowerCase().includes(".m3u8") || streamUrl.toLowerCase().includes("usher")
+      ? "hls-vod"
+      : "native-clip";
+  const handleSeekRecoverySettled = useCallback(() => {
+    setIsLoading(false);
+  }, []);
+  const handleSeekRecoveryTerminal = useCallback(() => {
+    setIsLoading(false);
+    setHasError(true);
+    onError?.({
+      code: "SEEK_TIMEOUT",
+      message: "Seek timed out before a matching video frame was presented",
+      fatal: true,
+    });
+  }, [onError]);
+  const { commitSeek } = useOnDemandSeekRecovery({
+    videoRef,
+    hls,
+    mediaKind,
+    sourceKey: streamUrl,
+    onSuccess: handleSeekRecoverySettled,
+    onTerminal: handleSeekRecoveryTerminal,
+    onCancel: handleSeekRecoverySettled,
+  });
 
   // Seek Preview Hook
   const { previewImage, handleSeekHover } = useSeekPreview({
@@ -116,11 +142,6 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
 
   // Apply user's default quality preference
   useDefaultQuality(availableQualities, currentQualityId, setCurrentQualityId);
-
-  // Reset error state when streamUrl changes
-  useEffect(() => {
-    setHasError(false);
-  }, []);
 
   // Setup event listeners
   useEffect(() => {
@@ -184,9 +205,11 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
   const handleSeek = useCallback((time: number) => {
     const video = videoRef.current;
     if (!video) return;
+    setIsLoading(true);
     setCurrentTime(time);
+    commitSeek(time);
     video.currentTime = time;
-  }, []);
+  }, [commitSeek]);
 
   const handleSeekBackward = useCallback(() => {
     const video = videoRef.current;
@@ -220,6 +243,7 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
   const handleCanPlay = useCallback(() => {
     if (isReady) return;
     setReadiness({ source: streamUrl, isReady: true, isKeyboardReady: true });
+    setHasError(false);
     setIsLoading(false);
     onReady?.();
   }, [isReady, onReady, streamUrl]);

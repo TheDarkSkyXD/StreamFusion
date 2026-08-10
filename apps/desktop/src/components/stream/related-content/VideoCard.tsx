@@ -1,12 +1,14 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { type MouseEvent, memo, useState } from "react";
-import { LuLock, LuPlay, LuSparkles } from "react-icons/lu";
+import { type MouseEvent, memo } from "react";
+import { LuImageOff, LuLock, LuPlay, LuSparkles } from "react-icons/lu";
 
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { Card, CardContent } from "@/components/ui/card";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import type { Platform } from "@/shared/auth-types";
+
+import { VodProgressBar } from "../vod-progress-bar";
 
 import type { VideoOrClip } from "./types";
 import { formatTimeAgo, formatViews } from "./utils";
@@ -16,6 +18,16 @@ interface VideoCardProps {
   platform: Platform;
   channelName: string;
   channelData: UnifiedChannel | null | undefined;
+  showWatchProgress?: boolean;
+}
+
+function ThumbnailUnavailable() {
+  return (
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[var(--color-background-tertiary)] text-sm font-medium text-[var(--color-foreground-muted)]">
+      <LuImageOff aria-hidden="true" className="h-5 w-5" />
+      <span>Thumbnail unavailable</span>
+    </div>
+  );
 }
 
 // Memoized to prevent re-renders when parent list updates
@@ -24,12 +36,8 @@ export const VideoCard = memo(function VideoCard({
   platform,
   channelName,
   channelData,
+  showWatchProgress = false,
 }: VideoCardProps) {
-  // Hide the entire card when the proxied thumbnail comes back null (Kick CDN
-  // 403 for pruned VOD media). Backend filters most of these out via is_pruned,
-  // but legacy/stale records can still slip through.
-  const [thumbnailFailed, setThumbnailFailed] = useState(false);
-
   // Route as VOD when:
   // - not live, OR
   // - live with a real duration AND a source URL (stream just ended; Kick keeps is_live=true briefly)
@@ -90,10 +98,6 @@ export const VideoCard = memo(function VideoCard({
 
   const categoryName = video.category || video.gameName;
 
-  if (thumbnailFailed) {
-    return null;
-  }
-
   return (
     <Card className="overflow-hidden border border-transparent bg-[var(--color-background-secondary)] hover:border-[var(--color-border)] transition-colors h-full group flex flex-col">
       {/* Thumbnail Section */}
@@ -101,13 +105,15 @@ export const VideoCard = memo(function VideoCard({
         {...linkProps}
         className="block relative aspect-video bg-[var(--color-background-tertiary)] overflow-hidden"
       >
-        {video.thumbnailUrl && (
+        {video.thumbnailUrl ? (
           <ProxiedImage
             src={video.thumbnailUrl}
             alt={video.title}
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            onProxyError={() => setThumbnailFailed(true)}
+            fallback={<ThumbnailUnavailable />}
           />
+        ) : (
+          <ThumbnailUnavailable />
         )}
 
         {/* Duration: Top Left */}
@@ -134,6 +140,10 @@ export const VideoCard = memo(function VideoCard({
         <div className="absolute bottom-2 right-2 bg-black/80 px-1.5 py-0.5 rounded text-xs text-white font-medium">
           {!routeAsVod ? "Today" : formatTimeAgo(video.created_at || video.date)}
         </div>
+
+        {showWatchProgress && routeAsVod && (
+          <VodProgressBar platform={platform} videoId={video.id} />
+        )}
 
         {/* Hover overlay - show lock for sub-only, play for regular */}
         <div className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">

@@ -27,7 +27,7 @@ export function TwitchLivePlayerControls(props: TwitchLivePlayerControlsProps) {
           aria-label={adBlockStatus.isShowingAd ? "Blocking ads" : "Ad-block active"}
           className={
             adBlockStatus.isShowingAd
-              ? "text-green-500 animate-pulse hover:text-green-400 hover:bg-green-500/10 ml-1"
+              ? "text-green-500 hover:text-green-400 hover:bg-green-500/10 ml-1"
               : "text-white/70 hover:text-white hover:bg-white/20 ml-1"
           }
         >

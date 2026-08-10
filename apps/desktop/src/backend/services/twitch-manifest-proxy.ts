@@ -19,11 +19,12 @@ import {
 } from "@/lib/twitch-playlist-ad-detection";
 import {
   findTwitchPlaylistAlignment,
-  keepTwitchRenditionResolution,
+  keepTwitchBackupRenditions,
   rankTwitchRenditionCandidates,
   rankTwitchRenditions,
   type TwitchRendition,
 } from "@/lib/twitch-rendition-continuity";
+import { holdUnsafeTwitchMediaPlaylist } from "@/lib/twitch-unsafe-media-hold";
 import { httpClient } from "./http-client";
 import { vaftPatternService } from "./vaft-pattern-service";
 
@@ -383,7 +384,17 @@ class TwitchManifestProxyService {
    */
   private async processMediaPlaylist(url: string, text: string): Promise<string> {
     const streamInfo = this.findStreamInfoByUrl(url);
-    if (!streamInfo) return text;
+    if (!streamInfo) {
+      const detection = this.analyzeAds(text, "unowned-twitch-media");
+      if (!detection.hasAds) return text;
+
+      this.stats.adsDetected++;
+      logger.warn("Service:TwitchManifest", "Holding unsafe media without a registered owner", {
+        outcome: "unowned-unsafe-hold",
+        ...detection.diagnostic,
+      });
+      return holdUnsafeTwitchMediaPlaylist(text);
+    }
 
     // Neutralize tracking URLs first
     text = this.neutralizeTrackingUrls(text);
@@ -416,19 +427,18 @@ class TwitchManifestProxyService {
         this.stats.backupsFetched++;
         return backupText;
       }
-      logger.debug("Service:TwitchManifest", "No clean aligned backup; passing through", {
-        outcome: "passthrough",
+      logger.debug("Service:TwitchManifest", "No verified clean backup; holding unsafe media", {
+        outcome: "unsafe-hold",
         ...detection.diagnostic,
       });
-      return text;
+      return holdUnsafeTwitchMediaPlaylist(text);
     } else if (detection.verdict === "clean" && streamInfo.isInAdBreak) {
       const servedBackup = streamInfo.servedBackups.get(detectionScope);
       if (servedBackup && !findTwitchPlaylistAlignment(servedBackup.playlist, text)) {
-        logger.debug("Service:TwitchManifest", "Clean original is not aligned for restoration", {
-          outcome: "passthrough-unaligned",
+        logger.debug("Service:TwitchManifest", "Clean original requires refreshed playback handoff", {
+          outcome: "refresh-unaligned",
           ...detection.diagnostic,
         });
-        return text;
       }
       streamInfo.servedBackups.delete(detectionScope);
       streamInfo.candidateStates.delete(detectionScope);
@@ -535,7 +545,7 @@ class TwitchManifestProxyService {
   private async prepareCleanBackup(
     streamInfo: ProxyStreamInfo,
     originalUrl: string,
-    activePlaylist: string | null,
+    _activePlaylist: string | null,
     loadedMasters?: BackupMaster[]
   ): Promise<PreparedBackup | null> {
     const originalResolution = streamInfo.resolutions.get(originalUrl);
@@ -544,7 +554,7 @@ class TwitchManifestProxyService {
       loadedMasters ??
       (await (streamInfo.backupMastersPromise ?? this.loadBackupMasters(streamInfo)));
     const candidates = rankTwitchRenditionCandidates(
-      keepTwitchRenditionResolution(
+      keepTwitchBackupRenditions(
         masters.flatMap(({ playerType, playlist }) =>
           rankTwitchRenditions(playlist, originalResolution).map((rendition) => ({
             ...rendition,
@@ -562,10 +572,13 @@ class TwitchManifestProxyService {
         const response = await this.fetchWithRetry(candidate.rendition.url);
         if (!response.ok) continue;
         const playlist = await response.text();
-        if (activePlaylist && !findTwitchPlaylistAlignment(activePlaylist, playlist)) continue;
         const scope = `${this.getDetectionScope(streamInfo, originalUrl)}:backup:${candidate.playerType}:${candidate.rendition.resolution}:${candidate.rendition.frameRate}:${candidate.rendition.codecs}`;
         streamInfo.detectionScopes.add(scope);
         if (this.analyzeAds(playlist, scope).verdict !== "clean") continue;
+        // Stitched prerolls use a separate media-sequence namespace (often
+        // starting at zero). Exact rendition/codec matching plus a clean
+        // classification are the safe admission checks during an ad. Timeline
+        // alignment remains required when restoring the original feed.
         return {
           playerType: candidate.playerType,
           rendition: candidate.rendition,
@@ -596,7 +609,7 @@ class TwitchManifestProxyService {
     const scope = this.getDetectionScope(streamInfo, originalUrl);
     const state = this.getCandidateState(streamInfo, scope);
     const candidate = state.readyCandidate;
-    if (candidate && findTwitchPlaylistAlignment(activePlaylist, candidate.playlist)) {
+    if (candidate) {
       streamInfo.servedBackups.set(scope, candidate);
       return candidate.playlist;
     }

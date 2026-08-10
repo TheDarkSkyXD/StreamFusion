@@ -8,6 +8,7 @@ import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
 import { resolveHlsBufferConfig, resolveHlsVodBufferConfig } from "./hls-buffer-config";
+import { useLivePlaybackStallRecovery } from "./hooks/use-live-playback-stall-recovery";
 import { resolvePreferredQualityId, type PlayerQualityPreference } from "./quality-preference";
 import type { PlayerError, QualityLevel } from "./types";
 
@@ -71,6 +72,18 @@ function isKickLiveCdnUrl(url: string | undefined): boolean {
   }
 }
 
+function summarizeMediaSource(
+  source: string,
+  sourceType: "hls" | "native"
+): { sourceScheme: string; sourceType: "hls" | "native" } {
+  try {
+    const sourceScheme = new URL(source).protocol.replace(/:$/, "");
+    return { sourceScheme: sourceScheme || "unknown", sourceType };
+  } catch {
+    return { sourceScheme: "unknown", sourceType };
+  }
+}
+
 export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
   (
     {
@@ -107,13 +120,6 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
     // Delay state: null = paused, number = running. Set when HLS initialises, cleared on teardown.
     const [heartbeatDelay, setHeartbeatDelay] = useState<number | null>(null);
     const [memoryCleanupDelay, setMemoryCleanupDelay] = useState<number | null>(null);
-    const [stallWatchdogDelay, setStallWatchdogDelay] = useState<number | null>(null);
-
-    // Stall watchdog state. See the useInterval block below for the escalation
-    // ladder; the fragment heartbeat watches INPUT, this one watches OUTPUT.
-    const lastTimeRef = useRef(0);
-    const lastTimeAdvancedAtRef = useRef(Date.now());
-    const stallRecoveryCountRef = useRef(0);
 
     useEffect(() => {
       sourcesRef.current = sources;
@@ -238,83 +244,6 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
       }
     }, heartbeatDelay);
 
-    // Stall watchdog: catches decoder hangs where currentTime stops advancing
-    // while fragments still flow (the heartbeat above can't tell). Escalates
-    // nudge → startLoad → recoverMediaError → fatal shouldRefresh.
-    useInterval(() => {
-      const hls = hlsRef.current;
-      const video = videoRefForInterval.current;
-      if (!isEffectActiveRef.current || !video) {
-        setStallWatchdogDelay(null);
-        return;
-      }
-
-      const now = Date.now();
-
-      // Not a stall: paused / ended / not enough data buffered yet.
-      // HAVE_FUTURE_DATA = 3 (enough to play at least one frame past current position).
-      if (video.paused || video.ended || video.readyState < 3) {
-        lastTimeRef.current = video.currentTime;
-        lastTimeAdvancedAtRef.current = now;
-        return;
-      }
-
-      if (video.currentTime !== lastTimeRef.current) {
-        lastTimeRef.current = video.currentTime;
-        lastTimeAdvancedAtRef.current = now;
-        stallRecoveryCountRef.current = 0;
-        return;
-      }
-
-      const stuckMs = now - lastTimeAdvancedAtRef.current;
-      if (stuckMs < 8000) return;
-
-      const attempt = ++stallRecoveryCountRef.current;
-      const fragLoadedAgo = Math.round((now - lastFragLoadedTimeRef.current) / 1000);
-      logger.debug("Player:HLS", "stall-w7d3: currentTime stuck, attempting recovery", {
-        currentTime: Number(video.currentTime.toFixed(2)),
-        stuckSeconds: Math.round(stuckMs / 1000),
-        readyState: video.readyState,
-        buffered: video.buffered.length,
-        fragLoadedAgoSeconds: fragLoadedAgo,
-        attempt,
-      });
-
-      try {
-        if (attempt === 1) {
-          video.currentTime = video.currentTime + 0.1;
-          // Mirror the nudge into lastTimeRef so the next tick doesn't read
-          // our own write as a real advance and reset escalation. A genuine
-          // decoder recovery moves past the nudged value and resets normally.
-          lastTimeRef.current = video.currentTime;
-        } else if (attempt === 2 && hls) {
-          hls.startLoad(-1);
-        } else if (attempt === 3 && hls) {
-          hls.recoverMediaError();
-        } else {
-          logger.debug(
-            "Player:HLS",
-            "stall-w7d3: recovery exhausted, escalating to fatal with shouldRefresh"
-          );
-          setStallWatchdogDelay(null);
-          hls?.destroy();
-          hlsRef.current = null;
-          onErrorRef.current?.({
-            code: "DECODER_STALL",
-            message: "Video decoder stalled — reloading stream",
-            fatal: true,
-            shouldRefresh: true,
-            originalError: null,
-          });
-          return;
-        }
-        // Give the recovery 4s of grace before the next escalation rung.
-        lastTimeAdvancedAtRef.current = now - 8000 + 4000;
-      } catch (e) {
-        logger.debug("Player:HLS", "stall-w7d3: recovery threw", { error: e });
-      }
-    }, stallWatchdogDelay);
-
     // Memory cleanup every 30 minutes: reset to live edge and trigger browser GC.
     useInterval(() => {
       const hls = hlsRef.current;
@@ -365,9 +294,6 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
 
     // Handle quality change
     useEffect(() => {
-      let listenerVideo: HTMLVideoElement | null = null;
-      let registeredListener: (() => void) | null = null;
-
       if (hlsRef.current && currentLevel !== undefined) {
         const hls = hlsRef.current;
         if (currentLevel === "auto") {
@@ -416,19 +342,12 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
             video.removeEventListener("loadedmetadata", onSwitchLoaded);
           };
 
-          listenerVideo = video;
-          registeredListener = onSwitchLoaded;
           video.addEventListener("loadedmetadata", onSwitchLoaded);
           video.src = targetUrl;
           video.load();
+          return () => video.removeEventListener("loadedmetadata", onSwitchLoaded);
         }
       }
-
-      return () => {
-        if (listenerVideo && registeredListener) {
-          listenerVideo.removeEventListener("loadedmetadata", registeredListener);
-        }
-      };
     }, [currentLevel, src]);
 
     // Store callbacks in refs to prevent re-initialization loop
@@ -440,6 +359,15 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
     const preferredQualityRef = useRef(preferredQuality);
     const parsedQualityLevelsRef = useRef<QualityLevel[]>([]);
     const appliedPreferredQualityRef = useRef<string | null>(null);
+
+    const stallRecovery = useLivePlaybackStallRecovery({
+      sourceKey: src,
+      enabled: isLive,
+      videoRef,
+      hlsRef,
+      onErrorRef,
+      isActiveRef: isEffectActiveRef,
+    });
 
     useEffect(() => {
       onQualityLevelsRef.current = onQualityLevels;
@@ -489,11 +417,6 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
       hasReceivedFirstFragmentRef.current = false;
       fragErrorCountRef.current = 0;
       videoRefForInterval.current = video;
-
-      // Reset stall watchdog state for this stream
-      lastTimeRef.current = 0;
-      lastTimeAdvancedAtRef.current = Date.now();
-      stallRecoveryCountRef.current = 0;
 
       let hls: Hls | null = null;
       // Track event handlers for cleanup (used by native HLS and standard playback)
@@ -655,7 +578,9 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           hls.detachMedia();
         } else {
           hls = new Hls({
-            enableWorker: true,
+            // Long-lived live playback avoids cross-thread segment transfers; short-lived
+            // VOD/clip playback keeps worker demuxing for UI responsiveness.
+            enableWorker: !isLive,
             lowLatencyMode: bufferConfig.lowLatencyMode,
             startFragPrefetch: true, // Start fetching fragment immediately for faster start
 
@@ -766,6 +691,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
 
         // Handle HLS errors - distinguish between expected stream-ending scenarios and actual errors
         hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) stallRecovery.noteNetworkError();
           // Non-fatal errors that HLS.js recovers from automatically - don't spam the console
           // - bufferStalledError: temporary buffer underrun, recovered via nudging
           // - levelSwitchError: quality switch failed, HLS.js retries
@@ -960,6 +886,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         // Track successful fragment loads
         hls.on(Hls.Events.FRAG_LOADED, () => {
           lastFragLoadedTimeRef.current = Date.now();
+          stallRecovery.noteFragmentLoaded();
           hasReceivedFirstFragmentRef.current = true;
           fragErrorCountRef.current = 0; // Reset error count on success
         });
@@ -1005,11 +932,10 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           setMemoryCleanupDelay(
             isLive ? LIVE_MEMORY_CLEANUP_INTERVAL_MS : VOD_MEMORY_CLEANUP_INTERVAL_MS
           );
-          setStallWatchdogDelay(2000);
         });
 
         if (!isReusingExistingHls) {
-          logger.debug("Player:HLS", "initializing HLS", { src });
+          logger.debug("Player:HLS", "initializing HLS", summarizeMediaSource(src, "hls"));
         }
         hls.loadSource(src);
         hls.attachMedia(video);
@@ -1095,7 +1021,6 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         // Pause the useInterval hooks (they read isEffectActiveRef, but null delay is cleaner)
         setHeartbeatDelay(null);
         setMemoryCleanupDelay(null);
-        setStallWatchdogDelay(null);
 
         // Live streams keep the slice-09 reuse path for channel-hop perf. VOD
         // startup is more sensitive to StrictMode/effect cleanup races, so archived
@@ -1130,7 +1055,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           }
         }
       };
-    }, [src, autoPlay, isLive]); // Removed callbacks from dependency array
+    }, [src, autoPlay, isLive, stallRecovery]); // Removed callbacks from dependency array
     // removed currentLevel (except initial read in manifest parsed) to prevent re-init.
     // Logic for dynamic switching is in the first useEffect.
 

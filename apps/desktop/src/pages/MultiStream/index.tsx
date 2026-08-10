@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { LuLayoutGrid, LuMaximize, LuMessageSquare } from "react-icons/lu";
 
 import { ChatPanel } from "@/components/chat";
@@ -15,7 +15,9 @@ export function MultiStreamPage() {
   const { cd: chatDisplay } = useChatDisplay();
   const chatRailWidthPx = chatDisplay.chatWidthPx;
   const streamsRef = useRef(streams);
-  streamsRef.current = streams;
+  useLayoutEffect(() => {
+    streamsRef.current = streams;
+  }, [streams]);
 
   useEffect(() => {
     return () => {

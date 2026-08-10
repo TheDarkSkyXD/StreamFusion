@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdBlockStatus } from "@/shared/adblock-types";
 
 vi.mock("@/renderer/logging/logger", () => ({
-  logger: { debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
 const {
@@ -31,13 +31,16 @@ const {
   hlsInstances: [] as Array<{
     emit: (event: string, data?: unknown) => void;
     destroy: ReturnType<typeof vi.fn>;
+    loadSource: ReturnType<typeof vi.fn>;
     startLoad: ReturnType<typeof vi.fn>;
     stopLoad: ReturnType<typeof vi.fn>;
+    detachMedia: ReturnType<typeof vi.fn>;
     levels: Array<Record<string, unknown>>;
     currentLevel: number;
   }>,
   playerCallbackState: {
     reload: null as null | ((reason?: string) => void),
+    pauseResume: null as null | (() => void),
   },
   statusCallbackState: {
     callback: null as null | ((status: AdBlockStatus) => void),
@@ -59,9 +62,24 @@ const {
   mockInitAdBlockService: vi.fn((_config: unknown) => {}),
   mockIsAdBlockEnabled: vi.fn(() => true),
   mockSetAuthHeaders: vi.fn((_deviceId: string) => {}),
-  mockSetPlayerCallbacks: vi.fn((reload: (reason?: string) => void, _pauseResume: () => void) => {
-    playerCallbackState.reload = reload;
-  }),
+  mockSetPlayerCallbacks: vi.fn(
+    (
+      channelOrReload: string | ((reason?: string) => void),
+      reloadOrPauseResume: (reason?: string) => void,
+      pauseResume?: () => void
+    ) => {
+      const reload = typeof channelOrReload === "string" ? reloadOrPauseResume : channelOrReload;
+      playerCallbackState.reload = reload;
+      playerCallbackState.pauseResume =
+        typeof channelOrReload === "string"
+          ? (pauseResume ?? null)
+          : (reloadOrPauseResume as () => void);
+      return () => {
+        if (playerCallbackState.reload === reload) playerCallbackState.reload = null;
+        playerCallbackState.pauseResume = null;
+      };
+    }
+  ),
   mockSubscribeAdBlockStatus: vi.fn(
     (_channelName: string, callback: (status: AdBlockStatus) => void) => {
       statusCallbackState.callback = callback;
@@ -116,6 +134,7 @@ vi.mock("hls.js", () => {
     destroy = vi.fn();
     startLoad = vi.fn();
     stopLoad = vi.fn();
+    detachMedia = vi.fn();
     recoverMediaError = vi.fn();
     trigger = vi.fn();
     eventHandlers = new Map<string, Array<(event: string, data?: unknown) => void>>();
@@ -151,8 +170,8 @@ vi.mock("@/components/player/twitch/twitch-adblock-service", () => ({
   initAdBlockService: (config: unknown) => mockInitAdBlockService(config),
   isAdBlockEnabled: () => mockIsAdBlockEnabled(),
   setAuthHeaders: (deviceId: string) => mockSetAuthHeaders(deviceId),
-  setPlayerCallbacks: (reload: () => void, pauseResume: () => void) =>
-    mockSetPlayerCallbacks(reload, pauseResume),
+  setPlayerCallbacks: (...args: [string | (() => void), () => void, (() => void)?]) =>
+    mockSetPlayerCallbacks(args[0], args[1], args[2]),
   subscribeAdBlockStatus: (channelName: string, callback: (status: AdBlockStatus) => void) =>
     mockSubscribeAdBlockStatus(channelName, callback),
   setStatusChangeCallback: (callback: (status: AdBlockStatus) => void) =>
@@ -164,15 +183,25 @@ import { TwitchHlsPlayer } from "@/components/player/twitch/twitch-hls-player";
 
 // Guards: Twitch players publish adblock status during startup so controls can render the shield before any ad playlist event arrives.
 // Guards: Twitch live playback uses the stability-first default HLS buffer config so random CDN jitter is less likely to stall playback.
-// Guards: fragment watchdog stalls only trigger local HLS recovery, never page-visible errors or parent URL refresh; only ad-block completion can ask the parent for a fresh URL.
+// Guards: fragment watchdog stalls get one local HLS restart, then request a fresh source instead of spinning forever.
 // Guards: Twitch Highest applies explicit Source during manifest parsing before adblock backup selection can pin a lower level.
 // Guards: ad backup and recovery manifests recompute Highest instead of retaining a stale numeric level.
 // Guards: Twitch controls receive the actual HLS level after adblock-driven switches.
 // Guards: late dock quality authority applies against an already-parsed Twitch manifest once, while mini and return preserve the session.
 // Guards: unsafe Twitch ad fallback shields video pixels and audio synchronously before the processed playlist is released.
+// Guards: preliminary ad detection shields immediately so a pending backup cannot expose a Twitch commercial-break interstitial.
 // Guards: a clean aligned backup stays visible and audible without a blank-video substitution.
 // Guards: source and route changes retain the shield until a fragment from the new safe playlist is actually presented.
 // Guards: recovery ignores stale ad fragments, accepts any buffered member of the safe playlist, and defers clean status until reveal.
+// Guards: the persistent no-black cover is released only when the exact verified clean replacement frame is presented.
+// Guards: the persistent cover receives a synchronous pre-shield signal before the unsafe video is hidden.
+// Guards: ad-block player callbacks never pause or resume media; playback state remains user-owned.
+// Guards: a stalled ad hold retries HLS locally and never requests an external refresh/remount.
+// Guards: changing explicit playback intent never rebuilds HLS, and late autoplay work respects a deliberate pause.
+// Guards: Twitch manifest 403 is a refreshable token failure and never pauses media itself.
+// Guards: verified clean presentation restores the exact user mute preference after internal ad-audio suppression.
+// Guards: repeated ad-start recovery signals never stop/restart a verified clean HLS feed or disturb media progression.
+// Guards: rapid clean-to-unsafe re-entry invalidates a pending clean-frame callback before it can uncover unsafe media.
 describe("TwitchHlsPlayer adblock status", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -302,6 +331,68 @@ describe("TwitchHlsPlayer adblock status", () => {
     expect(video.muted).toBe(true);
   });
 
+  it("signals the persistent cover before mutating video opacity", () => {
+    let opacityAtSignal: string | null = null;
+    const { container } = render(
+      <TwitchHlsPlayer
+        src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+        channelName="sodapoppin"
+        enableAdBlock
+        onBeforeAdPresentationShield={() => {
+          opacityAtSignal = container.querySelector("video")?.style.opacity ?? null;
+        }}
+      />
+    );
+
+    act(() => {
+      statusCallbackState.callback?.({
+        isActive: true,
+        isShowingAd: true,
+        isMidroll: true,
+        isStrippingSegments: true,
+        numStrippedSegments: 1,
+        activePlayerType: null,
+        channelName: "sodapoppin",
+        isUsingFallbackMode: true,
+        adStartTime: Date.now(),
+      });
+    });
+
+    expect(opacityAtSignal).toBe("");
+    expect(container.querySelector("video")?.style.opacity).toBe("0");
+  });
+
+  it("shields immediately while ad fallback selection is still pending", () => {
+    const { container } = render(
+      <TwitchHlsPlayer
+        src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+        channelName="sodapoppin"
+        muted={false}
+        enableAdBlock
+      />
+    );
+    const video = container.querySelector("video");
+    expect(video).not.toBeNull();
+    if (!video) return;
+
+    act(() => {
+      statusCallbackState.callback?.({
+        isActive: true,
+        isShowingAd: true,
+        isMidroll: false,
+        isStrippingSegments: false,
+        numStrippedSegments: 0,
+        activePlayerType: null,
+        channelName: "sodapoppin",
+        isUsingFallbackMode: false,
+        adStartTime: Date.now(),
+      });
+    });
+
+    expect(video.style.opacity).toBe("0");
+    expect(video.muted).toBe(true);
+  });
+
   it("does not shield this player for another channel's ad status", () => {
     const { container } = render(
       <TwitchHlsPlayer
@@ -423,6 +514,7 @@ describe("TwitchHlsPlayer adblock status", () => {
     expect(video.muted).toBe(true);
 
     const refreshedHls = hlsInstances[1];
+    const heartbeatCallbackCount = frameCallbacks.length;
     act(() => {
       refreshedHls.emit("hlsLevelLoaded", {
         details: {
@@ -442,7 +534,7 @@ describe("TwitchHlsPlayer adblock status", () => {
         },
       });
     });
-    expect(frameCallbacks).toHaveLength(0);
+    expect(frameCallbacks).toHaveLength(heartbeatCallbackCount);
     expect(video.style.opacity).toBe("0");
 
     act(() => {
@@ -452,7 +544,10 @@ describe("TwitchHlsPlayer adblock status", () => {
           url: "https://video-weaver.redacted.ttvnw.net/clean-501.ts",
         },
       });
-      frameCallbacks.shift()?.(0, { mediaTime: 100 } as VideoFrameCallbackMetadata);
+      const callbacksToRun = frameCallbacks.splice(0, frameCallbacks.length);
+      callbacksToRun.forEach((callback) =>
+        callback(0, { mediaTime: 100 } as VideoFrameCallbackMetadata)
+      );
     });
     expect(video.style.opacity).toBe("");
     expect(video.muted).toBe(false);
@@ -489,7 +584,10 @@ describe("TwitchHlsPlayer adblock status", () => {
           url: "https://video-weaver.redacted.ttvnw.net/clean-601.ts",
         },
       });
-      frameCallbacks.shift()?.(0, { mediaTime: 120 } as VideoFrameCallbackMetadata);
+      const callbacksToRun = frameCallbacks.splice(0, frameCallbacks.length);
+      callbacksToRun.forEach((callback) =>
+        callback(0, { mediaTime: 120 } as VideoFrameCallbackMetadata)
+      );
     });
     expect(video.style.opacity).toBe("");
     expect(video.muted).toBe(false);
@@ -541,15 +639,105 @@ describe("TwitchHlsPlayer adblock status", () => {
     expect(video.muted).toBe(false);
   });
 
-  it("keeps the blocking status published until the exact clean frame is presented", () => {
-    const onAdBlockStatusChange = vi.fn();
+  it.each([false, true])(
+    "keeps blocking published until the exact clean frame and restores muted=%s",
+    (requestedMuted) => {
+      const onAdBlockStatusChange = vi.fn();
+      const onVerifiedCleanAdPresentation = vi.fn();
+      const { container } = render(
+        <TwitchHlsPlayer
+          src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+          channelName="sodapoppin"
+          muted={requestedMuted}
+          enableAdBlock
+          onAdBlockStatusChange={onAdBlockStatusChange}
+          onVerifiedCleanAdPresentation={onVerifiedCleanAdPresentation}
+        />
+      );
+      const hls = hlsInstances[0];
+      const video = container.querySelector("video");
+      expect(video).not.toBeNull();
+      if (!video) return;
+
+      const unsafeStatus: AdBlockStatus = {
+        isActive: true,
+        isShowingAd: true,
+        isMidroll: true,
+        isStrippingSegments: true,
+        numStrippedSegments: 1,
+        activePlayerType: null,
+        channelName: "sodapoppin",
+        isUsingFallbackMode: true,
+        adStartTime: Date.now(),
+      };
+      const cleanStatus: AdBlockStatus = {
+        ...unsafeStatus,
+        isShowingAd: false,
+        isMidroll: false,
+        isStrippingSegments: false,
+        numStrippedSegments: 0,
+        isUsingFallbackMode: false,
+        adStartTime: null,
+      };
+      const frameCallbacks: VideoFrameRequestCallback[] = [];
+      Object.defineProperty(video, "requestVideoFrameCallback", {
+        configurable: true,
+        value: vi.fn((callback: VideoFrameRequestCallback) => {
+          frameCallbacks.push(callback);
+          return frameCallbacks.length;
+        }),
+      });
+
+      act(() => statusCallbackState.callback?.(unsafeStatus));
+      expect(video).toHaveAttribute("data-streamfusion-ad-presentation-shielded", "true");
+      act(() => statusCallbackState.callback?.(cleanStatus));
+      expect(video).toHaveAttribute("data-streamfusion-ad-presentation-shielded", "true");
+
+      expect(onAdBlockStatusChange).toHaveBeenLastCalledWith(unsafeStatus);
+      expect(onVerifiedCleanAdPresentation).not.toHaveBeenCalled();
+
+      mockGetAdBlockStatus.mockReturnValue(cleanStatus);
+      act(() => {
+        hls.emit("hlsLevelLoaded", {
+          details: {
+            fragments: [
+              {
+                sn: 301,
+                url: "https://video-weaver.redacted.ttvnw.net/clean-301.ts",
+                start: 60,
+              },
+            ],
+          },
+        });
+        hls.emit("hlsFragBuffered", {
+          frag: {
+            sn: 301,
+            url: "https://video-weaver.redacted.ttvnw.net/clean-301.ts",
+          },
+        });
+      });
+
+      expect(onAdBlockStatusChange).toHaveBeenLastCalledWith(unsafeStatus);
+      expect(video).toHaveAttribute("data-streamfusion-ad-presentation-shielded", "true");
+      act(() => {
+        frameCallbacks.shift()?.(0, { mediaTime: 60 } as VideoFrameCallbackMetadata);
+      });
+      expect(onAdBlockStatusChange).toHaveBeenLastCalledWith(cleanStatus);
+      expect(onVerifiedCleanAdPresentation).toHaveBeenCalledTimes(1);
+      expect(video).not.toHaveAttribute("data-streamfusion-ad-presentation-shielded");
+      expect(video.muted).toBe(requestedMuted);
+    }
+  );
+
+  it("ignores a stale clean-frame callback after rapid unsafe re-entry", () => {
+    const onVerifiedCleanAdPresentation = vi.fn();
     const { container } = render(
       <TwitchHlsPlayer
         src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
         channelName="sodapoppin"
         muted={false}
         enableAdBlock
-        onAdBlockStatusChange={onAdBlockStatusChange}
+        onVerifiedCleanAdPresentation={onVerifiedCleanAdPresentation}
       />
     );
     const hls = hlsInstances[0];
@@ -578,6 +766,7 @@ describe("TwitchHlsPlayer adblock status", () => {
       adStartTime: null,
     };
     const frameCallbacks: VideoFrameRequestCallback[] = [];
+    const cancelVideoFrameCallback = vi.fn();
     Object.defineProperty(video, "requestVideoFrameCallback", {
       configurable: true,
       value: vi.fn((callback: VideoFrameRequestCallback) => {
@@ -585,42 +774,46 @@ describe("TwitchHlsPlayer adblock status", () => {
         return frameCallbacks.length;
       }),
     });
+    Object.defineProperty(video, "cancelVideoFrameCallback", {
+      configurable: true,
+      value: cancelVideoFrameCallback,
+    });
 
     act(() => statusCallbackState.callback?.(unsafeStatus));
-    expect(video).toHaveAttribute("data-streamfusion-ad-presentation-shielded", "true");
     act(() => statusCallbackState.callback?.(cleanStatus));
-    expect(video).toHaveAttribute("data-streamfusion-ad-presentation-shielded", "true");
-
-    expect(onAdBlockStatusChange).toHaveBeenLastCalledWith(unsafeStatus);
-
     mockGetAdBlockStatus.mockReturnValue(cleanStatus);
     act(() => {
       hls.emit("hlsLevelLoaded", {
         details: {
           fragments: [
             {
-              sn: 301,
-              url: "https://video-weaver.redacted.ttvnw.net/clean-301.ts",
-              start: 60,
+              sn: 701,
+              url: "https://video-weaver.redacted.ttvnw.net/clean-701.ts",
+              start: 140,
             },
           ],
         },
       });
       hls.emit("hlsFragBuffered", {
         frag: {
-          sn: 301,
-          url: "https://video-weaver.redacted.ttvnw.net/clean-301.ts",
+          sn: 701,
+          url: "https://video-weaver.redacted.ttvnw.net/clean-701.ts",
         },
       });
     });
+    const staleCleanFrame = frameCallbacks.shift();
+    expect(staleCleanFrame).toBeDefined();
 
-    expect(onAdBlockStatusChange).toHaveBeenLastCalledWith(unsafeStatus);
-    expect(video).toHaveAttribute("data-streamfusion-ad-presentation-shielded", "true");
+    act(() => statusCallbackState.callback?.(unsafeStatus));
     act(() => {
-      frameCallbacks.shift()?.(0, { mediaTime: 60 } as VideoFrameCallbackMetadata);
+      staleCleanFrame?.(0, { mediaTime: 140 } as VideoFrameCallbackMetadata);
     });
-    expect(onAdBlockStatusChange).toHaveBeenLastCalledWith(cleanStatus);
-    expect(video).not.toHaveAttribute("data-streamfusion-ad-presentation-shielded");
+
+    expect(cancelVideoFrameCallback).toHaveBeenCalled();
+    expect(onVerifiedCleanAdPresentation).not.toHaveBeenCalled();
+    expect(video).toHaveAttribute("data-streamfusion-ad-presentation-shielded", "true");
+    expect(video.style.opacity).toBe("0");
+    expect(video.muted).toBe(true);
   });
 
   it("stays shielded with the blocking status when frame presentation callbacks are unavailable", () => {
@@ -817,6 +1010,7 @@ describe("TwitchHlsPlayer adblock status", () => {
 
     expect(hlsConstructorConfigs[0]).toEqual(
       expect.objectContaining({
+        enableWorker: false,
         lowLatencyMode: false,
         liveSyncDurationCount: 4,
         backBufferLength: 5,
@@ -994,7 +1188,38 @@ describe("TwitchHlsPlayer adblock status", () => {
     expect(hls.startLoad).toHaveBeenCalledWith(-1);
   });
 
-  it("locally restarts HLS loading after live fragments stop arriving without reporting an error", () => {
+  it("reports a manifest 403 as token refresh without pausing media", () => {
+    const onError = vi.fn();
+    const { container } = render(
+      <TwitchHlsPlayer
+        src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+        channelName="sodapoppin"
+        autoPlay
+        enableAdBlock
+        onError={onError}
+      />
+    );
+    const video = container.querySelector("video");
+    expect(video).not.toBeNull();
+    if (!video) return;
+    const pause = vi.spyOn(video, "pause").mockImplementation(() => {});
+
+    act(() => {
+      hlsInstances[0].emit("hlsError", {
+        details: "manifestLoadError",
+        fatal: true,
+        response: { code: 403 },
+        type: "networkError",
+      });
+    });
+
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "TOKEN_EXPIRED", fatal: true, shouldRefresh: true })
+    );
+    expect(pause).not.toHaveBeenCalled();
+  });
+
+  it("runs one bounded recovery ladder when live fragments remain stalled", () => {
     vi.useFakeTimers();
     const onError = vi.fn();
 
@@ -1019,7 +1244,7 @@ describe("TwitchHlsPlayer adblock status", () => {
     });
 
     act(() => {
-      vi.advanceTimersByTime(19_999);
+      vi.advanceTimersByTime(9_999);
     });
     expect(onError).not.toHaveBeenCalled();
 
@@ -1027,12 +1252,23 @@ describe("TwitchHlsPlayer adblock status", () => {
       vi.advanceTimersByTime(1);
     });
 
-    expect(hls.startLoad).toHaveBeenCalledWith(-1);
+    expect(hls.startLoad).toHaveBeenCalledTimes(2);
+    expect(hls.startLoad).toHaveBeenLastCalledWith(-1);
     expect(onError).not.toHaveBeenCalled();
     expect(hls.destroy).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "PLAYBACK_STALL", shouldRefresh: true })
+    );
+    expect(hls.destroy).toHaveBeenCalledTimes(1);
   });
 
-  it("locally restarts HLS loading after missing startup fragments without reporting an error", () => {
+  it("bounds the startup spinner when fragments never arrive", () => {
     vi.useFakeTimers();
     const onError = vi.fn();
 
@@ -1056,7 +1292,7 @@ describe("TwitchHlsPlayer adblock status", () => {
     });
 
     act(() => {
-      vi.advanceTimersByTime(19_999);
+      vi.advanceTimersByTime(9_999);
     });
     expect(onError).not.toHaveBeenCalled();
 
@@ -1064,12 +1300,23 @@ describe("TwitchHlsPlayer adblock status", () => {
       vi.advanceTimersByTime(1);
     });
 
-    expect(hls.startLoad).toHaveBeenCalledWith(-1);
+    expect(hls.startLoad).toHaveBeenCalledTimes(2);
+    expect(hls.startLoad).toHaveBeenLastCalledWith(-1);
     expect(onError).not.toHaveBeenCalled();
     expect(hls.destroy).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "NO_FRAGMENTS", shouldRefresh: true })
+    );
+    expect(hls.destroy).toHaveBeenCalledTimes(1);
   });
 
-  it("does not report missing fragments while adblock is actively holding playback", () => {
+  it("escalates a stale unsafe ad hold to a fresh playback URL after one local retry", () => {
     vi.useFakeTimers();
     const onError = vi.fn();
 
@@ -1104,23 +1351,84 @@ describe("TwitchHlsPlayer adblock status", () => {
     });
 
     act(() => {
-      vi.advanceTimersByTime(10_000);
+      vi.advanceTimersByTime(14_999);
     });
 
     expect(onError).not.toHaveBeenCalled();
     expect(hls.destroy).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(hls.startLoad).toHaveBeenCalledWith(-1);
+    expect(onError).not.toHaveBeenCalled();
+    expect(hls.destroy).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(15_000);
+    });
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "AD_BLOCK_STALL", fatal: true, shouldRefresh: true })
+    );
   });
 
-  it("refreshes the parent playback URL immediately when ad-block reports an ad ended", () => {
+  it("does not refresh during a long ad hold while fragments keep progressing", () => {
     vi.useFakeTimers();
-    const onAdBlockRecoveryRefresh = vi.fn();
+    const onError = vi.fn();
 
     const { container } = render(
       <TwitchHlsPlayer
         src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
         channelName="sodapoppin"
         enableAdBlock
-        onAdBlockRecoveryRefresh={onAdBlockRecoveryRefresh}
+        onError={onError}
+      />
+    );
+    const hls = hlsInstances[0];
+    const video = container.querySelector("video");
+    expect(video).not.toBeNull();
+    if (!video) return;
+
+    Object.defineProperty(video, "paused", { value: false, configurable: true });
+    act(() => {
+      hls.emit("hlsManifestParsed");
+      statusCallbackState.callback?.({
+        isActive: true,
+        isShowingAd: true,
+        isMidroll: true,
+        isStrippingSegments: true,
+        numStrippedSegments: 1,
+        activePlayerType: null,
+        channelName: "sodapoppin",
+        isUsingFallbackMode: false,
+        adStartTime: Date.now(),
+      });
+    });
+
+    for (let index = 0; index < 8; index += 1) {
+      act(() => {
+        vi.advanceTimersByTime(2_500);
+        hls.emit("hlsFragLoaded");
+      });
+    }
+
+    expect(hls.startLoad).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+    expect(hls.destroy).not.toHaveBeenCalled();
+  });
+
+  it("restores preferred quality without restarting when ad-block reports an ad ended", () => {
+    vi.useFakeTimers();
+
+    const { container } = render(
+      <TwitchHlsPlayer
+        src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+        channelName="sodapoppin"
+        preferredQuality="highest"
+        enableAdBlock
       />
     );
     const hls = hlsInstances[0];
@@ -1129,8 +1437,176 @@ describe("TwitchHlsPlayer adblock status", () => {
     if (!video) return;
     Object.defineProperty(video, "paused", { value: false, configurable: true });
 
+    const levels = [
+      { width: 852, height: 480, bitrate: 1_500_000, name: "480p" },
+      { width: 1920, height: 1080, bitrate: 6_000_000, name: "1080p60 (Source)" },
+    ];
+    hls.levels = levels;
+    act(() => hls.emit("hlsManifestParsed", { levels }));
+    expect(hls.currentLevel).toBe(1);
+    hls.currentLevel = 0;
+    hls.loadSource.mockClear();
+    hls.startLoad.mockClear();
+
     act(() => playerCallbackState.reload?.("ad-ended"));
-    expect(hls.startLoad).toHaveBeenCalledWith(-1);
-    expect(onAdBlockRecoveryRefresh).toHaveBeenCalledTimes(1);
+    expect(hls.startLoad).not.toHaveBeenCalled();
+    expect(hls.currentLevel).toBe(1);
+    expect(hls.loadSource).not.toHaveBeenCalled();
+  });
+
+  it("keeps a verified clean feed continuous across repeated ad-start signals", () => {
+    const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    const { container } = render(
+      <TwitchHlsPlayer
+        src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+        channelName="sodapoppin"
+        enableAdBlock
+      />
+    );
+    const hls = hlsInstances[0];
+    const video = container.querySelector("video");
+    expect(video).not.toBeNull();
+    if (!video) return;
+    Object.defineProperty(video, "paused", { configurable: true, value: false });
+    video.currentTime = 100;
+    const waiting = vi.fn();
+    video.addEventListener("waiting", waiting);
+    hls.loadSource.mockClear();
+    hls.stopLoad.mockClear();
+    hls.startLoad.mockClear();
+
+    act(() => {
+      playerCallbackState.reload?.("ad-started");
+      playerCallbackState.reload?.("ad-started");
+      playerCallbackState.reload?.("ad-started");
+    });
+
+    expect(hls.stopLoad).not.toHaveBeenCalled();
+    expect(hls.startLoad).not.toHaveBeenCalled();
+    expect(hls.loadSource).not.toHaveBeenCalled();
+    expect(pause).not.toHaveBeenCalled();
+    expect(video.paused).toBe(false);
+    expect(video.currentTime).toBe(100);
+    expect(waiting).not.toHaveBeenCalled();
+  });
+
+  it("does not register an ad-owned callback that changes the user's paused state", () => {
+    const pause = vi.spyOn(HTMLMediaElement.prototype, "pause");
+    const { container } = render(
+      <TwitchHlsPlayer
+        src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+        channelName="sodapoppin"
+        enableAdBlock
+      />
+    );
+    const video = container.querySelector("video");
+    expect(video).not.toBeNull();
+    if (!video) return;
+    Object.defineProperty(video, "paused", { configurable: true, value: false });
+
+    act(() => playerCallbackState.pauseResume?.());
+
+    expect(pause).not.toHaveBeenCalled();
+    expect(video.paused).toBe(false);
+  });
+
+  it("reports a clean presented frame and cancels its frame heartbeat on teardown", () => {
+    const frameCallbacks: VideoFrameRequestCallback[] = [];
+    const requestVideoFrameCallback = vi.fn((callback: VideoFrameRequestCallback) => {
+      frameCallbacks.push(callback);
+      return 73;
+    });
+    const cancelVideoFrameCallback = vi.fn();
+    Object.defineProperty(HTMLVideoElement.prototype, "requestVideoFrameCallback", {
+      configurable: true,
+      value: requestVideoFrameCallback,
+    });
+    Object.defineProperty(HTMLVideoElement.prototype, "cancelVideoFrameCallback", {
+      configurable: true,
+      value: cancelVideoFrameCallback,
+    });
+    const onCleanPresentedFrame = vi.fn();
+    const onHlsInstance = vi.fn();
+
+    const { unmount } = render(
+      <TwitchHlsPlayer
+        src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+        channelName="sodapoppin"
+        enableAdBlock
+        onCleanPresentedFrame={onCleanPresentedFrame}
+        onHlsInstance={onHlsInstance}
+      />
+    );
+    const hls = hlsInstances[0];
+    expect(requestVideoFrameCallback).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      frameCallbacks.shift()?.(0, { mediaTime: 12 } as VideoFrameCallbackMetadata);
+    });
+    expect(onCleanPresentedFrame).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(cancelVideoFrameCallback).toHaveBeenCalledWith(73);
+    expect(hls.stopLoad).toHaveBeenCalled();
+    expect(hls.detachMedia).toHaveBeenCalled();
+    expect(hls.destroy).toHaveBeenCalledTimes(1);
+    expect(onHlsInstance).toHaveBeenLastCalledWith(null);
+
+    delete (HTMLVideoElement.prototype as Partial<HTMLVideoElement>).requestVideoFrameCallback;
+    delete (HTMLVideoElement.prototype as Partial<HTMLVideoElement>).cancelVideoFrameCallback;
+  });
+
+  it("keeps the HLS session intact and cancels late autoplay when intent changes to paused", () => {
+    vi.useFakeTimers();
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    const rendered = render(
+      <TwitchHlsPlayer
+        src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+        channelName="sodapoppin"
+        autoPlay
+        enableAdBlock
+      />
+    );
+    const hls = hlsInstances[0];
+
+    rendered.rerender(
+      <TwitchHlsPlayer
+        src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+        channelName="sodapoppin"
+        autoPlay={false}
+        enableAdBlock
+      />
+    );
+
+    expect(hlsInstances).toHaveLength(1);
+    expect(hls.destroy).not.toHaveBeenCalled();
+
+    act(() => {
+      hls.emit("hlsManifestParsed", { levels: [] });
+      vi.runOnlyPendingTimers();
+    });
+    expect(play).not.toHaveBeenCalled();
+    play.mockRestore();
+  });
+
+  it("cancels pending autoplay work when the source unmounts", () => {
+    vi.useFakeTimers();
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
+    const { unmount } = render(
+      <TwitchHlsPlayer
+        src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+        channelName="sodapoppin"
+        autoPlay
+        enableAdBlock
+      />
+    );
+
+    act(() => hlsInstances[0].emit("hlsManifestParsed", { levels: [] }));
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    unmount();
+    act(() => vi.runOnlyPendingTimers());
+    expect(vi.getTimerCount()).toBe(0);
+    expect(play).not.toHaveBeenCalled();
+    play.mockRestore();
   });
 });

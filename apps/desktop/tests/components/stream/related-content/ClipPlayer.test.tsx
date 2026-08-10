@@ -1,6 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClipPlayer } from "@/components/stream/related-content/ClipPlayer";
+
+const log = vi.hoisted(() => ({
+  debug: vi.fn(),
+  error: vi.fn(),
+  warn: vi.fn(),
+}));
+
+vi.mock("@/renderer/logging/logger", () => ({ logger: log }));
 
 // Mock HLS.js
 const mockHlsLoadSource = vi.fn();
@@ -54,10 +62,14 @@ vi.mock("@/components/ui/loading-spinner", () => ({
 
 describe("ClipPlayer", () => {
   // Guards: clip dialog HLS playback must use the stable VOD buffer profile so short Twitch/Kick clips do not rebuffer from low-latency defaults.
+  // Guards: changing or closing a native clip must detach its media listeners so an abandoned source cannot update the next player session.
+  // Guards: clip diagnostics must never serialize signed source URLs or their query credentials.
   beforeEach(() => {
     vi.clearAllMocks();
     mockHlsConstructorConfigs.length = 0;
   });
+
+  afterEach(() => vi.restoreAllMocks());
 
   it("should initialize HLS for m3u8 streams", () => {
     render(<ClipPlayer src="http://example.com/video.m3u8" autoPlay={false} />);
@@ -89,6 +101,35 @@ describe("ClipPlayer", () => {
     const video = container.querySelector("video");
     expect(video).toBeInTheDocument();
     expect(video).toHaveAttribute("src", "http://example.com/video.mp4");
+  });
+
+  it("does not include the source URL in diagnostics", () => {
+    render(<ClipPlayer src="https://cdn.invalid/video.mp4?token=SENTINEL_CLIP_SECRET" />);
+
+    expect(JSON.stringify(log.debug.mock.calls)).not.toContain("SENTINEL_CLIP_SECRET");
+    expect(log.debug).toHaveBeenCalledWith(
+      "Stream:ClipPlayer",
+      "loading source",
+      expect.objectContaining({ sourceType: "native" })
+    );
+  });
+
+  it("removes native media listeners when the player unmounts", () => {
+    const addListener = vi.spyOn(HTMLMediaElement.prototype, "addEventListener");
+    const removeListener = vi.spyOn(HTMLMediaElement.prototype, "removeEventListener");
+    const { unmount } = render(<ClipPlayer src="http://example.com/video.mp4" />);
+
+    const loadedMetadataHandler = addListener.mock.calls
+      .filter(([eventName]) => eventName === "loadedmetadata")
+      .at(-1)?.[1];
+    const errorHandler = addListener.mock.calls.filter(([eventName]) => eventName === "error").at(-1)?.[1];
+    expect(loadedMetadataHandler).toBeTypeOf("function");
+    expect(errorHandler).toBeTypeOf("function");
+
+    unmount();
+
+    expect(removeListener).toHaveBeenCalledWith("loadedmetadata", loadedMetadataHandler);
+    expect(removeListener).toHaveBeenCalledWith("error", errorHandler);
   });
 
   it("should toggle play/pause on click", () => {

@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { DEFAULT_CAPTION_PREFERENCES } from "@/shared/auth-types";
 import {
   DEFAULT_LOCAL_CAPTION_MODEL_STATE,
@@ -93,8 +93,10 @@ export function useLocalLiveCaptions({
   const activeCuesRef = useRef(activeCues);
   const presentationRef = useRef({ muted, volume });
   const hasSource = sourceKey.length > 0;
-  presentationRef.current = { muted, volume };
-  activeCuesRef.current = activeCues;
+  useLayoutEffect(() => {
+    presentationRef.current = { muted, volume };
+    activeCuesRef.current = activeCues;
+  }, [activeCues, muted, volume]);
 
   const deactivate = useCallback(() => {
     selectedRef.current = false;

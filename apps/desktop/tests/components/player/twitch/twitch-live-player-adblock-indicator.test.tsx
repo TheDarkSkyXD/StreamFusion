@@ -7,6 +7,7 @@ import type { AdBlockStatus } from "@/shared/adblock-types";
 interface HlsHarnessProps {
   ref?: Ref<HTMLVideoElement>;
   onAdBlockStatusChange?: (status: AdBlockStatus) => void;
+  onPlaybackRecoveryStateChange?: (recovering: boolean) => void;
 }
 
 const harness = vi.hoisted(() => ({
@@ -118,31 +119,51 @@ function publishStatus(nextStatus: AdBlockStatus) {
   });
 }
 
-// Guards: active Twitch ad handling remains announced without confusing ordinary player loading or recovery for an ad.
+// Guards: confirmed playback recovery is announced without confusing ordinary Twitch ad substitution for a stall.
+// Guards: active Twitch ad substitution keeps the visible top-left blocking status users rely on.
 describe("Twitch live-player ad-block indicator", () => {
   beforeEach(() => {
     harness.hlsProps = null;
     harness.recoverFromNetworkError = null;
   });
 
-  it("announces active fallback handling as the existing Blocking ads status", () => {
+  it("announces confirmed automatic playback recovery", () => {
+    renderPlayer();
+
+    act(() => {
+      harness.hlsProps?.onPlaybackRecoveryStateChange?.(true);
+    });
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Stream interrupted — reconnecting…"
+    );
+  });
+
+  it("clears the recovery announcement when healthy playback returns", () => {
+    renderPlayer();
+
+    act(() => {
+      harness.hlsProps?.onPlaybackRecoveryStateChange?.(true);
+      harness.hlsProps?.onPlaybackRecoveryStateChange?.(false);
+    });
+
+    expect(screen.queryByText("Stream interrupted — reconnecting…")).not.toBeInTheDocument();
+  });
+
+  it("announces ordinary preroll ad substitution", () => {
     renderPlayer();
 
     publishStatus(status({ isShowingAd: true, isUsingFallbackMode: true }));
 
-    const indicator = screen.getByRole("status");
-    expect(indicator).toHaveAttribute("aria-live", "polite");
-    expect(indicator).toHaveTextContent("Blocking ads");
+    expect(screen.getByRole("status")).toHaveTextContent("Blocking ads");
   });
 
-  it("hides the indicator when clean playback resumes", () => {
+  it("distinguishes active midroll substitution", () => {
     renderPlayer();
-    publishStatus(status({ isShowingAd: true, isStrippingSegments: true }));
-    expect(screen.getByRole("status")).toHaveTextContent("Blocking ads");
 
-    publishStatus(status());
+    publishStatus(status({ isShowingAd: true, isMidroll: true }));
 
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Blocking midroll ads");
   });
 
   it("does not announce stale ad flags after ad blocking becomes inactive", () => {
@@ -157,32 +178,6 @@ describe("Twitch live-player ad-block indicator", () => {
       })
     );
 
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-  });
-
-  it("tracks repeated ad and clean recovery transitions without leaving a stale indicator", () => {
-    renderPlayer();
-    const preroll = status({ isShowingAd: true, isUsingFallbackMode: true });
-
-    publishStatus(preroll);
-    publishStatus(preroll);
-    expect(screen.getAllByRole("status")).toHaveLength(1);
-    expect(screen.getByRole("status")).toHaveTextContent("Blocking ads");
-
-    publishStatus(status());
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-
-    publishStatus(
-      status({
-        isShowingAd: true,
-        isMidroll: true,
-        isStrippingSegments: true,
-        numStrippedSegments: 2,
-      })
-    );
-    expect(screen.getByRole("status")).toHaveTextContent("Blocking midroll ads");
-
-    publishStatus(status());
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 

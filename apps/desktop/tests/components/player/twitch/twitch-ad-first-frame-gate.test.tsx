@@ -316,9 +316,10 @@ async function runFirstFramePipeline(
   }
 }
 
-// Guards: a positively classified Twitch ad playlist cannot paint or play its first ad frame while clean-backup recovery is still pending.
-// Guards: fixture-driven timing covers classification, playlist release, fragment admission, SourceBuffer append, and the real video presentation shield.
-// Guards: a root-relative same-origin master request uses its absolute response URL to register both renditions before a selected ad fragment is admitted.
+// Guards: a positively classified Twitch ad playlist is reduced to metadata before HLS can admit its first unsafe fragment.
+// Guards: Twitch commercial-break interstitial content is opaque unsafe media and cannot reach SourceBuffer before verified clean replacement.
+// Guards: fixture-driven timing proves classification and shielding precede playlist release, while unsafe fragment admission and append never occur.
+// Guards: a root-relative same-origin master request uses its absolute response URL to register both renditions before unsafe media is held.
 describe("Twitch ad first-frame gate", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -326,15 +327,30 @@ describe("Twitch ad first-frame gate", () => {
     initAdBlockService({ enabled: true });
   });
 
-  it("shields a cue-out frame even when HLS admits and appends it", async () => {
+  it("holds a cue-out playlist before HLS can admit its first unsafe frame", async () => {
     const result = await runFirstFramePipeline("ad-cue-out");
 
     expect(result.probes).toEqual([
       "classification:blocking",
       "playlist:released",
-      "fragment:admitted:ad-frame",
-      "source-buffer:append:ad-frame",
-      "video:paint-suppressed:ad-frame",
+      "fragment:not-admitted",
+    ]);
+    expect(result.paintedFrames).toEqual([]);
+    expect(result.isVideoShielded).toBe(true);
+    expect(result.isVideoMuted).toBe(true);
+    expect(result.isShowingAd).toBe(true);
+  });
+
+  it("suppresses a Twitch commercial-break interstitial before its first frame paints", async () => {
+    const interstitialFrame = "twitch-commercial-break-interstitial-frame";
+    const result = await runFirstFramePipeline("ad-commercial-break-interstitial", {
+      originFrame: interstitialFrame,
+    });
+
+    expect(result.probes).toEqual([
+      "classification:blocking",
+      "playlist:released",
+      "fragment:not-admitted",
     ]);
     expect(result.paintedFrames).toEqual([]);
     expect(result.isVideoShielded).toBe(true);
@@ -477,7 +493,7 @@ describe("Twitch ad first-frame gate", () => {
         status: expect.objectContaining({ channelName: "fixtureproof", isShowingAd: true }),
         opacity: "0",
         muted: true,
-        selectedSegment: `${R6_RUN_PREFIX}/video-edge.ttvnw.net/high-ad-100.ts`,
+        selectedSegment: "",
       });
       expect.soft(backgroundVideo.style.opacity).toBe("");
       expect.soft(backgroundVideo.muted).toBe(false);
@@ -606,28 +622,32 @@ describe("Twitch ad first-frame gate", () => {
     ["SCTE-35", "ad-scte35"],
     ["mutated DATERANGE", "ad-mutated-daterange"],
     ["known-host prefetch", "ad-prefetch-segment-host"],
-  ])("shields a %s frame even when HLS admits and appends it", async (_label, fixtureName) => {
+  ])("holds a %s playlist before HLS can admit its first unsafe frame", async (_label, fixtureName) => {
     const result = await runFirstFramePipeline(fixtureName);
 
     expect(result.probes).toContain("classification:blocking");
-    expect(result.probes).toContain("fragment:admitted:ad-frame");
-    expect(result.probes).toContain("source-buffer:append:ad-frame");
-    expect(result.probes).toContain("video:paint-suppressed:ad-frame");
+    expect(result.probes).toEqual([
+      "classification:blocking",
+      "playlist:released",
+      "fragment:not-admitted",
+    ]);
     expect(result.paintedFrames).toEqual([]);
     expect(result.isVideoShielded).toBe(true);
     expect(result.isVideoMuted).toBe(true);
     expect(result.isShowingAd).toBe(true);
   });
 
-  it("shields a marker-free splice after clean playback before its first frame presents", async () => {
+  it("holds a marker-free splice after clean playback before its first frame is admitted", async () => {
     const result = await runFirstFramePipeline("ad-splice-transition", {
       primeWith: "clean-progression-001",
     });
 
     expect(result.probes).toContain("classification:blocking");
-    expect(result.probes).toContain("fragment:admitted:ad-frame");
-    expect(result.probes).toContain("source-buffer:append:ad-frame");
-    expect(result.probes).toContain("video:paint-suppressed:ad-frame");
+    expect(result.probes).toEqual([
+      "classification:blocking",
+      "playlist:released",
+      "fragment:not-admitted",
+    ]);
     expect(result.paintedFrames).toEqual([]);
     expect(result.isVideoShielded).toBe(true);
     expect(result.isVideoMuted).toBe(true);

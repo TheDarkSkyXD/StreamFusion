@@ -119,13 +119,11 @@ https://video-edge-abc.sfo03.abs.hls.ttvnw.net/v1/segment/CpAF-14012.ts`;
 describe("Integration: Full Ad-Block Lifecycle", () => {
   let statusChanges: any[] = [];
   let playerReloadCalled = false;
-  let pauseResumeCalled = false;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     statusChanges = [];
     playerReloadCalled = false;
-    pauseResumeCalled = false;
 
     initAdBlockService({ enabled: true, isAdStrippingEnabled: true });
     setAuthHeaders("test-device-id");
@@ -135,14 +133,9 @@ describe("Integration: Full Ad-Block Lifecycle", () => {
       statusChanges.push({ ...status, timestamp: Date.now() });
     });
 
-    setPlayerCallbacks(
-      () => {
-        playerReloadCalled = true;
-      },
-      () => {
-        pauseResumeCalled = true;
-      }
-    );
+    setPlayerCallbacks(() => {
+      playerReloadCalled = true;
+    });
 
     // Initialize stream
     mockFetch.mockResolvedValueOnce({ status: 200 });
@@ -322,7 +315,6 @@ describe("Integration: Full Ad-Block Lifecycle", () => {
       );
 
       expect(playerReloadCalled).toBe(false);
-      expect(pauseResumeCalled).toBe(false);
     });
   });
 

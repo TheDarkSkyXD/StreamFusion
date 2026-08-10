@@ -6,7 +6,13 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { createElement, type ReactNode, useRef, useState } from "react";
+import { createContext, createElement, type ReactNode, useContext, useState } from "react";
+
+const StoryChildrenContext = createContext<ReactNode>(null);
+
+function StoryChildren() {
+  return useContext(StoryChildrenContext);
+}
 
 export function RelatedContentStoryRouter({
   children,
@@ -15,9 +21,6 @@ export function RelatedContentStoryRouter({
   children: ReactNode;
   initialPath?: string;
 }) {
-  const childrenRef = useRef(children);
-  childrenRef.current = children;
-
   const [router] = useState(() => {
     const rootRoute = createRootRoute({ component: Outlet });
     const appRoute = createRoute({
@@ -31,7 +34,7 @@ export function RelatedContentStoryRouter({
       validateSearch: (search: Record<string, unknown>) => ({
         tab: typeof search.tab === "string" ? search.tab : undefined,
       }),
-      component: () => childrenRef.current,
+      component: StoryChildren,
     });
     const videoRoute = createRoute({
       getParentRoute: () => appRoute,
@@ -54,5 +57,9 @@ export function RelatedContentStoryRouter({
     });
   });
 
-  return createElement(RouterProvider, { router });
+  return createElement(
+    StoryChildrenContext.Provider,
+    { value: children },
+    createElement(RouterProvider, { router })
+  );
 }

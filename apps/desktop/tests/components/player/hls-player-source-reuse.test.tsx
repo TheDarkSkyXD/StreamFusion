@@ -1,6 +1,15 @@
 import { act, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const loggerMock = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+
+vi.mock("@/renderer/logging/logger", () => ({ logger: loggerMock }));
+
 /**
  * Guards: HlsPlayer reuses the same live HLS instance across `src` prop changes
  * within a single mount lifetime. Channel-hopping inside a slot should not
@@ -16,6 +25,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * Guards: quality controls receive the actual HLS level after startup and recovery switches.
  * Guards: Kick manifest refresh and recovery recompute semantic Highest instead of retaining a stale level index.
  * Guards: late dock quality authority applies against an already-parsed manifest once, while mini and return preserve the existing session.
+ * Guards: HLS diagnostics classify a media source without logging reversible playback URLs.
  */
 
 const fakeHlsModule = vi.hoisted(() => {
@@ -93,6 +103,20 @@ describe("HlsPlayer source reuse (slice 09)", () => {
     expect(hls.attachMedia).toHaveBeenCalledTimes(1);
   });
 
+  it("logs a safe source summary without a reversible Twitch clip wrapper", () => {
+    const reversiblePayload = "SENTINEL_REVERSIBLE_CLIP_PAYLOAD";
+    const wrappedSource = `twitch-clip-media://media?u=${reversiblePayload}.m3u8`;
+
+    render(<HlsPlayer src={wrappedSource} />);
+
+    const loggedArguments = JSON.stringify(loggerMock.debug.mock.calls);
+    expect(loggedArguments).not.toContain(reversiblePayload);
+    expect(loggerMock.debug).toHaveBeenCalledWith("Player:HLS", "initializing HLS", {
+      sourceScheme: "twitch-clip-media",
+      sourceType: "hls",
+    });
+  });
+
   it("registers HLS listeners before starting the source load", () => {
     render(<HlsPlayer src="https://x.test/a.m3u8" />);
     const hls = fakeHlsModule.instances[0] as FakeHlsInstance;
@@ -138,6 +162,43 @@ describe("HlsPlayer source reuse (slice 09)", () => {
     expect(hls.loadSource).toHaveBeenCalledTimes(1);
     expect(hls.attachMedia).toHaveBeenCalledTimes(1);
     expect(hls.currentLevel).toBe(0);
+  });
+
+  it("removes pending native source-switch listeners on unmount", () => {
+    const addListener = vi.spyOn(HTMLVideoElement.prototype, "addEventListener");
+    const removeListener = vi.spyOn(HTMLVideoElement.prototype, "removeEventListener");
+    const loadMedia = vi
+      .spyOn(HTMLMediaElement.prototype, "load")
+      .mockImplementation(() => undefined);
+
+    try {
+      const { unmount } = render(
+        <HlsPlayer
+          src="https://x.test/video.mp4"
+          currentLevel="0"
+          sources={[{ quality: "720p", url: "https://x.test/video-720.mp4" }]}
+        />
+      );
+      const metadataHandlers = addListener.mock.calls
+        .filter(
+          ([event, handler]) =>
+            event === "loadedmetadata" &&
+            typeof handler === "function" &&
+            handler.name !== "bound dispatchEvent"
+        )
+        .map(([, handler]) => handler);
+
+      expect(metadataHandlers.length).toBeGreaterThan(0);
+      unmount();
+
+      for (const handler of metadataHandlers) {
+        expect(removeListener).toHaveBeenCalledWith("loadedmetadata", handler);
+      }
+    } finally {
+      addListener.mockRestore();
+      removeListener.mockRestore();
+      loadMedia.mockRestore();
+    }
   });
 
   it("applies Highest to Source as soon as the live manifest is parsed", () => {
@@ -261,6 +322,7 @@ describe("HlsPlayer source reuse (slice 09)", () => {
 
     expect(hls.constructorConfig).toEqual(
       expect.objectContaining({
+        enableWorker: true,
         lowLatencyMode: false,
         maxBufferLength: 30,
         maxMaxBufferLength: 60,
@@ -301,6 +363,7 @@ describe("HlsPlayer source reuse (slice 09)", () => {
 
     expect(hls.constructorConfig).toEqual(
       expect.objectContaining({
+        enableWorker: false,
         lowLatencyMode: false,
         liveSyncDurationCount: 4,
         backBufferLength: 5,

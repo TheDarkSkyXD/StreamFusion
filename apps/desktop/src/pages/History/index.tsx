@@ -5,6 +5,7 @@ import { LuHistory as HistoryIcon, LuPlay, LuTrash2 } from "react-icons/lu";
 
 import { ClipDialog } from "@/components/stream/related-content/ClipDialog";
 import type { VideoOrClip } from "@/components/stream/related-content/types";
+import { VodProgressBar } from "@/components/stream/vod-progress-bar";
 import { Button } from "@/components/ui/button";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
 import { useHistoryActions, useHistoryQuery } from "@/hooks/queries/useHistoryQuery";
@@ -302,6 +303,10 @@ export function HistoryPage() {
                 >
                   <LuTrash2 className="w-3.5 h-3.5" />
                 </button>
+
+                {item.type === "video" && (
+                  <VodProgressBar platform={item.platform} videoId={item.originalId} />
+                )}
               </div>
 
               {/* Info */}

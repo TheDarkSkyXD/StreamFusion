@@ -1,4 +1,4 @@
-import { act, fireEvent, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DownloadDuplicateConfirmationDialog } from "@/components/download-duplicate-confirmation-dialog";
@@ -134,7 +134,7 @@ describe("useDownloadActions duplicate confirmation", () => {
     await screen.findByRole("alertdialog", { name: "Already in Downloads" });
     const backdrop = document.querySelector<HTMLElement>(".fixed.inset-0.z-50");
     expect(backdrop).not.toBeNull();
-    if (backdrop) fireEvent.pointerDown(backdrop);
+    if (backdrop) await user.click(backdrop);
 
     await waitFor(() =>
       expect(screen.queryByRole("alertdialog", { name: "Already in Downloads" })).toBeNull()

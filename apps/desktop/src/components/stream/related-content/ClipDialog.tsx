@@ -169,7 +169,7 @@ export function ClipDialog({
       originalId: selectedClip.id,
       title: selectedClip.title,
       thumbnail: selectedClip.thumbnailUrl || "",
-      playbackUrl: clipPlaybackUrl,
+      ...(clipPlatform === "kick" ? { playbackUrl: clipPlaybackUrl } : {}),
       shareUrl: selectedClip.shareUrl,
       platform: clipPlatform,
       type: "clip",
@@ -278,6 +278,13 @@ export function ClipDialog({
                   <div className="text-center text-red-500">
                     <p className="mb-2">Failed to load clip</p>
                     <p className="text-sm text-[var(--color-foreground-muted)]">{clipError}</p>
+                  </div>
+                ) : playbackFailed ? (
+                  <div className="text-center text-red-500">
+                    <p className="mb-2">Unable to play this clip</p>
+                    <p className="text-sm text-[var(--color-foreground-muted)]">
+                      Try closing and reopening the clip, or try again later.
+                    </p>
                   </div>
                 ) : clipPlaybackUrl ? (
                   // Platform-specific VOD player for clips

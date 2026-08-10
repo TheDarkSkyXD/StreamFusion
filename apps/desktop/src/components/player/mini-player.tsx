@@ -10,11 +10,15 @@ import { LuMaximize2, LuPause, LuPlay, LuVolume2, LuVolumeX, LuX } from "react-i
 
 import { KickLivePlayer } from "@/components/player/kick";
 import { usePlayerNetworkRecovery } from "@/components/player/hooks/use-player-network-recovery";
+import { useTwitchLiveRecovery } from "@/components/player/hooks/use-twitch-live-recovery";
+import { OfflineOverlay } from "@/components/player/offline-overlay";
 import { useDockedPlayerConfig } from "@/components/player/persistent-player-shell";
 import { TwitchLivePlayer } from "@/components/player/twitch";
 import type { PlayerError } from "@/components/player/types";
+import { Button } from "@/components/ui/button";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useStreamByChannel } from "@/hooks/queries/useStreams";
 import { useStreamPlayback } from "@/hooks/useStreamPlayback";
 import { cn } from "@/lib/utils";
 import { logger } from "@/renderer/logging/logger";
@@ -51,10 +55,25 @@ function shouldRefreshMiniPlayback(error: PlayerError): boolean {
   return statusCode !== 403 && statusCode !== 404;
 }
 
+function isConfirmedOfflinePlayerError(error: PlayerError): boolean {
+  if (error.shouldRefresh === true) return false;
+  if (error.code !== "STREAM_OFFLINE") return false;
+  const statusCode = getPlayerErrorStatusCode(error);
+  return statusCode === 403 || statusCode === 404;
+}
+
 function isExplicitPlaybackUnavailable(error: Error | null): boolean {
   if (!error) return false;
-  const message = error.message.toLowerCase();
-  return message.includes("offline") || message.includes("not found");
+  const message = error.message.trim().toLowerCase();
+  return (
+    message === "channel is offline" ||
+    message.startsWith("channel not found") ||
+    message === "no stream token found. the channel might be offline."
+  );
+}
+
+function normalizeChannelName(value: string | undefined): string {
+  return (value ?? "").trim().toLowerCase();
 }
 
 export function MiniPlayer() {
@@ -116,24 +135,151 @@ export function MiniPlayer() {
   const channelName = currentStream?.channelName ?? "";
   const {
     playback,
-    isLoading: isPlaybackLoading,
     error: playbackError,
     reload,
     reloadAttempts,
+    playbackRevision,
   } = useStreamPlayback(platform, channelName);
+  const {
+    data: streamStatus,
+    dataUpdatedAt: streamStatusUpdatedAt,
+    isPlaceholderData: isStreamStatusPlaceholder,
+    isSuccess: isStreamStatusSuccess,
+    refetch: refetchStreamStatus,
+  } = useStreamByChannel(channelName, platform);
 
   // Keep the last verified URL through loading and transient resolver failures.
   // Only an explicit offline/not-found response may retire active playback.
   const playbackIdentity = `${platform}:${channelName.toLowerCase()}`;
+  const playbackIdentityRef = useRef(playbackIdentity);
+  const streamStatusUpdatedAtRef = useRef(streamStatusUpdatedAt);
+  const [offlinePlayerSignal, setOfflinePlayerSignal] = useState<{
+    identity: string;
+    statusUpdatedAt: number;
+  } | null>(null);
   const lastVerifiedPlaybackRef = useRef({ identity: playbackIdentity, url: "" });
-  if (lastVerifiedPlaybackRef.current.identity !== playbackIdentity) {
-    lastVerifiedPlaybackRef.current = { identity: playbackIdentity, url: "" };
-  }
-  if (playback?.url) lastVerifiedPlaybackRef.current.url = playback.url;
   const hasExplicitUnavailablePlaybackError = isExplicitPlaybackUnavailable(playbackError);
+  const streamStatusMatchesCurrentIdentity =
+    streamStatus != null &&
+    streamStatus.platform === platform &&
+    normalizeChannelName(streamStatus.channelName) === normalizeChannelName(channelName);
+  const hasConfirmedOfflineStreamStatus =
+    !isDocked &&
+    isStreamStatusSuccess &&
+    !isStreamStatusPlaceholder &&
+    (platform === "twitch"
+      ? streamStatus == null ||
+        (streamStatusMatchesCurrentIdentity && streamStatus?.isLive === false)
+      : streamStatusMatchesCurrentIdentity && streamStatus?.isLive === false);
+  const hasConfirmedLiveStreamStatus =
+    !isDocked &&
+    isStreamStatusSuccess &&
+    !isStreamStatusPlaceholder &&
+    streamStatusMatchesCurrentIdentity &&
+    streamStatus?.isLive === true;
+  const confirmedOfflineStatusIdentityRef = useRef<string | null>(null);
+  const hasConfirmedOfflinePlayerSignal = offlinePlayerSignal?.identity === playbackIdentity;
+  const isConfirmedOffline =
+    !isDocked &&
+    (hasExplicitUnavailablePlaybackError ||
+      hasConfirmedOfflineStreamStatus ||
+      hasConfirmedOfflinePlayerSignal);
+  const lastVerifiedPlaybackUrl =
+    lastVerifiedPlaybackRef.current.identity === playbackIdentity
+      ? lastVerifiedPlaybackRef.current.url
+      : "";
   const streamUrl =
-    playback?.url ||
-    (!hasExplicitUnavailablePlaybackError ? lastVerifiedPlaybackRef.current.url : "");
+    playback?.url || (!hasExplicitUnavailablePlaybackError ? lastVerifiedPlaybackUrl : "");
+  const playbackRefreshRef = useRef({
+    identity: playbackIdentity,
+    revision: playbackRevision,
+    url: playback?.url ?? "",
+  });
+  const [sameUrlRecoveryRevision, setSameUrlRecoveryRevision] = useState(0);
+  useLayoutEffect(() => {
+    playbackIdentityRef.current = playbackIdentity;
+    streamStatusUpdatedAtRef.current = streamStatusUpdatedAt;
+
+    if (lastVerifiedPlaybackRef.current.identity !== playbackIdentity) {
+      lastVerifiedPlaybackRef.current = { identity: playbackIdentity, url: playback?.url ?? "" };
+    } else if (playback?.url) {
+      lastVerifiedPlaybackRef.current.url = playback.url;
+    }
+  }, [playback?.url, playbackIdentity, streamStatusUpdatedAt]);
+
+  useEffect(() => {
+    const previous = playbackRefreshRef.current;
+    const nextUrl = playback?.url;
+    if (!nextUrl) {
+      if (previous.identity !== playbackIdentity) {
+        playbackRefreshRef.current = {
+          identity: playbackIdentity,
+          revision: playbackRevision,
+          url: "",
+        };
+      }
+      return;
+    }
+    const isSameStreamRefresh =
+      previous.identity === playbackIdentity &&
+      previous.revision !== playbackRevision &&
+      previous.url !== "" &&
+      previous.url === nextUrl;
+
+    playbackRefreshRef.current = {
+      identity: playbackIdentity,
+      revision: playbackRevision,
+      url: nextUrl,
+    };
+    if (isSameStreamRefresh) {
+      setSameUrlRecoveryRevision((revision) => revision + 1);
+    }
+  }, [playback?.url, playbackIdentity, playbackRevision]);
+
+  useEffect(() => {
+    setOfflinePlayerSignal((current) => (current?.identity === playbackIdentity ? current : null));
+  }, [playbackIdentity]);
+
+  useEffect(() => {
+    if (!hasExplicitUnavailablePlaybackError) return;
+    setOfflinePlayerSignal((current) =>
+      current?.identity === playbackIdentity
+        ? current
+        : { identity: playbackIdentity, statusUpdatedAt: streamStatusUpdatedAt }
+    );
+  }, [hasExplicitUnavailablePlaybackError, playbackIdentity, streamStatusUpdatedAt]);
+
+  useEffect(() => {
+    if (hasConfirmedOfflineStreamStatus) {
+      confirmedOfflineStatusIdentityRef.current = playbackIdentity;
+      return;
+    }
+
+    const hasConfirmedOfflineStatusTransition =
+      confirmedOfflineStatusIdentityRef.current === playbackIdentity;
+    const hasNewerLiveStatusForPlayerSignal =
+      offlinePlayerSignal?.identity === playbackIdentity &&
+      streamStatusUpdatedAt > offlinePlayerSignal.statusUpdatedAt;
+
+    if (!hasConfirmedOfflineStatusTransition && !hasNewerLiveStatusForPlayerSignal) {
+      confirmedOfflineStatusIdentityRef.current = null;
+      return;
+    }
+    if (!hasConfirmedLiveStreamStatus) return;
+
+    confirmedOfflineStatusIdentityRef.current = null;
+    if (hasNewerLiveStatusForPlayerSignal) {
+      setOfflinePlayerSignal(null);
+    }
+    reload();
+  }, [
+    hasConfirmedLiveStreamStatus,
+    hasConfirmedOfflineStreamStatus,
+    offlinePlayerSignal,
+    playbackIdentity,
+    reload,
+    streamStatusUpdatedAt,
+  ]);
 
   // The live-player wrapper is the only owner that applies/synchronizes the
   // video element. Mini controls update the shared user preference only.
@@ -169,7 +315,9 @@ export function MiniPlayer() {
   const pendingPositionRef = useRef<{ x: number; y: number } | null>(null);
   const dragFrameRef = useRef<number | null>(null);
   const isDockedRef = useRef(isDocked);
-  isDockedRef.current = isDocked;
+  useLayoutEffect(() => {
+    isDockedRef.current = isDocked;
+  }, [isDocked]);
 
   // Player state
   const [isPlaying, setIsPlaying] = useState(true);
@@ -218,26 +366,6 @@ export function MiniPlayer() {
   useEffect(() => {
     if (streamUrl) setHasError(false);
   }, [streamUrl]);
-
-  useEffect(() => {
-    if (!currentStream || isPlaybackLoading || playback?.url) return;
-    if (playbackError && hasExplicitUnavailablePlaybackError) {
-      logger.debug("Player:Mini", "closing PiP because playback is unavailable", {
-        platform,
-        channelName: currentStream.channelName,
-        error: playbackError.message,
-      });
-      closePip();
-    }
-  }, [
-    closePip,
-    currentStream,
-    hasExplicitUnavailablePlaybackError,
-    isPlaybackLoading,
-    platform,
-    playback?.url,
-    playbackError,
-  ]);
 
   // Dragging handlers
   const handleMouseDown = useCallback(
@@ -316,15 +444,25 @@ export function MiniPlayer() {
 
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
+    const handleEnded = () => {
+      if (isDockedRef.current || playbackIdentityRef.current !== playbackIdentity) return;
+      setHasError(false);
+      setOfflinePlayerSignal({
+        identity: playbackIdentity,
+        statusUpdatedAt: streamStatusUpdatedAtRef.current,
+      });
+    };
 
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
+    video.addEventListener("ended", handleEnded);
 
     return () => {
       video.removeEventListener("play", handlePlay);
       video.removeEventListener("pause", handlePause);
+      video.removeEventListener("ended", handleEnded);
     };
-  }, [videoElement]);
+  }, [playbackIdentity, videoElement]);
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
@@ -353,6 +491,30 @@ export function MiniPlayer() {
 
   const handleError = useCallback(
     (error: PlayerError) => {
+      if (playbackIdentityRef.current !== playbackIdentity) return;
+
+      if (isConfirmedOfflinePlayerError(error)) {
+        setHasError(false);
+        setOfflinePlayerSignal({
+          identity: playbackIdentity,
+          statusUpdatedAt: streamStatusUpdatedAtRef.current,
+        });
+        return;
+      }
+
+      if (
+        error.fatal &&
+        reloadAttempts >= MAX_REFRESH_ATTEMPTS &&
+        (error.shouldRefresh === true || error.code === "NO_FRAGMENTS")
+      ) {
+        setHasError(false);
+        setOfflinePlayerSignal({
+          identity: playbackIdentity,
+          statusUpdatedAt: streamStatusUpdatedAtRef.current,
+        });
+        return;
+      }
+
       if (shouldRefreshMiniPlayback(error) && reloadAttempts < MAX_REFRESH_ATTEMPTS) {
         logger.debug("Player:Mini", "refreshing URL after recoverable live-player error", {
           platform,
@@ -368,20 +530,43 @@ export function MiniPlayer() {
       logger.error("Player:Mini", "player error", { error });
       setHasError(true);
     },
-    [platform, reload, reloadAttempts]
+    [platform, playbackIdentity, reload, reloadAttempts]
   );
 
-  const handleConfirmedNetworkRecovery = useCallback(() => {
+  const miniTwitchRecovery = useTwitchLiveRecovery({
+    sessionKey: `mini-player:${playbackIdentity}`,
+    sourceRevision: `${playbackRevision}:${sameUrlRecoveryRevision}:${playerRecoveryRevision}`,
+    onRefresh: reload,
+    onExhausted: (error) =>
+      handleError({
+        ...error,
+        code: "PLAYBACK_RECOVERY_EXHAUSTED",
+        message: "Playback stopped after two automatic recovery attempts",
+        shouldRefresh: false,
+      }),
+  });
+  const handleMiniTwitchError = useCallback(
+    (error: PlayerError): boolean | void => {
+      if (isConfirmedOfflinePlayerError(error)) {
+        handleError(error);
+        return false;
+      }
+      return miniTwitchRecovery.handleError(error);
+    },
+    [handleError, miniTwitchRecovery]
+  );
+
+  const handlePlaybackRetry = useCallback(() => {
     setHasError(false);
     setPlayerRecoveryRevision((revision) => revision + 1);
     reload();
   }, [reload]);
-  usePlayerNetworkRecovery(hasError, handleConfirmedNetworkRecovery);
+  usePlayerNetworkRecovery(hasError, handlePlaybackRetry);
 
   const miniPlayerButtonClass = "cursor-pointer disabled:cursor-not-allowed";
 
   // Don't render if not active or no stream
-  if (!currentStream || !streamUrl) {
+  if (!currentStream || (!streamUrl && !isConfirmedOffline)) {
     return null;
   }
 
@@ -412,26 +597,34 @@ export function MiniPlayer() {
       {/* Keep the platform live-player wrapper mounted in both modes. Only its
           controls presentation changes, so the nested video/HLS engine survives. */}
       {!hasError &&
+        !isConfirmedOffline &&
         streamUrl &&
         (isTwitchStream ? (
           <TwitchLivePlayer
-            key={`twitch:${currentStream.channelName}:${playerRecoveryRevision}`}
+            key={`twitch:${currentStream.channelName}:${sameUrlRecoveryRevision}:${playerRecoveryRevision}`}
             ref={handleVideoRef}
             streamUrl={streamUrl}
             channelName={currentStream.channelName}
+            poster={dockedConfig?.poster ?? currentStream.poster}
             enableAdBlock={storeEnableAdBlock}
             muted={isDocked ? (dockedConfig?.muted ?? false) : isMuted}
             autoPlay={true}
             compact={!isDocked}
             isTheater={isDocked ? dockedConfig?.isTheater : false}
             onToggleTheater={isDocked ? dockedConfig?.onToggleTheater : undefined}
-            onError={isDocked && dockedConfig ? dockedConfig.onError : handleError}
+            onError={isDocked && dockedConfig ? dockedConfig.onError : handleMiniTwitchError}
+            onCleanPresentedFrame={
+              isDocked && dockedConfig
+                ? dockedConfig.onCleanPresentedFrame
+                : miniTwitchRecovery.markPlaybackHealthy
+            }
             onRefresh={isDocked && dockedConfig ? dockedConfig.onRefresh : reload}
+            recoveryManagedExternally
             className="size-full"
           />
         ) : (
           <KickLivePlayer
-            key={`kick:${currentStream.channelName}:${playerRecoveryRevision}`}
+            key={`kick:${currentStream.channelName}:${sameUrlRecoveryRevision}:${playerRecoveryRevision}`}
             ref={handleVideoRef}
             streamUrl={streamUrl}
             channelName={currentStream.channelName}
@@ -447,10 +640,35 @@ export function MiniPlayer() {
           />
         ))}
 
+      {isConfirmedOffline && (
+        <OfflineOverlay
+          platform={platform}
+          channelName={currentStream.channelName}
+          displayName={currentStream.channelDisplayName}
+          avatarUrl={currentStream.channelAvatar}
+          categoryName={currentStream.categoryName}
+          lastStreamTitle={currentStream.title}
+          onCheckAgain={() => {
+            void refetchStreamStatus();
+            if (hasExplicitUnavailablePlaybackError || hasConfirmedOfflinePlayerSignal) {
+              setOfflinePlayerSignal(null);
+              reload();
+            }
+          }}
+          compact
+        />
+      )}
+
       {/* Error State */}
       {!isDocked && hasError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+        <div
+          className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-black/80"
+          role="alert"
+        >
           <p className="text-white/70 text-sm">Stream unavailable</p>
+          <Button size="sm" onClick={handlePlaybackRetry}>
+            Retry playback
+          </Button>
         </div>
       )}
 
@@ -458,18 +676,24 @@ export function MiniPlayer() {
       {!isDocked && (
         <div
           className={cn(
-            "absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/50",
+            "absolute inset-0 z-30 bg-gradient-to-t from-black/80 via-transparent to-black/50",
             "transition-opacity duration-200",
-            isHovered ? "opacity-100" : "opacity-0"
+            isConfirmedOffline
+              ? "pointer-events-none opacity-100"
+              : isHovered
+                ? "opacity-100"
+                : "opacity-0"
           )}
         >
           {/* Top Bar - Close & Expand */}
-          <div className="absolute top-0 left-0 right-0 p-2 flex justify-between items-start">
+          <div className="pointer-events-auto absolute top-0 left-0 right-0 p-2 flex justify-between items-start">
             <div className="flex items-center gap-2">
               {/* Live indicator */}
               <span className="flex items-center gap-1.5 bg-red-600 px-2 py-0.5 rounded text-xs font-bold text-white">
-                <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-                LIVE
+                {!isConfirmedOffline && (
+                  <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                )}
+                {isConfirmedOffline ? "OFFLINE" : "LIVE"}
               </span>
             </div>
             <div className="flex items-center gap-1">
@@ -478,6 +702,7 @@ export function MiniPlayer() {
                   <button
                     type="button"
                     onClick={handleExpand}
+                    aria-label="Restore stream"
                     className={cn(
                       "p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors",
                       miniPlayerButtonClass
@@ -493,6 +718,7 @@ export function MiniPlayer() {
                   <button
                     type="button"
                     onClick={closePip}
+                    aria-label="Close mini player"
                     className={cn(
                       "p-1.5 rounded-full bg-black/50 hover:bg-red-500/80 text-white transition-colors",
                       miniPlayerButtonClass
@@ -507,150 +733,152 @@ export function MiniPlayer() {
           </div>
 
           {/* Bottom Bar - Stream Info & Controls */}
-          <div className="absolute bottom-0 left-0 right-0 p-2">
-            {/* Stream Info */}
-            <div className="flex items-center gap-2 mb-2">
-              {currentStream.channelAvatar && (
-                <ProxiedImage
-                  src={currentStream.channelAvatar}
-                  alt={currentStream.channelDisplayName}
-                  className="w-6 h-6 rounded-full"
-                  fallback={<div className="w-6 h-6 rounded-full bg-white/10" />}
-                />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-white text-sm font-semibold truncate">
-                  {currentStream.channelDisplayName}
-                </p>
-                {currentStream.categoryName && (
-                  <p className="text-white/60 text-xs truncate">{currentStream.categoryName}</p>
+          {!isConfirmedOffline && (
+            <div className="absolute bottom-0 left-0 right-0 p-2">
+              {/* Stream Info */}
+              <div className="flex items-center gap-2 mb-2">
+                {currentStream.channelAvatar && (
+                  <ProxiedImage
+                    src={currentStream.channelAvatar}
+                    alt={currentStream.channelDisplayName}
+                    className="w-6 h-6 rounded-full"
+                    fallback={<div className="w-6 h-6 rounded-full bg-white/10" />}
+                  />
                 )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm font-semibold truncate">
+                    {currentStream.channelDisplayName}
+                  </p>
+                  {currentStream.categoryName && (
+                    <p className="text-white/60 text-xs truncate">{currentStream.categoryName}</p>
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* Playback Controls */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Tooltip delayDuration={0}>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={togglePlay}
-                      aria-label={isPlaying ? "Pause" : "Play"}
-                      className={cn(
-                        "p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors",
-                        miniPlayerButtonClass
-                      )}
-                    >
-                      {isPlaying ? <LuPause size={16} /> : <LuPlay size={16} />}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent container={containerRef.current}>
-                    {isPlaying ? "Pause" : "Play"}
-                  </TooltipContent>
-                </Tooltip>
-
-                {/* Volume Control */}
-                <div
-                  className="flex items-center group/volume"
-                  onMouseEnter={() => setIsHovered(true)}
-                  onMouseLeave={() => setIsHovered(true)}
-                >
-                  <div className="flex items-center" onMouseEnter={() => {}}>
-                    <Tooltip delayDuration={0}>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggleMute();
-                          }}
-                          className={cn(
-                            "p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors z-10",
-                            miniPlayerButtonClass
-                          )}
-                        >
-                          {isMuted ? <LuVolumeX size={16} /> : <LuVolume2 size={16} />}
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent container={containerRef.current}>
-                        {isMuted ? "Unmute" : "Mute"}
-                      </TooltipContent>
-                    </Tooltip>
-
-                    <div className="w-0 group-hover/volume:w-20 group-hover/volume:ml-2 group-hover/volume:opacity-100 opacity-0 overflow-hidden transition-all duration-300 ease-out">
-                      <div
-                        className="relative w-20 h-4 flex items-center cursor-pointer"
-                        onClick={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          setIsVolumeDragging(true);
-
-                          // Capture rect immediately to avoid e.currentTarget being null in event listeners
-                          const rect = e.currentTarget.getBoundingClientRect();
-
-                          const updateVolume = (clientX: number) => {
-                            const percent = Math.max(
-                              0,
-                              Math.min(100, ((clientX - rect.left) / rect.width) * 100)
-                            );
-                            handleVolumeChange(percent);
-                          };
-
-                          updateVolume(e.clientX);
-
-                          const handleMouseMove = (moveEvent: MouseEvent) => {
-                            updateVolume(moveEvent.clientX);
-                          };
-
-                          const handleMouseUp = () => {
-                            setIsVolumeDragging(false);
-                            document.removeEventListener("mousemove", handleMouseMove);
-                            document.removeEventListener("mouseup", handleMouseUp);
-                          };
-
-                          document.addEventListener("mousemove", handleMouseMove);
-                          document.addEventListener("mouseup", handleMouseUp);
-                        }}
+              {/* Playback Controls */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Tooltip delayDuration={0}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={togglePlay}
+                        aria-label={isPlaying ? "Pause" : "Play"}
+                        className={cn(
+                          "p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors",
+                          miniPlayerButtonClass
+                        )}
                       >
-                        {/* Track */}
-                        <div className="absolute w-full h-1 bg-white/30 rounded-full" />
-                        {/* Fill */}
+                        {isPlaying ? <LuPause size={16} /> : <LuPlay size={16} />}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent container={containerRef.current}>
+                      {isPlaying ? "Pause" : "Play"}
+                    </TooltipContent>
+                  </Tooltip>
+
+                  {/* Volume Control */}
+                  <div
+                    className="flex items-center group/volume"
+                    onMouseEnter={() => setIsHovered(true)}
+                    onMouseLeave={() => setIsHovered(true)}
+                  >
+                    <div className="flex items-center" onMouseEnter={() => {}}>
+                      <Tooltip delayDuration={0}>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleMute();
+                            }}
+                            className={cn(
+                              "p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors z-10",
+                              miniPlayerButtonClass
+                            )}
+                          >
+                            {isMuted ? <LuVolumeX size={16} /> : <LuVolume2 size={16} />}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent container={containerRef.current}>
+                          {isMuted ? "Unmute" : "Mute"}
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <div className="w-0 group-hover/volume:w-20 group-hover/volume:ml-2 group-hover/volume:opacity-100 opacity-0 overflow-hidden transition-all duration-300 ease-out">
                         <div
-                          className="absolute h-1 bg-white rounded-full"
-                          style={{ width: `${isMuted ? 0 : volume}%` }}
-                        />
-                        {/* Thumb */}
-                        <Tooltip
-                          delayDuration={0}
-                          open={isVolumeDragging || volumeThumbTooltipOpen}
-                          onOpenChange={setVolumeThumbTooltipOpen}
+                          className="relative w-20 h-4 flex items-center cursor-pointer"
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            setIsVolumeDragging(true);
+
+                            // Capture rect immediately to avoid e.currentTarget being null in event listeners
+                            const rect = e.currentTarget.getBoundingClientRect();
+
+                            const updateVolume = (clientX: number) => {
+                              const percent = Math.max(
+                                0,
+                                Math.min(100, ((clientX - rect.left) / rect.width) * 100)
+                              );
+                              handleVolumeChange(percent);
+                            };
+
+                            updateVolume(e.clientX);
+
+                            const handleMouseMove = (moveEvent: MouseEvent) => {
+                              updateVolume(moveEvent.clientX);
+                            };
+
+                            const handleMouseUp = () => {
+                              setIsVolumeDragging(false);
+                              document.removeEventListener("mousemove", handleMouseMove);
+                              document.removeEventListener("mouseup", handleMouseUp);
+                            };
+
+                            document.addEventListener("mousemove", handleMouseMove);
+                            document.addEventListener("mouseup", handleMouseUp);
+                          }}
                         >
-                          <TooltipTrigger asChild>
-                            <div
-                              className="absolute w-3 h-3 bg-white rounded-full shadow-sm"
-                              style={{ left: `calc(${isMuted ? 0 : volume}% - 6px)` }}
-                            />
-                          </TooltipTrigger>
-                          <TooltipContent side="top">
-                            <p>{Math.round(isMuted ? 0 : volume)}%</p>
-                          </TooltipContent>
-                        </Tooltip>
+                          {/* Track */}
+                          <div className="absolute w-full h-1 bg-white/30 rounded-full" />
+                          {/* Fill */}
+                          <div
+                            className="absolute h-1 bg-white rounded-full"
+                            style={{ width: `${isMuted ? 0 : volume}%` }}
+                          />
+                          {/* Thumb */}
+                          <Tooltip
+                            delayDuration={0}
+                            open={isVolumeDragging || volumeThumbTooltipOpen}
+                            onOpenChange={setVolumeThumbTooltipOpen}
+                          >
+                            <TooltipTrigger asChild>
+                              <div
+                                className="absolute w-3 h-3 bg-white rounded-full shadow-sm"
+                                style={{ left: `calc(${isMuted ? 0 : volume}% - 6px)` }}
+                              />
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p>{Math.round(isMuted ? 0 : volume)}%</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Viewer count */}
-              {currentStream.viewerCount !== undefined && (
-                <span className="text-white/60 text-xs ml-auto">
-                  {currentStream.viewerCount.toLocaleString()} viewers
-                </span>
-              )}
+                {/* Viewer count */}
+                {currentStream.viewerCount !== undefined && (
+                  <span className="text-white/60 text-xs ml-auto">
+                    {currentStream.viewerCount.toLocaleString()} viewers
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>,

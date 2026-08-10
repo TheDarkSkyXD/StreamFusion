@@ -1,5 +1,5 @@
 import type { RefObject } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { logger } from "@/renderer/logging/logger";
 
@@ -23,8 +23,10 @@ export function useLocalAudioCaptureProof(
   const controllerRef = useRef<LocalAudioCaptureController | null>(null);
   const mutedRef = useRef(muted);
   const volumeRef = useRef(volume);
-  mutedRef.current = muted;
-  volumeRef.current = volume;
+  useLayoutEffect(() => {
+    mutedRef.current = muted;
+    volumeRef.current = volume;
+  }, [muted, volume]);
 
   useEffect(() => {
     if (!import.meta.env.DEV || !sourceKey) return;

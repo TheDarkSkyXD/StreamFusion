@@ -65,7 +65,6 @@ interface MockPlayerProps extends React.VideoHTMLAttributes<HTMLVideoElement> {
   enableAdBlock?: boolean;
   hlsConfig?: unknown;
   isLive?: boolean;
-  onAdBlockRecoveryRefresh?: () => void;
   onAdBlockStatusChange?: (status: unknown) => void;
   onError?: (error: unknown) => void;
   onHlsInstance?: (hls: FakeEngine) => void;
@@ -167,7 +166,6 @@ vi.mock("@/components/player/twitch/twitch-hls-player", async () => {
           channelName: _channelName,
           currentLevel: _currentLevel,
           enableAdBlock: _enableAdBlock,
-          onAdBlockRecoveryRefresh: _onAdBlockRecoveryRefresh,
           onAdBlockStatusChange: _onAdBlockStatusChange,
           onError: _onError,
           ...videoProps

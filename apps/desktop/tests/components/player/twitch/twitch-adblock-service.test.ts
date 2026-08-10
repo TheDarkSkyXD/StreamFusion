@@ -80,9 +80,17 @@ const CUE_AD_MEDIA_PLAYLIST = readFileSync(
 // Guards: renderer-side detection uses the shared classifier for non-DATERANGE ad markers.
 // Guards: renderer diagnostics never expose captured URLs, paths, tokens, or channel identity.
 // Guards: background ad-segment consumption never interrupts playlist processing when fetch stubs return no value.
-// Guards: backup recovery stays idle until ad detection and never blocks the live playlist.
-// Guards: active ad playlists reach HLS without awaiting channel-wide backup work, while ad segments stay blocked and immediate refreshes reuse recovery work.
+// Guards: clean playback prewarms backup A/V metadata without blocking the live playlist or reloading the player.
+// Guards: known unsafe media never reaches HLS while background backup recovery remains non-blocking and reuses its work.
 // Guards: leaving a clean backup refreshes HLS before the temporary rendition buffer drains.
+// Guards: a verified clean exact-rendition backup can replace a stitched ad even when Twitch uses a separate ad media-sequence timeline.
+// Guards: an active clean backup is refreshed so its live media sequence advances without repeating player reloads.
+// Guards: simultaneous clean-backup discoveries across HLS quality renditions request only one player handoff per ad break.
+// Guards: one transient clean original poll cannot tear down an active backup and trigger an ad-end/ad-start reload loop.
+// Guards: short clean gaps between consecutive ads keep the active backup and never expose an empty source transition.
+// Guards: a verified backup stays warm after a stable ad end so a later ad can switch synchronously.
+// Guards: a prewarmed clean backup is published atomically without a transient unsafe status that mutes content audio.
+// Guards: token-rotated media URLs recover ownership from the loader's channel even with multiple active Twitch players.
 describe("twitch-adblock-service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -192,9 +200,11 @@ describe("twitch-adblock-service", () => {
   });
 
   describe("master playlist startup", () => {
-    it("keeps backup recovery idle until the first ad playlist", async () => {
+    it("prewarms backup A/V metadata from the first clean media playlist", async () => {
       const masterUrl = "https://usher.ttvnw.net/api/channel/hls/lazychannel.m3u8";
       const mediaUrl = "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=abc";
+      const onReload = vi.fn();
+      setPlayerCallbacks(onReload);
       const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response(
           JSON.stringify({
@@ -207,15 +217,68 @@ describe("twitch-adblock-service", () => {
       await processMasterPlaylist(masterUrl, SAMPLE_MASTER_PLAYLIST, "lazychannel");
       await processMediaPlaylist(mediaUrl, CLEAN_MEDIA_PLAYLIST);
 
-      expect(fetchSpy).not.toHaveBeenCalled();
-
-      await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
       await vi.waitFor(() =>
         expect(
           fetchSpy.mock.calls.filter(([input]) => String(input) === "https://gql.twitch.tv/gql")
         ).toHaveLength(5)
       );
+      expect(onReload).not.toHaveBeenCalled();
       clearStreamInfo("lazychannel");
+    });
+
+    it("publishes a prewarmed clean substitution without a transient unsafe status", async () => {
+      const channelName = "warmtransition";
+      const masterUrl = `https://usher.ttvnw.net/api/channel/hls/${channelName}.m3u8`;
+      const mediaUrl = "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=abc";
+      const backupUrl = "https://backup.example/1080p60.m3u8";
+      const backupMaster = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=6100000,RESOLUTION=1920x1080,FRAME-RATE=60.000,CODECS="avc1.64002A,mp4a.40.2"
+${backupUrl}`;
+      const cleanBackup = CLEAN_MEDIA_PLAYLIST.replaceAll(
+        "video-edge.example.com",
+        "backup.example"
+      );
+      const requestedUrls: string[] = [];
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const requestUrl = String(input);
+        requestedUrls.push(requestUrl);
+        if (requestUrl === "https://gql.twitch.tv/gql") {
+          return new Response(
+            JSON.stringify({
+              data: { streamPlaybackAccessToken: { signature: "sig", value: "{}" } },
+            }),
+            { status: 200 }
+          );
+        }
+        if (requestUrl.includes("usher.ttvnw.net")) {
+          return new Response(backupMaster, { status: 200 });
+        }
+        if (requestUrl === backupUrl) {
+          return new Response(cleanBackup, { status: 200 });
+        }
+        return new Response("", { status: 200 });
+      });
+
+      await processMasterPlaylist(masterUrl, SAMPLE_MASTER_PLAYLIST, channelName);
+      await processMediaPlaylist(mediaUrl, CLEAN_MEDIA_PLAYLIST);
+      await vi.waitFor(() => expect(requestedUrls).toContain(backupUrl));
+      for (let index = 0; index < 10; index += 1) await Promise.resolve();
+
+      const statusCallback = vi.fn();
+      setStatusChangeCallback(statusCallback);
+      const result = await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+
+      expect(result).toBe(cleanBackup);
+      expect(statusCallback).toHaveBeenCalledTimes(1);
+      expect(statusCallback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isShowingAd: true,
+          isStrippingSegments: false,
+          activePlayerType: expect.any(String),
+          isUsingFallbackMode: false,
+        })
+      );
+      clearStreamInfo(channelName);
     });
 
     it("retries an empty backup-master lookup after backoff and recovers a clean candidate", async () => {
@@ -321,7 +384,7 @@ https://backup.example/restart-1080p60.m3u8`;
       clearStreamInfo("restartchannel");
     });
 
-    it("returns an active ad playlist while background backup recovery is pending", async () => {
+    it("returns an unsafe-media hold while background backup recovery is pending", async () => {
       const masterUrl = "https://usher.ttvnw.net/api/channel/hls/activechannel.m3u8";
       const mediaUrl = "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=abc";
       let releaseBackupRequests!: (response: Response) => void;
@@ -365,13 +428,14 @@ https://backup.example/active-1080p60.m3u8`,
         }
 
         expect(outcome.state).toBe("resolved");
-        expect(outcome.playlist).toContain("ad-12345.ts");
+        expect(outcome.playlist).toContain("#EXT-X-DATERANGE");
+        expect(outcome.playlist).not.toContain("ad-12345.ts");
         expect(isAdSegment("https://video-edge.example.com/v1/segment/ad-12345.ts")).toBe(true);
         const backupRequestsAfterFirstPlaylist = fetchSpy.mock.calls.filter(
           ([input]) => String(input) === "https://gql.twitch.tv/gql"
         ).length;
 
-        await expect(processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)).resolves.toContain(
+        await expect(processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)).resolves.not.toContain(
           "ad-12345.ts"
         );
         expect(
@@ -531,7 +595,7 @@ https://video-edge.example.com/playlist.m3u8?token=abc`;
       clearStreamInfo("consumechannel");
     });
 
-    it("does not substitute a lower rendition when an exact backup is absent", async () => {
+    it("uses a real 480p rendition when exact-quality backups are absent", async () => {
       const masterUrl = "https://usher.ttvnw.net/api/channel/hls/qualitychannel.m3u8";
       const mediaUrl = "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=abc";
       const backupMaster = `#EXTM3U
@@ -585,16 +649,133 @@ https://backup.example/${quality}/seg-12346.ts`;
 
       const result = await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
 
-      expect(result).not.toContain("backup.example/");
+      expect(result).toContain("backup.example/480p30");
       expect(vi.mocked(globalThis.fetch)).not.toHaveBeenCalledWith(
         "https://backup.example/720p60.m3u8",
         expect.anything()
       );
-      expect(getAdBlockStatus("qualitychannel").isUsingFallbackMode).toBe(true);
+      expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledWith(
+        "https://backup.example/480p30.m3u8",
+        expect.anything()
+      );
+      expect(getAdBlockStatus("qualitychannel").isUsingFallbackMode).toBe(false);
       clearStreamInfo("qualitychannel");
     });
 
-    it("uses stripping when the exact backup is unplayable", async () => {
+    it("uses a real 360p emergency rendition only after exact and 480p candidates contain ads", async () => {
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/emergencychannel.m3u8";
+      const mediaUrl = "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=abc";
+      const backupMaster = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=6000000,RESOLUTION=1920x1080,FRAME-RATE=60.000,CODECS="avc1.64002A"
+https://backup.example/1080p60.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=852x480,FRAME-RATE=30.000,CODECS="avc1.4D401F"
+https://backup.example/480p30.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360,FRAME-RATE=30.000,CODECS="avc1.4D401F"
+https://backup.example/360p30.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=230000,RESOLUTION=284x160,FRAME-RATE=30.000,CODECS="avc1.4D400C"
+https://backup.example/160p30.m3u8`;
+      const clean360p = CLEAN_MEDIA_PLAYLIST.replaceAll(
+        "video-edge.example.com",
+        "backup.example/360p30"
+      );
+      const requestedUrls: string[] = [];
+
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const requestUrl = String(input);
+        requestedUrls.push(requestUrl);
+        if (requestUrl === "https://gql.twitch.tv/gql") {
+          return new Response(
+            JSON.stringify({
+              data: { streamPlaybackAccessToken: { signature: "sig", value: "{}" } },
+            }),
+            { status: 200 }
+          );
+        }
+        if (requestUrl.includes("usher.ttvnw.net")) {
+          return new Response(backupMaster, { status: 200 });
+        }
+        if (requestUrl.endsWith("/360p30.m3u8")) {
+          return new Response(clean360p, { status: 200 });
+        }
+        if (requestUrl.includes("backup.example/")) {
+          return new Response(AD_MEDIA_PLAYLIST, { status: 200 });
+        }
+        return new Response("", { status: 200 });
+      });
+
+      await processMasterPlaylist(masterUrl, SAMPLE_MASTER_PLAYLIST, "emergencychannel");
+      await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+      await vi.waitFor(() =>
+        expect(requestedUrls).toContain("https://backup.example/360p30.m3u8")
+      );
+
+      // HLS.js reloads the master to reset its media-sequence parser before
+      // adopting a clean backup. Twitch rotates signed rendition URLs in that
+      // response, but the already verified backup must survive the refresh.
+      const refreshedMediaUrl = mediaUrl.replace("token=abc", "token=refreshed");
+      const refreshedMaster = SAMPLE_MASTER_PLAYLIST.replaceAll(
+        "token=abc",
+        "token=refreshed"
+      );
+      await processMasterPlaylist(masterUrl, refreshedMaster, "emergencychannel");
+
+      const result = await processMediaPlaylist(refreshedMediaUrl, AD_MEDIA_PLAYLIST);
+
+      expect(result).toContain("backup.example/360p30");
+      expect(requestedUrls).not.toContain("https://backup.example/160p30.m3u8");
+      clearStreamInfo("emergencychannel");
+    });
+
+    it("uses 480p instead of cementing a transient 160p startup rendition", async () => {
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/floorchannel.m3u8";
+      const mediaUrl = "https://video-edge.example.com/v1/playlist/160p30.m3u8?token=abc";
+      const masterPlaylist = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=250000,RESOLUTION=284x160,FRAME-RATE=30.000,CODECS="avc1.4D400C,mp4a.40.2"
+${mediaUrl}`;
+      const backupMaster = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=250000,RESOLUTION=284x160,FRAME-RATE=30.000,CODECS="avc1.4D400C,mp4a.40.2"
+https://backup.example/160p30.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=852x480,FRAME-RATE=30.000,CODECS="avc1.4D401F,mp4a.40.2"
+https://backup.example/480p30.m3u8`;
+      const clean480p = CLEAN_MEDIA_PLAYLIST.replaceAll(
+        "video-edge.example.com",
+        "backup.example/480p30"
+      );
+      const requestedUrls: string[] = [];
+
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const requestUrl = String(input);
+        requestedUrls.push(requestUrl);
+        if (requestUrl === "https://gql.twitch.tv/gql") {
+          return new Response(
+            JSON.stringify({
+              data: { streamPlaybackAccessToken: { signature: "sig", value: "{}" } },
+            }),
+            { status: 200 }
+          );
+        }
+        if (requestUrl.includes("usher.ttvnw.net")) {
+          return new Response(backupMaster, { status: 200 });
+        }
+        if (requestUrl === "https://backup.example/480p30.m3u8") {
+          return new Response(clean480p, { status: 200 });
+        }
+        return new Response("", { status: 200 });
+      });
+
+      await processMasterPlaylist(masterUrl, masterPlaylist, "floorchannel");
+      await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+      await vi.waitFor(() =>
+        expect(requestedUrls).toContain("https://backup.example/480p30.m3u8")
+      );
+      expect(requestedUrls).not.toContain("https://backup.example/160p30.m3u8");
+
+      const result = await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+      expect(result).toBe(clean480p);
+      clearStreamInfo("floorchannel");
+    });
+
+    it("uses the lowest safe real fallback when the exact backup is unplayable", async () => {
       const masterUrl = "https://usher.ttvnw.net/api/channel/hls/playablechannel.m3u8";
       const mediaUrl = "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=abc";
       const backupMaster = `#EXTM3U
@@ -645,17 +826,19 @@ https://backup.example/720p60/seg-12345.ts`;
       for (let index = 0; index < 10; index += 1) await Promise.resolve();
       const result = await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
 
-      expect(result).not.toContain("backup.example/");
-      expect(requestedUrls).not.toContain("https://backup.example/live-720p60.m3u8");
-      expect(getAdBlockStatus("playablechannel").isUsingFallbackMode).toBe(true);
+      expect(result).toContain("backup.example/720p60");
+      expect(requestedUrls).toContain("https://backup.example/live-720p60.m3u8");
+      expect(getAdBlockStatus("playablechannel").isUsingFallbackMode).toBe(false);
       clearStreamInfo("playablechannel");
     });
 
-    it("prepares and reuses an aligned exact-rendition backup after ad detection", async () => {
+    it("serves an active backup without waiting on its next network refresh", async () => {
       const masterUrl = "https://usher.ttvnw.net/api/channel/hls/prewarmchannel.m3u8";
       const mediaUrl = "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=abc";
       const onReload = vi.fn();
-      setPlayerCallbacks(onReload, vi.fn());
+      let now = 1_000_000;
+      const dateNowSpy = vi.spyOn(Date, "now").mockImplementation(() => now);
+      setPlayerCallbacks(onReload);
       const backupMaster = `#EXTM3U
 #EXT-X-STREAM-INF:BANDWIDTH=6100000,RESOLUTION=1920x1080,FRAME-RATE=60.000,CODECS="avc1.64002A"
 https://backup.example/1080p60.m3u8`;
@@ -694,15 +877,435 @@ https://backup.example/1080p60/seg-12346.ts`;
       );
       for (let index = 0; index < 10; index += 1) await Promise.resolve();
 
-      fetchSpy.mockRejectedValue(new Error("network unavailable after prewarm"));
+      fetchSpy.mockImplementation(() => new Promise<Response>(() => {}));
       const result = await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
 
       expect(result).toBe(prewarmedPlaylist);
+      let pendingRefreshOutcome: { resolved: boolean; playlist: string } = {
+        resolved: false,
+        playlist: "",
+      };
+      void processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST).then((playlist) => {
+        pendingRefreshOutcome = { resolved: true, playlist };
+      });
+      for (let index = 0; index < 10 && !pendingRefreshOutcome.resolved; index += 1) {
+        await Promise.resolve();
+      }
+      expect(pendingRefreshOutcome).toEqual({ resolved: true, playlist: prewarmedPlaylist });
+
+      await processMediaPlaylist(mediaUrl, CLEAN_MEDIA_PLAYLIST);
+      now += 20_000;
       const restored = await processMediaPlaylist(mediaUrl, CLEAN_MEDIA_PLAYLIST);
       expect(restored).toBe(CLEAN_MEDIA_PLAYLIST);
       expect(getAdBlockStatus("prewarmchannel").isShowingAd).toBe(false);
       expect(onReload).toHaveBeenCalledWith("ad-ended");
       clearStreamInfo("prewarmchannel");
+      dateNowSpy.mockRestore();
+    });
+
+    it("refreshes the active clean backup so blocked-ad playback keeps advancing", async () => {
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/continuitychannel.m3u8";
+      const mediaUrl = "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=abc";
+      const backupUrl = "https://backup.example/1080p60.m3u8";
+      const onReload = vi.fn();
+      setPlayerCallbacks(onReload);
+      const backupMaster = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=6100000,RESOLUTION=1920x1080,FRAME-RATE=60.000,CODECS="avc1.64002A"
+${backupUrl}`;
+      const firstBackup = `#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:12345
+#EXTINF:2.000,live
+https://backup.example/1080p60/seg-12345.ts
+#EXTINF:2.000,live
+https://backup.example/1080p60/seg-12346.ts`;
+      const refreshedBackup = `#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:12347
+#EXTINF:2.000,live
+https://backup.example/1080p60/seg-12347.ts
+#EXTINF:2.000,live
+https://backup.example/1080p60/seg-12348.ts`;
+      let backupPlaylistRequests = 0;
+      let gqlRequests = 0;
+
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const requestUrl = String(input);
+        if (requestUrl === "https://gql.twitch.tv/gql") {
+          gqlRequests += 1;
+          return new Response(
+            JSON.stringify({
+              data: { streamPlaybackAccessToken: { signature: "sig", value: "{}" } },
+            }),
+            { status: 200 }
+          );
+        }
+        if (requestUrl.includes("usher.ttvnw.net")) {
+          return new Response(backupMaster, { status: 200 });
+        }
+        if (requestUrl === backupUrl) {
+          backupPlaylistRequests += 1;
+          return new Response(backupPlaylistRequests <= 5 ? firstBackup : refreshedBackup, {
+            status: 200,
+          });
+        }
+        return new Response("", { status: 200 });
+      });
+
+      await processMasterPlaylist(masterUrl, SAMPLE_MASTER_PLAYLIST, "continuitychannel");
+      await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+      await vi.waitFor(() => expect(backupPlaylistRequests).toBe(5));
+      for (let index = 0; index < 10; index += 1) await Promise.resolve();
+
+      await expect(processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)).resolves.toBe(firstBackup);
+      const reloadCountAfterSwitch = onReload.mock.calls.length;
+      await expect(processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)).resolves.toBe(
+        refreshedBackup
+      );
+
+      expect(backupPlaylistRequests).toBeGreaterThanOrEqual(6);
+      expect(gqlRequests).toBe(5);
+      expect(onReload).toHaveBeenCalledTimes(reloadCountAfterSwitch);
+      clearStreamInfo("continuitychannel");
+    });
+
+    it("deduplicates backup handoffs across simultaneous quality renditions", async () => {
+      const channelName = "renditionhandoff";
+      const masterUrl = `https://usher.ttvnw.net/api/channel/hls/${channelName}.m3u8`;
+      const mediaUrls = [
+        "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=abc",
+        "https://video-edge.example.com/v1/playlist/720p30.m3u8?token=abc",
+      ];
+      const backupMaster = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=6100000,RESOLUTION=1920x1080,FRAME-RATE=60.000,CODECS="avc1.64002A"
+https://backup.example/1080p60.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=3100000,RESOLUTION=1280x720,FRAME-RATE=30.000,CODECS="avc1.4D401F"
+https://backup.example/720p30.m3u8`;
+      const onReload = vi.fn();
+      let backupPlaylistRequests = 0;
+      setPlayerCallbacks(channelName, onReload);
+
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const requestUrl = String(input);
+        if (requestUrl === "https://gql.twitch.tv/gql") {
+          return new Response(
+            JSON.stringify({
+              data: { streamPlaybackAccessToken: { signature: "sig", value: "{}" } },
+            }),
+            { status: 200 }
+          );
+        }
+        if (requestUrl.includes("usher.ttvnw.net")) {
+          return new Response(backupMaster, { status: 200 });
+        }
+        if (requestUrl.includes("backup.example")) {
+          backupPlaylistRequests += 1;
+          return new Response(
+            CLEAN_MEDIA_PLAYLIST.replaceAll("video-edge.example.com", "backup.example"),
+            { status: 200 }
+          );
+        }
+        return new Response("", { status: 200 });
+      });
+
+      await processMasterPlaylist(masterUrl, SAMPLE_MASTER_PLAYLIST, channelName);
+      await Promise.all(mediaUrls.map((url) => processMediaPlaylist(url, AD_MEDIA_PLAYLIST)));
+      await vi.waitFor(() => expect(onReload).toHaveBeenCalled());
+      for (let index = 0; index < 10; index += 1) await Promise.resolve();
+
+      expect(onReload).toHaveBeenCalledTimes(1);
+      expect(onReload).toHaveBeenCalledWith("ad-started");
+      const requestsBeforeInternalReset = backupPlaylistRequests;
+
+      clearStreamInfo(channelName, { preservePlayerReloadGuard: true });
+      await processMasterPlaylist(masterUrl, SAMPLE_MASTER_PLAYLIST, channelName);
+      await Promise.all(mediaUrls.map((url) => processMediaPlaylist(url, AD_MEDIA_PLAYLIST)));
+      await vi.waitFor(() =>
+        expect(backupPlaylistRequests).toBeGreaterThan(requestsBeforeInternalReset)
+      );
+      for (let index = 0; index < 10; index += 1) await Promise.resolve();
+
+      expect(onReload).toHaveBeenCalledTimes(1);
+      clearStreamInfo(channelName);
+    });
+
+    it("keeps the active backup through a transient clean original poll", async () => {
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/transientclean.m3u8";
+      const mediaUrl = "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=abc";
+      const backupUrl = "https://backup.example/transient-1080p60.m3u8";
+      const onReload = vi.fn();
+      let now = 1_000_000;
+      const dateNowSpy = vi.spyOn(Date, "now").mockImplementation(() => now);
+      setPlayerCallbacks(onReload);
+      const backupMaster = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=6100000,RESOLUTION=1920x1080,FRAME-RATE=60.000,CODECS="avc1.64002A"
+${backupUrl}`;
+      const backupPlaylist = CLEAN_MEDIA_PLAYLIST.replaceAll(
+        "video-edge.example.com",
+        "backup.example"
+      );
+
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const requestUrl = String(input);
+        if (requestUrl === "https://gql.twitch.tv/gql") {
+          return new Response(
+            JSON.stringify({
+              data: { streamPlaybackAccessToken: { signature: "sig", value: "{}" } },
+            }),
+            { status: 200 }
+          );
+        }
+        if (requestUrl.includes("usher.ttvnw.net")) {
+          return new Response(backupMaster, { status: 200 });
+        }
+        if (requestUrl === backupUrl) {
+          return new Response(backupPlaylist, { status: 200 });
+        }
+        return new Response("", { status: 200 });
+      });
+
+      await processMasterPlaylist(masterUrl, SAMPLE_MASTER_PLAYLIST, "transientclean");
+      await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+      await vi.waitFor(() => expect(onReload).toHaveBeenCalledWith("ad-started"));
+      for (let index = 0; index < 10; index += 1) await Promise.resolve();
+      await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+      const reloadCountAfterSwitch = onReload.mock.calls.length;
+
+      await expect(processMediaPlaylist(mediaUrl, CLEAN_MEDIA_PLAYLIST)).resolves.toBe(
+        backupPlaylist
+      );
+      expect(getAdBlockStatus("transientclean").isShowingAd).toBe(true);
+      expect(onReload).toHaveBeenCalledTimes(reloadCountAfterSwitch);
+
+      now += 20_000;
+      await expect(processMediaPlaylist(mediaUrl, CLEAN_MEDIA_PLAYLIST)).resolves.toBe(
+        CLEAN_MEDIA_PLAYLIST
+      );
+      expect(getAdBlockStatus("transientclean").isShowingAd).toBe(false);
+      expect(onReload).toHaveBeenCalledTimes(reloadCountAfterSwitch + 1);
+      expect(onReload).toHaveBeenLastCalledWith("ad-ended");
+      clearStreamInfo("transientclean");
+      dateNowSpy.mockRestore();
+    });
+
+    it("keeps the active backup through a short clean gap between consecutive ads", async () => {
+      const channelName = "consecutiveads";
+      const masterUrl = `https://usher.ttvnw.net/api/channel/hls/${channelName}.m3u8`;
+      const mediaUrl = "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=abc";
+      const backupUrl = "https://backup.example/consecutive-1080p60.m3u8";
+      const backupPlaylist = CLEAN_MEDIA_PLAYLIST.replaceAll(
+        "video-edge.example.com",
+        "backup.example"
+      );
+      const backupMaster = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=6100000,RESOLUTION=1920x1080,FRAME-RATE=60.000,CODECS="avc1.64002A"
+${backupUrl}`;
+      const onReload = vi.fn();
+      let now = 1_000_000;
+      const dateNowSpy = vi.spyOn(Date, "now").mockImplementation(() => now);
+      setPlayerCallbacks(channelName, onReload);
+
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const requestUrl = String(input);
+        if (requestUrl === "https://gql.twitch.tv/gql") {
+          return new Response(
+            JSON.stringify({
+              data: { streamPlaybackAccessToken: { signature: "sig", value: "{}" } },
+            }),
+            { status: 200 }
+          );
+        }
+        if (requestUrl.includes("usher.ttvnw.net")) {
+          return new Response(backupMaster, { status: 200 });
+        }
+        if (requestUrl === backupUrl) {
+          return new Response(backupPlaylist, { status: 200 });
+        }
+        return new Response("", { status: 200 });
+      });
+
+      try {
+        await processMasterPlaylist(masterUrl, SAMPLE_MASTER_PLAYLIST, channelName);
+        await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+        await vi.waitFor(() => expect(onReload).toHaveBeenCalledWith("ad-started"));
+        for (let index = 0; index < 10; index += 1) await Promise.resolve();
+        await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+        const reloadCountAfterSwitch = onReload.mock.calls.length;
+
+        for (let cleanPoll = 0; cleanPoll < 5; cleanPoll += 1) {
+          now += 2_000;
+          await expect(processMediaPlaylist(mediaUrl, CLEAN_MEDIA_PLAYLIST)).resolves.toBe(
+            backupPlaylist
+          );
+        }
+
+        now += 500;
+        await expect(processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)).resolves.toBe(
+          backupPlaylist
+        );
+        expect(getAdBlockStatus(channelName).isShowingAd).toBe(true);
+        expect(onReload).toHaveBeenCalledTimes(reloadCountAfterSwitch);
+      } finally {
+        clearStreamInfo(channelName);
+        dateNowSpy.mockRestore();
+      }
+    });
+
+    it("keeps a verified backup warm after ad end for the next ad", async () => {
+      const channelName = "warmconsecutiveads";
+      const masterUrl = `https://usher.ttvnw.net/api/channel/hls/${channelName}.m3u8`;
+      const mediaUrl = "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=warm";
+      const backupUrl = "https://backup.example/warm-1080p60.m3u8";
+      const backupPlaylist = CLEAN_MEDIA_PLAYLIST.replaceAll(
+        "video-edge.example.com",
+        "backup.example"
+      );
+      const backupMaster = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=6100000,RESOLUTION=1920x1080,FRAME-RATE=60.000,CODECS="avc1.64002A"
+${backupUrl}`;
+      const onReload = vi.fn();
+      let now = 2_000_000;
+      const dateNowSpy = vi.spyOn(Date, "now").mockImplementation(() => now);
+      setPlayerCallbacks(channelName, onReload);
+
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const requestUrl = String(input);
+        if (requestUrl === "https://gql.twitch.tv/gql") {
+          return new Response(
+            JSON.stringify({
+              data: { streamPlaybackAccessToken: { signature: "sig", value: "{}" } },
+            }),
+            { status: 200 }
+          );
+        }
+        if (requestUrl.includes("usher.ttvnw.net")) {
+          return new Response(backupMaster, { status: 200 });
+        }
+        if (requestUrl === backupUrl) {
+          return new Response(backupPlaylist, { status: 200 });
+        }
+        return new Response("", { status: 200 });
+      });
+
+      try {
+        await processMasterPlaylist(masterUrl, SAMPLE_MASTER_PLAYLIST, channelName);
+        await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+        await vi.waitFor(() => expect(onReload).toHaveBeenCalledWith("ad-started"));
+        for (let index = 0; index < 10; index += 1) await Promise.resolve();
+        await expect(processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)).resolves.toBe(
+          backupPlaylist
+        );
+
+        await expect(processMediaPlaylist(mediaUrl, CLEAN_MEDIA_PLAYLIST)).resolves.toBe(
+          backupPlaylist
+        );
+        now += 20_000;
+        await expect(processMediaPlaylist(mediaUrl, CLEAN_MEDIA_PLAYLIST)).resolves.toBe(
+          CLEAN_MEDIA_PLAYLIST
+        );
+        expect(onReload).toHaveBeenLastCalledWith("ad-ended");
+        const reloadCountAfterAdEnd = onReload.mock.calls.length;
+
+        for (let cleanPoll = 0; cleanPoll < 3; cleanPoll += 1) {
+          now += 2_000;
+          await processMediaPlaylist(mediaUrl, CLEAN_MEDIA_PLAYLIST);
+          for (let index = 0; index < 5; index += 1) await Promise.resolve();
+        }
+
+        now += 30_000;
+        await expect(processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)).resolves.toBe(
+          backupPlaylist
+        );
+        expect(getAdBlockStatus(channelName)).toEqual(
+          expect.objectContaining({
+            isShowingAd: true,
+            isUsingFallbackMode: false,
+            activePlayerType: expect.any(String),
+          })
+        );
+        expect(onReload).toHaveBeenCalledTimes(reloadCountAfterAdEnd);
+      } finally {
+        clearStreamInfo(channelName);
+        dateNowSpy.mockRestore();
+      }
+    });
+
+    it("uses a clean exact-rendition backup when the stitched ad has a disjoint media sequence", async () => {
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/disjointchannel.m3u8";
+      const mediaUrl = "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=abc";
+      const onReload = vi.fn();
+      let now = 1_000_000;
+      const dateNowSpy = vi.spyOn(Date, "now").mockImplementation(() => now);
+      setPlayerCallbacks(onReload);
+      const disjointAdPlaylist = AD_MEDIA_PLAYLIST.replace(
+        "#EXT-X-MEDIA-SEQUENCE:12345",
+        "#EXT-X-MEDIA-SEQUENCE:0"
+      );
+      const cleanLivePlaylist = CLEAN_MEDIA_PLAYLIST.replace(
+        "#EXT-X-MEDIA-SEQUENCE:12345",
+        "#EXT-X-MEDIA-SEQUENCE:9630"
+      ).replaceAll("video-edge.example.com", "backup.example");
+      const backupMaster = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=6100000,RESOLUTION=1920x1080,FRAME-RATE=60.000,CODECS="avc1.4D401F,mp4a.40.2"
+https://backup.example/1080p60.m3u8`;
+      const requestedUrls: string[] = [];
+
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const requestUrl = String(input);
+        requestedUrls.push(requestUrl);
+        if (requestUrl === "https://gql.twitch.tv/gql") {
+          return new Response(
+            JSON.stringify({
+              data: { streamPlaybackAccessToken: { signature: "sig", value: "{}" } },
+            }),
+            { status: 200 }
+          );
+        }
+        if (requestUrl.includes("usher.ttvnw.net")) {
+          return new Response(backupMaster, { status: 200 });
+        }
+        if (requestUrl === "https://backup.example/1080p60.m3u8") {
+          return new Response(cleanLivePlaylist, { status: 200 });
+        }
+        return new Response("", { status: 200 });
+      });
+
+      await processMasterPlaylist(masterUrl, SAMPLE_MASTER_PLAYLIST, "disjointchannel");
+      await processMediaPlaylist(mediaUrl, disjointAdPlaylist);
+      await vi.waitFor(() =>
+        expect(requestedUrls).toContain("https://backup.example/1080p60.m3u8")
+      );
+      for (let index = 0; index < 10; index += 1) await Promise.resolve();
+
+      const result = await processMediaPlaylist(mediaUrl, disjointAdPlaylist);
+
+      expect(result).toBe(cleanLivePlaylist);
+      expect(getAdBlockStatus("disjointchannel")).toMatchObject({
+        isShowingAd: true,
+        isStrippingSegments: false,
+        numStrippedSegments: 0,
+        isUsingFallbackMode: false,
+        activePlayerType: "embed",
+      });
+
+      const restoredLivePlaylist = CLEAN_MEDIA_PLAYLIST.replace(
+        "#EXT-X-MEDIA-SEQUENCE:12345",
+        "#EXT-X-MEDIA-SEQUENCE:9700"
+      ).replace("2024-01-01T00:00:00Z", "2024-01-01T00:10:00Z");
+      await expect(processMediaPlaylist(mediaUrl, restoredLivePlaylist)).resolves.toBe(
+        cleanLivePlaylist
+      );
+      now += 20_000;
+      await expect(processMediaPlaylist(mediaUrl, restoredLivePlaylist)).resolves.toBe(
+        restoredLivePlaylist
+      );
+      expect(getAdBlockStatus("disjointchannel")).toMatchObject({
+        isShowingAd: false,
+        isStrippingSegments: false,
+        isUsingFallbackMode: false,
+        activePlayerType: null,
+      });
+      expect(onReload).toHaveBeenCalledWith("ad-ended");
+      clearStreamInfo("disjointchannel");
+      dateNowSpy.mockRestore();
     });
 
     it("does not reuse an AVC backup candidate for a same-size HEVC rendition", async () => {
@@ -748,12 +1351,13 @@ https://backup.example/avc.m3u8`;
 
       const firstHevcResult = await processMediaPlaylist(hevcUrl, AD_MEDIA_PLAYLIST);
 
-      expect(firstHevcResult).toBe(AD_MEDIA_PLAYLIST);
+      expect(firstHevcResult).toContain("#EXT-X-DATERANGE");
+      expect(firstHevcResult).not.toContain("ad-12345.ts");
       expect(firstHevcResult).not.toContain("backup.example/v1/segment");
       clearStreamInfo("codecscopechannel");
     });
 
-    it("uses stripping when the exact backup is cue-marked", async () => {
+    it("uses a clean safe-floor fallback when the exact backup is cue-marked", async () => {
       const masterUrl = "https://usher.ttvnw.net/api/channel/hls/cuebackupchannel.m3u8";
       const mediaUrl = "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=abc";
       const backupMaster = `#EXTM3U
@@ -798,9 +1402,9 @@ https://backup.example/${quality}/seg-12345.ts`;
       fetchSpy.mockRejectedValue(new Error("network unavailable after prewarm"));
       const result = await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
 
-      expect(result).not.toContain("backup.example/");
-      expect(requestedUrls).not.toContain("https://backup.example/720p60.m3u8");
-      expect(getAdBlockStatus("cuebackupchannel").isUsingFallbackMode).toBe(true);
+      expect(result).toContain("backup.example/720p60");
+      expect(requestedUrls).toContain("https://backup.example/720p60.m3u8");
+      expect(getAdBlockStatus("cuebackupchannel").isUsingFallbackMode).toBe(false);
       clearStreamInfo("cuebackupchannel");
     });
 
@@ -862,7 +1466,61 @@ ${requestUrl.replace(".m3u8", "/seg-12345.ts")}`,
       clearStreamInfo("globalrankchannel");
     });
 
-    it("passes through the original live playlist when no clean aligned backup exists", async () => {
+    it("starts same-quality backup rendition checks in parallel", async () => {
+      const masterUrl = "https://usher.ttvnw.net/api/channel/hls/parallelchannel.m3u8";
+      const mediaUrl = "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=abc";
+      const requestedBackupUrls: string[] = [];
+      const pendingResponses: Array<(response: Response) => void> = [];
+
+      vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const requestUrl = String(input);
+        if (requestUrl === "https://gql.twitch.tv/gql") {
+          const body = JSON.parse(String(init?.body)) as { variables: { playerType: string } };
+          return new Response(
+            JSON.stringify({
+              data: {
+                streamPlaybackAccessToken: {
+                  signature: "sig",
+                  value: JSON.stringify({ playerType: body.variables.playerType }),
+                },
+              },
+            }),
+            { status: 200 }
+          );
+        }
+        if (requestUrl.includes("usher.ttvnw.net")) {
+          const playerType = JSON.parse(new URL(requestUrl).searchParams.get("token") ?? "{}")
+            .playerType as string;
+          return new Response(`#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=6100000,RESOLUTION=1920x1080,FRAME-RATE=60.000,CODECS="avc1.64002A"
+https://backup.example/${playerType}-1080p60.m3u8`, { status: 200 });
+        }
+        if (requestUrl.includes("backup.example/")) {
+          requestedBackupUrls.push(requestUrl);
+          return new Promise<Response>((resolve) => pendingResponses.push(resolve));
+        }
+        return new Response("", { status: 200 });
+      });
+
+      await processMasterPlaylist(masterUrl, SAMPLE_MASTER_PLAYLIST, "parallelchannel");
+      await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
+
+      try {
+        await vi.waitFor(() => expect(requestedBackupUrls).toHaveLength(5), { timeout: 250 });
+      } finally {
+        const cleanPlaylist = `#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:12345
+#EXTINF:2.000,live
+https://backup.example/segment-12345.ts`;
+        pendingResponses.forEach((resolve) =>
+          resolve(new Response(cleanPlaylist, { status: 200 }))
+        );
+      }
+
+      clearStreamInfo("parallelchannel");
+    });
+
+    it("holds the original unsafe playlist when no clean exact-rendition backup exists", async () => {
       const masterUrl = "https://usher.ttvnw.net/api/channel/hls/passthroughchannel.m3u8";
       const mediaUrl = "https://video-edge.example.com/v1/playlist/1080p60.m3u8?token=abc";
       vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("no clean backup"));
@@ -870,7 +1528,8 @@ ${requestUrl.replace(".m3u8", "/seg-12345.ts")}`,
       await processMasterPlaylist(masterUrl, SAMPLE_MASTER_PLAYLIST, "passthroughchannel");
       const result = await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
 
-      expect(result).toBe(AD_MEDIA_PLAYLIST);
+      expect(result).toContain("#EXT-X-DATERANGE");
+      expect(result).not.toContain("ad-12345.ts");
       expect(result).not.toContain("data:video/");
       clearStreamInfo("passthroughchannel");
     });
@@ -917,6 +1576,42 @@ ${requestUrl.replace(".m3u8", "/seg-12345.ts")}`,
       clearStreamInfo("fallbackchannel");
     });
 
+    it("uses explicit channel ownership for a token-rotated media URL with multiple active streams", async () => {
+      vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("no clean backup"));
+      await processMasterPlaylist(
+        "https://usher.ttvnw.net/api/channel/hls/ownedchannel.m3u8",
+        SAMPLE_MASTER_PLAYLIST,
+        "ownedchannel"
+      );
+      await processMasterPlaylist(
+        "https://usher.ttvnw.net/api/channel/hls/backgroundchannel.m3u8",
+        SAMPLE_MASTER_PLAYLIST.replaceAll("video-edge.example.com", "background.example.com"),
+        "backgroundchannel"
+      );
+
+      try {
+        const result = await (
+          processMediaPlaylist as unknown as (
+            url: string,
+            text: string,
+            channelName: string
+          ) => Promise<string>
+        )(
+          "https://rotated.example.com/v1/playlist/source.m3u8?token=refreshed",
+          AD_MEDIA_PLAYLIST,
+          "ownedchannel"
+        );
+
+        expect(getAdBlockStatus("ownedchannel").isShowingAd).toBe(true);
+        expect(getAdBlockStatus("backgroundchannel").isShowingAd).toBe(false);
+        expect(result).toContain("#EXT-X-DATERANGE");
+        expect(result).not.toContain("ad-12345.ts");
+      } finally {
+        clearStreamInfo("ownedchannel");
+        clearStreamInfo("backgroundchannel");
+      }
+    });
+
     it("detects midroll ads", async () => {
       const masterUrl = "https://usher.ttvnw.net/api/channel/hls/midrollchannel.m3u8?token=abc";
 
@@ -938,8 +1633,7 @@ ${requestUrl.replace(".m3u8", "/seg-12345.ts")}`,
       const masterUrl = "https://usher.ttvnw.net/api/channel/hls/adendchannel.m3u8?token=abc";
 
       const onReload = vi.fn();
-      const onPauseResume = vi.fn();
-      setPlayerCallbacks(onReload, onPauseResume);
+      setPlayerCallbacks(onReload);
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 200 }));
 
@@ -953,7 +1647,6 @@ ${requestUrl.replace(".m3u8", "/seg-12345.ts")}`,
       await processMediaPlaylist(mediaUrl, CLEAN_MEDIA_PLAYLIST);
       expect(getAdBlockStatus("adendchannel").isShowingAd).toBe(false);
       expect(onReload).not.toHaveBeenCalled();
-      expect(onPauseResume).not.toHaveBeenCalled();
 
       clearStreamInfo("adendchannel");
     });
@@ -1000,10 +1693,9 @@ https://video-edge.example.com/v1/segment/seg-12345.ts`;
   });
 
   describe("setPlayerCallbacks", () => {
-    it("accepts reload and pause/resume callbacks", () => {
+    it("accepts a reload callback", () => {
       const onReload = vi.fn();
-      const onPauseResume = vi.fn();
-      expect(() => setPlayerCallbacks(onReload, onPauseResume)).not.toThrow();
+      expect(() => setPlayerCallbacks(onReload)).not.toThrow();
     });
   });
 

@@ -11,6 +11,7 @@ export interface PipStreamInfo {
   channelName: string;
   channelDisplayName: string;
   channelAvatar?: string;
+  poster?: string;
   streamUrl: string;
   title?: string;
   categoryName?: string;

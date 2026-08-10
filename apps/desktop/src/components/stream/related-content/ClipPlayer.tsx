@@ -53,8 +53,20 @@ export function ClipPlayer({ src, autoPlay = false, onError }: ClipPlayerProps) 
 
     let hls: Hls | null = null;
     const isHls = src.includes(".m3u8");
+    const handleLoadedMetadata = () => {
+      setIsReady(true);
+      if (autoPlay)
+        video.play().catch((e) =>
+          logger.error("Stream:ClipPlayer", "native video play failed", {
+            error: e instanceof Error ? e.message : String(e),
+          })
+        );
+    };
+    const handleNativeError = () => onError?.();
 
-    logger.debug("Stream:ClipPlayer", "loading source", { src, isHls });
+    logger.debug("Stream:ClipPlayer", "loading source", {
+      sourceType: isHls ? "hls" : "native",
+    });
 
     if (isHls && Hls.isSupported()) {
       const bufferConfig = resolveHlsVodBufferConfig();
@@ -129,33 +141,19 @@ export function ClipPlayer({ src, autoPlay = false, onError }: ClipPlayerProps) 
       // Native HLS support (Safari)
       logger.debug("Stream:ClipPlayer", "using native HLS");
       video.src = src;
-      video.addEventListener("loadedmetadata", () => {
-        setIsReady(true);
-        if (autoPlay)
-          video.play().catch((e) =>
-            logger.error("Stream:ClipPlayer", "native HLS play failed", {
-              error: e instanceof Error ? e.message : String(e),
-            })
-          );
-      });
-      video.addEventListener("error", () => onError?.());
+      video.addEventListener("loadedmetadata", handleLoadedMetadata);
+      video.addEventListener("error", handleNativeError);
     } else {
       // MP4 or other native formats
       logger.debug("Stream:ClipPlayer", "using native video playback");
       video.src = src;
-      video.addEventListener("loadedmetadata", () => {
-        setIsReady(true);
-        if (autoPlay)
-          video.play().catch((e) =>
-            logger.error("Stream:ClipPlayer", "native video play failed", {
-              error: e instanceof Error ? e.message : String(e),
-            })
-          );
-      });
-      video.addEventListener("error", () => onError?.());
+      video.addEventListener("loadedmetadata", handleLoadedMetadata);
+      video.addEventListener("error", handleNativeError);
     }
 
     return () => {
+      video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      video.removeEventListener("error", handleNativeError);
       if (hls) {
         logger.debug("Stream:ClipPlayer", "destroying HLS instance");
         hls.destroy();

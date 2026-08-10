@@ -75,7 +75,8 @@ vi.mock("@tanstack/react-router", () => ({
 
 // Guards: guest playback surfaces expose Share and Download without consulting auth state
 // Guards: Clip sharing copies only the explicit public content URL, never the playback URL
-// Guards: player failures disable both Share and Download because the playback entitlement is invalid
+// Guards: Twitch clip history keeps stable clip identity and never persists its reversible playback URL
+// Guards: player failures unmount playback, show retry guidance, and disable Share and Download
 // Guards: switching Clips clears Copied state and waits for the new player readiness signal
 describe("[Unit] ClipDialog", () => {
   const mockOnClose = vi.fn();
@@ -195,6 +196,9 @@ describe("[Unit] ClipDialog", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Fail playback" }));
 
+    expect(screen.queryByTestId("twitch-vod-player")).not.toBeInTheDocument();
+    expect(screen.getByText("Unable to play this clip")).toBeInTheDocument();
+    expect(screen.getByText("Try closing and reopening the clip, or try again later.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Share" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Download" })).toBeDisabled();
     expect(mockOnPlaybackError).toHaveBeenCalledTimes(1);
@@ -380,14 +384,14 @@ describe("[Unit] ClipDialog", () => {
     expect(screen.getByTestId("kick-vod-player")).toBeInTheDocument();
   });
 
-  it("should record a playable clip in history when a playback url is available", async () => {
+  it("records Twitch clip identity without its reversible playback URL", async () => {
     render(
       <ClipDialog
         selectedClip={mockClip}
         onClose={mockOnClose}
         clipLoading={false}
         clipError={null}
-        clipPlaybackUrl="http://video.url"
+        clipPlaybackUrl="twitch-clip-media://sentinel-clip"
         platform="twitch"
         channelName="coolstreamer"
         channelData={mockChannelData}
@@ -395,26 +399,26 @@ describe("[Unit] ClipDialog", () => {
       />
     );
 
-    await waitFor(() => {
-      expect(addToHistory).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: "twitch-clip-clip-123",
-          originalId: "clip-123",
-          title: "Awesome Clip",
-          thumbnail: "thumb.jpg",
-          playbackUrl: "http://video.url",
-          platform: "twitch",
-          type: "clip",
-          channelName: "coolstreamer",
-          channelDisplayName: "CoolStreamer",
-          channelAvatar: "avatar.jpg",
-          channelFollowerCount: 1000,
-          clipViews: "100",
-          clipCreatorName: "Clipper",
-          clipCategory: "Just Chatting",
-        })
-      );
-    });
+    await waitFor(() => expect(addToHistory).toHaveBeenCalledTimes(1));
+    const historyItem = addToHistory.mock.calls[0]?.[0];
+    expect(historyItem).toEqual(
+      expect.objectContaining({
+        id: "twitch-clip-clip-123",
+        originalId: "clip-123",
+        title: "Awesome Clip",
+        thumbnail: "thumb.jpg",
+        platform: "twitch",
+        type: "clip",
+        channelName: "coolstreamer",
+        channelDisplayName: "CoolStreamer",
+        channelAvatar: "avatar.jpg",
+        channelFollowerCount: 1000,
+        clipViews: "100",
+        clipCreatorName: "Clipper",
+        clipCategory: "Just Chatting",
+      })
+    );
+    expect(historyItem).not.toHaveProperty("playbackUrl");
   });
 
   it("should render real clip and channel metadata instead of hidden placeholders", () => {

@@ -1,5 +1,5 @@
 import { Link, useParams, useSearch } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LuCheck, LuCircleAlert, LuDownload, LuLock, LuShare2 } from "react-icons/lu";
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { KickVodPlayer } from "@/components/player/kick";
@@ -101,19 +101,101 @@ export function VideoPage() {
   const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(null);
   const [readyPlaybackUrl, setReadyPlaybackUrl] = useState<string | null>(null);
   const [playbackFailed, setPlaybackFailed] = useState(false);
+  const [metadataFailed, setMetadataFailed] = useState(false);
+  const [playbackRetryGeneration, setPlaybackRetryGeneration] = useState(0);
   const [_isLoading, setIsLoading] = useState(true);
+  const requestGenerationRef = useRef(0);
+  const sourceResolvedAtRef = useRef<{ generation: number; resolvedAt: number } | null>(null);
+  const activePlaybackRef = useRef<{ generation: number; source: string } | null>(null);
+  const retryMetadataRef = useRef<(() => void) | null>(null);
+  const playbackRequestsRef = useRef(
+    new Map<string, ReturnType<typeof window.electronAPI.videos.getPlaybackUrl>>()
+  );
+  const metadataRequestsRef = useRef(
+    new Map<string, ReturnType<typeof window.electronAPI.videos.getMetadata>>()
+  );
+  const lastRequestKeyRef = useRef<string | null>(null);
+  const lastPlaybackRetryGenerationRef = useRef(0);
 
   const [relatedVideos, setRelatedVideos] = useState<VideoOrClip[]>([]);
   const [isRelatedLoading, setIsRelatedLoading] = useState(false);
   const canUseDirectSourceUrl = platform === "kick" && Boolean(directSourceUrl);
+  const renderedRequestGeneration = requestGenerationRef.current;
 
   useEffect(() => {
+    const requestGeneration = ++requestGenerationRef.current;
+    const isCurrentRequest = () => requestGenerationRef.current === requestGeneration;
+    const publish = (callback: () => void) => {
+      if (isCurrentRequest()) callback();
+    };
+    const requestKey = `${platform}:${videoId}:${directSourceUrl || ""}`;
+    const isPlaybackRetry =
+      lastRequestKeyRef.current === requestKey &&
+      lastPlaybackRetryGenerationRef.current !== playbackRetryGeneration;
+    lastRequestKeyRef.current = requestKey;
+    lastPlaybackRetryGenerationRef.current = playbackRetryGeneration;
+    const getPlaybackRequest = () => {
+      const existingRequest = playbackRequestsRef.current.get(requestKey);
+      if (existingRequest) return existingRequest;
+
+      const request = window.electronAPI.videos.getPlaybackUrl({
+        platform: platform as "twitch" | "kick",
+        videoId,
+      });
+      playbackRequestsRef.current.set(requestKey, request);
+      void request.then(
+        () => {
+          if (playbackRequestsRef.current.get(requestKey) === request) {
+            playbackRequestsRef.current.delete(requestKey);
+          }
+        },
+        () => {
+          if (playbackRequestsRef.current.get(requestKey) === request) {
+            playbackRequestsRef.current.delete(requestKey);
+          }
+        }
+      );
+      return request;
+    };
+    const getMetadataRequest = () => {
+      const existingRequest = metadataRequestsRef.current.get(requestKey);
+      if (existingRequest) return existingRequest;
+
+      const request = window.electronAPI.videos.getMetadata({
+        platform: platform as "twitch" | "kick",
+        videoId,
+      });
+      metadataRequestsRef.current.set(requestKey, request);
+      void request.then(
+        () => {
+          if (metadataRequestsRef.current.get(requestKey) === request) {
+            metadataRequestsRef.current.delete(requestKey);
+          }
+        },
+        () => {
+          if (metadataRequestsRef.current.get(requestKey) === request) {
+            metadataRequestsRef.current.delete(requestKey);
+          }
+        }
+      );
+      return request;
+    };
+
     const fetchVideoData = async () => {
-      setError(null);
-      setStreamUrl(null);
-      setReadyPlaybackUrl(null);
-      setPlaybackFailed(false);
-      setIsLoading(true);
+      publish(() => {
+        setError(null);
+        setStreamUrl(null);
+        setReadyPlaybackUrl(null);
+        setPlaybackFailed(false);
+        setIsLoading(true);
+        sourceResolvedAtRef.current = null;
+        activePlaybackRef.current = null;
+        if (!isPlaybackRetry) {
+          setVideoMetadata(null);
+          setMetadataFailed(false);
+          retryMetadataRef.current = null;
+        }
+      });
 
       try {
         if (!window.electronAPI) {
@@ -124,24 +206,26 @@ export function VideoPage() {
         if (isSubOnly) {
           // Still set metadata for display purposes
           if (passedTitle && passedChannelName) {
-            setVideoMetadata({
-              id: videoId,
-              title: passedTitle,
-              channelId: "",
-              channelName: passedChannelName,
-              channelDisplayName: passedChannelDisplayName || passedChannelName,
-              channelAvatar: passedChannelAvatar || null,
-              views: passedViews ? parseInt(passedViews, 10) : 0,
-              duration: passedDuration || "0:00",
-              createdAt: passedDate || new Date().toISOString(),
-              thumbnailUrl: "",
-              description: "",
-              type: "archive",
-              platform: platform,
-              category: passedCategory,
+            publish(() => {
+              setVideoMetadata({
+                id: videoId,
+                title: passedTitle,
+                channelId: "",
+                channelName: passedChannelName,
+                channelDisplayName: passedChannelDisplayName || passedChannelName,
+                channelAvatar: passedChannelAvatar || null,
+                views: passedViews ? parseInt(passedViews, 10) : 0,
+                duration: passedDuration || "0:00",
+                createdAt: passedDate || new Date().toISOString(),
+                thumbnailUrl: "",
+                description: "",
+                type: "archive",
+                platform: platform,
+                category: passedCategory,
+              });
             });
           }
-          setIsLoading(false);
+          publish(() => setIsLoading(false));
           return;
         }
 
@@ -149,71 +233,123 @@ export function VideoPage() {
         // This is the preferred path for Kick VODs since the api/v1/video endpoint
         // requires UUID which we may not have
         if (canUseDirectSourceUrl && directSourceUrl) {
-          setStreamUrl(directSourceUrl);
+          sourceResolvedAtRef.current = {
+            generation: requestGeneration,
+            resolvedAt: performance.now(),
+          };
+          activePlaybackRef.current = { generation: requestGeneration, source: directSourceUrl };
+          publish(() => setStreamUrl(directSourceUrl));
 
           // If we have metadata from search params, use it directly
           if (passedTitle && passedChannelName) {
-            setVideoMetadata({
-              id: videoId,
-              title: passedTitle,
-              channelId: "",
-              channelName: passedChannelName,
-              channelDisplayName: passedChannelDisplayName || passedChannelName,
-              channelAvatar: passedChannelAvatar || null,
-              views: passedViews ? parseInt(passedViews, 10) : 0,
-              duration: passedDuration || "0:00",
-              createdAt: passedDate || new Date().toISOString(),
-              thumbnailUrl: "",
-              description: "",
-              type: "archive",
-              platform: platform,
-              category: passedCategory,
+            publish(() => {
+              setVideoMetadata({
+                id: videoId,
+                title: passedTitle,
+                channelId: "",
+                channelName: passedChannelName,
+                channelDisplayName: passedChannelDisplayName || passedChannelName,
+                channelAvatar: passedChannelAvatar || null,
+                views: passedViews ? parseInt(passedViews, 10) : 0,
+                duration: passedDuration || "0:00",
+                createdAt: passedDate || new Date().toISOString(),
+                thumbnailUrl: "",
+                description: "",
+                type: "archive",
+                platform: platform,
+                category: passedCategory,
+              });
             });
-            setIsLoading(false);
+            publish(() => setIsLoading(false));
             return;
           }
 
-          // Fallback: try to fetch metadata from API
-          try {
-            const metadataResult = await window.electronAPI.videos.getMetadata({
-              platform: platform as "twitch" | "kick",
-              videoId,
-            });
-            if (metadataResult.success && metadataResult.data) {
-              setVideoMetadata(metadataResult.data);
-            }
-          } catch (_metaErr) {
-            logger.warn("Page:Video", "could not fetch metadata, continuing with video playback");
-          }
+          // Fallback: fetch presentation data independently from direct playback.
+          const fetchMetadata = async () => {
+            try {
+              const metadataResult = await getMetadataRequest();
+              if (!isCurrentRequest()) return;
 
-          setIsLoading(false);
+              if (metadataResult.success && metadataResult.data) {
+                setVideoMetadata(metadataResult.data);
+                setMetadataFailed(false);
+              } else {
+                logger.warn("Page:Video", "metadata fetch warning", {
+                  error: metadataResult.error,
+                });
+                setMetadataFailed(true);
+              }
+            } catch (_metaErr) {
+              if (!isCurrentRequest()) return;
+
+              logger.warn("Page:Video", "could not fetch metadata, continuing with video playback");
+              setMetadataFailed(true);
+            }
+          };
+          retryMetadataRef.current = () => void fetchMetadata();
+          void fetchMetadata();
+
+          publish(() => setIsLoading(false));
           return;
         }
 
-        // Case 2: No direct URL - fetch playback URL and metadata from API
-        const [playbackResult, metadataResult] = await Promise.all([
-          window.electronAPI.videos.getPlaybackUrl({
-            platform: platform as "twitch" | "kick",
-            videoId,
-          }),
-          window.electronAPI.videos.getMetadata({
-            platform: platform as "twitch" | "kick",
-            videoId,
-          }),
-        ]);
+        // Case 2: No direct URL - playback and metadata are independent. The player
+        // must not wait for presentation data once its source is resolved.
+        void getPlaybackRequest()
+          .then((playbackResult) => {
+            if (!isCurrentRequest()) return;
 
-        if (playbackResult.success && playbackResult.data) {
-          setStreamUrl(playbackResult.data.url);
-        } else {
-          logger.error("Page:Video", "vod fetch error", { error: playbackResult.error });
-          setError(playbackResult.error || "Failed to resolve VOD URL");
-        }
+            if (playbackResult.success && playbackResult.data) {
+              sourceResolvedAtRef.current = {
+                generation: requestGeneration,
+                resolvedAt: performance.now(),
+              };
+              activePlaybackRef.current = {
+                generation: requestGeneration,
+                source: playbackResult.data.url,
+              };
+              setStreamUrl(playbackResult.data.url);
+            } else {
+              logger.error("Page:Video", "vod fetch error", { error: playbackResult.error });
+              setError(playbackResult.error || "Failed to resolve VOD URL");
+            }
+          })
+          .catch((err) => {
+            if (!isCurrentRequest()) return;
 
-        if (metadataResult.success && metadataResult.data) {
-          setVideoMetadata(metadataResult.data);
-        } else {
-          logger.warn("Page:Video", "metadata fetch warning", { error: metadataResult.error });
-        }
+            logger.error("Page:Video", "failed to resolve video playback", {
+              error:
+                err instanceof Error
+                  ? { name: err.name, message: err.message, stack: err.stack }
+                  : String(err),
+            });
+            setError("Failed to load video");
+          })
+          .finally(() => publish(() => setIsLoading(false)));
+
+        if (isPlaybackRetry) return;
+
+        const fetchMetadata = async () => {
+          try {
+            const metadataResult = await getMetadataRequest();
+            if (!isCurrentRequest()) return;
+
+            if (metadataResult.success && metadataResult.data) {
+              setVideoMetadata(metadataResult.data);
+              setMetadataFailed(false);
+            } else {
+              logger.warn("Page:Video", "metadata fetch warning", { error: metadataResult.error });
+              setMetadataFailed(true);
+            }
+          } catch (_metaErr) {
+            if (!isCurrentRequest()) return;
+
+            logger.warn("Page:Video", "could not fetch metadata, continuing with video playback");
+            setMetadataFailed(true);
+          }
+        };
+        retryMetadataRef.current = () => void fetchMetadata();
+        void fetchMetadata();
       } catch (err) {
         logger.error("Page:Video", "failed to load video", {
           error:
@@ -221,12 +357,16 @@ export function VideoPage() {
               ? { name: err.name, message: err.message, stack: err.stack }
               : String(err),
         });
-        setError("Failed to load video");
-      } finally {
-        setIsLoading(false);
+        publish(() => {
+          setError("Failed to load video");
+          setIsLoading(false);
+        });
       }
     };
     if (platform && videoId) fetchVideoData();
+    return () => {
+      if (isCurrentRequest()) requestGenerationRef.current += 1;
+    };
   }, [
     platform,
     videoId,
@@ -241,7 +381,23 @@ export function VideoPage() {
     passedCategory,
     passedDuration,
     isSubOnly,
+    playbackRetryGeneration,
   ]);
+
+  useEffect(() => {
+    const sourceTiming = sourceResolvedAtRef.current;
+    if (!streamUrl || !sourceTiming || sourceTiming.generation !== requestGenerationRef.current) {
+      return;
+    }
+
+    logger.debug("Page:Video", "playback-source-to-player-mounted", {
+      platform,
+      videoId,
+      generation: sourceTiming.generation,
+      elapsedMs: Math.round(performance.now() - sourceTiming.resolvedAt),
+    });
+    sourceResolvedAtRef.current = null;
+  }, [platform, streamUrl, videoId]);
 
   // Use fetched data or passed data or fallbacks
   const videoTitle = videoMetadata?.title || passedTitle || "Loading...";
@@ -272,10 +428,25 @@ export function VideoPage() {
   const historyPlaybackUrl =
     platform === "kick" ? directSourceUrl || streamUrl || undefined : undefined;
 
-  const handlePlaybackError = () => {
+  const handlePlaybackReady = (source: string, generation: number) => {
+    const activePlayback = activePlaybackRef.current;
+    if (activePlayback?.source !== source || activePlayback.generation !== generation) return;
+
+    setReadyPlaybackUrl(source);
+  };
+  const handlePlaybackError = (source: string, generation: number) => {
+    const activePlayback = activePlaybackRef.current;
+    if (activePlayback?.source !== source || activePlayback.generation !== generation) return;
+
     setReadyPlaybackUrl(null);
     setPlaybackFailed(true);
     removeFromHistory(historyItemId);
+  };
+  const handlePlaybackRetry = () => {
+    setPlaybackRetryGeneration((generation) => generation + 1);
+  };
+  const handleMetadataRetry = () => {
+    retryMetadataRef.current?.();
   };
 
   useEffect(() => {
@@ -420,6 +591,14 @@ export function VideoPage() {
                 watch this content.
               </p>
             </div>
+          ) : playbackFailed ? (
+            <div className="text-center text-red-500">
+              <LuCircleAlert className="w-8 h-8 mx-auto mb-2" />
+              <p className="mb-3">Unable to play this video</p>
+              <Button type="button" onClick={handlePlaybackRetry}>
+                Retry
+              </Button>
+            </div>
           ) : streamUrl ? (
             platform === "kick" ? (
               <KickVodPlayer
@@ -429,8 +608,8 @@ export function VideoPage() {
                 videoId={videoId}
                 title={videoTitle}
                 thumbnail={videoMetadata?.thumbnailUrl || passedChannelAvatar || undefined}
-                onReady={() => setReadyPlaybackUrl(streamUrl)}
-                onError={handlePlaybackError}
+                onReady={() => handlePlaybackReady(streamUrl, renderedRequestGeneration)}
+                onError={() => handlePlaybackError(streamUrl, renderedRequestGeneration)}
               />
             ) : (
               <TwitchVodPlayer
@@ -440,14 +619,17 @@ export function VideoPage() {
                 videoId={videoId}
                 title={videoTitle}
                 thumbnail={videoMetadata?.thumbnailUrl || passedChannelAvatar || undefined}
-                onReady={() => setReadyPlaybackUrl(streamUrl)}
-                onError={handlePlaybackError}
+                onReady={() => handlePlaybackReady(streamUrl, renderedRequestGeneration)}
+                onError={() => handlePlaybackError(streamUrl, renderedRequestGeneration)}
               />
             )
           ) : error ? (
             <div className="text-center text-red-500">
               <LuCircleAlert className="w-8 h-8 mx-auto mb-2" />
-              <p>{error}</p>
+              <p className="mb-3">{error}</p>
+              <Button type="button" onClick={handlePlaybackRetry}>
+                Retry
+              </Button>
             </div>
           ) : (
             <div className="text-center text-white/50">
@@ -504,6 +686,11 @@ export function VideoPage() {
                 <span>•</span>
                 <span>{date}</span>
               </div>
+              {metadataFailed && (
+                <Button type="button" variant="ghost" size="sm" onClick={handleMetadataRetry}>
+                  Retry details
+                </Button>
+              )}
               {/* Tags */}
               {(() => {
                 const displayLanguage = videoMetadata?.language || passedLanguage;

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   findTwitchPlaylistAlignment,
+  keepTwitchBackupRenditions,
   keepTwitchRenditionResolution,
   rankTwitchRenditionCandidates,
   rankTwitchRenditions,
@@ -26,6 +27,53 @@ describe("Twitch rendition continuity", () => {
     );
 
     expect(eligible.map((candidate) => candidate.url)).toEqual(["1080p30"]);
+  });
+
+  it("raises a transient sub-480p startup rendition to 480p before a 360p emergency fallback", () => {
+    const target = {
+      resolution: "284x160",
+      frameRate: 30,
+      bandwidth: 230_000,
+      codecs: "avc1.4D401F",
+    };
+
+    const eligible = keepTwitchBackupRenditions(
+      [
+        { ...target, url: "160p30" },
+        { ...target, resolution: "640x360", bandwidth: 800_000, url: "360p30" },
+        { ...target, resolution: "852x480", bandwidth: 1_500_000, url: "480p30" },
+        { ...target, resolution: "1280x720", bandwidth: 3_000_000, url: "720p30" },
+      ],
+      target
+    );
+
+    expect(eligible.map((candidate) => candidate.url)).toEqual(["480p30", "360p30"]);
+  });
+
+  it("keeps the active quality first, then 480p, then 360p, and never admits 160p", () => {
+    const target = {
+      resolution: "1920x1080",
+      frameRate: 60,
+      bandwidth: 6_000_000,
+      codecs: "avc1.64002A",
+    };
+
+    const eligible = keepTwitchBackupRenditions(
+      [
+        { ...target, resolution: "284x160", url: "160p30" },
+        { ...target, resolution: "640x360", url: "360p30" },
+        { ...target, resolution: "852x480", url: "480p30" },
+        { ...target, resolution: "1280x720", url: "720p60" },
+        { ...target, url: "1080p60" },
+      ],
+      target
+    );
+
+    expect(eligible.map((candidate) => candidate.url)).toEqual([
+      "1080p60",
+      "480p30",
+      "360p30",
+    ]);
   });
 
   it("ranks the exact active rendition first", () => {

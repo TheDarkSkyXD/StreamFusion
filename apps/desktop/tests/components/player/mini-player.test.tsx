@@ -1,5 +1,5 @@
-import { act, useEffect } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, type Ref, useEffect } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PlayerError } from "@/components/player/types";
 import { fireEvent, renderWithProviders, screen, waitFor } from "../../test-utils";
@@ -12,10 +12,11 @@ const playerProps = vi.hoisted(() => ({
   kick: null as null | { compact?: boolean; onError?: (error: PlayerError) => void },
   twitch: null as null | {
     compact?: boolean;
-    onAdBlockRecoveryRefresh?: () => void;
     onError?: (error: PlayerError) => void;
+    poster?: string;
   },
 }));
+const playerLifecycle = vi.hoisted(() => ({ unmounted: vi.fn() }));
 
 const streamPlaybackMock = vi.hoisted(() => ({
   useStreamPlayback: vi.fn(
@@ -35,6 +36,9 @@ const streamPlaybackMock = vi.hoisted(() => ({
     })
   ),
 }));
+const streamStatusMock = vi.hoisted(() => ({
+  useStreamByChannel: vi.fn(),
+}));
 const networkStatusMock = vi.hoisted(() => ({ recoveryCount: 0 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -43,6 +47,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("@/hooks/useStreamPlayback", () => streamPlaybackMock);
+vi.mock("@/hooks/queries/useStreams", () => streamStatusMock);
 vi.mock("@/hooks/useNetworkStatus", () => ({
   useNetworkStatus: () => ({ recoveryCount: networkStatusMock.recoveryCount }),
 }));
@@ -51,12 +56,15 @@ vi.mock("@/components/player/kick", () => ({
   KickLivePlayer: (props: {
     compact?: boolean;
     onError?: (error: PlayerError) => void;
+    ref?: Ref<HTMLVideoElement>;
     streamUrl?: string;
   }) => {
     playerProps.kick = props;
+    useEffect(() => () => playerLifecycle.unmounted("kick"), []);
     return (
       <div data-testid="hls-player" data-controls={props.compact ? "compact" : "full"}>
         {props.streamUrl}
+        <video ref={props.ref} data-testid="kick-video-element" />
       </div>
     );
   },
@@ -67,15 +75,15 @@ vi.mock("@/components/player/twitch", () => ({
     compact?: boolean;
     onError?: (error: PlayerError) => void;
     onRefresh?: () => void;
+    ref?: Ref<HTMLVideoElement>;
     streamUrl?: string;
   }) => {
-    playerProps.twitch = {
-      ...props,
-      onAdBlockRecoveryRefresh: props.onRefresh,
-    };
+    playerProps.twitch = props;
+    useEffect(() => () => playerLifecycle.unmounted("twitch"), []);
     return (
       <div data-testid="twitch-hls-player" data-controls={props.compact ? "compact" : "full"}>
         {props.streamUrl}
+        <video ref={props.ref} data-testid="twitch-video-element" />
       </div>
     );
   },
@@ -130,13 +138,15 @@ function primePipStore() {
 // Guards: returning to the same Kick or Twitch stream docks the existing player even when the route dock mounts after navigation.
 // Guards: switching directly between stream routes never flashes the previous stream as a corner mini-player while the next stream activates.
 // Guards: mini-player must not mount HLS from the persisted stream snapshot while a fresh playback URL is still resolving; stale Kick live-video tokens 403 when Following activates PiP.
-// Guards: mini-player closes stale PiP state when its fresh playback lookup reports the stream unavailable, preventing an offline stream from showing as LIVE.
+// Guards: confirmed offline playback keeps the mini-player frame open while replacing obsolete playback with the shared offline state.
+// Guards: Twitch poster continuity follows the persistent player from its stream-page dock into mini-player mode.
 describe("MiniPlayer playback routing", () => {
   beforeEach(() => {
     networkStatusMock.recoveryCount = 0;
     routerState.pathname = "/";
     playerProps.kick = null;
     playerProps.twitch = null;
+    playerLifecycle.unmounted.mockClear();
     streamPlaybackMock.useStreamPlayback.mockReset();
     streamPlaybackMock.useStreamPlayback.mockReturnValue({
       playback: null,
@@ -145,12 +155,26 @@ describe("MiniPlayer playback routing", () => {
       reload: vi.fn(),
       reloadAttempts: 0,
     });
+    streamStatusMock.useStreamByChannel.mockReset();
+    streamStatusMock.useStreamByChannel.mockReturnValue({
+      data: undefined,
+      dataUpdatedAt: 0,
+      isError: false,
+      isLoading: true,
+      isPlaceholderData: false,
+      isSuccess: false,
+      refetch: vi.fn(),
+    });
     mockNavigate.mockClear();
     usePipStore.setState({
       currentStream: null,
       isPipActive: false,
       isOnStreamPage: false,
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("docks on the matching stream route in the first layout pass", () => {
@@ -298,6 +322,7 @@ describe("MiniPlayer playback routing", () => {
         platform: "twitch",
         channelName: "xqc",
         channelDisplayName: "xQc",
+        poster: "https://static-cdn.jtvnw.net/previews-ttv/live_user_xqc-440x248.jpg",
         streamUrl: "https://stale.example.test/live.m3u8",
       },
       isPipActive: true,
@@ -319,6 +344,9 @@ describe("MiniPlayer playback routing", () => {
     const playerHost = dockedPlayer.closest("[data-player-mode='docked']");
     expect(playerHost).toHaveStyle({ width: "100%", height: "100%" });
     expect(dockedPlayer).toHaveAttribute("data-controls", "full");
+    expect(playerProps.twitch?.poster).toBe(
+      "https://static-cdn.jtvnw.net/previews-ttv/live_user_xqc-440x248.jpg"
+    );
 
     routerState.pathname = "/following";
     act(() => usePipStore.getState().setIsOnStreamPage(false));
@@ -326,6 +354,9 @@ describe("MiniPlayer playback routing", () => {
 
     expect(screen.getByTestId("twitch-hls-player")).toBe(dockedPlayer);
     expect(dockedPlayer).toHaveAttribute("data-controls", "compact");
+    expect(playerProps.twitch?.poster).toBe(
+      "https://static-cdn.jtvnw.net/previews-ttv/live_user_xqc-440x248.jpg"
+    );
     dock.remove();
   });
 
@@ -676,12 +707,57 @@ describe("MiniPlayer playback routing", () => {
     expect(reload).not.toHaveBeenCalled();
   });
 
+  it("shows a manual retry when Twitch recovery exhausts without a new source", async () => {
+    vi.useFakeTimers();
+    const reload = vi.fn();
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://usher.ttvnw.net/api/channel/hls/xqc.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload,
+      reloadAttempts: 0,
+      playbackRevision: 1,
+    });
+    usePipStore.setState({
+      currentStream: {
+        platform: "twitch",
+        channelName: "xqc",
+        channelDisplayName: "xQc",
+        streamUrl: "https://stale.example.test/live.m3u8",
+      },
+      isPipActive: true,
+      isOnStreamPage: false,
+    });
+
+    renderWithProviders(<MiniPlayer />);
+
+    act(() => {
+      playerProps.twitch?.onError?.({
+        code: "PLAYBACK_STALL",
+        message: "Playback stopped advancing",
+        fatal: true,
+      });
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(9_500));
+
+    expect(reload).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTestId("twitch-hls-player")).not.toBeInTheDocument();
+    const retry = screen.getByRole("button", { name: "Retry playback" });
+
+    fireEvent.click(retry);
+
+    expect(reload).toHaveBeenCalledTimes(3);
+    expect(screen.getByTestId("twitch-hls-player")).toBeInTheDocument();
+  });
+
   it.each([
     ["kick", "hls-player", "https://fresh.example.test/live.m3u8"],
     ["twitch", "twitch-hls-player", "https://usher.ttvnw.net/api/channel/hls/xqc.m3u8"],
   ] as const)(
     "rechecks %s playback instead of showing unavailable after a transient network failure",
-    (platform, playerTestId, playbackUrl) => {
+    async (platform, playerTestId, playbackUrl) => {
+      if (platform === "twitch") vi.useFakeTimers();
       const reload = vi.fn();
       routerState.pathname = "/following";
       streamPlaybackMock.useStreamPlayback.mockReturnValue({
@@ -714,13 +790,17 @@ describe("MiniPlayer playback routing", () => {
         });
       });
 
+      if (platform === "twitch") {
+        await act(async () => vi.advanceTimersByTimeAsync(1_500));
+      }
+
       expect(reload).toHaveBeenCalledTimes(1);
       expect(screen.getByTestId(playerTestId)).toBeInTheDocument();
       expect(screen.queryByText("Stream unavailable")).not.toBeInTheDocument();
     }
   );
 
-  it("shows unavailable for an explicit offline manifest response", () => {
+  it("shows the offline state for an explicit offline manifest response", () => {
     const reload = vi.fn();
     routerState.pathname = "/following";
     streamPlaybackMock.useStreamPlayback.mockReturnValue({
@@ -744,10 +824,317 @@ describe("MiniPlayer playback routing", () => {
     });
 
     expect(reload).not.toHaveBeenCalled();
-    expect(screen.getByText("Stream unavailable")).toBeInTheDocument();
+    expect(screen.queryByTestId("hls-player")).not.toBeInTheDocument();
+    expect(screen.getByText("is currently offline")).toBeInTheDocument();
+    expect(usePipStore.getState().currentStream?.channelName).toBe("xqc");
+    expect(playerLifecycle.unmounted).toHaveBeenCalledWith("kick");
   });
 
-  it("reloads Twitch playback when mini-player HLS reports a recoverable error", () => {
+  it("refreshes a signed-media 403 instead of declaring the mini stream offline", () => {
+    const reload = vi.fn();
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload,
+      reloadAttempts: 0,
+    });
+    primePipStore();
+    renderWithProviders(<MiniPlayer />);
+
+    act(() => {
+      playerProps.kick?.onError?.({
+        code: "STREAM_OFFLINE",
+        message: "Signed media URL expired",
+        fatal: true,
+        shouldRefresh: true,
+        originalError: { response: { code: 403 } },
+      });
+    });
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("hls-player")).toBeInTheDocument();
+    expect(screen.queryByText("is currently offline")).not.toBeInTheDocument();
+  });
+
+  it("shows offline after fatal live-playback recovery is exhausted", () => {
+    const reload = vi.fn();
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload,
+      reloadAttempts: 2,
+    });
+    primePipStore();
+    renderWithProviders(<MiniPlayer />);
+
+    act(() => {
+      playerProps.kick?.onError?.({
+        code: "NO_FRAGMENTS",
+        message: "No video fragments received after recovery",
+        fatal: true,
+        shouldRefresh: true,
+      });
+    });
+
+    expect(reload).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("hls-player")).not.toBeInTheDocument();
+    expect(screen.getByText("is currently offline")).toBeInTheDocument();
+    expect(playerLifecycle.unmounted).toHaveBeenCalledWith("kick");
+  });
+
+  it("shows offline when the current live media element ends", () => {
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    });
+    primePipStore();
+    renderWithProviders(<MiniPlayer />);
+
+    fireEvent.ended(screen.getByTestId("kick-video-element"));
+
+    expect(screen.queryByTestId("hls-player")).not.toBeInTheDocument();
+    expect(screen.getByText("is currently offline")).toBeInTheDocument();
+    expect(usePipStore.getState().currentStream?.channelName).toBe("xqc");
+  });
+
+  it("keeps verified playback visible during transient waiting and stalled events", () => {
+    const reload = vi.fn();
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload,
+      reloadAttempts: 0,
+    });
+    primePipStore();
+    renderWithProviders(<MiniPlayer />);
+    const player = screen.getByTestId("hls-player");
+    const video = screen.getByTestId("kick-video-element");
+
+    fireEvent.waiting(video);
+    fireEvent.stalled(video);
+
+    expect(screen.getByTestId("hls-player")).toBe(player);
+    expect(screen.queryByText("is currently offline")).not.toBeInTheDocument();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("reloads after media ended only when a newer canonical status confirms live", () => {
+    const reload = vi.fn();
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload,
+      reloadAttempts: 0,
+    });
+    streamStatusMock.useStreamByChannel.mockReturnValue({
+      data: { platform: "kick", channelName: "xqc", isLive: true },
+      dataUpdatedAt: 1,
+      isError: false,
+      isLoading: false,
+      isPlaceholderData: false,
+      isSuccess: true,
+      refetch: vi.fn(),
+    });
+    primePipStore();
+    const { rerender } = renderWithProviders(<MiniPlayer />);
+
+    fireEvent.ended(screen.getByTestId("kick-video-element"));
+
+    expect(screen.getByText("is currently offline")).toBeInTheDocument();
+    expect(reload).not.toHaveBeenCalled();
+
+    streamStatusMock.useStreamByChannel.mockReturnValue({
+      data: { platform: "kick", channelName: "xqc", isLive: true },
+      dataUpdatedAt: 2,
+      isError: false,
+      isLoading: false,
+      isPlaceholderData: false,
+      isSuccess: true,
+      refetch: vi.fn(),
+    });
+    rerender(<MiniPlayer />);
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("hls-player")).toBeInTheDocument();
+    expect(screen.queryByText("is currently offline")).not.toBeInTheDocument();
+  });
+
+  it("reloads once when newer canonical status supersedes resolver-confirmed offline", () => {
+    const reload = vi.fn();
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload,
+      reloadAttempts: 0,
+    });
+    streamStatusMock.useStreamByChannel.mockReturnValue({
+      data: { platform: "kick", channelName: "xqc", isLive: true },
+      dataUpdatedAt: 1,
+      isError: false,
+      isLoading: false,
+      isPlaceholderData: false,
+      isSuccess: true,
+      refetch: vi.fn(),
+    });
+    primePipStore();
+    const { rerender } = renderWithProviders(<MiniPlayer />);
+    expect(screen.getByTestId("hls-player")).toBeInTheDocument();
+
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: null,
+      isLoading: false,
+      error: new Error("Channel is offline"),
+      reload,
+      reloadAttempts: 0,
+    });
+    rerender(<MiniPlayer />);
+    expect(screen.getByText("is currently offline")).toBeInTheDocument();
+
+    streamStatusMock.useStreamByChannel.mockReturnValue({
+      data: { platform: "kick", channelName: "xqc", isLive: true },
+      dataUpdatedAt: 2,
+      isError: false,
+      isLoading: false,
+      isPlaceholderData: false,
+      isSuccess: true,
+      refetch: vi.fn(),
+    });
+    rerender(<MiniPlayer />);
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("is currently offline")).toBeInTheDocument();
+
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: null,
+      isLoading: true,
+      error: null,
+      reload,
+      reloadAttempts: 0,
+    });
+    rerender(<MiniPlayer />);
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("hls-player")).toBeInTheDocument();
+    expect(screen.queryByText("is currently offline")).not.toBeInTheDocument();
+  });
+
+  it("reloads playback once when canonical status confirms the same mini stream is live again", () => {
+    const reload = vi.fn();
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://usher.ttvnw.net/api/channel/hls/xqc.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload,
+      reloadAttempts: 0,
+    });
+    streamStatusMock.useStreamByChannel.mockReturnValue({
+      data: null,
+      isError: false,
+      isLoading: false,
+      isPlaceholderData: false,
+      isSuccess: true,
+      refetch: vi.fn(),
+    });
+    usePipStore.setState({
+      currentStream: {
+        platform: "twitch",
+        channelName: "xqc",
+        channelDisplayName: "xQc",
+        streamUrl: "https://stale.example.test/live.m3u8",
+      },
+      isPipActive: true,
+      isOnStreamPage: false,
+    });
+    const { rerender } = renderWithProviders(<MiniPlayer />);
+    expect(screen.getByText("is currently offline")).toBeInTheDocument();
+
+    streamStatusMock.useStreamByChannel.mockReturnValue({
+      data: { platform: "twitch", channelName: "xqc", isLive: true },
+      isError: false,
+      isLoading: false,
+      isPlaceholderData: false,
+      isSuccess: true,
+      refetch: vi.fn(),
+    });
+    rerender(<MiniPlayer />);
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("twitch-hls-player")).toBeInTheDocument();
+    expect(screen.queryByText("is currently offline")).not.toBeInTheDocument();
+  });
+
+  it("remounts the mini player when refreshed playback keeps the same manifest URL", () => {
+    routerState.pathname = "/following";
+    const playbackUrl = "https://fresh.example.test/live.m3u8";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: playbackUrl, format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+      playbackRevision: 1,
+    });
+    streamStatusMock.useStreamByChannel.mockReturnValue({
+      data: { platform: "kick", channelName: "xqc", isLive: true },
+      dataUpdatedAt: 1,
+      isError: false,
+      isLoading: false,
+      isPlaceholderData: false,
+      isSuccess: true,
+      refetch: vi.fn(),
+    });
+    primePipStore();
+    const { rerender } = renderWithProviders(<MiniPlayer />);
+    const stalePlayer = screen.getByTestId("hls-player");
+
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: null,
+      isLoading: true,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 1,
+      playbackRevision: 1,
+    });
+    rerender(<MiniPlayer />);
+    expect(screen.getByTestId("hls-player")).toBe(stalePlayer);
+
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: playbackUrl, format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+      playbackRevision: 2,
+    });
+    rerender(<MiniPlayer />);
+
+    const recoveredPlayer = screen.getByTestId("hls-player");
+    expect(recoveredPlayer).not.toBe(stalePlayer);
+    expect(playerLifecycle.unmounted).toHaveBeenCalledWith("kick");
+
+    rerender(<MiniPlayer />);
+
+    expect(screen.getByTestId("hls-player")).toBe(recoveredPlayer);
+    expect(playerLifecycle.unmounted).toHaveBeenCalledTimes(1);
+  });
+
+  it("reloads Twitch playback when mini-player HLS reports a recoverable error", async () => {
+    vi.useFakeTimers();
     const reload = vi.fn();
     routerState.pathname = "/following";
     streamPlaybackMock.useStreamPlayback.mockReturnValue({
@@ -779,40 +1166,11 @@ describe("MiniPlayer playback routing", () => {
       });
     });
 
+    await act(async () => vi.advanceTimersByTimeAsync(1_500));
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it("reloads Twitch mini-player playback when adblock recovery completes", () => {
-    const reload = vi.fn();
-    routerState.pathname = "/following";
-    streamPlaybackMock.useStreamPlayback.mockReturnValue({
-      playback: { url: "https://usher.ttvnw.net/api/channel/hls/xqc.m3u8", format: "hls" },
-      isLoading: false,
-      error: null,
-      reload,
-      reloadAttempts: 0,
-    });
-    usePipStore.setState({
-      currentStream: {
-        platform: "twitch",
-        channelName: "xqc",
-        channelDisplayName: "xQc",
-        streamUrl: "https://stale.example.test/live.m3u8",
-      },
-      isPipActive: true,
-      isOnStreamPage: false,
-    });
-
-    renderWithProviders(<MiniPlayer />);
-
-    act(() => {
-      playerProps.twitch?.onAdBlockRecoveryRefresh?.();
-    });
-
-    expect(reload).toHaveBeenCalledTimes(1);
-  });
-
-  it("closes PiP instead of showing the mini-player when fresh playback says offline", async () => {
+  it("keeps the mini-player frame open and shows offline when fresh playback says offline", async () => {
     routerState.pathname = "/following";
     streamPlaybackMock.useStreamPlayback.mockReturnValue({
       playback: null,
@@ -826,10 +1184,246 @@ describe("MiniPlayer playback routing", () => {
     renderWithProviders(<MiniPlayer />);
 
     expect(screen.queryByTestId("hls-player")).not.toBeInTheDocument();
-    await waitFor(() => {
-      expect(usePipStore.getState().currentStream).toBeNull();
-      expect(usePipStore.getState().isPipActive).toBe(false);
+    expect((await screen.findAllByText("xQc")).length).toBeGreaterThan(0);
+    expect(screen.getByText("is currently offline")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Restore stream" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close mini player" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pause" })).not.toBeInTheDocument();
+    expect(usePipStore.getState().currentStream?.channelName).toBe("xqc");
+    expect(usePipStore.getState().isPipActive).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Restore stream" }));
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/stream/$platform/$channel",
+      params: { platform: "kick", channel: "xqc" },
+      search: { tab: "home" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Close mini player" }));
+    expect(usePipStore.getState().currentStream).toBeNull();
+  });
+
+  it("shows offline when the current Twitch status becomes authoritatively offline", () => {
+    routerState.pathname = "/following";
+    const refetch = vi.fn();
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://usher.ttvnw.net/api/channel/hls/xqc.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    });
+    streamStatusMock.useStreamByChannel.mockReturnValue({
+      data: { platform: "twitch", channelName: "xqc", isLive: true },
+      isError: false,
+      isLoading: false,
+      isPlaceholderData: false,
+      isSuccess: true,
+      refetch,
+    });
+    usePipStore.setState({
+      currentStream: {
+        platform: "twitch",
+        channelName: "xqc",
+        channelDisplayName: "xQc",
+        streamUrl: "https://stale.example.test/live.m3u8",
+      },
+      isPipActive: true,
+      isOnStreamPage: false,
+    });
+
+    const { rerender } = renderWithProviders(<MiniPlayer />);
+    const frame = screen.getByTestId("twitch-hls-player").closest("[data-player-mode='mini']");
+
+    streamStatusMock.useStreamByChannel.mockReturnValue({
+      data: null,
+      isError: false,
+      isLoading: false,
+      isPlaceholderData: false,
+      isSuccess: true,
+      refetch,
+    });
+    rerender(<MiniPlayer />);
+
+    expect(screen.queryByTestId("twitch-hls-player")).not.toBeInTheDocument();
+    expect(screen.getByText("is currently offline")).toBeInTheDocument();
+    expect(document.querySelector("[data-player-mode='mini']")).toBe(frame);
+    expect(usePipStore.getState().currentStream?.channelName).toBe("xqc");
+    expect(playerLifecycle.unmounted).toHaveBeenCalledWith("twitch");
+  });
+
+  it("shows offline for route-matched confirmed Kick status", () => {
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    });
+    streamStatusMock.useStreamByChannel.mockReturnValue({
+      data: { platform: "kick", channelName: "xqc", isLive: false },
+      isError: false,
+      isLoading: false,
+      isPlaceholderData: false,
+      isSuccess: true,
+      refetch: vi.fn(),
+    });
+    primePipStore();
+
+    renderWithProviders(<MiniPlayer />);
+
+    expect(screen.queryByTestId("hls-player")).not.toBeInTheDocument();
+    expect(screen.getByText("is currently offline")).toBeInTheDocument();
+    expect(usePipStore.getState().currentStream?.platform).toBe("kick");
+  });
+
+  it("keeps verified playback visible while current stream status is still loading", () => {
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    });
+    streamStatusMock.useStreamByChannel.mockReturnValue({
+      data: undefined,
+      isError: false,
+      isLoading: true,
+      isPlaceholderData: false,
+      isSuccess: false,
+      refetch: vi.fn(),
+    });
+    primePipStore();
+
+    renderWithProviders(<MiniPlayer />);
+
+    expect(screen.getByTestId("hls-player")).toBeInTheDocument();
+    expect(screen.queryByText("is currently offline")).not.toBeInTheDocument();
+  });
+
+  it("ignores a superseded offline result after the mini-player switches channels", () => {
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/xqc.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    });
+    streamStatusMock.useStreamByChannel.mockReturnValue({
+      data: null,
+      isError: false,
+      isLoading: false,
+      isPlaceholderData: false,
+      isSuccess: true,
+      refetch: vi.fn(),
+    });
+    usePipStore.setState({
+      currentStream: {
+        platform: "twitch",
+        channelName: "xqc",
+        channelDisplayName: "xQc",
+        streamUrl: "https://stale.example.test/xqc.m3u8",
+      },
+      isPipActive: true,
+      isOnStreamPage: false,
+    });
+    const { rerender } = renderWithProviders(<MiniPlayer />);
+    expect(screen.getByText("is currently offline")).toBeInTheDocument();
+
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/adin.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    });
+    streamStatusMock.useStreamByChannel.mockReturnValue({
+      data: { platform: "twitch", channelName: "xqc", isLive: false },
+      isError: false,
+      isLoading: false,
+      isPlaceholderData: false,
+      isSuccess: true,
+      refetch: vi.fn(),
+    });
+    act(() => {
+      usePipStore.setState({
+        currentStream: {
+          platform: "twitch",
+          channelName: "adin",
+          channelDisplayName: "Adin",
+          streamUrl: "https://stale.example.test/adin.m3u8",
+        },
+        isPipActive: true,
+        isOnStreamPage: false,
+      });
+    });
+    rerender(<MiniPlayer />);
+
+    expect(screen.getByTestId("twitch-hls-player")).toHaveTextContent(
+      "https://fresh.example.test/adin.m3u8"
+    );
+    expect(screen.queryByText("is currently offline")).not.toBeInTheDocument();
+  });
+
+  it("ignores a stale player callback after the mini-player switches channels", () => {
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/xqc.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    });
+    primePipStore();
+    const { rerender } = renderWithProviders(<MiniPlayer />);
+    const staleKickError = playerProps.kick?.onError;
+    expect(staleKickError).toBeTypeOf("function");
+
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/adin.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    });
+    streamStatusMock.useStreamByChannel.mockReturnValue({
+      data: { platform: "twitch", channelName: "adin", isLive: true },
+      dataUpdatedAt: 2,
+      isError: false,
+      isLoading: false,
+      isPlaceholderData: false,
+      isSuccess: true,
+      refetch: vi.fn(),
+    });
+    act(() => {
+      usePipStore.setState({
+        currentStream: {
+          platform: "twitch",
+          channelName: "adin",
+          channelDisplayName: "Adin",
+          streamUrl: "https://stale.example.test/adin.m3u8",
+        },
+        isPipActive: true,
+        isOnStreamPage: false,
+      });
+    });
+    rerender(<MiniPlayer />);
+
+    act(() => {
+      staleKickError?.({
+        code: "STREAM_OFFLINE",
+        message: "Old Kick manifest is gone",
+        fatal: true,
+        originalError: { response: { code: 404 } },
+      });
+    });
+
+    expect(screen.getByTestId("twitch-hls-player")).toHaveTextContent(
+      "https://fresh.example.test/adin.m3u8"
+    );
+    expect(screen.queryByText("is currently offline")).not.toBeInTheDocument();
   });
 
   it("keeps the verified mini-player alive when a playback refresh fails transiently", async () => {
@@ -860,6 +1454,33 @@ describe("MiniPlayer playback routing", () => {
       expect(usePipStore.getState().currentStream?.channelName).toBe("xqc");
       expect(usePipStore.getState().isPipActive).toBe(true);
     });
+  });
+
+  it("does not treat speculative resolver exhaustion as confirmed offline", () => {
+    routerState.pathname = "/following";
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+      isLoading: false,
+      error: null,
+      reload: vi.fn(),
+      reloadAttempts: 0,
+    });
+    primePipStore();
+
+    const { rerender } = renderWithProviders(<MiniPlayer />);
+    const verifiedPlayer = screen.getByTestId("hls-player");
+
+    streamPlaybackMock.useStreamPlayback.mockReturnValue({
+      playback: null,
+      isLoading: false,
+      error: new Error("Max reload attempts reached - stream may be offline"),
+      reload: vi.fn(),
+      reloadAttempts: 3,
+    });
+    rerender(<MiniPlayer />);
+
+    expect(screen.getByTestId("hls-player")).toBe(verifiedPlayer);
+    expect(screen.queryByText("is currently offline")).not.toBeInTheDocument();
   });
 
   it("expands back to the stream Home tab", () => {

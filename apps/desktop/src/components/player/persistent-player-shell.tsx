@@ -7,7 +7,9 @@ export interface DockedLivePlayerConfig {
   muted: boolean;
   isTheater: boolean;
   startedAt?: string | null;
-  onError: (error: PlayerError) => void;
+  poster?: string;
+  onError: (error: PlayerError) => boolean | void;
+  onCleanPresentedFrame?: () => void;
   onRefresh: () => void;
   onToggleTheater: () => void;
 }

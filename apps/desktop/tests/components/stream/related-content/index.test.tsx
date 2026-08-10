@@ -18,7 +18,11 @@ vi.mock('@/components/ui/skeleton', () => ({
 }));
 
 vi.mock('@/components/stream/related-content/VideoCard', () => ({
-    VideoCard: ({ video }: { video: VideoOrClip }) => <div data-testid="video-card">{video.title}</div>
+    VideoCard: ({ video, showWatchProgress }: { video: VideoOrClip; showWatchProgress?: boolean }) => (
+        <div data-testid="video-card" data-show-watch-progress={String(Boolean(showWatchProgress))}>
+            {video.title}
+        </div>
+    )
 }));
 
 vi.mock('@/components/stream/related-content/ClipCard', () => ({
@@ -90,6 +94,7 @@ describe('RelatedContent', () => {
         await waitFor(() => {
             expect(screen.getByText('Video 1')).toBeInTheDocument();
         });
+        expect(screen.getByTestId('video-card')).toHaveAttribute('data-show-watch-progress', 'true');
     });
 
     it('should render clips when tab is clips', async () => {

@@ -28,11 +28,14 @@ describe("playback-position-store savePosition", () => {
     expect(usePlaybackPositionStore.getState().getPosition("twitch", "v1")).toBeNull();
   });
 
-  it("removes the entry when the video is over 95% watched (finished)", () => {
+  it("keeps the entry when the video is over 95% watched so completed progress stays visible", () => {
     usePlaybackPositionStore.getState().savePosition("kick", "v1", 60, 3600);
     expect(usePlaybackPositionStore.getState().getPosition("kick", "v1")).not.toBeNull();
     usePlaybackPositionStore.getState().savePosition("kick", "v1", 3500, 3600);
-    expect(usePlaybackPositionStore.getState().getPosition("kick", "v1")).toBeNull();
+    expect(usePlaybackPositionStore.getState().getPosition("kick", "v1")).toMatchObject({
+      position: 3500,
+      duration: 3600,
+    });
   });
 
   it("updates an existing entry on re-save", () => {

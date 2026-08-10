@@ -638,6 +638,7 @@ export function RelatedContent({
                       platform={platform}
                       channelName={channelName}
                       channelData={channelData}
+                      showWatchProgress
                     />
                   ))}
                 </div>
@@ -718,6 +719,7 @@ export function RelatedContent({
                       platform={platform}
                       channelName={channelName}
                       channelData={channelData}
+                      showWatchProgress
                     />
                   </LazyRelatedCard>
                 ))

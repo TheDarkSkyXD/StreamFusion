@@ -4,12 +4,15 @@ import { LuGripVertical, LuMessageSquare, LuVolume2, LuVolumeX, LuX } from "reac
 
 import { KickLivePlayer } from "@/components/player/kick";
 import { TwitchLivePlayer } from "@/components/player/twitch";
+import { useTwitchLiveRecovery } from "@/components/player/hooks/use-twitch-live-recovery";
+import type { PlayerError } from "@/components/player/types";
 import { Button } from "@/components/ui/button";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
 import { useStreamPlayback } from "@/hooks/useStreamPlayback";
 import { useTimeout } from "@/hooks/useTimeout";
 import { cn } from "@/lib/utils";
+import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@/shared/auth-types";
 import { useMultiStreamStore } from "@/store/multistream-store";
 
@@ -93,7 +96,30 @@ export function StreamSlot({
   // Passing an empty identifier short-circuits the playback fetch — both the
   // IPC round-trip and HLS.js init are deferred until the slot is ready.
   const effectiveChannelName = isMountReady ? channelName : "";
-  const { playback, isLoading, reload } = useStreamPlayback(platform, effectiveChannelName);
+  const { playback, isLoading, reload, playbackRevision } = useStreamPlayback(
+    platform,
+    effectiveChannelName
+  );
+  const [twitchRecoveryError, setTwitchRecoveryError] = useState<PlayerError | null>(null);
+  const [twitchManualRetryRevision, setTwitchManualRetryRevision] = useState(0);
+  const twitchRecovery = useTwitchLiveRecovery({
+    sessionKey: `multistream:${streamId}:${platform}:${channelName.toLowerCase()}`,
+    sourceRevision: `${playbackRevision}:${twitchManualRetryRevision}`,
+    onRefresh: reload,
+    onExhausted: (error) => {
+      logger.error("Player:MultiStream", "Twitch playback recovery exhausted", {
+        streamId,
+        channelName,
+        code: error.code,
+      });
+      setTwitchRecoveryError(error);
+    },
+  });
+  const handleTwitchRetryClick = () => {
+    setTwitchRecoveryError(null);
+    setTwitchManualRetryRevision((revision) => revision + 1);
+    reload();
+  };
 
   // Fetch channel data to get offline banner, avatar, and display name
   const { data: channelData } = useChannelByUsername(channelName, platform);
@@ -362,12 +388,16 @@ export function StreamSlot({
             />
           ) : (
             <TwitchLivePlayer
+              key={`twitch:${streamId}:${playbackRevision}:${twitchManualRetryRevision}`}
               streamUrl={playback.url}
               channelName={channelName}
               autoPlay={true}
               muted={isMuted}
-              className="pointer-events-none"
+              className={twitchRecoveryError ? undefined : "pointer-events-none"}
               onRefresh={reload}
+              onError={twitchRecovery.handleError}
+              onCleanPresentedFrame={twitchRecovery.markPlaybackHealthy}
+              recoveryManagedExternally
             />
           )
         ) : (
@@ -453,6 +483,23 @@ export function StreamSlot({
                 </div>
               </>
             )}
+          </div>
+        )}
+        {twitchRecoveryError && !wcvEnabled && (
+          <div
+            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-black/85 px-4 text-center"
+            role="alert"
+          >
+            <p className="text-sm font-bold text-white">Playback interrupted</p>
+            <Button
+              variant="secondary"
+              onClick={(event) => {
+                event.stopPropagation();
+                handleTwitchRetryClick();
+              }}
+            >
+              Retry playback
+            </Button>
           </div>
         )}
       </div>

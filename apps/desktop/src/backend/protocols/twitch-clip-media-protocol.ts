@@ -14,9 +14,24 @@ import { net, protocol } from "electron";
 
 import { decodeTwitchClipMediaUrl, TWITCH_CLIP_MEDIA_SCHEME } from "./twitch-clip-media-url";
 
+export const TWITCH_CLIP_MEDIA_SCHEME_PRIVILEGES = {
+  standard: true,
+  secure: true,
+  supportFetchAPI: true,
+  corsEnabled: true,
+  bypassCSP: true,
+  stream: true,
+} as const;
+
 type FetchClipMedia = (
   url: string,
-  init: { method: "GET"; headers: Record<string, string> }
+  init: {
+    method: "GET";
+    headers: Record<string, string>;
+    signal: AbortSignal;
+    cache: "no-store";
+    redirect: "follow";
+  }
 ) => Promise<Response>;
 
 function errorResponse(status = 502): Response {
@@ -45,6 +60,13 @@ function isAllowedTwitchClipMediaUrl(originalUrl: string): boolean {
 function copyHeader(headers: Headers, upstream: Response, name: string): void {
   const value = upstream.headers.get(name);
   if (value) headers.set(name, value);
+}
+
+function copyContentLength(headers: Headers, upstream: Response): void {
+  const value = upstream.headers.get("Content-Length");
+  if (value && /^\d+$/.test(value)) {
+    headers.set("Content-Length", value);
+  }
 }
 
 export async function handleTwitchClipMediaRequest(
@@ -77,27 +99,26 @@ export async function handleTwitchClipMediaRequest(
     const upstream = await fetchClipMedia(originalUrl, {
       method: "GET",
       headers,
+      signal: request.signal,
+      cache: "no-store",
+      redirect: "follow",
     });
 
-    if (!upstream.ok && upstream.status !== 206) {
-      return errorResponse(upstream.status || 502);
-    }
-
-    const bytes = new Uint8Array(await upstream.arrayBuffer());
     const responseHeaders = new Headers();
     copyHeader(responseHeaders, upstream, "Content-Type");
+    copyContentLength(responseHeaders, upstream);
     copyHeader(responseHeaders, upstream, "Content-Range");
     copyHeader(responseHeaders, upstream, "Accept-Ranges");
     copyHeader(responseHeaders, upstream, "ETag");
     copyHeader(responseHeaders, upstream, "Last-Modified");
-    if (!responseHeaders.has("Content-Type")) {
+    if (upstream.ok && upstream.body && !responseHeaders.has("Content-Type")) {
       responseHeaders.set("Content-Type", "video/mp4");
     }
-    responseHeaders.set("Content-Length", bytes.byteLength.toString());
-    responseHeaders.set("Cache-Control", "private, max-age=300");
+    responseHeaders.set("Cache-Control", "no-store");
 
-    return new Response(bytes, {
+    return new Response(upstream.body, {
       status: upstream.status,
+      statusText: upstream.statusText,
       headers: responseHeaders,
     });
   } catch {

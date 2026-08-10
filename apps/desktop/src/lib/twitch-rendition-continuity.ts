@@ -27,11 +27,61 @@ function pixelCount(resolution: string): number {
   return Number.isFinite(width) && Number.isFinite(height) ? width * height : 0;
 }
 
+function resolutionHeight(resolution: string): number {
+  const height = Number.parseInt(resolution.split("x")[1] ?? "", 10);
+  return Number.isFinite(height) ? height : 0;
+}
+
 export function keepTwitchRenditionResolution<T extends TwitchRenditionTarget>(
   candidates: readonly T[],
   target: TwitchRenditionTarget
 ): T[] {
   return candidates.filter((candidate) => candidate.resolution === target.resolution);
+}
+
+/**
+ * Keep the active resolution first, followed by the lowest available rendition
+ * at or above the preferred 480p fallback floor. A genuine 360p rendition is
+ * retained as an emergency ad-only tier when Twitch withholds every clean
+ * 480p-or-better identity. 160p is never admitted as backup video.
+ */
+export function keepTwitchBackupRenditions<T extends TwitchRenditionTarget>(
+  candidates: readonly T[],
+  target: TwitchRenditionTarget,
+  minimumFallbackHeight = 480
+): T[] {
+  const targetHeight = resolutionHeight(target.resolution);
+  const exact =
+    targetHeight >= minimumFallbackHeight
+      ? keepTwitchRenditionResolution(candidates, target)
+      : [];
+  const fallbackPool = candidates.filter(
+    (candidate) =>
+      resolutionHeight(candidate.resolution) >= minimumFallbackHeight &&
+      candidate.resolution !== target.resolution
+  );
+  const emergencyPool = candidates.filter((candidate) => {
+    const height = resolutionHeight(candidate.resolution);
+    return height >= 360 && height < minimumFallbackHeight;
+  });
+
+  const nearestFallbackHeight =
+    fallbackPool.length > 0
+      ? Math.min(...fallbackPool.map((candidate) => resolutionHeight(candidate.resolution)))
+      : null;
+  const fallback = fallbackPool.filter(
+    (candidate) => resolutionHeight(candidate.resolution) === nearestFallbackHeight
+  );
+
+  const emergencyHeight =
+    emergencyPool.length > 0
+      ? Math.max(...emergencyPool.map((candidate) => resolutionHeight(candidate.resolution)))
+      : null;
+  const emergency = emergencyPool.filter(
+    (candidate) => resolutionHeight(candidate.resolution) === emergencyHeight
+  );
+
+  return [...exact, ...fallback, ...emergency];
 }
 
 export function rankTwitchRenditions(

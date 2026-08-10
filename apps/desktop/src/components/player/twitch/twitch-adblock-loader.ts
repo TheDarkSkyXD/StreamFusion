@@ -29,9 +29,7 @@ import Hls from "hls.js";
 import { logger } from "@/renderer/logging/logger";
 
 import {
-  getBlankVideoDataUrl,
   isAdBlockEnabled,
-  isAdSegment,
   processMasterPlaylist,
   processMediaPlaylist,
 } from "./twitch-adblock-service";
@@ -59,18 +57,6 @@ function isMasterPlaylist(url: string): boolean {
  */
 function isMediaPlaylist(url: string): boolean {
   return url.includes(".m3u8") && !isMasterPlaylist(url);
-}
-
-/**
- * Check if URL is a Twitch segment (.ts or .m4s for LL-HLS)
- * Note: Must handle URLs with query parameters
- */
-function isTwitchSegment(url: string): boolean {
-  // Check for segment extensions (handle query params)
-  const hasSegmentExtension = /\.(ts|m4s)(\?|$)/i.test(url);
-  const isTwitchDomain =
-    url.includes("ttvnw.net") || url.includes("cloudfront.net") || url.includes("akamaized.net");
-  return hasSegmentExtension && isTwitchDomain;
 }
 
 /**
@@ -164,11 +150,9 @@ export function createAdBlockPlaylistLoader(channelName?: string): LoaderConstru
               let processedData = response.data;
 
               if (isMasterPlaylist(url)) {
-                // Extract channel name from URL if not provided
                 const channel = storedChannelName ?? extractChannelName(url);
                 if (channel) {
                   storedChannelName = channel;
-                  // console.debug(`[AdBlockLoader] Processing master playlist for ${channel}`);
                   processedData = await processMasterPlaylist(
                     url,
                     response.data,
@@ -177,17 +161,13 @@ export function createAdBlockPlaylistLoader(channelName?: string): LoaderConstru
                   );
                 }
               } else if (isMediaPlaylist(url)) {
-                // Check for ads in the original response
-                const hasAds =
-                  response.data.includes("stitched") ||
-                  response.data.includes("twitch-stitched-ad");
-                if (hasAds) {
-                  // console.debug("[AdBlockLoader] Ads detected in media playlist, processing...");
-                }
-                processedData = await processMediaPlaylist(effectiveUrl, response.data);
+                processedData = await processMediaPlaylist(
+                  effectiveUrl,
+                  response.data,
+                  storedChannelName ?? undefined
+                );
               }
 
-              // Return modified response
               originalOnSuccess({ ...response, data: processedData }, stats, ctx, networkDetails);
             } else {
               // Non-text response (shouldn't happen for m3u8), pass through
@@ -197,8 +177,12 @@ export function createAdBlockPlaylistLoader(channelName?: string): LoaderConstru
             logger.error("Player:Twitch:AdblockLoader", "error processing playlist", {
               error: error instanceof Error ? error.message : String(error),
             });
-            // On error, pass through original response
-            originalOnSuccess(response, stats, ctx, networkDetails);
+            originalOnError(
+              { code: 0, text: "Twitch ad-block playlist processing failed closed" },
+              ctx,
+              networkDetails,
+              stats
+            );
           }
         };
       }
@@ -212,9 +196,12 @@ export function createAdBlockPlaylistLoader(channelName?: string): LoaderConstru
 }
 
 /**
- * Create a fragment loader that handles ad segment replacement
+ * Create a transparent fragment loader.
  *
- * Use this as fLoader in HLS.js config to intercept segment requests
+ * Ad replacement happens at playlist level with a real clean Twitch
+ * rendition. Feeding HLS.js a synthetic media fragment causes decoder
+ * failures and an unbounded retry loop, so fragment bytes are never
+ * substituted here.
  */
 export function createAdBlockFragmentLoader(): LoaderConstructor {
   const DefaultLoader = Hls.DefaultConfig.loader;
@@ -225,18 +212,6 @@ export function createAdBlockFragmentLoader(): LoaderConstructor {
       config: LoaderConfiguration,
       callbacks: LoaderCallbacks<LoaderContext>
     ): void {
-      const url: string = context.url;
-
-      // If this is a cached ad segment, replace with blank video
-      if (isAdBlockEnabled() && isTwitchSegment(url) && isAdSegment(url)) {
-        logger.debug("Player:Twitch:AdblockLoader", "replacing ad segment with blank video");
-        const blankUrl = getBlankVideoDataUrl();
-        const modifiedContext: LoaderContext = { ...context, url: blankUrl };
-        super.load(modifiedContext, config, callbacks);
-        return;
-      }
-
-      // Normal segment loading
       super.load(context, config, callbacks);
     }
   };

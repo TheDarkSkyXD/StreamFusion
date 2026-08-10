@@ -133,7 +133,7 @@ describe('HlsPlayer stall watchdog', () => {
     vi.useRealTimers();
   });
 
-  it('escalates recovery in order when currentTime stops advancing', () => {
+  it('uses the shared decoder-stall ladder after playback has started', () => {
     const onError = vi.fn();
     const { container } = render(
       <HlsPlayer src="https://x.test/playlist.m3u8" isLive onError={onError} />
@@ -144,26 +144,24 @@ describe('HlsPlayer stall watchdog', () => {
     const hls = fakeHlsModule.getLatest()!;
     act(() => {
       hls.emit('hlsManifestParsed', { levels: [] });
+      video.dispatchEvent(new Event('playing'));
+      video.dispatchEvent(new Event('stalled'));
     });
 
-    // 8s of zero advance → rung 1: nudge currentTime += 0.1
-    advance(hls, 8000);
+    // Buffered output has stalled: soft recovery nudges at 2.5s.
+    advance(hls, 2500);
     expect(videoState.currentTime).toBeCloseTo(0.1, 5);
     expect(hls.startLoad).not.toHaveBeenCalled();
     expect(hls.recoverMediaError).not.toHaveBeenCalled();
 
-    // 4s grace + 4s of stuck → rung 2: hls.startLoad(-1)
-    advance(hls, 4000);
-    expect(hls.startLoad).toHaveBeenCalledWith(-1);
-    expect(hls.recoverMediaError).not.toHaveBeenCalled();
-
-    // 4s grace + 4s stuck → rung 3: hls.recoverMediaError()
-    advance(hls, 4000);
+    // The hard decoder-only rung recovers media at 5.5s.
+    advance(hls, 3000);
+    expect(hls.startLoad).not.toHaveBeenCalled();
     expect(hls.recoverMediaError).toHaveBeenCalledTimes(1);
-    expect(onError).not.toHaveBeenCalled();
 
-    // 4s grace + 4s stuck → rung 4: fatal DECODER_STALL with shouldRefresh
-    advance(hls, 4000);
+    // The incident exhausts once at 7.5s and delegates refresh to the parent.
+    advance(hls, 2000);
+
     expect(onError).toHaveBeenCalledWith(
       expect.objectContaining({ code: 'DECODER_STALL', fatal: true, shouldRefresh: true })
     );
@@ -182,6 +180,8 @@ describe('HlsPlayer stall watchdog', () => {
     const hls = fakeHlsModule.getLatest()!;
     act(() => {
       hls.emit('hlsManifestParsed', { levels: [] });
+      video.dispatchEvent(new Event('playing'));
+      video.dispatchEvent(new Event('waiting'));
     });
 
     advance(hls, 30000);
@@ -190,7 +190,7 @@ describe('HlsPlayer stall watchdog', () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
-  it('resets escalation when currentTime resumes advancing', () => {
+  it('resets escalation after sustained currentTime progress', () => {
     const { container } = render(<HlsPlayer src="https://x.test/playlist.m3u8" isLive />);
     const video = container.querySelector('video')!;
     const videoState = makeVideoMutable(video);
@@ -198,21 +198,24 @@ describe('HlsPlayer stall watchdog', () => {
     const hls = fakeHlsModule.getLatest()!;
     act(() => {
       hls.emit('hlsManifestParsed', { levels: [] });
+      video.dispatchEvent(new Event('playing'));
+      video.dispatchEvent(new Event('stalled'));
     });
 
-    // Stuck → rung 1 nudge fires
-    advance(hls, 8000);
+    // The first incident reaches only its soft rung.
+    advance(hls, 2500);
     expect(videoState.currentTime).toBeCloseTo(0.1, 5);
 
-    // Player resumes advancing across two ticks (each frame triggers the reset branch)
-    videoState.currentTime = 5;
-    advance(hls, 4000);
-    videoState.currentTime = 10;
-    advance(hls, 4000);
+    // Three ticks of real progress satisfy the sustained-health reset window.
+    for (const currentTime of [5, 10, 15]) {
+      videoState.currentTime = currentTime;
+      advance(hls, 1000);
+    }
+    act(() => video.dispatchEvent(new Event('stalled')));
 
-    // Stuck again — escalation must restart at rung 1 (nudge), so startLoad stays untouched.
-    advance(hls, 8000);
+    // A later incident restarts at soft recovery rather than inheriting the prior budget.
+    advance(hls, 2500);
     expect(hls.startLoad).not.toHaveBeenCalled();
-    expect(videoState.currentTime).toBeCloseTo(10.1, 5);
+    expect(videoState.currentTime).toBeCloseTo(15.1, 5);
   });
 });

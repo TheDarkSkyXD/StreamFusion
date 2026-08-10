@@ -88,6 +88,8 @@ function proxy(): any {
 // Guards: the main-process proxy uses shared structured detection for non-DATERANGE ad markers.
 // Guards: playlist diagnostics never expose captured URLs, paths, tokens, or channel identity.
 // Guards: active media processing never awaits channel-wide backup work or repeats recovery fanout inside its retry window.
+// Guards: a verified clean exact-rendition backup can replace a stitched ad even when Twitch uses a separate ad media-sequence timeline.
+// Guards: the main-process proxy never releases known unsafe media when no verified clean backup is ready.
 describe("TwitchManifestProxyService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -349,7 +351,7 @@ describe("TwitchManifestProxyService", () => {
   });
 
   describe("backup preparation", () => {
-    it("rejects lower renditions when the exact candidate contains ads", async () => {
+    it("uses a safe real fallback when the exact candidate contains ads", async () => {
       const originalUrl = "https://original/source.m3u8";
       const streamInfo = {
         channelName: "test",
@@ -394,8 +396,9 @@ https://backup/fallback-42.ts`,
         { playerType: "embed", playlist: backupMaster },
       ]);
 
-      expect(result).toBeNull();
-      expect(proxy().fetchWithRetry).not.toHaveBeenCalledWith("https://backup/720p.m3u8");
+      expect(result?.rendition.resolution).toBe("1280x720");
+      expect(result?.playlist).toContain("https://backup/fallback-42.ts");
+      expect(proxy().fetchWithRetry).toHaveBeenCalledWith("https://backup/720p.m3u8");
     });
 
     it("uses a ready aligned prewarmed exact candidate without refetching", async () => {
@@ -434,6 +437,179 @@ https://backup/live-42.ts`,
       expect(result).toBe(candidate.playlist);
       expect(prepareSpy).not.toHaveBeenCalled();
       expect(streamInfo.servedBackups.get(scope)).toBe(candidate);
+    });
+
+    it("uses a ready clean candidate when the stitched ad timeline cannot align", async () => {
+      const originalUrl = "https://original/source.m3u8";
+      const candidate = {
+        playerType: "embed",
+        rendition: {
+          url: "https://backup/source.m3u8",
+          resolution: "1920x1080",
+          bandwidth: 6_000_000,
+          codecs: "avc1.64002A",
+          frameRate: 60,
+        },
+        playlist: `#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:9630
+#EXTINF:2.000,live
+https://backup/live-9630.ts`,
+      };
+      const streamInfo = {
+        channelName: "test",
+        resolutions: new Map([[originalUrl, candidate.rendition]]),
+        candidateStates: new Map(),
+        servedBackups: new Map(),
+      };
+      const scope = proxy().getDetectionScope(streamInfo, originalUrl);
+      streamInfo.candidateStates.set(scope, {
+        candidatePromise: null,
+        readyCandidate: candidate,
+        consecutiveMisses: 0,
+        nextRetryAt: 0,
+      });
+      const disjointAdPlaylist = AD_MEDIA_PLAYLIST.replace(
+        "#EXT-X-MEDIA-SEQUENCE:42",
+        "#EXT-X-MEDIA-SEQUENCE:0"
+      );
+
+      const result = await proxy().tryGetBackupStream(
+        streamInfo,
+        originalUrl,
+        disjointAdPlaylist
+      );
+
+      expect(result).toBe(candidate.playlist);
+      expect(streamInfo.servedBackups.get(scope)).toBe(candidate);
+    });
+
+    it("prepares a clean exact candidate despite the stitched ad sequence namespace", async () => {
+      const originalUrl = "https://original/source.m3u8";
+      const streamInfo = {
+        channelName: "test",
+        resolutions: new Map([
+          [
+            originalUrl,
+            {
+              resolution: "1920x1080",
+              bandwidth: 6_000_000,
+              codecs: "avc1.64002A",
+              frameRate: 60,
+            },
+          ],
+        ]),
+        detectionScopes: new Set(),
+      };
+      const backupMaster = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=6100000,RESOLUTION=1920x1080,CODECS="avc1.64002A",FRAME-RATE=60.000
+https://backup/1080p.m3u8`;
+      const cleanLivePlaylist = `#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:9630
+#EXTINF:2.000,live
+https://backup/live-9630.ts`;
+      vi.spyOn(proxy(), "fetchWithRetry").mockResolvedValue({
+        ok: true,
+        text: async () => cleanLivePlaylist,
+      });
+      const disjointAdPlaylist = AD_MEDIA_PLAYLIST.replace(
+        "#EXT-X-MEDIA-SEQUENCE:42",
+        "#EXT-X-MEDIA-SEQUENCE:0"
+      );
+
+      const result = await proxy().prepareCleanBackup(
+        streamInfo,
+        originalUrl,
+        disjointAdPlaylist,
+        [{ playerType: "embed", playlist: backupMaster }]
+      );
+
+      expect(result).toMatchObject({ playerType: "embed", playlist: cleanLivePlaylist });
+    });
+
+    it("prepares a 480p floor candidate for a transient 160p startup rendition", async () => {
+      const originalUrl = "https://original/160p.m3u8";
+      const streamInfo = {
+        channelName: "test",
+        resolutions: new Map([
+          [
+            originalUrl,
+            {
+              resolution: "284x160",
+              bandwidth: 250_000,
+              codecs: "avc1.4D400C,mp4a.40.2",
+              frameRate: 30,
+            },
+          ],
+        ]),
+        detectionScopes: new Set(),
+      };
+      const backupMaster = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=250000,RESOLUTION=284x160,CODECS="avc1.4D400C,mp4a.40.2",FRAME-RATE=30.000
+https://backup/160p.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=852x480,CODECS="avc1.4D401F,mp4a.40.2",FRAME-RATE=30.000
+https://backup/480p.m3u8`;
+      const fetchSpy = vi.spyOn(proxy(), "fetchWithRetry").mockResolvedValue({
+        ok: true,
+        text: async () => CLEAN_MEDIA_PLAYLIST,
+      });
+
+      const result = await proxy().prepareCleanBackup(streamInfo, originalUrl, AD_MEDIA_PLAYLIST, [
+        { playerType: "embed", playlist: backupMaster },
+      ]);
+
+      expect(result?.rendition.resolution).toBe("852x480");
+      expect(fetchSpy).toHaveBeenCalledWith("https://backup/480p.m3u8");
+      expect(fetchSpy).not.toHaveBeenCalledWith("https://backup/160p.m3u8");
+    });
+
+    it("prepares a clean 360p emergency candidate after exact and 480p candidates contain ads", async () => {
+      const originalUrl = "https://original/1080p.m3u8";
+      const streamInfo = {
+        channelName: "test",
+        resolutions: new Map([
+          [
+            originalUrl,
+            {
+              resolution: "1920x1080",
+              bandwidth: 6_000_000,
+              codecs: "avc1.64002A,mp4a.40.2",
+              frameRate: 60,
+            },
+          ],
+        ]),
+        detectionScopes: new Set(),
+      };
+      const backupMaster = `#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=6000000,RESOLUTION=1920x1080,CODECS="avc1.64002A,mp4a.40.2",FRAME-RATE=60.000
+https://backup/1080p.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=852x480,CODECS="avc1.4D401F,mp4a.40.2",FRAME-RATE=30.000
+https://backup/480p.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360,CODECS="avc1.4D401F,mp4a.40.2",FRAME-RATE=30.000
+https://backup/360p.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=230000,RESOLUTION=284x160,CODECS="avc1.4D400C,mp4a.40.2",FRAME-RATE=30.000
+https://backup/160p.m3u8`;
+      const requestedUrls: string[] = [];
+      vi.spyOn(proxy(), "fetchWithRetry").mockImplementation(async (url: unknown) => {
+        const requestUrl = String(url);
+        requestedUrls.push(requestUrl);
+        return {
+          ok: true,
+          text: async () =>
+            requestUrl.endsWith("/360p.m3u8") ? CLEAN_MEDIA_PLAYLIST : AD_MEDIA_PLAYLIST,
+        };
+      });
+
+      const result = await proxy().prepareCleanBackup(streamInfo, originalUrl, AD_MEDIA_PLAYLIST, [
+        { playerType: "embed", playlist: backupMaster },
+      ]);
+
+      expect(result?.rendition.resolution).toBe("640x360");
+      expect(requestedUrls).toEqual([
+        "https://backup/1080p.m3u8",
+        "https://backup/480p.m3u8",
+        "https://backup/360p.m3u8",
+      ]);
+      expect(requestedUrls).not.toContain("https://backup/160p.m3u8");
     });
 
     it("does not share a ready AVC candidate with a same-size HEVC rendition", async () => {
@@ -580,6 +756,17 @@ https://backup/avc-42.ts`,
       expect(result).toBe(CLEAN_MEDIA_PLAYLIST);
     });
 
+    it("holds positively classified media when a redirected URL has no registered owner", async () => {
+      const result = await proxy().processMediaPlaylist(
+        "https://video-weaver.rotated.hls.ttvnw.net/v1/playlist/unmapped.m3u8?token=rotated",
+        AD_MEDIA_PLAYLIST
+      );
+
+      expect(result).toContain("#EXT-X-DATERANGE");
+      expect(result).not.toContain("d2nvs31859zcd8.cloudfront.net/ad/segment-1.ts");
+      expect(result).not.toContain("d2nvs31859zcd8.cloudfront.net/ad/segment-2.ts");
+    });
+
     it("keeps backup recovery idle until the first routed ad playlist", async () => {
       const masterUrl = "https://usher.ttvnw.net/api/channel/hls/lazyproxy.m3u8";
       const mediaUrl = "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
@@ -630,7 +817,7 @@ https://backup.example/source.m3u8`;
       }
     });
 
-    it("returns an active ad playlist while unrelated backup preparation is pending", async () => {
+    it("returns an unsafe-media hold without waiting for backup preparation", async () => {
       const masterUrl = "https://usher.ttvnw.net/api/channel/hls/nonblocking.m3u8";
       const mediaUrl = "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
       let releaseBackupMasters!: (masters: unknown[]) => void;
@@ -661,12 +848,13 @@ https://backup.example/source.m3u8`;
         }
 
         expect(outcome.state).toBe("resolved");
-        expect(outcome.playlist).toContain("ad/segment-1.ts");
+        expect(outcome.playlist).toContain("#EXT-X-DATERANGE");
+        expect(outcome.playlist).not.toContain("ad/segment-1.ts");
         const loadsAfterFirstPlaylist = loadSpy.mock.calls.length;
 
-        await expect(proxy().processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)).resolves.toContain(
-          "ad/segment-1.ts"
-        );
+        await expect(
+          proxy().processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)
+        ).resolves.not.toContain("ad/segment-1.ts");
         expect(loadSpy).toHaveBeenCalledTimes(loadsAfterFirstPlaylist);
 
         releaseBackupMasters([
@@ -703,7 +891,7 @@ https://backup.example/source.m3u8`,
       expect(proxy().stats.adsDetected).toBe(1);
     });
 
-    it("passes through ad content when no clean aligned backup exists", async () => {
+    it("holds known unsafe media when no clean exact-rendition backup exists", async () => {
       const masterUrl = "https://usher.ttvnw.net/api/channel/hls/passthrough.m3u8";
       const mediaUrl = "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
       proxy().processMasterPlaylist(masterUrl, MASTER_PLAYLIST);
@@ -711,12 +899,14 @@ https://backup.example/source.m3u8`,
 
       const result = await proxy().processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
 
-      expect(result).toContain("d2nvs31859zcd8.cloudfront.net/ad/segment-1.ts");
+      expect(result).toContain("#EXT-X-DATERANGE");
+      expect(result).not.toContain("d2nvs31859zcd8.cloudfront.net/ad/segment-1.ts");
+      expect(result).not.toContain("d2nvs31859zcd8.cloudfront.net/ad/segment-2.ts");
       expect(result).not.toContain("data:video/");
       expect(logger.debug).toHaveBeenCalledWith(
         "Service:TwitchManifest",
-        "No clean aligned backup; passing through",
-        expect.objectContaining({ outcome: "passthrough" })
+        "No verified clean backup; holding unsafe media",
+        expect.objectContaining({ outcome: "unsafe-hold" })
       );
     });
 
@@ -761,14 +951,23 @@ https://backup.example/source.m3u8`,
     it("clears isInAdBreak when ad ends", async () => {
       const masterUrl = "https://usher.ttvnw.net/api/channel/hls/test.m3u8";
       proxy().processMasterPlaylist(masterUrl, MASTER_PLAYLIST);
-      proxy().streamInfos.get("test").isInAdBreak = true;
-
       const mediaUrl = "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
+      const info = proxy().streamInfos.get("test");
+      info.isInAdBreak = true;
+      const detectionScope = proxy().getDetectionScope(info, mediaUrl);
+      info.servedBackups.set(detectionScope, {
+        playerType: "embed",
+        rendition: info.resolutions.get(mediaUrl),
+        playlist: CLEAN_MEDIA_PLAYLIST.replace(
+          "#EXT-X-MEDIA-SEQUENCE:42",
+          "#EXT-X-MEDIA-SEQUENCE:9630"
+        ).replace("2025-01-01T00:00:00.000Z", "2025-01-01T00:10:00.000Z"),
+      });
 
       await proxy().processMediaPlaylist(mediaUrl, CLEAN_MEDIA_PLAYLIST);
 
-      const info = proxy().streamInfos.get("test");
       expect(info.isInAdBreak).toBe(false);
+      expect(info.servedBackups.has(detectionScope)).toBe(false);
     });
 
     it("keeps ad state while the next playlist is only suspected", async () => {

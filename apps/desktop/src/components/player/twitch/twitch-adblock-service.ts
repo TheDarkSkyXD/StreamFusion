@@ -19,11 +19,12 @@ import {
 } from "@/lib/twitch-playlist-ad-detection";
 import {
   findTwitchPlaylistAlignment,
-  keepTwitchRenditionResolution,
+  keepTwitchBackupRenditions,
   rankTwitchRenditionCandidates,
   rankTwitchRenditions,
   type TwitchRendition,
 } from "@/lib/twitch-rendition-continuity";
+import { holdUnsafeTwitchMediaPlaylist } from "@/lib/twitch-unsafe-media-hold";
 import {
   type AccessTokenResponse,
   type AdBlockConfig,
@@ -65,6 +66,11 @@ interface RenditionSwitchState {
   candidatePromise: Promise<void> | null;
   readyCandidate: PreparedBackup | null;
   servedBackup: PreparedBackup | null;
+  refreshPromise: Promise<void> | null;
+  readyRefresh: PreparedBackup | null;
+  consecutiveRefreshFailures: number;
+  consecutiveOriginalCleanPolls: number;
+  originalCleanSince: number | null;
   consecutiveMisses: number;
   nextRetryAt: number;
 }
@@ -74,6 +80,13 @@ const backupMasterPromises = new Map<string, Promise<BackupMaster[]>>();
 
 const BACKUP_MISS_RETRY_BASE_MS = 2_000;
 const BACKUP_MISS_RETRY_MAX_MS = 10_000;
+const BACKUP_REFRESH_FAILURE_LIMIT = 2;
+const ORIGINAL_CLEAN_CONFIRMATION_POLLS = 2;
+// Twitch can briefly expose clean playlists between ads in the same pod. The
+// verified backup is already live content, so favor continuity over an eager
+// source handoff that may be reversed seconds later.
+const ORIGINAL_CLEAN_STABILITY_MS = 20_000;
+const PLAYER_RELOAD_GUARD_RELEASE_MS = 5_000;
 
 const missingResolutionFallbackLoggedChannels = new Set<string>();
 
@@ -135,7 +148,7 @@ function canonicalizePlaylistUrl(url: string): string | null {
   }
 }
 
-function findStreamInfoForMediaUrl(url: string): StreamInfo | null {
+function findStreamInfoForMediaUrl(url: string, channelName?: string): StreamInfo | null {
   const trimmedUrl = url.trim();
   const exactMatch = streamInfosByUrl.get(trimmedUrl);
   if (exactMatch) {
@@ -150,6 +163,12 @@ function findStreamInfoForMediaUrl(url: string): StreamInfo | null {
         return streamInfo;
       }
     }
+  }
+
+  const explicitOwner = channelName ? streamInfos.get(channelName.trim().toLowerCase()) : null;
+  if (explicitOwner) {
+    streamInfosByUrl.set(trimmedUrl, explicitOwner);
+    return explicitOwner;
   }
 
   // Twitch can mutate media playlist query strings after the master playlist is
@@ -207,6 +226,11 @@ function getRenditionSwitchState(scope: string): RenditionSwitchState {
       candidatePromise: null,
       readyCandidate: null,
       servedBackup: null,
+      refreshPromise: null,
+      readyRefresh: null,
+      consecutiveRefreshFailures: 0,
+      consecutiveOriginalCleanPolls: 0,
+      originalCleanSince: null,
       consecutiveMisses: 0,
       nextRetryAt: 0,
     };
@@ -346,16 +370,11 @@ export function getBlankVideoDataUrl(): string {
   return "data:video/mp4;base64,AAAAKGZ0eXBtcDQyAAAAAWlzb21tcDQyZGFzaGF2YzFpc282aGxzZgAABEltb292AAAAbG12aGQAAAAAAAAAAAAAAAAAAYagAAAAAAABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAABqHRyYWsAAABcdGtoZAAAAAMAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAURtZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAALuAAAAAAFXEAAAAAAAtaGRscgAAAAAAAAAAc291bgAAAAAAAAAAAAAAAFNvdW5kSGFuZGxlcgAAAADvbWluZgAAABBzbWhkAAAAAAAAAAAAAAAkZGluZgAAABxkcmVmAAAAAAAAAAEAAAAMdXJsIAAAAAEAAACzc3RibAAAAGdzdHNkAAAAAAAAAAEAAABXbXA0YQAAAAAAAAABAAAAAAAAAAAAAgAQAAAAALuAAAAAAAAzZXNkcwAAAAADgICAIgABAASAgIAUQBUAAAAAAAAAAAAAAAWAgIACEZAGgICAAQIAAAAQc3R0cwAAAAAAAAAAAAAAEHN0c2MAAAAAAAAAAAAAABRzdHN6AAAAAAAAAAAAAAAAAAAAEHN0Y28AAAAAAAAAAAAAAeV0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAoAAAAFoAAAAAAGBbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAA9CQAAAAABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABLG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAOxzdGJsAAAAoHN0c2QAAAAAAAAAAQAAAJBhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAoABaABIAAAASAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGP//AAAAOmF2Y0MBTUAe/+EAI2dNQB6WUoFAX/LgLUBAQFAAAD6AAA6mDgAAHoQAA9CW7y4KAQAEaOuPIAAAABBzdHRzAAAAAAAAAAAAAAAQc3RzYwAAAAAAAAAAAAAAFHN0c3oAAAAAAAAAAAAAAAAAAAAQc3RjbwAAAAAAAAAAAAAASG12ZXgAAAAgdHJleAAAAAAAAAABAAAAAQAAAC4AAAAAAoAAAAAAACB0cmV4AAAAAAAAAAIAAAABAACCNQAAAAACQAAA";
 }
 
-/**
- * Clear stream info for a channel (e.g., when stream ends)
- * Also clears the backend manifest proxy's stream info to prevent memory leaks
- */
-export function clearStreamInfo(channelName: string): void {
+function clearStreamMetadata(channelName: string): void {
   const lowerName = channelName.toLowerCase();
   backupMasterPromises.delete(lowerName);
   const streamInfo = streamInfos.get(lowerName);
   if (streamInfo) {
-    // Clear URL mappings
     streamInfo.urls.forEach((_, url) => {
       streamInfosByUrl.delete(url);
     });
@@ -364,6 +383,19 @@ export function clearStreamInfo(channelName: string): void {
   }
   detectionScopesByChannel.get(lowerName)?.forEach((scope) => playlistAdDetector.clear(scope));
   detectionScopesByChannel.delete(lowerName);
+}
+
+/**
+ * Clear stream info for a channel (e.g., when stream ends)
+ * Also clears the backend manifest proxy's stream info to prevent memory leaks
+ */
+export function clearStreamInfo(
+  channelName: string,
+  options: { preservePlayerReloadGuard?: boolean } = {}
+): void {
+  const lowerName = channelName.toLowerCase();
+  clearStreamMetadata(lowerName);
+  if (!options.preservePlayerReloadGuard) resetPlayerReloadGuard(lowerName);
   for (const scope of renditionSwitchStates.keys()) {
     if (scope.startsWith(`${lowerName}:`)) renditionSwitchStates.delete(scope);
   }
@@ -403,7 +435,11 @@ export async function processMasterPlaylist(
   let streamInfo = streamInfos.get(lowerChannel);
 
   if (streamInfo?.encodingsM3U8 && streamInfo.encodingsM3U8 !== text) {
-    clearStreamInfo(lowerChannel);
+    // Twitch rotates signed rendition URLs whenever HLS.js reloads the
+    // master. Replace only URL-bound metadata here: a verified clean backup
+    // belongs to the channel/rendition scope and must survive long enough for
+    // the first media request after the reload to consume it.
+    clearStreamMetadata(lowerChannel);
     streamInfo = undefined;
   }
 
@@ -418,11 +454,11 @@ export async function processMasterPlaylist(
         const response = await fetch(firstUrl, { method: "HEAD" });
         if (response.status !== 200) {
           // Cached encodings are dead (stream probably restarted)
-          clearStreamInfo(lowerChannel);
+          clearStreamInfo(lowerChannel, { preservePlayerReloadGuard: true });
           streamInfo = undefined;
         }
       } catch {
-        clearStreamInfo(lowerChannel);
+        clearStreamInfo(lowerChannel, { preservePlayerReloadGuard: true });
         streamInfo = undefined;
       }
     }
@@ -578,14 +614,18 @@ function updateBitrateBaseline(text: string, streamInfo: StreamInfo): void {
  * Process media playlist (quality-specific m3u8)
  * This is where we detect ads and swap to backup streams
  */
-export async function processMediaPlaylist(url: string, text: string): Promise<string> {
+export async function processMediaPlaylist(
+  url: string,
+  text: string,
+  channelName?: string
+): Promise<string> {
   if (!config.enabled) {
     return text;
   }
 
   // If main process proxy is handling ad blocking, just track ad state for UI
   if (isMainProcessProxyActive) {
-    const streamInfo = findStreamInfoForMediaUrl(url);
+    const streamInfo = findStreamInfoForMediaUrl(url, channelName);
     if (streamInfo) {
       const detection = detectAds(text, streamInfo, url);
       const { hasAds } = detection;
@@ -617,7 +657,7 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
     return text; // Proxy already processed the playlist
   }
 
-  const streamInfo = findStreamInfoForMediaUrl(url);
+  const streamInfo = findStreamInfoForMediaUrl(url, channelName);
   if (!streamInfo) {
     // Debug: Log when we can't find stream info (this was silently failing before)
     logger.debug("Adblock:TwitchService", "no stream info found for URL, skipping processing", {
@@ -647,7 +687,6 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
         midroll: streamInfo.isMidroll,
         method: detectionMethod,
       });
-      notifyStatusChange(streamInfo);
     }
 
     // For preroll ads, try to consume ad segments to reduce ad duration
@@ -678,29 +717,40 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
         streamInfo.isUsingModifiedM3U8 = true;
         streamInfo.lastPlayerReload = Date.now();
         // Signal player reload needed
-        notifyPlayerReload("ad-started");
+        notifyPlayerReload(streamInfo.channelName, "ad-started");
       }
     }
 
     // Try to get backup stream
-    const backupResult = currentResolution
-      ? tryGetReadyBackupOrScheduleSearch(streamInfo, currentResolution, text)
-      : null;
+    let backupResult: string | null = null;
+    if (currentResolution) {
+      const switchState = getRenditionSwitchState(
+        getRenditionScope(streamInfo, currentResolution)
+      );
+      switchState.consecutiveOriginalCleanPolls = 0;
+      switchState.originalCleanSince = null;
+      backupResult =
+        getServedBackupOrScheduleRefresh(streamInfo, currentResolution) ??
+        tryGetReadyBackupOrScheduleSearch(streamInfo, currentResolution, text);
+    }
 
     if (backupResult) {
       text = backupResult;
+      streamInfo.isStrippingAdSegments = false;
+      streamInfo.numStrippedAdSegments = 0;
       streamInfo.isUsingFallbackMode = false;
-      logger.debug("Adblock:TwitchService", "using clean aligned backup stream", {
+      logger.debug("Adblock:TwitchService", "using verified clean backup stream", {
         activeBackupPlayerType: streamInfo.activeBackupPlayerType,
       });
+      notifyStatusChange(streamInfo);
     } else {
       streamInfo.isUsingFallbackMode = true;
       text = stripAdSegments(text, false, streamInfo);
-      logger.debug("Adblock:TwitchService", "no clean aligned backup; stripping ad segments", {
-        outcome: "segment-stripping",
+      text = holdUnsafeTwitchMediaPlaylist(text);
+      logger.debug("Adblock:TwitchService", "no verified clean backup; holding unsafe media", {
+        outcome: "unsafe-hold",
         ...detection.diagnostic,
       });
-      notifyStatusChange(streamInfo);
       return text;
     }
   } else if (
@@ -714,19 +764,58 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
     const restoredFromBackup = Boolean(switchState?.servedBackup);
     if (
       switchState?.servedBackup &&
+      detection.verdict === "clean" &&
+      !hasExplicitCueInRecovery
+    ) {
+      const now = Date.now();
+      switchState.originalCleanSince ??= now;
+      switchState.consecutiveOriginalCleanPolls += 1;
+      const cleanForMs = Math.max(0, now - switchState.originalCleanSince);
+      const originalIsStable =
+        switchState.consecutiveOriginalCleanPolls >= ORIGINAL_CLEAN_CONFIRMATION_POLLS &&
+        cleanForMs >= ORIGINAL_CLEAN_STABILITY_MS;
+      if (!originalIsStable) {
+        const continuedBackup = currentResolution
+          ? getServedBackupOrScheduleRefresh(streamInfo, currentResolution)
+          : null;
+        if (continuedBackup) {
+          logger.debug(
+            "Adblock:TwitchService",
+            "holding active backup for clean-original confirmation",
+            {
+              channelName: streamInfo.channelName,
+              confirmationPolls: switchState.consecutiveOriginalCleanPolls,
+              cleanForMs,
+              requiredCleanMs: ORIGINAL_CLEAN_STABILITY_MS,
+            }
+          );
+          return continuedBackup;
+        }
+      }
+    }
+    if (
+      switchState?.servedBackup &&
       !findTwitchPlaylistAlignment(switchState.servedBackup.playlist, text)
     ) {
-      logger.debug("Adblock:TwitchService", "clean original is not aligned for restoration", {
-        outcome: "passthrough-unaligned",
+      logger.debug("Adblock:TwitchService", "clean original requires refreshed playback handoff", {
+        outcome: "refresh-unaligned",
         ...detection.diagnostic,
       });
-      return text;
     }
     if (switchState) {
-      switchState.servedBackup = null;
+      if (switchState.readyRefresh) {
+        switchState.servedBackup = switchState.readyRefresh;
+        switchState.readyRefresh = null;
+      }
       switchState.readyCandidate = null;
+      switchState.consecutiveRefreshFailures = 0;
+      switchState.consecutiveOriginalCleanPolls = 0;
+      switchState.originalCleanSince = null;
       switchState.consecutiveMisses = 0;
       switchState.nextRetryAt = 0;
+      if (switchState.servedBackup) {
+        scheduleServedBackupRefresh(streamInfo, switchState);
+      }
     }
     if (hasExplicitCueInRecovery) {
       promotePlaylistDetectionBaseline(text, streamInfo, url);
@@ -747,10 +836,37 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
     if (restoredFromBackup || streamInfo.isUsingModifiedM3U8 || config.reloadPlayerAfterAd) {
       streamInfo.isUsingModifiedM3U8 = false;
       streamInfo.lastPlayerReload = Date.now();
-      notifyPlayerReload("ad-ended");
+      notifyPlayerReload(streamInfo.channelName, "ad-ended");
+    } else {
+      resetPlayerReloadGuard(streamInfo.channelName);
     }
 
     notifyStatusChange(streamInfo);
+  } else if (streamInfo.isShowingAd) {
+    const currentResolution = findResolutionInfoForMediaUrl(streamInfo, url);
+    if (currentResolution) {
+      const switchState = getRenditionSwitchState(
+        getRenditionScope(streamInfo, currentResolution)
+      );
+      switchState.consecutiveOriginalCleanPolls = 0;
+      switchState.originalCleanSince = null;
+    }
+  } else if (detection.verdict === "clean") {
+    const currentResolution = findResolutionInfoForMediaUrl(streamInfo, url);
+    if (currentResolution) {
+      const switchState = getRenditionSwitchState(
+        getRenditionScope(streamInfo, currentResolution)
+      );
+      if (switchState.readyRefresh) {
+        switchState.servedBackup = switchState.readyRefresh;
+        switchState.readyRefresh = null;
+      }
+      if (switchState.servedBackup) {
+        scheduleServedBackupRefresh(streamInfo, switchState);
+      } else {
+        tryGetReadyBackupOrScheduleSearch(streamInfo, currentResolution, text, false);
+      }
+    }
   }
 
   return text;
@@ -762,7 +878,7 @@ export async function processMediaPlaylist(url: string, text: string): Promise<s
  * Network timeout for backup stream fetch operations (milliseconds)
  * Aggressive timeout to prevent stream freezing when Twitch API is slow
  */
-const BACKUP_FETCH_TIMEOUT = 2000;
+const BACKUP_FETCH_TIMEOUT = 6000;
 
 /**
  * Fetch with timeout wrapper to prevent indefinite blocking
@@ -891,12 +1007,12 @@ function hasPlayableSegmentReference(playlist: string): boolean {
 async function prepareCleanBackup(
   streamInfo: StreamInfo,
   currentResolution: ResolutionInfo,
-  activePlaylist: string | null,
+  _activePlaylist: string | null,
   loadedMasters?: BackupMaster[]
 ): Promise<PreparedBackup | null> {
   const masters = loadedMasters ?? (await loadBackupMasters(streamInfo));
   const candidates = rankTwitchRenditionCandidates(
-    keepTwitchRenditionResolution(
+    keepTwitchBackupRenditions(
       masters.flatMap(({ playerType, playlist }) =>
         rankTwitchRenditions(playlist, currentResolution).map((rendition) => ({
           ...rendition,
@@ -909,11 +1025,15 @@ async function prepareCleanBackup(
     currentResolution
   );
 
-  for (const candidate of candidates) {
+  if (candidates.length === 0) return null;
+
+  const inspectCandidate = async (
+    candidate: (typeof candidates)[number]
+  ): Promise<PreparedBackup | null> => {
     try {
       const rendition = candidate.rendition;
       const response = await fetchWithTimeout(rendition.url);
-      if (response.status !== 200) continue;
+      if (response.status !== 200) return null;
       const playlist = await response.text();
       if (!hasPlayableSegmentReference(playlist)) {
         logger.debug("Adblock:TwitchService", "backup candidate is not playable", {
@@ -921,10 +1041,22 @@ async function prepareCleanBackup(
           playerType: candidate.playerType,
           resolution: candidate.rendition.resolution,
         });
-        continue;
+        return null;
       }
-      if (activePlaylist && !findTwitchPlaylistAlignment(activePlaylist, playlist)) continue;
-      if (analyzeBackupPlaylist(streamInfo, candidate, playlist).verdict !== "clean") continue;
+      const analysis = analyzeBackupPlaylist(streamInfo, candidate, playlist);
+      logger.debug("Adblock:TwitchService", "inspected backup rendition", {
+        playerType: candidate.playerType,
+        resolution: candidate.rendition.resolution,
+        verdict: analysis.verdict,
+        fingerprint: analysis.diagnostic.fingerprint,
+      });
+      if (analysis.verdict !== "clean") return null;
+      // Stitched prerolls use a separate media-sequence namespace (often
+      // starting at zero). Rendition continuity plus a clean classification
+      // are the safe admission checks during an ad. A transient startup level
+      // below 480p is raised to the preferred fallback floor. A clean 360p
+      // rendition is admitted only after every real 480p-or-better candidate
+      // is confirmed ad-bearing; 160p is never used.
       return { playerType: candidate.playerType, rendition, playlist };
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
@@ -935,25 +1067,208 @@ async function prepareCleanBackup(
           error: err instanceof Error ? err.message : String(err),
         });
       }
+      return null;
     }
+  };
+
+  const firstCleanCandidate = (
+    tier: typeof candidates
+  ): Promise<PreparedBackup | null> =>
+    new Promise((resolve) => {
+      if (tier.length === 0) {
+        resolve(null);
+        return;
+      }
+
+      let remaining = tier.length;
+      let settled = false;
+      for (const candidate of tier) {
+        void inspectCandidate(candidate).then((prepared) => {
+          if (settled) return;
+          if (prepared) {
+            settled = true;
+            resolve(prepared);
+            return;
+          }
+          remaining -= 1;
+          if (remaining === 0) resolve(null);
+        });
+      }
+    });
+
+  // Race identities within a quality tier so one slow edge cannot block the
+  // others. Preserve the selected quality whenever any exact rendition is
+  // clean, then try the real 480p-or-better floor. Only after both tiers fail
+  // may a genuine 360p stream prevent a black screen; 160p is never selected.
+  const exactCandidates = candidates.filter(
+    (candidate) => candidate.rendition.resolution === currentResolution.resolution
+  );
+  const floorCandidates = candidates.filter(
+    (candidate) => {
+      const height = Number.parseInt(candidate.rendition.resolution.split("x")[1] ?? "", 10);
+      return (
+        candidate.rendition.resolution !== currentResolution.resolution && height >= 480
+      );
+    }
+  );
+  const emergencyCandidates = candidates.filter((candidate) => {
+    const height = Number.parseInt(candidate.rendition.resolution.split("x")[1] ?? "", 10);
+    return height >= 360 && height < 480;
+  });
+  return (
+    (await firstCleanCandidate(exactCandidates)) ??
+    (await firstCleanCandidate(floorCandidates)) ??
+    firstCleanCandidate(emergencyCandidates)
+  );
+}
+
+function invalidateServedBackup(
+  streamInfo: StreamInfo,
+  state: RenditionSwitchState,
+  served: PreparedBackup
+): void {
+  if (
+    streamInfos.get(streamInfo.channelName) !== streamInfo ||
+    state.servedBackup !== served
+  ) {
+    return;
   }
-  return null;
+
+  state.servedBackup = null;
+  state.readyRefresh = null;
+  state.consecutiveRefreshFailures = 0;
+  state.consecutiveOriginalCleanPolls = 0;
+  state.originalCleanSince = null;
+  state.nextRetryAt = 0;
+  streamInfo.activeBackupPlayerType = null;
+  streamInfo.backupEncodingsCache.clear();
+  backupMasterPromises.delete(streamInfo.channelName);
+}
+
+function recordBackupRefreshFailure(
+  streamInfo: StreamInfo,
+  state: RenditionSwitchState,
+  served: PreparedBackup,
+  details: Record<string, unknown>
+): void {
+  if (
+    streamInfos.get(streamInfo.channelName) !== streamInfo ||
+    state.servedBackup !== served
+  ) {
+    return;
+  }
+
+  state.consecutiveRefreshFailures += 1;
+  logger.debug("Adblock:TwitchService", "active backup refresh deferred", {
+    channelName: streamInfo.channelName,
+    playerType: served.playerType,
+    consecutiveFailures: state.consecutiveRefreshFailures,
+    ...details,
+  });
+  if (state.consecutiveRefreshFailures >= BACKUP_REFRESH_FAILURE_LIMIT) {
+    invalidateServedBackup(streamInfo, state, served);
+  }
+}
+
+function scheduleServedBackupRefresh(
+  streamInfo: StreamInfo,
+  state: RenditionSwitchState
+): void {
+  const served = state.servedBackup;
+  if (!served || state.refreshPromise) return;
+
+  const refreshPromise = (async () => {
+    try {
+      const response = await fetchWithTimeout(served.rendition.url);
+      if (response.status !== 200) {
+        recordBackupRefreshFailure(streamInfo, state, served, { status: response.status });
+        return;
+      }
+
+      const playlist = await response.text();
+      if (!hasPlayableSegmentReference(playlist)) {
+        recordBackupRefreshFailure(streamInfo, state, served, { outcome: "unplayable" });
+        return;
+      }
+
+      const analysis = analyzeBackupPlaylist(streamInfo, served, playlist);
+      if (analysis.verdict !== "clean") {
+        logger.debug("Adblock:TwitchService", "active backup is no longer clean", {
+          channelName: streamInfo.channelName,
+          playerType: served.playerType,
+          verdict: analysis.verdict,
+          fingerprint: analysis.diagnostic.fingerprint,
+        });
+        invalidateServedBackup(streamInfo, state, served);
+        return;
+      }
+
+      if (
+        streamInfos.get(streamInfo.channelName) !== streamInfo ||
+        state.servedBackup !== served
+      ) {
+        return;
+      }
+      state.readyRefresh = { ...served, playlist };
+      state.consecutiveRefreshFailures = 0;
+      logger.debug("Adblock:TwitchService", "prepared advancing clean backup", {
+        channelName: streamInfo.channelName,
+        playerType: served.playerType,
+        resolution: served.rendition.resolution,
+        mediaSequence: analysis.diagnostic.mediaSequence,
+        fingerprint: analysis.diagnostic.fingerprint,
+      });
+    } catch (error: unknown) {
+      recordBackupRefreshFailure(streamInfo, state, served, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  })().finally(() => {
+    if (state.refreshPromise === refreshPromise) state.refreshPromise = null;
+  });
+  state.refreshPromise = refreshPromise;
+}
+
+function getServedBackupOrScheduleRefresh(
+  streamInfo: StreamInfo,
+  currentResolution: ResolutionInfo
+): string | null {
+  const state = getRenditionSwitchState(getRenditionScope(streamInfo, currentResolution));
+  if (state.readyRefresh) {
+    state.servedBackup = state.readyRefresh;
+    state.readyRefresh = null;
+  }
+
+  const served = state.servedBackup;
+  if (!served) return null;
+  streamInfo.activeBackupPlayerType = served.playerType;
+  scheduleServedBackupRefresh(streamInfo, state);
+  return served.playlist;
 }
 
 function tryGetReadyBackupOrScheduleSearch(
   streamInfo: StreamInfo,
   currentResolution: ResolutionInfo,
-  activePlaylist: string
+  activePlaylist: string,
+  reloadWhenReady = true
 ): string | null {
   const state = getRenditionSwitchState(getRenditionScope(streamInfo, currentResolution));
   const candidate = state.readyCandidate;
-  if (candidate && findTwitchPlaylistAlignment(activePlaylist, candidate.playlist)) {
+  if (candidate) {
+    state.readyCandidate = null;
     state.servedBackup = candidate;
+    state.readyRefresh = null;
+    state.consecutiveRefreshFailures = 0;
     streamInfo.activeBackupPlayerType = candidate.playerType;
+    scheduleServedBackupRefresh(streamInfo, state);
+    logger.debug("Adblock:TwitchService", "using verified clean backup", {
+      channelName: streamInfo.channelName,
+      playerType: candidate.playerType,
+      resolution: candidate.rendition.resolution,
+    });
     return candidate.playlist;
   }
 
-  if (candidate) state.readyCandidate = null;
   if (state.candidatePromise || Date.now() < state.nextRetryAt) return null;
 
   const candidatePromise = getOrStartBackupMasterPreload(streamInfo)
@@ -964,6 +1279,13 @@ function tryGetReadyBackupOrScheduleSearch(
         state.readyCandidate = prepared;
         state.consecutiveMisses = 0;
         state.nextRetryAt = 0;
+        // The current playlist may already be holding an unsafe stitched-ad
+        // response. Ask HLS.js to reload immediately so the next playlist
+        // request consumes this real clean rendition instead of waiting for
+        // the normal target-duration refresh.
+        if (reloadWhenReady) {
+          notifyPlayerReload(streamInfo.channelName, "ad-started");
+        }
         return;
       }
 
@@ -1402,17 +1724,76 @@ function notifyStatusChange(streamInfo: StreamInfo): void {
 // Callbacks for player control (to be set by HLS player)
 export type PlayerReloadReason = "ad-started" | "ad-ended";
 
-let onPlayerReload: ((reason: PlayerReloadReason) => void) | null = null;
+type PlayerReloadCallback = (reason: PlayerReloadReason) => void;
+
+const playerReloadCallbacks = new Map<string, PlayerReloadCallback>();
+const channelsWithAdStartReload = new Set<string>();
+const playerReloadGuardResetTimers = new Map<string, ReturnType<typeof setTimeout>>();
+let legacyPlayerReloadCallback: PlayerReloadCallback | null = null;
 
 export function setPlayerCallbacks(
-  reloadCallback: (reason: PlayerReloadReason) => void,
-  _pauseResumeCallback: () => void
-): void {
-  onPlayerReload = reloadCallback;
+  channelName: string,
+  reloadCallback: PlayerReloadCallback
+): () => void;
+export function setPlayerCallbacks(reloadCallback: PlayerReloadCallback): () => void;
+export function setPlayerCallbacks(
+  channelNameOrReloadCallback: string | PlayerReloadCallback,
+  reloadCallback?: PlayerReloadCallback
+): () => void {
+  if (typeof channelNameOrReloadCallback === "string") {
+    const channelKey = channelNameOrReloadCallback.toLowerCase();
+    if (!reloadCallback) return () => {};
+    cancelPlayerReloadGuardReset(channelKey);
+    playerReloadCallbacks.set(channelKey, reloadCallback);
+    return () => {
+      if (playerReloadCallbacks.get(channelKey) === reloadCallback) {
+        playerReloadCallbacks.delete(channelKey);
+        schedulePlayerReloadGuardReset(channelKey);
+      }
+    };
+  }
+
+  legacyPlayerReloadCallback = channelNameOrReloadCallback;
+  return () => {
+    if (legacyPlayerReloadCallback === channelNameOrReloadCallback) {
+      legacyPlayerReloadCallback = null;
+    }
+  };
 }
 
-function notifyPlayerReload(reason: PlayerReloadReason): void {
-  if (onPlayerReload) {
-    onPlayerReload(reason);
+function notifyPlayerReload(channelName: string, reason: PlayerReloadReason): void {
+  const channelKey = channelName.toLowerCase();
+  const callback = playerReloadCallbacks.get(channelKey) ?? legacyPlayerReloadCallback;
+
+  if (reason === "ad-started") {
+    if (!callback || channelsWithAdStartReload.has(channelKey)) return;
+    channelsWithAdStartReload.add(channelKey);
+  } else {
+    resetPlayerReloadGuard(channelKey);
   }
+
+  callback?.(reason);
+}
+
+function resetPlayerReloadGuard(channelName: string): void {
+  const channelKey = channelName.toLowerCase();
+  cancelPlayerReloadGuardReset(channelKey);
+  channelsWithAdStartReload.delete(channelKey);
+}
+
+function schedulePlayerReloadGuardReset(channelName: string): void {
+  cancelPlayerReloadGuardReset(channelName);
+  const timer = setTimeout(() => {
+    playerReloadGuardResetTimers.delete(channelName);
+    if (!playerReloadCallbacks.has(channelName)) {
+      channelsWithAdStartReload.delete(channelName);
+    }
+  }, PLAYER_RELOAD_GUARD_RELEASE_MS);
+  playerReloadGuardResetTimers.set(channelName, timer);
+}
+
+function cancelPlayerReloadGuardReset(channelName: string): void {
+  const timer = playerReloadGuardResetTimers.get(channelName);
+  if (timer) clearTimeout(timer);
+  playerReloadGuardResetTimers.delete(channelName);
 }

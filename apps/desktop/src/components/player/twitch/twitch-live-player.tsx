@@ -1,10 +1,19 @@
 import type Hls from "hls.js";
 import type React from "react";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { TWITCH_COLORS } from "@/assets/platforms/twitch";
+import { Button } from "@/components/ui/button";
 import { TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { useAdElementObserver } from "@/hooks/use-ad-element-observer";
-import { sleep } from "@/lib/sleep";
+import { createCancellableSleep, type CancellableSleep } from "@/lib/sleep";
 import { logger } from "@/renderer/logging/logger";
 import type { AdBlockStatus } from "@/shared/adblock-types";
 import { useAdBlockStore } from "@/store/adblock-store";
@@ -29,6 +38,31 @@ import { VideoStatsOverlay } from "./video-stats-overlay";
 
 const MAX_AUTO_RETRY_ATTEMPTS = 2;
 const RETRY_DELAY_BASE_MS = 1500;
+const PLAYBACK_INTENT_STORAGE_PREFIX = "streamfusion:twitch-live-playback-intent:v1:";
+
+type PlaybackIntent = "playing" | "paused";
+
+function playbackIntentStorageKey(channelName: string): string {
+  return `${PLAYBACK_INTENT_STORAGE_PREFIX}${channelName.trim().toLowerCase()}`;
+}
+
+function readPlaybackIntent(channelName: string, autoPlay: boolean): PlaybackIntent {
+  try {
+    const storedIntent = window.sessionStorage.getItem(playbackIntentStorageKey(channelName));
+    if (storedIntent === "playing" || storedIntent === "paused") return storedIntent;
+  } catch {
+    // The renderer can continue with its configured default when storage is unavailable.
+  }
+  return autoPlay ? "playing" : "paused";
+}
+
+function persistPlaybackIntent(channelName: string, intent: PlaybackIntent): void {
+  try {
+    window.sessionStorage.setItem(playbackIntentStorageKey(channelName), intent);
+  } catch {
+    // Playback controls must remain usable when storage is unavailable.
+  }
+}
 
 export interface TwitchLivePlayerProps {
   streamUrl: string;
@@ -38,7 +72,8 @@ export interface TwitchLivePlayerProps {
   muted?: boolean;
   quality?: QualityLevel;
   onReady?: () => void;
-  onError?: (error: PlayerError) => void;
+  onError?: (error: PlayerError) => boolean | void;
+  onCleanPresentedFrame?: () => void;
   onQualityChange?: (quality: QualityLevel) => void;
   onAdBlockStatusChange?: (status: AdBlockStatus) => void;
   className?: string;
@@ -47,6 +82,8 @@ export interface TwitchLivePlayerProps {
   enableAdBlock?: boolean;
   // Error/ad-block recovery refresh callback.
   onRefresh?: () => void;
+  /** A stable parent surface owns the retry budget across keyed player remounts. */
+  recoveryManagedExternally?: boolean;
   compact?: boolean;
 }
 
@@ -64,6 +101,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
       quality,
       onReady,
       onError,
+      onCleanPresentedFrame,
       onQualityChange,
       onAdBlockStatusChange,
       className,
@@ -71,6 +109,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
       onToggleTheater,
       enableAdBlock = true,
       onRefresh,
+      recoveryManagedExternally = false,
       compact = false,
     } = props;
     const isDockedChannelSurface = useDockedPlayerConfig() !== null;
@@ -78,6 +117,10 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
 
     const containerRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
+    const adPresentationCanvasRef = useRef<HTMLCanvasElement>(null);
+    const adPresentationPosterRef = useRef<HTMLImageElement>(null);
+    const adPresentationPlaceholderRef = useRef<HTMLDivElement>(null);
+    const failedAdPresentationPosterRef = useRef<string | null>(null);
     useImperativeHandle(forwardedVideoRef, () => videoRef.current as HTMLVideoElement);
 
     // Ad-block store setting
@@ -88,15 +131,104 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
 
     // Ad-block status tracking
     const [adBlockStatus, setAdBlockStatus] = useState<AdBlockStatus | null>(null);
+    const [isRecoveringPlayback, setIsRecoveringPlayback] = useState(false);
+    const [adPresentationCover, setAdPresentationCover] = useState<
+      "frame" | "poster" | "placeholder" | null
+    >(null);
+
+    useLayoutEffect(() => {
+      if (adPresentationCanvasRef.current) adPresentationCanvasRef.current.hidden = true;
+      if (adPresentationPosterRef.current) adPresentationPosterRef.current.hidden = true;
+      if (adPresentationPlaceholderRef.current) {
+        adPresentationPlaceholderRef.current.hidden = true;
+      }
+      setAdBlockStatus(null);
+      setIsRecoveringPlayback(false);
+      setAdPresentationCover(null);
+      failedAdPresentationPosterRef.current = null;
+      setHasError(false);
+      setIsLoading(true);
+      setIsReady(false);
+    }, [channelName]);
+
+    const showAdPresentationCover = useCallback((cover: "frame" | "poster" | "placeholder") => {
+      if (adPresentationCanvasRef.current) {
+        adPresentationCanvasRef.current.hidden = cover !== "frame";
+        adPresentationCanvasRef.current.classList.toggle("hidden", cover !== "frame");
+      }
+      if (adPresentationPosterRef.current) {
+        adPresentationPosterRef.current.hidden = cover !== "poster";
+      }
+      if (adPresentationPlaceholderRef.current) {
+        adPresentationPlaceholderRef.current.hidden = cover !== "placeholder";
+      }
+      setAdPresentationCover(cover);
+    }, []);
+
+    useLayoutEffect(() => {
+      if (
+        poster &&
+        poster !== failedAdPresentationPosterRef.current &&
+        adPresentationCover === "placeholder"
+      ) {
+        showAdPresentationCover("poster");
+      }
+    }, [adPresentationCover, poster, showAdPresentationCover]);
+
+    const hideAdPresentationCover = useCallback(() => {
+      if (adPresentationCanvasRef.current) {
+        adPresentationCanvasRef.current.hidden = true;
+        adPresentationCanvasRef.current.classList.add("hidden");
+      }
+      if (adPresentationPosterRef.current) adPresentationPosterRef.current.hidden = true;
+      if (adPresentationPlaceholderRef.current) {
+        adPresentationPlaceholderRef.current.hidden = true;
+      }
+      setAdPresentationCover(null);
+    }, []);
+
+    const coverUnsafeAdPresentation = useCallback(() => {
+      if (
+        adPresentationCanvasRef.current?.hidden === false ||
+        adPresentationPosterRef.current?.hidden === false ||
+        adPresentationPlaceholderRef.current?.hidden === false
+      ) {
+        return;
+      }
+      const video = videoRef.current;
+      const canvas = adPresentationCanvasRef.current;
+      if (
+        video &&
+        canvas &&
+        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        video.videoWidth > 0 &&
+        video.videoHeight > 0
+      ) {
+        try {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          const context = canvas.getContext("2d");
+          if (context) {
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            showAdPresentationCover("frame");
+            return;
+          }
+        } catch (error) {
+          logger.warn("Player:Twitch:Live", "could not freeze clean frame for ad cover", {
+            errorName: error instanceof Error ? error.name : "unknown",
+          });
+        }
+      }
+      showAdPresentationCover(poster ? "poster" : "placeholder");
+    }, [poster, showAdPresentationCover]);
 
     // Persistent volume
-    const { volume, isMuted, handleVolumeChange, handleToggleMute, syncFromVideoElement } =
-      useVolume({
-        videoRef: videoRef as React.RefObject<HTMLVideoElement>,
-        initialMuted,
-        watch: `${streamUrl}-${initialMuted}`, // Reset when either changes
-        forcedMuted: initialMuted,
-      });
+    const { volume, isMuted, handleVolumeChange, handleToggleMute } = useVolume({
+      videoRef: videoRef as React.RefObject<HTMLVideoElement>,
+      initialMuted,
+      watch: `${streamUrl}-${initialMuted}`, // Reset when either changes
+      forcedMuted: initialMuted,
+    });
 
     // Hooks
     const { isFullscreen, toggleFullscreen } = useFullscreen(containerRef);
@@ -107,7 +239,11 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
 
     // State
     const [isReady, setIsReady] = useState(false);
-    const [isPlaying, setIsPlaying] = useState(autoPlay);
+    const [playbackIntent, setPlaybackIntent] = useState<PlaybackIntent>(() =>
+      readPlaybackIntent(channelName, autoPlay)
+    );
+    const playbackIntentRef = useRef(playbackIntent);
+    playbackIntentRef.current = playbackIntent;
     const [availableQualities, setAvailableQualities] = useState<QualityLevel[]>([]);
     const [activeQualityId, setActiveQualityId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -117,12 +253,15 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
 
     const autoRetryCountRef = useRef(0);
     const isRetryingRef = useRef(false);
+    const retryDelayRef = useRef<CancellableSleep | null>(null);
 
     // Refs for stats
     const hlsRef = useRef<any>(null); // Capture Hls instance
     const [hls, setHls] = useState<Hls | null>(null);
     const [networkRecoveryRevision, setNetworkRecoveryRevision] = useState(0);
     const recoverFromNetworkError = useCallback(() => {
+      retryDelayRef.current?.cancel();
+      retryDelayRef.current = null;
       autoRetryCountRef.current = 0;
       isRetryingRef.current = false;
       hlsRef.current = null;
@@ -180,21 +319,26 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
 
     useEffect(() => {
       void streamUrl;
-      autoRetryCountRef.current = 0;
+      retryDelayRef.current?.cancel();
+      retryDelayRef.current = null;
       isRetryingRef.current = false;
     }, [streamUrl]);
 
+    useEffect(
+      () => () => {
+        retryDelayRef.current?.cancel();
+        retryDelayRef.current = null;
+      },
+      []
+    );
+
     // Resume playback if Chromium auto-paused the video when the window was minimized
     useEffect(() => {
-      let wasPlaying = false;
-
       const handleVisibilityChange = () => {
         const video = videoRef.current;
         if (!video) return;
 
-        if (document.hidden) {
-          wasPlaying = !video.paused;
-        } else if (wasPlaying) {
+        if (!document.hidden && playbackIntentRef.current === "playing" && video.paused) {
           video.play().catch((e) => {
             if (e.name !== "AbortError" && e.name !== "NotAllowedError") {
               logger.error("Player:Twitch:Live", "failed to resume after window restore", {
@@ -214,31 +358,24 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
       const video = videoRef.current;
       if (!video) return;
 
-      const handlePlay = () => setIsPlaying(true);
-      const handlePause = () => setIsPlaying(false);
-      const handleVideoVolumeChange = () => {
-        syncFromVideoElement();
+      const handleWaiting = () => {
+        setIsLoading(true);
       };
-      const handleWaiting = () => setIsLoading(true);
-      const handlePlaying = () => setIsLoading(false);
+      const handlePlaying = () => {
+        setIsLoading(false);
+      };
       const handleRateChange = () => setPlaybackRate(video.playbackRate);
 
-      video.addEventListener("play", handlePlay);
-      video.addEventListener("pause", handlePause);
-      video.addEventListener("volumechange", handleVideoVolumeChange);
       video.addEventListener("waiting", handleWaiting);
       video.addEventListener("playing", handlePlaying);
       video.addEventListener("ratechange", handleRateChange);
 
       return () => {
-        video.removeEventListener("play", handlePlay);
-        video.removeEventListener("pause", handlePause);
-        video.removeEventListener("volumechange", handleVideoVolumeChange);
         video.removeEventListener("waiting", handleWaiting);
         video.removeEventListener("playing", handlePlaying);
         video.removeEventListener("ratechange", handleRateChange);
       };
-    }, [syncFromVideoElement]);
+    }, []);
 
     // Volume initialization is handled by useVolume hook
 
@@ -246,7 +383,9 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
     const togglePlay = useCallback(() => {
       const video = videoRef.current;
       if (!video) return;
-      if (video.paused) {
+      if (playbackIntent === "paused") {
+        setPlaybackIntent("playing");
+        persistPlaybackIntent(channelName, "playing");
         // For live streams: seek to live edge before playing
         // This ensures we're watching "live" when resuming playback
         if (video.seekable.length > 0) {
@@ -260,9 +399,11 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
           }
         });
       } else {
+        setPlaybackIntent("paused");
+        persistPlaybackIntent(channelName, "paused");
         video.pause();
       }
-    }, []);
+    }, [channelName, playbackIntent]);
 
     const toggleMute = handleToggleMute;
 
@@ -337,6 +478,13 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
       disabled: !isReady,
     });
 
+    const isAdSubstitutionActive =
+      effectiveEnableAdBlock &&
+      adBlockStatus?.isActive === true &&
+      (adBlockStatus.isShowingAd ||
+        adBlockStatus.isStrippingSegments ||
+        adBlockStatus.isUsingFallbackMode);
+
     return (
       <div
         ref={containerRef}
@@ -352,7 +500,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
             poster={poster}
             muted={isMuted}
             volume={volume / 100}
-            autoPlay={autoPlay}
+            autoPlay={playbackIntent === "playing"}
             preferredQuality={
               shouldApplySavedQuality && !compact ? (qualityPreference ?? undefined) : undefined
             }
@@ -362,29 +510,34 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
               setAdBlockStatus(status);
               onAdBlockStatusChange?.(status);
             }}
-            onAdBlockRecoveryRefresh={onRefresh}
+            onBeforeAdPresentationShield={coverUnsafeAdPresentation}
+            onCleanPresentedFrame={() => {
+              retryDelayRef.current?.cancel();
+              retryDelayRef.current = null;
+              autoRetryCountRef.current = 0;
+              isRetryingRef.current = false;
+              setHasError(false);
+              setIsLoading(false);
+              onCleanPresentedFrame?.();
+            }}
+            onPlaybackRecoveryStateChange={setIsRecoveringPlayback}
+            onVerifiedCleanAdPresentation={hideAdPresentationCover}
             onError={(error: PlayerError) => {
-              // Determine if this error is recoverable via URL refresh
-              const isRefreshableError = error.code === "TOKEN_EXPIRED";
-              const isAdBlockHoldablePlaybackError =
-                error.code === "NO_FRAGMENTS" || error.code === "STREAM_OFFLINE";
-              const isAdBlockHoldingPlayback =
-                effectiveEnableAdBlock &&
-                !!adBlockStatus &&
-                (adBlockStatus.isShowingAd ||
-                  adBlockStatus.isStrippingSegments ||
-                  adBlockStatus.isUsingFallbackMode);
-
-              if (
-                (isRefreshableError || isAdBlockHoldablePlaybackError) &&
-                isAdBlockHoldingPlayback
-              ) {
-                logger.debug("Player:Twitch:Live", "suppressing refresh while adblock is active", {
-                  code: error.code,
-                });
-                setIsLoading(false);
+              if (recoveryManagedExternally) {
+                const recoveryScheduled = onError?.(error) === true;
+                setHasError(!recoveryScheduled);
+                setIsLoading(recoveryScheduled);
                 return;
               }
+
+              // Determine if this error is recoverable via URL refresh
+              const isRefreshableError =
+                error.shouldRefresh === true ||
+                error.code === "TOKEN_EXPIRED" ||
+                error.code === "NO_FRAGMENTS" ||
+                error.code === "STREAM_OFFLINE" ||
+                error.code === "DECODER_STALL" ||
+                error.code === "PLAYBACK_STALL";
 
               const canRetry =
                 isRefreshableError &&
@@ -408,11 +561,14 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
 
                 setIsLoading(true);
 
-                void sleep(delay).then(() => {
-                  if (isRetryingRef.current) {
-                    isRetryingRef.current = false;
-                    onRefresh();
-                  }
+                const retryDelay = createCancellableSleep(delay);
+                retryDelayRef.current = retryDelay;
+                void retryDelay.result.then((result) => {
+                  if (retryDelayRef.current !== retryDelay) return;
+                  retryDelayRef.current = null;
+                  if (!result.ok || !isRetryingRef.current) return;
+                  isRetryingRef.current = false;
+                  onRefresh();
                 });
 
                 return;
@@ -428,7 +584,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
               isRetryingRef.current = false;
               onError?.(error);
             }}
-            onHlsInstance={(hls: Hls) => {
+            onHlsInstance={(hls: Hls | null) => {
               hlsRef.current = hls;
               setHls(hls);
             }}
@@ -442,19 +598,55 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
           </div>
         )}
 
-        {/* Ad-Block Status Overlay - Top Left */}
-        {adBlockStatus?.isActive &&
-          (adBlockStatus.isShowingAd ||
-            adBlockStatus.isStrippingSegments ||
-            adBlockStatus.isUsingFallbackMode) && (
-            <div
-              role="status"
-              aria-live="polite"
-              className="absolute top-2 left-2 z-40 bg-black/80 text-white text-sm font-medium px-2 py-1 rounded pointer-events-none"
-            >
-              {adBlockStatus.isMidroll ? "Blocking midroll ads" : "Blocking ads"}
-            </div>
-          )}
+        <canvas
+          ref={adPresentationCanvasRef}
+          data-testid="twitch-ad-clean-frame-cover"
+          aria-hidden="true"
+          hidden={adPresentationCover !== "frame"}
+          className={`pointer-events-none absolute inset-0 z-20 size-full object-contain ${
+            adPresentationCover === "frame" ? "" : "hidden"
+          }`}
+        />
+
+        <img
+          ref={adPresentationPosterRef}
+          src={poster}
+          alt={`${channelName.charAt(0).toUpperCase()}${channelName.slice(1)} live stream`}
+          hidden={adPresentationCover !== "poster"}
+          className="pointer-events-none absolute inset-0 z-20 size-full object-cover"
+          onError={() => {
+            failedAdPresentationPosterRef.current = poster ?? null;
+            showAdPresentationCover("placeholder");
+          }}
+        />
+        <div
+          ref={adPresentationPlaceholderRef}
+          data-testid="twitch-ad-placeholder-cover"
+          hidden={adPresentationCover !== "placeholder"}
+          className="pointer-events-none absolute inset-0 z-20 bg-[#18181b]"
+        />
+
+        {isRecoveringPlayback && !isAdSubstitutionActive && !hasError && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="pointer-events-none absolute inset-x-0 top-3 z-40 flex justify-center px-3"
+          >
+            <span className="rounded bg-black/80 px-3 py-1.5 text-sm font-medium text-white">
+              Stream interrupted — reconnecting…
+            </span>
+          </div>
+        )}
+
+        {isAdSubstitutionActive && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="pointer-events-none absolute left-3 top-3 z-40 rounded bg-black/80 px-3 py-1.5 text-sm font-medium text-white"
+          >
+            {adBlockStatus?.isMidroll ? "Blocking midroll ads" : "Blocking ads"}
+          </div>
+        )}
 
         {/* Ad-Block Fallback Overlay - Full screen when all backup types failed */}
         {adBlockStatus && (
@@ -462,9 +654,33 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
         )}
 
         {/* Centered Loading Spinner - Twitch Purple */}
-        {isLoading && streamUrl && (
+        {isLoading && streamUrl && adPresentationCover === null && !isAdSubstitutionActive && (
           <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
             <TwitchLoadingSpinner />
+          </div>
+        )}
+
+        {hasError && streamUrl && (
+          <div
+            className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-black/85 px-6 text-center"
+            role="alert"
+          >
+            <p className="text-base font-bold text-white">Playback interrupted</p>
+            <p className="text-sm font-medium text-[var(--color-text-secondary)]">
+              Automatic recovery could not restore this live stream.
+            </p>
+            {onRefresh && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setHasError(false);
+                  setIsLoading(true);
+                  onRefresh();
+                }}
+              >
+                Retry playback
+              </Button>
+            )}
           </div>
         )}
 
@@ -485,7 +701,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
         {/* Controls Overlay - Live stream (no progress bar) */}
         {streamUrl && !hasError && !compact && (
           <TwitchLivePlayerControls
-            isPlaying={isPlaying}
+            isPlaying={playbackIntent === "playing"}
             isLoading={isLoading}
             volume={volume}
             muted={isMuted}

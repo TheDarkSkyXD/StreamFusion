@@ -18,8 +18,10 @@ const {
   mockProcessMasterPlaylist: vi.fn<
     (url: string, text: string, channel: string, playlistBaseUrl?: string) => Promise<string>
   >(async (_url: string, text: string) => text),
-  mockProcessMediaPlaylist: vi.fn<(url: string, text: string) => Promise<string>>(
-    async (_url: string, text: string) => text
+  mockProcessMediaPlaylist: vi.fn<
+    (url: string, text: string, channelName?: string) => Promise<string>
+  >(
+    async (_url: string, text: string, _channelName?: string) => text
   ),
   mockSuperLoad: vi.fn(),
 }));
@@ -30,7 +32,8 @@ vi.mock("@/components/player/twitch/twitch-adblock-service", () => ({
   getBlankVideoDataUrl: () => mockGetBlankVideoDataUrl(),
   processMasterPlaylist: (url: string, text: string, channel: string, playlistBaseUrl?: string) =>
     mockProcessMasterPlaylist(url, text, channel, playlistBaseUrl),
-  processMediaPlaylist: (url: string, text: string) => mockProcessMediaPlaylist(url, text),
+  processMediaPlaylist: (url: string, text: string, channelName?: string) =>
+    mockProcessMediaPlaylist(url, text, channelName),
 }));
 
 vi.mock("hls.js", () => {
@@ -62,6 +65,7 @@ import {
   getAdBlockHlsConfig,
 } from "@/components/player/twitch/twitch-adblock-loader";
 
+// Guards: playlist-processing failures fail closed and never release the unprocessed Twitch response to HLS.
 describe("twitch-adblock-loader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -256,7 +260,11 @@ describe("twitch-adblock-loader", () => {
         null
       );
 
-      expect(mockProcessMediaPlaylist).toHaveBeenCalledWith(responseUrl, "#EXTM3U\n#EXTINF:2,live");
+      expect(mockProcessMediaPlaylist).toHaveBeenCalledWith(
+        responseUrl,
+        "#EXTM3U\n#EXTINF:2,live",
+        "fixtureproof"
+      );
     });
 
     it("ignores a non-HTTP response URL when the request context has a valid HTTPS playlist URL", async () => {
@@ -280,7 +288,11 @@ describe("twitch-adblock-loader", () => {
         null
       );
 
-      expect(mockProcessMediaPlaylist).toHaveBeenCalledWith(context.url, "#EXTM3U\n#EXTINF:2,live");
+      expect(mockProcessMediaPlaylist).toHaveBeenCalledWith(
+        context.url,
+        "#EXTM3U\n#EXTINF:2,live",
+        "fixtureproof"
+      );
     });
 
     it("fails explicitly when a text master playlist has no absolute HTTP base URL", async () => {
@@ -366,17 +378,18 @@ describe("twitch-adblock-loader", () => {
       expect(originalOnSuccess).toHaveBeenCalledWith(binaryResponse, {}, context, null);
     });
 
-    it("falls back to original response on processing error", async () => {
+    it("fails closed instead of releasing the original response on processing error", async () => {
       mockProcessMediaPlaylist.mockRejectedValue(new Error("processing failed"));
 
       const LoaderClass = createAdBlockPlaylistLoader("testchannel");
       const loader = new LoaderClass({} as any);
 
       const originalOnSuccess = vi.fn();
+      const originalOnError = vi.fn();
       const context = { url: "https://video-edge.example.com/playlist.m3u8" } as any;
       const callbacks = {
         onSuccess: originalOnSuccess,
-        onError: vi.fn(),
+        onError: originalOnError,
         onTimeout: vi.fn(),
       } as any;
 
@@ -385,9 +398,16 @@ describe("twitch-adblock-loader", () => {
       const passedCallbacks = mockSuperLoad.mock.calls[0][2];
       const response = { data: "#EXTM3U\n#EXTINF..." };
 
-      await passedCallbacks.onSuccess(response, {}, context, null);
+      const stats = { loaded: 321 };
+      await passedCallbacks.onSuccess(response, stats, context, null);
 
-      expect(originalOnSuccess).toHaveBeenCalledWith(response, {}, context, null);
+      expect(originalOnSuccess).not.toHaveBeenCalled();
+      expect(originalOnError).toHaveBeenCalledWith(
+        { code: 0, text: "Twitch ad-block playlist processing failed closed" },
+        context,
+        null,
+        stats
+      );
     });
 
     it("extracts channel name from usher URL when not provided", async () => {
@@ -469,7 +489,7 @@ describe("twitch-adblock-loader", () => {
       expect(passedContext.url).toBe("https://video-edge.ttvnw.net/segment.ts");
     });
 
-    it("replaces ad segments with blank video", () => {
+    it("never replaces marked ad segments with synthetic blank video", () => {
       mockIsAdSegment.mockReturnValue(true);
 
       const LoaderClass = createAdBlockFragmentLoader();
@@ -482,7 +502,8 @@ describe("twitch-adblock-loader", () => {
 
       expect(mockSuperLoad).toHaveBeenCalled();
       const passedContext = mockSuperLoad.mock.calls[0][0];
-      expect(passedContext.url).toBe("data:video/mp4;base64,AAAA");
+      expect(passedContext.url).toBe("https://video-edge.ttvnw.net/ad-segment.ts");
+      expect(mockGetBlankVideoDataUrl).not.toHaveBeenCalled();
     });
 
     it("does not replace segments when ad-blocking is disabled", () => {

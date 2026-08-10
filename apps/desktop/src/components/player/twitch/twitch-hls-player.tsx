@@ -11,12 +11,14 @@ import type React from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 
 import { useInterval } from "@/hooks/useInterval";
+import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { logger } from "@/renderer/logging/logger";
 import type { AdBlockStatus } from "@/shared/adblock-types";
 import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
 import { resolveHlsBufferConfig } from "../hls-buffer-config";
+import { useLivePlaybackStallRecovery } from "../hooks/use-live-playback-stall-recovery";
 import { resolvePreferredQualityId, type PlayerQualityPreference } from "../quality-preference";
 import type { PlayerError, QualityLevel } from "../types";
 
@@ -44,9 +46,12 @@ export interface TwitchHlsPlayerProps extends Omit<
   onQualityLevels?: (levels: QualityLevel[]) => void;
   onActiveQualityChange?: (qualityId: string) => void;
   onError?: (error: PlayerError) => void;
-  onHlsInstance?: (hls: Hls) => void;
+  onHlsInstance?: (hls: Hls | null) => void;
+  onCleanPresentedFrame?: () => void;
+  onPlaybackRecoveryStateChange?: (recovering: boolean) => void;
+  onBeforeAdPresentationShield?: () => void;
+  onVerifiedCleanAdPresentation?: () => void;
   onAdBlockStatusChange?: (status: AdBlockStatus) => void;
-  onAdBlockRecoveryRefresh?: () => void;
   autoPlay?: boolean;
   currentLevel?: string;
   preferredQuality?: PlayerQualityPreference | string;
@@ -54,9 +59,9 @@ export interface TwitchHlsPlayerProps extends Omit<
   volume?: number;
 }
 
+const TWITCH_AD_PRESENTATION_SHIELD_ATTRIBUTE = "data-streamfusion-ad-presentation-shielded";
 const LIVE_MEMORY_CLEANUP_INTERVAL_MS = 60 * 1000;
-const LIVE_FRAGMENT_WATCHDOG_INTERVAL_MS = 1000;
-const LIVE_FRAGMENT_OFFLINE_GRACE_MS = 20_000;
+const AD_BLOCK_RECOVERY_REFRESH_MS = 15_000;
 
 function applyPreferredQuality(
   hls: Hls,
@@ -102,8 +107,11 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       onActiveQualityChange,
       onError,
       onHlsInstance,
+      onCleanPresentedFrame,
+      onPlaybackRecoveryStateChange,
+      onBeforeAdPresentationShield,
+      onVerifiedCleanAdPresentation,
       onAdBlockStatusChange,
-      onAdBlockRecoveryRefresh,
       autoPlay = false,
       currentLevel,
       preferredQuality,
@@ -116,6 +124,8 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
   ) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const hlsRef = useRef<Hls | null>(null);
+    const autoPlayRef = useRef(autoPlay);
+    autoPlayRef.current = autoPlay;
     const isMountedRef = useRef(true);
     const pendingPlayRef = useRef<Promise<void> | null>(null);
     const playRequestIdRef = useRef(0);
@@ -129,13 +139,26 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     const frameCallbackIdRef = useRef<number | null>(null);
     const presentationGenerationRef = useRef(0);
     const onAdBlockStatusChangeRef = useRef(onAdBlockStatusChange);
+    const onPlaybackRecoveryStateChangeRef = useRef(onPlaybackRecoveryStateChange);
+    const onBeforeAdPresentationShieldRef = useRef(onBeforeAdPresentationShield);
+    const onVerifiedCleanAdPresentationRef = useRef(onVerifiedCleanAdPresentation);
+    const onErrorRef = useRef(onError);
 
-    // Mutable heartbeat state lifted into refs so useInterval callbacks can read them
+    // Mutable player state shared with timer callbacks.
     const isEffectActiveRef = useRef(false);
-    const lastFragLoadedTimeRef = useRef(Date.now());
-    const manifestParsedTimeRef = useRef<number | null>(null);
-    const hasReceivedFirstFragmentRef = useRef(false);
     const adBlockStatusRef = useRef<AdBlockStatus | null>(null);
+    const adBlockRecoveryArmedRef = useRef(false);
+    const adBlockRecoveryAttemptsRef = useRef(0);
+    const adBlockRecoveryActionRef = useRef<(() => void) | null>(null);
+    const safePlayActionRef = useRef<(() => void) | null>(null);
+    const memoryRestoreActionRef = useRef<(() => void) | null>(null);
+
+    const safePlayTimeout = useManagedTimeout(() => safePlayActionRef.current?.());
+    const memoryRestoreTimeout = useManagedTimeout(() => memoryRestoreActionRef.current?.());
+    const adBlockRecoveryTimeout = useManagedTimeout(() => {
+      adBlockRecoveryArmedRef.current = false;
+      adBlockRecoveryActionRef.current?.();
+    });
 
     const publishAdBlockStatus = useCallback((status: AdBlockStatus) => {
       adBlockStatusRef.current = status;
@@ -143,8 +166,62 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       onAdBlockStatusChangeRef.current?.(status);
     }, []);
 
+    const clearAdBlockRecoveryWatchdog = useCallback(() => {
+      adBlockRecoveryArmedRef.current = false;
+      adBlockRecoveryAttemptsRef.current = 0;
+      adBlockRecoveryActionRef.current = null;
+      adBlockRecoveryTimeout.clear();
+    }, [adBlockRecoveryTimeout]);
+
+    const armAdBlockRecoveryWatchdog = useCallback(
+      (reset = false) => {
+        if (adBlockRecoveryArmedRef.current && !reset) return;
+
+        adBlockRecoveryArmedRef.current = true;
+        adBlockRecoveryActionRef.current = () => {
+          const status = adBlockStatusRef.current;
+          if (!isEffectActiveRef.current || !status || !isUnsafeAdPresentation(status)) return;
+
+          if (adBlockRecoveryAttemptsRef.current >= 1) {
+            logger.warn("Player:Twitch:HLS", "ad-block hold remained stale; refreshing source", {
+              channelName,
+              isShowingAd: status.isShowingAd,
+              isStrippingSegments: status.isStrippingSegments,
+              isUsingFallbackMode: status.isUsingFallbackMode,
+            });
+            onErrorRef.current?.({
+              code: "AD_BLOCK_STALL",
+              message: "Twitch ad-block recovery remained stalled",
+              fatal: true,
+              shouldRefresh: true,
+            });
+            return;
+          }
+
+          logger.warn("Player:Twitch:HLS", "ad-block hold stalled; refreshing playback path", {
+            channelName,
+            isShowingAd: status.isShowingAd,
+            isStrippingSegments: status.isStrippingSegments,
+            isUsingFallbackMode: status.isUsingFallbackMode,
+          });
+          try {
+            hlsRef.current?.startLoad(-1);
+          } catch (error) {
+            logger.warn("Player:Twitch:HLS", "ad-block recovery startLoad failed", {
+              channelName,
+              errorName: error instanceof Error ? error.name : "unknown",
+            });
+          }
+          adBlockRecoveryAttemptsRef.current += 1;
+          adBlockRecoveryArmedRef.current = true;
+          adBlockRecoveryTimeout.start(AD_BLOCK_RECOVERY_REFRESH_MS);
+        };
+        adBlockRecoveryTimeout.start(AD_BLOCK_RECOVERY_REFRESH_MS);
+      },
+      [adBlockRecoveryTimeout, channelName]
+    );
+
     // Delay state: null = paused, number = running. Set on MANIFEST_PARSED, cleared on teardown.
-    const [heartbeatDelay, setHeartbeatDelay] = useState<number | null>(null);
     const [memoryCleanupDelay, setMemoryCleanupDelay] = useState<number | null>(null);
 
     // Apple volume on mount and change
@@ -173,6 +250,9 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     }, []);
 
     const shieldAdPresentation = useCallback(() => {
+      if (!isPresentationShieldedRef.current) {
+        onBeforeAdPresentationShieldRef.current?.();
+      }
       invalidatePresentationRecovery();
       const video = videoRef.current;
       if (!video) return;
@@ -180,7 +260,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         unshieldedOpacityRef.current = video.style.opacity;
       }
       isPresentationShieldedRef.current = true;
-      video.setAttribute("data-streamfusion-ad-presentation-shielded", "true");
+      video.setAttribute(TWITCH_AD_PRESENTATION_SHIELD_ATTRIBUTE, "true");
       video.style.opacity = "0";
       video.muted = true;
     }, [invalidatePresentationRecovery]);
@@ -191,7 +271,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       if (!video || !isPresentationShieldedRef.current) return;
 
       isPresentationShieldedRef.current = false;
-      video.removeAttribute("data-streamfusion-ad-presentation-shielded");
+      video.removeAttribute(TWITCH_AD_PRESENTATION_SHIELD_ATTRIBUTE);
       video.style.opacity = unshieldedOpacityRef.current;
       video.muted = requestedMutedRef.current;
     }, [invalidatePresentationRecovery]);
@@ -220,8 +300,9 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
             pendingSafeStatusRef.current = null;
             isPresentationShieldedRef.current = false;
             video.muted = requestedMutedRef.current;
-            video.removeAttribute("data-streamfusion-ad-presentation-shielded");
+            video.removeAttribute(TWITCH_AD_PRESENTATION_SHIELD_ATTRIBUTE);
             video.style.opacity = unshieldedOpacityRef.current;
+            onVerifiedCleanAdPresentationRef.current?.();
             if (safeStatus) publishAdBlockStatus(safeStatus);
           });
         };
@@ -233,68 +314,6 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
 
     // Expose video ref to parent
     useImperativeHandle(ref, () => videoRef.current as HTMLVideoElement);
-
-    // Heartbeat: check every 1s that fragments are still arriving.
-    // Active only while heartbeatDelay is a number (set by MANIFEST_PARSED, cleared on teardown).
-    useInterval(() => {
-      const hls = hlsRef.current;
-      const video = videoRef.current;
-      if (!isEffectActiveRef.current || !hls) {
-        setHeartbeatDelay(null);
-        return;
-      }
-
-      if (video?.paused) {
-        lastFragLoadedTimeRef.current = Date.now();
-        return;
-      }
-
-      const now = Date.now();
-      const timeSinceLastFrag = now - lastFragLoadedTimeRef.current;
-      const adBlockStatus = adBlockStatusRef.current;
-      const isAdBlockHoldingPlayback =
-        enableAdBlock &&
-        !!adBlockStatus &&
-        (adBlockStatus.isShowingAd ||
-          adBlockStatus.isStrippingSegments ||
-          adBlockStatus.isUsingFallbackMode);
-
-      if (isAdBlockHoldingPlayback) {
-        lastFragLoadedTimeRef.current = now;
-        manifestParsedTimeRef.current = now;
-        return;
-      }
-
-      if (!hasReceivedFirstFragmentRef.current) {
-        const manifestParsedTime = manifestParsedTimeRef.current;
-        if (manifestParsedTime && now - manifestParsedTime >= LIVE_FRAGMENT_OFFLINE_GRACE_MS) {
-          logger.debug("Player:Twitch:HLS", "no fragments received after manifest", {
-            secondsSinceManifest: Math.round((now - manifestParsedTime) / 1000),
-          });
-          try {
-            hls.startLoad(-1);
-          } catch (error) {
-            logger.debug("Player:Twitch:HLS", "fragment watchdog recovery failed", { error });
-          }
-          manifestParsedTimeRef.current = now;
-          lastFragLoadedTimeRef.current = now;
-        }
-        return;
-      }
-
-      if (timeSinceLastFrag >= LIVE_FRAGMENT_OFFLINE_GRACE_MS) {
-        logger.debug("Player:Twitch:HLS", "no fragments - stream appears to have ended", {
-          secondsSinceLastFragment: Math.round(timeSinceLastFrag / 1000),
-        });
-        try {
-          hls.startLoad(-1);
-        } catch (error) {
-          logger.debug("Player:Twitch:HLS", "fragment watchdog recovery failed", { error });
-        }
-        lastFragLoadedTimeRef.current = now;
-        return;
-      }
-    }, heartbeatDelay);
 
     // Memory cleanup every 10 minutes: reset to live edge and trigger browser GC.
     useInterval(() => {
@@ -329,13 +348,13 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           });
         }
 
-        // Restore after a tick to let HLS.js process the trim
-        // timer-allowlist: HLS.js backBufferLength restore — no awaitable completion signal (SP2 explicitly out-of-scope)
-        setTimeout(() => {
+        // Restore after a tick to let HLS.js process the trim.
+        memoryRestoreActionRef.current = () => {
           if (hls && isEffectActiveRef.current) {
             hls.config.backBufferLength = originalBackBuffer;
           }
-        }, 1000);
+        };
+        memoryRestoreTimeout.start(1000);
 
         const globalGc = (globalThis as unknown as { gc?: () => void }).gc;
         if (typeof globalGc === "function") {
@@ -350,21 +369,43 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     // Store callbacks in refs
     const onQualityLevelsRef = useRef(onQualityLevels);
     const onActiveQualityChangeRef = useRef(onActiveQualityChange);
-    const onErrorRef = useRef(onError);
-    const onAdBlockRecoveryRefreshRef = useRef(onAdBlockRecoveryRefresh);
     const onHlsInstanceRef = useRef(onHlsInstance);
+    const onCleanPresentedFrameRef = useRef(onCleanPresentedFrame);
     const currentLevelRef = useRef(currentLevel);
     const preferredQualityRef = useRef(preferredQuality);
     const parsedQualityLevelsRef = useRef<QualityLevel[]>([]);
     const appliedPreferredQualityRef = useRef<string | null>(null);
+
+    const stallRecovery = useLivePlaybackStallRecovery({
+      sourceKey: src,
+      enabled: true,
+      videoRef,
+      hlsRef,
+      onErrorRef,
+      onCleanPresentedFrameRef,
+      onRecoveryStateChangeRef: onPlaybackRecoveryStateChangeRef,
+      onHlsInstanceRef,
+      isActiveRef: isEffectActiveRef,
+      shouldSuppress: () => {
+        const status = adBlockStatusRef.current;
+        return (
+          enableAdBlock &&
+          !!status &&
+          (status.isShowingAd || status.isStrippingSegments || status.isUsingFallbackMode)
+        );
+      },
+    });
 
     useEffect(() => {
       onQualityLevelsRef.current = onQualityLevels;
       onActiveQualityChangeRef.current = onActiveQualityChange;
       onErrorRef.current = onError;
       onAdBlockStatusChangeRef.current = onAdBlockStatusChange;
-      onAdBlockRecoveryRefreshRef.current = onAdBlockRecoveryRefresh;
       onHlsInstanceRef.current = onHlsInstance;
+      onCleanPresentedFrameRef.current = onCleanPresentedFrame;
+      onPlaybackRecoveryStateChangeRef.current = onPlaybackRecoveryStateChange;
+      onBeforeAdPresentationShieldRef.current = onBeforeAdPresentationShield;
+      onVerifiedCleanAdPresentationRef.current = onVerifiedCleanAdPresentation;
       currentLevelRef.current = currentLevel;
       preferredQualityRef.current = preferredQuality;
     }, [
@@ -372,8 +413,11 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       onActiveQualityChange,
       onError,
       onAdBlockStatusChange,
-      onAdBlockRecoveryRefresh,
       onHlsInstance,
+      onCleanPresentedFrame,
+      onPlaybackRecoveryStateChange,
+      onBeforeAdPresentationShield,
+      onVerifiedCleanAdPresentation,
       currentLevel,
       preferredQuality,
     ]);
@@ -396,10 +440,12 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       let unsubscribeStatus: (() => void) | undefined;
       const handleStatus = (status: AdBlockStatus) => {
         if (isUnsafeAdPresentation(status)) {
+          armAdBlockRecoveryWatchdog();
           shieldAdPresentation();
           publishAdBlockStatus(status);
           return;
         }
+        clearAdBlockRecoveryWatchdog();
         if (isPresentationShieldedRef.current) {
           pendingSafeStatusRef.current = status;
           return;
@@ -464,15 +510,18 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
 
       return () => {
         unsubscribeStatus?.();
+        clearAdBlockRecoveryWatchdog();
         invalidatePresentationRecovery();
         // Clear stream info on unmount
         if (channelName) {
-          clearStreamInfo(channelName);
+          clearStreamInfo(channelName, { preservePlayerReloadGuard: true });
         }
       };
     }, [
       enableAdBlock,
       channelName,
+      armAdBlockRecoveryWatchdog,
+      clearAdBlockRecoveryWatchdog,
       clearPresentationShield,
       invalidatePresentationRecovery,
       publishAdBlockStatus,
@@ -499,42 +548,37 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       }
     }, [currentLevel]);
 
-    // Player control callbacks for ad-block service
-    const handlePlayerReload = useCallback((reason: PlayerReloadReason) => {
-      const video = videoRef.current;
+    // Ad lifecycle notifications never own playback or HLS loading state.
+    const handleAdBlockTransition = useCallback((reason: PlayerReloadReason) => {
       const hls = hlsRef.current;
-      if (!video || !hls) return;
+      if (!hls) return;
 
-      logger.debug("Player:Twitch:HLS", "ad-block triggered player reload", { reason });
-      // Restart from live edge.
-      hls.startLoad(-1);
+      logger.debug("Player:Twitch:HLS", "ad-block playlist transition", { reason });
+      if (reason === "ad-started") {
+        return;
+      }
 
       if (reason === "ad-ended") {
-        logger.debug("Player:Twitch:HLS", "refreshing playback URL after ad-block completion");
-        onAdBlockRecoveryRefreshRef.current?.();
-      }
-    }, []);
-
-    const handlePauseResume = useCallback(() => {
-      const video = videoRef.current;
-      if (!video) return;
-
-      logger.debug("Player:Twitch:HLS", "ad-block triggered pause/resume");
-      if (!video.paused) {
-        video.pause();
-        // timer-allowlist: ad-block triggered video.play() retry delay (SP2 explicitly out-of-scope)
-        setTimeout(() => {
-          video.play().catch(() => {});
-        }, 100);
+        const preferred = preferredQualityRef.current;
+        const levels = parsedQualityLevelsRef.current;
+        if (preferred !== undefined && levels.length > 0) {
+          applyPreferredQuality(hls, levels, preferred);
+          appliedPreferredQualityRef.current = String(preferred).toLowerCase();
+        }
+        logger.debug(
+          "Player:Twitch:HLS",
+          "resuming original Twitch session after ad-block completion"
+        );
       }
     }, []);
 
     // Register player callbacks with ad-block service
     useEffect(() => {
       if (enableAdBlock) {
-        setPlayerCallbacks(handlePlayerReload, handlePauseResume);
+        return setPlayerCallbacks(channelName, handleAdBlockTransition);
       }
-    }, [enableAdBlock, handlePlayerReload, handlePauseResume]);
+      return undefined;
+    }, [channelName, enableAdBlock, handleAdBlockTransition]);
 
     // Handle quality level changes without re-initializing HLS
     useEffect(() => {
@@ -569,11 +613,9 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       lastRecoveryAttemptRef.current = null;
       parsedQualityLevelsRef.current = [];
       appliedPreferredQualityRef.current = null;
-
-      // Reset heartbeat mutable state for this stream
-      lastFragLoadedTimeRef.current = Date.now();
-      manifestParsedTimeRef.current = null;
-      hasReceivedFirstFragmentRef.current = false;
+      if (adBlockStatusRef.current && isUnsafeAdPresentation(adBlockStatusRef.current)) {
+        armAdBlockRecoveryWatchdog();
+      }
 
       let hls: Hls | null = null;
       let handleLoadedMetadata: (() => void) | null = null;
@@ -581,14 +623,38 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       let handleLivePauseStopLoad: (() => void) | null = null;
       let handleLivePlayStartLoad: (() => void) | null = null;
 
+      const releaseHls = () => {
+        const instance = hls;
+        if (!instance || hlsRef.current !== instance) return;
+        try {
+          instance.stopLoad();
+        } catch {
+          // The loader may already be stopped.
+        }
+        try {
+          instance.detachMedia();
+        } catch {
+          // The media pipeline may already be detached.
+        }
+        try {
+          instance.destroy();
+        } catch (error) {
+          logger.warn("Player:Twitch:HLS", "HLS destruction failed", {
+            errorName: error instanceof Error ? error.name : "unknown",
+          });
+        }
+        hlsRef.current = null;
+        onHlsInstanceRef.current?.(null);
+      };
+
       const safePlay = () => {
-        if (!isEffectActive || !video) return;
+        if (!isEffectActive || !video || !autoPlayRef.current) return;
 
         const currentRequestId = ++playRequestIdRef.current;
 
-        // timer-allowlist: HLS.js safePlay browser-settle delay (SP2 explicitly out-of-scope)
-        setTimeout(() => {
+        safePlayActionRef.current = () => {
           if (!isEffectActive || currentRequestId !== playRequestIdRef.current) return;
+          if (!autoPlayRef.current) return;
           if (!video.paused) return;
 
           pendingPlayRef.current = video.play();
@@ -617,7 +683,8 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
                 logger.error("Player:Twitch:HLS", "playback failed", { error: e });
               }
             });
-        }, 50);
+        };
+        safePlayTimeout.start(50);
       };
 
       const isHls = src.includes(".m3u8") || src.includes("usher.ttvnw.net");
@@ -635,7 +702,8 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         );
 
         hls = new Hls({
-          enableWorker: true,
+          // Keep long-lived segment buffers out of the worker transfer boundary.
+          enableWorker: false,
           lowLatencyMode: bufferConfig.lowLatencyMode,
           startFragPrefetch: true,
 
@@ -690,7 +758,6 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         };
         handleLivePlayStartLoad = () => {
           if (!isEffectActive || !hlsRef.current) return;
-          lastFragLoadedTimeRef.current = Date.now();
           hlsRef.current.startLoad(-1);
         };
         video.addEventListener("pause", handleLivePauseStopLoad);
@@ -727,7 +794,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           });
           parsedQualityLevelsRef.current = levels;
 
-          if (autoPlay && isMountedRef.current) {
+          if (autoPlayRef.current && isMountedRef.current) {
             safePlay();
           }
 
@@ -806,6 +873,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
 
         // Error handling
         hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) stallRecovery.noteNetworkError();
           // Silent errors: non-fatal issues that HLS.js handles automatically
           // - bufferSeekOverHole: HLS.js seeked over a buffer gap to unstuck playback (normal behavior)
           // - bufferNudgeOnStall: HLS.js nudged playhead to recover from stall (normal behavior)
@@ -825,9 +893,22 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
             (data.response as any)?.status ||
             (data.networkDetails as any)?.status;
 
-          if (data.details === "manifestLoadError" && (statusCode === 404 || statusCode === 403)) {
+          if (data.details === "manifestLoadError" && statusCode === 403) {
+            logger.debug("Player:Twitch:HLS", "playback token rejected", { statusCode });
+            releaseHls();
+            onErrorRef.current?.({
+              code: "TOKEN_EXPIRED",
+              message: "Twitch playback token expired or was rejected",
+              fatal: true,
+              shouldRefresh: true,
+              originalError: data,
+            });
+            return;
+          }
+
+          if (data.details === "manifestLoadError" && statusCode === 404) {
             logger.debug("Player:Twitch:HLS", "stream unavailable", { statusCode });
-            hls?.destroy();
+            releaseHls();
             onErrorRef.current?.({
               code: "STREAM_OFFLINE",
               message: "Stream offline or unavailable",
@@ -873,7 +954,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
                       fatal: true,
                       originalError: data,
                     });
-                    hls?.destroy();
+                    releaseHls();
                   }
                 } else {
                   // Already tried recovery recently, stream is likely truly offline
@@ -887,7 +968,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
                     fatal: true,
                     originalError: data,
                   });
-                  hls?.destroy();
+                  releaseHls();
                 }
                 break;
               }
@@ -905,7 +986,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
                     fatal: true,
                     originalError: data,
                   });
-                  hls?.destroy();
+                  releaseHls();
                 }
                 break;
               }
@@ -917,7 +998,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
                   fatal: true,
                   originalError: data,
                 });
-                hls?.destroy();
+                releaseHls();
                 break;
             }
           }
@@ -925,18 +1006,16 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
 
         // Fragment loading tracker for offline detection
         hls.on(Hls.Events.FRAG_LOADED, () => {
-          lastFragLoadedTimeRef.current = Date.now();
-          hasReceivedFirstFragmentRef.current = true;
+          stallRecovery.noteFragmentLoaded();
+          if (adBlockStatusRef.current && isUnsafeAdPresentation(adBlockStatusRef.current)) {
+            armAdBlockRecoveryWatchdog(true);
+          }
         });
 
         // Activate heartbeat and memory cleanup via useInterval.
         // The actual interval logic lives in the useInterval hooks above.
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          const now = Date.now();
-          manifestParsedTimeRef.current = now;
-          lastFragLoadedTimeRef.current = now;
-          hasReceivedFirstFragmentRef.current = false;
-          setHeartbeatDelay(LIVE_FRAGMENT_WATCHDOG_INTERVAL_MS);
+          stallRecovery.noteManifestParsed();
           setMemoryCleanupDelay(LIVE_MEMORY_CLEANUP_INTERVAL_MS);
         });
 
@@ -951,7 +1030,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         logger.debug("Player:Twitch:HLS", "using native HLS");
         video.src = src;
         handleLoadedMetadata = () => {
-          if (autoPlay && isMountedRef.current) safePlay();
+          if (autoPlayRef.current && isMountedRef.current) safePlay();
         };
         handleError = (e: Event) => {
           onErrorRef.current?.({
@@ -967,7 +1046,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         // Standard playback
         logger.debug("Player:Twitch:HLS", "using standard native playback");
         handleLoadedMetadata = () => {
-          if (autoPlay && isMountedRef.current) safePlay();
+          if (autoPlayRef.current && isMountedRef.current) safePlay();
 
           // Emit single source quality for native playback so UI shows something
           if (onQualityLevelsRef.current && video.videoHeight) {
@@ -1004,16 +1083,15 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         isEffectActiveRef.current = false;
         isMountedRef.current = false;
         pendingPlayRef.current = null;
+        playRequestIdRef.current += 1;
+        safePlayActionRef.current = null;
+        memoryRestoreActionRef.current = null;
+        safePlayTimeout.clear();
+        memoryRestoreTimeout.clear();
+        clearAdBlockRecoveryWatchdog();
         invalidatePresentationRecovery();
 
-        // Pause the useInterval hooks
-        setHeartbeatDelay(null);
         setMemoryCleanupDelay(null);
-
-        if (hls) {
-          hls.destroy();
-        }
-        hlsRef.current = null;
 
         if (currentVideo) {
           if (handleLoadedMetadata) {
@@ -1028,22 +1106,41 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           if (handleLivePlayStartLoad) {
             currentVideo.removeEventListener("play", handleLivePlayStartLoad);
           }
+          try {
+            currentVideo.pause();
+          } catch {
+            // The media element may already be detached during shutdown.
+          }
+        }
+
+        if (hlsRef.current === hls) releaseHls();
+        else if (hls === null) onHlsInstanceRef.current?.(null);
+
+        try {
+          currentVideo.removeAttribute("src");
+          currentVideo.load();
+        } catch {
+          // Best-effort release of the native media pipeline.
         }
 
         // Clear stream info
         if (channelName) {
-          clearStreamInfo(channelName);
+          clearStreamInfo(channelName, { preservePlayerReloadGuard: true });
         }
       };
     }, [
       src,
-      autoPlay,
       channelName,
       enableAdBlock,
+      armAdBlockRecoveryWatchdog,
+      clearAdBlockRecoveryWatchdog,
       invalidatePresentationRecovery,
       publishAdBlockStatus,
       revealOnCleanPresentation,
+      safePlayTimeout,
       shieldAdPresentation,
+      stallRecovery,
+      memoryRestoreTimeout,
     ]);
 
     return <video ref={videoRef} playsInline className="size-full object-contain" {...props} />;

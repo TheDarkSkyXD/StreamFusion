@@ -36,7 +36,6 @@ const meta = {
     onError: fn(),
     onHlsInstance: fn(),
     onAdBlockStatusChange: fn(),
-    onAdBlockRecoveryRefresh: fn(),
   },
 } satisfies Meta<typeof TwitchHlsPlayer>;
 

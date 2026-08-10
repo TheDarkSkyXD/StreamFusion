@@ -12,14 +12,13 @@ import {
 } from "react";
 
 import type { PlayerError } from "@/components/player/types";
+import { useTwitchLiveRecovery } from "@/components/player/hooks/use-twitch-live-recovery";
 import { useRegisterDockedPlayerConfig } from "@/components/player/persistent-player-shell";
+import { OfflineOverlay } from "@/components/player/offline-overlay";
 import { StreamRecordingControl } from "@/components/recording/stream-recording-control";
 import { StreamInfo } from "@/components/stream/stream-info";
 import { useChatDisplay } from "@/components/settings/ChatSettingsSection";
-import { Button } from "@/components/ui/button";
 import { KickLoadingSpinner, TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
-import { PlatformAvatar } from "@/components/ui/platform-avatar";
-import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
 import { removeFollowedStreamFromCache, useStreamByChannel } from "@/hooks/queries/useStreams";
 import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
@@ -55,6 +54,21 @@ function normalizeChannelLogin(value: string | undefined): string {
   return (value ?? "").trim().toLowerCase();
 }
 
+function twitchLivePreviewUrl(channelName: string): string {
+  return `https://static-cdn.jtvnw.net/previews-ttv/live_user_${normalizeChannelLogin(channelName)}-440x248.jpg`;
+}
+
+function isTwitchRecoveryCandidate(error: PlayerError): boolean {
+  return (
+    error.shouldRefresh === true ||
+    error.code === "TOKEN_EXPIRED" ||
+    error.code === "NO_FRAGMENTS" ||
+    error.code === "STREAM_OFFLINE" ||
+    error.code === "DECODER_STALL" ||
+    error.code === "PLAYBACK_STALL"
+  );
+}
+
 function selectChannelDisplayName(
   channelLogin: string,
   channelDisplayName: string | undefined,
@@ -73,92 +87,6 @@ function selectChannelDisplayName(
   }
 
   return channelDisplay || streamDisplay || login;
-}
-
-interface OfflineOverlayProps {
-  platform: Platform;
-  channelName: string;
-  displayName?: string;
-  avatarUrl?: string;
-  bannerUrl?: string;
-  categoryName?: string;
-  lastStreamTitle?: string;
-  statusMessage?: string;
-  onCheckAgain: () => void;
-}
-
-function OfflineOverlay({
-  platform,
-  channelName,
-  displayName,
-  avatarUrl,
-  bannerUrl,
-  categoryName,
-  lastStreamTitle,
-  statusMessage = "is currently offline",
-  onCheckAgain,
-}: OfflineOverlayProps) {
-  const name = displayName || channelName;
-
-  return (
-    <div className="absolute inset-0 z-20 overflow-hidden">
-      {bannerUrl ? (
-        <ProxiedImage
-          src={bannerUrl}
-          alt="Offline banner"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-      ) : avatarUrl ? (
-        <>
-          <ProxiedImage
-            src={avatarUrl}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover blur-3xl scale-150 opacity-40"
-            fallback={<div className="absolute inset-0 bg-[var(--color-background-secondary)]" />}
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-black" />
-        </>
-      ) : (
-        <div className="absolute inset-0 bg-gradient-to-b from-purple-900/50 via-neutral-900 to-black" />
-      )}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/55 to-black/80" />
-      <div className="absolute inset-0 flex flex-col items-center justify-center px-6">
-        {avatarUrl && !bannerUrl && (
-          <div className="mb-6">
-            <PlatformAvatar
-              src={avatarUrl}
-              alt={name}
-              platform={platform}
-              size="w-24 h-24"
-              className="border-4 border-white/20 shadow-2xl"
-              disablePlatformBorder
-            />
-          </div>
-        )}
-        <div className="text-center max-w-xl">
-          <p className="text-white text-3xl font-bold mb-2 drop-shadow-lg">{name}</p>
-          <p className="text-white/70 text-lg mb-4">{statusMessage}</p>
-          {lastStreamTitle && (
-            <p className="text-white/90 text-base font-medium line-clamp-2 mb-2">
-              {lastStreamTitle}
-            </p>
-          )}
-          {categoryName && (
-            <p className="text-white/70 text-sm mb-8">Last streamed in {categoryName}</p>
-          )}
-          {!categoryName && !lastStreamTitle && <div className="mb-8" />}
-          <Button
-            variant="outline"
-            size="lg"
-            className="bg-white/10 border-white/30 hover:bg-white/20 backdrop-blur-sm"
-            onClick={onCheckAgain}
-          >
-            Check Again
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 export function StreamPage() {
@@ -216,6 +144,10 @@ export function StreamPage() {
     channelDataMatchesRoute && !isChannelPlaceholderData ? channelData : null;
   const detailStreamData =
     streamDataMatchesRoute && !isStreamPlaceholderData ? streamData : undefined;
+  const twitchPoster =
+    routePlatform === "twitch"
+      ? detailStreamData?.thumbnailUrl?.trim() || twitchLivePreviewUrl(channelName)
+      : undefined;
   const visibleDisplayName = selectChannelDisplayName(
     detailChannelData?.username || channelName,
     detailChannelData?.displayName,
@@ -273,7 +205,12 @@ export function StreamPage() {
   const { cd: chatDisplay } = useChatDisplay();
   const canMountChatPanel =
     routePlatform === "kick"
-      ? Boolean(channelDataMatchesRoute && channelData?.id && channelData?.chatroomId)
+      ? Boolean(
+          channelDataMatchesRoute &&
+            channelData?.id &&
+            channelData?.kickChannelId &&
+            channelData?.chatroomId
+        )
       : Boolean(channelDataMatchesRoute && channelData?.id);
 
   // Theater Mode Logic - synced with app store for sidebar auto-collapse
@@ -520,6 +457,32 @@ export function StreamPage() {
     ]
   );
 
+  const handleTwitchRecoveryExhausted = useCallback(
+    (error: PlayerError) => {
+      const exhaustedError: PlayerError = {
+        ...error,
+        code: "PLAYBACK_RECOVERY_EXHAUSTED",
+        message: "Playback stopped after two automatic recovery attempts",
+        shouldRefresh: false,
+      };
+      logger.error("Page:Stream", "Twitch playback recovery exhausted", {
+        channelName,
+        originalCode: error.code,
+      });
+      setTheaterModeActive(false);
+      setPlayerError(exhaustedError);
+    },
+    [channelName, setTheaterModeActive]
+  );
+  const twitchRecovery = useTwitchLiveRecovery({
+    sessionKey: `stream-page:${streamIdentity}`,
+    sourceRevision: playbackRevision,
+    onRefresh: reloadPlayback,
+    onExhausted: handleTwitchRecoveryExhausted,
+  });
+  const { handleError: handleTwitchRecoveryError, markPlaybackHealthy: markTwitchPlaybackHealthy } =
+    twitchRecovery;
+
   const handlePlayerError = useCallback(
     (error: PlayerError) => {
       logger.debug("Page:Stream", "handlePlayerError called", {
@@ -596,6 +559,17 @@ export function StreamPage() {
     ]
   );
 
+  const handleTwitchPlayerError = useCallback(
+    (error: PlayerError): boolean | void => {
+      if (isTwitchRecoveryCandidate(error)) {
+        return handleTwitchRecoveryError(error);
+      }
+      handlePlayerError(error);
+      return false;
+    },
+    [handlePlayerError, handleTwitchRecoveryError]
+  );
+
   useEffect(() => {
     if (!registerDockedConfig) return;
 
@@ -603,18 +577,24 @@ export function StreamPage() {
       muted: isClipDialogOpen,
       isTheater,
       startedAt: detailStreamData?.startedAt,
-      onError: handlePlayerError,
+      poster: twitchPoster,
+      onError: routePlatform === "twitch" ? handleTwitchPlayerError : handlePlayerError,
+      onCleanPresentedFrame: routePlatform === "twitch" ? markTwitchPlaybackHealthy : undefined,
       onRefresh: reloadPlayback,
       onToggleTheater: handleToggleTheater,
     });
   }, [
     handlePlayerError,
+    handleTwitchPlayerError,
     handleToggleTheater,
     isClipDialogOpen,
     isTheater,
     registerDockedConfig,
     reloadPlayback,
     detailStreamData?.startedAt,
+    twitchPoster,
+    routePlatform,
+    markTwitchPlaybackHealthy,
   ]);
 
   const hasPlayback = Boolean(playback?.url);
@@ -646,7 +626,7 @@ export function StreamPage() {
     !hasTerminalTwitchMetadataError &&
     !hasConfirmedOfflineMetadata &&
     !shouldHoldLivePlayback;
-  const shouldShowPlayerErrorOverlay = Boolean(playerError) && hasConfirmedOfflineMetadata;
+  const shouldShowPlayerErrorOverlay = Boolean(playerError);
   const shouldShowOfflineOverlay =
     !isPlaybackLoading &&
     !hasEffectiveStreamUrl &&
@@ -742,6 +722,7 @@ export function StreamPage() {
       channelName: channelName,
       channelDisplayName: visibleDisplayName || channelName,
       channelAvatar: detailChannelData?.avatarUrl,
+      poster: twitchPoster,
       streamUrl: effectiveStreamUrl,
       title: detailStreamData?.title,
       categoryName: detailStreamData?.categoryName,
@@ -752,6 +733,7 @@ export function StreamPage() {
       channelName,
       visibleDisplayName,
       detailChannelData?.avatarUrl,
+      twitchPoster,
       effectiveStreamUrl,
       detailStreamData?.title,
       detailStreamData?.categoryName,
@@ -813,13 +795,16 @@ export function StreamPage() {
                   />
                 ) : (
                   <TwitchLivePlayer
-                    key={`twitch:${channelName}:${playbackRevision}`}
+                    key={`twitch:${channelName}`}
                     streamUrl={effectiveStreamUrl}
                     channelName={channelName}
+                    poster={twitchPoster}
                     autoPlay={true}
                     muted={isClipDialogOpen}
                     onReady={() => logger.debug("Page:Stream", "twitch live player ready")}
-                    onError={handlePlayerError}
+                    onError={handleTwitchPlayerError}
+                    onCleanPresentedFrame={markTwitchPlaybackHealthy}
+                    recoveryManagedExternally
                     isTheater={isTheater}
                     onToggleTheater={handleToggleTheater}
                     onRefresh={reloadPlayback}
@@ -874,7 +859,8 @@ export function StreamPage() {
                 bannerUrl={overlayBannerUrl}
                 categoryName={overlayCategoryName}
                 lastStreamTitle={overlayStreamTitle}
-                onCheckAgain={handleCheckAgain}
+                statusMessage="Playback interrupted"
+                onCheckAgain={handlePlaybackCheckAgain}
               />
             )}
             {/* Show offline only after metadata confirms the stream is offline.
@@ -947,6 +933,9 @@ export function StreamPage() {
                 initialPlatform={routePlatform as "twitch" | "kick"}
                 initialChannel={channelName}
                 channelId={channelData?.id}
+                kickChannelId={
+                  routePlatform === "kick" ? channelData?.kickChannelId : undefined
+                }
                 chatroomId={routePlatform === "kick" ? channelData?.chatroomId : undefined}
                 kickUserId={routePlatform === "kick" ? channelData?.kickUserId : undefined}
                 subscriberBadges={memoizedSubscriberBadges}

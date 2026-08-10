@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fireEvent, renderWithProviders, routerMock, screen, waitFor } from "../test-utils";
+import { usePlaybackPositionStore } from "@/store/playback-position-store";
 
 const removeFromHistory = vi.fn();
 const clearHistory = vi.fn();
@@ -73,6 +74,7 @@ describe("HistoryPage", () => {
     clearHistory.mockReset();
     navigate.mockReset();
     mockHistory = [];
+    usePlaybackPositionStore.setState({ positions: {} });
     (window as any).electronAPI = {
       videos: {
         getPlaybackUrl: vi.fn().mockResolvedValue({ success: true, data: { url: "vod.m3u8" } }),
@@ -97,6 +99,47 @@ describe("HistoryPage", () => {
         }),
       },
     };
+  });
+
+  it("shows saved progress on VOD history entries using the saved duration", () => {
+    usePlaybackPositionStore.getState().savePosition("twitch", "v1", 120, 480);
+    mockHistory = [
+      {
+        id: "twitch-video-v1",
+        originalId: "v1",
+        title: "Partly watched VOD",
+        platform: "twitch",
+        type: "video",
+        channelName: "ninja",
+        timestamp: Date.now(),
+      },
+    ];
+
+    renderWithProviders(<HistoryPage />);
+
+    expect(screen.getByRole("progressbar", { name: "Watch progress" })).toHaveAttribute(
+      "aria-valuenow",
+      "25"
+    );
+  });
+
+  it("does not show VOD progress on clip history entries", () => {
+    usePlaybackPositionStore.getState().savePosition("kick", "c1", 120, 480);
+    mockHistory = [
+      {
+        id: "kick-clip-c1",
+        originalId: "c1",
+        title: "A clip",
+        platform: "kick",
+        type: "clip",
+        channelName: "xqc",
+        timestamp: Date.now(),
+      },
+    ];
+
+    renderWithProviders(<HistoryPage />);
+
+    expect(screen.queryByRole("progressbar", { name: "Watch progress" })).not.toBeInTheDocument();
   });
 
   it("shows empty-state when no history exists", () => {

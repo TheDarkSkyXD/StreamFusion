@@ -39,8 +39,6 @@ interface PlaybackPositionState {
 
 const createKey = (platform: string, videoId: string) => `${platform}-${videoId}`;
 
-// Consider a video "finished" if they watched over 95% of it
-const COMPLETION_THRESHOLD = 0.95;
 // Minimum time watched before saving (don't save if they only watched 10 seconds)
 const MIN_WATCH_TIME = 30;
 // Max items to keep in storage
@@ -54,15 +52,6 @@ export const usePlaybackPositionStore = create<PlaybackPositionState>()(
       savePosition: (platform, videoId, position, duration, title, thumbnail) => {
         // Don't save if they haven't watched enough
         if (position < MIN_WATCH_TIME) return;
-
-        // Don't save if they're near the end (finished watching)
-        if (duration > 0 && position / duration > COMPLETION_THRESHOLD) {
-          // Remove if it exists (they finished it)
-          const key = createKey(platform, videoId);
-          const { [key]: __, ...rest } = get().positions;
-          set({ positions: rest });
-          return;
-        }
 
         const key = createKey(platform, videoId);
         const newPosition: PlaybackPosition = {

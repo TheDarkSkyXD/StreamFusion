@@ -1,5 +1,5 @@
 import { act } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PlayerError } from "@/components/player/types";
@@ -50,14 +50,19 @@ const mockSetCurrentStream = vi.fn();
 const mockSetIsOnStreamPage = vi.fn();
 const mockUseStreamPlayback = vi.fn();
 const playerMocks = vi.hoisted(() => ({
+  twitchLivePlayerMountSerial: 0,
   twitchLivePlayerProps: null as null | {
-    onError?: (error: PlayerError) => void;
+    onError?: (error: PlayerError) => boolean | void;
+    onCleanPresentedFrame?: () => void;
+    recoveryManagedExternally?: boolean;
     streamUrl?: string;
+    poster?: string;
   },
   kickLivePlayerProps: null as null | {
     onError?: (error: PlayerError) => void;
     streamUrl?: string;
   },
+  chatPanelProps: null as null | Record<string, unknown>,
 }));
 const mockReloadPlayback = vi.fn();
 
@@ -104,9 +109,20 @@ vi.mock("@/store/pip-store", () => ({
 }));
 
 vi.mock("@/components/player/twitch", () => ({
-  TwitchLivePlayer: (props: { onError?: (error: PlayerError) => void; streamUrl?: string }) => {
+  TwitchLivePlayer: (props: {
+    onError?: (error: PlayerError) => boolean | void;
+    onCleanPresentedFrame?: () => void;
+    recoveryManagedExternally?: boolean;
+    streamUrl?: string;
+    poster?: string;
+  }) => {
     playerMocks.twitchLivePlayerProps = props;
-    return <div data-testid="twitch-live-player">player</div>;
+    const [mountId] = useState(() => ++playerMocks.twitchLivePlayerMountSerial);
+    return (
+      <div data-testid="twitch-live-player" data-mount-id={mountId}>
+        player
+      </div>
+    );
   },
 }));
 
@@ -118,7 +134,10 @@ vi.mock("@/components/player/kick", () => ({
 }));
 
 vi.mock("@/components/chat", () => ({
-  ChatPanel: () => <div data-testid="chat-panel">chat</div>,
+  ChatPanel: (props: Record<string, unknown>) => {
+    playerMocks.chatPanelProps = props;
+    return <div data-testid="chat-panel">chat</div>;
+  },
 }));
 
 vi.mock("@/components/stream/related-content", () => ({
@@ -166,11 +185,8 @@ vi.mock("@/components/stream/stream-info", () => ({
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
 import { useStreamByChannel } from "@/hooks/queries/useStreams";
 import { PersistentPlayerShell } from "@/components/player/persistent-player-shell";
-import { StreamPage } from "@/pages/Stream";
-import {
-  DEFAULT_CHAT_DISPLAY_PREFERENCES,
-  DEFAULT_CHAT_PREFERENCES,
-} from "@/shared/auth-types";
+import { preloadChatPanel, StreamPage } from "@/pages/Stream";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_CHAT_PREFERENCES } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
 const useChannelMock = vi.mocked(useChannelByUsername);
@@ -231,6 +247,7 @@ function routeChannel(
 // Guards: failed Twitch watchdog status rechecks release the same-revision gate for a later hint without reloading playback.
 // Guards: live playback rechecks are one-shot per playback revision, so repeated refreshable token/source errors do not spam reloads or remount the same bad URL.
 // Guards: a new playback revision may recheck immediately; live playback recovery must not depend on a timer cooldown that can interrupt viewers later.
+// Guards: same-channel Twitch playback revisions update the source without remounting the player surface.
 // Guards: stream-ended reloads clear stale playback only after metadata confirms offline; a transient Twitch playback "offline" error while metadata still says live does not reload.
 // Guards: offline/player-error stream pages clear PiP state so a stale live stream cannot spawn the mini-player after route navigation.
 // Guards: Kick live playback also rechecks before showing offline, so signed CDN gaps do not falsely mark a live channel offline.
@@ -255,6 +272,7 @@ function routeChannel(
 // Guards: successful non-placeholder Twitch stream data for another route cannot falsely confirm the current channel offline
 // Guards: changing Twitch routes clears the previous player's fatal error so the new channel can show its loading state
 // Guards: playable live Stream pages start direct-to-file recording with the provider's stable live Stream identity
+// Guards: Twitch ad shielding always receives a poster owned by the current route, even before route-matched stream metadata arrives.
 describe("StreamPage", () => {
   beforeEach(() => {
     useChannelMock.mockReset();
@@ -275,7 +293,9 @@ describe("StreamPage", () => {
     mockNavigate.mockReset();
     mockRemoveFollowedStreamFromCache.mockClear();
     playerMocks.twitchLivePlayerProps = null;
+    playerMocks.twitchLivePlayerMountSerial = 0;
     playerMocks.kickLivePlayerProps = null;
+    playerMocks.chatPanelProps = null;
     mockSetCurrentStream.mockClear();
     mockSetIsOnStreamPage.mockClear();
   });
@@ -285,6 +305,7 @@ describe("StreamPage", () => {
       setChatPosition("right");
       setChatWidthPx(340);
     });
+    vi.useRealTimers();
   });
 
   it("renders the Twitch live player + chat for a twitch route", async () => {
@@ -292,13 +313,106 @@ describe("StreamPage", () => {
       typeof useChannelByUsername
     >);
     useStreamMock.mockReturnValue({
-      data: fixtures.stream({ channelName: "ninja", title: "Going live" }),
+      data: fixtures.stream({
+        channelName: "ninja",
+        title: "Going live",
+        thumbnailUrl: "https://images.example.test/ninja-current.jpg",
+      }),
       isLoading: false,
     } as ReturnType<typeof useStreamByChannel>);
     mockPlaybackState.playback = { url: "https://usher.ttvnw.net/api/channel/hls/ninja.m3u8" };
     renderWithProviders(<StreamPage />);
     expect(await screen.findByTestId("twitch-live-player")).toBeInTheDocument();
+    expect(playerMocks.twitchLivePlayerProps?.poster).toBe(
+      "https://images.example.test/ninja-current.jpg"
+    );
     expect(await screen.findByTestId("chat-panel")).toBeInTheDocument();
+  });
+
+  it("passes Kick's legacy channel id to chat on the first resolved route", async () => {
+    mockRouteParams.params.platform = "kick";
+    mockRouteParams.params.channel = "xqc";
+    useChannelMock.mockReturnValue({
+      data: routeChannel({
+        id: "broadcaster-411439",
+        kickChannelId: "legacy-668",
+        kickUserId: "411439",
+        chatroomId: 12345,
+      }),
+      isLoading: false,
+    } as ReturnType<typeof useChannelByUsername>);
+    useStreamMock.mockReturnValue({
+      data: fixtures.stream({ platform: "kick", channelName: "xqc", isLive: true }),
+      isLoading: false,
+    } as ReturnType<typeof useStreamByChannel>);
+    mockPlaybackState.playback = { url: "https://stream.kick.com/live.m3u8" };
+
+    renderWithProviders(<StreamPage />);
+
+    expect(await screen.findByTestId("chat-panel")).toBeInTheDocument();
+    expect(playerMocks.chatPanelProps).toMatchObject({
+      initialPlatform: "kick",
+      channelId: "broadcaster-411439",
+      kickChannelId: "legacy-668",
+    });
+  });
+
+  it("waits for Kick's legacy channel id before mounting chat on a cold route", async () => {
+    await preloadChatPanel();
+    mockRouteParams.params.platform = "kick";
+    mockRouteParams.params.channel = "adrianahlee";
+    const initialChannel = routeChannel({
+      id: "690439",
+      kickUserId: "690439",
+      chatroomId: 669531,
+    });
+    useChannelMock.mockReturnValue({ data: initialChannel, isLoading: false } as ReturnType<
+      typeof useChannelByUsername
+    >);
+    useStreamMock.mockReturnValue({
+      data: fixtures.stream({ platform: "kick", channelName: "adrianahlee", isLive: true }),
+      isLoading: false,
+    } as ReturnType<typeof useStreamByChannel>);
+    mockPlaybackState.playback = { url: "https://stream.kick.com/live.m3u8" };
+
+    const view = renderWithProviders(<StreamPage />);
+
+    await act(async () => {});
+    expect(screen.queryByTestId("chat-panel")).toBeNull();
+
+    useChannelMock.mockReturnValue({
+      data: { ...initialChannel, kickChannelId: "669765" },
+      isLoading: false,
+    } as ReturnType<typeof useChannelByUsername>);
+    view.rerender(<StreamPage />);
+
+    expect(await screen.findByTestId("chat-panel")).toBeInTheDocument();
+    expect(playerMocks.chatPanelProps).toMatchObject({
+      initialPlatform: "kick",
+      channelId: "690439",
+      kickChannelId: "669765",
+      chatroomId: 669531,
+    });
+  });
+
+  it("gives the Twitch player an immediate current-channel poster", async () => {
+    useChannelMock.mockReturnValue({ data: routeChannel(), isLoading: false } as ReturnType<
+      typeof useChannelByUsername
+    >);
+    useStreamMock.mockReturnValue({
+      data: fixtures.stream({ channelName: "ninja", isLive: true, thumbnailUrl: "" }),
+      isLoading: false,
+      isSuccess: true,
+      isPlaceholderData: false,
+    } as ReturnType<typeof useStreamByChannel>);
+    mockPlaybackState.playback = { url: "https://usher.ttvnw.net/api/channel/hls/ninja.m3u8" };
+
+    renderWithProviders(<StreamPage />);
+
+    expect(await screen.findByTestId("twitch-live-player")).toBeInTheDocument();
+    expect(playerMocks.twitchLivePlayerProps?.poster).toBe(
+      "https://static-cdn.jtvnw.net/previews-ttv/live_user_ninja-440x248.jpg"
+    );
   });
 
   it("starts a playable live Stream with its stable provider identity", async () => {
@@ -660,7 +774,7 @@ describe("StreamPage", () => {
     mockPlaybackState.playback = { url: "https://usher.ttvnw.net/api/channel/hls/ninja.m3u8" };
 
     const { container, rerender } = renderWithProviders(<StreamPage />);
-    await screen.findByTestId("twitch-live-player");
+    expect(screen.getByTestId("twitch-live-player")).toBeInTheDocument();
 
     act(() => {
       playerMocks.twitchLivePlayerProps?.onError?.({
@@ -1332,7 +1446,8 @@ describe("StreamPage", () => {
     expect(mockReloadPlayback).toHaveBeenCalledTimes(1);
   });
 
-  it("reloads Twitch playback once when a watchdog status recheck confirms the current route is still live", async () => {
+  it("reloads Twitch playback once after a watchdog signal", async () => {
+    vi.useFakeTimers();
     const currentLiveStream = fixtures.stream({
       channelName: "ninja",
       title: "Going live",
@@ -1363,7 +1478,7 @@ describe("StreamPage", () => {
     mockPlaybackState.playback = { url: "https://usher.ttvnw.net/api/channel/hls/ninja.m3u8" };
 
     renderWithProviders(<StreamPage />);
-    await screen.findByTestId("twitch-live-player");
+    expect(screen.getByTestId("twitch-live-player")).toBeInTheDocument();
 
     act(() => {
       playerMocks.twitchLivePlayerProps?.onError?.({
@@ -1373,13 +1488,14 @@ describe("StreamPage", () => {
       });
     });
 
-    await waitFor(() => expect(mockRefetchStream).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(mockReloadPlayback).toHaveBeenCalledTimes(1));
+    await act(async () => vi.advanceTimersByTimeAsync(1_500));
+    expect(mockRefetchStream).not.toHaveBeenCalled();
     expect(mockReloadPlayback).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/is currently offline/i)).toBeNull();
   });
 
-  it("rechecks Twitch status once per playback revision after repeated watchdog offline hints", async () => {
+  it("coalesces repeated Twitch watchdog hints into one playback refresh", async () => {
+    vi.useFakeTimers();
     useChannelMock.mockReturnValue(
       partialQueryResult<ChannelQueryResult>({
         data: routeChannel({ displayName: "Ninja", isLive: true }),
@@ -1408,7 +1524,7 @@ describe("StreamPage", () => {
     mockPlaybackState.playbackRevision = 7;
 
     const { rerender } = renderWithProviders(<StreamPage />);
-    await screen.findByTestId("twitch-live-player");
+    expect(screen.getByTestId("twitch-live-player")).toBeInTheDocument();
 
     act(() => {
       playerMocks.twitchLivePlayerProps?.onError?.({
@@ -1423,8 +1539,9 @@ describe("StreamPage", () => {
       });
     });
 
-    expect(mockRefetchStream).toHaveBeenCalledTimes(1);
-    expect(mockReloadPlayback).not.toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(1_500));
+    expect(mockRefetchStream).not.toHaveBeenCalled();
+    expect(mockReloadPlayback).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("twitch-live-player")).toBeInTheDocument();
 
     useStreamMock.mockReturnValue(
@@ -1440,13 +1557,14 @@ describe("StreamPage", () => {
 
     rerender(<StreamPage />);
 
-    await waitFor(() => expect(screen.queryByTestId("twitch-live-player")).toBeNull());
+    expect(screen.queryByTestId("twitch-live-player")).toBeNull();
     expect(screen.getByText(/is currently offline/i)).toBeInTheDocument();
     expect(mockUseStreamPlayback).toHaveBeenLastCalledWith("twitch", "");
-    expect(mockReloadPlayback).not.toHaveBeenCalled();
+    expect(mockReloadPlayback).toHaveBeenCalledTimes(1);
   });
 
-  it("allows a later same-revision Twitch watchdog recheck after the first status recheck returns an error", async () => {
+  it("uses the next bounded Twitch attempt when a refresh produces no new source", async () => {
+    vi.useFakeTimers();
     const currentLiveStream = fixtures.stream({
       channelName: "ninja",
       title: "Going live",
@@ -1483,7 +1601,7 @@ describe("StreamPage", () => {
     mockPlaybackState.playbackRevision = 7;
 
     renderWithProviders(<StreamPage />);
-    await screen.findByTestId("twitch-live-player");
+    expect(screen.getByTestId("twitch-live-player")).toBeInTheDocument();
 
     act(() => {
       playerMocks.twitchLivePlayerProps?.onError?.({
@@ -1493,24 +1611,17 @@ describe("StreamPage", () => {
       });
     });
 
-    await waitFor(() => expect(mockRefetchStream).toHaveBeenCalledTimes(1));
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await act(async () => vi.advanceTimersByTimeAsync(1_500));
+    expect(mockRefetchStream).not.toHaveBeenCalled();
+    expect(mockReloadPlayback).toHaveBeenCalledTimes(1);
 
-    act(() => {
-      playerMocks.twitchLivePlayerProps?.onError?.({
-        code: "DECODER_STALL",
-        message: "Decoder stopped making progress again",
-        fatal: true,
-      });
-    });
-
-    await waitFor(() => expect(mockRefetchStream).toHaveBeenCalledTimes(2));
-    expect(mockReloadPlayback).not.toHaveBeenCalled();
+    await act(async () => vi.advanceTimersByTimeAsync(5_500));
+    expect(mockRefetchStream).not.toHaveBeenCalled();
+    expect(mockReloadPlayback).toHaveBeenCalledTimes(2);
   });
 
   it("does not spam Twitch reloads for repeated token errors on the same playback revision", async () => {
+    vi.useFakeTimers();
     useChannelMock.mockReturnValue({
       data: routeChannel({ displayName: "Ninja", isLive: true }),
       isLoading: false,
@@ -1524,10 +1635,18 @@ describe("StreamPage", () => {
     mockPlaybackState.playbackRevision = 7;
 
     renderWithProviders(<StreamPage />);
-    await screen.findByTestId("twitch-live-player");
+    expect(screen.getByTestId("twitch-live-player")).toBeInTheDocument();
 
+    let firstResult: boolean | void = undefined;
+    let secondResult: boolean | void = undefined;
     act(() => {
-      playerMocks.twitchLivePlayerProps?.onError?.({
+      firstResult = playerMocks.twitchLivePlayerProps?.onError?.({
+        code: "TOKEN_EXPIRED",
+        message: "Playback token expired",
+        fatal: true,
+        shouldRefresh: true,
+      });
+      secondResult = playerMocks.twitchLivePlayerProps?.onError?.({
         code: "TOKEN_EXPIRED",
         message: "Playback token expired",
         fatal: true,
@@ -1535,22 +1654,16 @@ describe("StreamPage", () => {
       });
     });
 
-    await waitFor(() => expect(screen.queryByTestId("twitch-live-player")).toBeNull());
-
-    act(() => {
-      playerMocks.twitchLivePlayerProps?.onError?.({
-        code: "TOKEN_EXPIRED",
-        message: "Playback token expired",
-        fatal: true,
-        shouldRefresh: true,
-      });
-    });
-
+    expect(firstResult).toBe(true);
+    expect(secondResult).toBe(true);
+    await act(async () => vi.advanceTimersByTimeAsync(1_500));
     expect(mockReloadPlayback).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/is currently offline/i)).toBeInTheDocument();
+    expect(screen.getByTestId("twitch-live-player")).toBeInTheDocument();
+    expect(screen.queryByText(/is currently offline/i)).toBeNull();
   });
 
-  it("allows an immediate Twitch recheck when the playback revision changes", async () => {
+  it("allows the second bounded Twitch retry when the playback revision changes", async () => {
+    vi.useFakeTimers();
     useChannelMock.mockReturnValue({
       data: routeChannel({ displayName: "Ninja", isLive: true }),
       isLoading: false,
@@ -1564,7 +1677,7 @@ describe("StreamPage", () => {
     mockPlaybackState.playbackRevision = 7;
 
     const { rerender } = renderWithProviders(<StreamPage />);
-    await screen.findByTestId("twitch-live-player");
+    expect(screen.getByTestId("twitch-live-player")).toBeInTheDocument();
 
     act(() => {
       playerMocks.twitchLivePlayerProps?.onError?.({
@@ -1575,17 +1688,15 @@ describe("StreamPage", () => {
       });
     });
 
-    await waitFor(() => expect(screen.queryByTestId("twitch-live-player")).toBeNull());
+    await act(async () => vi.advanceTimersByTimeAsync(1_500));
     expect(mockReloadPlayback).toHaveBeenCalledTimes(1);
 
     mockPlaybackState.playback = { url: "https://usher.ttvnw.net/api/channel/hls/ninja-8.m3u8" };
     mockPlaybackState.playbackRevision = 8;
     rerender(<StreamPage />);
 
-    await waitFor(() =>
-      expect(playerMocks.twitchLivePlayerProps?.streamUrl).toBe(
-        "https://usher.ttvnw.net/api/channel/hls/ninja-8.m3u8"
-      )
+    expect(playerMocks.twitchLivePlayerProps?.streamUrl).toBe(
+      "https://usher.ttvnw.net/api/channel/hls/ninja-8.m3u8"
     );
 
     act(() => {
@@ -1597,10 +1708,38 @@ describe("StreamPage", () => {
       });
     });
 
+    await act(async () => vi.advanceTimersByTimeAsync(3_000));
     expect(mockReloadPlayback).toHaveBeenCalledTimes(2);
   });
 
+  it("updates a refreshed Twitch source without remounting the same-channel player", async () => {
+    useChannelMock.mockReturnValue({
+      data: routeChannel({ displayName: "Ninja", isLive: true }),
+      isLoading: false,
+    } as ReturnType<typeof useChannelByUsername>);
+    useStreamMock.mockReturnValue({
+      data: fixtures.stream({ title: "Going live", startedAt: "2026-06-25T00:00:00.000Z" }),
+      isLoading: false,
+    } as ReturnType<typeof useStreamByChannel>);
+    mockPlaybackState.playback = { url: "https://usher.ttvnw.net/api/channel/hls/ninja-1.m3u8" };
+    mockPlaybackState.playbackRevision = 1;
+
+    const { rerender } = renderWithProviders(<StreamPage />);
+    const player = await screen.findByTestId("twitch-live-player");
+    const originalMountId = player.dataset.mountId;
+
+    mockPlaybackState.playback = { url: "https://usher.ttvnw.net/api/channel/hls/ninja-2.m3u8" };
+    mockPlaybackState.playbackRevision = 2;
+    rerender(<StreamPage />);
+
+    expect(playerMocks.twitchLivePlayerProps?.streamUrl).toBe(
+      "https://usher.ttvnw.net/api/channel/hls/ninja-2.m3u8"
+    );
+    expect(screen.getByTestId("twitch-live-player").dataset.mountId).toBe(originalMountId);
+  });
+
   it("refreshes Twitch playback when a recoverable Twitch error is reported", async () => {
+    vi.useFakeTimers();
     useChannelMock.mockReturnValue({
       data: routeChannel({ displayName: "Ninja", isLive: true }),
       isLoading: false,
@@ -1613,7 +1752,7 @@ describe("StreamPage", () => {
     mockPlaybackState.playback = { url: "https://usher.ttvnw.net/api/channel/hls/ninja.m3u8" };
 
     renderWithProviders(<StreamPage />);
-    await screen.findByTestId("twitch-live-player");
+    expect(screen.getByTestId("twitch-live-player")).toBeInTheDocument();
 
     act(() => {
       playerMocks.twitchLivePlayerProps?.onError?.({
@@ -1624,8 +1763,130 @@ describe("StreamPage", () => {
       });
     });
 
+    await act(async () => vi.advanceTimersByTimeAsync(1_500));
     expect(mockReloadPlayback).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/is currently offline/i)).toBeInTheDocument();
+    expect(screen.getByTestId("twitch-live-player")).toBeInTheDocument();
+    expect(screen.queryByText(/is currently offline/i)).toBeNull();
+  });
+
+  // Guards: playbackRevision remounts must not replenish the Twitch auto-recovery budget before a decoded frame is presented.
+  it("stops automatic Twitch recovery after two failed playback revisions", async () => {
+    vi.useFakeTimers();
+    const currentLiveStream = fixtures.stream({
+      channelName: "ninja",
+      title: "Going live",
+      isLive: true,
+      startedAt: "2026-07-30T12:00:00.000Z",
+    });
+    useChannelMock.mockReturnValue(
+      partialQueryResult<ChannelQueryResult>({
+        data: routeChannel({ displayName: "Ninja", isLive: true }),
+        isLoading: false,
+        isError: false,
+        isSuccess: true,
+        isPlaceholderData: false,
+      })
+    );
+    useStreamMock.mockReturnValue(
+      partialQueryResult<StreamQueryResult>({
+        data: currentLiveStream,
+        isLoading: false,
+        isError: false,
+        isSuccess: true,
+        isPlaceholderData: false,
+        refetch: mockRefetchStream,
+      })
+    );
+    mockRefetchStream.mockResolvedValue(
+      partialQueryResult<StreamRefetchResult>({
+        data: currentLiveStream,
+        isError: false,
+        isSuccess: true,
+      })
+    );
+    mockPlaybackState.playback = { url: "https://usher.ttvnw.net/xqc-1.m3u8" };
+    mockPlaybackState.playbackRevision = 1;
+
+    const { rerender } = renderWithProviders(<StreamPage />);
+    await act(async () => vi.runOnlyPendingTimersAsync());
+    expect(playerMocks.twitchLivePlayerProps?.recoveryManagedExternally).toBe(true);
+
+    const error: PlayerError = {
+      code: "PLAYBACK_STALL",
+      message: "Live video stopped presenting frames",
+      fatal: true,
+      shouldRefresh: true,
+    };
+    expect(playerMocks.twitchLivePlayerProps?.onError?.(error)).toBe(true);
+    await act(async () => vi.advanceTimersByTimeAsync(1_500));
+    expect(mockReloadPlayback).toHaveBeenCalledTimes(1);
+
+    mockPlaybackState.playback = { url: "https://usher.ttvnw.net/xqc-2.m3u8" };
+    mockPlaybackState.playbackRevision = 2;
+    rerender(<StreamPage />);
+    expect(playerMocks.twitchLivePlayerProps?.onError?.(error)).toBe(true);
+    await act(async () => vi.advanceTimersByTimeAsync(3_000));
+    expect(mockReloadPlayback).toHaveBeenCalledTimes(2);
+
+    mockPlaybackState.playback = { url: "https://usher.ttvnw.net/xqc-3.m3u8" };
+    mockPlaybackState.playbackRevision = 3;
+    rerender(<StreamPage />);
+    expect(playerMocks.twitchLivePlayerProps?.onError?.(error)).toBe(false);
+    await act(async () => vi.runAllTimersAsync());
+    expect(mockReloadPlayback).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows an actionable playback error when Twitch refreshes never produce a source", async () => {
+    vi.useFakeTimers();
+    const refetchChannel = vi.fn();
+    const currentLiveStream = fixtures.stream({
+      channelName: "ninja",
+      title: "Going live",
+      isLive: true,
+      startedAt: "2026-07-30T12:00:00.000Z",
+    });
+    useChannelMock.mockReturnValue(
+      partialQueryResult<ChannelQueryResult>({
+        data: routeChannel({ displayName: "Ninja", isLive: true }),
+        isLoading: false,
+        isError: false,
+        isSuccess: true,
+        isPlaceholderData: false,
+        refetch: refetchChannel,
+      })
+    );
+    useStreamMock.mockReturnValue(
+      partialQueryResult<StreamQueryResult>({
+        data: currentLiveStream,
+        isLoading: false,
+        isError: false,
+        isSuccess: true,
+        isPlaceholderData: false,
+        refetch: mockRefetchStream,
+      })
+    );
+    mockPlaybackState.playback = { url: "https://usher.ttvnw.net/xqc-1.m3u8" };
+    mockPlaybackState.playbackRevision = 1;
+
+    renderWithProviders(<StreamPage />);
+    await act(async () => vi.runOnlyPendingTimersAsync());
+
+    act(() => {
+      playerMocks.twitchLivePlayerProps?.onError?.({
+        code: "PLAYBACK_STALL",
+        message: "Live video stopped presenting frames",
+        fatal: true,
+        shouldRefresh: true,
+      });
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(9_500));
+
+    expect(mockReloadPlayback).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTestId("twitch-live-player")).not.toBeInTheDocument();
+    expect(screen.getByText("Playback interrupted")).toBeInTheDocument();
+
+    act(() => screen.getByRole("button", { name: "Check Again" }).click());
+    expect(mockReloadPlayback).toHaveBeenCalledTimes(3);
   });
 
   it("primes PiP as soon as playback URL exists even while stream metadata is loading", () => {

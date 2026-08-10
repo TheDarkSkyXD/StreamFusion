@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { act } from '@testing-library/react';
+import type { PlayerError } from '@/components/player/types';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { fixtures, renderWithProviders, routerMock, screen } from '../../test-utils';
 
@@ -20,12 +22,32 @@ vi.mock('@/hooks/useStreamPlayback', () => ({
   useStreamPlayback: () => ({
     playback: { url: 'https://x.test/playlist.m3u8' },
     isLoading: false,
-    reload: vi.fn(),
+    reload: playerMocks.reload,
+    playbackRevision: playerMocks.playbackRevision,
   }),
 }));
 
+const playerMocks = vi.hoisted(() => ({
+  playbackRevision: 1,
+  reload: vi.fn(),
+  twitchProps: null as null | {
+    className?: string;
+    onError?: (error: PlayerError) => boolean | void;
+    onCleanPresentedFrame?: () => void;
+    recoveryManagedExternally?: boolean;
+  },
+}));
+
 vi.mock('@/components/player/twitch', () => ({
-  TwitchLivePlayer: () => <div data-testid="tw-live-player">player</div>,
+  TwitchLivePlayer: (props: {
+    className?: string;
+    onError?: (error: PlayerError) => boolean | void;
+    onCleanPresentedFrame?: () => void;
+    recoveryManagedExternally?: boolean;
+  }) => {
+    playerMocks.twitchProps = props;
+    return <div data-testid="tw-live-player" className={props.className}>player</div>;
+  },
 }));
 
 vi.mock('@/components/player/kick', () => ({
@@ -43,6 +65,13 @@ import { StreamSlot } from '@/components/multistream/stream-slot';
 // Guards: cross-slot isolation — each StreamSlot owns its own playback hook (useStreamPlayback) and its own onError. One slot's failed HLS init must not blank the sibling slot; this is enforced by per-slot mounting (verified by the slot rendering its overlay locally without unmounting the player on the other slot)
 // Note: the multistream grid mounts multiple StreamSlots independently — slot isolation is locked at the grid level (grid-layout.test.tsx) and at the slot level (offline overlay verified here)
 describe('StreamSlot', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    playerMocks.playbackRevision = 1;
+    playerMocks.reload.mockReset();
+    playerMocks.twitchProps = null;
+  });
+
   it('renders the Twitch live player for twitch streams', () => {
     renderWithProviders(
       <StreamSlot
@@ -71,5 +100,75 @@ describe('StreamSlot', () => {
       />
     );
     expect(screen.getByTestId('kick-live-player')).toBeInTheDocument();
+  });
+
+  // Guards: one multistream slot stops after two failed Twitch source refreshes instead of spinning or refreshing forever in isolation.
+  it('exhausts Twitch recovery after two playback revisions', async () => {
+    vi.useFakeTimers();
+    const props = {
+      streamId: 's1',
+      platform: 'twitch' as const,
+      channelName: 'xqc',
+      isMuted: false,
+      onRemove: vi.fn(),
+      onFocus: vi.fn(),
+      isFocused: false,
+    };
+    const { rerender } = renderWithProviders(<StreamSlot {...props} />);
+    const error: PlayerError = {
+      code: 'PLAYBACK_STALL',
+      message: 'Live video stopped presenting frames',
+      fatal: true,
+      shouldRefresh: true,
+    };
+
+    expect(playerMocks.twitchProps?.recoveryManagedExternally).toBe(true);
+    expect(playerMocks.twitchProps?.onError?.(error)).toBe(true);
+    await act(async () => vi.advanceTimersByTimeAsync(1_500));
+    expect(playerMocks.reload).toHaveBeenCalledTimes(1);
+
+    playerMocks.playbackRevision = 2;
+    rerender(<StreamSlot {...props} />);
+    expect(playerMocks.twitchProps?.onError?.(error)).toBe(true);
+    await act(async () => vi.advanceTimersByTimeAsync(3_000));
+    expect(playerMocks.reload).toHaveBeenCalledTimes(2);
+
+    playerMocks.playbackRevision = 3;
+    rerender(<StreamSlot {...props} />);
+    expect(playerMocks.twitchProps?.onError?.(error)).toBe(false);
+    await act(async () => vi.runAllTimersAsync());
+    expect(playerMocks.reload).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows a clickable retry when Twitch refreshes never produce a source', async () => {
+    vi.useFakeTimers();
+    renderWithProviders(
+      <StreamSlot
+        streamId="s1"
+        platform="twitch"
+        channelName="xqc"
+        isMuted={false}
+        onRemove={vi.fn()}
+        onFocus={vi.fn()}
+        isFocused={false}
+      />
+    );
+
+    act(() => {
+      playerMocks.twitchProps?.onError?.({
+        code: 'PLAYBACK_STALL',
+        message: 'Live video stopped presenting frames',
+        fatal: true,
+        shouldRefresh: true,
+      });
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(9_500));
+
+    expect(playerMocks.reload).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('alert')).toHaveTextContent('Playback interrupted');
+    expect(playerMocks.twitchProps?.className ?? '').not.toContain('pointer-events-none');
+
+    act(() => screen.getByRole('button', { name: 'Retry playback' }).click());
+    expect(playerMocks.reload).toHaveBeenCalledTimes(3);
   });
 });

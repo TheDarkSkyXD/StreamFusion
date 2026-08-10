@@ -1,0 +1,8 @@
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:2
+#EXT-X-MEDIA-SEQUENCE:440
+#EXT-X-CUE-OUT:DURATION=30
+#EXT-X-DISCONTINUITY
+#EXTINF:2.000,
+https://neutral.synthetic.invalid/v1/segment/commercial-break-interstitial-440.ts
