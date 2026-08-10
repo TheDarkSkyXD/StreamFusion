@@ -1,7 +1,7 @@
 {
   "version": 2,
   "projectRoot": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion",
-  "indexedAt": "2026-08-10T13:34:30.905Z",
+  "indexedAt": "2026-08-10T17:15:04.025Z",
   "lastCommitHash": "12d6e1b1494bd94c6de2b03f6f52459f42194481",
   "files": {
     "apps/desktop/docs/TWITCH-ADBLOCK-SYSTEM.md": {
@@ -2887,25 +2887,25 @@
       }
     },
     "apps/desktop/src/backend/auth/device-code-flow.ts": {
-      "summary": "Implements Twitch desktop Device Code Grant authentication: requests and validates device codes, opens the verification window, polls for authorization, handles cancellation, validates token responses, and returns AuthToken data. Search for runTwitchDeviceCodeLogin, DeviceCodeFlowService, pollForToken, device-code polling, authorization_pending, and Twitch device authentication.",
+      "summary": "Implements Twitch OAuth Device Code Grant authentication for desktop clients. Exports device-code response types, login orchestration, dependency contracts, validation helpers, and a service that requests codes, polls for tokens, handles cancellation, logs stages, and cleans up the authorization popup.",
       "tags": [
         "twitch",
-        "device-code",
         "oauth",
+        "device-code",
         "polling",
         "token-validation"
       ],
-      "hash": "dcaecec186ccb684",
-      "mtime": 1785732639496,
-      "size": 16101,
+      "hash": "29baaf3e5b585699",
+      "mtime": 1786370355531,
+      "size": 16226,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
           "twitch",
-          "device-code",
           "oauth",
+          "device-code",
           "polling",
           "token-validation"
         ]
@@ -3287,27 +3287,27 @@
       }
     },
     "apps/desktop/src/backend/ipc/handlers/auth-handlers.ts": {
-      "summary": "Registers Electron IPC authentication handlers for Twitch and Kick, including validated token and user payloads, device-code login, OAuth services, follow synchronization, token persistence, refresh scheduling, and startup refresh behavior. Exports testable follow-sync helpers and policies that preserve stored follows during transient API or authentication failures while coordinating pending follow writes and live notifications.",
+      "summary": "Registers desktop IPC authentication handlers and coordinates Twitch/Kick login, token persistence, user validation, follow synchronization, refresh scheduling, and auth-related events. Exports testable follow-sync and startup-grace helpers that preserve stored follows on uncertain provider failures and safely process validated IPC payloads.",
       "tags": [
-        "authentication",
         "ipc",
-        "oauth",
-        "follow-sync",
-        "electron"
+        "authentication",
+        "twitch",
+        "kick",
+        "follow-sync"
       ],
-      "hash": "99ea4e1f60e05ec2",
-      "mtime": 1786153003432,
-      "size": 37409,
+      "hash": "a201f37798e00dca",
+      "mtime": 1786370355533,
+      "size": 37379,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
-          "authentication",
           "ipc",
-          "oauth",
-          "follow-sync",
-          "electron"
+          "authentication",
+          "twitch",
+          "kick",
+          "follow-sync"
         ]
       }
     },
@@ -4074,17 +4074,17 @@
       }
     },
     "apps/desktop/src/backend/logging/chromium-noise-filter.ts": {
-      "summary": "Predicate module for classifying known-harmless Chromium log lines so the logging pipeline can demote them from errors to debug. Exports `isHarmlessChromiumNoise`, covering GPU probe failures, Autofill stubs, cache cleanup chatter, SSL resets, and dev-server banners.",
+      "summary": "Filters known harmless Chromium, Electron, Vite, and React DevTools error or banner lines so the logging pipeline can demote non-actionable noise. Exports isHarmlessChromiumNoise, using regex checks for GPU probes, Autofill, compositor mailboxes, disk cache cleanup, SSL resets, and development messages.",
       "tags": [
         "logging",
         "chromium",
-        "filtering",
-        "noise",
-        "debugging"
+        "electron",
+        "noise-filter",
+        "regex"
       ],
-      "hash": "6e521f1a2673bef6",
-      "mtime": 1780974686311,
-      "size": 2097,
+      "hash": "587fac9735a50ab7",
+      "mtime": 1786381266481,
+      "size": 2106,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
@@ -4092,9 +4092,9 @@
         "tags": [
           "logging",
           "chromium",
-          "filtering",
-          "noise",
-          "debugging"
+          "electron",
+          "noise-filter",
+          "regex"
         ]
       }
     },
@@ -7349,27 +7349,27 @@
       }
     },
     "apps/desktop/src/components/chat/InfoBanner.tsx": {
-      "summary": "Renders the chat-room restriction banner above ChatInput by translating platform-specific RoomState flags into a precedence-ordered primary label and tooltip listing all active modes. Exports InfoBanner and InfoBannerProps, covering followers-only, subscriber-only, account-age, emote-only, slow, unique-chat, and shield modes with human-readable duration formatting.",
+      "summary": "Renders the active chat-room restrictions above the chat input for a platform and channel, selecting a precedence-ordered primary label and exposing all active modes through a tooltip. Exports InfoBanner and handles follower-only, subscriber-only, Kick account-age, emote-only, and slow-mode state via useChatRoomState.",
       "tags": [
-        "chat-modes",
+        "chat",
         "room-state",
-        "twitch-kick",
+        "banner",
         "tooltip",
-        "accessibility"
+        "twitch-kick"
       ],
-      "hash": "4d0054177e16517d",
-      "mtime": 1785493301770,
-      "size": 7840,
+      "hash": "1be1d59d5696d137",
+      "mtime": 1786373722183,
+      "size": 6717,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
-          "chat-modes",
+          "chat",
           "room-state",
-          "twitch-kick",
+          "banner",
           "tooltip",
-          "accessibility"
+          "twitch-kick"
         ]
       }
     },
@@ -12765,27 +12765,27 @@
       }
     },
     "apps/desktop/src/components/player/mini-player.tsx": {
-      "summary": "Persistent mini-player and docked-player surface that moves one live video DOM node between stream routes and picture-in-picture mode without losing HLS state. Handles Twitch/Kick playback resolution, offline detection, network recovery, refresh retries, routing, volume, ad blocking, and player controls.",
+      "summary": "Maintains a single live-player surface while transitioning between the stream-page dock and floating mini-player mode, preserving the video DOM node, HLS state, playback URL, and buffered media through React portals. Exports MiniPlayer and coordinates Kick/Twitch players, PiP state, navigation, stream-status queries, volume and ad-block settings, offline detection, network recovery, refresh attempts, and playback controls.",
       "tags": [
+        "video-player",
         "mini-player",
         "picture-in-picture",
-        "streaming",
-        "playback-recovery",
-        "twitch"
+        "react-portal",
+        "playback-recovery"
       ],
-      "hash": "710d35938ce97ef8",
-      "mtime": 1786153308201,
-      "size": 34583,
+      "hash": "f20dcd2b3992d281",
+      "mtime": 1786373464236,
+      "size": 34649,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
+          "video-player",
           "mini-player",
           "picture-in-picture",
-          "streaming",
-          "playback-recovery",
-          "twitch"
+          "react-portal",
+          "playback-recovery"
         ]
       }
     },
@@ -13465,17 +13465,17 @@
       }
     },
     "apps/desktop/src/components/player/twitch/twitch-hls-player.tsx": {
-      "summary": "React HLS video player wrapper that connects hls.js to the Twitch ad-block service, applies quality and buffer preferences, shields unsafe ad presentation, and recovers stalled playback with managed timers. Exports TwitchHlsPlayer and its props for lower-level Twitch stream rendering and ad-block lifecycle callbacks.",
+      "summary": "Ad-aware HLS video player for Twitch streams, wrapping hls.js with VAFT ad-blocking loaders, playback stall recovery, preferred-quality selection, buffer tuning, and clean-frame presentation shielding. Exports TwitchHlsPlayer and coordinates ad-block service status, authentication headers, memory cleanup, volume, autoplay, and recovery callbacks.",
       "tags": [
         "twitch",
         "hls",
-        "react-component",
         "ad-blocking",
-        "playback-recovery"
+        "playback-recovery",
+        "video-player"
       ],
-      "hash": "4834e052ffb7e10c",
-      "mtime": 1786319116217,
-      "size": 42143,
+      "hash": "86fcf4bf3b6eb2d7",
+      "mtime": 1786370475635,
+      "size": 42512,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
@@ -13483,9 +13483,9 @@
         "tags": [
           "twitch",
           "hls",
-          "react-component",
           "ad-blocking",
-          "playback-recovery"
+          "playback-recovery",
+          "video-player"
         ]
       }
     },
@@ -13565,27 +13565,27 @@
       }
     },
     "apps/desktop/src/components/player/twitch/twitch-live-player.tsx": {
-      "summary": "High-level Twitch live player component that composes TwitchHlsPlayer with controls, captions, fullscreen, picture-in-picture, volume, quality selection, network recovery, and ad-block overlays. Manages playback intent persistence, retry behavior, clean-frame/poster masking during unsafe ad states, and parent-facing player callbacks.",
+      "summary": "Full Twitch live-player surface that composes TwitchHlsPlayer with controls, captions, fullscreen, picture-in-picture, keyboard shortcuts, volume, loading/error states, ad-block overlays, and network recovery. Exports TwitchLivePlayer and persists per-channel playback intent while managing quality preferences, ad-presentation shielding, retry budgets, and theater/docked layouts.",
       "tags": [
         "twitch",
-        "live-player",
-        "react-component",
-        "ad-presentation",
-        "playback-recovery"
+        "live-streaming",
+        "ad-blocking",
+        "player-controls",
+        "recovery-logic"
       ],
-      "hash": "da9b99a697434df8",
-      "mtime": 1786320055777,
-      "size": 26119,
+      "hash": "e0bb53a388154481",
+      "mtime": 1786373464238,
+      "size": 27735,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
           "twitch",
-          "live-player",
-          "react-component",
-          "ad-presentation",
-          "playback-recovery"
+          "live-streaming",
+          "ad-blocking",
+          "player-controls",
+          "recovery-logic"
         ]
       }
     },
@@ -18797,27 +18797,27 @@
       }
     },
     "apps/desktop/src/pages/Stream/index.tsx": {
-      "summary": "React stream route page that fetches channel and live-stream data, normalizes route identity across Twitch and Kick, resolves playback state, mounts platform-specific players, chat, recording controls, related content, and offline/recovery UI. Search for stream-page routing, Twitch/Kick playback, lazy loading, player recovery, chat visibility, query-cache synchronization, and persistent docked-player behavior.",
+      "summary": "Route-level stream page for platform/channel URLs, fetching channel and stream data, resolving authoritative live status and playback URLs, and lazily mounting players, chat, related content, recording controls, and stream metadata. Exports StreamPage and preloadChatPanel, with Twitch-specific preview images, channel-name normalization, route correction, proxy playback retry, docked-player integration, and chat visibility handling.",
       "tags": [
-        "streaming",
-        "react",
+        "stream-page",
         "routing",
-        "playback",
-        "twitch-kick"
+        "twitch",
+        "lazy-loading",
+        "data-fetching"
       ],
-      "hash": "d40f391fbc5616c9",
-      "mtime": 1786316380305,
-      "size": 34814,
+      "hash": "2c4d87fe6dc98b31",
+      "mtime": 1786373464232,
+      "size": 35285,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
-          "streaming",
-          "react",
+          "stream-page",
           "routing",
-          "playback",
-          "twitch-kick"
+          "twitch",
+          "lazy-loading",
+          "data-fetching"
         ]
       }
     },
@@ -20151,27 +20151,27 @@
       }
     },
     "apps/desktop/src/store/pip-store.ts": {
-      "summary": "Zustand store for picture-in-picture mini-player state, tracking the current stream, whether PiP is active, and whether the user is on the stream page. Exports `usePipStore` plus `PipStreamInfo`, and is where to look for route-aware PiP activation and close behavior.",
+      "summary": "Zustand store for managing live-stream picture-in-picture state across route navigation. Exports usePipStore and PipStreamInfo, with actions for tracking the current stream, stream-page location, PiP activation, deactivation, and closing; switching streams resets the existing mini-player.",
       "tags": [
-        "pip",
-        "media-player",
-        "routing",
         "zustand",
-        "stream-state"
+        "picture-in-picture",
+        "streaming",
+        "navigation-state",
+        "player"
       ],
-      "hash": "107cf2312b0fcb4a",
-      "mtime": 1774040464424,
-      "size": 2162,
+      "hash": "c2e2d8d364b0064d",
+      "mtime": 1786373464235,
+      "size": 2181,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
-          "pip",
-          "media-player",
-          "routing",
           "zustand",
-          "stream-state"
+          "picture-in-picture",
+          "streaming",
+          "navigation-state",
+          "player"
         ]
       }
     },
@@ -22387,27 +22387,27 @@
       }
     },
     "apps/desktop/tests/backend/auth/device-code-flow.test.ts": {
-      "summary": "Vitest coverage for Twitch OAuth device-code authentication, testing device-code requests, response validation, activation URL safety, error parsing, polling, token normalization, scopes, timers, and authorization status handling. Mocks fetch, OAuth configuration, logging, and managed intervals to exercise the device-code flow deterministically.",
+      "summary": "Vitest coverage for Twitch OAuth device-code authentication, including device-code requests, response validation, token polling, pending authorization, malformed responses, timing bounds, and error handling. Mocks OAuth configuration, fetch, timers, logging, and managed intervals to verify the deviceCodeFlowService contract.",
       "tags": [
         "oauth",
-        "device-code",
         "twitch",
+        "device-code",
         "polling",
-        "authentication"
+        "validation"
       ],
-      "hash": "b829912ef2086649",
-      "mtime": 1785732876572,
-      "size": 20193,
+      "hash": "5088efe5cc3d6e61",
+      "mtime": 1786370312976,
+      "size": 21357,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
           "oauth",
-          "device-code",
           "twitch",
+          "device-code",
           "polling",
-          "authentication"
+          "validation"
         ]
       }
     },
@@ -22687,26 +22687,26 @@
       }
     },
     "apps/desktop/tests/backend/ipc/handlers/auth-handlers.test.ts": {
-      "summary": "Vitest tests for desktop IPC authentication handlers covering Twitch device-code login, popup lifecycle, token persistence, proactive refresh, and post-login follow synchronization. Protects against destructive follow-list pruning when Twitch or Kick fetches fail, while validating authoritative reconciliation on successful login.",
+      "summary": "Vitest tests for IPC authentication orchestration and post-login follow synchronization across Twitch and Kick. Covers device-code login persistence, popup cleanup, proactive token refresh, authoritative follow reconciliation, pruning, and error-bail behavior that protects existing storage during Cloudflare or authentication failures.",
       "tags": [
+        "ipc",
         "authentication",
         "twitch",
         "kick",
-        "ipc",
         "follow-sync"
       ],
-      "hash": "411797c8d6914ac6",
-      "mtime": 1786153003434,
-      "size": 17233,
+      "hash": "5b61b9f41eda1501",
+      "mtime": 1786370403562,
+      "size": 17329,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
+          "ipc",
           "authentication",
           "twitch",
           "kick",
-          "ipc",
           "follow-sync"
         ]
       }
@@ -23200,27 +23200,27 @@
       }
     },
     "apps/desktop/src/backend/auth/twitch-device-auth-window.ts": {
-      "summary": "Secure Electron BrowserWindow manager for Twitch device or activation authorization. Validates Twitch verification URLs, restricts navigation to approved Twitch and callback origins, blocks webviews, popups, permissions, and unsafe redirects, and exports the reusable twitchDeviceAuthWindow manager.",
+      "summary": "Manages the Electron popup used for secure Twitch device authorization. Exports the window handle and singleton manager, enforcing allowlisted Twitch authentication origins, validating activation URLs, blocking webviews and permissions, handling callbacks, and closing failed or completed windows.",
       "tags": [
+        "electron",
         "twitch",
         "oauth",
-        "electron",
         "security",
-        "device-auth"
+        "popup-window"
       ],
-      "hash": "fd27c17b50e82a7c",
-      "mtime": 1785757520991,
-      "size": 5693,
+      "hash": "344ff30f76bb951a",
+      "mtime": 1786370446708,
+      "size": 7019,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
+          "electron",
           "twitch",
           "oauth",
-          "electron",
           "security",
-          "device-auth"
+          "popup-window"
         ]
       }
     },
@@ -23598,27 +23598,27 @@
       }
     },
     "apps/desktop/src/components/player/persistent-player-shell.tsx": {
-      "summary": "Provides context-based registration and access for a persistent docked live-player configuration. Exports PersistentPlayerShell plus hooks for registering docked player state and reading the active configuration, allowing route-level players to coordinate with a shared shell.",
+      "summary": "Provides React context infrastructure for registering and sharing the active docked live-player configuration across route layouts. Exports PersistentPlayerShell plus useDockedPlayerConfig and useRegisterDockedPlayerConfig hooks for persistent player UI, theater mode, refresh, poster, and error handling.",
       "tags": [
-        "live-player",
+        "react",
         "context",
-        "registration",
-        "docked-player",
-        "persistent-ui"
+        "live-player",
+        "persistent-ui",
+        "registration"
       ],
-      "hash": "94a315927c7fbddc",
-      "mtime": 1786151844282,
-      "size": 1710,
+      "hash": "e8abb7684b411408",
+      "mtime": 1786373464234,
+      "size": 1729,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
-          "live-player",
+          "react",
           "context",
-          "registration",
-          "docked-player",
-          "persistent-ui"
+          "live-player",
+          "persistent-ui",
+          "registration"
         ]
       }
     },
@@ -24561,26 +24561,26 @@
       }
     },
     "apps/desktop/tests/backend/auth/twitch-device-auth-window.test.ts": {
-      "summary": "Security-focused Vitest tests for the Electron Twitch device-authorization popup. Verifies sandboxed BrowserWindow settings, Chrome user-agent masking, permission denial, canonical Twitch URL validation, and navigation allowlisting for Twitch, Google sign-in, OAuth, and localhost callback origins.",
+      "summary": "Vitest security and behavior tests for the Electron Twitch device-authorization popup. Verifies locked-down BrowserWindow settings, loading feedback, Chrome user-agent masking, canonical Twitch URL validation, navigation restrictions, permission denial, and safe OAuth handoff behavior.",
       "tags": [
-        "twitch",
         "electron",
-        "device-auth",
+        "twitch",
         "oauth",
+        "browser-window",
         "security"
       ],
-      "hash": "d76cc9ecbde6a306",
-      "mtime": 1785757507994,
-      "size": 12066,
+      "hash": "cfe6612b19d747d6",
+      "mtime": 1786370199432,
+      "size": 13079,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
-          "twitch",
           "electron",
-          "device-auth",
+          "twitch",
           "oauth",
+          "browser-window",
           "security"
         ]
       }
@@ -25088,26 +25088,26 @@
       }
     },
     "apps/desktop/tests/backend/logging/chromium-noise-filter.test.ts": {
-      "summary": "Integration tests for harmless Chromium ERROR filtering in the logging pipeline. Verifies GPU probes, DevTools Autofill failures, cache repair, transient SSL resets, tailer/intercept demotion to debug, and preservation of real WebRTC, SSL, and other errors.",
+      "summary": "Integration-focused Vitest coverage for harmless Chromium ERROR classification and logger demotion. Tests the isHarmlessChromiumNoise predicate plus Chromium log tailer and native stderr interception paths, preserving known-noise matches while ensuring real SSL, WebRTC, and startup diagnostics remain errors or warnings.",
       "tags": [
-        "chromium",
         "logging",
+        "chromium",
         "noise-filter",
-        "electron",
+        "stderr",
         "integration-tests"
       ],
-      "hash": "836da3f1dcbdaae0",
-      "mtime": 1780974657371,
-      "size": 16791,
+      "hash": "9a6aa8176b2f7a6f",
+      "mtime": 1786381392686,
+      "size": 17106,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
-          "chromium",
           "logging",
+          "chromium",
           "noise-filter",
-          "electron",
+          "stderr",
           "integration-tests"
         ]
       }
@@ -28313,27 +28313,27 @@
       }
     },
     "apps/desktop/tests/components/chat/InfoBanner.test.tsx": {
-      "summary": "Behavioral tests for the chat InfoBanner, validating room-mode labels, precedence, tooltip rows, platform-specific Twitch/Kick modes, follower exemptions, slow-mode duration formatting, and layout spacing above the composer. Mocks useChatRoomState to isolate banner rendering from the Zustand room-state store.",
+      "summary": "React Testing Library coverage for the chat InfoBanner, which displays viewer-relevant Twitch and Kick restrictions such as followers-only, subscribers-only, slow mode, emote-only, and account-age modes. Tests precedence, duration formatting, tooltip rows, authenticated-viewer exceptions, platform asymmetry, spacing, and exclusion of Unique Chat and Shield Mode.",
       "tags": [
         "chat",
-        "info-banner",
+        "react-testing",
         "twitch",
         "kick",
-        "zustand"
+        "tooltips"
       ],
-      "hash": "20779cbae8b095e2",
-      "mtime": 1785493412680,
-      "size": 10972,
+      "hash": "382c3a4a0b8cb30b",
+      "mtime": 1786373722185,
+      "size": 10688,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
           "chat",
-          "info-banner",
+          "react-testing",
           "twitch",
           "kick",
-          "zustand"
+          "tooltips"
         ]
       }
     },
@@ -30217,27 +30217,27 @@
       }
     },
     "apps/desktop/tests/components/player/mini-player.test.tsx": {
-      "summary": "Component tests for MiniPlayer and PersistentPlayerShell routing behavior across docked, mini-player, PiP, Kick, and Twitch playback states. Covers preserving the mounted player during navigation, matching late-mounted docks, avoiding stale persisted URLs, handling loading/offline playback, and coordinating stream playback, router, and PiP-store state.",
+      "summary": "Vitest and React Testing Library coverage for MiniPlayer playback routing and persistent player behavior across stream-page docks, PiP/mini-player mode, and direct route changes. Mocks Kick/Twitch players, playback and stream-status hooks, network recovery, navigation, and PiP state to verify fresh URL resolution, player identity preservation, offline handling, control modes, unmount behavior, and Twitch poster continuity.",
       "tags": [
+        "player",
         "mini-player",
-        "persistent-player",
-        "pip",
-        "routing",
-        "playback-state"
+        "picture-in-picture",
+        "streaming",
+        "routing"
       ],
-      "hash": "6e31871f199d4d88",
-      "mtime": 1786297174870,
-      "size": 50566,
+      "hash": "fa42e0cdbd9265c3",
+      "mtime": 1786373505654,
+      "size": 51045,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
+          "player",
           "mini-player",
-          "persistent-player",
-          "pip",
-          "routing",
-          "playback-state"
+          "picture-in-picture",
+          "streaming",
+          "routing"
         ]
       }
     },
@@ -30717,17 +30717,17 @@
       }
     },
     "apps/desktop/tests/components/player/twitch/twitch-live-player-ad-presentation-gate.test.tsx": {
-      "summary": "Integration-style React tests for TwitchLivePlayer ad-presentation gating, including fallback and segment-stripping covers, clean-frame recovery, poster fallback, loading-spinner suppression, playback intent, route changes, and HLS remount behavior. Mocks Twitch HLS callbacks and player dependencies to verify unsafe ad frames never expose misleading status or marketing UI.",
+      "summary": "Comprehensive Vitest/React Testing Library coverage for TwitchLivePlayer’s ad-presentation gate. Exercises ad-block fallback and midroll shielding, clean-frame and poster covers, stream identity changes, HLS remount recovery, playback intent preservation, loading-spinner suppression, and error/recovery behavior.",
       "tags": [
         "twitch",
         "ad-blocking",
         "player",
-        "hls",
+        "recovery",
         "react-testing"
       ],
-      "hash": "1d76039ee2fe31d3",
-      "mtime": 1786320082196,
-      "size": 21556,
+      "hash": "05d59654744e6dbd",
+      "mtime": 1786373688480,
+      "size": 25179,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
@@ -30736,23 +30736,23 @@
           "twitch",
           "ad-blocking",
           "player",
-          "hls",
+          "recovery",
           "react-testing"
         ]
       }
     },
     "apps/desktop/tests/components/player/twitch/twitch-live-player-adblock-indicator.test.tsx": {
-      "summary": "Tests that TwitchLivePlayer keeps ad-block status announcements hidden during fallback, midroll stripping, stale ad flags, and recovery transitions while preserving ordinary loading, buffering, and network-retry behavior. Uses mocked HLS status events and recovery hooks to distinguish ad handling from normal playback health.",
+      "summary": "Component tests for TwitchLivePlayer’s visible ad-block and playback-recovery status indicators. Verifies announcements for automatic reconnection, preroll and midroll substitution, removal of stale inactive-ad state, and separation of ordinary buffering or network recovery from ad handling.",
       "tags": [
         "twitch",
         "ad-blocking",
-        "player",
-        "loading-state",
-        "network-recovery"
+        "status-indicator",
+        "reconnection",
+        "react-testing"
       ],
-      "hash": "ef68501e9fcb2390",
-      "mtime": 1786321935486,
-      "size": 6618,
+      "hash": "8912ba2b0a2babee",
+      "mtime": 1786373464239,
+      "size": 6499,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
@@ -30760,9 +30760,9 @@
         "tags": [
           "twitch",
           "ad-blocking",
-          "player",
-          "loading-state",
-          "network-recovery"
+          "status-indicator",
+          "reconnection",
+          "react-testing"
         ]
       }
     },
@@ -34638,27 +34638,27 @@
       }
     },
     "apps/desktop/tests/pages/Stream.test.tsx": {
-      "summary": "Comprehensive StreamPage tests covering route-driven Twitch/Kick player rendering, channel and stream query states, loading/offline/error recovery, playback reload watchdogs, chat layout preferences, persistent player integration, related content, stream metadata, and navigation/cache updates. Mocks platform players, TanStack Router, query hooks, playback state, authentication preferences, and Electron APIs to validate page orchestration without real network or media playback.",
+      "summary": "Integration-style page tests for the Stream route, mocking channel and stream queries, platform players, chat, related content, routing, authentication preferences, and playback recovery. Covers loading, offline and terminal error states, Twitch live-status retries and watchdog reload gates, player remount behavior, chat layout preferences, and stream-page coordination.",
       "tags": [
         "stream-page",
-        "routing",
         "twitch",
         "kick",
-        "query-state"
+        "routing",
+        "playback-recovery"
       ],
-      "hash": "c1b0b4e25620e478",
-      "mtime": 1786316380612,
-      "size": 66973,
+      "hash": "b1a20b5ad3681c03",
+      "mtime": 1786373630065,
+      "size": 68205,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
           "stream-page",
-          "routing",
           "twitch",
           "kick",
-          "query-state"
+          "routing",
+          "playback-recovery"
         ]
       }
     },
@@ -38441,27 +38441,27 @@
       "size": 9056
     },
     "apps/desktop/src/components/player/hooks/use-live-playback-stall-recovery.ts": {
-      "summary": "React hook that monitors HLS live video playback for stalled frames, buffering, network changes, visibility changes, and playback state transitions, then delegates recovery decisions to LivePlaybackStallController. Exports useLivePlaybackStallRecovery, which reports fragments, manifests, and network errors while applying player recovery actions and logging transitions.",
+      "summary": "React hook that monitors HTML video and HLS playback health, detects live-stream stalls, and delegates recovery decisions to LivePlaybackStallController. It tracks presented frames, fragments, buffering, media events, visibility, connectivity, and recovery callbacks for HLS live-player reliability.",
       "tags": [
+        "react-hook",
         "hls",
         "live-playback",
         "stall-recovery",
-        "video",
-        "react-hook"
+        "watchdog"
       ],
-      "hash": "11edb50a9c06786d",
-      "mtime": 1786152898242,
-      "size": 11634,
+      "hash": "33da7168ee7ff0f5",
+      "mtime": 1786370475638,
+      "size": 12094,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
+          "react-hook",
           "hls",
           "live-playback",
           "stall-recovery",
-          "video",
-          "react-hook"
+          "watchdog"
         ]
       }
     },
@@ -51040,17 +51040,17 @@
       }
     },
     "docs/concepts/twitch-ad-presentation-continuity.md": {
-      "summary": "Valo Memory Code concept page documenting Twitch live ad-presentation continuity: fail-closed HLS handling, clean-frame verification, persistent covers, playback and audio intent ownership, recovery behavior, and multi-player channel identity. Points developers to the related player, proxy, loader, service, page, tests, and playlist fixture when diagnosing black flashes, interstitial leaks, spinners, false pauses, or random mutes.",
+      "summary": "Valo Memory Code concept documenting Twitch live ad-presentation safety and continuity rules. It explains the persistent cover, clean-frame verification, fail-closed playlist filtering, player identity preservation, explicit playback and audio intent ownership, and recovery boundaries used by Twitch HLS players and related tests.",
       "tags": [
         "twitch",
         "ad-blocking",
-        "presentation-continuity",
-        "hls-recovery",
-        "memory-code"
+        "hls",
+        "media-safety",
+        "playback-continuity"
       ],
-      "hash": "e786016631883e14",
-      "mtime": 1786320113698,
-      "size": 14892,
+      "hash": "ed0d7aa6c01c9acc",
+      "mtime": 1786373688482,
+      "size": 15168,
       "importance": {
         "score": 0.0003456619426201175,
         "importCount": 0,
@@ -51058,9 +51058,9 @@
         "tags": [
           "twitch",
           "ad-blocking",
-          "presentation-continuity",
-          "hls-recovery",
-          "memory-code"
+          "hls",
+          "media-safety",
+          "playback-continuity"
         ]
       }
     },
