@@ -51,6 +51,7 @@ function fingerprint(url: string): string {
   return createHash("sha256").update(url).digest("hex").slice(0, 16);
 }
 
+// Guards: a retryable HLS segment transport failure is diagnostic noise, not a terminal playback error
 describe("installNetworkRequestLogger", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -215,5 +216,46 @@ describe("installNetworkRequestLogger", () => {
     expect(loggerMock.error).not.toHaveBeenCalled();
     expect(loggerMock.warn).not.toHaveBeenCalled();
     expect(loggerMock.info).not.toHaveBeenCalled();
+  });
+
+  it("warns for a failed HLS segment because hls.js can recover by retrying it", () => {
+    const { session, webRequest } = makeSession();
+    const url =
+      "https://fa723fc1b171.cd655df44508.j.cloudfront.hls.live-video.net/v1/segment/example.ts";
+
+    installNetworkRequestLogger(session as unknown as Electron.Session);
+
+    listenerAt<Electron.OnSendHeadersListenerDetails>(webRequest.onSendHeaders)({
+      id: 11,
+      url,
+      method: "GET",
+      resourceType: "xhr",
+      referrer: "http://localhost:5173/",
+      timestamp: 1000,
+      requestHeaders: {},
+    });
+
+    listenerAt<Electron.OnErrorOccurredListenerDetails>(webRequest.onErrorOccurred)({
+      id: 11,
+      url,
+      method: "GET",
+      resourceType: "xhr",
+      referrer: "http://localhost:5173/",
+      timestamp: 1081,
+      fromCache: false,
+      error: "net::ERR_FAILED",
+    });
+
+    expect(loggerMock.error).not.toHaveBeenCalled();
+    expect(loggerMock.warn).toHaveBeenCalledWith(
+      "Network:Request",
+      "stream segment request failed; hls.js may retry",
+      expect.objectContaining({
+        kind: "segment",
+        error: "net::ERR_FAILED",
+        status: "net::ERR_FAILED",
+        durationMs: 81,
+      })
+    );
   });
 });

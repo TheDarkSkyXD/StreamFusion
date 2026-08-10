@@ -318,12 +318,20 @@ export function installNetworkRequestLogger(targetSession: Session): void {
 
     if (details.error === "net::ERR_ABORTED") return;
 
-    logger.error("Network:Request", "stream request failed", {
+    const kind = requestKind(details.url);
+    const meta = {
       ...baseMeta(details, start),
       error: details.error,
       fromCache: details.fromCache,
       status: details.error,
       durationMs: durationMs(details, start),
-    });
+    };
+
+    if (kind === "segment") {
+      logger.warn("Network:Request", "stream segment request failed; hls.js may retry", meta);
+      return;
+    }
+
+    logger.error("Network:Request", "stream request failed", meta);
   });
 }
