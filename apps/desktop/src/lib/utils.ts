@@ -97,6 +97,16 @@ export function formatLanguageLabel(lang: string | null | undefined): string {
   return lang.charAt(0).toUpperCase() + lang.slice(1).toLowerCase();
 }
 
+export function uniqueTagLabels(tags: readonly string[]): string[] {
+  const seen = new Set<string>();
+  return tags.filter((tag) => {
+    const key = tag.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 // Curated equivalences for category names that differ between platforms.
 // Symmetric names (e.g. "IRL" on both, "Grand Theft Auto V" on both) don't
 // need entries — they match automatically via lowercase comparison.

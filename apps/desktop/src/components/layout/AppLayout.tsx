@@ -13,7 +13,6 @@ import { IoMdSettings } from "react-icons/io";
 
 import { PersistentPlayerShell } from "@/components/player/persistent-player-shell";
 import { RecordingOutcomeBridge } from "@/components/recording/recording-completion-notice";
-import { useAuthInitialize } from "@/hooks/useAuth";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { StreamRecordingProvider } from "@/hooks/use-stream-recording-state";
 import { cn } from "@/lib/utils";
@@ -54,9 +53,6 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { isOnline, isChecking, retryInSeconds } = useNetworkStatus();
   const location = useLocation();
   const shouldRenderPersistentPlayer = Boolean(currentPipStream);
-
-  // Initialize auth state once at the app root
-  useAuthInitialize();
 
   return (
     <StreamRecordingProvider>

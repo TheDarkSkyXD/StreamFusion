@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mockNavigate = vi.hoisted(() => vi.fn());
 const toastMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@tanstack/react-router", () => ({
-  useNavigate: () => mockNavigate,
+vi.mock("@/routes/router", () => ({
+  router: { navigate: mockNavigate },
 }));
 
 vi.mock("sonner", () => ({
@@ -84,6 +84,7 @@ afterEach(() => {
 
 // Guards: renderer must persist live-notification pushes from main so the bell history works for desktop, toast, and guest follows.
 // Guards: live toasts must render the supplied Twitch and Kick channel avatars through the platform image proxy.
+// Guards: desktop notification clicks navigate through the app router without requiring hook context above RouterProvider.
 describe("useLiveNotificationBridge", () => {
   it("adds incoming live notifications to the notification store", () => {
     renderHook(() => useLiveNotificationBridge());

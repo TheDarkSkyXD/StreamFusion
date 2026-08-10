@@ -10,15 +10,16 @@ import {
 import type { UnifiedStream } from "@/backend/api/unified/platform-types";
 import { logger } from "@/backend/logging/logger";
 import { isChannelEligibleForLiveNotification } from "@/lib/live-notification-preferences";
-import type {
-  DesktopNotificationPermissionStatus,
-  LiveNotificationCoverageIssue,
-  LiveNotificationCoverageIssueReason,
-  LiveNotificationCoverageStatus,
-  LiveNotificationPayload,
-  LocalFollow,
-  Platform,
-  UserPreferences,
+import {
+  type DesktopNotificationPermissionStatus,
+  type LiveNotificationCoverageIssue,
+  type LiveNotificationCoverageIssueReason,
+  type LiveNotificationCoverageStatus,
+  type LiveNotificationPayload,
+  type LocalFollow,
+  type Platform,
+  TWITCH_APP_CLIENT_ID,
+  type UserPreferences,
 } from "@/shared/auth-types";
 import { IPC_CHANNELS } from "@/shared/ipc-channels";
 import { KickLiveNotificationSource } from "./kick-live-notification-source";
@@ -434,7 +435,7 @@ class AppLiveNotificationService {
         getToken: () => storageService.getToken("twitch"),
         getUser: () => storageService.getTwitchUser(),
         getFollows: () => storageService.getActiveFollowsByPlatform("twitch"),
-        getClientId: () => process.env.TWITCH_CLIENT_ID || null,
+        getClientId: () => TWITCH_APP_CLIENT_ID,
         getEventSubClient: getTwitchEventSubClient,
         onOnline: (observation) => {
           this.service?.observeOnline(observation);

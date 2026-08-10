@@ -31,7 +31,7 @@ Phase 1 implements authentication for Twitch and Kick platforms with OAuth, plus
 
 - [x] **1.1.1** Install and configure electron-store
   ```bash
-  npm install electron-store
+  pnpm add electron-store
   ```
 
 - [x] **1.1.2** Create secure storage service (`src/backend/services/storage-service.ts`)
@@ -426,7 +426,7 @@ API:           https://api.kick.com/public/v1
 ## Dependencies Installed
 
 ```bash
-npm install electron-store  # ✅ Installed
+pnpm add electron-store  # ✅ Installed
 # No additional dependencies needed for OAuth - using direct implementation
 ```
 

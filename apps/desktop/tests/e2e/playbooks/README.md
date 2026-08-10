@@ -2,7 +2,7 @@
 
 These are scenario scripts that **Claude (or another MCP client)** executes against a running StreamFusion dev build via the `debug-electron-mcp` server. Each playbook is a self-contained checklist Claude can follow step-by-step using the MCP tools listed below.
 
-The playbooks **do not run on CI** — CI runs the vitest unit suite only (see `.github/workflows/build.yml`). The playbooks exist for:
+The playbooks **do not run on CI** — CI runs the automated desktop and worker checks (see `.github/workflows/build.yml`). The playbooks exist for:
 
 - Interactive smoke-testing during development.
 - Reproducing user reports inside Claude.

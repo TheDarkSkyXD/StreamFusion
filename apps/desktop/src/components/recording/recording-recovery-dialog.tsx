@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LuCircleAlert, LuCircleX, LuFileCheck2, LuPlay } from "react-icons/lu";
 
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,9 @@ export function RecordingRecoveryDialog() {
   const finalizeOnly =
     active?.recoveryFinalizeOnly === true || active?.recoveryResumeEligible === false;
   const activeSessionIdRef = useRef(activeSessionId);
-  activeSessionIdRef.current = activeSessionId;
+  useLayoutEffect(() => {
+    activeSessionIdRef.current = activeSessionId;
+  }, [activeSessionId]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: recovery-local UI state is keyed by the active session ID.
   useEffect(() => {

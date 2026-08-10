@@ -14,11 +14,10 @@ issues [#56](https://github.com/TheDarkSkyXD/StreamFusion/issues/56) +
 ```sh
 # Windows (PowerShell)
 $env:STREAMFUSION_WEBCONTENTS_VIEW_SLOTS = '1'
-cd apps/desktop && npx electron-vite dev -- --remote-debugging-port=9222
+pnpm --dir apps/desktop dev:mcp
 
 # macOS / Linux
-STREAMFUSION_WEBCONTENTS_VIEW_SLOTS=1 \
-  cd apps/desktop && npx electron-vite dev -- --remote-debugging-port=9222
+STREAMFUSION_WEBCONTENTS_VIEW_SLOTS=1 pnpm --dir apps/desktop dev:mcp
 ```
 
 Verify on startup:

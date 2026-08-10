@@ -114,9 +114,9 @@ streamfusion/
 - [ ] **0.1.1** Initialize Electron Forge project with Vite + React + TypeScript template
   ```bash
   # Install in current directory using ./
-  npm init electron-app@latest ./ -- --template=vite-typescript
+  pnpm dlx create-electron-app@latest ./ --template=vite-typescript
   # OR
-  npx create-electron-app@latest ./ --template=vite-typescript
+  pnpm create electron-app@latest ./ --template=vite-typescript
   ```
 
 - [ ] **0.1.2** Configure forge.config.ts for multi-platform builds
@@ -190,8 +190,8 @@ streamfusion/
 
 - [ ] **0.3.1** Install TailwindCSS with PostCSS
   ```bash
-  npm install -D tailwindcss postcss autoprefixer
-  npx tailwindcss init -p
+  pnpm add -D tailwindcss postcss autoprefixer
+  pnpm exec tailwindcss init -p
   ```
 
 - [ ] **0.3.2** Configure tailwind.config.js
@@ -246,7 +246,7 @@ streamfusion/
 
 - [ ] **0.4.1** Install Zustand
   ```bash
-  npm install zustand
+  pnpm add zustand
   ```
 
 - [ ] **0.4.2** Create base store structure
@@ -262,7 +262,7 @@ streamfusion/
 
 - [ ] **0.4.3** Install TanStack Query
   ```bash
-  npm install @tanstack/react-query @tanstack/react-query-devtools
+  pnpm add @tanstack/react-query @tanstack/react-query-devtools
   ```
 
 - [ ] **0.4.4** Configure QueryClient and Provider
@@ -271,7 +271,7 @@ streamfusion/
 
 - [ ] **0.4.5** Install TanStack Router
   ```bash
-  npm install @tanstack/react-router
+  pnpm add @tanstack/react-router
   ```
 
 - [ ] **0.4.6** Set up initial routes

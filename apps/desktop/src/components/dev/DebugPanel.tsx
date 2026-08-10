@@ -9,7 +9,7 @@
  * - Position, collapsed state, and hidden state persist across reloads.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { ChatSimTool } from "./ChatSimTool";
 import { PerfTool } from "./PerfTool";
@@ -194,9 +194,11 @@ function DebugPanelImpl() {
   });
 
   const positionRef = useRef(position);
-  positionRef.current = position;
   const collapsedRef = useRef(collapsed);
-  collapsedRef.current = collapsed;
+  useLayoutEffect(() => {
+    positionRef.current = position;
+    collapsedRef.current = collapsed;
+  }, [collapsed, position]);
 
   useEffect(() => {
     savePersisted({ position, collapsed, activeId, hidden });

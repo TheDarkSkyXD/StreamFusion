@@ -4,7 +4,7 @@
 Confirm the sidebar links navigate between the major pages (Home, Following, Categories, History, Downloads, MultiStream) and that each lands on the expected route + renders a heading or sentinel.
 
 ## Preconditions
-- Dev build running via `npm run dev:mcp`.
+- Dev build running via `pnpm dev:mcp`.
 - StreamFusion project registered with `debug-electron-mcp`.
 
 ## Steps

@@ -132,8 +132,8 @@ To measure the impact of these optimizations:
 
 1. **Bundle Size:**
    ```bash
-   npm run package
-   # Compare .vite/build output sizes before/after
+   pnpm --filter streamfusion build
+   # Compare apps/desktop/out output sizes before/after
    ```
 
 2. **Startup Time:**

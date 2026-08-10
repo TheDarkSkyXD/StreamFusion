@@ -12,17 +12,17 @@ Playbooks are intentionally markdown checklists, not code. They're authored to b
 
 ```bash
 # From apps/desktop/
-npm run dev:mcp           # Dev server with Chrome DevTools Protocol on :9222
+pnpm dev:mcp              # Dev server with Chrome DevTools Protocol on :9222
                           #   ↑ start this *before* asking Claude to run playbooks
 ```
 
 The `dev:mcp` script lives in `apps/desktop/package.json`:
 
 ```json
-"dev:mcp": "electron-vite dev -- --remote-debugging-port=9222"
+"dev:mcp": "node scripts/start-dev.js -- --remote-debugging-port=9222"
 ```
 
-Once `npm run dev:mcp` is running, Claude can connect via either MCP server (see below) and drive the app.
+Once `pnpm dev:mcp` is running, Claude can connect via either MCP server (see below) and drive the app.
 
 Screenshots captured by either Electron MCP server must be written under the repo-root `.scratch/images/` directory. That directory is gitignored, so use explicit paths such as `<repo-root>/.scratch/images/home.png` for `outputPath` (or the equivalent screenshot path argument your MCP server exposes).
 
@@ -52,8 +52,7 @@ The tools it provides (visible to Claude as `mcp__debug-electron-mcp__*`):
 1. **Install the MCP server** (one-time):
 
    ```bash
-   # If the server is published on npm:
-   npm install -g debug-electron-mcp
+   pnpm add --global @debugelectron/debug-electron-mcp@latest
    # OR clone the source and follow its README.
    ```
 
@@ -86,7 +85,7 @@ The tools it provides (visible to Claude as `mcp__debug-electron-mcp__*`):
 4. **Start the app in dev mode**:
 
    ```bash
-   npm run dev:mcp
+   pnpm dev:mcp
    ```
 
 5. **Sanity-check the connection** by running the app-launch playbook:
@@ -131,12 +130,12 @@ It's already a dev dependency:
 
 ```bash
 # From apps/desktop/
-npx electron-mcp-server --help
+pnpm exec electron-mcp-server --help
 ```
 
 A typical setup:
 
-1. Start the app with the same `npm run dev:mcp` (port 9222).
+1. Start the app with the same `pnpm dev:mcp` (port 9222).
 2. In a second terminal, run the MCP server pointed at port 9222.
 3. Add it to Claude Code's MCP config:
 
@@ -144,8 +143,13 @@ A typical setup:
    {
      "mcpServers": {
        "electron-mcp-server": {
-         "command": "npx",
-         "args": ["electron-mcp-server"]
+         "command": "pnpm",
+         "args": [
+           "--dir",
+           "<absolute-path-to-this-checkout>/apps/desktop",
+           "exec",
+           "electron-mcp-server"
+         ]
        }
      }
    }
@@ -165,13 +169,13 @@ When using this fallback, the playbooks' **JS payloads remain identical** — on
 | Per-page rendering with mocked hooks/stores | `apps/desktop/tests/pages/*.test.tsx` (vitest) |
 | Real Electron app, real router, real DOM | `apps/desktop/tests/e2e/playbooks/*.playbook.md` (MCP-driven) |
 
-Unit tests are owned by `npm test` (vitest). E2E is owned by Claude executing the playbooks.
+Unit tests are owned by `pnpm test` (vitest). E2E is owned by Claude executing the playbooks.
 
 ---
 
 ## Troubleshooting
 
-- **MCP says "no windows found"** — confirm the dev server was started with `npm run dev:mcp` (not `npm run dev`). The `--remote-debugging-port=9222` flag is what exposes CDP.
+- **MCP says "no windows found"** — confirm the dev server was started with `pnpm dev:mcp` (not `pnpm dev`). The `--remote-debugging-port=9222` flag is what exposes CDP.
 - **Playbook step fails on a selector** — the playbooks rely on stable text strings and roles. If a page changed copy, update the corresponding playbook.
 - **Claude can't see the MCP tools** — restart Claude Code after editing its MCP config. Tool names: look for `mcp__debug-electron-mcp__*` or `mcp__electron-mcp-server__*` in the available tool list.
 
