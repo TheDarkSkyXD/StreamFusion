@@ -1,7 +1,7 @@
 {
   "version": 2,
   "projectRoot": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion",
-  "indexedAt": "2026-08-12T01:49:51.584Z",
+  "indexedAt": "2026-08-12T01:52:29.338Z",
   "lastCommitHash": "ba18a6832c9af82ad210f19c835155ce7a24db96",
   "files": {
     "apps/desktop/docs/TWITCH-ADBLOCK-SYSTEM.md": {
@@ -1668,27 +1668,27 @@
       }
     },
     "apps/desktop/src/backend/api/platforms/kick/endpoints/follow-endpoints.ts": {
-      "summary": "Fetches and writes the signed-in Kick user's followed channels using Bearer-authenticated internal API calls with optional BrowserWindow scraping fallback. Exports follow synchronization results, browser-scan parsing and channel mapping, follow/unfollow mutation helpers, failure classifications, single-flight deduplication, and safeguards that prevent destructive local follow pruning after transient errors.",
+      "summary": "Fetches, parses, maps, and writes followed-channel relationships for the signed-in Kick user. Exports Bearer-first follow synchronization with classified errors, BrowserWindow fallback support, single-flight protection, additive reconciliation, browser-scan mapping, and encoded follow/unfollow mutations used by account sync services.",
       "tags": [
         "kick",
-        "follow-sync",
-        "browser-scraping",
+        "follows",
         "oauth",
-        "single-flight"
+        "browser-fallback",
+        "reconciliation"
       ],
-      "hash": "ef7fabf4936df569",
-      "mtime": 1786499108275,
-      "size": 29266,
+      "hash": "f8b9c173a59eb17c",
+      "mtime": 1786499403875,
+      "size": 31044,
       "importance": {
         "score": 0.000333555703802535,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
           "kick",
-          "follow-sync",
-          "browser-scraping",
+          "follows",
           "oauth",
-          "single-flight"
+          "browser-fallback",
+          "reconciliation"
         ]
       }
     },
@@ -20887,25 +20887,25 @@
       }
     },
     "apps/desktop/tests/backend/api/platforms/kick/follow-endpoints.test.ts": {
-      "summary": "Vitest coverage for Kick followed-channel API and browser fallback orchestration. Tests response mapping, authentication and Cloudflare/network/parse failure classification, warning suppression, single-flight and timeout behavior, additive reconciliation, stable user IDs, and authenticated follow mutations.",
+      "summary": "Vitest coverage for Kick followed-channel synchronization and follow mutations. Tests failure classification, warn-once behavior, single-flight requests, Bearer-first fetching, timeout cancellation, stable broadcaster identity mapping, additive browser reconciliation, redirect recovery, and canonical follow/unfollow API paths.",
       "tags": [
         "kick",
-        "follow-import",
-        "api-testing",
+        "testing",
+        "follows",
         "reconciliation",
         "error-handling"
       ],
-      "hash": "fe196622f67078cd",
-      "mtime": 1786499359454,
-      "size": 17308,
+      "hash": "e16652dc59f2bd23",
+      "mtime": 1786499537127,
+      "size": 18004,
       "importance": {
         "score": 0.000333555703802535,
         "importCount": 0,
         "importedByCount": 0,
         "tags": [
           "kick",
-          "follow-import",
-          "api-testing",
+          "testing",
+          "follows",
           "reconciliation",
           "error-handling"
         ]
