@@ -1,6 +1,4 @@
-packages:
-  - apps/worker
-
+# Keep dependency-security settings aligned with ../../pnpm-workspace.yaml.
 minimumReleaseAge: 10080
 minimumReleaseAgeStrict: true
 minimumReleaseAgeIgnoreMissingTime: false
@@ -18,7 +16,6 @@ allowBuilds:
   esbuild: true
   ffmpeg-static: true
   fsevents: true
-  workerd: true
 
 overrides:
   "ajv@8.20.0>fast-uri": 3.1.5

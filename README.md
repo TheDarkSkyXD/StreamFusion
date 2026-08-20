@@ -40,10 +40,10 @@ This project is organized as a monorepo:
 ```bash
 StreamFusion/
 ├── apps/
-│   ├── desktop/        # Main Electron application source code
-│   └── worker/         # Cloudflare Worker used by the desktop app
-├── pnpm-workspace.yaml # Workspace and dependency-security policy
-├── pnpm-lock.yaml      # Sole dependency lockfile
+│   ├── desktop/        # Standalone Electron workspace and local dependencies
+│   └── worker/         # Cloudflare Worker in the root tooling workspace
+├── pnpm-workspace.yaml # Root tooling/worker dependency-security policy
+├── pnpm-lock.yaml      # Root tooling and worker lockfile
 └── package.json        # Root scripts and package-manager pin
 ```
 
@@ -68,13 +68,17 @@ Ensure you have the following installed:
 2.  **Install dependencies**:
     ```bash
     corepack enable
+    cd apps/desktop
     pnpm install
+    cd ../..
     ```
 
     pnpm 11.17.0 is pinned by the repository. Use pnpm for dependency changes and keep
-    `pnpm-lock.yaml` as the only lockfile; do not use `npm install`.
+    pnpm-generated lockfiles as the only lockfiles; do not use `npm install`.
     Use `pnpm add` and `pnpm remove` for package changes. Dependency lifecycle scripts
     run only when the package is explicitly approved in the workspace `allowBuilds` policy.
+    Running `pnpm install` from `apps/desktop` installs only the desktop package and keeps
+    its dependency artifacts in `apps/desktop/node_modules`; no root install is required.
 
 ### Running Locally
 
@@ -84,8 +88,9 @@ To start the desktop application in development mode with hot-reloading:
 npm start
 ```
 
-`npm start` is the supported compatibility launcher. Other project commands use pnpm;
-for example, `pnpm --filter streamfusion dev` starts the desktop app directly.
+The root `npm start` command is a dependency-free wrapper around the desktop package's
+start picker. From `apps/desktop`, you can also run `npm start` directly. Other project
+commands use pnpm; for example, `pnpm dev` starts the desktop app directly.
 
 
 
@@ -104,9 +109,9 @@ Contributions are welcome! Please feel free to check out the [issues](https://gi
 The desktop app uses **ESLint** for linting and **Prettier** for formatting.
 
 - Check for errors: `pnpm lint`
-- Auto-fix errors: `pnpm --filter streamfusion lint:fix`
-- Format code: `pnpm --filter streamfusion format`
-- Check formatting: `pnpm --filter streamfusion format:check`
+- Auto-fix errors: `pnpm --dir apps/desktop lint:fix`
+- Format code: `pnpm --dir apps/desktop format`
+- Check formatting: `pnpm --dir apps/desktop format:check`
 
 ## 📝 License
 

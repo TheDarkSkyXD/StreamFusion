@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -315,11 +315,13 @@ test("rejects non-exact pnpm release-age exclusions", async () => {
   assert.match(violations.join("\n"), /must use an exact package@version/);
 });
 
-test("validates the repository lockfile and policy files together", async () => {
+test("validates the root and desktop lockfile policy files together", async () => {
   const rootDirectory = await mkdtemp(
     path.join(os.tmpdir(), "streamfusion-release-age-"),
   );
   try {
+    const desktopDirectory = path.join(rootDirectory, "apps", "desktop");
+    await mkdir(desktopDirectory, { recursive: true });
     await Promise.all([
       writeFile(
         path.join(rootDirectory, "pnpm-lock.yaml"),
@@ -333,16 +335,29 @@ test("validates the repository lockfile and policy files together", async () => 
         path.join(rootDirectory, "dependency-policy-exceptions.json"),
         '{"minimumReleaseAge":{}}\n',
       ),
+      writeFile(
+        path.join(desktopDirectory, "pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\npackages:\n  young-package@2.0.0:\n    resolution: {integrity: sha512-test}\n",
+      ),
+      writeFile(
+        path.join(desktopDirectory, "pnpm-workspace.yaml"),
+        "minimumReleaseAge: 10080\nminimumReleaseAgeExclude: []\n",
+      ),
     ]);
 
     const violations = await validateRepository(rootDirectory, {
       now,
-      getPackageTimes: async () => ({
-        "1.2.3": "2026-07-01T00:00:00.000Z",
-      }),
+      getPackageTimes: async (name) =>
+        name === "stable-package"
+          ? { "1.2.3": "2026-07-01T00:00:00.000Z" }
+          : { "2.0.0": "2026-08-05T00:00:00.000Z" },
     });
 
-    assert.deepEqual(violations, []);
+    assert.equal(violations.length, 1);
+    assert.match(
+      violations[0],
+      /^apps[\\/]desktop[\\/]pnpm-lock\.yaml: young-package@2\.0\.0:/,
+    );
   } finally {
     await rm(rootDirectory, { recursive: true, force: true });
   }

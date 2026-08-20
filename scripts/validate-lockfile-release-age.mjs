@@ -9,6 +9,7 @@ const EXACT_VERSION =
   /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const DEFAULT_REGISTRY = "https://registry.npmjs.org";
 const REGISTRY_CONCURRENCY = 16;
+const POLICY_DIRECTORIES = [".", path.join("apps", "desktop")];
 
 async function mapWithConcurrency(values, concurrency, mapper) {
   const results = new Array(values.length);
@@ -258,22 +259,35 @@ export async function validateRepository(
   rootDirectory,
   { now = new Date(), getPackageTimes = createPackagePublicationLookup() } = {},
 ) {
-  const [lockfileSource, workspaceSource, exceptionSource] = await Promise.all([
-    readFile(path.join(rootDirectory, "pnpm-lock.yaml"), "utf8"),
-    readFile(path.join(rootDirectory, "pnpm-workspace.yaml"), "utf8"),
-    readFile(
+  const exceptions = JSON.parse(
+    await readFile(
       path.join(rootDirectory, "dependency-policy-exceptions.json"),
       "utf8",
     ),
-  ]);
+  );
+  const policyViolations = await Promise.all(
+    POLICY_DIRECTORIES.map(async (relativeDirectory) => {
+      const policyDirectory = path.join(rootDirectory, relativeDirectory);
+      const [lockfileSource, workspaceSource] = await Promise.all([
+        readFile(path.join(policyDirectory, "pnpm-lock.yaml"), "utf8"),
+        readFile(path.join(policyDirectory, "pnpm-workspace.yaml"), "utf8"),
+      ]);
+      const violations = await findReleaseAgeViolations({
+        lockfile: loadYaml(lockfileSource),
+        workspace: loadYaml(workspaceSource),
+        exceptions,
+        now,
+        getPackageTimes,
+      });
+      const lockfilePath = path.relative(
+        rootDirectory,
+        path.join(policyDirectory, "pnpm-lock.yaml"),
+      );
+      return violations.map((violation) => `${lockfilePath}: ${violation}`);
+    }),
+  );
 
-  return findReleaseAgeViolations({
-    lockfile: loadYaml(lockfileSource),
-    workspace: loadYaml(workspaceSource),
-    exceptions: JSON.parse(exceptionSource),
-    now,
-    getPackageTimes,
-  });
+  return policyViolations.flat();
 }
 
 const isDirectExecution =

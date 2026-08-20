@@ -16,7 +16,7 @@ export default [
     },
   },
   {
-    files: ["pnpm-lock.yaml"],
+    files: ["pnpm-lock.yaml", "apps/*/pnpm-lock.yaml"],
     rules: {
       "lockfile/binary-conflicts": "off",
       "lockfile/flavor": ["error", "pnpm"],

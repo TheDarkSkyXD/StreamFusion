@@ -1,4 +1,12 @@
 import assert from "node:assert/strict";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 import { assertPnpmUserAgent, isPnpmUserAgent } from "./require-pnpm.mjs";
@@ -6,6 +14,7 @@ import {
   findCompetingLockfiles,
   findForbiddenDependencySources,
   isForbiddenDependencySource,
+  validateRepository,
 } from "./validate-dependency-sources.mjs";
 
 test("the install guard accepts pnpm and rejects other package managers", () => {
@@ -103,4 +112,39 @@ test("dependency policy rejects competing package-manager lockfiles", () => {
     ]),
     ["package-lock.json", "yarn.lock", "bun.lockb"],
   );
+});
+
+test("dependency policy validates the desktop workspace and lockfile boundary", () => {
+  const rootDirectory = mkdtempSync(
+    path.join(os.tmpdir(), "streamfusion-package-policy-"),
+  );
+  try {
+    const desktopDirectory = path.join(rootDirectory, "apps", "desktop");
+    mkdirSync(desktopDirectory, { recursive: true });
+    writeFileSync(path.join(rootDirectory, "package.json"), "{}\n");
+    writeFileSync(path.join(rootDirectory, "pnpm-workspace.yaml"), "{}\n");
+    writeFileSync(path.join(desktopDirectory, "package.json"), "{}\n");
+    writeFileSync(
+      path.join(desktopDirectory, "pnpm-workspace.yaml"),
+      "overrides:\n  unsafe: github:org/repo\n",
+    );
+    writeFileSync(path.join(desktopDirectory, "package-lock.json"), "{}\n");
+
+    assert.deepEqual(validateRepository(rootDirectory), [
+      {
+        file: path.join("apps", "desktop", "package-lock.json"),
+        section: "repository",
+        dependency: "package-lock.json",
+        specifier: "competing lockfile",
+      },
+      {
+        file: path.join("apps", "desktop", "pnpm-workspace.yaml"),
+        section: "overrides",
+        dependency: "unsafe",
+        specifier: "github:org/repo",
+      },
+    ]);
+  } finally {
+    rmSync(rootDirectory, { recursive: true, force: true });
+  }
 });

@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -95,22 +95,30 @@ function loadJson(filePath) {
 
 export function validateRepository(rootDirectory) {
   const manifestPaths = [path.join(rootDirectory, "package.json")];
+  const policyDirectories = [rootDirectory];
   const appsDirectory = path.join(rootDirectory, "apps");
 
   for (const entry of readdirSync(appsDirectory, { withFileTypes: true })) {
     if (entry.isDirectory()) {
-      manifestPaths.push(path.join(appsDirectory, entry.name, "package.json"));
+      const appDirectory = path.join(appsDirectory, entry.name);
+      manifestPaths.push(path.join(appDirectory, "package.json"));
+      const workspacePath = path.join(appDirectory, "pnpm-workspace.yaml");
+      if (existsSync(workspacePath)) {
+        policyDirectories.push(appDirectory);
+      }
     }
   }
 
   const violations = [];
-  for (const file of findCompetingLockfiles(readdirSync(rootDirectory))) {
-    violations.push({
-      file,
-      section: "repository",
-      dependency: file,
-      specifier: "competing lockfile",
-    });
+  for (const policyDirectory of policyDirectories) {
+    for (const file of findCompetingLockfiles(readdirSync(policyDirectory))) {
+      violations.push({
+        file: path.relative(rootDirectory, path.join(policyDirectory, file)),
+        section: "repository",
+        dependency: file,
+        specifier: "competing lockfile",
+      });
+    }
   }
 
   for (const manifestPath of manifestPaths) {
@@ -123,10 +131,15 @@ export function validateRepository(rootDirectory) {
     }
   }
 
-  const workspacePath = path.join(rootDirectory, "pnpm-workspace.yaml");
-  const workspace = loadYaml(readFileSync(workspacePath, "utf8"));
-  for (const violation of findForbiddenWorkspaceSources(workspace)) {
-    violations.push({ file: "pnpm-workspace.yaml", ...violation });
+  for (const policyDirectory of policyDirectories) {
+    const workspacePath = path.join(policyDirectory, "pnpm-workspace.yaml");
+    const workspace = loadYaml(readFileSync(workspacePath, "utf8"));
+    for (const violation of findForbiddenWorkspaceSources(workspace)) {
+      violations.push({
+        file: path.relative(rootDirectory, workspacePath),
+        ...violation,
+      });
+    }
   }
 
   return violations;

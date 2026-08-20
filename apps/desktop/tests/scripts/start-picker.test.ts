@@ -15,6 +15,7 @@ import {
 // Guards: picker modes launch start-dev.js through Node, avoiding npm.cmd/pnpm.cmd spawn EINVAL on Windows.
 // Guards: browser mode adds its development flag without mutating the inherited environment.
 // Guards: npm start forwards explicit Electron arguments after a separator so runtime proofs use their isolated profile.
+// Guards: root npm start reaches the desktop picker directly without a root dependency install.
 describe("start picker", () => {
   it("defaults to Electron-only when the interactive answer is empty", async () => {
     const ask = vi.fn().mockResolvedValue("");
@@ -76,7 +77,7 @@ describe("start picker", () => {
       readFileSync(resolve(__dirname, "../../../../package.json"), "utf8")
     ) as { scripts: Record<string, string> };
 
-    expect(rootPackage.scripts.start).toBe("pnpm --filter streamfusion start");
+    expect(rootPackage.scripts.start).toBe("node apps/desktop/scripts/start-picker.js");
     expect(desktopPackage.scripts.start).toBe("node scripts/start-picker.js");
     expect(desktopPackage.scripts.dev).toBe(
       "cross-env STREAMFUSION_BROWSER_DEV=1 node scripts/start-dev.js"

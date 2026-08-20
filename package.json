@@ -2,7 +2,7 @@
   "name": "streamfusion-monorepo",
   "private": true,
   "workspaces": [
-    "apps/*"
+    "apps/worker"
   ],
   "packageManager": "pnpm@11.17.0",
   "engines": {
@@ -10,21 +10,21 @@
   },
   "scripts": {
     "preinstall": "node scripts/require-pnpm.mjs",
-    "start": "pnpm --filter streamfusion start",
-    "desktop": "pnpm --filter streamfusion start",
-    "build": "pnpm --filter streamfusion build",
-    "dist": "pnpm --filter streamfusion dist",
-    "dist:win": "pnpm --filter streamfusion dist:win",
-    "dist:mac": "pnpm --filter streamfusion dist:mac",
-    "dist:linux": "pnpm --filter streamfusion dist:linux",
-    "lint": "pnpm run lint:dependencies && pnpm run lint:lockfile && pnpm --filter streamfusion lint",
+    "start": "node apps/desktop/scripts/start-picker.js",
+    "desktop": "node apps/desktop/scripts/start-picker.js",
+    "build": "pnpm --dir apps/desktop build",
+    "dist": "pnpm --dir apps/desktop dist",
+    "dist:win": "pnpm --dir apps/desktop dist:win",
+    "dist:mac": "pnpm --dir apps/desktop dist:mac",
+    "dist:linux": "pnpm --dir apps/desktop dist:linux",
+    "lint": "pnpm run lint:dependencies && pnpm run lint:lockfile && pnpm --dir apps/desktop lint",
     "lint:dependencies": "node scripts/validate-dependency-sources.mjs",
-    "lint:lockfile": "eslint --config eslint.lockfile.config.mjs pnpm-lock.yaml package.json apps/*/package.json && pnpm run lint:release-age",
+    "lint:lockfile": "eslint --config eslint.lockfile.config.mjs pnpm-lock.yaml apps/desktop/pnpm-lock.yaml package.json apps/*/package.json && pnpm run lint:release-age",
     "lint:release-age": "node scripts/validate-lockfile-release-age.mjs",
-    "test": "pnpm --filter streamfusion test && pnpm --filter streamfusion-worker test",
+    "test": "pnpm --dir apps/desktop test && pnpm --dir apps/worker test",
     "test:package-policy": "node --test scripts/package-policy.test.mjs scripts/validate-lockfile-release-age.test.mjs",
     "test:release-policy": "node --test scripts/release-policy.test.mjs scripts/merge-artifacts.test.mjs scripts/release-workflow.test.mjs",
-    "typecheck": "pnpm --filter streamfusion typecheck && pnpm --filter streamfusion-worker typecheck"
+    "typecheck": "pnpm --dir apps/desktop typecheck && pnpm --dir apps/worker typecheck"
   },
   "devDependencies": {
     "eslint": "^9.39.5",

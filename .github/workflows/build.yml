@@ -27,10 +27,14 @@ jobs:
         with:
           node-version: '22'
           cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            apps/desktop/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --dir apps/desktop install --frozen-lockfile
 
       - name: Validate dependency sources
         run: pnpm lint:dependencies
@@ -39,15 +43,15 @@ jobs:
         run: pnpm lint:lockfile
 
       - name: Lint desktop
-        run: pnpm --filter streamfusion lint
+        run: pnpm --dir apps/desktop lint
 
       - name: Typecheck desktop
-        run: pnpm --filter streamfusion typecheck
+        run: pnpm --dir apps/desktop typecheck
 
       - name: Test desktop
-        run: pnpm --filter streamfusion test
+        run: pnpm --dir apps/desktop test
         # E2E playbooks are not run here: they require a live Electron build
-        # started with `pnpm --filter streamfusion dev:mcp`. See
+        # started with `pnpm --dir apps/desktop dev:mcp`. See
         # apps/desktop/tests/e2e/README.md.
 
       - name: Typecheck worker
@@ -88,19 +92,19 @@ jobs:
         with:
           node-version: '22'
           cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm --dir apps/desktop install --frozen-lockfile
 
       - name: Rebuild native dependencies for package target
-        run: pnpm --filter streamfusion exec electron-builder install-app-deps --arch ${{ matrix.arch }}
+        run: pnpm --dir apps/desktop exec electron-builder install-app-deps --arch ${{ matrix.arch }}
 
       - name: Build desktop
-        run: pnpm --filter streamfusion build
+        run: pnpm --dir apps/desktop build
 
       - name: Package desktop
-        run: pnpm --filter streamfusion exec electron-builder --publish never --${{ matrix.arch }}
+        run: pnpm --dir apps/desktop exec electron-builder --publish never --${{ matrix.arch }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
