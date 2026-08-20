@@ -131,7 +131,6 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
 
     // Ad-block status tracking
     const [adBlockStatus, setAdBlockStatus] = useState<AdBlockStatus | null>(null);
-    const [isRecoveringPlayback, setIsRecoveringPlayback] = useState(false);
     const [adPresentationCover, setAdPresentationCover] = useState<
       "frame" | "poster" | "placeholder" | null
     >(null);
@@ -143,7 +142,6 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
         adPresentationPlaceholderRef.current.hidden = true;
       }
       setAdBlockStatus(null);
-      setIsRecoveringPlayback(false);
       setAdPresentationCover(null);
       failedAdPresentationPosterRef.current = null;
       setHasError(false);
@@ -520,7 +518,6 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
               setIsLoading(false);
               onCleanPresentedFrame?.();
             }}
-            onPlaybackRecoveryStateChange={setIsRecoveringPlayback}
             onVerifiedCleanAdPresentation={hideAdPresentationCover}
             onError={(error: PlayerError) => {
               if (recoveryManagedExternally) {
@@ -625,18 +622,6 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
           hidden={adPresentationCover !== "placeholder"}
           className="pointer-events-none absolute inset-0 z-20 bg-[#18181b]"
         />
-
-        {isRecoveringPlayback && !isAdSubstitutionActive && !hasError && (
-          <div
-            role="status"
-            aria-live="polite"
-            className="pointer-events-none absolute inset-x-0 top-3 z-40 flex justify-center px-3"
-          >
-            <span className="rounded bg-black/80 px-3 py-1.5 text-sm font-medium text-white">
-              Stream interrupted — reconnecting…
-            </span>
-          </div>
-        )}
 
         {isAdSubstitutionActive && (
           <div

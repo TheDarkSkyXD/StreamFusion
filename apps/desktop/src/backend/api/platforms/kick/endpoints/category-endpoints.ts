@@ -252,7 +252,7 @@ export async function searchCategories(
 
 /**
  * Get category by ID.
- * https://docs.kick.com/apis/categories - GET /public/v2/categories?id[]=:category_id
+ * https://docs.kick.com/apis/categories - GET /public/v2/categories?id=:category_id
  */
 export async function getCategoryById(
   client: KickRequestor,
@@ -260,7 +260,7 @@ export async function getCategoryById(
 ): Promise<UnifiedCategory | null> {
   try {
     const params = new URLSearchParams();
-    params.append("id[]", id);
+    params.set("id", id);
 
     const response = await client.request<KickApiCursorResponse<KickApiCategory[]>>(
       officialCategoriesEndpoint(params),
@@ -268,7 +268,7 @@ export async function getCategoryById(
       "app"
     );
 
-    const category = response.data?.[0];
+    const category = response.data?.find((candidate) => String(candidate.id) === id);
     if (category) {
       return transformKickCategory(category);
     }

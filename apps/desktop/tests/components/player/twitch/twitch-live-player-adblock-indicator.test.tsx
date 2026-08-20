@@ -7,7 +7,6 @@ import type { AdBlockStatus } from "@/shared/adblock-types";
 interface HlsHarnessProps {
   ref?: Ref<HTMLVideoElement>;
   onAdBlockStatusChange?: (status: AdBlockStatus) => void;
-  onPlaybackRecoveryStateChange?: (recovering: boolean) => void;
 }
 
 const harness = vi.hoisted(() => ({
@@ -105,7 +104,7 @@ function status(overrides: Partial<AdBlockStatus> = {}): AdBlockStatus {
 }
 
 function renderPlayer() {
-  render(
+  return render(
     <TwitchLivePlayer
       streamUrl="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
       channelName="sodapoppin"
@@ -119,7 +118,7 @@ function publishStatus(nextStatus: AdBlockStatus) {
   });
 }
 
-// Guards: confirmed playback recovery is announced without confusing ordinary Twitch ad substitution for a stall.
+// Guards: automatic playback recovery remains silent while the player reconnects in place.
 // Guards: active Twitch ad substitution keeps the visible top-left blocking status users rely on.
 describe("Twitch live-player ad-block indicator", () => {
   beforeEach(() => {
@@ -127,27 +126,12 @@ describe("Twitch live-player ad-block indicator", () => {
     harness.recoverFromNetworkError = null;
   });
 
-  it("announces confirmed automatic playback recovery", () => {
-    renderPlayer();
+  it("does not render or announce automatic playback recovery", () => {
+    const { container } = renderPlayer();
 
-    act(() => {
-      harness.hlsProps?.onPlaybackRecoveryStateChange?.(true);
-    });
-
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Stream interrupted — reconnecting…"
-    );
-  });
-
-  it("clears the recovery announcement when healthy playback returns", () => {
-    renderPlayer();
-
-    act(() => {
-      harness.hlsProps?.onPlaybackRecoveryStateChange?.(true);
-      harness.hlsProps?.onPlaybackRecoveryStateChange?.(false);
-    });
-
-    expect(screen.queryByText("Stream interrupted — reconnecting…")).not.toBeInTheDocument();
+    expect(harness.hlsProps).not.toHaveProperty("onPlaybackRecoveryStateChange");
+    expect(screen.queryByText(/stream interrupted/i)).not.toBeInTheDocument();
+    expect(container.querySelector("[aria-live]")).not.toBeInTheDocument();
   });
 
   it("announces ordinary preroll ad substitution", () => {

@@ -23,7 +23,7 @@ Owns Kick-specific API knowledge for `kick-client.ts`, `kick-requestor.ts`, `kic
 
 ## Official Endpoint Inventory
 
-Last checked from `docs.kick.com` and `api.kick.com/swagger/doc.yaml` on 2026-07-30.
+Last checked from `docs.kick.com` and `api.kick.com/swagger/doc.yaml` on 2026-08-20.
 
 ### OAuth: `https://id.kick.com`
 
@@ -38,7 +38,7 @@ Last checked from `docs.kick.com` and `api.kick.com/swagger/doc.yaml` on 2026-07
 
 | Method | Path | Use | Params/Auth |
 | --- | --- | --- | --- |
-| `GET` | `/public/v2/categories` | Current category lookup/list endpoint | Optional `cursor`, `limit`, `name[]`, `tag[]`, `id[]`; user or app token. |
+| `GET` | `/public/v2/categories` | Current category lookup/list endpoint | Optional `cursor`, `limit`, and CSV lists in `name`, `tag`, or `id`; user or app token. |
 | `GET` | `/public/v1/categories` | Deprecated category search | Required `q`; optional `page`; user or app token. |
 | `GET` | `/public/v1/categories/{category_id}` | Deprecated category by ID | Path `category_id`; user or app token. |
 
