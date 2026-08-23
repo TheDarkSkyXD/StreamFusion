@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -12,7 +15,14 @@ import { IPC_CHANNELS, IPC_FEATURES } from "@/shared/ipc-channels";
 // Guards: concurrent and repeated requests share one feature-load operation.
 // Guards: only the feature-loader transport bypasses on-demand handler loading.
 // Guards: fire-and-forget shell and logging calls load their handler before sending.
+// Guards: the sandboxed preload feature loader cannot import runtime schema compilers blocked by CSP.
 describe("IPC feature loading", () => {
+  it("keeps runtime schema compilers out of the sandboxed preload path", async () => {
+    const source = await readFile(resolve("src/preload/ipc-feature-loader.ts"), "utf8");
+
+    expect(source).not.toMatch(/(?:from\s+|import\()\s*["'][^"']*(?:zod|ipc-contracts)/);
+  });
+
   it("maps split handler domains and special-case channels to their feature", () => {
     expect(resolveIpcFeature(IPC_CHANNELS.STREAMS_GET_TOP)).toBe(IPC_FEATURES.STREAMS);
     expect(resolveIpcFeature(IPC_CHANNELS.AUTH_TOKEN_STATUS)).toBe(IPC_FEATURES.TOKEN_STATUS);
@@ -41,6 +51,17 @@ describe("IPC feature loading", () => {
       [IPC_CHANNELS.IPC_FEATURE_LOAD, IPC_FEATURES.STREAMS],
       [IPC_CHANNELS.STREAMS_GET_TOP, {}],
     ]);
+  });
+
+  it("accepts an empty success reply from the feature-loader transport", async () => {
+    const invoke = vi.fn(async (channel: string) =>
+      channel === IPC_CHANNELS.IPC_FEATURE_LOAD ? undefined : channel
+    );
+    const featureInvoke = createFeatureAwareInvoke(invoke);
+
+    await expect(featureInvoke(IPC_CHANNELS.CONNECTIVITY_CHECK)).resolves.toBe(
+      IPC_CHANNELS.CONNECTIVITY_CHECK
+    );
   });
 
   it("shares one load across concurrent requests for the same feature", async () => {
@@ -85,4 +106,22 @@ describe("IPC feature loading", () => {
     expect(invoke).toHaveBeenCalledWith(IPC_CHANNELS.IPC_FEATURE_LOAD, IPC_FEATURES.SYSTEM);
   });
 
+  it("rejects a malformed or failed feature-loader reply before invoking the feature", async () => {
+    const malformed = createFeatureAwareInvoke(vi.fn().mockResolvedValue({ kind: "ok" }));
+    await expect(malformed(IPC_CHANNELS.STREAMS_GET_TOP)).rejects.toThrow("invalid reply");
+
+    const failed = createFeatureAwareInvoke(
+      vi.fn().mockResolvedValue({
+        kind: "error",
+        error: {
+          code: "internal",
+          retry: { kind: "manual" },
+          diagnosticId: "00000000-0000-4000-8000-000000000000",
+        },
+      })
+    );
+    await expect(failed(IPC_CHANNELS.STREAMS_GET_TOP)).rejects.toThrow(
+      "00000000-0000-4000-8000-000000000000"
+    );
+  });
 });

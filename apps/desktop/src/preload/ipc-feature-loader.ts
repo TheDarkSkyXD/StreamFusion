@@ -7,6 +7,85 @@ import {
   type IpcFeature,
 } from "../shared/ipc-channels";
 
+type FeatureLoaderRetryAdvice =
+  | { readonly kind: "none" }
+  | { readonly kind: "manual" }
+  | { readonly kind: "after"; readonly retryAtMs: number };
+
+interface FeatureLoaderError {
+  readonly code: string;
+  readonly retry: FeatureLoaderRetryAdvice;
+  readonly diagnosticId: string;
+  readonly platform?: "twitch" | "kick";
+}
+
+type FeatureLoaderReply =
+  | { readonly kind: "ok"; readonly value: null }
+  | { readonly kind: "error"; readonly error: FeatureLoaderError };
+
+const APP_ERROR_CODES: ReadonlySet<string> = new Set([
+  "invalid_input",
+  "unauthenticated",
+  "forbidden",
+  "not_found",
+  "conflict",
+  "rate_limited",
+  "transient",
+  "timeout",
+  "offline",
+  "canceled",
+  "corrupt_local_data",
+  "upstream_schema",
+  "internal",
+]);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
+  return Object.keys(value).every((key) => allowed.includes(key));
+}
+
+function isRetryAdvice(value: unknown): value is FeatureLoaderRetryAdvice {
+  if (!isRecord(value)) return false;
+  if (value.kind === "none" || value.kind === "manual") {
+    return hasOnlyKeys(value, ["kind"]);
+  }
+  return (
+    value.kind === "after" &&
+    typeof value.retryAtMs === "number" &&
+    Number.isFinite(value.retryAtMs) &&
+    hasOnlyKeys(value, ["kind", "retryAtMs"])
+  );
+}
+
+function isSafeAppError(value: unknown): value is FeatureLoaderError {
+  return (
+    isRecord(value) &&
+    typeof value.code === "string" &&
+    APP_ERROR_CODES.has(value.code) &&
+    isRetryAdvice(value.retry) &&
+    typeof value.diagnosticId === "string" &&
+    UUID_PATTERN.test(value.diagnosticId) &&
+    (value.platform === undefined || value.platform === "twitch" || value.platform === "kick") &&
+    hasOnlyKeys(value, ["code", "retry", "diagnosticId", "platform"])
+  );
+}
+
+export function isFeatureLoaderReply(value: unknown): value is FeatureLoaderReply {
+  if (!isRecord(value)) return false;
+  if (value.kind === "ok") {
+    return value.value === null && hasOnlyKeys(value, ["kind", "value"]);
+  }
+  return (
+    value.kind === "error" &&
+    isSafeAppError(value.error) &&
+    hasOnlyKeys(value, ["kind", "error"])
+  );
+}
+
 function channelPrefix(channel: IpcChannel): string {
   return channel.slice(0, channel.indexOf(":") + 1);
 }
@@ -103,7 +182,15 @@ export function createFeatureAwareIpc(invoke: Invoke, send: Send): FeatureAwareI
   const loadFeature = async (feature: IpcFeature): Promise<void> => {
     let pending = pendingLoads.get(feature);
     if (!pending) {
-      pending = invoke(IPC_CHANNELS.IPC_FEATURE_LOAD, feature);
+      pending = invoke(IPC_CHANNELS.IPC_FEATURE_LOAD, feature).then((rawReply) => {
+        if (rawReply === undefined) return;
+        if (!isFeatureLoaderReply(rawReply)) {
+          throw new Error("The app feature loader returned an invalid reply");
+        }
+        if (rawReply.kind === "error") {
+          throw new Error(`Could not load app feature (${rawReply.error.diagnosticId})`);
+        }
+      });
       pendingLoads.set(feature, pending);
       void pending.catch(() => {
         if (pendingLoads.get(feature) === pending) pendingLoads.delete(feature);
