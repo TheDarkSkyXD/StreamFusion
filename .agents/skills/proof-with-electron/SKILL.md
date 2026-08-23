@@ -1,6 +1,9 @@
 ---
 name: prove
-description: Prove — with real, observed evidence — that a feature is actually implemented and working, rather than just asserting it is. Use this whenever the user wants proof/confirmation that something works: "prove it works", "show me it's done", "verify this feature", "confirm it actually works", "did you really finish X", "test it and show me", or any moment where you're about to claim a feature is complete and need to back that claim with evidence instead of optimism. The default path is driving the real Electron app via the Debug Electron MCP and capturing screenshots; for features with no UI, fall back to running the actual code (tests, API calls, CLI). Trigger this proactively before declaring any non-trivial feature "done" — claiming completion without observed evidence is exactly the failure this skill exists to prevent.
+description: >-
+  Prove with real, observed evidence that a feature is implemented and working.
+  Use when the user asks to prove, show, verify, or confirm that a feature works,
+  or before declaring a non-trivial Electron feature complete.
 ---
 
 ## Required: Debug Electron MCP
@@ -27,14 +30,22 @@ This skill drives Electron apps via the **Debug Electron MCP** server ([GitHub](
    ```
 4. After adding, tell the user: "I've installed the Debug Electron MCP. You'll need to start a new chat for the MCP tools to load — they initialize at chat startup."
 
-**The target Electron app must be started with remote debugging enabled** on port 9222 (the MCP scans ports 9222–9225):
-```bash
-electron . --remote-debugging-port=9222
-# or
-npx electron . --remote-debugging-port=9222
-# or
-npm start -- --remote-debugging-port=9222
-```
+### StreamFusion launch workflow
+
+Proof must exercise the same development launch path the user runs. For StreamFusion:
+
+1. Restart the app after the final source change so the proof cannot accidentally exercise an older process or stale build.
+2. From `apps/desktop`, run:
+   ```bash
+   npm start
+   ```
+3. At `How would you like to start StreamFusion?`, enter `1` for **Electron app only (default)**.
+4. Keep that command session alive. Wait until the output confirms the main and preload builds completed, the renderer dev server started, and `starting electron app...` appeared.
+5. Use the Debug Electron MCP project `streamfusion-monorepo`, which is registered on port `9236`, and confirm that it reports a live app window before interacting with it.
+
+Do not use `electron .`, `npx electron .`, `electron-vite preview`, or a previously built artifact as the normal StreamFusion proof path. Those shortcuts can bypass the project launcher or verify code that is not the code the user will run. Use them only when the task is specifically to diagnose the launcher itself, and disclose that exception.
+
+For another Electron project, use that repository's normal development start command and make sure its Electron process has remote debugging enabled on a port available to the Debug Electron MCP.
 
 ---
 
@@ -50,7 +61,7 @@ Adopt an adversarial stance toward your own work. Your goal is not to confirm yo
 
 2. **Re-read your own implementation.** Before touching the running app, look at the code you wrote with fresh, skeptical eyes. Trace the actual path the feature takes. Look for the things that compile fine but break at runtime: a handler wired to the wrong route, a missing await, state that never updates, an API call with no error handling, a button with no onClick. This catches a class of bugs faster than the browser will.
 
-3. **Run the real thing and observe it.** This is the heart of proof — you must *observe* the behavior, not infer it.
+3. **Run the real thing and observe it.** This is the heart of proof — you must *observe* the behavior, not infer it. For StreamFusion, restart it with `npm start` and option `1` after the latest code changes, then confirm the fresh build and Electron launch in the command output before using the MCP.
 
    - **Anything with a UI → drive it in the browser via the Electron MCP.** Make sure the app is actually running (start the dev server if needed and confirm it's up). Navigate to the feature, perform the real user actions (click, type, submit), and **take screenshots** at the meaningful moments. Then *actually look at the screenshots* and the page snapshot — read what's on screen, confirm the expected elements/text/state are present and the error states are absent. Check the browser console for errors. A screenshot you don't analyze is not evidence.
    - **No UI (API, CLI, library, data job) → exercise the real code.** Hit the endpoint, run the command, call the function, query the table — with real inputs — and capture the actual output. Run the project's tests if they cover the feature.
