@@ -77,6 +77,27 @@ interface PendingFollowWriteDbRow {
   last_error: string | null;
 }
 
+interface SyncedFollowInput {
+  platform: Platform;
+  channelId: string;
+  channelName: string;
+  displayName?: string;
+  profileImage?: string;
+}
+
+function normalizedFollowSlug(channelName: string): string {
+  return channelName.trim().toLowerCase();
+}
+
+function getStableKickFollowIdentity(
+  follow: Pick<SyncedFollowInput, "channelId" | "profileImage">
+): string | null {
+  return firstValidKickBroadcasterUserId(
+    getKickBroadcasterUserIdFromAvatar(follow.profileImage),
+    follow.channelId
+  );
+}
+
 function isPendingFollowWriteDbRow(value: unknown): value is PendingFollowWriteDbRow {
   if (typeof value !== "object" || value === null) return false;
   return (
@@ -262,6 +283,56 @@ export class DatabaseService {
       logger.debug("Service:DB", "Migration complete: source values are now {guest, kick, twitch}");
     }
 
+    // Older readers could store one Kick channel twice: once by numeric ID
+    // and once by slug. Remove invalid/duplicate rows before installing the
+    // persistence-level invariant that protects every writer.
+    const invalidFollowCleanup = this.database
+      .prepare("DELETE FROM local_follows WHERE trim(channel_name) = ''")
+      .run();
+    const duplicateFollowCleanup = this.database
+      .prepare(
+        `DELETE FROM local_follows
+         WHERE EXISTS (
+           SELECT 1 FROM local_follows AS keeper
+           WHERE keeper.platform = local_follows.platform
+             AND keeper.source = local_follows.source
+             AND lower(trim(keeper.channel_name)) = lower(trim(local_follows.channel_name))
+             AND (
+               (CASE WHEN keeper.channel_id GLOB '[1-9]*'
+                           AND keeper.channel_id NOT GLOB '*[^0-9]*' THEN 1 ELSE 0 END) >
+               (CASE WHEN local_follows.channel_id GLOB '[1-9]*'
+                           AND local_follows.channel_id NOT GLOB '*[^0-9]*' THEN 1 ELSE 0 END)
+               OR (
+                 (CASE WHEN keeper.channel_id GLOB '[1-9]*'
+                             AND keeper.channel_id NOT GLOB '*[^0-9]*' THEN 1 ELSE 0 END) =
+                 (CASE WHEN local_follows.channel_id GLOB '[1-9]*'
+                             AND local_follows.channel_id NOT GLOB '*[^0-9]*' THEN 1 ELSE 0 END)
+                 AND (
+                   COALESCE(keeper.followed_at, '') > COALESCE(local_follows.followed_at, '')
+                   OR (COALESCE(keeper.followed_at, '') = COALESCE(local_follows.followed_at, '')
+                       AND keeper.rowid > local_follows.rowid)
+                 )
+               )
+             )
+         )`
+      )
+      .run();
+    this.database.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_follows_platform_slug_source
+        ON local_follows(platform, lower(trim(channel_name)), source)
+        WHERE trim(channel_name) <> '';
+    `);
+    if (duplicateFollowCleanup.changes > 0) {
+      logger.info("Service:DB", "Collapsed duplicate follow identities", {
+        removedCount: duplicateFollowCleanup.changes,
+      });
+    }
+    if (invalidFollowCleanup.changes > 0) {
+      logger.warn("Service:DB", "Removed invalid follow rows without channel slugs", {
+        removedCount: invalidFollowCleanup.changes,
+      });
+    }
+
     // 3. Mod Log
     this.database.exec(`
       CREATE TABLE IF NOT EXISTS mod_log (
@@ -357,16 +428,14 @@ export class DatabaseService {
       "table_info(pending_follow_writes)"
     );
     const pendingFollowWriteColumns = new Set(
-      (Array.isArray(pendingFollowWriteColumnInfo)
-        ? pendingFollowWriteColumnInfo
-        : []
-      ).flatMap((column: unknown) =>
-        typeof column === "object" &&
-        column !== null &&
-        "name" in column &&
-        typeof column.name === "string"
-          ? [column.name]
-          : []
+      (Array.isArray(pendingFollowWriteColumnInfo) ? pendingFollowWriteColumnInfo : []).flatMap(
+        (column: unknown) =>
+          typeof column === "object" &&
+          column !== null &&
+          "name" in column &&
+          typeof column.name === "string"
+            ? [column.name]
+            : []
       )
     );
     const pendingFollowWriteMigrations: ReadonlyArray<readonly [string, string]> = [
@@ -465,43 +534,74 @@ export class DatabaseService {
   }
 
   addFollow(follow: any, source: FollowSource = "guest"): any {
+    const channelName = String(follow.channelName || follow.username || "").trim();
+    if (!channelName) throw new Error("Follow channel name must not be empty");
+    if (source !== "guest" && source !== follow.platform) {
+      throw new Error(`Follow source ${source} must match platform ${follow.platform}`);
+    }
+
+    // Every writer converges here. Prefer a current canonical Kick identity,
+    // then a previously resolved one for this slug, and use the slug only
+    // when neither source can prove a stable broadcaster ID.
+    const slugFallback = normalizedFollowSlug(channelName);
+    const requestedChannelId = String(follow.channelId || "").trim() || slugFallback;
+    const existingRow = this.database
+      .prepare(
+        `SELECT * FROM local_follows
+         WHERE platform = ? AND source = ? AND lower(trim(channel_name)) = ?
+         LIMIT 1`
+      )
+      .get(follow.platform, source, slugFallback);
+    const existingFollow = existingRow ? this.mapFollowFromDb(existingRow) : null;
+    const existingStableKickIdentity =
+      follow.platform === "kick" && existingFollow
+        ? getStableKickFollowIdentity(existingFollow)
+        : null;
+    const requestedStableKickIdentity =
+      follow.platform === "kick"
+        ? getStableKickFollowIdentity({
+            channelId: requestedChannelId,
+            profileImage: follow.profileImage || follow.avatarUrl,
+          })
+        : null;
+    const effectiveChannelId =
+      follow.platform === "kick"
+        ? (requestedStableKickIdentity ?? existingStableKickIdentity ?? requestedChannelId)
+        : requestedChannelId;
+    const id =
+      follow.id ??
+      existingFollow?.id ??
+      `${follow.platform}-${source}-${effectiveChannelId}-${Date.now()}`;
+    const followedAt = follow.followedAt ?? existingFollow?.followedAt ?? new Date().toISOString();
+
     const stmt = this.database.prepare(`
       INSERT OR REPLACE INTO local_follows (id, platform, channel_id, channel_name, display_name, profile_image, followed_at, source)
       VALUES (@id, @platform, @channelId, @channelName, @displayName, @profileImage, @followedAt, @source)
     `);
 
-    // When the upstream canonical id is unknown (transformer sentinel — kick
-    // DOM scrape, or the VOD-page pre-resolve flow), fall back to the slug
-    // as the effective channel_id. Without this, two slug-only follows for
-    // different channels both write channel_id="" and the second silently
-    // replaces the first via UNIQUE(platform, channel_id, source).
-    const slugFallback = (follow.channelName || follow.username || "").toLowerCase();
-    const effectiveChannelId = follow.channelId || slugFallback;
-
-    // Ensure ID exists — include source to avoid collisions
-    if (!follow.id) {
-      follow.id = `${follow.platform}-${source}-${effectiveChannelId}-${Date.now()}`;
-    }
-    if (!follow.followedAt) {
-      follow.followedAt = new Date().toISOString();
-    }
-
     stmt.run({
-      id: follow.id,
+      id,
       platform: follow.platform,
       channelId: effectiveChannelId,
-      channelName: follow.channelName || follow.username,
+      channelName,
       displayName: follow.displayName ?? "",
       // Default to "" not undefined — better-sqlite3 accepts undefined as
       // NULL but the test-time node:sqlite shim rejects it. The DB column
       // is nullable; we still coerce to "" for consistency with the rest
       // of the row shape (rows always come back as strings).
       profileImage: follow.profileImage || follow.avatarUrl || "",
-      followedAt: follow.followedAt,
+      followedAt,
       source,
     });
 
-    return { ...follow, source };
+    return {
+      ...follow,
+      id,
+      channelId: effectiveChannelId,
+      channelName,
+      followedAt,
+      source,
+    };
   }
 
   /**
@@ -534,17 +634,25 @@ export class DatabaseService {
    *          when `pruneAbsent` is false.
    */
   upsertSyncedFollows(
-    platform: string,
-    fetchedFollows: Array<{
-      platform: string;
-      channelId: string;
-      channelName: string;
-      displayName?: string;
-      profileImage?: string;
-    }>,
+    platform: Platform,
+    fetchedFollows: SyncedFollowInput[],
     options: { pruneAbsent?: boolean } = {}
   ): { accountCount: number; pendingCount: number; addedCount: number; removedCount: number } {
     const pruneAbsent = options.pruneAbsent ?? true;
+    const normalizedFetchedFollows = fetchedFollows.map((follow) => {
+      if (follow.platform !== platform) {
+        throw new Error(`Sync row platform must match ${platform}`);
+      }
+      const channelName = follow.channelName.trim();
+      if (!channelName) throw new Error("Synced follow channel name must not be empty");
+      const slug = normalizedFollowSlug(channelName);
+      const channelId = follow.channelId.trim() || slug;
+      return {
+        ...follow,
+        channelId: platform === "kick" && channelId.toLowerCase() === slug ? slug : channelId,
+        channelName,
+      };
+    });
     const pendingRows = this.database
       .prepare(
         "SELECT platform, channel_id, slug, action FROM pending_follow_writes WHERE platform = ?"
@@ -565,22 +673,13 @@ export class DatabaseService {
       .all(platform, platform)
       .map(this.mapFollowFromDb);
 
-    const getKickStableIdentity = (follow: {
-      channelId: string;
-      profileImage?: string;
-    }): string | null =>
-      firstValidKickBroadcasterUserId(
-        getKickBroadcasterUserIdFromAvatar(follow.profileImage),
-        follow.channelId
-      );
-
     const sameKickStableIdentity = (
       existing: { channelId: string; profileImage?: string },
       fetched: { channelId: string; profileImage?: string }
     ): boolean => {
       if (platform !== "kick") return false;
       const existingIdentity = getKickBroadcasterUserIdFromAvatar(existing.profileImage);
-      const fetchedIdentity = getKickStableIdentity(fetched);
+      const fetchedIdentity = getStableKickFollowIdentity(fetched);
       return Boolean(existingIdentity && fetchedIdentity && existingIdentity === fetchedIdentity);
     };
 
@@ -591,8 +690,8 @@ export class DatabaseService {
       existing.channelId === pending.channel_id ||
       Boolean(
         existing.channelName &&
-          pending.slug &&
-          existing.channelName.toLowerCase() === pending.slug.toLowerCase()
+        pending.slug &&
+        normalizedFollowSlug(existing.channelName) === normalizedFollowSlug(pending.slug)
       );
 
     const fetchedMatchesPending = (
@@ -603,7 +702,7 @@ export class DatabaseService {
       if (
         fetched.channelName &&
         pending.slug &&
-        fetched.channelName.toLowerCase() === pending.slug.toLowerCase()
+        normalizedFollowSlug(fetched.channelName) === normalizedFollowSlug(pending.slug)
       ) {
         return true;
       }
@@ -622,7 +721,7 @@ export class DatabaseService {
     ): boolean => {
       if (platform === "kick") {
         const existingIdentity = getKickBroadcasterUserIdFromAvatar(existing.profileImage);
-        const fetchedIdentity = getKickStableIdentity(fetched);
+        const fetchedIdentity = getStableKickFollowIdentity(fetched);
         if (existingIdentity && fetchedIdentity) {
           return existingIdentity === fetchedIdentity;
         }
@@ -633,21 +732,67 @@ export class DatabaseService {
       if (
         existing.channelName &&
         fetched.channelName &&
-        existing.channelName.toLowerCase() === fetched.channelName.toLowerCase()
+        normalizedFollowSlug(existing.channelName) === normalizedFollowSlug(fetched.channelName)
       ) {
         return true;
       }
       return false;
     };
 
-    const toAdopt = fetchedFollows;
+    const withStableKickIdentities = normalizedFetchedFollows.map((fetched) => {
+      if (platform !== "kick" || getStableKickFollowIdentity(fetched)) return fetched;
+      const slug = normalizedFollowSlug(fetched.channelName);
+      const existingStableIdentity = existingPlatformRows
+        .filter((existing) => normalizedFollowSlug(existing.channelName) === slug)
+        .map(getStableKickFollowIdentity)
+        .find((identity): identity is string => identity !== null);
+      return existingStableIdentity ? { ...fetched, channelId: existingStableIdentity } : fetched;
+    });
+    const toAdoptBySlug = new Map<string, SyncedFollowInput>();
+    const candidateScore = (follow: SyncedFollowInput): number => {
+      if (platform !== "kick") return 0;
+      const stableIdentity = getStableKickFollowIdentity(follow);
+      if (!stableIdentity) return 0;
+      return getKickBroadcasterUserIdFromAvatar(follow.profileImage) === stableIdentity ? 2 : 1;
+    };
+    const candidateKey = (follow: SyncedFollowInput): string =>
+      [
+        follow.channelId,
+        follow.channelName,
+        follow.displayName ?? "",
+        follow.profileImage ?? "",
+      ].join("\u0000");
+    for (const candidate of withStableKickIdentities) {
+      const slug = normalizedFollowSlug(candidate.channelName);
+      const current = toAdoptBySlug.get(slug);
+      if (!current) {
+        toAdoptBySlug.set(slug, candidate);
+        continue;
+      }
+      const currentIdentity =
+        platform === "kick" ? getStableKickFollowIdentity(current) : current.channelId;
+      const candidateIdentity =
+        platform === "kick" ? getStableKickFollowIdentity(candidate) : candidate.channelId;
+      if (currentIdentity && candidateIdentity && currentIdentity !== candidateIdentity) {
+        throw new Error(`Conflicting stable channel identities for ${platform}:${slug}`);
+      }
+      const currentScore = candidateScore(current);
+      const nextScore = candidateScore(candidate);
+      if (
+        nextScore > currentScore ||
+        (nextScore === currentScore && candidateKey(candidate) < candidateKey(current))
+      ) {
+        toAdoptBySlug.set(slug, candidate);
+      }
+    }
+    const toAdopt = [...toAdoptBySlug.values()];
 
     // Pending rows resolved by external state — clear from the tombstone table.
     const pendingFollowsToRemove = pendingFollows.filter((p) =>
-      fetchedFollows.some((f) => fetchedMatchesPending(f, p))
+      toAdopt.some((f) => fetchedMatchesPending(f, p))
     );
     const pendingUnfollowsToRemove = pruneAbsent
-      ? pendingUnfollows.filter((p) => !fetchedFollows.some((f) => fetchedMatchesPending(f, p)))
+      ? pendingUnfollows.filter((p) => !toAdopt.some((f) => fetchedMatchesPending(f, p)))
       : [];
 
     const stalePlatformRows = pruneAbsent
@@ -663,7 +808,8 @@ export class DatabaseService {
               (fetched) =>
                 sameKickStableIdentity(existing, fetched) &&
                 (existing.channelId !== fetched.channelId ||
-                  existing.channelName.toLowerCase() !== fetched.channelName.toLowerCase())
+                  normalizedFollowSlug(existing.channelName) !==
+                    normalizedFollowSlug(fetched.channelName))
             )
           )
         : [];
