@@ -4,6 +4,8 @@ Research for [Inventory T3 Code diagnostics and StreamFusion gaps](https://githu
 
 Scope update on 2026-08-23: the user chose to make StreamFusion Diagnostics available in packaged production builds. Production now needs a safety boundary for sensitive data and recovery actions, not a development-only availability gate.
 
+Architecture update on 2026-08-23: StreamFusion will match the applicable T3 Code diagnostic capabilities while remaining TypeScript-only. Electron, Node, and TypeScript platform adapters replace T3 Code's Rust sidecar; no Rust or other native sidecar is in scope.
+
 ## Upstream capability inventory
 
 T3 Code renders a dedicated `/settings/diagnostics` route. The Settings About panel links to it through "View diagnostics." The route is available in production, which matches StreamFusion's revised availability target.
@@ -62,7 +64,7 @@ StreamFusion already has useful pieces, but they are split between log files, de
 | Traces and spans | Missing | StreamFusion has no span model, parent context, trace store, or parser. Slow spans, span logs, and top span names require new infrastructure. |
 | Host and collector health | Mostly missing | Power, thermal, idle, collector overhead, restart counts, and source-health reporting need new collection work. |
 | Application I/O attribution | Missing | StreamFusion has no general process read/write counters or logical-I/O registry. |
-| Process signaling | Must be adapted | StreamFusion owns StreamSlots, caption utility processes, downloads, and recordings through service handles and state machines. Diagnostics must call those owners by opaque IDs. It must never accept an arbitrary PID from the renderer. |
+| Process signaling | Must be adapted | StreamFusion owns StreamSlots, caption utility processes, downloads, and recordings through service handles and state machines. Diagnostics keeps owner commands for stateful recovery and adds T3-style signal controls. A renderer request may identify a PID and expected start time, but main must freshly validate the exact start time and current StreamFusion ancestry before acting. |
 
 ## Production safety boundary
 
@@ -71,8 +73,9 @@ StreamFusion's current Logs and Bug Report handlers already register in packaged
 The implementation specification should require all of the following:
 
 - Validate sender origin on every diagnostics request.
-- Expose opaque owner identifiers, not caller-supplied PIDs.
+- Treat process observations as display-only. A signal request may include PID and expected start time, but main must freshly validate exact start time and current StreamFusion ancestry before acting.
 - Route recovery actions through the owning service, such as slot destruction, caption-session stop, download cancellation, or recording stop.
+- Implement collection and process-control adapters in TypeScript through Electron and Node; do not add a Rust or other native sidecar.
 - Redact credentials, tokens, local paths, and user data before diagnostic values cross IPC or reach export and clipboard actions.
 - Decide which recovery actions remain available in production, which need confirmation, and which should stay development-only.
 
