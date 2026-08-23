@@ -186,6 +186,7 @@ export function useLocalLiveCaptions({
     };
   }, [sessionId]);
 
+  // react-doctor-disable-next-line react-doctor/effect-needs-cleanup -- The returned cleanup removes every media listener and disposes the capture controller.
   useEffect(() => {
     if (!allowLocalCaptions || !selected) return;
     if (
@@ -379,11 +380,12 @@ export function useLocalLiveCaptions({
     };
     video.addEventListener("enterpictureinpicture", enterPictureInPicture);
     video.addEventListener("leavepictureinpicture", leavePictureInPicture);
+    const captionTrackRef = nativeCaptionTrackRef;
     return () => {
       video.removeEventListener("enterpictureinpicture", enterPictureInPicture);
       video.removeEventListener("leavepictureinpicture", leavePictureInPicture);
       isPictureInPictureRef.current = false;
-      clearNativeCaptionTrack(nativeCaptionTrackRef.current);
+      clearNativeCaptionTrack(captionTrackRef.current);
     };
   }, [selected, videoRef]);
 

@@ -14,6 +14,10 @@ import type { Platform } from "../../../shared/auth-types";
 export type PlatformHealth = "healthy" | "degraded" | "down";
 
 export type PlatformFailureClass = "timeout" | "server-5xx" | "net-error";
+export type PlatformCrashReason =
+  | "chromium-process-gone"
+  | "gpu-process-gone"
+  | "network-service-gone";
 
 /** Failure-rate threshold to trip `healthy → degraded`. */
 export const DEGRADED_FAILURE_RATE = 0.6;
@@ -258,9 +262,12 @@ export function recordPlatformLocalNetError(platform: Platform): void {
 
 /**
  * Immediately transition to `down` for 3s. Used by the crash handler in main.ts
- * for explicit GPU/Utility process crash signals that don't need burst detection.
+ * for explicit GPU/NetworkService crash signals that don't need burst detection.
  */
-export function recordPlatformCrash(platform: Platform): void {
+export function recordPlatformCrash(
+  platform: Platform,
+  reason: PlatformCrashReason = "chromium-process-gone"
+): void {
   const now = Date.now();
   const state = states[platform];
   const wasDown = state.downUntil > 0 && now < state.downUntil;
@@ -268,7 +275,13 @@ export function recordPlatformCrash(platform: Platform): void {
   if (!wasDown) {
     const failures = state.outcomes.reduce((n, o) => n + (o.failed ? 1 : 0), 0);
     const rate = state.outcomes.length > 0 ? failures / state.outcomes.length : 1;
-    logger.warn("PlatformHealth", `${platform} down: local network crash detected`);
+    const cause =
+      reason === "gpu-process-gone"
+        ? "Chromium GPU process crash detected"
+        : reason === "network-service-gone"
+          ? "Chromium NetworkService crash detected"
+          : "Chromium process crash detected";
+    logger.warn("PlatformHealth", `${platform} down: ${cause}`);
     emit({
       platform,
       status: "down",

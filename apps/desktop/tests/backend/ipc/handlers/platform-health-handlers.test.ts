@@ -38,15 +38,29 @@ function getInvokeHandler(channel: string): InvokeHandler {
 
 function makeFakeMainWindow() {
   const send = vi.fn();
+  const webContentsSend = vi.fn();
+  const mainFrame = {
+    isDestroyed: vi.fn(() => false),
+    detached: false,
+    send,
+  };
+  const getMainFrame = vi.fn(() => mainFrame);
   return {
     window: {
       isDestroyed: vi.fn(() => false),
       webContents: {
         isDestroyed: vi.fn(() => false),
-        send,
+        isCrashed: vi.fn(() => false),
+        get mainFrame() {
+          return getMainFrame();
+        },
+        send: webContentsSend,
       },
     },
+    getMainFrame,
+    mainFrame,
     send,
+    webContentsSend,
   };
 }
 
@@ -55,6 +69,7 @@ beforeEach(() => {
   __resetPlatformHealthForTests();
 });
 
+// Guards: platform-health transitions must target one live main frame without re-resolving a disposed renderer frame
 describe("registerPlatformHealthHandlers", () => {
   it("registers an invoke handler for PLATFORM_HEALTH_GET", () => {
     const { window } = makeFakeMainWindow();
@@ -110,8 +125,8 @@ describe("registerPlatformHealthHandlers", () => {
     });
   });
 
-  it("pushes PLATFORM_HEALTH_CHANGED to the main window webContents on transition", () => {
-    const { window, send } = makeFakeMainWindow();
+  it("pushes PLATFORM_HEALTH_CHANGED through the captured live main frame", () => {
+    const { window, getMainFrame, send, webContentsSend } = makeFakeMainWindow();
     registerPlatformHealthHandlers(window as unknown as Electron.BrowserWindow);
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
@@ -121,6 +136,8 @@ describe("registerPlatformHealthHandlers", () => {
     expect(channel).toBe(IPC_CHANNELS.PLATFORM_HEALTH_CHANGED);
     expect(payload).toMatchObject({ platform: "kick", status: "degraded" });
     expect(typeof (payload as { startedAt: number }).startedAt).toBe("number");
+    expect(getMainFrame).toHaveBeenCalledTimes(1);
+    expect(webContentsSend).not.toHaveBeenCalled();
   });
 
   it("does not push to a destroyed window", () => {
@@ -133,8 +150,59 @@ describe("registerPlatformHealthHandlers", () => {
 
     expect(send).not.toHaveBeenCalled();
   });
+
+  it("does not push to a crashed renderer webContents", () => {
+    const { window, send } = makeFakeMainWindow();
+    vi.mocked(window.webContents.isCrashed).mockReturnValue(true);
+
+    registerPlatformHealthHandlers(window as unknown as Electron.BrowserWindow);
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "destroyed",
+      (mainFrame: ReturnType<typeof makeFakeMainWindow>["mainFrame"]) => {
+        mainFrame.isDestroyed.mockReturnValue(true);
+      },
+    ],
+    [
+      "detached",
+      (mainFrame: ReturnType<typeof makeFakeMainWindow>["mainFrame"]) => {
+        mainFrame.detached = true;
+      },
+    ],
+  ])("does not push to a %s renderer main frame", (_state, arrangeFrame) => {
+    const { window, mainFrame, send, webContentsSend } = makeFakeMainWindow();
+    arrangeFrame(mainFrame);
+
+    registerPlatformHealthHandlers(window as unknown as Electron.BrowserWindow);
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+
+    expect(send).not.toHaveBeenCalled();
+    expect(webContentsSend).not.toHaveBeenCalled();
+  });
+
+  it("contains a main-frame send failure", () => {
+    const { window, send } = makeFakeMainWindow();
+    send.mockImplementation(() => {
+      throw new Error("Render frame was disposed before WebFrameMain could be accessed");
+    });
+
+    registerPlatformHealthHandlers(window as unknown as Electron.BrowserWindow);
+
+    expect(() => {
+      for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+    }).not.toThrow();
+    expect(send).toHaveBeenCalledTimes(1);
+  });
 });
 
+// Guards: Kick cache recovery must run even when renderer transition delivery is unavailable
 describe("platform-health-handlers (slice 02: cache flush on recovery)", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -183,5 +251,36 @@ describe("platform-health-handlers (slice 02: cache flush on recovery)", () => {
     }
 
     expect(clearKickStreamFailureCache).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "is detached",
+      (mainFrame: ReturnType<typeof makeFakeMainWindow>["mainFrame"]) => {
+        mainFrame.detached = true;
+      },
+    ],
+    [
+      "throws during send",
+      (mainFrame: ReturnType<typeof makeFakeMainWindow>["mainFrame"]) => {
+        mainFrame.send.mockImplementation(() => {
+          throw new Error("Render frame was disposed before WebFrameMain could be accessed");
+        });
+      },
+    ],
+  ])("flushes the Kick failure cache when the renderer main frame %s", (_state, arrangeFrame) => {
+    const { window, mainFrame } = makeFakeMainWindow();
+    arrangeFrame(mainFrame);
+    registerPlatformHealthHandlers(window as unknown as Electron.BrowserWindow);
+
+    for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
+
+    const startedAt = Date.now();
+    for (let elapsed = 1000; elapsed <= 30_000; elapsed += 1000) {
+      vi.setSystemTime(new Date(startedAt + elapsed));
+      recordPlatformSuccess("kick");
+    }
+
+    expect(clearKickStreamFailureCache).toHaveBeenCalledTimes(1);
   });
 });

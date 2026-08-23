@@ -63,6 +63,7 @@ import {
   TWITCH_IMAGE_SCHEME,
 } from "./backend/protocols/twitch-image-protocol";
 import { installRendererCrashRecovery } from "./backend/recovery/renderer-crash-recovery";
+import { getPlatformCrashBackoffDecision } from "./backend/recovery/platform-crash-backoff-policy";
 import { attachCertVerifyDiagToAllSessions } from "./backend/services/cert-verify-diagnostics";
 import { cosmeticInjectionService } from "./backend/services/cosmetic-injection-service";
 import { dbService } from "./backend/services/database-service";
@@ -750,22 +751,12 @@ app.on("web-contents-created", (_event, contents) => {
 // `render-process-gone` event is owned by `installCrashHooks` (CrashHooks tag).
 // ============================================================================
 app.on("child-process-gone", (_event, details) => {
-  if (details.type === "GPU") {
-    // GPU process crash — Chromium will auto-restart it. The network service
-    // typically follows the GPU down on Windows, so pre-emptively mark both
-    // platforms as down to avoid hammering the recovering services with a
-    // thundering-herd of net::ERR_FAILED retries.
-    void import("./backend/api/unified/platform-health").then((m) => {
-      m.recordPlatformCrash("kick");
-      m.recordPlatformCrash("twitch");
-    });
-  } else if (details.type === "Utility") {
-    // Utility process (e.g. network service) — usually auto-restarts. Mark
-    // both platforms as down so in-flight retry loops bail out fast instead
-    // of cascading ERR_FAILED across every followed channel.
-    void import("./backend/api/unified/platform-health").then((m) => {
-      m.recordPlatformCrash("kick");
-      m.recordPlatformCrash("twitch");
-    });
-  }
+  const decision = getPlatformCrashBackoffDecision(details);
+  if (!decision) return;
+
+  void import("./backend/api/unified/platform-health").then((m) => {
+    for (const platform of decision.platforms) {
+      m.recordPlatformCrash(platform, decision.reason);
+    }
+  });
 });

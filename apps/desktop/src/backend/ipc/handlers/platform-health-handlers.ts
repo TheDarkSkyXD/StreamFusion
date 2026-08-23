@@ -12,6 +12,7 @@ import {
   getPlatformStatusPageDetail,
   onPlatformHealthChanged,
   type PlatformHealth,
+  type PlatformHealthEvent,
   type StatusPageDetail,
 } from "../../api/unified/platform-health";
 import { logger } from "../../logging/logger";
@@ -41,21 +42,23 @@ export function registerPlatformHealthHandlers(mainWindow: BrowserWindow): void 
     return snapshot;
   });
 
-  onPlatformHealthChanged((event) => {
+  function pushTransitionToRenderer(event: PlatformHealthEvent): void {
     try {
-      if (
-        mainWindow &&
-        !mainWindow.isDestroyed() &&
-        mainWindow.webContents &&
-        !mainWindow.webContents.isDestroyed()
-      ) {
-        mainWindow.webContents.send(IPC_CHANNELS.PLATFORM_HEALTH_CHANGED, event);
-      }
+      if (mainWindow.isDestroyed()) return;
+      const { webContents } = mainWindow;
+      if (webContents.isDestroyed() || webContents.isCrashed()) return;
+      const { mainFrame } = webContents;
+      if (mainFrame.isDestroyed() || mainFrame.detached) return;
+      mainFrame.send(IPC_CHANNELS.PLATFORM_HEALTH_CHANGED, event);
     } catch (error) {
       logger.warn("IPC:PlatformHealth", "Could not push transition", {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+  }
+
+  onPlatformHealthChanged((event) => {
+    pushTransitionToRenderer(event);
 
     if (event.status === "healthy" && event.platform === "kick") {
       clearKickStreamFailureCache();

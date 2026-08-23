@@ -8,7 +8,15 @@
 
 import Hls from "hls.js";
 import type React from "react";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { useInterval } from "@/hooks/useInterval";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
@@ -36,6 +44,12 @@ import {
   subscribeAdBlockStatus,
   updateAdBlockConfig,
 } from "./twitch-adblock-service";
+
+function numericProperty(value: unknown, key: string): number | undefined {
+  if (typeof value !== "object" || value === null || !(key in value)) return undefined;
+  const property = Reflect.get(value, key);
+  return typeof property === "number" ? property : undefined;
+}
 
 export interface TwitchHlsPlayerProps extends Omit<
   React.VideoHTMLAttributes<HTMLVideoElement>,
@@ -125,7 +139,9 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     const videoRef = useRef<HTMLVideoElement>(null);
     const hlsRef = useRef<Hls | null>(null);
     const autoPlayRef = useRef(autoPlay);
-    autoPlayRef.current = autoPlay;
+    useLayoutEffect(() => {
+      autoPlayRef.current = autoPlay;
+    }, [autoPlay]);
     const isMountedRef = useRef(true);
     const pendingPlayRef = useRef<Promise<void> | null>(null);
     const playRequestIdRef = useRef(0);
@@ -600,6 +616,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     }, [currentLevel]);
 
     // Main HLS initialization effect
+    // react-doctor-disable-next-line react-doctor/effect-needs-cleanup -- The returned cleanup removes media listeners and releaseHls destroys every HLS subscription.
     useEffect(() => {
       const video = videoRef.current;
 
@@ -890,8 +907,8 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           ];
           const statusCode =
             data.response?.code ||
-            (data.response as any)?.status ||
-            (data.networkDetails as any)?.status;
+            numericProperty(data.response, "status") ||
+            numericProperty(data.networkDetails, "status");
 
           if (data.details === "manifestLoadError" && statusCode === 403) {
             logger.debug("Player:Twitch:HLS", "playback token rejected", { statusCode });
