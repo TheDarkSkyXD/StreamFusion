@@ -2,7 +2,10 @@ import type { ProfileFieldState } from "../shared/user-profile-types";
 
 export type UserProfileFixtureMatch =
   | { matched: false }
-  | { matched: true; value: ProfileFieldState<never> };
+  | {
+      matched: true;
+      value: Extract<ProfileFieldState<never>, { state: "failed" }>;
+    };
 
 // Development may force failures for retry-state proof, but positive profile
 // data must always pass through the typed main-process readers.

@@ -29,33 +29,3 @@ export interface PublicResolvedChannel {
 
 export type TwitchResolvedChannel = PublicResolvedChannel;
 export type KickResolvedChannel = PublicResolvedChannel;
-
-export interface TwitchIdentityRequest {
-  userId: string;
-  username: string;
-}
-
-export interface TwitchFollowRequest {
-  broadcasterId: string;
-  userId: string;
-  username: string;
-}
-
-export interface TwitchChannelRequest {
-  username: string;
-}
-
-export type TwitchAccountCreatedRequest = TwitchIdentityRequest;
-
-export interface KickIdentityRequest {
-  userId: string;
-  username: string;
-  channelSlug: string;
-}
-
-export type KickAccountCreatedRequest = KickIdentityRequest;
-export type KickFollowRequest = KickIdentityRequest;
-
-export interface KickChannelRequest {
-  username: string;
-}

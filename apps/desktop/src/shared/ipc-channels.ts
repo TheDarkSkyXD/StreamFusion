@@ -27,16 +27,6 @@ import type { SlotQualityMode } from "./slot-types";
 import type { StreamRecordingRequest } from "./stream-recording-types";
 import type { TimeoutActionBinding, TimeoutSubmitInput } from "./timeout-moderation-types";
 import type { TwitchApiCommand } from "./twitch-api-types";
-import type {
-  KickAccountCreatedRequest,
-  KickChannelRequest,
-  KickFollowRequest,
-  KickIdentityRequest,
-  TwitchAccountCreatedRequest,
-  TwitchChannelRequest,
-  TwitchFollowRequest,
-  TwitchIdentityRequest,
-} from "./user-profile-types";
 
 export const IPC_CHANNELS = {
   // App lifecycle
@@ -450,15 +440,6 @@ export interface IpcPayloads {
   [IPC_CHANNELS.AUTH_HAS_TOKEN]: { platform: Platform };
   [IPC_CHANNELS.AUTH_IS_TOKEN_EXPIRED]: { platform: Platform };
   [IPC_CHANNELS.AUTH_SYNC_FOLLOWS]: { platform: Platform };
-  [IPC_CHANNELS.USER_PROFILE_TWITCH_IDENTITY]: TwitchIdentityRequest;
-  [IPC_CHANNELS.USER_PROFILE_TWITCH_ACCOUNT_CREATED]: TwitchAccountCreatedRequest;
-  [IPC_CHANNELS.USER_PROFILE_TWITCH_FOLLOW]: TwitchFollowRequest;
-  [IPC_CHANNELS.USER_PROFILE_TWITCH_CHANNEL]: TwitchChannelRequest;
-  [IPC_CHANNELS.USER_PROFILE_KICK_IDENTITY]: KickIdentityRequest;
-  [IPC_CHANNELS.USER_PROFILE_KICK_ACCOUNT_CREATED]: KickAccountCreatedRequest;
-  [IPC_CHANNELS.USER_PROFILE_KICK_FOLLOW]: KickFollowRequest;
-  [IPC_CHANNELS.USER_PROFILE_KICK_CHANNEL]: KickChannelRequest;
-
   // User data
   [IPC_CHANNELS.AUTH_SAVE_TWITCH_USER]: { user: TwitchUser };
   [IPC_CHANNELS.AUTH_SAVE_KICK_USER]: { user: KickUser };

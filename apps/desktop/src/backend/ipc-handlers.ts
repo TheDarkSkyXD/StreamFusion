@@ -99,7 +99,9 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   registerIpcHandlerGroup("token-status", registerTokenStatusHandlers);
   registerIpcHandlerGroup("timeout-moderation", registerTimeoutModerationHandlers);
   registerIpcHandlerGroup("twitch-api", () => registerTwitchApiHandlers({ mainWindow }));
-  registerIpcHandlerGroup("user-profile", registerUserProfileHandlers);
+  registerIpcHandlerGroup("user-profile", () =>
+    registerUserProfileHandlers(mainWindow.webContents)
+  );
   registerIpcHandlerGroup("log", registerLogHandlers);
   registerIpcHandlerGroup("bug-report", () => registerBugReportHandlers(getBugReportsDir()));
 
