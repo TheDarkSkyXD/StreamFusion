@@ -1,6 +1,7 @@
 import React from "react";
 
 import { ReconnectForModDialog } from "@/components/auth/ReconnectForModDialog";
+import { TwitchSessionExpiryNotifier } from "@/components/auth/twitch/TwitchSessionExpiryNotifier";
 import { useAuthInitialize } from "@/hooks/useAuth";
 import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
@@ -59,6 +60,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   return (
     <>
       {children}
+      <TwitchSessionExpiryNotifier />
       {initialized && <ReconnectForModDialog />}
     </>
   );
