@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { forwardRef } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useVolumeStore } from "@/store/volume-store";
 
@@ -117,7 +117,7 @@ import { TwitchLivePlayer } from "@/components/player/twitch/twitch-live-player"
 
 async function passVolumeInitializationGuard(): Promise<void> {
   await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 120));
+    await vi.advanceTimersByTimeAsync(100);
   });
 }
 
@@ -127,9 +127,14 @@ async function passVolumeInitializationGuard(): Promise<void> {
 // Guards: explicit viewer mute and volume controls remain the only writers of persisted audio intent.
 describe("Twitch live-player audio safety gate", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     harness.hlsProps = null;
     sessionStorage.clear();
     useVolumeStore.setState({ volume: 37, isMuted: false });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("keeps an unmuted viewer's control intent isolated from the physical ad-audio shield", async () => {

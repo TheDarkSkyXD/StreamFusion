@@ -24,7 +24,8 @@ tests/
 ├── store/                # Zustand store tests
 ├── e2e/                  # Playbook-driven E2E (see e2e/README.md)
 ├── test-utils.tsx        # renderWithProviders, installElectronAPIMock, fixtures
-├── setup.ts              # vitest polyfills (matchMedia, ResizeObserver, etc.)
+├── setup-node.ts         # logger boundary mocks shared by both projects
+├── setup.ts              # jsdom polyfills (matchMedia, media methods, etc.)
 └── AGENTS.md             # ← you are here
 ```
 
@@ -33,6 +34,8 @@ tests/
 ```bash
 # From apps/desktop/
 pnpm test                  # Run the full vitest suite once
+pnpm test:node             # Run main-process tests in the Node environment
+pnpm test:dom              # Run renderer and DOM-dependent tests in jsdom
 pnpm test:watch            # Watch mode
 pnpm test:coverage         # With coverage report
 ```
@@ -251,8 +254,9 @@ The vitest config is at [`apps/desktop/vitest.config.ts`](../vitest.config.ts). 
 
 - **`better-sqlite3` is aliased to `tests/helpers/better-sqlite3-shim.ts`** — a `node:sqlite`-backed shim with parity coverage in `tests/helpers/better-sqlite3-shim.test.ts`. The native `better-sqlite3` binary is built against Electron's NODE_MODULE_VERSION; vitest runs under system Node. Aliasing avoids the binary rebuild dance.
 - **Globals are enabled** (`globals: true`) so `describe / it / expect` are available without imports.
-- **jsdom environment** — DOM globals (`document`, `window`) are available.
-- **Setup file** at `tests/setup.ts` polyfills `matchMedia`, `ResizeObserver`, `IntersectionObserver`, `scrollIntoView`, and pointer events.
+- **Node project** — backend tests run without jsdom except for the explicit DOM-contract files listed in `vitest.config.ts`.
+- **DOM project** — renderer tests and the backend DOM-contract exceptions run in jsdom.
+- **Scoped setup files** — `tests/setup-node.ts` owns backend logger mocks; `tests/setup.ts` adds browser and media polyfills.
 
 ---
 

@@ -29,6 +29,8 @@
     "typecheck": "tsc --noEmit",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check",
     "test": "vitest run",
+    "test:node": "vitest run --project=node",
+    "test:dom": "vitest run --project=dom",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "storybook": "storybook dev -p 6006",

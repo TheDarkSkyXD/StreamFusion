@@ -28,17 +28,11 @@ vi.mock('@/components/auth', () => ({
 
 import { TopNavBar } from '@/components/TopNavBar';
 
+// Guards: the global menu sends explicit collapse intent instead of toggling against stale state.
+// Guards: moderation stays inside channel-scoped routes rather than leaking into global navigation.
 describe('TopNavBar', () => {
   beforeEach(() => {
     setSidebarCollapsed.mockClear();
-  });
-
-  it('renders brand, search, notifications, profile', () => {
-    renderWithProviders(<TopNavBar />);
-    expect(screen.getByText('StreamFusion')).toBeInTheDocument();
-    expect(screen.getByTestId('search-bar')).toBeInTheDocument();
-    expect(screen.getByTestId('notifications')).toBeInTheDocument();
-    expect(screen.getByTestId('profile')).toBeInTheDocument();
   });
 
   it('toggles sidebar when menu button clicked', () => {

@@ -2,16 +2,49 @@
 import { defineConfig } from 'vitest/config';
 import path from 'path';
 
+const backendDomTests = [
+  'tests/backend/api/platforms/kick/follow-grid-predicate.test.ts',
+  'tests/backend/auth/auth-header-predicate.test.ts',
+  'tests/backend/services/chat/twitch-chat.test.ts',
+  'tests/backend/services/chat/twitch-pin-poller.test.ts',
+  'tests/backend/services/emotes/emote-manager.test.ts',
+  'tests/backend/services/emotes/kick-emotes.test.ts',
+];
+
+const nonBackendTests = [
+  'tests/*.test.{ts,tsx}',
+  'tests/!(backend)/**/*.test.{ts,tsx}',
+  'src/**/*.test.{ts,tsx}',
+];
+
 export default defineConfig({
   define: {
     'process.env.NODE_ENV': '"test"',
   },
   test: {
     globals: true,
-    environment: 'jsdom',
     maxWorkers: '25%',
-    setupFiles: [path.resolve(__dirname, './tests/setup.ts')],
-    include: ['tests/**/*.test.{ts,tsx}', 'src/**/*.test.{ts,tsx}'],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'node',
+          environment: 'node',
+          setupFiles: [path.resolve(__dirname, './tests/setup-node.ts')],
+          include: ['tests/backend/**/*.test.{ts,tsx}'],
+          exclude: backendDomTests,
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'dom',
+          environment: 'jsdom',
+          setupFiles: [path.resolve(__dirname, './tests/setup.ts')],
+          include: [...nonBackendTests, ...backendDomTests],
+        },
+      },
+    ],
     alias: {
       '@/': path.resolve(__dirname, './src') + '/',
       '@backend/': path.resolve(__dirname, './src/backend') + '/',

@@ -138,40 +138,48 @@ describe("persistent player playback ownership", () => {
   });
 
   it("preserves the user's volume preference while docked clip mute opens and closes", async () => {
-    routerState.pathname = "/stream/kick/shared-wrapper";
-    usePipStore.setState({ isOnStreamPage: true });
-    useVolumeStore.setState({ volume: 37, isMuted: false });
-    const dock = document.createElement("div");
-    dock.id = "persistent-live-player-dock";
-    document.body.append(dock);
+    vi.useFakeTimers();
+    try {
+      routerState.pathname = "/stream/kick/shared-wrapper";
+      usePipStore.setState({ isOnStreamPage: true });
+      useVolumeStore.setState({ volume: 37, isMuted: false });
+      const dock = document.createElement("div");
+      dock.id = "persistent-live-player-dock";
+      document.body.append(dock);
 
-    const { rerender } = renderWithProviders(
-      <PersistentPlayerShell>
-        <DockedConfig muted={true} />
-        <MiniPlayer />
-      </PersistentPlayerShell>
-    );
+      const { rerender } = renderWithProviders(
+        <PersistentPlayerShell>
+          <DockedConfig muted={true} />
+          <MiniPlayer />
+        </PersistentPlayerShell>
+      );
 
-    const video = (await screen.findByTestId("real-kick-wrapper-source")) as HTMLVideoElement;
-    await waitFor(() => expect(video.muted).toBe(true));
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 150));
-      video.dispatchEvent(new Event("volumechange"));
-    });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(150);
+      });
+      const video = screen.getByTestId<HTMLVideoElement>("real-kick-wrapper-source");
+      expect(video.muted).toBe(true);
+      act(() => video.dispatchEvent(new Event("volumechange")));
 
-    expect(useVolumeStore.getState()).toMatchObject({ volume: 37, isMuted: false });
+      expect(useVolumeStore.getState()).toMatchObject({ volume: 37, isMuted: false });
 
-    rerender(
-      <PersistentPlayerShell>
-        <DockedConfig muted={false} />
-        <MiniPlayer />
-      </PersistentPlayerShell>
-    );
+      rerender(
+        <PersistentPlayerShell>
+          <DockedConfig muted={false} />
+          <MiniPlayer />
+        </PersistentPlayerShell>
+      );
 
-    await waitFor(() => expect(video.muted).toBe(false));
-    expect(video.volume).toBeCloseTo(0.37);
-    expect(useVolumeStore.getState()).toMatchObject({ volume: 37, isMuted: false });
-    dock.remove();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      expect(video.muted).toBe(false);
+      expect(video.volume).toBeCloseTo(0.37);
+      expect(useVolumeStore.getState()).toMatchObject({ volume: 37, isMuted: false });
+      dock.remove();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("moves mini playback listeners from stream A to the replacement stream B video", async () => {

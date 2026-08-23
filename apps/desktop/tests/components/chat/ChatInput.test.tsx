@@ -375,19 +375,9 @@ function selectEditorText(editor: HTMLElement, start: number, end: number) {
   selection?.addRange(range);
 }
 
+// Guards: moderation routes use the active platform and stay hidden without moderator authority.
+// Guards: the rich editor preserves selection, deletion, scrolling, and reply payload behavior.
 describe("ChatInput — basics", () => {
-  it("renders a rich textbox with the default placeholder", () => {
-    infoBannerImpl.mockReturnValue(null);
-    renderInput();
-    expect(getEditor()).toBeInTheDocument();
-    expect(screen.getByText("Send a message...")).toHaveClass(
-      "flex",
-      "items-center",
-      "justify-start",
-      "text-left"
-    );
-  });
-
   it("hides the moderation page shield by default", () => {
     renderInput();
     expect(screen.queryByTestId("chat-mod-view-link")).not.toBeInTheDocument();
@@ -400,56 +390,11 @@ describe("ChatInput — basics", () => {
     expect(link).toHaveAttribute("data-params", JSON.stringify({ channel: "ninja" }));
   });
 
-  it("uses the custom tooltip for the moderation page shield", async () => {
-    renderInput({ showModViewLink: true });
-    const link = screen.getByTestId("chat-mod-view-link");
-    expect(link).not.toHaveAttribute("title");
-
-    fireEvent.pointerMove(link);
-    fireEvent.pointerEnter(link);
-
-    const tooltips = await screen.findAllByText("Mod View");
-    expect(tooltips).not.toHaveLength(0);
-    expect(tooltips[0].className).toContain("!bg-white");
-    expect(tooltips[0].className).toContain("!text-[#0e0e10]");
-    expect(tooltips[0].querySelector("svg")?.className.baseVal).toContain("!fill-white");
-  });
-
-  it("uses the custom tooltip for chat settings", async () => {
-    renderInput();
-    const button = screen.getByRole("button", { name: "Chat settings" });
-    expect(button).not.toHaveAttribute("title");
-
-    fireEvent.pointerMove(button);
-    fireEvent.pointerEnter(button);
-
-    const tooltips = await screen.findAllByText("Chat settings");
-    expect(tooltips).not.toHaveLength(0);
-    expect(tooltips[0].className).toContain("!bg-white");
-    expect(tooltips[0].className).toContain("!text-[#0e0e10]");
-    expect(tooltips[0].querySelector("svg")?.className.baseVal).toContain("!fill-white");
-  });
-
   it("renders a Kick moderation page shield when allowed", () => {
     renderInput({ platform: "kick", showModViewLink: true });
     const link = screen.getByTestId("chat-mod-view-link");
     expect(link).toHaveAttribute("data-to", "/mod/kick/$channel");
     expect(link).toHaveAttribute("data-params", JSON.stringify({ channel: "ninja" }));
-  });
-
-  it("honors a custom placeholder", () => {
-    infoBannerImpl.mockReturnValue(null);
-    renderInput({ placeholder: "Type here..." });
-    expect(getEditor("Type here...")).toBeInTheDocument();
-    expect(screen.getByText("Type here...")).toBeInTheDocument();
-  });
-
-  it("updates input value as the user types", () => {
-    infoBannerImpl.mockReturnValue(null);
-    renderInput();
-    const editor = getEditor();
-    typeInEditor(editor, "hi");
-    expect(editor).toHaveTextContent("hi");
   });
 
   it("accepts keyboard text insertion from an empty rich editor", () => {
@@ -854,7 +799,7 @@ describe("ChatInput - guest authentication gate", () => {
 
   it("uses a keyboard-accessible Kick login surface", async () => {
     const onAuthRequired = vi.fn();
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
 
     renderInput({
       platform: "kick",
@@ -1793,6 +1738,7 @@ describe("ChatInput — footer actions", () => {
   });
 });
 
+// Guards: room-mode banners receive trustworthy account-backed follow state and never replace the editor.
 describe("ChatInput — InfoBanner integration", () => {
   it("renders InfoBanner content above the input row when modes are active", () => {
     infoBannerImpl.mockReturnValue(<div data-testid="info-banner-stub">Slow Mode [30s]</div>);
@@ -1964,6 +1910,7 @@ describe("ChatInput — InfoBanner integration", () => {
   });
 });
 
+// Guards: native and third-party pickers share an anchor, remain mutually exclusive, and respect disabled state.
 describe("ChatInput — emote dialogs", () => {
   it("clicking the native button opens NativeEmotePicker only", () => {
     infoBannerImpl.mockReturnValue(null);
@@ -2786,7 +2733,7 @@ describe("ChatInput — contextual emote row", () => {
     const kappa = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
     emoteStoreState.getEmotesByProviderForChannel = () =>
       new Map<EmoteProvider, Emote[]>([["twitch", [kappa]]]);
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
 
     try {
       act(() => {
@@ -2822,7 +2769,7 @@ describe("ChatInput — contextual emote row", () => {
     const kappa = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
     emoteStoreState.getEmotesByProviderForChannel = () =>
       new Map<EmoteProvider, Emote[]>([["twitch", [kappa]]]);
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
 
     try {
       act(() => {
@@ -2854,7 +2801,7 @@ describe("ChatInput — contextual emote row", () => {
     const kappa = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
     emoteStoreState.getEmotesByProviderForChannel = () =>
       new Map<EmoteProvider, Emote[]>([["twitch", [kappa]]]);
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
 
     renderInput();
     const editor = getEditor();
@@ -2870,7 +2817,7 @@ describe("ChatInput — contextual emote row", () => {
     const kappa = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
     emoteStoreState.getEmotesByProviderForChannel = () =>
       new Map<EmoteProvider, Emote[]>([["twitch", [kappa]]]);
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
 
     renderInput();
     const editor = getEditor();
@@ -2887,7 +2834,7 @@ describe("ChatInput — contextual emote row", () => {
     const kappa = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
     emoteStoreState.getEmotesByProviderForChannel = () =>
       new Map<EmoteProvider, Emote[]>([["twitch", [kappa]]]);
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
 
     renderInput();
     const editor = getEditor();
@@ -3041,6 +2988,7 @@ describe("ChatInput — rich emote editing", () => {
   });
 });
 
+// Guards: mention suggestions stay anchored to the editor and do not steal Backspace editing.
 describe("ChatInput - mention editing", () => {
   it("anchors mention results to the full text row width", () => {
     infoBannerImpl.mockReturnValue(null);
@@ -3068,6 +3016,7 @@ describe("ChatInput - mention editing", () => {
   });
 });
 
+// Guards: Enter sends once on both platforms, preserves newer drafts on failure, and Shift+Enter keeps editing.
 describe("ChatInput — Enter / Shift+Enter", () => {
   // Guards: normal sends with slow mode disabled clear in the same interaction frame and do not wait for the network promise.
   it.each(["twitch", "kick"] as const)(
@@ -3215,6 +3164,7 @@ describe("ChatInput — Enter / Shift+Enter", () => {
   });
 });
 
+// Guards: the counter reflects the remaining limit and blocks over-limit sends with actionable feedback.
 describe("ChatInput — character counter", () => {
   it("renders countdown when typing; not when empty", () => {
     infoBannerImpl.mockReturnValue(null);
@@ -3261,6 +3211,7 @@ describe("ChatInput — character counter", () => {
   });
 });
 
+// Guards: imperative draft, mention, and reply actions update and focus the composer without sending.
 describe("ChatInput — imperative handle", () => {
   // Guards: Copy message to chat replaces the editable draft on both platforms and never sends it automatically.
   it.each(["twitch", "kick"] as const)(

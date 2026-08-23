@@ -1,11 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { useTopStreams } from '@/hooks/queries/useStreams';
+
 import { fixtures, renderWithProviders, routerMock, screen } from '../test-utils';
+
+type TopStreamsState = Pick<ReturnType<typeof useTopStreams>, 'data' | 'isLoading' | 'error'>;
+
+const topStreamsMock = vi.hoisted<{ state: TopStreamsState }>(() => ({
+  state: { data: undefined, isLoading: false, error: null },
+}));
 
 vi.mock('@tanstack/react-router', () => routerMock());
 
 vi.mock('@/hooks/queries/useStreams', () => ({
-  useTopStreams: vi.fn(),
+  useTopStreams: () => topStreamsMock.state,
   useStreamsByCategory: vi.fn(),
   useFollowedStreams: vi.fn(),
   useStreamByChannel: vi.fn(),
@@ -34,18 +42,17 @@ vi.mock('@/pages/Home/components/live-now-section', () => ({
   ),
 }));
 
-import { useTopStreams } from '@/hooks/queries/useStreams';
 import { HomePage } from '@/pages/Home';
 
-const useTopStreamsMock = vi.mocked(useTopStreams);
-
+// Guards: loading, error, and populated home states remain visibly distinct.
+// Guards: the featured stream is removed exactly once from the live-now list.
 describe('HomePage', () => {
   beforeEach(() => {
-    useTopStreamsMock.mockReset();
+    topStreamsMock.state = { data: undefined, isLoading: false, error: null };
   });
 
   it('shows loading state passed to featured + live-now while fetching', () => {
-    useTopStreamsMock.mockReturnValue({ data: undefined, isLoading: true, error: null } as unknown as ReturnType<typeof useTopStreams>);
+    topStreamsMock.state = { data: undefined, isLoading: true, error: null };
     renderWithProviders(<HomePage />);
     expect(screen.getByTestId('featured-stream')).toHaveTextContent('loading-featured');
     expect(screen.getByTestId('live-now')).toHaveTextContent('streams: 0');
@@ -57,7 +64,7 @@ describe('HomePage', () => {
       fixtures.stream({ id: 's2', title: 'Second' }),
       fixtures.stream({ id: 's3', title: 'Third' }),
     ];
-    useTopStreamsMock.mockReturnValue({ data: streams, isLoading: false, error: null } as unknown as ReturnType<typeof useTopStreams>);
+    topStreamsMock.state = { data: streams, isLoading: false, error: null };
     renderWithProviders(<HomePage />);
     expect(screen.getByTestId('featured-stream')).toHaveTextContent('Featured!');
     expect(screen.getByTestId('featured-stream-count')).toHaveTextContent('3');
@@ -65,11 +72,11 @@ describe('HomePage', () => {
   });
 
   it('shows error state with retry button on query failure', () => {
-    useTopStreamsMock.mockReturnValue({
+    topStreamsMock.state = {
       data: undefined,
       isLoading: false,
       error: new Error('boom'),
-    } as unknown as ReturnType<typeof useTopStreams>);
+    };
     renderWithProviders(<HomePage />);
     expect(screen.getByText(/failed to load streams/i)).toBeInTheDocument();
     expect(screen.getByText('boom')).toBeInTheDocument();
@@ -77,7 +84,7 @@ describe('HomePage', () => {
   });
 
   it('renders the Browse All Categories link', () => {
-    useTopStreamsMock.mockReturnValue({ data: [], isLoading: false, error: null } as unknown as ReturnType<typeof useTopStreams>);
+    topStreamsMock.state = { data: [], isLoading: false, error: null };
     renderWithProviders(<HomePage />);
     expect(screen.getByText(/browse all categories/i)).toBeInTheDocument();
   });

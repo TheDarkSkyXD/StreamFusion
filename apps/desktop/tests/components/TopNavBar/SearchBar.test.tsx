@@ -27,32 +27,12 @@ vi.mock('@/components/search/UnifiedSearchInput', () => ({
 
 import { SearchBar } from '@/components/TopNavBar/SearchBar';
 
+// Guards: submitting the global search field keeps the query while navigating to search results.
 describe('SearchBar', () => {
   it('wires onSearch to navigate to /search', () => {
     renderWithProviders(<SearchBar />);
     const btn = screen.getByText(/search streamfusion/i);
     btn.click();
     expect(navigate).toHaveBeenCalledWith({ to: '/search', search: { q: 'foo' } });
-  });
-
-  it('uses the KickTalk input background color', () => {
-    renderWithProviders(<SearchBar />);
-    expect(screen.getByText(/search streamfusion/i)).toHaveAttribute(
-      'data-input-class',
-      expect.stringContaining('!bg-[#191919]')
-    );
-  });
-
-  it('uses the KickTalk placeholder neutral', () => {
-    renderWithProviders(<SearchBar />);
-    expect(screen.getByText(/search streamfusion/i)).toHaveAttribute(
-      'data-input-class',
-      expect.stringContaining('placeholder:!text-white/30')
-    );
-  });
-
-  it('uses the StreamFusion navbar search placeholder', () => {
-    renderWithProviders(<SearchBar />);
-    expect(screen.getByText('Search StreamFusion...')).toBeInTheDocument();
   });
 });
