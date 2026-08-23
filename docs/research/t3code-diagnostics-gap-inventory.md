@@ -81,6 +81,6 @@ The implementation specification should require all of the following:
 
 ## Planning conclusion
 
-The first implementation slice can reuse existing data for current resources, bounded resource history, renderer performance, logs, bug reports, platform health, HTTP queue and circuit state, and stream-network requests. Full adapted parity also needs explicit decisions for tracing, normalized failure aggregation, host telemetry, application I/O attribution, process identity, and owner-safe recovery actions.
+The first implementation slice can reuse existing data for current resources, bounded resource history, renderer performance, logs, bug reports, platform health, HTTP queue and circuit state, and stream-network requests. Full adapted parity also needs explicit decisions for tracing, normalized failure aggregation, host telemetry, application I/O attribution, process identity, and validated process signaling and owner-held lifecycle recovery.
 
 Those gaps should remain separate Wayfinder decisions. Hiding them inside one page ticket would make capability parity impossible to review.
