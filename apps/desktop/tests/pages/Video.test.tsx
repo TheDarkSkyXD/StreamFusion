@@ -86,6 +86,10 @@ beforeEach(() => {
   }));
   electronApi.videos.getMetadata = vi.fn(async () => ({ success: false }));
   electronApi.videos.getByChannel = vi.fn(async () => ({ success: true, data: [] }));
+  electronApi.streams.getByChannel = vi.fn(async () => ({
+    success: true,
+    data: null,
+  }));
   electronApi.channels.getByUsername = vi.fn(async () => ({
     error: null,
     data: {
@@ -117,6 +121,8 @@ import { VideoPage } from "@/pages/Video";
 // Guards: a resolved VOD playback source mounts its player without waiting for metadata
 // Guards: platform-provided language names render without crashing the VOD page
 // Guards: VOD channel avatars fall back to the canonical channel lookup when route metadata omits them
+// Guards: offline VOD channels do not offer a link to a nonexistent live stream
+// Guards: Watch Live appears only after current stream status confirms the channel is live
 describe("VideoPage", () => {
   beforeEach(() => {
     Object.assign(routeState.params, { platform: "twitch", videoId: "vod-1" });
@@ -142,6 +148,28 @@ describe("VideoPage", () => {
     expect(screen.getByText(/yesterday stream vod/i)).toBeInTheDocument();
     expect(screen.getByText("Portuguese")).toBeInTheDocument();
     await screen.findByTestId("twitch-vod-player");
+  });
+
+  it("hides Watch Live when the VOD channel is offline", async () => {
+    renderWithProviders(<VideoPage />);
+
+    await waitFor(() => expect(electronApi.streams.getByChannel).toHaveBeenCalled());
+    expect(screen.queryByRole("link", { name: "Watch Live" })).not.toBeInTheDocument();
+  });
+
+  it("shows Watch Live when fresh stream status says the VOD channel is live", async () => {
+    electronApi.streams.getByChannel = vi.fn(async () => ({
+      success: true,
+      data: {
+        platform: "twitch",
+        channelName: "ninja",
+        isLive: true,
+      },
+    }));
+
+    renderWithProviders(<VideoPage />);
+
+    expect(await screen.findByRole("link", { name: "Watch Live" })).toBeInTheDocument();
   });
 
   it("mounts the Twitch VOD player for a twitch platform when a src is provided", async () => {

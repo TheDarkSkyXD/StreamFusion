@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/ui/follow-button";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
+import { useVodLiveLink } from "@/hooks/queries/useVodLiveLink";
 import { useHistoryActions } from "@/hooks/queries/useHistoryQuery";
 import { useDownloadActions } from "@/hooks/use-download-actions";
 import { useShareAction } from "@/hooks/use-share-action";
@@ -415,6 +416,11 @@ export function VideoPage() {
     hasResolvedChannelName ? channelName : "",
     platform as Platform
   );
+  const liveLinkState = useVodLiveLink(
+    hasResolvedChannelName ? channelName : "",
+    platform as Platform
+  );
+  const canWatchLive = liveLinkState.kind === "available";
   const channelAvatar =
     videoMetadata?.channelAvatar || passedChannelAvatar || channelData?.avatarUrl;
   const shareUrl =
@@ -760,18 +766,20 @@ export function VideoPage() {
                 <LuDownload aria-hidden="true" />
                 Download
               </Button>
-              <Link
-                to="/stream/$platform/$channel"
-                params={{ platform: platform || "twitch", channel: channelName }}
-                search={{ tab: "home" }}
-              >
-                <Button
-                  className="rounded-full font-bold bg-neutral-800 hover:bg-neutral-700 text-white border-transparent gap-2"
-                  size="sm"
+              {canWatchLive && (
+                <Link
+                  to="/stream/$platform/$channel"
+                  params={{ platform: platform || "twitch", channel: channelName }}
+                  search={{ tab: "home" }}
                 >
-                  Watch Live
-                </Button>
-              </Link>
+                  <Button
+                    className="rounded-full font-bold bg-neutral-800 hover:bg-neutral-700 text-white border-transparent gap-2"
+                    size="sm"
+                  >
+                    Watch Live
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
 
