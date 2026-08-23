@@ -1,16 +1,10 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/services/chat/kick-chat", () => ({
-  kickChatService: { forceShutdown: vi.fn().mockResolvedValue(undefined) },
-}));
+const runAppShutdownTasks = vi.hoisted(() => vi.fn());
 
-vi.mock("@/backend/services/chat/twitch-chat", () => ({
-  twitchChatService: { forceShutdown: vi.fn().mockResolvedValue(undefined) },
-}));
+vi.mock("@/hooks/app-shutdown-registry", () => ({ runAppShutdownTasks }));
 
-import { kickChatService } from "@/backend/services/chat/kick-chat";
-import { twitchChatService } from "@/backend/services/chat/twitch-chat";
 import { useAppShutdown } from "@/hooks/use-app-shutdown";
 import { useChatStore } from "@/store/chat-store";
 
@@ -25,8 +19,7 @@ beforeEach(() => {
       return vi.fn();
     }),
   };
-  vi.mocked(kickChatService.forceShutdown).mockClear();
-  vi.mocked(twitchChatService.forceShutdown).mockClear();
+  runAppShutdownTasks.mockClear();
 });
 
 afterEach(() => {
@@ -34,14 +27,15 @@ afterEach(() => {
   delete window.electronAPI;
 });
 
+// Guards: the eager app root runs only cleanup registered by features that were actually loaded.
+// Guards: renderer shutdown still clears batched chat work without a static chat-store import.
 describe("useAppShutdown", () => {
   it("does nothing when the Electron bridge is unavailable", () => {
     // @ts-expect-error -- test-only missing bridge
     delete window.electronAPI;
 
     expect(() => renderHook(() => useAppShutdown())).not.toThrow();
-    expect(kickChatService.forceShutdown).not.toHaveBeenCalled();
-    expect(twitchChatService.forceShutdown).not.toHaveBeenCalled();
+    expect(runAppShutdownTasks).not.toHaveBeenCalled();
   });
 
   it("registers an onBeforeQuit listener on mount", () => {
@@ -49,12 +43,11 @@ describe("useAppShutdown", () => {
     expect(window.electronAPI!.onBeforeQuit).toHaveBeenCalledTimes(1);
   });
 
-  it("calls forceShutdown on both chat services when the quit callback fires", () => {
+  it("runs cleanup registered by on-demand features", () => {
     renderHook(() => useAppShutdown());
     expect(onBeforeQuitCallback).not.toBeNull();
     onBeforeQuitCallback!();
-    expect(kickChatService.forceShutdown).toHaveBeenCalledTimes(1);
-    expect(twitchChatService.forceShutdown).toHaveBeenCalledTimes(1);
+    expect(runAppShutdownTasks).toHaveBeenCalledTimes(1);
   });
 
   it("sets window.__shuttingDown to true", () => {
@@ -63,11 +56,11 @@ describe("useAppShutdown", () => {
     expect((window as unknown as { __shuttingDown?: boolean }).__shuttingDown).toBe(true);
   });
 
-  it("calls cleanupBatching on the chat store", () => {
+  it("loads the chat store only when shutdown begins and clears batching", async () => {
     const cleanupSpy = vi.spyOn(useChatStore.getState(), "cleanupBatching");
     renderHook(() => useAppShutdown());
     onBeforeQuitCallback!();
-    expect(cleanupSpy).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(cleanupSpy).toHaveBeenCalledTimes(1));
     cleanupSpy.mockRestore();
   });
 

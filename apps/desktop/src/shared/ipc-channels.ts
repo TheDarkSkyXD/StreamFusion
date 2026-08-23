@@ -36,6 +36,7 @@ export const IPC_CHANNELS = {
   APP_GET_ENVIRONMENT: "app:get-environment",
   APP_QUIT: "app:quit",
   APP_RELAUNCH: "app:relaunch",
+  IPC_FEATURE_LOAD: "ipc:feature-load",
   CONNECTIVITY_CHECK: "connectivity:check",
   /**
    * Main → renderer push fired at the start of `app.before-quit`. The
@@ -415,12 +416,51 @@ export const IPC_CHANNELS = {
   BUG_REPORT_LIST: "bug-report:list",
 } as const;
 
+export const IPC_FEATURES = {
+  ADBLOCK: "adblock",
+  APP: "app",
+  AUTH: "auth",
+  BUG_REPORTS: "bug-reports",
+  CATEGORIES: "categories",
+  CHANNELS: "channels",
+  CHAT: "chat",
+  CHAT_ELIGIBILITY: "chat-eligibility",
+  CHAT_REPLAY: "chat-replay",
+  CONNECTIVITY: "connectivity",
+  DOWNLOADS: "downloads",
+  EMOTES: "emotes",
+  KICK_CHAT: "kick-chat",
+  LOCAL_CAPTIONS: "local-captions",
+  LOGS: "logs",
+  MOD_LOG: "mod-log",
+  NOTIFICATIONS: "notifications",
+  PLAYBACK: "playback",
+  PLATFORM_HEALTH: "platform-health",
+  PROXY: "proxy",
+  SEARCH: "search",
+  SLOTS: "slots",
+  STREAM_RECORDING: "stream-recording",
+  STREAMS: "streams",
+  STORAGE: "storage",
+  SYSTEM: "system",
+  TIMEOUT_MODERATION: "timeout-moderation",
+  TOKEN_STATUS: "token-status",
+  TWITCH_API: "twitch-api",
+  UPDATES: "updates",
+  USER_PROFILE: "user-profile",
+  VIDEOS: "videos",
+} as const;
+
+export type IpcFeature = (typeof IPC_FEATURES)[keyof typeof IPC_FEATURES];
+
 // Type for channel names
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
 
 // ========== Payload Types for IPC Calls ==========
 
 export interface IpcPayloads {
+  [IPC_CHANNELS.IPC_FEATURE_LOAD]: IpcFeature;
+
   // Generic storage
   [IPC_CHANNELS.STORE_GET]: { key: string };
   [IPC_CHANNELS.STORE_SET]: { key: string; value: unknown };

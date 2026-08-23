@@ -10,11 +10,9 @@ import type {
   UserPreferences,
 } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
-import { kickFollowWriteService } from "../../services/kick-follow-write-service";
+import type { KickFollowWriteService } from "../../services/kick-follow-write-service";
 import { storageService } from "../../services/storage-service";
-import { twitchFollowWriteService } from "../../services/twitch-follow-write-service";
 import { isAllowedSender } from "../sender-origin";
-import { repairKickFollowSlugs } from "./kick-follow-repair";
 
 const REJECTED_ACCOUNT_FOLLOW_WRITE: KickAccountFollowWriteResult = {
   status: "rejected",
@@ -56,18 +54,27 @@ const accountFollowWriteRequestSchema = z.union([
   createAccountFollowWriteRequestSchema("twitch"),
 ]);
 
-export function registerStorageHandlers(mainWindow?: BrowserWindow): void {
-  if (mainWindow) {
-    kickFollowWriteService.onAccountWriteChanged((event) => {
-      try {
-        if (!mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-          mainWindow.webContents.send(IPC_CHANNELS.FOLLOWS_ACCOUNT_WRITE_CHANGED, event);
-        }
-      } catch {
-        logger.warn("IPC:Follows", "Could not forward account-write transition to renderer");
+let followsMainWindow: BrowserWindow | undefined;
+let removeAccountWriteListener: (() => void) | undefined;
+
+export function attachKickFollowWriteService(service: KickFollowWriteService): void {
+  if (!followsMainWindow) return;
+
+  removeAccountWriteListener?.();
+  removeAccountWriteListener = service.onAccountWriteChanged((event) => {
+    try {
+      const mainWindow = followsMainWindow;
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send(IPC_CHANNELS.FOLLOWS_ACCOUNT_WRITE_CHANGED, event);
       }
-    });
-  }
+    } catch {
+      logger.warn("IPC:Follows", "Could not forward account-write transition to renderer");
+    }
+  });
+}
+
+export function registerStorageHandlers(mainWindow?: BrowserWindow): void {
+  followsMainWindow = mainWindow;
 
   // ========== Generic Storage (backward compatibility) ==========
   ipcMain.handle(IPC_CHANNELS.STORE_GET, (_event, { key }: { key: string }) => {
@@ -97,7 +104,10 @@ export function registerStorageHandlers(mainWindow?: BrowserWindow): void {
       return follows;
     }
 
-    const { kickClient } = await import("../../api/platforms/kick/kick-client");
+    const [{ kickClient }, { repairKickFollowSlugs }] = await Promise.all([
+      import("../../api/platforms/kick/kick-client"),
+      import("./kick-follow-repair"),
+    ]);
     await repairKickFollowSlugs(kickClient, follows);
 
     return storageService.getActiveFollowsByPlatform("kick");
@@ -168,6 +178,8 @@ export function registerStorageHandlers(mainWindow?: BrowserWindow): void {
       if (!parsed.success) return INVALID_ACCOUNT_FOLLOW_WRITE;
 
       if (parsed.data.follow.platform === "twitch") {
+        const { twitchFollowWriteService } =
+          await import("../../services/twitch-follow-write-service");
         return twitchFollowWriteService.write(parsed.data.follow, parsed.data.action);
       }
 
@@ -175,6 +187,8 @@ export function registerStorageHandlers(mainWindow?: BrowserWindow): void {
         throw new Error("Kick authentication is required to update account follows.");
       }
 
+      const { kickFollowWriteService } = await import("../../services/kick-follow-write-service");
+      attachKickFollowWriteService(kickFollowWriteService);
       const outcome = await kickFollowWriteService.enqueue(parsed.data.follow, parsed.data.action);
       return {
         status: outcome.status,

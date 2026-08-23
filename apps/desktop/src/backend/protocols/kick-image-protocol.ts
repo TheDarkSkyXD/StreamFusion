@@ -15,8 +15,6 @@
 
 import { protocol } from "electron";
 
-import { kickClient } from "../api/platforms/kick/kick-client";
-
 export const KICK_IMAGE_SCHEME = "kick-image";
 
 const PLACEHOLDER_PNG = Buffer.from(
@@ -69,6 +67,7 @@ export function registerKickImageProtocol(): void {
       return placeholderResponse();
     }
 
+    const { kickClient } = await import("../api/platforms/kick/kick-client");
     const result = await kickClient.fetchImageBytes(originalUrl);
     if (!result) {
       return placeholderResponse();

@@ -9,12 +9,15 @@
  * - Position, collapsed state, and hidden state persist across reloads.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { ChatSimTool } from "./ChatSimTool";
 import { PerfTool } from "./PerfTool";
 import { DEBUG_TOKENS } from "./tokens";
 import { UiDebugTool } from "./UiDebugTool";
+
+const ChatSimTool = lazy(() =>
+  import("./ChatSimTool").then((module) => ({ default: module.ChatSimTool }))
+);
 
 function BugIcon({ size = 16 }: { size?: number }) {
   return (
@@ -547,7 +550,9 @@ function DebugPanelImpl() {
         })}
       </div>
       <div style={{ padding: "14px 16px" }}>
-        <Active />
+        <Suspense fallback={null}>
+          <Active />
+        </Suspense>
       </div>
     </div>
   );

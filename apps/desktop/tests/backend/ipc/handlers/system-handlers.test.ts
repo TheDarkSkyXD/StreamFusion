@@ -339,7 +339,7 @@ describe("NOTIFICATION_SHOW", () => {
 });
 
 describe("NOTIFICATION_COVERAGE_GET", () => {
-  it("returns the live notification coverage snapshot", () => {
+  it("returns the live notification coverage snapshot", async () => {
     liveNotificationServiceMock.getCoverageStatus.mockReturnValueOnce({
       desktop: { supported: false, permission: "unsupported" },
       platforms: {
@@ -360,7 +360,7 @@ describe("NOTIFICATION_COVERAGE_GET", () => {
     });
 
     const handler = getInvokeHandler(IPC_CHANNELS.NOTIFICATION_COVERAGE_GET);
-    const status = handler({});
+    const status = await handler({});
 
     expect(status).toMatchObject({
       desktop: { supported: false, permission: "unsupported" },

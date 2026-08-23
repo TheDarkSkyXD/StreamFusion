@@ -38,7 +38,10 @@ vi.mock("@/backend/logging/logger", () => ({
 
 import { ipcMain } from "electron";
 
-import { registerStorageHandlers } from "@/backend/ipc/handlers/storage-handlers";
+import {
+  attachKickFollowWriteService,
+  registerStorageHandlers,
+} from "@/backend/ipc/handlers/storage-handlers";
 import { storageService } from "@/backend/services/storage-service";
 
 type Handler = (event: unknown, args?: unknown) => unknown;
@@ -219,6 +222,9 @@ describe("storage-handlers Kick account write origin", () => {
       activeFollows: [],
     };
     registerStorageHandlers(mainWindow);
+    attachKickFollowWriteService({
+      onAccountWriteChanged,
+    } as unknown as Parameters<typeof attachKickFollowWriteService>[0]);
 
     publish(event);
 
@@ -258,6 +264,9 @@ describe("storage-handlers Kick account write origin", () => {
     };
 
     registerStorageHandlers(mainWindow);
+    attachKickFollowWriteService({
+      onAccountWriteChanged,
+    } as unknown as Parameters<typeof attachKickFollowWriteService>[0]);
 
     expect(() => publish(event)).not.toThrow();
     expect(send).toHaveBeenCalledWith(IPC_CHANNELS.FOLLOWS_ACCOUNT_WRITE_CHANGED, event);

@@ -2,11 +2,20 @@ import type React from "react";
 import { memo, useEffect } from "react";
 
 import { ensureEmoteProvidersInitialized } from "../../backend/services/emotes";
+import { registerAppShutdownTask } from "../../hooks/app-shutdown-registry";
 import type { ChatPlatform } from "../../shared/chat-types";
 import { useRenderCount } from "../dev/use-render-count";
 
 import { KickChat } from "./kick/KickChat";
 import { TwitchChat } from "./twitch/TwitchChat";
+
+registerAppShutdownTask("chat-services", async () => {
+  const [{ kickChatService }, { twitchChatService }] = await Promise.all([
+    import("../../backend/services/chat/kick-chat"),
+    import("../../backend/services/chat/twitch-chat"),
+  ]);
+  await Promise.allSettled([kickChatService.forceShutdown(), twitchChatService.forceShutdown()]);
+});
 
 export interface ChatPanelProps {
   /** Initial platform to display/send to */

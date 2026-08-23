@@ -3,7 +3,6 @@ import path from "node:path";
 import { app, type BrowserWindow, ipcMain, Notification, nativeTheme, shell } from "electron";
 
 import { logger } from "@/backend/logging/logger";
-import { liveNotificationService } from "@/backend/services/live-notification-service";
 import { storageService } from "@/backend/services/storage-service";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 
@@ -151,7 +150,9 @@ export function registerSystemHandlers(mainWindow: BrowserWindow): void {
     }
   );
 
-  ipcMain.handle(IPC_CHANNELS.NOTIFICATION_COVERAGE_GET, () => {
+  ipcMain.handle(IPC_CHANNELS.NOTIFICATION_COVERAGE_GET, async () => {
+    const { liveNotificationService } =
+      await import("@/backend/services/live-notification-service");
     return liveNotificationService.getCoverageStatus();
   });
 

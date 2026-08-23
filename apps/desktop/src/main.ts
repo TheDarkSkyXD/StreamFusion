@@ -17,15 +17,12 @@ import {
   clipboard,
   globalShortcut,
   Menu,
-  powerMonitor,
   protocol,
-  type Session,
   session,
   shell,
 } from "electron";
 import { configureAppIdentity } from "./backend/app-identity";
-import { disposeSendWindow } from "./backend/api/platforms/kick/kick-send-window";
-import { authWindowManager, protocolHandler, twitchAuthService } from "./backend/auth";
+import { protocolHandler } from "./backend/auth/protocol-handler";
 import { registerIpcHandlers } from "./backend/ipc-handlers";
 import { startChromiumLogTailer } from "./backend/logging/chromium-log-tailer";
 import { installConsoleIntercept } from "./backend/logging/console-intercept";
@@ -40,7 +37,6 @@ import {
   initNetworkLogger,
   shutdownNetworkLogger,
 } from "./backend/logging/network-logger";
-import { installNetworkRequestLogger } from "./backend/logging/network-request-logger";
 import {
   getCurrentNoisePath,
   initNoiseLogger,
@@ -65,22 +61,10 @@ import {
 import { installRendererCrashRecovery } from "./backend/recovery/renderer-crash-recovery";
 import { getPlatformCrashBackoffDecision } from "./backend/recovery/platform-crash-backoff-policy";
 import { attachCertVerifyDiagToAllSessions } from "./backend/services/cert-verify-diagnostics";
-import { cosmeticInjectionService } from "./backend/services/cosmetic-injection-service";
 import { dbService } from "./backend/services/database-service";
-import {
-  startKickFollowMetadataRefresh,
-  stopKickFollowMetadataRefresh,
-} from "./backend/services/kick-follow-metadata-refresh";
-import { liveNotificationService } from "./backend/services/live-notification-service";
-import { networkAdBlockService } from "./backend/services/network-adblock-service";
 import { storageService } from "./backend/services/storage-service";
-import {
-  purgeStoredThirdPartyCookies,
-  registerThirdPartyCookieStripper,
-} from "./backend/services/third-party-cookie-stripper";
-import { twitchManifestProxy } from "./backend/services/twitch-manifest-proxy";
-import { vaftPatternService } from "./backend/services/vaft-pattern-service";
 import { markCleanShutdown, markSessionStarted, wasCleanShutdown } from "./backend/shutdown-marker";
+import { runLoadedFeatureCleanups } from "./backend/startup/loaded-feature-cleanup";
 import { startPrimaryInstance } from "./backend/startup/start-primary-instance";
 import { beginStartupSession } from "./backend/startup/startup-session-policy";
 import { windowManager } from "./backend/window-manager";
@@ -255,9 +239,6 @@ function initializeBeforeReady(): void {
   // append into `logger` under the "Chromium" tag.
   startChromiumLogTailer({ filePath: chromiumLogPath });
 
-  import("./backend/logging/platform-health-telemetry");
-  void import("./backend/api/unified/status-page-poller").then((m) => m.initStatusPagePoller());
-
   protocolHandler.registerProtocol({ resolveMainWindow: () => windowManager.getMainWindow() });
   logger.info("Main", "Logging initialized", {
     logFile: getCurrentLogPath(),
@@ -331,114 +312,6 @@ startPrimaryInstance(app, {
   beforeReady: initializeBeforeReady,
   ready: initializeReady,
 });
-
-/**
- * Setup request interceptors for Kick CDN domains that require special headers
- * and network-level ad blocking for Twitch.
- *
- * NOTE: This is a SECONDARY fallback mechanism. The primary approach is the IPC proxy
- * in system-handlers.ts which uses Electron's net.request (more reliable).
- *
- * This interceptor catches any direct image loads that bypass the ProxiedImage component.
- */
-const networkBlockedSessions = new WeakSet<Session>();
-
-function installNetworkRequestBlocker(
-  targetSession: Session,
-  options: { skipTwitchManifests?: boolean } = {}
-): void {
-  if (networkBlockedSessions.has(targetSession)) return;
-  networkBlockedSessions.add(targetSession);
-
-  targetSession.webRequest.onBeforeRequest({ urls: ["<all_urls>"] }, (details, callback) => {
-    // Skip manifest URLs - handled by twitchManifestProxy on defaultSession.
-    if (
-      options.skipTwitchManifests &&
-      details.url.includes("ttvnw.net") &&
-      details.url.includes(".m3u8")
-    ) {
-      callback({});
-      return;
-    }
-
-    const result = networkAdBlockService.shouldBlock(details.url);
-    if (result.blocked) {
-      callback({ cancel: true });
-      return;
-    }
-    callback({});
-  });
-}
-
-function setupRequestInterceptors(): void {
-  // Twitch manifest proxy (handles m3u8 interception for ad removal)
-  // MUST be registered before the general onBeforeRequest handler
-  twitchManifestProxy.registerInterceptor();
-
-  // Network-level ad/tracking blocking. Install on every session so hidden
-  // Kick helper windows and custom partitions do not bypass request blocking.
-  installNetworkRequestLogger(session.defaultSession);
-  installNetworkRequestBlocker(session.defaultSession, { skipTwitchManifests: true });
-  app.on("session-created", (createdSession) => {
-    installNetworkRequestLogger(createdSession);
-    installNetworkRequestBlocker(createdSession);
-  });
-
-  // Header modification for Kick CDN (onBeforeSendHeaders)
-  session.defaultSession.webRequest.onBeforeSendHeaders(
-    {
-      urls: [
-        "https://files.kick.com/*",
-        "https://*.files.kick.com/*",
-        "https://images.kick.com/*",
-        "https://*.images.kick.com/*",
-      ],
-    },
-    (details, callback) => {
-      const modifiedHeaders = { ...details.requestHeaders };
-      modifiedHeaders.Referer = "https://kick.com/";
-      callback({ requestHeaders: modifiedHeaders });
-    }
-  );
-
-  // CSP modification for Twitch ad blocking (onHeadersReceived)
-  // Adds 'data:' to connect-src to allow blank video segment replacement.
-  session.defaultSession.webRequest.onHeadersReceived(
-    { urls: ["*://*.twitch.tv/*", "*://*.ttvnw.net/*"] },
-    (details, callback) => {
-      const headers = { ...details.responseHeaders };
-
-      // Find and modify Content-Security-Policy header
-      const cspKey = Object.keys(headers).find(
-        (key) => key.toLowerCase() === "content-security-policy"
-      );
-
-      if (cspKey && headers[cspKey]) {
-        const cspValues = headers[cspKey];
-        if (Array.isArray(cspValues)) {
-          headers[cspKey] = cspValues.map((csp) => {
-            // Add 'data:' to connect-src if not already present
-            if (csp.includes("connect-src") && !csp.includes("data:")) {
-              if (csp.includes("connect-src")) {
-                return csp.replace("connect-src", "connect-src data: blob:");
-              }
-              return csp.replace(/connect-src\s+([^;]+)/, "connect-src $1 data: blob:");
-            }
-            return csp;
-          });
-        }
-      }
-
-      callback({ responseHeaders: headers });
-    }
-  );
-
-  // Set-Cookie stripping for third-party CDN hosts. The previous version of
-  // this lived inside the *.twitch.tv handler above and missed jtvnw.net,
-  // files.kick.com, and emote CDNs — which accumulated 8 cookies and 1800+
-  // "Reading cookie in cross-site context" DevTools warnings.
-  registerThirdPartyCookieStripper(session.defaultSession);
-}
 
 // App lifecycle events
 let stopProcessMonitor: (() => void) | null = null;
@@ -524,14 +397,6 @@ async function initializeReady(): Promise<void> {
   // across every session — see cert-verify-diagnostics.ts for details.
   attachCertVerifyDiagToAllSessions(app, session.defaultSession);
 
-  // Wake-aware Twitch refresh. A laptop that slept across the token's
-  // expiry can leave the proactive setTimeout running stale and IRC torn
-  // down by Twitch before the renderer notices. On every system resume,
-  // re-evaluate the refresh schedule against the current expiry.
-  powerMonitor.on("resume", () => {
-    twitchAuthService.onSystemResume();
-  });
-
   // Initialize Core Services (Database & Storage)
   // MUST be called after app path configuration and before IPC handlers
   dbService.initialize();
@@ -566,28 +431,6 @@ async function initializeReady(): Promise<void> {
   // while Electron's main process handles the signed CDN media request.
   registerTwitchClipMediaProtocol();
 
-  // Initialize VAFT pattern service (auto-updates ad detection patterns)
-  vaftPatternService.initialize().catch((error) => {
-    console.warn("[Main] VAFT pattern service initialization error:", error);
-  });
-
-  startKickFollowMetadataRefresh();
-
-  // Initialize ad blocking services
-  cosmeticInjectionService.initialize();
-
-  // Setup request interceptors for CDN domains and ad blocking
-  setupRequestInterceptors();
-
-  // One-shot purge so the 8 cookies that accumulated before the stripper was
-  // wired up (jtvnw, kick CDN, emote CDNs) don't keep getting read on every
-  // cross-site request. Runs once per launch; safe to no-op when the jar is
-  // already empty. Fire-and-forget so a slow cookie store doesn't gate the
-  // window from opening.
-  void purgeStoredThirdPartyCookies(session.defaultSession).catch((e) => {
-    console.warn("[Main] Failed to purge stored third-party cookies:", e);
-  });
-
   const mainWindow = windowManager.createMainWindow();
   installRendererCrashRecovery({ webContents: mainWindow.webContents });
 
@@ -608,15 +451,9 @@ async function initializeReady(): Promise<void> {
         }
       }
     }
-    void disposeSendWindow();
-    authWindowManager.closeAllAuthWindows();
   });
 
-  // Inject cosmetics into main window
-  cosmeticInjectionService.injectIntoWindow(mainWindow);
-
   registerIpcHandlers(mainWindow);
-  liveNotificationService.start(mainWindow);
 
   // Global force-quit shortcut: runs in main process, so it works even when
   // the renderer is at 100% CPU and can't dispatch its own X-button click.
@@ -642,9 +479,7 @@ app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     const mainWindow = windowManager.createMainWindow();
     installRendererCrashRecovery({ webContents: mainWindow.webContents });
-    cosmeticInjectionService.injectIntoWindow(mainWindow);
     registerIpcHandlers(mainWindow);
-    liveNotificationService.start(mainWindow);
   }
 });
 
@@ -663,8 +498,7 @@ app.on("before-quit", (event) => {
     stopProcessMonitor();
     stopProcessMonitor = null;
   }
-  stopKickFollowMetadataRefresh();
-  liveNotificationService.stop();
+  const featureCleanup = runLoadedFeatureCleanups();
   // `use-resume-playback.ts` saves position every 30s and on pause; chat is
   // ephemeral; window state saves synchronously in mainWindow.on('close').
   // Worst-case loss from this path is the last 30s of playback position.
@@ -674,6 +508,7 @@ app.on("before-quit", (event) => {
   // synchronously, so the awaits are short-lived; we still gate `app.exit`
   // on them so the trailing "Debug closed" header makes it to disk.
   const finalize = async (): Promise<void> => {
+    await featureCleanup;
     try {
       await devRelayServer?.close();
       devRelayServer = null;

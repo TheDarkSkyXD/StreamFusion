@@ -89,8 +89,10 @@ export default defineConfig(({ command, mode }) => {
                         index: resolve(__dirname, 'src/main.ts'),
                     },
                     output: {
-                        // Inline await import() chunks: a stale running main process can otherwise require() a hashed chunk filename that no longer exists after rebuild.
-                        inlineDynamicImports: true,
+                        // Keep feature imports as real main-process chunks. Stable
+                        // names in development prevent a running Electron process
+                        // from requesting a stale hashed filename after rebuild.
+                        chunkFileNames: isProduction ? 'chunks/[name]-[hash].js' : 'chunks/[name].js',
                     },
                     // Native modules must stay external (rebuilt by electron-builder)
                     external: ['better-sqlite3'],

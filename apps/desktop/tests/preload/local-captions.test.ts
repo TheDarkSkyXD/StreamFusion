@@ -14,6 +14,14 @@ const electronMocks = vi.hoisted(() => ({
   sendSync: vi.fn(() => []),
 }));
 
+vi.mock("@/preload/ipc-feature-loader", () => ({
+  createFeatureAwareIpc: (invoke: unknown, send: unknown) => ({
+    invoke,
+    send,
+    loadFeature: vi.fn(async () => undefined),
+  }),
+}));
+
 vi.mock("electron", () => ({
   contextBridge: { exposeInMainWorld: electronMocks.exposeInMainWorld },
   ipcRenderer: {
