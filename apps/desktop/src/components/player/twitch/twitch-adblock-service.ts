@@ -1783,6 +1783,7 @@ function resetPlayerReloadGuard(channelName: string): void {
 
 function schedulePlayerReloadGuardReset(channelName: string): void {
   cancelPlayerReloadGuardReset(channelName);
+  // timer-allowlist: releases an imperative per-channel recovery guard outside React lifecycle.
   const timer = setTimeout(() => {
     playerReloadGuardResetTimers.delete(channelName);
     if (!playerReloadCallbacks.has(channelName)) {

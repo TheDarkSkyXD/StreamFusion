@@ -6,7 +6,7 @@
  * and replaces tracking URLs to minimize ad impact.
  */
 
-// Guards: per-segment ad stripping — when backup streams aren't available, ad segments must be stripped from media playlists and tracking URLs replaced; this is the fallback path when VAFT backups fail.
+// Guards: positively classified playlists expose no appendable media when a verified clean backup is unavailable, while tracking URLs are neutralized.
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
@@ -238,14 +238,14 @@ describe('Ad Segment Stripping - Midroll Ads', () => {
     expect(status.isShowingAd).toBe(true);
   });
 
-  it('should preserve live segments in mixed playlists', async () => {
+  it('should hold all media in mixed playlists without a verified clean backup', async () => {
     const result = await processMediaPlaylist(
       'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
       MIDROLL_AD_PLAYLIST
     );
 
-    // Live segment URL should still be present
-    expect(result).toContain('video-edge-abc.sfo03.abs.hls.ttvnw.net');
+    expect(result).not.toContain('video-edge-abc.sfo03.abs.hls.ttvnw.net');
+    expect(result).not.toContain('#EXTINF');
   });
 });
 
@@ -381,16 +381,16 @@ describe('Ad Segment Stripping - Mixed Content', () => {
     clearStreamInfo('mixedtest');
   });
 
-  it('should handle interleaved ad and live segments', async () => {
+  it('should hold interleaved ad and live segments when the playlist is unsafe', async () => {
     const result = await processMediaPlaylist(
       'https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8',
       MIXED_AD_LIVE_PLAYLIST
     );
 
-    // Should still contain live segment URLs
-    expect(result).toContain('CpAF-live-1.ts');
-    expect(result).toContain('CpAF-live-2.ts');
-    expect(result).toContain('CpAF-live-3.ts');
+    expect(result).not.toContain('CpAF-live-1.ts');
+    expect(result).not.toContain('CpAF-live-2.ts');
+    expect(result).not.toContain('CpAF-live-3.ts');
+    expect(result).not.toContain('#EXTINF');
   });
 
   it('should detect ads even with mixed content', async () => {

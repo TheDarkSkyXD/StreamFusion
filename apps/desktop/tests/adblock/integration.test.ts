@@ -5,7 +5,7 @@
  * through ad detection, backup fetching, segment stripping, and recovery.
  */
 
-// Guards: end-to-end adblock pipeline — init → master playlist → media playlist → segment stripping → recovery sequence; this is the only test that exercises the full chain.
+// Guards: end-to-end adblock pipeline — init → master playlist → fail-closed unsafe-media hold or clean backup → recovery sequence; this is the only test that exercises the full chain.
 
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 
@@ -29,6 +29,9 @@ import {
 } from "@/components/player/twitch/twitch-adblock-service";
 
 import { createStreamInfo, DEFAULT_ADBLOCK_CONFIG } from "@/shared/adblock-types";
+
+type StatusCallback = NonNullable<Parameters<typeof setStatusChangeCallback>[0]>;
+type ObservedStatus = Parameters<StatusCallback>[0] & { timestamp: number };
 
 // Guards: clean aligned recovery resumes content without reloading or pause/resume interruption.
 
@@ -117,7 +120,7 @@ https://video-edge-abc.sfo03.abs.hls.ttvnw.net/v1/segment/CpAF-14012.ts`;
 // ==================== Integration Tests ====================
 
 describe("Integration: Full Ad-Block Lifecycle", () => {
-  let statusChanges: any[] = [];
+  let statusChanges: ObservedStatus[] = [];
   let playerReloadCalled = false;
 
   beforeEach(async () => {
@@ -251,14 +254,14 @@ describe("Integration: Full Ad-Block Lifecycle", () => {
       expect(status.isMidroll).toBe(true);
     });
 
-    it("should preserve live segments in mixed midroll playlist", async () => {
+    it("should hold mixed midroll media without a verified clean backup", async () => {
       const result = await processMediaPlaylist(
         "https://video-weaver.sfo03.hls.ttvnw.net/v1/playlist/CpEF-abc123/chunked/index-dvr.m3u8",
         MIDROLL_AD_PLAYLIST
       );
 
-      // Live segment before ad should be preserved
-      expect(result).toContain("CpAF-13999.ts");
+      expect(result).not.toContain("CpAF-13999.ts");
+      expect(result).not.toContain("#EXTINF");
     });
   });
 

@@ -469,7 +469,7 @@ export function CategoryDetailPage() {
                   to={CATEGORY_ROUTE}
                   params={{ platform: currentPlatform, categoryId }}
                   search={{ ...navigationSearch, platform: value }}
-                  aria-current={isSelected ? true : undefined}
+                  aria-current={isSelected ? "page" : undefined}
                   onClick={handleNativeLinkClick}
                   className={`inline-flex min-h-10 flex-1 items-center justify-center rounded-md px-4 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:flex-none ${
                     isSelected

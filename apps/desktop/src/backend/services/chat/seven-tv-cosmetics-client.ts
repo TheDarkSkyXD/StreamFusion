@@ -120,6 +120,7 @@ export class SevenTvCosmeticsClient {
     this.clearHeartbeatTimer();
     if (this.heartbeatIntervalMs === null) return;
     const delayMs = this.heartbeatIntervalMs * 3;
+    // timer-allowlist: protocol heartbeat watchdog is reset from server interval messages.
     this.heartbeatTimer = setTimeout(() => {
       this.heartbeatTimer = null;
       this.replaceSocket(connectionId);

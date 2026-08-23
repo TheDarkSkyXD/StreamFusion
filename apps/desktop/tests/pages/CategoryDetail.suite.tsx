@@ -111,6 +111,7 @@ function emptyInfinite() {
 // Guards: URL-backed tabs and Live filters preserve Category identity and reproduce copied or history-restored views
 // Guards: late stale-otherId repair cannot redirect after the Category route becomes inactive
 // Guards: Platform scope keeps loading, filtering, pagination, failure retry, and empty states independent
+// Guards: selected Category navigation links expose page-current semantics to assistive technology
 // Guards: Live Viewer Count updates immediately restore the selected exact ordering
 function registerCategoryDetailTests(name: string, registerTests: () => void) {
   describe(`CategoryDetailPage ${name}`, () => {
@@ -655,7 +656,7 @@ export function registerStateTests() {
       expect(platformLinks.map((link) => link.textContent)).toEqual(["All", "Twitch", "Kick"]);
       expect(within(platformGroup).getByRole("link", { name: "Kick" })).toHaveAttribute(
         "aria-current",
-        "true"
+        "page"
       );
       expect(screen.getByTestId("stream-grid")).toHaveTextContent("1 streams");
     });
