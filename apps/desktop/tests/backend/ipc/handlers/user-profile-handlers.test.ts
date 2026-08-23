@@ -36,21 +36,22 @@ function getHandler(channel: string): Handler {
   return call[1] as Handler;
 }
 
-const loadedFixtureEvent = {
-  senderFrame: {
-    url: "http://localhost:5173/?userProfileFixture=loaded",
-  },
-};
+const trustedMainFrame = { url: "http://localhost:5173/?userProfileFixture=loaded" };
+const trustedSender = { mainFrame: trustedMainFrame };
+const loadedFixtureEvent = { sender: trustedSender, senderFrame: trustedMainFrame };
+const trustedDocumentUrl = "http://localhost:5173/";
 
 beforeEach(() => {
   vi.clearAllMocks();
   electronMocks.app.isPackaged = false;
-  registerUserProfileHandlers();
+  trustedMainFrame.url = "http://localhost:5173/?userProfileFixture=loaded";
+  registerUserProfileHandlers(trustedSender, trustedDocumentUrl);
 });
 
 // Guards: normal Electron development profile reads pass through typed IPC to the real readers.
 // Guards: packaged builds ignore fixture query parameters and call the real profile readers.
 // Guards: user-profile fixture routing does not intercept unrelated IPC methods.
+// Guards: user-profile IPC rejects untrusted callers and malformed boundary values safely.
 describe("user-profile IPC fixture routing", () => {
   it("treats the removed loaded fixture mode as a real-reader pass-through", async () => {
     const identity = {
@@ -119,11 +120,8 @@ describe("user-profile IPC fixture routing", () => {
   });
 
   it("maps the unavailable Electron fixture to the same field failures as the browser harness", async () => {
-    const event = {
-      senderFrame: {
-        url: "http://localhost:5173/?userProfileFixture=unavailable",
-      },
-    };
+    trustedMainFrame.url = "http://localhost:5173/?userProfileFixture=unavailable";
+    const event = loadedFixtureEvent;
 
     await expect(
       getHandler(IPC_CHANNELS.USER_PROFILE_TWITCH_IDENTITY)(event, {
@@ -197,17 +195,78 @@ describe("user-profile IPC fixture routing", () => {
     readerMocks.resolveKickPublicChannel.mockResolvedValue(channel);
     const request = { userId: "123", username: "alice", channelSlug: "streamer" };
 
-    await expect(getHandler(IPC_CHANNELS.USER_PROFILE_KICK_IDENTITY)({}, request)).resolves.toEqual(
-      identity
-    );
     await expect(
-      getHandler(IPC_CHANNELS.USER_PROFILE_KICK_ACCOUNT_CREATED)({}, request)
+      getHandler(IPC_CHANNELS.USER_PROFILE_KICK_IDENTITY)(loadedFixtureEvent, request)
+    ).resolves.toEqual(identity);
+    await expect(
+      getHandler(IPC_CHANNELS.USER_PROFILE_KICK_ACCOUNT_CREATED)(loadedFixtureEvent, request)
     ).resolves.toEqual(unavailable);
-    await expect(getHandler(IPC_CHANNELS.USER_PROFILE_KICK_FOLLOW)({}, request)).resolves.toEqual(
-      unavailable
-    );
     await expect(
-      getHandler(IPC_CHANNELS.USER_PROFILE_KICK_CHANNEL)({}, { username: "alice" })
+      getHandler(IPC_CHANNELS.USER_PROFILE_KICK_FOLLOW)(loadedFixtureEvent, request)
+    ).resolves.toEqual(unavailable);
+    await expect(
+      getHandler(IPC_CHANNELS.USER_PROFILE_KICK_CHANNEL)(loadedFixtureEvent, {
+        username: "alice",
+      })
     ).resolves.toEqual(channel);
+
+    expect(readerMocks.getKickPublicIdentity).toHaveBeenCalledWith("123", "alice", "streamer");
+    expect(readerMocks.getKickAccountCreated).toHaveBeenCalledWith("123", "alice", "streamer");
+    expect(readerMocks.getKickFollowRelationship).toHaveBeenCalledWith("123", "alice", "streamer");
+    expect(readerMocks.resolveKickPublicChannel).toHaveBeenCalledWith("alice");
+  });
+
+  it("rejects untrusted senders before calling a profile reader", async () => {
+    await expect(
+      getHandler(IPC_CHANNELS.USER_PROFILE_TWITCH_IDENTITY)(
+        {
+          sender: { mainFrame: { url: "https://attacker.example" } },
+          senderFrame: { url: "https://attacker.example" },
+        },
+        { userId: "u1", username: "alice" }
+      )
+    ).resolves.toEqual({ state: "failed", message: "Unavailable" });
+
+    expect(readerMocks.getTwitchPublicIdentity).not.toHaveBeenCalled();
+  });
+
+  it("rejects an allowed-origin child frame inside the trusted window", async () => {
+    await expect(
+      getHandler(IPC_CHANNELS.USER_PROFILE_TWITCH_IDENTITY)(
+        { sender: trustedSender, senderFrame: { url: "http://localhost:5173/embedded" } },
+        { userId: "u1", username: "alice" }
+      )
+    ).resolves.toEqual({ state: "failed", message: "Unavailable" });
+
+    expect(readerMocks.getTwitchPublicIdentity).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed requests before calling a profile reader", async () => {
+    await expect(
+      getHandler(IPC_CHANNELS.USER_PROFILE_TWITCH_IDENTITY)(loadedFixtureEvent, {
+        userId: "",
+        username: "alice",
+      })
+    ).resolves.toEqual({ state: "failed", message: "Unavailable" });
+
+    expect(readerMocks.getTwitchPublicIdentity).not.toHaveBeenCalled();
+  });
+
+  it("turns invalid reader responses and thrown errors into safe field failures", async () => {
+    readerMocks.getTwitchPublicIdentity.mockResolvedValueOnce({ state: "known" });
+    readerMocks.getTwitchAccountCreated.mockRejectedValueOnce(new Error("private token leaked"));
+
+    await expect(
+      getHandler(IPC_CHANNELS.USER_PROFILE_TWITCH_IDENTITY)(loadedFixtureEvent, {
+        userId: "u1",
+        username: "alice",
+      })
+    ).resolves.toEqual({ state: "failed", message: "Unavailable" });
+    await expect(
+      getHandler(IPC_CHANNELS.USER_PROFILE_TWITCH_ACCOUNT_CREATED)(loadedFixtureEvent, {
+        userId: "u1",
+        username: "alice",
+      })
+    ).resolves.toEqual({ state: "failed", message: "Unavailable" });
   });
 });

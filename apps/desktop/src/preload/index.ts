@@ -24,6 +24,11 @@ import type {
   StatusPageDetail,
 } from "../backend/api/unified/platform-health";
 import type { UnifiedCategory, UnifiedChannel } from "../backend/api/unified/platform-types";
+import type {
+  UserProfileChannel,
+  UserProfileRequest,
+  UserProfileResponse,
+} from "../ipc-contracts/user-profile-contracts";
 import type { SearchResultCollection } from "../search/search-result-validation";
 import type {
   AccountFollowWriteRequest,
@@ -116,22 +121,13 @@ import type {
   StreamRecordingStartResult,
 } from "../shared/stream-recording-types";
 import type { TwitchApiCommand, TwitchApiResult } from "../shared/twitch-api-types";
-import type {
-  AccountCreatedFieldState,
-  KickAccountCreatedRequest,
-  KickChannelRequest,
-  KickFollowRequest,
-  KickIdentityRequest,
-  KickPublicIdentity,
-  KickResolvedChannel,
-  ProfileFieldState,
-  TwitchAccountCreatedRequest,
-  TwitchChannelRequest,
-  TwitchFollowRequest,
-  TwitchIdentityRequest,
-  TwitchPublicIdentity,
-  TwitchResolvedChannel,
-} from "../shared/user-profile-types";
+
+function invokeUserProfile<Channel extends UserProfileChannel>(
+  channel: Channel,
+  request: UserProfileRequest<Channel>
+): Promise<UserProfileResponse<Channel>> {
+  return ipcRenderer.invoke(channel, request);
+}
 
 // Define the API exposed to the renderer
 const electronAPI = {
@@ -578,33 +574,28 @@ const electronAPI = {
 
   userProfiles: {
     getTwitchIdentity: (
-      request: TwitchIdentityRequest
-    ): Promise<ProfileFieldState<TwitchPublicIdentity>> =>
-      ipcRenderer.invoke(IPC_CHANNELS.USER_PROFILE_TWITCH_IDENTITY, request),
+      request: UserProfileRequest<typeof IPC_CHANNELS.USER_PROFILE_TWITCH_IDENTITY>
+    ) => invokeUserProfile(IPC_CHANNELS.USER_PROFILE_TWITCH_IDENTITY, request),
     getTwitchAccountCreated: (
-      request: TwitchAccountCreatedRequest
-    ): Promise<AccountCreatedFieldState> =>
-      ipcRenderer.invoke(IPC_CHANNELS.USER_PROFILE_TWITCH_ACCOUNT_CREATED, request),
-    getTwitchFollow: (request: TwitchFollowRequest): Promise<ProfileFieldState<string>> =>
-      ipcRenderer.invoke(IPC_CHANNELS.USER_PROFILE_TWITCH_FOLLOW, request),
+      request: UserProfileRequest<typeof IPC_CHANNELS.USER_PROFILE_TWITCH_ACCOUNT_CREATED>
+    ) => invokeUserProfile(IPC_CHANNELS.USER_PROFILE_TWITCH_ACCOUNT_CREATED, request),
+    getTwitchFollow: (
+      request: UserProfileRequest<typeof IPC_CHANNELS.USER_PROFILE_TWITCH_FOLLOW>
+    ) => invokeUserProfile(IPC_CHANNELS.USER_PROFILE_TWITCH_FOLLOW, request),
     resolveTwitchChannel: (
-      request: TwitchChannelRequest
-    ): Promise<ProfileFieldState<TwitchResolvedChannel>> =>
-      ipcRenderer.invoke(IPC_CHANNELS.USER_PROFILE_TWITCH_CHANNEL, request),
+      request: UserProfileRequest<typeof IPC_CHANNELS.USER_PROFILE_TWITCH_CHANNEL>
+    ) => invokeUserProfile(IPC_CHANNELS.USER_PROFILE_TWITCH_CHANNEL, request),
     getKickIdentity: (
-      request: KickIdentityRequest
-    ): Promise<ProfileFieldState<KickPublicIdentity>> =>
-      ipcRenderer.invoke(IPC_CHANNELS.USER_PROFILE_KICK_IDENTITY, request),
+      request: UserProfileRequest<typeof IPC_CHANNELS.USER_PROFILE_KICK_IDENTITY>
+    ) => invokeUserProfile(IPC_CHANNELS.USER_PROFILE_KICK_IDENTITY, request),
     getKickAccountCreated: (
-      request: KickAccountCreatedRequest
-    ): Promise<AccountCreatedFieldState> =>
-      ipcRenderer.invoke(IPC_CHANNELS.USER_PROFILE_KICK_ACCOUNT_CREATED, request),
-    getKickFollow: (request: KickFollowRequest): Promise<ProfileFieldState<string>> =>
-      ipcRenderer.invoke(IPC_CHANNELS.USER_PROFILE_KICK_FOLLOW, request),
+      request: UserProfileRequest<typeof IPC_CHANNELS.USER_PROFILE_KICK_ACCOUNT_CREATED>
+    ) => invokeUserProfile(IPC_CHANNELS.USER_PROFILE_KICK_ACCOUNT_CREATED, request),
+    getKickFollow: (request: UserProfileRequest<typeof IPC_CHANNELS.USER_PROFILE_KICK_FOLLOW>) =>
+      invokeUserProfile(IPC_CHANNELS.USER_PROFILE_KICK_FOLLOW, request),
     resolveKickChannel: (
-      request: KickChannelRequest
-    ): Promise<ProfileFieldState<KickResolvedChannel>> =>
-      ipcRenderer.invoke(IPC_CHANNELS.USER_PROFILE_KICK_CHANNEL, request),
+      request: UserProfileRequest<typeof IPC_CHANNELS.USER_PROFILE_KICK_CHANNEL>
+    ) => invokeUserProfile(IPC_CHANNELS.USER_PROFILE_KICK_CHANNEL, request),
   },
 
   // ========== Discovery: Videos & Clips ==========
