@@ -2,9 +2,11 @@
 
 Research for [Inventory T3 Code diagnostics and StreamFusion gaps](https://github.com/TheDarkSkyXD/StreamFusion/issues/64). Upstream was inspected on `main` at commit [`ea8c9e5`](https://github.com/pingdotgg/t3code/commit/ea8c9e5ca3ace89cbf6cf0a2aa03047aab1d3ef9) on 2026-08-23.
 
+Scope update on 2026-08-23: the user chose to make StreamFusion Diagnostics available in packaged production builds. Production now needs a safety boundary for sensitive data and recovery actions, not a development-only availability gate.
+
 ## Upstream capability inventory
 
-T3 Code renders a dedicated `/settings/diagnostics` route. The Settings About panel links to it through “View diagnostics.” The route is available in production; T3 Code does not apply the development-only boundary required by StreamFusion.
+T3 Code renders a dedicated `/settings/diagnostics` route. The Settings About panel links to it through "View diagnostics." The route is available in production, which matches StreamFusion's revised availability target.
 
 Primary sources:
 
@@ -48,7 +50,7 @@ StreamFusion already has useful pieces, but they are split between log files, de
 
 | Capability | Current state | Evidence and consequence |
 | --- | --- | --- |
-| Settings development gate | Exists at the renderer level | `apps/desktop/src/pages/Settings/index.tsx` fails closed while `electronAPI.env.get()` resolves, hides development-only tabs, and redirects blocked deep links. Diagnostic IPC remains a separate concern. |
+| Settings production availability | Requires a change | `apps/desktop/src/pages/Settings/index.tsx` currently hides Logs and Report Bug behind `electronAPI.env.get()`. Diagnostics must replace those tabs and remain visible in packaged builds. |
 | Main CPU, RSS, heap, load | Sampled every 30 seconds and written to logs | `apps/desktop/src/backend/logging/process-monitor.ts` can retain and expose its typed snapshot instead of reparsing its text line. |
 | Electron process metrics | Partial | `app.getAppMetrics()` supplies PID, type, memory, and richer CPU data. The current formatter keeps only PID, type, RSS, and name. There is no renderer-facing snapshot or process hierarchy. |
 | Renderer performance | Exists | `apps/desktop/src/components/dev/PerfTool.tsx` and `apps/desktop/src/renderer/performance/` already collect heap, frame timing, long tasks, route presentation, media milestones, and dropped frames. The diagnostics page should reuse this collector. |
@@ -62,18 +64,17 @@ StreamFusion already has useful pieces, but they are split between log files, de
 | Application I/O attribution | Missing | StreamFusion has no general process read/write counters or logical-I/O registry. |
 | Process signaling | Must be adapted | StreamFusion owns StreamSlots, caption utility processes, downloads, and recordings through service handles and state machines. Diagnostics must call those owners by opaque IDs. It must never accept an arbitrary PID from the renderer. |
 
-## Safety and production boundary
+## Production safety boundary
 
-StreamFusion's current Logs and Bug Report handlers register in packaged builds. Hiding a Settings tab does not make a future process-control API development-only.
+StreamFusion's current Logs and Bug Report handlers already register in packaged builds. The new page may reuse them, but process controls and sensitive diagnostic data need explicit production rules.
 
 The implementation specification should require all of the following:
 
-- Do not register diagnostics handlers when `app.isPackaged`.
-- Make every diagnostics handler fail closed in packaged mode as a second check.
 - Validate sender origin on every diagnostics request.
 - Expose opaque owner identifiers, not caller-supplied PIDs.
 - Route recovery actions through the owning service, such as slot destruction, caption-session stop, download cancellation, or recording stop.
-- Decide separately whether diagnostics code may remain in the production renderer bundle while inaccessible, or must be excluded from packaged artifacts.
+- Redact credentials, tokens, local paths, and user data before diagnostic values cross IPC or reach export and clipboard actions.
+- Decide which recovery actions remain available in production, which need confirmation, and which should stay development-only.
 
 ## Planning conclusion
 
