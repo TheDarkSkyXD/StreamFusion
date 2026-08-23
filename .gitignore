@@ -11,6 +11,7 @@ logs
 
 # Local working directory for transient analysis artifacts (diagnostics, vitest reports, ad-hoc scripts)
 tmp/
+.tmp/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
