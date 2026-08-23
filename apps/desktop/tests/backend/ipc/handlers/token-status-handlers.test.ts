@@ -37,10 +37,10 @@ import { storageService } from "@/backend/services/storage-service";
 type Handler = (event: unknown, args: unknown) => Promise<unknown>;
 
 function getHandler(channel: string): Handler {
-  const calls = vi.mocked(ipcMain.handle).mock.calls as unknown as Array<[string, Handler]>;
+  const calls = vi.mocked(ipcMain.handle).mock.calls;
   const call = calls.find(([c]) => c === channel);
   if (!call) throw new Error(`handler not registered: ${channel}`);
-  return call[1];
+  return (event, args) => Promise.resolve(Reflect.apply(call[1], undefined, [event, args]));
 }
 
 beforeEach(() => {
@@ -92,16 +92,16 @@ describe("AUTH_TOKEN_STATUS", () => {
     vi.mocked(isAllowedSender).mockReturnValue(true);
     vi.mocked(storageService.hasToken).mockReturnValue(true);
     const fakeToken = { accessToken: "secret", refreshToken: "also-secret" };
-    vi.mocked(storageService.getToken).mockReturnValue(fakeToken as any);
+    vi.mocked(storageService.getToken).mockReturnValue(fakeToken);
 
     const report = {
       valid: true,
       login: "testuser",
       userId: "12345",
       scopes: ["chat:read", "chat:edit"],
-      expiresAt: "2026-12-01T00:00:00Z",
+      expiresAt: new Date("2026-12-01T00:00:00Z").getTime(),
     };
-    vi.mocked(tokenExchangeService.getTokenStatus).mockResolvedValue(report as any);
+    vi.mocked(tokenExchangeService.getTokenStatus).mockResolvedValue(report);
 
     const handler = getHandler(IPC_CHANNELS.AUTH_TOKEN_STATUS);
     const result = await handler({}, { platform: "twitch" });
@@ -113,7 +113,7 @@ describe("AUTH_TOKEN_STATUS", () => {
       login: "testuser",
       userId: "12345",
       scopes: ["chat:read", "chat:edit"],
-      expiresAt: "2026-12-01T00:00:00Z",
+      expiresAt: new Date("2026-12-01T00:00:00Z").getTime(),
     });
   });
 
@@ -123,7 +123,7 @@ describe("AUTH_TOKEN_STATUS", () => {
     vi.mocked(storageService.getToken).mockReturnValue({
       accessToken: "SHOULD_NOT_APPEAR",
       refreshToken: "SHOULD_NOT_APPEAR",
-    } as any);
+    });
 
     vi.mocked(tokenExchangeService.getTokenStatus).mockResolvedValue({
       valid: true,
@@ -131,7 +131,7 @@ describe("AUTH_TOKEN_STATUS", () => {
       userId: "1",
       scopes: [],
       expiresAt: null,
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.AUTH_TOKEN_STATUS);
     const result = (await handler({}, { platform: "kick" })) as Record<string, unknown>;
@@ -143,7 +143,7 @@ describe("AUTH_TOKEN_STATUS", () => {
   it("returns valid=false when getTokenStatus reports invalid", async () => {
     vi.mocked(isAllowedSender).mockReturnValue(true);
     vi.mocked(storageService.hasToken).mockReturnValue(true);
-    vi.mocked(storageService.getToken).mockReturnValue({ accessToken: "x" } as any);
+    vi.mocked(storageService.getToken).mockReturnValue({ accessToken: "x" });
 
     vi.mocked(tokenExchangeService.getTokenStatus).mockResolvedValue({
       valid: false,
@@ -151,7 +151,7 @@ describe("AUTH_TOKEN_STATUS", () => {
       userId: undefined,
       scopes: undefined,
       expiresAt: undefined,
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.AUTH_TOKEN_STATUS);
     const result = await handler({}, { platform: "twitch" });

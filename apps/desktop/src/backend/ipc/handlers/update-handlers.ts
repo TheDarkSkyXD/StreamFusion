@@ -4,7 +4,9 @@
  * Handles IPC communication for app auto-update functionality.
  */
 
-import { type BrowserWindow, ipcMain } from "electron";
+import type { BrowserWindow } from "electron";
+
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { logger } from "@/backend/logging/logger";
 import type { CheckFrequency } from "../../../shared/ipc-channels";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
@@ -17,6 +19,7 @@ import {
   installUpdate,
   setAllowPrerelease,
   setAutoCheck,
+  DEFAULT_UPDATE_CHECK_URL,
 } from "../../services/update-service";
 
 const VALID_FREQUENCIES: readonly CheckFrequency[] = ["hourly", "daily", "weekly"];
@@ -145,13 +148,21 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
   // (the service clamps the effective interval regardless).
   ipcMain.handle(
     IPC_CHANNELS.UPDATE_SET_AUTO_CHECK,
-    (_event, payload: { enabled?: boolean; frequency?: CheckFrequency } = {}) => {
-      const settings: { enabled?: boolean; frequency?: CheckFrequency } = {};
+    (_event, payload: { enabled?: boolean; frequency?: CheckFrequency; updateCheckUrl?: string } = {}) => {
+      const settings: { enabled?: boolean; frequency?: CheckFrequency; updateCheckUrl?: string } = {};
       if (typeof payload.enabled === "boolean") {
         settings.enabled = payload.enabled;
       }
       if (typeof payload.frequency === "string" && VALID_FREQUENCIES.includes(payload.frequency)) {
         settings.frequency = payload.frequency;
+      }
+      if (typeof payload.updateCheckUrl === "string") {
+        try {
+          const url = new URL(payload.updateCheckUrl.trim());
+          if (url.protocol === "https:") settings.updateCheckUrl = url.toString().replace(/\/$/, "");
+        } catch {
+          // Invalid renderer input is ignored at the IPC boundary.
+        }
       }
       try {
         return setAutoCheck(settings);
@@ -176,7 +187,7 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
       return getUpdateSettings();
     } catch (error) {
       logger.error("IPC:Update", "Get settings failed", serializeError(error));
-      return { allowPrerelease: false, autoCheckEnabled: false, checkFrequency: "daily" };
+      return { allowPrerelease: false, autoCheckEnabled: false, checkFrequency: "weekly", updateCheckUrl: DEFAULT_UPDATE_CHECK_URL };
     }
   });
 

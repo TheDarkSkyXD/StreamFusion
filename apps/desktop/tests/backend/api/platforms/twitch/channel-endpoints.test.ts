@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { getChannelsById } from "@/backend/api/platforms/twitch/endpoints/channel-endpoints";
 import type { TwitchRequestor } from "@/backend/api/platforms/twitch/twitch-requestor";

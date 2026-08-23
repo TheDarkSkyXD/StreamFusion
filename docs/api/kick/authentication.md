@@ -28,9 +28,12 @@ The app currently requests:
 |---|---|
 | `user:read` | Profile, email, slug |
 | `channel:read` | Channel details for own channel |
-| `chat:write` | **No longer requested** as of 2026-05-29. Chat send now uses `POST kick.com/api/v2/messages/send/{chatroomId}` from inside a hidden BrowserWindow parked on `kick.com` — the public `POST /public/v1/chat` returns 200 but does not broadcast for un-verified apps. See `apps/desktop/src/backend/api/platforms/kick/kick-send-window.ts` and `docs/adr/0001-kick-chat-page-context-send.md`. Existing user tokens carrying this scope are not invalidated. |
+| `chat:write` | Send chat messages through Kick's official `POST /public/v1/chat` capability. The website-session adapter remains available for delivery compatibility; both paths keep credentials in the main process. |
+| `moderation:chat_message:manage` | Delete chat messages as an authorized moderator or broadcaster. |
+| `moderation:ban` | Ban, timeout, unban, and remove timeouts. |
+| `events:subscribe` | Subscribe to supported Kick channel events. |
 
-When adding a new scope, update both the OAuth start URL in `kick-auth.ts` AND the Cloudflare Worker's scope allow-list.
+`KICK_APP_SCOPES` in `shared/auth-types.ts` is the single source of truth for the OAuth URL and scope validation. The Worker exchanges and refreshes the grant but does not maintain a separate scope allow-list.
 
 ## Token use at the request layer
 

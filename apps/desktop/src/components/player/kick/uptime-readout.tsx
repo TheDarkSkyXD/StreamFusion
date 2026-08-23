@@ -1,6 +1,6 @@
 import type Hls from "hls.js";
 import type React from "react";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { useInterval } from "@/hooks/useInterval";
 import type { KickProgressBarHandle } from "./kick-progress-bar";
 
@@ -29,7 +29,7 @@ export function UptimeReadout({
   progressBarRef,
   currentTimeRef,
 }: UptimeReadoutProps) {
-  const tick = () => {
+  const tick = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
 
@@ -77,14 +77,14 @@ export function UptimeReadout({
 
     currentTimeRef.current = currentTime;
     progressBarRef.current?.update({ currentTime, duration, seekableRange });
-  };
+  }, [currentTimeRef, hlsRef, progressBarRef, startedAt, videoRef]);
 
   // Immediate update when playback state or startedAt changes
   // biome-ignore lint/correctness/useExhaustiveDependencies: `startedAt` is the trigger; `tick` is intentionally excluded so we don't re-run on every render
   useEffect(() => {
     if (!isPlaying) return;
     tick();
-  }, [startedAt, isPlaying]);
+  }, [startedAt, isPlaying, tick]);
 
   // 1 Hz tick while playing
   useInterval(tick, isPlaying ? 1000 : null);

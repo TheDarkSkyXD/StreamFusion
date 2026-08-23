@@ -1338,14 +1338,7 @@ describe("gqlGetChannelByLogin", () => {
           },
         },
       },
-      { data: { user: null } },
-      {
-        data: {
-          user: {
-            lastBroadcast: { startedAt: "2026-08-01T15:30:00Z" },
-          },
-        },
-      }
+      { data: { user: null } }
     );
 
     const result = await gqlGetChannelByLogin("ninja");
@@ -1436,8 +1429,7 @@ describe("gqlGetChannelByLogin", () => {
             channel: null,
           },
         },
-      },
-      { data: { user: { lastBroadcast: null } } }
+      }
     );
 
     const result = await gqlGetChannelByLogin("ch1");
@@ -2254,6 +2246,7 @@ describe("gqlFetchGamesForVideos", () => {
 
 // ---------------------------------------------------------------------------
 
+// Guards: malformed batch entries fail at the GQL boundary instead of reaching response transforms.
 describe("gqlRequest — transport layer", () => {
   let fetchMock: FetchMock;
 
@@ -2285,6 +2278,38 @@ describe("gqlRequest — transport layer", () => {
     stubFetchReject(fetchMock, new TypeError("Failed to fetch"));
 
     await expect(gqlIsChannelLive("ch")).rejects.toThrow("Failed to fetch");
+  });
+
+  it("rejects arrays nested where a GQL response envelope is required", async () => {
+    stubFetchBatch(fetchMock, []);
+
+    await expect(gqlIsChannelLive("ch")).rejects.toThrow(
+      "GQL response did not match the requested query tuple"
+    );
+  });
+
+  it("rejects batch responses with more entries than requested", async () => {
+    stubFetchBatch(fetchMock, makeUseLiveResponse(false), makeUseLiveResponse(true));
+
+    await expect(gqlIsChannelLive("ch")).rejects.toThrow(
+      "GQL response did not match the requested query tuple"
+    );
+  });
+
+  it("rejects envelopes without data or errors", async () => {
+    stubFetchBatch(fetchMock, {});
+
+    await expect(gqlIsChannelLive("ch")).rejects.toThrow(
+      "GQL response did not match the requested query tuple"
+    );
+  });
+
+  it("rejects primitive GQL data payloads", async () => {
+    stubFetchBatch(fetchMock, { data: "not-an-object" });
+
+    await expect(gqlIsChannelLive("ch")).rejects.toThrow(
+      "GQL response did not match the requested query tuple"
+    );
   });
 
   it("sends POST method to GQL endpoint", async () => {

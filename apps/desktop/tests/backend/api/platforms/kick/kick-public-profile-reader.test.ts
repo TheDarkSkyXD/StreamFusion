@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   getUsersById: vi.fn(),
   getUsersByIdStrict: vi.fn(),
   getPublicChannelUserProfile: vi.fn(),
+  getPublicChannelUserProfiles: vi.fn(),
   getChannelsBySlugs: vi.fn(),
 }));
 
@@ -13,16 +14,64 @@ vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
 
 import {
   getKickAccountCreated,
+  getKickAccountFollowState,
+  getKickAccountFollowStates,
   getKickFollowRelationship,
   getKickPublicIdentity,
   resetKickPublicProfileReaderCacheForTests,
 } from "@/backend/api/platforms/kick/kick-public-profile-reader";
 
 // Guards: documented Kick user data wins before the isolated first-party fallback.
+// Guards: only an identity-matched first-party payload with explicit null following_since proves a Kick unfollow.
+// Guards: missing, malformed, failed, and identity-mismatched relationships remain unavailable.
 describe("Kick public profile reader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetKickPublicProfileReaderCacheForTests();
+  });
+
+  it("classifies a batch only from exact viewer identities and explicit relationships", async () => {
+    mocks.getPublicChannelUserProfiles.mockResolvedValue([
+      {
+        channelSlug: "followed",
+        profile: { userId: "123", username: "viewer", followingSince: "2026-01-01T00:00:00Z" },
+      },
+      {
+        channelSlug: "not-followed",
+        profile: { userId: "123", username: "viewer", followingSince: null },
+      },
+      {
+        channelSlug: "wrong-viewer",
+        profile: { userId: "999", username: "viewer", followingSince: null },
+      },
+    ]);
+
+    await expect(
+      getKickAccountFollowStates("123", "viewer", ["followed", "not-followed", "wrong-viewer"])
+    ).resolves.toEqual(
+      new Map([
+        ["followed", "followed"],
+        ["not-followed", "not-followed"],
+        ["wrong-viewer", "unavailable"],
+      ])
+    );
+  });
+
+  it("uses the authenticated batch reader for a fresh post-mutation relationship", async () => {
+    mocks.getPublicChannelUserProfiles.mockResolvedValue([
+      {
+        channelSlug: "streamer",
+        profile: { userId: "123", username: "viewer", followingSince: null },
+      },
+    ]);
+
+    await expect(
+      getKickAccountFollowState("123", "viewer", "streamer", { fresh: true })
+    ).resolves.toBe("not-followed");
+    expect(mocks.getPublicChannelUserProfiles).toHaveBeenCalledWith([
+      { channelSlug: "streamer", username: "viewer" },
+    ]);
+    expect(mocks.getPublicChannelUserProfile).not.toHaveBeenCalled();
   });
 
   it("returns an exact official user identity without invoking the fallback", async () => {
@@ -114,6 +163,36 @@ describe("Kick public profile reader", () => {
       state: "unavailable",
       message: "Unavailable",
     });
+  });
+
+  it("confirms not-followed only from an identity-matched explicit null relationship", async () => {
+    mocks.getPublicChannelUserProfile.mockResolvedValue({
+      userId: "123",
+      username: "alice",
+      displayName: "Alice",
+      avatarUrl: "",
+      followingSince: null,
+    });
+
+    await expect(getKickAccountFollowState("123", "alice", "streamer")).resolves.toBe(
+      "not-followed"
+    );
+  });
+
+  it.each([
+    ["missing relationship", { userId: "123", username: "alice", followingSince: undefined }],
+    ["malformed relationship", { userId: "123", username: "alice", followingSince: "1" }],
+    ["identity mismatch", { userId: "999", username: "alice", followingSince: null }],
+  ])("keeps %s unavailable instead of proving an unfollow", async (_label, fallback) => {
+    mocks.getPublicChannelUserProfile.mockResolvedValue({
+      displayName: "Alice",
+      avatarUrl: "",
+      ...fallback,
+    });
+
+    await expect(getKickAccountFollowState("123", "alice", "streamer")).resolves.toBe(
+      "unavailable"
+    );
   });
 
   it("coalesces identity and follow fallback reads while preserving an exact follow date", async () => {

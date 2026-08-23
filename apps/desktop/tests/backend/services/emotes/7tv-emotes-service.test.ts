@@ -75,19 +75,25 @@ describe("fetch7TVUserByConnection", () => {
   });
 
   it("throws on 5xx so callers can distinguish a real failure from a missing connection", async () => {
-    mockState.state.responseQueue.push({ kind: "status", status: 503 });
+    mockState.state.responseQueue.push(
+      { kind: "status", status: 503 },
+      { kind: "status", status: 503 }
+    );
 
     await expect(fetch7TVUserByConnection("kick", "58371235")).rejects.toThrow(/503/);
   });
 
   it("propagates network errors so callers can degrade gracefully", async () => {
-    mockState.state.responseQueue.push({ kind: "error", message: "ECONNRESET" });
+    mockState.state.responseQueue.push(
+      { kind: "error", message: "ECONNRESET" },
+      { kind: "error", message: "ECONNRESET" }
+    );
 
     await expect(fetch7TVUserByConnection("kick", "58371235")).rejects.toThrow(/ECONNRESET/);
   });
 
   it("uppercases the platform alias (KICK / TWITCH) — 7TV's router is case-sensitive", async () => {
-    mockState.state.responseQueue.push({ kind: "ok", body: "{}" });
+    mockState.state.responseQueue.push({ kind: "ok", body: '{"id":"test-user"}' });
 
     await fetch7TVUserByConnection("twitch", "12345");
 
@@ -116,7 +122,10 @@ describe("fetch7TVGlobalEmoteSet", () => {
   });
 
   it("throws on any non-2xx (the global set is always expected to exist)", async () => {
-    mockState.state.responseQueue.push({ kind: "status", status: 503 });
+    mockState.state.responseQueue.push(
+      { kind: "status", status: 503 },
+      { kind: "status", status: 503 }
+    );
 
     await expect(fetch7TVGlobalEmoteSet()).rejects.toThrow(/503/);
   });

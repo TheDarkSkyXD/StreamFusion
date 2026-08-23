@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EventEmitter } from "@/shared/browser-event-emitter";
 
@@ -10,6 +10,21 @@ describe("BrowserEventEmitter", () => {
   });
 
   describe("on / emit", () => {
+    // Guards: event maps keep each event's listener and emitted arguments coupled.
+    it("supports a typed event map without changing runtime behavior", () => {
+      type TestEvents = {
+        ready: [];
+        message: [text: string, count: number];
+      };
+      const typedEmitter = new EventEmitter<TestEvents>();
+      const listener = vi.fn<(text: string, count: number) => void>();
+
+      typedEmitter.on("message", listener);
+      typedEmitter.emit("message", "hello", 2);
+
+      expect(listener).toHaveBeenCalledWith("hello", 2);
+    });
+
     it("calls a registered listener when the event fires", () => {
       const listener = vi.fn();
       emitter.on("test", listener);

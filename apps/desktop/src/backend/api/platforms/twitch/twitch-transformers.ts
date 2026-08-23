@@ -189,7 +189,7 @@ function transformTwitchFollow(
 /**
  * Transform Twitch video to unified video
  */
-function transformTwitchVideo(video: TwitchApiVideo): UnifiedVideo {
+export function transformTwitchVideo(video: TwitchApiVideo): UnifiedVideo {
   // Parse duration string (e.g., "3h8m32s") to seconds
   const durationSeconds = parseTwitchDuration(video.duration);
 

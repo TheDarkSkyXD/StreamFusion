@@ -1,5 +1,5 @@
 import Hls from "hls.js";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useInterval } from "@/hooks/useInterval";
 
@@ -41,7 +41,7 @@ export function VideoStatsOverlay({ hls, video, onClose }: VideoStatsOverlayProp
     []
   );
 
-  const updateStats = () => {
+  const updateStats = useCallback(() => {
     if (!hls || !video) return;
 
     const level = hls.currentLevel >= 0 ? hls.levels[hls.currentLevel] : null;
@@ -95,13 +95,13 @@ export function VideoStatsOverlay({ hls, video, onClose }: VideoStatsOverlayProp
       playSessionId: sessionIds.playSessionId,
       servingId: sessionIds.servingId,
     });
-  };
+  }, [hls, sessionIds, video]);
 
   // Immediate update when hls/video/sessionIds change
   // biome-ignore lint/correctness/useExhaustiveDependencies: hls/video/sessionIds are the triggers; updateStats is intentionally excluded so it isn't a reactive dep
   useEffect(() => {
     updateStats();
-  }, [hls, video, sessionIds]);
+  }, [hls, video, sessionIds, updateStats]);
 
   // 1 Hz stats refresh while hls and video are available
   useInterval(updateStats, hls && video ? 1000 : null);

@@ -68,6 +68,7 @@ import { RecentChattersButton, RecentChattersPanel } from "../RecentChattersPane
 import { ModerationFixtureLauncher } from "./ModerationFixtureLauncher";
 import { TwitchPinMessageDialog } from "./TwitchPinMessageDialog";
 import { seedTwitchChatHistory } from "./twitch-chat-history";
+import { createChatMessageGate, startChatSession, type ChatMessageGate } from "../chat-startup";
 
 export interface TwitchChatProps {
   /** Channel name to join */
@@ -173,6 +174,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   // ban events still go through addMessage so they're applied immediately
   // and preserve total ordering with batched chat.
   const addMessageBatched = useChatStore((state) => state.addMessageBatched);
+  const liveMessageGateRef = useRef<ChatMessageGate<ChatMessage> | null>(null);
   const prependMessages = useChatStore((state) => state.prependMessages);
   const updateConnectionStatus = useChatStore((state) => state.updateConnectionStatus);
   const clearMessages = useChatStore((state) => state.clearMessages);
@@ -639,6 +641,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
   useEffect(() => {
     // Use AbortController pattern for cleanup with React Strict Mode
     let isMounted = true;
+    let sessionGate: ChatMessageGate<ChatMessage> | null = null;
 
     const connect = async () => {
       try {
@@ -656,22 +659,35 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
           addMessage(createConnectionStatusMessage(channel, "connecting"));
         }
 
-        const joinAndSeed = async (target: string, broadcasterId?: string): Promise<void> => {
-          await twitchChatService.loadChannelBadges(target, broadcasterId);
-          if (!isMounted) return;
-
-          await seedTwitchChatHistory({
-            channel: target,
-            broadcasterId,
-            isMounted: () => isMounted,
-            prependMessages,
+        const joinAndPrepare = async (target: string, broadcasterId?: string): Promise<void> => {
+          const gate = createChatMessageGate<ChatMessage>((message) =>
+            addMessageBatched(message, buildChannelKey("twitch", target))
+          );
+          sessionGate = gate;
+          liveMessageGateRef.current = gate;
+          const session = await startChatSession({
+            joinLive: async () => {
+              await twitchChatService.joinChannel(target, broadcasterId);
+              if (isMounted) addMessage(createConnectionStatusMessage(target, "connected"));
+            },
+            loadHistory: () =>
+              seedTwitchChatHistory({
+                channel: target,
+                broadcasterId,
+                isMounted: () => isMounted,
+                prependMessages,
+              }),
+            loadDecorations: async () => {
+              await initializeTwitchEmotes();
+              if (!isMounted) return;
+              if (accessToken) await loadGlobalEmotes("twitch", { force: true });
+              else await loadGlobalEmotes("twitch");
+            },
           });
-          if (!isMounted) return;
-
-          await twitchChatService.joinChannel(target, broadcasterId);
-          if (!isMounted) return;
-
-          addMessage(createConnectionStatusMessage(target, "connected"));
+          const openGate = () => {
+            if (isMounted && liveMessageGateRef.current === gate) gate.open();
+          };
+          void session.preparation.then(openGate, openGate);
         };
 
         // Get a guaranteed-fresh access token (refreshes if expired or within
@@ -703,22 +719,15 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
             return;
           }
 
-          // Initialize Twitch Emotes
-          await initializeTwitchEmotes();
-          // Sync 7TV/BTTV/FFZ enablement to the viewer's prefs BEFORE the
-          // global load so disabled providers are excluded from this fetch.
           applyProviderPrefs(
             useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES
           );
-          if (isMounted) await loadGlobalEmotes("twitch", { force: true });
-
-          if (!isMounted) return;
 
           // Join channel
           // If channel provided, join it. Else join own channel.
           const target = channel || twitchUser.login;
           const targetBroadcasterId = channel ? channelId : twitchUser.id;
-          await joinAndSeed(target, targetBroadcasterId);
+          await joinAndPrepare(target, targetBroadcasterId);
         } else {
           // Anonymous
           if (channel) {
@@ -735,16 +744,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
               return;
             }
 
-            // Guest quick emotes have no authenticated recent-emote history,
-            // so ensure Twitch globals are available before the channel joins.
-            await initializeTwitchEmotes();
             applyProviderPrefs(
               useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES
             );
-            if (isMounted) await loadGlobalEmotes("twitch");
-            if (!isMounted) return;
-
-            await joinAndSeed(channel, channelId);
+            await joinAndPrepare(channel, channelId);
           }
         }
       } catch (error) {
@@ -760,6 +763,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
 
     return () => {
       isMounted = false;
+      if (sessionGate && liveMessageGateRef.current === sessionGate) {
+        sessionGate.cancel();
+        liveMessageGateRef.current = null;
+      }
       // Cleanup: release the service reference
       // In single-view: This will trigger shutdown when activeUsers reaches 0
       // In multi-view: Other components keep the service alive
@@ -779,8 +786,11 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     };
   }, [
     channel,
+    channelId,
     clearMessages,
     addMessage,
+    addMessageBatched,
+    applyProviderPrefs,
     prependMessages,
     unloadChannelEmotes,
     loadGlobalEmotes,
@@ -969,7 +979,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         });
         const enriched =
           enrichedContent === message.content ? message : { ...message, content: enrichedContent };
-        addMessageBatched(enriched, channelKey);
+        const gate = liveMessageGateRef.current;
+        if (gate) gate.accept(enriched);
+        else addMessageBatched(enriched, channelKey);
       }
     };
 

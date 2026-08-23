@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { DEFAULT_USER_PREFERENCES } from "@/shared/auth-types";
 import type { AuthStatus } from "@/shared/ipc-channels";
 import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
@@ -74,7 +75,7 @@ describe("auth initialization ownership", () => {
     api.auth.onFollowsSynced = onFollowsSynced;
     api.auth.onTwitchAuthLost = onTwitchAuthLost;
     api.follows.getAll = vi.fn(async () => []);
-    api.preferences.get = vi.fn(async () => null);
+    api.preferences.get = vi.fn(async () => DEFAULT_USER_PREFERENCES);
     useAuthStore.setState({ ...initialAuthState, initialized: false }, true);
     useFollowStore.setState({ hydrate: vi.fn() });
 

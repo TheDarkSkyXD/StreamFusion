@@ -1,5 +1,10 @@
 import { logger } from "@/backend/logging/logger";
+import {
+  readResponseTextWithinLimit,
+  ResponseBodyTooLargeError,
+} from "@/backend/reliability/bounded-response-body";
 import { sleep } from "@/lib/sleep";
+import { net } from "electron";
 import { getOAuthConfig } from "../../../auth/oauth-config";
 import { twitchAuthService } from "../../../auth/twitch-auth";
 import type { PlatformFailureClass } from "../../unified/platform-health";
@@ -19,16 +24,18 @@ export class TwitchRequestor {
     }
   }
 
-  // Retry configuration
-  private readonly MAX_RETRIES = 3;
+  // Retry configuration (attempts include the initial request).
+  private readonly MAX_ATTEMPTS = 3;
   private readonly BASE_DELAY = 1000;
   private readonly REQUEST_TIMEOUT = 15000;
+  private readonly MAX_RESPONSE_BYTES = 2_000_000;
 
   /**
    * Check if an error is retryable (transient network issues)
    */
   private isRetryableError(error: unknown): boolean {
     if (error instanceof Error) {
+      if (error.name === "AbortError") return false;
       // Check for error code property (Node.js / undici errors)
       const errorWithCause = error as Error & { cause?: { code?: string }; code?: string };
       const code = errorWithCause.cause?.code || errorWithCause.code;
@@ -83,21 +90,24 @@ export class TwitchRequestor {
    * This uses Chromium's network stack which is more reliable in Electron
    * and respects system proxy settings
    */
-  private async netRequest<T>(
+  private async netRequest(
     url: string,
     options: {
       method?: string;
       headers?: Record<string, string>;
       body?: string;
+      signal?: AbortSignal;
     } = {}
-  ): Promise<{ data: T; status: number; headers: Record<string, string> }> {
-    const { net } = require("electron");
-
+  ): Promise<{ data: unknown | null; status: number; headers: Record<string, string> }> {
+    const timeoutSignal = AbortSignal.timeout(this.REQUEST_TIMEOUT);
+    const signal = options.signal
+      ? AbortSignal.any([options.signal, timeoutSignal])
+      : timeoutSignal;
     const response = await net.fetch(url, {
       method: options.method || "GET",
       headers: options.headers,
       body: options.body,
-      signal: AbortSignal.timeout(this.REQUEST_TIMEOUT),
+      signal,
     });
 
     const responseHeaders: Record<string, string> = {};
@@ -105,12 +115,24 @@ export class TwitchRequestor {
       responseHeaders[key.toLowerCase()] = value;
     });
 
-    const text = await response.text();
-    let data: T;
+    let text: string;
     try {
-      data = text ? (JSON.parse(text) as T) : ({} as T);
+      text = await readResponseTextWithinLimit(response, this.MAX_RESPONSE_BYTES);
+    } catch (error) {
+      if (error instanceof ResponseBodyTooLargeError) {
+        throw new Error("Twitch API response exceeded the size limit");
+      }
+      throw error;
+    }
+    let data: unknown | null;
+    try {
+      data = text ? (JSON.parse(text) as unknown) : null;
     } catch (_e) {
-      throw new Error("Failed to parse JSON response");
+      // Proxies and upstream outages frequently return HTML/text for a 5xx.
+      // Preserve the status so the request policy can retry it; successful
+      // responses still require valid JSON.
+      if (response.ok) throw new Error("Failed to parse JSON response");
+      data = null;
     }
 
     return { data, status: response.status, headers: responseHeaders };
@@ -120,10 +142,10 @@ export class TwitchRequestor {
    * Make an authenticated request to the Twitch API with retry logic
    * Uses Electron's net module for better network compatibility
    */
-  async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  async request(endpoint: string, options: RequestInit = {}): Promise<unknown> {
     // Only user tokens are supported. Public browsing continues to use the
     // existing unauthenticated GQL path.
-    const accessToken = await twitchAuthService.getValidAccessToken();
+    let accessToken = await twitchAuthService.getValidAccessToken();
 
     if (!accessToken) {
       throw new Error("Not authenticated with Twitch. Use GQL API for unauthenticated access.");
@@ -138,13 +160,16 @@ export class TwitchRequestor {
     };
 
     let lastError: Error | null = null;
+    let refreshAttempted = false;
 
-    for (let attempt = 0; attempt <= this.MAX_RETRIES; attempt++) {
+    for (let attempt = 0; attempt < this.MAX_ATTEMPTS; attempt++) {
+      options.signal?.throwIfAborted();
       try {
-        const response = await this.netRequest<T>(url, {
+        const response = await this.netRequest(url, {
           method: (options.method as string) || "GET",
           headers,
           body: options.body as string | undefined,
+          signal: options.signal ?? undefined,
         });
 
         // Handle rate limiting
@@ -161,23 +186,27 @@ export class TwitchRequestor {
 
         // Handle unauthorized (try token refresh)
         if (response.status === 401) {
+          if (refreshAttempted) throw new Error("Authentication failed");
+          refreshAttempted = true;
           logger.debug("Twitch:Requestor", "Token expired, refreshing");
           const refreshed = await twitchAuthService.refreshToken();
           if (refreshed) {
-            // Retry the request with new token
-            return this.request<T>(endpoint, options);
+            accessToken = await twitchAuthService.getValidAccessToken();
+            if (!accessToken) throw new Error("Authentication failed");
+            headers.Authorization = `Bearer ${accessToken}`;
+            continue;
           }
           throw new Error("Authentication failed");
         }
 
         // Retry on transient server errors (500-504)
         if (response.status >= 500 && response.status <= 504) {
-          if (attempt < this.MAX_RETRIES) {
+          if (attempt < this.MAX_ATTEMPTS - 1) {
             const delay = this.BASE_DELAY * 2 ** attempt;
             logger.warn("Twitch:Requestor", "Twitch API server error, retrying", {
               status: response.status,
               attempt: attempt + 1,
-              maxAttempts: this.MAX_RETRIES + 1,
+              maxAttempts: this.MAX_ATTEMPTS,
               delayMs: delay,
             });
             await sleep(delay);
@@ -186,8 +215,14 @@ export class TwitchRequestor {
         }
 
         if (response.status < 200 || response.status >= 300) {
-          const errorData = response.data as { message?: string };
-          throw new Error(errorData?.message || `Twitch API error: ${response.status}`);
+          const message =
+            typeof response.data === "object" &&
+            response.data !== null &&
+            "message" in response.data &&
+            typeof response.data.message === "string"
+              ? response.data.message
+              : undefined;
+          throw new Error(message || `Twitch API error: ${response.status}`);
         }
 
         recordPlatformSuccess("twitch");
@@ -197,7 +232,7 @@ export class TwitchRequestor {
         const isRetryable = this.isRetryableError(error);
 
         // Don't retry non-retryable errors or if we've exhausted retries
-        if (!isRetryable || attempt === this.MAX_RETRIES) {
+        if (!isRetryable || attempt === this.MAX_ATTEMPTS - 1) {
           const failureClass = this.classifyErrorForHealth(error);
           if (failureClass) recordPlatformFailure("twitch", failureClass);
 
@@ -215,7 +250,7 @@ export class TwitchRequestor {
         const errorMsg = (error as Error).message || "Unknown error";
         logger.warn("Twitch:Requestor", "Twitch API request failed, retrying", {
           attempt: attempt + 1,
-          maxAttempts: this.MAX_RETRIES + 1,
+          maxAttempts: this.MAX_ATTEMPTS,
           delayMs: delay,
           errorMessage: errorMsg,
         });
@@ -225,6 +260,27 @@ export class TwitchRequestor {
 
     // Should never reach here, but just in case
     throw lastError || new Error("Request failed after retries");
+  }
+
+  /**
+   * Request JSON from Helix and validate it at the transport boundary.
+   * New endpoint code should prefer this over the legacy caller-selected generic.
+   */
+  async requestDecoded<T>(
+    endpoint: string,
+    decode: (value: unknown) => T,
+    options: RequestInit = {}
+  ): Promise<T> {
+    const payload = await this.request(endpoint, options);
+    return decode(payload);
+  }
+
+  /** Model successful 204/empty responses without inventing a JSON object. */
+  async requestEmpty(endpoint: string, options: RequestInit = {}): Promise<void> {
+    const payload = await this.request(endpoint, options);
+    if (payload !== null) {
+      throw new Error("Expected Twitch API response body to be empty");
+    }
   }
 
   private classifyErrorForHealth(error: unknown): PlatformFailureClass | null {

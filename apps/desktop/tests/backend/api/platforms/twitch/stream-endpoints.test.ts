@@ -183,7 +183,14 @@ describe("getFollowedStreams", () => {
   });
 });
 
+// Guards: malformed Helix stream rows fail at the endpoint boundary before transformation.
 describe("getTopStreams", () => {
+  it("rejects malformed stream rows", async () => {
+    const client = makeClient({ "/streams": { data: [{ id: "missing-required-fields" }] } });
+
+    await expect(getTopStreams(client)).rejects.toThrow();
+  });
+
   it("returns transformed streams with user avatars", async () => {
     const client = makeClient({
       "/streams": { data: [STREAM], pagination: { cursor: "top-next" } },

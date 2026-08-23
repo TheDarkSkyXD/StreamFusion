@@ -1,3 +1,4 @@
+import type { BrowserWindow } from "electron";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { IPC_CHANNELS } from "@/shared/ipc-channels";
@@ -27,6 +28,7 @@ vi.mock("@/backend/api/platforms/twitch/twitch-public-profile-reader", () => rea
 vi.mock("@/backend/api/platforms/kick/kick-public-profile-reader", () => readerMocks);
 
 import { registerUserProfileHandlers } from "@/backend/ipc/handlers/user-profile-handlers";
+import { TrustedIpcRegistry } from "@/backend/ipc/trusted-ipc-registry";
 
 type Handler = (event: unknown, request: unknown) => Promise<unknown>;
 
@@ -45,7 +47,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   electronMocks.app.isPackaged = false;
   trustedMainFrame.url = "http://localhost:5173/?userProfileFixture=loaded";
-  registerUserProfileHandlers(trustedSender, trustedDocumentUrl);
+  const mainWindow = { webContents: trustedSender } as unknown as BrowserWindow;
+  registerUserProfileHandlers(new TrustedIpcRegistry(mainWindow, trustedDocumentUrl));
 });
 
 // Guards: normal Electron development profile reads pass through typed IPC to the real readers.

@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@/backend/logging/logger";
 import type { Platform } from "../../../shared/auth-types";
@@ -316,7 +316,12 @@ export function registerCategoryHandlers(): void {
       const { kickClient } = await import("../../api/platforms/kick/kick-client");
 
       try {
-        const searchPromises: Promise<{ platform: Platform; data: any[]; cursor?: string }>[] = [];
+        const searchPromises: Promise<{
+          platform: Platform;
+          data: UnifiedCategory[];
+          cursor?: string;
+          status: "complete" | "failed";
+        }>[] = [];
 
         if (!params.platform || params.platform === "twitch") {
           searchPromises.push(
@@ -329,6 +334,7 @@ export function registerCategoryHandlers(): void {
                 platform: "twitch" as Platform,
                 data: result.data,
                 cursor: result.cursor,
+                status: "complete" as const,
               }))
               .catch((err) => {
                 logger.warn("IPC:Category", "Failed to search Twitch categories", {
@@ -337,7 +343,7 @@ export function registerCategoryHandlers(): void {
                       ? { name: err.name, message: err.message, stack: err.stack }
                       : String(err),
                 });
-                return { platform: "twitch" as Platform, data: [] };
+                return { platform: "twitch" as Platform, data: [], status: "failed" as const };
               })
           );
         }
@@ -347,7 +353,11 @@ export function registerCategoryHandlers(): void {
           searchPromises.push(
             kickClient
               .searchCategories(params.query)
-              .then((result) => ({ platform: "kick" as Platform, data: result.data }))
+              .then((result) => ({
+                platform: "kick" as Platform,
+                data: result.data,
+                status: "complete" as const,
+              }))
               .catch((err) => {
                 logger.warn("IPC:Category", "Failed to search Kick categories", {
                   error:
@@ -355,21 +365,38 @@ export function registerCategoryHandlers(): void {
                       ? { name: err.name, message: err.message, stack: err.stack }
                       : String(err),
                 });
-                return { platform: "kick" as Platform, data: [] };
+                return { platform: "kick" as Platform, data: [], status: "failed" as const };
               })
           );
         }
 
         const results = await Promise.all(searchPromises);
+        const providers = Object.fromEntries(
+          results.map((result) => [result.platform, result.status])
+        );
+        const data = results.flatMap((result) => result.data);
+        const hasFailure = results.some((result) => result.status === "failed");
 
-        if (!params.platform) {
-          const allCategories = results.flatMap((r) => r.data);
-          const twitchCursor = results.find((r) => r.platform === "twitch")?.cursor;
-          return { success: true, data: allCategories, cursor: twitchCursor };
+        if (hasFailure && data.length === 0) {
+          return {
+            success: false,
+            error: "Couldn’t search categories on the selected platforms",
+            providers,
+          };
         }
 
-        const { platform: _p, ...rest } = results[0] ?? { data: [] };
-        return { success: true, ...rest };
+        if (!params.platform) {
+          const twitchCursor = results.find((r) => r.platform === "twitch")?.cursor;
+          return { success: true, data, cursor: twitchCursor, providers };
+        }
+
+        const result = results[0];
+        return {
+          success: true,
+          data: result?.data ?? [],
+          cursor: result?.cursor,
+          providers,
+        };
       } catch (error) {
         logger.error("IPC:Category", "Failed to search categories", {
           error:
@@ -377,7 +404,13 @@ export function registerCategoryHandlers(): void {
               ? { name: error.name, message: error.message, stack: error.stack }
               : String(error),
         });
-        return { success: false, error: error instanceof Error ? error.message : "Search failed" };
+        return {
+          success: false,
+          error: "Couldn’t search categories",
+          providers: params.platform
+            ? { [params.platform]: "failed" as const }
+            : { twitch: "failed" as const, kick: "failed" as const },
+        };
       }
     }
   );

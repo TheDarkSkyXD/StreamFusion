@@ -17,7 +17,7 @@ describe("Downloads route prewarm", () => {
 
   it("deduplicates the queue read and prewarms the first two image-bearing visual rows", async () => {
     const api = installElectronAPIMock();
-    api.downloads.getQueue = vi.fn(async () => ({
+    api.downloads.getQueue = vi.fn<typeof api.downloads.getQueue>(async () => ({
       jobs: [
         {
           id: "completed",
@@ -31,6 +31,7 @@ describe("Downloads route prewarm", () => {
           thumbnailUrl: "https://example.com/completed.jpg",
           createdAt: "2026-07-11T00:00:00.000Z",
           updatedAt: "2026-07-11T00:00:00.000Z",
+          destinationPath: "C:\\Videos\\completed.mp4",
         },
         {
           id: "queued",
@@ -44,6 +45,7 @@ describe("Downloads route prewarm", () => {
           thumbnailUrl: "https://example.com/queued.jpg",
           createdAt: "2026-07-11T00:00:00.000Z",
           updatedAt: "2026-07-11T00:00:00.000Z",
+          destinationPath: "C:\\Videos\\queued.mp4",
         },
         {
           id: "active",
@@ -57,6 +59,7 @@ describe("Downloads route prewarm", () => {
           thumbnailUrl: "https://example.com/active.jpg",
           createdAt: "2026-07-11T00:00:00.000Z",
           updatedAt: "2026-07-11T00:00:00.000Z",
+          destinationPath: "C:\\Videos\\active.mp4",
         },
       ],
     }));

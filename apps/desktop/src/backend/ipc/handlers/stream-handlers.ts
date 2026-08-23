@@ -1,10 +1,11 @@
-import { ipcMain } from "electron";
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@/backend/logging/logger";
 import { dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
 import type { Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { IPlatformReader } from "../../api/unified/platform-reader";
+import type { UnifiedStream } from "../../api/unified/platform-types";
 import { clients } from "../../api/unified/registry";
 import { storageService } from "../../services/storage-service";
 import {
@@ -50,7 +51,7 @@ export function registerStreamHandlers(): void {
       try {
         const fetchOne = async (
           reader: IPlatformReader
-        ): Promise<{ platform: Platform; data: any[]; cursor?: string }> => {
+        ): Promise<{ platform: Platform; data: UnifiedStream[]; cursor?: string }> => {
           try {
             const result = await reader.getTopStreams({
               limit: params.limit || 20,
@@ -121,7 +122,7 @@ export function registerStreamHandlers(): void {
       const { kickClient } = await import("../../api/platforms/kick/kick-client");
 
       try {
-        const results: { platform: Platform; data: any[]; cursor?: string }[] = [];
+        const results: { platform: Platform; data: UnifiedStream[]; cursor?: string }[] = [];
 
         const fetchTwitch = async () => {
           try {
@@ -222,11 +223,11 @@ export function registerStreamHandlers(): void {
       const { kickClient } = await import("../../api/platforms/kick/kick-client");
 
       try {
-        const results: { platform: Platform; data: any[]; cursor?: string }[] = [];
+        const results: { platform: Platform; data: UnifiedStream[]; cursor?: string }[] = [];
 
         const fetchTwitchFollowed = async () => {
           const localTwitch = storageService.getActiveFollowsByPlatform("twitch");
-          const twitchStreams: any[] = [];
+          const twitchStreams: UnifiedStream[] = [];
           const seenIds = new Set<string>();
 
           // 1. Remote (User Authenticated)
@@ -302,7 +303,7 @@ export function registerStreamHandlers(): void {
             streamHandlersStartedAt
           );
           const localKick = storageService.getActiveFollowsByPlatform("kick");
-          const kickStreams: any[] = [];
+          const kickStreams: UnifiedStream[] = [];
           const seenIds = new Set<string>();
 
           // 1. Remote (User Authenticated)

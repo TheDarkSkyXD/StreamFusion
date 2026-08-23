@@ -110,9 +110,9 @@ describe("usePictureInPicture", () => {
 
   it("handles requestPictureInPicture rejection without crashing", async () => {
     const video = createMockVideo();
-    video.requestPictureInPicture = vi.fn(() =>
-      Promise.reject(new Error("PiP not allowed"))
-    ) as any;
+    video.requestPictureInPicture = vi.fn(async (): Promise<PictureInPictureWindow> => {
+      throw new Error("PiP not allowed");
+    });
 
     const { result } = renderHook(() => usePictureInPicture({ current: video }));
 

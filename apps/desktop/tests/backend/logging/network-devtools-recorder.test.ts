@@ -39,6 +39,7 @@ function makeWebContents() {
   return fake;
 }
 
+// Guards: closing WebContents while Network.enable is pending must not surface an unhandled rejection
 describe("installNetworkDevtoolsRecorder", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -99,5 +100,21 @@ describe("installNetworkDevtoolsRecorder", () => {
         urlFingerprint: "fingerprint",
       })
     );
+  });
+
+  it("observes the Network.enable rejection when the debugger target closes", () => {
+    const targetClosed = new Error("target closed while handling command");
+    const handleRejection = vi.fn((onRejected: (reason: Error) => void) => {
+      onRejected(targetClosed);
+      return Promise.resolve();
+    });
+    const fake = makeWebContents();
+    fake.debugger.sendCommand.mockReturnValueOnce({
+      catch: handleRejection,
+    } as unknown as Promise<void>);
+
+    installNetworkDevtoolsRecorder(fake as unknown as Electron.WebContents);
+
+    expect(handleRejection).toHaveBeenCalledOnce();
   });
 });

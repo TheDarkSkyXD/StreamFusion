@@ -27,22 +27,21 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// Guards: useInfiniteStreamsByCategory is enabled when EITHER categoryId or categoryName is set — Kick's category-detail page slug-guesses on name when the numeric id is unknown
-// Guards: hasNextPage is false when cursor is missing — prevents an infinite-fetch loop on the last page
+// Guards: useInfiniteStreamsByCategory is enabled when EITHER categoryId or categoryName is set Ã¢â‚¬â€ Kick's category-detail page slug-guesses on name when the numeric id is unknown
+// Guards: hasNextPage is false when cursor is missing Ã¢â‚¬â€ prevents an infinite-fetch loop on the last page
 // Guards: language filter threads through to IPC verbatim so the category page's language picker actually narrows results
 describe("useInfiniteStreamsByCategory", () => {
   it("fetches the first page of streams for a category", async () => {
     const stream = fixtures.stream({ categoryId: "cat-1" });
-    api.streams.getByCategory = vi.fn(async () => ({
+    api.streams.getByCategory = vi.fn<typeof api.streams.getByCategory>(async () => ({
+      success: true,
       data: [stream],
-      error: null,
       cursor: "next-page",
     }));
 
-    const { result } = renderHook(
-      () => useInfiniteStreamsByCategory("cat-1", "twitch"),
-      { wrapper: makeWrapper() }
-    );
+    const { result } = renderHook(() => useInfiniteStreamsByCategory("cat-1", "twitch"), {
+      wrapper: makeWrapper(),
+    });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data!.pages).toHaveLength(1);
     expect(result.current.data!.pages[0].data).toHaveLength(1);
@@ -50,16 +49,15 @@ describe("useInfiniteStreamsByCategory", () => {
   });
 
   it("reports hasNextPage=false when no cursor is returned", async () => {
-    api.streams.getByCategory = vi.fn(async () => ({
+    api.streams.getByCategory = vi.fn<typeof api.streams.getByCategory>(async () => ({
+      success: true,
       data: [fixtures.stream()],
-      error: null,
       cursor: undefined,
     }));
 
-    const { result } = renderHook(
-      () => useInfiniteStreamsByCategory("cat-1"),
-      { wrapper: makeWrapper() }
-    );
+    const { result } = renderHook(() => useInfiniteStreamsByCategory("cat-1"), {
+      wrapper: makeWrapper(),
+    });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.hasNextPage).toBe(false);
   });
@@ -73,9 +71,9 @@ describe("useInfiniteStreamsByCategory", () => {
   });
 
   it("is enabled when categoryId is empty but categoryName is set", async () => {
-    api.streams.getByCategory = vi.fn(async () => ({
+    api.streams.getByCategory = vi.fn<typeof api.streams.getByCategory>(async () => ({
+      success: true,
       data: [fixtures.stream()],
-      error: null,
       cursor: undefined,
     }));
     const { result } = renderHook(
@@ -86,15 +84,14 @@ describe("useInfiniteStreamsByCategory", () => {
   });
 
   it("passes language filter to the IPC call", async () => {
-    api.streams.getByCategory = vi.fn(async () => ({
+    api.streams.getByCategory = vi.fn<typeof api.streams.getByCategory>(async () => ({
+      success: true,
       data: [],
-      error: null,
       cursor: undefined,
     }));
-    renderHook(
-      () => useInfiniteStreamsByCategory("cat-1", "twitch", 20, "Just Chatting", "en"),
-      { wrapper: makeWrapper() }
-    );
+    renderHook(() => useInfiniteStreamsByCategory("cat-1", "twitch", 20, "Just Chatting", "en"), {
+      wrapper: makeWrapper(),
+    });
     await waitFor(() =>
       expect(api.streams.getByCategory).toHaveBeenCalledWith(
         expect.objectContaining({ language: "en", categoryName: "Just Chatting" })

@@ -24,6 +24,14 @@ interface KickTokenRefreshBody {
 
 type CorsHeaders = Record<string, string>;
 
+function errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : "Unknown error";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 let kickAppTokenCache: CachedToken | null = null;
 
 export default {
@@ -183,10 +191,6 @@ async function enforceLimit(
     return rateLimitDenied(corsHeaders);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function isAllowedKickRedirect(value: unknown): value is string {
     if (typeof value !== "string" || value.length > 2048) return false;
 
@@ -284,8 +288,8 @@ async function handleKickTokenExchange(
 
         const data = await response.json();
         return Response.json(data, { status: response.status, headers: corsHeaders });
-    } catch (err: any) {
-        return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
+    } catch (err: unknown) {
+        return Response.json({ error: errorMessage(err) }, { status: 500, headers: corsHeaders });
     }
 }
 
@@ -312,8 +316,8 @@ async function handleKickTokenRefresh(
 
         const data = await response.json();
         return Response.json(data, { status: response.status, headers: corsHeaders });
-    } catch (err: any) {
-        return Response.json({ error: err.message }, { status: 500, headers: corsHeaders });
+    } catch (err: unknown) {
+        return Response.json({ error: errorMessage(err) }, { status: 500, headers: corsHeaders });
     }
 }
 
@@ -351,13 +355,22 @@ async function fetchKickAppToken(env: Env): Promise<string> {
         body: params
     });
 
-    const data = await response.json() as any;
+    const data: unknown = await response.json();
+    if (!isRecord(data)) {
+        throw new Error("Kick app token response was not an object");
+    }
     if (!response.ok) {
-        const message = data.error_description || data.message || data.error || `Kick app token failed: HTTP ${response.status}`;
+        const candidate = data.error_description ?? data.message ?? data.error;
+        const message = typeof candidate === "string"
+            ? candidate
+            : `Kick app token failed: HTTP ${response.status}`;
         throw new Error(message);
     }
 
     const expiresInSeconds = typeof data.expires_in === "number" ? data.expires_in : 3600;
+    if (typeof data.access_token !== "string" || data.access_token.length === 0) {
+        throw new Error("Kick app token response did not include an access token");
+    }
     kickAppTokenCache = {
         accessToken: data.access_token,
         expiresAt: now + expiresInSeconds * 1000
@@ -366,7 +379,7 @@ async function fetchKickAppToken(env: Env): Promise<string> {
     return data.access_token;
 }
 
-async function handleKickProxy(request: Request, env: Env, subPath: string, corsHeaders: any) {
+async function handleKickProxy(request: Request, env: Env, subPath: string, corsHeaders: CorsHeaders) {
     const publicPath = subPath.startsWith("/public/v1/") || subPath.startsWith("/public/v2/")
         ? subPath
         : `/public/v1${subPath}`;
@@ -384,8 +397,8 @@ async function handleKickProxy(request: Request, env: Env, subPath: string, cors
     if (useAppToken) {
         try {
             headers.set("Authorization", `Bearer ${await fetchKickAppToken(env)}`);
-        } catch (err: any) {
-            return Response.json({ error: err.message }, { status: 502, headers: corsHeaders });
+        } catch (err: unknown) {
+            return Response.json({ error: errorMessage(err) }, { status: 502, headers: corsHeaders });
         }
     }
 
@@ -404,8 +417,8 @@ async function handleKickProxy(request: Request, env: Env, subPath: string, cors
                 headers,
                 body
             });
-        } catch (err: any) {
-            return Response.json({ error: err.message }, { status: 502, headers: corsHeaders });
+        } catch (err: unknown) {
+            return Response.json({ error: errorMessage(err) }, { status: 502, headers: corsHeaders });
         }
     }
 

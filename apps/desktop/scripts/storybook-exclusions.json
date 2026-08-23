@@ -1,9 +1,19 @@
 {
   "version": 1,
   "exclusions": {
-    "auth/AuthProvider.tsx": "Application lifecycle and authentication bootstrap wrapper that only passes through children; it has no standalone visual state.",
-    "chat/mod/UserPopout/UserPopoutProvider.tsx": "Context and dispatcher wiring with no standalone surface; its conditional UI is the separately storyable UserPopout component.",
-    "player/kick/uptime-readout.tsx": "Imperative one-second media clock coordinator that always returns null and only updates a progress-bar ref; it has no rendered state to catalog.",
-    "stream/related-content.tsx": "Backward-compatibility re-export shim with no component implementation; the real RelatedContent surface lives in related-content/index.tsx."
+    "App.tsx": "Application composition root that installs providers, router, and globals; it has no isolated visual contract beyond its child surfaces.",
+    "components/auth/AuthProvider.tsx": "Authentication lifecycle bootstrap and children wrapper with no standalone visual state or independently catalogable UI.",
+    "components/chat/mod/UserPopout/UserPopoutProvider.tsx": "Context and dispatcher wiring whose user-facing surface is the separately storyable UserPopout component.",
+    "components/chat/twitch/ModerationFixtureLauncher.tsx": "Development-only query-string status banner gated by import.meta.env.DEV; the production Storybook build cannot activate it without changing its environment contract.",
+    "components/player/kick/uptime-readout.tsx": "Imperative ref-driven clock that returns null and only updates a media progress element outside a visual component contract.",
+    "components/player/persistent-player-shell.tsx": "Persistent player context registrations and children wrapper with no independently rendered interface to document in Storybook.",
+    "components/stream/related-content.tsx": "Backward-compatibility re-export shim with no component implementation; the actual RelatedContent surface lives in related-content/index.tsx.",
+    "dev-relay/twitch-ad-frame-proof-panel.tsx": "Imperative development proof harness that exposes a mount API rather than a product UI with a stable visual contract.",
+    "hooks/use-stream-recording-state.tsx": "State store hook for recording status and live-clock updates; it provides no standalone visual surface to render in Storybook.",
+    "pages/Mod/channel/ModChannelKickPage.tsx": "Route adapter that delegates to the shared channel page instead of defining a distinct visual interface.",
+    "pages/Mod/channel/ModChannelTwitchPage.tsx": "Route adapter that delegates to the shared channel page instead of defining a distinct visual interface.",
+    "providers/query-provider.tsx": "Application React Query bootstrap provider with development instrumentation rather than a standalone user-facing visual surface.",
+    "renderer.tsx": "DOM bootstrap entry point that mounts the application and has no component surface for Storybook to document.",
+    "routes/router.tsx": "Route-tree configuration that composes actual pages inline rather than exporting a separately storyable visual component."
   }
 }

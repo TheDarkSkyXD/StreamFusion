@@ -35,6 +35,7 @@ function MiniPlayerFixture() {
   });
 
   useEffect(() => {
+    const originalApi = originalApiRef.current;
     usePipStore.setState({
       currentStream: {
         platform: "kick",
@@ -58,7 +59,7 @@ function MiniPlayerFixture() {
       });
       Object.defineProperty(window, "electronAPI", {
         configurable: true,
-        value: originalApiRef.current,
+        value: originalApi,
       });
     };
   }, []);

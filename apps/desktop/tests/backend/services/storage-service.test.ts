@@ -52,17 +52,36 @@ import {
 } from "@/shared/auth-types";
 import type { DownloadQueueSnapshot } from "@/shared/download-types";
 import type { StreamRecordingJournalV2 } from "@/shared/stream-recording-types";
+import type { LocalFollow } from "@/shared/auth-types";
 
-const kickPlatformRows = [
-  { id: "r1", platform: "kick", channelId: "411439", channelName: "summit1g", source: "kick" },
+const kickPlatformRows: LocalFollow[] = [
+  {
+    id: "r1",
+    platform: "kick",
+    channelId: "411439",
+    channelName: "summit1g",
+    displayName: "summit1g",
+    profileImage: "",
+    followedAt: "2026-01-01T00:00:00.000Z",
+    source: "kick",
+  },
 ];
-const kickGuestRows = [
-  { id: "r2", platform: "kick", channelId: "550022", channelName: "tazo", source: "guest" },
+const kickGuestRows: LocalFollow[] = [
+  {
+    id: "r2",
+    platform: "kick",
+    channelId: "550022",
+    channelName: "tazo",
+    displayName: "tazo",
+    profileImage: "",
+    followedAt: "2026-01-01T00:00:00.000Z",
+    source: "guest",
+  },
 ];
 
 // Per-source DB contents the mocked dbService returns. Each test sets the
 // buckets it cares about; getActiveFollowsByPlatform reads them by source.
-let rowsBySource: Record<string, any[]>;
+let rowsBySource: Record<string, LocalFollow[]>;
 
 beforeEach(() => {
   storageService.initialize();
@@ -70,7 +89,14 @@ beforeEach(() => {
   vi.mocked(dbService.getFollowsByPlatformAndSource).mockImplementation(
     (_p, source) => rowsBySource[source] ?? []
   );
-  vi.mocked(dbService.get).mockReturnValue(true);
+  vi.spyOn(storageService, "getKickUser").mockReturnValue({
+    id: 1,
+    username: "viewer-a",
+    slug: "viewer-a",
+    profilePic: "",
+    verified: false,
+  });
+  vi.mocked(dbService.get).mockReturnValue("1:viewer-a");
   vi.mocked(dbService.upsertSyncedFollows).mockReturnValue({
     accountCount: 0,
     pendingCount: 0,
@@ -78,10 +104,20 @@ beforeEach(() => {
     removedCount: 0,
   });
   vi.mocked(dbService.getAllFollows).mockReturnValue([]);
-  vi.mocked(dbService.addFollow).mockImplementation((follow, source) => ({ ...follow, source }));
+  vi.mocked(dbService.addFollow).mockImplementation((follow, source) => ({
+    id: follow.id ?? `${follow.platform}:${follow.channelId}`,
+    platform: follow.platform,
+    channelId: follow.channelId,
+    channelName: follow.channelName,
+    displayName: follow.displayName ?? follow.channelName,
+    profileImage: follow.profileImage ?? "",
+    followedAt: follow.followedAt ?? "2026-01-01T00:00:00.000Z",
+    source: source ?? "guest",
+  }));
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
@@ -113,7 +149,7 @@ describe("storageService.getActiveFollowsByPlatform — token-aware platform/gue
 
   it("token + unverified Kick account rows: returns [] instead of stale source=kick rows", () => {
     vi.spyOn(storageService, "hasToken").mockReturnValue(true);
-    vi.mocked(dbService.get).mockReturnValue(false);
+    vi.mocked(dbService.get).mockReturnValue(null);
     rowsBySource = { guest: kickGuestRows, kick: kickPlatformRows, twitch: [] };
 
     const result = storageService.getActiveFollowsByPlatform("kick");
@@ -146,8 +182,17 @@ describe("storageService.getActiveFollowsByPlatform — token-aware platform/gue
 
   it("scopes the per-platform lookup — twitch query reads twitch buckets, not kick", () => {
     vi.spyOn(storageService, "hasToken").mockReturnValue(true);
-    const twitchRows = [
-      { id: "tx", platform: "twitch", channelId: "12345", channelName: "alice", source: "twitch" },
+    const twitchRows: LocalFollow[] = [
+      {
+        id: "tx",
+        platform: "twitch",
+        channelId: "12345",
+        channelName: "alice",
+        displayName: "alice",
+        profileImage: "",
+        followedAt: "2026-01-01T00:00:00.000Z",
+        source: "twitch",
+      },
     ];
     rowsBySource = { guest: kickGuestRows, kick: kickPlatformRows, twitch: twitchRows };
 
@@ -161,14 +206,39 @@ describe("storageService.getActiveFollowsByPlatform — token-aware platform/gue
   it("marks Kick account follows verified after a successful sync", () => {
     storageService.upsertSyncedFollows("kick", []);
 
-    expect(dbService.set).toHaveBeenCalledWith("kick-account-follows-verified-v2", true);
+    expect(dbService.set).toHaveBeenCalledWith("kick-account-follows-verified-v3", "1:viewer-a");
+  });
+
+  it("does not trust the obsolete v2 marker", () => {
+    vi.spyOn(storageService, "hasToken").mockReturnValue(true);
+    vi.mocked(dbService.get).mockImplementation((key) =>
+      key === "kick-account-follows-verified-v2" ? true : null
+    );
+    rowsBySource = { guest: [], kick: kickPlatformRows, twitch: [] };
+
+    expect(storageService.getActiveFollowsByPlatform("kick")).toEqual([]);
+  });
+
+  it("does not expose v3 rows verified for a different Kick account", () => {
+    vi.spyOn(storageService, "hasToken").mockReturnValue(true);
+    vi.spyOn(storageService, "getKickUser").mockReturnValue({
+      id: 2,
+      username: "viewer-b",
+      slug: "viewer-b",
+      profilePic: "",
+      verified: false,
+    });
+    vi.mocked(dbService.get).mockReturnValue("1:viewer-a");
+    rowsBySource = { guest: [], kick: kickPlatformRows, twitch: [] };
+
+    expect(storageService.getActiveFollowsByPlatform("kick")).toEqual([]);
   });
 });
 
 // Guards: follow metadata repair must preserve account-vs-guest source when rewriting stale Kick rows.
 describe("storageService.updateLocalFollow", () => {
   it("passes the current row source through to the DB upsert", () => {
-    const current = {
+    const current: LocalFollow = {
       id: "kick-account-row",
       platform: "kick",
       channelId: "old-slug",
@@ -264,6 +334,33 @@ describe("storageService Twitch follow-write token", () => {
     storageService.clearAllTokens();
 
     expect(storageService.getTwitchFollowWriteToken()).toBeNull();
+  });
+});
+
+// Guards: Kick's page-context bearer survives process restarts and OAuth-only invalidation in its own encrypted envelope.
+describe("storageService Kick web bearer", () => {
+  it("round-trips securely and is independent from OAuth token clearing", () => {
+    storageService.saveKickWebBearer("Bearer 123|restartproof");
+
+    expect(storageService.getKickWebBearer()).toBe("Bearer 123|restartproof");
+    expect(vi.mocked(safeStorage.encryptString)).toHaveBeenCalledWith("Bearer 123|restartproof");
+
+    storageService.clearToken("twitch");
+    expect(storageService.getKickWebBearer()).toBe("Bearer 123|restartproof");
+
+    storageService.clearToken("kick");
+    expect(storageService.getKickWebBearer()).toBe("Bearer 123|restartproof");
+
+    storageService.clearKickWebBearer();
+    expect(storageService.getKickWebBearer()).toBeNull();
+  });
+
+  it("is removed by the explicit clear-all operation", () => {
+    storageService.saveKickWebBearer("Bearer 123|restartproof");
+
+    storageService.clearAllTokens();
+
+    expect(storageService.getKickWebBearer()).toBeNull();
   });
 });
 

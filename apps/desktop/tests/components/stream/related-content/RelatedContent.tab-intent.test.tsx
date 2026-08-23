@@ -40,12 +40,20 @@ vi.mock("@/lib/viewport-image-prewarm", () => ({
 const videos = Array.from({ length: 9 }, (_, index) => ({
   id: `video-${index}`,
   title: `Video ${index}`,
+  duration: "1:00",
+  views: String(index),
+  date: `2026-07-${String(index + 1).padStart(2, "0")}T00:00:00Z`,
+  thumbnailUrl: `https://cdn.test/video-${index}.jpg`,
   created_at: `2026-07-${String(index + 1).padStart(2, "0")}T00:00:00Z`,
 })) as VideoOrClip[];
 
 const clips = Array.from({ length: 6 }, (_, index) => ({
   id: `clip-${index}`,
   title: `Clip ${index}`,
+  duration: "0:30",
+  views: String(index),
+  date: `2026-07-${String(index + 1).padStart(2, "0")}T00:00:00Z`,
+  thumbnailUrl: `https://cdn.test/clip-${index}.jpg`,
 })) as VideoOrClip[];
 
 interface RouteGate {

@@ -28,7 +28,7 @@ function createMockVideo(paused = false, muted = false): HTMLVideoElement {
     set muted(v: boolean) {
       _muted = v;
     },
-    pause: vi.fn(function (this: any) {
+    pause: vi.fn(function (this: { paused: boolean }) {
       this.paused = true;
     }),
     play: vi.fn(() => Promise.resolve()),

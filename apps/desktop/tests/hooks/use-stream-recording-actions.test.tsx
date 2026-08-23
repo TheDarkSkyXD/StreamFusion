@@ -15,7 +15,7 @@ describe("useStreamRecordingActions", () => {
 
   it("starts through the dedicated Stream Recording bridge", async () => {
     const api = installElectronAPIMock();
-    api.streamRecording.start = vi.fn(async () => ({
+    api.streamRecording.start = vi.fn<typeof api.streamRecording.start>(async () => ({
       success: true,
       outcome: "started",
       sessionId: "recording-session-1",
@@ -54,7 +54,7 @@ describe("useStreamRecordingActions", () => {
         status: "recording",
       },
     } as const;
-    api.streamRecording.start = vi.fn(async () => blocked);
+    api.streamRecording.start = vi.fn<typeof api.streamRecording.start>(async () => blocked);
     const { result } = renderHook(() => useStreamRecordingActions());
 
     await act(async () => {
@@ -153,9 +153,15 @@ describe("useStreamRecordingActions", () => {
 
   it("resumes, finalizes, and explicitly dismisses an interrupted session through recovery IPC", async () => {
     const api = installElectronAPIMock();
-    api.streamRecording.resumeInterrupted = vi.fn(async () => ({ success: true }));
-    api.streamRecording.finalizeInterrupted = vi.fn(async () => ({ success: true }));
-    api.streamRecording.dismissInterrupted = vi.fn(async () => ({ success: true }));
+    api.streamRecording.resumeInterrupted = vi.fn<typeof api.streamRecording.resumeInterrupted>(
+      async () => ({ success: true })
+    );
+    api.streamRecording.finalizeInterrupted = vi.fn<typeof api.streamRecording.finalizeInterrupted>(
+      async () => ({ success: true })
+    );
+    api.streamRecording.dismissInterrupted = vi.fn<typeof api.streamRecording.dismissInterrupted>(
+      async () => ({ success: true })
+    );
     const { result } = renderHook(() => useStreamRecordingActions());
 
     await act(async () => {
@@ -181,15 +187,21 @@ describe("useStreamRecordingActions", () => {
 
   it("converts rejected recovery IPC promises into typed bridge failures", async () => {
     const api = installElectronAPIMock();
-    api.streamRecording.resumeInterrupted = vi.fn(async () => {
-      throw new Error("renderer disconnected");
-    });
-    api.streamRecording.finalizeInterrupted = vi.fn(async () => {
-      throw new Error("main process unavailable");
-    });
-    api.streamRecording.dismissInterrupted = vi.fn(async () => {
-      throw new Error("journal bridge closed");
-    });
+    api.streamRecording.resumeInterrupted = vi.fn<typeof api.streamRecording.resumeInterrupted>(
+      async () => {
+        throw new Error("renderer disconnected");
+      }
+    );
+    api.streamRecording.finalizeInterrupted = vi.fn<typeof api.streamRecording.finalizeInterrupted>(
+      async () => {
+        throw new Error("main process unavailable");
+      }
+    );
+    api.streamRecording.dismissInterrupted = vi.fn<typeof api.streamRecording.dismissInterrupted>(
+      async () => {
+        throw new Error("journal bridge closed");
+      }
+    );
     const { result } = renderHook(() => useStreamRecordingActions());
 
     await act(async () => {

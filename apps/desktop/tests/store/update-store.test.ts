@@ -34,7 +34,7 @@ describe("update-store initial state", () => {
     expect(s.error).toBeNull();
     expect(s.allowPrerelease).toBe(false);
     expect(s.autoCheckEnabled).toBe(false);
-    expect(s.checkFrequency).toBe("daily");
+    expect(s.checkFrequency).toBe("weekly");
     expect(s.isInitialized).toBe(false);
   });
 });

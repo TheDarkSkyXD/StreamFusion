@@ -14,8 +14,10 @@ import {
 } from "@/hooks/queries/persisted-search-lru";
 import { SEARCH_KEYS, useSearchClips } from "@/hooks/queries/useSearch";
 import type { Platform } from "@/shared/auth-types";
+import type { SearchPlatformError, SearchVideosRequest } from "@/shared/search-types";
 import { installElectronAPIMock } from "../../test-utils";
 
+type BaseApi = ReturnType<typeof installElectronAPIMock>;
 function wrapper() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, gcTime: 0 } },
@@ -45,10 +47,32 @@ function recentClip(id: string, platform: Platform = "twitch") {
   };
 }
 
-let api: ReturnType<typeof installElectronAPIMock>;
+type ClipSearchResult = {
+  success: boolean;
+  sessionId: string;
+  platform: Platform;
+  data: Array<ReturnType<typeof recentClip>>;
+  cursor?: string;
+  endReason?: string;
+  retryAfterMs?: number;
+  retryable: boolean;
+  error?: SearchPlatformError | null;
+  requestCount?: number;
+  matchedChannelCount?: number;
+};
+type ClipSearchApi = BaseApi & {
+  search: BaseApi["search"] & {
+    clips: ReturnType<typeof vi.fn<(request: SearchVideosRequest) => Promise<ClipSearchResult>>>;
+  };
+};
+let api: ClipSearchApi;
 
 beforeEach(() => {
-  api = installElectronAPIMock();
+  const baseApi = installElectronAPIMock();
+  api = Object.assign(baseApi, {
+    search: Object.assign(baseApi.search, { clips: vi.fn() }),
+    store: { get: vi.fn(async () => null), set: vi.fn(async () => undefined) },
+  });
   resetPersistedSearchLruForTests();
   resetCachePerformanceSamples();
 });
@@ -60,14 +84,13 @@ afterEach(() => {
 
 describe("useSearchClips", () => {
   it("starts fan-out only while the Clips tab is active", async () => {
-    api.search.clips = vi.fn(async (request: { sessionId: string; platform: Platform }) => ({
+    api.search.clips = vi.fn(async (request) => ({
       success: true,
       sessionId: request.sessionId,
       platform: request.platform,
       data: [recentClip(`${request.platform}-1`, request.platform)],
       endReason: "exhausted",
       retryable: false,
-      error: null,
       requestCount: 2,
       matchedChannelCount: 1,
     }));
@@ -85,14 +108,13 @@ describe("useSearchClips", () => {
   });
 
   it("does not treat cancelled-only or cancelled-plus-exhausted Clips as final empty", async () => {
-    api.search.clips = vi.fn(async (request: { sessionId: string; platform: Platform }) => ({
+    api.search.clips = vi.fn(async (request) => ({
       success: false,
       sessionId: request.sessionId,
       platform: request.platform,
       data: [],
       endReason: "cancelled",
       retryable: false,
-      error: null,
       requestCount: 0,
       matchedChannelCount: 0,
     }));
@@ -105,14 +127,13 @@ describe("useSearchClips", () => {
     expect(cancelled.result.current.isFinalEmpty).toBe(false);
     cancelled.unmount();
 
-    api.search.clips = vi.fn(async (request: { sessionId: string; platform: Platform }) => ({
+    api.search.clips = vi.fn(async (request) => ({
       success: request.platform === "kick",
       sessionId: request.sessionId,
       platform: request.platform,
       data: [],
       endReason: request.platform === "twitch" ? "cancelled" : "exhausted",
       retryable: false,
-      error: null,
       requestCount: 0,
       matchedChannelCount: 0,
     }));
@@ -147,14 +168,13 @@ describe("useSearchClips", () => {
       pages: [{ data: [recentClip("stale")], cursor: null }],
       pageParams: [undefined],
     });
-    api.search.clips = vi.fn(async (request: { sessionId: string; platform: Platform }) => ({
+    api.search.clips = vi.fn(async (request) => ({
       success: true,
       sessionId: request.sessionId,
       platform: request.platform,
       data: [],
       endReason: "exhausted",
       retryable: false,
-      error: null,
       requestCount: 1,
       matchedChannelCount: 1,
     }));
@@ -177,7 +197,7 @@ describe("useSearchClips", () => {
       pages: [{ data: [recentClip("warm")], cursor: null }],
       pageParams: [undefined],
     });
-    api.search.clips = vi.fn(async (request: { sessionId: string; platform: Platform }) => ({
+    api.search.clips = vi.fn(async (request) => ({
       success: false,
       sessionId: request.sessionId,
       platform: request.platform,
@@ -202,14 +222,13 @@ describe("useSearchClips", () => {
       defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, gcTime: 0 } },
     });
     let title = "Original title";
-    api.search.clips = vi.fn(async (request: { sessionId: string; platform: Platform }) => ({
+    api.search.clips = vi.fn(async (request) => ({
       success: true,
       sessionId: request.sessionId,
       platform: request.platform,
       data: [{ ...recentClip("same"), title }],
       endReason: "exhausted",
       retryable: false,
-      error: null,
       requestCount: 2,
       matchedChannelCount: 1,
     }));
@@ -237,7 +256,7 @@ describe("useSearchClips", () => {
   it("keeps the working Platform visible and retries only the rate-limited Platform", async () => {
     let twitchCalls = 0;
     let kickCalls = 0;
-    api.search.clips = vi.fn(async (request: { sessionId: string; platform: Platform }) => {
+    api.search.clips = vi.fn(async (request) => {
       if (request.platform === "kick") {
         kickCalls += 1;
         return {
@@ -247,7 +266,6 @@ describe("useSearchClips", () => {
           data: [recentClip("healthy", "kick")],
           endReason: "exhausted",
           retryable: false,
-          error: null,
           requestCount: 1,
           matchedChannelCount: 1,
         };
@@ -273,7 +291,6 @@ describe("useSearchClips", () => {
             data: [],
             endReason: "exhausted",
             retryable: false,
-            error: null,
             requestCount: 1,
             matchedChannelCount: 0,
           };
@@ -294,7 +311,7 @@ describe("useSearchClips", () => {
 
   it("deduplicates appended pages and reports limited separately from exhausted", async () => {
     let page = 0;
-    api.search.clips = vi.fn(async (request: { sessionId: string; platform: Platform }) => {
+    api.search.clips = vi.fn(async (request) => {
       page += 1;
       return page === 1
         ? {
@@ -304,7 +321,6 @@ describe("useSearchClips", () => {
             data: [recentClip("one")],
             cursor: "next",
             retryable: false,
-            error: null,
             requestCount: 2,
             matchedChannelCount: 1,
           }
@@ -315,7 +331,6 @@ describe("useSearchClips", () => {
             data: [recentClip("one"), recentClip("two")],
             endReason: "safety-limit",
             retryable: false,
-            error: null,
             requestCount: 3,
             matchedChannelCount: 1,
           };

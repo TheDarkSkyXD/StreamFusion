@@ -31,25 +31,13 @@ import { useResumePlayback } from "@/components/player/hooks/use-resume-playback
 function createMockVideo(
   opts: { currentTime?: number; duration?: number; readyState?: number; paused?: boolean } = {}
 ): HTMLVideoElement {
-  const listeners: Record<string, Function[]> = {};
-  const video = {
-    currentTime: opts.currentTime ?? 0,
-    duration: opts.duration ?? 3600,
-    readyState: opts.readyState ?? 4,
-    paused: opts.paused ?? false,
-    addEventListener: vi.fn((event: string, fn: Function) => {
-      if (!listeners[event]) listeners[event] = [];
-      listeners[event].push(fn);
-    }),
-    removeEventListener: vi.fn((event: string, fn: Function) => {
-      if (listeners[event]) {
-        listeners[event] = listeners[event].filter((f) => f !== fn);
-      }
-    }),
-    _emit: (event: string) => {
-      (listeners[event] ?? []).forEach((fn) => fn());
-    },
-  } as unknown as HTMLVideoElement & { _emit: (e: string) => void };
+  const video = document.createElement("video");
+  Object.defineProperties(video, {
+    currentTime: { value: opts.currentTime ?? 0, configurable: true, writable: true },
+    duration: { value: opts.duration ?? 3600, configurable: true },
+    readyState: { value: opts.readyState ?? 4, configurable: true },
+    paused: { value: opts.paused ?? false, configurable: true },
+  });
   return video;
 }
 
@@ -72,7 +60,7 @@ describe("useResumePlayback", () => {
       useResumePlayback({
         platform: "twitch",
         videoId: "vod123",
-        videoRef: { current: video } as any,
+        videoRef: { current: video },
       })
     );
 
@@ -87,7 +75,7 @@ describe("useResumePlayback", () => {
       useResumePlayback({
         platform: "twitch",
         videoId: "vod123",
-        videoRef: { current: video } as any,
+        videoRef: { current: video },
       })
     );
 
@@ -102,7 +90,7 @@ describe("useResumePlayback", () => {
       useResumePlayback({
         platform: "twitch",
         videoId: "vod123",
-        videoRef: { current: video } as any,
+        videoRef: { current: video },
       })
     );
 
@@ -117,7 +105,7 @@ describe("useResumePlayback", () => {
       useResumePlayback({
         platform: "kick",
         videoId: "vod456",
-        videoRef: { current: video } as any,
+        videoRef: { current: video },
       })
     );
 
@@ -132,7 +120,7 @@ describe("useResumePlayback", () => {
       useResumePlayback({
         platform: "twitch",
         videoId: "vod123",
-        videoRef: { current: video } as any,
+        videoRef: { current: video },
       })
     );
 
@@ -147,7 +135,7 @@ describe("useResumePlayback", () => {
       useResumePlayback({
         platform: "twitch",
         videoId: "vod123",
-        videoRef: { current: video } as any,
+        videoRef: { current: video },
         enabled: false,
       })
     );
@@ -156,20 +144,18 @@ describe("useResumePlayback", () => {
   });
 
   it("saves position on pause event", () => {
-    const video = createMockVideo({ currentTime: 300, duration: 3600 }) as HTMLVideoElement & {
-      _emit: (e: string) => void;
-    };
+    const video = createMockVideo({ currentTime: 300, duration: 3600 });
 
     renderHook(() =>
       useResumePlayback({
         platform: "twitch",
         videoId: "vod123",
-        videoRef: { current: video } as any,
+        videoRef: { current: video },
       })
     );
 
     act(() => {
-      video._emit("pause");
+      video.dispatchEvent(new Event("pause"));
     });
 
     expect(mockSavePosition).toHaveBeenCalledWith(
@@ -189,7 +175,7 @@ describe("useResumePlayback", () => {
       useResumePlayback({
         platform: "kick",
         videoId: "clip789",
-        videoRef: { current: video } as any,
+        videoRef: { current: video },
         title: "Cool Stream",
         thumbnail: "thumb.jpg",
       })
@@ -214,7 +200,7 @@ describe("useResumePlayback", () => {
       useResumePlayback({
         platform: "twitch",
         videoId: "vod123",
-        videoRef: { current: video } as any,
+        videoRef: { current: video },
       })
     );
 
@@ -234,7 +220,7 @@ describe("useResumePlayback", () => {
       useResumePlayback({
         platform: "twitch",
         videoId: "vod123",
-        videoRef: { current: video } as any,
+        videoRef: { current: video },
         enabled: false,
       })
     );
@@ -255,7 +241,7 @@ describe("useResumePlayback", () => {
       useResumePlayback({
         platform: "twitch",
         videoId: "vod123",
-        videoRef: { current: video } as any,
+        videoRef: { current: video },
       })
     );
 
@@ -277,7 +263,7 @@ describe("useResumePlayback", () => {
       useResumePlayback({
         platform: "twitch",
         videoId: "vod123",
-        videoRef: { current: video } as any,
+        videoRef: { current: video },
       })
     );
 
@@ -286,12 +272,14 @@ describe("useResumePlayback", () => {
   });
 
   it("handles null videoRef without crashing", () => {
+    const videoRef = { current: document.createElement("video") };
+    Object.defineProperty(videoRef, "current", { value: null });
     expect(() => {
       renderHook(() =>
         useResumePlayback({
           platform: "twitch",
           videoId: "vod123",
-          videoRef: { current: null } as any,
+          videoRef,
         })
       );
     }).not.toThrow();

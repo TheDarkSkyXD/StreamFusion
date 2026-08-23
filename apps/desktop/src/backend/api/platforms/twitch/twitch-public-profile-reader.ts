@@ -8,6 +8,7 @@ import type {
 } from "../../../../shared/user-profile-types";
 import { storageService } from "../../../services/storage-service";
 import { twitchClient } from "./twitch-client";
+import { helixResponseSchema } from "./twitch-helix-schemas";
 
 const TWITCH_WEB_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
 const FOLLOW_SCOPE = "moderator:read:followers";
@@ -221,9 +222,9 @@ export async function getTwitchFollowRelationship(
       user_id: userId,
       first: "1",
     });
-    const response = await twitchClient.request<{
-      data: Array<{ followed_at: string }>;
-    }>(`/channels/followers?${query.toString()}`);
+    const response = helixResponseSchema(z.object({ followed_at: z.string() })).parse(
+      await twitchClient.request(`/channels/followers?${query.toString()}`)
+    );
     const followedAt = response.data[0]?.followed_at;
     if (!isValidTimestamp(followedAt)) {
       return readPublicFollowRelationship(broadcasterId, userId, username);

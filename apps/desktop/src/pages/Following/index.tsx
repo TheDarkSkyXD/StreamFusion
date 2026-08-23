@@ -155,6 +155,7 @@ export function FollowingPage() {
     kickConnected,
     followSyncInProgress,
     followSyncLastSyncedAt,
+    syncConnectedFollows,
     twitchUser,
     kickUser,
     initialized: authInitialized,
@@ -489,6 +490,14 @@ export function FollowingPage() {
     setManualRefreshPending(true);
     setManualRefreshFailed(false);
     try {
+      let syncFailed = false;
+      try {
+        const syncResult = await syncConnectedFollows();
+        syncFailed = syncResult.failed.length > 0;
+      } catch {
+        syncFailed = true;
+      }
+
       const refreshes: Array<Promise<unknown>> = [refetchFollowedStreams()];
       if (twitchConnected && filter !== "kick") refreshes.push(refetchTwitchFollows());
       if (kickConnected && filter !== "twitch") refreshes.push(refetchKickFollows());
@@ -501,7 +510,7 @@ export function FollowingPage() {
       const results = await measureCacheInvalidationDispatch("manual-refresh:following", () =>
         Promise.allSettled(refreshes)
       );
-      setManualRefreshFailed(results.some(manualRefreshResultFailed));
+      setManualRefreshFailed(syncFailed || results.some(manualRefreshResultFailed));
     } finally {
       setManualRefreshPending(false);
     }
@@ -516,6 +525,7 @@ export function FollowingPage() {
     refetchKickFollows,
     refetchTopCategories,
     refetchTwitchFollows,
+    syncConnectedFollows,
     twitchConnected,
   ]);
   const manualSyncPending = manualRefreshPending || followSyncInProgress;

@@ -1,10 +1,13 @@
-import { BrowserWindow } from "electron";
+import type { BrowserWindow } from "electron";
 import { logger } from "@/lib/cross-logger";
 import { createManagedInterval } from "@/lib/managed-interval";
 import type { ChannelAccountStatus } from "@/shared/channel-account-status-types";
 import { getPlatformHealth } from "../../../unified/platform-health";
 import type { KickChatroomSettings, UnifiedChannel } from "../../../unified/platform-types";
+import type { SubscriberBadge } from "../../../../services/chat/kick-parser";
 import type { KickAuthMode, KickRequestor } from "../kick-requestor";
+import { createHiddenKickBrowserWindow } from "../kick-hidden-browser-window";
+import { requestPublicKickSession } from "../kick-session-request";
 import { transformKickChannel } from "../kick-transformers";
 import {
   KICK_LEGACY_API_V2_BASE,
@@ -64,6 +67,47 @@ export function mapKickChatroomToSettings(raw: unknown): KickChatroomSettings | 
     },
     subscribersMode: { enabled: r.subscribers_mode === true },
     emoteOnlyMode: { enabled: r.emotes_mode === true },
+  };
+}
+
+/** Map the authoritative nested `/api/v2/channels/:slug/chatroom` snapshot. */
+export function mapKickChatroomSnapshotToSettings(raw: unknown): KickChatroomSettings | undefined {
+  if (!isRecord(raw)) return undefined;
+
+  const slowMode = readChatroomMode(raw.slow_mode, "message_interval");
+  const followersMode = readChatroomMode(raw.followers_mode, "min_duration");
+  const subscribersMode = readChatroomMode(raw.subscribers_mode);
+  const emoteOnlyMode = readChatroomMode(raw.emotes_mode);
+  const accountAge = readChatroomMode(raw.account_age, "min_duration");
+  if (!slowMode || !followersMode || !subscribersMode || !emoteOnlyMode || !accountAge) {
+    return undefined;
+  }
+
+  return {
+    slowMode: { enabled: slowMode.enabled, interval: slowMode.duration },
+    followersMode: {
+      enabled: followersMode.enabled,
+      minDuration: followersMode.duration,
+    },
+    subscribersMode: { enabled: subscribersMode.enabled },
+    emoteOnlyMode: { enabled: emoteOnlyMode.enabled },
+    accountAge: { enabled: accountAge.enabled, minDuration: accountAge.duration },
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function readChatroomMode(
+  value: unknown,
+  durationField?: "message_interval" | "min_duration"
+): { enabled: boolean; duration: number | null } | undefined {
+  if (!isRecord(value) || typeof value.enabled !== "boolean") return undefined;
+  const duration = durationField ? value[durationField] : null;
+  return {
+    enabled: value.enabled,
+    duration: typeof duration === "number" && Number.isFinite(duration) ? duration : null,
   };
 }
 
@@ -203,9 +247,9 @@ export async function getOfficialKickChannelAccountStatus(
   const normalizedSlug = slug.trim().toLowerCase();
   try {
     const response = await client.request<KickApiResponse<KickApiChannel[]>>(
-        `/channels?slug=${encodeURIComponent(normalizedSlug)}`,
-        undefined,
-        "app"
+      `/channels?slug=${encodeURIComponent(normalizedSlug)}`,
+      undefined,
+      "app"
     );
     const exactChannel = Array.isArray(response?.data)
       ? response.data.find((channel) => channel?.slug?.trim().toLowerCase() === normalizedSlug)
@@ -225,13 +269,18 @@ export async function getOfficialKickChannelAccountStatus(
  */
 export async function getChannel(
   client: KickRequestor,
-  slug: string
+  slug: string,
+  options: { freshChatroomSettings?: boolean } = {}
 ): Promise<UnifiedChannel | null> {
   const normalizedSlug = slug.toLowerCase().trim();
 
   // Check cache first to reduce API calls and avoid 429 errors
   const cached = _channelCache.get(normalizedSlug);
-  if (cached && Date.now() - cached.timestamp < CHANNEL_CACHE_TTL) {
+  if (
+    !options.freshChatroomSettings &&
+    cached &&
+    Date.now() - cached.timestamp < CHANNEL_CACHE_TTL
+  ) {
     return cached.channel;
   }
 
@@ -281,7 +330,11 @@ export async function getChannel(
         // state, but it does not expose chatroom metadata. Kick chat cannot
         // connect without the legacy v2 chatroom id, so hydrate live channels
         // as well as offline channels without replacing official identity.
-        if (!enrichedChannel.isLive || !enrichedChannel.chatroomId) {
+        if (
+          options.freshChatroomSettings ||
+          !enrichedChannel.isLive ||
+          !enrichedChannel.chatroomId
+        ) {
           try {
             const publicChannel = await getPublicChannel(slug, { priority: "high" });
             if (publicChannel?.username.toLowerCase() === normalizedSlug) {
@@ -542,9 +595,7 @@ async function fetchChannelsByBroadcasterIds(
           fallbackIndex + KICK_CHANNEL_FALLBACK_BATCH_SIZE
         );
         try {
-          channels.push(
-            ...(await requestChannelsByBroadcasterIds(client, fallbackIds, authMode))
-          );
+          channels.push(...(await requestChannelsByBroadcasterIds(client, fallbackIds, authMode)));
         } catch (fallbackError) {
           if (!isKickServerError(fallbackError)) {
             throw fallbackError;
@@ -670,19 +721,35 @@ function dispatchBrowserWindowSlot(): void {
 }
 
 export function acquireBrowserWindowSlot(
-  priority: BrowserWindowPriority = "normal"
+  priority: BrowserWindowPriority = "normal",
+  timeoutMs?: number
 ): Promise<() => void> {
-  return new Promise((resolve) => {
-    _browserWindowQueues[priority].push(resolve);
+  return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const queued = (release: () => void) => {
+      if (timer) clearTimeout(timer);
+      resolve(release);
+    };
+    _browserWindowQueues[priority].push(queued);
+    if (timeoutMs !== undefined) {
+      // timer-allowlist: removes abandoned hidden-window work from the shared queue.
+      timer = setTimeout(() => {
+        const index = _browserWindowQueues[priority].indexOf(queued);
+        if (index < 0) return;
+        _browserWindowQueues[priority].splice(index, 1);
+        reject(new Error("browser-window-slot-timeout"));
+      }, timeoutMs);
+    }
     dispatchBrowserWindowSlot();
   });
 }
 
 /**
  * Get channel info using the public/legacy API (No Auth Required)
- * GET https://kick.com/api/v1/channels/:slug
+ * GET https://kick.com/api/v2/channels/:slug
  *
- * Uses a hidden Electron BrowserWindow to bypass Cloudflare/WAF 403 protections.
+ * Uses the persistent Electron session directly, with a hidden BrowserWindow
+ * fallback for Cloudflare/WAF challenges that require page runtime state.
  * Same-priority calls for a slug share an in-flight promise. An interactive
  * request may bypass a queued background lookup for that slug. Persistent
  * failures are negative-cached so polling does not repeatedly open windows for
@@ -733,54 +800,67 @@ async function _doFetchPublicChannel(
   // load profile that triggered the cascade in the first place.
   if (isKickLocallyDown()) return null;
 
-  // Wait for our turn so only one hidden BrowserWindow exists at a time.
-  // This is the single biggest GPU-load lever in the codebase.
-  const queuedAt = Date.now();
-  const releaseSlot = await acquireBrowserWindowSlot(priority);
-  queueWaitMs = Date.now() - queuedAt;
-
-  // Re-check after acquiring the slot — the network may have crashed while
-  // we were queued behind another caller's 10s load timeout.
-  if (isKickLocallyDown()) {
-    releaseSlot();
-    return null;
-  }
-
+  let releaseSlot: (() => void) | null = null;
   let win: BrowserWindow | null = null;
   let failed = true;
   let networkBlip = false;
   try {
-    const url = `${KICK_LEGACY_API_V2_BASE}/channels/${slug}`;
+    const channelPath = `/api/v2/channels/${encodeURIComponent(slug)}`;
+    let pageContent: string | undefined;
+    let parsed: unknown;
 
-    // Create a hidden window
-    win = new BrowserWindow({
-      show: false,
-      width: 800,
-      height: 600,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        partition: "persist:kick_public", // Use a persistent partition to cache Cloudflare tokens
-      },
-    });
+    const directResponse = await requestPublicKickSession(channelPath);
+    if (directResponse.kind === "response" && directResponse.ok) {
+      try {
+        const candidate: unknown = JSON.parse(directResponse.body);
+        if (isResolvedPublicChannelPayload(candidate)) {
+          parsed = candidate;
+          pageContent = directResponse.body;
+        }
+      } catch {
+        // A successful HTML/challenge response is retried in page context below.
+      }
+    } else if (
+      directResponse.kind === "response" &&
+      ![401, 403, 419].includes(directResponse.status)
+    ) {
+      return null;
+    }
 
-    // Set a timeout for page load
-    const loadPromise = win.loadURL(url);
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      // timer-allowlist: Promise.race nav-timeout on win.loadURL (SP3 out-of-scope)
-      setTimeout(() => reject(new Error("Page load timeout")), PUBLIC_CHANNEL_LOAD_TIMEOUT_MS)
-    );
+    if (!isPublicChannelPayload(parsed)) {
+      const queuedAt = Date.now();
+      releaseSlot = await acquireBrowserWindowSlot(priority);
+      queueWaitMs = Date.now() - queuedAt;
+      if (isKickLocallyDown()) return null;
 
-    const loadStartedAt = Date.now();
-    await Promise.race([loadPromise, timeoutPromise]);
-    loadMs = Date.now() - loadStartedAt;
+      const url = `${KICK_LEGACY_API_V2_BASE}/channels/${encodeURIComponent(slug.trim())}`;
+      win = createHiddenKickBrowserWindow({
+        width: 800,
+        height: 600,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          partition: "persist:kick_public",
+        },
+      });
 
-    // Extract JSON content from the page body
-    const extractStartedAt = Date.now();
-    const pageContent = await win.webContents.executeJavaScript(`
-            document.body.innerText;
-        `);
-    extractMs = Date.now() - extractStartedAt;
+      const loadPromise = win.loadURL(url);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        // timer-allowlist: Promise.race nav-timeout on win.loadURL (SP3 out-of-scope)
+        setTimeout(() => reject(new Error("Page load timeout")), PUBLIC_CHANNEL_LOAD_TIMEOUT_MS)
+      );
+
+      const loadStartedAt = Date.now();
+      await Promise.race([loadPromise, timeoutPromise]);
+      loadMs = Date.now() - loadStartedAt;
+
+      const extractStartedAt = Date.now();
+      const extracted: unknown = await win.webContents.executeJavaScript(
+        "document.body.innerText;"
+      );
+      extractMs = Date.now() - extractStartedAt;
+      pageContent = typeof extracted === "string" ? extracted : undefined;
+    }
 
     if (!pageContent) {
       logger.warn("Kick:Endpoints:Channel", "Empty response for slug", { slug });
@@ -802,23 +882,32 @@ async function _doFetchPublicChannel(
       return null;
     }
 
-    let data: Record<string, any>;
-    try {
-      data = JSON.parse(pageContent);
-    } catch (_e) {
-      // Check for Cloudflare challenge or error pages
-      const title = win.title;
-      if (title.includes("Just a moment") || title.includes("Access denied")) {
-        logger.warn("Kick:Endpoints:Channel", "Cloudflare challenge triggered", { slug });
-      } else if (pageContent.includes("404")) {
+    if (!isPublicChannelPayload(parsed)) {
+      try {
+        parsed = JSON.parse(pageContent);
+      } catch (_e) {
+        // Check for Cloudflare challenge or error pages
+        const title = win?.title ?? "";
+        if (title.includes("Just a moment") || title.includes("Access denied")) {
+          logger.warn("Kick:Endpoints:Channel", "Cloudflare challenge triggered", { slug });
+        } else if (pageContent.includes("404")) {
+          return null;
+        }
+        logger.warn("Kick:Endpoints:Channel", "Failed to parse JSON", {
+          slug,
+          contentPreview: pageContent.substring(0, 100),
+        });
         return null;
       }
-      logger.warn("Kick:Endpoints:Channel", "Failed to parse JSON", {
+    }
+
+    if (!isPublicChannelPayload(parsed)) {
+      logger.warn("Kick:Endpoints:Channel", "Public channel payload did not match expected shape", {
         slug,
-        contentPreview: pageContent.substring(0, 100),
       });
       return null;
     }
+    const data = parsed;
 
     if (data.message === "Not found" || data.code === 404) {
       return null;
@@ -860,7 +949,9 @@ async function _doFetchPublicChannel(
 
     // Extract chatroom ID for Pusher WebSocket subscription
     const chatroomId = data.chatroom?.id;
-    const chatroomSettings = mapKickChatroomToSettings(data.chatroom);
+    const chatroomSettings = win
+      ? await fetchKickChatroomSettings(win, slug)
+      : ((await fetchKickChatroomSettingsDirect(slug)) ?? mapKickChatroomToSettings(data.chatroom));
 
     const totalMs = Date.now() - startedAt;
     if (totalMs >= 2000 || queueWaitMs >= 500) {
@@ -881,7 +972,7 @@ async function _doFetchPublicChannel(
       id: userId.toString(),
       platform: "kick",
       username: data.slug || slug,
-      displayName: user.username || data.slug,
+      displayName: user.username || data.slug || slug,
       avatarUrl: pickPublicChannelAvatar(data, user),
       // Try to extract a responsive WebP image from srcset as they may bypass CDN restrictions
       // The srcset contains URLs like: "url1 1200w, url2 1003w, ..."
@@ -890,7 +981,7 @@ async function _doFetchPublicChannel(
         if (!data.offline_banner_image) return undefined;
 
         // Try srcset first (responsive WebP images)
-        if (data.offline_banner_image.srcset) {
+        if (typeof data.offline_banner_image === "object" && data.offline_banner_image.srcset) {
           const srcset = data.offline_banner_image.srcset;
           // Extract first URL from srcset (format: "url 1200w, url2 1003w, ...")
           const firstUrl = srcset.split(",")[0]?.trim().split(" ")[0];
@@ -901,8 +992,12 @@ async function _doFetchPublicChannel(
 
         // Fall back to src/url
         return (
-          data.offline_banner_image.src ||
-          data.offline_banner_image.url ||
+          (typeof data.offline_banner_image === "object"
+            ? data.offline_banner_image.src
+            : undefined) ||
+          (typeof data.offline_banner_image === "object"
+            ? data.offline_banner_image.url
+            : undefined) ||
           (typeof data.offline_banner_image === "string" ? data.offline_banner_image : undefined)
         );
       })(),
@@ -943,17 +1038,9 @@ async function _doFetchPublicChannel(
           : String(error),
     };
     if (_publicChannelWarnedSlugs.has(key) || networkBlip) {
-      logger.debug(
-        "Kick:Endpoints:Channel",
-        "Failed to fetch public Kick channel via Window",
-        errorMeta
-      );
+      logger.debug("Kick:Endpoints:Channel", "Failed to fetch public Kick channel", errorMeta);
     } else {
-      logger.warn(
-        "Kick:Endpoints:Channel",
-        "Failed to fetch public Kick channel via Window",
-        errorMeta
-      );
+      logger.warn("Kick:Endpoints:Channel", "Failed to fetch public Kick channel", errorMeta);
       _publicChannelWarnedSlugs.add(key);
     }
     return null;
@@ -970,6 +1057,105 @@ async function _doFetchPublicChannel(
     }
     // Release AFTER destroying the window so the next caller starts from a
     // clean slate (Chromium reclaims renderer + GPU before the next opens).
-    releaseSlot();
+    releaseSlot?.();
   }
+}
+
+async function fetchKickChatroomSettingsDirect(
+  slug: string
+): Promise<KickChatroomSettings | undefined> {
+  const endpoint = `/api/v2/channels/${encodeURIComponent(slug.trim().toLowerCase())}/chatroom`;
+  const response = await requestPublicKickSession(endpoint);
+  if (response.kind !== "response" || !response.ok || !response.body) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(response.body);
+    return mapKickChatroomSnapshotToSettings(parsed);
+  } catch {
+    return undefined;
+  }
+}
+
+async function fetchKickChatroomSettings(
+  win: BrowserWindow,
+  slug: string
+): Promise<KickChatroomSettings | undefined> {
+  const endpoint = JSON.stringify(
+    `/api/v2/channels/${encodeURIComponent(slug.trim().toLowerCase())}/chatroom`
+  );
+  try {
+    const pageContent: unknown = await win.webContents.executeJavaScript(`
+      (async () => {
+        const response = await fetch(${endpoint}, {
+          credentials: "include",
+          headers: { Accept: "application/json" }
+        });
+        return response.ok ? response.text() : null;
+      })();
+    `);
+    if (typeof pageContent !== "string" || !pageContent) return undefined;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(pageContent);
+    } catch {
+      return undefined;
+    }
+    return mapKickChatroomSnapshotToSettings(parsed);
+  } catch (error) {
+    logger.debug("Kick:Endpoints:Channel", "Authoritative chatroom settings fetch unavailable", {
+      slug,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return undefined;
+  }
+}
+
+interface PublicChannelPayload extends Record<string, unknown> {
+  message?: string;
+  code?: number;
+  id?: string | number;
+  user_id?: string | number;
+  slug?: string;
+  user?: Record<string, unknown> & { username?: string; bio?: string };
+  recent_categories?: Array<{ id?: string | number; name?: string }>;
+  livestream?: null | {
+    categories?: Array<{ id?: string | number; name?: string }>;
+    session_title?: string;
+  };
+  previous_livestreams?: Array<{ session_title?: string }>;
+  chatroom?: Record<string, unknown> & { id?: number };
+  offline_banner_image?: string | { srcset?: string; src?: string; url?: string };
+  verified?: { id?: string | number };
+  followers_count?: string | number;
+  followersCount?: string | number;
+  subscriber_badges?: SubscriberBadge[];
+}
+
+function isPublicChannelPayload(value: unknown): value is PublicChannelPayload {
+  if (typeof value !== "object" || value === null) return false;
+  const payload = value;
+  const validIdentity =
+    (!("id" in payload) || typeof payload.id === "string" || typeof payload.id === "number") &&
+    (!("user_id" in payload) ||
+      typeof payload.user_id === "string" ||
+      typeof payload.user_id === "number");
+  const validUser =
+    !("user" in payload) ||
+    payload.user === undefined ||
+    (typeof payload.user === "object" && payload.user !== null);
+  const validBadges =
+    !("subscriber_badges" in payload) ||
+    payload.subscriber_badges === undefined ||
+    Array.isArray(payload.subscriber_badges);
+  return validIdentity && validUser && validBadges;
+}
+
+function isResolvedPublicChannelPayload(value: unknown): value is PublicChannelPayload {
+  if (!isPublicChannelPayload(value)) return false;
+  return (
+    value.id !== undefined ||
+    value.user_id !== undefined ||
+    value.message === "Not found" ||
+    value.code === 404
+  );
 }

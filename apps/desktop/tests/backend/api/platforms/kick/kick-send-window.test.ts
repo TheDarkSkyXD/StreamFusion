@@ -1,23 +1,36 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const credentialMocks = vi.hoisted(() => ({
+  saveKickWebBearer: vi.fn(),
+  getKickWebBearer: vi.fn<() => string | null>(),
+  clearKickWebBearer: vi.fn(),
+}));
+
+const electronSessionMocks = vi.hoisted(() => ({
+  fetch: vi.fn(),
+}));
+
+vi.mock("@/backend/services/storage-service", () => ({
+  storageService: credentialMocks,
+}));
+
 // Electron mock — replaced per-test as needed.
 vi.mock("electron", () => ({
   BrowserWindow: vi.fn(),
   session: {
     defaultSession: {
+      fetch: electronSessionMocks.fetch,
       cookies: {
-        get: vi.fn(() => Promise.resolve([{ name: "session_token" }])),
+        get: vi.fn(() =>
+          Promise.resolve([
+            { name: "session_token", session: false, expirationDate: 1_800_000_000 },
+          ])
+        ),
+        set: vi.fn(() => Promise.resolve()),
+        flushStore: vi.fn(() => Promise.resolve()),
       },
       webRequest: { onBeforeSendHeaders: vi.fn() },
     },
-  },
-}));
-
-vi.mock("@/backend/auth/kick-auth", () => ({
-  kickAuthService: {
-    isAuthenticated: vi.fn(() => false),
-    ensureValidToken: vi.fn(),
-    getAccessToken: vi.fn(() => null),
   },
 }));
 
@@ -42,14 +55,33 @@ import {
   timeoutKickChatUser,
   type KickSendResult,
 } from "@/backend/api/platforms/kick/kick-send-window";
+import { BrowserWindow, type Session } from "electron";
+
+const BrowserWindowMock = vi.mocked(BrowserWindow);
 
 beforeEach(async () => {
   const { session } = await import("electron");
   vi.mocked(session.defaultSession.cookies.get)
     .mockReset()
     .mockResolvedValue([
-      { name: "session_token", value: "present", sameSite: "unspecified" },
+      {
+        name: "session_token",
+        value: "present",
+        domain: ".kick.com",
+        path: "/",
+        secure: true,
+        httpOnly: true,
+        sameSite: "unspecified",
+        session: false,
+        expirationDate: 1_800_000_000,
+      },
     ]);
+  vi.mocked(session.defaultSession.cookies.set).mockReset().mockResolvedValue(undefined);
+  vi.mocked(session.defaultSession.cookies.flushStore).mockReset().mockResolvedValue(undefined);
+  credentialMocks.saveKickWebBearer.mockReset();
+  credentialMocks.getKickWebBearer.mockReset().mockReturnValue(null);
+  credentialMocks.clearKickWebBearer.mockReset();
+  electronSessionMocks.fetch.mockReset().mockRejectedValue(new Error("direct session blocked"));
 });
 
 afterEach(() => {
@@ -61,6 +93,15 @@ describe("module skeleton", () => {
   it("KickSendResult type accepts the ok=true variant", () => {
     const r: KickSendResult = { ok: true, messageId: "abc" };
     expect(r.ok).toBe(true);
+  });
+
+  it("KickSendResult models incomplete website setup separately from expired auth", () => {
+    const r: KickSendResult = {
+      ok: false,
+      kind: "setup-required",
+      message: "Kick chat authentication expired. Reconnect Kick in Settings.",
+    };
+    expect(r.kind).toBe("setup-required");
   });
 
   it("bearer test hooks round-trip a value", () => {
@@ -126,16 +167,14 @@ describe("buildSendIIFE", () => {
 
 describe("buildKickWebApiGetIIFE", () => {
   it("builds a credentialed GET with JSON-escaped path and bearer", () => {
-    const src = buildKickWebApiGetIIFE(
-      `/api/v2/user/subscriptions?x="quoted"`,
-      "Bearer 1|abc"
-    );
+    const src = buildKickWebApiGetIIFE(`/api/v2/user/subscriptions?x="quoted"`, "Bearer 1|abc");
 
     expect(src).toContain(`method: "GET"`);
     expect(src).toContain(JSON.stringify(`/api/v2/user/subscriptions?x="quoted"`));
     expect(src).toContain(JSON.stringify("Bearer 1|abc"));
     expect(src).toContain(`"X-Requested-With"`);
     expect(src).toContain(`credentials: "include"`);
+    expect(src).toContain(`cache: "no-store"`);
   });
 });
 
@@ -258,28 +297,37 @@ describe("classifySendResult", () => {
 
 describe("installBearerInterceptor", () => {
   function makeFakeSession(): {
-    listener: ((d: any, cb: (r: { requestHeaders: any }) => void) => void) | null;
-    session: any;
+    listener: ((d: unknown, cb: (r: { requestHeaders: unknown }) => void) => void) | null;
+    session: Session;
   } {
-    let listener: any = null;
+    let listener: ((d: unknown, cb: (r: { requestHeaders: unknown }) => void) => void) | null =
+      null;
     const session = {
       webRequest: {
-        onBeforeSendHeaders: vi.fn((_filter: unknown, l: any) => {
+        onBeforeSendHeaders: vi.fn((_filter: unknown, l: typeof listener) => {
           listener = l;
         }),
       },
     };
-    return { session, get listener() { return listener; } };
+    return {
+      session: session as unknown as Session,
+      get listener() {
+        return listener;
+      },
+    };
   }
 
   it("captures a Sanctum bearer and updates the cache", () => {
     const fake = makeFakeSession();
     installBearerInterceptor(fake.session);
     const cb = vi.fn();
-    fake.listener!({
-      requestHeaders: { Authorization: "Bearer 1|abc" },
-      url: "https://kick.com/api/v2/anything",
-    }, cb);
+    fake.listener!(
+      {
+        requestHeaders: { Authorization: "Bearer 1|abc" },
+        url: "https://kick.com/api/v2/anything",
+      },
+      cb
+    );
     expect(getBearerForTest()).toBe("Bearer 1|abc");
     expect(cb).toHaveBeenCalledWith({ requestHeaders: { Authorization: "Bearer 1|abc" } });
   });
@@ -298,6 +346,7 @@ describe("installBearerInterceptor", () => {
     );
 
     expect(getBearerForTest()).toBe("Bearer 1|lowercase");
+    expect(credentialMocks.saveKickWebBearer).toHaveBeenCalledWith("Bearer 1|lowercase");
   });
 
   it("ignores non-Sanctum Authorization values", () => {
@@ -305,10 +354,13 @@ describe("installBearerInterceptor", () => {
     const fake = makeFakeSession();
     installBearerInterceptor(fake.session);
     const cb = vi.fn();
-    fake.listener!({
-      requestHeaders: { Authorization: "Bearer eyJhbGciOiJIUzI1NiJ9.x.y" },
-      url: "https://kick.com/api/v2/anything",
-    }, cb);
+    fake.listener!(
+      {
+        requestHeaders: { Authorization: "Bearer eyJhbGciOiJIUzI1NiJ9.x.y" },
+        url: "https://kick.com/api/v2/anything",
+      },
+      cb
+    );
     expect(getBearerForTest()).toBe("Bearer 1|previous");
   });
 
@@ -326,7 +378,7 @@ describe("installBearerInterceptor", () => {
     installBearerInterceptor(fake.session);
     expect(fake.session.webRequest.onBeforeSendHeaders).toHaveBeenCalledWith(
       { urls: ["https://*.kick.com/*"] },
-      expect.any(Function),
+      expect.any(Function)
     );
   });
 });
@@ -356,21 +408,109 @@ describe("isSanctumBearer", () => {
 // (per U20.c speed-fix); WARMUP_TIMEOUT_MS is 10s in the source and the polling uses sleep()
 // (setTimeout) inside _pollPredicate so vi.advanceTimersByTimeAsync drains the loop without
 // burning real wall-clock.
-// Guards: a missing default-session cookie fails before constructing or retrying a hidden window.
+// Guards: a send with only Kick's anonymous session cookie reports setup-required without opening a window.
+// Guards: a durable HttpOnly kick_session cookie can bootstrap hidden chat readiness without session_token.
+// Guards: an anonymous Kick page that never emits a Sanctum bearer reports setup-required.
+// Guards: authenticated hidden readiness renews and flushes the durable Kick website session.
+// Guards: the persistent hidden Kick sender cannot autoplay audible channel media behind the muted player.
 describe("ensureSendWindowReady", () => {
-  it("fails fast without creating a hidden window when the session cookie is absent", async () => {
+  it("restores the encrypted Sanctum bearer after a process restart", async () => {
+    const setAudioMuted = vi.fn();
+    credentialMocks.getKickWebBearer.mockReturnValue("Bearer 1|restored");
+    const fakeWin = {
+      loadURL: vi.fn(() => Promise.resolve()),
+      webContents: {
+        executeJavaScript: vi.fn(),
+        on: vi.fn(),
+        setAudioMuted,
+        session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    BrowserWindowMock.mockImplementation(function (this: unknown) {
+      return fakeWin;
+    });
+
+    await expect(ensureSendWindowReady("xqc")).resolves.toBeUndefined();
+
+    expect(fakeWin.loadURL).toHaveBeenCalledWith("https://kick.com/xqc");
+    expect(setAudioMuted).toHaveBeenCalledWith(true);
+    expect(getBearerForTest()).toBe("Bearer 1|restored");
+  });
+
+  it("recovers and encrypts a Sanctum bearer from the durable session cookie", async () => {
+    const { session } = await import("electron");
+    vi.mocked(session.defaultSession.cookies.get).mockResolvedValue([
+      {
+        name: "session_token",
+        value: "123|cookiebearer",
+        domain: ".kick.com",
+        path: "/",
+        secure: true,
+        httpOnly: true,
+        sameSite: "unspecified",
+        session: false,
+        expirationDate: 1_900_000_000,
+      },
+    ]);
+    const fakeWin = {
+      loadURL: vi.fn(() => Promise.resolve()),
+      webContents: {
+        executeJavaScript: vi.fn(),
+        on: vi.fn(),
+        session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    BrowserWindowMock.mockImplementation(function (this: unknown) {
+      return fakeWin;
+    });
+
+    await expect(ensureSendWindowReady("vitaly")).resolves.toBeUndefined();
+
+    expect(getBearerForTest()).toBe("Bearer 123|cookiebearer");
+    expect(credentialMocks.saveKickWebBearer).toHaveBeenCalledWith("Bearer 123|cookiebearer");
+    expect(fakeWin.loadURL).toHaveBeenCalledWith("https://kick.com/vitaly");
+  });
+
+  it("reports setup-required before constructing a hidden window for an anonymous session", async () => {
+    const { BrowserWindow, session } = await import("electron");
+    vi.mocked(session.defaultSession.cookies.get).mockResolvedValue([
+      {
+        name: "session_token",
+        value: "anonymous",
+        sameSite: "unspecified",
+        session: true,
+      },
+    ]);
+    vi.mocked(BrowserWindow).mockClear();
+
+    await expect(ensureSendWindowReady()).rejects.toMatchObject({
+      kind: "setup-required",
+      userMessage: "Kick chat authentication expired. Reconnect Kick in Settings.",
+    });
+
+    expect(BrowserWindow).not.toHaveBeenCalled();
+  });
+
+  it("returns typed setup-required from send without opening any window", async () => {
     const { BrowserWindow, session } = await import("electron");
     vi.mocked(session.defaultSession.cookies.get).mockResolvedValue([]);
+    vi.mocked(BrowserWindow).mockClear();
 
-    await expect(ensureSendWindowReady()).rejects.toThrow(
-      /Kick web session is not ready; reconnect Kick in Settings/
-    );
-
-    expect(session.defaultSession.cookies.get).toHaveBeenCalledTimes(1);
+    await expect(sendKickChatMessage(42, "hello")).resolves.toEqual({
+      ok: false,
+      kind: "setup-required",
+      message: "Kick chat authentication expired. Reconnect Kick in Settings.",
+    });
     expect(BrowserWindow).not.toHaveBeenCalled();
   });
 
   it("two concurrent calls share one warmup promise", async () => {
+    const startedAt = Date.UTC(2026, 7, 20);
+    const now = vi.spyOn(Date, "now").mockReturnValue(startedAt);
     const acquired: number[] = [];
     const fakeWin = {
       loadURL: vi.fn(() => Promise.resolve()),
@@ -386,10 +526,10 @@ describe("ensureSendWindowReady", () => {
       destroy: vi.fn(),
       isDestroyed: vi.fn(() => false),
     };
-    const { BrowserWindow } = await import("electron");
+    const { BrowserWindow, session } = await import("electron");
     // vitest 4 requires `function` or `class` in mock impls for `new`
     // constructability — arrow functions throw "is not a constructor".
-    (BrowserWindow as any).mockImplementation(function (this: unknown) {
+    BrowserWindowMock.mockImplementation(function (this: unknown) {
       acquired.push(1);
       // Simulate bearer capture happening during loadURL.
       setBearerForTest("Bearer 1|cap");
@@ -401,9 +541,20 @@ describe("ensureSendWindowReady", () => {
     expect(b).toBeUndefined();
     expect(acquired.length).toBe(1);
     expect(await isKickWebApiReady()).toBe(true);
+    expect(session.defaultSession.cookies.set).toHaveBeenCalled();
+    expect(session.defaultSession.cookies.flushStore).toHaveBeenCalledOnce();
+
+    now.mockReturnValue(startedAt + 24 * 60 * 60 * 1000 - 1);
+    await ensureSendWindowReady();
+    expect(session.defaultSession.cookies.flushStore).toHaveBeenCalledOnce();
+
+    now.mockReturnValue(startedAt + 24 * 60 * 60 * 1000);
+    await ensureSendWindowReady();
+    expect(session.defaultSession.cookies.flushStore).toHaveBeenCalledTimes(2);
 
     fakeWin.webContents.executeJavaScript.mockResolvedValue(false);
-    expect(await isKickWebApiReady()).toBe(false);
+    expect(await isKickWebApiReady()).toBe(true);
+    expect(fakeWin.webContents.executeJavaScript).not.toHaveBeenCalled();
   });
 
   it("recreates a window destroyed during warmup", async () => {
@@ -432,7 +583,7 @@ describe("ensureSendWindowReady", () => {
     };
     const { BrowserWindow } = await import("electron");
     let constructionCount = 0;
-    (BrowserWindow as any).mockImplementation(function (this: unknown) {
+    BrowserWindowMock.mockImplementation(function (this: unknown) {
       constructionCount += 1;
       return constructionCount === 1 ? destroyedWin : readyWin;
     });
@@ -456,7 +607,27 @@ describe("ensureSendWindowReady", () => {
       vi.useRealTimers();
     });
 
-    it("accepts an HttpOnly session cookie from the Electron session", async () => {
+    it("uses a durable HttpOnly kick_session cookie as bootstrap evidence", async () => {
+      const { session } = await import("electron");
+      vi.mocked(session.defaultSession.cookies.get).mockImplementation((filter) =>
+        Promise.resolve(
+          filter.name === "session_token"
+            ? []
+            : [
+                {
+                  name: "kick_session",
+                  value: "redacted",
+                  domain: ".kick.com",
+                  path: "/",
+                  secure: true,
+                  sameSite: "unspecified",
+                  httpOnly: true,
+                  session: false,
+                  expirationDate: 1_800_000_000,
+                },
+              ]
+        )
+      );
       const fakeWin = {
         loadURL: vi.fn(() => {
           setBearerForTest("Bearer 1|captured");
@@ -465,18 +636,35 @@ describe("ensureSendWindowReady", () => {
         webContents: {
           executeJavaScript: vi.fn(() => Promise.resolve(false)),
           on: vi.fn(),
-          session: {
-            cookies: {
-              get: vi.fn(() => Promise.resolve([{ name: "session_token" }])),
-            },
-            webRequest: { onBeforeSendHeaders: vi.fn() },
-          },
+          session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
+        },
+        destroy: vi.fn(),
+        isDestroyed: vi.fn(() => false),
+      };
+      BrowserWindowMock.mockImplementation(function (this: unknown) {
+        return fakeWin;
+      });
+
+      await expect(ensureSendWindowReady()).resolves.toBeUndefined();
+      expect(fakeWin.webContents.executeJavaScript).not.toHaveBeenCalled();
+    });
+
+    it("uses bearer capture as readiness without probing page-visible cookies", async () => {
+      const fakeWin = {
+        loadURL: vi.fn(() => {
+          setBearerForTest("Bearer 1|captured");
+          return Promise.resolve();
+        }),
+        webContents: {
+          executeJavaScript: vi.fn(() => Promise.resolve(false)),
+          on: vi.fn(),
+          session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
         },
         destroy: vi.fn(),
         isDestroyed: vi.fn(() => false),
       };
       const { BrowserWindow } = await import("electron");
-      (BrowserWindow as any).mockImplementation(function (this: unknown) {
+      BrowserWindowMock.mockImplementation(function (this: unknown) {
         return fakeWin;
       });
 
@@ -485,10 +673,7 @@ describe("ensureSendWindowReady", () => {
       await vi.advanceTimersByTimeAsync(10_100);
 
       await expect(readiness).resolves.toBeUndefined();
-      expect(fakeWin.webContents.session.cookies.get).toHaveBeenCalledWith({
-        url: "https://kick.com/",
-        name: "session_token",
-      });
+      expect(fakeWin.webContents.executeJavaScript).not.toHaveBeenCalled();
     });
 
     it("retries once, then reports the secret-free readiness reason", async () => {
@@ -507,7 +692,7 @@ describe("ensureSendWindowReady", () => {
       };
       const { BrowserWindow } = await import("electron");
       let constructionCount = 0;
-      (BrowserWindow as any).mockImplementation(function (this: unknown) {
+      BrowserWindowMock.mockImplementation(function (this: unknown) {
         constructionCount += 1;
         return fakeWin;
       });
@@ -522,12 +707,12 @@ describe("ensureSendWindowReady", () => {
       // after a 200ms sleep, so once fake time is past 10s the loop throws.
       await vi.advanceTimersByTimeAsync(20_100);
       await expect(promise).rejects.toThrow(
-        /send-window-warmup-timeout: timeout;.*attempt=2\/2 cookiePresent=false bearerCaptured=false windowDestroyed=false elapsedMs=10000/
+        /send-window-warmup-timeout: timeout;.*attempt=2\/2 bearerCaptured=false windowDestroyed=false elapsedMs=10000/
       );
       expect(constructionCount).toBe(2);
     });
 
-    it("returns an actionable auth error when required send readiness is exhausted", async () => {
+    it("returns setup-required when an anonymous page never emits a Sanctum bearer", async () => {
       const fakeWin = {
         loadURL: vi.fn(() => Promise.resolve()),
         webContents: {
@@ -544,7 +729,7 @@ describe("ensureSendWindowReady", () => {
         isDestroyed: vi.fn(() => false),
       };
       const { BrowserWindow } = await import("electron");
-      (BrowserWindow as any).mockImplementation(function (this: unknown) {
+      BrowserWindowMock.mockImplementation(function (this: unknown) {
         return fakeWin;
       });
 
@@ -554,8 +739,8 @@ describe("ensureSendWindowReady", () => {
 
       await expect(send).resolves.toEqual({
         ok: false,
-        kind: "auth-expired",
-        message: "Kick web session is not ready; reconnect Kick in Settings.",
+        kind: "setup-required",
+        message: "Kick chat authentication expired. Reconnect Kick in Settings.",
       });
     });
 
@@ -570,15 +755,17 @@ describe("ensureSendWindowReady", () => {
             webRequest: { onBeforeSendHeaders: vi.fn() },
           },
         },
-        destroy: vi.fn(() => { destroyCalls.push(1); }),
+        destroy: vi.fn(() => {
+          destroyCalls.push(1);
+        }),
         isDestroyed: vi.fn(() => false),
       };
       const { BrowserWindow } = await import("electron");
-      (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
-        function (this: unknown) {
-          return fakeWin;
-        } as unknown as () => unknown,
-      );
+      (
+        BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }
+      ).mockImplementation(function (this: unknown) {
+        return fakeWin;
+      } as unknown as () => unknown);
 
       const promise = ensureSendWindowReady();
       promise.catch(() => {});
@@ -613,7 +800,7 @@ describe("sendKickChatMessage happy path", () => {
     const { BrowserWindow } = await import("electron");
     // vitest 4 requires `function` or `class` in mock impls for `new`
     // constructability — arrow functions throw "is not a constructor".
-    (BrowserWindow as any).mockImplementation(function (this: unknown) {
+    BrowserWindowMock.mockImplementation(function (this: unknown) {
       setBearerForTest("Bearer 1|abc");
       return fakeWin;
     });
@@ -628,17 +815,17 @@ describe("sendKickChatMessage happy path", () => {
           status: 200,
           body: JSON.stringify({ data: { id: "msg-123" } }),
           retryAfter: null,
-        }),
+        })
       );
     });
 
-    await ensureSendWindowReady();
-    const result = await sendKickChatMessage(14161546, "hello");
+    const result = await sendKickChatMessage(14161546, "hello", "xqc");
     expect(result).toEqual({ ok: true, messageId: "msg-123" });
+    expect(fakeWin.loadURL).toHaveBeenCalledWith("https://kick.com/xqc");
 
     // The send IIFE was called with the chatroom id and bearer interpolated.
-    const sendCalls = executeJavaScript.mock.calls.filter((c: any[]) =>
-      String(c[0]).includes("/api/v2/messages/send/14161546"),
+    const sendCalls = executeJavaScript.mock.calls.filter((c: unknown[]) =>
+      String(c[0]).includes("/api/v2/messages/send/14161546")
     );
     expect(sendCalls.length).toBe(1);
     expect(String(sendCalls[0][0])).toContain(`"Bearer 1|abc"`);
@@ -646,6 +833,98 @@ describe("sendKickChatMessage happy path", () => {
 });
 
 describe("fetchKickWebApiGet", () => {
+  // Guards: persisted Kick web credentials use Electron's cookie-bearing session directly before creating a renderer fallback.
+  it("uses the direct authenticated session without constructing a hidden window", async () => {
+    credentialMocks.getKickWebBearer.mockReturnValue("Bearer 1|persisted");
+    electronSessionMocks.fetch.mockResolvedValue(
+      new Response(JSON.stringify({ data: [{ channel: { slug: "subbed" } }] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    BrowserWindowMock.mockClear();
+
+    const result = await fetchKickWebApiGet("/api/v2/user/subscriptions");
+
+    expect(result).toEqual({
+      ok: true,
+      status: 200,
+      body: JSON.stringify({ data: [{ channel: { slug: "subbed" } }] }),
+    });
+    expect(electronSessionMocks.fetch).toHaveBeenCalledWith(
+      "https://kick.com/api/v2/user/subscriptions",
+      expect.objectContaining({
+        credentials: "include",
+        headers: expect.objectContaining({ Authorization: "Bearer 1|persisted" }),
+      })
+    );
+    expect(BrowserWindowMock).not.toHaveBeenCalled();
+  });
+
+  it("reuses an existing sender window when a direct read requires browser fallback", async () => {
+    credentialMocks.getKickWebBearer.mockReturnValue("Bearer 1|persisted");
+    electronSessionMocks.fetch.mockResolvedValue(
+      new Response(JSON.stringify({ message: "Unauthenticated." }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    const executeJavaScript = vi.fn().mockResolvedValue(
+      JSON.stringify({
+        ok: true,
+        status: 200,
+        body: JSON.stringify({ data: [] }),
+        retryAfter: null,
+      })
+    );
+    const fakeWin = {
+      loadURL: vi.fn().mockResolvedValue(undefined),
+      webContents: {
+        executeJavaScript,
+        on: vi.fn(),
+        session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    BrowserWindowMock.mockImplementation(function (this: unknown) {
+      return fakeWin;
+    });
+
+    await ensureSendWindowReady();
+    const result = await fetchKickWebApiGet("/api/v2/user/subscriptions");
+
+    expect(result).toEqual({ ok: true, status: 200, body: JSON.stringify({ data: [] }) });
+    expect(BrowserWindowMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns a bounded error when send-window navigation never settles", async () => {
+    vi.useFakeTimers();
+    const fakeWin = {
+      loadURL: vi.fn(() => new Promise<void>(() => {})),
+      webContents: {
+        executeJavaScript: vi.fn(),
+        on: vi.fn(),
+        session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
+      },
+      destroy: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+    };
+    const { BrowserWindow } = await import("electron");
+    (
+      BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }
+    ).mockImplementation(function (this: unknown) {
+      return fakeWin;
+    } as unknown as () => unknown);
+
+    const pending = fetchKickWebApiGet("/api/v2/channels/followed");
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    await expect(pending).resolves.toMatchObject({ ok: false, kind: "network", status: 0 });
+    expect(fakeWin.destroy).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
   // Guards: raw moderation-state reads are not exposed through the generic hidden-window GET transport.
   it("rejects the unverified bare bans-list path", async () => {
     const { BrowserWindow } = await import("electron");
@@ -696,11 +975,11 @@ describe("fetchKickWebApiGet", () => {
       isDestroyed: vi.fn(() => false),
     };
     const { BrowserWindow } = await import("electron");
-    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
-      function (this: unknown) {
-        return fakeWin;
-      } as unknown as () => unknown
-    );
+    (
+      BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }
+    ).mockImplementation(function (this: unknown) {
+      return fakeWin;
+    } as unknown as () => unknown);
 
     executeJavaScript.mockImplementation((src: string) => {
       if (src.includes("document.cookie")) return Promise.resolve(true);
@@ -748,11 +1027,11 @@ describe("fetchKickWebApiGet", () => {
       isDestroyed: vi.fn(() => false),
     };
     const { BrowserWindow } = await import("electron");
-    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
-      function (this: unknown) {
-        return fakeWin;
-      } as unknown as () => unknown
-    );
+    (
+      BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }
+    ).mockImplementation(function (this: unknown) {
+      return fakeWin;
+    } as unknown as () => unknown);
 
     executeJavaScript.mockImplementation((src: string) => {
       if (src.includes("document.cookie")) return Promise.resolve(true);
@@ -797,10 +1076,12 @@ describe("getKickChannelViewerRole", () => {
   });
 
   it("leaves guessed role arrays and unknown shapes unverifiable", () => {
-    expect(parseKickChannelViewerRoleBody(JSON.stringify({ roles: ["subscriber", "moderator"] }))).toBe(
-      null
-    );
-    expect(parseKickChannelViewerRoleBody(JSON.stringify({ data: { following: true } }))).toBeNull();
+    expect(
+      parseKickChannelViewerRoleBody(JSON.stringify({ roles: ["subscriber", "moderator"] }))
+    ).toBe(null);
+    expect(
+      parseKickChannelViewerRoleBody(JSON.stringify({ data: { following: true } }))
+    ).toBeNull();
   });
 
   it("fails closed without warming the hidden window when authority is unverifiable", async () => {
@@ -834,11 +1115,11 @@ describe("getKickChannelViewerRole", () => {
     };
     const { BrowserWindow } = await import("electron");
     (BrowserWindow as unknown as { mockClear: () => void }).mockClear();
-    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
-      function (this: unknown) {
-        return fakeWin;
-      } as unknown as () => unknown
-    );
+    (
+      BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }
+    ).mockImplementation(function (this: unknown) {
+      return fakeWin;
+    } as unknown as () => unknown);
 
     await expect(getKickChannelViewerRole("XQC")).resolves.toEqual({
       ok: true,
@@ -878,7 +1159,7 @@ describe("getKickChannelViewerRole", () => {
     };
     const { BrowserWindow } = await import("electron");
     (BrowserWindow as unknown as { mockClear: () => void }).mockClear();
-    (BrowserWindow as any).mockImplementation(function (this: unknown) {
+    BrowserWindowMock.mockImplementation(function (this: unknown) {
       return fakeWin;
     });
 
@@ -897,9 +1178,7 @@ describe("getKickChannelViewerRole", () => {
 // Guards: the hidden-window mutation allowlist admits exact Kick follow paths and rejects lookalikes.
 describe("fetchKickWebApiMutation", () => {
   it("allows a canonical channel follow POST", () => {
-    expect(isAllowedKickWebApiMutation("POST", "/api/v2/channels/space%20name/follow")).toBe(
-      true
-    );
+    expect(isAllowedKickWebApiMutation("POST", "/api/v2/channels/space%20name/follow")).toBe(true);
   });
 
   it("allows a canonical channel unfollow DELETE", () => {
@@ -943,11 +1222,11 @@ describe("fetchKickWebApiMutation", () => {
       isDestroyed: vi.fn(() => false),
     };
     const { BrowserWindow } = await import("electron");
-    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
-      function (this: unknown) {
-        return fakeWin;
-      } as unknown as () => unknown
-    );
+    (
+      BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }
+    ).mockImplementation(function (this: unknown) {
+      return fakeWin;
+    } as unknown as () => unknown);
 
     executeJavaScript.mockImplementation((src: string) => {
       if (src.includes("document.cookie")) return Promise.resolve(true);
@@ -990,11 +1269,11 @@ describe("fetchKickWebApiMutation", () => {
       isDestroyed: vi.fn(() => false),
     };
     const { BrowserWindow } = await import("electron");
-    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
-      function (this: unknown) {
-        return fakeWin;
-      } as unknown as () => unknown
-    );
+    (
+      BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }
+    ).mockImplementation(function (this: unknown) {
+      return fakeWin;
+    } as unknown as () => unknown);
 
     executeJavaScript.mockImplementation((src: string) => {
       if (src.includes("document.cookie")) return Promise.resolve(true);
@@ -1040,11 +1319,11 @@ describe("fetchKickWebApiMutation", () => {
       isDestroyed: vi.fn(() => false),
     };
     const { BrowserWindow } = await import("electron");
-    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
-      function (this: unknown) {
-        return fakeWin;
-      } as unknown as () => unknown
-    );
+    (
+      BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }
+    ).mockImplementation(function (this: unknown) {
+      return fakeWin;
+    } as unknown as () => unknown);
 
     executeJavaScript.mockImplementation((src: string) => {
       if (src.includes("document.cookie")) return Promise.resolve(true);
@@ -1100,11 +1379,11 @@ describe("sendKickChatMessage auth-retry", () => {
       isDestroyed: vi.fn(() => false),
     };
     const { BrowserWindow } = await import("electron");
-    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
-      function (this: unknown) {
-        return fakeWin;
-      } as unknown as () => unknown,
-    );
+    (
+      BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }
+    ).mockImplementation(function (this: unknown) {
+      return fakeWin;
+    } as unknown as () => unknown);
 
     let sendCallCount = 0;
     executeJavaScript.mockImplementation((src: string) => {
@@ -1113,7 +1392,7 @@ describe("sendKickChatMessage auth-retry", () => {
         sendCallCount++;
         if (sendCallCount === 1) {
           return Promise.resolve(
-            JSON.stringify({ ok: false, status: 401, body: "{}", retryAfter: null }),
+            JSON.stringify({ ok: false, status: 401, body: "{}", retryAfter: null })
           );
         }
         // After reload, fresh bearer is captured.
@@ -1124,7 +1403,7 @@ describe("sendKickChatMessage auth-retry", () => {
             status: 200,
             body: JSON.stringify({ data: { id: "msg-after-retry" } }),
             retryAfter: null,
-          }),
+          })
         );
       }
       return Promise.resolve(true);
@@ -1159,17 +1438,17 @@ describe("sendKickChatMessage auth-retry", () => {
       isDestroyed: vi.fn(() => false),
     };
     const { BrowserWindow } = await import("electron");
-    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
-      function (this: unknown) {
-        return fakeWin;
-      } as unknown as () => unknown,
-    );
+    (
+      BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }
+    ).mockImplementation(function (this: unknown) {
+      return fakeWin;
+    } as unknown as () => unknown);
 
     executeJavaScript.mockImplementation((src: string) => {
       if (src.includes("document.cookie")) return Promise.resolve(true);
       if (src.includes("/api/v2/messages/send/")) {
         return Promise.resolve(
-          JSON.stringify({ ok: false, status: 401, body: "{}", retryAfter: null }),
+          JSON.stringify({ ok: false, status: 401, body: "{}", retryAfter: null })
         );
       }
       return Promise.resolve(true);
@@ -1191,7 +1470,7 @@ describe("render-process-gone", () => {
       loadURL: vi.fn(() => Promise.resolve()),
       webContents: {
         executeJavaScript,
-        on: vi.fn((evt: string, cb: any) => {
+        on: vi.fn((evt: string, cb: (...args: unknown[]) => void) => {
           (handlers[evt] ||= []).push(cb);
         }),
         session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
@@ -1201,13 +1480,13 @@ describe("render-process-gone", () => {
     };
     const { BrowserWindow } = await import("electron");
     let constructCount = 0;
-    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
-      function (this: unknown) {
-        constructCount++;
-        setBearerForTest("Bearer 1|abc");
-        return fakeWin;
-      } as unknown as () => unknown,
-    );
+    (
+      BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }
+    ).mockImplementation(function (this: unknown) {
+      constructCount++;
+      setBearerForTest("Bearer 1|abc");
+      return fakeWin;
+    } as unknown as () => unknown);
 
     await ensureSendWindowReady();
     expect(getBearerForTest()).toBe("Bearer 1|abc");
@@ -1229,7 +1508,7 @@ describe("render-process-gone", () => {
       loadURL: vi.fn(() => Promise.resolve()),
       webContents: {
         executeJavaScript: vi.fn(() => Promise.resolve(true)),
-        on: vi.fn((evt: string, cb: any) => {
+        on: vi.fn((evt: string, cb: (...args: unknown[]) => void) => {
           (handlers1[evt] ||= []).push(cb);
         }),
         session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
@@ -1249,11 +1528,11 @@ describe("render-process-gone", () => {
     };
     const { BrowserWindow } = await import("electron");
     let n = 0;
-    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
-      function (this: unknown) {
-        return n++ === 0 ? win1 : win2;
-      } as unknown as () => unknown,
-    );
+    (
+      BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }
+    ).mockImplementation(function (this: unknown) {
+      return n++ === 0 ? win1 : win2;
+    } as unknown as () => unknown);
 
     await ensureSendWindowReady();
     // Option (a) adaptation: disposeSendWindow is still the Task 1 throwing
@@ -1287,11 +1566,11 @@ describe("disposeSendWindow", () => {
       isDestroyed: vi.fn(() => false),
     };
     const { BrowserWindow } = await import("electron");
-    (BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }).mockImplementation(
-      function (this: unknown) {
-        return fakeWin;
-      } as unknown as () => unknown,
-    );
+    (
+      BrowserWindow as unknown as { mockImplementation: (fn: () => unknown) => void }
+    ).mockImplementation(function (this: unknown) {
+      return fakeWin;
+    } as unknown as () => unknown);
 
     await ensureSendWindowReady();
     await disposeSendWindow();

@@ -2,6 +2,8 @@ import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RelatedContent } from '@/components/stream/related-content/index';
 import type { VideoOrClip } from '@/components/stream/related-content/types';
+import type React from 'react';
+import { fixtures, installElectronAPIMock } from '../../../test-utils';
 
 // Mock dependencies
 const mockUseSearch = vi.fn();
@@ -9,7 +11,7 @@ vi.mock('@tanstack/react-router', () => ({
     useSearch: () => mockUseSearch(),
     useRouterState: ({ select }: { select: (state: { location: { search: ReturnType<typeof mockUseSearch> } }) => unknown }) =>
         select({ location: { search: mockUseSearch() } }),
-    Link: ({ children, search }: any) => <div data-search={JSON.stringify(search)}>{children}</div>,
+    Link: ({ children, search }: React.PropsWithChildren<{ search?: unknown }>) => <div data-search={JSON.stringify(search)}>{children}</div>,
     useNavigate: () => vi.fn()
 }));
 
@@ -32,17 +34,27 @@ vi.mock('@/components/stream/related-content/ClipCard', () => ({
 }));
 
 vi.mock('@/components/stream/related-content/ContentTabs', () => ({
-    ContentTabs: ({ activeTab }: any) => <div data-testid="content-tabs">{activeTab}</div>
+    ContentTabs: ({ activeTab }: { activeTab: string }) => <div data-testid="content-tabs">{activeTab}</div>
 }));
 
 vi.mock('@/components/stream/related-content/ClipDialog', () => ({
-    ClipDialog: ({ selectedClip }: any) => selectedClip ? <div data-testid="clip-dialog">{selectedClip.title}</div> : null
+    ClipDialog: ({ selectedClip }: { selectedClip: VideoOrClip | null }) => selectedClip ? <div data-testid="clip-dialog">{selectedClip.title}</div> : null
 }));
 
 // Mock Electron API
 const mockGetByChannelVideos = vi.fn();
 const mockGetByChannelClips = vi.fn();
 const mockGetClipPlaybackUrl = vi.fn();
+
+function media(overrides: Partial<VideoOrClip> & Pick<VideoOrClip, "id" | "title">): VideoOrClip {
+    return {
+        duration: "1:00",
+        views: "1",
+        date: "2026-01-01T00:00:00.000Z",
+        thumbnailUrl: "https://example.com/media.jpg",
+        ...overrides,
+    };
+}
 
 // Guards: stream pages without an explicit tab always default to Home, even if a previous stream saved another tab.
 describe('RelatedContent', () => {
@@ -51,18 +63,24 @@ describe('RelatedContent', () => {
         mockUseSearch.mockReturnValue({ tab: 'videos' });
         localStorage.clear();
 
-        (window as any).electronAPI = {
-            videos: { getByChannel: mockGetByChannelVideos },
-            clips: { getByChannel: mockGetByChannelClips, getPlaybackUrl: mockGetClipPlaybackUrl }
-        };
+        const api = installElectronAPIMock();
+        api.videos.getByChannel = mockGetByChannelVideos;
+        api.clips.getByChannel = mockGetByChannelClips;
+        api.clips.getPlaybackUrl = mockGetClipPlaybackUrl;
 
         // Mock IntersectionObserver
-        const MockIntersectionObserver = class {
+        const MockIntersectionObserver = class implements IntersectionObserver {
+            readonly root = null;
+            readonly rootMargin = '';
+            readonly scrollMargin = '';
+            readonly thresholds: number[] = [];
+            constructor(_callback: IntersectionObserverCallback, _options?: IntersectionObserverInit) {}
             observe = vi.fn();
             unobserve = vi.fn();
             disconnect = vi.fn();
+            takeRecords = vi.fn(() => []);
         };
-        window.IntersectionObserver = MockIntersectionObserver as any;
+        window.IntersectionObserver = MockIntersectionObserver;
     });
 
     it('should render loading skeletons initially', () => {
@@ -71,7 +89,7 @@ describe('RelatedContent', () => {
             <RelatedContent
                 platform="twitch"
                 channelName="testUser"
-                channelData={{ id: '123' } as any}
+                channelData={fixtures.channel({ id: '123' })}
             />
         );
         expect(screen.getAllByTestId('skeleton').length).toBeGreaterThan(0);
@@ -80,14 +98,14 @@ describe('RelatedContent', () => {
     it('should render videos when api returns success', async () => {
         mockGetByChannelVideos.mockResolvedValue({
             success: true,
-            data: [{ id: 'v1', title: 'Video 1' }]
+            data: [media({ id: 'v1', title: 'Video 1' })]
         });
 
         render(
             <RelatedContent
                 platform="twitch"
                 channelName="testUser"
-                channelData={{ id: '123' } as any}
+                channelData={fixtures.channel({ id: '123' })}
             />
         );
 
@@ -101,14 +119,14 @@ describe('RelatedContent', () => {
         mockUseSearch.mockReturnValue({ tab: 'clips' });
         mockGetByChannelClips.mockResolvedValue({
             success: true,
-            data: [{ id: 'c1', title: 'Clip 1' }]
+            data: [media({ id: 'c1', title: 'Clip 1' })]
         });
 
         render(
             <RelatedContent
                 platform="twitch"
                 channelName="testUser"
-                channelData={{ id: '123' } as any}
+                channelData={fixtures.channel({ id: '123' })}
             />
         );
 
@@ -127,7 +145,7 @@ describe('RelatedContent', () => {
             <RelatedContent
                 platform="twitch"
                 channelName="testUser"
-                channelData={{ id: '123' } as any}
+                channelData={fixtures.channel({ id: '123' })}
             />
         );
 
@@ -140,7 +158,7 @@ describe('RelatedContent', () => {
         mockUseSearch.mockReturnValue({ tab: 'clips' });
         mockGetByChannelClips.mockResolvedValue({
             success: true,
-            data: [{ id: 'c1', title: 'Clip 1', embedUrl: 'url' }]
+            data: [media({ id: 'c1', title: 'Clip 1', embedUrl: 'url' })]
         });
         mockGetClipPlaybackUrl.mockResolvedValue({ success: true, data: { url: 'http://url' } });
 
@@ -148,7 +166,7 @@ describe('RelatedContent', () => {
             <RelatedContent
                 platform="twitch"
                 channelName="testUser"
-                channelData={{ id: '123' } as any}
+                channelData={fixtures.channel({ id: '123' })}
             />
         );
 
@@ -165,7 +183,7 @@ describe('RelatedContent', () => {
         mockUseSearch.mockReturnValue({ tab: 'clips' });
         mockGetByChannelClips.mockResolvedValue({
             success: true,
-            data: [{ id: 'kick-clip-1', title: 'Kick Clip', platform: 'kick', embedUrl: 'kick-url' }]
+            data: [media({ id: 'kick-clip-1', title: 'Kick Clip', platform: 'kick', embedUrl: 'kick-url' })]
         });
         mockGetClipPlaybackUrl.mockResolvedValue({ success: true, data: { url: 'http://kick-video-url' } });
 
@@ -173,7 +191,7 @@ describe('RelatedContent', () => {
             <RelatedContent
                 platform="twitch"
                 channelName="testUser"
-                channelData={{ id: '123' } as any}
+                channelData={fixtures.channel({ id: '123' })}
             />
         );
 
@@ -199,7 +217,7 @@ describe('RelatedContent', () => {
             <RelatedContent
                 platform="twitch"
                 channelName="testUser"
-                channelData={{ id: '123' } as any}
+                channelData={fixtures.channel({ id: '123' })}
             />
         );
 
@@ -215,7 +233,7 @@ describe('RelatedContent', () => {
         mockUseSearch.mockReturnValue({ tab: 'videos' });
         mockGetByChannelVideos.mockResolvedValue({
             success: true,
-            data: Array.from({ length: 12 }, (_, index) => ({
+            data: Array.from({ length: 12 }, (_, index) => media({
                 id: `v${index}`,
                 title: `Video ${index}`
             }))
@@ -225,7 +243,7 @@ describe('RelatedContent', () => {
             <RelatedContent
                 platform="twitch"
                 channelName="testUser"
-                channelData={{ id: '123' } as any}
+                channelData={fixtures.channel({ id: '123' })}
             />
         );
 
@@ -237,18 +255,23 @@ describe('RelatedContent', () => {
 
     it('unmounts full-tab video cards when they leave the viewport margin', async () => {
         const callbacks: Array<(entries: Array<{ isIntersecting: boolean }>) => void> = [];
-        window.IntersectionObserver = class {
-            constructor(callback: (entries: Array<{ isIntersecting: boolean }>) => void) {
-                callbacks.push(callback);
+        window.IntersectionObserver = class implements IntersectionObserver {
+            readonly root = null;
+            readonly rootMargin = '';
+            readonly scrollMargin = '';
+            readonly thresholds: number[] = [];
+            constructor(callback: IntersectionObserverCallback) {
+                callbacks.push((entries) => callback(entries as IntersectionObserverEntry[], this));
             }
             observe = vi.fn();
             unobserve = vi.fn();
             disconnect = vi.fn();
-        } as any;
+            takeRecords = vi.fn(() => []);
+        };
         mockUseSearch.mockReturnValue({ tab: 'videos' });
         mockGetByChannelVideos.mockResolvedValue({
             success: true,
-            data: Array.from({ length: 10 }, (_, index) => ({
+            data: Array.from({ length: 10 }, (_, index) => media({
                 id: `v${index}`,
                 title: `Video ${index}`
             }))
@@ -258,7 +281,7 @@ describe('RelatedContent', () => {
             <RelatedContent
                 platform="twitch"
                 channelName="testUser"
-                channelData={{ id: '123' } as any}
+                channelData={fixtures.channel({ id: '123' })}
             />
         );
 
@@ -284,7 +307,7 @@ describe('RelatedContent', () => {
             <RelatedContent
                 platform="twitch"
                 channelName="testUser"
-                channelData={{ id: '123' } as any}
+                channelData={fixtures.channel({ id: '123' })}
             />
         );
 
@@ -300,7 +323,7 @@ describe('RelatedContent', () => {
         mockUseSearch.mockReturnValue({ tab: 'clips' });
         mockGetByChannelClips.mockResolvedValue({
             success: true,
-            data: Array.from({ length: 12 }, (_, index) => ({
+            data: Array.from({ length: 12 }, (_, index) => media({
                 id: `c${index}`,
                 title: `Clip ${index}`
             }))
@@ -310,7 +333,7 @@ describe('RelatedContent', () => {
             <RelatedContent
                 platform="twitch"
                 channelName="testUser"
-                channelData={{ id: '123' } as any}
+                channelData={fixtures.channel({ id: '123' })}
             />
         );
 
@@ -329,7 +352,7 @@ describe('RelatedContent', () => {
             <RelatedContent
                 platform="twitch"
                 channelName="testUser"
-                channelData={{ id: '123' } as any}
+                channelData={fixtures.channel({ id: '123' })}
             />
         );
 
@@ -353,7 +376,7 @@ describe('RelatedContent', () => {
             <RelatedContent
                 platform="twitch"
                 channelName="offlineUser"
-                channelData={{ id: '123' } as any}
+                channelData={fixtures.channel({ id: '123' })}
             />
         );
 

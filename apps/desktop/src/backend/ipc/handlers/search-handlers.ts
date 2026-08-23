@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@/backend/logging/logger";
 import { rankSearchChannels } from "@/search/channel-search-contract";
@@ -20,7 +20,7 @@ function failedProviders(platform?: Platform): DiscoveryProviderCompletion {
  * Helper to validate a channel object has the required fields
  * Filters out deleted/invalid channels from search results
  */
-function isValidChannel(channel: any): boolean {
+function isValidChannel(channel: UnifiedChannel & { is_banned?: boolean; is_deleted?: boolean }): boolean {
   // Must have basic identifying info
   if (!channel.id || !channel.username) {
     return false;
@@ -38,17 +38,23 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 /**
  * Cache for Twitch channel data (includes fresh avatar URLs)
  */
-const twitchChannelDataCache = new Map<string, { data: any | null; timestamp: number }>();
+type TwitchChannelCacheData = {
+  profileImageUrl: string;
+  displayName: string;
+  broadcasterType: string;
+  followerCount?: number;
+};
+const twitchChannelDataCache = new Map<string, { data: TwitchChannelCacheData | null; timestamp: number }>();
 
 /**
  * Verify Twitch channels exist and fetch their fresh avatar URLs and follower counts
  * Returns a Map of username -> enriched channel data with fresh avatars and follower counts
  */
-async function verifyAndEnrichTwitchChannels(channels: any[]): Promise<Map<string, any>> {
+async function verifyAndEnrichTwitchChannels(channels: UnifiedChannel[]): Promise<Map<string, UnifiedChannel>> {
   const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
   const { getFollowerCounts } = await import("../../api/platforms/twitch/endpoints/user-endpoints");
 
-  const enrichedChannels = new Map<string, any>();
+  const enrichedChannels = new Map<string, UnifiedChannel>();
 
   // GQL search (used by twitchClient.searchChannels) already returns avatar,
   // displayName, and followerCount for unauthenticated callers. The Helix
@@ -62,7 +68,7 @@ async function verifyAndEnrichTwitchChannels(channels: any[]): Promise<Map<strin
     return enrichedChannels;
   }
 
-  const loginsToFetch: { login: string; originalChannel: any }[] = [];
+  const loginsToFetch: { login: string; originalChannel: UnifiedChannel }[] = [];
   const now = Date.now();
 
   // Check cache first
@@ -161,9 +167,13 @@ async function verifyAndEnrichTwitchChannels(channels: any[]): Promise<Map<strin
 /**
  * Cache for Kick channel data (includes avatar URLs and follower counts)
  */
-const kickChannelDataCache = new Map<string, { data: any; timestamp: number }>();
+type KickChannelCacheData = Pick<
+  UnifiedChannel,
+  "avatarUrl" | "displayName" | "isVerified" | "isPartner" | "isLive" | "followerCount"
+>;
+const kickChannelDataCache = new Map<string, { data: KickChannelCacheData; timestamp: number }>();
 
-function hasCasedKickDisplayName(channel: any): boolean {
+function hasCasedKickDisplayName(channel: UnifiedChannel): boolean {
   const username = typeof channel.username === "string" ? channel.username.trim() : "";
   const displayName = typeof channel.displayName === "string" ? channel.displayName.trim() : "";
   return Boolean(displayName && displayName !== username);
@@ -181,13 +191,13 @@ function hasCasedKickDisplayName(channel: any): boolean {
  * worst case. The frontend lazy-loads avatars on hover/mount, so deferring here
  * only costs us avatars+follower counts in the initial dropdown for logged-out users.
  */
-async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string, any>> {
+async function verifyAndEnrichKickChannels(channels: UnifiedChannel[]): Promise<Map<string, UnifiedChannel>> {
   const { kickClient } = await import("../../api/platforms/kick/kick-client");
   const { getChannelsBySlugs } =
     await import("../../api/platforms/kick/endpoints/channel-endpoints");
 
-  const enrichedChannels = new Map<string, any>();
-  const slugsToFetch: { slug: string; originalChannel: any }[] = [];
+  const enrichedChannels = new Map<string, UnifiedChannel>();
+  const slugsToFetch: { slug: string; originalChannel: UnifiedChannel }[] = [];
   const now = Date.now();
 
   for (const channel of channels) {
@@ -301,32 +311,34 @@ async function verifyAndEnrichKickChannels(channels: any[]): Promise<Map<string,
  * not-found confirmation.
  */
 async function filterVerifiedChannels(
-  channels: any[],
+  channels: UnifiedChannel[],
   platform: Platform,
   exactQuery?: string
-): Promise<any[]> {
+): Promise<UnifiedChannel[]> {
   if (channels.length === 0) return [];
 
   if (platform === "twitch") {
     // For Twitch, we enrich channels with fresh avatar URLs during verification
     const enrichedChannelsMap = await verifyAndEnrichTwitchChannels(channels);
     // Return enriched channels as an array (preserves order of original channels that exist)
-    return channels
-      .filter((c) => enrichedChannelsMap.has(c.username.toLowerCase()))
-      .map((c) => enrichedChannelsMap.get(c.username.toLowerCase()));
+    return channels.flatMap((channel) => {
+      const enriched = enrichedChannelsMap.get(channel.username.toLowerCase());
+      return enriched ? [enriched] : [];
+    });
   } else if (platform === "kick") {
     // For Kick, we enrich channels with avatar URLs during verification
     const enrichedChannelsMap = await verifyAndEnrichKickChannels(channels);
     // Return enriched channels as an array (preserves order of original channels that exist)
-    const enrichedChannels = channels
-      .filter((c) => enrichedChannelsMap.has(c.username.toLowerCase()))
-      .map((c) => enrichedChannelsMap.get(c.username.toLowerCase()));
+    const enrichedChannels = channels.flatMap((channel) => {
+      const enriched = enrichedChannelsMap.get(channel.username.toLowerCase());
+      return enriched ? [enriched] : [];
+    });
 
     const { kickClient } = await import("../../api/platforms/kick/kick-client");
     const normalizedExactQuery = exactQuery?.trim().toLowerCase();
     const classifiedChannels = await Promise.all(
       enrichedChannels.map(async (channel) => {
-        const classifiedChannel = {
+        const classifiedChannel: UnifiedChannel = {
           ...channel,
           accountStatus: channel.accountStatus || "active",
         };
@@ -343,7 +355,7 @@ async function filterVerifiedChannels(
           );
           if (authoritativeStatus === "not_found") return null;
           if (authoritativeStatus === "active") {
-            return { ...classifiedChannel, accountStatus: "active" };
+            return { ...classifiedChannel, accountStatus: "active" as const };
           }
         } catch (error) {
           logger.debug("IPC:Search", "Exact Kick account lookup was unavailable", {
@@ -398,7 +410,7 @@ export function registerSearchHandlers(): void {
         const shouldEnrich = true;
 
         // Create search promises for parallel execution
-        const searchPromises: Promise<{ platform: Platform; data: any[]; cursor?: string }>[] = [];
+        const searchPromises: Promise<{ platform: Platform; data: UnifiedChannel[]; cursor?: string }>[] = [];
 
         // Twitch search
         if (!params.platform || params.platform === "twitch") {
@@ -653,8 +665,8 @@ export function registerSearchHandlers(): void {
                   const channelResult = kickChannelsSeeded
                     ? { data: kickChannelSeeds }
                     : await kickClient.searchChannels(params.query);
-                  let channels = channelResult.data
-                    .map((c) => ({ ...c, platform: "kick" }))
+                  let channels: UnifiedChannel[] = channelResult.data
+                    .map((c): UnifiedChannel => ({ ...c, platform: "kick" }))
                     .filter(isValidChannel);
 
                   if (kickUser) {
@@ -682,8 +694,8 @@ export function registerSearchHandlers(): void {
 
                 if (searchResult.channels) {
                   // Filter out invalid/deleted channels
-                  let channels = searchResult.channels
-                    .map((c) => ({ ...c, platform: "kick" }))
+                  let channels: UnifiedChannel[] = searchResult.channels
+                    .map((c): UnifiedChannel => ({ ...c, platform: "kick" }))
                     .filter(isValidChannel);
 
                   if (kickUser) {
@@ -706,7 +718,7 @@ export function registerSearchHandlers(): void {
                 if (searchResult.streams) {
                   let streams = searchResult.streams.map((s) => ({
                     ...s,
-                    platform: "kick",
+                    platform: "kick" as const,
                   }));
 
                   if (kickUser) {
@@ -724,7 +736,7 @@ export function registerSearchHandlers(): void {
 
                 if (searchResult.categories) {
                   results.categories.push(
-                    ...searchResult.categories.map((c) => ({ ...c, platform: "kick" }))
+                    ...searchResult.categories.map((c) => ({ ...c, platform: "kick" as const }))
                   );
                 }
                 providers.kick = "complete";

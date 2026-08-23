@@ -13,7 +13,7 @@ interface SnapshotOptions<T> {
   slot: string;
   identity: unknown;
   maxAgeMs: number;
-  isUsable: (data: T) => boolean;
+  isUsable: (data: unknown) => data is T;
   getImageUrls?: (data: T) => Array<string | null | undefined>;
   enabled?: boolean;
 }
@@ -33,16 +33,26 @@ export async function loadPersistedSnapshot<T>({
 }: SnapshotOptions<T>): Promise<T | undefined> {
   if (!enabled) return undefined;
   const identityKey = JSON.stringify(identity);
-  const snapshot = await window.electronAPI.store.get<PersistedSnapshot<T>>(snapshotKey(slot));
+  const snapshot = await window.electronAPI.store.get(snapshotKey(slot));
   const now = Date.now();
-  const valid =
-    snapshot?.version === 1 &&
-    snapshot.identity === identityKey &&
-    Number.isFinite(snapshot.savedAt) &&
-    snapshot.savedAt <= now &&
-    now - snapshot.savedAt <= maxAgeMs &&
-    isUsable(snapshot.data);
-  return valid ? snapshot.data : undefined;
+  if (
+    snapshot === null ||
+    typeof snapshot !== "object" ||
+    !("version" in snapshot) ||
+    snapshot.version !== 1 ||
+    !("identity" in snapshot) ||
+    snapshot.identity !== identityKey ||
+    !("savedAt" in snapshot) ||
+    typeof snapshot.savedAt !== "number" ||
+    !Number.isFinite(snapshot.savedAt) ||
+    snapshot.savedAt > now ||
+    now - snapshot.savedAt > maxAgeMs ||
+    !("data" in snapshot) ||
+    !isUsable(snapshot.data)
+  ) {
+    return undefined;
+  }
+  return snapshot.data;
 }
 
 export function usePersistedSnapshot<T>({
@@ -54,7 +64,7 @@ export function usePersistedSnapshot<T>({
   enabled = true,
 }: SnapshotOptions<T>): T | undefined {
   const identityKey = JSON.stringify(identity);
-  const validate = useEffectEvent((data: T) => isUsable(data));
+  const validate = useEffectEvent((data: unknown): data is T => isUsable(data));
   const imageUrls = useEffectEvent((data: T) => getImageUrls?.(data));
   const [state, setState] = useState<{ identity: string; data?: T }>({ identity: identityKey });
 

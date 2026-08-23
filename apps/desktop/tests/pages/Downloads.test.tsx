@@ -28,7 +28,7 @@ function downloadJob(overrides: Partial<DownloadJob> = {}): DownloadJob {
   };
 }
 
-let downloads: any;
+let downloads: ReturnType<typeof installElectronAPIMock>["downloads"];
 
 beforeEach(() => {
   const api = installElectronAPIMock();
@@ -48,7 +48,7 @@ beforeEach(() => {
 // Guards: persisted waiting and failure detail remains visible instead of collapsing to a generic status
 describe("DownloadsPage", () => {
   it("loads and renders real queue jobs with their status and progress", async () => {
-    downloads.getQueue.mockResolvedValue({ jobs: [downloadJob()] });
+    vi.mocked(downloads.getQueue).mockResolvedValue({ jobs: [downloadJob()] });
 
     renderWithProviders(<DownloadsPage />);
 
@@ -62,7 +62,7 @@ describe("DownloadsPage", () => {
   it("renders queue pushes and unsubscribes when the page unmounts", async () => {
     let pushQueue: ((snapshot: { jobs: DownloadJob[] }) => void) | undefined;
     const unsubscribe = vi.fn();
-    downloads.onQueueChanged.mockImplementation((callback: typeof pushQueue) => {
+    vi.mocked(downloads.onQueueChanged).mockImplementation((callback: typeof pushQueue) => {
       pushQueue = callback;
       return unsubscribe;
     });
@@ -84,11 +84,11 @@ describe("DownloadsPage", () => {
   it("keeps a queue push that arrives before the initial snapshot", async () => {
     let pushQueue: ((snapshot: { jobs: DownloadJob[] }) => void) | undefined;
     let resolveInitial: ((snapshot: { jobs: DownloadJob[] }) => void) | undefined;
-    downloads.onQueueChanged.mockImplementation((callback: typeof pushQueue) => {
+    vi.mocked(downloads.onQueueChanged).mockImplementation((callback: typeof pushQueue) => {
       pushQueue = callback;
       return vi.fn();
     });
-    downloads.getQueue.mockReturnValue(
+    vi.mocked(downloads.getQueue).mockReturnValue(
       new Promise((resolve) => {
         resolveInitial = resolve;
       })
@@ -114,7 +114,7 @@ describe("DownloadsPage", () => {
   });
 
   it("renders a retryable error state when the queue cannot load", async () => {
-    downloads.getQueue
+    vi.mocked(downloads.getQueue)
       .mockRejectedValueOnce(new Error("IPC unavailable"))
       .mockResolvedValueOnce({ jobs: [] });
 
@@ -128,7 +128,7 @@ describe("DownloadsPage", () => {
   });
 
   it("cancels active work without presenting unsupported lifecycle controls", async () => {
-    downloads.getQueue.mockResolvedValue({
+    vi.mocked(downloads.getQueue).mockResolvedValue({
       jobs: [downloadJob(), downloadJob({ id: "paused-1", title: "Paused VOD", status: "paused" })],
     });
     downloads.cancel = vi.fn(async () => ({ success: true }));
@@ -144,7 +144,7 @@ describe("DownloadsPage", () => {
   });
 
   it("lets users remove non-active paused and waiting rows", async () => {
-    downloads.getQueue.mockResolvedValue({
+    vi.mocked(downloads.getQueue).mockResolvedValue({
       jobs: [
         downloadJob({ id: "paused-1", title: "Interrupted VOD", status: "paused" }),
         downloadJob({ id: "waiting-1", title: "Rate-limited clip", status: "waiting" }),
@@ -165,7 +165,7 @@ describe("DownloadsPage", () => {
   });
 
   it("opens, reveals, removes, and deletes a completed download", async () => {
-    downloads.getQueue.mockResolvedValue({
+    vi.mocked(downloads.getQueue).mockResolvedValue({
       jobs: [
         downloadJob({
           status: "completed",
@@ -173,9 +173,10 @@ describe("DownloadsPage", () => {
         }),
       ],
     });
-    for (const action of ["openFile", "showInFolder", "remove", "deleteFile"]) {
-      downloads[action] = vi.fn(async () => ({ success: true }));
-    }
+    downloads.openFile = vi.fn(async () => ({ success: true }));
+    downloads.showInFolder = vi.fn(async () => ({ success: true }));
+    downloads.remove = vi.fn(async () => ({ success: true }));
+    downloads.deleteFile = vi.fn(async () => ({ success: true }));
 
     renderWithProviders(<DownloadsPage />);
 
@@ -191,7 +192,7 @@ describe("DownloadsPage", () => {
   });
 
   it("renders provider waiting detail and terminal failure errors", async () => {
-    downloads.getQueue.mockResolvedValue({
+    vi.mocked(downloads.getQueue).mockResolvedValue({
       jobs: [
         downloadJob({ id: "waiting-1", status: "waiting", statusMessage: "Retrying at 12:30 PM" }),
         downloadJob({

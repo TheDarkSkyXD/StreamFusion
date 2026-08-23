@@ -76,9 +76,9 @@ describe("useHistoryQuery", () => {
     act(() => actions.result.current.addToHistory(makeHistoryItem({ id: "a" })));
 
     await waitFor(() => expect(query.result.current.data?.map((item) => item.id)).toEqual(["a"]));
-    expect(client.getQueryData<HistoryItem[]>(HISTORY_QUERY_KEYS.all)?.map((item) => item.id)).toEqual([
-      "a",
-    ]);
+    expect(
+      client.getQueryData<HistoryItem[]>(HISTORY_QUERY_KEYS.all)?.map((item) => item.id)
+    ).toEqual(["a"]);
     expect(useHistoryStore.getState().history.map((item) => item.id)).toEqual(["a"]);
 
     act(() => actions.result.current.removeFromHistory("a"));

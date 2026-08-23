@@ -417,7 +417,7 @@ describe("StreamPage", () => {
 
   it("starts a playable live Stream with its stable provider identity", async () => {
     const api = installElectronAPIMock();
-    api.streamRecording.start = vi.fn(async () => ({
+    api.streamRecording.start = vi.fn<typeof api.streamRecording.start>(async () => ({
       success: true,
       outcome: "started",
       sessionId: "recording-session-1",

@@ -1472,6 +1472,7 @@ describe("direct-to-file Stream Recording service", () => {
       artifactIdentity,
     }));
     let stopping: Promise<{ success: boolean; error?: string }> | null = null;
+    // eslint-disable-next-line prefer-const -- assigned after subscription so the callback observes creation-time events.
     let service: ReturnType<typeof createStreamRecordingService>;
     sessionStore.subscribe((snapshot) => {
       if (snapshot.active?.status === "preparing" && !stopping) {

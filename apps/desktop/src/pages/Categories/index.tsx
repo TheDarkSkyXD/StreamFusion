@@ -1,6 +1,6 @@
 import type React from "react";
 import { useCallback, useMemo, useState } from "react";
-import { LuSearch } from "react-icons/lu";
+import { LuRefreshCw, LuSearch, LuTriangleAlert } from "react-icons/lu";
 
 import { VirtualizedCategoryGrid } from "@/components/discovery/virtualized-category-grid";
 import { useTopCategories } from "@/hooks/queries/useCategories";
@@ -10,7 +10,7 @@ export function CategoriesPage() {
   // Fetch ALL categories (cached, deduped with Twitch priority).
   // The list comes back fully — the grid is virtualized, so we hand the entire
   // filtered list straight to it and let windowing handle render perf.
-  const { data: categories, isLoading } = useTopCategories();
+  const { data: categories, isLoading, isError, refetch } = useTopCategories();
   const canRenderGrid = useAfterFirstPaint();
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -52,15 +52,37 @@ export function CategoriesPage() {
       </div>
 
       <div className="mt-2 flex-1 min-h-0">
-        <VirtualizedCategoryGrid
-          categories={filteredCategories}
-          isLoading={isLoading || !canRenderGrid}
-          skeletonCount={12}
-          scrollKey="categories-page"
-          emptyMessage={
-            searchQuery ? `No categories matching "${searchQuery}"` : "No categories found"
-          }
-        />
+        {isError && filteredCategories.length === 0 ? (
+          <div
+            role="alert"
+            className="mx-auto mt-12 flex max-w-md flex-col items-center rounded-xl border border-amber-400/30 bg-amber-400/10 px-6 py-8 text-center"
+          >
+            <LuTriangleAlert className="mb-3 h-8 w-8 text-amber-300" aria-hidden="true" />
+            <h2 className="text-lg font-semibold text-white">Couldn’t load categories</h2>
+            <p className="mt-2 text-sm text-[var(--color-foreground-secondary)]">
+              Twitch or Kick may be temporarily unavailable. Your saved browse data was not
+              changed.
+            </p>
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              <LuRefreshCw className="h-4 w-4" aria-hidden="true" />
+              Try again
+            </button>
+          </div>
+        ) : (
+          <VirtualizedCategoryGrid
+            categories={filteredCategories}
+            isLoading={isLoading || !canRenderGrid}
+            skeletonCount={12}
+            scrollKey="categories-page"
+            emptyMessage={
+              searchQuery ? `No categories matching "${searchQuery}"` : "No categories found"
+            }
+          />
+        )}
       </div>
     </div>
   );

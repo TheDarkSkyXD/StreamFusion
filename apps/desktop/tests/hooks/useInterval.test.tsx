@@ -17,10 +17,9 @@ describe("useInterval", () => {
     const first = vi.fn();
     const second = vi.fn();
 
-    const { rerender } = renderHook(
-      ({ cb }) => useInterval(cb, 100),
-      { initialProps: { cb: first } },
-    );
+    const { rerender } = renderHook(({ cb }) => useInterval(cb, 100), {
+      initialProps: { cb: first },
+    });
 
     vi.advanceTimersByTime(100);
     expect(first).toHaveBeenCalledTimes(1);

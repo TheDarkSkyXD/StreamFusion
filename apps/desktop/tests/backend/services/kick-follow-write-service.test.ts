@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+﻿import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchKickWebApiMutationMock = vi.hoisted(() => vi.fn());
 
@@ -18,9 +18,7 @@ const target = {
   profileImage: "",
 } satisfies Omit<LocalFollow, "id" | "followedAt">;
 
-function makePending(
-  overrides: Partial<PendingFollowWrite> = {}
-): PendingFollowWrite {
+function makePending(overrides: Partial<PendingFollowWrite> = {}): PendingFollowWrite {
   return {
     id: 1,
     platform: "kick",
@@ -46,6 +44,8 @@ function makePending(
 // Guards: duplicate same-action enqueue calls reuse active persisted intent without another Kick attempt or transition.
 // Guards: re-enqueueing a failed write replaces its expired attempt state before retrying Kick.
 // Guards: retry timers re-check persistence and cannot replay a write reconciled away before firing.
+// Guards: an unfollow of a stale false account row settles from a fresh viewer-specific not-followed relationship even when the DOM list is additive.
+// Guards: post-write scraped recommendations are never persisted by the targeted write service.
 describe("kick-follow-write-service", () => {
   const storage = {
     hasToken: vi.fn(),
@@ -56,11 +56,15 @@ describe("kick-follow-write-service", () => {
     upsertSyncedFollows: vi.fn(),
     getActiveFollowsByPlatform: vi.fn(),
     removeLocalFollow: vi.fn(),
+    confirmKickFollow: vi.fn(),
+    confirmKickUnfollow: vi.fn(),
+    getKickUser: vi.fn(),
   };
   const writeKickAccountFollow = vi.fn();
   const getAllFollowedChannels = vi.fn();
   const setTimer = vi.fn();
   const clearTimer = vi.fn();
+  const getKickAccountFollowState = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -78,6 +82,37 @@ describe("kick-follow-write-service", () => {
     });
     storage.getActiveFollowsByPlatform.mockReturnValue([]);
     storage.removeLocalFollow.mockReturnValue(true);
+    storage.confirmKickUnfollow.mockImplementation((input) => {
+      if (input.localFollowId) storage.removeLocalFollow(input.localFollowId);
+      storage.removePendingFollowWrite({
+        platform: "kick",
+        channelId: input.channelId,
+        slug: input.slug,
+        action: "unfollow",
+      });
+      return true;
+    });
+    storage.confirmKickFollow.mockImplementation((follow) => {
+      storage.upsertSyncedFollows("kick", [follow], { pruneAbsent: false });
+      storage.removePendingFollowWrite({
+        platform: "kick",
+        channelId: follow.channelId,
+        slug: follow.channelName,
+        action: "follow",
+      });
+      return (
+        storage
+          .getActiveFollowsByPlatform("kick")
+          .find((row: LocalFollow) => row.channelId === follow.channelId) ?? {
+          ...follow,
+          id: `kick-kick-${follow.channelId}`,
+          followedAt: "2026-07-04T03:00:00.000Z",
+          source: "kick",
+        }
+      );
+    });
+    storage.getKickUser.mockReturnValue({ id: 123, username: "viewer", slug: "viewer" });
+    getKickAccountFollowState.mockResolvedValue("unavailable");
     writeKickAccountFollow.mockResolvedValue({ status: "ok" });
     getAllFollowedChannels.mockResolvedValue({
       status: "ok",
@@ -91,7 +126,7 @@ describe("kick-follow-write-service", () => {
     const service = createKickFollowWriteService({
       storage,
       writeKickAccountFollow,
-      getAllFollowedChannels,
+      getKickAccountFollowState,
       now: () => new Date("2026-07-04T03:00:00.000Z"),
       setTimer,
     });
@@ -127,7 +162,66 @@ describe("kick-follow-write-service", () => {
     });
   });
 
+  it("does not persist unrelated channels returned by the additive DOM scan", async () => {
+    getAllFollowedChannels.mockResolvedValue({
+      status: "ok",
+      channels: [
+        {
+          id: "99",
+          platform: "kick",
+          username: "paymoneywubby",
+          displayName: "PaymoneyWubby",
+          avatarUrl: "",
+          isLive: true,
+          isVerified: true,
+          isPartner: true,
+        },
+      ],
+      canPruneAbsent: false,
+    });
+    const service = createKickFollowWriteService({
+      storage,
+      writeKickAccountFollow,
+      getKickAccountFollowState,
+      now: () => new Date("2026-07-04T03:00:00.000Z"),
+      setTimer,
+    });
+
+    await service.enqueue(target, "follow");
+
+    expect(storage.upsertSyncedFollows).not.toHaveBeenCalled();
+  });
+
+  it.each(["follow", "unfollow"] as const)(
+    "does not confirm a %s after the authenticated Kick account changes",
+    async (action) => {
+      storage.getKickUser
+        .mockReturnValueOnce({ id: 123, username: "viewer-a", slug: "viewer-a" })
+        .mockReturnValueOnce({ id: 456, username: "viewer-b", slug: "viewer-b" });
+      getKickAccountFollowState.mockResolvedValue(
+        action === "follow" ? "followed" : "not-followed"
+      );
+      storage.getPendingFollowWritesByPlatform
+        .mockReturnValueOnce([])
+        .mockReturnValue([makePending({ action })]);
+      const service = createKickFollowWriteService({
+        storage,
+        writeKickAccountFollow,
+        getKickAccountFollowState,
+        now: () => new Date("2026-07-04T03:00:00.000Z"),
+        setTimer,
+      });
+
+      await expect(service.enqueue(target, action)).resolves.toMatchObject({
+        status: "auth-paused",
+      });
+      expect(storage.confirmKickFollow).not.toHaveBeenCalled();
+      expect(storage.confirmKickUnfollow).not.toHaveBeenCalled();
+    }
+  );
+
   it("clears the pending follow when sync confirms the channel", async () => {
+    getKickAccountFollowState.mockResolvedValue("followed");
     const confirmed = {
       ...target,
       id: "confirmed-row",
@@ -154,7 +248,7 @@ describe("kick-follow-write-service", () => {
     const service = createKickFollowWriteService({
       storage,
       writeKickAccountFollow,
-      getAllFollowedChannels,
+      getKickAccountFollowState,
       now: () => new Date("2026-07-04T03:00:00.000Z"),
       setTimer,
     });
@@ -184,6 +278,9 @@ describe("kick-follow-write-service", () => {
   });
 
   it("confirms an absent unfollow only after a trusted followed-channel sync", async () => {
+    getKickAccountFollowState
+      .mockResolvedValueOnce("unavailable")
+      .mockResolvedValueOnce("not-followed");
     const confirmed = {
       ...target,
       id: "confirmed-row",
@@ -213,7 +310,7 @@ describe("kick-follow-write-service", () => {
     const service = createKickFollowWriteService({
       storage,
       writeKickAccountFollow,
-      getAllFollowedChannels,
+      getKickAccountFollowState,
       now: () => new Date("2026-07-04T03:00:00.000Z"),
       setTimer,
     });
@@ -264,7 +361,43 @@ describe("kick-follow-write-service", () => {
     });
   });
 
+  it("confirms a stale-row unfollow from a fresh target relationship", async () => {
+    const stale = {
+      ...target,
+      id: "stale-row",
+      followedAt: "2026-07-04T03:00:00.000Z",
+      source: "kick",
+    } as LocalFollow;
+    storage.getPendingFollowWritesByPlatform
+      .mockReturnValueOnce([])
+      .mockReturnValue([makePending({ action: "unfollow" })]);
+    storage.getActiveFollowsByPlatform.mockReturnValue([stale]);
+    getAllFollowedChannels.mockResolvedValue({
+      status: "ok",
+      channels: [],
+      canPruneAbsent: false,
+    });
+    getKickAccountFollowState.mockResolvedValue("not-followed");
+    const service = createKickFollowWriteService({
+      storage,
+      writeKickAccountFollow,
+      getKickAccountFollowState,
+      now: () => new Date("2026-07-04T03:00:00.000Z"),
+      setTimer,
+    });
+
+    await expect(service.enqueue(target, "unfollow")).resolves.toEqual({
+      status: "confirmed",
+      action: "unfollow",
+    });
+    expect(getKickAccountFollowState).toHaveBeenCalledWith("123", "viewer", "blame", {
+      fresh: true,
+    });
+    expect(storage.removeLocalFollow).toHaveBeenCalledWith("stale-row");
+  });
+
   it("confirms a different-ID unfollow as absent without removing the same-slug channel", async () => {
+    getKickAccountFollowState.mockResolvedValue("not-followed");
     const unfollowTarget = {
       ...target,
       channelId: "kick-user-b",
@@ -280,15 +413,13 @@ describe("kick-follow-write-service", () => {
       followedAt: "2026-07-04T03:00:00.000Z",
       source: "kick",
     } as LocalFollow;
-    storage.getPendingFollowWritesByPlatform
-      .mockReturnValueOnce([])
-      .mockReturnValue([
-        makePending({
-          action: "unfollow",
-          channelId: "kick-user-b",
-          slug: "sharedslug",
-        }),
-      ]);
+    storage.getPendingFollowWritesByPlatform.mockReturnValueOnce([]).mockReturnValue([
+      makePending({
+        action: "unfollow",
+        channelId: "kick-user-b",
+        slug: "sharedslug",
+      }),
+    ]);
     storage.getActiveFollowsByPlatform.mockReturnValue([existingSameSlug]);
     getAllFollowedChannels.mockResolvedValue({
       status: "ok",
@@ -310,7 +441,7 @@ describe("kick-follow-write-service", () => {
     const service = createKickFollowWriteService({
       storage,
       writeKickAccountFollow,
-      getAllFollowedChannels,
+      getKickAccountFollowState,
       now: () => new Date("2026-07-04T03:00:00.000Z"),
       setTimer,
     });
@@ -328,6 +459,9 @@ describe("kick-follow-write-service", () => {
   });
 
   it("treats HTTP 422 as indeterminate and confirms unfollow only after trusted absence", async () => {
+    getKickAccountFollowState
+      .mockResolvedValueOnce("unavailable")
+      .mockResolvedValueOnce("not-followed");
     const confirmed = {
       ...target,
       id: "confirmed-row",
@@ -358,7 +492,7 @@ describe("kick-follow-write-service", () => {
       });
     const service = createKickFollowWriteService({
       storage,
-      getAllFollowedChannels,
+      getKickAccountFollowState,
       now: () => new Date("2026-07-04T03:00:00.000Z"),
       setTimer,
       clearTimer,
@@ -370,7 +504,7 @@ describe("kick-follow-write-service", () => {
       "DELETE",
       "/api/v2/channels/blame/follow"
     );
-    expect(getAllFollowedChannels).toHaveBeenCalledTimes(1);
+    expect(getKickAccountFollowState).toHaveBeenCalledTimes(1);
     expect(firstAttempt).toEqual(
       expect.objectContaining({
         status: "pending",
@@ -383,7 +517,7 @@ describe("kick-follow-write-service", () => {
     if (firstAttempt.status !== "pending") throw new Error("Expected pending follow write");
     const confirmedAttempt = await service.process(firstAttempt.write, target);
 
-    expect(getAllFollowedChannels).toHaveBeenCalledTimes(2);
+    expect(getKickAccountFollowState).toHaveBeenCalledTimes(2);
     expect(confirmedAttempt).toEqual({ status: "confirmed", action: "unfollow" });
     expect(storage.removeLocalFollow).toHaveBeenCalledWith("confirmed-row");
   });
@@ -396,7 +530,6 @@ describe("kick-follow-write-service", () => {
     const service = createKickFollowWriteService({
       storage,
       writeKickAccountFollow,
-      getAllFollowedChannels,
       now: () => new Date("2026-07-04T03:00:00.000Z"),
       setTimer,
     });
@@ -430,13 +563,10 @@ describe("kick-follow-write-service", () => {
   it("marks a write failed when the retry window has expired", async () => {
     storage.getPendingFollowWritesByPlatform
       .mockReturnValueOnce([])
-      .mockReturnValue([
-        makePending({ expiresAt: "2026-07-04T03:00:00.000Z" }),
-      ]);
+      .mockReturnValue([makePending({ expiresAt: "2026-07-04T03:00:00.000Z" })]);
     const service = createKickFollowWriteService({
       storage,
       writeKickAccountFollow,
-      getAllFollowedChannels,
       now: () => new Date("2026-07-04T03:10:01.000Z"),
       setTimer,
     });
@@ -470,7 +600,6 @@ describe("kick-follow-write-service", () => {
     const service = createKickFollowWriteService({
       storage,
       writeKickAccountFollow,
-      getAllFollowedChannels,
       now: () => new Date("2026-07-04T03:00:00.000Z"),
       setTimer,
     });
@@ -493,7 +622,6 @@ describe("kick-follow-write-service", () => {
     const service = createKickFollowWriteService({
       storage,
       writeKickAccountFollow,
-      getAllFollowedChannels,
       now: () => new Date("2026-07-04T03:00:00.000Z"),
       setTimer,
       clearTimer,
@@ -512,7 +640,6 @@ describe("kick-follow-write-service", () => {
     const service = createKickFollowWriteService({
       storage,
       writeKickAccountFollow,
-      getAllFollowedChannels,
       now: () => new Date("2026-07-04T03:00:00.000Z"),
       setTimer,
       clearTimer,
@@ -532,7 +659,6 @@ describe("kick-follow-write-service", () => {
     const service = createKickFollowWriteService({
       storage,
       writeKickAccountFollow,
-      getAllFollowedChannels,
       now: () => new Date("2026-07-04T03:00:00.000Z"),
       setTimer,
     });
@@ -561,7 +687,6 @@ describe("kick-follow-write-service", () => {
       const service = createKickFollowWriteService({
         storage,
         writeKickAccountFollow,
-        getAllFollowedChannels,
         now: () => new Date("2026-07-04T03:00:00.000Z"),
         setTimer,
       });
@@ -583,6 +708,7 @@ describe("kick-follow-write-service", () => {
   });
 
   it("restarts a failed same-action write with fresh attempt state before retrying Kick", async () => {
+    getKickAccountFollowState.mockResolvedValue("followed");
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-04T03:20:00.000Z"));
     try {
@@ -649,7 +775,7 @@ describe("kick-follow-write-service", () => {
       const service = createKickFollowWriteService({
         storage,
         writeKickAccountFollow,
-        getAllFollowedChannels,
+        getKickAccountFollowState,
         now: () => new Date(),
       });
 
@@ -680,7 +806,7 @@ describe("kick-follow-write-service", () => {
       );
       expect(maximumRowCount).toBe(1);
       expect(writeKickAccountFollow).toHaveBeenCalledOnce();
-      expect(getAllFollowedChannels).toHaveBeenCalledOnce();
+      expect(getKickAccountFollowState).toHaveBeenCalledOnce();
       expect(vi.getTimerCount()).toBe(0);
     } finally {
       vi.clearAllTimers();
@@ -696,7 +822,6 @@ describe("kick-follow-write-service", () => {
     const service = createKickFollowWriteService({
       storage,
       writeKickAccountFollow,
-      getAllFollowedChannels,
       now: () => new Date("2026-07-04T03:00:00.000Z"),
       setTimer,
     });
@@ -712,7 +837,6 @@ describe("kick-follow-write-service", () => {
     const service = createKickFollowWriteService({
       storage,
       writeKickAccountFollow,
-      getAllFollowedChannels,
       now: () => new Date("2026-07-04T03:20:00.000Z"),
       setTimer,
     });
@@ -744,7 +868,6 @@ describe("kick-follow-write-service", () => {
     const service = createKickFollowWriteService({
       storage,
       writeKickAccountFollow,
-      getAllFollowedChannels,
       now: () => new Date("2026-07-04T03:20:00.000Z"),
       setTimer,
       clearTimer,
@@ -789,7 +912,6 @@ describe("kick-follow-write-service", () => {
     const service = createKickFollowWriteService({
       storage,
       writeKickAccountFollow,
-      getAllFollowedChannels,
       now: () => new Date("2026-07-04T03:20:00.000Z"),
       setTimer,
       clearTimer,
@@ -811,7 +933,6 @@ describe("kick-follow-write-service", () => {
     const service = createKickFollowWriteService({
       storage,
       writeKickAccountFollow,
-      getAllFollowedChannels,
       now: () => new Date("2026-07-04T03:20:00.000Z"),
       setTimer,
       clearTimer,
@@ -834,7 +955,6 @@ describe("kick-follow-write-service", () => {
     const service = createKickFollowWriteService({
       storage,
       writeKickAccountFollow,
-      getAllFollowedChannels,
       now: () => new Date("2026-07-04T03:20:00.000Z"),
       setTimer,
       clearTimer,
@@ -868,7 +988,6 @@ describe("kick-follow-write-service", () => {
       const service = createKickFollowWriteService({
         storage,
         writeKickAccountFollow,
-        getAllFollowedChannels,
         now: () => new Date(),
         setTimer: setRetryTimer,
         clearTimer: clearRetryTimer,

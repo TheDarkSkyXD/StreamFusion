@@ -7,6 +7,7 @@
 
 import type { Platform } from "../../../shared/auth-types";
 import type { ChannelAccountStatus } from "../../../shared/channel-account-status-types";
+import type { SubscriberBadge } from "../../services/chat/kick-parser";
 
 // ========== Stream Types ==========
 
@@ -69,7 +70,7 @@ export interface UnifiedChannel {
   // this user_id, so it is kept explicit even when it matches `id`.
   kickUserId?: string;
   // Kick-specific: subscriber badges
-  subscriberBadges?: any[];
+  subscriberBadges?: SubscriberBadge[];
   // Kick-specific: chatroom mode settings (followers/subs/slow/emote-only/account-age).
   // Sourced from data.chatroom on the v2 channel-resolve payload; used to seed
   // useRoomStateStore on channel mount. Absent for Twitch channels.

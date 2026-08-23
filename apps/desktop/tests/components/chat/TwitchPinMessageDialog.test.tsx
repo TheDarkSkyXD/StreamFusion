@@ -213,9 +213,18 @@ describe("TwitchPinMessageDialog", () => {
 
   it("looks up the Twitch sender avatar when the chat message has no avatar URL", async () => {
     const api = installElectronAPIMock();
-    api.channels.getByUsername = vi.fn(async () => ({
+    api.channels.getByUsername = vi.fn<typeof api.channels.getByUsername>(async () => ({
       success: true,
-      data: { avatarUrl: "https://example.com/lookup-avatar.png" },
+      data: {
+        id: "lookup-id",
+        platform: "twitch",
+        username: "lookupuser",
+        displayName: "LookupUser",
+        avatarUrl: "https://example.com/lookup-avatar.png",
+        isLive: false,
+        isVerified: false,
+        isPartner: false,
+      },
     }));
 
     render(

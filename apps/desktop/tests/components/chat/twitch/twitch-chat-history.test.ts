@@ -84,8 +84,7 @@ function makeStoredMessage(id: string, channel: string, rawContent: string): Cha
 
 // Guards: legacy partial chat preferences still default recent-message history on before live Twitch chat joins.
 describe('seedTwitchChatHistory (U5 recent-messages-on-join)', () => {
-  // biome-ignore lint/suspicious/noExplicitAny: test IPC surface.
-  let api: any;
+  let api: ReturnType<typeof installElectronAPIMock>;
   beforeEach(() => {
     api = installElectronAPIMock();
     setChatDisplay({}); // defaults: recentMessagesOnJoin true, limit 100

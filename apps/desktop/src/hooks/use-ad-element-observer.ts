@@ -82,12 +82,13 @@ export function useAdElementObserver(enabled: boolean = true) {
     });
 
     logger.debug("Player:Hook:AdElementObserver", "started watching for ad elements");
+    const countRef = hiddenCount;
 
     return () => {
       observerRef.current?.disconnect();
       // Read hiddenCount.current at cleanup time for accurate count
       logger.debug("Player:Hook:AdElementObserver", "stopped", {
-        hiddenCount: hiddenCount.current,
+        hiddenCount: countRef.current,
       });
     };
   }, [enabled]);

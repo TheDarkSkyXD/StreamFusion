@@ -51,6 +51,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
   const followSyncInProgress = useAuthStore((state) => state.followSyncInProgress);
   const followSyncLastSyncedAt = useAuthStore((state) => state.followSyncLastSyncedAt);
   const localFollows = useFollowStore((state) => state.localFollows);
+  const followsHydrated = useFollowStore((state) => state.isHydrated);
   const getFollowSource = useFollowStore((state) => state.getFollowSource);
   const currentPipStream = usePipStore((state) => state.currentStream);
   const isPipActive = usePipStore((state) => state.isPipActive);
@@ -98,10 +99,16 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
 
     const result = await syncConnectedFollows();
     if (result.failed.length > 0) {
+      const kickReason = result.failureReasons?.kick;
       toast("Couldn't sync follows", {
-        description: `Failed to sync ${result.failed
-          .map((platform) => PLATFORM_LABELS[platform])
-          .join(" and ")}. Existing follows were preserved.`,
+        description:
+          kickReason === "kick-web-account-mismatch"
+            ? "The Kick website is signed into a different account. Sign into the same Kick account and try again. Existing follows were preserved."
+            : kickReason === "web-session-required"
+              ? "Kick website sign-in was not completed. Try Sync follows again when you're ready. Existing follows were preserved."
+              : `Failed to sync ${result.failed
+                  .map((platform) => PLATFORM_LABELS[platform])
+                  .join(" and ")}. Existing follows were preserved.`,
       });
     }
   };
@@ -124,18 +131,22 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     ) : null;
 
   // Fetch data
-  const { data: twitchFollows } = useFollowedChannels("twitch", { enabled: twitchConnected });
-  const { data: kickFollows } = useFollowedChannels("kick", { enabled: kickConnected });
-  const { data: twitchLiveStreams, isLoading: twitchStreamsLoading } = useFollowedStreams(
+  const twitchFollowsQuery = useFollowedChannels("twitch", { enabled: twitchConnected });
+  const kickFollowsQuery = useFollowedChannels("kick", { enabled: kickConnected });
+  const twitchStreamsQuery = useFollowedStreams(
     "twitch",
     100,
     {
       enabled: twitchConnected || hasLocalTwitchFollows,
     }
   );
-  const { data: kickLiveStreams, isLoading: kickStreamsLoading } = useFollowedStreams("kick", 100, {
+  const kickStreamsQuery = useFollowedStreams("kick", 100, {
     enabled: kickConnected || hasLocalKickFollows,
   });
+  const { data: twitchFollows } = twitchFollowsQuery;
+  const { data: kickFollows } = kickFollowsQuery;
+  const { data: twitchLiveStreams } = twitchStreamsQuery;
+  const { data: kickLiveStreams } = kickStreamsQuery;
   const liveStreams = useMemo(() => {
     const streams = dedupeStreamsByChannelIdentity([
       ...(twitchLiveStreams ?? []),
@@ -144,7 +155,22 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     streams.sort((a, b) => b.viewerCount - a.viewerCount);
     return streams;
   }, [twitchLiveStreams, kickLiveStreams]);
-  const isLoading = twitchStreamsLoading || kickStreamsLoading;
+  const isLoading =
+    !followsHydrated ||
+    twitchFollowsQuery.isLoading ||
+    kickFollowsQuery.isLoading ||
+    twitchStreamsQuery.isLoading ||
+    kickStreamsQuery.isLoading;
+  const failedQueries = [
+    twitchFollowsQuery,
+    kickFollowsQuery,
+    twitchStreamsQuery,
+    kickStreamsQuery,
+  ].filter((query) => query.isError);
+  const hasLoadError = failedQueries.length > 0;
+  const retryFailedQueries = (): void => {
+    void Promise.all(failedQueries.map((query) => query.refetch()));
+  };
   const [visibleCount, setVisibleCount] = useState(10);
 
   // Merge and sort channels
@@ -292,6 +318,51 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
   }
 
   if (allItems.length === 0) {
+    if (hasLoadError) {
+      if (collapsed) {
+        return (
+          <div className="flex w-16 justify-center p-2" data-testid="sidebar-follows">
+            <button
+              type="button"
+              aria-label="Retry loading follows"
+              title="Couldn’t load follows. Try again"
+              onClick={retryFailedQueries}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-foreground-muted)] transition-colors hover:bg-[var(--color-background-tertiary)] hover:text-white"
+            >
+              <LuRefreshCw className="h-4 w-4" />
+            </button>
+          </div>
+        );
+      }
+
+      return (
+        <div
+          className="flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden"
+          data-testid="sidebar-follows"
+        >
+          <div className="px-3 py-2 font-bold text-white tracking-wider">Following</div>
+          <div
+            role="status"
+            aria-live="polite"
+            className="m-2 rounded-md border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-[var(--color-foreground)]"
+          >
+            <p className="font-semibold text-white">Couldn’t load follows</p>
+            <p className="mt-1 text-[var(--color-foreground-muted)]">
+              Your follows were not changed. Check your connection and try again.
+            </p>
+            <button
+              type="button"
+              onClick={retryFailedQueries}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-white/10 px-2.5 py-1.5 font-semibold text-white transition-colors hover:bg-white/15"
+            >
+              <LuRefreshCw className="h-3.5 w-3.5" />
+              Try again
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     if (collapsed) {
       if (!hasConnectedPlatforms) return null;
 
@@ -349,6 +420,21 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
             collapsed ? "w-16 px-2" : "w-56 pl-2 pr-4"
           )}
         >
+          {!collapsed && hasLoadError && (
+            <div
+              role="status"
+              className="mb-2 flex items-center justify-between gap-2 rounded-md border border-amber-400/25 bg-amber-400/10 px-2 py-1.5 text-xs text-amber-100"
+            >
+              <span>Some follows may be out of date.</span>
+              <button
+                type="button"
+                onClick={retryFailedQueries}
+                className="shrink-0 rounded px-1.5 py-1 font-semibold text-white hover:bg-white/10"
+              >
+                Retry
+              </button>
+            </div>
+          )}
           {collapsed && hasConnectedPlatforms && (
             <div className="flex justify-center pb-1">{renderSyncButton(true)}</div>
           )}

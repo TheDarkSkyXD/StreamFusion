@@ -165,7 +165,7 @@ export function CategoryDetailPage() {
         platform: otherPlatform,
         limit: 10,
       });
-      if (response.error) throw new Error(String(response.error));
+      if (response.success === false) throw new Error(response.error);
       const candidates = (response.data as UnifiedCategory[]) ?? [];
       return (
         candidates.find((candidate) => normalizeCategoryName(candidate.name) === normalizedKey) ??
@@ -254,7 +254,7 @@ export function CategoryDetailPage() {
   const twitchCategoryId = currentPlatform === "twitch" ? categoryId : otherCategoryId;
   const kickCategoryId = currentPlatform === "kick" ? categoryId : otherCategoryId;
   const kickCategorySlug =
-    currentPlatform === "kick" ? category?.slug : providedOtherCategory?.slug ?? category?.slug;
+    currentPlatform === "kick" ? category?.slug : (providedOtherCategory?.slug ?? category?.slug);
   const kickCategoryName = currentPlatform === "kick" ? category?.name : otherCategoryName;
   const hasOtherPlatformMediaIdentity = currentPlatform === "twitch" || Boolean(otherCategoryId);
   const isNativeKickMediaOnly =
@@ -333,9 +333,7 @@ export function CategoryDetailPage() {
   const hasNextPage = selectedQuery
     ? selectedQuery.hasNextPage
     : primaryQuery.hasNextPage || secondaryQuery.hasNextPage;
-  const selectedPlatformIsUnavailable = Boolean(
-    selectedQuery?.error && scopedMerged.length === 0
-  );
+  const selectedPlatformIsUnavailable = Boolean(selectedQuery?.error && scopedMerged.length === 0);
 
   const queriesRef = useRef({ primaryQuery, secondaryQuery, platformScope, currentPlatform });
   useLayoutEffect(() => {
@@ -495,7 +493,11 @@ export function CategoryDetailPage() {
           />
         )}
         {tab !== "live" && (
-          <div role="group" aria-label="Category filters" className="flex min-w-0 flex-wrap items-center gap-3">
+          <div
+            role="group"
+            aria-label="Category filters"
+            className="flex min-w-0 flex-wrap items-center gap-3"
+          >
             <div role="group" aria-label="Category text filters">
               <CategoryFilterBar
                 language={language}
@@ -527,7 +529,10 @@ export function CategoryDetailPage() {
                     <SelectItem value="all">All Time</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={clipSort} onValueChange={(value) => setClipSort(value as "views" | "recent")}>
+                <Select
+                  value={clipSort}
+                  onValueChange={(value) => setClipSort(value as "views" | "recent")}
+                >
                   <SelectTrigger aria-label="Sort Category clips" className="min-w-[140px]">
                     <SelectValue />
                   </SelectTrigger>
@@ -549,9 +554,7 @@ export function CategoryDetailPage() {
               role="status"
               className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-4"
             >
-              <span>
-                {currentPlatform === "twitch" ? "Twitch" : "Kick"} is unavailable.
-              </span>
+              <span>{currentPlatform === "twitch" ? "Twitch" : "Kick"} is unavailable.</span>
               <button
                 type="button"
                 onClick={() => void primaryQuery.refetch()}
@@ -566,26 +569,26 @@ export function CategoryDetailPage() {
             !otherCategoryId &&
             otherCategorySearch.isError &&
             !hasSecondaryStreams && (
-            <div
-              role="status"
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-4"
-            >
-              <span>
-                {otherPlatform === "twitch" ? "Twitch" : "Kick"} streams are temporarily
-                unavailable.
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  if (otherId) void providedOtherQuery.refetch();
-                  void otherCategorySearch.refetch();
-                }}
-                className="min-h-10 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              <div
+                role="status"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-4"
               >
-                Retry {otherPlatform === "twitch" ? "Twitch" : "Kick"}
-              </button>
-            </div>
-          )}
+                <span>
+                  {otherPlatform === "twitch" ? "Twitch" : "Kick"} streams are temporarily
+                  unavailable.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (otherId) void providedOtherQuery.refetch();
+                    void otherCategorySearch.refetch();
+                  }}
+                  className="min-h-10 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                >
+                  Retry {otherPlatform === "twitch" ? "Twitch" : "Kick"}
+                </button>
+              </div>
+            )}
 
           {selectedPlatformIsUnavailable && selectedQuery && (
             <div

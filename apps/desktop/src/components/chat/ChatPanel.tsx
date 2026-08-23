@@ -8,6 +8,7 @@ import { useRenderCount } from "../dev/use-render-count";
 
 import { KickChat } from "./kick/KickChat";
 import { TwitchChat } from "./twitch/TwitchChat";
+import type { SubscriberBadge } from "@/backend/services/chat/kick-parser";
 
 registerAppShutdownTask("chat-services", async () => {
   const [{ kickChatService }, { twitchChatService }] = await Promise.all([
@@ -31,7 +32,7 @@ export interface ChatPanelProps {
   /** Kick broadcaster user_id (for resolving 7TV channel emotes) */
   kickUserId?: string;
   /** Subscriber badges for Kick (if applicable) */
-  subscriberBadges?: any[];
+  subscriberBadges?: SubscriberBadge[];
   badgeCatalogState?: "loading" | "ready" | "failed";
   retryBadgeCatalog?: () => void;
 }

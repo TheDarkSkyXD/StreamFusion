@@ -24,22 +24,19 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/store/moderated-channels-store', () => {
-  const useStore = (
-    selector: (s: { twitchModeratedChannelIds: Set<string> }) => unknown,
-  ) => selector({ twitchModeratedChannelIds: mocks.moderatedIds });
-  // biome-ignore lint/suspicious/noExplicitAny: store.getState shim.
-  (useStore as any).getState = () => ({
-    hydrate: mocks.hydrate,
-    twitchModeratedChannelIds: mocks.moderatedIds,
-  });
+  const useStore = Object.assign(
+    (selector: (s: { twitchModeratedChannelIds: Set<string> }) => unknown) =>
+      selector({ twitchModeratedChannelIds: mocks.moderatedIds }),
+    { getState: () => ({ hydrate: mocks.hydrate, twitchModeratedChannelIds: mocks.moderatedIds }) },
+  );
   return { useModeratedChannelsStore: useStore };
 });
 
 vi.mock('@/store/auth-store', () => {
-  const useStore = (selector: (s: typeof mocks.authState) => unknown) =>
-    selector(mocks.authState);
-  // biome-ignore lint/suspicious/noExplicitAny: store.getState shim.
-  (useStore as any).getState = () => mocks.authState;
+  const useStore = Object.assign(
+    (selector: (s: typeof mocks.authState) => unknown) => selector(mocks.authState),
+    { getState: () => mocks.authState },
+  );
   return { useAuthStore: useStore };
 });
 

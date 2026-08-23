@@ -583,31 +583,39 @@ describe("TwitchChat", () => {
   it("loads Twitch channel badges with the watched channel id", async () => {
     const api = installElectronAPIMock();
     api.auth.getValidTwitchToken = vi.fn(async () => "tok");
-    api.auth.getTwitchUser = vi.fn(async () => ({
+    api.auth.getTwitchUser = vi.fn<typeof api.auth.getTwitchUser>(async () => ({
       id: "mod-1",
       login: "modder",
       displayName: "Modder",
+      profileImageUrl: "",
+      createdAt: "2020-01-01T00:00:00.000Z",
+      broadcasterType: "",
     }));
     api.chat.getTwitchHistory = vi.fn(async () => ({ success: true, data: { rawMessages: [] } }));
 
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
 
     await waitFor(() => expect(twitchChatService.loadChannelBadges).toHaveBeenCalled());
-    expect(twitchChatService.loadChannelBadges).toHaveBeenCalledWith("ninja", "ninja-id");
+    expect(twitchChatService.loadChannelBadges).toHaveBeenCalledWith("ninja", "ninja-id", {
+      forceRefresh: true,
+    });
     expect(twitchChatService.loadChannelBadges).not.toHaveBeenCalledWith("ninja", "mod-1");
   });
 
   it("uses the guarded token bridge for restored Twitch IRC auth and reconnects", async () => {
     const restoredAccessToken = "opaque-restored-twitch-access-token";
-    const restoredUser = {
+    const api = installElectronAPIMock();
+    const restoredUser: Awaited<ReturnType<typeof api.auth.getTwitchUser>> = {
       id: "restored-user-opaque-id",
       login: "restored_login",
       displayName: "Restored User",
+      profileImageUrl: "",
+      createdAt: "2020-01-01T00:00:00.000Z",
+      broadcasterType: "",
     };
-    const api = installElectronAPIMock();
     mockAuthState.twitchConnected = true;
     api.auth.getValidTwitchToken = vi.fn(async () => restoredAccessToken);
-    api.auth.getTwitchUser = vi.fn(async () => restoredUser);
+    api.auth.getTwitchUser = vi.fn<typeof api.auth.getTwitchUser>(async () => restoredUser);
 
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
 
@@ -818,7 +826,7 @@ describe("TwitchChat", () => {
     }
   });
 
-  it("loads global emotes before joining anonymous Twitch chat", async () => {
+  it("joins anonymous Twitch chat without waiting for global emotes", async () => {
     const api = installElectronAPIMock();
     api.auth.getValidTwitchToken = vi.fn(async () => null);
     api.auth.getTwitchUser = vi.fn(async () => null);
@@ -839,8 +847,8 @@ describe("TwitchChat", () => {
       globalLoadOrder
     );
     expect(applyProviderPrefsMock.mock.invocationCallOrder[0]).toBeLessThan(globalLoadOrder);
-    expect(globalLoadOrder).toBeLessThan(
-      vi.mocked(twitchChatService.joinChannel).mock.invocationCallOrder[0]
+    expect(vi.mocked(twitchChatService.joinChannel).mock.invocationCallOrder[0]).toBeLessThan(
+      globalLoadOrder
     );
   });
 

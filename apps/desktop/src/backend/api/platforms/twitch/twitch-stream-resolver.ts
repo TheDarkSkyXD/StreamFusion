@@ -19,7 +19,11 @@ export class TwitchStreamResolver {
    */
   async getStreamPlaybackUrl(
     channelLogin: string
-  ): Promise<{ url: string; format: string; qualities?: any[] }> {
+  ): Promise<{
+    url: string;
+    format: string;
+    qualities?: Array<{ quality: string; url: string; frameRate?: number }>;
+  }> {
     const normalizedLogin = channelLogin.toLowerCase();
     const startedAt = Date.now();
     try {
@@ -88,7 +92,11 @@ export class TwitchStreamResolver {
    */
   async getClipPlaybackUrl(
     clipSlug: string
-  ): Promise<{ url: string; format: string; qualities?: any[] }> {
+  ): Promise<{
+    url: string;
+    format: string;
+    qualities?: Array<{ quality: string; url: string; frameRate?: number }>;
+  }> {
     try {
       const clipData = await GqlClient.gqlGetClipAccessToken(clipSlug);
 

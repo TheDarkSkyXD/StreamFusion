@@ -9,6 +9,7 @@ import type React from "react";
 import { Suspense } from "react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
+import { RecoveryBoundary } from "@/components/recovery/RecoveryBoundary";
 import {
   CategoriesPage,
   CategoryDetailPage,
@@ -26,6 +27,7 @@ import {
   VideoPage,
 } from "@/pages";
 import { validateCategoryDetailSearch } from "@/routes/category-detail-search";
+import { validateSearchQuery, validateVideoSearch } from "@/routes/route-boundaries";
 
 // Loading fallback for lazy-loaded pages
 const PageLoader = () => (
@@ -40,9 +42,11 @@ export const withSuspense = (
   { forwardPreload = false }: { forwardPreload?: boolean } = {}
 ) => {
   const SuspenseComponent = () => (
-    <Suspense fallback={<PageLoader />}>
-      <Component />
-    </Suspense>
+    <RecoveryBoundary name="This page">
+      <Suspense fallback={<PageLoader />}>
+        <Component />
+      </Suspense>
+    </RecoveryBoundary>
   );
 
   return forwardPreload
@@ -104,9 +108,7 @@ const categoryDetailRoute = createRoute({
 const searchRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/search",
-  validateSearch: (search: Record<string, unknown>) => ({
-    q: (search.q as string) || "",
-  }),
+  validateSearch: validateSearchQuery,
   component: withSuspense(SearchPage),
 });
 
@@ -125,41 +127,7 @@ const streamRoute = createRoute({
 const videoRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/video/$platform/$videoId",
-  validateSearch: (
-    search: Record<string, unknown>
-  ): {
-    src?: string;
-    title?: string;
-    channelName?: string;
-    channelDisplayName?: string;
-    channelAvatar?: string;
-    thumbnail?: string;
-    views?: string;
-    date?: string;
-    category?: string;
-    duration?: string;
-    isSubOnly?: boolean;
-    tags?: string[];
-    language?: string;
-    isMature?: boolean;
-    shareUrl?: string;
-  } => ({
-    src: (search.src as string) || undefined, // Direct HLS URL (for Kick VODs)
-    title: (search.title as string) || undefined,
-    channelName: (search.channelName as string) || undefined,
-    channelDisplayName: (search.channelDisplayName as string) || undefined,
-    channelAvatar: (search.channelAvatar as string) || undefined,
-    thumbnail: (search.thumbnail as string) || undefined,
-    views: (search.views as string) || undefined,
-    date: (search.date as string) || undefined,
-    category: (search.category as string) || undefined,
-    duration: (search.duration as string) || undefined,
-    isSubOnly: search.isSubOnly === true || search.isSubOnly === "true" || undefined,
-    tags: (search.tags as string[]) || undefined,
-    language: (search.language as string) || undefined,
-    isMature: search.isMature === true || search.isMature === "true" || undefined,
-    shareUrl: (search.shareUrl as string) || undefined,
-  }),
+  validateSearch: validateVideoSearch,
   component: withSuspense(VideoPage),
 });
 
@@ -167,8 +135,9 @@ const videoRoute = createRoute({
 const settingsRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/settings",
-  validateSearch: (search: Record<string, unknown>): { tab?: string } => ({
+  validateSearch: (search: Record<string, unknown>): { tab?: string; variant?: string } => ({
     tab: typeof search.tab === "string" ? search.tab : undefined,
+    variant: typeof search.variant === "string" ? search.variant : undefined,
   }),
   component: withSuspense(SettingsPage),
 });

@@ -14,6 +14,32 @@ import type { PlayerError, QualityLevel } from "./types";
 
 export type HlsConfigOverrides = Partial<NonNullable<ConstructorParameters<typeof Hls>[0]>>;
 
+interface NetworkInformationLike {
+  effectiveType?: string;
+}
+
+type NavigatorWithConnection = Navigator & {
+  connection?: NetworkInformationLike;
+  mozConnection?: NetworkInformationLike;
+  webkitConnection?: NetworkInformationLike;
+};
+
+function objectProperty(value: unknown, key: string): unknown {
+  return typeof value === "object" && value !== null && key in value
+    ? Reflect.get(value, key)
+    : undefined;
+}
+
+function numericProperty(value: unknown, key: string): number | undefined {
+  const property = objectProperty(value, key);
+  return typeof property === "number" ? property : undefined;
+}
+
+function stringProperty(value: unknown, key: string): string | undefined {
+  const property = objectProperty(value, key);
+  return typeof property === "string" ? property : undefined;
+}
+
 export interface HlsPlayerProps extends Omit<
   React.VideoHTMLAttributes<HTMLVideoElement>,
   "onError"
@@ -150,6 +176,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
     // construction lives in the src-change effect below — this effect only
     // tears down on true unmount.
     useEffect(() => {
+      const mountedVideo = videoRef.current;
       return () => {
         const hls = hlsRef.current;
         if (hls) {
@@ -160,7 +187,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           }
           hlsRef.current = null;
         }
-        const video = videoRef.current;
+        const video = mountedVideo;
         if (video) {
           // Force Chromium to release decoder/GPU buffers held by the <video>
           // element. Skipped during app shutdown — Chromium frees everything
@@ -494,10 +521,11 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         // === ADAPTIVE TIMEOUTS BASED ON CONNECTION QUALITY ===
         // Use Network Information API to adjust timeouts for slower connections
         // This prevents premature failures on 3G/slow connections while keeping fast detection on WiFi/4G
+        const networkNavigator: NavigatorWithConnection = navigator;
         const connection =
-          (navigator as any).connection ||
-          (navigator as any).mozConnection ||
-          (navigator as any).webkitConnection;
+          networkNavigator.connection ||
+          networkNavigator.mozConnection ||
+          networkNavigator.webkitConnection;
         const effectiveType = connection?.effectiveType || "4g"; // Default to 4g if not available
 
         // Timeout multipliers based on connection quality
@@ -707,11 +735,14 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           // Check for 404/403/500 on manifest load - indicates stream is definitely gone or proxy error
           // Stop retrying immediately to prevent console noise
           const statusCode =
-            (data.response as any)?.code ||
-            (data.response as any)?.status ||
-            (data.networkDetails as any)?.status;
+            numericProperty(data.response, "code") ||
+            numericProperty(data.response, "status") ||
+            numericProperty(data.networkDetails, "status");
           const errorUrl =
-            (data as any)?.url || (data.context as any)?.url || (data.frag as any)?.url || src;
+            stringProperty(data, "url") ||
+            stringProperty(data.context, "url") ||
+            stringProperty(data.frag, "url") ||
+            src;
           const isRefreshableKickLiveCdnError =
             isLive && (isKickLiveCdnUrl(src) || isKickLiveCdnUrl(errorUrl));
 

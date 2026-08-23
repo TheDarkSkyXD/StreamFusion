@@ -17,7 +17,12 @@ import { logger } from "@/renderer/logging/logger";
 import { ClipCard } from "./ClipCard";
 import { ClipDialog } from "./ClipDialog";
 import { ContentTabs, type SortOption } from "./ContentTabs";
-import type { RelatedContentProps, VideoOrClip } from "./types";
+import {
+  parsePlaybackQualities,
+  parseVideoOrClips,
+  type RelatedContentProps,
+  type VideoOrClip,
+} from "./types";
 import { VideoCard } from "./VideoCard";
 
 export type TimeRange = "day" | "week" | "month" | "all";
@@ -219,7 +224,7 @@ export function RelatedContent({
       setHasMoreClips(true);
 
       try {
-        const api = (window as any).electronAPI;
+        const api = window.electronAPI;
         if (!api) return;
 
         const targetTab = activeTab || "home";
@@ -245,21 +250,21 @@ export function RelatedContent({
           ]);
 
           if (videosResult.success) {
-            const nextVideos = videosResult.data || [];
+            const nextVideos = parseVideoOrClips(videosResult.data);
             setVideos(nextVideos);
             prewarmRelatedContentImages(
               `${platform}:${channelName}:home`,
-              nextVideos.concat(clipsResult.success ? clipsResult.data || [] : [])
+              nextVideos.concat(clipsResult.success ? parseVideoOrClips(clipsResult.data) : [])
             );
             // No cursor needed for home view
           }
 
           if (clipsResult.success) {
-            setClips(clipsResult.data || []);
+            setClips(parseVideoOrClips(clipsResult.data));
             if (!videosResult.success) {
               prewarmRelatedContentImages(
                 `${platform}:${channelName}:home`,
-                clipsResult.data || []
+                parseVideoOrClips(clipsResult.data)
               );
             }
           }
@@ -276,7 +281,7 @@ export function RelatedContent({
             sort: sortBy === "views" ? "views" : "date",
           });
           if (result.success) {
-            const nextVideos = result.data || [];
+            const nextVideos = parseVideoOrClips(result.data);
             setVideos(nextVideos);
             prewarmRelatedContentImages(`${platform}:${channelName}:videos`, nextVideos);
             setVideoCursor(result.cursor);
@@ -295,7 +300,7 @@ export function RelatedContent({
             timeRange: timeRange,
           });
           if (result.success) {
-            const nextClips = result.data || [];
+            const nextClips = parseVideoOrClips(result.data);
             setClips(nextClips);
             prewarmRelatedContentImages(`${platform}:${channelName}:clips`, nextClips);
             setClipCursor(result.cursor);
@@ -331,7 +336,7 @@ export function RelatedContent({
 
     setIsFetchingMore(true);
     try {
-      const api = (window as any).electronAPI;
+      const api = window.electronAPI;
       if (!api) {
         logger.error("Stream:Related", "API not available for loading more items");
         return;
@@ -347,7 +352,7 @@ export function RelatedContent({
           sort: sortBy === "views" ? "views" : "date",
         });
         if (result.success) {
-          const newVideos = result.data || [];
+          const newVideos = parseVideoOrClips(result.data);
 
           // Stop if no videos returned
           if (newVideos.length === 0) {
@@ -398,7 +403,7 @@ export function RelatedContent({
           timeRange: timeRange,
         });
         if (result.success) {
-          const newClips = result.data || [];
+          const newClips = parseVideoOrClips(result.data);
 
           // Stop if no clips returned
           if (newClips.length === 0) {
@@ -498,7 +503,7 @@ export function RelatedContent({
       setClipError(null);
 
       try {
-        const api = (window as any).electronAPI;
+        const api = window.electronAPI;
         if (!api) {
           throw new Error("Electron API not found");
         }
@@ -514,7 +519,7 @@ export function RelatedContent({
 
         if (result.success && result.data) {
           setClipPlaybackUrl(result.data.url);
-          setClipQualities(result.data.qualities);
+          setClipQualities(parsePlaybackQualities(result.data));
         } else {
           logger.error("Stream:Related", "failed to get clip URL", { error: result.error });
           // For Twitch, we'll fall back to iframe embed

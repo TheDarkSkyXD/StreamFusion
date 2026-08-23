@@ -31,6 +31,7 @@ vi.mock("@/backend/auth/oauth-config", () => ({
       scopes: [
         "user:read",
         "channel:read",
+        "chat:write",
         "moderation:chat_message:manage",
         "moderation:ban",
         "events:subscribe",
@@ -453,7 +454,7 @@ describe("validateToken", () => {
       jsonResponse({
         active: true,
         scope:
-          "user:read channel:read moderation:chat_message:manage moderation:ban events:subscribe",
+          "user:read channel:read chat:write moderation:chat_message:manage moderation:ban events:subscribe",
       })
     );
     vi.stubGlobal("fetch", fetchMock);
@@ -488,7 +489,10 @@ describe("validateToken", () => {
   });
 
   it("returns false for unknown platform", async () => {
-    const result = await tokenExchangeService.validateToken("youtube" as any, "at");
+    const result = await Reflect.apply(tokenExchangeService.validateToken, tokenExchangeService, [
+      "youtube",
+      "at",
+    ]);
     expect(result).toBe(false);
   });
 
@@ -508,9 +512,10 @@ describe("validateToken", () => {
 
 describe("getTokenStatus", () => {
   it("returns identity/scopes/expiry for unknown platform", async () => {
-    const report = await tokenExchangeService.getTokenStatus("youtube" as any, {
-      accessToken: "at",
-    });
+    const report = await Reflect.apply(tokenExchangeService.getTokenStatus, tokenExchangeService, [
+      "youtube",
+      { accessToken: "at" },
+    ]);
     expect(report).toEqual({ valid: false });
   });
 

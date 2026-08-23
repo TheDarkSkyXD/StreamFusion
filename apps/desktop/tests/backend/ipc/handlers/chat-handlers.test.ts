@@ -48,13 +48,16 @@ import { kickClient } from "@/backend/api/platforms/kick/kick-client";
 import { registerChatHandlers } from "@/backend/ipc/handlers/chat-handlers";
 import { badgeResolver } from "@/backend/services/chat/badge-resolver";
 
-type Handler = (event: unknown, params: unknown) => Promise<unknown>;
+type MentionResult = { success: boolean; data: Array<{ userId: string; username: string; displayName: string; avatarUrl: string }>; error?: string };
+type Handler<T = unknown> = (event: unknown, params: unknown) => Promise<T>;
 
+function getHandler(channel: typeof IPC_CHANNELS.CHAT_ENRICH_MENTION_USERS): Handler<MentionResult>;
+function getHandler(channel: string): Handler;
 function getHandler(channel: string): Handler {
-  const calls = vi.mocked(ipcMain.handle).mock.calls as unknown as Array<[string, Handler]>;
+  const calls = vi.mocked(ipcMain.handle).mock.calls;
   const call = calls.find(([c]) => c === channel);
   if (!call) throw new Error(`handler not registered: ${channel}`);
-  return call[1];
+  return (event, params) => Promise.resolve(Reflect.apply(call[1], undefined, [event, params]));
 }
 
 beforeEach(() => {
@@ -202,8 +205,8 @@ describe("CHAT_GET_KICK_HISTORY", () => {
     const { getKickChannelHistory } = await import(
       "@/backend/api/platforms/kick/endpoints/chat-endpoints"
     );
-    const messages = [{ id: "1", content: "hello" }];
-    vi.mocked(getKickChannelHistory).mockResolvedValue(messages as any);
+    const messages = { messages: [], pinnedMessage: null };
+    vi.mocked(getKickChannelHistory).mockResolvedValue(messages);
 
     const handler = getHandler(IPC_CHANNELS.CHAT_GET_KICK_HISTORY);
     const result = await handler({}, { channelId: "12345" });
@@ -229,8 +232,8 @@ describe("CHAT_GET_TWITCH_HISTORY", () => {
     const { getTwitchChannelHistory } = await import(
       "@/backend/api/platforms/twitch/endpoints/chat-endpoints"
     );
-    const rawIrc = ["@badges= :tmi.twitch.tv PRIVMSG #test :hi"];
-    vi.mocked(getTwitchChannelHistory).mockResolvedValue(rawIrc as any);
+    const rawIrc = { rawMessages: ["@badges= :tmi.twitch.tv PRIVMSG #test :hi"] };
+    vi.mocked(getTwitchChannelHistory).mockResolvedValue(rawIrc);
 
     const handler = getHandler(IPC_CHANNELS.CHAT_GET_TWITCH_HISTORY);
     const result = await handler({}, { channel: "testchannel" });
@@ -307,14 +310,14 @@ describe("CHAT_ENRICH_MENTION_USERS", () => {
     vi.mocked(kickClient.getPublicChannel).mockResolvedValue(null);
 
     const handler = getHandler(IPC_CHANNELS.CHAT_ENRICH_MENTION_USERS);
-    const result = (await handler(
+    const result = await handler(
       {},
       {
         platform: "kick",
         channel: "iceposeidon",
         users: [{ userId: "4357508", username: "ACTIONJACKSONALWAYSWINS" }],
       }
-    )) as any;
+    );
 
     expect(result.success).toBe(true);
     expect(result.data).toHaveLength(1);
@@ -332,14 +335,14 @@ describe("CHAT_ENRICH_MENTION_USERS", () => {
     vi.mocked(kickClient.getPublicChannel).mockResolvedValue(null);
 
     const handler = getHandler(IPC_CHANNELS.CHAT_ENRICH_MENTION_USERS);
-    const result = (await handler(
+    const result = await handler(
       {},
       {
         platform: "kick",
         channel: "iceposeidon",
         users: [{ username: "NoCustomAvatarUser" }],
       }
-    )) as any;
+    );
 
     expect(result.success).toBe(true);
     expect(result.data).toHaveLength(1);

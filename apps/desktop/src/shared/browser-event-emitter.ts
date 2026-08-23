@@ -5,12 +5,26 @@
  * Node.js's 'node:events' module is not available in the renderer process when bundled with Vite.
  */
 
-type Listener = (...args: any[]) => void;
+type EventMapConstraint<Events> = {
+  [Event in keyof Events]: readonly unknown[];
+};
 
-class BrowserEventEmitter {
-  private listeners: Map<string, Set<Listener>> = new Map();
+type EventName<Events> = [Events] extends [never] ? string : Extract<keyof Events, string>;
+type EventArgs<Events, Event extends EventName<Events>> = [Events] extends [never]
+  ? readonly unknown[]
+  : Event extends keyof Events
+    ? Events[Event] extends readonly unknown[]
+      ? Events[Event]
+      : never
+    : never;
+type Listener<Events, Event extends EventName<Events>> = (
+  ...args: [Events] extends [never] ? never[] : EventArgs<Events, Event>
+) => void;
 
-  on(event: string, listener: Listener): this {
+class BrowserEventEmitter<Events extends EventMapConstraint<Events> = never> {
+  private listeners = new Map<EventName<Events>, Set<unknown>>();
+
+  on<Event extends EventName<Events>>(event: Event, listener: Listener<Events, Event>): this {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
     }
@@ -18,25 +32,25 @@ class BrowserEventEmitter {
     return this;
   }
 
-  once(event: string, listener: Listener): this {
-    const onceWrapper = (...args: any[]) => {
+  once<Event extends EventName<Events>>(event: Event, listener: Listener<Events, Event>): this {
+    const onceWrapper: Listener<Events, Event> = (...args) => {
       this.off(event, onceWrapper);
       listener(...args);
     };
     return this.on(event, onceWrapper);
   }
 
-  off(event: string, listener: Listener): this {
+  off<Event extends EventName<Events>>(event: Event, listener: Listener<Events, Event>): this {
     this.listeners.get(event)?.delete(listener);
     return this;
   }
 
-  emit(event: string, ...args: any[]): boolean {
+  emit<Event extends EventName<Events>>(event: Event, ...args: EventArgs<Events, Event>): boolean {
     const eventListeners = this.listeners.get(event);
     if (!eventListeners || eventListeners.size === 0) return false;
     for (const listener of eventListeners) {
       try {
-        listener(...args);
+        if (typeof listener === "function") Reflect.apply(listener, undefined, args);
       } catch (error) {
         console.error(`Error in event listener for '${event}':`, error);
       }
@@ -44,11 +58,14 @@ class BrowserEventEmitter {
     return true;
   }
 
-  removeListener(event: string, listener: Listener): this {
+  removeListener<Event extends EventName<Events>>(
+    event: Event,
+    listener: Listener<Events, Event>
+  ): this {
     return this.off(event, listener);
   }
 
-  removeAllListeners(event?: string): this {
+  removeAllListeners(event?: EventName<Events>): this {
     if (event) {
       this.listeners.delete(event);
     } else {
@@ -57,7 +74,7 @@ class BrowserEventEmitter {
     return this;
   }
 
-  listenerCount(event: string): number {
+  listenerCount(event: EventName<Events>): number {
     return this.listeners.get(event)?.size ?? 0;
   }
 }

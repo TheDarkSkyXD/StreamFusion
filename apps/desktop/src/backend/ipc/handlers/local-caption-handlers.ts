@@ -1,5 +1,5 @@
 import type { BrowserWindow } from "electron";
-import { ipcMain } from "electron";
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { isAllowedSender, type SenderFrameLike } from "@/backend/ipc/sender-origin";
 import type { LocalCaptionLease } from "@/backend/services/captions/local-caption-supervisor";

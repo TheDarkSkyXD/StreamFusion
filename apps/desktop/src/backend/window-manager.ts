@@ -13,7 +13,6 @@ import { logger } from "@/backend/logging/logger";
 import { configureWindowIdentity } from "./app-identity";
 import { installContextMenu } from "./context-menu";
 import { forwardWebContentsConsole } from "./logging/web-contents-log-forwarder";
-import { markCleanShutdown } from "./shutdown-marker";
 
 /**
  * Resolve the checked-in application artwork from electron-vite's built
@@ -275,8 +274,8 @@ class WindowManager {
     // OS" failure mode: the click never reaches main because the renderer's
     // event loop is wedged at 100% CPU. Electron's `unresponsive` event
     // fires when the renderer hasn't responded to input pings within ~30s,
-    // so we layer a shorter 8s timer on top — if it doesn't recover, mark
-    // cleanly (preserves cache on next launch) and destroy.
+    // so we layer a shorter 8s timer on top. If it doesn't recover, destroy
+    // without marking the session clean so the next launch can offer recovery.
     this.mainWindow.on("unresponsive", () => {
       logger.warn("Main:Window", "Renderer unresponsive — starting force-quit timer", {
         timeoutMs: UNRESPONSIVE_FORCE_QUIT_MS,
@@ -287,7 +286,6 @@ class WindowManager {
         logger.warn("Main:Window", "Renderer still unresponsive — force-destroying", {
           timeoutMs: UNRESPONSIVE_FORCE_QUIT_MS,
         });
-        markCleanShutdown();
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
           this.mainWindow.destroy();
         }

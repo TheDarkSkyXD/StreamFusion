@@ -881,7 +881,7 @@ describe("FollowButton authenticated Kick account write", () => {
       expect(queryClient.getQueryData(CHANNEL_KEYS.followed("kick"))).toEqual([]);
     });
 
-    api.follows.writeAccount.mockClear();
+    vi.mocked(api.follows.writeAccount).mockClear();
     toast.mockClear();
     await userEvent.click(screen.getByRole("button", { name: "Follow" }));
 

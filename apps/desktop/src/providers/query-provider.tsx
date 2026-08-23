@@ -150,9 +150,9 @@ export const queryClient = new QueryClient({
       staleTime: 30 * 1000,
       // Keep unused data in cache for 5 minutes
       gcTime: 5 * 60 * 1000,
-      // Retry failed requests 3 times with exponential backoff
-      retry: 3,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      // Dependency adapters own bounded automatic retries. Retrying here would
+      // multiply upstream work after the adapter already exhausted its budget.
+      retry: false,
       // Refetch on window focus for live data
       refetchOnWindowFocus: true,
       // Don't refetch on mount if data is fresh

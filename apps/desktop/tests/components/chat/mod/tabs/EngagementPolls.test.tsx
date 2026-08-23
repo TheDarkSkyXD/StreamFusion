@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAuthStore } from "@/store/auth-store";
+import { installElectronAPIMock } from "../../../../test-utils";
 
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), {
@@ -34,11 +35,9 @@ beforeEach(() => {
       profileImageUrl: "",
       createdAt: "",
       broadcasterType: "",
-    } as any,
+    },
   });
-  (globalThis.window as unknown as { electronAPI: unknown }).electronAPI = {
-    twitch: { execute: executeMock },
-  };
+  installElectronAPIMock().twitch.execute = executeMock;
 });
 
 afterEach(() => {

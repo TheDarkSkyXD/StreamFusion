@@ -1,10 +1,11 @@
-import { BrowserWindow } from "electron";
+import type { BrowserWindow } from "electron";
 import { z } from "zod";
 import { logger } from "@/lib/cross-logger";
 import type { KickUser } from "../../../../../shared/auth-types";
 import { kickAuthService } from "../../../../auth/kick-auth";
 import { getPlatformHealth } from "../../../unified/platform-health";
 import type { KickRequestor } from "../kick-requestor";
+import { createHiddenKickBrowserWindow } from "../kick-hidden-browser-window";
 import { KICK_LEGACY_API_V2_BASE, type KickApiResponse, type KickApiUser } from "../kick-types";
 
 import { acquireBrowserWindowSlot } from "./channel-endpoints";
@@ -26,7 +27,7 @@ export interface KickPublicChannelUserProfile {
   username: string;
   displayName: string;
   avatarUrl: string;
-  followingSince?: string;
+  followingSince?: string | null;
 }
 
 export interface KickChannelUserState {
@@ -46,6 +47,27 @@ const kickPublicChannelUserProfileSchema = z.looseObject({
   profile_pic: z.string().nullable().optional(),
   following_since: z.string().nullable().optional(),
 });
+
+function mapKickPublicChannelUserProfile(rawData: unknown): KickPublicChannelUserProfile | null {
+  const parsed = kickPublicChannelUserProfileSchema.safeParse(rawData);
+  if (!parsed.success) return null;
+  const data = parsed.data;
+  const followingSince =
+    data.following_since === null
+      ? null
+      : data.following_since &&
+          ISO_TIMESTAMP_PATTERN.test(data.following_since) &&
+          Number.isFinite(Date.parse(data.following_since))
+        ? data.following_since
+        : undefined;
+  return {
+    userId: String(data.id),
+    username: data.slug,
+    displayName: data.username,
+    avatarUrl: data.profile_pic ?? "",
+    followingSince,
+  };
+}
 
 const CHANNEL_USER_KEYS = [
   "badges",
@@ -164,8 +186,7 @@ async function fetchPublicChannelUserPayload(
       normalizedChannelSlug
     )}/users/${encodeURIComponent(normalizedUsername)}`;
 
-    win = new BrowserWindow({
-      show: false,
+    win = createHiddenKickBrowserWindow({
       width: 800,
       height: 600,
       webPreferences: {
@@ -232,24 +253,125 @@ export async function getPublicChannelUserProfile(
   username: string
 ): Promise<KickPublicChannelUserProfile | null> {
   const rawData = await fetchPublicChannelUserPayload(channelSlug, username);
-  const parsed = kickPublicChannelUserProfileSchema.safeParse(rawData);
-  if (!parsed.success) return null;
+  return mapKickPublicChannelUserProfile(rawData);
+}
 
-  const data = parsed.data;
-  const followingSince =
-    data.following_since &&
-    ISO_TIMESTAMP_PATTERN.test(data.following_since) &&
-    Number.isFinite(Date.parse(data.following_since))
-      ? data.following_since
-      : undefined;
+const PUBLIC_USER_PROFILE_BATCH_SIZE = 25;
+const PUBLIC_USER_PROFILE_BATCH_CONCURRENCY = 2;
+const PUBLIC_USER_PROFILE_BATCH_EXECUTION_TIMEOUT_MS = 75_000;
 
-  return {
-    userId: String(data.id),
-    username: data.slug,
-    displayName: data.username,
-    avatarUrl: data.profile_pic ?? "",
-    followingSince,
-  };
+async function withPublicProfileBatchTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    // timer-allowlist: bounds an authenticated hidden-window batch so the shared mutex is released.
+    timer = setTimeout(() => reject(new Error("Kick profile batch timeout")), timeoutMs);
+  });
+  try {
+    return await Promise.race([operation, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+export async function getPublicChannelUserProfiles(
+  requests: Array<{ channelSlug: string; username: string }>
+): Promise<Array<{ channelSlug: string; profile: KickPublicChannelUserProfile | null }>> {
+  const results: Array<{ channelSlug: string; profile: KickPublicChannelUserProfile | null }> = [];
+  for (let index = 0; index < requests.length; index += PUBLIC_USER_PROFILE_BATCH_SIZE) {
+    const chunk = requests.slice(index, index + PUBLIC_USER_PROFILE_BATCH_SIZE);
+    const releaseSlot = await acquireBrowserWindowSlot();
+    let win: BrowserWindow | null = null;
+    try {
+      win = createHiddenKickBrowserWindow({
+        width: 800,
+        height: 600,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+          // Default session carries the authenticated Kick OAuth cookies.
+          // The isolated public partition cannot prove viewer relationships.
+        },
+      });
+      await withPublicProfileBatchTimeout(
+        win.loadURL("https://kick.com/"),
+        PUBLIC_USER_PROFILE_LOAD_TIMEOUT_MS
+      );
+      const raw = (await withPublicProfileBatchTimeout(
+        win.webContents.executeJavaScript(`(async () => {
+        const requests = ${JSON.stringify(chunk)};
+        const results = new Array(requests.length);
+        let nextIndex = 0;
+        // timer-allowlist: retry backoff runs inside the isolated Kick page execution context.
+        const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const retryDelayMs = (response, attempt) => {
+          const header = response.headers.get('Retry-After');
+          if (header) {
+            const seconds = Number(header);
+            const parsed = Number.isFinite(seconds)
+              ? seconds * 1000
+              : Date.parse(header) - Date.now();
+            if (Number.isFinite(parsed) && parsed > 0) return Math.min(parsed, 30000);
+          }
+          return 1000 * (attempt + 1);
+        };
+        const worker = async () => {
+          while (nextIndex < requests.length) {
+            const index = nextIndex++;
+            const request = requests[index];
+            for (let attempt = 0; attempt < 3; attempt += 1) {
+              const controller = new AbortController();
+              // timer-allowlist: aborts a single in-page profile fetch that exceeds the batch deadline.
+              const timeout = setTimeout(() => controller.abort(), ${PUBLIC_USER_PROFILE_LOAD_TIMEOUT_MS});
+              try {
+                const response = await fetch(
+                  '/api/v2/channels/' + encodeURIComponent(request.channelSlug) +
+                    '/users/' + encodeURIComponent(request.username),
+                  { credentials: 'include', signal: controller.signal }
+                );
+                if (response.status === 429 && attempt < 2) {
+                  await wait(retryDelayMs(response, attempt));
+                  continue;
+                }
+                results[index] = {
+                  channelSlug: request.channelSlug,
+                  payload: response.ok ? await response.json() : null,
+                };
+                break;
+              } catch {
+                results[index] = { channelSlug: request.channelSlug, payload: null };
+                break;
+              } finally {
+                clearTimeout(timeout);
+              }
+            }
+          }
+        };
+        await Promise.all(Array.from(
+          { length: Math.min(${PUBLIC_USER_PROFILE_BATCH_CONCURRENCY}, requests.length) },
+          worker
+        ));
+        return JSON.stringify(results);
+      })()`),
+        PUBLIC_USER_PROFILE_BATCH_EXECUTION_TIMEOUT_MS
+      )) as string;
+      const parsed = JSON.parse(raw) as Array<{ channelSlug: string; payload: unknown }>;
+      for (const item of parsed) {
+        results.push({
+          channelSlug: item.channelSlug,
+          profile: mapKickPublicChannelUserProfile(item.payload),
+        });
+      }
+    } catch {
+      results.push(...chunk.map(({ channelSlug }) => ({ channelSlug, profile: null })));
+    } finally {
+      if (win && !win.isDestroyed()) win.destroy();
+      releaseSlot();
+    }
+  }
+  return results;
 }
 
 /**

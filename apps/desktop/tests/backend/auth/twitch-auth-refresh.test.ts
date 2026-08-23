@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TokenRefreshError } from "@/backend/auth/token-exchange";
-import { TWITCH_APP_SCOPES } from "@/shared/auth-types";
+import { TWITCH_APP_SCOPES, type AuthToken } from "@/shared/auth-types";
+
+const storageMocks = vi.hoisted(() => ({
+  state: { token: null as AuthToken | null },
+  getToken: vi.fn(), saveToken: vi.fn(), clearToken: vi.fn(), clearTwitchUser: vi.fn(), saveTwitchUser: vi.fn(), getTwitchUser: vi.fn(),
+}));
 
 // Guards: Twitch token-refresh flow — 401 → refresh → retry, refresh-failure → clearToken + signed-out state, expired-token detection. Module-level mocks for storageService and tokenExchangeService keep the refresh-decision logic isolated from disk/network so the chain can be driven deterministically. Drift on the singleton's lookup-then-decide ordering (e.g. caching a stale token in memory across a refresh) surfaces here.
 
@@ -9,31 +14,19 @@ import { TWITCH_APP_SCOPES } from "@/shared/auth-types";
 // module-load time. Both are mocked below so the tests don't touch disk or
 // the network and can drive the refresh chain deterministically.
 vi.mock("@/backend/services/storage-service", () => {
-  const state: {
-    token: {
-      accessToken: string;
-      refreshToken?: string;
-      expiresAt?: number;
-      scope?: string[];
-      authFlow?: "device-code";
-    } | null;
-  } = {
-    token: null,
-  };
   return {
     storageService: {
-      getToken: vi.fn(() => state.token),
-      saveToken: vi.fn((_platform: string, token: typeof state.token) => {
-        state.token = token;
+      getToken: storageMocks.getToken.mockImplementation(() => storageMocks.state.token),
+      saveToken: storageMocks.saveToken.mockImplementation((_platform: string, token: AuthToken) => {
+        storageMocks.state.token = token;
       }),
-      clearToken: vi.fn((_platform: string) => {
-        state.token = null;
+      clearToken: storageMocks.clearToken.mockImplementation(() => {
+        storageMocks.state.token = null;
       }),
-      clearTwitchUser: vi.fn(),
-      saveTwitchUser: vi.fn(),
-      getTwitchUser: vi.fn(() => null),
+      clearTwitchUser: storageMocks.clearTwitchUser,
+      saveTwitchUser: storageMocks.saveTwitchUser,
+      getTwitchUser: storageMocks.getTwitchUser.mockReturnValue(null),
     },
-    __state: state,
   };
 });
 
@@ -52,14 +45,13 @@ vi.mock("@/backend/auth/token-exchange", async () => {
   };
 });
 
-// biome-ignore lint/suspicious/noExplicitAny: test-only import to read mocked state
-const storageModule: any = await import("@/backend/services/storage-service");
+const storageModule = await import("@/backend/services/storage-service");
 const { tokenExchangeService } = await import("@/backend/auth/token-exchange");
-const refreshTokenMock = tokenExchangeService.refreshToken as unknown as ReturnType<typeof vi.fn>;
+const refreshTokenMock = vi.mocked(tokenExchangeService.refreshToken);
 const { twitchAuthService } = await import("@/backend/auth/twitch-auth");
 
 function setStoredToken(expiresInSec: number): void {
-  storageModule.__state.token = {
+  storageMocks.state.token = {
     accessToken: "old-access",
     refreshToken: "rt-1",
     expiresAt: Date.now() + expiresInSec * 1000,
@@ -69,7 +61,7 @@ function setStoredToken(expiresInSec: number): void {
 }
 
 function clearStoredToken(): void {
-  storageModule.__state.token = null;
+  storageMocks.state.token = null;
 }
 
 beforeEach(() => {
@@ -77,9 +69,9 @@ beforeEach(() => {
   twitchAuthService.cancelProactiveRefresh();
   twitchAuthService.setAuthLostHandler(() => undefined);
   refreshTokenMock.mockReset();
-  storageModule.storageService.clearToken.mockClear();
-  storageModule.storageService.clearTwitchUser.mockClear();
-  storageModule.storageService.saveToken.mockClear();
+  storageMocks.clearToken.mockClear();
+  storageMocks.clearTwitchUser.mockClear();
+  storageMocks.saveToken.mockClear();
   clearStoredToken();
 });
 
@@ -116,7 +108,7 @@ describe("TokenRefreshError.isPermanent", () => {
 
 describe("twitchAuthService refresh chain", () => {
   it("preserves a previously complete scope set when Twitch omits scopes on refresh", async () => {
-    storageModule.__state.token = {
+    storageMocks.state.token = {
       accessToken: "old-access",
       refreshToken: "rt-1",
       expiresAt: Date.now() + 3600_000,

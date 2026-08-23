@@ -67,9 +67,9 @@ import {
 const sendKickChatMessage = (
   chatroomId: number,
   content: string,
-  broadcasterUserId?: number
+  channelSlug: string
 ): Promise<KickSendResult> =>
-  window.electronAPI.kickChat.sendMessage(chatroomId, content, broadcasterUserId);
+  window.electronAPI.kickChat.sendMessage(chatroomId, content, channelSlug);
 
 const ensureSendWindowReady = (): Promise<void> =>
   window.electronAPI.kickChat.ensureSendWindowReady();
@@ -744,11 +744,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     // surfacing, and optimistic echo.
     let result: KickSendResult;
     try {
-      result = await sendKickChatMessage(
-        channelInfo.chatroomId,
-        message,
-        channelInfo.broadcasterUserId
-      );
+      result = await sendKickChatMessage(channelInfo.chatroomId, message, normalizedChannel);
       if (!result.ok) {
         throw new KickChatSendError(result);
       }

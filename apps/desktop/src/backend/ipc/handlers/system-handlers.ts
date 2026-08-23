@@ -1,6 +1,8 @@
 import path from "node:path";
 
-import { app, type BrowserWindow, ipcMain, Notification, nativeTheme, shell } from "electron";
+import { app, type BrowserWindow, Notification, nativeTheme, shell } from "electron";
+
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@/backend/logging/logger";
 import { storageService } from "@/backend/services/storage-service";

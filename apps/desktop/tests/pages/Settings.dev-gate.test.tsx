@@ -1,7 +1,5 @@
-// Guards: the Settings sidebar must dev-gate the Logs tab — visible only
-// when `env.get()` reports isDev === true. In prod (isDev:false) the Logs
-// sidebar item is hidden AND a deep-link `?tab=logs` falls back to the
-// default tab. The Report Bug section is also dev-only (same gate as Logs).
+// Guards: direct links to both developer-only settings resolve in development
+// and fall back to Playback in production after leaving the sidebar navigation.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -16,11 +14,18 @@ import {
   renderWithProviders,
   routerMock,
   screen,
-  userEvent,
   waitFor,
 } from "../test-utils";
 
-vi.mock("@tanstack/react-router", () => routerMock());
+const routerState = vi.hoisted(() => ({
+  search: { tab: "playback" },
+  navigate: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  ...routerMock({ search: routerState.search }),
+  useNavigate: () => routerState.navigate,
+}));
 
 vi.mock("@/hooks", () => ({
   useAppVersion: () => "1.0.0-test",
@@ -103,103 +108,50 @@ function installEnvMock(isDev: boolean) {
     nodeVersion: "20.0.0",
   }));
   api.env = { get };
-  // Logs section's mount probes — provide quiet stubs so optional chaining is
-  // happy (the section is mocked out anyway, but the gating effect runs).
-  api.logs = {
-    getCurrentPath: vi.fn(async () => "/tmp/streamfusion.log"),
-    getNoisePath: vi.fn(async () => "/tmp/streamfusion-noise.log"),
-    getNetworkPath: vi.fn(async () => "/tmp/streamfusion-network.log"),
-    tail: vi.fn(async () => []),
-    openFolder: vi.fn(async () => ({ ok: true })),
-  };
-  api.bugReports = {
-    write: vi.fn(),
-    openFolder: vi.fn(),
-    list: vi.fn(async () => []),
-    getDir: vi.fn(async () => "/tmp/bug-reports"),
-  };
-  return { api, get };
 }
 
 import { SettingsPage } from "@/pages/Settings";
 
-describe("SettingsPage — dev gate for LogsSection", () => {
+const DEVELOPER_ONLY_PANELS = [
+  { tab: "logs", testId: "logs-section" },
+  { tab: "report-bug", testId: "bug-report-section" },
+] as const;
+
+describe("SettingsPage — developer-only deep links", () => {
   beforeEach(() => {
     updatePreferences.mockReset();
+    routerState.search.tab = "playback";
+    routerState.navigate.mockReset();
   });
 
-  it("hides the Logs sidebar item in prod (isDev:false)", async () => {
-    const { get } = installEnvMock(false);
-    renderWithProviders(<SettingsPage />);
-    await waitFor(() => expect(get).toHaveBeenCalled());
+  it.each(DEVELOPER_ONLY_PANELS)(
+    "mounts the $tab panel for a direct development link",
+    async ({ tab, testId }) => {
+      routerState.search.tab = tab;
+      installEnvMock(true);
+      renderWithProviders(<SettingsPage />);
+      expect(await screen.findByTestId(testId)).toBeInTheDocument();
+      expect(routerState.navigate).not.toHaveBeenCalledWith(
+        expect.objectContaining({ search: { tab: "playback" } })
+      );
+    }
+  );
 
-    expect(screen.queryByRole("link", { name: "Logs" })).toBeNull();
-  });
+  it.each(DEVELOPER_ONLY_PANELS)(
+    "redirects a direct $tab link to Playback in production",
+    async ({ tab, testId }) => {
+      routerState.search.tab = tab;
+      installEnvMock(false);
+      renderWithProviders(<SettingsPage />);
 
-  it("shows the Logs sidebar item in dev (isDev:true)", async () => {
-    const { get } = installEnvMock(true);
-    renderWithProviders(<SettingsPage />);
-    await waitFor(() => expect(get).toHaveBeenCalled());
-
-    expect(screen.getByRole("link", { name: "Logs" })).toBeInTheDocument();
-  });
-
-  it("mounts LogsSection when the Logs tab is active in dev", async () => {
-    const { get } = installEnvMock(true);
-    const user = userEvent.setup();
-    renderWithProviders(<SettingsPage />);
-    await waitFor(() => expect(get).toHaveBeenCalled());
-
-    await user.click(screen.getByRole("link", { name: "Logs" }));
-    expect(screen.getByTestId("logs-section")).toBeInTheDocument();
-  });
-
-  it("does not mount LogsSection in prod even if the active tab would be 'logs'", async () => {
-    const { get } = installEnvMock(false);
-    renderWithProviders(<SettingsPage />);
-    await waitFor(() => expect(get).toHaveBeenCalled());
-
-    expect(screen.queryByTestId("logs-section")).toBeNull();
-  });
-
-  it("shows the Report Bug sidebar item + mounts BugReportSection in dev", async () => {
-    const devCase = installEnvMock(true);
-    const devUser = userEvent.setup();
-    renderWithProviders(<SettingsPage />);
-    await waitFor(() => expect(devCase.get).toHaveBeenCalled());
-    expect(screen.getByRole("link", { name: "Report Bug" })).toBeInTheDocument();
-    await devUser.click(screen.getByRole("link", { name: "Report Bug" }));
-    expect(screen.getByTestId("bug-report-section")).toBeInTheDocument();
-  });
-
-  it("hides the Report Bug sidebar item + does not mount BugReportSection in prod", async () => {
-    const prodCase = installEnvMock(false);
-    renderWithProviders(<SettingsPage />);
-    await waitFor(() => expect(prodCase.get).toHaveBeenCalled());
-    expect(screen.queryByRole("link", { name: "Report Bug" })).toBeNull();
-    expect(screen.queryByTestId("bug-report-section")).toBeNull();
-  });
-});
-
-describe("SettingsPage — dev gate, prod deep-link to ?tab=logs", () => {
-  beforeEach(() => {
-    updatePreferences.mockReset();
-    vi.resetModules();
-  });
-
-  it("redirects ?tab=logs to the default tab in prod", async () => {
-    // Re-mock the router for this file with search:{tab:'logs'} via vi.doMock.
-    vi.doMock("@tanstack/react-router", () => routerMock({ search: { tab: "logs" } }));
-    const { get } = installEnvMock(false);
-    // Re-import the page after re-mocking the router.
-    const { SettingsPage: PageWithLogsDeepLink } = await import("@/pages/Settings");
-    renderWithProviders(<PageWithLogsDeepLink />);
-    await waitFor(() => expect(get).toHaveBeenCalled());
-
-    // The Logs section isn't mounted, and the default-tab content is visible.
-    expect(screen.queryByTestId("logs-section")).toBeNull();
-    // Playback is the default. Its <h2> heading "Playback" is unique to that tab.
-    expect(screen.getByRole("heading", { level: 2, name: /^Playback$/i })).toBeInTheDocument();
-    vi.doUnmock("@tanstack/react-router");
-  });
+      await waitFor(() => {
+        expect(routerState.navigate).toHaveBeenCalledWith({
+          to: "/settings",
+          search: { tab: "playback" },
+          replace: true,
+        });
+      });
+      expect(screen.queryByTestId(testId)).not.toBeInTheDocument();
+    }
+  );
 });

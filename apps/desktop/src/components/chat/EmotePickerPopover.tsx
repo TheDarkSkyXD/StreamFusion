@@ -767,7 +767,8 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
   // biome-ignore lint/correctness/useExhaustiveDependencies: getEmotesByProvider is a stable zustand selector; including it would not change behavior but would add noise
   const emotesByProvider = useMemo(
     () => getEmotesByProvider(),
-    [activeChannelId, loadedChannels, loadedGlobalPlatforms.size, emoteRevision]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- revisions intentionally invalidate a stable Zustand getter result.
+    [activeChannelId, getEmotesByProvider, loadedChannels, loadedGlobalPlatforms.size, emoteRevision]
   );
 
   const refreshTwitchUserEmoteScopeStatus =

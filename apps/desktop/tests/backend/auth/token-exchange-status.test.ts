@@ -28,15 +28,14 @@ afterEach(() => {
 
 describe("getTokenStatus — Twitch (/validate)", () => {
   it("validates with the OAuth bearer header and NO Client-Id; returns identity/scopes/expiry", async () => {
-    const fetchMock = vi.fn(
-      async (_url: string, _init?: RequestInit): Promise<Response> =>
-        jsonResponse({
-          client_id: "abc",
-          login: "streamer",
-          user_id: "12345",
-          scopes: ["chat:read", "chat:edit"],
-          expires_in: 3600,
-        })
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit): Promise<Response> =>
+      jsonResponse({
+        client_id: "abc",
+        login: "streamer",
+        user_id: "12345",
+        scopes: ["chat:read", "chat:edit"],
+        expires_in: 3600,
+      })
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -88,6 +87,7 @@ describe("getTokenStatus — Kick (official introspection + current-user re-fetc
       scope: [
         "user:read",
         "channel:read",
+        "chat:write",
         "moderation:chat_message:manage",
         "moderation:ban",
         "events:subscribe",
@@ -103,6 +103,7 @@ describe("getTokenStatus — Kick (official introspection + current-user re-fetc
     const grantedScopes = [
       "user:read",
       "channel:read",
+      "chat:write",
       "moderation:chat_message:manage",
       "moderation:ban",
       "events:subscribe",
@@ -156,7 +157,7 @@ describe("getTokenStatus — Kick (official introspection + current-user re-fetc
           jsonResponse({
             active: true,
             scope:
-              "user:read channel:read moderation:chat_message:manage moderation:ban events:subscribe",
+              "user:read channel:read chat:write moderation:chat_message:manage moderation:ban events:subscribe",
           })
         )
         .mockResolvedValueOnce(jsonResponse({}, false, 403))

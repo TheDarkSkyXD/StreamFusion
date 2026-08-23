@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import Hls from "hls.js";
 
 vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -8,36 +9,29 @@ vi.mock("@/renderer/logging/logger", () => ({
 import { useVideoLifecycle } from "@/components/player/hooks/use-video-lifecycle";
 
 function createMockVideo(): HTMLVideoElement {
-  const video = {
-    paused: false,
-    preload: "metadata",
-    parentElement: document.createElement("div"),
-    pause: vi.fn(),
-    load: vi.fn(),
-    removeAttribute: vi.fn(),
-    firstChild: null,
-    removeChild: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-  } as unknown as HTMLVideoElement;
+  const parent = document.createElement("div");
+  const video = document.createElement("video");
+  parent.append(video);
+  Object.defineProperty(video, "paused", { value: false, configurable: true });
+  vi.spyOn(video, "pause").mockImplementation(() => undefined);
+  vi.spyOn(video, "load").mockImplementation(() => undefined);
+  vi.spyOn(video, "removeAttribute");
   return video;
 }
 
 function createMockHls() {
-  return {
-    destroy: vi.fn(),
-    loadSource: vi.fn(),
-    attachMedia: vi.fn(),
-    on: vi.fn(),
-    off: vi.fn(),
-  } as any;
+  const hls = new Hls();
+  vi.spyOn(hls, "destroy").mockImplementation(() => undefined);
+  vi.spyOn(hls, "loadSource").mockImplementation(() => undefined);
+  vi.spyOn(hls, "attachMedia").mockImplementation(() => undefined);
+  return hls;
 }
 
 describe("useVideoLifecycle", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Remove performance.memory if it exists so default tests don't use it
-    if ((performance as any).memory) {
+    if ("memory" in performance && performance.memory) {
       Object.defineProperty(performance, "memory", { value: undefined, configurable: true });
     }
   });
@@ -171,7 +165,7 @@ describe("useVideoLifecycle", () => {
   it("handles hls.destroy throwing without crashing", () => {
     const video = createMockVideo();
     const hls = createMockHls();
-    hls.destroy.mockImplementation(() => {
+    vi.mocked(hls.destroy).mockImplementation(() => {
       throw new Error("already destroyed");
     });
 

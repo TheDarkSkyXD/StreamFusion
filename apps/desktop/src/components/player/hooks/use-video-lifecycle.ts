@@ -260,10 +260,12 @@ export function useVideoLifecycle({
 
   // Cleanup on unmount
   useEffect(() => {
+    const mountedVideoRef = videoRef;
+    const mountedHlsRef = hlsRef;
     return () => {
       logger.debug("Player:Hook:Lifecycle", "component unmounting, cleaning up");
 
-      cleanupVideoElement(videoRef.current, hlsRef.current);
+      cleanupVideoElement(mountedVideoRef.current, mountedHlsRef.current);
       setIsCleaned(true);
 
       onCleanup?.();

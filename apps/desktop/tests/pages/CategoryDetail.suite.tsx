@@ -111,7 +111,6 @@ function emptyInfinite() {
 // Guards: URL-backed tabs and Live filters preserve Category identity and reproduce copied or history-restored views
 // Guards: late stale-otherId repair cannot redirect after the Category route becomes inactive
 // Guards: Platform scope keeps loading, filtering, pagination, failure retry, and empty states independent
-// Guards: selected Category navigation links expose page-current semantics to assistive technology
 // Guards: Live Viewer Count updates immediately restore the selected exact ordering
 function registerCategoryDetailTests(name: string, registerTests: () => void) {
   describe(`CategoryDetailPage ${name}`, () => {
@@ -161,7 +160,8 @@ export function registerNavigationGuardTests() {
       categoryLocationState.pathname = "/stream/twitch/ninja";
       categoryRawSearchState.tab = "home";
       const api = installElectronAPIMock();
-      api.categories.search = vi.fn(async () => ({
+      api.categories.search = vi.fn<typeof api.categories.search>(async () => ({
+        success: true,
         data: [
           fixtures.category({
             id: "15",
@@ -169,7 +169,7 @@ export function registerNavigationGuardTests() {
             name: "Just Chatting",
           }),
         ],
-        error: null,
+        providers: { kick: "complete" },
       }));
       useCategoryByIdMock.mockImplementation(
         (id, queryPlatform) =>
@@ -312,7 +312,8 @@ export function registerIdentityTests() {
       categoryLocationState.pathname = "/categories/twitch/509658";
       categorySearchState.otherId = "stale-kick-id";
       const api = installElectronAPIMock();
-      api.categories.search = vi.fn(async () => ({
+      api.categories.search = vi.fn<typeof api.categories.search>(async () => ({
+        success: true,
         data: [
           fixtures.category({
             id: "15",
@@ -320,7 +321,7 @@ export function registerIdentityTests() {
             name: "Just Chatting",
           }),
         ],
-        error: null,
+        providers: { kick: "complete" },
       }));
       useCategoryByIdMock.mockImplementation(
         (id, queryPlatform) =>
@@ -380,9 +381,10 @@ export function registerIdentityTests() {
     it("preserves a transient-failure otherId only as a URL hint, never as a Stream query id", async () => {
       categorySearchState.otherId = "15";
       const api = installElectronAPIMock();
-      api.categories.search = vi.fn(async () => ({
-        data: [],
+      api.categories.search = vi.fn<typeof api.categories.search>(async () => ({
+        success: false,
         error: "Temporary category search failure",
+        providers: { kick: "failed" },
       }));
       useCategoryByIdMock.mockImplementation((_id, queryPlatform) =>
         queryPlatform === "twitch"
@@ -796,33 +798,36 @@ export function registerStateTests() {
     it.each([
       ["Clips", "tab", "clips"],
       ["Twitch", "platform", "twitch"],
-    ] as const)("keeps otherId in the %s URL and resets scroll for an ordinary click", (linkName, field, value) => {
-      categorySearchState.otherId = "15";
-      const scrollArea = document.createElement("main");
-      scrollArea.id = "main-content-scroll-area";
-      scrollArea.scrollTop = 640;
-      document.body.append(scrollArea);
-      useCategoryByIdMock.mockImplementation(
-        (id, queryPlatform) =>
-          ({
-            data: fixtures.category({ id, platform: queryPlatform, name: "Just Chatting" }),
-            isLoading: false,
-          }) as ReturnType<typeof useCategoryById>
-      );
-      const preventDocumentNavigation = (event: Event) => event.preventDefault();
-      document.addEventListener("click", preventDocumentNavigation);
+    ] as const)(
+      "keeps otherId in the %s URL and resets scroll for an ordinary click",
+      (linkName, field, value) => {
+        categorySearchState.otherId = "15";
+        const scrollArea = document.createElement("main");
+        scrollArea.id = "main-content-scroll-area";
+        scrollArea.scrollTop = 640;
+        document.body.append(scrollArea);
+        useCategoryByIdMock.mockImplementation(
+          (id, queryPlatform) =>
+            ({
+              data: fixtures.category({ id, platform: queryPlatform, name: "Just Chatting" }),
+              isLoading: false,
+            }) as ReturnType<typeof useCategoryById>
+        );
+        const preventDocumentNavigation = (event: Event) => event.preventDefault();
+        document.addEventListener("click", preventDocumentNavigation);
 
-      renderWithProviders(<CategoryDetailPage />);
-      const link = screen.getByRole("link", { name: linkName });
-      fireEvent.click(link);
+        renderWithProviders(<CategoryDetailPage />);
+        const link = screen.getByRole("link", { name: linkName });
+        fireEvent.click(link);
 
-      expect(scrollArea.scrollTop).toBe(0);
-      expect(JSON.parse(link.getAttribute("data-search") ?? "{}")).toEqual(
-        expect.objectContaining({ [field]: value, otherId: "15" })
-      );
-      document.removeEventListener("click", preventDocumentNavigation);
-      scrollArea.remove();
-    });
+        expect(scrollArea.scrollTop).toBe(0);
+        expect(JSON.parse(link.getAttribute("data-search") ?? "{}")).toEqual(
+          expect.objectContaining({ [field]: value, otherId: "15" })
+        );
+        document.removeEventListener("click", preventDocumentNavigation);
+        scrollArea.remove();
+      }
+    );
 
     it("keeps raw tag text in the URL immediately but defers the upstream dataset until typing settles", () => {
       vi.useFakeTimers();
@@ -898,9 +903,10 @@ export function registerReliabilityTests() {
       categorySearchState.otherId = "509658";
       const retryProvidedCategory = vi.fn();
       const api = installElectronAPIMock();
-      api.categories.search = vi.fn(async () => ({
-        data: [],
+      api.categories.search = vi.fn<typeof api.categories.search>(async () => ({
+        success: false,
         error: "Temporary category search failure",
+        providers: { twitch: "failed" },
       }));
       useCategoryByIdMock.mockImplementation((_id, queryPlatform) =>
         queryPlatform === "kick"
@@ -952,9 +958,10 @@ export function registerReliabilityTests() {
     it("does not report an identity outage when the safe Kick name fallback returns streams", async () => {
       categorySearchState.otherId = "15";
       const api = installElectronAPIMock();
-      api.categories.search = vi.fn(async () => ({
-        data: [],
+      api.categories.search = vi.fn<typeof api.categories.search>(async () => ({
+        success: false,
         error: "Temporary category search failure",
+        providers: { kick: "failed" },
       }));
       useCategoryByIdMock.mockImplementation((_id, queryPlatform) =>
         queryPlatform === "twitch"

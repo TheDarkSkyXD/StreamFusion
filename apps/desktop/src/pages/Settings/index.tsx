@@ -1,7 +1,9 @@
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IoMdSettings } from "react-icons/io";
+import type { IconType } from "react-icons";
 import {
+  LuActivity,
   LuBell,
   LuBug,
   LuChevronDown,
@@ -93,6 +95,12 @@ import {
 } from "@/store/multistream-store";
 import { useSeekIntervalStore } from "@/store/seek-interval-store";
 
+const DiagnosticsPrototype = lazy(() =>
+  import("./diagnostics-prototype/DiagnosticsPrototype").then((module) => ({
+    default: module.DiagnosticsPrototype,
+  }))
+);
+
 const SETTINGS_TABS = [
   "playback",
   "notifications",
@@ -106,6 +114,7 @@ const SETTINGS_TABS = [
   "integrations",
   "api-tokens",
   "updates",
+  "diagnostics",
   "logs",
   "report-bug",
   "about",
@@ -347,6 +356,11 @@ const TAB_META: Record<TabKey, { label: string; description: string; icon: typeo
     icon: LuKeyRound,
   },
   updates: { label: "Updates", description: "Auto update preferences", icon: LuRefreshCw },
+  diagnostics: {
+    label: "Diagnostics prototype",
+    description: "Compare three diagnostics layouts",
+    icon: LuActivity,
+  },
   logs: { label: "Logs", description: "In-app log viewer & diagnostics", icon: LuFileText },
   "report-bug": {
     label: "Report Bug",
@@ -371,7 +385,7 @@ const SETTINGS_GROUPS: ReadonlyArray<{ label: string; tabs: readonly TabKey[] }>
   },
   {
     label: "System & Support",
-    tabs: ["updates", "about", "logs", "report-bug"],
+    tabs: ["updates", "diagnostics", "about"],
   },
 ];
 
@@ -597,7 +611,7 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
   },
   {
     tab: "updates",
-    label: "Automatically check for updates",
+    label: "Check for updates on startup",
     description: "Check for new versions in the background on a schedule",
   },
   {
@@ -610,6 +624,11 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
     tab: "updates",
     label: "Check for Updates",
     description: "Check for available updates now",
+  },
+  {
+    tab: "diagnostics",
+    label: "Diagnostics",
+    description: "Resources, processes, traces, failures, logs, and reports",
   },
   { tab: "logs", label: "Logs", description: "In-app log viewer and diagnostics" },
   { tab: "report-bug", label: "Report a Bug", description: "Generate a bug report file" },
@@ -1158,7 +1177,12 @@ export function SettingsPage() {
 
       {/* Main Content Area */}
       <div ref={contentScrollerRef} className="flex-1 overflow-y-auto bg-[var(--color-background)]">
-        <div className="mx-auto w-full max-w-5xl px-6 py-8 lg:px-10 lg:py-10">
+        <div
+          className={cn(
+            "mx-auto w-full px-6 py-8 lg:px-10 lg:py-10",
+            activeTab === "diagnostics" ? "max-w-[1440px]" : "max-w-5xl"
+          )}
+        >
           {!canRenderSettingsPanel ? (
             <div className="space-y-6">
               <div className="space-y-2">
@@ -2408,6 +2432,20 @@ export function SettingsPage() {
                 />
               )}
 
+              {/* PROTOTYPE, WIPE ME. Three URL-switchable Diagnostics layouts. */}
+              {activeTab === "diagnostics" && (
+                <Suspense
+                  fallback={
+                    <div className="space-y-4" aria-label="Loading Diagnostics prototype">
+                      <div className="h-20 animate-pulse rounded-xl bg-[var(--color-background-secondary)]" />
+                      <div className="h-72 animate-pulse rounded-xl border border-[var(--color-border)] bg-[var(--color-background-secondary)]" />
+                    </div>
+                  }
+                >
+                  <DiagnosticsPrototype />
+                </Suspense>
+              )}
+
               {/* Logs Tab — dev-only. The sidebar item is hidden in prod and a
               deep-link `?tab=logs` is redirected away above, but this guard
               keeps the panel itself off in case `activeTab` lags behind. */}
@@ -2500,6 +2538,7 @@ function UpdatesSettingsPanel({
     allowPrerelease,
     autoCheckEnabled,
     checkFrequency,
+    updateCheckUrl,
     isChecking,
     isDownloading,
     isUpdateAvailable,
@@ -2511,7 +2550,11 @@ function UpdatesSettingsPanel({
     setAllowPrerelease,
     setAutoCheckEnabled,
     setCheckFrequency,
+    setUpdateCheckUrl,
   } = useUpdater();
+  const [updateUrlDraft, setUpdateUrlDraft] = useState(updateCheckUrl);
+
+  useEffect(() => setUpdateUrlDraft(updateCheckUrl), [updateCheckUrl]);
 
   return (
     <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
@@ -2522,7 +2565,8 @@ function UpdatesSettingsPanel({
 
       {anyRowVisible(
         "Allow Pre-release Updates",
-        "Automatically check for updates",
+        "Check for updates on startup",
+        "Update check URL",
         "Check frequency",
         "Check for Updates"
       ) && (
@@ -2540,6 +2584,28 @@ function UpdatesSettingsPanel({
           </div>
 
           <div className="p-6 space-y-6">
+            {isRowVisible("Update check URL") && (
+              <div>
+                <label htmlFor="update-check-url" className="font-medium text-zinc-200">
+                  Update check URL
+                </label>
+                <p className="text-sm text-zinc-500 mt-1 mb-3">
+                  Electron update feed containing the platform update metadata
+                </p>
+                <input
+                  id="update-check-url"
+                  type="url"
+                  value={updateUrlDraft}
+                  onChange={(event) => setUpdateUrlDraft(event.target.value)}
+                  onBlur={() => void setUpdateCheckUrl(updateUrlDraft)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") event.currentTarget.blur();
+                  }}
+                  className="w-full rounded-lg border border-[#27272a] bg-[#18181b] px-3 py-2 text-sm text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/20"
+                />
+              </div>
+            )}
+
             {isRowVisible("Allow Pre-release Updates") && (
               <div className="flex items-center justify-between">
                 <div>
@@ -2557,16 +2623,16 @@ function UpdatesSettingsPanel({
               </div>
             )}
 
-            {isRowVisible("Automatically check for updates") && (
+            {isRowVisible("Check for updates on startup") && (
               <div className="flex items-center justify-between pt-6 border-t border-[#27272a]">
                 <div>
-                  <p className="font-medium text-zinc-200">Automatically check for updates</p>
+                  <p className="font-medium text-zinc-200">Check for updates on startup</p>
                   <p className="text-sm text-zinc-500 mt-1">
-                    Check for new versions in the background on a schedule
+                    Check at launch when the selected interval has elapsed
                   </p>
                 </div>
                 <Switch
-                  aria-label="Automatically check for updates"
+                  aria-label="Check for updates on startup"
                   checked={autoCheckEnabled}
                   onCheckedChange={setAutoCheckEnabled}
                   className="data-[state=checked]:!bg-blue-500 data-[state=checked]:!border-blue-500"
@@ -2586,9 +2652,7 @@ function UpdatesSettingsPanel({
                   >
                     Check frequency
                   </p>
-                  <p className="text-sm text-zinc-500 mt-1">
-                    How often to check when automatic updates are on
-                  </p>
+                  <p className="text-sm text-zinc-500 mt-1">Minimum time between startup checks</p>
                 </div>
                 <Select
                   value={checkFrequency}
@@ -2702,7 +2766,7 @@ function SidebarItem({
   onSelect,
 }: {
   tab: TabKey;
-  icon: any;
+  icon: IconType;
   label: string;
   isActive: boolean;
   onSelect: () => void;
@@ -2796,7 +2860,6 @@ function ApiTokenPanel({
 
   const [status, setStatus] = useState<TokenStatusResult | null>(null);
   const [loading, setLoading] = useState(false);
-
   const validate = useCallback(async () => {
     setLoading(true);
     try {

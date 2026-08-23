@@ -2,24 +2,46 @@
  * Kick chat history
  *
  * Fetches the recent-messages page Kick returns for a channel so we can seed
- * the chat with context on join, the way the official site does. Direct
- * navigation to the API route is rejected by Cloudflare, so the hidden window
- * first loads the normal channel page and then performs a credentialed fetch
- * to Kick's web API. It shares the public-channel partition and GPU mutex.
+ * the chat with context on join, the way the official site does. The normal
+ * path uses Electron's lightweight cookie-bearing session request. A hidden
+ * channel page remains as a compatibility fallback when Kick requires browser
+ * runtime state. Both paths share the public-channel partition.
  *
  * The web history endpoint keys channels by their internal database id,
  * exposed separately as `UnifiedChannel.kickChannelId`.
  */
 
-import { BrowserWindow } from "electron";
+import type { BrowserWindow } from "electron";
 
 import { logger } from "@/backend/logging/logger";
 import type { KickPinnedMessage } from "../../../../../shared/chat-types";
 import { getPlatformHealth } from "../../../unified/platform-health";
 
 import { acquireBrowserWindowSlot } from "./channel-endpoints";
+import { createHiddenKickBrowserWindow } from "../kick-hidden-browser-window";
+import { requestPublicKickSession } from "../kick-session-request";
 
 const LOAD_TIMEOUT_MS = 10000;
+
+async function loadChannelPage(win: BrowserWindow, url: string): Promise<void> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let resolveDomReady: (() => void) | undefined;
+  const domReady = new Promise<void>((resolve) => {
+    resolveDomReady = resolve;
+    win.webContents.once("dom-ready", resolve);
+  });
+  const timeout = new Promise<never>((_, reject) => {
+    // timer-allowlist: BrowserWindow navigation deadline cleared after the page becomes usable
+    timeoutId = setTimeout(() => reject(new Error("Page load timeout")), LOAD_TIMEOUT_MS);
+  });
+
+  try {
+    await Promise.race([win.loadURL(url), domReady, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+    if (resolveDomReady) win.webContents.removeListener("dom-ready", resolveDomReady);
+  }
+}
 
 /**
  * Raw web-history message shape. `metadata` ships as a JSON string and needs parsing
@@ -59,9 +81,40 @@ export interface KickChannelHistory {
   pinnedMessage: KickPinnedMessage | null;
 }
 
+function parseKickChannelHistory(pageContent: string): KickChannelHistory | null {
+  if (!pageContent) return null;
+
+  const lower = pageContent.toLowerCase();
+  if (
+    lower.includes("error code 5") ||
+    lower.includes("internal server error") ||
+    lower.includes("bad gateway") ||
+    lower.includes("service unavailable")
+  ) {
+    return null;
+  }
+
+  let parsed: {
+    ok?: boolean;
+    body?: { data?: { messages?: KickV2ChatMessage[]; pinned_message?: KickPinnedMessage } };
+    data?: { messages?: KickV2ChatMessage[]; pinned_message?: KickPinnedMessage };
+  };
+  try {
+    parsed = JSON.parse(pageContent);
+  } catch {
+    return null;
+  }
+
+  if (parsed.ok === false) return null;
+  const payload = parsed.body ?? parsed;
+  const messages = Array.isArray(payload?.data?.messages) ? payload.data.messages : [];
+  const pinnedMessage = payload?.data?.pinned_message ?? null;
+  return { messages, pinnedMessage };
+}
+
 /**
- * Fetch /api/v2/channels/{channelId}/messages from a loaded
- * https://kick.com/{channelSlug} page.
+ * Fetch /api/v2/channels/{channelId}/messages from the persistent public Kick
+ * session, falling back to a loaded https://kick.com/{channelSlug} page.
  *
  * Returns null on network failure / Cloudflare challenge / parse error.
  * Callers should treat null as "no history available" and continue.
@@ -72,6 +125,17 @@ export async function getKickChannelHistory(
 ): Promise<KickChannelHistory | null> {
   if (!channelId || getPlatformHealth("kick") === "down") return null;
 
+  const historyUrl = `/api/v2/channels/${encodeURIComponent(channelId)}/messages`;
+  const directResponse = await requestPublicKickSession(historyUrl);
+  if (directResponse.kind === "response") {
+    if (directResponse.ok) {
+      const directHistory = parseKickChannelHistory(directResponse.body);
+      if (directHistory) return directHistory;
+    } else if (![401, 403, 419].includes(directResponse.status)) {
+      return null;
+    }
+  }
+
   const releaseSlot = await acquireBrowserWindowSlot("high");
   if (getPlatformHealth("kick") === "down") {
     releaseSlot();
@@ -81,8 +145,7 @@ export async function getKickChannelHistory(
   let win: BrowserWindow | null = null;
   try {
     const channelPageUrl = `https://kick.com/${encodeURIComponent(channelSlug || channelId)}`;
-    win = new BrowserWindow({
-      show: false,
+    win = createHiddenKickBrowserWindow({
       width: 800,
       height: 600,
       webPreferences: {
@@ -94,14 +157,8 @@ export async function getKickChannelHistory(
       },
     });
 
-    const loadPromise = win.loadURL(channelPageUrl);
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      // timer-allowlist: Promise.race nav-timeout on win.loadURL (SP3 out-of-scope)
-      setTimeout(() => reject(new Error("Page load timeout")), LOAD_TIMEOUT_MS)
-    );
-    await Promise.race([loadPromise, timeoutPromise]);
+    await loadChannelPage(win, channelPageUrl);
 
-    const historyUrl = `/api/v2/channels/${encodeURIComponent(channelId)}/messages`;
     const pageContent: string = await win.webContents.executeJavaScript(`
       (async () => {
         const response = await fetch(${JSON.stringify(historyUrl)}, {
@@ -114,34 +171,7 @@ export async function getKickChannelHistory(
         return JSON.stringify({ ok: response.ok, status: response.status, body });
       })()
     `);
-    if (!pageContent) return null;
-
-    const lower = pageContent.toLowerCase();
-    if (
-      lower.includes("error code 5") ||
-      lower.includes("internal server error") ||
-      lower.includes("bad gateway") ||
-      lower.includes("service unavailable")
-    ) {
-      return null;
-    }
-
-    let parsed: {
-      ok?: boolean;
-      body?: { data?: { messages?: KickV2ChatMessage[]; pinned_message?: KickPinnedMessage } };
-      data?: { messages?: KickV2ChatMessage[]; pinned_message?: KickPinnedMessage };
-    };
-    try {
-      parsed = JSON.parse(pageContent);
-    } catch {
-      return null;
-    }
-
-    if (parsed.ok === false) return null;
-    const payload = parsed.body ?? parsed;
-    const messages = Array.isArray(payload?.data?.messages) ? payload.data!.messages : [];
-    const pinnedMessage = payload?.data?.pinned_message ?? null;
-    return { messages, pinnedMessage };
+    return parseKickChannelHistory(pageContent);
   } catch (error) {
     logger.warn("Kick:Endpoints:Chat", "Failed to load history for channel", {
       channelId,

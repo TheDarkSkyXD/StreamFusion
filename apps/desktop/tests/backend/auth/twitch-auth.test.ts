@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TWITCH_APP_SCOPES } from "@/shared/auth-types";
+import type { AuthToken, TwitchUser } from "@/shared/auth-types";
 
 vi.mock("@/backend/logging/logger", () => ({
   logger: { debug: vi.fn(), error: vi.fn(), warn: vi.fn(), info: vi.fn() },
@@ -12,20 +13,20 @@ const storageState: {
     expiresAt?: number;
     scope?: string[];
   } | null;
-  twitchUser: any;
+  twitchUser: Pick<TwitchUser, "id" | "login"> | null;
 } = { token: null, twitchUser: null };
 
 vi.mock("@/backend/services/storage-service", () => ({
   storageService: {
     getToken: vi.fn(() => storageState.token),
-    saveToken: vi.fn((_p: string, t: any) => {
+    saveToken: vi.fn((_p: string, t: AuthToken) => {
       storageState.token = t;
     }),
     clearToken: vi.fn(() => {
       storageState.token = null;
     }),
     getTwitchUser: vi.fn(() => storageState.twitchUser),
-    saveTwitchUser: vi.fn((u: any) => {
+    saveTwitchUser: vi.fn((u: Pick<TwitchUser, "id" | "login">) => {
       storageState.twitchUser = u;
     }),
     clearTwitchUser: vi.fn(() => {
@@ -393,7 +394,7 @@ describe("fetchCurrentUser", () => {
     let callCount = 0;
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (_url: string, init: any) => {
+      vi.fn(async (_url: string, init: unknown) => {
         callCount++;
         if (callCount === 1) {
           return jsonResponse({}, false, 401);
@@ -443,7 +444,7 @@ describe("setAuthLostHandler", () => {
 describe("single-flight refresh deduplication", () => {
   it("concurrent refreshToken calls share the same in-flight promise", async () => {
     storageState.token = { accessToken: "at", refreshToken: "rt" };
-    let resolveRefresh: ((v: any) => void) | null = null;
+    let resolveRefresh: ((v: unknown) => void) | null = null;
     refreshTokenMock.mockReturnValueOnce(
       new Promise((r) => {
         resolveRefresh = r;

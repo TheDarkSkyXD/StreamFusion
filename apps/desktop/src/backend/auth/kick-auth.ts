@@ -15,10 +15,11 @@ import { session } from "electron";
 
 import { logger } from "@/lib/cross-logger";
 import type { AuthToken, KickUser, Platform } from "../../shared/auth-types";
+import { clearPersistedKickWebBearer } from "../api/platforms/kick/kick-web-credential";
 import { KICK_API_BASE } from "../api/platforms/kick/kick-types";
 import { storageService } from "../services/storage-service";
 import { hasCanonicalKickScopes } from "./kick-scope-validation";
-import { tokenExchangeService } from "./token-exchange";
+import { tokenExchangeService, TokenRefreshError } from "./token-exchange";
 
 // Cookie names that hold Cloudflare WAF clearance state. These belong to
 // Cloudflare's anonymous-visitor protection layer, not the user's identity —
@@ -27,6 +28,15 @@ import { tokenExchangeService } from "./token-exchange";
 // visit. Keep this list narrow; anything else with a kick.com / id.kick.com
 // domain is treated as user-session state and cleared on logout.
 const CLOUDFLARE_PRESERVE_NAMES = new Set<string>(["cf_clearance", "__cf_bm"]);
+const REFRESH_BUFFER_MS = 5 * 60 * 1000;
+const MIN_REFRESH_DELAY_MS = 1000;
+const TRANSIENT_BACKOFF_MS = [
+  30 * 1000,
+  2 * 60 * 1000,
+  10 * 60 * 1000,
+  45 * 60 * 1000,
+  60 * 60 * 1000,
+] as const;
 
 /**
  * Clear the kick.com / id.kick.com session cookies from Electron's default
@@ -91,10 +101,12 @@ class KickAuthService extends EventEmitter {
 
   /** Deduplicates concurrent refresh calls — set while a refresh is in flight */
   private refreshPromise: Promise<AuthToken | null> | null = null;
+  private refreshTimeoutId: NodeJS.Timeout | null = null;
+  private consecutiveRefreshFailures = 0;
 
   /**
    * Internal token refresh implementation.
-   * Clears auth state and emits 'session-expired' on permanent OAuth failure.
+   * Clears only OAuth and emits 'session-expired' on permanent OAuth failure.
    */
   private async _doRefresh(): Promise<AuthToken | null> {
     const currentToken = storageService.getToken(this.platform);
@@ -119,25 +131,37 @@ class KickAuthService extends EventEmitter {
         throw new Error("Kick token is missing required application scopes");
       }
       storageService.saveToken(this.platform, refreshedToken);
+      this.consecutiveRefreshFailures = 0;
+      this.scheduleProactiveRefresh();
       logger.debug("Auth:Kick", "Kick token refreshed successfully");
       return refreshedToken;
     } catch (error) {
-      logger.error("Auth:Kick", "Kick token refresh failed", {
+      const permanent = error instanceof TokenRefreshError && error.isPermanent();
+      logger[permanent ? "error" : "warn"]("Auth:Kick", "Kick token refresh failed", {
         error:
           error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : String(error),
+            ? {
+                name: error.name,
+                ...(error instanceof TokenRefreshError
+                  ? { status: error.status, code: error.code, permanent }
+                  : { permanent: false }),
+              }
+            : { permanent: false },
       });
 
-      // Any server-side OAuth error (401 invalid/revoked/expired refresh token)
-      // means the stored credentials are permanently invalid. Clear them so the
-      // app doesn't keep silently falling back to the public API, and notify the
-      // renderer so the user can re-authenticate.
+      if (!permanent) {
+        this.consecutiveRefreshFailures += 1;
+        const slot = Math.min(this.consecutiveRefreshFailures - 1, TRANSIENT_BACKOFF_MS.length - 1);
+        this.scheduleRefreshIn(TRANSIENT_BACKOFF_MS[slot]);
+        return null;
+      }
+
+      // OAuth and kick.com website auth are independent credential families.
+      // A rejected OAuth refresh must not destroy a still-valid chat session.
+      this.cancelProactiveRefresh();
       storageService.clearToken(this.platform);
-      storageService.clearKickUser();
-      await clearKickSessionCookies();
       this.emit("session-expired");
-      logger.warn("Auth:Kick", "Kick session cleared — user must re-authenticate");
+      logger.warn("Auth:Kick", "Kick OAuth authorization was rejected");
       return null;
     }
   }
@@ -157,6 +181,46 @@ class KickAuthService extends EventEmitter {
     return this.refreshPromise;
   }
 
+  private scheduleRefreshIn(delayMs: number): void {
+    if (this.refreshTimeoutId) clearTimeout(this.refreshTimeoutId);
+    // timer-allowlist: self-rescheduling OAuth refresh chain.
+    this.refreshTimeoutId = setTimeout(() => {
+      this.refreshTimeoutId = null;
+      void this.refreshToken();
+    }, delayMs);
+  }
+
+  /** Keep Kick's rotating refresh token inside the backend and renew it before expiry. */
+  scheduleProactiveRefresh(): void {
+    const token = storageService.getToken(this.platform);
+    if (!token?.expiresAt || !token.refreshToken) {
+      this.cancelProactiveRefresh();
+      return;
+    }
+
+    const fireAt = token.expiresAt - REFRESH_BUFFER_MS;
+    const delayMs = Math.max(MIN_REFRESH_DELAY_MS, fireAt - Date.now());
+    this.scheduleRefreshIn(delayMs);
+    logger.debug("Auth:Kick", "Kick proactive refresh scheduled", {
+      minutes: Math.round(delayMs / 60_000),
+      tokenExpiresAt: new Date(token.expiresAt).toISOString(),
+    });
+  }
+
+  cancelProactiveRefresh(): void {
+    if (this.refreshTimeoutId) {
+      clearTimeout(this.refreshTimeoutId);
+      this.refreshTimeoutId = null;
+    }
+    this.consecutiveRefreshFailures = 0;
+  }
+
+  onSystemResume(): void {
+    if (!storageService.getToken(this.platform)) return;
+    logger.debug("Auth:Kick", "System resumed; re-evaluating Kick refresh schedule");
+    this.scheduleProactiveRefresh();
+  }
+
   /**
    * Check if token needs refresh and refresh if necessary
    */
@@ -171,9 +235,7 @@ class KickAuthService extends EventEmitter {
     }
 
     const expiresAt = token.expiresAt ?? 0;
-    const expirationBuffer = 5 * 60 * 1000; // 5 minutes
-
-    if (expiresAt > 0 && Date.now() >= expiresAt - expirationBuffer) {
+    if (expiresAt > 0 && Date.now() >= expiresAt - REFRESH_BUFFER_MS) {
       logger.debug("Auth:Kick", "Kick token expired or expiring soon, refreshing");
       const refreshed = await this.refreshToken();
       return refreshed !== null;
@@ -189,7 +251,9 @@ class KickAuthService extends EventEmitter {
    * authenticated state. Preserves Cloudflare WAF clearance cookies.
    */
   async logout(): Promise<boolean> {
+    this.cancelProactiveRefresh();
     storageService.clearToken(this.platform);
+    clearPersistedKickWebBearer();
     storageService.clearKickUser();
     await clearKickSessionCookies();
 

@@ -58,8 +58,19 @@ export function routerMock(
   const back = vi.fn();
   const router = { navigate, history: { back } };
   return {
-    // biome-ignore lint/suspicious/noExplicitAny: test shim.
-    Link: ({ to, params, search, children, className, onClick, ...rest }: any) => (
+    Link: ({
+      to,
+      params,
+      search,
+      children,
+      className,
+      onClick,
+      ...rest
+    }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+      to?: string;
+      params?: Record<string, unknown>;
+      search?: Record<string, unknown>;
+    }) => (
       // biome-ignore lint/a11y/useValidAnchor: stub for tests, not real navigation.
       <a
         href={typeof to === 'string' ? to : '#'}
@@ -93,13 +104,13 @@ export function routerMock(
 // Override per test:
 //   const api = installElectronAPIMock();
 //   api.streams.getTop = vi.fn(async () => ({ data: [mockStream], error: null }));
-// biome-ignore lint/suspicious/noExplicitAny: test fixture for arbitrary IPC surface.
-export function installElectronAPIMock(): any {
+/** Dynamic test-double surface: individual tests refine only the methods they exercise. */
+type ElectronAPIMock = Window['electronAPI'] & Record<string, unknown>;
+
+export function installElectronAPIMock(): ElectronAPIMock {
   const ok = <T,>(data: T) => ({ data, error: null });
-  // biome-ignore lint/suspicious/noExplicitAny: dynamic surface.
-  const namespaces: Record<string, any> = {};
-  // biome-ignore lint/suspicious/noExplicitAny: dynamic proxy.
-  const stub: any = new Proxy(
+  const namespaces: Record<string, Record<string, unknown>> = {};
+  const stub = new Proxy<Record<string, unknown>>(
     {},
     {
       get(_target, prop: string) {
@@ -107,8 +118,7 @@ export function installElectronAPIMock(): any {
           namespaces[prop] = new Proxy(
             {},
             {
-              // biome-ignore lint/suspicious/noExplicitAny: vi.fn loose typing.
-              get(target: any, _fn: string) {
+              get(target: Record<string, unknown>, _fn: string) {
                 if (_fn in target) return target[_fn];
                 const fn = vi.fn(async () => ok([]));
                 target[_fn] = fn;
@@ -130,11 +140,11 @@ export function installElectronAPIMock(): any {
     }
   );
 
-  stub.connectivity = {
+  namespaces.connectivity = {
     check: vi.fn(async () => ({ reachable: true, latencyMs: 25 })),
   };
 
-  stub.twitch = {
+  namespaces.twitch = {
     execute: vi.fn(async (command: { operation?: string }) => {
       if (command.operation === 'get-moderated-channels') return { ok: true, data: [] };
       if (command.operation === 'resolve-channel') return { ok: true, data: null };
@@ -160,10 +170,11 @@ export function installElectronAPIMock(): any {
     writable: true,
     value: stub,
   });
-  // biome-ignore lint/suspicious/noExplicitAny: cross-realm assignment.
-  (globalThis as any).electronAPI = stub;
+  (globalThis as { electronAPI?: unknown }).electronAPI = stub;
 
-  return stub;
+  // The proxy creates every Electron namespace lazily; tests override concrete
+  // methods through the production Window contract.
+  return stub as ElectronAPIMock;
 }
 
 // Minimal fixtures for common payloads.

@@ -144,6 +144,15 @@ describe("caption preference storage", () => {
     });
 
     const persisted = storageService.get("preferences");
+    if (!persisted || typeof persisted !== "object") {
+      throw new Error("Expected persisted preferences");
+    }
+    if (!("captions" in persisted) || !("theme" in persisted) || !("chat" in persisted)) {
+      throw new Error("Persisted preferences are missing required fields");
+    }
+    if (!persisted.chat || typeof persisted.chat !== "object" || !("fontScale" in persisted.chat)) {
+      throw new Error("Persisted chat preferences are missing fontScale");
+    }
     expect(persisted.captions).toEqual(logicalCaptions);
     expect(persisted.theme).toBe("light");
     expect(persisted.chat.fontScale).toBe(1.25);

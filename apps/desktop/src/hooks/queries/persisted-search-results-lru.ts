@@ -219,11 +219,16 @@ export function hydratePersistedSearchResultsLru(): Promise<void> {
   if (hydrated) return Promise.resolve();
   if (hydrationPromise) return hydrationPromise;
   hydrationPromise = window.electronAPI.store
-    .get<PersistedSearchResultsLru>(STORE_KEY)
+    .get(STORE_KEY)
     .then((stored) => {
       const now = Date.now();
       publish(
-        stored?.version === 1 && Array.isArray(stored.entries)
+        stored !== null &&
+          typeof stored === "object" &&
+          "version" in stored &&
+          stored.version === 1 &&
+          "entries" in stored &&
+          Array.isArray(stored.entries)
           ? bounded(
               stored.entries.flatMap((entry) => {
                 const valid = validEntry(entry, now);

@@ -159,19 +159,19 @@ describe("PROXY_HAS_CREDENTIALS", () => {
 });
 
 describe("applyPersistedProxyOnStart", () => {
-  it("reads the stored proxy prefs and applies host/port/enabled (no credentials in the call)", () => {
+  it("reads the stored proxy prefs and applies host/port/enabled (no credentials in the call)", async () => {
     getPreferences.mockReturnValue({
       proxy: { enabled: true, host: "127.0.0.1", port: 8080, hasCredentials: true },
     });
-    applyPersistedProxyOnStart();
+    await applyPersistedProxyOnStart();
     expect(applyProxy).toHaveBeenCalledWith({ enabled: true, host: "127.0.0.1", port: 8080 });
   });
 
-  it("disabled persisted proxy still calls applyProxy (which no-ops to direct)", () => {
+  it("disabled persisted proxy still calls applyProxy (which no-ops to direct)", async () => {
     getPreferences.mockReturnValue({
       proxy: { enabled: false, host: "", port: null, hasCredentials: false },
     });
-    applyPersistedProxyOnStart();
+    await applyPersistedProxyOnStart();
     expect(applyProxy).toHaveBeenCalledWith({ enabled: false, host: "", port: null });
   });
 });

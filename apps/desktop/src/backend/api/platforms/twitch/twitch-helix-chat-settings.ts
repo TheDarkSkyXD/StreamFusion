@@ -144,9 +144,8 @@ async function readErrorMessage(res: Response): Promise<string> {
  */
 function composeSignals(a: AbortSignal | undefined, b: AbortSignal): AbortSignal {
   if (!a) return b;
-  const anyFn = (AbortSignal as any).any as ((signals: AbortSignal[]) => AbortSignal) | undefined;
-  if (typeof anyFn === "function") {
-    return anyFn([a, b]);
+  if (typeof AbortSignal.any === "function") {
+    return AbortSignal.any([a, b]);
   }
   const controller = new AbortController();
   const onAbort = () => controller.abort();

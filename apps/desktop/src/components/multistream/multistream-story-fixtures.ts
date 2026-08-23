@@ -35,10 +35,10 @@ export const multistreamFixtures: MultiStreamConfig[] = [
 
 const channelDisplayNames = ["NovaArcade", "MiraMakes", "RiftRunner", "PixelNomad"];
 const channelAvatarUrls = [
-  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&h=160&q=85",
-  "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=160&h=160&q=85",
-  "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=160&h=160&q=85",
-  "https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=160&h=160&q=85",
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%239146ff'/%3E%3Ctext x='32' y='40' fill='white' font-size='28' text-anchor='middle'%3EN%3C/text%3E%3C/svg%3E",
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%233dd912'/%3E%3Ctext x='32' y='40' fill='%230f0f0f' font-size='28' text-anchor='middle'%3EM%3C/text%3E%3C/svg%3E",
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23772ce8'/%3E%3Ctext x='32' y='40' fill='white' font-size='28' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E",
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%232d2d2d'/%3E%3Ctext x='32' y='40' fill='white' font-size='28' text-anchor='middle'%3EP%3C/text%3E%3C/svg%3E",
 ];
 
 const channelByName: Record<string, UnifiedChannel> = Object.fromEntries(
@@ -92,32 +92,59 @@ export const multistreamFavoriteFixtures: FavoriteStreamRef[] = liveFavoriteFixt
   })
 );
 
-export function installMultistreamMocks() {
-  window.electronAPI.channels.getByUsername = async ({ username }) => ({
-    success: true,
-    data: channelByName[username.toLowerCase()] ?? channelByName.novaarcade,
+export function installMultistreamMocks(): () => void {
+  const previousDescriptor = Object.getOwnPropertyDescriptor(window, "electronAPI");
+  const previousBridge = window.electronAPI;
+  const channels = Object.assign(Object.create(previousBridge.channels), {
+    getByUsername: async ({ username }: { username: string }) => ({
+      success: true,
+      data: channelByName[username.toLowerCase()] ?? channelByName.novaarcade,
+    }),
+  }) as typeof previousBridge.channels;
+  const streams = Object.assign(Object.create(previousBridge.streams), {
+    getPlaybackUrl: async () => ({
+      success: false,
+      error: "Channel is offline",
+    }),
+    getByChannel: async ({ username }: { username: string }) => ({
+      success: true,
+      data: liveFavoriteFixtures.find((stream) => stream.channelName === username) ?? null,
+    }),
+  }) as typeof previousBridge.streams;
+  const search = Object.assign(Object.create(previousBridge.search), {
+    channels: async ({ query, platform }: { query: string; platform: "twitch" | "kick" }) => ({
+      success: true,
+      data: Object.values(channelByName).filter(
+        (channel) =>
+          channel.platform === platform &&
+          channel.displayName.toLowerCase().includes(query.toLowerCase())
+      ),
+    }),
+  }) as typeof previousBridge.search;
+  const slot = Object.assign(Object.create(previousBridge.slot), {
+    isWcvEnabled: async () => false,
+    rebindExistingSlots: async () => undefined,
+    requestFocus: async () => undefined,
+  }) as typeof previousBridge.slot;
+  const store = Object.assign(Object.create(previousBridge.store), {
+    get: async <T>() => null as T | null,
+    set: async () => undefined,
+  }) as typeof previousBridge.store;
+  const bridge = Object.create(previousBridge) as typeof previousBridge;
+
+  Object.defineProperties(bridge, {
+    channels: { configurable: true, value: channels },
+    streams: { configurable: true, value: streams },
+    search: { configurable: true, value: search },
+    slot: { configurable: true, value: slot },
+    store: { configurable: true, value: store },
   });
-  window.electronAPI.streams.getPlaybackUrl = async () => ({
-    success: false,
-    error: "Channel is offline",
-  });
-  window.electronAPI.streams.getByChannel = async ({ username }) => ({
-    success: true,
-    data: liveFavoriteFixtures.find((stream) => stream.channelName === username) ?? null,
-  });
-  window.electronAPI.search.channels = async ({ query, platform }) => ({
-    success: true,
-    data: Object.values(channelByName).filter(
-      (channel) =>
-        channel.platform === platform &&
-        channel.displayName.toLowerCase().includes(query.toLowerCase())
-    ),
-  });
-  window.electronAPI.slot.isWcvEnabled = async () => false;
-  window.electronAPI.slot.rebindExistingSlots = async () => undefined;
-  window.electronAPI.slot.requestFocus = async () => undefined;
-  window.electronAPI.store.get = async <T>() => null as T | null;
-  window.electronAPI.store.set = async () => undefined;
+  Object.defineProperty(window, "electronAPI", { configurable: true, value: bridge });
+
+  return () => {
+    if (previousDescriptor) Object.defineProperty(window, "electronAPI", previousDescriptor);
+    else Reflect.deleteProperty(window, "electronAPI");
+  };
 }
 
 export function resetMultistreamStore({
@@ -125,6 +152,7 @@ export function resetMultistreamStore({
   layout = "grid",
   focusedStreamId = null,
   chatStreamId = streams[0]?.id ?? null,
+  isChatOpen = true,
   multiviewCap = 6,
   favoriteStreams = [],
 }: {
@@ -132,6 +160,7 @@ export function resetMultistreamStore({
   layout?: "grid" | "focus";
   focusedStreamId?: string | null;
   chatStreamId?: string | null;
+  isChatOpen?: boolean;
   multiviewCap?: number;
   favoriteStreams?: FavoriteStreamRef[];
 } = {}) {
@@ -140,7 +169,7 @@ export function resetMultistreamStore({
     layout,
     focusedStreamId,
     chatStreamId,
-    isChatOpen: true,
+    isChatOpen,
     multiviewCap,
     favoriteStreams,
     backgroundQuality: "auto-low",

@@ -26,7 +26,7 @@ describe("persisted browse snapshots", () => {
         slot: "search:kick",
         identity: { query: "xqc", platform: "kick" },
         maxAgeMs: 60_000,
-        isUsable: (data) => data.length > 0,
+        isUsable: (data): data is Array<{ id: string }> => Array.isArray(data) && data.length > 0,
       })
     );
 
@@ -49,7 +49,7 @@ describe("persisted browse snapshots", () => {
         slot: "search:kick",
         identity: { query: "xqc", platform: "kick" },
         maxAgeMs: 60_000,
-        isUsable: (data) => data.length > 0,
+        isUsable: (data): data is Array<{ id: string }> => Array.isArray(data) && data.length > 0,
       })
     );
 

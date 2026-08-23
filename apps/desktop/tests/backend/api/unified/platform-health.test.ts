@@ -555,6 +555,17 @@ describe("platform-health (slice 05: down state)", () => {
     expect(getPlatformHealth("kick")).toBe("down");
   });
 
+  it("logs the crash source when recordPlatformCrash transitions to down", async () => {
+    const { recordPlatformCrash } = await import("@/backend/api/unified/platform-health");
+
+    recordPlatformCrash("kick", "network-service-gone");
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      "PlatformHealth",
+      expect.stringContaining("Chromium NetworkService crash detected")
+    );
+  });
+
   it("does not re-fire event if already down", async () => {
     const { onPlatformHealthChanged, recordPlatformLocalNetError } = await import(
       "@/backend/api/unified/platform-health"
@@ -675,14 +686,9 @@ describe("platform-health (slice 10: emitted events include sampleSize and failu
       "@/backend/api/unified/platform-health"
     );
 
-    const events: Array<{
-      platform: string;
-      status: string;
-      startedAt: number;
-      sampleSize: number;
-      failureRate: number;
-    }> = [];
-    onPlatformHealthChanged((e) => events.push(e as any));
+    type HealthEvent = Parameters<Parameters<typeof onPlatformHealthChanged>[0]>[0];
+    const events: HealthEvent[] = [];
+    onPlatformHealthChanged((event) => events.push(event));
 
     for (let i = 0; i < 6; i++) recordPlatformFailure("kick", "timeout");
     for (let i = 0; i < 4; i++) recordPlatformSuccess("kick");
@@ -697,13 +703,9 @@ describe("platform-health (slice 10: emitted events include sampleSize and failu
       "@/backend/api/unified/platform-health"
     );
 
-    const events: Array<{
-      platform: string;
-      status: string;
-      sampleSize: number;
-      failureRate: number;
-    }> = [];
-    onPlatformHealthChanged((e) => events.push(e as any));
+    type HealthEvent = Parameters<Parameters<typeof onPlatformHealthChanged>[0]>[0];
+    const events: HealthEvent[] = [];
+    onPlatformHealthChanged((event) => events.push(event));
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
     expect(events).toHaveLength(1);

@@ -209,7 +209,7 @@ export function ClipDialog({
     setVodLookupError(null);
 
     try {
-      const api = (window as any).electronAPI;
+      const api = window.electronAPI;
       if (!api?.videos?.getByLivestreamId) {
         setVodLookupError("VOD lookup not available");
         return;
@@ -230,14 +230,13 @@ export function ClipDialog({
             src: result.data.source,
             title: result.data.title,
             channelName: result.data.channelName || channelData?.username || channelName,
-            channelDisplayName:
-              result.data.channelDisplayName || channelData?.displayName || channelName,
-            channelAvatar: result.data.channelAvatar || channelData?.avatarUrl || undefined,
+            channelDisplayName: channelData?.displayName || result.data.channelName || channelName,
+            channelAvatar: channelData?.avatarUrl || undefined,
             views: result.data.views,
             date: result.data.date,
             category: result.data.category,
             duration: result.data.duration,
-            language: result.data.language || selectedClip.language || undefined,
+            language: selectedClip.language || undefined,
             shareUrl: result.data.shareUrl || undefined,
           },
         });

@@ -13,7 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 //     its non-clips channel coverage was migrated into the IPC-handler describes
 //     at the bottom of this file).
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS, type IpcResult, type PaginatedIpcResult } from "@/shared/ipc-channels";
+import type { UnifiedVideo } from "@/backend/api/unified/platform-types";
 
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
@@ -87,21 +88,75 @@ const twitchGetClipsByGameMock = vi.mocked(twitchClient.getClipsByGame);
 const twitchGetVideosByGameMock = vi.mocked(twitchClient.getVideosByGame);
 const twitchGetUsersByIdMock = vi.mocked(twitchClient.getUsersById);
 type ClipAgeRow = readonly [id: string, ageMs: number];
+type KickClip = Awaited<ReturnType<typeof kickClient.getClips>>["data"][number];
+type TwitchClip = Awaited<ReturnType<typeof twitchClient.getClipsByChannel>>["data"][number];
+type KickCategoryClip = Awaited<ReturnType<typeof kickClient.getClipsByCategory>>["data"][number];
+type KickVideo = Awaited<ReturnType<typeof kickClient.getVideos>>["data"][number];
+type TestKickVideo = KickVideo & { livestreamId?: string; live_stream_id?: string };
+
+function expectSuccessful<T extends { success: boolean }>(
+  result: T
+): asserts result is Extract<T, { success: true }> {
+  expect(result.success).toBe(true);
+  if (!result.success) throw new Error(`Expected successful result`);
+}
+
+function kickCategoryClip(overrides: Partial<KickCategoryClip> = {}): KickCategoryClip {
+  return {
+    id: "kick-clip-1", title: "Kick clip", duration: "0:30", views: "1",
+    date: "1/1/2026", created_at: "2026-01-01T00:00:00Z", creatorName: "Clipper",
+    embedUrl: "https://example.com/clip.mp4", url: "https://kick.com/channel/clips/kick-clip-1",
+    shareUrl: "https://kick.com/channel/clips/kick-clip-1", gameId: "15", gameName: "Just Chatting",
+    category: "Just Chatting", thumbnailUrl: "https://example.com/clip.jpg", vodId: "vod-1",
+    channelId: "channel-1", channelName: "channel", channelDisplayName: "Channel",
+    channelAvatar: "https://example.com/avatar.jpg", platform: "kick", ...overrides,
+  };
+}
+
+function unifiedVideo(overrides: Partial<UnifiedVideo> = {}): UnifiedVideo {
+  return {
+    id: "v1", platform: "twitch", channelId: "c1", channelName: "streamer",
+    channelDisplayName: "Streamer", channelAvatar: "https://avatar.jpg", title: "Stream",
+    description: "desc", thumbnailUrl: "https://thumb.jpg", duration: 3661, viewCount: 5000,
+    publishedAt: "2026-01-01T00:00:00Z", url: "https://twitch.tv/videos/v1", type: "archive",
+    ...overrides,
+  };
+}
+
+function kickVideo(overrides: Partial<TestKickVideo> = {}): TestKickVideo {
+  return {
+    id: "v1", uuid: "uuid-v1", slug: "video-v1", title: "Kick VOD", duration: "1:00",
+    sourceDurationMs: 60_000, views: "1", date: "2026-01-01T00:00:00Z",
+    created_at: "2026-01-01T00:00:00Z", sourceCreatedAt: "2026-01-01T00:00:00Z",
+    sourceEndedAt: "2026-01-01T01:00:00Z", thumbnailUrl: "https://example.com/vod.jpg",
+    source: "https://example.com/vod.m3u8", url: "https://kick.com/video/video-v1",
+    shareUrl: "https://kick.com/video/video-v1", platform: "kick", isLive: false,
+    isSubOnly: false, channelSlug: "test", channelName: "Test", channelAvatar: null,
+    category: "Just Chatting", language: "en", ...overrides,
+  };
+}
 
 function clip(
   id: string,
   ageMs: number,
   extras: { views?: string | number; title?: string; created_at?: string } = {}
-): any {
+): KickClip {
   return {
     id,
     title: extras.title ?? `Clip ${id}`,
     duration: "0:30",
-    views: extras.views ?? 1,
+    views: String(extras.views ?? 1),
     date: new Date(FROZEN_NOW - ageMs).toLocaleDateString(),
     created_at: extras.created_at ?? new Date(FROZEN_NOW - ageMs).toISOString(),
     thumbnailUrl: "",
     vodId: "",
+    creatorName: "creator",
+    embedUrl: "",
+    url: "",
+    shareUrl: "",
+    gameName: "",
+    isLive: false,
+    channelSlug: "channel",
   };
 }
 
@@ -109,7 +164,7 @@ function twitchClip(
   id: string,
   ageMs: number,
   extras: { viewCount?: number; title?: string } = {}
-): any {
+): TwitchClip {
   return {
     id,
     title: extras.title ?? `Twitch clip ${id}`,
@@ -119,14 +174,20 @@ function twitchClip(
     thumbnailUrl: "",
     embedUrl: "",
     clipUrl: "",
+    platform: "twitch",
+    channelId: "channel-id",
+    channelName: "channel",
+    channelDisplayName: "Channel",
+    channelAvatar: "",
+    creatorName: "creator",
   };
 }
 
 function mockTwitchClipBuckets(
-  buckets: Record<string, { data: any[]; cursor?: string }>
+  buckets: Record<string, { data: ReturnType<typeof twitchClip>[]; cursor?: string }>
 ): void {
   twitchGetClipsByChannelMock.mockImplementation(async (_channelLogin, options) => {
-    const filter = String((options as any)?.filter);
+    const filter = String(options?.filter);
     return buckets[filter] ?? { data: [], cursor: undefined };
   });
 }
@@ -161,7 +222,7 @@ describe("fillPageWithCutoff", () => {
   const baseCutoff = FROZEN_NOW - DAY_MS;
 
   it("returns 'filled' with ALL in-range items from the page (no mid-page trim) and forwards the cursor", async () => {
-    const result = await fillPageWithCutoff<any>({
+    const result = await fillPageWithCutoff<ReturnType<typeof clip>>({
       cutoffMs: baseCutoff,
       limit: 2,
       initialCursor: undefined,
@@ -182,7 +243,7 @@ describe("fillPageWithCutoff", () => {
   });
 
   it("stops on 'out-of-range' and returns cursor=undefined", async () => {
-    const result = await fillPageWithCutoff<any>({
+    const result = await fillPageWithCutoff<ReturnType<typeof clip>>({
       cutoffMs: baseCutoff,
       limit: 20,
       initialCursor: undefined,
@@ -200,7 +261,7 @@ describe("fillPageWithCutoff", () => {
   });
 
   it("treats inclusive boundary correctly: createdAt === cutoff is in-range", async () => {
-    const result = await fillPageWithCutoff<any>({
+    const result = await fillPageWithCutoff<ReturnType<typeof clip>>({
       cutoffMs: baseCutoff,
       limit: 20,
       initialCursor: undefined,
@@ -217,7 +278,7 @@ describe("fillPageWithCutoff", () => {
   });
 
   it("returns 'exhausted' when upstream returns an empty page", async () => {
-    const result = await fillPageWithCutoff<any>({
+    const result = await fillPageWithCutoff<ReturnType<typeof clip>>({
       cutoffMs: baseCutoff,
       limit: 20,
       initialCursor: undefined,
@@ -232,7 +293,7 @@ describe("fillPageWithCutoff", () => {
   });
 
   it("returns 'exhausted' when upstream gives back no next cursor mid-fill", async () => {
-    const result = await fillPageWithCutoff<any>({
+    const result = await fillPageWithCutoff<ReturnType<typeof clip>>({
       cutoffMs: baseCutoff,
       limit: 20,
       initialCursor: undefined,
@@ -251,7 +312,7 @@ describe("fillPageWithCutoff", () => {
 
   it("returns 'max-pages' and keeps the cursor when the safety cap trips first", async () => {
     let page = 0;
-    const result = await fillPageWithCutoff<any>({
+    const result = await fillPageWithCutoff<ReturnType<typeof clip>>({
       cutoffMs: baseCutoff,
       limit: 1000,
       initialCursor: undefined,
@@ -274,7 +335,7 @@ describe("fillPageWithCutoff", () => {
 
   it("walks multiple upstream pages until limit is reached, returning all items from drained pages", async () => {
     let page = 0;
-    const result = await fillPageWithCutoff<any>({
+    const result = await fillPageWithCutoff<ReturnType<typeof clip>>({
       cutoffMs: baseCutoff,
       limit: 15,
       initialCursor: undefined,
@@ -317,7 +378,7 @@ describe("handleGetClipsByChannel - Kick - strict cutoff", () => {
     });
 
     expect(res.success).toBe(true);
-    expect(res.data?.map((c: any) => c.id)).toEqual([rows[1][0], rows[2][0], rows[0][0]]);
+    expect(res.data?.map((c) => c.id)).toEqual([rows[1][0], rows[2][0], rows[0][0]]);
   });
 
   it("returns all in-range clips and cursor=undefined when upstream is exhausted under limit", async () => {
@@ -335,7 +396,7 @@ describe("handleGetClipsByChannel - Kick - strict cutoff", () => {
     });
 
     expect(res.success).toBe(true);
-    expect(res.data?.map((c: any) => c.id)).toEqual(["a", "b", "c"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["a", "b", "c"]);
     expect(res.cursor).toBeUndefined();
   });
 
@@ -357,7 +418,7 @@ describe("handleGetClipsByChannel - Kick - strict cutoff", () => {
     });
 
     expect(res.success).toBe(true);
-    expect(res.data?.map((c: any) => c.id)).toEqual(["newer", "older"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["newer", "older"]);
   });
 
   it("returns only in-range clips and cursor=undefined when a page contains an out-of-range clip", async () => {
@@ -380,7 +441,7 @@ describe("handleGetClipsByChannel - Kick - strict cutoff", () => {
     });
 
     expect(res.success).toBe(true);
-    expect(res.data?.map((c: any) => c.id)).toEqual(["recent-1", "recent-2"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["recent-1", "recent-2"]);
     expect(res.cursor).toBeUndefined();
   });
 
@@ -422,7 +483,7 @@ describe("handleGetClipsByChannel - Kick - strict cutoff", () => {
       timeRange: "week",
     });
 
-    expect(res.data?.map((c: any) => c.id)).toEqual(["fresh", "just-inside-7d"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["fresh", "just-inside-7d"]);
     expect(res.cursor).toBeUndefined();
   });
 
@@ -440,7 +501,7 @@ describe("handleGetClipsByChannel - Kick - strict cutoff", () => {
       timeRange: "week",
     });
 
-    expect(res.data?.map((c: any) => c.id)).toEqual(["a", "b", "c"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["a", "b", "c"]);
     expect(res.cursor).toBeUndefined();
   });
 
@@ -481,7 +542,7 @@ describe("handleGetClipsByChannel - Kick - strict cutoff", () => {
       timeRange: "month",
     });
 
-    expect(res.data?.map((c: any) => c.id)).toEqual(["fresh", "just-inside-30d"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["fresh", "just-inside-30d"]);
     expect(res.cursor).toBeUndefined();
   });
 
@@ -499,7 +560,7 @@ describe("handleGetClipsByChannel - Kick - strict cutoff", () => {
       timeRange: "month",
     });
 
-    expect(res.data?.map((c: any) => c.id)).toEqual(["a", "b", "c"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["a", "b", "c"]);
     expect(res.cursor).toBeUndefined();
   });
 
@@ -575,7 +636,7 @@ describe("handleGetClipsByChannel - Kick - All Time pass-through", () => {
     });
 
     expect(res.success).toBe(true);
-    expect(res.data?.map((c: any) => c.id)).toEqual(["one-minute", "one-day", "old"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["one-minute", "one-day", "old"]);
     expect(res.cursor).toBe("upstream-abc");
   });
 
@@ -593,7 +654,7 @@ describe("handleGetClipsByChannel - Kick - All Time pass-through", () => {
       timeRange: "all",
     });
 
-    expect(res.data?.map((c: any) => c.id)).toEqual(["a", "old"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["a", "old"]);
     expect(res.cursor).toBe("upstream-abc");
   });
 
@@ -636,7 +697,7 @@ describe("handleGetClipsByChannel - Kick - views-sort + day/week/month Deep Fetc
     });
 
     expect(res.success).toBe(true);
-    expect(res.data?.map((c: any) => c.id)).toEqual(["high", "mid", "low"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["high", "mid", "low"]);
     expect(res.cursor).toBeUndefined();
     // Deep Fetch always asks for limit=100
     expect(getClipsMock).toHaveBeenCalledWith(
@@ -672,7 +733,7 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
     });
 
     expect(res.success).toBe(true);
-    expect(res.data?.map((c: any) => c.id)).toEqual([rows[1][0], rows[2][0], rows[0][0]]);
+    expect(res.data?.map((c) => c.id)).toEqual([rows[1][0], rows[2][0], rows[0][0]]);
   });
 
   it("returns all in-range clips and cursor=undefined when GQL is exhausted under limit", async () => {
@@ -690,7 +751,7 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
     });
 
     expect(res.success).toBe(true);
-    expect(res.data?.map((c: any) => c.id)).toEqual(["a", "b", "c"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["a", "b", "c"]);
     expect(res.cursor).toBeUndefined();
   });
 
@@ -713,7 +774,7 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
       timeRange: "day",
     });
 
-    expect(res.data?.map((c: any) => c.id)).toEqual(["recent-1", "recent-2"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["recent-1", "recent-2"]);
     expect(res.cursor).toBeUndefined();
   });
 
@@ -757,7 +818,7 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
       timeRange: "week",
     });
 
-    expect(res.data?.map((c: any) => c.id)).toEqual(["fresh", "just-inside-7d"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["fresh", "just-inside-7d"]);
     expect(res.cursor).toBe("gql-next");
   });
 
@@ -778,7 +839,7 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
       timeRange: "week",
     });
 
-    expect(res.data?.map((c: any) => c.id)).toEqual(["a", "b", "c"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["a", "b", "c"]);
     expect(res.cursor).toBeUndefined();
   });
 
@@ -826,7 +887,7 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
       timeRange: "month",
     });
 
-    expect(res.data?.map((c: any) => c.id)).toEqual(["fresh", "just-inside-30d"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["fresh", "just-inside-30d"]);
     expect(res.cursor).toBe("gql-next");
   });
 
@@ -848,7 +909,7 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
       timeRange: "month",
     });
 
-    expect(res.data?.map((c: any) => c.id)).toEqual(["a", "b", "c"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["a", "b", "c"]);
     expect(res.cursor).toBeUndefined();
   });
 
@@ -930,7 +991,7 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
       timeRange: "day",
     });
 
-    expect(res.data?.map((c: any) => c.id)).toEqual(["high", "mid", "low"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["high", "mid", "low"]);
     expect(res.cursor).toBeUndefined();
   });
 });
@@ -955,7 +1016,7 @@ describe("handleGetClipsByChannel - Twitch - All Time", () => {
     });
 
     expect(res.success).toBe(true);
-    expect(res.data?.map((c: any) => c.id)).toEqual(["one-minute", "one-day", "old"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["one-minute", "one-day", "old"]);
     expect(res.cursor).toBe("gql-abc");
     expect(twitchGetClipsByChannelMock).toHaveBeenCalledWith(
       "somechannel",
@@ -999,7 +1060,7 @@ describe("handleGetClipsByChannel - Twitch - All Time", () => {
       timeRange: "all",
     });
 
-    expect(res.data?.map((c: any) => c.id)).toEqual([
+    expect(res.data?.map((c) => c.id)).toEqual([
       "one-minute-low-view",
       "popular-day-old",
       "popular-week-old",
@@ -1028,7 +1089,7 @@ describe("handleGetClipsByChannel - Twitch - All Time", () => {
       timeRange: "all",
     });
 
-    expect(res.data?.map((c: any) => c.id)).toEqual(["less-old", "older"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["less-old", "older"]);
     expect(res.cursor).toBe("gql-abc");
     expect(twitchGetClipsByChannelMock).toHaveBeenNthCalledWith(
       1,
@@ -1070,7 +1131,7 @@ describe("handleGetClipsByChannel - Twitch - All Time", () => {
       timeRange: "all",
     });
 
-    expect(res.data?.map((c: any) => c.id)).toEqual(["a", "old"]);
+    expect(res.data?.map((c) => c.id)).toEqual(["a", "old"]);
     expect(res.cursor).toBe("gql-abc");
   });
 
@@ -1122,16 +1183,38 @@ describe("handleGetClipsByChannel - Twitch - MAX_INTERNAL_PAGES safety cap", () 
 // Pins the wire contract for each channel + platform branch + error envelope.
 // ---------------------------------------------------------------------------
 
-const twitchResolverProto = TwitchStreamResolver.prototype as any;
-const kickResolverProto = KickStreamResolver.prototype as any;
+const twitchResolverProto = vi.mocked(TwitchStreamResolver.prototype);
+const kickResolverProto = vi.mocked(KickStreamResolver.prototype);
 
-type Handler = (event: unknown, params: unknown) => Promise<unknown>;
+type Handler<Result> = (event: unknown, params: unknown) => Promise<Result>;
+type DisplayVideo = {
+  id: string; title: string; duration: string; views: string; platform: "kick" | "twitch";
+  gameName?: string;
+};
+type VideoMetadata = {
+  id: string; title: string; channelId: string; channelName: string; channelDisplayName: string;
+  channelAvatar: string | null; views: number; duration: string; createdAt: string;
+  thumbnailUrl: string; description: string; type: string; platform: string; shareUrl?: string;
+};
+type LivestreamVideo = {
+  id: string; title: string; source: string; thumbnailUrl: string; duration: string; views: string;
+  date: string; channelSlug: string; channelName: string; category: string; shareUrl?: string;
+};
+type VideoHandlerResults = {
+  [IPC_CHANNELS.CLIPS_GET_BY_CATEGORY]: Awaited<ReturnType<Window["electronAPI"]["clips"]["getByCategory"]>>;
+  [IPC_CHANNELS.CLIPS_GET_PLAYBACK_URL]: Awaited<ReturnType<Window["electronAPI"]["clips"]["getPlaybackUrl"]>>;
+  [IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY]: Awaited<ReturnType<Window["electronAPI"]["videos"]["getByCategory"]>>;
+  [IPC_CHANNELS.VIDEOS_GET_BY_CHANNEL]: PaginatedIpcResult<DisplayVideo[]>;
+  [IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID]: IpcResult<LivestreamVideo>;
+  [IPC_CHANNELS.VIDEOS_GET_METADATA]: IpcResult<VideoMetadata>;
+  [IPC_CHANNELS.VIDEOS_GET_PLAYBACK_URL]: Awaited<ReturnType<Window["electronAPI"]["videos"]["getPlaybackUrl"]>>;
+};
 
-function getHandler(channel: string): Handler {
-  const calls = vi.mocked(ipcMain.handle).mock.calls as unknown as Array<[string, Handler]>;
+function getHandler<Channel extends keyof VideoHandlerResults>(channel: Channel): Handler<VideoHandlerResults[Channel]> {
+  const calls = vi.mocked(ipcMain.handle).mock.calls;
   const call = calls.find(([c]) => c === channel);
   if (!call) throw new Error(`handler not registered: ${channel}`);
-  return call[1];
+  return (event, params) => Promise.resolve(Reflect.apply(call[1], undefined, [event, params]));
 }
 
 // Guards: Kick Category Clips route through the native Category reader and preserve the typed availability envelope.
@@ -1146,8 +1229,8 @@ describe("IPC handlers - CLIPS_GET_BY_CATEGORY", () => {
   });
 
   it("loads Kick Clips from the native Category slug", async () => {
-    const clips = [{ id: "kick-clip-1", platform: "kick" }];
-    getClipsByCategoryMock.mockResolvedValue({ data: clips, cursor: "next-page" } as any);
+    const clips = [kickCategoryClip()];
+    getClipsByCategoryMock.mockResolvedValue({ data: clips, cursor: "next-page" });
     const request = {
       platform: "kick" as const,
       categoryId: "15",
@@ -1181,8 +1264,10 @@ describe("IPC handlers - CLIPS_GET_BY_CATEGORY", () => {
         login: "streamer",
         displayName: "Streamer Display",
         profileImageUrl: "https://example.com/avatar.jpg",
+        createdAt: "2020-01-01T00:00:00.000Z",
+        broadcasterType: "",
       },
-    ] as any);
+    ]);
     twitchGetClipsByGameMock.mockResolvedValue({
       data: [
         {
@@ -1206,7 +1291,7 @@ describe("IPC handlers - CLIPS_GET_BY_CATEGORY", () => {
         },
       ],
       cursor: "next-page",
-    } as any);
+    });
 
     const result = await getHandler(IPC_CHANNELS.CLIPS_GET_BY_CATEGORY)({}, {
       platform: "twitch",
@@ -1276,8 +1361,10 @@ describe("IPC handlers - VIDEOS_GET_BY_CATEGORY", () => {
         login: "streamer",
         displayName: "Streamer",
         profileImageUrl: "https://example.com/avatar.jpg",
+        createdAt: "2020-01-01T00:00:00.000Z",
+        broadcasterType: "",
       },
-    ] as any);
+    ]);
     twitchGetVideosByGameMock.mockResolvedValue({
       data: [
         {
@@ -1303,7 +1390,7 @@ describe("IPC handlers - VIDEOS_GET_BY_CATEGORY", () => {
         },
       ],
       cursor: "next-page",
-    } as any);
+    });
 
     const result = await getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY)({}, {
       platform: "twitch",
@@ -1347,28 +1434,34 @@ describe("IPC handlers - VIDEOS_GET_PLAYBACK_URL", () => {
   });
 
   it("resolves Twitch VOD playback URL", async () => {
-    twitchResolverProto.getVodPlaybackUrl.mockResolvedValue({ url: "https://vod.twitch.tv/test.m3u8" });
+    twitchResolverProto.getVodPlaybackUrl.mockResolvedValue({
+      url: "https://vod.twitch.tv/test.m3u8",
+      format: "hls",
+    });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_PLAYBACK_URL);
-    const result = (await handler({}, { platform: "twitch", videoId: "123" })) as any;
+    const result = await handler({}, { platform: "twitch", videoId: "123" });
 
-    expect(result.success).toBe(true);
+    expectSuccessful(result);
     expect(result.data.url).toBe("https://vod.twitch.tv/test.m3u8");
   });
 
   it("resolves Kick VOD playback URL", async () => {
-    kickResolverProto.getVodPlaybackUrl.mockResolvedValue({ url: "https://kick.com/vod.m3u8" });
+    kickResolverProto.getVodPlaybackUrl.mockResolvedValue({
+      url: "https://kick.com/vod.m3u8",
+      format: "hls",
+    });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_PLAYBACK_URL);
-    const result = (await handler({}, { platform: "kick", videoId: "456" })) as any;
+    const result = await handler({}, { platform: "kick", videoId: "456" });
 
-    expect(result.success).toBe(true);
+    expectSuccessful(result);
     expect(result.data.url).toBe("https://kick.com/vod.m3u8");
   });
 
   it("returns error for unsupported platform", async () => {
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_PLAYBACK_URL);
-    const result = (await handler({}, { platform: "youtube", videoId: "x" })) as any;
+    const result = await handler({}, { platform: "youtube", videoId: "x" });
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("Unsupported platform");
@@ -1378,7 +1471,7 @@ describe("IPC handlers - VIDEOS_GET_PLAYBACK_URL", () => {
     twitchResolverProto.getVodPlaybackUrl.mockRejectedValue(new Error("not found"));
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_PLAYBACK_URL);
-    const result = (await handler({}, { platform: "twitch", videoId: "bad" })) as any;
+    const result = await handler({}, { platform: "twitch", videoId: "bad" });
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("not found");
@@ -1395,25 +1488,12 @@ describe("IPC handlers - VIDEOS_GET_METADATA", () => {
   });
 
   it("returns formatted Twitch video metadata", async () => {
-    vi.mocked(twitchClient.getVideoById).mockResolvedValue({
-      id: "v1",
-      title: "Stream",
-      channelId: "c1",
-      channelName: "streamer",
-      channelDisplayName: "Streamer",
-      channelAvatar: "https://avatar.jpg",
-      viewCount: 5000,
-      duration: 3661,
-      publishedAt: "2026-01-01T00:00:00Z",
-      thumbnailUrl: "https://thumb.jpg",
-      description: "desc",
-      type: "archive",
-    } as any);
+    vi.mocked(twitchClient.getVideoById).mockResolvedValue(unifiedVideo());
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_METADATA);
-    const result = (await handler({}, { platform: "twitch", videoId: "v1" })) as any;
+    const result = await handler({}, { platform: "twitch", videoId: "v1" });
 
-    expect(result.success).toBe(true);
+    expectSuccessful(result);
     expect(result.data.id).toBe("v1");
     expect(result.data.duration).toBe("1:01:01");
     expect(result.data.platform).toBe("twitch");
@@ -1423,26 +1503,31 @@ describe("IPC handlers - VIDEOS_GET_METADATA", () => {
     vi.mocked(twitchClient.getVideoById).mockResolvedValue(null);
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_METADATA);
-    const result = (await handler({}, { platform: "twitch", videoId: "x" })) as any;
+    const result = await handler({}, { platform: "twitch", videoId: "x" });
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("Video not found");
   });
 
   it("returns Kick video metadata from resolver", async () => {
-    const metadata = { id: "k1", title: "Kick VOD" };
+    const metadata = {
+      id: "k1", title: "Kick VOD", channelId: "c1", channelName: "kickuser",
+      channelDisplayName: "Kick User", channelAvatar: null, views: 10, duration: "1:00",
+      createdAt: "2026-01-01T00:00:00Z", thumbnailUrl: "https://example.com/vod.jpg",
+      platform: "kick", category: "Just Chatting",
+    };
     kickResolverProto.getVideoMetadata.mockResolvedValue(metadata);
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_METADATA);
-    const result = (await handler({}, { platform: "kick", videoId: "k1" })) as any;
+    const result = await handler({}, { platform: "kick", videoId: "k1" });
 
-    expect(result.success).toBe(true);
+    expectSuccessful(result);
     expect(result.data).toBe(metadata);
   });
 
   it("returns error for unsupported platform", async () => {
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_METADATA);
-    const result = (await handler({}, { platform: "youtube", videoId: "x" })) as any;
+    const result = await handler({}, { platform: "youtube", videoId: "x" });
 
     expect(result.success).toBe(false);
   });
@@ -1461,28 +1546,21 @@ describe("IPC handlers - VIDEOS_GET_BY_CHANNEL", () => {
   it("returns mapped Twitch videos with game data", async () => {
     vi.mocked(twitchClient.getVideosByChannel).mockResolvedValue({
       data: [
-        {
-          id: "v1",
-          title: "Stream 1",
-          duration: 7200,
-          viewCount: 1000,
-          publishedAt: "2026-01-01T00:00:00Z",
-          thumbnailUrl: "https://thumb.jpg",
-        },
+        unifiedVideo({ id: "v1", title: "Stream 1", duration: 7200, viewCount: 1000 }),
       ],
       cursor: "vc",
-    } as any);
+    });
     vi.mocked(twitchClient.getVideosGameData).mockResolvedValue({
       v1: { id: "g1", name: "Valorant" },
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CHANNEL);
-    const result = (await handler({}, {
+    const result = await handler({}, {
       platform: "twitch",
       channelName: "TestChannel",
-    })) as any;
+    });
 
-    expect(result.success).toBe(true);
+    expectSuccessful(result);
     expect(result.data).toHaveLength(1);
     expect(result.data[0].duration).toBe("2:00:00");
     expect(result.data[0].gameName).toBe("Valorant");
@@ -1494,7 +1572,7 @@ describe("IPC handlers - VIDEOS_GET_BY_CHANNEL", () => {
     vi.mocked(twitchClient.getVideosByChannel).mockResolvedValue({
       data: [],
       cursor: undefined,
-    } as any);
+    });
     vi.mocked(twitchClient.getVideosGameData).mockResolvedValue({});
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CHANNEL);
@@ -1506,49 +1584,50 @@ describe("IPC handlers - VIDEOS_GET_BY_CHANNEL", () => {
   it("sorts Twitch videos by views when sort=views", async () => {
     vi.mocked(twitchClient.getVideosByChannel).mockResolvedValue({
       data: [
-        { id: "v1", title: "A", duration: 60, viewCount: 10, publishedAt: "2026-01-01T00:00:00Z", thumbnailUrl: "" },
-        { id: "v2", title: "B", duration: 60, viewCount: 100, publishedAt: "2026-01-01T00:00:00Z", thumbnailUrl: "" },
+        unifiedVideo({ id: "v1", title: "A", duration: 60, viewCount: 10, thumbnailUrl: "" }),
+        unifiedVideo({ id: "v2", title: "B", duration: 60, viewCount: 100, thumbnailUrl: "" }),
       ],
       cursor: undefined,
-    } as any);
+    });
     vi.mocked(twitchClient.getVideosGameData).mockResolvedValue({});
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CHANNEL);
-    const result = (await handler({}, {
+    const result = await handler({}, {
       platform: "twitch",
       channelName: "test",
       sort: "views",
-    })) as any;
+    });
 
+    expectSuccessful(result);
     expect(result.data[0].id).toBe("v2");
   });
 
   it("returns Kick videos with client-side view sort", async () => {
     vi.mocked(kickClient.getVideos).mockResolvedValue({
       data: [
-        { id: "k1", views: "50" },
-        { id: "k2", views: "200" },
+        kickVideo({ id: "k1", views: "50" }),
+        kickVideo({ id: "k2", views: "200" }),
       ],
       cursor: "kc",
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CHANNEL);
-    const result = (await handler({}, {
+    const result = await handler({}, {
       platform: "kick",
       channelName: "kickuser",
       sort: "views",
-    })) as any;
+    });
 
-    expect(result.success).toBe(true);
+    expectSuccessful(result);
     expect(result.data[0].id).toBe("k2");
   });
 
   it("returns error for unsupported platform", async () => {
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CHANNEL);
-    const result = (await handler({}, {
+    const result = await handler({}, {
       platform: "youtube",
       channelName: "test",
-    })) as any;
+    });
 
     expect(result.success).toBe(false);
   });
@@ -1565,42 +1644,44 @@ describe("IPC handlers - CLIPS_GET_PLAYBACK_URL", () => {
   it("resolves Twitch clip playback URL via GQL", async () => {
     twitchResolverProto.getClipPlaybackUrl.mockResolvedValue({
       url: "https://clips.twitch.tv/test.mp4",
+      format: "mp4",
     });
 
     const handler = getHandler(IPC_CHANNELS.CLIPS_GET_PLAYBACK_URL);
-    const result = (await handler({}, { platform: "twitch", clipId: "abc" })) as any;
+    const result = await handler({}, { platform: "twitch", clipId: "abc" });
 
-    expect(result.success).toBe(true);
+    expectSuccessful(result);
     expect(result.data.url).toBe("https://clips.twitch.tv/test.mp4");
   });
 
   it("returns Kick clip URL directly with hls format for .m3u8", async () => {
     const handler = getHandler(IPC_CHANNELS.CLIPS_GET_PLAYBACK_URL);
-    const result = (await handler({}, {
+    const result = await handler({}, {
       platform: "kick",
       clipId: "k1",
       clipUrl: "https://kick.com/clip.m3u8",
-    })) as any;
+    });
 
-    expect(result.success).toBe(true);
+    expectSuccessful(result);
     expect(result.data.url).toBe("https://kick.com/clip.m3u8");
     expect(result.data.format).toBe("hls");
   });
 
   it("returns Kick clip URL with mp4 format for non-.m3u8 URLs", async () => {
     const handler = getHandler(IPC_CHANNELS.CLIPS_GET_PLAYBACK_URL);
-    const result = (await handler({}, {
+    const result = await handler({}, {
       platform: "kick",
       clipId: "k1",
       clipUrl: "https://kick.com/clip.mp4",
-    })) as any;
+    });
 
+    expectSuccessful(result);
     expect(result.data.format).toBe("mp4");
   });
 
   it("returns error when Kick clip has no clipUrl", async () => {
     const handler = getHandler(IPC_CHANNELS.CLIPS_GET_PLAYBACK_URL);
-    const result = (await handler({}, { platform: "kick", clipId: "k1" })) as any;
+    const result = await handler({}, { platform: "kick", clipId: "k1" });
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("Clip URL required");
@@ -1608,7 +1689,7 @@ describe("IPC handlers - CLIPS_GET_PLAYBACK_URL", () => {
 
   it("returns error for unsupported platform", async () => {
     const handler = getHandler(IPC_CHANNELS.CLIPS_GET_PLAYBACK_URL);
-    const result = (await handler({}, { platform: "youtube", clipId: "x" })) as any;
+    const result = await handler({}, { platform: "youtube", clipId: "x" });
 
     expect(result.success).toBe(false);
   });
@@ -1625,19 +1706,19 @@ describe("IPC handlers - VIDEOS_GET_BY_LIVESTREAM_ID", () => {
   it("finds matching VOD by livestream ID", async () => {
     vi.mocked(kickClient.getVideos).mockResolvedValue({
       data: [
-        { id: "v1", livestreamId: "999", title: "Wrong VOD" },
-        { id: "v2", livestreamId: "123", title: "Correct VOD", source: "https://vod.m3u8" },
+        kickVideo({ id: "v1", livestreamId: "999", title: "Wrong VOD" }),
+        kickVideo({ id: "v2", livestreamId: "123", title: "Correct VOD", source: "https://vod.m3u8" }),
       ],
       cursor: undefined,
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID);
-    const result = (await handler({}, {
+    const result = await handler({}, {
       channelSlug: "test",
       livestreamId: "123",
-    })) as any;
+    });
 
-    expect(result.success).toBe(true);
+    expectSuccessful(result);
     expect(result.data.id).toBe("v2");
     expect(result.data.title).toBe("Correct VOD");
   });
@@ -1645,36 +1726,36 @@ describe("IPC handlers - VIDEOS_GET_BY_LIVESTREAM_ID", () => {
   it("paginates through multiple pages to find the VOD", async () => {
     vi.mocked(kickClient.getVideos)
       .mockResolvedValueOnce({
-        data: [{ id: "v1", livestreamId: "other", title: "Page 1" }],
+        data: [kickVideo({ id: "v1", livestreamId: "other", title: "Page 1" })],
         cursor: "page2",
-      } as any)
+      })
       .mockResolvedValueOnce({
-        data: [{ id: "v2", livestreamId: "target", title: "Found", source: "https://vod.m3u8" }],
+        data: [kickVideo({ id: "v2", livestreamId: "target", title: "Found", source: "https://vod.m3u8" })],
         cursor: undefined,
-      } as any);
+      });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID);
-    const result = (await handler({}, {
+    const result = await handler({}, {
       channelSlug: "test",
       livestreamId: "target",
-    })) as any;
+    });
 
-    expect(result.success).toBe(true);
+    expectSuccessful(result);
     expect(result.data.id).toBe("v2");
     expect(kickClient.getVideos).toHaveBeenCalledTimes(2);
   });
 
   it("returns error when VOD not found after exhausting pages", async () => {
     vi.mocked(kickClient.getVideos).mockResolvedValue({
-      data: [{ id: "v1", livestreamId: "other" }],
+      data: [kickVideo({ id: "v1", livestreamId: "other" })],
       cursor: undefined,
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID);
-    const result = (await handler({}, {
+    const result = await handler({}, {
       channelSlug: "test",
       livestreamId: "nonexistent",
-    })) as any;
+    });
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("VOD not found");
@@ -1682,15 +1763,15 @@ describe("IPC handlers - VIDEOS_GET_BY_LIVESTREAM_ID", () => {
 
   it("stops after maxAttempts (5 pages) to prevent infinite loops", async () => {
     vi.mocked(kickClient.getVideos).mockResolvedValue({
-      data: [{ id: "v1", livestreamId: "other" }],
+      data: [kickVideo({ id: "v1", livestreamId: "other" })],
       cursor: "next",
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID);
-    const result = (await handler({}, {
+    const result = await handler({}, {
       channelSlug: "test",
       livestreamId: "never-found",
-    })) as any;
+    });
 
     expect(result.success).toBe(false);
     expect(kickClient.getVideos).toHaveBeenCalledTimes(5);
@@ -1700,10 +1781,10 @@ describe("IPC handlers - VIDEOS_GET_BY_LIVESTREAM_ID", () => {
     vi.mocked(kickClient.getVideos).mockRejectedValue(new Error("network error"));
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID);
-    const result = (await handler({}, {
+    const result = await handler({}, {
       channelSlug: "test",
       livestreamId: "123",
-    })) as any;
+    });
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("network error");
@@ -1712,18 +1793,18 @@ describe("IPC handlers - VIDEOS_GET_BY_LIVESTREAM_ID", () => {
   it("matches live_stream_id field variant", async () => {
     vi.mocked(kickClient.getVideos).mockResolvedValue({
       data: [
-        { id: "v1", live_stream_id: "123", title: "Matched", source: "https://vod.m3u8" },
+        kickVideo({ id: "v1", live_stream_id: "123", title: "Matched", source: "https://vod.m3u8" }),
       ],
       cursor: undefined,
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID);
-    const result = (await handler({}, {
+    const result = await handler({}, {
       channelSlug: "test",
       livestreamId: "123",
-    })) as any;
+    });
 
-    expect(result.success).toBe(true);
+    expectSuccessful(result);
     expect(result.data.id).toBe("v1");
   });
 
@@ -1731,13 +1812,13 @@ describe("IPC handlers - VIDEOS_GET_BY_LIVESTREAM_ID", () => {
     vi.mocked(kickClient.getVideos).mockResolvedValue({
       data: [],
       cursor: undefined,
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID);
-    const result = (await handler({}, {
+    const result = await handler({}, {
       channelSlug: "test",
       livestreamId: "123",
-    })) as any;
+    });
 
     expect(result.success).toBe(false);
   });

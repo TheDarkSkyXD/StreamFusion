@@ -4,6 +4,8 @@ import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { ClipDialog } from "@/components/stream/related-content/ClipDialog";
 import type { VideoOrClip } from "@/components/stream/related-content/types";
 import type { Platform } from "@/shared/auth-types";
+import type React from "react";
+import { installElectronAPIMock } from "../../../test-utils";
 
 const addToHistory = vi.hoisted(() => vi.fn());
 
@@ -59,7 +61,7 @@ vi.mock("@/hooks/queries/useHistoryQuery", () => ({
 const mockNavigate = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
-  Link: ({ children, to, params }: any) => (
+  Link: ({ children, to, params }: React.PropsWithChildren<{ to: string; params?: Record<string, unknown> }>) => (
     <a
       href={to}
       data-params={JSON.stringify(params)}
@@ -117,15 +119,10 @@ describe("[Unit] ClipDialog", () => {
     vi.clearAllMocks();
     addToHistory.mockReset();
     // Setup default window mocks if needed
-    (window as any).electronAPI = {
-      videos: {
-        getByLivestreamId: vi.fn(),
-      },
-      downloads: {
-        getQueue: vi.fn().mockResolvedValue({ jobs: [] }),
-        downloadClip: vi.fn().mockResolvedValue({ success: true, jobId: "clip-job" }),
-      },
-    };
+    const api = installElectronAPIMock();
+    api.videos.getByLivestreamId = vi.fn();
+    api.downloads.getQueue = vi.fn().mockResolvedValue({ jobs: [] });
+    api.downloads.downloadClip = vi.fn().mockResolvedValue({ success: true, jobId: "clip-job" });
   });
 
   it("enables guest sharing and downloading only after the player becomes ready", async () => {
@@ -165,7 +162,7 @@ describe("[Unit] ClipDialog", () => {
 
     fireEvent.click(download);
     await waitFor(() =>
-      expect((window as any).electronAPI.downloads.downloadClip).toHaveBeenCalledWith(
+      expect(vi.mocked(window.electronAPI.downloads.downloadClip)).toHaveBeenCalledWith(
         expect.objectContaining({
           platform: "twitch",
           clipId: "clip-123",
@@ -597,7 +594,7 @@ describe("[Unit] ClipDialog", () => {
       },
     });
 
-    (window as any).electronAPI.videos.getByLivestreamId = mockGetByLivestreamId;
+    window.electronAPI.videos.getByLivestreamId = mockGetByLivestreamId;
 
     render(
       <ClipDialog
@@ -647,7 +644,7 @@ describe("[Unit] ClipDialog", () => {
       error: "VOD not found",
     });
 
-    (window as any).electronAPI.videos.getByLivestreamId = mockGetByLivestreamId;
+    window.electronAPI.videos.getByLivestreamId = mockGetByLivestreamId;
 
     render(
       <ClipDialog

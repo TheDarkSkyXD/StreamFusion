@@ -9,6 +9,8 @@ function evaluate(predicate: string): boolean {
   return vm.runInThisContext(predicate) as boolean;
 }
 
+// Guards: the Kick following-page readiness check accepts one-card and explicit-empty accounts without requiring an arbitrary link count.
+// Guards: recommendation-only Live Channels content never qualifies as the authenticated followed-channel section.
 describe("GRID_READY_PREDICATE", () => {
   afterEach(() => {
     document.body.innerHTML = "";
@@ -23,6 +25,38 @@ describe("GRID_READY_PREDICATE", () => {
           <a href="/streamertwo"><img alt="StreamerTwo" src="/b.png" /></a>
         </div>
       </section>`;
+    expect(evaluate(GRID_READY_PREDICATE)).toBe(true);
+  });
+
+  it("accepts the dedicated page's Following heading with a single followed channel", () => {
+    document.body.innerHTML = `
+      <main>
+        <h1>Following</h1>
+        <a href="/onlychannel"><img alt="OnlyChannel" src="/only.png" /></a>
+      </main>`;
+    expect(evaluate(GRID_READY_PREDICATE)).toBe(true);
+  });
+
+  it("does not mistake a Live Channels recommendation card for a followed channel", () => {
+    document.body.innerHTML = `
+      <main>
+        <section><h1>Following</h1><p>Channels you follow will appear here.</p></section>
+        <section>
+          <h2>Live Channels</h2>
+          <a href="/recommended"><img alt="Recommended" src="/recommended.png" /></a>
+        </section>
+      </main>`;
+    expect(evaluate(GRID_READY_PREDICATE)).toBe(false);
+  });
+
+  it("is ready when the Following section explicitly says the account follows no channels", () => {
+    document.body.innerHTML = `
+      <main>
+        <section>
+          <h1>Following</h1>
+          <p>You aren't following any channels yet.</p>
+        </section>
+      </main>`;
     expect(evaluate(GRID_READY_PREDICATE)).toBe(true);
   });
 

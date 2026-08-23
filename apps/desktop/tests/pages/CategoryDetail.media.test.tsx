@@ -1,5 +1,7 @@
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Platform } from "@/shared/auth-types";
+import type { CategoryMediaItem } from "@/shared/category-media-types";
 
 import {
   fixtures,
@@ -70,6 +72,21 @@ import { CategoryDetailPage } from "@/pages/CategoryDetail";
 const useCategoryByIdMock = vi.mocked(useCategoryById);
 const useTopCategoriesMock = vi.mocked(useTopCategories);
 const useInfiniteStreamsByCategoryMock = vi.mocked(useInfiniteStreamsByCategory);
+
+function categoryMediaItem(
+  platform: Platform,
+  overrides: Partial<CategoryMediaItem> = {}
+): CategoryMediaItem {
+  const createdAt = "2026-07-15T12:00:00.000Z";
+  return {
+    id: `${platform}-media`, title: `${platform} media`, duration: "0:30", views: "1",
+    date: createdAt, created_at: createdAt, thumbnailUrl: `https://example.com/${platform}.jpg`,
+    platform, channelId: `${platform}-channel`, channelName: `${platform} channel`,
+    channelAvatar: `https://example.com/${platform}-avatar.jpg`,
+    gameId: platform === "twitch" ? "509658" : "15", gameName: "Just Chatting",
+    category: "Just Chatting", ...overrides,
+  };
+}
 
 function emptyInfiniteStreams() {
   return {
@@ -143,49 +160,20 @@ describe("CategoryDetailPage media tabs", () => {
   it("keeps Clips active and renders real mixed-Platform Clip cards instead of the Live grid", async () => {
     searchState.tab = "clips";
     const api = installElectronAPIMock();
-    api.clips.getByCategory = vi.fn(async ({ platform }: { platform: "twitch" | "kick" }) => ({
+    api.clips.getByCategory = vi.fn<typeof api.clips.getByCategory>(async ({ platform }) => ({
       success: true,
+      availability: "available",
       data:
         platform === "twitch"
           ? [
-              {
-                id: "twitch-offline-clip",
-                platform: "twitch",
-                channelId: "twitch-offline-channel",
-                channelName: "offline_twitch",
-                channelDisplayName: "Offline Twitch",
-                channelAvatar: "https://example.com/twitch-avatar.jpg",
-                title: "Twitch Category Highlight",
-                thumbnailUrl: "https://example.com/twitch-clip.jpg",
-                clipUrl: "https://twitch.tv/clip/twitch-offline-clip",
-                embedUrl: "https://clips.twitch.tv/embed?clip=twitch-offline-clip",
-                duration: 42,
-                viewCount: 1_250,
-                createdAt: "2026-07-15T12:00:00.000Z",
-                creatorName: "Clipper One",
-                gameId: "509658",
-                gameName: "Just Chatting",
-              },
+              categoryMediaItem("twitch", { id: "twitch-offline-clip", channelName: "Offline Twitch",
+                title: "Twitch Category Highlight", duration: "0:42", views: "1250",
+                embedUrl: "https://clips.twitch.tv/embed?clip=twitch-offline-clip", creatorName: "Clipper One" }),
             ]
           : [
-              {
-                id: "kick-offline-clip",
-                platform: "kick",
-                channelId: "kick-offline-channel",
-                channelName: "offline_kick",
-                channelDisplayName: "Offline Kick",
-                channelAvatar: "https://example.com/kick-avatar.jpg",
-                title: "Kick Category Highlight",
-                thumbnailUrl: "https://example.com/kick-clip.jpg",
-                clipUrl: "https://kick.com/offline_kick?clip=kick-offline-clip",
-                embedUrl: "https://example.com/kick-clip.mp4",
-                duration: 31,
-                viewCount: 900,
-                createdAt: "2026-07-14T12:00:00.000Z",
-                creatorName: "Clipper Two",
-                gameId: "15",
-                gameName: "Just Chatting",
-              },
+              categoryMediaItem("kick", { id: "kick-offline-clip", channelName: "Offline Kick",
+                title: "Kick Category Highlight", duration: "0:31", views: "900",
+                embedUrl: "https://example.com/kick-clip.mp4", creatorName: "Clipper Two" }),
             ],
       cursor: undefined,
     }));
@@ -248,49 +236,40 @@ describe("CategoryDetailPage media tabs", () => {
     searchState.tab = "videos";
     const api = installElectronAPIMock();
     api.clips.getByCategory = vi.fn();
-    api.videos.getByCategory = vi.fn(async ({ platform }: { platform: "twitch" | "kick" }) => ({
+    api.videos.getByCategory = vi.fn<typeof api.videos.getByCategory>(async ({ platform }) => ({
       success: true,
+      availability: "available",
       data:
         platform === "twitch"
           ? [
-              {
+              categoryMediaItem("twitch", {
                 id: "twitch-category-video",
-                platform: "twitch",
                 channelId: "twitch-video-channel",
-                channelName: "twitch_archive",
-                channelDisplayName: "Twitch Archive",
+                channelName: "Twitch Archive",
                 channelAvatar: "https://example.com/twitch-video-avatar.jpg",
                 title: "Twitch Category VOD",
-                description: "",
                 thumbnailUrl: "https://example.com/twitch-video.jpg",
-                duration: 3_600,
-                viewCount: 2_500,
-                publishedAt: "2026-07-15T12:00:00.000Z",
+                duration: "1:00:00",
+                views: "2500",
                 url: "https://twitch.tv/videos/twitch-category-video",
-                type: "archive",
                 gameId: "509658",
                 gameName: "Just Chatting",
-              },
+              }),
             ]
           : [
-              {
+              categoryMediaItem("kick", {
                 id: "kick-category-video",
-                platform: "kick",
                 channelId: "kick-video-channel",
-                channelName: "kick_archive",
-                channelDisplayName: "Kick Archive",
+                channelName: "Kick Archive",
                 channelAvatar: "https://example.com/kick-video-avatar.jpg",
                 title: "Kick Offline VOD",
-                description: "",
                 thumbnailUrl: "https://example.com/kick-video.jpg",
-                duration: 2_700,
-                viewCount: 1_100,
-                publishedAt: "2026-07-14T12:00:00.000Z",
+                duration: "0:45:00",
+                views: "1100",
                 url: "https://kick.com/kick_archive/videos/kick-category-video",
-                type: "archive",
                 gameId: "15",
                 gameName: "Just Chatting",
-              },
+              }),
             ],
       cursor: undefined,
     }));
@@ -341,27 +320,24 @@ describe("CategoryDetailPage media tabs", () => {
     searchState.tag = "speedrun";
     searchState.sort = "asc";
     const api = installElectronAPIMock();
-    api.clips.getByCategory = vi.fn(async ({ platform }: { platform: "twitch" | "kick" }) => ({
+    api.clips.getByCategory = vi.fn<typeof api.clips.getByCategory>(async ({ platform }) => ({
       success: true,
+      availability: "available",
       data: [
-        {
+        categoryMediaItem(platform, {
           id: `${platform}-filtered-clip`,
-          platform,
           channelId: `${platform}-channel`,
-          channelName: `${platform}_runner`,
-          channelDisplayName: `${platform} Runner`,
+          channelName: `${platform} Runner`,
           channelAvatar: `https://example.com/${platform}-avatar.jpg`,
           title: platform === "twitch" ? "Higher View Clip" : "Lower View Clip",
           thumbnailUrl: `https://example.com/${platform}-clip.jpg`,
-          clipUrl: `https://example.com/${platform}-filtered-clip`,
           embedUrl: `https://example.com/${platform}-filtered-clip.mp4`,
-          duration: 30,
-          viewCount: platform === "twitch" ? 500 : 100,
-          createdAt: "2026-07-15T12:00:00.000Z",
+          duration: "0:30",
+          views: platform === "twitch" ? "500" : "100",
           creatorName: `${platform} clipper`,
           gameId: platform === "twitch" ? "509658" : "15",
           gameName: "Just Chatting",
-        },
+        }),
       ],
       cursor: undefined,
     }));
@@ -404,8 +380,12 @@ describe("CategoryDetailPage media tabs", () => {
     searchState.tab = "clips";
     searchState.otherId = undefined;
     const api = installElectronAPIMock();
-    api.categories.search = vi.fn(async () => ({ data: [], error: null }));
-    api.clips.getByCategory = vi.fn(async () => ({
+    api.categories.search = vi.fn<typeof api.categories.search>(async () => ({
+      success: true,
+      data: [],
+      providers: { kick: "complete" },
+    }));
+    api.clips.getByCategory = vi.fn<typeof api.clips.getByCategory>(async () => ({
       success: true,
       availability: "available",
       data: [],
@@ -429,7 +409,7 @@ describe("CategoryDetailPage media tabs", () => {
     searchState.tab = "clips";
     localStorage.setItem("clips-filter-preference", "week");
     const api = installElectronAPIMock();
-    api.clips.getByCategory = vi.fn(async () => ({
+    api.clips.getByCategory = vi.fn<typeof api.clips.getByCategory>(async () => ({
       success: true,
       availability: "available",
       data: [],
@@ -479,51 +459,47 @@ describe("CategoryDetailPage media tabs", () => {
     searchState.otherId = undefined;
     localStorage.setItem("clips-filter-preference", "day");
     const api = installElectronAPIMock();
-    api.categories.search = vi.fn(async () => ({ data: [], error: null }));
-    api.clips.getByCategory = vi.fn(async () => ({
+    api.categories.search = vi.fn<typeof api.categories.search>(async () => ({
+      success: true,
+      data: [],
+      providers: { kick: "complete" },
+    }));
+    api.clips.getByCategory = vi.fn<typeof api.clips.getByCategory>(async () => ({
       success: true,
       availability: "available",
       data: [
-        {
+        categoryMediaItem("kick", {
           id: "kick-only-clip",
-          platform: "kick",
           channelId: "kick-only-channel",
-          channelName: "kick_only",
-          channelDisplayName: "Kick Only",
+          channelName: "Kick Only",
           channelAvatar: "https://example.com/kick-only-avatar.jpg",
           title: "Kick-only Category Clip",
           thumbnailUrl: "https://example.com/kick-only-clip.jpg",
-          clipUrl: "https://kick.com/kick_only?clip=kick-only-clip",
-          duration: 20,
-          viewCount: 40,
-          createdAt: "2026-07-15T12:00:00.000Z",
+          url: "https://kick.com/kick_only?clip=kick-only-clip",
+          duration: "0:20",
+          views: "40",
           gameId: "15",
           gameName: "Just Chatting",
-        },
+        }),
       ],
     }));
-    api.videos.getByCategory = vi.fn(async () => ({
+    api.videos.getByCategory = vi.fn<typeof api.videos.getByCategory>(async () => ({
       success: true,
       availability: "available",
       data: [
-        {
+        categoryMediaItem("kick", {
           id: "kick-only-video",
-          platform: "kick",
           channelId: "kick-only-channel",
-          channelName: "kick_only",
-          channelDisplayName: "Kick Only",
+          channelName: "Kick Only",
           channelAvatar: "https://example.com/kick-only-avatar.jpg",
           title: "Kick-only Category Video",
-          description: "",
           thumbnailUrl: "https://example.com/kick-only-video.jpg",
-          duration: 1200,
-          viewCount: 80,
-          publishedAt: "2026-07-15T12:00:00.000Z",
+          duration: "0:20:00",
+          views: "80",
           url: "https://kick.com/kick_only/videos/kick-only-video",
-          type: "archive",
           gameId: "15",
           gameName: "Just Chatting",
-        },
+        }),
       ],
     }));
 
@@ -568,7 +544,7 @@ describe("CategoryDetailPage media tabs", () => {
   it("re-requests Category Clips as each filter control changes", async () => {
     searchState.tab = "clips";
     const api = installElectronAPIMock();
-    api.clips.getByCategory = vi.fn(async ({ platform }: { platform: "twitch" | "kick" }) => ({
+    api.clips.getByCategory = vi.fn<typeof api.clips.getByCategory>(async ({ platform }) => ({
       success: true,
       availability: "available",
       data: [

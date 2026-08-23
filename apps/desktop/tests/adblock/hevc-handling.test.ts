@@ -17,9 +17,7 @@ global.fetch = mockFetch;
 import {
   initAdBlockService,
   processMasterPlaylist,
-  processMediaPlaylist,
   clearStreamInfo,
-  getAdBlockStatus,
 } from '@/components/player/twitch/twitch-adblock-service';
 
 // Master playlist with mixed HEVC and AVC streams

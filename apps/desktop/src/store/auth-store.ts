@@ -34,6 +34,11 @@ interface AuthError {
 }
 
 type PreferenceUpdateResult = { success: true } | { success: false };
+type FollowSyncResult = {
+  synced: Platform[];
+  failed: Platform[];
+  failureReasons?: Partial<Record<Platform, string>>;
+};
 export type TwitchAuthPhase = "opening" | "waiting" | "finishing" | null;
 
 interface AuthState {
@@ -88,7 +93,7 @@ interface AuthState {
   removeFollow: (id: string) => Promise<boolean>;
   updateFollow: (id: string, updates: Partial<LocalFollow>) => Promise<void>;
   isFollowing: (platform: Platform, channelId: string) => Promise<boolean>;
-  syncConnectedFollows: () => Promise<{ synced: Platform[]; failed: Platform[] }>;
+  syncConnectedFollows: () => Promise<FollowSyncResult>;
 
   // Actions - Preferences
   loadPreferences: () => Promise<void>;
@@ -98,6 +103,7 @@ interface AuthState {
 // ========== Store ==========
 
 let authInitializationPromise: Promise<void> | null = null;
+let followSyncPromise: Promise<FollowSyncResult> | null = null;
 
 export const useAuthStore = create<AuthState>()((set, get) => ({
   // Initial state
@@ -172,11 +178,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           }
         }
 
-        // If Kick has a token but it's expired, try to refresh it.
-        // This handles the post-rename stale-credential case: tokens issued under
-        // the old worker client-id will be permanently invalid — the refresh will
-        // fail, kick-auth will clear storage and emit 'session-expired', which the
-        // renderer listener below will surface to the user.
+        // If Kick has a token but it's expired, ask the backend to refresh it.
+        // The backend owns retry and invalidation. The renderer only reconciles
+        // the authoritative result and never deletes either credential family.
         if (status.kick.hasToken && status.kick.isExpired) {
           logger.debug("Store:Auth", "kick token expired at startup, attempting auto-refresh");
           try {
@@ -188,23 +192,25 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
               logger.warn("Store:Auth", "kick token refresh failed at startup", {
                 error: refreshResult.error,
               });
-              // Tokens already cleared by the main process; update status
               status = await window.electronAPI.auth.getStatus();
-              set({
-                error: {
-                  code: "TOKEN_EXPIRED",
-                  message: "Your Kick session has expired. Please reconnect your account.",
-                  platform: "kick",
-                },
-              });
             }
           } catch (refreshError) {
             logger.error("Store:Auth", "kick token refresh error at startup", {
               error: refreshError instanceof Error ? refreshError.message : String(refreshError),
             });
-            await window.electronAPI.auth.clearToken("kick");
-            await window.electronAPI.auth.clearKickUser();
+            // Main owns refresh, retry, and invalidation. A renderer transport
+            // error must never delete backend credentials or website chat auth.
             status = await window.electronAPI.auth.getStatus();
+          }
+
+          if (!status.kick.hasToken && status.kick.user !== null) {
+            set({
+              error: {
+                code: "TOKEN_EXPIRED",
+                message: "Your Kick authorization has expired. Please reconnect your account.",
+                platform: "kick",
+              },
+            });
           }
         }
 
@@ -228,20 +234,19 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           error: get().error,
         });
 
-        // Listen for runtime Kick session-expiry events pushed from the main process.
-        // This fires when a mid-session refresh fails (e.g. revoked refresh token).
+        // Listen for permanent Kick OAuth loss. Website chat auth is independent,
+        // so retain the known account identity and let chat continue if it can.
         // The listener is intentionally never unregistered — it lives for the app lifetime.
         window.electronAPI.auth.onKickSessionExpired(() => {
-          logger.warn("Store:Auth", "kick session expired at runtime — clearing state");
+          logger.warn("Store:Auth", "kick OAuth authorization expired at runtime");
           removePlatformAccountCaches(queryClient, "kick");
           void useFollowStore.getState().hydrate();
           set({
-            kickUser: null,
             kickConnected: false,
-            isGuest: !get().twitchUser,
+            isGuest: !get().twitchUser && !get().kickUser,
             error: {
               code: "TOKEN_EXPIRED",
-              message: "Your Kick session has expired. Please reconnect your account.",
+              message: "Your Kick authorization has expired. Please reconnect your account.",
               platform: "kick",
             },
           });
@@ -711,20 +716,19 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     }
   },
 
-  syncConnectedFollows: async () => {
-    if (get().followSyncInProgress) {
-      return { synced: [], failed: [] };
-    }
+  syncConnectedFollows: () => {
+    if (followSyncPromise) return followSyncPromise;
 
     const platforms: Platform[] = [];
     if (get().twitchConnected) platforms.push("twitch");
     if (get().kickConnected) platforms.push("kick");
 
-    set({ followSyncInProgress: true });
-    const synced: Platform[] = [];
-    const failed: Platform[] = [];
+    const sync = (async (): Promise<FollowSyncResult> => {
+      set({ followSyncInProgress: true });
+      const synced: Platform[] = [];
+      const failed: Platform[] = [];
+      const failureReasons: Partial<Record<Platform, string>> = {};
 
-    try {
       for (const platform of platforms) {
         try {
           const result = await window.electronAPI.auth.syncFollows(platform);
@@ -732,6 +736,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             synced.push(platform);
           } else {
             failed.push(platform);
+            failureReasons[platform] = result.error;
           }
         } catch (error) {
           failed.push(platform);
@@ -762,10 +767,18 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         }
       }
 
-      return { synced, failed };
-    } finally {
-      set({ followSyncInProgress: false });
-    }
+      return { synced, failed, failureReasons };
+    })();
+
+    followSyncPromise = sync;
+    const clearSync = () => {
+      if (followSyncPromise === sync) {
+        followSyncPromise = null;
+        set({ followSyncInProgress: false });
+      }
+    };
+    void sync.then(clearSync, clearSync);
+    return sync;
   },
 
   // ========== Preferences Actions ==========

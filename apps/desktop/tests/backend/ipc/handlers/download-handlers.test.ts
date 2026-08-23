@@ -4,6 +4,7 @@ import { IPC_CHANNELS } from "@/shared/ipc-channels";
 
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
+  BrowserWindow: class { webContents = { send: vi.fn() }; isDestroyed = () => false; },
 }));
 
 vi.mock("@/backend/services/download-queue-service", () => ({
@@ -26,7 +27,7 @@ vi.mock("@/backend/ipc/sender-origin", () => ({
   isAllowedSender: vi.fn(() => true),
 }));
 
-import { ipcMain } from "electron";
+import { BrowserWindow, ipcMain } from "electron";
 
 import { registerDownloadHandlers } from "@/backend/ipc/handlers/download-handlers";
 import { isAllowedSender } from "@/backend/ipc/sender-origin";
@@ -34,6 +35,10 @@ import { getDefaultClipDownloadService } from "@/backend/services/clip-download-
 import { getDefaultDownloadFileActionsService } from "@/backend/services/download-file-actions-service";
 import { getDownloadQueueService } from "@/backend/services/download-queue-service";
 import { getDefaultVideoDownloadService } from "@/backend/services/video-download-default-service";
+import type { DownloadQueueService } from "@/backend/services/download-queue-service";
+import type { ClipDownloadService } from "@/backend/services/clip-download-service";
+import type { VideoDownloadService } from "@/backend/services/video-download-service";
+import type { DownloadFileActionsService } from "@/backend/services/download-file-actions-service";
 
 type Handler = (event: unknown, payload?: unknown) => unknown;
 
@@ -41,45 +46,46 @@ function getHandler(channel: string): Handler {
   const calls = vi.mocked(ipcMain.handle).mock.calls as unknown as Array<[string, Handler]>;
   const call = calls.find(([c]) => c === channel);
   if (!call) throw new Error(`handler not registered: ${channel}`);
-  return call[1];
+  return (event, payload) => Reflect.apply(call[1], undefined, [event, payload]);
 }
 
 const service = {
   getQueue: vi.fn(),
+  enqueue: vi.fn(), start: vi.fn(), wait: vi.fn(), complete: vi.fn(), fail: vi.fn(), updateTarget: vi.fn(), updateProgress: vi.fn(),
   pause: vi.fn(),
   resume: vi.fn(),
   cancel: vi.fn(),
   retry: vi.fn(),
   remove: vi.fn(),
   subscribe: vi.fn(() => vi.fn()),
-};
+} satisfies DownloadQueueService;
 
 const clipDownloads = {
   downloadClip: vi.fn(),
   retryClip: vi.fn(),
   cancel: vi.fn(),
-};
+} satisfies ClipDownloadService;
 
 const videoDownloads = {
   downloadVideo: vi.fn(),
   cancel: vi.fn(),
-};
+} satisfies VideoDownloadService;
 
 const fileActions = {
   showInFolder: vi.fn(),
   openFile: vi.fn(),
   removeFromList: vi.fn(),
   deleteFile: vi.fn(),
-};
+} satisfies DownloadFileActionsService;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(getDownloadQueueService).mockReturnValue(service as any);
-  vi.mocked(getDefaultClipDownloadService).mockReturnValue(clipDownloads as any);
-  vi.mocked(getDefaultVideoDownloadService).mockReturnValue(videoDownloads as any);
-  vi.mocked(getDefaultDownloadFileActionsService).mockReturnValue(fileActions as any);
+  vi.mocked(getDownloadQueueService).mockReturnValue(service);
+  vi.mocked(getDefaultClipDownloadService).mockReturnValue(clipDownloads);
+  vi.mocked(getDefaultVideoDownloadService).mockReturnValue(videoDownloads);
+  vi.mocked(getDefaultDownloadFileActionsService).mockReturnValue(fileActions);
   vi.mocked(isAllowedSender).mockReturnValue(true);
-  registerDownloadHandlers({ webContents: { send: vi.fn() }, isDestroyed: () => false } as any);
+  registerDownloadHandlers(new BrowserWindow());
 });
 
 // Guards: Downloads exposes dedicated workflows, never a generic renderer-controlled queue insertion primitive

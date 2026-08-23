@@ -9,7 +9,7 @@ import {
 import type { StreamRecordingSnapshot } from "@/shared/stream-recording-types";
 import { installElectronAPIMock } from "../test-utils";
 
-// Guards: any number of recording status consumers share one main-process state listener
+// Guards: unknown number of recording status consumers share one main-process state listener
 // Guards: the initial snapshot and later lifecycle events reach every mounted consumer
 // Guards: the shared visible timer ticks once per second without duplicates and is disposed on stop or unmount
 // Guards: Resume uses the recording bridge and changes the public control back to Pause
@@ -387,16 +387,39 @@ describe("useStreamRecordingState", () => {
     async (outcome) => {
       const api = installElectronAPIMock();
       api.streamRecording.onStateChanged = vi.fn(() => vi.fn());
-      api.streamRecording.getState = vi.fn(async () => ({
+      api.streamRecording.getState = vi.fn<typeof api.streamRecording.getState>(async () => ({
         active: null,
-        notice: {
-          sessionId: "recording-session-1",
-          platform: "twitch" as const,
-          channelName: "ninja",
-          title: "Ranked",
-          outcome,
-          outputPath: "D:/Videos/ninja.mp4",
-        },
+        notice:
+          outcome === "completed"
+            ? {
+                sessionId: "recording-session-1",
+                platform: "twitch" as const,
+                channelName: "ninja",
+                title: "Ranked",
+                outcome: "completed",
+                outputPath: "D:/Videos/ninja.mp4",
+                outputFormat: "mp4",
+                artifactIdentity: { algorithm: "sha256", digest: "digest", size: 1 },
+              }
+            : outcome === "partial"
+              ? {
+                  sessionId: "recording-session-1",
+                  platform: "twitch",
+                  channelName: "ninja",
+                  title: "Ranked",
+                  outcome: "partial",
+                  outputPath: "D:/Videos/ninja.mp4",
+                  outputFormat: "mp4",
+                  artifactIdentity: { algorithm: "sha256", digest: "digest", size: 1 },
+                }
+              : {
+                  sessionId: "recording-session-1",
+                  platform: "twitch",
+                  channelName: "ninja",
+                  title: "Ranked",
+                  outcome: "failed",
+                  error: "recording failed",
+                },
       }));
 
       function Consumer() {

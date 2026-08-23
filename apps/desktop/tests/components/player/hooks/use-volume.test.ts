@@ -96,7 +96,6 @@ describe("useVolume", () => {
     expect(video.volume).toBeCloseTo(0.38, 2);
 
     // Simulate HLS re-init resetting volume to default
-    (video as any)._skipEvent = true;
     Object.defineProperty(video, "volume", {
       value: 1.0,
       writable: true,

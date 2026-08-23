@@ -9,7 +9,7 @@
  *
  * See `mod-log-types.ts` for the same pattern.
  */
-import { ipcMain } from "electron";
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { logger } from "@/backend/logging/logger";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import {
@@ -24,10 +24,10 @@ import {
   disposeSendWindow,
   ensureSendWindowReady,
   getKickChannelViewerRole,
+  sendKickChatMessage,
   type KickChannelViewerRoleResult,
   type KickSendResult,
   type KickWebApiMutationResult,
-  sendKickChatMessage,
   timeoutKickChatUser,
   unbanKickChatUser,
 } from "../../api/platforms/kick/kick-send-window";
@@ -43,6 +43,10 @@ function rejectedKickWebMutation(message = "Rejected sender origin."): KickWebAp
   };
 }
 
+function rejectedKickSend(message = "Rejected sender origin."): KickSendResult {
+  return { ok: false, kind: "unknown", message };
+}
+
 export function registerKickChatHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.KICK_CHAT_ENSURE_SEND_WINDOW_READY, async (): Promise<void> => {
     await ensureSendWindowReady();
@@ -51,10 +55,16 @@ export function registerKickChatHandlers(): void {
   ipcMain.handle(
     IPC_CHANNELS.KICK_CHAT_SEND_MESSAGE,
     async (
-      _event,
-      payload: { chatroomId: number; content: string; broadcasterUserId?: number }
+      event,
+      payload: { chatroomId: number; content: string; channelSlug?: string }
     ): Promise<KickSendResult> => {
-      return sendKickChatMessage(payload.chatroomId, payload.content, payload.broadcasterUserId);
+      if (!isAllowedSender(event)) {
+        logger.warn("IPC:KickChat", "Rejected Kick chat send from unexpected sender", {
+          chatroomId: payload.chatroomId,
+        });
+        return rejectedKickSend();
+      }
+      return sendKickChatMessage(payload.chatroomId, payload.content, payload.channelSlug);
     }
   );
 

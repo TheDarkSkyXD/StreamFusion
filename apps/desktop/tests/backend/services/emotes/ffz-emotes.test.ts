@@ -17,7 +17,7 @@ vi.stubGlobal("window", {
   },
 } as unknown as Window);
 
-import { ffzEmoteProvider } from "@/backend/services/emotes/ffz-emotes";
+import { FFZEmoteProvider, ffzEmoteProvider } from "@/backend/services/emotes/ffz-emotes";
 
 function makeFFZEmote(overrides: Record<string, unknown> = {}) {
   return {
@@ -270,12 +270,12 @@ describe("FFZEmoteProvider", () => {
 
   describe("buildEmoteUrl (static)", () => {
     it("builds CDN URL with default size", () => {
-      const url = (ffzEmoteProvider.constructor as any).buildEmoteUrl(42);
+      const url = FFZEmoteProvider.buildEmoteUrl(42);
       expect(url).toBe("https://cdn.frankerfacez.com/emote/42/2");
     });
 
     it("builds CDN URL with custom size", () => {
-      const url = (ffzEmoteProvider.constructor as any).buildEmoteUrl(42, "4");
+      const url = FFZEmoteProvider.buildEmoteUrl(42, "4");
       expect(url).toBe("https://cdn.frankerfacez.com/emote/42/4");
     });
   });

@@ -73,7 +73,10 @@ describe("fetchFFZBadges", () => {
   });
 
   it("throws when the badge catalog request fails", async () => {
-    mockState.state.responseQueue.push({ kind: "status", status: 503 });
+    mockState.state.responseQueue.push(
+      { kind: "status", status: 503 },
+      { kind: "status", status: 503 }
+    );
 
     await expect(fetchFFZBadges()).rejects.toThrow(/503/);
   });
@@ -99,7 +102,10 @@ describe("fetchFFZGlobalEmotes", () => {
   });
 
   it("throws on non-2xx (global set should always exist)", async () => {
-    mockState.state.responseQueue.push({ kind: "status", status: 503 });
+    mockState.state.responseQueue.push(
+      { kind: "status", status: 503 },
+      { kind: "status", status: 503 }
+    );
     await expect(fetchFFZGlobalEmotes()).rejects.toThrow(/503/);
   });
 });
@@ -114,13 +120,19 @@ describe("fetchFFZRoom", () => {
   });
 
   it("prefers name over channelId and lowercases it (FFZ routes are case-sensitive)", async () => {
-    mockState.state.responseQueue.push({ kind: "ok", body: "{}" });
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: '{"room":{"set":1},"sets":{}}',
+    });
     await fetchFFZRoom({ name: "XQc", channelId: "71092938" });
     expect(mockState.state.fetchCalls[0]!.url).toBe("https://api.frankerfacez.com/v1/room/xqc");
   });
 
   it("falls back to /v1/room/id/{channelId} when name is absent", async () => {
-    mockState.state.responseQueue.push({ kind: "ok", body: "{}" });
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: '{"room":{"set":1},"sets":{}}',
+    });
     await fetchFFZRoom({ channelId: "71092938" });
     expect(mockState.state.fetchCalls[0]!.url).toBe(
       "https://api.frankerfacez.com/v1/room/id/71092938"
@@ -143,7 +155,10 @@ describe("fetchFFZRoom", () => {
   });
 
   it("throws on 5xx", async () => {
-    mockState.state.responseQueue.push({ kind: "status", status: 503 });
+    mockState.state.responseQueue.push(
+      { kind: "status", status: 503 },
+      { kind: "status", status: 503 }
+    );
     await expect(fetchFFZRoom({ name: "xqc" })).rejects.toThrow(/503/);
   });
 });

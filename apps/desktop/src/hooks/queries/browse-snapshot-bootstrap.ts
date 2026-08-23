@@ -7,6 +7,7 @@ import type {
 } from "@/backend/api/unified/platform-types";
 import { prewarmViewportImages } from "@/lib/viewport-image-prewarm";
 import { logger } from "@/renderer/logging/logger";
+import { isValidUnifiedStream } from "@/search/search-result-validation";
 import type { Platform } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
@@ -85,8 +86,48 @@ function setIfAbsent(
   if (client.getQueryData(key) === undefined) client.setQueryData(key, data, { updatedAt });
 }
 
-async function readSlot<T>(slot: string): Promise<StoredSnapshot<T> | null> {
-  return window.electronAPI.store.get<StoredSnapshot<T>>(`${PREFIX}${slot}`);
+async function readSlot<T>(
+  slot: string,
+  isData: (value: unknown) => value is T
+): Promise<StoredSnapshot<T> | null> {
+  const value = await window.electronAPI.store.get(`${PREFIX}${slot}`);
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("version" in value) ||
+    value.version !== 1 ||
+    !("identity" in value) ||
+    typeof value.identity !== "string" ||
+    !("savedAt" in value) ||
+    typeof value.savedAt !== "number" ||
+    !("data" in value) ||
+    !isData(value.data)
+  ) {
+    return null;
+  }
+  return { version: 1, identity: value.identity, savedAt: value.savedAt, data: value.data };
+}
+
+function isUnifiedStreamArray(value: unknown): value is UnifiedStream[] {
+  return Array.isArray(value) && value.every(isValidUnifiedStream);
+}
+
+function isInfiniteStreamData(value: unknown): value is InfiniteData<StreamPage, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "pages" in value &&
+    Array.isArray(value.pages) &&
+    value.pages.every(
+      (page) =>
+        typeof page === "object" &&
+        page !== null &&
+        "data" in page &&
+        isUnifiedStreamArray(page.data)
+    ) &&
+    "pageParams" in value &&
+    Array.isArray(value.pageParams)
+  );
 }
 
 function streamImages(streams: UnifiedStream[]): string[] {
@@ -117,7 +158,10 @@ export async function hydratePersistedFollowingSnapshot(
     slot: `followed-streams:${platform ?? "all"}`,
     identity,
     maxAgeMs: ONE_DAY,
-    isUsable: (data: UnifiedStream[]) => data.length > 0,
+    isUsable: (data: unknown): data is UnifiedStream[] =>
+      Array.isArray(data) &&
+      data.length > 0 &&
+      data.every(isValidUnifiedStream),
   });
   if (!streams || options.signal?.aborted) return;
   setIfAbsent(client, STREAM_KEYS.followed(platform), streams, 0);
@@ -158,7 +202,7 @@ export async function hydratePersistedBrowseSnapshots(client: QueryClient): Prom
     platforms.flatMap((platform) => {
       const suffix = platform ?? "all";
       return [
-        readSlot<UnifiedStream[]>(`top-streams:${suffix}`).then((snapshot) => {
+        readSlot(`top-streams:${suffix}`, isUnifiedStreamArray).then((snapshot) => {
           const identity = decodeIdentity(snapshot?.identity ?? "") as {
             platform?: string;
             limit?: number;
@@ -173,7 +217,7 @@ export async function hydratePersistedBrowseSnapshots(client: QueryClient): Prom
           );
           void prewarmViewportImages(streamImages(snapshot.data));
         }),
-        readSlot<unknown>(`categories:${suffix}`).then((snapshot) => {
+        readSlot(`categories:${suffix}`, (_value): _value is unknown => true).then((snapshot) => {
           const identity = decodeIdentity(snapshot?.identity ?? "");
           if (!isValidPastSnapshot(snapshot) || identity !== suffix) return;
           const categories = sanitizePersistedCategoryCatalog(snapshot?.data, platform);
@@ -181,7 +225,7 @@ export async function hydratePersistedBrowseSnapshots(client: QueryClient): Prom
           setIfAbsent(client, CATEGORY_KEYS.top(platform), categories, 0);
           void prewarmViewportImages(categories.map((category) => category.boxArtUrl));
         }),
-        readSlot<InfiniteData<StreamPage, unknown>>(`category-streams:${suffix}`).then(
+        readSlot(`category-streams:${suffix}`, isInfiniteStreamData).then(
           (snapshot) => {
             const identity = decodeIdentity(snapshot?.identity ?? "") as {
               categoryId?: string;
@@ -217,7 +261,10 @@ export async function hydratePersistedBrowseSnapshots(client: QueryClient): Prom
 
   await Promise.all(
     (["twitch", "kick"] as const).map(async (platform) => {
-      const snapshot = await readSlot<SearchAllResponse>(`search:${platform}`);
+      const snapshot = await readSlot(
+        `search:${platform}`,
+        (value): value is SearchAllResponse => sanitizePersistedSearchResult(value) !== null
+      );
       const identity = decodeIdentity(snapshot?.identity ?? "") as {
         query?: string;
         platform?: string;

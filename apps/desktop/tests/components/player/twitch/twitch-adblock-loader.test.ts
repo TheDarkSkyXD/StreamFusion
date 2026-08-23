@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { HlsConfig, LoaderCallbacks, LoaderConfiguration, LoaderContext, LoaderStats } from "hls.js";
 
 vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -41,8 +42,8 @@ vi.mock("hls.js", () => {
     abort() {}
     destroy() {}
     load(..._args: unknown[]) {}
-    context: any = null;
-    stats: any = {};
+    context: unknown = null;
+    stats: unknown = {};
   }
   DefaultLoader.prototype.load = mockSuperLoad;
 
@@ -65,6 +66,15 @@ import {
   getAdBlockHlsConfig,
 } from "@/components/player/twitch/twitch-adblock-loader";
 
+function makeLoaderCallbacks(): LoaderCallbacks<LoaderContext> {
+  return {
+    onSuccess: vi.fn(),
+    onError: vi.fn(),
+    onTimeout: vi.fn(),
+    onProgress: vi.fn(),
+  };
+}
+
 // Guards: playlist-processing failures fail closed and never release the unprocessed Twitch response to HLS.
 describe("twitch-adblock-loader", () => {
   beforeEach(() => {
@@ -82,36 +92,36 @@ describe("twitch-adblock-loader", () => {
 
     it("creates a loader instance", () => {
       const LoaderClass = createAdBlockPlaylistLoader("testchannel");
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
       expect(loader).toBeDefined();
       expect(typeof loader.load).toBe("function");
     });
 
     it("passes through non-m3u8 requests directly", () => {
       const LoaderClass = createAdBlockPlaylistLoader("testchannel");
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
 
-      const context = { url: "https://example.com/segment.ts" } as any;
-      const callbacks = { onSuccess: vi.fn(), onError: vi.fn(), onTimeout: vi.fn() } as any;
+      const context = { url: "https://example.com/segment.ts" } as LoaderContext;
+      const callbacks = { onSuccess: vi.fn(), onError: vi.fn(), onTimeout: vi.fn() } as LoaderCallbacks<LoaderContext>;
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
       expect(mockSuperLoad).toHaveBeenCalled();
     });
 
     it("passes through when ad-blocking is disabled", () => {
       mockIsAdBlockEnabled.mockReturnValue(false);
       const LoaderClass = createAdBlockPlaylistLoader("testchannel");
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
 
       const originalOnSuccess = vi.fn();
-      const context = { url: "https://usher.ttvnw.net/api/channel/hls/test.m3u8?token=abc" } as any;
+      const context = { url: "https://usher.ttvnw.net/api/channel/hls/test.m3u8?token=abc" } as LoaderContext;
       const callbacks = {
         onSuccess: originalOnSuccess,
         onError: vi.fn(),
         onTimeout: vi.fn(),
-      } as any;
+      } as LoaderCallbacks<LoaderContext>;
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
       expect(mockSuperLoad).toHaveBeenCalled();
       // onSuccess should NOT have been wrapped since adblock is disabled
       const passedCallbacks = mockSuperLoad.mock.calls[0][2];
@@ -120,17 +130,17 @@ describe("twitch-adblock-loader", () => {
 
     it("wraps onSuccess for m3u8 requests when enabled", () => {
       const LoaderClass = createAdBlockPlaylistLoader("testchannel");
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
 
       const originalOnSuccess = vi.fn();
-      const context = { url: "https://usher.ttvnw.net/api/channel/hls/test.m3u8?token=abc" } as any;
+      const context = { url: "https://usher.ttvnw.net/api/channel/hls/test.m3u8?token=abc" } as LoaderContext;
       const callbacks = {
         onSuccess: originalOnSuccess,
         onError: vi.fn(),
         onTimeout: vi.fn(),
-      } as any;
+      } as LoaderCallbacks<LoaderContext>;
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
 
       const passedCallbacks = mockSuperLoad.mock.calls[0][2];
       expect(passedCallbacks.onSuccess).not.toBe(originalOnSuccess);
@@ -140,19 +150,19 @@ describe("twitch-adblock-loader", () => {
       mockProcessMasterPlaylist.mockResolvedValue("processed-master");
 
       const LoaderClass = createAdBlockPlaylistLoader();
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
 
       const originalOnSuccess = vi.fn();
       const context = {
         url: "https://usher.ttvnw.net/api/channel/hls/mychannel.m3u8?token=abc",
-      } as any;
+      } as LoaderContext;
       const callbacks = {
         onSuccess: originalOnSuccess,
         onError: vi.fn(),
         onTimeout: vi.fn(),
-      } as any;
+      } as LoaderCallbacks<LoaderContext>;
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
 
       const passedCallbacks = mockSuperLoad.mock.calls[0][2];
       const wrappedOnSuccess = passedCallbacks.onSuccess;
@@ -173,19 +183,19 @@ describe("twitch-adblock-loader", () => {
       mockProcessMasterPlaylist.mockResolvedValue("processed-master");
 
       const LoaderClass = createAdBlockPlaylistLoader();
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
 
       const originalOnSuccess = vi.fn();
       const context = {
         url: "https://usher.ttvnw.net/api/channel/jamiepinelive.m3u8?token=abc",
-      } as any;
+      } as LoaderContext;
       const callbacks = {
         onSuccess: originalOnSuccess,
         onError: vi.fn(),
         onTimeout: vi.fn(),
-      } as any;
+      } as LoaderCallbacks<LoaderContext>;
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
 
       const passedCallbacks = mockSuperLoad.mock.calls[0][2];
       await passedCallbacks.onSuccess({ data: "#EXTM3U" }, {}, context, null);
@@ -209,19 +219,19 @@ describe("twitch-adblock-loader", () => {
       mockProcessMediaPlaylist.mockResolvedValue("processed-media");
 
       const LoaderClass = createAdBlockPlaylistLoader("testchannel");
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
 
       const originalOnSuccess = vi.fn();
       const context = {
         url: "https://video-edge.example.com/playlist/1080p.m3u8?token=abc",
-      } as any;
+      } as LoaderContext;
       const callbacks = {
         onSuccess: originalOnSuccess,
         onError: vi.fn(),
         onTimeout: vi.fn(),
-      } as any;
+      } as LoaderCallbacks<LoaderContext>;
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
 
       const passedCallbacks = mockSuperLoad.mock.calls[0][2];
       const wrappedOnSuccess = passedCallbacks.onSuccess;
@@ -240,17 +250,17 @@ describe("twitch-adblock-loader", () => {
 
     it("uses the final HLS response URL as the playlist ownership identity", async () => {
       const LoaderClass = createAdBlockPlaylistLoader("fixtureproof");
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
       const context = {
         url: "http://localhost:5173/proof/video-edge.ttvnw.net/high.m3u8",
-      } as any;
+      } as LoaderContext;
       const callbacks = {
         onSuccess: vi.fn(),
         onError: vi.fn(),
         onTimeout: vi.fn(),
-      } as any;
+      } as LoaderCallbacks<LoaderContext>;
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
       const passedCallbacks = mockSuperLoad.mock.calls[0][2];
       const responseUrl = "http://127.0.0.1:18765/proof/video-edge.ttvnw.net/high.m3u8";
       await passedCallbacks.onSuccess(
@@ -269,17 +279,17 @@ describe("twitch-adblock-loader", () => {
 
     it("ignores a non-HTTP response URL when the request context has a valid HTTPS playlist URL", async () => {
       const LoaderClass = createAdBlockPlaylistLoader("fixtureproof");
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
       const context = {
         url: "https://video-edge.ttvnw.net/proof/high.m3u8",
-      } as any;
+      } as LoaderContext;
       const callbacks = {
         onSuccess: vi.fn(),
         onError: vi.fn(),
         onTimeout: vi.fn(),
-      } as any;
+      } as LoaderCallbacks<LoaderContext>;
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
       const passedCallbacks = mockSuperLoad.mock.calls[0][2];
       await passedCallbacks.onSuccess(
         { data: "#EXTM3U\n#EXTINF:2,live", url: "ftp://untrusted.invalid/proof/high.m3u8" },
@@ -297,21 +307,21 @@ describe("twitch-adblock-loader", () => {
 
     it("fails explicitly when a text master playlist has no absolute HTTP base URL", async () => {
       const LoaderClass = createAdBlockPlaylistLoader("fixtureproof");
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
       const originalOnSuccess = vi.fn();
       const onError = vi.fn();
       const context = {
         url: "/__streamfusion-proof/twitch-ad-frame/adframe-20260803-r6/usher.ttvnw.net/api/channel/hls/fixtureproof.m3u8",
-      } as any;
+      } as LoaderContext;
       const callbacks = {
         onSuccess: originalOnSuccess,
         onError,
         onTimeout: vi.fn(),
-      } as any;
-      const stats = { loaded: 123 } as any;
+      } as LoaderCallbacks<LoaderContext>;
+      const stats = { loaded: 123 } as LoaderStats;
       const networkDetails = { status: 200 };
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
       const passedCallbacks = mockSuperLoad.mock.calls[0][2];
       await passedCallbacks.onSuccess({ data: "#EXTM3U" }, stats, context, networkDetails);
 
@@ -332,17 +342,17 @@ describe("twitch-adblock-loader", () => {
 
     it("uses the final master response URL as the rendition resolution base", async () => {
       const LoaderClass = createAdBlockPlaylistLoader("fixtureproof");
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
       const context = {
         url: "http://localhost:5173/proof/usher.ttvnw.net/api/channel/hls/fixtureproof.m3u8",
-      } as any;
+      } as LoaderContext;
       const callbacks = {
         onSuccess: vi.fn(),
         onError: vi.fn(),
         onTimeout: vi.fn(),
-      } as any;
+      } as LoaderCallbacks<LoaderContext>;
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
       const passedCallbacks = mockSuperLoad.mock.calls[0][2];
       const responseUrl =
         "http://127.0.0.1:18765/proof/usher.ttvnw.net/api/channel/hls/fixtureproof.m3u8";
@@ -358,17 +368,17 @@ describe("twitch-adblock-loader", () => {
 
     it("passes through non-string response data", async () => {
       const LoaderClass = createAdBlockPlaylistLoader("testchannel");
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
 
       const originalOnSuccess = vi.fn();
-      const context = { url: "https://example.com/playlist.m3u8" } as any;
+      const context = { url: "https://example.com/playlist.m3u8" } as LoaderContext;
       const callbacks = {
         onSuccess: originalOnSuccess,
         onError: vi.fn(),
         onTimeout: vi.fn(),
-      } as any;
+      } as LoaderCallbacks<LoaderContext>;
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
 
       const passedCallbacks = mockSuperLoad.mock.calls[0][2];
       const binaryResponse = { data: new ArrayBuffer(10) };
@@ -382,18 +392,18 @@ describe("twitch-adblock-loader", () => {
       mockProcessMediaPlaylist.mockRejectedValue(new Error("processing failed"));
 
       const LoaderClass = createAdBlockPlaylistLoader("testchannel");
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
 
       const originalOnSuccess = vi.fn();
       const originalOnError = vi.fn();
-      const context = { url: "https://video-edge.example.com/playlist.m3u8" } as any;
+      const context = { url: "https://video-edge.example.com/playlist.m3u8" } as LoaderContext;
       const callbacks = {
         onSuccess: originalOnSuccess,
         onError: originalOnError,
         onTimeout: vi.fn(),
-      } as any;
+      } as LoaderCallbacks<LoaderContext>;
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
 
       const passedCallbacks = mockSuperLoad.mock.calls[0][2];
       const response = { data: "#EXTM3U\n#EXTINF..." };
@@ -414,19 +424,19 @@ describe("twitch-adblock-loader", () => {
       mockProcessMasterPlaylist.mockResolvedValue("processed");
 
       const LoaderClass = createAdBlockPlaylistLoader();
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
 
       const originalOnSuccess = vi.fn();
       const context = {
         url: "https://usher.ttvnw.net/api/channel/hls/extracted_channel.m3u8?token=abc",
-      } as any;
+      } as LoaderContext;
       const callbacks = {
         onSuccess: originalOnSuccess,
         onError: vi.fn(),
         onTimeout: vi.fn(),
-      } as any;
+      } as LoaderCallbacks<LoaderContext>;
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
 
       const passedCallbacks = mockSuperLoad.mock.calls[0][2];
       await passedCallbacks.onSuccess({ data: "#EXTM3U" }, {}, context, null);
@@ -443,19 +453,19 @@ describe("twitch-adblock-loader", () => {
       mockProcessMasterPlaylist.mockResolvedValue("processed");
 
       const LoaderClass = createAdBlockPlaylistLoader();
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
 
       const originalOnSuccess = vi.fn();
       const context = {
         url: "https://usher.ttvnw.net/api/channel/JamiePineLive.m3u8?token=abc",
-      } as any;
+      } as LoaderContext;
       const callbacks = {
         onSuccess: originalOnSuccess,
         onError: vi.fn(),
         onTimeout: vi.fn(),
-      } as any;
+      } as LoaderCallbacks<LoaderContext>;
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
 
       const passedCallbacks = mockSuperLoad.mock.calls[0][2];
       await passedCallbacks.onSuccess({ data: "#EXTM3U" }, {}, context, null);
@@ -477,12 +487,12 @@ describe("twitch-adblock-loader", () => {
 
     it("passes through normal segments", () => {
       const LoaderClass = createAdBlockFragmentLoader();
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
 
-      const context = { url: "https://video-edge.ttvnw.net/segment.ts" } as any;
-      const callbacks = { onSuccess: vi.fn() } as any;
+      const context = { url: "https://video-edge.ttvnw.net/segment.ts" } as LoaderContext;
+      const callbacks = makeLoaderCallbacks();
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
 
       expect(mockSuperLoad).toHaveBeenCalled();
       const passedContext = mockSuperLoad.mock.calls[0][0];
@@ -493,12 +503,12 @@ describe("twitch-adblock-loader", () => {
       mockIsAdSegment.mockReturnValue(true);
 
       const LoaderClass = createAdBlockFragmentLoader();
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
 
-      const context = { url: "https://video-edge.ttvnw.net/ad-segment.ts" } as any;
-      const callbacks = { onSuccess: vi.fn() } as any;
+      const context = { url: "https://video-edge.ttvnw.net/ad-segment.ts" } as LoaderContext;
+      const callbacks = makeLoaderCallbacks();
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
 
       expect(mockSuperLoad).toHaveBeenCalled();
       const passedContext = mockSuperLoad.mock.calls[0][0];
@@ -511,12 +521,12 @@ describe("twitch-adblock-loader", () => {
       mockIsAdSegment.mockReturnValue(true);
 
       const LoaderClass = createAdBlockFragmentLoader();
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
 
-      const context = { url: "https://video-edge.ttvnw.net/ad-segment.ts" } as any;
-      const callbacks = { onSuccess: vi.fn() } as any;
+      const context = { url: "https://video-edge.ttvnw.net/ad-segment.ts" } as LoaderContext;
+      const callbacks = makeLoaderCallbacks();
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
 
       const passedContext = mockSuperLoad.mock.calls[0][0];
       expect(passedContext.url).toBe("https://video-edge.ttvnw.net/ad-segment.ts");
@@ -526,12 +536,12 @@ describe("twitch-adblock-loader", () => {
       mockIsAdSegment.mockReturnValue(true);
 
       const LoaderClass = createAdBlockFragmentLoader();
-      const loader = new LoaderClass({} as any);
+      const loader = new LoaderClass({} as HlsConfig);
 
-      const context = { url: "https://other-cdn.com/segment.mp4" } as any;
-      const callbacks = { onSuccess: vi.fn() } as any;
+      const context = { url: "https://other-cdn.com/segment.mp4" } as LoaderContext;
+      const callbacks = makeLoaderCallbacks();
 
-      loader.load(context, {} as any, callbacks);
+      loader.load(context, {} as LoaderConfiguration, callbacks);
 
       const passedContext = mockSuperLoad.mock.calls[0][0];
       expect(passedContext.url).toBe("https://other-cdn.com/segment.mp4");

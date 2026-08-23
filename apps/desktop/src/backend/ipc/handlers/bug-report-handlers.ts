@@ -23,12 +23,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { app, ipcMain, shell } from "electron";
+import { app, shell } from "electron";
 import type { BugReportResult } from "../../../shared/ipc-channels";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { getCurrentLogPath } from "../../logging/logger";
 import { getCurrentNoisePath } from "../../logging/noise-logger";
 import { isAllowedSender } from "../sender-origin";
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 const MAIN_LOG_TAIL_LINES = 500;
 const NOISE_LOG_TAIL_LINES = 200;

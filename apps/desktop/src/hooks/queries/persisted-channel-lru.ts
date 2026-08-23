@@ -120,11 +120,16 @@ export function hydratePersistedChannelLru(): Promise<void> {
   if (hydrationPromise) return hydrationPromise;
 
   hydrationPromise = window.electronAPI.store
-    .get<PersistedChannelLru>(STORE_KEY)
+    .get(STORE_KEY)
     .then((stored) => {
       const now = Date.now();
       const valid =
-        stored?.version === 1 && Array.isArray(stored.entries)
+        stored !== null &&
+        typeof stored === "object" &&
+        "version" in stored &&
+        stored.version === 1 &&
+        "entries" in stored &&
+        Array.isArray(stored.entries)
           ? boundedEntries(stored.entries.filter((entry) => isValidEntry(entry, now)))
           : [];
       publish(valid);

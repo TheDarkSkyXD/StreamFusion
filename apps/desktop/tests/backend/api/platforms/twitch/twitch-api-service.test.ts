@@ -5,6 +5,27 @@ import { createTwitchApiService } from "@/backend/api/platforms/twitch/twitch-ap
 // Guards: allowlisted renderer capabilities map to fixed Worker-relative Helix paths.
 // Guards: access-token refresh and retry ownership stays inside TwitchRequestor rather than IPC payloads.
 describe("Twitch API service", () => {
+  it("rejects malformed Helix envelopes at the service boundary", async () => {
+    const request = vi.fn().mockResolvedValue({ data: "not-an-array" });
+    const service = createTwitchApiService({ request });
+
+    await expect(service.execute({ operation: "get-global-emotes" })).resolves.toMatchObject({
+      ok: false,
+      error: { code: "unavailable" },
+    });
+  });
+
+  it("rejects malformed moderated-channel rows instead of trusting their shape", async () => {
+    const request = vi.fn().mockResolvedValue({
+      data: [{ broadcaster_id: "100", broadcaster_login: "streamer" }],
+    });
+    const service = createTwitchApiService({ request });
+
+    await expect(
+      service.execute({ operation: "get-moderated-channels", userId: "200" })
+    ).resolves.toMatchObject({ ok: false, error: { code: "unavailable" } });
+  });
+
   it("maps moderated-channel discovery to its fixed Worker-relative Helix path", async () => {
     const request = vi.fn().mockResolvedValue({
       data: [
@@ -71,10 +92,7 @@ describe("Twitch API service", () => {
         "/moderation/unban_requests?broadcaster_id=100&moderator_id=200&status=pending&first=20",
       ],
       [{ operation: "get-polls", broadcasterId: "100" }, "/polls?broadcaster_id=100"],
-      [
-        { operation: "get-predictions", broadcasterId: "100" },
-        "/predictions?broadcaster_id=100",
-      ],
+      [{ operation: "get-predictions", broadcasterId: "100" }, "/predictions?broadcaster_id=100"],
     ] as const;
 
     for (const [command, path] of cases) {
@@ -116,13 +134,10 @@ describe("Twitch API service", () => {
       moderatorId: "200",
       settings: { slow_mode: true, slow_mode_wait_time: 30 },
     });
-    expect(request).toHaveBeenLastCalledWith(
-      "/chat/settings?broadcaster_id=100&moderator_id=200",
-      {
-        method: "PATCH",
-        body: JSON.stringify({ slow_mode: true, slow_mode_wait_time: 30 }),
-      }
-    );
+    expect(request).toHaveBeenLastCalledWith("/chat/settings?broadcaster_id=100&moderator_id=200", {
+      method: "PATCH",
+      body: JSON.stringify({ slow_mode: true, slow_mode_wait_time: 30 }),
+    });
   });
 
   it("maps channel membership and unban mutations to fixed allowlisted paths", async () => {
@@ -254,7 +269,13 @@ describe("Twitch API service", () => {
     const service = createTwitchApiService({ request });
     const cases = [
       [
-        { operation: "warn-user", broadcasterId: "100", moderatorId: "200", userId: "300", reason: "stop" },
+        {
+          operation: "warn-user",
+          broadcasterId: "100",
+          moderatorId: "200",
+          userId: "300",
+          reason: "stop",
+        },
         "/moderation/warnings?broadcaster_id=100&moderator_id=200",
         { method: "POST", body: JSON.stringify({ data: { user_id: "300", reason: "stop" } }) },
       ],
@@ -279,7 +300,13 @@ describe("Twitch API service", () => {
         { method: "POST", body: JSON.stringify({ broadcaster_id: "100", length: 60 }) },
       ],
       [
-        { operation: "pin-message", broadcasterId: "100", moderatorId: "200", messageId: "m1", durationSeconds: 60 },
+        {
+          operation: "pin-message",
+          broadcasterId: "100",
+          moderatorId: "200",
+          messageId: "m1",
+          durationSeconds: 60,
+        },
         "/chat/pins?broadcaster_id=100&moderator_id=200&message_id=m1&duration_seconds=60",
         { method: "PUT" },
       ],

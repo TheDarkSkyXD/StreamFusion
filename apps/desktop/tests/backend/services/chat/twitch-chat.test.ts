@@ -389,6 +389,34 @@ describe("TwitchChatService connect() single-flight", () => {
     ]);
   });
 
+  it("emits a viewer-specific banned restriction for Twitch msg_banned notices", async () => {
+    const service = new TwitchChatService();
+    const internals = service as unknown as ServiceInternals;
+    const restrictionEvents: ViewerChatSendRestrictionEvent[] = [];
+    service.on("viewerSendRestriction", (event) => restrictionEvents.push(event));
+
+    const connectPromise = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+    internals.broadcasterId.set("ninja", "12345");
+
+    fakeClient.emit(
+      "notice",
+      "#ninja",
+      "msg_banned",
+      "You are permanently banned from talking in ninja's channel."
+    );
+
+    expect(restrictionEvents).toEqual([
+      {
+        platform: "twitch",
+        channel: "ninja",
+        channelId: "12345",
+        restriction: "banned",
+      },
+    ]);
+  });
+
   it("emits moderatorState when the signed-in user is modded and unmodded live", async () => {
     const service = new TwitchChatService();
     const internals = service as unknown as ServiceInternals;
@@ -464,6 +492,32 @@ describe("TwitchChatService connect() single-flight", () => {
     expect(getTwitchBadgeCatalog).toHaveBeenCalledTimes(1);
     expect(fakeClient.join).toHaveBeenCalledWith("extraemily");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // Guards: a slow Twitch badge catalog must not delay the IRC channel join
+  it("joins IRC while the badge catalog is still loading", async () => {
+    let finishBadges: ((result: { success: false }) => void) | undefined;
+    const getTwitchBadgeCatalog = vi.fn(
+      () =>
+        new Promise<{ success: false }>((resolve) => {
+          finishBadges = resolve;
+        })
+    );
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { chat: { getTwitchBadgeCatalog } },
+    });
+    const service = new TwitchChatService();
+    const connectPromise = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+
+    const joinPromise = service.joinChannel("extraemily", "517475551");
+    await Promise.resolve();
+
+    expect(fakeClient.join).toHaveBeenCalledWith("extraemily");
+    finishBadges?.({ success: false });
+    await joinPromise;
   });
 
   it("loads and resolves the badge catalog through IPC for an anonymous viewer", async () => {

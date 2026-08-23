@@ -13,7 +13,7 @@
  * unauthenticated privileged channel). Credentials are never logged.
  */
 
-import { ipcMain } from "electron";
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@/backend/logging/logger";
 import {
@@ -80,10 +80,12 @@ export function registerProxyHandlers(): void {
  * no-op (clears to direct). Fire-and-forget — a proxy failure must not block
  * startup, and `applyProxy` already degrades to direct on error.
  */
-export function applyPersistedProxyOnStart(): void {
+export async function applyPersistedProxyOnStart(): Promise<void> {
   const proxy = storageService.getPreferences().proxy;
-  void applyProxy({ enabled: proxy.enabled, host: proxy.host, port: proxy.port }).catch((error) => {
+  try {
+    await applyProxy({ enabled: proxy.enabled, host: proxy.host, port: proxy.port });
+  } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     logger.warn("IPC:Proxy", "Failed to apply persisted proxy on start", { message });
-  });
+  }
 }

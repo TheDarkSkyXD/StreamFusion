@@ -93,16 +93,7 @@ export const KICK_OAUTH_CONFIG: OAuthConfig = {
   authorizationEndpoint: "https://id.kick.com/oauth/authorize",
   tokenEndpoint: `${WORKER_BASE_URL}/auth/kick/token`, // Worker endpoint
   revokeEndpoint: "https://id.kick.com/oauth/revoke",
-  scopes: [
-    ...KICK_APP_SCOPES,
-    // chat:write removed 2026-05-29: chat send moved to
-    // kick.com/api/v2/messages/send/{chatroomId} via page-context fetch
-    // (see kick-send-window.ts). The public-API path is gated behind
-    // App Verification and silently drops un-verified sends. Existing
-    // tokens carrying chat:write are NOT invalidated — Kick's OAuth
-    // server doesn't revoke server-side when we stop requesting; the
-    // scope becomes unused on the next refresh.
-  ],
+  scopes: [...KICK_APP_SCOPES],
   usesPkce: true,
 };
 

@@ -4,7 +4,9 @@
  * to the main window. Send guard matches the auth-handlers pattern.
  */
 
-import { type BrowserWindow, ipcMain } from "electron";
+import type { BrowserWindow } from "electron";
+
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { clearKickStreamFailureCache } from "../../api/platforms/kick/endpoints/stream-endpoints";
 import {

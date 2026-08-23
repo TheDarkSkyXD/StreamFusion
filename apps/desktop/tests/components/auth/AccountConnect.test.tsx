@@ -44,4 +44,18 @@ describe("AccountConnect", () => {
     ).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Connecting..." })).not.toBeInTheDocument();
   });
+
+  it("offers Kick website-session repair without requiring logout", () => {
+    useAuthStore.setState({
+      twitchLoading: false,
+      kickUser: { id: 42, username: "viewer", slug: "viewer" } as never,
+      kickConnected: true,
+      kickLoading: false,
+    });
+
+    renderWithProviders(<AccountConnect />);
+
+    expect(screen.getByRole("button", { name: "Repair Kick chat" })).toBeEnabled();
+    expect(screen.getAllByRole("button", { name: "Disconnect" })).toHaveLength(2);
+  });
 });

@@ -1,12 +1,8 @@
 import type { UnifiedStream } from "../../../unified/platform-types";
 import type { TwitchRequestor } from "../twitch-requestor";
+import { helixResponseSchema, twitchStreamSchema } from "../twitch-helix-schemas";
 import { transformTwitchStream } from "../twitch-transformers";
-import type {
-  PaginatedResult,
-  PaginationOptions,
-  TwitchApiResponse,
-  TwitchApiStream,
-} from "../twitch-types";
+import type { PaginatedResult, PaginationOptions, TwitchApiStream } from "../twitch-types";
 
 import { getUser, getUsersById } from "./user-endpoints";
 
@@ -60,8 +56,8 @@ export async function getStreamsByUserIds(
     params.set("after", options.after);
   }
 
-  const data = await client.request<TwitchApiResponse<TwitchApiStream>>(
-    `/streams?${params.toString()}`
+  const data = helixResponseSchema(twitchStreamSchema).parse(
+    await client.request(`/streams?${params.toString()}`)
   );
 
   return {
@@ -91,8 +87,8 @@ export async function getFollowedStreams(
     params.set("after", options.after);
   }
 
-  const data = await client.request<TwitchApiResponse<TwitchApiStream>>(
-    `/streams/followed?${params.toString()}`
+  const data = helixResponseSchema(twitchStreamSchema).parse(
+    await client.request(`/streams/followed?${params.toString()}`)
   );
 
   return {
@@ -122,8 +118,8 @@ export async function getTopStreams(
     params.set("language", options.language);
   }
 
-  const data = await client.request<TwitchApiResponse<TwitchApiStream>>(
-    `/streams?${params.toString()}`
+  const data = helixResponseSchema(twitchStreamSchema).parse(
+    await client.request(`/streams?${params.toString()}`)
   );
 
   return {
@@ -140,8 +136,8 @@ export async function getStreamByLogin(
   login: string
 ): Promise<UnifiedStream | null> {
   const params = new URLSearchParams({ user_login: login });
-  const data = await client.request<TwitchApiResponse<TwitchApiStream>>(
-    `/streams?${params.toString()}`
+  const data = helixResponseSchema(twitchStreamSchema).parse(
+    await client.request(`/streams?${params.toString()}`)
   );
 
   if (data.data && data.data.length > 0) {

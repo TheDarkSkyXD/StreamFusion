@@ -6,7 +6,7 @@ import { useVolumeStore } from "../../../store/volume-store";
 interface UseVolumeOptions {
   videoRef: React.RefObject<HTMLVideoElement>;
   initialMuted?: boolean;
-  watch?: any; // Dependency to trigger re-application (e.g. streamUrl)
+  watch?: unknown; // Dependency to trigger re-application (e.g. streamUrl)
   forcedMuted?: boolean; // External override to force mute (e.g. when clip dialog is open)
 }
 
@@ -88,7 +88,7 @@ export function useVolume({
         setMuted(true);
       }
     },
-    [setVolume, setMuted, forcedMuted, videoRef.current]
+    [setVolume, setMuted, forcedMuted, videoRef]
   );
 
   // Handle mute toggle from UI
@@ -103,7 +103,7 @@ export function useVolume({
 
     video.muted = !video.muted;
     setMuted(video.muted);
-  }, [setMuted, forcedMuted, videoRef.current]);
+  }, [setMuted, forcedMuted, videoRef]);
 
   // Sync store when video element fires volumechange event
   const syncFromVideoElement = useCallback(() => {
@@ -119,7 +119,7 @@ export function useVolume({
       setMuted(video.muted);
     }
     setVolume(video.volume * 100);
-  }, [setVolume, setMuted, forcedMuted, videoRef.current]);
+  }, [setVolume, setMuted, forcedMuted, videoRef]);
 
   return {
     volume,

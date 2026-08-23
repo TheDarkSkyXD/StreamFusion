@@ -8,11 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mockFetch = vi.fn<(...args: unknown[]) => Promise<Response>>();
 
 const _origRequire = Module.prototype.require;
-(Module.prototype as any).require = function (id: string) {
+Module.prototype.require = function (id: string) {
   if (id === "electron") {
     return { net: { fetch: (...args: unknown[]) => mockFetch(...args) } };
   }
-  return _origRequire.apply(this, [id] as any);
+  return _origRequire.call(this, id);
 };
 
 vi.mock("@/backend/api/platforms/kick/kick-network-health", () => ({
@@ -51,6 +51,7 @@ import {
   getStreamBySlug,
 } from "@/backend/api/platforms/kick/endpoints/stream-endpoints";
 import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
+import type { UnifiedChannel, UnifiedStream } from "@/backend/api/unified/platform-types";
 
 function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor {
   return {
@@ -297,7 +298,9 @@ describe("search-endpoints", () => {
             thumbnailUrl: "",
             isLive: true,
             startedAt: "",
-          } as any,
+          language: "en",
+          tags: [],
+          },
         ],
       });
 
@@ -335,7 +338,9 @@ describe("search-endpoints", () => {
             thumbnailUrl: "",
             isLive: true,
             startedAt: "",
-          } as any,
+          language: "en",
+          tags: [],
+          },
         ],
       });
 
@@ -369,7 +374,9 @@ describe("search-endpoints", () => {
             thumbnailUrl: "",
             isLive: true,
             startedAt: "",
-          } as any,
+          language: "en",
+          tags: [],
+          },
         ],
       });
 
@@ -408,7 +415,9 @@ describe("search-endpoints", () => {
             thumbnailUrl: "",
             isLive: true,
             startedAt: "",
-          } as any,
+          language: "en",
+          tags: [],
+          },
         ],
       });
 
@@ -436,7 +445,9 @@ describe("search-endpoints", () => {
             thumbnailUrl: "",
             isLive: true,
             startedAt: "",
-          } as any,
+          language: "en",
+          tags: [],
+          },
         ],
       });
 
@@ -469,7 +480,9 @@ describe("search-endpoints", () => {
             thumbnailUrl: "",
             isLive: true,
             startedAt: "",
-          } as any,
+          language: "en",
+          tags: [],
+          },
         ],
       });
 
@@ -498,7 +511,9 @@ describe("search-endpoints", () => {
               thumbnailUrl: "",
               isLive: true,
               startedAt: "",
-            } as any,
+            language: "en",
+            tags: [],
+            },
             {
               id: "s2",
               platform: "kick",
@@ -511,7 +526,9 @@ describe("search-endpoints", () => {
               thumbnailUrl: "",
               isLive: true,
               startedAt: "",
-            } as any,
+            language: "en",
+            tags: [],
+            },
           ],
           cursor: "100",
         })
@@ -529,7 +546,9 @@ describe("search-endpoints", () => {
               thumbnailUrl: "",
               isLive: true,
               startedAt: "",
-            } as any,
+            language: "en",
+            tags: [],
+            },
           ],
           cursor: "200",
         });
@@ -712,12 +731,12 @@ describe("search-endpoints", () => {
   describe("search", () => {
     it("stops queued live hydration after cancellation and forwards the signal to categories", async () => {
       const controller = new AbortController();
-      const firstStream = deferred<any>();
+      const firstStream = deferred<UnifiedStream | null>();
       vi.mocked(getStreamBySlug).mockImplementationOnce(() => firstStream.promise);
-      const seeds = [
-        { id: "1", platform: "kick", username: "one", displayName: "One", isLive: true },
-        { id: "2", platform: "kick", username: "two", displayName: "Two", isLive: true },
-      ] as any;
+      const seeds: UnifiedChannel[] = [
+        { id: "1", platform: "kick", username: "one", displayName: "One", avatarUrl: "", isLive: true, isVerified: false, isPartner: false },
+        { id: "2", platform: "kick", username: "two", displayName: "Two", avatarUrl: "", isLive: true, isVerified: false, isPartner: false },
+      ];
 
       const pending = search(createMockClient(), "live", {
         channelSeeds: seeds,

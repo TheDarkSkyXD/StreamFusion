@@ -554,9 +554,7 @@ export function useSearchChannels(
         ...(liveOnly ? { liveOnly: true } : {}),
       });
       throwIfAborted(signal);
-      if (response.error) {
-        throw new Error(response.error as unknown as string);
-      }
+      if (response.success === false) throw new Error(response.error);
       return { data: (response.data ?? []) as UnifiedChannel[], cursor: response.cursor };
     },
     // Twitch GQL keeps returning a cursor even when a page is empty after the
@@ -602,9 +600,7 @@ export function useSearchCategories(
         after: pageParam,
       });
       throwIfAborted(signal);
-      if (response.error) {
-        throw new Error(response.error as unknown as string);
-      }
+      if (response.success === false) throw new Error(response.error);
       return { data: (response.data ?? []) as UnifiedCategory[], cursor: response.cursor };
     },
     // Mirrors the empty-page guard in useSearchChannels above. Backend

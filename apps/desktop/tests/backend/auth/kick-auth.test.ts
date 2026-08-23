@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AuthToken, KickUser } from "@/shared/auth-types";
 
 vi.mock("@/lib/cross-logger", () => ({
   logger: { debug: vi.fn(), error: vi.fn(), warn: vi.fn(), info: vi.fn() },
@@ -27,31 +28,45 @@ const storageState: {
     expiresAt?: number;
     scope?: string[];
   } | null;
-  kickUser: any;
+  kickUser: Pick<KickUser, "id" | "username"> | null;
 } = { token: null, kickUser: null };
 
 vi.mock("@/backend/services/storage-service", () => ({
   storageService: {
     getToken: vi.fn(() => storageState.token),
-    saveToken: vi.fn((_p: string, t: any) => {
+    saveToken: vi.fn((_p: string, t: AuthToken) => {
       storageState.token = t;
     }),
     clearToken: vi.fn(() => {
       storageState.token = null;
     }),
     getKickUser: vi.fn(() => storageState.kickUser),
-    saveKickUser: vi.fn((u: any) => {
+    saveKickUser: vi.fn((u: Pick<KickUser, "id" | "username">) => {
       storageState.kickUser = u;
     }),
     clearKickUser: vi.fn(() => {
       storageState.kickUser = null;
     }),
+    clearKickWebBearer: vi.fn(),
   },
 }));
 
 const refreshTokenMock = vi.fn();
 
 vi.mock("@/backend/auth/token-exchange", () => ({
+  TokenRefreshError: class TokenRefreshError extends Error {
+    constructor(
+      message: string,
+      readonly status: number | null,
+      readonly code: string | null
+    ) {
+      super(message);
+      this.name = "TokenRefreshError";
+    }
+    isPermanent() {
+      return this.code === "invalid_grant" || this.status === 401 || this.status === 403;
+    }
+  },
   tokenExchangeService: {
     refreshToken: (...a: unknown[]) => refreshTokenMock(...a),
   },
@@ -66,6 +81,7 @@ const { storageService } = await import("@/backend/services/storage-service");
 const canonicalScopes = [
   "user:read",
   "channel:read",
+  "chat:write",
   "moderation:chat_message:manage",
   "moderation:ban",
   "events:subscribe",
@@ -74,6 +90,7 @@ const canonicalScopes = [
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-06-01T12:00:00.000Z"));
+  kickAuthService.cancelProactiveRefresh();
   storageState.token = null;
   storageState.kickUser = null;
   vi.clearAllMocks();
@@ -81,10 +98,14 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  kickAuthService.cancelProactiveRefresh();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
+// Guards: Kick access and rotating refresh tokens renew proactively in main without renderer ownership.
+// Guards: transient OAuth failures retry without deleting OAuth, website auth, cookies, or identity.
+// Guards: only explicit logout clears Kick's independent OAuth and website credential families.
 describe("isAuthenticated", () => {
   it("returns false when no token and no user", () => {
     expect(kickAuthService.isAuthenticated()).toBe(false);
@@ -199,10 +220,10 @@ describe("refreshToken", () => {
 
     await expect(kickAuthService.refreshToken()).resolves.toBeNull();
     expect(storageService.saveToken).not.toHaveBeenCalled();
-    expect(storageService.clearToken).toHaveBeenCalledWith("kick");
+    expect(storageService.clearToken).not.toHaveBeenCalled();
   });
 
-  it("clears auth state and emits session-expired on failure", async () => {
+  it("preserves auth state and web cookies on transient refresh failure", async () => {
     storageState.token = { accessToken: "old", refreshToken: "rt" };
     storageState.kickUser = { id: 1, username: "u" };
     refreshTokenMock.mockRejectedValueOnce(new Error("refresh failed"));
@@ -213,16 +234,35 @@ describe("refreshToken", () => {
     const result = await kickAuthService.refreshToken();
 
     expect(result).toBeNull();
-    expect(storageService.clearToken).toHaveBeenCalledWith("kick");
-    expect(storageService.clearKickUser).toHaveBeenCalled();
-    expect(sessionExpired).toHaveBeenCalledTimes(1);
+    expect(storageService.clearToken).not.toHaveBeenCalled();
+    expect(storageService.clearKickUser).not.toHaveBeenCalled();
+    expect(mockCookiesRemove).not.toHaveBeenCalled();
+    expect(sessionExpired).not.toHaveBeenCalled();
 
+    kickAuthService.off("session-expired", sessionExpired);
+  });
+
+  it("invalidates only OAuth on permanent rejection and preserves website auth", async () => {
+    storageState.token = { accessToken: "old", refreshToken: "rt" };
+    storageState.kickUser = { id: 1, username: "u" };
+    const { TokenRefreshError } = await import("@/backend/auth/token-exchange");
+    refreshTokenMock.mockRejectedValueOnce(new TokenRefreshError("rejected", 401, "invalid_grant"));
+    const sessionExpired = vi.fn();
+    kickAuthService.on("session-expired", sessionExpired);
+
+    await expect(kickAuthService.refreshToken()).resolves.toBeNull();
+
+    expect(storageService.clearToken).toHaveBeenCalledWith("kick");
+    expect(storageService.clearKickUser).not.toHaveBeenCalled();
+    expect(storageService.clearKickWebBearer).not.toHaveBeenCalled();
+    expect(mockCookiesRemove).not.toHaveBeenCalled();
+    expect(sessionExpired).toHaveBeenCalledOnce();
     kickAuthService.off("session-expired", sessionExpired);
   });
 
   it("deduplicates concurrent refresh calls", async () => {
     storageState.token = { accessToken: "at", refreshToken: "rt", scope: canonicalScopes };
-    let resolver: ((v: any) => void) | null = null;
+    let resolver: ((v: unknown) => void) | null = null;
     refreshTokenMock.mockReturnValueOnce(
       new Promise((r) => {
         resolver = r;
@@ -251,6 +291,77 @@ describe("refreshToken", () => {
     const result = await kickAuthService.refreshToken();
     expect(result).toMatchObject({ accessToken: "ok", refreshToken: "rt2" });
     expect(refreshTokenMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("proactive refresh", () => {
+  it("rotates the token five minutes before expiry and schedules the next rotation", async () => {
+    storageState.token = {
+      accessToken: "old",
+      refreshToken: "refresh-1",
+      expiresAt: Date.now() + 60 * 60 * 1000,
+      scope: canonicalScopes,
+    };
+    refreshTokenMock.mockResolvedValueOnce({
+      accessToken: "new",
+      refreshToken: "refresh-2",
+      expiresAt: Date.now() + 2 * 60 * 60 * 1000,
+    });
+
+    kickAuthService.scheduleProactiveRefresh();
+    await vi.advanceTimersByTimeAsync(55 * 60 * 1000);
+
+    expect(refreshTokenMock).toHaveBeenCalledOnce();
+    expect(storageService.saveToken).toHaveBeenCalledWith(
+      "kick",
+      expect.objectContaining({ accessToken: "new", refreshToken: "refresh-2" })
+    );
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
+  it("retries transient refresh failures without clearing either credential family", async () => {
+    storageState.token = {
+      accessToken: "old",
+      refreshToken: "refresh-1",
+      expiresAt: Date.now() + 60 * 60 * 1000,
+      scope: canonicalScopes,
+    };
+    refreshTokenMock
+      .mockRejectedValueOnce(new Error("temporary network failure"))
+      .mockResolvedValueOnce({
+        accessToken: "new",
+        refreshToken: "refresh-2",
+        expiresAt: Date.now() + 60 * 60 * 1000,
+      });
+
+    kickAuthService.scheduleProactiveRefresh();
+    await vi.advanceTimersByTimeAsync(55 * 60 * 1000);
+    await vi.advanceTimersByTimeAsync(30 * 1000);
+
+    expect(refreshTokenMock).toHaveBeenCalledTimes(2);
+    expect(storageService.clearToken).not.toHaveBeenCalled();
+    expect(storageService.clearKickWebBearer).not.toHaveBeenCalled();
+    expect(storageService.clearKickUser).not.toHaveBeenCalled();
+    expect(mockCookiesRemove).not.toHaveBeenCalled();
+  });
+
+  it("re-evaluates an expired token immediately after system resume", async () => {
+    storageState.token = {
+      accessToken: "old",
+      refreshToken: "refresh-1",
+      expiresAt: Date.now() - 1000,
+      scope: canonicalScopes,
+    };
+    refreshTokenMock.mockResolvedValueOnce({
+      accessToken: "new",
+      refreshToken: "refresh-2",
+      expiresAt: Date.now() + 60 * 60 * 1000,
+    });
+
+    kickAuthService.onSystemResume();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(refreshTokenMock).toHaveBeenCalledOnce();
   });
 });
 
@@ -303,6 +414,7 @@ describe("logout", () => {
 
     expect(result).toBe(true);
     expect(storageService.clearToken).toHaveBeenCalledWith("kick");
+    expect(storageService.clearKickWebBearer).toHaveBeenCalledOnce();
     expect(storageService.clearKickUser).toHaveBeenCalled();
   });
 

@@ -3,9 +3,9 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { IPC_CHANNELS } from "@/shared/ipc-channels";
 
 const electronMocks = vi.hoisted(() => ({
-  exposedApi: undefined as any,
+  exposedApi: {} as Window["electronAPI"],
   exposeInMainWorld: vi.fn((name: string, api: unknown) => {
-    if (name === "electronAPI") electronMocks.exposedApi = api;
+    if (name === "electronAPI") electronMocks.exposedApi = api as Window["electronAPI"];
   }),
   invoke: vi.fn(),
   on: vi.fn(),
@@ -77,7 +77,7 @@ describe("preload Downloads bridge", () => {
       videoRequest
     );
 
-    expect(electronMocks.exposedApi.downloads.enqueue).toBeUndefined();
+    expect("enqueue" in electronMocks.exposedApi.downloads).toBe(false);
 
     const operations = [
       ["pause", IPC_CHANNELS.DOWNLOADS_PAUSE],

@@ -1,8 +1,16 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearChatReplayWindowCache, useChatReplay } from "@/hooks/use-chat-replay";
+import type {
+  ChatReplayIpcWindowRequest,
+  ChatReplayIpcWindowResult,
+} from "@/shared/chat-replay-types";
 import { useChatStore } from "@/store/chat-store";
 import { installElectronAPIMock } from "../test-utils";
+
+const mockReplayWindow = (
+  implementation: (request: ChatReplayIpcWindowRequest) => Promise<ChatReplayIpcWindowResult>
+) => vi.fn(implementation);
 
 // Guards: historical replay remains session-local and never enters live channelKey chat buckets
 describe("useChatReplay", () => {
@@ -95,7 +103,7 @@ describe("useChatReplay", () => {
 
   it("isolates cached replay windows by platform and video", async () => {
     const api = installElectronAPIMock();
-    api.videos.getChatReplayWindow = vi.fn(async (request) => ({
+    api.videos.getChatReplayWindow = mockReplayWindow(async (request) => ({
       success: true,
       data: { capability: "empty", platform: request.platform, videoId: request.videoId },
     }));
@@ -122,7 +130,7 @@ describe("useChatReplay", () => {
 
   it("deduplicates an in-flight window and cancels it after the last subscriber leaves", () => {
     const api = installElectronAPIMock();
-    api.videos.getChatReplayWindow = vi.fn(() => new Promise(() => undefined));
+    api.videos.getChatReplayWindow = mockReplayWindow(() => new Promise(() => undefined));
     api.videos.cancelChatReplayWindow = vi.fn().mockResolvedValue({ cancelled: true });
 
     const { unmount } = renderHook(() => {
@@ -146,7 +154,7 @@ describe("useChatReplay", () => {
   it("reuses recent seek windows and evicts the oldest window from the bounded cache", async () => {
     const api = installElectronAPIMock();
     api.videos.cancelChatReplayWindow = vi.fn().mockResolvedValue({ cancelled: false });
-    api.videos.getChatReplayWindow = vi.fn(async (request) => ({
+    api.videos.getChatReplayWindow = mockReplayWindow(async (request) => ({
       success: true,
       data: { capability: "empty", platform: "twitch", videoId: request.videoId },
     }));

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/backend/logging/logger", () => ({
   logger: {
@@ -183,6 +183,7 @@ describe("getUsersByLogin", () => {
   });
 });
 
+// Guards: every authoritative Twitch follow remains visible when optional channel enrichment is incomplete.
 describe("getFollowedChannels", () => {
   it("throws when user is not authenticated", async () => {
     const client = makeClient({ "/users": { data: [] } });
@@ -208,6 +209,33 @@ describe("getFollowedChannels", () => {
     expect(result.total).toBe(50);
   });
 
+  it("keeps an authoritative follow when channel enrichment omits the broadcaster", async () => {
+    const theoFollow = {
+      broadcaster_id: "theo-id",
+      broadcaster_login: "theo",
+      broadcaster_name: "Theo",
+      followed_at: "2026-08-22T23:00:00Z",
+    };
+    const client = {
+      request: vi.fn(async (endpoint: string) => {
+        if (endpoint === "/users") return { data: [API_USER] };
+        if (endpoint.includes("/channels/followed")) return { data: [theoFollow], pagination: {} };
+        return { data: [] };
+      }),
+    } as unknown as TwitchRequestor;
+
+    await expect(getFollowedChannels(client)).resolves.toMatchObject({
+      data: [
+        {
+          id: "theo-id",
+          platform: "twitch",
+          username: "theo",
+          displayName: "Theo",
+        },
+      ],
+    });
+  });
+
   it("passes first and after options", async () => {
     const client = makeClient({
       "/users": { data: [API_USER] },
@@ -227,6 +255,7 @@ describe("getFollowedChannels", () => {
   });
 });
 
+// Guards: overlapping UI and background refreshes share one Twitch pagination scan.
 describe("getAllFollowedChannels", () => {
   it("paginates until cursor is exhausted", async () => {
     let callCount = 0;
@@ -255,6 +284,21 @@ describe("getAllFollowedChannels", () => {
     const result = await getAllFollowedChannels(client);
 
     expect(result.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("collapses concurrent scans for the same authenticated client", async () => {
+    const client = makeClient({
+      "/users": { data: [API_USER] },
+      "/channels/followed": { data: [], pagination: {} },
+    });
+
+    await Promise.all([getAllFollowedChannels(client), getAllFollowedChannels(client)]);
+
+    const followedCalls = (client.request as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (call: unknown[]) =>
+        typeof call[0] === "string" && call[0].includes("/channels/followed")
+    );
+    expect(followedCalls).toHaveLength(1);
   });
 });
 

@@ -99,7 +99,38 @@ const VALID_BACKGROUND_QUALITIES: ReadonlySet<BackgroundQuality> = new Set([
 ]);
 
 function isBackgroundQuality(v: unknown): v is BackgroundQuality {
-  return typeof v === "string" && VALID_BACKGROUND_QUALITIES.has(v as BackgroundQuality);
+  return v === "auto-low" || v === "match-source" || v === "off";
+}
+
+function isPlatform(value: unknown): value is Platform {
+  return value === "twitch" || value === "kick";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isMultiStreamConfig(value: unknown): value is MultiStreamConfig {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    isPlatform(value.platform) &&
+    typeof value.channelName === "string" &&
+    typeof value.isMuted === "boolean" &&
+    typeof value.volume === "number" &&
+    Number.isFinite(value.volume)
+  );
+}
+
+function isFavoriteStreamRef(value: unknown): value is FavoriteStreamRef {
+  return (
+    isRecord(value) &&
+    isPlatform(value.platform) &&
+    typeof value.channelId === "string" &&
+    typeof value.channelName === "string" &&
+    typeof value.displayName === "string" &&
+    (value.avatarUrl === undefined || typeof value.avatarUrl === "string")
+  );
 }
 
 function favoriteStreamsMatch(left: FavoriteStreamRef, right: FavoriteStreamRef): boolean {
@@ -137,11 +168,11 @@ export function migrateMultiStreamState(
   | "multiviewCap"
   | "backgroundQuality"
 > {
-  const p = (persisted ?? {}) as Record<string, unknown>;
+  const p = isRecord(persisted) ? persisted : {};
 
-  const streams = Array.isArray(p.streams) ? (p.streams as MultiStreamConfig[]) : [];
+  const streams = Array.isArray(p.streams) ? p.streams.filter(isMultiStreamConfig) : [];
   const favoriteStreams = Array.isArray(p.favoriteStreams)
-    ? (p.favoriteStreams as FavoriteStreamRef[])
+    ? p.favoriteStreams.filter(isFavoriteStreamRef)
     : [];
   const layout: LayoutMode = p.layout === "focus" ? "focus" : "grid";
   const isChatOpen = typeof p.isChatOpen === "boolean" ? p.isChatOpen : true;

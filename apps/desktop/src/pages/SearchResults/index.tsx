@@ -46,8 +46,8 @@ function ChannelDisplayName({
 
 // Platform-agnostic unified search
 export function SearchPage() {
-  const search: any = useSearch({ from: "/_app/search" });
-  const q = search.q as string;
+  const search = useSearch({ from: "/_app/search" });
+  const q = search.q;
   const [activeTab, setActiveTab] = React.useState<SearchTab>("all");
   const [platformFilter, setPlatformFilter] = React.useState<"all" | "twitch" | "kick">("all");
   const [liveOnly, setLiveOnly] = React.useState(false);
@@ -227,7 +227,7 @@ export function SearchPage() {
       setClipError(null);
 
       try {
-        const result = await (window as any).electronAPI?.clips?.getPlaybackUrl?.({
+        const result = await window.electronAPI.clips.getPlaybackUrl({
           platform: selectedClip.platform,
           clipId: selectedClip.id,
           clipUrl: selectedClip.embedUrl || selectedClip.clipUrl,

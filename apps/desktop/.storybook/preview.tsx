@@ -5,7 +5,11 @@ import "./preview.css";
 import type { Preview } from "@storybook/react-vite";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useState } from "react";
+import { sb } from "storybook/test";
 import { TooltipProvider } from "@/components/ui/tooltip";
+
+sb.mock(import("../src/components/player/kick/index.ts"), { spy: true });
+sb.mock(import("../src/components/player/twitch/index.ts"), { spy: true });
 
 function StoryProviders({ children }: { children: ReactNode }) {
   const [queryClient] = useState(

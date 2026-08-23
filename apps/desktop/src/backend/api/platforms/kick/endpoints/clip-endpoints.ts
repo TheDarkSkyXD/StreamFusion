@@ -1,7 +1,6 @@
 import {
   KICK_LEGACY_API_V2_BASE,
   type KickLegacyApiClip,
-  type PaginatedResult,
   type PaginationOptions,
 } from "../kick-types";
 
@@ -37,7 +36,7 @@ async function fetchLegacyClipPage(url: string): Promise<{
 export async function getClipsByChannelSlug(
   slug: string,
   options: PaginationOptions = {}
-): Promise<PaginatedResult<any>> {
+) {
   try {
     const limit = options.limit || 20;
     const cursor = options.cursor || 0; // V2 often uses cursor/offset
@@ -91,7 +90,7 @@ export async function getClipsByChannelSlug(
 export async function getClipsByCategorySlug(
   categorySlug: string,
   options: PaginationOptions = {}
-): Promise<PaginatedResult<any>> {
+) {
   const limit = options.limit || 20;
   const cursor = options.cursor || 0;
   const sortParam = options.sort === "views" ? "view" : "date";
@@ -124,7 +123,7 @@ export async function getClipsByCategorySlug(
           channelName: channelSlug,
           channelDisplayName: clip.channel?.username || channelSlug,
           channelAvatar: clip.channel?.profile_pic || "",
-          platform: "kick",
+          platform: "kick" as const,
         };
       }),
       cursor: page.cursor,

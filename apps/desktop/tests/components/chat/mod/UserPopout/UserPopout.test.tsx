@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { renderWithProviders } from "../../../../test-utils";
+import { installElectronAPIMock, renderWithProviders } from "../../../../test-utils";
 
 const toastSuccessMock = vi.hoisted(() => vi.fn());
 const toastErrorMock = vi.hoisted(() => vi.fn());
@@ -84,17 +84,14 @@ beforeEach(() => {
     } as typeof state.preferences,
   }));
   // Stub the electronAPI for openExternal usage inside the footer.
-  (globalThis as any).window.electronAPI = {
-    openExternal: vi.fn(),
-    auth: {
-      getToken: vi.fn().mockResolvedValue(null),
-      tokenStatus: vi.fn().mockResolvedValue({
+  const api = installElectronAPIMock();
+  api.openExternal = vi.fn();
+  api.auth.getToken = vi.fn().mockResolvedValue(null);
+  api.auth.tokenStatus = vi.fn().mockResolvedValue({
         platform: "twitch",
         connected: false,
         valid: false,
-      }),
-    },
-  };
+      });
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: { writeText: vi.fn().mockResolvedValue(undefined) },

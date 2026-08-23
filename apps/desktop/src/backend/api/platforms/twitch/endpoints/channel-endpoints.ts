@@ -1,7 +1,7 @@
 import type { UnifiedChannel } from "../../../unified/platform-types";
 import type { TwitchRequestor } from "../twitch-requestor";
+import { helixResponseSchema, twitchChannelSchema, twitchUserSchema } from "../twitch-helix-schemas";
 import { transformTwitchChannel } from "../twitch-transformers";
-import type { TwitchApiChannel, TwitchApiResponse, TwitchApiUser } from "../twitch-types";
 
 /**
  * Get channel information by broadcaster IDs
@@ -18,14 +18,14 @@ export async function getChannelsById(
   const params = new URLSearchParams();
   ids.forEach((id) => params.append("broadcaster_id", id));
 
-  const data = await client.request<TwitchApiResponse<TwitchApiChannel>>(
-    `/channels?${params.toString()}`
+  const data = helixResponseSchema(twitchChannelSchema).parse(
+    await client.request(`/channels?${params.toString()}`)
   );
 
   // Get user info for profile images (raw API format)
   const userQueryString = ids.map((id) => `id=${id}`).join("&");
-  const userData = await client.request<TwitchApiResponse<TwitchApiUser>>(
-    `/users?${userQueryString}`
+  const userData = helixResponseSchema(twitchUserSchema).parse(
+    await client.request(`/users?${userQueryString}`)
   );
   const userMap = new Map(userData.data.map((u) => [u.id, u]));
 

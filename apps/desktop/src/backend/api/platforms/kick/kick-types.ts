@@ -48,6 +48,7 @@ export interface KickApiChannel {
   stream_title: string;
   category: KickApiChannelCategory | null;
   stream: KickApiChannelStream | null;
+  offline_banner_image?: string | { src?: string; url?: string };
 }
 
 export interface KickApiChannelCategory {
@@ -87,6 +88,8 @@ export interface KickApiLivestream {
   custom_tags: string[];
   tags?: string[];
   category: KickApiChannelCategory;
+  verified?: boolean;
+  is_verified?: boolean;
 }
 
 // Endpoint: GET /public/v1/users/livestreams

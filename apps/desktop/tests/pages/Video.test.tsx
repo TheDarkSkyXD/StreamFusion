@@ -1,7 +1,14 @@
+import { QueryClient } from "@tanstack/react-query";
 import { fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { installElectronAPIMock, renderWithProviders, routerMock, screen } from "../test-utils";
+import {
+  fixtures,
+  installElectronAPIMock,
+  renderWithProviders,
+  routerMock,
+  screen,
+} from "../test-utils";
 
 const routeState = vi.hoisted(() => ({
   params: { platform: "twitch", videoId: "vod-1" },
@@ -34,7 +41,7 @@ vi.mock("@/hooks/queries/useHistoryQuery", () => ({
 }));
 
 vi.mock("@/store/follow-store", () => ({
-  useFollowStore: (selector?: (state: any) => unknown) => {
+  useFollowStore: (selector?: (state: unknown) => unknown) => {
     const state = {
       localFollows: [],
       addFollow: vi.fn(),
@@ -75,29 +82,37 @@ vi.mock("@/components/player/kick", () => ({
   KickVodPlayer: () => <div data-testid="kick-vod-player">vod</div>,
 }));
 
-let electronApi: any;
+let electronApi: ReturnType<typeof installElectronAPIMock>;
 
 // Some side-effects (related-content loader, etc.) call electronAPI directly.
 beforeEach(() => {
   electronApi = installElectronAPIMock();
-  electronApi.videos.getPlaybackUrl = vi.fn(async () => ({
+  electronApi.videos.getPlaybackUrl = vi.fn<typeof electronApi.videos.getPlaybackUrl>(async () => ({
     success: true,
     data: { url: "https://video.example/vod.m3u8" },
   }));
-  electronApi.videos.getMetadata = vi.fn(async () => ({ success: false }));
-  electronApi.videos.getByChannel = vi.fn(async () => ({ success: true, data: [] }));
-  electronApi.streams.getByChannel = vi.fn(async () => ({
+  electronApi.videos.getMetadata = vi.fn<typeof electronApi.videos.getMetadata>(async () => ({
+    success: false,
+  }));
+  electronApi.videos.getByChannel = vi.fn<typeof electronApi.videos.getByChannel>(async () => ({
+    success: true,
+    data: [],
+  }));
+  electronApi.streams.getByChannel = vi.fn<typeof electronApi.streams.getByChannel>(async () => ({
     success: true,
     data: null,
   }));
-  electronApi.channels.getByUsername = vi.fn(async () => ({
-    error: null,
+  electronApi.channels.getByUsername = vi.fn<typeof electronApi.channels.getByUsername>(async ({
+    username,
+    platform,
+  }) => ({
+    success: true,
     data: {
-      id: "channel-1",
-      platform: "twitch",
-      username: "ninja",
-      displayName: "Ninja",
-      avatarUrl: "https://cdn.example.test/ninja-avatar.png",
+      id: `channel-${username}`,
+      platform,
+      username,
+      displayName: username === "ninja" ? "Ninja" : username,
+      avatarUrl: `https://cdn.example.test/${username}-avatar.png`,
       isLive: false,
       isVerified: true,
       isPartner: true,
@@ -114,6 +129,8 @@ vi.mock("@/components/stream/related-content/VideoCard", () => ({
 }));
 
 import { VideoPage } from "@/pages/Video";
+import { CHANNEL_KEYS } from "@/hooks/queries/useChannels";
+import { VOD_LIVE_LINK_KEYS } from "@/hooks/queries/useVodLiveLink";
 
 // Guards: guest VOD playback surfaces expose Share and Download without requiring auth state
 // Guards: VOD sharing copies the public Platform URL while downloading uses the resolved playback source
@@ -122,7 +139,8 @@ import { VideoPage } from "@/pages/Video";
 // Guards: platform-provided language names render without crashing the VOD page
 // Guards: VOD channel avatars fall back to the canonical channel lookup when route metadata omits them
 // Guards: offline VOD channels do not offer a link to a nonexistent live stream
-// Guards: Watch Live appears only after current stream status confirms the channel is live
+// Guards: cached channel metadata cannot keep Watch Live visible after the stream ends
+// Guards: Watch Live waits for fresh stream-status authority and hides on route switches, lookup errors, and ended streams
 describe("VideoPage", () => {
   beforeEach(() => {
     Object.assign(routeState.params, { platform: "twitch", videoId: "vod-1" });
@@ -153,23 +171,146 @@ describe("VideoPage", () => {
   it("hides Watch Live when the VOD channel is offline", async () => {
     renderWithProviders(<VideoPage />);
 
-    await waitFor(() => expect(electronApi.streams.getByChannel).toHaveBeenCalled());
+    await waitFor(() => expect(electronApi.channels.getByUsername).toHaveBeenCalled());
+    expect(screen.queryByRole("link", { name: "Watch Live" })).not.toBeInTheDocument();
+  });
+
+  it("ignores stale cached channel live state when the current stream is offline", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(CHANNEL_KEYS.byUsername("ninja", "twitch"), {
+      id: "channel-1",
+      platform: "twitch",
+      username: "ninja",
+      displayName: "Ninja",
+      avatarUrl: "https://cdn.example.test/ninja-avatar.png",
+      isLive: true,
+      isVerified: true,
+      isPartner: true,
+    });
+
+    renderWithProviders(<VideoPage />, { queryClient });
+
+    await screen.findByTestId("twitch-vod-player");
     expect(screen.queryByRole("link", { name: "Watch Live" })).not.toBeInTheDocument();
   });
 
   it("shows Watch Live when fresh stream status says the VOD channel is live", async () => {
-    electronApi.streams.getByChannel = vi.fn(async () => ({
+    electronApi.channels.getByUsername = vi.fn<typeof electronApi.channels.getByUsername>(
+      async () => ({
+        success: true,
+        data: {
+          id: "channel-1",
+          platform: "twitch",
+          username: "ninja",
+          displayName: "Ninja",
+          avatarUrl: "https://cdn.example.test/ninja-avatar.png",
+          isLive: true,
+          isVerified: true,
+          isPartner: true,
+        },
+      })
+    );
+    electronApi.streams.getByChannel = vi.fn<typeof electronApi.streams.getByChannel>(async () => ({
       success: true,
-      data: {
-        platform: "twitch",
-        channelName: "ninja",
-        isLive: true,
-      },
+      data: fixtures.stream({ channelName: "ninja", channelDisplayName: "Ninja" }),
     }));
 
     renderWithProviders(<VideoPage />);
 
     expect(await screen.findByRole("link", { name: "Watch Live" })).toBeInTheDocument();
+  });
+
+  it("hides Watch Live when stream status lookup fails even if channel metadata says live", async () => {
+    electronApi.channels.getByUsername = vi.fn<typeof electronApi.channels.getByUsername>(
+      async () => ({
+        success: true,
+        data: {
+          id: "channel-1",
+          platform: "twitch",
+          username: "ninja",
+          displayName: "Ninja",
+          avatarUrl: "https://cdn.example.test/ninja-avatar.png",
+          isLive: true,
+          isVerified: true,
+          isPartner: true,
+        },
+      })
+    );
+    electronApi.streams.getByChannel = vi.fn<typeof electronApi.streams.getByChannel>(async () => ({
+      success: false,
+      error: "status unavailable",
+    }));
+
+    renderWithProviders(<VideoPage />);
+
+    await waitFor(() => expect(electronApi.streams.getByChannel).toHaveBeenCalled());
+    expect(screen.queryByRole("link", { name: "Watch Live" })).not.toBeInTheDocument();
+  });
+
+  it("does not trust cached stream live status when the fresh lookup fails", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(
+      VOD_LIVE_LINK_KEYS.byChannel("ninja", "twitch"),
+      fixtures.stream({ channelName: "ninja", channelDisplayName: "Ninja" })
+    );
+    electronApi.streams.getByChannel = vi.fn<typeof electronApi.streams.getByChannel>(async () => ({
+      success: false,
+      error: "status unavailable",
+    }));
+
+    renderWithProviders(<VideoPage />, { queryClient });
+
+    await waitFor(() => expect(electronApi.streams.getByChannel).toHaveBeenCalled());
+    expect(screen.queryByRole("link", { name: "Watch Live" })).not.toBeInTheDocument();
+  });
+
+  it("removes Watch Live when the live stream status updates to offline", async () => {
+    const queryClient = new QueryClient();
+    electronApi.streams.getByChannel = vi.fn<typeof electronApi.streams.getByChannel>(async () => ({
+      success: true,
+      data: fixtures.stream({ channelName: "ninja", channelDisplayName: "Ninja" }),
+    }));
+
+    renderWithProviders(<VideoPage />, { queryClient });
+
+    expect(await screen.findByRole("link", { name: "Watch Live" })).toBeInTheDocument();
+    queryClient.setQueryData(VOD_LIVE_LINK_KEYS.byChannel("ninja", "twitch"), null);
+
+    await waitFor(() =>
+      expect(screen.queryByRole("link", { name: "Watch Live" })).not.toBeInTheDocument()
+    );
+  });
+
+  it("does not carry Watch Live from a live VOD channel across a route switch", async () => {
+    electronApi.streams.getByChannel = vi.fn<typeof electronApi.streams.getByChannel>(
+      async ({ username }) => ({
+        success: true,
+        data:
+          username === "ninja"
+            ? fixtures.stream({ channelName: "ninja", channelDisplayName: "Ninja" })
+            : null,
+      })
+    );
+
+    const { rerender } = renderWithProviders(<VideoPage />);
+
+    expect(await screen.findByRole("link", { name: "Watch Live" })).toBeInTheDocument();
+    Object.assign(routeState.params, { videoId: "vod-2" });
+    Object.assign(routeState.search, {
+      title: "Offline Channel VOD",
+      channelName: "shroud",
+      channelDisplayName: "Shroud",
+      shareUrl: "https://www.twitch.tv/videos/vod-2",
+    });
+    rerender(<VideoPage />);
+
+    await waitFor(() =>
+      expect(electronApi.streams.getByChannel).toHaveBeenCalledWith({
+        username: "shroud",
+        platform: "twitch",
+      })
+    );
+    expect(screen.queryByRole("link", { name: "Watch Live" })).not.toBeInTheDocument();
   });
 
   it("mounts the Twitch VOD player for a twitch platform when a src is provided", async () => {
@@ -216,7 +357,7 @@ describe("VideoPage", () => {
         })
       )
     );
-    expect(JSON.stringify(electronApi.logs.write.mock.calls)).not.toContain(
+    expect(JSON.stringify(vi.mocked(electronApi.logs.write).mock.calls)).not.toContain(
       "https://video.example/vod.m3u8"
     );
     timing.mockRestore();
@@ -333,23 +474,19 @@ describe("VideoPage", () => {
   });
 
   it("ignores stale playback and metadata after a rapid route switch", async () => {
-    const playbackResolvers = new Map<
-      string,
-      (value: { success: boolean; data?: { url: string } }) => void
-    >();
-    const metadataResolvers = new Map<
-      string,
-      (value: { success: boolean; data?: Record<string, unknown> }) => void
-    >();
-    electronApi.videos.getPlaybackUrl = vi.fn(
+    type PlaybackResult = Awaited<ReturnType<typeof electronApi.videos.getPlaybackUrl>>;
+    type MetadataResult = Awaited<ReturnType<typeof electronApi.videos.getMetadata>>;
+    const playbackResolvers = new Map<string, (value: PlaybackResult) => void>();
+    const metadataResolvers = new Map<string, (value: MetadataResult) => void>();
+    electronApi.videos.getPlaybackUrl = vi.fn<typeof electronApi.videos.getPlaybackUrl>(
       ({ videoId }: { videoId: string }) =>
-        new Promise<{ success: boolean; data?: { url: string } }>((resolve) => {
+        new Promise<PlaybackResult>((resolve) => {
           playbackResolvers.set(videoId, resolve);
         })
     );
-    electronApi.videos.getMetadata = vi.fn(
+    electronApi.videos.getMetadata = vi.fn<typeof electronApi.videos.getMetadata>(
       ({ videoId }: { videoId: string }) =>
-        new Promise<{ success: boolean; data?: Record<string, unknown> }>((resolve) => {
+        new Promise<MetadataResult>((resolve) => {
           metadataResolvers.set(videoId, resolve);
         })
     );
@@ -376,7 +513,24 @@ describe("VideoPage", () => {
       success: true,
       data: { url: "https://video.example/vod-1.m3u8" },
     });
-    metadataResolvers.get("vod-1")!({ success: true, data: { title: "Stale VOD" } });
+    metadataResolvers.get("vod-1")!({
+      success: true,
+      data: {
+        id: "vod-1",
+        title: "Stale VOD",
+        channelId: "channel-1",
+        channelName: "ninja",
+        channelDisplayName: "Ninja",
+        channelAvatar: null,
+        views: 1,
+        duration: "1:00",
+        createdAt: new Date().toISOString(),
+        thumbnailUrl: "",
+        description: "",
+        type: "archive",
+        platform: "twitch",
+      },
+    });
 
     await waitFor(() =>
       expect(screen.getByTestId("twitch-vod-player")).toHaveAttribute(
@@ -411,23 +565,19 @@ describe("VideoPage", () => {
   });
 
   it("reuses pending resolvers when rapid back navigation returns to a VOD", async () => {
-    const playbackResolvers = new Map<
-      string,
-      (value: { success: boolean; data?: { url: string } }) => void
-    >();
-    const metadataResolvers = new Map<
-      string,
-      (value: { success: boolean; data?: Record<string, unknown> }) => void
-    >();
-    electronApi.videos.getPlaybackUrl = vi.fn(
+    type PlaybackResult = Awaited<ReturnType<typeof electronApi.videos.getPlaybackUrl>>;
+    type MetadataResult = Awaited<ReturnType<typeof electronApi.videos.getMetadata>>;
+    const playbackResolvers = new Map<string, (value: PlaybackResult) => void>();
+    const metadataResolvers = new Map<string, (value: MetadataResult) => void>();
+    electronApi.videos.getPlaybackUrl = vi.fn<typeof electronApi.videos.getPlaybackUrl>(
       ({ videoId }: { videoId: string }) =>
-        new Promise<{ success: boolean; data?: { url: string } }>((resolve) => {
+        new Promise<PlaybackResult>((resolve) => {
           playbackResolvers.set(videoId, resolve);
         })
     );
-    electronApi.videos.getMetadata = vi.fn(
+    electronApi.videos.getMetadata = vi.fn<typeof electronApi.videos.getMetadata>(
       ({ videoId }: { videoId: string }) =>
-        new Promise<{ success: boolean; data?: Record<string, unknown> }>((resolve) => {
+        new Promise<MetadataResult>((resolve) => {
           metadataResolvers.set(videoId, resolve);
         })
     );

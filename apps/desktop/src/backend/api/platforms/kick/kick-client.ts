@@ -8,6 +8,10 @@
  */
 
 import { logger } from "@/backend/logging/logger";
+import {
+  readResponseTextWithinLimit,
+  ResponseBodyTooLargeError,
+} from "@/backend/reliability/bounded-response-body";
 import { sleep } from "@/lib/sleep";
 import { session } from "electron";
 import type { KickUser, Platform } from "../../../../shared/auth-types";
@@ -148,7 +152,8 @@ class KickClient implements KickRequestor, IPlatformReader {
     url: string,
     method: string,
     headers: Record<string, string>,
-    body?: string
+    body?: string,
+    callerSignal?: AbortSignal
   ): Promise<{ data: T; statusCode: number; responseHeaders: Record<string, string> }> {
     // Cap concurrent Kick net.fetch calls so authenticated traffic can't
     // pile on top of the public-API fetches (followed-streams refresh, display
@@ -157,12 +162,13 @@ class KickClient implements KickRequestor, IPlatformReader {
     try {
       const { net } = require("electron");
 
-      // Timeout after 30 seconds
+      const timeoutSignal = AbortSignal.timeout(15000);
+      const signal = callerSignal ? AbortSignal.any([callerSignal, timeoutSignal]) : timeoutSignal;
       const res: Response = await net.fetch(url, {
         method,
         headers,
         body: body ?? undefined,
-        signal: AbortSignal.timeout(30000),
+        signal,
       });
 
       // Collect response headers
@@ -171,12 +177,21 @@ class KickClient implements KickRequestor, IPlatformReader {
         responseHeaders[key.toLowerCase()] = value;
       });
 
-      const responseBody = await res.text();
+      let responseBody: string;
+      try {
+        responseBody = await readResponseTextWithinLimit(res, 2_000_000);
+      } catch (error) {
+        if (error instanceof ResponseBodyTooLargeError) {
+          throw new Error("Kick API response exceeded the size limit");
+        }
+        throw error;
+      }
       let data: T;
       try {
         data = responseBody ? (JSON.parse(responseBody) as T) : (null as T);
       } catch (_e) {
-        throw new Error(`Failed to parse JSON response: ${responseBody.substring(0, 200)}`);
+        if (res.ok) throw new Error("Failed to parse Kick API JSON response");
+        data = null as T;
       }
 
       return { data, statusCode: res.status, responseHeaders };
@@ -470,14 +485,16 @@ class KickClient implements KickRequestor, IPlatformReader {
       headers["X-StreamFusion-Auth"] = "app";
     }
 
-    const maxRetries = 3;
+    const maxAttempts = 2;
     let attempt = 0;
     // Guard against double-refresh: ensureValidToken() above may have already
     // refreshed the token. We allow exactly one additional refresh on 401 in
     // case the token expired between the pre-flight check and the actual call.
     let retriedOn401 = false;
 
-    while (attempt <= maxRetries) {
+    while (attempt < maxAttempts) {
+      options.signal?.throwIfAborted();
+      attempt += 1;
       try {
         // Apply rate limiting to prevent 429 errors
         await kickRateLimiter.acquire();
@@ -487,27 +504,33 @@ class KickClient implements KickRequestor, IPlatformReader {
         const body = options.body ? String(options.body) : undefined;
 
         // Use Electron's net module for proper IPv6-only domain handling
-        const response = await this.electronRequest<T>(url, method, headers, body);
+        const response = await this.electronRequest<T>(
+          url,
+          method,
+          headers,
+          body,
+          options.signal ?? undefined
+        );
 
         if (response.statusCode !== 200) {
           // Handle rate limiting (429) with retry
           if (response.statusCode === 429) {
-            attempt++;
-            if (attempt > maxRetries) {
-              throw new Error(`Kick API error: 429 (Max retries exceeded)`);
+            if (attempt >= maxAttempts) {
+              throw new Error(`Kick API error: 429 (Max attempts exceeded)`);
             }
 
             // Calculate backoff: 5s, 10s, 20s (longer delays for rate limiting)
             // Use Retry-After header if available
             const retryHeader = response.responseHeaders["retry-after"];
-            const backoff = retryHeader
-              ? parseInt(retryHeader, 10) * 1000
-              : 5000 * 2 ** (attempt - 1); // 5s, 10s, 20s
+            const requestedBackoff = retryHeader ? parseInt(retryHeader, 10) * 1000 : 5000;
+            const backoff = Number.isFinite(requestedBackoff)
+              ? Math.min(Math.max(requestedBackoff, 0), 10_000)
+              : 5000;
 
             logger.warn("Kick:Client", "Kick API 429 Too Many Requests; retrying", {
               backoffMs: backoff,
               attempt,
-              maxRetries,
+              maxAttempts,
             });
             await sleep(backoff);
             continue;
@@ -515,9 +538,8 @@ class KickClient implements KickRequestor, IPlatformReader {
 
           // Handle transient server errors (500-504) with retry
           if (response.statusCode >= 500 && response.statusCode <= 504) {
-            attempt++;
-            if (attempt > maxRetries) {
-              throw new Error(`Kick API error: ${response.statusCode} (Max retries exceeded)`);
+            if (attempt >= maxAttempts) {
+              throw new Error(`Kick API error: ${response.statusCode} (Max attempts exceeded)`);
             }
 
             const backoff = 1000 * 2 ** (attempt - 1); // 1s, 2s, 4s
@@ -525,7 +547,7 @@ class KickClient implements KickRequestor, IPlatformReader {
               statusCode: response.statusCode,
               backoffMs: backoff,
               attempt,
-              maxRetries,
+              maxAttempts,
             });
             await sleep(backoff);
             continue;
@@ -571,16 +593,16 @@ class KickClient implements KickRequestor, IPlatformReader {
 
         this.finishAppTokenRecoveryProbe(isAppTokenRecoveryProbe, true);
         return response.data;
-      } catch (error: any) {
+      } catch (error: unknown) {
         this.finishAppTokenRecoveryProbe(isAppTokenRecoveryProbe, false);
         // If it's a 429 error we deliberately threw above, re-throw it
-        if (error.message?.includes("429")) {
+        if (error instanceof Error && error.message.includes("429")) {
           throw error;
         }
 
         // Feed net::ERR_* into the health tracker so concurrent callers learn
         // about the outage and bail out of their own retry loops.
-        const errMsg = error?.message || String(error);
+        const errMsg = error instanceof Error ? error.message : String(error);
         if (/net::ERR_/.test(errMsg)) {
           recordPlatformLocalNetError("kick");
         }
@@ -643,14 +665,30 @@ class KickClient implements KickRequestor, IPlatformReader {
     return UserEndpoints.getPublicChannelUserProfile(channelSlug, username);
   }
 
+  async getPublicChannelUserProfiles(
+    requests: Array<{ channelSlug: string; username: string }>
+  ): Promise<
+    Array<{
+      channelSlug: string;
+      profile: UserEndpoints.KickPublicChannelUserProfile | null;
+    }>
+  > {
+    return UserEndpoints.getPublicChannelUserProfiles(requests);
+  }
+
   // ========== Channel Endpoints ==========
 
   /**
    * Get channel info by slug
    * https://docs.kick.com/apis/channels - GET /public/v1/channels?slug=:slug
    */
-  async getChannel(slug: string): Promise<UnifiedChannel | null> {
-    return ChannelEndpoints.getChannel(this, slug);
+  async getChannel(
+    slug: string,
+    options?: { freshChatroomSettings?: boolean }
+  ): Promise<UnifiedChannel | null> {
+    return options
+      ? ChannelEndpoints.getChannel(this, slug, options)
+      : ChannelEndpoints.getChannel(this, slug);
   }
 
   async getOfficialChannelAccountStatus(slug: string) {
@@ -843,7 +881,7 @@ class KickClient implements KickRequestor, IPlatformReader {
   async search(
     query: string,
     options: { channelSeeds?: UnifiedChannel[]; signal?: AbortSignal } = {}
-  ): Promise<{ channels: any[]; categories: any[]; streams: any[]; videos: any[]; clips: any[] }> {
+  ): Promise<Awaited<ReturnType<typeof SearchEndpoints.search>>> {
     return SearchEndpoints.search(this, query, options);
   }
 
@@ -852,7 +890,10 @@ class KickClient implements KickRequestor, IPlatformReader {
   /**
    * Get videos by channel slug
    */
-  async getVideos(slug: string, options: PaginationOptions = {}): Promise<PaginatedResult<any>> {
+  async getVideos(
+    slug: string,
+    options: PaginationOptions = {}
+  ): Promise<Awaited<ReturnType<typeof VideoEndpoints.getVideosByChannelSlug>>> {
     return VideoEndpoints.getVideosByChannelSlug(slug, options);
   }
 
@@ -862,7 +903,10 @@ class KickClient implements KickRequestor, IPlatformReader {
   /**
    * Get clips for a channel
    */
-  async getClips(slug: string, options: PaginationOptions = {}): Promise<PaginatedResult<any>> {
+  async getClips(
+    slug: string,
+    options: PaginationOptions = {}
+  ): Promise<Awaited<ReturnType<typeof ClipEndpoints.getClipsByChannelSlug>>> {
     return ClipEndpoints.getClipsByChannelSlug(slug, options);
   }
 
@@ -870,7 +914,7 @@ class KickClient implements KickRequestor, IPlatformReader {
   async getClipsByCategory(
     categorySlug: string,
     options: PaginationOptions = {}
-  ): Promise<PaginatedResult<any>> {
+  ): Promise<Awaited<ReturnType<typeof ClipEndpoints.getClipsByCategorySlug>>> {
     return ClipEndpoints.getClipsByCategorySlug(categorySlug, options);
   }
 }

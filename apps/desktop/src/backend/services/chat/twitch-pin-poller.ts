@@ -408,7 +408,7 @@ function parsePinnedMessageContent(content: PinnedMessageContent): ContentFragme
 
 export function toNormalized(
   pin: PinnedChatMessageNode,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
   channelLogin?: string
 ): NormalizedPinnedMessage {
   const inner = pin.pinnedMessage;

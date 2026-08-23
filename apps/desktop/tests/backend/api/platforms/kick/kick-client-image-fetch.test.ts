@@ -38,6 +38,15 @@ describe("kickClient.fetchImageBytes — network-down gate", () => {
 
   // Guards: a transient first-attempt timeout must retry the same real Kick image URL before the protocol reports the thumbnail unavailable.
   let kickClient: typeof import("@/backend/api/platforms/kick/kick-client").kickClient;
+  type BinaryRequest = (url: string, headers: Record<string, string>, timeoutMs?: number) => Promise<{ buffer: Buffer; statusCode: number; contentType: string }>;
+
+  function installBinaryRequestMock() {
+    const mock = vi.fn<BinaryRequest>();
+    if (!Reflect.set(kickClient, "electronRequestBinary", mock)) {
+      throw new Error("Could not install the Kick binary-request test seam");
+    }
+    return mock;
+  }
 
   beforeEach(async () => {
     vi.resetModules();
@@ -59,10 +68,7 @@ describe("kickClient.fetchImageBytes — network-down gate", () => {
     // Spy on the private network boundary. The cast to `any` is the test
     // seam; production callers never reach this method directly.
     const fakeBytes = { buffer: Buffer.from([1, 2, 3, 4]), contentType: "image/webp" };
-    const spy = vi
-      // biome-ignore lint/suspicious/noExplicitAny: private-method test seam
-      .spyOn(kickClient as any, "electronRequestBinary")
-      .mockResolvedValue({ ...fakeBytes, statusCode: 200 });
+    const spy = installBinaryRequestMock().mockResolvedValue({ ...fakeBytes, statusCode: 200 });
 
     const result = await kickClient.fetchImageBytes("https://files.kick.com/images/test.webp");
 
@@ -82,9 +88,7 @@ describe("kickClient.fetchImageBytes — network-down gate", () => {
 
   it("retries a transient image timeout with a longer bounded timeout", async () => {
     const fakeBytes = { buffer: Buffer.from([5, 6, 7, 8]), contentType: "image/webp" };
-    const spy = vi
-      // biome-ignore lint/suspicious/noExplicitAny: private-method test seam
-      .spyOn(kickClient as any, "electronRequestBinary")
+    const spy = installBinaryRequestMock()
       .mockRejectedValueOnce(new Error("The operation was aborted due to timeout"))
       .mockResolvedValueOnce({ ...fakeBytes, statusCode: 200 });
 

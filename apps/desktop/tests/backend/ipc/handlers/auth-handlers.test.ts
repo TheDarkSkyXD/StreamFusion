@@ -1,14 +1,219 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  FOLLOWS_REFRESH_INTERVAL_MS,
   KICK_STARTUP_FOLLOW_REFRESH_GRACE_MS,
   performTwitchDeviceCodeLogin,
   persistInitialAuthToken,
+  reconcileKickMissingFollowRows,
   reportKickFollowSyncFailure,
   shouldDeferKickStartupFollowRefresh,
   syncKickFollowsAfterLogin,
   syncTwitchFollowsAfterLogin,
 } from "@/backend/ipc/handlers/auth-handlers";
+import { isKickAccountReconciliationActive } from "@/backend/services/kick-account-reconciliation-coordinator";
+
+it("polls connected account follows every minute in the background", () => {
+  expect(FOLLOWS_REFRESH_INTERVAL_MS).toBe(60_000);
+});
+
+// Guards: a Kick row missing from an additive DOM scrape is deleted only after its own identity-matched first-party relationship explicitly confirms not-followed.
+// Guards: browser-discovered recommendations never become account follows without an explicit viewer-specific followed relationship.
+describe("reconcileKickMissingFollowRows", () => {
+  it("drops a newly discovered channel unless its relationship confirms followed", async () => {
+    const fetched = [
+      {
+        platform: "kick" as const,
+        channelId: "99",
+        channelName: "paymoneywubby",
+        displayName: "PaymoneyWubby",
+        profileImage: "https://example/wubby.png",
+      },
+    ];
+
+    await expect(
+      reconcileKickMissingFollowRows(
+        fetched,
+        [],
+        { id: 123, username: "Viewer" },
+        vi.fn().mockResolvedValue("not-followed")
+      )
+    ).resolves.toEqual([]);
+  });
+
+  it("retains a newly discovered channel whose relationship confirms followed", async () => {
+    const followed = {
+      platform: "kick" as const,
+      channelId: "10",
+      channelName: "actualfollow",
+      displayName: "Actual Follow",
+      profileImage: "https://example/followed.png",
+    };
+
+    await expect(
+      reconcileKickMissingFollowRows(
+        [followed],
+        [],
+        { id: 123, username: "Viewer" },
+        vi.fn().mockResolvedValue("followed")
+      )
+    ).resolves.toEqual([followed]);
+  });
+
+  it("bounds relationship verification concurrency while processing large discoveries", async () => {
+    let active = 0;
+    let peak = 0;
+    const verify = vi.fn(async () => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await Promise.resolve();
+      active -= 1;
+      return "followed" as const;
+    });
+    const fetched = Array.from({ length: 12 }, (_, index) => ({
+      platform: "kick" as const,
+      channelId: String(index),
+      channelName: `channel-${index}`,
+      displayName: `Channel ${index}`,
+      profileImage: "",
+    }));
+
+    await reconcileKickMissingFollowRows(fetched, [], { id: 123, username: "Viewer" }, verify);
+
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThanOrEqual(4);
+  });
+
+  it("uses one batch relationship read instead of opening a verifier per candidate", async () => {
+    const verify = vi.fn();
+    const verifyBatch = vi.fn().mockResolvedValue(
+      new Map([
+        ["followed", "followed"],
+        ["recommended", "not-followed"],
+      ])
+    );
+    const candidates = ["followed", "recommended"].map((channelName, index) => ({
+      platform: "kick" as const,
+      channelId: String(index),
+      channelName,
+      displayName: channelName,
+      profileImage: "",
+    }));
+
+    await expect(
+      reconcileKickMissingFollowRows(
+        candidates,
+        [],
+        { id: 123, username: "viewer" },
+        verify,
+        verifyBatch
+      )
+    ).resolves.toEqual([expect.objectContaining({ channelName: "followed" })]);
+    expect(verifyBatch).toHaveBeenCalledWith("123", "viewer", ["followed", "recommended"]);
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it("drops only a missing row independently confirmed not-followed", async () => {
+    const verify = vi.fn().mockResolvedValue("not-followed");
+    const prior = [
+      {
+        id: "kick:old",
+        platform: "kick" as const,
+        channelId: "10",
+        channelName: "oldchannel",
+        displayName: "Old Channel",
+        profileImage: "https://example/old.png",
+        followedAt: "2026-01-01T00:00:00Z",
+        source: "kick" as const,
+      },
+    ];
+
+    await expect(
+      reconcileKickMissingFollowRows([], prior, { id: 123, username: "Viewer" }, verify)
+    ).resolves.toEqual([]);
+    expect(verify).toHaveBeenCalledWith("123", "Viewer", "oldchannel");
+  });
+
+  it.each(["followed", "unavailable"] as const)(
+    "retains a missing prior row when relationship verification is %s",
+    async (state) => {
+      const prior = [
+        {
+          id: "kick:old",
+          platform: "kick" as const,
+          channelId: "10",
+          channelName: "oldchannel",
+          displayName: "Old Channel",
+          profileImage: "https://example/old.png",
+          followedAt: "2026-01-01T00:00:00Z",
+          source: "kick" as const,
+        },
+      ];
+
+      await expect(
+        reconcileKickMissingFollowRows(
+          [],
+          prior,
+          { id: 123, username: "Viewer" },
+          vi.fn().mockResolvedValue(state)
+        )
+      ).resolves.toEqual([expect.objectContaining({ channelId: "10", channelName: "oldchannel" })]);
+    }
+  );
+
+  it("retains an existing row when its rediscovered relationship is unavailable", async () => {
+    const prior = {
+      id: "kick:known",
+      platform: "kick" as const,
+      channelId: "10",
+      channelName: "knownchannel",
+      displayName: "Known Channel",
+      profileImage: "https://example/known.png",
+      followedAt: "2026-01-01T00:00:00Z",
+      source: "kick" as const,
+    };
+    const rediscovered = {
+      platform: "kick" as const,
+      channelId: "10",
+      channelName: "knownchannel",
+      displayName: "Known Channel",
+      profileImage: "https://example/known.png",
+    };
+
+    await expect(
+      reconcileKickMissingFollowRows(
+        [rediscovered],
+        [prior],
+        { id: 123, username: "Viewer" },
+        vi.fn().mockResolvedValue("unavailable")
+      )
+    ).resolves.toEqual([expect.objectContaining({ channelId: "10", source: "kick" })]);
+  });
+
+  it("does not adopt an unavailable legacy account row during v3 migration", async () => {
+    const legacy = {
+      id: "kick:legacy-recommendation",
+      platform: "kick" as const,
+      channelId: "99",
+      channelName: "paymoneywubby",
+      displayName: "PaymoneyWubby",
+      profileImage: "",
+      followedAt: "2026-08-12T01:03:02.254Z",
+      source: "kick" as const,
+    };
+
+    await expect(
+      reconcileKickMissingFollowRows(
+        [],
+        [legacy],
+        { id: 123, username: "viewer" },
+        vi.fn().mockResolvedValue("unavailable"),
+        undefined,
+        { preserveUnavailablePrior: false }
+      )
+    ).resolves.toEqual([]);
+  });
+});
 
 describe("performTwitchDeviceCodeLogin", () => {
   it("runs the direct device flow and persists the authenticated Twitch account", async () => {
@@ -171,6 +376,32 @@ describe("syncTwitchFollowsAfterLogin", () => {
 // Guards: successful Kick re-auth reconciles authoritative follows before resuming remaining writes.
 
 describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
+  it("discards a completed sync when the authenticated Kick account changes mid-flight", async () => {
+    const upsertSyncedFollows = vi.fn();
+    const getKickUser = vi
+      .fn()
+      .mockReturnValueOnce({ id: 1, username: "viewer-a", slug: "viewer-a" })
+      .mockReturnValueOnce({ id: 2, username: "viewer-b", slug: "viewer-b" });
+
+    await expect(
+      syncKickFollowsAfterLogin(
+        vi.fn().mockResolvedValue({ status: "ok", channels: [], canPruneAbsent: true }),
+        { upsertSyncedFollows, getKickUser }
+      )
+    ).resolves.toEqual({ status: "error", reason: "kick-account-changed" });
+    expect(upsertSyncedFollows).not.toHaveBeenCalled();
+    expect(isKickAccountReconciliationActive()).toBe(false);
+  });
+
+  it("releases reconciliation coordination when the follow fetch throws", async () => {
+    await expect(
+      syncKickFollowsAfterLogin(vi.fn().mockRejectedValue(new Error("network failed")), {
+        upsertSyncedFollows: vi.fn(),
+      })
+    ).rejects.toThrow("network failed");
+    expect(isKickAccountReconciliationActive()).toBe(false);
+  });
+
   it("on getFollows error: returns the error AND does not touch storage", async () => {
     const upsertSyncedFollows = vi.fn();
     const getFollows = vi.fn().mockResolvedValue({
@@ -324,6 +555,98 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
       removedCount: 0,
     });
     expect(upsertSyncedFollows).toHaveBeenCalledWith("kick", [], { pruneAbsent: false });
+  });
+
+  it("recovers a confirmed external follow retained in the write journal", async () => {
+    const upsertSyncedFollows = vi
+      .fn()
+      .mockReturnValue({ accountCount: 1, pendingCount: 0, addedCount: 1, removedCount: 0 });
+    const storage = {
+      upsertSyncedFollows,
+      getLocalFollowsByPlatform: vi.fn(() => []),
+      getKickUser: vi.fn(() => ({
+        id: 123,
+        username: "Viewer",
+        slug: "viewer",
+        profilePic: "",
+        verified: false,
+      })),
+      areKickAccountFollowsVerified: vi.fn(() => true),
+      getPendingFollowWritesByPlatform: vi.fn(() => [
+        {
+          id: 1,
+          platform: "kick",
+          channelId: "456",
+          slug: "new-channel",
+          action: "follow" as const,
+          status: "failed" as const,
+          createdAt: "2026-08-20T00:00:00Z",
+          attemptedAt: "2026-08-20T00:01:00Z",
+          nextAttemptAt: "2026-08-20T00:02:00Z",
+          expiresAt: "2026-08-20T00:10:00Z",
+          attemptCount: 3,
+          lastError: "retry-expired",
+        },
+      ]),
+    };
+
+    const outcome = await syncKickFollowsAfterLogin(
+      vi.fn().mockResolvedValue({ status: "ok", canPruneAbsent: false, channels: [] }),
+      storage,
+      undefined,
+      vi.fn().mockResolvedValue("followed")
+    );
+
+    expect(outcome).toEqual({
+      status: "ok",
+      count: 1,
+      pendingCount: 0,
+      addedCount: 1,
+      removedCount: 0,
+    });
+    expect(upsertSyncedFollows).toHaveBeenCalledWith(
+      "kick",
+      [expect.objectContaining({ channelId: "456", channelName: "new-channel" })],
+      { pruneAbsent: true }
+    );
+  });
+
+  it("prunes a DOM-missing row only after its relationship independently confirms not-followed", async () => {
+    const prior = {
+      id: "kick:old",
+      platform: "kick" as const,
+      channelId: "10",
+      channelName: "oldchannel",
+      displayName: "Old Channel",
+      profileImage: "https://example/old.png",
+      followedAt: "2026-01-01T00:00:00Z",
+      source: "kick" as const,
+    };
+    const storage = {
+      getLocalFollowsByPlatform: vi.fn(() => [prior]),
+      getKickUser: vi.fn(() => ({
+        id: 123,
+        username: "Viewer",
+        slug: "viewer",
+        profilePic: "",
+        verified: false,
+      })),
+      upsertSyncedFollows: vi.fn(() => ({
+        accountCount: 0,
+        pendingCount: 0,
+        addedCount: 0,
+        removedCount: 1,
+      })),
+    };
+
+    await syncKickFollowsAfterLogin(
+      vi.fn().mockResolvedValue({ status: "ok", channels: [], canPruneAbsent: false }),
+      storage,
+      undefined,
+      vi.fn().mockResolvedValue("not-followed")
+    );
+
+    expect(storage.upsertSyncedFollows).toHaveBeenCalledWith("kick", [], { pruneAbsent: true });
   });
 
   it("surfaces pendingCount from the storage call so the AUTH_FOLLOWS_SYNCED IPC can drive the U8 banner", async () => {

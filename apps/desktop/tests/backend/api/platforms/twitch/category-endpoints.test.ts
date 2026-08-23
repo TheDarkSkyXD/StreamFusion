@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/backend/logging/logger", () => ({
   logger: {
@@ -140,12 +140,10 @@ describe("getCategoriesByIds", () => {
     expect(endpoint).toContain("id=c");
   });
 
-  it("returns empty array when data is missing from response", async () => {
+  it("rejects a response missing the Helix data array", async () => {
     const client = makeClient([{}]);
 
-    const result = await getCategoriesByIds(client, ["g1"]);
-
-    expect(result).toEqual([]);
+    await expect(getCategoriesByIds(client, ["g1"])).rejects.toThrow();
   });
 });
 

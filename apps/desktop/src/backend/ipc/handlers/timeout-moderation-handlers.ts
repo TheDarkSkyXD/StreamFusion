@@ -1,4 +1,6 @@
-import { app, type IpcMainInvokeEvent, ipcMain } from "electron";
+import { app, type IpcMainInvokeEvent } from "electron";
+
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { z } from "zod";
 
 import { createKickTimeoutAuthorityAdapter } from "@/backend/api/platforms/kick/kick-timeout-authority-adapter";

@@ -135,6 +135,7 @@ export const TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPE_GROUPS = [
 export const KICK_APP_SCOPES = [
   "user:read",
   "channel:read",
+  "chat:write",
   "moderation:chat_message:manage",
   "moderation:ban",
   "events:subscribe",
@@ -661,6 +662,9 @@ export interface StorageSchema {
 
   // Legacy Twitch client credential used only for account follow writes.
   twitchFollowWriteToken?: EncryptedToken;
+
+  // Kick website Sanctum bearer captured in main and encrypted for restart recovery.
+  kickWebBearer?: EncryptedToken;
 
   // App tokens (encrypted, for client credentials flow)
   appTokens?: {

@@ -21,6 +21,7 @@ import { clients } from "../../unified/registry";
 import * as StreamEndpoints from "./endpoints/stream-endpoints";
 import * as UserEndpoints from "./endpoints/user-endpoints";
 import * as GqlClient from "./twitch-gql-client";
+import { transformTwitchVideo } from "./twitch-transformers";
 import { TwitchRequestor } from "./twitch-requestor";
 import type {
   PaginatedResult,
@@ -380,7 +381,7 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
   async getVideosByUser(
     userId: string,
     options: PaginationOptions & { type?: "archive" | "highlight" | "upload" } = {}
-  ): Promise<PaginatedResult<any>> {
+  ): Promise<PaginatedResult<import("./twitch-types").TwitchApiVideo>> {
     const VideoEndpoints = await import("./endpoints/video-endpoints");
     return VideoEndpoints.getVideosByUser(this, userId, options);
   }
@@ -400,7 +401,8 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
             : String(error),
       });
       const VideoEndpoints = await import("./endpoints/video-endpoints");
-      return VideoEndpoints.getVideoById(this, videoId) as any;
+      const video = await VideoEndpoints.getVideoById(this, videoId);
+      return video ? transformTwitchVideo(video) : null;
     }
   }
 
@@ -441,7 +443,7 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
   async getClipsByBroadcaster(
     broadcasterId: string,
     options: PaginationOptions = {}
-  ): Promise<PaginatedResult<any>> {
+  ): Promise<PaginatedResult<import("./twitch-types").TwitchApiClip>> {
     const ClipEndpoints = await import("./endpoints/clip-endpoints");
     return ClipEndpoints.getClipsByBroadcaster(this, broadcasterId, options);
   }

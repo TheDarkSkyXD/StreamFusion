@@ -81,8 +81,56 @@ const CUE_AD_MEDIA_PLAYLIST = readFileSync(
 
 // ========== Helper to access private methods ==========
 
-function proxy(): any {
-  return twitchManifestProxy;
+type ManifestStreamInfo = {
+  channelName?: string;
+  encodingsM3u8?: string | null;
+  isInAdBreak?: boolean;
+  usherParams?: string;
+  resolutions: Map<string, { resolution: string; bandwidth: number; codecs: string; frameRate: number }>;
+  lastKnownBitrate?: number | null;
+  detectionScopes: Set<string>;
+  backupMastersPromise?: Promise<ManifestBackupMaster[]> | null;
+  candidateStates: Map<string, Record<string, unknown>>;
+  servedBackups: Map<string, Record<string, unknown>>;
+};
+type ManifestBackupMaster = { playerType: string; playlist: string };
+type ManifestResponse = { ok: boolean; text: () => Promise<string> };
+type ManifestProxyHarness = {
+  streamInfos: Omit<Map<string, ManifestStreamInfo>, "get"> & { get(key: string): ManifestStreamInfo };
+  isEnabled: boolean;
+  isRegistered: boolean;
+  stats: { manifestsProcessed: number; adsDetected: number; backupsFetched: number; segmentsReplaced: number };
+  clearAllStreamInfos(): void;
+  extractChannelName(url: string): string | null;
+  isMasterPlaylist(url: string): boolean;
+  parseAttributes(line: string): Record<string, string>;
+  processMasterPlaylist(url: string, text: string): string;
+  neutralizeTrackingUrls(text: string): string;
+  findStreamInfoByUrl(url: string): ManifestStreamInfo | null;
+  fetchWithRetry(url: string, options?: RequestInit, maxRetries?: number, baseDelay?: number): Promise<ManifestResponse>;
+  prepareCleanBackup(info: object, url: string, playlist: string | null, masters?: ManifestBackupMaster[]): Promise<{ playerType: string; rendition: { url: string; resolution: string }; playlist: string } | null>;
+  getDetectionScope(info: object, url: string): string;
+  tryGetBackupStream(info: object, url: string, playlist: string): Promise<string | null>;
+  buildUsherUrl(info: object, token: { signature: string; value: string }): string;
+  isRetryableError(error: unknown): boolean;
+  processManifest(url: string, text: string): Promise<string>;
+  processMediaPlaylist(url: string, text: string): Promise<string>;
+  loadBackupMasters(info: object): Promise<ManifestBackupMaster[]>;
+};
+
+function emptyStreamInfo(channelName = ""): ManifestStreamInfo {
+  return {
+    channelName,
+    resolutions: new Map(),
+    detectionScopes: new Set(),
+    candidateStates: new Map(),
+    servedBackups: new Map(),
+  };
+}
+
+function proxy(): ManifestProxyHarness {
+  const privateKey: string = "service";
+  return Reflect.get({ service: twitchManifestProxy }, privateKey);
 }
 
 // Guards: the main-process proxy uses shared structured detection for non-DATERANGE ad markers.
@@ -158,7 +206,7 @@ describe("TwitchManifestProxyService", () => {
 
   describe("clearStreamInfo", () => {
     it("removes stream info for a channel", () => {
-      proxy().streamInfos.set("testchannel", { channelName: "testchannel" });
+      proxy().streamInfos.set("testchannel", emptyStreamInfo("testchannel"));
       twitchManifestProxy.clearStreamInfo("TestChannel");
       expect(proxy().streamInfos.has("testchannel")).toBe(false);
     });
@@ -166,8 +214,8 @@ describe("TwitchManifestProxyService", () => {
 
   describe("clearAllStreamInfos", () => {
     it("clears all stream infos", () => {
-      proxy().streamInfos.set("ch1", {});
-      proxy().streamInfos.set("ch2", {});
+      proxy().streamInfos.set("ch1", emptyStreamInfo());
+      proxy().streamInfos.set("ch2", emptyStreamInfo());
       twitchManifestProxy.clearAllStreamInfos();
       expect(proxy().streamInfos.size).toBe(0);
     });
@@ -327,13 +375,15 @@ describe("TwitchManifestProxyService", () => {
 
   describe("findStreamInfoByUrl", () => {
     it("finds stream info by matching resolution URL", () => {
-      const resolutions = new Map();
+      const resolutions = new Map<string, { resolution: string; bandwidth: number; codecs: string; frameRate: number }>();
       resolutions.set("https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8", {
         resolution: "1920x1080",
         bandwidth: 6000000,
+        codecs: "avc1",
+        frameRate: 60,
       });
       proxy().streamInfos.set("test", {
-        channelName: "test",
+        ...emptyStreamInfo("test"),
         resolutions,
       });
 
@@ -341,6 +391,7 @@ describe("TwitchManifestProxyService", () => {
         "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8"
       );
       expect(result).toBeTruthy();
+      if (!result) throw new Error("Expected matching stream info");
       expect(result.channelName).toBe("test");
     });
 
@@ -690,14 +741,12 @@ https://backup/avc-42.ts`,
 
   describe("isRetryableError", () => {
     it("returns true for ECONNRESET", () => {
-      const err = new Error("fail");
-      (err as any).cause = { code: "ECONNRESET" };
+      const err = Object.assign(new Error("fail"), { cause: { code: "ECONNRESET" } });
       expect(proxy().isRetryableError(err)).toBe(true);
     });
 
     it("returns true for ETIMEDOUT", () => {
-      const err = new Error("fail");
-      (err as any).code = "ETIMEDOUT";
+      const err = Object.assign(new Error("fail"), { code: "ETIMEDOUT" });
       expect(proxy().isRetryableError(err)).toBe(true);
     });
 
@@ -820,9 +869,9 @@ https://backup.example/source.m3u8`;
     it("returns an unsafe-media hold without waiting for backup preparation", async () => {
       const masterUrl = "https://usher.ttvnw.net/api/channel/hls/nonblocking.m3u8";
       const mediaUrl = "https://video-weaver.lax01.hls.ttvnw.net/v1/playlist/source.m3u8";
-      let releaseBackupMasters!: (masters: unknown[]) => void;
+      let releaseBackupMasters!: (masters: ManifestBackupMaster[]) => void;
       let backupMastersReleased = false;
-      const backupGate = new Promise<unknown[]>((resolve) => {
+      const backupGate = new Promise<ManifestBackupMaster[]>((resolve) => {
         releaseBackupMasters = resolve;
       });
       const loadSpy = vi.spyOn(proxy(), "loadBackupMasters").mockReturnValue(backupGate);

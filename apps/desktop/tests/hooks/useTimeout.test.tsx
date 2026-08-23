@@ -17,10 +17,9 @@ describe("useTimeout", () => {
     const first = vi.fn();
     const second = vi.fn();
 
-    const { rerender } = renderHook(
-      ({ cb }) => useTimeout(cb, 1000),
-      { initialProps: { cb: first } },
-    );
+    const { rerender } = renderHook(({ cb }) => useTimeout(cb, 1000), {
+      initialProps: { cb: first },
+    });
 
     rerender({ cb: second });
     vi.advanceTimersByTime(1000);

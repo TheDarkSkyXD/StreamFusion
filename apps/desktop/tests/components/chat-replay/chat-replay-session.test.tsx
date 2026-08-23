@@ -23,7 +23,9 @@ describe("ChatReplaySession", () => {
   it("shows a labelled replay skeleton while capability data is loading", () => {
     const api = installElectronAPIMock();
     api.videos.cancelChatReplayWindow = vi.fn().mockResolvedValue({ cancelled: false });
-    api.videos.getChatReplayWindow = vi.fn(() => new Promise(() => undefined));
+    api.videos.getChatReplayWindow = vi.fn<typeof api.videos.getChatReplayWindow>(
+      () => new Promise(() => undefined)
+    );
     const playbackStore = createChatReplayPlaybackStore();
 
     render(<ChatReplaySession platform="twitch" videoId="video-1" playbackStore={playbackStore} />);

@@ -75,6 +75,9 @@ export function installCrashHooks(opts: InstallOpts): () => void {
       message: err.message,
       stack: err.stack,
     });
+    // Process state is undefined after an uncaught exception. Electron's
+    // synchronous exit avoids continuing with partially-mutated main state.
+    if (typeof opts.app.exit === "function") opts.app.exit(1);
   };
 
   const onUnhandled = (reason: unknown): void => {

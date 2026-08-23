@@ -12,12 +12,23 @@ vi.mock("@/backend/services/web-contents-ready", () => ({
   waitForWebContentsCondition: vi.fn(async () => true),
 }));
 
+const { mockInstallKickWebBearerCapture, mockPersistKickWebBearerCandidate } = vi.hoisted(() => ({
+  mockInstallKickWebBearerCapture: vi.fn(),
+  mockPersistKickWebBearerCandidate: vi.fn(),
+}));
+vi.mock("@/backend/api/platforms/kick/kick-web-credential", () => ({
+  installKickWebBearerCapture: mockInstallKickWebBearerCapture,
+  persistKickWebBearerCandidate: mockPersistKickWebBearerCandidate,
+}));
+
 const {
   mockLoadURL,
   mockClose,
   mockShow,
   mockIsDestroyed,
   mockExecuteJavaScript,
+  mockCookieSet,
+  mockCookieFlushStore,
   eventHandlers,
   webContentsEventHandlers,
 } = vi.hoisted(() => ({
@@ -25,7 +36,9 @@ const {
   mockClose: vi.fn(),
   mockShow: vi.fn(),
   mockIsDestroyed: vi.fn(() => false),
-  mockExecuteJavaScript: vi.fn(async () => false),
+  mockExecuteJavaScript: vi.fn<(script: string) => Promise<unknown>>(async () => false),
+  mockCookieSet: vi.fn(async () => undefined),
+  mockCookieFlushStore: vi.fn(async () => undefined),
   eventHandlers: new Map<string, Function>(),
   webContentsEventHandlers: new Map<string, Function>(),
 }));
@@ -59,6 +72,8 @@ vi.mock("electron", () => {
       defaultSession: {
         cookies: {
           get: vi.fn(async () => []),
+          set: mockCookieSet,
+          flushStore: mockCookieFlushStore,
         },
       },
     },
@@ -85,9 +100,17 @@ vi.mock("@/backend/auth/oauth-config", () => ({
   DEFAULT_CALLBACK_PORT: 8765,
 }));
 
-import { authWindowManager, HEADER_RENDERED_PREDICATE } from "@/backend/auth/auth-window";
+import {
+  authWindowManager,
+  HEADER_RENDERED_PREDICATE,
+  isAuthenticatedKickWebProbe,
+  isAuthenticatedKickWebUserPayload,
+  shouldConfirmKickWebAuthentication,
+} from "@/backend/auth/auth-window";
+import { persistKickWebSessionCookies } from "@/backend/api/platforms/kick/kick-web-session";
 
-beforeEach(() => {
+beforeEach(async () => {
+  const { session } = await import("electron");
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-06-01T00:00:00.000Z"));
   eventHandlers.clear();
@@ -97,8 +120,194 @@ beforeEach(() => {
   mockShow.mockReset();
   mockIsDestroyed.mockReturnValue(false);
   mockExecuteJavaScript.mockResolvedValue(false);
+  mockCookieSet.mockClear();
+  mockCookieFlushStore.mockClear();
+  mockInstallKickWebBearerCapture.mockClear();
+  mockPersistKickWebBearerCandidate.mockClear();
+  vi.mocked(session.defaultSession.cookies.get).mockReset().mockResolvedValue([]);
   authWindowManager.closeAllAuthWindows();
   vi.clearAllMocks();
+});
+
+describe("Kick auth window credential capture", () => {
+  it("arms encrypted bearer capture before the normal Kick sign-in flow", async () => {
+    const { session } = await import("electron");
+
+    authWindowManager.openAuthWindow("kick");
+
+    expect(mockInstallKickWebBearerCapture).toHaveBeenCalledWith(session.defaultSession);
+    expect(mockLoadURL).toHaveBeenCalledWith("https://kick.com/");
+  });
+});
+
+describe("persistKickWebSessionCookies", () => {
+  it("promotes only required Kick session cookies to the durable browser horizon", async () => {
+    const nowMs = Date.UTC(2026, 7, 12);
+    const durableExpirationDate = nowMs / 1000 + 400 * 24 * 60 * 60;
+    const reread = vi.fn(async () => [
+      {
+        name: "session_token",
+        session: false,
+        expirationDate: durableExpirationDate,
+        domain: ".kick.com",
+        path: "/",
+        secure: true,
+        httpOnly: true,
+        hostOnly: false,
+      },
+    ]);
+    const cookies = [
+      {
+        name: "session_token",
+        value: "PRIVATE_SESSION_VALUE",
+        domain: ".kick.com",
+        path: "/",
+        secure: true,
+        httpOnly: true,
+        sameSite: "lax" as const,
+        session: true,
+      },
+      {
+        name: "unrelated",
+        value: "PRIVATE_UNRELATED_VALUE",
+        domain: ".kick.com",
+        path: "/",
+        secure: true,
+        httpOnly: false,
+        session: true,
+      },
+    ];
+
+    await expect(
+      persistKickWebSessionCookies(
+        { get: reread, set: mockCookieSet, flushStore: mockCookieFlushStore } as never,
+        cookies as never,
+        nowMs
+      )
+    ).resolves.toBe(1);
+
+    expect(mockCookieSet).toHaveBeenCalledOnce();
+    expect(mockCookieSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://kick.com/",
+        name: "session_token",
+        secure: true,
+        httpOnly: true,
+        sameSite: "lax",
+        expirationDate: durableExpirationDate,
+      })
+    );
+    expect(mockCookieFlushStore).toHaveBeenCalledOnce();
+  });
+
+  it("extends Kick's shorter provider-managed cookie expiration", async () => {
+    const nowMs = Date.UTC(2026, 7, 12);
+    const providerExpirationDate = Date.UTC(2026, 11, 1) / 1000;
+    const durableExpirationDate = nowMs / 1000 + 400 * 24 * 60 * 60;
+    const cookie = {
+      name: "kick_session",
+      value: "PRIVATE_PROVIDER_SESSION",
+      domain: ".kick.com",
+      path: "/",
+      secure: true,
+      httpOnly: true,
+      sameSite: "lax" as const,
+      session: false,
+      expirationDate: providerExpirationDate,
+      hostOnly: false,
+    };
+    const reread = vi.fn(async () => [cookie]);
+
+    await persistKickWebSessionCookies(
+      { get: reread, set: mockCookieSet, flushStore: mockCookieFlushStore } as never,
+      [cookie] as never,
+      nowMs
+    );
+
+    expect(mockCookieSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "kick_session",
+        expirationDate: durableExpirationDate,
+      })
+    );
+  });
+
+  it("omits domain when rewriting a host-only cookie", async () => {
+    const cookie = {
+      name: "kick_session",
+      value: "PRIVATE_HOST_ONLY",
+      domain: "kick.com",
+      path: "/",
+      secure: true,
+      httpOnly: true,
+      sameSite: "lax" as const,
+      session: true,
+      hostOnly: true,
+    };
+    const reread = vi.fn(async () => [{ ...cookie, session: false, expirationDate: 123 }]);
+
+    await persistKickWebSessionCookies(
+      { get: reread, set: mockCookieSet, flushStore: mockCookieFlushStore } as never,
+      [cookie] as never
+    );
+
+    expect(mockCookieSet).toHaveBeenCalledWith(
+      expect.not.objectContaining({ domain: expect.anything() })
+    );
+  });
+});
+
+describe("Kick web authentication completion", () => {
+  it("does not confirm a cookie rotation while 2FA or login UI is still rendered", () => {
+    expect(shouldConfirmKickWebAuthentication(true, false)).toBe(false);
+  });
+
+  it("confirms only after rotation and a validated website identity", () => {
+    expect(shouldConfirmKickWebAuthentication(true, true)).toBe(true);
+    expect(shouldConfirmKickWebAuthentication(false, true)).toBe(false);
+  });
+});
+
+describe("isAuthenticatedKickWebUserPayload", () => {
+  it("rejects Kick's anonymous HTTP 200 payload", () => {
+    expect(isAuthenticatedKickWebUserPayload({})).toBe(false);
+  });
+
+  it("rejects status-shaped objects without a user identity", () => {
+    expect(isAuthenticatedKickWebUserPayload({ success: true, authenticated: true })).toBe(false);
+  });
+
+  it.each([
+    { id: 42, username: "viewer" },
+    { data: { id: "42", slug: "viewer" } },
+    { user: { id: 42, username: "viewer" } },
+    { data: { user: { id: "42", slug: "viewer" } } },
+  ])("accepts a recognized Kick user identity", (payload) => {
+    expect(isAuthenticatedKickWebUserPayload(payload)).toBe(true);
+  });
+});
+
+describe("isAuthenticatedKickWebProbe", () => {
+  it("rejects an empty API payload without Kick's explicit account identity", () => {
+    expect(isAuthenticatedKickWebProbe({ userPayload: {}, accountIdentityRendered: false })).toBe(
+      false
+    );
+  });
+
+  it("accepts Kick's explicit rendered account identity when its API payload is empty", () => {
+    expect(isAuthenticatedKickWebProbe({ userPayload: {}, accountIdentityRendered: true })).toBe(
+      true
+    );
+  });
+
+  it("accepts an identity-bearing API payload without a rendered account control", () => {
+    expect(
+      isAuthenticatedKickWebProbe({
+        userPayload: { id: 42, username: "viewer" },
+        accountIdentityRendered: false,
+      })
+    ).toBe(true);
+  });
 });
 
 afterEach(() => {
@@ -131,9 +340,7 @@ describe("openAuthWindow — Twitch", () => {
 
   it("loads the OAuth authorization URL directly for Twitch", () => {
     authWindowManager.openAuthWindow("twitch");
-    expect(mockLoadURL).toHaveBeenCalledWith(
-      expect.stringContaining("authorize?platform=twitch")
-    );
+    expect(mockLoadURL).toHaveBeenCalledWith(expect.stringContaining("authorize?platform=twitch"));
   });
 
   it("uses custom port when provided", () => {
@@ -142,10 +349,59 @@ describe("openAuthWindow — Twitch", () => {
   });
 });
 
+// Guards: an existing signed-in Kick account advances to OAuth even when Kick's user API returns an empty payload
 describe("openAuthWindow — Kick", () => {
   it("loads kick.com first (not the OAuth URL directly)", () => {
     authWindowManager.openAuthWindow("kick");
     expect(mockLoadURL).toHaveBeenCalledWith("https://kick.com/");
+  });
+
+  it("persists an already-authenticated Kick web session before OAuth handoff", async () => {
+    const { session } = await import("electron");
+    vi.mocked(session.defaultSession.cookies.get).mockResolvedValue([
+      {
+        name: "session_token",
+        value: "PRIVATE_EXISTING_SESSION",
+        domain: ".kick.com",
+        path: "/",
+        secure: true,
+        httpOnly: true,
+        sameSite: "lax",
+        session: true,
+      },
+    ] as never);
+    mockExecuteJavaScript.mockResolvedValue({
+      userPayload: {},
+      accountIdentityRendered: true,
+    });
+    authWindowManager.openAuthWindow("kick");
+
+    const loaded = webContentsEventHandlers.get("did-finish-load");
+    await loaded?.();
+
+    expect(mockCookieSet).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "session_token", expirationDate: expect.any(Number) })
+    );
+    expect(mockCookieFlushStore).toHaveBeenCalledOnce();
+    expect(mockPersistKickWebBearerCandidate).toHaveBeenCalledWith("PRIVATE_EXISTING_SESSION");
+    expect(mockLoadURL).toHaveBeenLastCalledWith(
+      expect.stringContaining("authorize?platform=kick")
+    );
+  });
+
+  it("targets Kick's explicit anonymous login control without clicking a generic nav icon", async () => {
+    mockExecuteJavaScript.mockResolvedValue({
+      userPayload: {},
+      accountIdentityRendered: false,
+    });
+    authWindowManager.openAuthWindow("kick");
+
+    const loaded = webContentsEventHandlers.get("did-finish-load");
+    await loaded?.();
+
+    const injectedScripts = mockExecuteJavaScript.mock.calls.map(([script]) => String(script));
+    expect(injectedScripts.some((script) => script.includes('[data-testid="login"]'))).toBe(true);
+    expect(injectedScripts.some((script) => script.includes(":last-child"))).toBe(false);
   });
 });
 

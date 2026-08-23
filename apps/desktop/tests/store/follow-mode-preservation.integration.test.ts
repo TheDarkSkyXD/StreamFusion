@@ -133,6 +133,7 @@ describe("Kick guest/account follow mode preservation", () => {
     api.auth.getStatus = vi.fn(async () => authStatus());
     api.auth.logoutKick = vi.fn(async () => {
       kickSignedIn = false;
+      return { success: true };
     });
 
     await useFollowStore.getState().hydrate();

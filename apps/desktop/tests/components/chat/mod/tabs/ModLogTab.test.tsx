@@ -3,12 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ModLogAction } from "@/backend/services/mod-log-writer";
 import type { ModLogEntry } from "@/shared/mod-log-types";
+import type { UseModLogOptions } from "@/hooks/useModLog";
 
 // Mock useModLog so the tab gets deterministic data without touching SQLite.
-let lastOpts: any = null;
+let lastOpts: UseModLogOptions | null = null;
 const useModLogMock = vi.fn();
 vi.mock("@/hooks/useModLog", () => ({
-  useModLog: (opts: any) => {
+  useModLog: (opts: UseModLogOptions) => {
     lastOpts = opts;
     return useModLogMock(opts);
   },
@@ -59,6 +60,10 @@ afterEach(() => {
 });
 
 describe("ModLogTab", () => {
+  const observedOpts = () => {
+    if (lastOpts === null) throw new Error("useModLog options were not observed");
+    return lastOpts;
+  };
   it("renders entries returned by useModLog on mount with default limit 50", () => {
     const entries = Array.from({ length: 50 }, (_, i) => makeEntry(i + 1));
     useModLogMock.mockReturnValue({
@@ -69,7 +74,7 @@ describe("ModLogTab", () => {
     });
     render(renderTab());
     expect(screen.getAllByTestId("modlog-row")).toHaveLength(50);
-    expect(lastOpts.limit).toBe(50);
+    expect(observedOpts().limit).toBe(50);
   });
 
   it("filters by action when the action select changes", () => {
@@ -83,7 +88,7 @@ describe("ModLogTab", () => {
     fireEvent.change(screen.getByTestId("modlog-action-filter"), {
       target: { value: "ban" },
     });
-    expect(lastOpts.action).toBe("ban");
+    expect(observedOpts().action).toBe("ban");
   });
 
   it("filters by moderator username when the input changes", () => {
@@ -97,7 +102,7 @@ describe("ModLogTab", () => {
     fireEvent.change(screen.getByTestId("modlog-moderator-filter"), {
       target: { value: "alice" },
     });
-    expect(lastOpts.moderatorUsername).toBe("alice");
+    expect(observedOpts().moderatorUsername).toBe("alice");
   });
 
   it("clicking a target username opens the user popout", () => {
@@ -132,6 +137,6 @@ describe("ModLogTab", () => {
     });
     render(renderTab());
     fireEvent.click(screen.getByTestId("modlog-load-more"));
-    expect(lastOpts.limit).toBe(100);
+    expect(observedOpts().limit).toBe(100);
   });
 });

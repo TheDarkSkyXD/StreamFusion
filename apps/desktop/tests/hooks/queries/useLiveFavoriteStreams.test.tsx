@@ -74,11 +74,17 @@ describe("useLiveFavoriteStreams", () => {
       channelName: "offline",
       isLive: false,
     });
-    api.streams.getByChannel = vi.fn(async ({ username }: { username: string }) => ({
-      data:
-        username === "first-live" ? firstLive : username === "last-live" ? lastLive : offlineStream,
-      error: null,
-    }));
+    api.streams.getByChannel = vi.fn<typeof api.streams.getByChannel>(
+      async ({ username }: { username: string }) => ({
+        success: true,
+        data:
+          username === "first-live"
+            ? firstLive
+            : username === "last-live"
+              ? lastLive
+              : offlineStream,
+      })
+    );
 
     const { result } = renderHook(() => useLiveFavoriteStreams(), { wrapper: makeWrapper() });
 
@@ -97,22 +103,24 @@ describe("useLiveFavoriteStreams", () => {
       channelId: "channel-last",
       channelName: "last-live",
     });
-    let resolveLast!: (value: { data: typeof lastLive; error: null }) => void;
-    const pendingLast = new Promise<{ data: typeof lastLive; error: null }>((resolve) => {
+    let resolveLast!: (value: { success: true; data: typeof lastLive }) => void;
+    const pendingLast = new Promise<{ success: true; data: typeof lastLive }>((resolve) => {
       resolveLast = resolve;
     });
-    api.streams.getByChannel = vi.fn(({ username }: { username: string }) => {
-      if (username === "first-live") return Promise.resolve({ data: firstLive, error: null });
-      if (username === "last-live") return pendingLast;
-      return Promise.resolve({ data: null, error: null });
-    });
+    api.streams.getByChannel = vi.fn<typeof api.streams.getByChannel>(
+      ({ username }: { username: string }) => {
+        if (username === "first-live") return Promise.resolve({ success: true, data: firstLive });
+        if (username === "last-live") return pendingLast;
+        return Promise.resolve({ success: true, data: null });
+      }
+    );
 
     const { result } = renderHook(() => useLiveFavoriteStreams(), { wrapper: makeWrapper() });
 
     await waitFor(() => expect(result.current.streams).toEqual([firstLive]));
     expect(result.current.isLoading).toBe(true);
 
-    await act(async () => resolveLast({ data: lastLive, error: null }));
+    await act(async () => resolveLast({ success: true, data: lastLive }));
     await waitFor(() => expect(result.current.isLoading).toBe(false));
   });
 
@@ -123,15 +131,17 @@ describe("useLiveFavoriteStreams", () => {
       channelId: "channel-offline",
       channelName: "offline",
     });
-    api.streams.getByChannel = vi.fn(async ({ username }: { username: string }) => {
-      if (username === "first-live") {
-        return { data: null, error: "first favorite failed" };
+    api.streams.getByChannel = vi.fn<typeof api.streams.getByChannel>(
+      async ({ username }: { username: string }) => {
+        if (username === "first-live") {
+          return { success: false, error: "first favorite failed" };
+        }
+        if (username === "last-live") {
+          return { success: false, error: "later favorite failed" };
+        }
+        return { success: true, data: middleLive };
       }
-      if (username === "last-live") {
-        return { data: null, error: "later favorite failed" };
-      }
-      return { data: middleLive, error: null };
-    });
+    );
 
     const { result } = renderHook(() => useLiveFavoriteStreams(), { wrapper: makeWrapper() });
 

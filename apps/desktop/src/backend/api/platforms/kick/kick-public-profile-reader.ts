@@ -14,8 +14,13 @@ const fallbackSnapshots = new Map<
   { expiresAt: number; promise: ReturnType<typeof kickClient.getPublicChannelUserProfile> }
 >();
 
-function readFallback(channelSlug: string, username: string) {
-  const key = `${channelSlug.toLowerCase()}:${username.toLowerCase()}`;
+function readFallback(
+  channelSlug: string,
+  username: string,
+  options: { fresh?: boolean; viewerId?: string } = {}
+) {
+  const key = `${options.viewerId ?? "public"}:${channelSlug.toLowerCase()}:${username.toLowerCase()}`;
+  if (options.fresh) fallbackSnapshots.delete(key);
   const cached = fallbackSnapshots.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.promise;
   const promise = kickClient.getPublicChannelUserProfile(channelSlug, username);
@@ -62,7 +67,7 @@ export async function getKickPublicIdentity(
   }
 
   try {
-    const fallback = await readFallback(channelSlug, username);
+    const fallback = await readFallback(channelSlug, username, { viewerId: userId });
     if (
       fallback &&
       fallback.userId === userId &&
@@ -104,7 +109,7 @@ export async function getKickFollowRelationship(
   channelSlug: string
 ): Promise<ProfileFieldState<string>> {
   try {
-    const fallback = await readFallback(channelSlug, username);
+    const fallback = await readFallback(channelSlug, username, { viewerId: userId });
     if (
       fallback?.userId === userId &&
       fallback.username.toLowerCase() === username.toLowerCase() &&
@@ -122,6 +127,75 @@ export async function getKickFollowRelationship(
     // A fallback failure cannot prove a negative relationship.
   }
   return { state: "unavailable", message: "Unavailable" };
+}
+
+export type KickAccountFollowState = "followed" | "not-followed" | "unavailable";
+
+export async function getKickAccountFollowState(
+  userId: string,
+  username: string,
+  channelSlug: string,
+  options: { fresh?: boolean } = {}
+): Promise<KickAccountFollowState> {
+  if (options.fresh) {
+    try {
+      return (
+        (await getKickAccountFollowStates(userId, username, [channelSlug])).get(
+          channelSlug.toLowerCase()
+        ) ?? "unavailable"
+      );
+    } catch {
+      return "unavailable";
+    }
+  }
+  try {
+    const fallback = await readFallback(channelSlug, username, { ...options, viewerId: userId });
+    if (
+      !fallback ||
+      fallback.userId !== userId ||
+      fallback.username.toLowerCase() !== username.toLowerCase()
+    ) {
+      return "unavailable";
+    }
+    if (fallback.followingSince === null) return "not-followed";
+    if (
+      fallback.followingSince &&
+      ISO_TIMESTAMP_PATTERN.test(fallback.followingSince) &&
+      Number.isFinite(Date.parse(fallback.followingSince))
+    ) {
+      return "followed";
+    }
+  } catch {
+    // A failed first-party read cannot prove an unfollow.
+  }
+  return "unavailable";
+}
+
+export async function getKickAccountFollowStates(
+  userId: string,
+  username: string,
+  channelSlugs: string[]
+): Promise<Map<string, KickAccountFollowState>> {
+  const states = new Map<string, KickAccountFollowState>();
+  for (const slug of channelSlugs) states.set(slug.toLowerCase(), "unavailable");
+  const profiles = await kickClient.getPublicChannelUserProfiles(
+    channelSlugs.map((channelSlug) => ({ channelSlug, username }))
+  );
+  for (const { channelSlug, profile } of profiles) {
+    let state: KickAccountFollowState = "unavailable";
+    if (profile?.userId === userId && profile.username.toLowerCase() === username.toLowerCase()) {
+      if (profile.followingSince === null) state = "not-followed";
+      else if (
+        profile.followingSince &&
+        ISO_TIMESTAMP_PATTERN.test(profile.followingSince) &&
+        Number.isFinite(Date.parse(profile.followingSince))
+      ) {
+        state = "followed";
+      }
+    }
+    states.set(channelSlug.toLowerCase(), state);
+  }
+  return states;
 }
 
 export async function resolveKickPublicChannel(

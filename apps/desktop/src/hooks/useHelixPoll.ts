@@ -84,6 +84,9 @@ export function useHelixPoll<T>(opts: UseHelixPollOptions<T>): UseHelixPollResul
     if (enabled && isVisible) {
       void run();
     }
+    // Visibility transitions fire explicitly in handleVisibility below; adding
+    // isVisible here would issue a duplicate request when returning foreground.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- enabled owns mount/enable transitions.
   }, [enabled]);
 
   // Track visibility state; fire immediately when returning to foreground.

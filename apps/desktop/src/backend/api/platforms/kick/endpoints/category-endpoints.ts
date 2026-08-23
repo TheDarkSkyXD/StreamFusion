@@ -105,7 +105,7 @@ async function getPublicCategoryList(signal?: AbortSignal): Promise<UnifiedCateg
       cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""
     }`;
 
-    let data: any = null;
+    let data: unknown = null;
     try {
       const res: Response = await net.fetch(url, {
         headers: {
@@ -125,8 +125,8 @@ async function getPublicCategoryList(signal?: AbortSignal): Promise<UnifiedCateg
       // Timeout or network error: stop paging and use whatever we have.
     }
 
-    if (!data) break;
-    const categories = data?.data?.categories || [];
+    if (!isPrivateCategoryPage(data)) break;
+    const categories = data.data.categories;
 
     for (const c of categories) {
       const viewers = Number(c?.viewers_count) || 0;
@@ -171,6 +171,27 @@ async function getPublicCategoryList(signal?: AbortSignal): Promise<UnifiedCateg
     _publicCategoryListCache.timestamp = now;
   }
   return list;
+}
+
+interface PrivateCategoryRecord {
+  viewers_count?: unknown;
+  image_url?: unknown;
+  tags?: unknown;
+  slug?: unknown;
+  name?: unknown;
+}
+
+function isPrivateCategoryPage(
+  value: unknown
+): value is { data: { categories: PrivateCategoryRecord[]; next_cursor?: string } } {
+  if (typeof value !== "object" || value === null || !("data" in value)) return false;
+  const data = value.data;
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "categories" in data &&
+    Array.isArray(data.categories)
+  );
 }
 
 async function getPublicTopCategories(): Promise<PaginatedResult<UnifiedCategory>> {

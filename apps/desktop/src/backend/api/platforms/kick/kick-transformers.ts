@@ -59,10 +59,10 @@ export function transformKickChannel(channel: KickApiChannel): UnifiedChannel {
     displayName: channel.slug,
     avatarUrl: "", // Not provided in official API
     bannerUrl:
-      (channel as any).offline_banner_image?.src ||
-      (channel as any).offline_banner_image?.url ||
-      (typeof (channel as any).offline_banner_image === "string"
-        ? (channel as any).offline_banner_image
+      (typeof channel.offline_banner_image === "object" ? channel.offline_banner_image.src : undefined) ||
+      (typeof channel.offline_banner_image === "object" ? channel.offline_banner_image.url : undefined) ||
+      (typeof channel.offline_banner_image === "string"
+        ? channel.offline_banner_image
         : undefined),
     bio: channel.channel_description || undefined,
     isLive: channel.stream?.is_live || false,
@@ -104,7 +104,7 @@ export function transformKickLivestream(livestream: KickApiLivestream): UnifiedS
     channelName: livestream.slug,
     channelDisplayName: livestream.broadcaster_display_name || livestream.slug,
     channelAvatar: livestream.profile_picture || "", // Use official API profile_picture
-    channelIsVerified: !!(livestream as any).verified || !!(livestream as any).is_verified,
+    channelIsVerified: Boolean(livestream.verified || livestream.is_verified),
     title: livestream.stream_title,
     viewerCount: livestream.viewer_count,
     thumbnailUrl: livestream.thumbnail || "",

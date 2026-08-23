@@ -23,6 +23,7 @@ import {
 } from "@/shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useNotificationStore } from "@/store/notification-store";
+import { installElectronAPIMock } from "../test-utils";
 
 let liveCallback: ((notification: LiveNotificationPayload) => void) | null = null;
 let openCallback: ((notification: LiveNotificationPayload) => void) | null = null;
@@ -53,17 +54,15 @@ beforeEach(() => {
       },
     },
   });
-  window.electronAPI = {
-    notifications: {
-      getCoverageStatus: vi.fn(
-        async (): Promise<LiveNotificationCoverageStatus> => ({
-          desktop: { supported: true, permission: "unknown" },
-          platforms: {
-            twitch: { status: "normal", issues: [] },
-            kick: { status: "normal", issues: [] },
-          },
-        })
-      ),
+  const api = installElectronAPIMock();
+  api.notifications = {
+      getCoverageStatus: vi.fn(async (): Promise<LiveNotificationCoverageStatus> => ({
+        desktop: { supported: true, permission: "unknown" },
+        platforms: {
+          twitch: { status: "normal", issues: [] },
+          kick: { status: "normal", issues: [] },
+        },
+      })),
       onLiveNotification: vi.fn((callback: (notification: LiveNotificationPayload) => void) => {
         liveCallback = callback;
         return vi.fn();
@@ -72,8 +71,7 @@ beforeEach(() => {
         openCallback = callback;
         return vi.fn();
       }),
-    },
-  } as unknown as typeof window.electronAPI;
+  };
 });
 
 afterEach(() => {
@@ -118,29 +116,29 @@ describe("useLiveNotificationBridge", () => {
       platform: "kick" as const,
       channelAvatar: "https://files.kick.com/images/user/101/profile_image/fullsize.webp",
     },
-  ])("renders the supplied $platform channel avatar in the toast", ({
-    platform,
-    channelAvatar,
-  }) => {
-    renderHook(() => useLiveNotificationBridge());
+  ])(
+    "renders the supplied $platform channel avatar in the toast",
+    ({ platform, channelAvatar }) => {
+      renderHook(() => useLiveNotificationBridge());
 
-    liveCallback?.({
-      ...liveNotification,
-      platform,
-      channelAvatar,
-    });
+      liveCallback?.({
+        ...liveNotification,
+        platform,
+        channelAvatar,
+      });
 
-    const toastContent = toastMock.mock.lastCall?.[0];
-    expect(isValidElement(toastContent)).toBe(true);
-    if (!isValidElement(toastContent)) return;
+      const toastContent = toastMock.mock.lastCall?.[0];
+      expect(isValidElement(toastContent)).toBe(true);
+      if (!isValidElement(toastContent)) return;
 
-    render(toastContent);
+      render(toastContent);
 
-    expect(screen.getByRole("img", { name: "Alpha" })).toHaveAttribute(
-      "src",
-      resolveProxiedImageSrc(channelAvatar)
-    );
-  });
+      expect(screen.getByRole("img", { name: "Alpha" })).toHaveAttribute(
+        "src",
+        resolveProxiedImageSrc(channelAvatar)
+      );
+    }
+  );
 
   it("keeps bell history but suppresses toast when toast alerts are disabled", () => {
     useAuthStore.setState({

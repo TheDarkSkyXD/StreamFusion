@@ -1,13 +1,15 @@
-import { ipcMain, type BrowserWindow } from "electron";
+import type { BrowserWindow } from "electron";
 
 import { getBugReportsDir } from "@/backend/logging/log-paths";
 import { logger } from "@/backend/logging/logger";
 import { registerLoadedFeatureCleanup } from "@/backend/startup/loaded-feature-cleanup";
+import { featureLoaderIpcContract } from "@/ipc-contracts/feature-loader-contracts";
 import { IPC_CHANNELS, IPC_FEATURES, type IpcFeature } from "@/shared/ipc-channels";
-import { isAllowedSender } from "./sender-origin";
+import type { TrustedIpcRegistry } from "./trusted-ipc-registry";
 
 interface FeatureContext {
   mainWindow: BrowserWindow;
+  registry: TrustedIpcRegistry;
 }
 
 type FeatureLoader = (context: FeatureContext) => Promise<void>;
@@ -42,6 +44,7 @@ const featureLoaders = {
       { powerMonitor },
       { registerAuthHandlers },
       { authWindowManager },
+      { kickAuthService },
       { twitchAuthService },
       { kickFollowWriteService },
       { attachKickFollowWriteService },
@@ -49,6 +52,7 @@ const featureLoaders = {
       import("electron"),
       import("./handlers/auth-handlers"),
       import("../auth/auth-window"),
+      import("../auth/kick-auth"),
       import("../auth/twitch-auth"),
       import("../services/kick-follow-write-service"),
       import("./handlers/storage-handlers"),
@@ -57,8 +61,10 @@ const featureLoaders = {
     attachKickFollowWriteService(kickFollowWriteService);
     kickFollowWriteService.resumePendingWrites();
     twitchAuthService.scheduleProactiveRefresh();
+    kickAuthService.scheduleProactiveRefresh();
     const handleSystemResume = (): void => {
       twitchAuthService.onSystemResume();
+      kickAuthService.onSystemResume();
     };
     powerMonitor.on("resume", handleSystemResume);
     registerLoadedFeatureCleanup("auth-windows", () => authWindowManager.closeAllAuthWindows());
@@ -221,7 +227,7 @@ const featureLoaders = {
   [IPC_FEATURES.USER_PROFILE]: async (context) => {
     await ensureConfiguredProxy(context);
     const { registerUserProfileHandlers } = await import("./handlers/user-profile-handlers");
-    registerUserProfileHandlers(context.mainWindow.webContents);
+    registerUserProfileHandlers(context.registry);
   },
   [IPC_FEATURES.VIDEOS]: async (context) => {
     const { mainWindow } = context;
@@ -248,10 +254,18 @@ export function loadIpcFeature(feature: IpcFeature, context: FeatureContext): Pr
   return pending;
 }
 
-export function registerLazyIpcFeatureLoader(mainWindow: BrowserWindow): void {
-  ipcMain.handle(IPC_CHANNELS.IPC_FEATURE_LOAD, async (event, requestedFeature: unknown) => {
-    if (!isAllowedSender(event)) throw new Error("IPC feature load rejected for untrusted sender");
-    if (!isIpcFeature(requestedFeature)) throw new Error("Unknown IPC feature");
-    await loadIpcFeature(requestedFeature, { mainWindow });
+export function registerLazyIpcFeatureLoader(
+  mainWindow: BrowserWindow,
+  registry: TrustedIpcRegistry
+): void {
+  registry.handle({
+    channel: IPC_CHANNELS.IPC_FEATURE_LOAD,
+    contract: featureLoaderIpcContract,
+    failureResponse: registry.internalError(),
+    createFailureResponse: () => registry.internalError(),
+    execute: async (_event, requestedFeature) => {
+      await loadIpcFeature(requestedFeature, { mainWindow, registry });
+      return { kind: "ok", value: null } as const;
+    },
   });
 }

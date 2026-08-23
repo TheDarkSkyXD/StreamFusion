@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@/backend/logging/logger";
 import type { Platform } from "../../../shared/auth-types";
@@ -11,6 +11,13 @@ import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { KickStreamResolver } from "../../api/platforms/kick/kick-stream-resolver";
 import { TwitchStreamResolver } from "../../api/platforms/twitch/twitch-stream-resolver";
 import type { UnifiedClip } from "../../api/unified/platform-types";
+
+type KickClip = Awaited<
+  ReturnType<typeof import("../../api/platforms/kick/endpoints/clip-endpoints").getClipsByChannelSlug>
+>["data"][number];
+type KickVideo = Awaited<
+  ReturnType<typeof import("../../api/platforms/kick/endpoints/video-endpoints").getVideosByChannelSlug>
+>["data"][number];
 
 // Instances
 const twitchResolver = new TwitchStreamResolver();
@@ -59,7 +66,7 @@ function formatSeconds(seconds: number): string {
  * Get the livestream ID from a Kick video object, trying multiple field names
  * This centralizes the logic for matching clips to VODs
  */
-function getKickVideoLivestreamId(video: any): string | undefined {
+function getKickVideoLivestreamId(video: KickVideo & { livestreamId?: string; live_stream_id?: string }): string | undefined {
   const id = video.livestreamId || video.live_stream_id || video.id;
   return id ? id.toString() : undefined;
 }
@@ -77,12 +84,14 @@ function parseClipCreatedAtMs(raw: unknown): number {
   return Number.isFinite(normalizedMs) ? normalizedMs : 0;
 }
 
-function getClipCreatedAtMs(clip: any): number {
+function getClipCreatedAtMs(clip: { createdAt?: string; created_at?: string; date?: string }): number {
   const raw = clip.createdAt || clip.created_at || clip.date;
   return parseClipCreatedAtMs(raw);
 }
 
-function sortClipsByCreatedAtDesc<T>(clips: T[]): T[] {
+function sortClipsByCreatedAtDesc<
+  T extends { createdAt?: string; created_at?: string; date?: string }
+>(clips: T[]): T[] {
   return [...clips].sort((a, b) => getClipCreatedAtMs(b) - getClipCreatedAtMs(a));
 }
 
@@ -401,7 +410,7 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
     } else if (params.platform === "kick") {
       const isViewSortWithTimeParams =
         params.sort === "views" && params.timeRange && params.timeRange !== "all";
-      let clipsData: any[] = [];
+      let clipsData: KickClip[] = [];
       let outputCursor: string | undefined;
 
       if (isViewSortWithTimeParams) {
@@ -532,7 +541,7 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
             initialCursor: params.cursor ?? null,
           });
 
-          const result = await fillPageWithCutoff<any>({
+          const result = await fillPageWithCutoff<KickClip>({
             cutoffMs,
             limit: uiLimit,
             initialCursor: params.cursor,
@@ -546,7 +555,7 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
               });
               return { items: response.data || [], cursor: response.cursor };
             },
-            getCreatedAtMs: (clip: any) => new Date(clip.created_at || clip.date).getTime(),
+            getCreatedAtMs: (clip) => new Date(clip.created_at || clip.date).getTime(),
           });
 
           logger.debug("IPC:Video", "Kick clip strict cutoff result", {
@@ -967,7 +976,7 @@ export function registerVideoHandlers(): void {
             logger.debug("IPC:Video", "Sorting Kick videos by views (client-side)", {
               count: videos.data.length,
             });
-            videos.data = [...videos.data].sort((a: any, b: any) => {
+            videos.data = [...videos.data].sort((a, b) => {
               const viewsA = parseInt(a.views, 10) || 0;
               const viewsB = parseInt(b.views, 10) || 0;
               return viewsB - viewsA; // Descending (most views first)

@@ -47,7 +47,14 @@ function category(id: string, name: string, platform: "twitch" | "kick"): Unifie
   return { id, name, platform, boxArtUrl: "" };
 }
 
-type Handler = (event: unknown, params?: unknown) => Promise<unknown>;
+type HandlerResult = {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+  cursor?: string;
+  providers?: Record<string, string>;
+};
+type Handler = (event: unknown, params?: unknown) => Promise<HandlerResult>;
 
 function deferred<T>(): {
   promise: Promise<T>;
@@ -65,10 +72,10 @@ function deferred<T>(): {
 }
 
 function getHandler(channel: string): Handler {
-  const calls = vi.mocked(ipcMain.handle).mock.calls as unknown as Array<[string, Handler]>;
+  const calls = vi.mocked(ipcMain.handle).mock.calls;
   const call = calls.find(([c]) => c === channel);
   if (!call) throw new Error(`handler not registered: ${channel}`);
-  return call[1];
+  return (event, params) => Promise.resolve(Reflect.apply(call[1], undefined, [event, params]));
 }
 
 beforeEach(() => {
@@ -196,11 +203,11 @@ describe("CATEGORIES_GET_TOP", () => {
   });
 
   it("returns only Twitch categories when platform=twitch", async () => {
-    const cats = [{ id: "1", name: "Just Chatting" }];
-    vi.mocked(twitchClient.getAllTopCategories).mockResolvedValue(cats as any);
+    const cats = [category("1", "Just Chatting", "twitch")];
+    vi.mocked(twitchClient.getAllTopCategories).mockResolvedValue(cats);
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
-    const result = (await handler({}, { platform: "twitch" })) as any;
+    const result = await handler({}, { platform: "twitch" });
 
     expect(result).toEqual({
       success: true,
@@ -212,11 +219,11 @@ describe("CATEGORIES_GET_TOP", () => {
   });
 
   it("returns only Kick categories when platform=kick", async () => {
-    const cats = [{ id: "2", name: "Slots" }];
-    vi.mocked(kickClient.getAllCategories).mockResolvedValue(cats as any);
+    const cats = [category("2", "Slots", "kick")];
+    vi.mocked(kickClient.getAllCategories).mockResolvedValue(cats);
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
-    const result = (await handler({}, { platform: "kick" })) as any;
+    const result = await handler({}, { platform: "kick" });
 
     expect(result).toEqual({
       success: true,
@@ -228,25 +235,25 @@ describe("CATEGORIES_GET_TOP", () => {
   });
 
   it("returns combined categories from both platforms when no platform specified", async () => {
-    const twitchCats = [{ id: "1", name: "Just Chatting" }];
-    const kickCats = [{ id: "2", name: "Slots" }];
-    vi.mocked(twitchClient.getAllTopCategories).mockResolvedValue(twitchCats as any);
-    vi.mocked(kickClient.getAllCategories).mockResolvedValue(kickCats as any);
+    const twitchCats = [category("1", "Just Chatting", "twitch")];
+    const kickCats = [category("2", "Slots", "kick")];
+    vi.mocked(twitchClient.getAllTopCategories).mockResolvedValue(twitchCats);
+    vi.mocked(kickClient.getAllCategories).mockResolvedValue(kickCats);
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
-    const result = (await handler({}, {})) as any;
+    const result = await handler({}, {});
 
     expect(result.success).toBe(true);
     expect(result.data).toEqual([...twitchCats, ...kickCats]);
   });
 
   it("returns partial results when one platform fails in combined mode", async () => {
-    const twitchCats = [{ id: "1", name: "Just Chatting" }];
-    vi.mocked(twitchClient.getAllTopCategories).mockResolvedValue(twitchCats as any);
+    const twitchCats = [category("1", "Just Chatting", "twitch")];
+    vi.mocked(twitchClient.getAllTopCategories).mockResolvedValue(twitchCats);
     vi.mocked(kickClient.getAllCategories).mockRejectedValue(new Error("Kick down"));
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
-    const result = (await handler({}, {})) as any;
+    const result = await handler({}, {});
 
     expect(result.success).toBe(true);
     expect(result.data).toEqual(twitchCats);
@@ -284,7 +291,7 @@ describe("CATEGORIES_GET_TOP", () => {
     vi.mocked(twitchClient.getAllTopCategories).mockRejectedValue(new Error("fail"));
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
-    const result = (await handler({}, { platform: "twitch" })) as any;
+    const result = await handler({}, { platform: "twitch" });
 
     expect(result.success).toBe(false);
   });
@@ -293,7 +300,7 @@ describe("CATEGORIES_GET_TOP", () => {
     vi.mocked(kickClient.getAllCategories).mockRejectedValue(new Error("fail"));
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
-    const result = (await handler({}, { platform: "kick" })) as any;
+    const result = await handler({}, { platform: "kick" });
 
     expect(result.success).toBe(false);
   });
@@ -301,21 +308,21 @@ describe("CATEGORIES_GET_TOP", () => {
 
 describe("CATEGORIES_GET_BY_ID", () => {
   it("fetches Twitch category by ID", async () => {
-    const cat = { id: "123", name: "Valorant" };
-    vi.mocked(twitchClient.getCategoryById).mockResolvedValue(cat as any);
+    const cat = category("123", "Valorant", "twitch");
+    vi.mocked(twitchClient.getCategoryById).mockResolvedValue(cat);
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_BY_ID);
-    const result = (await handler({}, { platform: "twitch", categoryId: "123" })) as any;
+    const result = await handler({}, { platform: "twitch", categoryId: "123" });
 
     expect(result).toEqual({ success: true, data: cat });
   });
 
   it("fetches Kick category by ID", async () => {
-    const cat = { id: "456", name: "Slots" };
-    vi.mocked(kickClient.getCategoryById).mockResolvedValue(cat as any);
+    const cat = category("456", "Slots", "kick");
+    vi.mocked(kickClient.getCategoryById).mockResolvedValue(cat);
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_BY_ID);
-    const result = (await handler({}, { platform: "kick", categoryId: "456" })) as any;
+    const result = await handler({}, { platform: "kick", categoryId: "456" });
 
     expect(result).toEqual({ success: true, data: cat });
   });
@@ -324,7 +331,7 @@ describe("CATEGORIES_GET_BY_ID", () => {
     vi.mocked(twitchClient.getCategoryById).mockRejectedValue(new Error("not found"));
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_BY_ID);
-    const result = (await handler({}, { platform: "twitch", categoryId: "999" })) as any;
+    const result = await handler({}, { platform: "twitch", categoryId: "999" });
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("not found");
@@ -333,10 +340,10 @@ describe("CATEGORIES_GET_BY_ID", () => {
 
 describe("CATEGORIES_GET_METADATA", () => {
   it("returns tags from GQL for Twitch", async () => {
-    vi.mocked(gqlGetGameMetadata).mockResolvedValue({ tags: ["FPS", "Competitive"] } as any);
+    vi.mocked(gqlGetGameMetadata).mockResolvedValue({ tags: ["FPS", "Competitive"] });
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_METADATA);
-    const result = (await handler({}, { platform: "twitch", categoryId: "123" })) as any;
+    const result = await handler({}, { platform: "twitch", categoryId: "123" });
 
     expect(result).toEqual({ success: true, data: { tags: ["FPS", "Competitive"] } });
     expect(gqlGetGameMetadata).toHaveBeenCalledWith("123");
@@ -346,14 +353,14 @@ describe("CATEGORIES_GET_METADATA", () => {
     vi.mocked(gqlGetGameMetadata).mockResolvedValue(null);
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_METADATA);
-    const result = (await handler({}, { platform: "twitch", categoryId: "123" })) as any;
+    const result = (await handler({}, { platform: "twitch", categoryId: "123" })) as unknown;
 
     expect(result).toEqual({ success: true, data: { tags: [] } });
   });
 
   it("returns undefined tags for Kick (no-op)", async () => {
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_METADATA);
-    const result = (await handler({}, { platform: "kick", categoryId: "456" })) as any;
+    const result = await handler({}, { platform: "kick", categoryId: "456" });
 
     expect(result).toEqual({ success: true, data: { tags: undefined } });
     expect(gqlGetGameMetadata).not.toHaveBeenCalled();
@@ -363,7 +370,7 @@ describe("CATEGORIES_GET_METADATA", () => {
     vi.mocked(gqlGetGameMetadata).mockRejectedValue(new Error("gql fail"));
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_METADATA);
-    const result = (await handler({}, { platform: "twitch", categoryId: "x" })) as any;
+    const result = await handler({}, { platform: "twitch", categoryId: "x" });
 
     expect(result.success).toBe(false);
   });
@@ -371,27 +378,28 @@ describe("CATEGORIES_GET_METADATA", () => {
 
 describe("CATEGORIES_SEARCH", () => {
   it("searches both platforms when no platform specified", async () => {
-    const twitchCats = [{ id: "1", name: "Fortnite" }];
-    const kickCats = [{ id: "2", name: "Fortnite Battle Royale" }];
+    const twitchCats = [category("1", "Fortnite", "twitch")];
+    const kickCats = [category("2", "Fortnite Battle Royale", "kick")];
     vi.mocked(twitchClient.searchCategories).mockResolvedValue({
       data: twitchCats,
       cursor: "tc",
-    } as any);
-    vi.mocked(kickClient.searchCategories).mockResolvedValue({ data: kickCats } as any);
+    });
+    vi.mocked(kickClient.searchCategories).mockResolvedValue({ data: kickCats });
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_SEARCH);
-    const result = (await handler({}, { query: "fortnite" })) as any;
+    const result = await handler({}, { query: "fortnite" });
 
     expect(result.success).toBe(true);
     expect(result.data).toEqual([...twitchCats, ...kickCats]);
     expect(result.cursor).toBe("tc");
+    expect(result.providers).toEqual({ twitch: "complete", kick: "complete" });
   });
 
   it("skips Kick on subsequent pages (params.after is set)", async () => {
     vi.mocked(twitchClient.searchCategories).mockResolvedValue({
       data: [],
       cursor: undefined,
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_SEARCH);
     await handler({}, { query: "test", after: "cursor-page-2" });
@@ -401,24 +409,27 @@ describe("CATEGORIES_SEARCH", () => {
 
   it("returns single platform result when platform specified", async () => {
     vi.mocked(kickClient.searchCategories).mockResolvedValue({
-      data: [{ id: "1", name: "Slots" }],
-    } as any);
+      data: [category("1", "Slots", "kick")],
+    });
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_SEARCH);
-    const result = (await handler({}, { query: "slots", platform: "kick" })) as any;
+    const result = await handler({}, { query: "slots", platform: "kick" });
 
     expect(result.success).toBe(true);
-    expect(result.data).toEqual([{ id: "1", name: "Slots" }]);
+    expect(result.data).toEqual([category("1", "Slots", "kick")]);
     expect(twitchClient.searchCategories).not.toHaveBeenCalled();
   });
 
-  it("gracefully handles Twitch search failure (inner catch), returning empty data", async () => {
+  it("returns a failed provider result instead of disguising a Twitch failure as empty data", async () => {
     vi.mocked(twitchClient.searchCategories).mockRejectedValue(new Error("twitch down"));
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_SEARCH);
-    const result = (await handler({}, { query: "x", platform: "twitch" })) as any;
+    const result = await handler({}, { query: "x", platform: "twitch" });
 
-    expect(result.success).toBe(true);
-    expect(result.data).toEqual([]);
+    expect(result).toEqual({
+      success: false,
+      error: "Couldn’t search categories on the selected platforms",
+      providers: { twitch: "failed" },
+    });
   });
 });

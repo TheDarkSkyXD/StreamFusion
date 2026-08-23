@@ -31,6 +31,7 @@ vi.mock("@/backend/api/platforms/kick/endpoints/video-endpoints", () => ({
 const mockLoadURL = vi.fn();
 const mockExecuteJavaScript = vi.fn();
 const mockDestroy = vi.fn();
+const mockSessionFetch = vi.fn();
 let mockTitle = "";
 
 vi.mock("electron", () => ({
@@ -44,6 +45,9 @@ vi.mock("electron", () => ({
         return mockTitle;
       },
     };
+  },
+  session: {
+    fromPartition: vi.fn(() => ({ fetch: mockSessionFetch })),
   },
 }));
 
@@ -77,6 +81,7 @@ describe("channel-endpoints", () => {
     mockLoadURL.mockReset().mockResolvedValue(undefined);
     mockExecuteJavaScript.mockReset();
     mockDestroy.mockReset();
+    mockSessionFetch.mockReset().mockRejectedValue(new Error("direct session blocked"));
     mockTitle = "";
     vi.mocked(getPlatformHealth).mockReturnValue("healthy");
     vi.mocked(isPlatformHealthy).mockReturnValue(true);
@@ -196,28 +201,99 @@ describe("channel-endpoints", () => {
       expect(order).toEqual(["active", "high", "normal-1", "normal-2"]);
       expect(maxActiveSlots).toBe(1);
     });
+
+    it("removes timed-out work from the queue so it cannot acquire the slot later", async () => {
+      vi.useFakeTimers();
+      const releaseActive = await acquireBrowserWindowSlot();
+      const abandoned = acquireBrowserWindowSlot("high", 1_000);
+      const assertion = expect(abandoned).rejects.toThrow("browser-window-slot-timeout");
+
+      await vi.advanceTimersByTimeAsync(1_000);
+      await assertion;
+      releaseActive();
+
+      const releaseNext = await acquireBrowserWindowSlot();
+      releaseNext();
+      vi.useRealTimers();
+    });
   });
 
   describe("getPublicChannel", () => {
-    it("does not let a queued background lookup for the same slug starve an interactive lookup", async () => {
-      const releaseBlocker = await acquireBrowserWindowSlot();
+    // Guards: public channel hydration uses the persistent Electron session directly before constructing a renderer fallback.
+    it("hydrates a channel directly without constructing a hidden window", async () => {
+      mockSessionFetch
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              id: 12345,
+              user_id: 67890,
+              slug: "direct-streamer",
+              user: { username: "DirectStreamer" },
+              chatroom: { id: 999 },
+              livestream: null,
+            }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          )
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              id: 999,
+              slow_mode: { enabled: false, message_interval: 0 },
+              followers_mode: { enabled: false, min_duration: 0 },
+              subscribers_mode: { enabled: false },
+              emotes_mode: { enabled: false },
+              account_age: { enabled: false, min_duration: 0 },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          )
+        );
+
+      const result = await getPublicChannel("direct-streamer");
+
+      expect(result).toMatchObject({ kickChannelId: "12345", chatroomId: 999 });
+      expect(mockSessionFetch).toHaveBeenCalledTimes(2);
+      expect(mockLoadURL).not.toHaveBeenCalled();
+    });
+
+    it("falls back to the channel page when direct JSON has no channel identity", async () => {
+      mockSessionFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      );
       mockExecuteJavaScript
         .mockResolvedValueOnce(
           JSON.stringify({
-            user_id: 42,
-            slug: "active-route",
-            user: { username: "Active Route" },
-            chatroom: { id: 765 },
+            id: 12345,
+            user_id: 67890,
+            slug: "fallback-streamer",
+            user: { username: "FallbackStreamer" },
+            chatroom: { id: 999 },
+            livestream: null,
           })
         )
-        .mockResolvedValueOnce(
-          JSON.stringify({
-            user_id: 42,
-            slug: "active-route",
-            user: { username: "Active Route" },
-            chatroom: { id: 765 },
-          })
-        );
+        .mockResolvedValueOnce(null);
+
+      const result = await getPublicChannel("fallback-streamer");
+
+      expect(result).toMatchObject({ kickChannelId: "12345", chatroomId: 999 });
+      expect(mockLoadURL).toHaveBeenCalledWith(
+        "https://kick.com/api/v2/channels/fallback-streamer"
+      );
+    });
+
+    it("does not let a queued background lookup for the same slug starve an interactive lookup", async () => {
+      const releaseBlocker = await acquireBrowserWindowSlot();
+      mockExecuteJavaScript.mockResolvedValue(
+        JSON.stringify({
+          user_id: 42,
+          slug: "active-route",
+          user: { username: "Active Route" },
+          chatroom: { id: 765 },
+        })
+      );
 
       const background = getPublicChannel("active-route");
       const interactive = getPublicChannel("active-route", { priority: "high" });
@@ -284,6 +360,48 @@ describe("channel-endpoints", () => {
       expect(result!.isLive).toBe(false);
       expect(result!.followerCount).toBe(5000);
       expect(result!.chatroomId).toBe(999);
+    });
+
+    it("uses authoritative chatroom settings when legacy channel flags are stale", async () => {
+      mockExecuteJavaScript
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            id: 12345,
+            user_id: 67890,
+            slug: "stale-modes",
+            user: { username: "StaleModes" },
+            livestream: null,
+            chatroom: {
+              id: 999,
+              followers_mode: true,
+              subscribers_mode: false,
+              emotes_mode: true,
+              slow_mode: false,
+            },
+          })
+        )
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            id: 999,
+            slow_mode: { enabled: false, message_interval: 0 },
+            followers_mode: { enabled: false, min_duration: 0 },
+            subscribers_mode: { enabled: false },
+            emotes_mode: { enabled: false },
+            account_age: { enabled: false, min_duration: 0 },
+          })
+        );
+
+      const result = await getPublicChannel("stale-modes");
+
+      expect(result?.chatroomSettings).toEqual({
+        slowMode: { enabled: false, interval: 0 },
+        followersMode: { enabled: false, minDuration: 0 },
+        subscribersMode: { enabled: false },
+        emoteOnlyMode: { enabled: false },
+        accountAge: { enabled: false, minDuration: 0 },
+      });
+      expect(mockExecuteJavaScript).toHaveBeenCalledTimes(2);
+      expect(mockExecuteJavaScript.mock.calls[1]?.[0]).toContain("/chatroom");
     });
 
     it("reads avatar from profile_picture when the v2 user block uses official-style naming", async () => {
@@ -883,9 +1001,8 @@ describe("channel-endpoints", () => {
     it("recovers healthy channels from a failed broadcaster batch with bounded smaller requests", async () => {
       const ids = Array.from({ length: 25 }, (_, index) => index + 1);
       const requestMock = vi.fn(async (path: string) => {
-        const requestedIds = Array.from(
-          path.matchAll(/[?&]broadcaster_user_id=(\d+)/g),
-          (match) => Number(match[1])
+        const requestedIds = Array.from(path.matchAll(/[?&]broadcaster_user_id=(\d+)/g), (match) =>
+          Number(match[1])
         );
 
         if (requestedIds.length === 20 || requestedIds.includes(11)) {
@@ -1334,6 +1451,56 @@ describe("channel-endpoints", () => {
       const second = await getChannel(createMockClient(), "casesensitive");
 
       expect(second).not.toBeNull();
+    });
+
+    it("bypasses cached channel metadata when fresh chatroom settings are requested", async () => {
+      mockExecuteJavaScript
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            id: 1,
+            user_id: 2,
+            slug: "fresh-settings",
+            user: { username: "fresh-settings" },
+            chatroom: { id: 3 },
+          })
+        )
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            slow_mode: { enabled: false, message_interval: 0 },
+            followers_mode: { enabled: false, min_duration: 0 },
+            subscribers_mode: { enabled: false },
+            emotes_mode: { enabled: true },
+            account_age: { enabled: false, min_duration: 0 },
+          })
+        )
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            id: 1,
+            user_id: 2,
+            slug: "fresh-settings",
+            user: { username: "fresh-settings" },
+            chatroom: { id: 3 },
+          })
+        )
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            slow_mode: { enabled: false, message_interval: 0 },
+            followers_mode: { enabled: false, min_duration: 0 },
+            subscribers_mode: { enabled: false },
+            emotes_mode: { enabled: false },
+            account_age: { enabled: false, min_duration: 0 },
+          })
+        );
+
+      const client = createMockClient();
+      const first = await getChannel(client, "fresh-settings");
+      const refreshed = await getChannel(client, "fresh-settings", {
+        freshChatroomSettings: true,
+      });
+
+      expect(first?.chatroomSettings?.emoteOnlyMode.enabled).toBe(true);
+      expect(refreshed?.chatroomSettings?.emoteOnlyMode.enabled).toBe(false);
+      expect(mockExecuteJavaScript).toHaveBeenCalledTimes(4);
     });
   });
 });

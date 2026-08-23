@@ -16,7 +16,6 @@
  */
 
 import {
-  type BrowsePageAllDirectoriesData,
   type ChannelRootAboutPanelData,
   type ChannelShellData,
   type ClipsCardsUserData,
@@ -36,6 +35,7 @@ import {
   getQueryVideoMetadata,
   getRawQuery,
   type PlaybackAccessTokenData,
+  type QueryResponseMap,
   type SearchResultsPageSearchResultsData,
   type StreamMetadataData,
   type UseLiveData,
@@ -103,13 +103,60 @@ const MAX_QUERIES_PER_REQUEST = 35;
 // fetch rejection — useInfiniteQuery surfaces it as query error.
 const GQL_REQUEST_TIMEOUT_MS = 10_000;
 
+type GqlQuery = { operationName: keyof QueryResponseMap } | { __response: unknown };
+
+type GqlResponses<TQueries extends readonly GqlQuery[]> = {
+  [TIndex in keyof TQueries]: TQueries[TIndex] extends {
+    operationName: infer TOperationName;
+  }
+    ? TOperationName extends keyof QueryResponseMap
+      ? QueryResponseMap[TOperationName]
+      : never
+    : TQueries[TIndex] extends { __response: infer TResponse }
+      ? TResponse
+      : never;
+};
+
+type ValidGqlEnvelope =
+  | { data: object | null; errors?: GqlError[] }
+  | { data?: never; errors: [GqlError, ...GqlError[]] };
+
+function isGqlError(value: unknown): value is GqlError {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "message" in value &&
+    typeof value.message === "string"
+  );
+}
+
+function hasValidGqlEnvelope(value: unknown): value is ValidGqlEnvelope {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const hasData = "data" in value;
+  if (
+    hasData &&
+    value.data !== null &&
+    (typeof value.data !== "object" || Array.isArray(value.data))
+  ) {
+    return false;
+  }
+  if (!("errors" in value) || value.errors === undefined) return hasData;
+  return (
+    Array.isArray(value.errors) &&
+    value.errors.length > 0 &&
+    value.errors.every(isGqlError)
+  );
+}
+
 /**
  * Custom gqlRequest that works within Electron (uses global fetch).
  * The `twitch-gql-queries` package's built-in gqlRequest uses browser fetch,
  * which works fine in Electron's main process since Electron exposes fetch.
  */
-async function gqlRequest<T extends readonly any[]>(queries: [...T]): Promise<any[]> {
-  if (queries.length === 0) return [];
+async function gqlRequest<const TQueries extends readonly GqlQuery[]>(
+  queries: [...TQueries]
+): Promise<GqlResponses<TQueries>> {
+  if (queries.length === 0) return [] as unknown as GqlResponses<TQueries>;
   if (queries.length > MAX_QUERIES_PER_REQUEST) {
     throw new Error(`Too many queries. Max: ${MAX_QUERIES_PER_REQUEST}`);
   }
@@ -137,9 +184,16 @@ async function gqlRequest<T extends readonly any[]>(queries: [...T]): Promise<an
     throw new Error(`GQL request failed: ${res.status} ${res.statusText}`);
   }
 
-  const result = await res.json();
+  const result: unknown = await res.json();
+  if (
+    !Array.isArray(result) ||
+    result.length !== queries.length ||
+    !result.every(hasValidGqlEnvelope)
+  ) {
+    throw new Error("GQL response did not match the requested query tuple");
+  }
   recordPlatformSuccess("twitch");
-  return result;
+  return result as GqlResponses<TQueries>;
 }
 
 /**
@@ -178,9 +232,12 @@ async function sendPersistedQuery<T>(
     throw new Error(`GQL request failed: ${res.status} ${res.statusText}`);
   }
 
-  const result = await res.json();
+  const result: unknown = await res.json();
+  if (!hasValidGqlEnvelope(result)) {
+    throw new Error("GQL response has an invalid error envelope");
+  }
   recordPlatformSuccess("twitch");
-  return result;
+  return result as { data?: T; errors?: GqlError[] };
 }
 
 /**
@@ -496,7 +553,7 @@ async function gqlGetStreamsByGameIdRaw(
     };
   };
 
-  const [response] = (await gqlRequest([
+  const [response] = await gqlRequest([
     getRawQuery<StreamsByGameIdData>({
       query,
       variables: {
@@ -510,13 +567,13 @@ async function gqlGetStreamsByGameIdRaw(
         },
       },
     }),
-  ])) as [{ data: StreamsByGameIdData; errors?: any[] }];
+  ]);
 
   if (response.errors) {
     // "failed integrity check" is Twitch's expected response to paginated
     // anonymous raw queries (after: <cursor>). Treat it as end-of-stream
     // instead of logging noise.
-    const messages = response.errors.map((e: any) => e.message).join(", ");
+    const messages = response.errors.map((error) => error.message).join(", ");
     if (!messages.includes("failed integrity check")) {
       logger.warn("Twitch:GQL", "GetStreamsByGameId query errors", { messages });
     }
@@ -606,7 +663,7 @@ export async function gqlGetTopStreams(
   };
 
   // Twitch GQL caps `streams(first:)` at 30. Clamp to avoid argument-range errors.
-  const [response] = (await gqlRequest([
+  const [response] = await gqlRequest([
     getRawQuery<TopStreamsData>({
       query,
       variables: {
@@ -614,11 +671,11 @@ export async function gqlGetTopStreams(
         cursor: options.after || null,
       },
     }),
-  ])) as [{ data: TopStreamsData; errors?: any[] }];
+  ]);
 
   if (response.errors) {
     logger.warn("Twitch:GQL", "TopStreams query errors", {
-      messages: response.errors.map((e: any) => e.message).join(", "),
+      messages: response.errors.map((error) => error.message).join(", "),
     });
   }
 
@@ -842,7 +899,7 @@ export async function gqlGetTopCategories(
 ): Promise<PaginatedResult<UnifiedCategory>> {
   const limit = options.first || 20;
 
-  const [response] = (await gqlRequest([
+  const [response] = await gqlRequest([
     getQueryBowsePageAllDirectories({
       limit,
       options: {
@@ -850,7 +907,7 @@ export async function gqlGetTopCategories(
       },
       cursor: options.after || null,
     }),
-  ])) as [{ data: BrowsePageAllDirectoriesData }];
+  ]);
 
   const dirs = response.data?.directoriesWithTags;
   if (!dirs) return { data: [] };
@@ -935,13 +992,11 @@ export async function gqlGetCategoryById(id: string): Promise<UnifiedCategory | 
     };
   };
 
-  const [response] = (await gqlRequest([
-    getRawQuery<GameByIdData>({ query, variables: { id } }),
-  ])) as [{ data: GameByIdData; errors?: any[] }];
+  const [response] = await gqlRequest([getRawQuery<GameByIdData>({ query, variables: { id } })]);
 
   if (response.errors) {
     logger.warn("Twitch:GQL", "GetGameById query errors", {
-      messages: response.errors.map((e: any) => e.message).join(", "),
+      messages: response.errors.map((error) => error.message).join(", "),
     });
   }
 
@@ -1127,9 +1182,9 @@ async function gqlSearchChannelsLoadMore(
     };
   };
 
-  const [response] = (await gqlRequest([
+  const [response] = await gqlRequest([
     getRawQuery<LoadMoreData>({ query: rawQuery, variables: { query, platform: "web" } }),
-  ])) as [{ data?: LoadMoreData; errors?: GqlError[] }];
+  ]);
 
   const channelsConn = response.data?.searchFor?.channels;
   const channels = (channelsConn?.edges ?? []).map((edge) => transformSearchChannel(edge.item));
@@ -1169,12 +1224,12 @@ export async function gqlSearchChannels(
     // persisted op resolves server-side by SHA and ignores variables not
     // declared in the persisted document, so injecting them is a no-op
     // that also disables type-checking on the call.
-    const [response] = (await gqlRequest([
+    const [response] = await gqlRequest([
       getQuerySearchResultsPageSearchResults({
         query,
         includeIsDJ: false,
       }),
-    ])) as [{ data?: SearchResultsPageSearchResultsData; errors?: GqlError[] }];
+    ]);
 
     const searchData = response.data?.searchFor;
     channels = (searchData?.channels?.edges ?? []).map((edge) => transformSearchChannel(edge.item));
@@ -1376,10 +1431,7 @@ export async function gqlGetChannelByLogin(login: string): Promise<UnifiedChanne
       skipSchedule: true,
       includeIsDJ: false,
     }),
-  ])) as [
-    { data: ChannelShellData },
-    { data: ChannelRootAboutPanelData },
-  ];
+  ])) as [{ data: ChannelShellData }, { data: ChannelRootAboutPanelData }];
 
   const userOrErr = shellResp.data?.userOrError;
   if (!userOrErr || "userDoesNotExist" in userOrErr) return null;

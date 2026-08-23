@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const scriptsDirectory = path.dirname(fileURLToPath(import.meta.url));
 const desktopDirectory = path.resolve(scriptsDirectory, "..");
-const componentsDirectory = path.join(desktopDirectory, "src", "components");
+const sourceDirectory = path.join(desktopDirectory, "src");
 const exclusionsPath = path.join(scriptsDirectory, "storybook-exclusions.json");
 
 const STORY_SUFFIX = ".stories.tsx";
@@ -54,14 +54,14 @@ async function readExclusions() {
   return manifest.exclusions;
 }
 
-function validateExclusions(exclusions, componentPaths, coveredPaths) {
+function validateExclusions(exclusions, sourcePaths, coveredPaths) {
   const errors = [];
 
   for (const [componentPath, reason] of Object.entries(exclusions)) {
     const normalizedPath = normalizeRelativePath(componentPath);
 
     if (componentPath !== normalizedPath || path.isAbsolute(componentPath)) {
-      errors.push(`${componentPath}: use a normalized path relative to src/components.`);
+      errors.push(`${componentPath}: use a normalized path relative to src.`);
       continue;
     }
 
@@ -71,12 +71,12 @@ function validateExclusions(exclusions, componentPaths, coveredPaths) {
       !componentPath.endsWith(COMPONENT_SUFFIX) ||
       componentPath.endsWith(STORY_SUFFIX)
     ) {
-      errors.push(`${componentPath}: is not a valid component path.`);
+      errors.push(`${componentPath}: is not a valid React module path.`);
       continue;
     }
 
-    if (!componentPaths.has(componentPath)) {
-      errors.push(`${componentPath}: does not match a current component file.`);
+    if (!sourcePaths.has(componentPath)) {
+      errors.push(`${componentPath}: does not match a current React module file.`);
       continue;
     }
 
@@ -98,43 +98,54 @@ function validateExclusions(exclusions, componentPaths, coveredPaths) {
   return errors;
 }
 
-function toExpectedStoryPath(componentPath) {
-  return `${componentPath.slice(0, -COMPONENT_SUFFIX.length)}${STORY_SUFFIX}`;
+function toExpectedStoryPath(sourcePath) {
+  return `${sourcePath.slice(0, -COMPONENT_SUFFIX.length)}${STORY_SUFFIX}`;
 }
 
-async function buildCoverageReport() {
+/**
+ * @param {{
+ *   rootDirectory?: string;
+ *   collectFiles?: typeof collectTsxFiles;
+ *   exclusions?: Record<string, string>;
+ *   loadExclusions?: typeof readExclusions;
+ * }} [options]
+ */
+export async function buildCoverageReport({
+  rootDirectory = sourceDirectory,
+  collectFiles = collectTsxFiles,
+  exclusions: providedExclusions,
+  loadExclusions = readExclusions,
+} = {}) {
   const [files, exclusions] = await Promise.all([
-    collectTsxFiles(componentsDirectory),
-    readExclusions(),
+    collectFiles(rootDirectory),
+    providedExclusions === undefined ? loadExclusions() : providedExclusions,
   ]);
   const relativeFiles = files.map((filePath) =>
-    normalizeRelativePath(path.relative(componentsDirectory, filePath))
+    normalizeRelativePath(path.relative(rootDirectory, filePath))
   );
-  const componentPaths = new Set(
-    relativeFiles.filter((filePath) => !filePath.endsWith(STORY_SUFFIX))
-  );
+  const sourcePaths = new Set(relativeFiles.filter((filePath) => !filePath.endsWith(STORY_SUFFIX)));
   const storyPaths = relativeFiles.filter((filePath) => filePath.endsWith(STORY_SUFFIX));
   const coveredPaths = new Set(
     storyPaths
       .map((storyPath) => `${storyPath.slice(0, -STORY_SUFFIX.length)}${COMPONENT_SUFFIX}`)
-      .filter((componentPath) => componentPaths.has(componentPath))
+      .filter((sourcePath) => sourcePaths.has(sourcePath))
   );
   const orphanStories = storyPaths
     .filter((storyPath) => {
-      const componentPath = `${storyPath.slice(0, -STORY_SUFFIX.length)}${COMPONENT_SUFFIX}`;
-      return !componentPaths.has(componentPath);
+      const sourcePath = `${storyPath.slice(0, -STORY_SUFFIX.length)}${COMPONENT_SUFFIX}`;
+      return !sourcePaths.has(sourcePath);
     })
     .sort();
   const excludedPaths = new Set(Object.keys(exclusions));
-  const missingComponents = [...componentPaths]
+  const missingComponents = [...sourcePaths]
     .filter(
       (componentPath) => !coveredPaths.has(componentPath) && !excludedPaths.has(componentPath)
     )
     .sort();
-  const exclusionErrors = validateExclusions(exclusions, componentPaths, coveredPaths);
+  const exclusionErrors = validateExclusions(exclusions, sourcePaths, coveredPaths);
 
   return {
-    componentCount: componentPaths.size,
+    componentCount: sourcePaths.size,
     storyCount: storyPaths.length,
     coveredCount: coveredPaths.size,
     excludedCount: excludedPaths.size,
@@ -149,8 +160,8 @@ async function buildCoverageReport() {
 }
 
 function printHumanReport(report) {
-  console.log("Storybook component coverage");
-  console.log(`  Component files:    ${report.componentCount}`);
+  console.log("Storybook React module coverage");
+  console.log(`  React module files: ${report.componentCount}`);
   console.log(`  Story files:        ${report.storyCount}`);
   console.log(`  Covered components: ${report.coveredCount}`);
   console.log(`  Explicit exclusions: ${report.excludedCount}`);
@@ -187,20 +198,22 @@ function printHumanReport(report) {
   }
 }
 
-try {
-  const report = await buildCoverageReport();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    const report = await buildCoverageReport();
 
-  if (process.argv.includes("--json")) {
-    console.log(JSON.stringify(report, null, 2));
-  } else {
-    printHumanReport(report);
-  }
+    if (process.argv.includes("--json")) {
+      console.log(JSON.stringify(report, null, 2));
+    } else {
+      printHumanReport(report);
+    }
 
-  if (!report.passed) {
+    if (!report.passed) {
+      process.exitCode = 1;
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Storybook coverage check could not run: ${message}`);
     process.exitCode = 1;
   }
-} catch (error) {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`Storybook coverage check could not run: ${message}`);
-  process.exitCode = 1;
 }

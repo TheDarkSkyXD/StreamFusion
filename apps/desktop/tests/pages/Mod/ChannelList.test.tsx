@@ -19,9 +19,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/store/auth-store", () => {
-  const useStore = (selector: (s: typeof mocks.authState) => unknown) => selector(mocks.authState);
-  // biome-ignore lint/suspicious/noExplicitAny: store shim.
-  (useStore as any).getState = () => mocks.authState;
+  const useStore = Object.assign(
+    (selector: (s: typeof mocks.authState) => unknown) => selector(mocks.authState),
+    { getState: () => mocks.authState }
+  );
   return { useAuthStore: useStore };
 });
 

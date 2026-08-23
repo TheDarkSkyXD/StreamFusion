@@ -48,10 +48,10 @@ const apiClient = ky.create({
  * Usage: const data = await api.get('https://...').json<MyType>();
  */
 export const api = {
-  get: (url: string, options?: any) => apiClient.get(url, options),
-  post: (url: string, options?: any) => apiClient.post(url, options),
-  put: (url: string, options?: any) => apiClient.put(url, options),
-  delete: (url: string, options?: any) => apiClient.delete(url, options),
-  patch: (url: string, options?: any) => apiClient.patch(url, options),
+  get: (...args: Parameters<typeof apiClient.get>) => apiClient.get(...args),
+  post: (...args: Parameters<typeof apiClient.post>) => apiClient.post(...args),
+  put: (...args: Parameters<typeof apiClient.put>) => apiClient.put(...args),
+  delete: (...args: Parameters<typeof apiClient.delete>) => apiClient.delete(...args),
+  patch: (...args: Parameters<typeof apiClient.patch>) => apiClient.patch(...args),
   raw: apiClient, // Access raw Ky instance if needed
 };

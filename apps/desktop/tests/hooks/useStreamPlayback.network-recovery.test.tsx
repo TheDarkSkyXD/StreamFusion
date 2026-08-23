@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { installElectronAPIMock } from "../test-utils";
 
 vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -12,18 +13,15 @@ vi.mock("@/hooks/useNetworkStatus", () => ({
 
 beforeEach(() => {
   recoveryCount = 0;
-  (window as unknown as { electronAPI: unknown }).electronAPI = {
-    streams: {
-      getPlaybackUrl: vi.fn().mockResolvedValue({
+  const api = installElectronAPIMock();
+  api.streams.getPlaybackUrl = vi.fn().mockResolvedValue({
         success: false,
         error: "network unavailable",
-      }),
-    },
-  };
+      });
 });
 
 afterEach(() => {
-  delete (window as unknown as { electronAPI?: unknown }).electronAPI;
+  Reflect.deleteProperty(window, "electronAPI");
 });
 
 // Guards: confirmed network recovery retries a failed playback once after resetting its cap.

@@ -4,6 +4,7 @@ import { IPC_CHANNELS } from "@/shared/ipc-channels";
 
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
+  BrowserWindow: class {},
 }));
 
 vi.mock("@/backend/services/network-adblock-service", () => ({
@@ -47,24 +48,29 @@ vi.mock("@/backend/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
 }));
 
-import { ipcMain } from "electron";
+import { BrowserWindow, ipcMain } from "electron";
 
 import { registerAdBlockHandlers } from "@/backend/ipc/handlers/adblock-handlers";
 import { cosmeticInjectionService } from "@/backend/services/cosmetic-injection-service";
 import { networkAdBlockService } from "@/backend/services/network-adblock-service";
 import { twitchManifestProxy } from "@/backend/services/twitch-manifest-proxy";
 import { vaftPatternService } from "@/backend/services/vaft-pattern-service";
+import type { AdPatternUpdate } from "@/shared/adblock-types";
 
 type Handler = (event: unknown, args?: unknown) => Promise<unknown>;
 
 function getHandler(channel: string): Handler {
-  const calls = vi.mocked(ipcMain.handle).mock.calls as unknown as Array<[string, Handler]>;
+  const calls = vi.mocked(ipcMain.handle).mock.calls;
   const call = calls.find(([c]) => c === channel);
   if (!call) throw new Error(`handler not registered: ${channel}`);
-  return call[1];
+  return (event, args) => Promise.resolve(Reflect.apply(call[1], undefined, [event, args]));
 }
 
-const fakeMainWindow = {} as any;
+function patterns(version: number): AdPatternUpdate {
+  return { version, adSignifiers: ["stitched"], dateRangePatterns: ["ad"], backupPlayerTypes: ["embed"], fallbackPlayerType: "embed", clientId: "client", lastUpdated: "2026-01-01T00:00:00.000Z", source: "test" };
+}
+
+const fakeMainWindow = new BrowserWindow();
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -175,8 +181,8 @@ describe("ADBLOCK_TOGGLE", () => {
 
 describe("ADBLOCK_GET_STATS", () => {
   it("returns stats from networkAdBlockService", async () => {
-    const stats = { totalBlocked: 42, totalRequests: 100 };
-    vi.mocked(networkAdBlockService.getStats).mockReturnValue(stats as any);
+    const stats = { totalBlocked: 42, byCategory: { ads: 42 }, recentBlocked: [] };
+    vi.mocked(networkAdBlockService.getStats).mockReturnValue(stats);
 
     const handler = getHandler(IPC_CHANNELS.ADBLOCK_GET_STATS);
     const result = await handler({});
@@ -188,8 +194,8 @@ describe("ADBLOCK_GET_STATS", () => {
 describe("ADBLOCK_PROXY_STATUS", () => {
   it("returns proxy active state and stats", async () => {
     vi.mocked(twitchManifestProxy.isActive).mockReturnValue(true);
-    const proxyStats = { requestCount: 10 };
-    vi.mocked(twitchManifestProxy.getStats).mockReturnValue(proxyStats as any);
+    const proxyStats = { manifestsProcessed: 10, adsDetected: 2, backupsFetched: 1, segmentsReplaced: 3 };
+    vi.mocked(twitchManifestProxy.getStats).mockReturnValue(proxyStats);
 
     const handler = getHandler(IPC_CHANNELS.ADBLOCK_PROXY_STATUS);
     const result = await handler({});
@@ -202,7 +208,7 @@ describe("ADBLOCK_INJECT_COSMETICS", () => {
   it("injects into the event sender's webContents", async () => {
     const injectionResult = { injected: true, rulesCount: 5 };
     vi.mocked(cosmeticInjectionService.injectIntoWebContents).mockResolvedValue(
-      injectionResult as any
+      injectionResult
     );
     vi.mocked(cosmeticInjectionService.isActive).mockReturnValue(true);
 
@@ -240,31 +246,31 @@ describe("ADBLOCK_PROXY_CLEAR_ALL", () => {
 
 describe("ADBLOCK_PATTERNS_GET", () => {
   it("returns current patterns", async () => {
-    const patterns = { ad: /test/, preroll: /pre/ };
-    vi.mocked(vaftPatternService.getCurrentPatterns).mockReturnValue(patterns as any);
+    const currentPatterns = patterns(1);
+    vi.mocked(vaftPatternService.getCurrentPatterns).mockReturnValue(currentPatterns);
 
     const handler = getHandler(IPC_CHANNELS.ADBLOCK_PATTERNS_GET);
     const result = await handler({});
 
-    expect(result).toBe(patterns);
+    expect(result).toBe(currentPatterns);
   });
 });
 
 describe("ADBLOCK_PATTERNS_REFRESH", () => {
   it("returns success with refreshed patterns", async () => {
-    const patterns = { ad: /new/ };
-    vi.mocked(vaftPatternService.forceRefresh).mockResolvedValue(patterns as any);
+    const refreshedPatterns = patterns(2);
+    vi.mocked(vaftPatternService.forceRefresh).mockResolvedValue(refreshedPatterns);
 
     const handler = getHandler(IPC_CHANNELS.ADBLOCK_PATTERNS_REFRESH);
     const result = await handler({});
 
-    expect(result).toEqual({ success: true, patterns });
+    expect(result).toEqual({ success: true, patterns: refreshedPatterns });
   });
 
   it("returns success=false with fallback patterns when refresh returns null", async () => {
-    const fallback = { ad: /old/ };
+    const fallback = patterns(1);
     vi.mocked(vaftPatternService.forceRefresh).mockResolvedValue(null);
-    vi.mocked(vaftPatternService.getCurrentPatterns).mockReturnValue(fallback as any);
+    vi.mocked(vaftPatternService.getCurrentPatterns).mockReturnValue(fallback);
 
     const handler = getHandler(IPC_CHANNELS.ADBLOCK_PATTERNS_REFRESH);
     const result = await handler({});
@@ -275,8 +281,8 @@ describe("ADBLOCK_PATTERNS_REFRESH", () => {
 
 describe("ADBLOCK_PATTERNS_GET_STATS", () => {
   it("returns pattern stats", async () => {
-    const stats = { lastUpdated: 12345 };
-    vi.mocked(vaftPatternService.getStats).mockReturnValue(stats as any);
+    const stats = { version: 1, dateRangePatternCount: 1, signifierCount: 1, backupPlayerTypeCount: 1, lastChecked: "2026-01-01T00:00:00.000Z", autoUpdateEnabled: true };
+    vi.mocked(vaftPatternService.getStats).mockReturnValue(stats);
 
     const handler = getHandler(IPC_CHANNELS.ADBLOCK_PATTERNS_GET_STATS);
     const result = await handler({});

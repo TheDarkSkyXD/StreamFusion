@@ -9,6 +9,7 @@ vi.mock("@/renderer/logging/logger", () => ({
 
 import { useModLog } from "@/hooks/useModLog";
 import type { ModerationHistoryResult, ModLogEntry } from "@/shared/mod-log-types";
+import { installElectronAPIMock } from "../test-utils";
 
 function makeWrapper() {
   const client = new QueryClient({
@@ -58,15 +59,12 @@ function options() {
 }
 
 beforeEach(() => {
-  (window as unknown as { electronAPI: unknown }).electronAPI = {
-    modLog: {
-      query: vi.fn().mockResolvedValue(readyResult),
-    },
-  };
+  const api = installElectronAPIMock();
+  api.modLog.query = vi.fn().mockResolvedValue(readyResult);
 });
 
 afterEach(() => {
-  delete (window as unknown as { electronAPI?: unknown }).electronAPI;
+  Reflect.deleteProperty(window, "electronAPI");
 });
 
 describe("useModLog", () => {

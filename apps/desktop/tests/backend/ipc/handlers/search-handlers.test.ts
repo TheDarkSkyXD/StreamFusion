@@ -61,12 +61,21 @@ import type { DiscoveryResult } from "@/shared/discovery-types";
 
 type SearchAllResult = DiscoveryResult<SearchResultCollection>;
 type SearchAllSuccess = Extract<SearchAllResult, { success: true }>;
+type SearchChannelsResult = {
+  success: boolean;
+  data: UnifiedChannel[];
+  cursor?: string;
+  error?: string;
+};
+type SearchAllObservedResult = {
+  success: boolean;
+  data: SearchResultCollection;
+  providers?: Record<string, string>;
+  error?: string;
+};
+type SearchCancelResult = { success: true; cancelled: boolean };
 
-function channel(
-  id: string,
-  platform: "twitch" | "kick",
-  username: string
-): UnifiedChannel {
+function channel(id: string, platform: "twitch" | "kick", username: string): UnifiedChannel {
   return {
     id,
     platform,
@@ -79,13 +88,43 @@ function channel(
   };
 }
 
-type Handler = (event: unknown, params: unknown) => Promise<unknown>;
+function category(id: string, platform: "twitch" | "kick", name: string) {
+  return { id, platform, name, boxArtUrl: "" };
+}
 
-function getHandler(channel: string): Handler {
-  const calls = vi.mocked(ipcMain.handle).mock.calls as unknown as Array<[string, Handler]>;
+function twitchUser(login: string) {
+  return {
+    id: `user-${login}`,
+    login,
+    displayName: login,
+    profileImageUrl: "",
+    createdAt: "2020-01-01T00:00:00.000Z",
+    broadcasterType: "" as const,
+  };
+}
+
+function legacyKickChannel(
+  id: string,
+  username: string,
+  flags: { is_banned?: boolean; is_deleted?: boolean } = {}
+): UnifiedChannel & { is_banned?: boolean; is_deleted?: boolean } {
+  return { ...channel(id, "kick", username), displayName: username, ...flags };
+}
+
+function emptySearchCollection(): SearchResultCollection {
+  return { channels: [], categories: [], streams: [], videos: [], clips: [] };
+}
+
+type Handler<T> = (event: unknown, params: unknown) => Promise<T>;
+
+function getHandler(channel: typeof IPC_CHANNELS.SEARCH_CHANNELS): Handler<SearchChannelsResult>;
+function getHandler(channel: typeof IPC_CHANNELS.SEARCH_ALL): Handler<SearchAllObservedResult>;
+function getHandler(channel: typeof IPC_CHANNELS.SEARCH_CANCEL): Handler<SearchCancelResult>;
+function getHandler<T>(channel: string): Handler<T> {
+  const calls = vi.mocked(ipcMain.handle).mock.calls;
   const call = calls.find(([c]) => c === channel);
   if (!call) throw new Error(`handler not registered: ${channel}`);
-  return call[1];
+  return (event, params) => Promise.resolve(Reflect.apply(call[1], undefined, [event, params]));
 }
 
 function deferred<T>() {
@@ -107,7 +146,6 @@ beforeEach(() => {
   vi.mocked(kickClient.getOfficialChannelAccountStatus).mockResolvedValue("unavailable");
   registerSearchHandlers();
 });
-
 // Guards: search IPC keeps platform failures isolated and returns partial results instead of blocking the UI.
 // Guards: full search starts Twitch and Kick work in parallel so the search results page waits for the slower platform, not both in sequence.
 // Guards: broad hydration reuses completed quick-search results, including empty providers, instead of repeating platform channel discovery.
@@ -122,7 +160,6 @@ describe("registerSearchHandlers", () => {
     expect(channels).toContain(IPC_CHANNELS.SEARCH_CANCEL);
   });
 });
-
 // Guards: authenticated Kick search enriches slug-like display names even when upstream already supplied an avatar or live metadata.
 // Guards: authenticated Kick search keeps the fast path for results that already carry a cased profile display name.
 // Guards: channel-search enrichment reuses getChannelsBySlugs user data rather than fetching the same Kick users twice.
@@ -132,15 +169,15 @@ describe("registerSearchHandlers", () => {
 describe("SEARCH_CHANNELS", () => {
   it("searches both platforms when no platform specified", async () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
-      data: [{ id: "1", username: "streamer", displayName: "Streamer", isLive: false }],
+      data: [{ ...channel("1", "twitch", "streamer"), displayName: "Streamer", isLive: false }],
       cursor: "tc",
-    } as any);
+    });
     vi.mocked(kickClient.searchChannels).mockResolvedValue({
-      data: [{ id: "2", username: "kicker", displayName: "Kicker", isLive: true }],
-    } as any);
+      data: [{ ...channel("2", "kick", "kicker"), displayName: "Kicker", isLive: true }],
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler({}, { query: "er" })) as any;
+    const result = await handler({}, { query: "er" });
 
     expect(result.success).toBe(true);
     expect(result.data).toHaveLength(2);
@@ -150,12 +187,12 @@ describe("SEARCH_CHANNELS", () => {
 
   it("searches only Twitch when platform=twitch", async () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
-      data: [{ id: "1", username: "test", displayName: "Test", isLive: false }],
+      data: [{ ...channel("1", "twitch", "test"), displayName: "Test", isLive: false }],
       cursor: undefined,
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler({}, { query: "test", platform: "twitch" })) as any;
+    const result = await handler({}, { query: "test", platform: "twitch" });
 
     expect(result.success).toBe(true);
     expect(kickClient.searchChannels).not.toHaveBeenCalled();
@@ -163,11 +200,11 @@ describe("SEARCH_CHANNELS", () => {
 
   it("searches only Kick when platform=kick", async () => {
     vi.mocked(kickClient.searchChannels).mockResolvedValue({
-      data: [{ id: "1", username: "test", displayName: "Test", isLive: false }],
-    } as any);
+      data: [{ ...channel("1", "kick", "test"), displayName: "Test", isLive: false }],
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler({}, { query: "test", platform: "kick" })) as any;
+    const result = await handler({}, { query: "test", platform: "kick" });
 
     expect(result.success).toBe(true);
     expect(twitchClient.searchChannels).not.toHaveBeenCalled();
@@ -175,15 +212,15 @@ describe("SEARCH_CHANNELS", () => {
 
   it("continues Kick-only paginated requests with the Kick cursor", async () => {
     vi.mocked(kickClient.searchChannels).mockResolvedValue({
-      data: [{ id: "2", username: "test-next-kick", displayName: "TestNextKick", isLive: true }],
+      data: [{ ...channel("2", "kick", "test-next-kick"), displayName: "TestNextKick" }],
       cursor: "kick-page-3",
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler(
+    const result = await handler(
       {},
       { query: "test", platform: "kick", after: "kick-page-2", limit: 50 }
-    )) as any;
+    );
 
     expect(result.success).toBe(true);
     expect(result.data).toHaveLength(1);
@@ -195,7 +232,7 @@ describe("SEARCH_CHANNELS", () => {
   });
 
   it("forwards the live-only constraint to Kick search", async () => {
-    vi.mocked(kickClient.searchChannels).mockResolvedValue({ data: [] } as any);
+    vi.mocked(kickClient.searchChannels).mockResolvedValue({ data: [] });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
     await handler({}, { query: "creator", platform: "kick", liveOnly: true });
@@ -211,7 +248,7 @@ describe("SEARCH_CHANNELS", () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
       data: [],
       cursor: undefined,
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
     await handler({}, { query: "test", after: "page2" });
@@ -222,15 +259,15 @@ describe("SEARCH_CHANNELS", () => {
   it("filters out invalid channels (no id or username)", async () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
       data: [
-        { id: "1", username: "test-valid", displayName: "TestValid", isLive: false },
-        { id: "", username: "no-id", displayName: "NoId", isLive: false },
-        { id: "3", username: "", displayName: "NoUser", isLive: false },
+        { ...channel("1", "twitch", "test-valid"), displayName: "TestValid" },
+        { ...channel("", "twitch", "no-id"), displayName: "NoId" },
+        { ...channel("3", "twitch", ""), displayName: "NoUser" },
       ],
       cursor: undefined,
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler({}, { query: "test", platform: "twitch" })) as any;
+    const result = await handler({}, { query: "test", platform: "twitch" });
 
     expect(result.success).toBe(true);
     expect(result.data).toHaveLength(1);
@@ -240,14 +277,14 @@ describe("SEARCH_CHANNELS", () => {
   it("filters out banned/deleted Kick channels", async () => {
     vi.mocked(kickClient.searchChannels).mockResolvedValue({
       data: [
-        { id: "1", username: "test-good", displayName: "TestGood", isLive: false },
-        { id: "2", username: "banned", displayName: "Banned", isLive: false, is_banned: true },
-        { id: "3", username: "deleted", displayName: "Deleted", isLive: false, is_deleted: true },
+        legacyKickChannel("1", "test-good"),
+        legacyKickChannel("2", "banned", { is_banned: true }),
+        legacyKickChannel("3", "deleted", { is_deleted: true }),
       ],
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler({}, { query: "test", platform: "kick" })) as any;
+    const result = await handler({}, { query: "test", platform: "kick" });
 
     expect(result.data).toHaveLength(1);
     expect(result.data[0].username).toBe("test-good");
@@ -255,11 +292,11 @@ describe("SEARCH_CHANNELS", () => {
 
   it("does not run Kick enrichment lookups for unauthenticated search suggestions", async () => {
     vi.mocked(kickClient.searchChannels).mockResolvedValue({
-      data: [{ id: "1", username: "good", displayName: "Good", isLive: false }],
-    } as any);
+      data: [{ ...channel("1", "kick", "good"), displayName: "Good", isLive: false }],
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler({}, { query: "good", platform: "kick" })) as any;
+    const result = await handler({}, { query: "good", platform: "kick" });
 
     expect(result.success).toBe(true);
     expect(result.data).toHaveLength(1);
@@ -272,18 +309,22 @@ describe("SEARCH_CHANNELS", () => {
     vi.mocked(kickClient.searchChannels).mockResolvedValue({
       data: [
         {
+          ...channel("1", "twitch", "creatorlive"),
           id: "1",
           username: "odablock",
           displayName: "OdaBlock",
           avatarUrl: "https://example.com/oda.webp",
           isLive: true,
+          platform: "kick",
+          isVerified: false,
+          isPartner: false,
         },
       ],
       cursor: "100",
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler({}, { query: "O", platform: "kick", limit: 50 })) as any;
+    const result = await handler({}, { query: "O", platform: "kick", limit: 50 });
 
     expect(result.success).toBe(true);
     expect(result.data).toHaveLength(1);
@@ -299,6 +340,7 @@ describe("SEARCH_CHANNELS", () => {
     vi.mocked(kickClient.searchChannels).mockResolvedValue({
       data: [
         {
+          ...channel("2", "kick", "creator"),
           id: "123",
           username: "nickwhite",
           displayName: "nickwhite",
@@ -307,7 +349,7 @@ describe("SEARCH_CHANNELS", () => {
           isLive: true,
         },
       ],
-    } as any);
+    });
     vi.mocked(getChannelsBySlugs).mockResolvedValue([
       {
         id: "123",
@@ -319,17 +361,17 @@ describe("SEARCH_CHANNELS", () => {
         isVerified: false,
         isPartner: false,
       },
-    ] as any);
+    ]);
     vi.mocked(getUsersById).mockResolvedValue([
       {
         user_id: 123,
         name: "NickWhite",
         profile_picture: "https://example.com/nickwhite.webp",
       },
-    ] as any);
+    ]);
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler({}, { query: "nickwhite", platform: "kick" })) as any;
+    const result = await handler({}, { query: "nickwhite", platform: "kick" });
 
     expect(getChannelsBySlugs).toHaveBeenCalledWith(kickClient, ["nickwhite"]);
     expect(getUsersById).not.toHaveBeenCalled();
@@ -347,6 +389,7 @@ describe("SEARCH_CHANNELS", () => {
     vi.mocked(kickClient.searchChannels).mockResolvedValue({
       data: [
         {
+          ...channel("1", "twitch", "iceposeidonlive"),
           id: "missing-batch-1",
           platform: "kick",
           username: "ambiguous-missing-batch",
@@ -358,14 +401,11 @@ describe("SEARCH_CHANNELS", () => {
           accountStatus: "active",
         },
       ],
-    } as any);
+    });
     vi.mocked(getChannelsBySlugs).mockResolvedValue([]);
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler(
-      {},
-      { query: "ambiguous-missing-batch", platform: "kick" }
-    )) as any;
+    const result = await handler({}, { query: "ambiguous-missing-batch", platform: "kick" });
 
     expect(result).toEqual({
       success: true,
@@ -385,6 +425,7 @@ describe("SEARCH_CHANNELS", () => {
     vi.mocked(kickClient.searchChannels).mockResolvedValue({
       data: [
         {
+          ...channel("2", "kick", "iceposeidon"),
           id: "deleted-1",
           platform: "kick",
           username: "deleted-creator",
@@ -396,7 +437,7 @@ describe("SEARCH_CHANNELS", () => {
           accountStatus: "active",
         },
       ],
-    } as any);
+    });
     vi.mocked(getChannelsBySlugs).mockResolvedValue([]);
     vi.mocked(kickClient.getOfficialChannelAccountStatus).mockResolvedValue("not_found");
 
@@ -423,14 +464,11 @@ describe("SEARCH_CHANNELS", () => {
           accountStatus: "active",
         },
       ],
-    } as any);
+    });
     vi.mocked(getChannelsBySlugs).mockRejectedValue(new Error("Kick API error: 503"));
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler(
-      {},
-      { query: "provider-outage-channel", platform: "kick" }
-    )) as any;
+    const result = await handler({}, { query: "provider-outage-channel", platform: "kick" });
 
     expect(result.data).toEqual([
       expect.objectContaining({
@@ -456,14 +494,11 @@ describe("SEARCH_CHANNELS", () => {
           accountStatus: "suspended",
         },
       ],
-    } as any);
+    });
     vi.mocked(getChannelsBySlugs).mockRejectedValue(new Error("timeout"));
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler(
-      {},
-      { query: "suspended-during-outage", platform: "kick" }
-    )) as any;
+    const result = await handler({}, { query: "suspended-during-outage", platform: "kick" });
 
     expect(result.data).toEqual([
       expect.objectContaining({
@@ -477,6 +512,7 @@ describe("SEARCH_CHANNELS", () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
       data: [
         {
+          ...channel("1", "twitch", "creatorlive"),
           id: "1",
           username: "creatorlive",
           displayName: "Creator Live",
@@ -486,10 +522,11 @@ describe("SEARCH_CHANNELS", () => {
         },
       ],
       cursor: undefined,
-    } as any);
+    });
     vi.mocked(kickClient.searchChannels).mockResolvedValue({
       data: [
         {
+          ...channel("2", "kick", "creator"),
           id: "2",
           username: "creator",
           displayName: "Creator",
@@ -498,10 +535,10 @@ describe("SEARCH_CHANNELS", () => {
           platform: "kick",
         },
       ],
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler({}, { query: "creator" })) as any;
+    const result = await handler({}, { query: "creator" });
 
     expect(result.data.map((channel: { username: string }) => channel.username)).toEqual([
       "creator",
@@ -513,6 +550,7 @@ describe("SEARCH_CHANNELS", () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
       data: [
         {
+          ...channel("1", "twitch", "iceposeidonlive"),
           id: "1",
           username: "iceposeidonlive",
           displayName: "IcePoseidonLive",
@@ -522,10 +560,11 @@ describe("SEARCH_CHANNELS", () => {
         },
       ],
       cursor: undefined,
-    } as any);
+    });
     vi.mocked(kickClient.searchChannels).mockResolvedValue({
       data: [
         {
+          ...channel("2", "kick", "iceposeidon"),
           id: "2",
           username: "iceposeidon",
           displayName: "IcePoseidon",
@@ -534,10 +573,10 @@ describe("SEARCH_CHANNELS", () => {
           platform: "kick",
         },
       ],
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler({}, { query: "ice poseidon" })) as any;
+    const result = await handler({}, { query: "ice poseidon" });
 
     expect(result.data.map((channel: { username: string }) => channel.username)).toEqual([
       "iceposeidon",
@@ -548,31 +587,31 @@ describe("SEARCH_CHANNELS", () => {
   it("sorts exact matches before starts-with matches", async () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
       data: [
-        { id: "1", username: "testmore", displayName: "TestMore", isLive: false },
-        { id: "2", username: "test", displayName: "Test", isLive: false },
+        { ...channel("1", "twitch", "testmore"), displayName: "TestMore", isLive: false },
+        { ...channel("2", "twitch", "test"), displayName: "Test", isLive: false },
       ],
       cursor: undefined,
-    } as any);
-    vi.mocked(kickClient.searchChannels).mockResolvedValue({ data: [] } as any);
+    });
+    vi.mocked(kickClient.searchChannels).mockResolvedValue({ data: [] });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler({}, { query: "test" })) as any;
+    const result = await handler({}, { query: "test" });
 
     expect(result.data[0].username).toBe("test");
   });
 
   it("excludes own account unless query exactly matches own username", async () => {
-    vi.mocked(storageService.getTwitchUser).mockReturnValue({ login: "myaccount" } as any);
+    vi.mocked(storageService.getTwitchUser).mockReturnValue(twitchUser("myaccount"));
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
       data: [
-        { id: "1", username: "myaccount", displayName: "MyAccount", isLive: false },
-        { id: "2", username: "mystreamer", displayName: "MyStreamer", isLive: false },
+        { ...channel("1", "twitch", "myaccount"), displayName: "MyAccount", isLive: false },
+        { ...channel("2", "twitch", "mystreamer"), displayName: "MyStreamer", isLive: false },
       ],
       cursor: undefined,
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler({}, { query: "my", platform: "twitch" })) as any;
+    const result = await handler({}, { query: "my", platform: "twitch" });
 
     expect(result.data).toHaveLength(1);
     expect(result.data[0].username).toBe("mystreamer");
@@ -581,9 +620,9 @@ describe("SEARCH_CHANNELS", () => {
   it("marks authenticated Twitch partner search results as verified", async () => {
     vi.mocked(twitchClient.isAuthenticated).mockReturnValue(true);
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
-      data: [{ id: "1", username: "partner", displayName: "Partner", isLive: false }],
+      data: [{ ...channel("1", "twitch", "partner"), displayName: "Partner", isLive: false }],
       cursor: undefined,
-    } as any);
+    });
     vi.mocked(twitchClient.getUsersByLogin).mockResolvedValue([
       {
         id: "1",
@@ -591,12 +630,13 @@ describe("SEARCH_CHANNELS", () => {
         displayName: "Partner",
         profileImageUrl: "https://example.com/partner.png",
         broadcasterType: "partner",
+        createdAt: "2020-01-01T00:00:00.000Z",
       },
-    ] as any);
+    ]);
     vi.mocked(getFollowerCounts).mockResolvedValue(new Map([["1", 1234]]));
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler({}, { query: "partner", platform: "twitch" })) as any;
+    const result = await handler({}, { query: "partner", platform: "twitch" });
 
     expect(result.success).toBe(true);
     expect(result.data[0].isPartner).toBe(true);
@@ -608,6 +648,7 @@ describe("SEARCH_CHANNELS", () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
       data: [
         {
+          ...channel("missing-followers-1", "twitch", "missingfollowerscreator"),
           id: "missing-followers-1",
           username: "missingfollowerscreator",
           displayName: "Missing Followers Creator",
@@ -615,7 +656,7 @@ describe("SEARCH_CHANNELS", () => {
         },
       ],
       cursor: undefined,
-    } as any);
+    });
     vi.mocked(twitchClient.getUsersByLogin).mockResolvedValue([
       {
         id: "missing-followers-1",
@@ -623,19 +664,14 @@ describe("SEARCH_CHANNELS", () => {
         displayName: "Missing Followers Creator",
         profileImageUrl: "https://example.com/missing-followers.png",
         broadcasterType: "",
+        createdAt: "2020-01-01T00:00:00.000Z",
       },
-    ] as any);
+    ]);
     vi.mocked(getFollowerCounts).mockResolvedValue(new Map());
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const first = (await handler(
-      {},
-      { query: "missingfollowerscreator", platform: "twitch" }
-    )) as any;
-    const cached = (await handler(
-      {},
-      { query: "missingfollowerscreator", platform: "twitch" }
-    )) as any;
+    const first = await handler({}, { query: "missingfollowerscreator", platform: "twitch" });
+    const cached = await handler({}, { query: "missingfollowerscreator", platform: "twitch" });
 
     expect(first.data[0].followerCount).toBeUndefined();
     expect(cached.data[0].followerCount).toBeUndefined();
@@ -647,6 +683,7 @@ describe("SEARCH_CHANNELS", () => {
     vi.mocked(kickClient.searchChannels).mockResolvedValue({
       data: [
         {
+          ...channel("1", "kick", "partner"),
           id: "1",
           username: "partner",
           displayName: "Partner",
@@ -654,9 +691,10 @@ describe("SEARCH_CHANNELS", () => {
           isPartner: true,
         },
       ],
-    } as any);
+    });
     vi.mocked(getChannelsBySlugs).mockResolvedValue([
       {
+        ...channel("1", "kick", "partner"),
         id: "1",
         username: "partner",
         displayName: "Partner",
@@ -665,25 +703,27 @@ describe("SEARCH_CHANNELS", () => {
         isVerified: false,
         isPartner: false,
       },
-    ] as any);
-    vi.mocked(getUsersById).mockResolvedValue([{ user_id: 1, name: "Partner" }] as any);
+    ]);
+    vi.mocked(getUsersById).mockResolvedValue([
+      { user_id: 1, name: "Partner", profile_picture: "" },
+    ]);
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler({}, { query: "partner", platform: "kick" })) as any;
+    const result = await handler({}, { query: "partner", platform: "kick" });
 
     expect(result.success).toBe(true);
     expect(result.data[0].isPartner).toBe(true);
   });
 
   it("includes own account when query exactly matches", async () => {
-    vi.mocked(storageService.getTwitchUser).mockReturnValue({ login: "myaccount" } as any);
+    vi.mocked(storageService.getTwitchUser).mockReturnValue(twitchUser("myaccount"));
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
-      data: [{ id: "1", username: "myaccount", displayName: "MyAccount", isLive: false }],
+      data: [{ ...channel("1", "twitch", "myaccount"), displayName: "MyAccount", isLive: false }],
       cursor: undefined,
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler({}, { query: "myaccount", platform: "twitch" })) as any;
+    const result = await handler({}, { query: "myaccount", platform: "twitch" });
 
     expect(result.data).toHaveLength(1);
   });
@@ -693,7 +733,7 @@ describe("SEARCH_CHANNELS", () => {
     vi.mocked(kickClient.searchChannels).mockRejectedValue(new Error("fail"));
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_CHANNELS);
-    const result = (await handler({}, { query: "test" })) as any;
+    const result = await handler({}, { query: "test" });
 
     expect(result.success).toBe(true);
     expect(result.data).toEqual([]);
@@ -706,8 +746,8 @@ describe("SEARCH_ALL", () => {
     let requestSignal: AbortSignal | undefined;
     vi.mocked(kickClient.search).mockImplementation(
       (_query, options: Parameters<typeof kickClient.search>[1]) => {
-      requestSignal = options?.signal;
-      return pendingKick.promise;
+        requestSignal = options?.signal;
+        return pendingKick.promise;
       }
     );
 
@@ -728,6 +768,7 @@ describe("SEARCH_ALL", () => {
     const kickSeed = channel("k-xqc", "kick", "xqc");
     vi.mocked(twitchClient.searchCategories).mockResolvedValue({ data: [] });
     vi.mocked(kickClient.search).mockResolvedValue({
+      ...emptySearchCollection(),
       channels: [kickSeed],
       streams: [],
       categories: [],
@@ -766,6 +807,7 @@ describe("SEARCH_ALL", () => {
   it("does not repeat channel discovery when completed quick searches were empty", async () => {
     vi.mocked(twitchClient.searchCategories).mockResolvedValue({ data: [] });
     vi.mocked(kickClient.search).mockResolvedValue({
+      ...emptySearchCollection(),
       channels: [],
       streams: [],
       categories: [],
@@ -802,20 +844,21 @@ describe("SEARCH_ALL", () => {
 
   it("returns structured results with channels, categories, streams, videos, clips", async () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
-      data: [{ id: "1", username: "chan", displayName: "Chan", isLive: true }],
+      data: [{ ...channel("1", "twitch", "chan"), displayName: "Chan" }],
       cursor: undefined,
-    } as any);
+    });
     vi.mocked(twitchClient.searchCategories).mockResolvedValue({
-      data: [{ id: "c1", name: "Valorant" }],
-    } as any);
+      data: [category("c1", "twitch", "Valorant")],
+    });
     vi.mocked(kickClient.search).mockResolvedValue({
-      channels: [{ id: "2", username: "kchan", displayName: "KChan" }],
+      ...emptySearchCollection(),
+      channels: [{ ...channel("2", "kick", "kchan"), displayName: "KChan" }],
       streams: [],
-      categories: [{ id: "c2", name: "Slots" }],
-    } as any);
+      categories: [category("c2", "kick", "Slots")],
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
-    const result = (await handler({}, { query: "chan" })) as any;
+    const result = await handler({}, { query: "chan" });
 
     expect(result.success).toBe(true);
     expect(result.data.channels.length).toBeGreaterThan(0);
@@ -827,8 +870,10 @@ describe("SEARCH_ALL", () => {
 
   it("keeps an explicitly suspended Kick account visible in full-search channels", async () => {
     vi.mocked(kickClient.search).mockResolvedValue({
+      ...emptySearchCollection(),
       channels: [
         {
+          ...channel("1", "twitch", "test-small"),
           id: "suspended-full-1",
           platform: "kick",
           username: "suspended-full",
@@ -842,10 +887,10 @@ describe("SEARCH_ALL", () => {
       ],
       streams: [],
       categories: [],
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
-    const result = (await handler({}, { query: "suspended-full", platform: "kick" })) as any;
+    const result = await handler({}, { query: "suspended-full", platform: "kick" });
 
     expect(result.data.channels).toEqual([
       expect.objectContaining({
@@ -860,8 +905,10 @@ describe("SEARCH_ALL", () => {
   it("keeps an uncertain exact Kick account visible as unavailable in full search", async () => {
     vi.mocked(kickClient.isAuthenticated).mockReturnValue(true);
     vi.mocked(kickClient.search).mockResolvedValue({
+      ...emptySearchCollection(),
       channels: [
         {
+          ...channel("2", "twitch", "test-popular"),
           id: "uncertain-full-1",
           platform: "kick",
           username: "uncertain-full",
@@ -875,12 +922,12 @@ describe("SEARCH_ALL", () => {
       ],
       streams: [],
       categories: [],
-    } as any);
+    });
     vi.mocked(getChannelsBySlugs).mockResolvedValue([]);
     vi.mocked(kickClient.getOfficialChannelAccountStatus).mockResolvedValue("unavailable");
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
-    const result = (await handler({}, { query: "uncertain-full", platform: "kick" })) as any;
+    const result = await handler({}, { query: "uncertain-full", platform: "kick" });
 
     expect(result.data.channels).toEqual([
       expect.objectContaining({
@@ -893,8 +940,10 @@ describe("SEARCH_ALL", () => {
   it("excludes an exact Kick full-search channel after authoritative not_found", async () => {
     vi.mocked(kickClient.isAuthenticated).mockReturnValue(true);
     vi.mocked(kickClient.search).mockResolvedValue({
+      ...emptySearchCollection(),
       channels: [
         {
+          ...channel("1", "twitch", "iceposeidonlive"),
           id: "deleted-full-1",
           platform: "kick",
           username: "deleted-full",
@@ -908,30 +957,31 @@ describe("SEARCH_ALL", () => {
       ],
       streams: [],
       categories: [],
-    } as any);
+    });
     vi.mocked(getChannelsBySlugs).mockResolvedValue([]);
     vi.mocked(kickClient.getOfficialChannelAccountStatus).mockResolvedValue("not_found");
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
-    const result = (await handler({}, { query: "deleted-full", platform: "kick" })) as any;
+    const result = await handler({}, { query: "deleted-full", platform: "kick" });
 
     expect(result.data.channels).toEqual([]);
   });
 
   it("does not misclassify a live Twitch channel as a stream", async () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
-      data: [{ id: "1", username: "live", displayName: "Live", isLive: true }],
+      data: [{ ...channel("1", "twitch", "live"), displayName: "Live" }],
       cursor: undefined,
-    } as any);
-    vi.mocked(twitchClient.searchCategories).mockResolvedValue({ data: [] } as any);
+    });
+    vi.mocked(twitchClient.searchCategories).mockResolvedValue({ data: [] });
     vi.mocked(kickClient.search).mockResolvedValue({
+      ...emptySearchCollection(),
       channels: [],
       streams: [],
       categories: [],
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
-    const result = (await handler({}, { query: "live" })) as any;
+    const result = await handler({}, { query: "live" });
 
     expect(result.data.channels).toHaveLength(1);
     expect(result.data.streams).toEqual([]);
@@ -941,8 +991,8 @@ describe("SEARCH_ALL", () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
       data: [],
       cursor: undefined,
-    } as any);
-    vi.mocked(twitchClient.searchCategories).mockResolvedValue({ data: [] } as any);
+    });
+    vi.mocked(twitchClient.searchCategories).mockResolvedValue({ data: [] });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
     await handler({}, { query: "test", platform: "twitch" });
@@ -952,10 +1002,11 @@ describe("SEARCH_ALL", () => {
 
   it("searches only Kick when platform=kick", async () => {
     vi.mocked(kickClient.search).mockResolvedValue({
+      ...emptySearchCollection(),
       channels: [],
       streams: [],
       categories: [],
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
     await handler({}, { query: "test", platform: "kick" });
@@ -967,6 +1018,8 @@ describe("SEARCH_ALL", () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
       data: [
         {
+          ...channel("2", "twitch", "test-popular"),
+          ...channel("2", "kick", "iceposeidon"),
           id: "1",
           platform: "twitch",
           username: "test-small",
@@ -975,6 +1028,7 @@ describe("SEARCH_ALL", () => {
           isLive: false,
         },
         {
+          ...channel("2", "twitch", "test-popular"),
           id: "2",
           platform: "twitch",
           username: "test-popular",
@@ -984,16 +1038,17 @@ describe("SEARCH_ALL", () => {
         },
       ],
       cursor: undefined,
-    } as any);
-    vi.mocked(twitchClient.searchCategories).mockResolvedValue({ data: [] } as any);
+    });
+    vi.mocked(twitchClient.searchCategories).mockResolvedValue({ data: [] });
     vi.mocked(kickClient.search).mockResolvedValue({
+      ...emptySearchCollection(),
       channels: [],
       streams: [],
       categories: [],
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
-    const result = (await handler({}, { query: "test" })) as any;
+    const result = await handler({}, { query: "test" });
 
     expect(result.data.channels.map((channel: { id: string }) => channel.id)).toEqual(["2", "1"]);
   });
@@ -1002,6 +1057,7 @@ describe("SEARCH_ALL", () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
       data: [
         {
+          ...channel("1", "twitch", "iceposeidonlive"),
           id: "1",
           platform: "twitch",
           username: "iceposeidonlive",
@@ -1011,11 +1067,13 @@ describe("SEARCH_ALL", () => {
         },
       ],
       cursor: undefined,
-    } as any);
-    vi.mocked(twitchClient.searchCategories).mockResolvedValue({ data: [] } as any);
+    });
+    vi.mocked(twitchClient.searchCategories).mockResolvedValue({ data: [] });
     vi.mocked(kickClient.search).mockResolvedValue({
+      ...emptySearchCollection(),
       channels: [
         {
+          ...channel("2", "kick", "iceposeidon"),
           id: "2",
           platform: "kick",
           username: "iceposeidon",
@@ -1026,10 +1084,10 @@ describe("SEARCH_ALL", () => {
       ],
       streams: [],
       categories: [],
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
-    const result = (await handler({}, { query: "ice poseidon" })) as any;
+    const result = await handler({}, { query: "ice poseidon" });
 
     expect(result.data.channels.map((channel: { username: string }) => channel.username)).toEqual([
       "iceposeidon",
@@ -1042,7 +1100,7 @@ describe("SEARCH_ALL", () => {
     vi.mocked(twitchClient.searchCategories).mockRejectedValue(new Error("twitch down"));
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
-    const result = (await handler({}, { query: "x", platform: "twitch" })) as any;
+    const result = await handler({}, { query: "x", platform: "twitch" });
 
     expect(result.success).toBe(true);
     expect(result.data.channels).toEqual([]);
@@ -1053,13 +1111,14 @@ describe("SEARCH_ALL", () => {
     vi.mocked(twitchClient.searchChannels).mockRejectedValue(new Error("twitch down"));
     vi.mocked(twitchClient.searchCategories).mockRejectedValue(new Error("twitch down"));
     vi.mocked(kickClient.search).mockResolvedValue({
-      channels: [{ id: "k1", username: "test-kchan", displayName: "TestKChan" }],
+      ...emptySearchCollection(),
+      channels: [{ ...channel("k1", "kick", "test-kchan"), displayName: "TestKChan" }],
       streams: [],
       categories: [],
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
-    const result = (await handler({}, { query: "test" })) as any;
+    const result = await handler({}, { query: "test" });
 
     expect(result.success).toBe(true);
     expect(result.data.channels.length).toBe(1);
@@ -1072,10 +1131,11 @@ describe("SEARCH_ALL", () => {
     vi.mocked(twitchClient.searchChannels).mockReturnValue(twitchChannels.promise);
     vi.mocked(twitchClient.searchCategories).mockReturnValue(twitchCategories.promise);
     vi.mocked(kickClient.search).mockResolvedValue({
-      channels: [{ id: "k1", username: "test-kchan", displayName: "TestKChan" }],
+      ...emptySearchCollection(),
+      channels: [{ ...channel("k1", "kick", "test-kchan"), displayName: "TestKChan" }],
       streams: [],
       categories: [],
-    } as any);
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
     const pending = handler({}, { query: "test" });
@@ -1097,15 +1157,15 @@ describe("SEARCH_ALL", () => {
 
   it("keeps one-letter full search channel-first instead of fanning out broad category searches", async () => {
     vi.mocked(twitchClient.searchChannels).mockResolvedValue({
-      data: [{ id: "t1", username: "alpha", displayName: "Alpha", isLive: false }],
+      data: [{ ...channel("t1", "twitch", "alpha"), displayName: "Alpha", isLive: false }],
       cursor: undefined,
-    } as any);
+    });
     vi.mocked(kickClient.searchChannels).mockResolvedValue({
-      data: [{ id: "k1", username: "ace", displayName: "Ace", isLive: true }],
-    } as any);
+      data: [{ ...channel("k1", "kick", "ace"), displayName: "Ace" }],
+    });
 
     const handler = getHandler(IPC_CHANNELS.SEARCH_ALL);
-    const result = (await handler({}, { query: "A", limit: 20 })) as any;
+    const result = await handler({}, { query: "A", limit: 20 });
 
     expect(result.success).toBe(true);
     expect(result.data.channels).toHaveLength(2);

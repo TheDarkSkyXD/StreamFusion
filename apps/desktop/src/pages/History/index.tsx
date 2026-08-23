@@ -4,7 +4,10 @@ import { useState } from "react";
 import { LuHistory as HistoryIcon, LuPlay, LuTrash2 } from "react-icons/lu";
 
 import { ClipDialog } from "@/components/stream/related-content/ClipDialog";
-import type { VideoOrClip } from "@/components/stream/related-content/types";
+import {
+  parseVideoOrClips,
+  type VideoOrClip,
+} from "@/components/stream/related-content/types";
 import { VodProgressBar } from "@/components/stream/vod-progress-bar";
 import { Button } from "@/components/ui/button";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
@@ -109,7 +112,7 @@ export function HistoryPage() {
   });
 
   const findRealClipMetadata = async (item: HistoryItem): Promise<VideoOrClip | null> => {
-    const api = (window as any).electronAPI;
+    const api = window.electronAPI;
     if (!api?.clips?.getByChannel || !item.channelName) return null;
 
     let result;
@@ -125,14 +128,14 @@ export function HistoryPage() {
       return null;
     }
 
-    const clips = result?.success && Array.isArray(result.data) ? result.data : [];
+    const clips = result?.success ? parseVideoOrClips(result.data) : [];
     return clips.find((clip: VideoOrClip) => clip.id === item.originalId) || null;
   };
 
   const verifyVideo = async (item: HistoryItem) => {
     if (item.platform !== "twitch" && item.playbackUrl) return true;
 
-    const api = (window as any).electronAPI;
+    const api = window.electronAPI;
     if (!api?.videos?.getPlaybackUrl) return true;
 
     const result = await api.videos.getPlaybackUrl({
@@ -185,7 +188,7 @@ export function HistoryPage() {
           }
         : baseClip;
       setSelectedClip(dialogClip);
-      const api = (window as any).electronAPI;
+      const api = window.electronAPI;
       const result = await api?.clips?.getPlaybackUrl?.({
         platform: item.platform,
         clipId: item.originalId,

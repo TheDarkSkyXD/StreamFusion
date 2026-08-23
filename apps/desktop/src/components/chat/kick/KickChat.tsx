@@ -64,6 +64,7 @@ import { UserPopoutProvider } from "../mod/UserPopout/UserPopoutProvider";
 import { PinnedMessageBanner } from "../PinnedMessageBanner";
 import { PredictionBanner } from "../PredictionBanner";
 import { RecentChattersButton, RecentChattersPanel } from "../RecentChattersPanel";
+import { createChatMessageGate, type ChatMessageGate } from "../chat-startup";
 import { seedKickChatHistory } from "./kick-chat-history";
 
 export interface KickChatProps {
@@ -78,7 +79,7 @@ export interface KickChatProps {
   /** Kick broadcaster user_id — used to resolve the channel's 7TV emotes. */
   kickUserId?: string;
   /** Subscriber badges for the channel (for badge rendering) */
-  subscriberBadges?: any[];
+  subscriberBadges?: SubscriberBadge[];
   badgeCatalogState?: "loading" | "ready" | "failed";
   retryBadgeCatalog?: () => void;
 }
@@ -229,6 +230,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   // / clear / ban events still go through addMessage so they're applied
   // immediately and preserve total ordering with batched chat.
   const addMessageBatched = useChatStore((state) => state.addMessageBatched);
+  const liveMessageGateRef = useRef<ChatMessageGate<ChatMessage> | null>(null);
   const prependMessages = useChatStore((state) => state.prependMessages);
   const updateConnectionStatus = useChatStore((state) => state.updateConnectionStatus);
   const clearMessages = useChatStore((state) => state.clearMessages);
@@ -237,7 +239,6 @@ export const KickChat: React.FC<KickChatProps> = ({
   const channelKey = buildChannelKey("kick", channel);
   const recentChattersPanelId = useId();
   const [showRecentChatters, setShowRecentChatters] = useState(false);
-  const [historyStatus, setHistoryStatus] = useState<"idle" | "unavailable">("idle");
 
   // Emote store — actions only; no render-time data needed here.
   const loadGlobalEmotes = useEmoteStore((state) => state.loadGlobalEmotes);
@@ -566,6 +567,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   useEffect(() => {
     // Use mounted flag for cleanup with React Strict Mode
     let isMounted = true;
+    let sessionGate: ChatMessageGate<ChatMessage> | null = null;
 
     const connect = async () => {
       try {
@@ -582,18 +584,20 @@ export const KickChat: React.FC<KickChatProps> = ({
         // Acquire a reference to the service (for multiview support)
         kickChatService.acquire(channel);
 
-        if (channel && channelId) {
-          const recentMessagesLimit =
-            useAuthStore.getState().preferences?.chatDisplay?.recentMessagesLimit ??
-            DEFAULT_CHAT_DISPLAY_PREFERENCES.recentMessagesLimit;
-          await primePersistedChatHistoryIntentAsync({
-            platform: "kick",
-            normalizedChannel: channel.toLowerCase(),
-            channelId,
-            limit: recentMessagesLimit,
-          });
-          if (!isMounted) return;
-        }
+        const persistedHistoryReady =
+          channel && channelId
+            ? (() => {
+                const recentMessagesLimit =
+                  useAuthStore.getState().preferences?.chatDisplay?.recentMessagesLimit ??
+                  DEFAULT_CHAT_DISPLAY_PREFERENCES.recentMessagesLimit;
+                return primePersistedChatHistoryIntentAsync({
+                  platform: "kick",
+                  normalizedChannel: channel.toLowerCase(),
+                  channelId,
+                  limit: recentMessagesLimit,
+                });
+              })()
+            : Promise.resolve(false);
 
         const kickToken = await window.electronAPI.auth.getToken("kick");
 
@@ -618,7 +622,6 @@ export const KickChat: React.FC<KickChatProps> = ({
 
           // Initialize Kick Emotes
           initializeKickEmotes(kickToken.accessToken);
-          if (isMounted) await loadGlobalEmotes("kick", { force: true });
         } else {
           // Anonymous
           await kickChatService.connect({
@@ -627,7 +630,6 @@ export const KickChat: React.FC<KickChatProps> = ({
 
           if (!isMounted) return;
           // Just load 7TV globals (Kick has no global endpoint of its own).
-          if (isMounted) await loadGlobalEmotes("kick");
         }
 
         if (!isMounted) return;
@@ -639,19 +641,41 @@ export const KickChat: React.FC<KickChatProps> = ({
           setActiveChannel(emoteChannelId);
           // `kickUserId` (broadcaster user_id) is what 7TV keys Kick channels
           // by — distinct from `emoteChannelId` (the chatroom/slug map key).
-          await loadChannelEmotes(emoteChannelId, channel, "kick", kickUserId);
         } else if (isMounted) {
           setActiveChannel(null);
         }
 
+        const decorationReady = Promise.all([
+          loadGlobalEmotes("kick", kickToken ? { force: true } : undefined),
+          emoteChannelId
+            ? loadChannelEmotes(emoteChannelId, channel, "kick", kickUserId)
+            : Promise.resolve(),
+        ]);
+
         if (!isMounted) return;
 
         if (channel && chatroomId) {
-          // 1. Seed recent history before subscribing to the live feed so the
-          //    first messages users see are in chronological session order.
+          // Persisted hydration replaces the bucket, so it must settle before
+          // the first live message can arrive. It runs concurrently with the
+          // socket connection above.
+          await persistedHistoryReady;
+          if (!isMounted) return;
+          const gate = createChatMessageGate<ChatMessage>((message) =>
+            addMessageBatched(message, channelKey)
+          );
+          sessionGate = gate;
+          liveMessageGateRef.current = gate;
+          addMessage(createConnectionStatusMessage(channel, "connecting"));
+          const parsedBroadcasterId = Number(channelId);
+          const broadcasterUserId = Number.isFinite(parsedBroadcasterId)
+            ? parsedBroadcasterId
+            : undefined;
+          await kickChatService.joinChannel(channel, chatroomId, broadcasterUserId);
+          if (!isMounted) return;
+
+          // Backfill recent history while live arrivals wait behind the gate.
           if (kickChannelId) {
-            setHistoryStatus("idle");
-            const result = await seedKickChatHistory({
+            await seedKickChatHistory({
               channelId: kickChannelId,
               channel,
               isMounted: () => isMounted,
@@ -678,19 +702,11 @@ export const KickChat: React.FC<KickChatProps> = ({
               },
             });
             if (!isMounted) return;
-            setHistoryStatus(result === "unavailable" ? "unavailable" : "idle");
           }
 
-          addMessage(createConnectionStatusMessage(channel, "connecting"));
-
-          // 2. Subscribe to Pusher after history has settled.
-          const parsedBroadcasterId = Number(channelId);
-          const broadcasterUserId = Number.isFinite(parsedBroadcasterId)
-            ? parsedBroadcasterId
-            : undefined;
-          await kickChatService.joinChannel(channel, chatroomId, broadcasterUserId);
-
+          await decorationReady;
           if (!isMounted) return;
+          if (liveMessageGateRef.current === gate) gate.open();
 
           // U1 — wire the predictions service in. Fires a REST seed for any
           // active/recent prediction, subscribes to predictions-channel-{N}
@@ -722,6 +738,10 @@ export const KickChat: React.FC<KickChatProps> = ({
 
     return () => {
       isMounted = false;
+      if (sessionGate && liveMessageGateRef.current === sessionGate) {
+        sessionGate.cancel();
+        liveMessageGateRef.current = null;
+      }
 
       // Cleanup: release the service reference
       // In single-view: This will trigger shutdown when activeUsers reaches 0
@@ -772,6 +792,8 @@ export const KickChat: React.FC<KickChatProps> = ({
     setActiveChannel,
     unloadChannelEmotes,
     applyProviderPrefs,
+    addMessageBatched,
+    channelKey,
     addMessage,
     prependMessages,
     setKickChannelModState,
@@ -787,7 +809,7 @@ export const KickChat: React.FC<KickChatProps> = ({
       useChatStore
         .getState()
         .rehydrateChannelBadges(channelKey, (badges) =>
-          resolveKickSubscriberBadges(badges, subscriberBadges as SubscriberBadge[])
+          resolveKickSubscriberBadges(badges, subscriberBadges)
         );
     }
   }, [channel, channelKey, subscriberBadges]);
@@ -884,7 +906,9 @@ export const KickChat: React.FC<KickChatProps> = ({
         const enrichedContent = substituteThirdPartyEmotes(message.content, map);
         const enriched =
           enrichedContent === message.content ? message : { ...message, content: enrichedContent };
-        addMessageBatched(enriched, channelKey);
+        const gate = liveMessageGateRef.current;
+        if (gate) gate.accept(enriched);
+        else addMessageBatched(enriched, channelKey);
       }
     };
 
@@ -1277,14 +1301,6 @@ export const KickChat: React.FC<KickChatProps> = ({
       ) : null}
 
       <div className="flex-1 min-h-0 relative">
-        {historyStatus === "unavailable" ? (
-          <div
-            className="border-b border-[var(--color-border)] px-3 py-1 text-xs text-neutral-400"
-            role="status"
-          >
-            Kick history unavailable; showing session messages
-          </div>
-        ) : null}
         {pinnedMessage && showPinned && (
           <PinnedMessageBanner
             pin={pinnedMessage}

@@ -23,6 +23,7 @@ interface UseUpdaterReturn {
   allowPrerelease: boolean;
   autoCheckEnabled: boolean;
   checkFrequency: CheckFrequency;
+  updateCheckUrl: string;
   isInitialized: boolean;
 
   // Computed
@@ -39,6 +40,7 @@ interface UseUpdaterReturn {
   setAllowPrerelease: (allow: boolean) => Promise<void>;
   setAutoCheckEnabled: (enabled: boolean) => Promise<void>;
   setCheckFrequency: (frequency: CheckFrequency) => Promise<void>;
+  setUpdateCheckUrl: (url: string) => Promise<void>;
 }
 
 export function useUpdater(): UseUpdaterReturn {
@@ -49,6 +51,7 @@ export function useUpdater(): UseUpdaterReturn {
   const allowPrerelease = useUpdateStore((s) => s.allowPrerelease);
   const autoCheckEnabled = useUpdateStore((s) => s.autoCheckEnabled);
   const checkFrequency = useUpdateStore((s) => s.checkFrequency);
+  const updateCheckUrl = useUpdateStore((s) => s.updateCheckUrl);
   const isInitialized = useUpdateStore((s) => s.isInitialized);
 
   const updateFromBackend = useUpdateStore((s) => s.updateFromBackend);
@@ -59,6 +62,7 @@ export function useUpdater(): UseUpdaterReturn {
   const storeSetAllowPrerelease = useUpdateStore((s) => s.setAllowPrerelease);
   const storeSetAutoCheckEnabled = useUpdateStore((s) => s.setAutoCheckEnabled);
   const storeSetCheckFrequency = useUpdateStore((s) => s.setCheckFrequency);
+  const storeSetUpdateCheckUrl = useUpdateStore((s) => s.setUpdateCheckUrl);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.electronAPI?.updater) {
@@ -187,6 +191,21 @@ export function useUpdater(): UseUpdaterReturn {
     [storeSetAutoCheckEnabled, storeSetCheckFrequency]
   );
 
+  const setUpdateCheckUrl = useCallback(
+    async (url: string) => {
+      if (!window.electronAPI?.updater) return;
+      try {
+        const result = await window.electronAPI.updater.setAutoCheck({ updateCheckUrl: url });
+        storeSetUpdateCheckUrl(result.updateCheckUrl);
+      } catch (err) {
+        logger.error("Hook:Updater", "failed to set update check URL", {
+          error: serializeError(err),
+        });
+      }
+    },
+    [storeSetUpdateCheckUrl]
+  );
+
   return {
     status,
     updateInfo,
@@ -195,6 +214,7 @@ export function useUpdater(): UseUpdaterReturn {
     allowPrerelease,
     autoCheckEnabled,
     checkFrequency,
+    updateCheckUrl,
     isInitialized,
 
     isChecking: status === "checking",
@@ -209,6 +229,7 @@ export function useUpdater(): UseUpdaterReturn {
     setAllowPrerelease,
     setAutoCheckEnabled,
     setCheckFrequency,
+    setUpdateCheckUrl,
   };
 }
 

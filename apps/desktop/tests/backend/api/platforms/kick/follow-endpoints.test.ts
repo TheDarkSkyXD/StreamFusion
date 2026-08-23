@@ -19,6 +19,8 @@ import { logger } from "@/backend/logging/logger";
 // request.
 // Guards: followed-channel ingestion persists a stable broadcaster user ID
 // whenever Kick exposes one directly or through its canonical avatar path.
+// Guards: a non-empty browser scrape remains additive even when scrolling settles; missing rows require independent relationship proof.
+// Guards: even an explicit empty following page remains additive until every missing stored row gets identity-matched relationship proof.
 // Guards: authenticated Kick follow writes use only the canonical encoded channel follow path.
 // Guards: rejected or thrown Kick web-session writes are classified for retry without escaping.
 
@@ -27,20 +29,24 @@ const mockToken = vi.hoisted(() => ({
   scope: [
     "user:read",
     "channel:read",
+    "chat:write",
     "moderation:chat_message:manage",
     "moderation:ban",
     "events:subscribe",
   ],
 }));
 const fetchKickWebApiMutationMock = vi.hoisted(() => vi.fn());
+const fetchKickWebApiGetMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../../../../src/backend/services/storage-service", () => ({
   storageService: {
     getToken: vi.fn(() => mockToken),
+    getKickUser: vi.fn(() => ({ id: 123, slug: "viewer", username: "Viewer" })),
   },
 }));
 
 vi.mock("@/backend/api/platforms/kick/kick-send-window", () => ({
+  fetchKickWebApiGet: fetchKickWebApiGetMock,
   fetchKickWebApiMutation: fetchKickWebApiMutationMock,
 }));
 
@@ -49,8 +55,16 @@ const { storageService } = await import("../../../../../src/backend/services/sto
 import {
   _resetWarnedForTests,
   _tryBearerFetch,
+  _tryWebSessionFetch,
+  _tryWebSessionFollowedPageFetch,
+  buildKickFollowApiIIFE,
   getAllFollowedChannels,
+  KICK_FOLLOWED_CHANNELS_API_PATH,
+  KICK_FOLLOWED_CHANNELS_PAGE_API_PATH,
+  KICK_FOLLOWING_CHANNELS_URL,
+  interpretBrowserFollowScan,
   mapScrapedKickFollowedChannel,
+  canRecoverKickRedirectAbort,
   writeKickAccountFollow,
 } from "../../../../../src/backend/api/platforms/kick/endpoints/follow-endpoints";
 
@@ -63,6 +77,98 @@ const TEST_TOKEN = "test-token-123";
 
 const FETCH_URL = "https://kick.com/api/v2/channels/followed";
 
+it("scrapes the dedicated Kick followed-channels page", () => {
+  expect(KICK_FOLLOWING_CHANNELS_URL).toBe("https://kick.com/following/channels");
+});
+
+it("uses the authenticated page API before the DOM compatibility fallback", () => {
+  const source = buildKickFollowApiIIFE(
+    '/api/v2/channels/followed-page?cursor=7&x="quoted"',
+    "Bearer 1|abc"
+  );
+
+  expect(KICK_FOLLOWED_CHANNELS_API_PATH).toBe("/api/v2/channels/followed");
+  expect(KICK_FOLLOWED_CHANNELS_PAGE_API_PATH).toBe("/api/v2/channels/followed-page");
+  expect(source).toContain(
+    JSON.stringify('/api/v2/channels/followed-page?cursor=7&x="quoted"')
+  );
+  expect(source).toContain(JSON.stringify("Bearer 1|abc"));
+  expect(source).toContain('cache: "no-store"');
+  expect(source).toContain('credentials: "include"');
+});
+
+describe("browser follow scan reconciliation", () => {
+  it("accepts Electron ERR_ABORTED when the redirected Kick document is ready", () => {
+    expect(
+      canRecoverKickRedirectAbort(
+        Object.assign(new Error("ERR_ABORTED (-3) loading https://kick.com/"), { code: -3 }),
+        true
+      )
+    ).toBe(true);
+  });
+
+  it.each([
+    [Object.assign(new Error("ERR_ABORTED"), { code: -3 }), false],
+    [Object.assign(new Error("ERR_CERT_AUTHORITY_INVALID"), { code: -202 }), true],
+    [new Error("following-page-load-timeout"), true],
+  ])("rejects navigation failure %s when no valid redirect settlement exists", (error, ready) => {
+    expect(canRecoverKickRedirectAbort(error, ready)).toBe(false);
+  });
+  it("keeps a complete non-empty browser scan additive", () => {
+    expect(
+      interpretBrowserFollowScan({
+        channels: [{ slug: "xqc", displayName: "xQc", avatarUrl: "https://example/xqc.png" }],
+        scoped: true,
+        scrollSettled: true,
+        reachedScrollEnd: true,
+        loadingSettled: true,
+        dedicatedFollowingPage: true,
+      })
+    ).toMatchObject({ status: "ok", canPruneAbsent: false });
+  });
+
+  it("keeps an unscoped empty scan additive so prior candidates can be individually verified", () => {
+    expect(
+      interpretBrowserFollowScan({
+        channels: [],
+        scoped: true,
+        scrollSettled: true,
+        reachedScrollEnd: true,
+        loadingSettled: true,
+        dedicatedFollowingPage: true,
+      })
+    ).toEqual({ status: "ok", channels: [], canPruneAbsent: false });
+  });
+
+  it("keeps an authenticated explicit-empty page additive pending per-row verification", () => {
+    expect(
+      interpretBrowserFollowScan({
+        channels: [],
+        scoped: true,
+        scrollSettled: true,
+        reachedScrollEnd: true,
+        loadingSettled: true,
+        dedicatedFollowingPage: true,
+        emptyStateVisible: true,
+      })
+    ).toEqual({ status: "ok", channels: [], canPruneAbsent: false });
+  });
+
+  it("keeps an explicit empty page additive without an authenticated following scope", () => {
+    expect(
+      interpretBrowserFollowScan({
+        channels: [],
+        scoped: true,
+        scrollSettled: true,
+        reachedScrollEnd: true,
+        loadingSettled: true,
+        dedicatedFollowingPage: true,
+        emptyStateVisible: true,
+      })
+    ).toEqual({ status: "ok", channels: [], canPruneAbsent: false });
+  });
+});
+
 function jsonResponse(body: unknown, init: ResponseInit = { status: 200 }): Response {
   return new Response(JSON.stringify(body), {
     ...init,
@@ -72,6 +178,20 @@ function jsonResponse(body: unknown, init: ResponseInit = { status: 200 }): Resp
 
 function textResponse(body: string, init: ResponseInit = { status: 200 }): Response {
   return new Response(body, init);
+}
+
+function webFollow(slug: string) {
+  return {
+    category_name: "Just Chatting",
+    channel_slug: slug,
+    is_live: true,
+    is_reserved: false,
+    profile_picture: "https://example.invalid/avatar.webp",
+    session_title: "Live",
+    show_view_count: true,
+    user_username: slug,
+    viewer_count: 10,
+  };
 }
 
 describe("_tryBearerFetch and getAllFollowedChannels", () => {
@@ -84,7 +204,337 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
     vi.stubGlobal("fetch", fetchSpy);
     warnSpy.mockClear();
     vi.mocked(logger.debug).mockClear();
-    vi.mocked(storageService.getToken).mockReturnValue(mockToken as any);
+    vi.mocked(storageService.getToken).mockReturnValue(mockToken);
+    fetchKickWebApiGetMock.mockReset().mockResolvedValue({
+      ok: false,
+      kind: "network",
+      status: 0,
+      body: "",
+      message: "unavailable",
+    });
+  });
+
+  it("uses the authenticated Kick web session to enumerate fresh follows", async () => {
+    const secretBody = JSON.stringify({
+      channels: [webFollow("private-channel-value")],
+      nextCursor: 0,
+    });
+    fetchKickWebApiGetMock
+      .mockResolvedValueOnce({ ok: true, status: 200, body: secretBody })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: JSON.stringify({ id: 123, slug: "viewer" }),
+      });
+
+    const result = await _tryWebSessionFetch();
+
+    expect(fetchKickWebApiGetMock).toHaveBeenCalledWith("/api/v2/channels/followed");
+    expect(result).toMatchObject({
+      status: "ok",
+      canPruneAbsent: true,
+      channels: [{ username: "private-channel-value" }],
+    });
+    const serializedLogs = JSON.stringify([
+      ...vi.mocked(logger.debug).mock.calls,
+      ...vi.mocked(logger.info).mock.calls,
+      ...vi.mocked(logger.warn).mock.calls,
+    ]);
+    expect(serializedLogs).not.toContain(secretBody);
+    expect(serializedLogs).not.toContain("private-channel-value");
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
+      "Kick:Endpoints:Follow",
+      "Kick web followed-list parser completed",
+      { outcome: "accepted", count: 1 }
+    );
+  });
+
+  it("treats Kick's full-page follow projection as additive", async () => {
+    fetchKickWebApiGetMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      body: JSON.stringify({
+        channels: [webFollow("newly-followed")],
+        nextCursor: 0,
+      }),
+    });
+
+    await expect(_tryWebSessionFollowedPageFetch()).resolves.toEqual({
+      status: "ok",
+      channels: [expect.objectContaining({ username: "newly-followed" })],
+      canPruneAbsent: false,
+    });
+    expect(fetchKickWebApiGetMock).toHaveBeenCalledWith(
+      "/api/v2/channels/followed-page"
+    );
+  });
+
+  // Guards: nullable presentation metadata and additive response fields must not discard valid follow pages.
+  it("accepts nullable presentation metadata and additive fields from Kick follow pages", async () => {
+    fetchKickWebApiGetMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      body: JSON.stringify({
+        channels: [
+          {
+            ...webFollow("nullable-metadata"),
+            is_live: null,
+            session_title: null,
+            future_metadata: "ignored",
+          },
+        ],
+        nextCursor: 0,
+      }),
+    });
+
+    await expect(_tryWebSessionFollowedPageFetch()).resolves.toEqual({
+      status: "ok",
+      channels: [expect.objectContaining({ username: "nullable-metadata", isLive: false })],
+      canPruneAbsent: false,
+    });
+  });
+
+  it.each([-1, 1.5, "7", null])("rejects unsafe nextCursor value %s", async (nextCursor) => {
+    fetchKickWebApiGetMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      body: JSON.stringify({ channels: [webFollow("unsafe-cursor")], nextCursor }),
+    });
+
+    await expect(_tryWebSessionFollowedPageFetch()).resolves.toEqual({
+      status: "error",
+      reason: "parse-error",
+    });
+  });
+
+  it("rejects a follow page whose channels field is not an array", async () => {
+    fetchKickWebApiGetMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      body: JSON.stringify({ channels: {}, nextCursor: 0 }),
+    });
+
+    await expect(_tryWebSessionFollowedPageFetch()).resolves.toEqual({
+      status: "error",
+      reason: "parse-error",
+    });
+  });
+
+  it("keeps valid discoveries but disables pruning when a row has no safe identity", async () => {
+    fetchKickWebApiGetMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: JSON.stringify({
+          channels: [webFollow("safe-follow"), { ...webFollow("unsafe"), channel_slug: "" }],
+          nextCursor: 0,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: JSON.stringify({ id: 123, slug: "viewer" }),
+      });
+
+    await expect(_tryWebSessionFetch()).resolves.toEqual({
+      status: "ok",
+      channels: [expect.objectContaining({ username: "safe-follow" })],
+      canPruneAbsent: false,
+    });
+  });
+
+  it("treats an omitted terminal cursor as the end of the collection", async () => {
+    fetchKickWebApiGetMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: JSON.stringify({ channels: [webFollow("terminal-follow")] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: JSON.stringify({ id: 123, slug: "viewer" }),
+      });
+
+    await expect(_tryWebSessionFetch()).resolves.toEqual({
+      status: "ok",
+      channels: [expect.objectContaining({ username: "terminal-follow" })],
+      canPruneAbsent: true,
+    });
+    expect(fetchKickWebApiGetMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("paginates with nextCursor, deduplicates slugs, and stops at zero", async () => {
+    fetchKickWebApiGetMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: JSON.stringify({
+          channels: [webFollow("one"), webFollow("duplicate")],
+          nextCursor: 7,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: JSON.stringify({
+          channels: [webFollow("duplicate"), webFollow("two")],
+          nextCursor: 0,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: JSON.stringify({ id: 123, slug: "viewer" }),
+      });
+
+    const result = await _tryWebSessionFetch();
+
+    expect(fetchKickWebApiGetMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/v2/channels/followed"
+    );
+    expect(fetchKickWebApiGetMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/v2/channels/followed?cursor=7"
+    );
+    expect(result).toMatchObject({
+      status: "ok",
+      channels: [{ username: "one" }, { username: "duplicate" }, { username: "two" }],
+    });
+  });
+
+  it("rejects repeated cursors without identity verification", async () => {
+    fetchKickWebApiGetMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: JSON.stringify({ channels: [], nextCursor: 7 }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: JSON.stringify({ channels: [], nextCursor: 7 }),
+      });
+
+    await expect(_tryWebSessionFetch()).resolves.toEqual({
+      status: "error",
+      reason: "parse-error",
+    });
+    expect(fetchKickWebApiGetMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("discards partial pages when a later page is rate limited", async () => {
+    fetchKickWebApiGetMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: JSON.stringify({ channels: [webFollow("one")], nextCursor: 7 }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        kind: "unknown",
+        status: 429,
+        body: "",
+        message: "limited",
+        retryAfterSeconds: 30,
+      });
+
+    await expect(_tryWebSessionFetch()).resolves.toEqual({
+      status: "error",
+      reason: "rate-limited",
+    });
+  });
+
+  it("rejects an authoritative list when the Kick website viewer differs from OAuth", async () => {
+    fetchKickWebApiGetMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: JSON.stringify({ channels: [], nextCursor: 0 }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: JSON.stringify({ id: 999, slug: "different-viewer" }),
+      });
+
+    await expect(_tryWebSessionFetch()).resolves.toEqual({
+      status: "error",
+      reason: "kick-web-account-mismatch",
+    });
+  });
+
+  it("matches the Kick website viewer when the identity endpoint returns username", async () => {
+    fetchKickWebApiGetMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: JSON.stringify({ channels: [webFollow("matched-viewer")], nextCursor: 0 }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: JSON.stringify({ id: 123, username: "Viewer" }),
+      });
+
+    await expect(_tryWebSessionFetch()).resolves.toEqual({
+      status: "ok",
+      channels: [expect.objectContaining({ username: "matched-viewer" })],
+      canPruneAbsent: true,
+    });
+  });
+
+  it.each([401, 419])("classifies web-session HTTP %i as repair-required", async (status) => {
+    fetchKickWebApiGetMock.mockResolvedValueOnce({
+      ok: false,
+      kind: "auth-expired",
+      status,
+      body: "",
+      message: "expired",
+    });
+
+    await expect(_tryWebSessionFetch()).resolves.toEqual({
+      status: "error",
+      reason: "web-session-required",
+    });
+  });
+
+  it("preserves rows and does not fall through on a 429 web-session response", async () => {
+    fetchKickWebApiGetMock.mockResolvedValueOnce({
+      ok: false,
+      kind: "unknown",
+      status: 429,
+      body: "",
+      message: "rate limited",
+      retryAfterSeconds: 30,
+    });
+
+    await expect(getAllFollowedChannels({ allowBrowserWindowFallback: true })).resolves.toEqual({
+      status: "error",
+      reason: "rate-limited",
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed web-session followed-list payloads", async () => {
+    const sentinel = "PRIVATE_SENTINEL_CHANNEL";
+    fetchKickWebApiGetMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      body: JSON.stringify({ unexpected: { channels: [{ slug: sentinel, id: 987654 }] } }),
+    });
+
+    await expect(_tryWebSessionFetch()).resolves.toEqual({
+      status: "error",
+      reason: "parse-error",
+    });
+    const serializedLogs = JSON.stringify(vi.mocked(logger.info).mock.calls);
+    expect(serializedLogs).not.toContain(sentinel);
+    expect(serializedLogs).not.toContain("987654");
+    expect(serializedLogs).toContain('"keys":["unexpected"]');
+    expect(serializedLogs).toContain('"keys":["channels"]');
+    expect(serializedLogs).toContain('"keys":["id","slug"]');
   });
 
   afterEach(() => {
@@ -207,6 +657,22 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
     expect(result).toEqual({ status: "error", reason: "parse-error" });
   });
 
+  it("rejects a single channel-shaped 200 instead of accepting the followed slug collision", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ id: 1, slug: "followed", user: { username: "Followed" } }))
+        )
+    );
+
+    await expect(_tryBearerFetch(TEST_TOKEN)).resolves.toEqual({
+      status: "error",
+      reason: "parse-error",
+    });
+  });
+
   it("classifies a fetch throw as network-error", async () => {
     fetchSpy.mockRejectedValueOnce(new TypeError("fetch failed"));
 
@@ -280,7 +746,7 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
     const bearerOnly = getAllFollowedChannels();
     const withFallback = getAllFollowedChannels({ allowBrowserWindowFallback: true });
 
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2));
     resolveBearerOnly(jsonResponse({ data: [] }));
     resolveWithFallback(jsonResponse({ data: [] }));
 
@@ -355,9 +821,9 @@ describe("writeKickAccountFollow", () => {
       message: "Session expired",
     });
 
-    await expect(
-      writeKickAccountFollow({ action: "follow", channelSlug: "xqc" })
-    ).resolves.toEqual({ status: "error", reason: "auth-failed" });
+    await expect(writeKickAccountFollow({ action: "follow", channelSlug: "xqc" })).resolves.toEqual(
+      { status: "error", reason: "auth-failed" }
+    );
   });
 
   it("classifies a Kick web-session network failure as network-error", async () => {
@@ -369,9 +835,9 @@ describe("writeKickAccountFollow", () => {
       message: "Window unavailable",
     });
 
-    await expect(
-      writeKickAccountFollow({ action: "follow", channelSlug: "xqc" })
-    ).resolves.toEqual({ status: "error", reason: "network-error" });
+    await expect(writeKickAccountFollow({ action: "follow", channelSlug: "xqc" })).resolves.toEqual(
+      { status: "error", reason: "network-error" }
+    );
   });
 
   it("classifies another rejected Kick write with a stable retryable reason", async () => {
@@ -391,8 +857,8 @@ describe("writeKickAccountFollow", () => {
   it("classifies a thrown Kick window warmup failure without leaking a rejection", async () => {
     fetchKickWebApiMutationMock.mockRejectedValueOnce(new Error("send-window-warmup-timeout"));
 
-    await expect(
-      writeKickAccountFollow({ action: "follow", channelSlug: "xqc" })
-    ).resolves.toEqual({ status: "error", reason: "network-error" });
+    await expect(writeKickAccountFollow({ action: "follow", channelSlug: "xqc" })).resolves.toEqual(
+      { status: "error", reason: "network-error" }
+    );
   });
 });

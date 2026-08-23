@@ -62,10 +62,12 @@ async function getMockedLogger(): Promise<LoggerModule["logger"]> {
 
 // The production module types this as Electron.App — the only members it
 // touches are `.on` and `.off`, both inherited from EventEmitter.
-type FakeApp = EventEmitter;
+type FakeApp = EventEmitter & { exit: ReturnType<typeof vi.fn> };
 
 function makeFakeApp(): FakeApp {
-  return new EventEmitter();
+  const app = new EventEmitter() as FakeApp;
+  app.exit = vi.fn();
+  return app;
 }
 
 let uninstall: (() => void) | null = null;
@@ -93,6 +95,7 @@ afterEach(() => {
 // process.on('uncaughtException')
 // ---------------------------------------------------------------------------
 
+// Guards: an uncaught main-process exception is logged before Electron exits instead of continuing in undefined state
 describe("installCrashHooks — uncaughtException", () => {
   it("logs an error with the exception's name/message/stack on uncaughtException", async () => {
     const mod = await freshCrashHooksModule();
@@ -110,6 +113,7 @@ describe("installCrashHooks — uncaughtException", () => {
       message: "boom",
       stack: err.stack,
     });
+    expect(app.exit).toHaveBeenCalledWith(1);
   });
 });
 

@@ -118,7 +118,7 @@ class TokenExchangeService {
 
     // The worker now handles the actual exchange and secrets
     // We just send the code and necessary metadata as JSON
-    const payload: any = {
+    const payload: { code: string; redirect_uri: string; code_verifier?: string } = {
       code: params.code,
       redirect_uri: params.redirectUri,
     };

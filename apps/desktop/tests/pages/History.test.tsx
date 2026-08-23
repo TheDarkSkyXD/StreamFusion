@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fireEvent, renderWithProviders, routerMock, screen, waitFor } from "../test-utils";
+import {
+  fireEvent,
+  installElectronAPIMock,
+  renderWithProviders,
+  routerMock,
+  screen,
+  waitFor,
+} from "../test-utils";
 import { usePlaybackPositionStore } from "@/store/playback-position-store";
 
 const removeFromHistory = vi.fn();
@@ -40,8 +47,30 @@ vi.mock("@/hooks/queries/useHistoryQuery", () => ({
   useHistoryQuery: () => ({ data: mockHistory }),
 }));
 
+interface DialogClip {
+  title: string;
+  views?: string;
+  viewCount?: string;
+  view_count?: string;
+  category?: string;
+  gameName?: string;
+  creatorName?: string;
+  channelAvatar?: string;
+}
+
+interface DialogChannel {
+  avatarUrl?: string;
+  followerCount?: number;
+}
+
 vi.mock("@/components/stream/related-content/ClipDialog", () => ({
-  ClipDialog: ({ selectedClip, channelData }: { selectedClip: any; channelData: any }) =>
+  ClipDialog: ({
+    selectedClip,
+    channelData,
+  }: {
+    selectedClip: DialogClip | null;
+    channelData?: DialogChannel;
+  }) =>
     selectedClip ? (
       <div data-testid="history-clip-dialog">
         <span>{selectedClip.title}</span>
@@ -75,30 +104,27 @@ describe("HistoryPage", () => {
     navigate.mockReset();
     mockHistory = [];
     usePlaybackPositionStore.setState({ positions: {} });
-    (window as any).electronAPI = {
-      videos: {
-        getPlaybackUrl: vi.fn().mockResolvedValue({ success: true, data: { url: "vod.m3u8" } }),
+    const api = installElectronAPIMock();
+    api.videos.getPlaybackUrl = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { url: "vod.m3u8" } });
+    api.clips.getByChannel = vi.fn().mockResolvedValue({ success: true, data: [] });
+    api.clips.getPlaybackUrl = vi
+      .fn()
+      .mockResolvedValue({ success: true, data: { url: "clip.m3u8" } });
+    api.channels.getByUsername = vi.fn().mockResolvedValue({
+      data: {
+        id: "channel-1",
+        platform: "kick",
+        username: "xqc",
+        displayName: "xQc",
+        avatarUrl: "real-channel-avatar.jpg",
+        followerCount: 1000,
+        isLive: false,
+        isVerified: false,
+        isPartner: false,
       },
-      clips: {
-        getByChannel: vi.fn().mockResolvedValue({ success: true, data: [] }),
-        getPlaybackUrl: vi.fn().mockResolvedValue({ success: true, data: { url: "clip.m3u8" } }),
-      },
-      channels: {
-        getByUsername: vi.fn().mockResolvedValue({
-          data: {
-            id: "channel-1",
-            platform: "kick",
-            username: "xqc",
-            displayName: "xQc",
-            avatarUrl: "real-channel-avatar.jpg",
-            followerCount: 1000,
-            isLive: false,
-            isVerified: false,
-            isPartner: false,
-          },
-        }),
-      },
-    };
+    });
   });
 
   it("shows saved progress on VOD history entries using the saved duration", () => {
@@ -178,13 +204,14 @@ describe("HistoryPage", () => {
   });
 
   it("opens playable clip history items in the clip dialog", async () => {
-    (window as any).electronAPI.clips.getByChannel.mockResolvedValue({
+    vi.mocked(window.electronAPI.clips.getByChannel).mockResolvedValue({
       success: true,
       data: [
         {
           id: "c1",
           title: "Insane clip",
           duration: "0:30",
+          views: "12345",
           viewCount: 12345,
           category: "Fortnite",
           creatorName: "clipmaster",
@@ -217,7 +244,7 @@ describe("HistoryPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Insane clip" }));
 
-    expect((window as any).electronAPI.clips.getByChannel).toHaveBeenCalledWith(
+    expect(window.electronAPI.clips.getByChannel).toHaveBeenCalledWith(
       expect.objectContaining({
         platform: "kick",
         channelName: "xqc",
@@ -226,7 +253,7 @@ describe("HistoryPage", () => {
       })
     );
     await waitFor(() => {
-      expect((window as any).electronAPI.clips.getPlaybackUrl).toHaveBeenCalledWith(
+      expect(window.electronAPI.clips.getPlaybackUrl).toHaveBeenCalledWith(
         expect.objectContaining({
           platform: "kick",
           clipId: "c1",
@@ -243,7 +270,7 @@ describe("HistoryPage", () => {
   });
 
   it("removes a clip history item when playback verification fails", async () => {
-    (window as any).electronAPI.clips.getPlaybackUrl.mockResolvedValue({
+    vi.mocked(window.electronAPI.clips.getPlaybackUrl).mockResolvedValue({
       success: false,
       error: "Clip not found",
     });
@@ -267,7 +294,7 @@ describe("HistoryPage", () => {
   });
 
   it("removes a video history item when playback verification fails", async () => {
-    (window as any).electronAPI.videos.getPlaybackUrl.mockResolvedValue({
+    vi.mocked(window.electronAPI.videos.getPlaybackUrl).mockResolvedValue({
       success: false,
       error: "Video not found",
     });
@@ -309,7 +336,7 @@ describe("HistoryPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Signed VOD" }));
 
     await screen.findByText("Signed VOD");
-    expect((window as any).electronAPI.videos.getPlaybackUrl).toHaveBeenCalledWith({
+    expect(window.electronAPI.videos.getPlaybackUrl).toHaveBeenCalledWith({
       platform: "twitch",
       videoId: "v1",
     });
@@ -339,7 +366,7 @@ describe("HistoryPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Kick VOD" }));
 
     await screen.findByText("Kick VOD");
-    expect((window as any).electronAPI.videos.getPlaybackUrl).not.toHaveBeenCalled();
+    expect(window.electronAPI.videos.getPlaybackUrl).not.toHaveBeenCalled();
     expect(navigate).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "/video/$platform/$videoId",

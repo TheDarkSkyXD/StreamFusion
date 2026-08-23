@@ -18,7 +18,7 @@ describe("ChannelModLogFeed", () => {
 
   it("renders the empty state when mod_log returns nothing", async () => {
     const api = installElectronAPIMock();
-    api.modLog.query = vi.fn(async () => ({
+    api.modLog.query = vi.fn<typeof api.modLog.query>(async () => ({
       state: "verified-empty" as const,
       entries: [],
       coverage: "complete" as const,
@@ -30,7 +30,7 @@ describe("ChannelModLogFeed", () => {
   it("renders rows returned by mod_log query", async () => {
     const api = installElectronAPIMock();
     const now = Date.now();
-    api.modLog.query = vi.fn(async () => ({
+    api.modLog.query = vi.fn<typeof api.modLog.query>(async () => ({
       state: "ready" as const,
       coverage: "complete" as const,
       entries: [
@@ -61,7 +61,7 @@ describe("ChannelModLogFeed", () => {
 
   it("forwards channelId to the modLog query", async () => {
     const api = installElectronAPIMock();
-    const querySpy = vi.fn(async (..._args: any[]) => ({
+    const querySpy = vi.fn<typeof api.modLog.query>(async () => ({
       state: "verified-empty" as const,
       entries: [],
       coverage: "complete" as const,
@@ -78,7 +78,7 @@ describe("ChannelModLogFeed", () => {
 
   it("re-queries when refreshCounter changes", async () => {
     const api = installElectronAPIMock();
-    const querySpy = vi.fn(async () => ({
+    const querySpy = vi.fn<typeof api.modLog.query>(async () => ({
       state: "verified-empty" as const,
       entries: [],
       coverage: "complete" as const,

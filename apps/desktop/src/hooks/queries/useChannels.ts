@@ -34,7 +34,7 @@ export function useFollowedChannels(platform: Platform, options: { enabled?: boo
       }
       return dedupeChannelsByIdentity(response.data as UnifiedChannel[]);
     },
-    retry: 1,
+    retry: false,
     enabled: options.enabled,
     ...getQueryCacheOptions("followedChannelList"),
   });

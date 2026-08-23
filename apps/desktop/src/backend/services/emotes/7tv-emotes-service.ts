@@ -7,6 +7,8 @@
 import { net } from "electron";
 
 import type { Platform } from "@/shared/auth-types";
+import { runBoundedJsonRead } from "@/backend/reliability/bounded-json-read";
+import { sevenTvGlobalSetSchema, sevenTvUserSchema } from "./third-party-emote-schemas";
 
 const SEVENTV_V3_BASE = "https://7tv.io/v3";
 
@@ -16,14 +18,18 @@ export async function fetch7TVUserByConnection(
   identifier: string
 ): Promise<unknown | null> {
   const alias = platform.toUpperCase();
-  const res = await net.fetch(`${SEVENTV_V3_BASE}/users/${alias}/${identifier}`);
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`7TV user fetch failed: ${res.status} ${res.statusText}`);
-  return res.json();
+  return runBoundedJsonRead({
+    dependency: "7tv",
+    notFound: "return-null",
+    attempt: (signal) => net.fetch(`${SEVENTV_V3_BASE}/users/${alias}/${identifier}`, { signal }),
+    decode: (value) => sevenTvUserSchema.parse(value),
+  });
 }
 
 export async function fetch7TVGlobalEmoteSet(): Promise<unknown> {
-  const res = await net.fetch(`${SEVENTV_V3_BASE}/emote-sets/global`);
-  if (!res.ok) throw new Error(`7TV global set fetch failed: ${res.status} ${res.statusText}`);
-  return res.json();
+  return runBoundedJsonRead({
+    dependency: "7tv",
+    attempt: (signal) => net.fetch(`${SEVENTV_V3_BASE}/emote-sets/global`, { signal }),
+    decode: (value) => sevenTvGlobalSetSchema.parse(value),
+  });
 }

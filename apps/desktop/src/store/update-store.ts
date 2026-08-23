@@ -57,6 +57,7 @@ interface UpdateState {
   allowPrerelease: boolean;
   autoCheckEnabled: boolean;
   checkFrequency: CheckFrequency;
+  updateCheckUrl: string;
   isInitialized: boolean;
 
   // Actions
@@ -67,6 +68,7 @@ interface UpdateState {
   setAllowPrerelease: (allow: boolean) => void;
   setAutoCheckEnabled: (enabled: boolean) => void;
   setCheckFrequency: (frequency: CheckFrequency) => void;
+  setUpdateCheckUrl: (url: string) => void;
   setInitialized: (initialized: boolean) => void;
 
   // Bulk update from backend state
@@ -78,6 +80,7 @@ interface UpdateState {
     allowPrerelease: boolean;
     autoCheckEnabled?: boolean;
     checkFrequency?: CheckFrequency;
+    updateCheckUrl?: string;
   }) => void;
 
   // Reset state
@@ -91,7 +94,8 @@ const initialState = {
   error: null,
   allowPrerelease: false,
   autoCheckEnabled: false,
-  checkFrequency: "daily" as CheckFrequency,
+  checkFrequency: "weekly" as CheckFrequency,
+  updateCheckUrl: "https://github.com/TheDarkSkyXD/StreamFusion/releases/latest/download",
   isInitialized: false,
 };
 
@@ -107,6 +111,7 @@ export const useUpdateStore = create<UpdateState>()(
       setAllowPrerelease: (allowPrerelease) => set({ allowPrerelease }),
       setAutoCheckEnabled: (autoCheckEnabled) => set({ autoCheckEnabled }),
       setCheckFrequency: (checkFrequency) => set({ checkFrequency }),
+      setUpdateCheckUrl: (updateCheckUrl) => set({ updateCheckUrl }),
       setInitialized: (isInitialized) => set({ isInitialized }),
 
       updateFromBackend: (state) =>
@@ -121,6 +126,7 @@ export const useUpdateStore = create<UpdateState>()(
           allowPrerelease: state.allowPrerelease,
           autoCheckEnabled: state.autoCheckEnabled ?? prev.autoCheckEnabled,
           checkFrequency: state.checkFrequency ?? prev.checkFrequency,
+          updateCheckUrl: state.updateCheckUrl ?? prev.updateCheckUrl,
         })),
 
       reset: () => set(initialState),
@@ -134,6 +140,7 @@ export const useUpdateStore = create<UpdateState>()(
         allowPrerelease: state.allowPrerelease,
         autoCheckEnabled: state.autoCheckEnabled,
         checkFrequency: state.checkFrequency,
+        updateCheckUrl: state.updateCheckUrl,
       }),
     }
   )

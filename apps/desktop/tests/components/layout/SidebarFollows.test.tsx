@@ -1,5 +1,6 @@
 import { fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type React from "react";
 
 import { fixtures, renderWithProviders, screen } from "../../test-utils";
 
@@ -15,6 +16,7 @@ const storeState = vi.hoisted(() => ({
     failed: [] as TestPlatform[],
   })),
   localFollows: [] as unknown[],
+  isHydrated: true,
   followSources: {} as Record<string, "guest" | "twitch" | "kick" | undefined>,
   currentPipStream: null as { platform: string; channelName: string } | null,
   isPipActive: false,
@@ -34,7 +36,11 @@ const routerState = vi.hoisted(() => ({
 // Guards: live/offline state comes from followed-stream API results, not stale localStorage status cache
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, params, search, children, className, onClick, ...rest }: any) => (
+  Link: ({ to, params, search, children, className, onClick, ...rest }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+    to?: string;
+    params?: Record<string, unknown>;
+    search?: Record<string, unknown>;
+  }) => (
     <a
       href={typeof to === "string" ? to : "#"}
       data-to={typeof to === "string" ? to : ""}
@@ -81,6 +87,7 @@ vi.mock("@/store/follow-store", () => ({
   useFollowStore: (selector: (s: unknown) => unknown) =>
     selector({
       localFollows: storeState.localFollows,
+      isHydrated: storeState.isHydrated,
       getFollowSource: (channel: { platform: string; id?: string; username?: string }) =>
         storeState.followSources[`${channel.platform}:${channel.id ?? ""}`] ??
         (channel.username
@@ -111,6 +118,37 @@ const useFollowedChannelsMock = vi.mocked(useFollowedChannels);
 const useFollowedStreamsMock = vi.mocked(useFollowedStreams);
 const prefetchStreamPlaybackMock = vi.mocked(prefetchStreamPlayback);
 
+function queryResult<T>(data: T) {
+  return {
+    data,
+    dataUpdatedAt: 0,
+    error: null,
+    errorUpdateCount: 0,
+    errorUpdatedAt: 0,
+    failureCount: 0,
+    failureReason: null,
+    fetchStatus: "idle" as const,
+    isError: false as const,
+    isEnabled: true as const,
+    isFetched: true,
+    isFetchedAfterMount: true,
+    isFetching: false,
+    isInitialLoading: false,
+    isLoading: false as const,
+    isLoadingError: false as const,
+    isPaused: false as const,
+    isPending: false as const,
+    isPlaceholderData: false as const,
+    isRefetchError: false as const,
+    isRefetching: false,
+    isStale: false,
+    isSuccess: true as const,
+    promise: Promise.resolve(data),
+    refetch: vi.fn(),
+    status: "success" as const,
+  };
+}
+
 // Guards: partnered/verified followed channels keep their platform badge in expanded sidebar rows, including live rows hydrated from followed-channel metadata
 // Guards: live viewer counts and categories render on separate readable metadata rows instead of clipping at the sidebar edge
 // Guards: followed rows matching the current stream route render an active state so users can see which followed channel they are watching
@@ -133,6 +171,7 @@ describe("SidebarFollows", () => {
       failed: [] as TestPlatform[],
     });
     storeState.localFollows = [];
+    storeState.isHydrated = true;
     storeState.followSources = {};
     storeState.currentPipStream = null;
     storeState.isPipActive = false;
@@ -146,10 +185,7 @@ describe("SidebarFollows", () => {
       data: [fixtures.channel({ id: "c-1", username: "testchannel", displayName: "TestChannel" })],
       isLoading: false,
     } as unknown as ReturnType<typeof useFollowedChannels>);
-    useFollowedStreamsMock.mockReturnValue({
-      data: [],
-      isLoading: false,
-    } as unknown as ReturnType<typeof useFollowedStreams>);
+    useFollowedStreamsMock.mockReturnValue(queryResult([]));
 
     renderWithProviders(<SidebarFollows collapsed={false} />);
 
@@ -166,10 +202,7 @@ describe("SidebarFollows", () => {
       data: [fixtures.channel({ id: "c-1", username: "testchannel", displayName: "TestChannel" })],
       isLoading: false,
     } as unknown as ReturnType<typeof useFollowedChannels>);
-    useFollowedStreamsMock.mockReturnValue({
-      data: [],
-      isLoading: false,
-    } as unknown as ReturnType<typeof useFollowedStreams>);
+    useFollowedStreamsMock.mockReturnValue(queryResult([]));
 
     renderWithProviders(<SidebarFollows collapsed={false} />);
 
@@ -464,7 +497,7 @@ describe("SidebarFollows", () => {
     );
   });
 
-  it("error: degrades to empty-card copy when followed-streams resolves with no data (Helix 5xx surfaces as data=undefined)", () => {
+  it("error: shows retryable failure copy instead of the empty-follow invitation", () => {
     useFollowedChannelsMock.mockReturnValue({ data: undefined, isLoading: false } as ReturnType<
       typeof useFollowedChannels
     >);
@@ -473,10 +506,28 @@ describe("SidebarFollows", () => {
     useFollowedStreamsMock.mockReturnValue({
       data: undefined,
       isLoading: false,
+      isError: true,
       error: new Error("helix 503"),
+      refetch: vi.fn(),
     } as unknown as ReturnType<typeof useFollowedStreams>);
     renderWithProviders(<SidebarFollows collapsed={false} />);
-    expect(screen.getByText(/follow channels to see them here/i)).toBeInTheDocument();
+    expect(screen.getByText(/couldn’t load follows/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+    expect(screen.queryByText(/follow channels to see them here/i)).not.toBeInTheDocument();
+  });
+
+  it("hydration: keeps the loading skeleton until local follows are hydrated", () => {
+    storeState.isHydrated = false;
+    useFollowedChannelsMock.mockReturnValue({ data: [], isLoading: false } as unknown as ReturnType<
+      typeof useFollowedChannels
+    >);
+    useFollowedStreamsMock.mockReturnValue({ data: [], isLoading: false } as unknown as ReturnType<
+      typeof useFollowedStreams
+    >);
+
+    const { container } = renderWithProviders(<SidebarFollows collapsed={false} />);
+    expect(container.querySelectorAll(".rounded-full").length).toBeGreaterThanOrEqual(5);
+    expect(screen.queryByText(/follow channels to see them here/i)).not.toBeInTheDocument();
   });
 
   it("empty: renders the empty card when both lists resolve to empty arrays", () => {

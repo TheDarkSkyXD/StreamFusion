@@ -27,15 +27,20 @@ import { ipcMain } from "electron";
 import { registerModLogHandlers } from "@/backend/ipc/handlers/modlog-handlers";
 import { dbService } from "@/backend/services/database-service";
 import { authorizeModerationHistory } from "@/backend/services/moderation-history-authorization";
+import type { ModLogEntry } from "@/shared/mod-log-types";
 
 type Handler = (event: unknown, args?: unknown) => unknown;
 const allowedEvent = { senderFrame: { url: "http://localhost:5173/browser.html" } };
 
 function getHandler(channel: string): Handler {
-  const calls = vi.mocked(ipcMain.handle).mock.calls as unknown as Array<[string, Handler]>;
+  const calls = vi.mocked(ipcMain.handle).mock.calls;
   const call = calls.find(([c]) => c === channel);
   if (!call) throw new Error(`handler not registered: ${channel}`);
-  return call[1];
+  return (event, args) => Reflect.apply(call[1], undefined, [event, args]);
+}
+
+function modLogEntry(id: number, action = "ban"): ModLogEntry {
+  return { id, platform: "twitch", channelId: "123", channelSlug: "channel", action, targetUserId: "target", targetUsername: "target", moderatorUserId: "mod", moderatorUsername: "mod", provenance: "twitch-eventsub", providerEventId: null, occurredAt: 100, observedAt: 100, createdAt: 100 };
 }
 
 beforeEach(() => {
@@ -175,8 +180,8 @@ describe("MODLOG_QUERY", () => {
       limit: 50,
       offset: 0,
     };
-    const rows = [{ id: 1 }, { id: 2 }];
-    vi.mocked(dbService.queryModLog).mockReturnValue(rows as any);
+    const rows = [modLogEntry(1), modLogEntry(2)];
+    vi.mocked(dbService.queryModLog).mockReturnValue(rows);
     vi.mocked(dbService.getModLogCoverage).mockReturnValue({
       platform: "twitch",
       channelId: "123",
@@ -195,8 +200,8 @@ describe("MODLOG_QUERY", () => {
   });
 
   it("returns available records as partial when the persisted observation window is incomplete", async () => {
-    const rows = [{ id: 1, action: "ban" }];
-    vi.mocked(dbService.queryModLog).mockReturnValue(rows as any);
+    const rows = [modLogEntry(1)];
+    vi.mocked(dbService.queryModLog).mockReturnValue(rows);
     vi.mocked(dbService.getModLogCoverage).mockReturnValue({
       platform: "twitch",
       channelId: "123",
@@ -281,7 +286,7 @@ describe("MODLOG_QUERY", () => {
 describe("MODLOG_SWEEP_RETENTION", () => {
   it("passes now to dbService.sweepModLogRetention", () => {
     const now = Date.now();
-    vi.mocked(dbService.sweepModLogRetention).mockReturnValue(5 as any);
+    vi.mocked(dbService.sweepModLogRetention).mockReturnValue(5);
 
     const handler = getHandler(IPC_CHANNELS.MODLOG_SWEEP_RETENTION);
     const result = handler({}, { now });
@@ -291,7 +296,7 @@ describe("MODLOG_SWEEP_RETENTION", () => {
   });
 
   it("calls sweepModLogRetention with undefined when no now is provided", () => {
-    vi.mocked(dbService.sweepModLogRetention).mockReturnValue(0 as any);
+    vi.mocked(dbService.sweepModLogRetention).mockReturnValue(0);
 
     const handler = getHandler(IPC_CHANNELS.MODLOG_SWEEP_RETENTION);
     handler({});
@@ -302,7 +307,7 @@ describe("MODLOG_SWEEP_RETENTION", () => {
 
 describe("RETENTION_GET", () => {
   it("returns the retention setting for the given scope", () => {
-    vi.mocked(dbService.getRetentionSetting).mockReturnValue(30 as any);
+    vi.mocked(dbService.getRetentionSetting).mockReturnValue(30);
 
     const handler = getHandler(IPC_CHANNELS.RETENTION_GET);
     const result = handler({}, { scope: "modlog" });

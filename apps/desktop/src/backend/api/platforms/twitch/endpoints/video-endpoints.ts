@@ -1,10 +1,6 @@
 import type { TwitchRequestor } from "../twitch-requestor";
-import type {
-  PaginatedResult,
-  PaginationOptions,
-  TwitchApiResponse,
-  TwitchApiVideo,
-} from "../twitch-types";
+import { helixResponseSchema, twitchVideoSchema } from "../twitch-helix-schemas";
+import type { PaginatedResult, PaginationOptions, TwitchApiVideo } from "../twitch-types";
 
 /**
  * Get videos by user ID
@@ -26,8 +22,8 @@ export async function getVideosByUser(
     params.set("type", options.type);
   }
 
-  const data = await client.request<TwitchApiResponse<TwitchApiVideo>>(
-    `/videos?${params.toString()}`
+  const data = helixResponseSchema(twitchVideoSchema).parse(
+    await client.request(`/videos?${params.toString()}`)
   );
 
   const first = options.first || 20;
@@ -53,8 +49,8 @@ export async function getVideosByGame(
   if (options.after) params.set("after", options.after);
   if (options.sort) params.set("sort", options.sort);
 
-  const data = await client.request<TwitchApiResponse<TwitchApiVideo>>(
-    `/videos?${params.toString()}`
+  const data = helixResponseSchema(twitchVideoSchema).parse(
+    await client.request(`/videos?${params.toString()}`)
   );
   const first = options.first || 20;
 
@@ -71,7 +67,9 @@ export async function getVideoById(
   client: TwitchRequestor,
   videoId: string
 ): Promise<TwitchApiVideo | null> {
-  const data = await client.request<TwitchApiResponse<TwitchApiVideo>>(`/videos?id=${videoId}`);
+  const data = helixResponseSchema(twitchVideoSchema).parse(
+    await client.request(`/videos?id=${videoId}`)
+  );
 
   return data.data[0] || null;
 }

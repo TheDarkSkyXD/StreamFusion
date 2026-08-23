@@ -1,4 +1,6 @@
-import { ipcMain, net } from "electron";
+import { net } from "electron";
+
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { checkInternetReachability } from "@/backend/services/connectivity-service";
 import { IPC_CHANNELS } from "@shared/ipc-channels";

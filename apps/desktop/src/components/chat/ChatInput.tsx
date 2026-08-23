@@ -184,6 +184,7 @@ type ClassifiedSendBlocker =
       kind: "twitchVerification";
       verificationRequirement: TwitchVerificationRequirement;
     }
+  | { kind: "viewerBanned" }
   | {
       kind: RoomSendBlockerKind;
       copy: SendBlockerCopy;
@@ -432,6 +433,9 @@ function classifySendRejection(platform: ChatPlatform, err: unknown): Classified
         kind: "emoteOnly",
         copy: { message: "Emote-only chat is enabled", action: null },
       };
+    }
+    if (kickResult.kind === "forbidden") {
+      return { kind: "viewerBanned" };
     }
   }
 
@@ -766,6 +770,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const [activeBlockerCopy, setActiveBlockerCopy] = useState<SendBlockerCopy | null>(null);
     const [twitchVerificationRequirement, setTwitchVerificationRequirement] =
       useState<TwitchVerificationRequirement | null>(null);
+    const [viewerIsBanned, setViewerIsBanned] = useState(false);
     const [slowCooldownUntilMs, setSlowCooldownUntilMs] = useState(0);
     const [slowCooldownDurationMs, setSlowCooldownDurationMs] = useState(0);
     const [nowMs, setNowMs] = useState(() => Date.now());
@@ -782,6 +787,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const emoteSlotsRef = useRef(emoteSlots);
     const cursorPositionRef = useRef(cursorPosition);
     const twitchVerificationRequirementRef = useRef<TwitchVerificationRequirement | null>(null);
+    const viewerIsBannedRef = useRef(false);
     const lastSubmittedDraftRef = useRef<SubmittedDraft | null>(null);
     const isSendingRef = useRef(false);
     const previousViewerChatContextRef = useRef("");
@@ -833,8 +839,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       if (previousViewerChatContextRef.current === viewerChatContext) return;
       previousViewerChatContextRef.current = viewerChatContext;
       twitchVerificationRequirementRef.current = null;
+      viewerIsBannedRef.current = false;
       lastSubmittedDraftRef.current = null;
       setTwitchVerificationRequirement(null);
+      setViewerIsBanned(false);
       setActiveRoomBlocker(null);
       setActiveBlockerCopy(null);
     }, [viewerChatContext]);
@@ -865,8 +873,18 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           : normalizedEventChannel === normalizedCurrentChannel;
         if (!matchesCurrentChannel) return;
 
-        twitchVerificationRequirementRef.current = event.requirement;
-        setTwitchVerificationRequirement(event.requirement);
+        if (event.restriction === "banned") {
+          viewerIsBannedRef.current = true;
+          twitchVerificationRequirementRef.current = null;
+          setViewerIsBanned(true);
+          setTwitchVerificationRequirement(null);
+          setActiveRoomBlocker(null);
+          setActiveBlockerCopy(null);
+        } else {
+          if (viewerIsBannedRef.current) return;
+          twitchVerificationRequirementRef.current = event.requirement;
+          setTwitchVerificationRequirement(event.requirement);
+        }
 
         const submittedDraft = lastSubmittedDraftRef.current;
         if (!submittedDraft || submittedDraft.contextKey !== viewerChatContext) return;
@@ -950,9 +968,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           canSend,
           disabled,
           roomRestrictionReason:
-            (twitchVerificationRequirement
-              ? "Verify your Twitch account to chat"
-              : roomBlockerCopy?.message) ??
+            (viewerIsBanned
+              ? "You are banned from chat"
+              : twitchVerificationRequirement
+                ? "Verify your Twitch account to chat"
+                : roomBlockerCopy?.message) ??
             (slowModeRemainingSeconds > 0 && !viewerCanBypassRoomModes
               ? `Slow mode active. Wait ${formatSlowModeWait(slowModeRemainingSeconds)}.`
               : proactiveRoomRestrictionReason),
@@ -965,6 +985,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         slowModeRemainingSeconds,
         twitchVerificationRequirement,
         viewerCanBypassRoomModes,
+        viewerIsBanned,
         viewerIsAuthenticated,
       ]
     );
@@ -979,7 +1000,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       (activeRoomBlocker === "emoteOnly" && roomState.emoteOnly) ||
       (activeRoomBlocker === "slowMode" && roomState.slowMode !== null && roomState.slowMode > 0);
     const showDedicatedRoomBlocker =
-      !showAuthBlocker && viewerIsAuthenticated && roomBlockerCopy && !roomModeCoveredByInfoBanner;
+      !viewerIsBanned &&
+      !showAuthBlocker &&
+      viewerIsAuthenticated &&
+      roomBlockerCopy &&
+      !roomModeCoveredByInfoBanner;
 
     // Autocomplete hooks
     const { cd: chatDisplay } = useChatDisplay();
@@ -1207,6 +1232,20 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
     const handleClassifiedSendBlocker = useCallback(
       (sendBlocker: ClassifiedSendBlocker) => {
+        if (sendBlocker.kind === "viewerBanned") {
+          viewerIsBannedRef.current = true;
+          twitchVerificationRequirementRef.current = null;
+          flushSync(() => {
+            setError(null);
+            setShowAuthBlocker(false);
+            setViewerIsBanned(true);
+            setTwitchVerificationRequirement(null);
+            setActiveRoomBlocker(null);
+            setActiveBlockerCopy(null);
+          });
+          editorRef.current?.focus();
+          return;
+        }
         if (sendBlocker.kind === "twitchVerification") {
           twitchVerificationRequirementRef.current = sendBlocker.verificationRequirement;
           setTwitchVerificationRequirement(sendBlocker.verificationRequirement);
@@ -1578,6 +1617,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           await handleAuthRequired();
           return;
         }
+        if (viewerIsBanned) return;
         if (twitchVerificationRequirement) return;
         const roomBlocker = getRoomSendBlocker(quickMessage);
         if (roomBlocker === "followersOnly") {
@@ -1601,7 +1641,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           try {
             subscriberBlocker = await getSubscriberSendBlocker();
           } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : "Failed to verify chat access";
+            const errorMessage =
+              err instanceof Error ? err.message : "Failed to verify chat access";
             setError(errorMessage);
             logger.error("UI:Chat:Input", "failed to verify subscriber eligibility", {
               error: err instanceof Error ? err.message : String(err),
@@ -1684,6 +1725,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         viewerCanBypassRoomModes,
         viewerChatContext,
         viewerIsAuthenticated,
+        viewerIsBanned,
       ]
     );
 
@@ -1705,6 +1747,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         await handleAuthRequired();
         return;
       }
+      if (viewerIsBanned) return;
       if (twitchVerificationRequirement) return;
       const roomBlocker = getRoomSendBlocker(message);
       if (roomBlocker === "followersOnly") {
@@ -1855,7 +1898,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           await sendChatPayload(trimmedMessage, localFragments);
         }
 
-        if (twitchVerificationRequirementRef.current) {
+        if (twitchVerificationRequirementRef.current || viewerIsBannedRef.current) {
           restoreSubmittedDraft();
           return;
         }
@@ -1901,6 +1944,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       twitchVerificationRequirement,
       viewerChatContext,
       viewerIsAuthenticated,
+      viewerIsBanned,
       cursorPosition,
       reply,
     ]);
@@ -2148,11 +2192,23 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         )}
 
         {/* InfoBanner — renders null when no chat-room modes are active. */}
-        <InfoBanner
-          platform={platform}
-          channelId={channelId}
-          viewerSatisfiesFollowerOnly={viewerFollowsChannel}
-        />
+        {!viewerIsBanned && (
+          <InfoBanner
+            platform={platform}
+            channelId={channelId}
+            viewerSatisfiesFollowerOnly={viewerFollowsChannel}
+          />
+        )}
+
+        {viewerIsBanned && viewerIsAuthenticated && (
+          <div
+            data-testid="chat-send-blocker"
+            role="status"
+            className="mb-1 flex items-center rounded-md border border-[var(--color-border,rgba(83,83,95,0.48))] bg-[#262626] px-2 py-1 text-sm font-semibold text-white"
+          >
+            <span className="min-w-0 truncate">You are banned from chat</span>
+          </div>
+        )}
 
         {platform === "twitch" && twitchVerificationRequirement && (
           <div

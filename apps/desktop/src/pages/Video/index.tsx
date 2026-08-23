@@ -4,18 +4,21 @@ import { LuCheck, LuCircleAlert, LuDownload, LuLock, LuShare2 } from "react-icon
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
 import { KickVodPlayer } from "@/components/player/kick";
 import { TwitchVodPlayer } from "@/components/player/twitch";
-import type { VideoOrClip } from "@/components/stream/related-content/types";
+import {
+  isVideoOrClip,
+  type VideoOrClip,
+} from "@/components/stream/related-content/types";
 import { VideoCard } from "@/components/stream/related-content/VideoCard";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/ui/follow-button";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
-import { useVodLiveLink } from "@/hooks/queries/useVodLiveLink";
 import { useHistoryActions } from "@/hooks/queries/useHistoryQuery";
+import { useVodLiveLink } from "@/hooks/queries/useVodLiveLink";
 import { useDownloadActions } from "@/hooks/use-download-actions";
 import { useShareAction } from "@/hooks/use-share-action";
 import { logger } from "@/renderer/logging/logger";
-import type { Platform } from "@/shared/auth-types";
+import { requirePlatform } from "@/routes/route-boundaries";
 import { useFollowStore } from "@/store/follow-store";
 
 interface VideoMetadata {
@@ -73,6 +76,7 @@ function formatLanguage(language: string): string {
 
 export function VideoPage() {
   const { platform, videoId } = useParams({ from: "/_app/video/$platform/$videoId" });
+  const routePlatform = requirePlatform(platform);
   const searchParams = useSearch({ from: "/_app/video/$platform/$videoId" });
 
   // Extract all metadata from search params
@@ -364,12 +368,13 @@ export function VideoPage() {
         });
       }
     };
-    if (platform && videoId) fetchVideoData();
+    if (videoId) fetchVideoData();
     return () => {
       if (isCurrentRequest()) requestGenerationRef.current += 1;
     };
   }, [
     platform,
+    routePlatform,
     videoId,
     directSourceUrl,
     canUseDirectSourceUrl,
@@ -392,13 +397,13 @@ export function VideoPage() {
     }
 
     logger.debug("Page:Video", "playback-source-to-player-mounted", {
-      platform,
+      platform: routePlatform,
       videoId,
       generation: sourceTiming.generation,
       elapsedMs: Math.round(performance.now() - sourceTiming.resolvedAt),
     });
     sourceResolvedAtRef.current = null;
-  }, [platform, streamUrl, videoId]);
+  }, [routePlatform, streamUrl, videoId]);
 
   // Use fetched data or passed data or fallbacks
   const videoTitle = videoMetadata?.title || passedTitle || "Loading...";
@@ -414,11 +419,11 @@ export function VideoPage() {
   // fallback when a VOD route does not include the channel avatar.
   const { data: channelData } = useChannelByUsername(
     hasResolvedChannelName ? channelName : "",
-    platform as Platform
+    routePlatform
   );
   const liveLinkState = useVodLiveLink(
     hasResolvedChannelName ? channelName : "",
-    platform as Platform
+    routePlatform
   );
   const canWatchLive = liveLinkState.kind === "available";
   const channelAvatar =
@@ -456,7 +461,7 @@ export function VideoPage() {
   };
 
   useEffect(() => {
-    if (platform && videoId && videoTitle !== "Loading...") {
+    if (videoId && videoTitle !== "Loading...") {
       addToHistory({
         id: historyItemId,
         originalId: videoId,
@@ -464,7 +469,7 @@ export function VideoPage() {
         thumbnail: videoMetadata?.thumbnailUrl || passedThumbnail || "",
         playbackUrl: historyPlaybackUrl,
         shareUrl,
-        platform: platform as "twitch" | "kick",
+        platform: routePlatform,
         type: "video",
         channelName: channelName,
         channelDisplayName: channelDisplayName,
@@ -472,7 +477,7 @@ export function VideoPage() {
       });
     }
   }, [
-    platform,
+    routePlatform,
     videoId,
     videoTitle,
     channelName,
@@ -509,7 +514,7 @@ export function VideoPage() {
   const handleDownload = () => {
     if (!isPlaybackReady || !streamUrl) return;
     void downloadVideo({
-      platform: platform as Platform,
+      platform: routePlatform,
       videoId,
       title: videoTitle,
       channelName,
@@ -529,7 +534,7 @@ export function VideoPage() {
   // bridges the two via slug, so follow-state reads stay correct across both.
   const channelForFollow: UnifiedChannel = channelData ?? {
     id: "",
-    platform: platform as Platform,
+    platform: routePlatform,
     username: channelName,
     displayName: channelDisplayName,
     avatarUrl: channelAvatar || "",
@@ -552,19 +557,18 @@ export function VideoPage() {
   // Fetch related videos based on channelName
   useEffect(() => {
     const fetchRelated = async () => {
-      if (!platform || !hasResolvedChannelName) return;
+      if (!hasResolvedChannelName) return;
 
       setIsRelatedLoading(true);
       try {
-        const api = (window as any).electronAPI;
-        const result = await api.videos.getByChannel({
-          platform,
+        const result = await window.electronAPI.videos.getByChannel({
+          platform: routePlatform,
           channelName,
           limit: 100,
         });
 
-        if (result.success && result.data) {
-          setRelatedVideos(result.data);
+        if (result.success && Array.isArray(result.data)) {
+          setRelatedVideos(result.data.filter(isVideoOrClip));
         }
       } catch (err) {
         logger.error("Page:Video", "failed to fetch related", {
@@ -579,7 +583,7 @@ export function VideoPage() {
     };
 
     if (hasResolvedChannelName) fetchRelated();
-  }, [platform, channelName, hasResolvedChannelName]);
+  }, [routePlatform, channelName, hasResolvedChannelName]);
 
   return (
     <div className="h-full flex overflow-hidden">
@@ -657,7 +661,7 @@ export function VideoPage() {
                 <PlatformAvatar
                   src={channelAvatar}
                   alt={channelDisplayName}
-                  platform={platform as Platform}
+                  platform={routePlatform}
                   size="w-14 h-14"
                   className={`shadow-lg ring-2 ring-offset-2 ring-offset-[var(--color-background)] ${platform === "twitch" ? "ring-[#9146FF] hover:ring-[#9146FF]/80" : "ring-[#53FC18] hover:ring-[#53FC18]/80"} transition-all`}
                   disablePlatformBorder
@@ -804,11 +808,11 @@ export function VideoPage() {
                     <div key={video.id} className="h-full">
                       <VideoCard
                         video={video}
-                        platform={platform as Platform}
+                        platform={routePlatform}
                         channelName={channelName}
                         channelData={{
                           id: "",
-                          platform: platform as Platform,
+                          platform: routePlatform,
                           username: channelName,
                           displayName: channelDisplayName,
                           avatarUrl: channelAvatar || "",

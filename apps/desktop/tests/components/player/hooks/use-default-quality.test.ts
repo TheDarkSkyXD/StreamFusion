@@ -7,7 +7,7 @@ vi.mock("@/renderer/logging/logger", () => ({
 
 let mockDefaultQuality = "auto";
 vi.mock("@/store/auth-store", () => ({
-  useAuthStore: (selector: (s: any) => any) =>
+  useAuthStore: <Selected,>(selector: (state: unknown) => Selected): Selected =>
     selector({
       preferences: {
         playback: { defaultQuality: mockDefaultQuality },

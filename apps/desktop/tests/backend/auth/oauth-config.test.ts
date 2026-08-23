@@ -150,15 +150,12 @@ describe("TWITCH OAuth authorization URL (scope upgrades)", () => {
   });
 });
 
-// Guards: Kick chat:write scope dropped 2026-05-29 — chat send now goes through
-// kick.com/api/v2/messages/send/{chatroomId} via page-context fetch (see
-// kick-send-window.ts). The public-API path (POST /public/v1/chat) is gated
-// behind App Verification and silently drops un-verified sends, so requesting
-// chat:write at OAuth time was wasted scope churn. Re-adding it requires
-// reverting the page-context send path.
+// Guards: Kick's official POST /public/v1/chat requires chat:write. Keep it in
+// the canonical grant while the website-session adapter remains available for
+// delivery compatibility.
 describe("KICK_OAUTH_CONFIG scopes (chat send)", () => {
-  it("KICK_OAUTH_CONFIG no longer requests chat:write (page-context send replaces it)", () => {
-    expect(KICK_OAUTH_CONFIG.scopes).not.toContain("chat:write");
+  it("requests chat:write for official user chat delivery", () => {
+    expect(KICK_OAUTH_CONFIG.scopes).toContain("chat:write");
   });
 
   it("preserves the prior base scopes (user:read + channel:read)", () => {
@@ -169,6 +166,7 @@ describe("KICK_OAUTH_CONFIG scopes (chat send)", () => {
     expect(KICK_OAUTH_CONFIG.scopes).toEqual([
       "user:read",
       "channel:read",
+      "chat:write",
       "moderation:chat_message:manage",
       "moderation:ban",
       "events:subscribe",

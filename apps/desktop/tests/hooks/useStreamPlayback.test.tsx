@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Platform } from "@/shared/auth-types";
+import { installElectronAPIMock } from "../test-utils";
 
 vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -15,19 +16,16 @@ vi.mock("@/hooks/useNetworkStatus", () => ({
 const WAIT_OPTS = { timeout: 3000 };
 
 beforeEach(() => {
-  (window as unknown as { electronAPI: unknown }).electronAPI = {
-    streams: {
-      getPlaybackUrl: vi.fn().mockResolvedValue({
+  const api = installElectronAPIMock();
+  api.streams.getPlaybackUrl = vi.fn().mockResolvedValue({
         success: true,
         data: { url: "https://example.com/stream.m3u8", format: "hls" },
-      }),
-    },
-  };
+      });
 });
 
 afterEach(() => {
   vi.useRealTimers();
-  delete (window as unknown as { electronAPI?: unknown }).electronAPI;
+  Reflect.deleteProperty(window, "electronAPI");
 });
 
 // Guards: playback URL logging must report timing and host metadata without leaking signed URLs.
@@ -58,6 +56,20 @@ describe("useStreamPlayback", () => {
     });
     const { useStreamPlayback } = await import("@/hooks/useStreamPlayback");
     const { result } = renderHook(() => useStreamPlayback("kick", "offline"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false), WAIT_OPTS);
+    expect(result.current.error).toBeInstanceOf(Error);
+    expect(result.current.playback).toBeNull();
+  });
+
+  // Guards: IPC data is untrusted until its closed playback-format union is validated.
+  it("rejects an unsupported playback format from IPC", async () => {
+    vi.resetModules();
+    window.electronAPI!.streams.getPlaybackUrl = vi.fn().mockResolvedValue({
+      success: true,
+      data: { url: "https://example.com/stream.bin", format: "flash" },
+    });
+    const { useStreamPlayback } = await import("@/hooks/useStreamPlayback");
+    const { result } = renderHook(() => useStreamPlayback("kick", "invalid-format"));
     await waitFor(() => expect(result.current.isLoading).toBe(false), WAIT_OPTS);
     expect(result.current.error).toBeInstanceOf(Error);
     expect(result.current.playback).toBeNull();

@@ -1,16 +1,17 @@
-import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { PlayerControls } from '@/components/player/player-controls';
 import { TwitchPlayerControls } from '@/components/player/twitch/twitch-player-controls';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import type React from 'react';
 
 // Mock dependencies
 vi.mock('@/components/player/play-pause-button', () => ({
-    PlayPauseButton: ({ onToggle }: any) => <button onClick={onToggle}>Play/Pause</button>
+    PlayPauseButton: ({ onToggle }: { onToggle: () => void }) => <button onClick={onToggle}>Play/Pause</button>
 }));
 
 vi.mock('@/components/player/volume-control', () => ({
-    VolumeControl: ({ onMuteToggle }: any) => <button onClick={onMuteToggle}>Volume</button>
+    VolumeControl: ({ onMuteToggle }: { onMuteToggle: () => void }) => <button onClick={onMuteToggle}>Volume</button>
 }));
 
 vi.mock('@/components/player/settings-menu', () => ({
@@ -18,12 +19,12 @@ vi.mock('@/components/player/settings-menu', () => ({
 }));
 
 vi.mock('@/components/player/progress-bar', () => ({
-    ProgressBar: ({ onSeek }: any) => <div data-testid="progress-bar" onClick={() => onSeek(10)}>Progress</div>
+    ProgressBar: ({ onSeek }: { onSeek: (seconds: number) => void }) => <div data-testid="progress-bar" onClick={() => onSeek(10)}>Progress</div>
 }));
 
 vi.mock('@/lib/utils', () => ({
     formatDuration: (s: number) => `${s}s`,
-    cn: (...args: any[]) => args.join(' ')
+    cn: (...args: unknown[]) => args.join(' ')
 }));
 
 describe('PlayerControls', () => {
@@ -44,7 +45,7 @@ describe('PlayerControls', () => {
         onSeek: vi.fn()
     };
 
-    const renderControls = (props: any) => render(
+    const renderControls = (props: React.ComponentProps<typeof PlayerControls>) => render(
         <TooltipProvider>
             <PlayerControls {...props} />
         </TooltipProvider>

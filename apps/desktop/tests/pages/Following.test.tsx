@@ -510,9 +510,14 @@ describe("FollowingPage", () => {
     expect(screen.queryByText(/refreshing cache|refreshing data/i)).not.toBeInTheDocument();
   });
 
-  it("manual Live refresh requests current streams and channels exactly once", async () => {
+  it("manual Live refresh syncs connected accounts before requesting current data", async () => {
     storeState.twitchConnected = true;
     storeState.kickConnected = true;
+    let resolveSync!: (result: { synced: string[]; failed: string[] }) => void;
+    const syncPromise = new Promise<{ synced: string[]; failed: string[] }>((resolve) => {
+      resolveSync = resolve;
+    });
+    storeState.syncConnectedFollows.mockReturnValue(syncPromise);
     const refetchFollowedStreams = vi.fn().mockResolvedValue({ isError: false, status: "success" });
     const refetchTwitchFollows = vi.fn().mockResolvedValue({ isError: false, status: "success" });
     const refetchKickFollows = vi.fn().mockResolvedValue({ isError: false, status: "success" });
@@ -552,14 +557,54 @@ describe("FollowingPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /refresh following data/i }));
 
     await waitFor(() => {
-      expect(refetchFollowedStreams).toHaveBeenCalledTimes(1);
+      expect(storeState.syncConnectedFollows).toHaveBeenCalledTimes(1);
     });
+    expect(refetchFollowedStreams).not.toHaveBeenCalled();
+    expect(refetchTwitchFollows).not.toHaveBeenCalled();
+    expect(refetchKickFollows).not.toHaveBeenCalled();
+
+    resolveSync({ synced: ["twitch", "kick"], failed: [] });
+    await waitFor(() => expect(refetchFollowedStreams).toHaveBeenCalledTimes(1));
     expect(refetchTwitchFollows).toHaveBeenCalledTimes(1);
     expect(refetchKickFollows).toHaveBeenCalledTimes(1);
-    expect(storeState.syncConnectedFollows).not.toHaveBeenCalled();
     expect(refetchCategories).not.toHaveBeenCalled();
     expect(refetchVideos).not.toHaveBeenCalled();
     expect(refetchClips).not.toHaveBeenCalled();
+  });
+
+  it("manual Live refresh reports a partial sync failure after refetching current data", async () => {
+    storeState.twitchConnected = true;
+    storeState.kickConnected = true;
+    storeState.syncConnectedFollows.mockResolvedValue({
+      synced: ["twitch"],
+      failed: ["kick"],
+    });
+    const refetchFollowedStreams = vi.fn().mockResolvedValue({ isError: false, status: "success" });
+    const refetchTwitchFollows = vi.fn().mockResolvedValue({ isError: false, status: "success" });
+    const refetchKickFollows = vi.fn().mockResolvedValue({ isError: false, status: "success" });
+    useFollowedStreamsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      refetch: refetchFollowedStreams,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+    useFollowedChannelsMock.mockImplementation(
+      (platform) =>
+        ({
+          data: [],
+          isLoading: false,
+          refetch: platform === "twitch" ? refetchTwitchFollows : refetchKickFollows,
+        }) as unknown as ReturnType<typeof useFollowedChannels>
+    );
+
+    renderWithProviders(<FollowingPage />);
+    fireEvent.click(screen.getByRole("button", { name: /refresh following data/i }));
+
+    expect(
+      await screen.findByRole("button", { name: "Retry refreshing following data" })
+    ).toBeInTheDocument();
+    expect(refetchFollowedStreams).toHaveBeenCalledOnce();
+    expect(refetchTwitchFollows).toHaveBeenCalledOnce();
+    expect(refetchKickFollows).toHaveBeenCalledOnce();
   });
 
   it("manual Live refresh preserves cached cards, publishes success, and resets pending", async () => {
@@ -593,7 +638,7 @@ describe("FollowingPage", () => {
 
     expect(refreshButton).toBeDisabled();
     expect(screen.getByTestId("stream-grid")).toHaveTextContent("1 streams");
-    expect(refetchFollowedStreams).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(refetchFollowedStreams).toHaveBeenCalledTimes(1));
     expect(refetchCategories).not.toHaveBeenCalled();
 
     visibleStreams = [firstStream, secondStream];
@@ -640,7 +685,7 @@ describe("FollowingPage", () => {
 
     fireEvent.click(retryButton);
     expect(retryButton).toBeDisabled();
-    expect(refetchFollowedStreams).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(refetchFollowedStreams).toHaveBeenCalledTimes(2));
 
     visibleStreams = [firstStream, secondStream];
     await act(async () => {

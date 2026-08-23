@@ -78,9 +78,7 @@ describe("network status retry loop", () => {
 
   it("coalesces concurrent checks into one main-process probe", async () => {
     let resolveProbe!: (reachable: boolean) => void;
-    const probe = vi.fn(
-      () => new Promise<boolean>((resolve) => (resolveProbe = resolve))
-    );
+    const probe = vi.fn(() => new Promise<boolean>((resolve) => (resolveProbe = resolve)));
     const store = createNetworkStatusStore({
       probe,
       eventTarget: new EventTarget(),

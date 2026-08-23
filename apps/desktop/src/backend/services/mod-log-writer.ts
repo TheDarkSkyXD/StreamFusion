@@ -133,6 +133,13 @@ class ModLogWriter {
   /** Latched once per process so we only warn once for unknown sub-actions. */
   private warnedUnknownActions = new Set<string>();
 
+  /** Clear process-local state between tests without weakening private fields. */
+  resetForTesting(): void {
+    this.initialized = false;
+    this.recent = [];
+    this.warnedUnknownActions = new Set<string>();
+  }
+
   /** Idempotent setup. Runs the AE10 retention sweep on first call only. */
   async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -490,12 +497,7 @@ export const modLogWriter = new ModLogWriter();
 
 /** Reset state — TESTING ONLY. */
 export function __resetModLogWriterForTesting(): void {
-  // Reach into the singleton and clear private state without re-creating it,
-  // so import-time references continue to work.
-  const w = modLogWriter as any;
-  w.initialized = false;
-  w.recent = [];
-  w.warnedUnknownActions = new Set<string>();
+  modLogWriter.resetForTesting();
 }
 
 // Re-export for hook consumers.

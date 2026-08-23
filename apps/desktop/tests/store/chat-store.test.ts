@@ -231,10 +231,6 @@ function messageIdsFor(channelKey = defaultChannelKey()): string[] {
   return messagesFor(channelKey).map((m) => m.id);
 }
 
-function storeRecord(): Record<string, unknown> {
-  return useChatStore.getState() as unknown as Record<string, unknown>;
-}
-
 function makeEmoteMessage(id: string, platform: ChatPlatform = 'kick'): ChatMessage {
   const base = makeMessage(id, platform);
   return {
@@ -889,6 +885,37 @@ describe('chat-store prependMessages per channel', () => {
     expect(bucket?.map((m) => m.id)).toEqual(['older', 'shared']);
     expect(bucket?.[1]).toMatchObject({ rawContent: 'live copy', isHistorical: false });
   });
+
+  // Guards: late history must stay before queued live messages and must not replace a live duplicate
+  it('flushes queued live messages before merging late history', () => {
+    resetStore({ batching: true, interval: 50 });
+    vi.useFakeTimers();
+    const channelKey = buildChannelKey('twitch', 'xqc');
+    useChatStore.getState().addMessageBatched(
+      {
+        ...makeMessage('shared', 'twitch'),
+        channel: 'xqc',
+        rawContent: 'live copy',
+        isHistorical: false,
+      },
+      channelKey
+    );
+
+    useChatStore.getState().prependMessages(channelKey, [
+      { ...makeMessage('older', 'twitch'), channel: 'xqc', isHistorical: true },
+      {
+        ...makeMessage('shared', 'twitch'),
+        channel: 'xqc',
+        rawContent: 'history copy',
+        isHistorical: true,
+      },
+    ]);
+
+    const bucket = useChatStore.getState().messagesByChannel[channelKey];
+    expect(bucket?.map((message) => message.id)).toEqual(['older', 'shared']);
+    expect(bucket?.[1]).toMatchObject({ rawContent: 'live copy', isHistorical: false });
+    vi.useRealTimers();
+  });
 });
 
 describe('chat-store addMessageBatched per-channel flush timer', () => {
@@ -1083,8 +1110,8 @@ describe('chat-store per-channel fields initial state', () => {
   });
 
   it('does not expose the deleted flat compatibility fields', () => {
-    expect(storeRecord().messages).toBeUndefined();
-    expect(storeRecord().isPaused).toBeUndefined();
+    expect(Reflect.get(useChatStore.getState(), "messages")).toBeUndefined();
+    expect(Reflect.get(useChatStore.getState(), "isPaused")).toBeUndefined();
   });
 
   it('setPaused(channelKey, paused) updates only that channel', () => {

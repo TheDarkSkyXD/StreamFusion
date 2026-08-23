@@ -1,13 +1,9 @@
 import { logger } from "@/backend/logging/logger";
 import type { UnifiedCategory } from "../../../unified/platform-types";
 import type { TwitchRequestor } from "../twitch-requestor";
+import { helixResponseSchema, twitchGameSchema } from "../twitch-helix-schemas";
 import { transformTwitchCategory } from "../twitch-transformers";
-import type {
-  PaginatedResult,
-  PaginationOptions,
-  TwitchApiGame,
-  TwitchApiResponse,
-} from "../twitch-types";
+import type { PaginatedResult, PaginationOptions } from "../twitch-types";
 
 /**
  * Get top categories/games
@@ -24,8 +20,8 @@ export async function getTopCategories(
     params.set("after", options.after);
   }
 
-  const data = await client.request<TwitchApiResponse<TwitchApiGame>>(
-    `/games/top?${params.toString()}`
+  const data = helixResponseSchema(twitchGameSchema).parse(
+    await client.request(`/games/top?${params.toString()}`)
   );
 
   return {
@@ -41,7 +37,7 @@ export async function getCategoryById(
   client: TwitchRequestor,
   id: string
 ): Promise<UnifiedCategory | null> {
-  const data = await client.request<TwitchApiResponse<TwitchApiGame>>(`/games?id=${id}`);
+  const data = helixResponseSchema(twitchGameSchema).parse(await client.request(`/games?id=${id}`));
 
   if (data.data && data.data.length > 0) {
     return transformTwitchCategory(data.data[0]);
@@ -66,8 +62,8 @@ export async function getCategoriesByIds(
   const params = new URLSearchParams();
   ids.forEach((id) => params.append("id", id));
 
-  const data = await client.request<TwitchApiResponse<TwitchApiGame>>(
-    `/games?${params.toString()}`
+  const data = helixResponseSchema(twitchGameSchema).parse(
+    await client.request(`/games?${params.toString()}`)
   );
 
   if (data.data) {

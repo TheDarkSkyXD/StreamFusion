@@ -36,6 +36,7 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "storybook:coverage": "node scripts/check-storybook-coverage.mjs",
+    "reliability:boundaries": "node scripts/check-reliability-boundaries.mjs",
     "bundle:analyze": "cross-env ANALYZE=true pnpm run build"
   },
   "build": {

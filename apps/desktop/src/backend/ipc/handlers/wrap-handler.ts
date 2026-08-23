@@ -1,6 +1,6 @@
 // IPC handler wrapper — maps thrown errors to the existing `{success, error: string}` envelope.
 
-import { ipcMain } from "electron";
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 interface ErrorEnvelope {
   success: false;

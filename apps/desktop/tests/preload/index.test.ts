@@ -3,9 +3,9 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { IPC_CHANNELS } from "@/shared/ipc-channels";
 
 const electronMocks = vi.hoisted(() => ({
-  exposedApi: undefined as any,
+  exposedApi: {} as Window["electronAPI"],
   exposeInMainWorld: vi.fn((name: string, api: unknown) => {
-    if (name === "electronAPI") electronMocks.exposedApi = api;
+    if (name === "electronAPI") electronMocks.exposedApi = api as Window["electronAPI"];
   }),
   invoke: vi.fn(),
   on: vi.fn(),
@@ -76,8 +76,9 @@ describe("preload follow account transitions", () => {
         channelId: "12345",
         channelName: "example_channel",
         displayName: "Example Channel",
+        profileImage: "",
       },
-    };
+    } as const;
     const result = { status: "confirmed", activeFollows: [] };
     electronMocks.invoke.mockResolvedValueOnce(result);
 
@@ -169,6 +170,56 @@ describe("preload connectivity boundary", () => {
   });
 });
 
+// Guards: malformed updater push payloads never cross the privileged preload boundary.
+// Guards: valid updater push payloads are forwarded unchanged and remain removable.
+describe("preload updater push validation", () => {
+  it("drops malformed status payloads but forwards a valid state", () => {
+    const callback = vi.fn();
+    const cleanup = electronMocks.exposedApi.updater.onStatusChange(callback);
+    const registration = electronMocks.on.mock.calls.find(
+      ([channel]) => channel === IPC_CHANNELS.UPDATE_ON_STATUS_CHANGE
+    );
+    const handler = registration?.[1];
+
+    handler({}, { status: "downloaded", progress: { percent: "100" } });
+    expect(callback).not.toHaveBeenCalled();
+
+    const state = {
+      status: "downloaded",
+      updateInfo: null,
+      progress: { bytesPerSecond: 1, percent: 100, transferred: 10, total: 10 },
+      error: null,
+      allowPrerelease: false,
+      autoCheckEnabled: true,
+      checkFrequency: "daily",
+    };
+    handler({}, state);
+    expect(callback).toHaveBeenCalledWith(state);
+
+    cleanup();
+    expect(electronMocks.removeListener).toHaveBeenCalledWith(
+      IPC_CHANNELS.UPDATE_ON_STATUS_CHANGE,
+      handler
+    );
+  });
+
+  it("drops malformed progress payloads but forwards valid progress", () => {
+    const callback = vi.fn();
+    electronMocks.exposedApi.updater.onProgress(callback);
+    const registration = electronMocks.on.mock.calls.find(
+      ([channel]) => channel === IPC_CHANNELS.UPDATE_ON_PROGRESS
+    );
+    const handler = registration?.[1];
+
+    handler({}, { bytesPerSecond: 1, percent: Number.NaN, transferred: 2, total: 3 });
+    expect(callback).not.toHaveBeenCalled();
+
+    const progress = { bytesPerSecond: 1, percent: 50, transferred: 2, total: 4 };
+    handler({}, progress);
+    expect(callback).toHaveBeenCalledWith(progress);
+  });
+});
+
 // Guards: Chat Replay load and cancellation stay reachable through typed, named video IPC methods.
 describe("preload Chat Replay boundary", () => {
   it("forwards replay window requests and cancellation without changing their payloads", async () => {
@@ -177,7 +228,7 @@ describe("preload Chat Replay boundary", () => {
       videoId: "video-1",
       offsetSeconds: 120,
       requestId: "replay-request-1",
-    };
+    } as const;
     const response = {
       success: true,
       data: { capability: "empty", platform: "twitch", videoId: "video-1" },

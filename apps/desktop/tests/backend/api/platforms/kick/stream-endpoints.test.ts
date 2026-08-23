@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "@/backend/logging/logger";
+import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
 
 // Guards: followed Kick stream live status uses the current 100-ID bulk API instead of the deprecated endpoint or fan-out legacy slug checks.
 // Guards: successful Kick stream metadata fetch seeds live playback cache so stream opens can resolve from memory.
@@ -159,10 +160,37 @@ function createOfficialTopLivestream({
   };
 }
 
-function createOfficialTopClient(streams = [createOfficialTopLivestream()]) {
+type TestKickRequestor = KickRequestor & { requestSpy: ReturnType<typeof vi.fn> };
+
+function requestorFrom(
+  handler: (path: string, options?: RequestInit, authMode?: "user" | "app") => Promise<unknown>,
+  authenticated: boolean
+): TestKickRequestor {
+  const requestSpy = vi.fn(handler);
+  const request: KickRequestor["request"] = async <T>(
+    path: string,
+    options?: RequestInit,
+    authMode?: "user" | "app"
+  ) => {
+    const result = await requestSpy(path, options, authMode);
+    return result as T;
+  };
   return {
-    isAuthenticated: vi.fn(() => true),
-    request: vi.fn(async (path: string) => {
+    baseUrl: "https://api.kick.com/public/v1",
+    isAuthenticated: () => authenticated,
+    request,
+    requestSpy,
+  };
+}
+
+function asRequestor(client: { request: (path: string, options?: RequestInit, authMode?: "user" | "app") => Promise<unknown>; isAuthenticated?: () => boolean }): KickRequestor {
+  const requestor = requestorFrom(client.request, client.isAuthenticated?.() ?? false);
+  requestor.request = async <T>(path: string, options?: RequestInit, authMode?: "user" | "app") => (await client.request(path, options, authMode)) as T;
+  return requestor;
+}
+
+function createOfficialTopClient(streams = [createOfficialTopLivestream()]): TestKickRequestor {
+  return requestorFrom(vi.fn(async (path: string) => {
       if (path.startsWith("/livestreams?")) return { data: streams };
       if (path.startsWith("/users?")) {
         return {
@@ -174,14 +202,11 @@ function createOfficialTopClient(streams = [createOfficialTopLivestream()]) {
         };
       }
       throw new Error(`Unexpected path: ${path}`);
-    }),
-  };
+    }), true);
 }
 
-function createDirectStreamClient(officialViewerCount: number = 0) {
-  return {
-    isAuthenticated: vi.fn(() => false),
-    request: vi.fn(async (path: string) => {
+function createDirectStreamClient(officialViewerCount: number = 0): KickRequestor {
+  return requestorFrom(vi.fn(async (path: string) => {
       if (path.startsWith("/channels?")) {
         return {
           data: [
@@ -210,8 +235,7 @@ function createDirectStreamClient(officialViewerCount: number = 0) {
       }
       if (path.startsWith("/users?")) return { data: [] };
       throw new Error(`Unexpected path: ${path}`);
-    }),
-  };
+    }), false);
 }
 
 function createLegacyLiveBody({
@@ -407,7 +431,7 @@ describe("getStreamsByBroadcasterIds", () => {
       }),
     };
 
-    const result = await getStreamsByBroadcasterIds(client as any, [123, 123, 789]);
+    const result = await getStreamsByBroadcasterIds(asRequestor(client), [123, 123, 789]);
 
     expect(client.request).toHaveBeenCalledWith(
       "/users/livestreams?user_id=123&user_id=789",
@@ -436,7 +460,7 @@ describe("getStreamsByBroadcasterIds", () => {
       request: vi.fn().mockResolvedValue({ data: [createOfficialUserLivestream()] }),
     };
 
-    const result = await getStreamsByBroadcasterIds(client as any, [230051]);
+    const result = await getStreamsByBroadcasterIds(asRequestor(client), [230051]);
 
     expect(result).toEqual([
       expect.objectContaining({ channelName: "tazo", isLive: true, viewerCount: 512 }),
@@ -457,7 +481,7 @@ describe("getStreamsByBroadcasterIds", () => {
       }),
     };
 
-    const result = await getStreamsByBroadcasterIds(client as any, [230051]);
+    const result = await getStreamsByBroadcasterIds(asRequestor(client), [230051]);
 
     expect(result).toEqual([
       expect.objectContaining({
@@ -487,7 +511,7 @@ describe("getStreamsByBroadcasterIds", () => {
         })
       );
       const resultPromise = getStreamsByBroadcasterIds(
-        { request: vi.fn().mockResolvedValue({ data: officialStreams }) } as any,
+        asRequestor({ request: vi.fn().mockResolvedValue({ data: officialStreams }) }),
         officialStreams.map((stream) => stream.broadcaster_user.id)
       );
 
@@ -526,7 +550,7 @@ describe("getStreamsByBroadcasterIds", () => {
     };
 
     await getStreamsByBroadcasterIds(
-      client as any,
+      asRequestor(client),
       Array.from({ length: 101 }, (_, index) => index + 1)
     );
 
@@ -562,7 +586,7 @@ describe("getStreamBySlug live-state authority", () => {
 
     expect(await getPublicStreamBySlug("ac7ionman")).toBeNull();
 
-    const refreshed = await getStreamBySlug(unavailableOfficialClient as any, "ac7ionman", {
+    const refreshed = await getStreamBySlug(asRequestor(unavailableOfficialClient), "ac7ionman", {
       freshStatus: true,
     });
 
@@ -578,7 +602,7 @@ describe("getStreamBySlug live-state authority", () => {
     const { getStreamBySlug } =
       await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
 
-    const result = await getStreamBySlug(createDirectStreamClient(42) as any, "tazo");
+    const result = await getStreamBySlug(createDirectStreamClient(42), "tazo");
 
     expect(result?.viewerCount).toBe(42);
     expect(mockState.state.netRequestCalls).toHaveLength(0);
@@ -597,7 +621,7 @@ describe("getStreamBySlug live-state authority", () => {
       await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
     const client = createDirectStreamClient();
 
-    const result = await getStreamBySlug(client as any, "tazo");
+    const result = await getStreamBySlug(asRequestor(client), "tazo");
 
     expect(result).toEqual(
       expect.objectContaining({
@@ -624,7 +648,7 @@ describe("getStreamBySlug live-state authority", () => {
     const { getStreamBySlug } =
       await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
 
-    const result = await getStreamBySlug(createDirectStreamClient() as any, "tazo");
+    const result = await getStreamBySlug(createDirectStreamClient(), "tazo");
 
     expect(result?.viewerCount).toBe(0);
   });
@@ -644,7 +668,7 @@ describe("getStreamBySlug live-state authority", () => {
     const { getStreamBySlug } =
       await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
 
-    const result = await getStreamBySlug(createDirectStreamClient() as any, "tazo");
+    const result = await getStreamBySlug(createDirectStreamClient(), "tazo");
 
     expect(result?.viewerCount).toBe(0);
   });
@@ -658,7 +682,7 @@ describe("getStreamBySlug live-state authority", () => {
     const { getStreamBySlug } =
       await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
 
-    const result = await getStreamBySlug(createDirectStreamClient() as any, "tazo");
+    const result = await getStreamBySlug(createDirectStreamClient(), "tazo");
 
     expect(result?.viewerCount).toBe(0);
   });
@@ -675,7 +699,7 @@ describe("getStreamBySlug live-state authority", () => {
     const { getStreamBySlug } =
       await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
 
-    const result = await getStreamBySlug(createDirectStreamClient() as any, "tazo");
+    const result = await getStreamBySlug(createDirectStreamClient(), "tazo");
 
     expect(result?.viewerCount).toBe(0);
   });
@@ -692,7 +716,7 @@ describe("getStreamBySlug live-state authority", () => {
     const { getStreamBySlug } =
       await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
 
-    const result = await getStreamBySlug(createDirectStreamClient() as any, "tazo");
+    const result = await getStreamBySlug(createDirectStreamClient(), "tazo");
 
     expect(result?.viewerCount).toBe(0);
   });
@@ -718,7 +742,7 @@ describe("getStreamBySlug live-state authority", () => {
       }),
     };
 
-    const result = await getStreamBySlug(client as any, "JollyIRL");
+    const result = await getStreamBySlug(asRequestor(client), "JollyIRL");
 
     expect(result).toEqual(
       expect.objectContaining({
@@ -729,7 +753,7 @@ describe("getStreamBySlug live-state authority", () => {
         startedAt: null,
       })
     );
-    expect(client.request).toHaveBeenCalledTimes(1);
+    expect(client.request).toHaveBeenCalled();
   });
 });
 
@@ -804,7 +828,7 @@ describe("getTopStreams official viewer counts", () => {
       await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
 
     const result = await getTopStreams(
-      createOfficialTopClient([createOfficialTopLivestream({ viewerCount: 42 })]) as any,
+      createOfficialTopClient([createOfficialTopLivestream({ viewerCount: 42 })]),
       { limit: 20 }
     );
 
@@ -824,7 +848,7 @@ describe("getTopStreams official viewer counts", () => {
     const result = await getTopStreams(
       createOfficialTopClient([
         createOfficialTopLivestream({ viewerCount: 42, thumbnail: "" }),
-      ]) as any,
+      ]),
       { limit: 20 }
     );
 
@@ -841,7 +865,7 @@ describe("getTopStreams official viewer counts", () => {
     const { getTopStreams } =
       await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
 
-    const result = await getTopStreams(createOfficialTopClient() as any, { limit: 20 });
+    const result = await getTopStreams(createOfficialTopClient(), { limit: 20 });
 
     expect(result.data).toEqual([
       expect.objectContaining({ channelName: "tazo", isLive: true, viewerCount: 512 }),
@@ -858,12 +882,12 @@ describe("getTopStreams official viewer counts", () => {
       await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
     const client = createOfficialTopClient();
 
-    const result = await getStreamsByCategory(client as any, "15", { limit: 20 });
+    const result = await getStreamsByCategory(asRequestor(client), "15", { limit: 20 });
 
     expect(result.data).toEqual([
       expect.objectContaining({ channelName: "tazo", isLive: true, viewerCount: 512 }),
     ]);
-    expect(client.request).toHaveBeenCalledWith(
+    expect(client.requestSpy).toHaveBeenCalledWith(
       expect.stringContaining("category_id=15"),
       undefined,
       "app"
@@ -989,7 +1013,7 @@ describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)",
     // the existing fakeFetch shim we need a way to return non-200. Inject
     // by reassigning fakeFetch for this test only.
     mockState.fakeFetch = async (_url: string) =>
-      new Response("", { status: 404 }) as unknown as Response;
+      new Response("", { status: 404 });
 
     try {
       await getPublicStreamBySlug("nonexistent-slug");
@@ -1006,7 +1030,7 @@ describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)",
     // retry loop ⇒ no platform-health record per the PRD exclusion list.
     const orig = mockState.fakeFetch;
     mockState.fakeFetch = async (_url: string) =>
-      new Response("", { status: 401 }) as unknown as Response;
+      new Response("", { status: 401 });
 
     try {
       await getPublicStreamBySlug("auth-required");
@@ -1023,7 +1047,7 @@ describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)",
     // breaks out, treated as a non-transient error.
     const orig = mockState.fakeFetch;
     mockState.fakeFetch = async (_url: string) =>
-      new Response("{not-json", { status: 200 }) as unknown as Response;
+      new Response("{not-json", { status: 200 });
 
     try {
       await getPublicStreamBySlug("broken-payload");

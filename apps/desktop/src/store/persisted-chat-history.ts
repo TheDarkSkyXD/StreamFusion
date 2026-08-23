@@ -42,6 +42,43 @@ function normalizeChannel(channel: string): string {
   return channel.trim().toLowerCase().replace(/^#+/, "");
 }
 
+function isSerializedChatMessage(value: unknown): value is SerializedChatMessage {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "string" &&
+    "platform" in value &&
+    (value.platform === "kick" || value.platform === "twitch") &&
+    "type" in value &&
+    value.type === "message" &&
+    "channel" in value &&
+    typeof value.channel === "string" &&
+    "userId" in value &&
+    typeof value.userId === "string" &&
+    "username" in value &&
+    typeof value.username === "string" &&
+    "displayName" in value &&
+    typeof value.displayName === "string" &&
+    "color" in value &&
+    typeof value.color === "string" &&
+    "badges" in value &&
+    Array.isArray(value.badges) &&
+    "content" in value &&
+    Array.isArray(value.content) &&
+    "rawContent" in value &&
+    typeof value.rawContent === "string" &&
+    "timestamp" in value &&
+    typeof value.timestamp === "string" &&
+    "isDeleted" in value &&
+    typeof value.isDeleted === "boolean" &&
+    "isHighlighted" in value &&
+    typeof value.isHighlighted === "boolean" &&
+    "isAction" in value &&
+    typeof value.isAction === "boolean"
+  );
+}
+
 function entryKey(platform: ChatPlatform, channel: string, channelId: string): string {
   return `${platform}:${normalizeChannel(channel)}:${channelId.trim()}`;
 }
@@ -105,24 +142,44 @@ export async function hydratePersistedChatHistory(): Promise<void> {
   if (hydrationPromise) return hydrationPromise;
 
   const attempt = window.electronAPI.store
-    .get<PersistedChatHistoryLru>(STORE_KEY)
+    .get(STORE_KEY)
     .then((stored) => {
       const now = Date.now();
       const restored = new Map<string, RestoredEntry>();
-      if (stored?.version === 1 && Array.isArray(stored.entries)) {
+      if (
+        stored !== null &&
+        typeof stored === "object" &&
+        "version" in stored &&
+        stored.version === 1 &&
+        "entries" in stored &&
+        Array.isArray(stored.entries)
+      ) {
         for (const entry of stored.entries) {
           if (
+            typeof entry !== "object" ||
+            entry === null ||
+            !("platform" in entry) ||
             (entry.platform !== "kick" && entry.platform !== "twitch") ||
+            !("channel" in entry) ||
+            typeof entry.channel !== "string" ||
             !entry.channel ||
+            !("channelId" in entry) ||
+            typeof entry.channelId !== "string" ||
             !entry.channelId ||
+            !("savedAt" in entry) ||
+            typeof entry.savedAt !== "number" ||
             !isFresh(entry.savedAt, now) ||
+            !("messages" in entry) ||
             !Array.isArray(entry.messages)
           ) {
             continue;
           }
           const messages = entry.messages
-            .map((message) => restoreMessage(message, entry))
-            .filter((message): message is ChatMessage => message !== null)
+            .filter((message: unknown): message is SerializedChatMessage =>
+              isSerializedChatMessage(message)
+            )
+            .map((message: SerializedChatMessage) => restoreMessage(message, entry))
+            .filter((message: ChatMessage | null): message is ChatMessage => message !== null)
             .slice(-MAX_MESSAGES_PER_CHANNEL);
           if (messages.length === 0) continue;
           restored.set(entryKey(entry.platform, entry.channel, entry.channelId), {

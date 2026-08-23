@@ -27,6 +27,7 @@
 
 import { logger } from "@/lib/cross-logger";
 import { createCancellableSleep, type CancellableSleep } from "@/lib/sleep";
+import { z } from "zod";
 
 import { attachEventSubHealthBridge } from "./eventsub-health-bridge";
 import type {
@@ -74,7 +75,7 @@ export interface TwitchEventSubClientOptions {
   clientId?: string;
   tokenFetcher?: () => Promise<string | null>;
   subscriptionRequestor?: {
-    request<T>(endpoint: string, options?: RequestInit): Promise<T>;
+    request(endpoint: string, options?: RequestInit): Promise<unknown>;
   };
 }
 
@@ -111,7 +112,7 @@ type SubEntry = {
   channelId: string;
   refcount: number;
   /** Listener bag — typed loosely; cast at dispatch. */
-  listeners: Set<(payload: NotificationPayload<any>) => void>;
+  listeners: Set<(payload: NotificationPayload<unknown>) => void>;
   /** Twitch-assigned subscription id, set after the Helix POST resolves. */
   subscriptionId: string | null;
   /** True while the Helix POST is in flight (or queued waiting for welcome). */
@@ -640,9 +641,9 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         entry.posting = false;
         return;
       }
-      const parsed = (await res.json()) as {
-        data?: Array<{ id?: string }>;
-      };
+      const parsed = z
+        .object({ data: z.array(z.object({ id: z.string().optional() })).optional() })
+        .parse(await res.json());
       const subId = parsed.data?.[0]?.id ?? null;
       const currentEntry = this.subs.get(pairKey(entry.eventType, entry.channelId));
       if (subId && (this.closed || currentEntry !== entry || entry.refcount === 0)) {
@@ -689,7 +690,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   private postSubscriptionRequest(body: unknown, accessToken: string): Promise<Response> {
     if (this.subscriptionRequestor) {
       return this.subscriptionRequestor
-        .request<unknown>("/eventsub/subscriptions", {
+        .request("/eventsub/subscriptions", {
           method: "POST",
           body: JSON.stringify(body),
         })

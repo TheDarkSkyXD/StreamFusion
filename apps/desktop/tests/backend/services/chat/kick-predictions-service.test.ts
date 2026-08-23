@@ -110,10 +110,10 @@ let predictionEmitterHandler: (p: UnifiedPrediction) => void;
 
 beforeEach(() => {
   fakePusher = makeFakePusher("connected");
+  const chatInternals = kickChatService as unknown as { getPusher(): FakePusher };
   pusherSpy = vi
     .spyOn(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      kickChatService as any,
+      chatInternals,
       "getPusher",
     )
     .mockImplementation(() => fakePusher);

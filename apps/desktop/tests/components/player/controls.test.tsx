@@ -80,9 +80,9 @@ describe('Player Controls', () => {
 
     describe('QualitySelector', () => {
         const qualities: QualityLevel[] = [
-            { id: 'auto', label: 'Auto', bitrate: 0, isAuto: true },
-            { id: '1080p', label: '1080p', bitrate: 6000000 }
-        ] as any; // Cast to any to avoid strict type checking for width/height if redundant for this test
+            { id: 'auto', label: 'Auto', bitrate: 0, width: 0, height: 0, isAuto: true },
+            { id: '1080p', label: '1080p', bitrate: 6000000, width: 1920, height: 1080 }
+        ];
 
         it('should not render if no levels', () => {
             const { container } = render(<QualitySelector levels={[]} current="auto" onChange={vi.fn()} />);

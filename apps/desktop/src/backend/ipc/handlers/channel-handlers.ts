@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@/backend/logging/logger";
 import { dedupeChannelsByIdentity } from "@/lib/id-utils";
@@ -95,6 +95,7 @@ export function registerChannelHandlers(): void {
       params: {
         platform: Platform;
         username: string;
+        freshChatroomSettings?: boolean;
       }
     ) => {
       const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
@@ -135,7 +136,9 @@ export function registerChannelHandlers(): void {
                 follow.channelName.toLowerCase() === requestedUsername && follow.source === "kick"
             );
           try {
-            channel = await kickClient.getChannel(params.username);
+            channel = params.freshChatroomSettings
+              ? await kickClient.getChannel(params.username, { freshChatroomSettings: true })
+              : await kickClient.getChannel(params.username);
           } catch (error) {
             if (!staleFollow) throw error;
 
@@ -165,9 +168,8 @@ export function registerChannelHandlers(): void {
               : null;
             if (staleFollow && broadcasterUserId) {
               channel =
-                (
-                  await kickClient.getChannelsByBroadcasterIds([Number(broadcasterUserId)])
-                )[0] || null;
+                (await kickClient.getChannelsByBroadcasterIds([Number(broadcasterUserId)]))[0] ||
+                null;
               if (channel && channel.username.toLowerCase() !== requestedUsername) {
                 storageService.updateLocalFollow(staleFollow.id, {
                   channelName: channel.username,
@@ -279,7 +281,7 @@ export function registerChannelHandlers(): void {
       const { kickClient } = await import("../../api/platforms/kick/kick-client");
 
       try {
-        let channels: any[] = [];
+        let channels: UnifiedChannel[] = [];
 
         if (params.platform === "twitch") {
           if (twitchClient.isAuthenticated()) {

@@ -8,7 +8,9 @@
  * window / destroyed webContents.
  */
 
-import { type BrowserWindow, ipcMain } from "electron";
+import type { BrowserWindow } from "electron";
+
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { LoadStreamPayload, SlotEvent, SlotQualityMode } from "../../../shared/slot-types";
 import {

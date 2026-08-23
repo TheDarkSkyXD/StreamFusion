@@ -158,7 +158,7 @@ export function installNetworkDevtoolsRecorder(webContents: WebContents): void {
     if (!dbg.isAttached()) {
       dbg.attach("1.3");
     }
-    void dbg.sendCommand("Network.enable");
+    void dbg.sendCommand("Network.enable").catch(() => undefined);
   } catch {
     return;
   }

@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@/backend/logging/logger";
 import { badgeResolver } from "@/backend/services/chat/badge-resolver";

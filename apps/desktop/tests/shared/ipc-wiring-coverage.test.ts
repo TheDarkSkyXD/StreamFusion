@@ -38,6 +38,10 @@ function collectIpcReferences(paths: readonly string[]): IpcReferences {
       ...matchedChannels(
         source,
         /registerTrustedIpcHandler\s*\(\s*{[\s\S]*?channel\s*:\s*IPC_CHANNELS\.([A-Z0-9_]+)/g
+      ),
+      ...matchedChannels(
+        source,
+        /registry\s*\.\s*handle\s*\(\s*{[\s\S]*?channel\s*:\s*IPC_CHANNELS\.([A-Z0-9_]+)/g
       )
     );
     references.listeners.push(

@@ -41,7 +41,12 @@ import {
 
 // ========== Default Values ==========
 
-const KICK_ACCOUNT_FOLLOWS_VERIFIED_KEY = "kick-account-follows-verified-v2";
+const KICK_ACCOUNT_FOLLOWS_VERIFIED_KEY = "kick-account-follows-verified-v3";
+
+function kickFollowVerificationIdentity(user: KickUser | null): string | null {
+  if (!user) return null;
+  return `${user.id}:${(user.slug || user.username).toLowerCase()}`;
+}
 
 const LEGACY_LATENCY_FIRST_BUFFER_PREFERENCES: BufferPreferences = {
   lowLatencyMode: true,
@@ -71,9 +76,7 @@ function normalizeCaptionPreferences(value: unknown): CaptionPreferences {
 
   return {
     enabled:
-      typeof stored.enabled === "boolean"
-        ? stored.enabled
-        : DEFAULT_CAPTION_PREFERENCES.enabled,
+      typeof stored.enabled === "boolean" ? stored.enabled : DEFAULT_CAPTION_PREFERENCES.enabled,
     source:
       stored.source === "platform" || stored.source === "local"
         ? stored.source
@@ -319,10 +322,7 @@ class StorageService {
       const parsed: unknown = JSON.parse(decrypted.tokenString);
       if (!isAuthToken(parsed)) return null;
       if (decrypted.encoding === "base64" && this.isEncryptionAvailable) {
-        this.storeInstance.set(
-          "twitchFollowWriteToken",
-          this.encryptToken(JSON.stringify(parsed))
-        );
+        this.storeInstance.set("twitchFollowWriteToken", this.encryptToken(JSON.stringify(parsed)));
       }
       return parsed;
     } catch (error) {
@@ -339,6 +339,40 @@ class StorageService {
   clearTwitchFollowWriteToken(): void {
     this.storeInstance.delete("twitchFollowWriteToken");
     logger.debug("Service:Storage", "Twitch follow-write token cleared");
+  }
+
+  saveKickWebBearer(bearer: string): void {
+    if (!/^Bearer \d+\|[A-Za-z0-9]+$/.test(bearer)) {
+      throw new Error("Invalid Kick web bearer");
+    }
+    this.storeInstance.set("kickWebBearer", this.encryptToken(bearer));
+    logger.debug("Service:Storage", "Kick web bearer saved");
+  }
+
+  getKickWebBearer(): string | null {
+    const encrypted = this.storeInstance.get("kickWebBearer");
+    if (!encrypted) return null;
+
+    try {
+      const decrypted = this.decryptToken(encrypted);
+      if (!/^Bearer \d+\|[A-Za-z0-9]+$/.test(decrypted.tokenString)) {
+        throw new Error("Stored Kick web bearer is invalid");
+      }
+      if (decrypted.encoding === "base64" && this.isEncryptionAvailable) {
+        this.storeInstance.set("kickWebBearer", this.encryptToken(decrypted.tokenString));
+      }
+      return decrypted.tokenString;
+    } catch (error) {
+      logger.error("Service:Storage", "Failed to decrypt Kick web bearer", {
+        error: error instanceof Error ? { name: error.name } : "unknown",
+      });
+      return null;
+    }
+  }
+
+  clearKickWebBearer(): void {
+    this.storeInstance.delete("kickWebBearer");
+    logger.debug("Service:Storage", "Kick web bearer cleared");
   }
 
   /**
@@ -391,6 +425,7 @@ class StorageService {
     this.storeInstance.set("authTokens", {});
     this.storeInstance.set("appTokens", {});
     this.storeInstance.delete("twitchFollowWriteToken");
+    this.storeInstance.delete("kickWebBearer");
     this.tokenCache.clear();
     logger.debug("Service:Storage", "All tokens cleared");
   }
@@ -542,7 +577,7 @@ class StorageService {
     if (!this.hasToken(platform)) {
       return dbService.getFollowsByPlatformAndSource(platform, "guest");
     }
-    if (platform === "kick" && !dbService.get<boolean>(KICK_ACCOUNT_FOLLOWS_VERIFIED_KEY)) {
+    if (platform === "kick" && !this.areKickAccountFollowsVerified()) {
       return [];
     }
     const platformFollows = dbService.getFollowsByPlatformAndSource(platform, platform);
@@ -560,7 +595,17 @@ class StorageService {
   }
 
   invalidateKickAccountFollows(): void {
-    dbService.set(KICK_ACCOUNT_FOLLOWS_VERIFIED_KEY, false);
+    dbService.set(KICK_ACCOUNT_FOLLOWS_VERIFIED_KEY, null);
+  }
+
+  areKickAccountFollowsVerified(): boolean {
+    const identity = kickFollowVerificationIdentity(this.getKickUser());
+    return (
+      identity !== null &&
+      dbService.get(KICK_ACCOUNT_FOLLOWS_VERIFIED_KEY, (value) =>
+        typeof value === "string" ? value : null
+      ) === identity
+    );
   }
 
   /**
@@ -653,7 +698,10 @@ class StorageService {
   ): { accountCount: number; pendingCount: number; addedCount: number; removedCount: number } {
     const result = dbService.upsertSyncedFollows(platform, follows, options);
     if (platform === "kick") {
-      dbService.set(KICK_ACCOUNT_FOLLOWS_VERIFIED_KEY, true);
+      dbService.set(
+        KICK_ACCOUNT_FOLLOWS_VERIFIED_KEY,
+        kickFollowVerificationIdentity(this.getKickUser())
+      );
     }
     logger.debug("Service:Storage", "Synced follows", {
       platform,
@@ -726,6 +774,21 @@ class StorageService {
     action: PendingFollowAction;
   }): boolean {
     return dbService.removePendingFollowWrite(input);
+  }
+
+  confirmKickUnfollow(input: { channelId: string; slug: string; localFollowId?: string }): boolean {
+    return dbService.confirmKickUnfollow(input);
+  }
+
+  confirmKickFollow(
+    follow: Omit<LocalFollow, "id" | "followedAt"> & { platform: "kick" }
+  ): LocalFollow {
+    const confirmed = dbService.confirmKickFollow(follow);
+    dbService.set(
+      KICK_ACCOUNT_FOLLOWS_VERIFIED_KEY,
+      kickFollowVerificationIdentity(this.getKickUser())
+    );
+    return confirmed;
   }
 
   getAllPendingFollowWrites(): PendingFollowWrite[] {
@@ -811,22 +874,22 @@ class StorageService {
   /**
    * Get a value from storage
    */
-  get<K extends keyof StorageSchema>(key: K): StorageSchema[K] {
+  get(key: string): unknown {
     return this.storeInstance.get(key);
   }
 
   /**
    * Set a value in storage
    */
-  set<K extends keyof StorageSchema>(key: K, value: StorageSchema[K]): void {
+  set(key: string, value: unknown): void {
     this.storeInstance.set(key, value);
   }
 
   /**
    * Delete a value from storage
    */
-  delete<K extends keyof StorageSchema>(key: K): void {
-    this.storeInstance.delete(key);
+  delete(key: string): void {
+    this.storeInstance.delete(key as keyof StorageSchema);
   }
 
   /**

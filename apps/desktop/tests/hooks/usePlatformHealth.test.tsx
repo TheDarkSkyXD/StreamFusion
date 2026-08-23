@@ -3,6 +3,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { installElectronAPIMock } from "../test-utils";
 
+type PlatformHealthApi = ReturnType<typeof installElectronAPIMock>["platformHealth"];
+type PlatformHealthSnapshot = Awaited<ReturnType<PlatformHealthApi["get"]>>;
+type PlatformHealthEvent = Parameters<Parameters<PlatformHealthApi["onChange"]>[0]>[0];
+
+function healthEvent(overrides: Partial<PlatformHealthEvent>): PlatformHealthEvent {
+  return {
+    platform: "kick",
+    status: "healthy",
+    startedAt: Date.now(),
+    sampleSize: 10,
+    failureRate: 0,
+    source: "internal",
+    ...overrides,
+  };
+}
+
 // Hook test for the renderer-side `usePlatformHealth` (PRD #50 slice 01).
 // Covers: initial hydration via `electronAPI.platformHealth.get()`, IPC
 // transition handling via `onChange`, the derived `anyDegraded` flag, and
@@ -15,11 +31,11 @@ describe("usePlatformHealth", () => {
 
   it("returns healthy for both platforms before hydration completes", async () => {
     const api = installElectronAPIMock();
-    let resolveGet: ((value: { kick: string; twitch: string }) => void) | null = null;
+    let resolveGet: ((value: PlatformHealthSnapshot) => void) | null = null;
     api.platformHealth = {
       get: vi.fn(
         () =>
-          new Promise<{ kick: string; twitch: string }>((resolve) => {
+          new Promise<PlatformHealthSnapshot>((resolve) => {
             resolveGet = resolve;
           })
       ),
@@ -43,7 +59,10 @@ describe("usePlatformHealth", () => {
   it("hydrates the initial state from electronAPI.platformHealth.get()", async () => {
     const api = installElectronAPIMock();
     api.platformHealth = {
-      get: vi.fn(async () => ({ kick: "degraded", twitch: "healthy" })),
+      get: vi.fn(async (): Promise<PlatformHealthSnapshot> => ({
+        kick: "degraded",
+        twitch: "healthy",
+      })),
       onChange: vi.fn(() => () => {}),
     };
 
@@ -57,18 +76,12 @@ describe("usePlatformHealth", () => {
 
   it("updates state when an onChange event arrives", async () => {
     const api = installElectronAPIMock();
-    let changeHandler:
-      | ((
-          event: {
-            platform: string;
-            status: string;
-            startedAt: number;
-            statusPageDetail?: { summary: string };
-          }
-        ) => void)
-      | null = null;
+    let changeHandler: ((event: PlatformHealthEvent) => void) | null = null;
     api.platformHealth = {
-      get: vi.fn(async () => ({ kick: "healthy", twitch: "healthy" })),
+      get: vi.fn(async (): Promise<PlatformHealthSnapshot> => ({
+        kick: "healthy",
+        twitch: "healthy",
+      })),
       onChange: vi.fn((cb: typeof changeHandler) => {
         changeHandler = cb;
         return () => {};
@@ -81,7 +94,7 @@ describe("usePlatformHealth", () => {
     await waitFor(() => expect(api.platformHealth.get).toHaveBeenCalled());
 
     act(() => {
-      changeHandler?.({ platform: "kick", status: "degraded", startedAt: Date.now() });
+      changeHandler?.(healthEvent({ status: "degraded" }));
     });
 
     expect(result.current.kick).toBe("degraded");
@@ -91,18 +104,9 @@ describe("usePlatformHealth", () => {
 
   it("stores status-page details from hydration and onChange events", async () => {
     const api = installElectronAPIMock();
-    let changeHandler:
-      | ((
-          event: {
-            platform: string;
-            status: string;
-            startedAt: number;
-            statusPageDetail?: { summary: string };
-          }
-        ) => void)
-      | null = null;
+    let changeHandler: ((event: PlatformHealthEvent) => void) | null = null;
     api.platformHealth = {
-      get: vi.fn(async () => ({
+      get: vi.fn(async (): Promise<PlatformHealthSnapshot> => ({
         kick: "degraded",
         twitch: "healthy",
         details: { kick: { summary: "Kick status: Partial outage." } },
@@ -116,21 +120,25 @@ describe("usePlatformHealth", () => {
     const { usePlatformHealth } = await import("@/hooks/usePlatformHealth");
     const { result } = renderHook(() => usePlatformHealth());
 
-    await waitFor(() => expect(result.current.details.kick?.summary).toBe("Kick status: Partial outage."));
+    await waitFor(() =>
+      expect(result.current.details.kick?.summary).toBe("Kick status: Partial outage.")
+    );
 
     act(() => {
-      changeHandler?.({
-        platform: "kick",
-        status: "degraded",
-        startedAt: Date.now(),
-        statusPageDetail: { summary: "Kick status: Major outage." },
-      });
+      changeHandler?.(
+        healthEvent({
+          platform: "kick",
+          status: "degraded",
+          startedAt: Date.now(),
+          statusPageDetail: { summary: "Kick status: Major outage." },
+        })
+      );
     });
 
     expect(result.current.details.kick?.summary).toBe("Kick status: Major outage.");
 
     act(() => {
-      changeHandler?.({ platform: "kick", status: "healthy", startedAt: Date.now() });
+      changeHandler?.(healthEvent({ status: "healthy" }));
     });
 
     expect(result.current.details.kick).toBeUndefined();
@@ -139,7 +147,10 @@ describe("usePlatformHealth", () => {
   it("derives anyDegraded=true when EITHER platform is degraded", async () => {
     const api = installElectronAPIMock();
     api.platformHealth = {
-      get: vi.fn(async () => ({ kick: "healthy", twitch: "degraded" })),
+      get: vi.fn(async (): Promise<PlatformHealthSnapshot> => ({
+        kick: "healthy",
+        twitch: "degraded",
+      })),
       onChange: vi.fn(() => () => {}),
     };
 
@@ -155,7 +166,10 @@ describe("usePlatformHealth", () => {
     const api = installElectronAPIMock();
     const unsubscribe = vi.fn();
     api.platformHealth = {
-      get: vi.fn(async () => ({ kick: "healthy", twitch: "healthy" })),
+      get: vi.fn(async (): Promise<PlatformHealthSnapshot> => ({
+        kick: "healthy",
+        twitch: "healthy",
+      })),
       onChange: vi.fn(() => unsubscribe),
     };
 

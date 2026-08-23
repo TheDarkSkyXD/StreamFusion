@@ -86,7 +86,7 @@ export function VirtualizedCategoryGrid({
     setRevealedEnd(Math.min(categories.length, STARTUP_PREWARM_COUNT));
     setVisibleRange({ start: 0, end: 50 });
     setHasScrolled(false);
-  }, [datasetKey]);
+  }, [categories.length, datasetKey]);
 
   useEffect(() => {
     if (revealedEnd >= categories.length) return;
@@ -236,7 +236,10 @@ export function VirtualizedCategoryGrid({
     return () => container.removeEventListener("scroll", saveScrollPosition);
   }, [scrollKey]);
 
-  const activeRange = hasScrolled ? visibleRange : { start: 0, end: revealedEnd };
+  const activeRange = useMemo(
+    () => (hasScrolled ? visibleRange : { start: 0, end: revealedEnd }),
+    [hasScrolled, revealedEnd, visibleRange]
+  );
   const isPendingWindow = hasScrolled && activeRange.end > revealedEnd;
 
   // Visible items slice

@@ -471,7 +471,9 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     }
 
     try {
-      await this.loadChannelBadges(normalizedChannel, broadcasterId);
+      // Badge images can be hydrated after messages arrive. Keep the catalog
+      // request best-effort and off the critical IRC subscription path.
+      void this.loadChannelBadges(normalizedChannel, broadcasterId);
 
       await this.client.join(normalizedChannel);
       this.channels.add(normalizedChannel);
@@ -907,6 +909,18 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
 
     this.client.on("notice", (channel, msgId) => {
       const noticeMsgId = String(msgId);
+      const channelLogin = this.normalizeChannel(channel);
+      const channelId = this.broadcasterId.get(channelLogin) ?? "";
+      if (!channelId) return;
+      if (noticeMsgId === "msg_banned") {
+        this.emit("viewerSendRestriction", {
+          platform: "twitch",
+          channel: channelLogin,
+          channelId,
+          restriction: "banned",
+        });
+        return;
+      }
       const requirement =
         noticeMsgId === "msg_requires_verified_phone_number"
           ? "phone"
@@ -914,9 +928,6 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
             ? "email"
             : null;
       if (!requirement) return;
-      const channelLogin = this.normalizeChannel(channel);
-      const channelId = this.broadcasterId.get(channelLogin) ?? "";
-      if (!channelId) return;
       this.emit("viewerSendRestriction", {
         platform: "twitch",
         channel: channelLogin,

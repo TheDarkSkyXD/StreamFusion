@@ -54,8 +54,10 @@ const authState = vi.hoisted(() => ({
 const twitchExecute = vi.hoisted(() => vi.fn());
 
 vi.mock("@/store/auth-store", () => {
-  const useStore = (selector: (s: typeof authState) => unknown) => selector(authState);
-  (useStore as any).getState = () => authState;
+  const useStore = Object.assign(
+    (selector: (s: typeof authState) => unknown) => selector(authState),
+    { getState: () => authState }
+  );
   return { useAuthStore: useStore };
 });
 
@@ -122,7 +124,7 @@ describe("ModChannelPage", () => {
       isPending: false,
       isError: false,
     };
-    (import.meta as any).env = { VITE_TWITCH_CLIENT_ID: "cid" };
+    import.meta.env.VITE_TWITCH_CLIENT_ID = "cid";
     const api = installElectronAPIMock();
     twitchExecute.mockReset();
     twitchExecute.mockResolvedValue({ ok: true, data: null });

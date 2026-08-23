@@ -67,7 +67,10 @@ describe("fetchBTTVBadges", () => {
   });
 
   it("throws when the badge catalog request fails", async () => {
-    mockState.state.responseQueue.push({ kind: "status", status: 503 });
+    mockState.state.responseQueue.push(
+      { kind: "status", status: 503 },
+      { kind: "status", status: 503 }
+    );
 
     await expect(fetchBTTVBadges()).rejects.toThrow(/503/);
   });
@@ -95,7 +98,10 @@ describe("fetchBTTVGlobalEmotes", () => {
   });
 
   it("throws on non-2xx (global set should always exist)", async () => {
-    mockState.state.responseQueue.push({ kind: "status", status: 503 });
+    mockState.state.responseQueue.push(
+      { kind: "status", status: 503 },
+      { kind: "status", status: 503 }
+    );
     await expect(fetchBTTVGlobalEmotes()).rejects.toThrow(/503/);
   });
 });
@@ -134,7 +140,10 @@ describe("fetchBTTVUserByTwitchId", () => {
   });
 
   it("throws on 5xx so the caller can log warn and degrade", async () => {
-    mockState.state.responseQueue.push({ kind: "status", status: 503 });
+    mockState.state.responseQueue.push(
+      { kind: "status", status: 503 },
+      { kind: "status", status: 503 }
+    );
     await expect(fetchBTTVUserByTwitchId("71092938")).rejects.toThrow(/503/);
   });
 });

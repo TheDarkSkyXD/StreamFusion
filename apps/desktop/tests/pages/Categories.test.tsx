@@ -90,10 +90,19 @@ describe('CategoriesPage', () => {
     expect(screen.getByText(/no categories matching "nothing-matches"/i)).toBeInTheDocument();
   });
 
-  it('error: useTopCategories returns data=undefined → grid still mounts with default empty copy (no throw on .length)', () => {
-    useTopCategoriesMock.mockReturnValue({ data: undefined, isLoading: false } as ReturnType<typeof useTopCategories>);
+  it('error: shows a retryable failure instead of the generic empty copy', () => {
+    const refetch = vi.fn();
+    useTopCategoriesMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      refetch,
+    } as unknown as ReturnType<typeof useTopCategories>);
     renderWithProviders(<CategoriesPage />);
-    expect(screen.getByTestId('vcat-grid')).toBeInTheDocument();
+    expect(screen.getByText(/couldn’t load categories/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+    expect(refetch).toHaveBeenCalledOnce();
+    expect(screen.queryByText(/no categories found/i)).not.toBeInTheDocument();
   });
 
   it('empty: data=[] renders the generic empty message copy in the grid', () => {

@@ -24,6 +24,7 @@ interface RegisterTrustedIpcHandlerOptions<Request, Response> {
   trustedDocumentUrl: string;
   handle: (event: IpcMainInvokeEvent, request: Request) => Promise<Response> | Response;
   failureResponse: Response;
+  createFailureResponse?: () => Response;
 }
 
 function reportBoundaryFailure(
@@ -70,6 +71,7 @@ export function registerTrustedIpcHandler<Request, Response>({
   trustedDocumentUrl,
   handle,
   failureResponse,
+  createFailureResponse,
 }: RegisterTrustedIpcHandlerOptions<Request, Response>): void {
   const parsedFailureResponse = contract.response.safeParse(failureResponse);
   if (!parsedFailureResponse.success) {
@@ -78,7 +80,10 @@ export function registerTrustedIpcHandler<Request, Response>({
 
   const reject = (failure: IpcBoundaryFailure, cause?: unknown): Response => {
     reportBoundaryFailure(channel, failure, cause);
-    return parsedFailureResponse.data;
+    if (!createFailureResponse) return parsedFailureResponse.data;
+
+    const generatedFailure = contract.response.safeParse(createFailureResponse());
+    return generatedFailure.success ? generatedFailure.data : parsedFailureResponse.data;
   };
 
   ipcMain.handle(channel, async (event, rawRequest: unknown): Promise<Response> => {

@@ -158,6 +158,7 @@ beforeAll(() => {
   vi.doMock("@/lib/cross-logger", () => ({ logger }));
   vi.doMock("@/backend/logging/logger", () => ({ logger }));
   vi.doMock("@/backend/auth/oauth-config", () => ({
+    WORKER_BASE_URL: "https://worker.example.test",
     getOAuthConfig: () => ({
       platform: "twitch",
       clientId: "fake-twitch-client-id",

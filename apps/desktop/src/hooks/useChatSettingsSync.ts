@@ -28,7 +28,22 @@ import { twitchChatService } from "@/backend/services/chat/twitch-chat";
 import { logger } from "@/renderer/logging/logger";
 import type { ChatConnectionStatus, ChatPlatform, RoomStatePatchEvent } from "@/shared/chat-types";
 import type { TwitchChatSettings } from "@/shared/twitch-api-types";
-import { type RoomState, roomStateKey, useRoomStateStore } from "@/store/room-state-store";
+import {
+  DEFAULT_ROOM_STATE,
+  type RoomState,
+  roomStateKey,
+  useRoomStateStore,
+} from "@/store/room-state-store";
+
+const ROOM_STATE_FIELDS = [
+  "slowMode",
+  "followersOnly",
+  "subscribersOnly",
+  "emoteOnly",
+  "uniqueChat",
+  "shieldMode",
+  "accountAge",
+] as const satisfies readonly (keyof RoomState)[];
 
 // ---------------------------------------------------------------------------
 // Module-scoped state
@@ -194,13 +209,26 @@ export function useChatSettingsSync({
     // the module-scoped `inFlight` Set.
     let fetchController: AbortController | null = null;
     // R3 — When a WS `roomState` event lands during an in-flight fetch, the
-    // event carries fresher truth than the fetch's eventual response. The
-    // resolving fetch must not clobber the fresher WS write. The flag is
-    // reset at the start of each fetch attempt.
-    let wsArrivedDuringFetch = false;
+    // Preserve WS writes without discarding untouched fields from the
+    // authoritative snapshot.
+    let wsFieldsDuringFetch: Set<keyof RoomState> | null = null;
 
     const updateRoomState = useRoomStateStore.getState().updateRoomState;
+    const resetRoomState = useRoomStateStore.getState().resetRoomState;
     const service = platform === "twitch" ? twitchChatService : kickChatService;
+
+    const clearUnavailableSnapshot = (wsFields: Set<keyof RoomState>): void => {
+      if (wsFields.size === 0) {
+        resetRoomState(platform, channelId);
+        return;
+      }
+
+      const resetPatch: Partial<RoomState> = { ...DEFAULT_ROOM_STATE };
+      for (const field of wsFields) {
+        delete resetPatch[field];
+      }
+      updateRoomState(platform, channelId, resetPatch);
+    };
 
     // -- Fetch helper (used by mount and reconnect paths) ---------------
     const runFetch = async (): Promise<void> => {
@@ -208,18 +236,24 @@ export function useChatSettingsSync({
       inFlight.add(key);
       const localController = new AbortController();
       fetchController = localController;
-      wsArrivedDuringFetch = false;
+      const localWsFields = new Set<keyof RoomState>();
+      wsFieldsDuringFetch = localWsFields;
 
       try {
         const patch = await fetchPatchFor(platform, channel, channelId, localController.signal);
         if (localController.signal.aborted) return;
         if (mountController.signal.aborted) return;
-        // R3 — A fresher WS event already wrote during this fetch's window.
-        // Keep its value; don't clobber with a stale response.
-        if (wsArrivedDuringFetch) return;
         if (patch) {
-          updateRoomState(platform, channelId, patch);
-          __debugProvenance.set(key, "fetch");
+          const reconciledPatch = { ...patch };
+          for (const field of localWsFields) {
+            delete reconciledPatch[field];
+          }
+          if (Object.keys(reconciledPatch).length > 0) {
+            updateRoomState(platform, channelId, reconciledPatch);
+            __debugProvenance.set(key, "fetch");
+          }
+        } else {
+          clearUnavailableSnapshot(localWsFields);
         }
       } catch (err) {
         if (localController.signal.aborted) return;
@@ -233,8 +267,12 @@ export function useChatSettingsSync({
               ? { name: err.name, message: err.message, stack: err.stack }
               : String(err),
         });
+        clearUnavailableSnapshot(localWsFields);
       } finally {
-        if (fetchController === localController) fetchController = null;
+        if (fetchController === localController) {
+          fetchController = null;
+          wsFieldsDuringFetch = null;
+        }
         inFlight.delete(key);
       }
     };
@@ -242,11 +280,14 @@ export function useChatSettingsSync({
     // -- WS event subscription -----------------------------------------
     const handleRoomState = (event: RoomStatePatchEvent): void => {
       if (event.platform !== platform) return;
-      if (event.channel !== channel) return;
+      if (event.channel.toLowerCase() !== channel.toLowerCase()) return;
       updateRoomState(platform, channelId, event.patch);
       __debugProvenance.set(key, "ws");
-      // R3 — Mark any in-flight fetch as stale relative to this arrival.
-      if (fetchController) wsArrivedDuringFetch = true;
+      if (fetchController && wsFieldsDuringFetch) {
+        for (const field of ROOM_STATE_FIELDS) {
+          if (field in event.patch) wsFieldsDuringFetch.add(field);
+        }
+      }
     };
 
     // R2 — Seed `hasConnectedOnce` from the service's CURRENT state so a
@@ -321,13 +362,13 @@ async function fetchPatchFor(
     return chatSettingsToPatch("twitch", result.data as TwitchChatSettings);
   }
 
-  // Kick — read the cached UnifiedChannel and pull `chatroomSettings`. The
-  // v2 channel-resolve already fired during channel mount; this IPC call is
-  // a cache hit in the common case.
+  // Kick: bypass channel metadata caching so the chat-mode snapshot is
+  // current whenever chat mounts or reconnects.
   try {
     const response = await window.electronAPI.channels.getByUsername({
       platform: "kick",
       username: channel,
+      freshChatroomSettings: true,
     });
     if (signal.aborted) return null;
     if (response.error) return null;

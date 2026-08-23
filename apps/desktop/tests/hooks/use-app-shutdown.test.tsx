@@ -14,12 +14,13 @@ beforeEach(() => {
   onBeforeQuitCallback = null;
   // @ts-expect-error -- test-only stub
   window.electronAPI = {
+    closeWindow: vi.fn(),
     onBeforeQuit: vi.fn((cb: () => void) => {
       onBeforeQuitCallback = cb;
       return vi.fn();
     }),
   };
-  runAppShutdownTasks.mockClear();
+  runAppShutdownTasks.mockReset();
 });
 
 afterEach(() => {
@@ -53,7 +54,7 @@ describe("useAppShutdown", () => {
   it("sets window.__shuttingDown to true", () => {
     renderHook(() => useAppShutdown());
     onBeforeQuitCallback!();
-    expect((window as unknown as { __shuttingDown?: boolean }).__shuttingDown).toBe(true);
+    expect(Reflect.get(window, "__shuttingDown")).toBe(true);
   });
 
   it("loads the chat store only when shutdown begins and clears batching", async () => {
@@ -62,6 +63,23 @@ describe("useAppShutdown", () => {
     onBeforeQuitCallback!();
     await vi.waitFor(() => expect(cleanupSpy).toHaveBeenCalledTimes(1));
     cleanupSpy.mockRestore();
+  });
+
+  it("acknowledges shutdown by closing after renderer cleanup", async () => {
+    renderHook(() => useAppShutdown());
+    onBeforeQuitCallback!();
+
+    await vi.waitFor(() => expect(window.electronAPI!.closeWindow).toHaveBeenCalledTimes(1));
+  });
+
+  it("still acknowledges shutdown when a feature cleanup throws", async () => {
+    runAppShutdownTasks.mockImplementationOnce(() => {
+      throw new Error("cleanup failed");
+    });
+    renderHook(() => useAppShutdown());
+    onBeforeQuitCallback!();
+
+    await vi.waitFor(() => expect(window.electronAPI!.closeWindow).toHaveBeenCalledTimes(1));
   });
 
   it("returns the cleanup function from onBeforeQuit", () => {

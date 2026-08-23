@@ -2,18 +2,16 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UserPopoutFooter } from "@/components/chat/mod/UserPopout/UserPopoutFooter";
+import { installElectronAPIMock } from "../../../../test-utils";
 
 beforeEach(() => {
-  (window as any).electronAPI = {
-    openExternal: vi.fn(),
-    moderation: {
-      createTimeoutSnapshot: vi.fn().mockResolvedValue({
+  const api = installElectronAPIMock();
+  api.openExternal = vi.fn();
+  api.moderation.createTimeoutSnapshot = vi.fn().mockResolvedValue({
         state: "unavailable",
         reason: "invalid-target-state",
-      }),
-      submitTimeout: vi.fn(),
-    },
-  };
+      });
+  api.moderation.submitTimeout = vi.fn();
 });
 
 describe("UserPopoutFooter compatibility wrapper", () => {

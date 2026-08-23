@@ -241,7 +241,9 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
       readPlaybackIntent(channelName, autoPlay)
     );
     const playbackIntentRef = useRef(playbackIntent);
-    playbackIntentRef.current = playbackIntent;
+    useLayoutEffect(() => {
+      playbackIntentRef.current = playbackIntent;
+    }, [playbackIntent]);
     const [availableQualities, setAvailableQualities] = useState<QualityLevel[]>([]);
     const [activeQualityId, setActiveQualityId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -254,7 +256,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
     const retryDelayRef = useRef<CancellableSleep | null>(null);
 
     // Refs for stats
-    const hlsRef = useRef<any>(null); // Capture Hls instance
+    const hlsRef = useRef<Hls | null>(null); // Capture Hls instance
     const [hls, setHls] = useState<Hls | null>(null);
     const [networkRecoveryRevision, setNetworkRecoveryRevision] = useState(0);
     const recoverFromNetworkError = useCallback(() => {

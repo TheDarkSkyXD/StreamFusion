@@ -39,13 +39,9 @@ import type { ChatMessage } from "@/shared/chat-types";
 import type { KickChatMessageEvent } from "@/backend/services/chat/kick-parser";
 import Pusher from "pusher-js";
 
-// Guards: kick-chat sendMessage wire format — POST /public/v1/chat must carry the
-// broadcaster's user_id (channel data.id), NOT the chatroom id used for Pusher.
-// These are two distinct numeric ids on Kick; swapping them or falling back to
-// chatroomId reintroduces the pre-306a8e5 bug where Kick rejects every send.
+// Guards: Kick chat sends use the page-context v2 transport with the chatroom id only.
 // Guards: 401 must surface a user-actionable message naming the recovery path
-// (disconnect/reconnect Kick), not a bare "401 Unauthorized" — without that hint
-// existing users hit by the chat:write scope rollout have no way to recover.
+// (disconnect/reconnect Kick), not a bare "401 Unauthorized".
 
 interface InternalChannelInfo {
   slug: string;
@@ -57,6 +53,14 @@ interface InternalChannelInfo {
 interface ServiceInternals {
   channels: Map<string, InternalChannelInfo>;
   channelUsers: Map<string, number>;
+  senderBadgesCache: Map<string, Map<string, Array<{ setId: string; version: string; imageUrl: string; title: string }>>>;
+  handleChatMessage(event: KickChatMessageEvent, channel: string): void;
+  pusher: {
+    connection: { state: string; bind?: (...args: unknown[]) => void; unbind?: (...args: unknown[]) => void };
+    subscribe?: (name: string) => { bind: (...args: unknown[]) => void };
+    unsubscribe?: (name: string) => void;
+  } | null;
+  connectionState: string;
 }
 
 function makeService(): { service: KickChatService; internals: ServiceInternals } {
@@ -319,7 +323,7 @@ describe("KickChatService.sendMessage", () => {
     kickChatApi.disposeSendWindow.mockClear();
   });
 
-  it("calls sendKickChatMessage with chatroomId plus broadcaster_user_id for official fallback", async () => {
+  it("sends the chatroom id and content through the page-context transport", async () => {
     const { service, internals } = makeService();
     internals.channels.set("ac7ionman", {
       slug: "ac7ionman",
@@ -327,7 +331,7 @@ describe("KickChatService.sendMessage", () => {
       broadcasterUserId: 42,
     });
     await service.sendMessage("ac7ionman", "hello");
-    expect(kickChatApi.sendMessage).toHaveBeenCalledWith(999_111, "hello", 42);
+    expect(kickChatApi.sendMessage).toHaveBeenCalledWith(999_111, "hello", "ac7ionman");
     const [firstArg] = kickChatApi.sendMessage.mock.calls[0]!;
     expect(firstArg).not.toBe(42);
   });
@@ -407,7 +411,7 @@ describe("KickChatService.sendMessage", () => {
       chatroomId: 999_111,
       broadcasterUserId: 42,
     });
-    const messages: any[] = [];
+    const messages: ChatMessage[] = [];
     service.on("message", (m) => messages.push(m));
     const fragments = [
       { type: "text" as const, content: "hi " },
@@ -440,7 +444,7 @@ describe("KickChatService.sendMessage", () => {
       chatroomId: 999_111,
       broadcasterUserId: 42,
     });
-    const messages: any[] = [];
+    const messages: ChatMessage[] = [];
     service.on("message", (m) => messages.push(m));
     const replyTo = {
       parentMessageId: "parent-1",
@@ -472,7 +476,7 @@ describe("KickChatService.sendMessage", () => {
       chatroomId: 999_111,
       broadcasterUserId: 42,
     });
-    const messages: any[] = [];
+    const messages: ChatMessage[] = [];
     service.on("message", (m) => messages.push(m));
     await service.sendMessage("ac7ionman", "hi", { id: 7, username: "me", slug: "me" });
     expect(messages).toHaveLength(1);
@@ -486,7 +490,7 @@ describe("KickChatService.sendMessage", () => {
       chatroomId: 999_111,
       broadcasterUserId: 42,
     });
-    const messages: any[] = [];
+    const messages: ChatMessage[] = [];
     service.on("message", (m) => messages.push(m));
 
     service.setModeratorState("ac7ionman", true);
@@ -510,7 +514,7 @@ describe("KickChatService.sendMessage", () => {
       chatroomId: 999_111,
       broadcasterUserId: 42,
     });
-    const messages: any[] = [];
+    const messages: ChatMessage[] = [];
     service.on("message", (m) => messages.push(m));
     const cachedBadges = new Map<
       string,
@@ -524,7 +528,7 @@ describe("KickChatService.sendMessage", () => {
         ],
       ],
     ]);
-    (service as any).senderBadgesCache.set("ac7ionman", cachedBadges);
+    internals.senderBadgesCache.set("ac7ionman", cachedBadges);
 
     service.setModeratorState("ac7ionman", true);
     await service.sendMessage("ac7ionman", "cached badge hi", {
@@ -545,7 +549,7 @@ describe("KickChatService.sendMessage", () => {
       chatroomId: 999_111,
       broadcasterUserId: 7,
     });
-    const messages: any[] = [];
+    const messages: ChatMessage[] = [];
     service.on("message", (m) => messages.push(m));
     const event: KickChatMessageEvent = {
       id: "msg-broadcaster-1",
@@ -568,14 +572,15 @@ describe("KickChatService.sendMessage", () => {
       },
     };
 
-    (service as any).handleChatMessage(event, "ac7ionman");
+    internals.handleChatMessage(event, "ac7ionman");
 
     expect(messages).toHaveLength(1);
     expect(messages[0].badges.map((badge: { setId: string }) => badge.setId)).toEqual([
       "broadcaster",
       "subscriber",
     ]);
-    const cache = (service as any).senderBadgesCache.get("ac7ionman").get("7");
+    const cache = internals.senderBadgesCache.get("ac7ionman")?.get("7");
+    if (!cache) throw new Error("Expected sender badge cache entry");
     expect(cache.map((badge: { setId: string }) => badge.setId)).toEqual([
       "broadcaster",
       "subscriber",
@@ -605,11 +610,11 @@ describe("KickChatService.joinChannel send-window warmup", () => {
   it("does not warm the send window until a message is sent", async () => {
     const { service, internals } = makeService();
     // Fake Pusher state so joinChannel doesn't blow up on the WebSocket path.
-    (service as any).pusher = {
+    internals.pusher = {
       connection: { state: "connected" },
       subscribe: vi.fn(() => ({ bind: vi.fn() })),
     };
-    (service as any).connectionState = "connected";
+    internals.connectionState = "connected";
     await service.joinChannel("ac7ionman", 999_111, 42);
     expect(kickChatApi.ensureSendWindowReady).not.toHaveBeenCalled();
     expect(internals.channels.has("ac7ionman")).toBe(true);
@@ -624,7 +629,7 @@ describe("send-window disposal", () => {
       chatroomId: 999_111,
       broadcasterUserId: 42,
     });
-    (service as any).pusher = {
+    internals.pusher = {
       connection: { state: "connected" },
       unsubscribe: vi.fn(),
     };
@@ -640,7 +645,7 @@ describe("send-window disposal", () => {
       broadcasterUserId: 42,
     });
     internals.channels.set("xqc", { slug: "xqc", chatroomId: 1, broadcasterUserId: 2 });
-    (service as any).pusher = {
+    internals.pusher = {
       connection: { state: "connected" },
       unsubscribe: vi.fn(),
     };

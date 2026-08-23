@@ -59,6 +59,12 @@ export default tseslint.config(
     files: typedFiles,
   })),
   {
+    files: typedFiles,
+    rules: {
+      "@typescript-eslint/no-explicit-any": "error",
+    },
+  },
+  {
     files: lintFiles,
     plugins: {
       "react-hooks": reactHooks,
@@ -70,7 +76,6 @@ export default tseslint.config(
       "no-unused-vars": "off",
       "prefer-const": "warn",
       "@typescript-eslint/ban-ts-comment": "off",
-      "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-non-null-assertion": "off",
       "@typescript-eslint/no-require-imports": "off",
       "@typescript-eslint/no-unused-vars": "off",

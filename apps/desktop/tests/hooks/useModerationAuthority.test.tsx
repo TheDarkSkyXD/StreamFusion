@@ -10,6 +10,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
+import { installElectronAPIMock } from "../test-utils";
 
 const tokenStatus = vi.fn();
 
@@ -44,15 +45,11 @@ beforeEach(() => {
     userId: "moderator-1",
     scopes: [...TWITCH_APP_SCOPES],
   });
-  (globalThis as any).window.electronAPI = {
-    auth: {
-      tokenStatus,
-      getToken: vi.fn().mockResolvedValue(null),
-    },
-    kickChat: {
-      getViewerRole: vi.fn(),
-    },
-  };
+  const api = installElectronAPIMock();
+  api.auth.tokenStatus = tokenStatus;
+  api.auth.getToken = vi.fn().mockResolvedValue(null);
+  api.kickChat.getViewerRole = vi.fn();
+  window.electronAPI = api;
   useAuthStore.setState({ twitchUser: null, kickUser: null });
   useModeratedChannelsStore.getState().clear();
   useDevModOverrideStore.getState().reset();
@@ -165,27 +162,29 @@ describe("useModerationAuthority", () => {
     expect(tokenStatus).not.toHaveBeenCalled();
   });
 
-  it.each([
-    "failed",
-    "partial",
-  ] as const)("rejects a %s Twitch authority result even when an old Set still contains the channel", (state) => {
-    useAuthStore.setState({ twitchUser: twitchUser() });
-    useModeratedChannelsStore.setState({
-      twitchModeratedChannelIds: new Set(["channel-1"]),
-      hydratedAt: Date.now(),
-      hydrating: false,
-      twitchAuthority: {
-        state,
-        checkedAt: Date.now(),
-        reason: state === "partial" ? "page-cap" : "network",
-      },
-    });
+  it.each(["failed", "partial"] as const)(
+    "rejects a %s Twitch authority result even when an old Set still contains the channel",
+    (state) => {
+      useAuthStore.setState({ twitchUser: twitchUser() });
+      useModeratedChannelsStore.setState({
+        twitchModeratedChannelIds: new Set(["channel-1"]),
+        hydratedAt: Date.now(),
+        hydrating: false,
+        twitchAuthority: {
+          state,
+          checkedAt: Date.now(),
+          reason: state === "partial" ? "page-cap" : "network",
+        },
+      });
 
-    const { result } = renderHook(() => useModerationAuthority("twitch", "channel-1", "streamer"));
+      const { result } = renderHook(() =>
+        useModerationAuthority("twitch", "channel-1", "streamer")
+      );
 
-    expect(result.current.state).toBe("unverifiable");
-    expect(tokenStatus).not.toHaveBeenCalled();
-  });
+      expect(result.current.state).toBe("unverifiable");
+      expect(tokenStatus).not.toHaveBeenCalled();
+    }
+  );
 
   it("hides moderation only after a fresh complete Twitch viewer result", () => {
     const checkedAt = Date.now();

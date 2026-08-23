@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { renderWithProviders as render } from "../../../../test-utils";
+import { installElectronAPIMock, renderWithProviders as render } from "../../../../test-utils";
 import type { ChatMessage } from "@/shared/chat-types";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
 
@@ -48,10 +48,9 @@ const mockedUseUserProfile = vi.mocked(useUserProfile);
 
 beforeEach(() => {
   useChatStore.setState({ messagesByChannel: {} });
-  (globalThis as any).window.electronAPI = {
-    openExternal: vi.fn(),
-    auth: { getToken: vi.fn().mockResolvedValue(null) },
-  };
+  const api = installElectronAPIMock();
+  api.openExternal = vi.fn();
+  api.auth.getToken = vi.fn().mockResolvedValue(null);
 });
 
 function Opener({
@@ -301,8 +300,8 @@ describe("UserPopoutProvider", () => {
     expect(screen.queryByText("Alice")).toBeNull();
   });
 
-  it("useOpenUserPopout outside a provider returns a callable no-op and console.debugs once", () => {
-    const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
+  it("useOpenUserPopout outside a provider returns a callable no-op and logs once", () => {
+    const logWrite = vi.mocked(window.electronAPI.logs.write);
     function Inner() {
       const open = useOpenUserPopout();
       return (
@@ -325,8 +324,12 @@ describe("UserPopoutProvider", () => {
     render(<Inner />);
     fireEvent.click(screen.getByRole("button", { name: "fire" }));
     fireEvent.click(screen.getByRole("button", { name: "fire" }));
-    // Two calls but only one debug emission.
-    expect(debugSpy).toHaveBeenCalledTimes(1);
-    debugSpy.mockRestore();
+    expect(logWrite).toHaveBeenCalledTimes(1);
+    expect(logWrite).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: "debug",
+        tag: "UI:Chat:Mod:UserPopout",
+      })
+    );
   });
 });

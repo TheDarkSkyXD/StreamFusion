@@ -30,9 +30,8 @@ describe("useNetworkStatus", () => {
   it("allows the debug console to simulate offline UI and then reset to confirmed state", async () => {
     const api = installElectronAPIMock();
     api.connectivity.check = vi.fn(async () => ({ reachable: true }));
-    const { setNetworkStatusOverrideForDebug, useNetworkStatus } = await import(
-      "@/hooks/useNetworkStatus"
-    );
+    const { setNetworkStatusOverrideForDebug, useNetworkStatus } =
+      await import("@/hooks/useNetworkStatus");
     const { result } = renderHook(() => useNetworkStatus());
     await waitFor(() => expect(result.current.confirmedStatus).toBe("online"));
 

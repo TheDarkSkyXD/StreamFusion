@@ -6,14 +6,21 @@
  * so any regression in its sink-selection logic would resurrect that crash.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { logger, setMainLogSink } from "@/lib/cross-logger";
+
+function installRendererBridge(write: ReturnType<typeof vi.fn>) {
+    Object.defineProperty(globalThis, "window", {
+        configurable: true,
+        value: { electronAPI: { logs: { write } } },
+    });
+}
 
 describe("cross-logger", () => {
     afterEach(() => {
         setMainLogSink(null);
-        delete (globalThis as unknown as { window?: unknown }).window;
+        Reflect.deleteProperty(globalThis, "window");
         vi.restoreAllMocks();
     });
 
@@ -51,9 +58,7 @@ describe("cross-logger", () => {
     describe("when running in a renderer-like context", () => {
         it("forwards to window.electronAPI.logs.write", () => {
             const write = vi.fn();
-            (globalThis as unknown as { window: unknown }).window = {
-                electronAPI: { logs: { write } },
-            };
+            installRendererBridge(write);
 
             logger.warn("Tag", "msg", { x: 1 });
 
@@ -67,9 +72,7 @@ describe("cross-logger", () => {
 
         it("omits meta from the payload when caller did not pass any", () => {
             const write = vi.fn();
-            (globalThis as unknown as { window: unknown }).window = {
-                electronAPI: { logs: { write } },
-            };
+            installRendererBridge(write);
 
             logger.info("Tag", "msg");
 
@@ -81,9 +84,7 @@ describe("cross-logger", () => {
                 throw new Error("bridge down");
             });
             const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-            (globalThis as unknown as { window: unknown }).window = {
-                electronAPI: { logs: { write } },
-            };
+            installRendererBridge(write);
 
             logger.warn("Tag", "msg");
 
@@ -115,9 +116,7 @@ describe("cross-logger", () => {
             const sink = vi.fn();
             const write = vi.fn();
             setMainLogSink(sink);
-            (globalThis as unknown as { window: unknown }).window = {
-                electronAPI: { logs: { write } },
-            };
+            installRendererBridge(write);
 
             logger.info("Tag", "msg");
 

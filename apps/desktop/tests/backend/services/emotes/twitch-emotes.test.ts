@@ -62,7 +62,7 @@ describe("TwitchEmoteProvider", () => {
         Object.getPrototypeOf(twitchEmoteProvider),
         Object.getOwnPropertyDescriptors(twitchEmoteProvider)
       );
-      (provider as any).isConfigured = false;
+      expect(Reflect.set(provider, "isConfigured", false)).toBe(true);
 
       const result = await provider.fetchGlobalEmotes();
       expect(result).toEqual([]);
@@ -400,13 +400,21 @@ describe("TwitchEmoteProvider", () => {
   });
 
   describe("buildEmoteUrl (static)", () => {
+    function buildEmoteUrl(...args: [string, ("static" | "animated")?, ("light" | "dark")?, ("1.0" | "2.0" | "3.0")?]): string {
+      const candidate = Reflect.get(twitchEmoteProvider.constructor, "buildEmoteUrl");
+      if (typeof candidate !== "function") throw new Error("Twitch emote URL builder is unavailable");
+      const result: unknown = Reflect.apply(candidate, twitchEmoteProvider.constructor, args);
+      if (typeof result !== "string") throw new Error("Twitch emote URL builder returned a non-string value");
+      return result;
+    }
+
     it("builds URL with defaults", () => {
-      const url = (twitchEmoteProvider.constructor as any).buildEmoteUrl("123");
+      const url = buildEmoteUrl("123");
       expect(url).toBe("https://static-cdn.jtvnw.net/emoticons/v2/123/default/dark/3.0");
     });
 
     it("builds URL with custom format and theme", () => {
-      const url = (twitchEmoteProvider.constructor as any).buildEmoteUrl(
+      const url = buildEmoteUrl(
         "123",
         "animated",
         "light",

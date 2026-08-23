@@ -54,23 +54,49 @@ function deferred<T>() {
 
 let api: ReturnType<typeof installElectronAPIMock>;
 
+const mockSearchChannels = (implementation: typeof api.search.channels) => vi.fn(implementation);
+const mockSearchCategories = (implementation: typeof api.categories.search) =>
+  vi.fn(implementation);
+type SearchAllResult = Awaited<ReturnType<typeof api.search.all>>;
+type SearchAllSuccess = Extract<SearchAllResult, { success: true }>;
+type SearchAllTestResult =
+  | (Omit<SearchAllSuccess, "providers"> & { providers?: SearchAllSuccess["providers"] })
+  | Extract<SearchAllResult, { success: false }>;
+const mockSearchAll = (
+  implementation: (params?: Parameters<typeof api.search.all>[0]) => Promise<SearchAllTestResult>
+) =>
+  vi.fn<typeof api.search.all>(async (params) => {
+    const result = await implementation(params ?? { query: "" });
+    return result.success ? { ...result, providers: result.providers ?? {} } : result;
+  });
+const mockCancelSearch = (implementation: typeof api.search.cancel) => vi.fn(implementation);
+const mockWriteLog = (implementation: typeof api.logs.write) => vi.fn(implementation);
+
 beforeEach(() => {
   resetPersistedSearchResultsLruForTests();
   api = installElectronAPIMock();
-  api.search.channels = vi.fn(async () => ({ data: [], error: null, cursor: null }));
+  api.search.channels = mockSearchChannels(async () => ({
+    success: true,
+    data: [],
+    cursor: undefined,
+  }));
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// Guards: useSearchChannels and useSearchCategories treat an empty data page as end-of-list even when the backend still returns a cursor — defends against the Twitch-GQL hasNextPage-stuck-true skeleton-flicker loop in the dropdown
-// Guards: search hooks stay idle on empty queries — the omnibox must not fan out IPC on every keystroke before debouncing kicks in
+// Guards: empty search pages terminate pagination even when the backend still returns a cursor.
+// Guards: empty queries remain idle so the omnibox does not fan out IPC before debouncing.
 // Guards: typeahead hides previous-query rows while a new query is pending so stale channels cannot be selected.
 describe("useSearchChannels", () => {
   it("fetches channel search results", async () => {
     const ch = fixtures.channel({ username: "xqc" });
-    api.search.channels = vi.fn(async () => ({ data: [ch], error: null, cursor: null }));
+    api.search.channels = mockSearchChannels(async () => ({
+      success: true,
+      data: [ch],
+      cursor: undefined,
+    }));
 
     const { result } = renderHook(() => useSearchChannels("xqc"), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -85,7 +111,11 @@ describe("useSearchChannels", () => {
 
   it("fetches one-character channel queries", async () => {
     const ch = fixtures.channel({ username: "a" });
-    api.search.channels = vi.fn(async () => ({ data: [ch], error: null, cursor: null }));
+    api.search.channels = mockSearchChannels(async () => ({
+      success: true,
+      data: [ch],
+      cursor: undefined,
+    }));
 
     const { result } = renderHook(() => useSearchChannels("x"), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -100,7 +130,11 @@ describe("useSearchChannels", () => {
   it("reuses fresh cached channel results on remount", async () => {
     const wrapper = makeWrapper();
     const ch = fixtures.channel({ username: "xqc" });
-    api.search.channels = vi.fn(async () => ({ data: [ch], error: null, cursor: null }));
+    api.search.channels = mockSearchChannels(async () => ({
+      success: true,
+      data: [ch],
+      cursor: undefined,
+    }));
 
     const first = renderHook(() => useSearchChannels("xqc"), { wrapper });
     await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
@@ -114,14 +148,18 @@ describe("useSearchChannels", () => {
 
   it("clears prior suggestions while a different query is pending", async () => {
     const ch = fixtures.channel({ username: "first" });
-    let resolveSecond!: (value: { data: (typeof ch)[]; error: null; cursor: null }) => void;
-    const secondRequest = new Promise<{ data: (typeof ch)[]; error: null; cursor: null }>(
-      (resolve) => {
-        resolveSecond = resolve;
-      }
-    );
-    api.search.channels = vi.fn(({ query }) =>
-      query === "first" ? Promise.resolve({ data: [ch], error: null, cursor: null }) : secondRequest
+    let resolveSecond!: (value: { success: true; data: (typeof ch)[]; cursor: undefined }) => void;
+    const secondRequest = new Promise<{
+      success: true;
+      data: (typeof ch)[];
+      cursor: undefined;
+    }>((resolve) => {
+      resolveSecond = resolve;
+    });
+    api.search.channels = mockSearchChannels(({ query }) =>
+      query === "first"
+        ? Promise.resolve({ success: true, data: [ch], cursor: undefined })
+        : secondRequest
     );
 
     const { result, rerender } = renderHook(({ query }) => useSearchChannels(query), {
@@ -134,14 +172,18 @@ describe("useSearchChannels", () => {
     await waitFor(() => expect(api.search.channels).toHaveBeenCalledTimes(2));
     expect(result.current.data).toBeUndefined();
 
-    resolveSecond({ data: [fixtures.channel({ username: "second" })], error: null, cursor: null });
+    resolveSecond({
+      success: true,
+      data: [fixtures.channel({ username: "second" })],
+      cursor: undefined,
+    });
     await waitFor(() => expect(result.current.data?.pages[0].data[0].username).toBe("second"));
   });
 
   it("treats empty data page as end-of-list (no next page)", async () => {
-    api.search.channels = vi.fn(async () => ({
+    api.search.channels = mockSearchChannels(async () => ({
+      success: true,
       data: [],
-      error: null,
       cursor: "some-cursor",
     }));
     const { result } = renderHook(() => useSearchChannels("ghost"), { wrapper: makeWrapper() });
@@ -153,7 +195,12 @@ describe("useSearchChannels", () => {
 describe("useSearchCategories", () => {
   it("fetches category search results", async () => {
     const cat = fixtures.category({ name: "Fortnite" });
-    api.categories.search = vi.fn(async () => ({ data: [cat], error: null, cursor: null }));
+    api.categories.search = mockSearchCategories(async () => ({
+      success: true,
+      data: [cat],
+      cursor: undefined,
+      providers: { twitch: "complete", kick: "complete" },
+    }));
 
     const { result } = renderHook(() => useSearchCategories("fortnite"), {
       wrapper: makeWrapper(),
@@ -202,15 +249,17 @@ describe("useSearchAll", () => {
     api.store.set = vi.fn(async (key: string, value: unknown) => {
       persistedValues.set(key, value);
     });
-    api.search.all = vi.fn(async () => ({
+    api.search.all = mockSearchAll(async () => ({
+      success: true,
       data: payload,
-      error: null,
       providers: { twitch: "complete", kick: "complete" },
     }));
 
     const first = renderHook(() => useSearchAll(" Restart Search "), { wrapper: makeWrapper() });
     await waitFor(() => expect(first.result.current.data).toEqual(payload));
-    await waitFor(() => expect(api.store.set).toHaveBeenCalledWith("search-results-lru:v1", expect.anything()));
+    await waitFor(() =>
+      expect(api.store.set).toHaveBeenCalledWith("search-results-lru:v1", expect.anything())
+    );
     first.unmount();
 
     const restartedClient = createQueryClient();
@@ -218,8 +267,8 @@ describe("useSearchAll", () => {
     const startedAt = performance.now();
     await hydratePersistedBrowseSnapshots(restartedClient);
     const never = new Promise<never>(() => undefined);
-    api.search.channels = vi.fn(() => never);
-    api.search.all = vi.fn(() => never);
+    api.search.channels = mockSearchChannels(() => never);
+    api.search.all = mockSearchAll(() => never);
 
     const restarted = renderHook(() => useSearchAll("restart   search"), {
       wrapper: makeWrapper(restartedClient),
@@ -265,9 +314,9 @@ describe("useSearchAll", () => {
     resetPersistedSearchResultsLruForTests();
     const client = createProductionQueryClient();
     await hydratePersistedBrowseSnapshots(client);
-    api.logs.write = vi.fn();
-    api.search.channels = vi.fn(() => new Promise<never>(() => undefined));
-    api.search.all = vi.fn(() => new Promise<never>(() => undefined));
+    api.logs.write = vi.fn<typeof api.logs.write>();
+    api.search.channels = mockSearchChannels(() => new Promise<never>(() => undefined));
+    api.search.all = mockSearchAll(() => new Promise<never>(() => undefined));
 
     const mounted = renderHook(() => useSearchAll("production search"), {
       wrapper: makeWrapper(client),
@@ -277,9 +326,11 @@ describe("useSearchAll", () => {
     expect(mounted.result.current.data).toEqual(cached);
     expect(api.search.channels).not.toHaveBeenCalled();
     await waitFor(() => expect(api.search.all).toHaveBeenCalledTimes(1));
-    const requestStarts = api.logs.write.mock.calls.filter(
-      (call: Array<{ meta?: { stage?: string } }>) => call[0]?.meta?.stage === "request-start"
-    );
+    const requestStarts = vi
+      .mocked(api.logs.write)
+      .mock.calls.filter(
+        (call: Array<{ meta?: { stage?: string } }>) => call[0]?.meta?.stage === "request-start"
+      );
     expect(requestStarts).toHaveLength(1);
     mounted.unmount();
   });
@@ -298,7 +349,11 @@ describe("useSearchAll", () => {
       platform: "twitch",
     });
     const cached: SearchAllResponse = {
-      channels: [cachedChannel], categories: [], streams: [], videos: [], clips: [],
+      channels: [cachedChannel],
+      categories: [],
+      streams: [],
+      videos: [],
+      clips: [],
     };
     const persistedValues = new Map<string, unknown>();
     api.store.get = vi.fn(async (key: string) => persistedValues.get(key) ?? null);
@@ -309,15 +364,21 @@ describe("useSearchAll", () => {
     resetPersistedSearchResultsLruForTests();
     const client = createQueryClient();
     await hydratePersistedBrowseSnapshots(client);
-    expect(client.getQueryData(SEARCH_KEYS.everything("warm channels", undefined, 5))).toEqual(cached);
-    const quick = deferred<{ data: (typeof refreshedChannel)[]; error: null; cursor: null }>();
+    expect(client.getQueryData(SEARCH_KEYS.everything("warm channels", undefined, 5))).toEqual(
+      cached
+    );
+    const quick = deferred<{
+      success: true;
+      data: (typeof refreshedChannel)[];
+      cursor: undefined;
+    }>();
     const broad = deferred<{
       success: true;
       data: SearchAllResponse;
       providers: { twitch: "complete"; kick: "complete" };
     }>();
-    api.search.channels = vi.fn(() => quick.promise);
-    api.search.all = vi.fn(() => broad.promise);
+    api.search.channels = mockSearchChannels(() => quick.promise);
+    api.search.all = mockSearchAll(() => broad.promise);
 
     const { result } = renderHook(() => useSearchAll("warm channels"), {
       wrapper: makeWrapper(client),
@@ -333,7 +394,11 @@ describe("useSearchAll", () => {
     broad.resolve({
       success: true,
       data: {
-        channels: [refreshedChannel], categories: [], streams: [], videos: [], clips: [],
+        channels: [refreshedChannel],
+        categories: [],
+        streams: [],
+        videos: [],
+        clips: [],
       },
       providers: { twitch: "complete", kick: "complete" },
     });
@@ -352,15 +417,23 @@ describe("useSearchAll", () => {
       platform: "kick",
     });
     const cached: SearchAllResponse = {
-      channels: [cachedChannel], categories: [], streams: [], videos: [], clips: [],
+      channels: [cachedChannel],
+      categories: [],
+      streams: [],
+      videos: [],
+      clips: [],
     };
     api.store.get = vi.fn(async () => null);
     await savePersistedSearchResult("partial search", undefined, 5, cached);
     vi.mocked(api.store.set).mockClear();
-    api.search.channels = vi.fn(async () => ({ data: [partialChannel], error: null, cursor: null }));
-    api.search.all = vi.fn(async () => ({
+    api.search.channels = mockSearchChannels(async () => ({
+      success: true,
+      data: [partialChannel],
+      cursor: undefined,
+    }));
+    api.search.all = mockSearchAll(async () => ({
+      success: true,
       data: { channels: [partialChannel], categories: [], streams: [], videos: [], clips: [] },
-      error: null,
       providers: { twitch: "failed", kick: "complete" },
     }));
 
@@ -385,16 +458,24 @@ describe("useSearchAll", () => {
       platform: "twitch",
     });
     const cached: SearchAllResponse = {
-      channels: [cachedChannel], categories: [], streams: [], videos: [], clips: [],
+      channels: [cachedChannel],
+      categories: [],
+      streams: [],
+      videos: [],
+      clips: [],
     };
     api.store.get = vi.fn(async () => null);
     await savePersistedSearchResult("no status", undefined, 5, cached);
     vi.mocked(api.store.set).mockClear();
-    api.search.channels = vi.fn(() => new Promise<never>(() => undefined));
-    api.search.all = vi.fn(async () => ({
+    api.search.channels = mockSearchChannels(() => new Promise<never>(() => undefined));
+    api.search.all = mockSearchAll(async () => ({
       success: true,
       data: {
-        channels: [untrustedChannel], categories: [], streams: [], videos: [], clips: [],
+        channels: [untrustedChannel],
+        categories: [],
+        streams: [],
+        videos: [],
+        clips: [],
       },
     }));
 
@@ -412,14 +493,17 @@ describe("useSearchAll", () => {
     const never = new Promise<never>(() => undefined);
     const firstPayload: SearchAllResponse = {
       channels: [fixtures.channel({ username: "first", displayName: "First" })],
-      categories: [], streams: [], videos: [], clips: [],
+      categories: [],
+      streams: [],
+      videos: [],
+      clips: [],
     };
     api.store.get = vi.fn(() => storeRead.promise);
-    api.search.all = vi.fn(({ query }) =>
-      query === "first"
+    api.search.all = mockSearchAll((params) =>
+      params?.query === "first"
         ? Promise.resolve({
+            success: true,
             data: firstPayload,
-            error: null,
             providers: { twitch: "complete", kick: "complete" },
           })
         : never
@@ -451,12 +535,12 @@ describe("useSearchAll", () => {
       isLive: true,
     });
     const never = new Promise<never>(() => undefined);
-    api.search.channels = vi.fn(({ platform }) =>
+    api.search.channels = mockSearchChannels(({ platform }) =>
       platform === "twitch"
-        ? Promise.resolve({ data: [twitchChannel], error: null, cursor: null })
+        ? Promise.resolve({ success: true, data: [twitchChannel], cursor: undefined })
         : never
     );
-    api.search.all = vi.fn(() => never);
+    api.search.all = mockSearchAll(() => never);
 
     const { result } = renderHook(() => useSearchAll("xqc"), { wrapper: makeWrapper() });
 
@@ -472,14 +556,14 @@ describe("useSearchAll", () => {
       platform: "kick",
       username: "xqc",
     });
-    api.search.channels = vi.fn(async ({ platform }) => ({
+    api.search.channels = mockSearchChannels(async ({ platform }) => ({
+      success: true,
       data: platform === "twitch" ? [twitchChannel] : [kickChannel],
-      error: null,
-      cursor: null,
+      cursor: undefined,
     }));
-    api.search.all = vi.fn(async () => ({
+    api.search.all = mockSearchAll(async () => ({
+      success: true,
       data: { channels: [], categories: [], streams: [], videos: [], clips: [] },
-      error: null,
     }));
 
     const { result } = renderHook(() => useSearchAll("xqc"), { wrapper: makeWrapper() });
@@ -494,10 +578,14 @@ describe("useSearchAll", () => {
   });
 
   it("marks completed empty quick providers as seeded for broad hydration", async () => {
-    api.search.channels = vi.fn(async () => ({ data: [], error: null, cursor: null }));
-    api.search.all = vi.fn(async () => ({
+    api.search.channels = mockSearchChannels(async () => ({
+      success: true,
+      data: [],
+      cursor: undefined,
+    }));
+    api.search.all = mockSearchAll(async () => ({
+      success: true,
       data: { channels: [], categories: [], streams: [], videos: [], clips: [] },
-      error: null,
     }));
 
     const { result } = renderHook(() => useSearchAll("missing"), { wrapper: makeWrapper() });
@@ -517,17 +605,17 @@ describe("useSearchAll", () => {
       platform: "kick",
       username: "partialquick",
     });
-    api.search.channels = vi.fn(({ platform }) =>
+    api.search.channels = mockSearchChannels(({ platform }) =>
       platform === "twitch"
         ? Promise.reject(new Error("Twitch quick lookup failed"))
-        : Promise.resolve({ data: [kickChannel], error: null, cursor: null })
+        : Promise.resolve({ success: true, data: [kickChannel], cursor: undefined })
     );
     const broad = deferred<{
       success: true;
       data: SearchAllResponse;
       providers: { twitch: "failed"; kick: "complete" };
     }>();
-    api.search.all = vi.fn(() => broad.promise);
+    api.search.all = mockSearchAll(() => broad.promise);
 
     const { result } = renderHook(() => useSearchAll("partial quick"), {
       wrapper: makeWrapper(),
@@ -552,13 +640,13 @@ describe("useSearchAll", () => {
 
   it("cancels stale broad backend work when the submitted query changes", async () => {
     const never = new Promise<never>(() => undefined);
-    api.search.cancel = vi.fn(async () => ({ success: true, cancelled: true }));
-    api.search.all = vi.fn(({ query }) =>
-      query === "xqc"
+    api.search.cancel = mockCancelSearch(async () => ({ success: true, cancelled: true }));
+    api.search.all = mockSearchAll((params) =>
+      params?.query === "xqc"
         ? never
         : Promise.resolve({
+            success: true,
             data: { channels: [], categories: [], streams: [], videos: [], clips: [] },
-            error: null,
           })
     );
 
@@ -567,7 +655,7 @@ describe("useSearchAll", () => {
       wrapper: makeWrapper(),
     });
     await waitFor(() => expect(api.search.all).toHaveBeenCalledTimes(1));
-    const staleRequestId = api.search.all.mock.calls[0][0].requestId;
+    const staleRequestId = vi.mocked(api.search.all).mock.calls[0][0].requestId;
 
     rerender({ query: "shroud" });
 
@@ -583,13 +671,13 @@ describe("useSearchAll", () => {
       data: SearchAllResponse;
       providers: { twitch: "complete"; kick: "complete" };
     }>();
-    api.logs.write = vi.fn();
-    api.search.channels = vi.fn(async ({ platform }) => ({
+    api.logs.write = vi.fn<typeof api.logs.write>();
+    api.search.channels = mockSearchChannels(async ({ platform }) => ({
+      success: true,
       data: platform === "twitch" ? [twitchChannel] : [],
-      error: null,
-      cursor: null,
+      cursor: undefined,
     }));
-    api.search.all = vi.fn(() => broad.promise);
+    api.search.all = mockSearchAll(() => broad.promise);
 
     renderHook(() => useSearchAll("xqc"), { wrapper: makeWrapper() });
     await waitFor(() =>
@@ -604,9 +692,9 @@ describe("useSearchAll", () => {
     });
 
     await waitFor(() => {
-      const stages = api.logs.write.mock.calls.map(
-        (call: Array<{ meta?: { stage?: string } }>) => call[0]?.meta?.stage
-      );
+      const stages = vi
+        .mocked(api.logs.write)
+        .mock.calls.map((call: Array<{ meta?: { stage?: string } }>) => call[0]?.meta?.stage);
       expect(stages).toEqual(
         expect.arrayContaining(["request-start", "first-useful", "full-hydration"])
       );
@@ -631,14 +719,19 @@ describe("useSearchAll", () => {
         clips: [],
       },
       providers: { twitch: "complete", kick: "complete" },
-    } as unknown as Awaited<ReturnType<typeof api.search.all>>;
-    api.logs.write = vi.fn();
-    api.search.channels = vi.fn(async () => ({ data: [], error: null, cursor: null }));
-    api.search.all = vi.fn(async () => malformedBoundaryResponse);
+    };
+    const malformedSearch = vi.fn(async () => malformedBoundaryResponse);
+    api.logs.write = vi.fn<typeof api.logs.write>();
+    api.search.channels = mockSearchChannels(async () => ({
+      success: true,
+      data: [],
+      cursor: undefined,
+    }));
+    Object.defineProperty(api.search, "all", { configurable: true, value: malformedSearch });
 
     const { result } = renderHook(() => useSearchAll("xqc"), { wrapper: makeWrapper() });
 
-    await waitFor(() => expect(api.search.all).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(malformedSearch).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(result.current.data?.channels).toEqual([liveChannel]));
     await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
     expect(api.store.set).not.toHaveBeenCalled();
@@ -649,27 +742,42 @@ describe("useSearchAll", () => {
 
   it("labels cached publication separately and delays full hydration timing until remote acceptance", async () => {
     const cached: SearchAllResponse = {
-      channels: [
-        fixtures.channel({ username: "timedcache", displayName: "Timed Cache" }),
-      ],
+      channels: [fixtures.channel({ username: "timedcache", displayName: "Timed Cache" })],
       categories: [fixtures.category({ name: "Timed Cache" })],
       streams: [fixtures.stream({ channelName: "timedcache" })],
       videos: [
         {
-          id: "video-1", platform: "twitch", channelId: "channel-1",
-          channelName: "timedcache", channelDisplayName: "Timed Cache", channelAvatar: "",
-          title: "Timed cache video", thumbnailUrl: "", duration: 10, viewCount: 1,
-          publishedAt: "2026-01-01T00:00:00.000Z", url: "https://example.com/video",
+          id: "video-1",
+          platform: "twitch",
+          channelId: "channel-1",
+          channelName: "timedcache",
+          channelDisplayName: "Timed Cache",
+          channelAvatar: "",
+          title: "Timed cache video",
+          thumbnailUrl: "",
+          duration: 10,
+          viewCount: 1,
+          publishedAt: "2026-01-01T00:00:00.000Z",
+          url: "https://example.com/video",
           type: "archive",
         },
       ],
       clips: [
         {
-          id: "clip-1", platform: "twitch", channelId: "channel-1",
-          channelName: "timedcache", channelDisplayName: "Timed Cache", channelAvatar: "",
-          title: "Timed cache clip", thumbnailUrl: "", clipUrl: "https://example.com/clip",
-          embedUrl: "https://example.com/clip/embed", duration: 10, viewCount: 1,
-          createdAt: "2026-01-01T00:00:00.000Z", creatorName: "creator",
+          id: "clip-1",
+          platform: "twitch",
+          channelId: "channel-1",
+          channelName: "timedcache",
+          channelDisplayName: "Timed Cache",
+          channelAvatar: "",
+          title: "Timed cache clip",
+          thumbnailUrl: "",
+          clipUrl: "https://example.com/clip",
+          embedUrl: "https://example.com/clip/embed",
+          duration: 10,
+          viewCount: 1,
+          createdAt: "2026-01-01T00:00:00.000Z",
+          creatorName: "creator",
         },
       ],
     };
@@ -687,9 +795,9 @@ describe("useSearchAll", () => {
       data: SearchAllResponse;
       providers: { twitch: "complete"; kick: "complete" };
     }>();
-    api.logs.write = vi.fn();
-    api.search.channels = vi.fn(() => new Promise<never>(() => undefined));
-    api.search.all = vi.fn(() => broad.promise);
+    api.logs.write = vi.fn<typeof api.logs.write>();
+    api.search.channels = mockSearchChannels(() => new Promise<never>(() => undefined));
+    api.search.all = mockSearchAll(() => broad.promise);
 
     renderHook(() => useSearchAll("timed cache"), { wrapper: makeWrapper(client) });
 
@@ -719,10 +827,10 @@ describe("useSearchAll", () => {
   });
 
   it("emits one request-start trace for one logical request under StrictMode", async () => {
-    api.logs.write = vi.fn();
-    api.search.all = vi.fn(async () => ({
+    api.logs.write = vi.fn<typeof api.logs.write>();
+    api.search.all = mockSearchAll(async () => ({
+      success: true,
       data: { channels: [], categories: [], streams: [], videos: [], clips: [] },
-      error: null,
     }));
 
     const { result } = renderHook(() => useSearchAll("xqc"), {
@@ -731,8 +839,9 @@ describe("useSearchAll", () => {
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    const requestStarts = api.logs.write.mock.calls
-      .map((call: Array<{ meta?: { requestId?: number; stage?: string } }>) => call[0])
+    const requestStarts = vi
+      .mocked(api.logs.write)
+      .mock.calls.map((call: Array<{ meta?: { requestId?: number; stage?: string } }>) => call[0])
       .filter((payload: { meta?: { stage?: string } }) => payload.meta?.stage === "request-start");
     expect(requestStarts).toHaveLength(1);
     expect(api.search.all).toHaveBeenCalledTimes(1);
@@ -752,12 +861,12 @@ describe("useSearchAll", () => {
       displayName: "xQc",
       followerCount: 1,
     });
-    api.search.channels = vi.fn(async ({ platform }) => ({
+    api.search.channels = mockSearchChannels(async ({ platform }) => ({
+      success: true,
       data: platform === "twitch" ? [twitchPrefix] : [kickExact],
-      error: null,
-      cursor: null,
+      cursor: undefined,
     }));
-    api.search.all = vi.fn(() => new Promise<never>(() => undefined));
+    api.search.all = mockSearchAll(() => new Promise<never>(() => undefined));
 
     const { result } = renderHook(() => useSearchAll("xqc"), { wrapper: makeWrapper() });
 
@@ -776,7 +885,7 @@ describe("useSearchAll", () => {
       videos: [],
       clips: [],
     };
-    api.search.all = vi.fn(async () => ({ data: payload, error: null }));
+    api.search.all = mockSearchAll(async () => ({ success: true, data: payload }));
 
     const { result } = renderHook(() => useSearchAll("test"), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -792,12 +901,14 @@ describe("useSearchAll", () => {
       videos: [],
       clips: [],
     };
-    let resolveSecond!: (value: { data: typeof firstPayload; error: null }) => void;
-    const secondRequest = new Promise<{ data: typeof firstPayload; error: null }>((resolve) => {
+    let resolveSecond!: (value: { success: true; data: typeof firstPayload }) => void;
+    const secondRequest = new Promise<{ success: true; data: typeof firstPayload }>((resolve) => {
       resolveSecond = resolve;
     });
-    api.search.all = vi.fn(({ query }) =>
-      query === "first" ? Promise.resolve({ data: firstPayload, error: null }) : secondRequest
+    api.search.all = mockSearchAll((params) =>
+      params?.query === "first"
+        ? Promise.resolve({ success: true, data: firstPayload })
+        : secondRequest
     );
 
     const { result, rerender } = renderHook(({ query }) => useSearchAll(query), {
@@ -811,8 +922,8 @@ describe("useSearchAll", () => {
     expect(result.current.data).toBeUndefined();
 
     resolveSecond({
+      success: true,
       data: { ...firstPayload, channels: [fixtures.channel({ username: "second" })] },
-      error: null,
     });
     await waitFor(() => expect(result.current.data?.channels[0].username).toBe("second"));
   });
@@ -826,7 +937,7 @@ describe("useSearchAll", () => {
       videos: [],
       clips: [],
     };
-    api.search.all = vi.fn(async () => ({ data: payload, error: null }));
+    api.search.all = mockSearchAll(async () => ({ success: true, data: payload }));
 
     const first = renderHook(() => useSearchAll("cached"), { wrapper });
     await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
@@ -841,7 +952,7 @@ describe("useSearchAll", () => {
   it("exposes a truthful cold loading response within the 50ms app-owned budget", () => {
     vi.useFakeTimers();
     let providerSettled = false;
-    api.search.all = vi.fn(() =>
+    api.search.all = mockSearchAll(() =>
       new Promise<never>(() => undefined).finally(() => {
         providerSettled = true;
       })
@@ -870,9 +981,9 @@ describe("useSearchAll", () => {
   });
 
   it("fetches one-character combined queries", async () => {
-    api.search.all = vi.fn(async () => ({
+    api.search.all = mockSearchAll(async () => ({
+      success: true,
       data: { channels: [], categories: [], streams: [], videos: [], clips: [] },
-      error: null,
     }));
 
     const { result } = renderHook(() => useSearchAll("x"), { wrapper: makeWrapper() });

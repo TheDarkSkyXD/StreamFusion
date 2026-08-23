@@ -3,7 +3,9 @@
  *
  * The official Kick public API (api.kick.com/public/v1) has no followed-channels
  * endpoint — confirmed live against docs.kick.com on 2026-05-21. The only path
- * is the undocumented internal v2 endpoint at kick.com/api/v2/channels/followed.
+ * is the undocumented internal full-page endpoint at
+ * kick.com/api/v2/channels/followed-page. Kick's similarly named
+ * /channels/followed endpoint is sidebar-scoped and is not authoritative.
  *
  * This module tries Bearer auth via `fetch()` first (cheapest path — mirrors
  * `kickAuthService.fetchCurrentUser`). If the v2 endpoint accepts the OAuth
@@ -18,7 +20,7 @@
  * outcome or transient failures would wipe a user's prior synced follows.
  */
 
-import { BrowserWindow, session } from "electron";
+import { session, type BrowserWindow } from "electron";
 import { logger } from "@/backend/logging/logger";
 import {
   firstValidKickBroadcasterUserId,
@@ -28,30 +30,47 @@ import { hasCanonicalKickScopes } from "../../../../auth/kick-scope-validation";
 import { storageService } from "../../../../services/storage-service";
 import { waitForWebContentsCondition } from "../../../../services/web-contents-ready";
 import type { UnifiedChannel } from "../../../unified/platform-types";
+import { createHiddenKickBrowserWindow } from "../kick-hidden-browser-window";
+import {
+  installKickWebBearerCapture,
+  readPersistedKickWebBearer,
+} from "../kick-web-credential";
 import { transformKickFollowedChannelLegacy } from "../kick-transformers";
 import type { KickLegacyApiFollowedChannel } from "../kick-types";
 import { KICK_LEGACY_API_V2_BASE } from "../kick-types";
 import {
+  fetchKickWebApiGet,
   fetchKickWebApiMutation,
+  type KickWebApiGetResult,
   type KickWebApiMutationResult,
 } from "../kick-send-window";
 import { acquireBrowserWindowSlot } from "./channel-endpoints";
 
+export const KICK_FOLLOWED_CHANNELS_API_PATH = "/api/v2/channels/followed";
+export const KICK_FOLLOWED_CHANNELS_PAGE_API_PATH = "/api/v2/channels/followed-page";
 const FOLLOWED_CHANNELS_URL = `${KICK_LEGACY_API_V2_BASE}/channels/followed`;
 const FETCH_TIMEOUT_MS = 10000;
 
 /**
  * Readiness predicate (page-context JS) for the /following/channels scrape:
- * true once the "Followed Channels" heading exists AND its container holds at
- * least one channel anchor with an avatar image. Mirrors the scoping logic of
- * the scrape itself. Exported for unit testing against fixture DOM.
+ * true once the dedicated following section has either rendered a channel card
+ * or an explicit empty state. Recommendation sections do not count.
  */
 export const GRID_READY_PREDICATE = `(() => {
-  for (const h of document.querySelectorAll('h2, h3, [role="heading"]')) {
-    if (/followed channel|channels you follow|following channels/i.test((h.textContent || '').trim())) {
+  for (const h of document.querySelectorAll('h1, h2, h3, [role="heading"]')) {
+    if (/^(following|followed channels|channels you follow|following channels)$/i.test((h.textContent || '').trim())) {
       let p = h.parentElement;
       for (let i = 0; i < 6 && p; i++) {
-        if (p.querySelectorAll('a[href] img').length >= 1) return true;
+        const includesRecommendations = Array.from(
+          p.querySelectorAll('h1, h2, h3, [role="heading"]')
+        ).some((candidate) => /^live channels$/i.test((candidate.textContent || '').trim()));
+        if (!includesRecommendations && p.querySelectorAll('a[href] img').length >= 1) return true;
+        if (
+          !includesRecommendations &&
+          /(?:aren't|are not|not following|no followed channels|don't follow any channels)/i.test(
+            p.textContent || ''
+          )
+        ) return true;
         p = p.parentElement;
       }
     }
@@ -104,8 +123,11 @@ export async function writeKickAccountFollow(request: {
 export type ErrorReason =
   | "no-token"
   | "auth-failed"
+  | "web-session-required"
+  | "kick-web-account-mismatch"
   | "parse-error"
   | "network-error"
+  | "rate-limited"
   | "cloudflare-challenge";
 
 interface FollowedChannelsOptions {
@@ -118,9 +140,25 @@ type ScrapedKickFollowedChannel = {
   avatarUrl: string;
 };
 
-export function mapScrapedKickFollowedChannel(
-  channel: ScrapedKickFollowedChannel
-): UnifiedChannel {
+type BrowserFollowScan = {
+  channels: ScrapedKickFollowedChannel[];
+  scoped?: boolean;
+  scrollSettled?: boolean;
+  reachedScrollEnd?: boolean;
+  loadingSettled?: boolean;
+  dedicatedFollowingPage?: boolean;
+  emptyStateVisible?: boolean;
+};
+
+export function interpretBrowserFollowScan(scan: BrowserFollowScan): FollowedChannelsResult {
+  return {
+    status: "ok",
+    channels: scan.channels.map(mapScrapedKickFollowedChannel),
+    canPruneAbsent: false,
+  };
+}
+
+export function mapScrapedKickFollowedChannel(channel: ScrapedKickFollowedChannel): UnifiedChannel {
   const broadcasterUserId = firstValidKickBroadcasterUserId(
     getKickBroadcasterUserIdFromAvatar(channel.avatarUrl)
   );
@@ -137,6 +175,103 @@ export function mapScrapedKickFollowedChannel(
     isVerified: false,
     isPartner: false,
     kickUserId: broadcasterUserId ?? undefined,
+  };
+}
+
+function parseKickFollowedChannelsPayload(payload: unknown): UnifiedChannel[] | null {
+  const rawItems = _extractItems(payload);
+  if (!rawItems) return null;
+  const channels: UnifiedChannel[] = [];
+  for (const item of rawItems) {
+    const channel = transformKickFollowedChannelLegacy(item as KickLegacyApiFollowedChannel);
+    if (!channel) return null;
+    channels.push(channel);
+  }
+  return channels;
+}
+
+type KickWebFollowPage = {
+  channels: UnifiedChannel[];
+  nextCursor: number;
+  discardedRows: number;
+};
+
+function parseKickWebFollowPage(payload: unknown): KickWebFollowPage | null {
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) return null;
+  const record = payload as Record<string, unknown>;
+  const nextCursor = record.nextCursor === undefined ? 0 : record.nextCursor;
+  if (
+    !Array.isArray(record.channels) ||
+    typeof nextCursor !== "number" ||
+    !Number.isSafeInteger(nextCursor) ||
+    nextCursor < 0
+  ) {
+    return null;
+  }
+  const channels: UnifiedChannel[] = [];
+  let discardedRows = 0;
+  for (const value of record.channels) {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      discardedRows += 1;
+      continue;
+    }
+    const item = value as Record<string, unknown>;
+    if (typeof item.channel_slug !== "string" || !item.channel_slug.trim()) {
+      discardedRows += 1;
+      continue;
+    }
+    const slug = item.channel_slug.trim().toLowerCase();
+    const displayName =
+      typeof item.user_username === "string" && item.user_username.trim()
+        ? item.user_username
+        : item.channel_slug;
+    channels.push({
+      id: slug,
+      platform: "kick",
+      username: slug,
+      displayName,
+      avatarUrl: typeof item.profile_picture === "string" ? item.profile_picture : "",
+      bannerUrl: undefined,
+      bio: undefined,
+      isLive: item.is_live === true,
+      isVerified: false,
+      isPartner: false,
+    });
+  }
+  return { channels, nextCursor, discardedRows };
+}
+
+function describePayloadShape(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return {
+      type: "array",
+      length: value.length,
+      first: value.length > 0 ? describeObjectShape(value[0]) : undefined,
+    };
+  }
+  return describeObjectShape(value);
+}
+
+function describeObjectShape(value: unknown): unknown {
+  if (typeof value !== "object" || value === null) return { type: typeof value };
+  const object = value as Record<string, unknown>;
+  return {
+    type: "object",
+    keys: Object.keys(object).sort(),
+    fields: Object.fromEntries(
+      Object.entries(object).map(([key, field]) => [
+        key,
+        Array.isArray(field)
+          ? {
+              type: "array",
+              length: field.length,
+              first: field.length > 0 ? describeObjectShape(field[0]) : undefined,
+            }
+          : typeof field === "object" && field !== null
+            ? describeObjectShape(field)
+            : { type: typeof field },
+      ])
+    ),
   };
 }
 
@@ -184,6 +319,31 @@ async function _doFetch(options: FollowedChannelsOptions): Promise<FollowedChann
     return { status: "error", reason: "no-token" };
   }
 
+  const webSessionResult = await _tryWebSessionFetch();
+  if (webSessionResult.status === "ok") {
+    const pageResult = await _tryWebSessionFollowedPageFetch();
+    if (pageResult.status !== "ok") return webSessionResult;
+    const combined = new Map(
+      webSessionResult.channels.map((channel) => [channel.username, channel] as const)
+    );
+    for (const channel of pageResult.channels) combined.set(channel.username, channel);
+    return {
+      status: "ok",
+      channels: [...combined.values()],
+      // Kick currently serves two distinct account-follow projections. Their
+      // union discovers fresh follows, but absence is not authoritative until
+      // relationship verification reconciles it against stored rows.
+      canPruneAbsent: false,
+    };
+  }
+  if (
+    webSessionResult.reason === "rate-limited" ||
+    webSessionResult.reason === "web-session-required" ||
+    webSessionResult.reason === "kick-web-account-mismatch"
+  ) {
+    return webSessionResult;
+  }
+
   const bearerResult = await _tryBearerFetch(token);
   if (bearerResult.status === "ok") return bearerResult;
   if (!options.allowBrowserWindowFallback) return bearerResult;
@@ -196,6 +356,154 @@ async function _doFetch(options: FollowedChannelsOptions): Promise<FollowedChann
     { reason: bearerResult.reason }
   );
   return _fetchViaBrowserWindow();
+}
+
+async function tryWebSessionFollowCollection(
+  basePath: string,
+  verifyViewer: boolean
+): Promise<FollowedChannelsResult> {
+  const collected = new Map<string, UnifiedChannel>();
+  const seenCursors = new Set<number>();
+  let discardedRows = 0;
+  let cursor: number | undefined;
+  for (let pageIndex = 0; pageIndex < 100; pageIndex += 1) {
+    let response: KickWebApiGetResult;
+    const params = new URLSearchParams();
+    if (cursor !== undefined) params.set("cursor", String(cursor));
+    const path = `${basePath}${params.size > 0 ? `?${params}` : ""}`;
+    try {
+      response = await fetchKickWebApiGet(path);
+    } catch {
+      logger.debug("Kick:Endpoints:Follow", "Kick web followed-list request threw");
+      return { status: "error", reason: "network-error" };
+    }
+    logger.info("Kick:Endpoints:Follow", "Kick web followed-list response", {
+      ok: response.ok,
+      status: response.status,
+      kind: response.ok ? "ok" : response.kind,
+    });
+    if (!response.ok) {
+      if (response.kind === "auth-expired" || response.status === 401 || response.status === 419) {
+        return { status: "error", reason: "web-session-required" };
+      }
+      if (response.status === 429) {
+        logger.debug("Kick:Endpoints:Follow", "Kick web followed-list rate limited", {
+          retryAfterSeconds: response.retryAfterSeconds,
+        });
+        return { status: "error", reason: "rate-limited" };
+      }
+      logger.debug("Kick:Endpoints:Follow", "Kick web followed-list request failed", {
+        status: response.status,
+        retryAfterSeconds: response.retryAfterSeconds,
+      });
+      return { status: "error", reason: "network-error" };
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(response.body);
+    } catch {
+      logger.info("Kick:Endpoints:Follow", "Kick web followed-list parser rejected response", {
+        outcome: "invalid-json",
+      });
+      return { status: "error", reason: "parse-error" };
+    }
+    const page = parseKickWebFollowPage(parsed);
+    const channels = page?.channels ?? null;
+    logger.info("Kick:Endpoints:Follow", "Kick web followed-list parser completed", {
+      outcome: channels ? "accepted" : "invalid-shape",
+      count: channels?.length ?? 0,
+      ...(channels ? {} : { shape: describePayloadShape(parsed) }),
+    });
+    if (!page) return { status: "error", reason: "parse-error" };
+    discardedRows += page.discardedRows;
+    for (const channel of page.channels) collected.set(channel.username, channel);
+    if (page.nextCursor === 0) break;
+    if (seenCursors.has(page.nextCursor)) return { status: "error", reason: "parse-error" };
+    seenCursors.add(page.nextCursor);
+    cursor = page.nextCursor;
+    if (pageIndex === 99) return { status: "error", reason: "parse-error" };
+  }
+  if (!verifyViewer) {
+    return { status: "ok", channels: [...collected.values()], canPruneAbsent: false };
+  }
+  const viewer = storageService.getKickUser();
+  if (!viewer) return { status: "error", reason: "auth-failed" };
+  const identity = await verifyKickWebViewerIdentity(viewer);
+  if (identity !== "match") {
+    return {
+      status: "error",
+      reason: identity === "mismatch" ? "kick-web-account-mismatch" : "web-session-required",
+    };
+  }
+  return {
+    status: "ok",
+    channels: [...collected.values()],
+    canPruneAbsent: discardedRows === 0,
+  };
+}
+
+export function _tryWebSessionFetch(): Promise<FollowedChannelsResult> {
+  return tryWebSessionFollowCollection(KICK_FOLLOWED_CHANNELS_API_PATH, true);
+}
+
+export function _tryWebSessionFollowedPageFetch(): Promise<FollowedChannelsResult> {
+  return tryWebSessionFollowCollection(KICK_FOLLOWED_CHANNELS_PAGE_API_PATH, false);
+}
+
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readKickWebViewerIdentity(
+  payload: unknown
+): { id: string; username: string } | null {
+  if (!isUnknownRecord(payload)) return null;
+  const data = isUnknownRecord(payload.data) ? payload.data : null;
+  const candidates = [
+    payload,
+    data,
+    isUnknownRecord(payload.user) ? payload.user : null,
+    isUnknownRecord(data?.user) ? data.user : null,
+  ];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const id = candidate.id;
+    const username =
+      typeof candidate.slug === "string"
+        ? candidate.slug
+        : typeof candidate.username === "string"
+          ? candidate.username
+          : null;
+    if ((typeof id === "number" || typeof id === "string") && username?.trim()) {
+      return { id: String(id), username: username.trim().toLowerCase() };
+    }
+  }
+  return null;
+}
+
+export async function verifyKickWebViewerIdentity(viewer: {
+  id: number;
+  slug: string;
+  username: string;
+}): Promise<"match" | "mismatch" | "unavailable"> {
+  let response: KickWebApiGetResult;
+  try {
+    response = await fetchKickWebApiGet("/api/v1/user");
+  } catch {
+    return "unavailable";
+  }
+  if (!response.ok) return response.kind === "auth-expired" ? "unavailable" : "unavailable";
+  try {
+    const parsed = JSON.parse(response.body) as unknown;
+    const identity = readKickWebViewerIdentity(parsed);
+    if (!identity) return "unavailable";
+    return identity.id === String(viewer.id) &&
+      identity.username === (viewer.slug || viewer.username).toLowerCase()
+      ? "match"
+      : "mismatch";
+  } catch {
+    return "unavailable";
+  }
 }
 
 /**
@@ -284,19 +592,13 @@ export async function _tryBearerFetch(token: string): Promise<FollowedChannelsRe
   }
 
   // Accept either `{ data: [...] }` (Laravel convention) or a top-level array.
-  const rawItems = _extractItems(parsed);
-  if (!rawItems) {
+  const channels = parseKickFollowedChannelsPayload(parsed);
+  if (!channels) {
     _warnOnce(
       "parse-error",
       `Kick v2 followed-channels JSON did not contain an array under 'data' or at top level. Got: ${typeof parsed}`
     );
     return { status: "error", reason: "parse-error" };
-  }
-
-  const channels: UnifiedChannel[] = [];
-  for (const item of rawItems) {
-    const channel = transformKickFollowedChannelLegacy(item as KickLegacyApiFollowedChannel);
-    if (channel) channels.push(channel);
   }
 
   // Empty list IS a valid outcome — user genuinely follows zero channels.
@@ -306,10 +608,118 @@ export async function _tryBearerFetch(token: string): Promise<FollowedChannelsRe
 }
 
 const PAGE_LOAD_TIMEOUT_MS = 10000;
+const KICK_DOCUMENT_READY_PREDICATE = `(() => {
+  try {
+    return location.protocol === 'https:' &&
+      (location.hostname === 'kick.com' || location.hostname.endsWith('.kick.com')) &&
+      (document.readyState === 'interactive' || document.readyState === 'complete') &&
+      !!document.body;
+  } catch { return false; }
+})()`;
+
+export function canRecoverKickRedirectAbort(error: unknown, documentReady: boolean): boolean {
+  if (!documentReady || !(error instanceof Error)) return false;
+  const code = "code" in error ? (error as Error & { code?: unknown }).code : undefined;
+  return code === -3 || /ERR_ABORTED|\(-3\)/i.test(error.message);
+}
 // Outer cap on the scroll-and-scrape phase (wall clock). Bounds the worst
 // case where a hung renderer / GPU stall / unending lazy-loader would hold
 // `_inFlight` forever and wedge the BrowserWindow slot mutex.
 const SCROLL_AND_SCRAPE_TIMEOUT_MS = 30_000;
+export const KICK_FOLLOWING_CHANNELS_URL = "https://kick.com/following/channels";
+
+export function buildKickFollowApiIIFE(path: string, bearer: string): string {
+  const p = JSON.stringify(path);
+  const b = JSON.stringify(bearer);
+  return `(async () => {
+    try {
+      const response = await fetch(${p}, {
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
+        headers: {
+          "Authorization": ${b},
+          "Accept": "application/json",
+          "Referer": "https://kick.com/",
+          "X-App-Platform": "web",
+          "X-Requested-With": "XMLHttpRequest"
+        }
+      });
+      return JSON.stringify({ status: response.status, body: await response.text() });
+    } catch (error) {
+      return JSON.stringify({ status: 0, body: String(error) });
+    }
+  })()`;
+}
+
+async function fetchFollowedChannelsFromPageApi(
+  win: BrowserWindow,
+  bearer: string
+): Promise<FollowedChannelsResult> {
+  const request = async (path: string): Promise<{ status: number; body: string } | null> => {
+    try {
+      const raw = (await win.webContents.executeJavaScript(
+        buildKickFollowApiIIFE(path, bearer)
+      )) as string;
+      const envelope = JSON.parse(raw) as unknown;
+      if (typeof envelope !== "object" || envelope === null) return null;
+      const record = envelope as Record<string, unknown>;
+      return typeof record.status === "number" && typeof record.body === "string"
+        ? { status: record.status, body: record.body }
+        : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const collected = new Map<string, UnifiedChannel>();
+  const seenCursors = new Set<number>();
+  let cursor: number | undefined;
+  for (let pageIndex = 0; pageIndex < 100; pageIndex += 1) {
+    const params = new URLSearchParams();
+    if (cursor !== undefined) params.set("cursor", String(cursor));
+    const response = await request(
+      `${KICK_FOLLOWED_CHANNELS_API_PATH}${params.size > 0 ? `?${params}` : ""}`
+    );
+    if (!response || response.status < 200 || response.status >= 300) {
+      return { status: "error", reason: response?.status === 401 ? "auth-failed" : "network-error" };
+    }
+    let page: KickWebFollowPage | null;
+    try {
+      page = parseKickWebFollowPage(JSON.parse(response.body));
+    } catch {
+      page = null;
+    }
+    if (!page) return { status: "error", reason: "parse-error" };
+    for (const channel of page.channels) collected.set(channel.username, channel);
+    if (page.nextCursor === 0) break;
+    if (seenCursors.has(page.nextCursor)) return { status: "error", reason: "parse-error" };
+    seenCursors.add(page.nextCursor);
+    cursor = page.nextCursor;
+    if (pageIndex === 99) return { status: "error", reason: "parse-error" };
+  }
+
+  const viewer = storageService.getKickUser();
+  if (!viewer) return { status: "error", reason: "auth-failed" };
+  const identityResponse = await request("/api/v1/user");
+  if (!identityResponse || identityResponse.status < 200 || identityResponse.status >= 300) {
+    return { status: "error", reason: "auth-failed" };
+  }
+  try {
+    const identity = readKickWebViewerIdentity(JSON.parse(identityResponse.body) as unknown);
+    if (
+      !identity ||
+      identity.id !== String(viewer.id) ||
+      identity.username !== (viewer.slug || viewer.username).toLowerCase()
+    ) {
+      return { status: "error", reason: "kick-web-account-mismatch" };
+    }
+  } catch {
+    return { status: "error", reason: "parse-error" };
+  }
+
+  return { status: "ok", channels: [...collected.values()], canPruneAbsent: true };
+}
 
 /**
  * Page-context script that scrolls the kick.com/following/channels list and
@@ -318,9 +728,9 @@ const SCROLL_AND_SCRAPE_TIMEOUT_MS = 30_000;
  * cards). Collecting at each step accumulates the full list into a Map keyed
  * by slug regardless of whether earlier cards are still mounted by the end.
  *
- * Terminates when STABLE_ROUNDS consecutive scrolls add no new channels, or
- * after MAX_ROUNDS, whichever comes first. Returns the same JSON shape the
- * original single-pass scrape returned, so the caller's parsing is unchanged.
+ * Terminates only after the collected set and document height are stable, the
+ * viewport is at the actual scroll end, and loading indicators are gone; the
+ * hard round cap remains a non-authoritative escape hatch.
  */
 const SCROLL_AND_SCRAPE = `(async () => {
   // timer-allowlist: page-context script literal — runs inside kick.com via executeJavaScript
@@ -338,12 +748,17 @@ const SCROLL_AND_SCRAPE = `(async () => {
   ]);
 
   const findScope = () => {
-    for (const h of document.querySelectorAll('h2, h3, [role="heading"]')) {
+    for (const h of document.querySelectorAll('h1, h2, h3, [role="heading"]')) {
       const text = (h.textContent || '').trim().toLowerCase();
-      if (/followed channel|channels you follow|following channels/.test(text)) {
+      if (/^(following|followed channels|channels you follow|following channels)$/.test(text)) {
         let p = h.parentElement;
         for (let i = 0; i < 6 && p; i++) {
-          if (p.querySelectorAll('a[href]').length >= 5) return p;
+          const includesRecommendations = Array.from(
+            p.querySelectorAll('h1, h2, h3, [role="heading"]')
+          ).some((candidate) => /^live channels$/i.test((candidate.textContent || '').trim()));
+          const hasFollowCard = p.querySelectorAll('a[href] img').length >= 1;
+          const hasEmptyState = /(?:aren't|are not|not following|no followed channels|don't follow any channels)/i.test(p.textContent || '');
+          if (!includesRecommendations && (hasFollowCard || hasEmptyState)) return p;
           p = p.parentElement;
         }
       }
@@ -354,7 +769,8 @@ const SCROLL_AND_SCRAPE = `(async () => {
   const seen = new Map();
   // Returns the number of slugs that were newly added on this pass.
   const collect = () => {
-    const root = findScope() || document;
+    const root = findScope();
+    if (!root) return 0;
     const anchors = root.querySelectorAll('a[href]');
     let added = 0;
     for (const a of anchors) {
@@ -379,11 +795,39 @@ const SCROLL_AND_SCRAPE = `(async () => {
     return added;
   };
 
+  const getScrollTarget = () => {
+    let node = findScope();
+    while (node && node !== document.body && node !== document.documentElement) {
+      const style = getComputedStyle(node);
+      if (
+        node.scrollHeight > node.clientHeight + 2 &&
+        /^(auto|scroll)$/.test(style.overflowY)
+      ) return node;
+      node = node.parentElement;
+    }
+    return document.scrollingElement || document.documentElement;
+  };
+
+  const scrollMetrics = (target) => ({
+    top: target.scrollTop,
+    height: target.scrollHeight,
+    viewport: target.clientHeight || window.innerHeight,
+  });
+
   collect();
   let stable = 0;
+  let heightStable = 0;
   let rounds = 0;
-  while (stable < STABLE_ROUNDS && rounds < MAX_ROUNDS) {
-    window.scrollTo(0, document.body.scrollHeight);
+  let scrollTarget = getScrollTarget();
+  let previousHeight = scrollMetrics(scrollTarget).height;
+  let reachedScrollEnd = false;
+  let loadingSettled = false;
+  while (rounds < MAX_ROUNDS) {
+    const before = scrollMetrics(scrollTarget);
+    scrollTarget.scrollTop = Math.min(
+      before.top + Math.max(1, Math.floor(before.viewport * 0.8)),
+      before.height
+    );
     await sleep(SCROLL_DELAY_MS);
     const added = collect();
     if (added > 0) {
@@ -391,7 +835,24 @@ const SCROLL_AND_SCRAPE = `(async () => {
     } else {
       stable += 1;
     }
+    const currentTarget = getScrollTarget();
+    if (currentTarget !== scrollTarget) scrollTarget = currentTarget;
+    const current = scrollMetrics(scrollTarget);
+    const currentHeight = current.height;
+    heightStable = currentHeight === previousHeight ? heightStable + 1 : 0;
+    previousHeight = currentHeight;
+    reachedScrollEnd = current.top + current.viewport >= currentHeight - 2;
+    const scope = findScope();
+    loadingSettled = !!scope &&
+      !scope.querySelector('[aria-busy="true"], [role="progressbar"]') &&
+      !/(?:loading|load more)/i.test(scope.textContent || '');
     rounds += 1;
+    if (
+      stable >= STABLE_ROUNDS &&
+      heightStable >= STABLE_ROUNDS &&
+      reachedScrollEnd &&
+      loadingSettled
+    ) break;
   }
 
   for (const v of seen.values()) delete v._altLen;
@@ -412,6 +873,37 @@ const SCROLL_AND_SCRAPE = `(async () => {
     }
   }
 
+  const scope = findScope();
+  const followSections = Array.from(document.querySelectorAll('h1, h2, h3, [role="heading"]'))
+    .filter((heading) => /follow|live channels/i.test((heading.textContent || '').trim()))
+    .slice(0, 12)
+    .map((heading) => {
+      const ancestors = [];
+      let node = heading.parentElement;
+      for (let depth = 0; depth < 5 && node; depth += 1, node = node.parentElement) {
+        ancestors.push({
+          tag: node.tagName.toLowerCase(),
+          testid: node.getAttribute('data-testid') || null,
+          role: node.getAttribute('role') || null,
+          anchors: node.querySelectorAll('a[href]').length,
+          images: node.querySelectorAll('img').length,
+          hasLiveHeading: Array.from(node.querySelectorAll('h1,h2,h3,[role="heading"]'))
+            .some((candidate) => /^live channels$/i.test((candidate.textContent || '').trim())),
+        });
+      }
+      return {
+        kind: /^live channels$/i.test((heading.textContent || '').trim()) ? 'live-channels' : 'following',
+        tag: heading.tagName.toLowerCase(),
+        ancestors,
+      };
+    });
+  const followResourcePaths = Array.from(performance.getEntriesByType('resource'))
+    .map((entry) => {
+      try { return new URL(entry.name).pathname; } catch { return ''; }
+    })
+    .filter((path) => /follow/i.test(path))
+    .filter((path, index, all) => path && all.indexOf(path) === index)
+    .slice(0, 20);
   return JSON.stringify({
     channels: Array.from(seen.values()),
     url: window.location.href,
@@ -423,9 +915,17 @@ const SCROLL_AND_SCRAPE = `(async () => {
     sectionTestids: [],
     headings,
     navLinks,
-    scoped: !!findScope(),
+    followSections,
+    followResourcePaths,
+    scoped: !!scope,
     scrollRounds: rounds,
-    scrollSettled: stable >= STABLE_ROUNDS,
+    scrollSettled: stable >= STABLE_ROUNDS && heightStable >= STABLE_ROUNDS,
+    reachedScrollEnd,
+    loadingSettled,
+    emptyStateVisible: !!scope && /(?:aren't|are not|not following|no followed channels|don't follow any channels)/i.test(scope.textContent || ''),
+    dedicatedFollowingPage:
+      window.location.pathname === '/following/channels' ||
+      window.location.pathname === '/following/channels/',
   });
 })()`;
 
@@ -449,15 +949,20 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
   const releaseSlot = await acquireBrowserWindowSlot();
   logger.debug("Kick:Endpoints:Follow", "BrowserWindow fallback: slot acquired, creating window");
   let win: BrowserWindow | null = null;
+  let pageBearer = readPersistedKickWebBearer();
   try {
-    win = new BrowserWindow({
-      show: false,
+    installKickWebBearerCapture(session.defaultSession, (bearer) => {
+      pageBearer = bearer;
+    });
+    win = createHiddenKickBrowserWindow({
       width: 800,
       height: 600,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
-        sandbox: true,
+        // Match the Kick OAuth window. Kasada's session bootstrap does not
+        // complete reliably in Electron's sandboxed renderer.
+        sandbox: false,
         // Default session — inherits OAuth window's id.kick.com cookies.
       },
     });
@@ -503,15 +1008,14 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     // 2026-05-22: /following heading hierarchy = [H2:Following, H2:Live Channels]
     // with nav link [Channels → /following/channels]. Scrape the dedicated
     // page so we don't mix recommendations into the follow list.
-    const FOLLOWING_PAGE_URL = "https://kick.com/following/channels";
     logger.debug(
       "Kick:Endpoints:Follow",
-      "BrowserWindow fallback: navigating to following page for DOM-scrape extraction",
-      { url: FOLLOWING_PAGE_URL }
+      "BrowserWindow fallback: navigating to followed-channels page for DOM-scrape extraction",
+      { url: KICK_FOLLOWING_CHANNELS_URL }
     );
 
     try {
-      const navPromise = win.loadURL(FOLLOWING_PAGE_URL);
+      const navPromise = win.loadURL(KICK_FOLLOWING_CHANNELS_URL);
       const navTimeout = new Promise<never>((_, reject) =>
         // timer-allowlist: Promise.race page-load nav-timeout (SP3 out-of-scope)
         setTimeout(() => reject(new Error("following-page-load-timeout")), PAGE_LOAD_TIMEOUT_MS)
@@ -521,12 +1025,39 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     } catch (err) {
       // Real failure — keep at warn. Deduped via _warnOnce so reconnect
       // loops don't spam the log.
-      _warnOnce(
-        "network-error",
-        `BrowserWindow fallback: /following navigation failed: ${err instanceof Error ? err.message : String(err)}`
-      );
-      return { status: "error", reason: "network-error" };
+      const documentReady =
+        !win.isDestroyed() &&
+        !win.webContents.isDestroyed() &&
+        (await waitForWebContentsCondition(win.webContents, KICK_DOCUMENT_READY_PREDICATE, {
+          timeoutMs: PAGE_LOAD_TIMEOUT_MS,
+        }));
+      if (canRecoverKickRedirectAbort(err, documentReady)) {
+        logger.debug(
+          "Kick:Endpoints:Follow",
+          "BrowserWindow fallback: redirect abort settled on a ready Kick document"
+        );
+      } else {
+        _warnOnce(
+          "network-error",
+          `BrowserWindow fallback: /following navigation failed: ${err instanceof Error ? err.message : String(err)}`
+        );
+        return { status: "error", reason: "network-error" };
+      }
     }
+
+    pageBearer = pageBearer ?? readPersistedKickWebBearer();
+    if (!pageBearer) return { status: "error", reason: "auth-failed" };
+    const apiResult = await fetchFollowedChannelsFromPageApi(win, pageBearer);
+    logger.debug(
+      "Kick:Endpoints:Follow",
+      apiResult.status === "ok"
+        ? "BrowserWindow fallback SUCCESS: fetched followed channels through page API"
+        : "BrowserWindow page API unavailable",
+      apiResult.status === "ok"
+        ? { channelCount: apiResult.channels.length }
+        : { reason: apiResult.reason }
+    );
+    return apiResult;
 
     // Wait for the SPA to render the follows grid rather than guessing a fixed
     // delay. Resolves as soon as the grid is present (typically < 6s); a slow
@@ -538,7 +1069,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       "Kick:Endpoints:Follow",
       "BrowserWindow fallback: waiting for /following grid to render"
     );
-    await waitForWebContentsCondition(win.webContents, GRID_READY_PREDICATE, {
+    await waitForWebContentsCondition(win!.webContents, GRID_READY_PREDICATE, {
       timeoutMs: 8000,
     });
 
@@ -549,7 +1080,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     // regardless of whether earlier cards are still mounted by the end.
     let scrapeResult: string;
     try {
-      const scrapePromise = win.webContents.executeJavaScript(SCROLL_AND_SCRAPE);
+      const scrapePromise = win!.webContents.executeJavaScript(SCROLL_AND_SCRAPE);
       const scrapeTimeout = new Promise<never>((_, reject) =>
         // timer-allowlist: Promise.race wall-clock cap on executeJavaScript (scroll+scrape)
         setTimeout(
@@ -561,7 +1092,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
     } catch (err) {
       _warnOnce(
         "parse-error",
-        `BrowserWindow fallback: DOM scrape threw: ${err instanceof Error ? err.message : String(err)}`
+        `BrowserWindow fallback: DOM scrape threw: ${String(err)}`
       );
       return { status: "error", reason: "parse-error" };
     }
@@ -577,8 +1108,26 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       sectionTestids: string[];
       headings: Array<{ tag: string; text: string }>;
       navLinks: Array<{ href: string; text: string }>;
+      followSections?: Array<{
+        kind: "following" | "live-channels";
+        tag: string;
+        ancestors: Array<{
+          tag: string;
+          testid: string | null;
+          role: string | null;
+          anchors: number;
+          images: number;
+          hasLiveHeading: boolean;
+        }>;
+      }>;
+      followResourcePaths?: string[];
+      scoped?: boolean;
       scrollRounds?: number;
       scrollSettled?: boolean;
+      reachedScrollEnd?: boolean;
+      loadingSettled?: boolean;
+      emptyStateVisible?: boolean;
+      dedicatedFollowingPage?: boolean;
     };
     try {
       scraped = JSON.parse(scrapeResult);
@@ -599,6 +1148,8 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       scrollRounds: scraped.scrollRounds ?? "?",
       scrollSettled: scraped.scrollSettled ?? "?",
       sectionTestids: scraped.sectionTestids,
+      followSections: scraped.followSections,
+      followResourcePaths: scraped.followResourcePaths,
     });
     logger.debug("Kick:Endpoints:Follow", "Page headings", {
       headings: scraped.headings.map((h) => `${h.tag}:${h.text}`),
@@ -607,29 +1158,27 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       navLinks: scraped.navLinks.map((l) => `${l.text}→${l.href}`),
     });
 
-    if (scraped.channels.length === 0) {
-      // Either the user genuinely follows zero channels or the page didn't
-      // render (auth still required, slow network, layout change). Treat as
-      // an error so we don't wipe existing account follows.
+    const result = interpretBrowserFollowScan(scraped);
+    if (result.status === "error") {
       _warnOnce(
         "parse-error",
-        `Kick /following DOM scrape returned zero channels. Page url=${scraped.url}, title="${scraped.title}", anchor count=${scraped.anchorCount}. If you follow zero channels on kick.com this is expected; otherwise the page didn't render (auth required, slow network, or layout changed).`
+        `Kick /following DOM scrape did not prove a valid follow-list result. Page url=${scraped.url}, title="${scraped.title}", anchor count=${scraped.anchorCount}.`
       );
-      return { status: "error", reason: "parse-error" };
+      return result;
     }
 
     // The DB enforces UNIQUE(platform, channel_id, source). Empty channelId
     // would collide across all rows after the first, dropping 21 of 22
     // Prefer the stable broadcaster id embedded in Kick's canonical avatar
     // path. The mapper falls back to the slug when that identity is absent.
-    const channels = scraped.channels.map(mapScrapedKickFollowedChannel);
+    const channels = (result as { channels: UnifiedChannel[] }).channels;
 
     logger.debug(
       "Kick:Endpoints:Follow",
       "BrowserWindow fallback SUCCESS: scraped followed channels from /following DOM",
       { channelCount: channels.length }
     );
-    return { status: "ok", channels, canPruneAbsent: false };
+    return result;
   } catch (err) {
     _warnOnce(
       "network-error",

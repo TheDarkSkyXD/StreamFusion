@@ -7,6 +7,11 @@
 
 import { BrowserWindow, session, shell } from "electron";
 import { logger } from "@/backend/logging/logger";
+import { persistDefaultKickWebSessionCookies } from "@/backend/api/platforms/kick/kick-web-session";
+import {
+  installKickWebBearerCapture,
+  persistKickWebBearerCandidate,
+} from "@/backend/api/platforms/kick/kick-web-credential";
 import { sleep } from "../../lib/sleep";
 import type { Platform } from "../../shared/auth-types";
 import { waitForWebContentsCondition } from "../services/web-contents-ready";
@@ -30,13 +35,54 @@ import {
 export const HEADER_RENDERED_PREDICATE = `(() => {
   const els = Array.from(document.querySelectorAll('button, a'));
   const hasAuthButton = els.some((el) => /^\\s*(Sign\\s*In|Log\\s*In|Sign\\s*Up)\\s*$/i.test((el.textContent || '').trim()));
+  const navButtons = Array.from(document.querySelectorAll('nav button'));
+  const hasIconOnlyAccountControl = navButtons.length >= 3 && navButtons.some((button, index) =>
+    index === navButtons.length - 1 && !(button.textContent || '').trim() && !!button.querySelector('svg')
+  );
   const hasAvatar =
-    !!document.querySelector('img[alt][src*="profile"]') ||
-    !!document.querySelector('img[alt][src*="default-avatar"]') ||
+    !!document.querySelector('header img[alt][src*="profile"], nav img[alt][src*="profile"]') ||
+    !!document.querySelector('header img[alt][src*="default-avatar"], nav img[alt][src*="default-avatar"]') ||
     !!document.querySelector('button[aria-haspopup="menu"]') ||
-    !!document.querySelector('[data-testid*="user"]');
+    !!document.querySelector('[data-testid*="user"]') ||
+    hasIconOnlyAccountControl;
   return hasAuthButton || hasAvatar;
 })()`;
+
+export function shouldConfirmKickWebAuthentication(
+  cookieRotated: boolean,
+  renderedAuthenticatedState: boolean
+): boolean {
+  return cookieRotated && renderedAuthenticatedState;
+}
+
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+export function isAuthenticatedKickWebUserPayload(value: unknown): boolean {
+  if (!isUnknownRecord(value)) return false;
+  const data = isUnknownRecord(value.data) ? value.data : null;
+  const candidates = [
+    value,
+    data,
+    isUnknownRecord(value.user) ? value.user : null,
+    isUnknownRecord(data?.user) ? data.user : null,
+  ];
+
+  return candidates.some(
+    (candidate) =>
+      candidate !== null &&
+      (typeof candidate.id === "number" || typeof candidate.id === "string") &&
+      (typeof candidate.username === "string" || typeof candidate.slug === "string")
+  );
+}
+
+export function isAuthenticatedKickWebProbe(value: unknown): boolean {
+  if (!isUnknownRecord(value)) return false;
+  return (
+    value.accountIdentityRendered === true || isAuthenticatedKickWebUserPayload(value.userPayload)
+  );
+}
 
 // ========== Types ==========
 
@@ -67,6 +113,24 @@ export interface OpenAuthWindowOptions {
 // ========== Auth Window Manager Class ==========
 
 class AuthWindowManager {
+  private async _persistCurrentKickWebSession(): Promise<number> {
+    try {
+      const persistedCount = await persistDefaultKickWebSessionCookies();
+      const cookies = await session.defaultSession.cookies.get({ domain: "kick.com" });
+      const sessionToken = cookies.find((cookie) => cookie.name === "session_token")?.value;
+      if (sessionToken) persistKickWebBearerCandidate(sessionToken);
+      logger.info("Auth:Window", "Kick web session persistence completed", {
+        persistedCount,
+      });
+      return persistedCount;
+    } catch (error) {
+      logger.warn("Auth:Window", "Kick web session persistence failed", {
+        error: error instanceof Error ? { name: error.name } : "unknown",
+      });
+      return 0;
+    }
+  }
+
   private sessions: Map<Platform, AuthSession> = new Map();
 
   /**
@@ -120,7 +184,7 @@ class AuthWindowManager {
     });
 
     // Store the session
-    const session: AuthSession = {
+    const authSession: AuthSession = {
       window,
       platform,
       pkce,
@@ -129,7 +193,7 @@ class AuthWindowManager {
       port,
       startedAt: Date.now(),
     };
-    this.sessions.set(platform, session);
+    this.sessions.set(platform, authSession);
 
     // Show window when ready
     window.once("ready-to-show", () => {
@@ -196,6 +260,7 @@ class AuthWindowManager {
     //   navigates straight to id.kick.com with no visible difference from
     //   the previous single-redirect flow.
     if (platform === "kick") {
+      installKickWebBearerCapture(session.defaultSession);
       logger.debug("Auth:Window", "Loading kick.com for web sign-in (Kick OAuth flow)");
       window.loadURL("https://kick.com/");
 
@@ -221,6 +286,7 @@ class AuthWindowManager {
             "Auth:Window",
             "kick.com session already authenticated — proceeding directly to id.kick.com OAuth"
           );
+          await this._persistCurrentKickWebSession();
           if (!window.isDestroyed()) window.loadURL(authUrl);
           return;
         }
@@ -235,7 +301,10 @@ class AuthWindowManager {
               // timer-allowlist: 100ms click poll inside executeJavaScript template (runs in page DOM, not Node)
               const interval = setInterval(() => {
                 attempts++;
-                const el = document.querySelector('div.flex.items-center.gap-4 > button:last-child');
+                const buttons = Array.from(document.querySelectorAll('button, a'));
+                const textualSignIn = buttons.find((button) => /^\\s*(sign|log)\\s*in\\s*$/i.test((button.textContent || '').trim()));
+                const explicitSignIn = document.querySelector('[data-testid="login"], [data-testid="navbar-login"], [data-testid="login-button"]');
+                const el = textualSignIn || explicitSignIn;
                 if (el) { el.click(); clearInterval(interval); }
                 if (attempts > 30) clearInterval(interval);
               }, 100);
@@ -320,17 +389,39 @@ class AuthWindowManager {
             });
           }
         } else {
+          // The authenticated header can finish rendering after the initial
+          // readiness wait. Existing sessions do not rotate cookies, so check
+          // the account UI on every poll instead of requiring another login.
+          if (await this._isKickWebAuthenticated(window)) {
+            await this._persistCurrentKickWebSession();
+            return true;
+          }
           const sessionTokenChanged = !!sessionToken && sessionToken !== baselineSessionToken;
           const kickSessionChanged = !!kickSession && kickSession !== baselineKickSession;
 
           if (sessionTokenChanged || kickSessionChanged) {
-            logger.debug("Auth:Window", "Kick web auth detected via cookie rotation", {
+            logger.debug("Auth:Window", "Kick web auth cookie rotation observed", {
               attempts,
               elapsedMs: Date.now() - start,
               sessionToken: sessionTokenChanged ? "ROTATED" : "unchanged",
               kickSession: kickSessionChanged ? "ROTATED" : "unchanged",
             });
-            return true;
+            // Login and 2FA transitions can rotate Laravel session cookies
+            // before authentication is complete. Rotation is necessary but
+            // never sufficient: only the post-navigation authenticated DOM may
+            // authorize the OAuth handoff.
+            baselineSessionToken = sessionToken;
+            baselineKickSession = kickSession;
+            if (
+              shouldConfirmKickWebAuthentication(true, await this._isKickWebAuthenticated(window))
+            ) {
+              await this._persistCurrentKickWebSession();
+              return true;
+            }
+            lastReason = "cookie rotated while login or verification UI remained visible";
+            logger.debug("Auth:Window", "Kick web auth still awaiting rendered account state", {
+              attempts,
+            });
           }
           lastReason = `cookies unchanged from baseline (session_token=${this._fp(sessionToken)})`;
           if (attempts === 3 || attempts % 10 === 0) {
@@ -359,33 +450,44 @@ class AuthWindowManager {
   }
 
   /**
-   * Check whether the user is already authenticated on kick.com by inspecting
-   * the rendered page's header. Logged-in users have an avatar / user-menu
-   * trigger and no visible "Sign In" / "Sign Up" buttons; anonymous users
-   * have the opposite. Used to short-circuit the polling loop when a prior
-   * kick.com session is still valid — the user just signed in (or never
-   * signed out) and we shouldn't make them log in again.
+   * Confirm Kick website authentication with either an identity-bearing API
+   * response or Kick's explicit account control. Kick currently returns HTTP
+   * 200 with an empty object even for some authenticated sessions, so API
+   * status alone is not sufficient proof.
    *
-   * Returns false on any executeJavaScript failure (Cloudflare challenge,
-   * SPA not yet rendered, page destroyed) — fail-closed means we'll fall
-   * through to the polling path, which is correct behavior when uncertain.
+   * Fail closed whenever the response does not contain a recognizable user.
    */
   private async _isKickWebAuthenticated(window: BrowserWindow): Promise<boolean> {
     try {
-      const result = await window.webContents.executeJavaScript(
-        `(function() {
-          const buttons = Array.from(document.querySelectorAll('button, a'));
-          const hasSignIn = buttons.some((el) => /^\\s*(Sign\\s*In|Log\\s*In)\\s*$/i.test((el.textContent || '').trim()));
-          const hasSignUp = buttons.some((el) => /^\\s*Sign\\s*Up\\s*$/i.test((el.textContent || '').trim()));
-          const hasAvatar =
-            !!document.querySelector('img[alt][src*="profile"]') ||
-            !!document.querySelector('img[alt][src*="default-avatar"]') ||
-            !!document.querySelector('button[aria-haspopup="menu"]') ||
-            !!document.querySelector('[data-testid*="user"]');
-          return !hasSignIn && !hasSignUp && hasAvatar;
+      const result: unknown = await window.webContents.executeJavaScript(
+        `(async function() {
+          const hasCredentialForm = !!document.querySelector(
+            'input[type="password"], input[name*="password" i], input[autocomplete="current-password"]'
+          );
+          const hasVerificationForm = !!document.querySelector(
+            'input[autocomplete="one-time-code"], input[name*="otp" i], input[name*="code" i], [data-testid*="otp" i], [data-testid*="two-factor" i]'
+          );
+          if (hasCredentialForm || hasVerificationForm) {
+            return { userPayload: null, accountIdentityRendered: false };
+          }
+          const accountImage = document.querySelector(
+            'button[data-testid="navbar-account"] img[alt]'
+          );
+          const accountIdentityRendered =
+            (accountImage?.getAttribute('alt') || '').trim().length > 0;
+          let userPayload = null;
+          try {
+            const response = await fetch('/api/v1/user', {
+              method: 'GET',
+              credentials: 'include',
+              headers: { 'Accept': 'application/json' }
+            });
+            if (response.ok) userPayload = await response.json();
+          } catch {}
+          return { userPayload, accountIdentityRendered };
         })()`
       );
-      return !!result;
+      return isAuthenticatedKickWebProbe(result);
     } catch {
       return false;
     }

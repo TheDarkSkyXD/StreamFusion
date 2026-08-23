@@ -47,7 +47,7 @@ export const VideoCard = memo(function VideoCard({
 
   const navigate = useNavigate();
 
-  const destination: any = {
+  const destination = {
     to: routeAsVod ? "/video/$platform/$videoId" : "/stream/$platform/$channel",
     params: routeAsVod
       ? {
@@ -79,7 +79,7 @@ export const VideoCard = memo(function VideoCard({
       : undefined,
   };
 
-  const linkProps: any = {
+  const linkProps = {
     ...destination,
     onClick: async (e: MouseEvent) => {
       if (!routeAsVod) {

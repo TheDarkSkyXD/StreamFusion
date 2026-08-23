@@ -23,18 +23,14 @@ afterEach(() => {
 describe("useHelixPoll", () => {
   it("fires the fetcher once immediately on mount", async () => {
     const fetcher = vi.fn().mockResolvedValue({ value: 1 });
-    renderHook(() =>
-      useHelixPoll({ fetcher, intervalMs: 5000, enabled: true }),
-    );
+    renderHook(() => useHelixPoll({ fetcher, intervalMs: 5000, enabled: true }));
 
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it("re-fires at the requested interval", async () => {
     const fetcher = vi.fn().mockResolvedValue({ value: 1 });
-    renderHook(() =>
-      useHelixPoll({ fetcher, intervalMs: 1000, enabled: true }),
-    );
+    renderHook(() => useHelixPoll({ fetcher, intervalMs: 1000, enabled: true }));
     expect(fetcher).toHaveBeenCalledTimes(1);
 
     await act(async () => {
@@ -50,9 +46,7 @@ describe("useHelixPoll", () => {
 
   it("does not poll while enabled=false", async () => {
     const fetcher = vi.fn().mockResolvedValue({ value: 1 });
-    renderHook(() =>
-      useHelixPoll({ fetcher, intervalMs: 1000, enabled: false }),
-    );
+    renderHook(() => useHelixPoll({ fetcher, intervalMs: 1000, enabled: false }));
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000);
@@ -62,9 +56,7 @@ describe("useHelixPoll", () => {
 
   it("pauses while document.visibilityState === 'hidden' and resumes when visible", async () => {
     const fetcher = vi.fn().mockResolvedValue({ value: 1 });
-    renderHook(() =>
-      useHelixPoll({ fetcher, intervalMs: 1000, enabled: true }),
-    );
+    renderHook(() => useHelixPoll({ fetcher, intervalMs: 1000, enabled: true }));
     expect(fetcher).toHaveBeenCalledTimes(1);
 
     // Go hidden — interval should not call the fetcher.
@@ -92,7 +84,7 @@ describe("useHelixPoll", () => {
   it("refresh() triggers an out-of-band fetch", async () => {
     const fetcher = vi.fn().mockResolvedValue({ value: 1 });
     const { result } = renderHook(() =>
-      useHelixPoll({ fetcher, intervalMs: 10_000, enabled: true }),
+      useHelixPoll({ fetcher, intervalMs: 10_000, enabled: true })
     );
     expect(fetcher).toHaveBeenCalledTimes(1);
 

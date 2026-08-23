@@ -1,7 +1,9 @@
 import type { KickAccountFollowWriteChangedEvent, LocalFollow } from "@/shared/auth-types";
 import {
-  type FollowedChannelsResult,
-  getAllFollowedChannels,
+  getKickAccountFollowState,
+  type KickAccountFollowState,
+} from "../api/platforms/kick/kick-public-profile-reader";
+import {
   type KickFollowWriteAction,
   type KickFollowWriteResult,
   writeKickAccountFollow,
@@ -61,6 +63,9 @@ interface PendingStorage {
   ): { accountCount: number; pendingCount: number; addedCount: number; removedCount: number };
   getActiveFollowsByPlatform(platform: "kick"): LocalFollow[];
   removeLocalFollow(id: string): boolean;
+  confirmKickFollow(follow: FollowInput & { platform: "kick" }): LocalFollow;
+  confirmKickUnfollow(input: { channelId: string; slug: string; localFollowId?: string }): boolean;
+  getKickUser(): { id: number; username: string; slug: string } | null;
 }
 
 interface KickFollowWriteServiceDeps {
@@ -69,9 +74,12 @@ interface KickFollowWriteServiceDeps {
     action: KickFollowWriteAction;
     channelSlug: string;
   }) => Promise<KickFollowWriteResult>;
-  getAllFollowedChannels: (options?: {
-    allowBrowserWindowFallback?: boolean;
-  }) => Promise<FollowedChannelsResult>;
+  getKickAccountFollowState: (
+    userId: string,
+    username: string,
+    channelSlug: string,
+    options?: { fresh?: boolean }
+  ) => Promise<KickAccountFollowState>;
   now: () => Date;
   setTimer: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
   clearTimer: (handle: ReturnType<typeof setTimeout>) => void;
@@ -112,9 +120,7 @@ export class KickFollowWriteService {
 
   constructor(private readonly deps: KickFollowWriteServiceDeps) {}
 
-  onAccountWriteChanged(
-    listener: (event: KickAccountFollowWriteChangedEvent) => void
-  ): () => void {
+  onAccountWriteChanged(listener: (event: KickAccountFollowWriteChangedEvent) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
@@ -193,56 +199,69 @@ export class KickFollowWriteService {
     if (!this.deps.storage.hasToken("kick")) {
       return publish(this.updateState(row, "auth-paused", "auth-required"));
     }
+    const initialViewer = this.deps.storage.getKickUser();
+    if (!initialViewer) {
+      return publish(this.updateState(row, "auth-paused", "auth-required"));
+    }
+    const viewerIdentity = {
+      id: initialViewer.id,
+      username: (initialViewer.slug || initialViewer.username).toLowerCase(),
+    };
 
     const write = await this.deps.writeKickAccountFollow({
       action: row.action,
       channelSlug: row.slug,
     });
+    let writeFailureReason: string | null = null;
     if (write.status === "error") {
       if (write.reason === "auth-failed") {
         return publish(this.updateState(row, "auth-paused", write.reason));
       }
-      return publish(this.scheduleRetry(row, write.reason));
+      writeFailureReason = write.reason;
     }
 
-    const sync = await this.deps.getAllFollowedChannels({ allowBrowserWindowFallback: true });
-    if (sync.status === "error") {
-      if (sync.reason === "auth-failed" || sync.reason === "no-token") {
-        return publish(this.updateState(row, "auth-paused", sync.reason));
-      }
-      return publish(this.scheduleRetry(row, sync.reason));
+    let relationship: KickAccountFollowState = "unavailable";
+    try {
+      relationship = await this.deps.getKickAccountFollowState(
+        String(viewerIdentity.id),
+        viewerIdentity.username,
+        row.slug,
+        { fresh: true }
+      );
+    } catch {
+      // Only an explicit identity-matched relationship confirms a write.
     }
 
-    const syncedFollows = sync.channels.map((channel) => ({
-      platform: "kick" as const,
-      channelId: channel.kickUserId ?? channel.id,
-      channelName: channel.username,
-      displayName: channel.displayName,
-      profileImage: channel.avatarUrl,
-    }));
-    const syncedHasTarget = syncedFollows.some((follow) => sameKickChannel(follow, target));
-    this.deps.storage.upsertSyncedFollows("kick", syncedFollows, {
-      pruneAbsent: sync.canPruneAbsent,
-    });
+    const currentViewer = this.deps.storage.getKickUser();
+    if (
+      !this.deps.storage.hasToken("kick") ||
+      !currentViewer ||
+      currentViewer.id !== viewerIdentity.id ||
+      (currentViewer.slug || currentViewer.username).toLowerCase() !== viewerIdentity.username
+    ) {
+      return publish(this.updateState(row, "auth-paused", "auth-required"));
+    }
 
-    const confirmed = this.deps.storage
-      .getActiveFollowsByPlatform("kick")
-      .find((follow) => sameKickChannel(follow, target));
-    if (row.action === "follow" && confirmed) {
+    if (row.action === "follow" && relationship === "followed") {
+      const confirmed = this.deps.storage.confirmKickFollow({ ...target, platform: "kick" });
       this.clearScheduledTimer(row.id);
-      this.deps.storage.removePendingFollowWrite(pendingKey(row));
       return publish({ status: "confirmed", action: "follow", follow: confirmed });
     }
-    if (row.action === "unfollow" && sync.canPruneAbsent && !syncedHasTarget) {
-      if (confirmed) {
-        this.deps.storage.removeLocalFollow(confirmed.id);
-      }
+
+    if (row.action === "unfollow" && relationship === "not-followed") {
+      const confirmed = this.deps.storage
+        .getActiveFollowsByPlatform("kick")
+        .find((follow) => sameKickChannel(follow, target));
+      this.deps.storage.confirmKickUnfollow({
+        channelId: row.channelId,
+        slug: row.slug,
+        ...(confirmed ? { localFollowId: confirmed.id } : {}),
+      });
       this.clearScheduledTimer(row.id);
-      this.deps.storage.removePendingFollowWrite(pendingKey(row));
       return publish({ status: "confirmed", action: "unfollow" });
     }
 
-    return publish(this.scheduleRetry(row, "not-confirmed"));
+    return publish(this.scheduleRetry(row, writeFailureReason ?? "not-confirmed"));
   }
 
   cancel(row: PendingFollowWrite): boolean {
@@ -361,7 +380,7 @@ export function createKickFollowWriteService(
   return new KickFollowWriteService({
     storage: storageService,
     writeKickAccountFollow,
-    getAllFollowedChannels,
+    getKickAccountFollowState,
     now: () => new Date(),
     // timer-allowlist: injectable backend retry scheduler for pending Kick follow writes
     setTimer: (callback, delayMs) => setTimeout(callback, delayMs),

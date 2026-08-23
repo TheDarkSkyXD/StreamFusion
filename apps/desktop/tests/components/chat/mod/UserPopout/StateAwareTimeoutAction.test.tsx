@@ -1,6 +1,11 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] };
+type TestWindow = Omit<Window, "electronAPI"> & {
+  electronAPI: DeepPartial<Window["electronAPI"]>;
+};
+
 vi.mock("@/components/chat/mod/mod-action-toast", () => ({
   showModActionSuccessToast: vi.fn(),
 }));
@@ -59,7 +64,7 @@ describe("StateAwareTimeoutAction", () => {
         message: "Twitch rejected this timeout. Check your moderation access and try again.",
       })
       .mockResolvedValueOnce({ state: "success", attemptId: "attempt-2" });
-    (window as any).electronAPI = {
+    (window as TestWindow).electronAPI = {
       moderation: { createTimeoutSnapshot, submitTimeout },
     };
     const onSuccess = vi.fn().mockResolvedValue(undefined);
@@ -118,7 +123,7 @@ describe("StateAwareTimeoutAction", () => {
           finishTargetRefresh = resolve;
         })
       );
-    (window as any).electronAPI = {
+    (window as TestWindow).electronAPI = {
       moderation: {
         createTimeoutSnapshot,
         submitTimeout,
@@ -172,7 +177,7 @@ describe("StateAwareTimeoutAction", () => {
       state: "success" as const,
       attemptId: "attempt-1",
     });
-    (window as any).electronAPI = {
+    (window as TestWindow).electronAPI = {
       moderation: { createTimeoutSnapshot, submitTimeout },
     };
     const onSuccess = vi
@@ -218,7 +223,7 @@ describe("StateAwareTimeoutAction", () => {
       state: "success" as const,
       attemptId: "attempt-1",
     });
-    (window as any).electronAPI = {
+    (window as TestWindow).electronAPI = {
       moderation: {
         createTimeoutSnapshot: vi.fn().mockResolvedValue(snapshot),
         submitTimeout,
@@ -245,7 +250,7 @@ describe("StateAwareTimeoutAction", () => {
   });
 
   it("resets duration and reason when the confirmation is closed and reopened", async () => {
-    (window as any).electronAPI = {
+    (window as TestWindow).electronAPI = {
       moderation: {
         createTimeoutSnapshot: vi.fn().mockResolvedValue(availableSnapshot("twitch")),
         submitTimeout: vi.fn(),
@@ -288,7 +293,7 @@ describe("StateAwareTimeoutAction", () => {
     const createTimeoutSnapshot = vi.fn(async (request: { targetUserId: string }) =>
       availableSnapshot(request.targetUserId === "300" ? "twitch" : "kick")
     );
-    (window as any).electronAPI = {
+    (window as TestWindow).electronAPI = {
       moderation: { createTimeoutSnapshot, submitTimeout },
     };
     const onSuccess = vi.fn();
@@ -335,7 +340,7 @@ describe("StateAwareTimeoutAction", () => {
       code: "network",
       message: "No",
     });
-    (window as any).electronAPI = {
+    (window as TestWindow).electronAPI = {
       moderation: { createTimeoutSnapshot, submitTimeout },
     };
     const view = render(
@@ -376,7 +381,7 @@ describe("StateAwareTimeoutAction", () => {
   });
 
   it("fails closed and never renders Timeout for unverifiable target state", async () => {
-    (window as any).electronAPI = {
+    (window as TestWindow).electronAPI = {
       moderation: {
         createTimeoutSnapshot: vi
           .fn()

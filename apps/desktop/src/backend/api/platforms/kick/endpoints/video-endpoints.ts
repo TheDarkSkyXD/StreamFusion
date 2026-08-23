@@ -2,7 +2,6 @@ import { logger } from "@/backend/logging/logger";
 import { normalizeKickDate } from "../kick-transformers";
 import {
   KICK_LEGACY_API_V2_BASE,
-  type PaginatedResult,
   type PaginationOptions,
 } from "../kick-types";
 
@@ -12,8 +11,7 @@ import {
 export async function getVideosByChannelSlug(
   slug: string,
   options: PaginationOptions = {}
-): Promise<PaginatedResult<any>> {
-  // Using any for now to map to UI
+) {
   try {
     const { net } = require("electron");
     const limit = options.limit || 20;
@@ -80,11 +78,11 @@ export async function getVideosByChannelSlug(
     }
     const data = await response.json();
 
-    let videos: any[] = [];
+    let videos: unknown[] = [];
     let nextCursor: string | undefined;
 
     if (Array.isArray(data)) {
-      videos = data;
+      videos = data.filter(isLegacyVideoRecord);
       // V2 endpoint returns a raw array — advance offset whenever we got any
       // videos. Kick caps responses below the requested `limit` (cf. clip
       // endpoint), so a "full page" check would prematurely end pagination.
@@ -94,14 +92,14 @@ export async function getVideosByChannelSlug(
         videos.length > 0
           ? (parseInt(cursor.toString(), 10) + videos.length).toString()
           : undefined;
-    } else {
-      videos = data.videos || [];
+    } else if (isWrappedVideoPage(data)) {
+      videos = (data.videos || []).filter(isLegacyVideoRecord);
       // Wrapped response — trust Kick's own nextCursor as the source of truth.
-      nextCursor = data.nextCursor ?? undefined;
+      nextCursor = data.nextCursor === undefined ? undefined : String(data.nextCursor);
     }
 
     return {
-      data: videos
+      data: videos.filter(isLegacyVideoRecord)
         // Drop unplayable records: streamer-deleted (deleted_at), platform-pruned
         // (is_pruned — Kick purges old VOD media but the API record persists), and
         // private (is_private). These return thumbnail 403s from images.kick.com
@@ -109,10 +107,10 @@ export async function getVideosByChannelSlug(
         // they keep is_pruned=false/is_private=false; they're identified later via
         // the !source heuristic and rendered with a sub-only badge.
         .filter(
-          (v: any) =>
+          (v) =>
             !v.deleted_at && !v.video?.deleted_at && !v.video?.is_pruned && !v.video?.is_private
         )
-        .map((v: any) => {
+        .map((v) => {
           // A VOD without a source URL is subscriber-only content
           const hasSource = Boolean(v.source);
           const isSubOnly = !hasSource && !v.is_live;
@@ -143,7 +141,7 @@ export async function getVideosByChannelSlug(
             source: v.source || "", // Direct HLS m3u8 URL - this is the most reliable way to play VODs
             url: v.source || `https://kick.com/video/${v.slug}`,
             shareUrl: v.slug ? `https://kick.com/video/${v.slug}` : undefined,
-            platform: "kick",
+            platform: "kick" as const,
             isLive: v.is_live,
             isSubOnly, // Flag for subscriber-only VODs
             // Include channel info for metadata
@@ -176,6 +174,41 @@ export async function getVideosByChannelSlug(
   }
 }
 
+type LegacyVideoRecord = Record<string, unknown> & {
+  id: string | number;
+  deleted_at?: unknown;
+  video?: Record<string, unknown>;
+  source?: string;
+  is_live?: boolean;
+  duration?: number;
+  views?: string | number;
+  view_count?: string | number;
+  start_time?: string;
+  created_at?: string;
+  ended_at?: string;
+  uuid?: string;
+  slug?: string;
+  session_title?: string;
+  title?: string;
+  thumbnail?: { src?: string; url?: string };
+  thumbnail_url?: string;
+  thumb?: string;
+  channel?: { slug?: string; user?: { username?: string; profile_pic?: string } };
+  livestream?: { channel?: { slug?: string; user?: { username?: string; profile_pic?: string } }; categories?: Array<{ name?: string }>; session_title?: string; language?: string };
+  categories?: Array<{ name?: string }>;
+  category?: { name?: string };
+  language?: string;
+};
+
+function isLegacyVideoRecord(value: unknown): value is LegacyVideoRecord {
+  return typeof value === "object" && value !== null && "id" in value &&
+    (typeof value.id === "string" || typeof value.id === "number");
+}
+
+function isWrappedVideoPage(value: unknown): value is { videos?: unknown[]; nextCursor?: string | number } {
+  return typeof value === "object" && value !== null;
+}
+
 /**
  * Find the newest trustworthy stream end among completed Kick VODs.
  *
@@ -198,18 +231,20 @@ export async function getLatestCompletedVideoEndedAtByChannelSlug(
 
     if (Number.isFinite(explicitEndTime)) {
       time = explicitEndTime;
-      value = video.sourceEndedAt;
+      value = video.sourceEndedAt ?? new Date(explicitEndTime).toISOString();
     } else {
+      const sourceDurationMs = video.sourceDurationMs;
       if (
         video.isLive !== false ||
-        !Number.isFinite(video.sourceDurationMs) ||
-        video.sourceDurationMs <= 0
+        !Number.isFinite(sourceDurationMs) ||
+        sourceDurationMs === undefined ||
+        sourceDurationMs <= 0
       ) {
         continue;
       }
 
       const startedAt = Date.parse(video.sourceCreatedAt ?? "");
-      time = startedAt + video.sourceDurationMs;
+      time = startedAt + sourceDurationMs;
       if (!Number.isFinite(time)) continue;
       value = new Date(time).toISOString();
     }

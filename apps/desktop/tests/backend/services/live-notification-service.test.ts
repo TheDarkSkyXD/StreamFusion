@@ -26,8 +26,19 @@ vi.mock("electron", () => {
     }
   }
 
-  return { Notification };
+  class BrowserWindow {
+    isDestroyed = vi.fn(() => false);
+    isMinimized = vi.fn(() => true);
+    restore = vi.fn();
+    show = vi.fn();
+    focus = vi.fn();
+    webContents = { isDestroyed: vi.fn(() => false), send: vi.fn() };
+  }
+
+  return { Notification, BrowserWindow };
 });
+
+import { BrowserWindow } from "electron";
 
 import {
   getLiveNotificationFollows,
@@ -897,20 +908,11 @@ describe("LiveNotificationService", () => {
   it("focuses the window and pushes stream navigation when a desktop notification is clicked", () => {
     electronNotification.instances.length = 0;
     const send = vi.fn();
-    const mainWindow = {
-      isDestroyed: vi.fn(() => false),
-      isMinimized: vi.fn(() => true),
-      restore: vi.fn(),
-      show: vi.fn(),
-      focus: vi.fn(),
-      webContents: {
-        isDestroyed: vi.fn(() => false),
-        send,
-      },
-    };
+    const mainWindow = new BrowserWindow();
+    vi.mocked(mainWindow.webContents.send).mockImplementation(send);
     const payload = notification({ platform: "kick", channelId: "200", channelName: "xqc" });
 
-    showLiveDesktopNotification(mainWindow as any, payload, { silent: true });
+    showLiveDesktopNotification(mainWindow, payload, { silent: true });
     electronNotification.instances[0]?.listeners.click?.();
 
     expect(mainWindow.restore).toHaveBeenCalledTimes(1);

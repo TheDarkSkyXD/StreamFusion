@@ -24,7 +24,7 @@ import { removeFollowedStreamFromCache, useStreamByChannel } from "@/hooks/queri
 import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 import { useStreamPlayback } from "@/hooks/useStreamPlayback";
 import { logger } from "@/renderer/logging/logger";
-import type { Platform } from "@/shared/auth-types";
+import { requirePlatform } from "@/routes/route-boundaries";
 import { useAppStore } from "@/store/app-store";
 import { useAuthStore } from "@/store/auth-store";
 import { usePipStore } from "@/store/pip-store";
@@ -96,7 +96,7 @@ export function StreamPage() {
   const hasPersistentPlayerShell = registerDockedConfig !== null;
   const canMountHeavyContent = useAfterFirstPaint();
   const { platform, channel: channelName } = useParams({ from: "/_app/stream/$platform/$channel" });
-  const routePlatform = platform as Platform;
+  const routePlatform = requirePlatform(platform);
 
   // Real data fetching
   const {

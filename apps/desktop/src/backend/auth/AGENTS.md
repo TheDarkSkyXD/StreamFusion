@@ -4,17 +4,17 @@ OAuth 2.1 authentication system for Kick and Twitch. Kick uses a browser-window 
 
 ## File Inventory
 
-| File | Role |
-|---|---|
-| `oauth-config.ts` | Platform configs (endpoints, scopes), PKCE helpers (`generatePkceChallenge`), URL builder, `PROTOCOL_SCHEME` constant |
-| `auth-window.ts` | Electron `BrowserWindow` manager for OAuth popups; Kick-specific two-phase load (kick.com sign-in → id.kick.com OAuth) |
-| `oauth-callback-server.ts` | Ephemeral `http.createServer` on `localhost:8765` that captures `?code=&state=` from the redirect; serves a branded success/error page |
-| `token-exchange.ts` | Posts Kick code + PKCE verifier and refresh token to the Worker; refreshes Twitch directly as a public client; revokes and validates directly |
-| `kick-auth.ts` | `KickAuthService` — refresh with single-flight dedup, proactive `ensureValidToken`, logout (clears cookies + storage), `fetchCurrentUser` |
-| `twitch-auth.ts` | `TwitchAuthService` — single-flight refresh guard, proactive timer (`scheduleProactiveRefresh`), exponential backoff on transient failures, `onSystemResume` re-arm |
-| `device-code-flow.ts` | Twitch Device Code Grant (TV-style): request device code → poll `/oauth2/token` with managed interval until authorized or expired |
-| `protocol-handler.ts` | Registers `streamfusion://` with the OS; parses `streamfusion://auth/{platform}/callback?code=…`; fallback / future use only |
-| `index.ts` | Barrel re-export of every public type and singleton |
+| File                       | Role                                                                                                                                                                |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `oauth-config.ts`          | Platform configs (endpoints, scopes), PKCE helpers (`generatePkceChallenge`), URL builder, `PROTOCOL_SCHEME` constant                                               |
+| `auth-window.ts`           | Electron `BrowserWindow` manager for OAuth popups; Kick-specific two-phase load (kick.com sign-in → id.kick.com OAuth)                                              |
+| `oauth-callback-server.ts` | Ephemeral `http.createServer` on `localhost:8765` that captures `?code=&state=` from the redirect; serves a branded success/error page                              |
+| `token-exchange.ts`        | Posts Kick code + PKCE verifier and refresh token to the Worker; refreshes Twitch directly as a public client; revokes and validates directly                       |
+| `kick-auth.ts`             | `KickAuthService` — single-flight refresh, proactive startup/resume rotation, transient backoff, explicit logout, `fetchCurrentUser`                                |
+| `twitch-auth.ts`           | `TwitchAuthService` — single-flight refresh guard, proactive timer (`scheduleProactiveRefresh`), exponential backoff on transient failures, `onSystemResume` re-arm |
+| `device-code-flow.ts`      | Twitch Device Code Grant (TV-style): request device code → poll `/oauth2/token` with managed interval until authorized or expired                                   |
+| `protocol-handler.ts`      | Registers `streamfusion://` with the OS; parses `streamfusion://auth/{platform}/callback?code=…`; fallback / future use only                                        |
+| `index.ts`                 | Barrel re-export of every public type and singleton                                                                                                                 |
 
 ## Auth Flows
 
@@ -69,7 +69,7 @@ tokenExchangeService.refreshToken({ platform, refreshToken })
 
 **Twitch backoff** — transient refresh failures back off at 30s → 2m → 10m → 45m → 1h (repeating). Only `invalid_grant` / `invalid_request` / `invalid_client` / `unauthorized_client` or non-408/429 4xx cause `invalidateAuth()` (clears token; preserves TwitchUser for "Reconnect &lt;name&gt;" UX).
 
-**Kick session expiry** — any refresh failure clears the token, Kick user, and all kick.com session cookies (except Cloudflare `cf_clearance` / `__cf_bm`), then emits `"session-expired"`.
+**Kick rotation and backoff** — the backend refreshes before access-token expiry, re-arms on system resume, and retries transient failures at 30s → 2m → 10m → 45m → 1h (repeating). A confirmed permanent OAuth rejection clears only the OAuth envelope and emits `"session-expired"`; it preserves the Kick identity, website cookies, and encrypted website bearer. Only explicit logout clears both OAuth and website chat authentication.
 
 ## Contracts & Invariants
 
@@ -79,6 +79,7 @@ tokenExchangeService.refreshToken({ platform, refreshToken })
 - **One `AuthSession` per platform at a time.** `openAuthWindow` calls `closeAuthWindow` first — stale sessions cannot accumulate.
 - **Kick sandbox: false.** Kick's BrowserWindow runs without Chromium sandbox to allow Kasada bot-detection challenges to execute. Twitch stays sandboxed.
 - **Cloudflare cookies are preserved on Kick logout.** `clearKickSessionCookies` skips `cf_clearance` and `__cf_bm` so the next visit doesn't re-trigger a WAF challenge.
+- **Kick OAuth and website chat auth are separate credential families.** Refresh failure may invalidate OAuth, but must not close the website chat sender or erase its cookies/bearer. Explicit logout clears both families.
 - **Kick app tokens stay inside the Worker.** Desktop code must never fetch or store a Kick app token; official Kick public reads go through the Worker `/kick/*` proxy, which mints/caches the app token server-side and injects `Authorization`.
 - **Twitch user authentication is direct and public-client safe.** Device Code Grant and refresh call Twitch directly with the client ID and never use a Worker auth endpoint or client secret.
 - **Raw Twitch tokens remain in main except for IRC/Hermes.** The guarded `AUTH_GET_VALID_TWITCH_TOKEN` bridge exists only because those chat sockets are renderer-owned. Helix, EventSub, emotes, moderation, and account features must use main-owned capabilities and metadata responses.

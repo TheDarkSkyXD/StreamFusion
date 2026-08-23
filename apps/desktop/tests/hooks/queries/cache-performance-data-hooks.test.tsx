@@ -14,7 +14,11 @@ import {
   useTopCategories,
   useUnifiedCategoryLink,
 } from "@/hooks/queries/useCategories";
-import { CHANNEL_KEYS, useChannelByUsername, useFollowedChannels } from "@/hooks/queries/useChannels";
+import {
+  CHANNEL_KEYS,
+  useChannelByUsername,
+  useFollowedChannels,
+} from "@/hooks/queries/useChannels";
 import {
   FOLLOWED_CONTENT_KEYS,
   type FollowedContentItem,
@@ -208,7 +212,8 @@ function cacheHitCases(): CacheHitCase[] {
     {
       name: "channel by username",
       surface: "stream-detail",
-      seed: (client) => seedQuery(client, CHANNEL_KEYS.byUsername("testchannel", "twitch"), channel),
+      seed: (client) =>
+        seedQuery(client, CHANNEL_KEYS.byUsername("testchannel", "twitch"), channel),
       useHook: () => useChannelByUsername("testchannel", "twitch"),
     },
     {

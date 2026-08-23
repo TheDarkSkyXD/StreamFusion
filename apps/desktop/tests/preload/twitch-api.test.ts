@@ -3,9 +3,9 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { IPC_CHANNELS } from "@/shared/ipc-channels";
 
 const electronMocks = vi.hoisted(() => ({
-  exposedApi: undefined as any,
+  exposedApi: {} as Window["electronAPI"],
   exposeInMainWorld: vi.fn((name: string, api: unknown) => {
-    if (name === "electronAPI") electronMocks.exposedApi = api;
+    if (name === "electronAPI") electronMocks.exposedApi = api as Window["electronAPI"];
   }),
   invoke: vi.fn(),
   on: vi.fn(),
@@ -42,10 +42,7 @@ describe("preload Twitch API bridge", () => {
 
     await electronMocks.exposedApi.twitch.execute(command);
 
-    expect(electronMocks.invoke).toHaveBeenLastCalledWith(
-      IPC_CHANNELS.TWITCH_API_EXECUTE,
-      command
-    );
+    expect(electronMocks.invoke).toHaveBeenLastCalledWith(IPC_CHANNELS.TWITCH_API_EXECUTE, command);
     expect(JSON.stringify(electronMocks.invoke.mock.lastCall)).not.toMatch(/token|client.?id/i);
   });
 

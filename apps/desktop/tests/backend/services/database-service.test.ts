@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Guards: DatabaseService schema + migrations against the node:sqlite-shim — initialization, the local-follows schema, and any ON CONFLICT / named-param SQL paths must round-trip on the shim exactly as they do against native better-sqlite3 (parity covered by `tests/helpers/better-sqlite3-shim.test.ts`).
 
+// Guards: each platform/source collection persists at most one row per case-insensitive channel slug, including databases created before that invariant existed.
 const describeDb = describe;
 
 // A fresh temp directory per test so each DatabaseService instance
@@ -46,6 +47,27 @@ afterEach(() => {
 });
 
 describeDb("DatabaseService schema", () => {
+  // Guards: key-value reads cannot invent a return type and reject values that fail the caller's boundary parser.
+  it("returns only key-value data accepted by its parser", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+    svc.set("sample", { count: "not-a-number" });
+
+    const parsed = svc.get("sample", (value) => {
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        "count" in value &&
+        typeof value.count === "number"
+      ) {
+        return { count: value.count };
+      }
+      return null;
+    });
+
+    expect(parsed).toBeNull();
+  });
+
   it("creates mod_log and retention_settings on first initialize() and is idempotent on a second call", () => {
     const svc = new DatabaseService();
     svc.initialize();
@@ -98,8 +120,11 @@ describeDb("DatabaseService schema", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
+    // Guards: a validated pre-migration recovery copy exists before schema changes touch an existing database.
+    expect(fs.existsSync(`${dbPath}.pre-migration.bak`)).toBe(true);
+
     // Existing key_value content survives.
-    expect(svc.get<string>("greeting")).toBe("hi");
+    expect(svc.get("greeting", (value) => (typeof value === "string" ? value : null))).toBe("hi");
 
     // Existing follows survive — the row's data is preserved, but the
     // 2026-05-29 source-collapse migration retags 'account' to the platform
@@ -125,7 +150,24 @@ describeDb("DatabaseService schema", () => {
     );
   });
 
-  it("collapses legacy same-slug follows before enforcing the normalized identity index", () => {
+  it("continues with an atomic migration when the optional backup target is unwritable", () => {
+    const dbPath = path.join(currentTmpDir, "streamfusion.db");
+    const old = new Database(dbPath);
+    old.exec(`
+      CREATE TABLE key_value (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      INSERT INTO key_value (key, value) VALUES ('greeting', '"still-here"');
+    `);
+    old.close();
+    fs.mkdirSync(`${dbPath}.pre-migration.bak`);
+
+    const svc = new DatabaseService();
+    expect(() => svc.initialize()).not.toThrow();
+    expect(svc.get("greeting", (value) => (typeof value === "string" ? value : null))).toBe(
+      "still-here"
+    );
+  });
+
+  it("migrates duplicate platform follows to one case-insensitive slug row", () => {
     const dbPath = path.join(currentTmpDir, "streamfusion.db");
     const old = new Database(dbPath);
     old.exec(`
@@ -140,10 +182,17 @@ describeDb("DatabaseService schema", () => {
         source TEXT NOT NULL DEFAULT 'guest',
         UNIQUE(platform, channel_id, source)
       );
-      INSERT INTO local_follows VALUES
-        ('numeric', 'kick', '411439', 'CxCinema', 'CxCinema', '', '2026-08-22T00:00:00.000Z', 'kick'),
-        ('slug', 'kick', 'cxcinema', ' cxcinema ', 'CxCinema stale', '', '2026-08-23T00:00:00.000Z', 'kick'),
-        ('blank', 'kick', 'blank', '   ', 'Invalid', '', '2026-08-23T00:00:00.000Z', 'kick');
+      INSERT INTO local_follows
+        (id, platform, channel_id, channel_name, display_name, profile_image, followed_at, source)
+      VALUES
+        ('kick-numeric', 'kick', '88415342', 'CxCinema', 'CxCinema',
+         'https://kick.com/img/default-profile-pictures/default-avatar-3.webp',
+         '2026-08-23T04:30:19.185Z', 'kick'),
+        ('kick-slug', 'kick', 'cxcinema', 'cxcinema', 'CxCinema',
+         'https://kick.com/img/default-profile-pictures/default-avatar-5.webp',
+         '2026-08-23T04:31:21.173Z', 'kick'),
+        ('kick-invalid', 'kick', 'invalid', '   ', 'Invalid', '',
+         '2026-08-23T04:32:00.000Z', 'kick');
     `);
     old.close();
 
@@ -151,16 +200,16 @@ describeDb("DatabaseService schema", () => {
     svc.initialize();
 
     expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
-      expect.objectContaining({ id: "numeric", channelId: "411439", channelName: "CxCinema" }),
+      expect.objectContaining({ channelId: "88415342", channelName: "CxCinema" }),
     ]);
     const raw = new Database(dbPath, { readonly: true });
-    const index = raw
+    const slugIndex = raw
       .prepare(
-        "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_follows_platform_slug_source'"
+        "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'idx_follows_platform_slug_source'"
       )
-      .get();
+      .get() as { sql: string } | undefined;
     raw.close();
-    expect(index).toEqual({ name: "idx_follows_platform_slug_source" });
+    expect(slugIndex?.sql).toContain("lower(trim(channel_name))");
   });
 
   it("migrates legacy mod-log rows without inventing a platform or provider event", () => {
@@ -442,8 +491,7 @@ describeDb("DatabaseService mod_log helpers", () => {
 });
 
 describeDb("DatabaseService follow-row safety", () => {
-  // Guards: all follow writers converge on one normalized channel identity,
-  // preserve canonical Kick IDs, and reject invalid rows before persistence.
+  // Guards: any direct follow writer preserves a resolved Kick broadcaster ID when later metadata has only the slug fallback.
   it("addFollow with empty channelId falls back to slug — two slug-only follows do NOT collide on UNIQUE(platform, channel_id, source)", () => {
     // Regression guard for the kick-DOM-scrape collision: before the fix
     // two slug-only follows both wrote channel_id="" and the second silently
@@ -477,87 +525,134 @@ describeDb("DatabaseService follow-row safety", () => {
     expect(rows.map((r) => r.channelId).sort()).toEqual(["chickenandy", "summit1g"]);
   });
 
-  it("merges same-slug direct writes and preserves the stable Kick broadcaster ID", () => {
+  it("does not let a direct slug-only write downgrade an existing stable Kick identity", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
     const original = svc.addFollow(
       {
         platform: "kick",
-        channelId: "411439",
+        channelId: "88415342",
         channelName: "CxCinema",
         displayName: "CxCinema",
-        profileImage: "https://files.kick.com/images/user/411439/profile_image/old.webp",
+        profileImage: "https://files.kick.com/images/user/88415342/profile_image/current.webp",
       },
       "kick"
     );
-    const refreshed = svc.addFollow(
+    svc.addFollow(
       {
         platform: "kick",
         channelId: "cxcinema",
         channelName: " cxcinema ",
         displayName: "CxCinema refreshed",
-        profileImage: "https://example.com/current.webp",
+        profileImage: "https://kick.com/img/default-profile-pictures/default-avatar-5.webp",
       },
       "kick"
     );
 
-    expect(refreshed.id).toBe(original.id);
     expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
       expect.objectContaining({
         id: original.id,
-        channelId: "411439",
+        channelId: "88415342",
         channelName: "cxcinema",
         displayName: "CxCinema refreshed",
       }),
     ]);
   });
 
-  it("promotes a canonical Kick avatar identity during a direct write", () => {
+  it("promotes a Kick avatar identity instead of persisting its slug fallback", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
     const follow = svc.addFollow(
       {
         platform: "kick",
-        channelId: "cxcinema",
-        channelName: "cxcinema",
-        profileImage: "https://files.kick.com/images/user/411439/profile_image/current.webp",
+        channelId: "avataronly",
+        channelName: "avataronly",
+        displayName: "Avatar Only",
+        profileImage: "https://files.kick.com/images/user/99112233/profile_image/current.webp",
       },
       "kick"
     );
 
-    expect(follow.channelId).toBe("411439");
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")[0].channelId).toBe("411439");
+    expect(follow.channelId).toBe("99112233");
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+      expect.objectContaining({ channelId: "99112233", channelName: "avataronly" }),
+    ]);
   });
 
-  it("enforces normalized slug uniqueness at the database boundary", () => {
+  it("rejects a duplicate case-variant slug even when a writer bypasses addFollow", () => {
     const svc = new DatabaseService();
     svc.initialize();
-    svc.addFollow({ platform: "kick", channelId: "1", channelName: "CxCinema" }, "kick");
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "88415342",
+        channelName: "cxcinema",
+        displayName: "CxCinema",
+        profileImage: "",
+      },
+      "kick"
+    );
 
     const raw = new Database(path.join(currentTmpDir, "streamfusion.db"));
     expect(() =>
       raw
         .prepare(
           `INSERT INTO local_follows
-             (id, platform, channel_id, channel_name, display_name, profile_image, followed_at, source)
+           (id, platform, channel_id, channel_name, display_name, profile_image, followed_at, source)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
         )
-        .run("duplicate", "kick", "2", " cxcinema ", "Duplicate", "", "", "kick")
+        .run(
+          "duplicate",
+          "kick",
+          "cxcinema",
+          " CxCinema ",
+          "Duplicate",
+          "",
+          "2026-08-23T00:00:00.000Z",
+          "kick"
+        )
     ).toThrow();
     raw.close();
+
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(1);
   });
 
-  it("rejects blank channel names and cross-platform account sources", () => {
+  it("rejects a follow without a usable channel slug", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
     expect(() =>
-      svc.addFollow({ platform: "kick", channelId: "1", channelName: "   " }, "kick")
+      svc.addFollow(
+        {
+          platform: "kick",
+          channelId: "123",
+          channelName: "   ",
+          displayName: "Invalid",
+          profileImage: "",
+        },
+        "kick"
+      )
     ).toThrow("Follow channel name must not be empty");
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(0);
+  });
+
+  it("rejects an account follow whose source does not match its platform", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
     expect(() =>
-      svc.addFollow({ platform: "kick", channelId: "1", channelName: "channel" }, "twitch")
+      svc.addFollow(
+        {
+          platform: "kick",
+          channelId: "123",
+          channelName: "valid",
+          displayName: "Valid",
+          profileImage: "",
+        },
+        "twitch"
+      )
     ).toThrow("Follow source twitch must match platform kick");
     expect(svc.getAllFollows()).toHaveLength(0);
   });
@@ -655,15 +750,17 @@ describeDb("DatabaseService platform-source follows", () => {
 describeDb("DatabaseService upsertSyncedFollows", () => {
   // Guards: additive Kick sync consolidates only exact stable broadcaster identities,
   // including legacy slug-keyed rows whose canonical avatar path exposes that ID.
-  // Guards: conflicting stable Kick identities never collapse through a same-slug fallback.
+  // Guards: slug-only Kick refreshes preserve a previously resolved stable broadcaster ID.
+  // Guards: an authoritative stable Kick identity replaces a conflicting stale same-slug row.
   // Helper to build a minimal "fetched follow" row.
-  const fetched = (channelId: string, channelName: string, displayName = channelName) => ({
-    platform: "kick" as const,
-    channelId,
-    channelName,
-    displayName,
-    profileImage: `https://example.com/${channelName}.jpg`,
-  });
+  const fetched = (channelId: string, channelName: string, displayName = channelName) =>
+    ({
+      platform: "kick",
+      channelId,
+      channelName,
+      displayName,
+      profileImage: `https://example.com/${channelName}.jpg`,
+    }) as const;
 
   it("with no pending writes, every fetched row becomes a platform-source row", () => {
     const svc = new DatabaseService();
@@ -679,104 +776,97 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     expect(rows.map((r) => r.channelId).sort()).toEqual(["111", "222"]);
   });
 
-  it("deduplicates case-variant Kick rows deterministically and keeps the stable identity", () => {
+  it.each([
+    ["slug row first", false],
+    ["stable row first", true],
+  ])("deduplicates a case-variant Kick sync batch independent of order: %s", (_label, reverse) => {
     const svc = new DatabaseService();
     svc.initialize();
+
     const slugOnly = {
       platform: "kick" as const,
       channelId: "cxcinema",
-      channelName: "CxCinema",
-      displayName: "CxCinema stale",
-      profileImage: "https://example.com/stale.webp",
+      channelName: " CxCinema ",
+      displayName: "CxCinema",
+      profileImage: "https://kick.com/img/default-profile-pictures/default-avatar-5.webp",
     };
-    const canonical = {
+    const stable = {
       platform: "kick" as const,
-      channelId: "411439",
-      channelName: " cxcinema ",
-      displayName: "CxCinema current",
-      profileImage: "https://files.kick.com/images/user/411439/profile_image/current.webp",
+      channelId: "88415342",
+      channelName: "cxcinema",
+      displayName: "CxCinema",
+      profileImage: "https://files.kick.com/images/user/88415342/profile_image/current.webp",
     };
+    const batch = reverse ? [stable, slugOnly] : [slugOnly, stable];
 
-    expect(svc.upsertSyncedFollows("kick", [slugOnly, canonical])).toEqual({
-      accountCount: 1,
-      pendingCount: 0,
-      addedCount: 1,
-      removedCount: 0,
-    });
-    expect(svc.upsertSyncedFollows("kick", [canonical, slugOnly])).toEqual({
-      accountCount: 1,
-      pendingCount: 0,
-      addedCount: 0,
-      removedCount: 0,
-    });
+    const first = svc.upsertSyncedFollows("kick", batch);
+    const second = svc.upsertSyncedFollows("kick", [...batch].reverse());
+
+    expect(first).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 1, removedCount: 0 });
+    expect(second).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 0, removedCount: 0 });
     expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
-      expect.objectContaining({
-        channelId: "411439",
-        channelName: "cxcinema",
-        displayName: "CxCinema current",
-      }),
+      expect.objectContaining({ channelId: "88415342", channelName: "cxcinema" }),
     ]);
   });
 
-  it("preserves a resolved Kick identity when a later sync only has the slug", () => {
+  it("rejects malformed sync rows before changing stored follows", () => {
     const svc = new DatabaseService();
     svc.initialize();
-    svc.upsertSyncedFollows("kick", [
-      {
-        platform: "kick",
-        channelId: "411439",
-        channelName: "cxcinema",
-        profileImage: "https://files.kick.com/images/user/411439/profile_image/current.webp",
-      },
-    ]);
-
-    const result = svc.upsertSyncedFollows("kick", [
-      {
-        platform: "kick",
-        channelId: "cxcinema",
-        channelName: "CXCINEMA",
-        displayName: "CxCinema refreshed",
-        profileImage: "https://example.com/refreshed.webp",
-      },
-    ]);
-
-    expect(result).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 0, removedCount: 0 });
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
-      expect.objectContaining({ channelId: "411439", displayName: "CxCinema refreshed" }),
-    ]);
-  });
-
-  it("rejects malformed or conflicting sync batches before changing stored follows", () => {
-    const svc = new DatabaseService();
-    svc.initialize();
-    svc.addFollow({ platform: "kick", channelId: "1", channelName: "existing" }, "kick");
+    svc.addFollow(fetched("111", "alice"), "kick");
 
     expect(() =>
       svc.upsertSyncedFollows("kick", [
-        { platform: "twitch", channelId: "2", channelName: "wrong-platform" },
+        fetched("222", "bob"),
+        {
+          platform: "twitch",
+          channelId: "333",
+          channelName: "wrong-platform",
+          displayName: "Wrong Platform",
+          profileImage: "",
+        },
       ])
     ).toThrow("Sync row platform must match kick");
+
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+      expect.objectContaining({ channelId: "111", channelName: "alice" }),
+    ]);
+    expect(svc.getFollowsByPlatform("twitch")).toHaveLength(0);
+  });
+
+  it("rejects a blank slug in a sync batch before changing stored follows", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+    svc.addFollow(fetched("111", "alice"), "kick");
+
     expect(() =>
-      svc.upsertSyncedFollows("kick", [{ platform: "kick", channelId: "2", channelName: "   " }])
+      svc.upsertSyncedFollows("kick", [fetched("222", "bob"), fetched("333", "   ")])
     ).toThrow("Synced follow channel name must not be empty");
+
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+      expect.objectContaining({ channelId: "111", channelName: "alice" }),
+    ]);
+  });
+
+  it("rejects conflicting stable IDs for one slug before changing stored follows", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+    svc.addFollow(fetched("111", "alice"), "kick");
+
     expect(() =>
       svc.upsertSyncedFollows("kick", [
         {
-          platform: "kick",
-          channelId: "2",
-          channelName: "shared",
-          profileImage: "https://files.kick.com/images/user/2/profile_image/a.webp",
+          ...fetched("222", "shared"),
+          profileImage: "https://files.kick.com/images/user/222/profile_image/current.webp",
         },
         {
-          platform: "kick",
-          channelId: "3",
-          channelName: "SHARED",
-          profileImage: "https://files.kick.com/images/user/3/profile_image/b.webp",
+          ...fetched("333", "SHARED"),
+          profileImage: "https://files.kick.com/images/user/333/profile_image/current.webp",
         },
       ])
     ).toThrow("Conflicting stable channel identities for kick:shared");
+
     expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
-      expect.objectContaining({ channelId: "1", channelName: "existing" }),
+      expect.objectContaining({ channelId: "111", channelName: "alice" }),
     ]);
   });
 
@@ -830,37 +920,77 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     expect(rows.map((r) => r.channelId).sort()).toEqual(["411439", "999"]);
   });
 
+  it("preserves a stable Kick ID when the current sync reports only its shared slug", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "88415342",
+        channelName: "cxcinema",
+        displayName: "CxCinema",
+        profileImage: "https://kick.com/img/default-profile-pictures/default-avatar-3.webp",
+      },
+      "kick"
+    );
+    const result = svc.upsertSyncedFollows(
+      "kick",
+      [
+        {
+          platform: "kick",
+          channelId: "cxcinema",
+          channelName: "cxcinema",
+          displayName: "CxCinema",
+          profileImage: "https://kick.com/img/default-profile-pictures/default-avatar-5.webp",
+        },
+      ],
+      { pruneAbsent: false }
+    );
+
+    expect(result).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 0, removedCount: 0 });
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+      expect.objectContaining({ channelId: "88415342", channelName: "cxcinema" }),
+    ]);
+  });
+
   it("consolidates renamed legacy Kick rows by stable broadcaster identity during additive sync", () => {
     const svc = new DatabaseService();
     svc.initialize();
+
     const raw = new Database(path.join(currentTmpDir, "streamfusion.db"));
-    const insertLegacy = raw.prepare(`
-      INSERT INTO local_follows
-        (id, platform, channel_id, channel_name, display_name, profile_image, followed_at, source)
-      VALUES (?, 'kick', ?, ?, ?, ?, '2026-08-23T00:00:00.000Z', 'kick')
-    `);
+    const insertLegacy = raw.prepare(
+      `INSERT INTO local_follows
+       (id, platform, channel_id, channel_name, display_name, profile_image, followed_at, source)
+       VALUES (?, 'kick', ?, ?, ?, ?, ?, 'kick')`
+    );
     insertLegacy.run(
       "legacy-abby201",
       "abby201",
       "abby201",
       "Abby201",
-      "https://files.kick.com/images/user/110821336/profile_image/old.webp"
+      "https://files.kick.com/images/user/110821336/profile_image/old.webp",
+      "2026-01-01T00:00:00.000Z"
     );
     insertLegacy.run(
       "legacy-abbyapple",
       "abbyapple",
       "abbyapple",
       "AbbyApple",
-      "https://files.kick.com/images/user/110821336/profile_image/new.webp"
-    );
-    insertLegacy.run(
-      "unrelated",
-      "unrelated",
-      "unrelated",
-      "Unrelated",
-      "https://example.com/unrelated.webp"
+      "https://files.kick.com/images/user/110821336/profile_image/new.webp",
+      "2026-01-02T00:00:00.000Z"
     );
     raw.close();
+    svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "unrelated",
+        channelName: "unrelated",
+        displayName: "Unrelated",
+        profileImage: "https://example.com/unrelated.webp",
+      },
+      "kick"
+    );
 
     const result = svc.upsertSyncedFollows(
       "kick",
@@ -1176,6 +1306,62 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
 
     expect(result).toEqual({ accountCount: 0, pendingCount: 0, addedCount: 0, removedCount: 0 });
     expect(svc.getPendingFollowWritesByPlatform("kick")).toHaveLength(0);
+  });
+
+  // Guards: target-specific Kick unfollow confirmation removes the account row and pending tombstone in one database transaction.
+  it("atomically confirms a target-specific Kick unfollow", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+    const follow = svc.addFollow(
+      {
+        platform: "kick",
+        channelId: "411439",
+        channelName: "blame",
+        displayName: "blame",
+        profileImage: "",
+      },
+      "kick"
+    );
+    svc.addPendingFollowWrite({
+      platform: "kick",
+      channelId: "411439",
+      slug: "blame",
+      action: "unfollow",
+    });
+
+    expect(
+      svc.confirmKickUnfollow({
+        channelId: "411439",
+        slug: "blame",
+        localFollowId: follow.id,
+      })
+    ).toBe(true);
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([]);
+    expect(svc.getPendingFollowWritesByPlatform("kick")).toEqual([]);
+  });
+
+  // Guards: target-specific Kick follow confirmation adds the account row and removes the pending tombstone in one database transaction.
+  it("atomically confirms a target-specific Kick follow", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+    svc.addPendingFollowWrite({
+      platform: "kick",
+      channelId: "411439",
+      slug: "blame",
+      action: "follow",
+    });
+
+    const follow = svc.confirmKickFollow({
+      platform: "kick",
+      channelId: "411439",
+      channelName: "blame",
+      displayName: "blame",
+      profileImage: "",
+    });
+
+    expect(follow).toMatchObject({ channelId: "411439", channelName: "blame", source: "kick" });
+    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(1);
+    expect(svc.getPendingFollowWritesByPlatform("kick")).toEqual([]);
   });
 
   it("platforms are isolated — twitch sync does not touch kick rows or pending writes", () => {

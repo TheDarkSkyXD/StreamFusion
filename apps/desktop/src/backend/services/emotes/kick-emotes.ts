@@ -98,8 +98,9 @@ class KickEmoteProvider implements EmoteProviderService {
     let subscriptions: KickSubscriptionResponse | null;
     try {
       subscriptions = await bridge();
-    } catch (error: any) {
-      if (error.response?.status === 401 || error.response?.status === 403) {
+    } catch (error: unknown) {
+      const status = this.getHttpErrorStatus(error);
+      if (status === 401 || status === 403) {
         logger.info("Emote:Kick", "User subscription emotes unavailable via Kick web session");
         return [];
       }
@@ -208,14 +209,14 @@ class KickEmoteProvider implements EmoteProviderService {
             ...(this.accessToken && { Authorization: `Bearer ${this.accessToken}` }),
           },
         })
-        .json<any>();
+        .json<unknown>();
 
       let rawEmotes: KickEmoteResponse[] = [];
 
-      if (channelData.emotes && Array.isArray(channelData.emotes)) {
-        rawEmotes = channelData.emotes;
-      } else if (channelData.chatroom?.emotes && Array.isArray(channelData.chatroom.emotes)) {
-        rawEmotes = channelData.chatroom.emotes;
+      if (this.isKickChannelEmotePayload(channelData)) {
+        rawEmotes = Array.isArray(channelData.emotes)
+          ? channelData.emotes
+          : (channelData.chatroom?.emotes ?? []);
       }
 
       if (rawEmotes.length > 0) {
@@ -223,8 +224,8 @@ class KickEmoteProvider implements EmoteProviderService {
       }
 
       return emotes;
-    } catch (error: any) {
-      if (error.response?.status !== 404) {
+    } catch (error: unknown) {
+      if (this.getHttpErrorStatus(error) !== 404) {
         logger.warn("Emote:Kick", "API returned error", {
           slug,
           error:
@@ -235,6 +236,28 @@ class KickEmoteProvider implements EmoteProviderService {
       }
       return emotes; // Return whatever we found (empty array if Method 1 failed too)
     }
+  }
+
+  private getHttpErrorStatus(error: unknown): number | undefined {
+    if (typeof error !== "object" || error === null || !("response" in error)) return undefined;
+    const response = error.response;
+    if (typeof response !== "object" || response === null || !("status" in response)) {
+      return undefined;
+    }
+    return typeof response.status === "number" ? response.status : undefined;
+  }
+
+  private isKickChannelEmotePayload(
+    value: unknown
+  ): value is { emotes?: KickEmoteResponse[]; chatroom?: { emotes?: KickEmoteResponse[] } } {
+    if (typeof value !== "object" || value === null) return false;
+    const emotes = "emotes" in value ? value.emotes : undefined;
+    const chatroom = "chatroom" in value ? value.chatroom : undefined;
+    const chatroomEmotes =
+      typeof chatroom === "object" && chatroom !== null && "emotes" in chatroom
+        ? chatroom.emotes
+        : undefined;
+    return Array.isArray(emotes) || Array.isArray(chatroomEmotes);
   }
 
   /**

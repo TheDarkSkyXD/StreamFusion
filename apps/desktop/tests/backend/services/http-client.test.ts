@@ -18,9 +18,7 @@ function errorResponse(status: number): Response {
 }
 
 function networkError(code: string, message = "fetch failed"): Error {
-  const err = new Error(message);
-  (err as any).cause = { code };
-  return err;
+  return Object.assign(new Error(message), { cause: { code } });
 }
 
 describe("RobustHttpClient", () => {
@@ -194,7 +192,7 @@ describe("RobustHttpClient", () => {
 
     it("does not retry on non-retryable errors", async () => {
       const err = new Error("syntax error");
-      (err as any).code = "ERR_INVALID_URL";
+      Object.assign(err, { code: "ERR_INVALID_URL" });
 
       fetchMock.mockRejectedValueOnce(err);
 

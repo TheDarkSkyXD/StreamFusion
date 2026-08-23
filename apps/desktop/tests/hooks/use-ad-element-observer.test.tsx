@@ -69,7 +69,12 @@ describe("useAdElementObserver", () => {
     document.body.appendChild(adEl);
 
     mockCallback(
-      [{ addedNodes: [adEl], removedNodes: [], type: "childList" }] as unknown as MutationRecord[],
+      [{
+        addedNodes: document.body.childNodes,
+        removedNodes: document.createDocumentFragment().childNodes,
+        type: "childList", attributeName: null, attributeNamespace: null,
+        nextSibling: null, previousSibling: null, oldValue: null, target: document.body,
+      } satisfies MutationRecord],
       {} as MutationObserver
     );
 

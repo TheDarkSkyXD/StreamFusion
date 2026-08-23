@@ -22,7 +22,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { ipcMain, shell } from "electron";
+import { shell } from "electron";
+
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { getCurrentLogPath, type LogLevel, logger } from "../../logging/logger";

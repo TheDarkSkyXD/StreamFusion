@@ -9,6 +9,10 @@ import { installConsoleIntercept } from "@/renderer/logging/console-intercept";
 import { installNetworkMonitor } from "@/renderer/logging/network-monitor";
 import { installRendererErrorHooks } from "@/renderer/logging/renderer-error-hooks";
 
+const performanceHarnessRequested =
+  import.meta.env.DEV && new URLSearchParams(window.location.search).get("perf") === "1";
+if (performanceHarnessRequested) performance.mark("streamfusion:renderer-module-enter");
+
 installConsoleIntercept();
 installRendererErrorHooks();
 installNetworkMonitor();
@@ -49,5 +53,18 @@ root.render(
     <App />
   </React.StrictMode>
 );
+
+if (performanceHarnessRequested) {
+  performance.mark("streamfusion:root-render-called");
+  requestAnimationFrame(() => {
+    performance.mark("streamfusion:first-render-frame");
+    requestAnimationFrame(() => performance.mark("streamfusion:first-presented-frame"));
+  });
+  void import("@/renderer/performance/performance-harness").then(
+    ({ installPerformanceHarness }) => {
+      installPerformanceHarness();
+    }
+  );
+}
 
 console.debug("🌩️ StreamFusion is running in renderer process");

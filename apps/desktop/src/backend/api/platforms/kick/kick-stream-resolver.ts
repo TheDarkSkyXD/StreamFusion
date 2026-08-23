@@ -18,11 +18,47 @@ function getUrlHost(url: string | null): string | null {
   }
 }
 
+interface KickChannelPlayback {
+  playback_url?: string;
+  livestream?: { is_live?: boolean; source?: string } | null;
+}
+
+function isKickChannelPlayback(value: unknown): value is KickChannelPlayback {
+  if (typeof value !== "object" || value === null) return false;
+  if ("playback_url" in value && value.playback_url !== undefined && typeof value.playback_url !== "string") return false;
+  if (!("livestream" in value) || value.livestream === undefined || value.livestream === null) return true;
+  return typeof value.livestream === "object";
+}
+
+interface KickVideoPayload {
+  id?: string | number;
+  source?: string;
+  session_title?: string;
+  title?: string;
+  channel?: { id?: string | number; slug?: string; user?: { username?: string; profile_pic?: string } };
+  livestream?: { channel?: { id?: string | number; slug?: string; user?: { username?: string; profile_pic?: string } }; categories?: Array<{ name?: string }> };
+  views?: number;
+  view_count?: number;
+  duration?: number;
+  created_at?: string;
+  thumbnail?: { src?: string; url?: string };
+  thumbnail_url?: string;
+  categories?: Array<{ name?: string }>;
+  category?: { name?: string };
+}
+
+function isKickVideoPayload(value: unknown): value is KickVideoPayload {
+  if (typeof value !== "object" || value === null) return false;
+  if ("source" in value && value.source !== undefined && typeof value.source !== "string") return false;
+  if ("duration" in value && value.duration !== undefined && typeof value.duration !== "number") return false;
+  return true;
+}
+
 export class KickStreamResolver {
   /**
    * Make a request using Electron's net module to bypass Cloudflare
    */
-  private async netRequest<T>(url: string, context?: string): Promise<T> {
+  private async netRequest(url: string, context?: string): Promise<unknown> {
     const { net } = require("electron");
 
     // Without a timeout, the player hangs ~21s on Chromium's TCP timeout per
@@ -51,7 +87,7 @@ export class KickStreamResolver {
     }
 
     try {
-      return (await res.json()) as T;
+      return await res.json();
     } catch (_e) {
       throw new Error("Failed to parse JSON");
     }
@@ -100,12 +136,13 @@ export class KickStreamResolver {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const attemptStartedAt = Date.now();
-        const data = await this.netRequest<any>(
+        const data = await this.netRequest(
           `${KICK_LEGACY_API_V1_BASE}/channels/${normalizedSlug}`,
           normalizedSlug
         );
         const requestDurationMs = Date.now() - attemptStartedAt;
 
+        if (!isKickChannelPlayback(data)) throw new Error("Invalid channel playback response");
         // Verify the stream is actually live
         const isLive = data.livestream?.is_live === true;
 
@@ -206,20 +243,20 @@ export class KickStreamResolver {
       // However, the API expects the UUID, not the numeric ID
 
       // First, let's try different API approaches
-      let data: any = null;
+      let data: unknown = null;
       let lastError: Error | null = null;
 
       // Try 1: Direct video lookup by ID/UUID (works if it's a proper UUID)
       try {
-        data = await this.netRequest<any>(`${KICK_LEGACY_API_V1_BASE}/video/${videoIdOrUuid}`);
-        if (data?.source) {
+        data = await this.netRequest(`${KICK_LEGACY_API_V1_BASE}/video/${videoIdOrUuid}`);
+        if (isKickVideoPayload(data) && data.source) {
           return {
             url: data.source,
             format: "hls",
           };
         }
       } catch (e) {
-        lastError = e as Error;
+        lastError = e instanceof Error ? e : new Error(String(e));
         // Continue to try other methods
       }
 
@@ -233,8 +270,8 @@ export class KickStreamResolver {
         // Try the video endpoint with just the numeric part
         // Note: This may still fail as the API expects UUID
         try {
-          data = await this.netRequest<any>(`${KICK_LEGACY_API_V1_BASE}/video/${numericId}`);
-          if (data?.source) {
+          data = await this.netRequest(`${KICK_LEGACY_API_V1_BASE}/video/${numericId}`);
+          if (isKickVideoPayload(data) && data.source) {
             return {
               url: data.source,
               format: "hls",
@@ -242,7 +279,7 @@ export class KickStreamResolver {
           }
         } catch (e) {
           // Continue - the API might not support numeric IDs
-          lastError = e as Error;
+          lastError = e instanceof Error ? e : new Error(String(e));
         }
       }
 
@@ -316,7 +353,8 @@ export class KickStreamResolver {
 
     try {
       // Try to fetch metadata - this may fail for numeric IDs
-      const data = await this.netRequest<any>(`${KICK_LEGACY_API_V1_BASE}/video/${videoId}`);
+      const data = await this.netRequest(`${KICK_LEGACY_API_V1_BASE}/video/${videoId}`);
+      if (!isKickVideoPayload(data)) return defaultMetadata;
 
       return {
         id: data.id?.toString() || videoId,

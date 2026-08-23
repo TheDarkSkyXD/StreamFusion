@@ -41,7 +41,7 @@ describe("RaidTargetPicker", () => {
           isLive: false,
           isVerified: false,
           isPartner: false,
-        } as any,
+        },
         {
           id: "200",
           platform: "twitch",
@@ -51,7 +51,7 @@ describe("RaidTargetPicker", () => {
           isLive: false,
           isVerified: false,
           isPartner: false,
-        } as any,
+        },
         // Kick follow should be filtered out — we only raid Twitch channels.
         {
           id: "300",
@@ -62,7 +62,7 @@ describe("RaidTargetPicker", () => {
           isLive: false,
           isVerified: false,
           isPartner: false,
-        } as any,
+        },
       ],
     });
     storeApi.get.mockResolvedValue(null);
@@ -115,7 +115,7 @@ describe("RaidTargetPicker", () => {
           isLive: false,
           isVerified: false,
           isPartner: false,
-        } as any,
+        },
       ],
     });
     storeApi.get.mockResolvedValue(null);
@@ -161,7 +161,7 @@ describe("RaidTargetPicker", () => {
           isLive: false,
           isVerified: false,
           isPartner: false,
-        } as any,
+        },
       ],
     });
     storeApi.get.mockResolvedValue(null);

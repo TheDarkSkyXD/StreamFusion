@@ -17,6 +17,7 @@ const loggerMock = vi.hoisted(() => ({
 }));
 
 vi.mock("@/backend/logging/logger", () => ({ logger: loggerMock }));
+vi.mock("electron", () => ({ app: { isPackaged: true } }));
 vi.mock("@/backend/ipc/handlers/app-handlers", () => ({
   registerAppHandlers: registrars.app,
 }));
@@ -34,8 +35,10 @@ vi.mock("@/backend/ipc/lazy-feature-loader", () => ({
 }));
 
 import { registerIpcHandlers } from "@/backend/ipc-handlers";
+import { TrustedIpcRegistry } from "@/backend/ipc/trusted-ipc-registry";
 
 // Guards: startup registers only the feature-loader transport, leaving every handler implementation unloaded.
+// Guards: lazy feature handlers receive the trusted registry that validates renderer requests.
 // Guards: a broken feature-loader registrar is reported without crashing bootstrap.
 describe("registerIpcHandlers", () => {
   beforeEach(() => {
@@ -50,7 +53,10 @@ describe("registerIpcHandlers", () => {
     expect(registrars.app).not.toHaveBeenCalled();
     expect(registrars.storage).not.toHaveBeenCalled();
     expect(registrars.logs).not.toHaveBeenCalled();
-    expect(registrars.lazyFeatures).toHaveBeenCalledWith(mainWindow);
+    expect(registrars.lazyFeatures).toHaveBeenCalledWith(
+      mainWindow,
+      expect.any(TrustedIpcRegistry)
+    );
   });
 
   it("logs a feature-loader registrar failure", () => {

@@ -565,6 +565,10 @@ export const useChatStore = create<ChatState>()(
       },
 
       prependMessages: (channelKey, incoming) => {
+        // Make queued live arrivals authoritative before a late history page
+        // is deduplicated. Otherwise a historical copy with the same id can
+        // land first and cause the richer live copy to be discarded later.
+        get().flushBatch(channelKey);
         set((state) => {
           if (incoming.length === 0) return state;
           // Drop anything that's already in the store so we don't duplicate

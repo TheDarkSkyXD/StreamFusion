@@ -20,7 +20,7 @@ describe("platform-health-telemetry", () => {
     vi.setSystemTime(new Date("2026-06-07T12:34:56.789Z"));
 
     appendFileSyncSpy = vi.spyOn(fs, "appendFileSync").mockImplementation(() => {});
-    mkdirSyncSpy = vi.spyOn(fs, "mkdirSync").mockImplementation(() => "" as any);
+    mkdirSyncSpy = vi.spyOn(fs, "mkdirSync").mockImplementation(() => undefined);
 
     subscribedListener = null;
     vi.doMock("@/backend/api/unified/platform-health", () => ({

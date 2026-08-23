@@ -11,7 +11,9 @@
  * so the env probe stays a focused, side-effect-free read.
  */
 
-import { app, ipcMain } from "electron";
+import { app } from "electron";
+
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 

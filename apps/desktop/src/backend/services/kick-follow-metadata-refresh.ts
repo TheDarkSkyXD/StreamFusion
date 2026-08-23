@@ -1,6 +1,7 @@
 import { createManagedInterval } from "../../lib/managed-interval";
 import { kickClient } from "../api/platforms/kick/kick-client";
 import { logger } from "../logging/logger";
+import { isKickAccountReconciliationActive } from "./kick-account-reconciliation-coordinator";
 import { repairKickFollowSlugs } from "./kick-follow-metadata-repair";
 import { storageService } from "./storage-service";
 
@@ -15,6 +16,16 @@ export async function refreshKickFollowMetadataNow(
   reason: string,
   options: { force?: boolean } = {}
 ): Promise<void> {
+  if (isKickAccountReconciliationActive()) {
+    logger.debug(
+      "Service:KickFollowMetadata",
+      "Deferring metadata refresh during follow reconciliation",
+      {
+        reason,
+      }
+    );
+    return;
+  }
   if (inFlightRefresh) {
     return inFlightRefresh;
   }

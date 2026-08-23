@@ -1,11 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  useAuthInitialize,
-  useAuthStatus,
-  useUserInfo,
-} from "@/hooks/useAuth";
+import { useAuthInitialize, useAuthStatus, useUserInfo } from "@/hooks/useAuth";
 import { useAuthStore } from "@/store/auth-store";
 
 import type { KickUser, TwitchUser } from "@/shared/auth-types";
@@ -37,7 +33,6 @@ beforeEach(() => {
     kickLoading: false,
     isGuest: true,
     initialized: false,
-    error: null,
     localFollows: [],
     followsLoading: false,
     preferences: null,
@@ -45,7 +40,7 @@ beforeEach(() => {
 });
 
 // Guards: useAuthStatus folds twitch + kick connected flags into anyConnected/bothConnected so the multi-platform login screen renders the right CTA on both single- and dual-connect transitions
-// Guards: useAuthInitialize fires initializeAuth exactly once across renders when initialized=false, then is a no-op — prevents init-effect runaway on hot-reload
+// Guards: useAuthInitialize fires initializeAuth exactly once across renders when initialized=false, then is a no-op â€” prevents init-effect runaway on hot-reload
 // Guards: useUserInfo prefers twitch over kick when both are connected and falls back to "Guest" with null avatar on cold start, so the user menu never flashes a stale handle
 describe("useAuthStatus", () => {
   it("returns combined status with both platforms", () => {

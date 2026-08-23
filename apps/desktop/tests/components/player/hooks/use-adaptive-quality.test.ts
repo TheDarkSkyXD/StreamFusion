@@ -61,7 +61,10 @@ describe("useAdaptiveQuality", () => {
 
   it("detects critical buffer health via interval callback", () => {
     const video = createMockVideo();
-    (video as any).buffered = { length: 0, start: vi.fn(), end: vi.fn() };
+    Object.defineProperty(video, "buffered", {
+      configurable: true,
+      value: { length: 0, start: vi.fn(), end: vi.fn() },
+    });
     const { result } = renderHook(() =>
       useAdaptiveQuality({
         qualities: makeQualities(1080, 720, 480, 360),

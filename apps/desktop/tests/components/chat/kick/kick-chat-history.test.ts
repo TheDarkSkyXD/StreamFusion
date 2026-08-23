@@ -65,8 +65,13 @@ function makeRawMessages(n: number) {
     content: `c${i}`,
     type: 'message',
     created_at: '2026-05-24T00:00:00Z',
-    sender: { id: 1, username: 'someone', slug: 'someone' },
-    metadata: undefined,
+    sender: {
+      id: 1,
+      username: 'someone',
+      slug: 'someone',
+      identity: { color: '#ffffff', badges: [] },
+    },
+    metadata: null,
   }));
 }
 
@@ -100,7 +105,7 @@ const baseParams = {
 // Guards: legacy partial chat preferences still default recent-message history on before live Kick chat joins.
 describe('seedKickChatHistory (U5 recent-messages-on-join)', () => {
   // biome-ignore lint/suspicious/noExplicitAny: test IPC surface.
-  let api: any;
+  let api: ReturnType<typeof installElectronAPIMock>;
   beforeEach(() => {
     api = installElectronAPIMock();
     setChatDisplay({});
@@ -112,7 +117,7 @@ describe('seedKickChatHistory (U5 recent-messages-on-join)', () => {
 
   it('seeds history by default', async () => {
     api.chat.getKickHistory = vi.fn(async () => ({
-      success: true,
+      success: true as const,
       data: { messages: makeRawMessages(4), pinnedMessage: null },
     }));
     const prepend = vi.fn();
@@ -126,7 +131,7 @@ describe('seedKickChatHistory (U5 recent-messages-on-join)', () => {
   it('seeds history when legacy saved preferences omit the recent-messages toggle', async () => {
     setLegacyChatDisplay({ timestamps: true });
     api.chat.getKickHistory = vi.fn(async () => ({
-      success: true,
+      success: true as const,
       data: { messages: makeRawMessages(2), pinnedMessage: null },
     }));
     const prepend = vi.fn();
@@ -144,7 +149,7 @@ describe('seedKickChatHistory (U5 recent-messages-on-join)', () => {
   it('does not seed recent messages when recentMessagesOnJoin is false', async () => {
     setChatDisplay({ recentMessagesOnJoin: false });
     api.chat.getKickHistory = vi.fn(async () => ({
-      success: true,
+      success: true as const,
       data: { messages: makeRawMessages(4), pinnedMessage: null },
     }));
     const prepend = vi.fn();
@@ -156,7 +161,7 @@ describe('seedKickChatHistory (U5 recent-messages-on-join)', () => {
   it('still restores the pinned message when recent-messages seeding is off', async () => {
     setChatDisplay({ recentMessagesOnJoin: false });
     api.chat.getKickHistory = vi.fn(async () => ({
-      success: true,
+      success: true as const,
       data: { messages: makeRawMessages(4), pinnedMessage: { message: { id: 'p1' } } },
     }));
     const prepend = vi.fn();
@@ -169,7 +174,7 @@ describe('seedKickChatHistory (U5 recent-messages-on-join)', () => {
   it('caps the seeded messages to recentMessagesLimit (keeps the newest)', async () => {
     setChatDisplay({ recentMessagesLimit: 3 });
     api.chat.getKickHistory = vi.fn(async () => ({
-      success: true,
+      success: true as const,
       data: { messages: makeRawMessages(10), pinnedMessage: null },
     }));
     const prepend = vi.fn();
@@ -192,7 +197,7 @@ describe('seedKickChatHistory (U5 recent-messages-on-join)', () => {
     });
     useChatStore.getState().dropChannel(channelKey);
     api.chat.getKickHistory = vi.fn(async () => ({
-      success: true,
+      success: true as const,
       data: { messages: makeRawMessages(2), pinnedMessage: null },
     }));
 

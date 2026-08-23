@@ -8,6 +8,7 @@
 // Guards: CSS/scriptlet injection IPC contract — renderer-side selectors and adblock cosmetic filters must reach the right BrowserWindow.
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import type { BrowserWindow, WebContents } from "electron";
 
 // Guards: injected video visibility CSS must preserve the ad presentation shield while keeping ordinary videos visible.
 
@@ -81,9 +82,9 @@ describe("cosmetic-injection-service", () => {
           insertCSS: vi.fn().mockResolvedValue("css-key"),
           executeJavaScript: vi.fn().mockResolvedValue(undefined),
         },
-      } as any;
+      };
 
-      await expect(cosmeticInjectionService.injectIntoWindow(mockWindow)).resolves.not.toThrow();
+      await expect(cosmeticInjectionService.injectIntoWindow(mockWindow as unknown as BrowserWindow)).resolves.not.toThrow();
 
       // Should not call insertCSS when disabled
       expect(mockWindow.webContents.insertCSS).not.toHaveBeenCalled();
@@ -97,9 +98,9 @@ describe("cosmetic-injection-service", () => {
           insertCSS: vi.fn().mockResolvedValue("css-key"),
           executeJavaScript: vi.fn().mockResolvedValue(undefined),
         },
-      } as any;
+      };
 
-      await cosmeticInjectionService.injectIntoWindow(mockWindow);
+      await cosmeticInjectionService.injectIntoWindow(mockWindow as unknown as BrowserWindow);
 
       expect(mockWindow.webContents.insertCSS).toHaveBeenCalledWith(
         expect.stringContaining("display: none"),
@@ -119,11 +120,11 @@ describe("cosmetic-injection-service", () => {
         executeJavaScript: vi.fn().mockResolvedValue(undefined),
       };
 
-      const mockWindow = { webContents: mockWebContents } as any;
+      const mockWindow = { webContents: mockWebContents };
 
       // Inject twice
-      await cosmeticInjectionService.injectIntoWindow(mockWindow);
-      await cosmeticInjectionService.injectIntoWindow(mockWindow);
+      await cosmeticInjectionService.injectIntoWindow(mockWindow as unknown as BrowserWindow);
+      await cosmeticInjectionService.injectIntoWindow(mockWindow as unknown as BrowserWindow);
 
       // Should only be called once due to WeakSet tracking
       expect(mockWebContents.insertCSS).toHaveBeenCalledTimes(1);
@@ -138,10 +139,10 @@ describe("cosmetic-injection-service", () => {
           insertCSS: vi.fn().mockRejectedValue(new Error("Injection failed")),
           executeJavaScript: vi.fn().mockResolvedValue(undefined),
         },
-      } as any;
+      };
 
       // Should not throw, just log error
-      await expect(cosmeticInjectionService.injectIntoWindow(mockWindow)).resolves.not.toThrow();
+      await expect(cosmeticInjectionService.injectIntoWindow(mockWindow as unknown as BrowserWindow)).resolves.not.toThrow();
     });
   });
 
@@ -154,9 +155,9 @@ describe("cosmetic-injection-service", () => {
       const mockWebContents = {
         insertCSS: vi.fn().mockResolvedValue("key"),
         executeJavaScript: vi.fn().mockResolvedValue(undefined),
-      } as any;
+      };
 
-      await cosmeticInjectionService.injectIntoWebContents(mockWebContents);
+      await cosmeticInjectionService.injectIntoWebContents(mockWebContents as unknown as WebContents);
 
       // When disabled, should not call insertCSS or executeJavaScript
       expect(mockWebContents.insertCSS).not.toHaveBeenCalled();
@@ -174,9 +175,9 @@ describe("CSS Content", () => {
         insertCSS: vi.fn().mockResolvedValue("css-key"),
         executeJavaScript: vi.fn().mockResolvedValue(undefined),
       },
-    } as any;
+    };
 
-    await cosmeticInjectionService.injectIntoWindow(mockWindow);
+    await cosmeticInjectionService.injectIntoWindow(mockWindow as unknown as BrowserWindow);
 
     const cssArg = mockWindow.webContents.insertCSS.mock.calls[0][0];
 
@@ -196,9 +197,9 @@ describe("CSS Content", () => {
         insertCSS: vi.fn().mockResolvedValue("css-key"),
         executeJavaScript: vi.fn().mockResolvedValue(undefined),
       },
-    } as any;
+    };
 
-    await cosmeticInjectionService.injectIntoWindow(mockWindow);
+    await cosmeticInjectionService.injectIntoWindow(mockWindow as unknown as BrowserWindow);
 
     const cssArg = mockWindow.webContents.insertCSS.mock.calls[0][0];
 
@@ -217,9 +218,9 @@ describe("Scriptlet Content", () => {
         insertCSS: vi.fn().mockResolvedValue("css-key"),
         executeJavaScript: vi.fn().mockResolvedValue(undefined),
       },
-    } as any;
+    };
 
-    await cosmeticInjectionService.injectIntoWindow(mockWindow);
+    await cosmeticInjectionService.injectIntoWindow(mockWindow as unknown as BrowserWindow);
 
     const scriptArg = mockWindow.webContents.executeJavaScript.mock.calls[0][0];
 

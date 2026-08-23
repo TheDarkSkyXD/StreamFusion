@@ -40,36 +40,57 @@ function emptyVerificationCache(): KickFollowVerificationCache {
   };
 }
 
-function readVerificationCache(): KickFollowVerificationCache {
-  const stored = dbService.get<unknown>(KICK_FOLLOW_VERIFICATION_CACHE_KEY);
-  if (!stored || typeof stored !== "object") {
-    return emptyVerificationCache();
-  }
-
-  const candidate = stored as Partial<KickFollowVerificationCache>;
+function parseVerificationCache(candidate: unknown): KickFollowVerificationCache | null {
   if (
+    !candidate ||
+    typeof candidate !== "object" ||
+    !("version" in candidate) ||
     candidate.version !== KICK_FOLLOW_VERIFICATION_CACHE_VERSION ||
+    !("entries" in candidate) ||
     !candidate.entries ||
     typeof candidate.entries !== "object"
   ) {
-    return emptyVerificationCache();
+    return null;
   }
 
   const entries: Record<string, KickFollowVerificationEntry> = {};
   for (const [broadcasterId, entry] of Object.entries(candidate.entries)) {
-    if (entry && typeof entry.isVerified === "boolean" && Number.isFinite(entry.verifiedAt)) {
-      entries[broadcasterId] = entry;
+    if (
+      entry &&
+      typeof entry === "object" &&
+      "isVerified" in entry &&
+      typeof entry.isVerified === "boolean" &&
+      "verifiedAt" in entry &&
+      typeof entry.verifiedAt === "number" &&
+      Number.isFinite(entry.verifiedAt)
+    ) {
+      entries[broadcasterId] = {
+        isVerified: entry.isVerified,
+        verifiedAt: entry.verifiedAt,
+      };
     }
   }
+
+  const nextBackfillIndex =
+    "nextBackfillIndex" in candidate &&
+    typeof candidate.nextBackfillIndex === "number" &&
+    Number.isSafeInteger(candidate.nextBackfillIndex) &&
+    candidate.nextBackfillIndex >= 0
+      ? candidate.nextBackfillIndex
+      : 0;
 
   return {
     version: KICK_FOLLOW_VERIFICATION_CACHE_VERSION,
     entries,
-    nextBackfillIndex:
-      Number.isSafeInteger(candidate.nextBackfillIndex) && candidate.nextBackfillIndex! >= 0
-        ? candidate.nextBackfillIndex!
-        : 0,
+    nextBackfillIndex,
   };
+}
+
+function readVerificationCache(): KickFollowVerificationCache {
+  return (
+    dbService.get(KICK_FOLLOW_VERIFICATION_CACHE_KEY, parseVerificationCache) ??
+    emptyVerificationCache()
+  );
 }
 
 function isFreshVerification(entry: KickFollowVerificationEntry | undefined, now: number): boolean {

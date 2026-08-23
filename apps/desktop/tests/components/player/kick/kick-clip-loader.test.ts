@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { HlsConfig, LoaderCallbacks, LoaderConfiguration, LoaderResponse } from "hls.js";
 
 vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -14,8 +15,8 @@ vi.mock("hls.js", () => {
     abort() {}
     destroy() {}
     load(..._args: unknown[]) {}
-    context: any = null;
-    stats: any = {};
+    context: unknown = null;
+    stats: unknown = {};
   }
   DefaultLoader.prototype.load = mockSuperLoad;
 
@@ -31,8 +32,15 @@ import {
   isKickClipPlaylistUrl,
 } from "@/components/player/kick/kick-clip-loader";
 
-function invokeWrappedOnSuccess(loader: any, context: any, response: any) {
-  loader.load(context, {}, { onSuccess: vi.fn() });
+type KickLoader = InstanceType<ReturnType<typeof createKickClipPlaylistLoader>>;
+type KickContext = Parameters<KickLoader["load"]>[0];
+
+function makeCallbacks(onSuccess = vi.fn()): LoaderCallbacks<KickContext> {
+  return { onSuccess, onError: vi.fn(), onTimeout: vi.fn(), onProgress: vi.fn() };
+}
+
+function invokeWrappedOnSuccess(loader: KickLoader, context: KickContext, response: LoaderResponse) {
+  loader.load(context, {} as LoaderConfiguration, makeCallbacks());
 
   const loadCall = mockSuperLoad.mock.calls[mockSuperLoad.mock.calls.length - 1];
   const passedCallbacks = loadCall[2];
@@ -91,12 +99,12 @@ describe("createKickClipPlaylistLoader", () => {
 
   it("passes through non-m3u8 requests directly to super.load", () => {
     const LoaderClass = createKickClipPlaylistLoader();
-    const loader = new LoaderClass({} as any);
+    const loader = new LoaderClass({} as HlsConfig);
 
-    const context = { url: "https://kick.com/clip/segment.ts" } as any;
-    const callbacks = { onSuccess: vi.fn() } as any;
+    const context = { url: "https://kick.com/clip/segment.ts" } as KickContext;
+    const callbacks = makeCallbacks();
 
-    loader.load(context, {} as any, callbacks);
+    loader.load(context, {} as LoaderConfiguration, callbacks);
 
     expect(mockSuperLoad).toHaveBeenCalled();
     const passedCallbacks = mockSuperLoad.mock.calls[0][2];
@@ -105,13 +113,13 @@ describe("createKickClipPlaylistLoader", () => {
 
   it("wraps onSuccess for m3u8 requests before calling super.load", () => {
     const LoaderClass = createKickClipPlaylistLoader();
-    const loader = new LoaderClass({} as any);
+    const loader = new LoaderClass({} as HlsConfig);
 
     const originalOnSuccess = vi.fn();
-    const context = { url: "https://kick.com/clip/abc.m3u8" } as any;
-    const callbacks = { onSuccess: originalOnSuccess } as any;
+    const context = { url: "https://kick.com/clip/abc.m3u8" } as KickContext;
+    const callbacks = makeCallbacks(originalOnSuccess);
 
-    loader.load(context, {} as any, callbacks);
+    loader.load(context, {} as LoaderConfiguration, callbacks);
 
     expect(mockSuperLoad).toHaveBeenCalled();
     const passedCallbacks = mockSuperLoad.mock.calls[0][2];
@@ -120,13 +128,13 @@ describe("createKickClipPlaylistLoader", () => {
 
   it("drops first segment from media playlist", () => {
     const LoaderClass = createKickClipPlaylistLoader();
-    const loader = new LoaderClass({} as any);
+    const loader = new LoaderClass({} as HlsConfig);
 
     const originalOnSuccess = vi.fn();
-    const context = { url: "https://kick.com/clip/abc.m3u8" } as any;
-    const callbacks = { onSuccess: originalOnSuccess } as any;
+    const context = { url: "https://kick.com/clip/abc.m3u8" } as KickContext;
+    const callbacks = makeCallbacks(originalOnSuccess);
 
-    loader.load(context, {} as any, callbacks);
+    loader.load(context, {} as LoaderConfiguration, callbacks);
 
     const passedCallbacks = mockSuperLoad.mock.calls[0][2];
 
@@ -152,13 +160,13 @@ https://cdn.kick.com/clip/seg-2.ts
 
   it("adds cache busting to remaining media segment URLs", () => {
     const LoaderClass = createKickClipPlaylistLoader();
-    const loader = new LoaderClass({} as any);
+    const loader = new LoaderClass({} as HlsConfig);
 
     const originalOnSuccess = vi.fn();
-    const context = { url: "https://kick.com/clip/abc.m3u8" } as any;
-    const callbacks = { onSuccess: originalOnSuccess } as any;
+    const context = { url: "https://kick.com/clip/abc.m3u8" } as KickContext;
+    const callbacks = makeCallbacks(originalOnSuccess);
 
-    loader.load(context, {} as any, callbacks);
+    loader.load(context, {} as LoaderConfiguration, callbacks);
 
     const passedCallbacks = mockSuperLoad.mock.calls[0][2];
 
@@ -182,13 +190,13 @@ https://clips.kick.com/clips/abc/seg-1.ts
 
   it("bumps EXT-X-MEDIA-SEQUENCE when dropping first segment", () => {
     const LoaderClass = createKickClipPlaylistLoader();
-    const loader = new LoaderClass({} as any);
+    const loader = new LoaderClass({} as HlsConfig);
 
     const originalOnSuccess = vi.fn();
-    const context = { url: "https://kick.com/clip/abc.m3u8" } as any;
-    const callbacks = { onSuccess: originalOnSuccess } as any;
+    const context = { url: "https://kick.com/clip/abc.m3u8" } as KickContext;
+    const callbacks = makeCallbacks(originalOnSuccess);
 
-    loader.load(context, {} as any, callbacks);
+    loader.load(context, {} as LoaderConfiguration, callbacks);
 
     const passedCallbacks = mockSuperLoad.mock.calls[0][2];
 
@@ -209,13 +217,13 @@ https://cdn.kick.com/clip/seg-6.ts`;
 
   it("passes through master playlists unchanged (no EXTINF)", () => {
     const LoaderClass = createKickClipPlaylistLoader();
-    const loader = new LoaderClass({} as any);
+    const loader = new LoaderClass({} as HlsConfig);
 
     const originalOnSuccess = vi.fn();
-    const context = { url: "https://kick.com/clip/master.m3u8" } as any;
-    const callbacks = { onSuccess: originalOnSuccess } as any;
+    const context = { url: "https://kick.com/clip/master.m3u8" } as KickContext;
+    const callbacks = makeCallbacks(originalOnSuccess);
 
-    loader.load(context, {} as any, callbacks);
+    loader.load(context, {} as LoaderConfiguration, callbacks);
 
     const passedCallbacks = mockSuperLoad.mock.calls[0][2];
 
@@ -233,13 +241,13 @@ https://cdn.kick.com/clip/720p.m3u8`;
 
   it("passes through non-string response data", () => {
     const LoaderClass = createKickClipPlaylistLoader();
-    const loader = new LoaderClass({} as any);
+    const loader = new LoaderClass({} as HlsConfig);
 
     const originalOnSuccess = vi.fn();
-    const context = { url: "https://kick.com/clip/abc.m3u8" } as any;
-    const callbacks = { onSuccess: originalOnSuccess } as any;
+    const context = { url: "https://kick.com/clip/abc.m3u8" } as KickContext;
+    const callbacks = makeCallbacks(originalOnSuccess);
 
-    loader.load(context, {} as any, callbacks);
+    loader.load(context, {} as LoaderConfiguration, callbacks);
 
     const passedCallbacks = mockSuperLoad.mock.calls[0][2];
 
@@ -251,13 +259,13 @@ https://cdn.kick.com/clip/720p.m3u8`;
 
   it("handles playlist rewrite error gracefully", () => {
     const LoaderClass = createKickClipPlaylistLoader();
-    const loader = new LoaderClass({} as any);
+    const loader = new LoaderClass({} as HlsConfig);
 
     const originalOnSuccess = vi.fn();
-    const context = { url: "https://kick.com/clip/abc.m3u8" } as any;
-    const callbacks = { onSuccess: originalOnSuccess } as any;
+    const context = { url: "https://kick.com/clip/abc.m3u8" } as KickContext;
+    const callbacks = makeCallbacks(originalOnSuccess);
 
-    loader.load(context, {} as any, callbacks);
+    loader.load(context, {} as LoaderConfiguration, callbacks);
 
     const passedCallbacks = mockSuperLoad.mock.calls[0][2];
 
@@ -274,13 +282,13 @@ https://cdn.kick.com/clip/720p.m3u8`;
 
   it("handles per-segment tags between EXTINF and URI", () => {
     const LoaderClass = createKickClipPlaylistLoader();
-    const loader = new LoaderClass({} as any);
+    const loader = new LoaderClass({} as HlsConfig);
 
     const originalOnSuccess = vi.fn();
-    const context = { url: "https://kick.com/clip/abc.m3u8" } as any;
-    const callbacks = { onSuccess: originalOnSuccess } as any;
+    const context = { url: "https://kick.com/clip/abc.m3u8" } as KickContext;
+    const callbacks = makeCallbacks(originalOnSuccess);
 
-    loader.load(context, {} as any, callbacks);
+    loader.load(context, {} as LoaderConfiguration, callbacks);
 
     const passedCallbacks = mockSuperLoad.mock.calls[0][2];
 

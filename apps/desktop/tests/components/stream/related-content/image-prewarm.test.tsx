@@ -76,11 +76,17 @@ describe("RelatedContent image prewarm", () => {
     const video = {
       id: "v-warm",
       title: "Warm video",
+      duration: "1:00",
+      views: "10",
+      date: "2026-08-21T00:00:00.000Z",
       thumbnailUrl: "https://cdn.test/video.jpg",
     };
     const clip = {
       id: "c-warm",
       title: "Warm clip",
+      duration: "0:30",
+      views: "20",
+      date: "2026-08-21T00:00:00.000Z",
       thumbnailUrl: "https://cdn.test/clip.jpg",
     };
     mocks.videos.mockResolvedValue({ success: true, data: [video] });

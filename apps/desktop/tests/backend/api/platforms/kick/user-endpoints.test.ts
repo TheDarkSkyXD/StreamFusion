@@ -39,6 +39,7 @@ vi.mock("@/backend/api/unified/platform-health", () => ({
 import {
   getChannelUserState,
   getPublicChannelUserProfile,
+  getPublicChannelUserProfiles,
   getUser,
   getUsersById,
 } from "@/backend/api/platforms/kick/endpoints/user-endpoints";
@@ -62,13 +63,20 @@ describe("user-endpoints", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
   describe("getUser", () => {
     it("delegates to kickAuthService.fetchCurrentUser", async () => {
-      const mockUser = { id: 1, username: "TestUser" };
-      vi.mocked(kickAuthService.fetchCurrentUser).mockResolvedValueOnce(mockUser as any);
+      const mockUser = {
+        id: 1,
+        username: "TestUser",
+        slug: "testuser",
+        profilePic: "",
+        verified: false,
+      };
+      vi.mocked(kickAuthService.fetchCurrentUser).mockResolvedValueOnce(mockUser);
 
       const result = await getUser();
 
@@ -240,7 +248,138 @@ describe("user-endpoints", () => {
     });
   });
 
+  // Guards: explicit null following_since survives normalization distinctly from absent or malformed relationship data.
   describe("getPublicChannelUserProfile", () => {
+    it("reuses one hidden window per 25-profile chunk", async () => {
+      electronMocks.executeJavaScript.mockImplementation(async (script: string) => {
+        const slugs = [...script.matchAll(/channel-(\d+)/g)].map((match) => match[0]);
+        return JSON.stringify(
+          [...new Set(slugs)].map((slug) => ({
+            channelSlug: slug,
+            payload: {
+              id: 123,
+              slug: "viewer",
+              username: "Viewer",
+              following_since: null,
+            },
+          }))
+        );
+      });
+
+      const result = await getPublicChannelUserProfiles(
+        Array.from({ length: 30 }, (_, index) => ({
+          channelSlug: `channel-${index}`,
+          username: "viewer",
+        }))
+      );
+
+      expect(result).toHaveLength(30);
+      expect(electronMocks.loadURL).toHaveBeenCalledTimes(2);
+      expect(electronMocks.executeJavaScript).toHaveBeenCalledTimes(2);
+      expect(electronMocks.releaseSlot).toHaveBeenCalledTimes(2);
+    });
+
+    it("limits in-window profile requests to two at a time", async () => {
+      let active = 0;
+      let peak = 0;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          active += 1;
+          peak = Math.max(peak, active);
+          await Promise.resolve();
+          active -= 1;
+          return new Response(
+            JSON.stringify({
+              id: 123,
+              slug: "viewer",
+              username: "Viewer",
+              following_since: null,
+            })
+          );
+        })
+      );
+      electronMocks.executeJavaScript.mockImplementation((script: string) =>
+        globalThis.eval(script)
+      );
+
+      await getPublicChannelUserProfiles(
+        Array.from({ length: 12 }, (_, index) => ({
+          channelSlug: `channel-${index}`,
+          username: "viewer",
+        }))
+      );
+
+      expect(peak).toBeGreaterThan(1);
+      expect(peak).toBeLessThanOrEqual(2);
+    });
+
+    it("honors Retry-After before retrying a rate-limited profile request", async () => {
+      vi.useFakeTimers();
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(new Response(null, { status: 429, headers: { "Retry-After": "2" } }))
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              id: 123,
+              slug: "viewer",
+              username: "Viewer",
+              following_since: "2026-01-01T00:00:00Z",
+            })
+          )
+        );
+      vi.stubGlobal("fetch", fetchMock);
+      electronMocks.executeJavaScript.mockImplementation((script: string) =>
+        globalThis.eval(script)
+      );
+
+      const pending = getPublicChannelUserProfiles([
+        { channelSlug: "streamer", username: "viewer" },
+      ]);
+      await vi.advanceTimersByTimeAsync(1_999);
+      expect(fetchMock).toHaveBeenCalledOnce();
+      await vi.advanceTimersByTimeAsync(1);
+
+      await expect(pending).resolves.toEqual([
+        {
+          channelSlug: "streamer",
+          profile: expect.objectContaining({ followingSince: "2026-01-01T00:00:00Z" }),
+        },
+      ]);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("releases the shared window slot when batch navigation never settles", async () => {
+      vi.useFakeTimers();
+      electronMocks.loadURL.mockReturnValue(new Promise(() => {}));
+
+      const pending = getPublicChannelUserProfiles([
+        { channelSlug: "streamer", username: "viewer" },
+      ]);
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      await expect(pending).resolves.toEqual([{ channelSlug: "streamer", profile: null }]);
+      expect(electronMocks.destroy).toHaveBeenCalledOnce();
+      expect(electronMocks.releaseSlot).toHaveBeenCalledOnce();
+      vi.useRealTimers();
+    });
+
+    it("releases the shared window slot when batch execution never settles", async () => {
+      vi.useFakeTimers();
+      electronMocks.executeJavaScript.mockReturnValue(new Promise(() => {}));
+
+      const pending = getPublicChannelUserProfiles([
+        { channelSlug: "streamer", username: "viewer" },
+      ]);
+      await vi.advanceTimersByTimeAsync(75_000);
+
+      await expect(pending).resolves.toEqual([{ channelSlug: "streamer", profile: null }]);
+      expect(electronMocks.destroy).toHaveBeenCalledOnce();
+      expect(electronMocks.releaseSlot).toHaveBeenCalledOnce();
+      vi.useRealTimers();
+    });
+
     it("rejects first-party schema drift instead of inventing identity from the request", async () => {
       electronMocks.executeJavaScript.mockResolvedValue(
         JSON.stringify({
@@ -278,6 +417,32 @@ describe("user-endpoints", () => {
       });
       await expect(getPublicChannelUserProfile("streamer", "alice")).resolves.toMatchObject({
         followingSince: "2024-05-01T12:30:00Z",
+      });
+    });
+
+    it("preserves an explicit null follow relationship distinctly from a missing field", async () => {
+      electronMocks.executeJavaScript
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            id: 123,
+            slug: "alice",
+            username: "Alice",
+            following_since: null,
+          })
+        )
+        .mockResolvedValueOnce(
+          JSON.stringify({
+            id: 123,
+            slug: "alice",
+            username: "Alice",
+          })
+        );
+
+      await expect(getPublicChannelUserProfile("streamer", "alice")).resolves.toMatchObject({
+        followingSince: null,
+      });
+      await expect(getPublicChannelUserProfile("streamer", "alice")).resolves.toMatchObject({
+        followingSince: undefined,
       });
     });
   });

@@ -2,18 +2,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockLoadURL = vi.fn<(...args: unknown[]) => Promise<void>>();
 const mockExecuteJavaScript = vi.fn<(...args: unknown[]) => Promise<string>>();
+const mockWebContentsOnce = vi.fn<(event: string, listener: () => void) => void>();
+const mockWebContentsRemoveListener = vi.fn<(event: string, listener: () => void) => void>();
 const mockDestroy = vi.fn();
 const mockIsDestroyed = vi.fn(() => false);
+const mockSessionFetch = vi.fn();
 
 vi.mock("electron", () => ({
   BrowserWindow: function BrowserWindow() {
     return {
       loadURL: (...args: unknown[]) => mockLoadURL(...args),
-      webContents: { executeJavaScript: (...args: unknown[]) => mockExecuteJavaScript(...args) },
+      webContents: {
+        executeJavaScript: (...args: unknown[]) => mockExecuteJavaScript(...args),
+        once: (event: string, listener: () => void) => mockWebContentsOnce(event, listener),
+        removeListener: (event: string, listener: () => void) =>
+          mockWebContentsRemoveListener(event, listener),
+      },
       destroy: () => mockDestroy(),
       isDestroyed: () => mockIsDestroyed(),
       title: "",
     };
+  },
+  session: {
+    fromPartition: vi.fn(() => ({ fetch: mockSessionFetch })),
   },
 }));
 
@@ -31,20 +42,42 @@ vi.mock("@/backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
 import { getKickChannelHistory } from "@/backend/api/platforms/kick/endpoints/chat-endpoints";
 import { getPlatformHealth, isPlatformHealthy } from "@/backend/api/unified/platform-health";
 
-// Guards: Kick history must be fetched from a normal channel page with its cookie-bearing session because direct API navigation is rejected by Cloudflare.
+// Guards: Kick history uses a direct cookie-bearing session request first, then a normal channel page when Kick rejects the lightweight request.
 // Guards: a non-successful in-page history response must return unavailable instead of being mistaken for empty history.
+// Guards: history fetching must begin at DOM readiness because Kick's SPA can remain in a loading state past the navigation deadline.
 describe("chat-endpoints -- getKickChannelHistory", () => {
   beforeEach(() => {
     mockLoadURL.mockReset().mockResolvedValue(undefined);
     mockExecuteJavaScript.mockReset();
+    mockWebContentsOnce.mockReset();
+    mockWebContentsRemoveListener.mockReset();
     mockDestroy.mockReset();
     mockIsDestroyed.mockReset().mockReturnValue(false);
+    mockSessionFetch.mockReset().mockRejectedValue(new Error("direct session blocked"));
     vi.mocked(getPlatformHealth).mockReturnValue("healthy");
     vi.mocked(isPlatformHealthy).mockReturnValue(true);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("returns direct session history without constructing a hidden channel window", async () => {
+    mockSessionFetch.mockResolvedValue(
+      new Response(JSON.stringify({ data: { messages: [], pinned_message: null } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+
+    const result = await getKickChannelHistory("12345", "xqc");
+
+    expect(result).toEqual({ messages: [], pinnedMessage: null });
+    expect(mockSessionFetch).toHaveBeenCalledWith(
+      "https://kick.com/api/v2/channels/12345/messages",
+      expect.objectContaining({ credentials: "include" })
+    );
+    expect(mockLoadURL).not.toHaveBeenCalled();
   });
 
   it("loads the channel page before fetching history from Kick's web API with credentials", async () => {
@@ -57,8 +90,25 @@ describe("chat-endpoints -- getKickChannelHistory", () => {
     expect(result).toEqual({ messages: [], pinnedMessage: null });
     expect(mockLoadURL).toHaveBeenCalledWith("https://kick.com/xqc");
     expect(mockExecuteJavaScript).toHaveBeenCalledWith(
-      expect.stringMatching(/fetch\([^]*\/api\/v2\/channels\/12345\/messages[^]*credentials:\s*["']include["']/)
+      expect.stringMatching(
+        /fetch\([^]*\/api\/v2\/channels\/12345\/messages[^]*credentials:\s*["']include["']/
+      )
     );
+  });
+
+  it("fetches history when the channel DOM is ready even if the full page load stays pending", async () => {
+    mockLoadURL.mockReturnValueOnce(new Promise<void>(() => undefined));
+    mockWebContentsOnce.mockImplementationOnce((event, listener) => {
+      if (event === "dom-ready") queueMicrotask(listener);
+    });
+    mockExecuteJavaScript.mockResolvedValueOnce(
+      JSON.stringify({ ok: true, body: { data: { messages: [] } } })
+    );
+
+    const result = await getKickChannelHistory("12345", "xqc");
+
+    expect(result).toEqual({ messages: [], pinnedMessage: null });
+    expect(mockExecuteJavaScript).toHaveBeenCalledTimes(1);
   });
 
   it("returns null when the credentialed history request is not successful", async () => {
@@ -181,9 +231,7 @@ describe("chat-endpoints -- getKickChannelHistory", () => {
   });
 
   it("destroys the BrowserWindow in the finally block", async () => {
-    mockExecuteJavaScript.mockResolvedValueOnce(
-      JSON.stringify({ data: { messages: [] } })
-    );
+    mockExecuteJavaScript.mockResolvedValueOnce(JSON.stringify({ data: { messages: [] } }));
 
     await getKickChannelHistory("12345");
 
@@ -192,9 +240,7 @@ describe("chat-endpoints -- getKickChannelHistory", () => {
 
   it("does not throw when window is already destroyed in finally", async () => {
     mockIsDestroyed.mockReturnValue(true);
-    mockExecuteJavaScript.mockResolvedValueOnce(
-      JSON.stringify({ data: { messages: [] } })
-    );
+    mockExecuteJavaScript.mockResolvedValueOnce(JSON.stringify({ data: { messages: [] } }));
 
     await expect(getKickChannelHistory("12345")).resolves.not.toThrow();
   });
@@ -210,9 +256,7 @@ describe("chat-endpoints -- getKickChannelHistory", () => {
   });
 
   it("encodes the channel id in the web history path", async () => {
-    mockExecuteJavaScript.mockResolvedValueOnce(
-      JSON.stringify({ data: { messages: [] } })
-    );
+    mockExecuteJavaScript.mockResolvedValueOnce(JSON.stringify({ data: { messages: [] } }));
 
     await getKickChannelHistory("123/456", "xqc");
 

@@ -90,9 +90,13 @@ async function fetchPlaybackUrlFromBackend(
   if (!result.success || !result.data) {
     throw new Error(result.error || "Failed to get stream playback URL");
   }
+  const format = result.data.format;
+  if (format !== "hls" && format !== "dash" && format !== "mp4") {
+    throw new Error("Backend returned an unsupported playback format");
+  }
   return {
     url: result.data.url,
-    format: result.data.format as "hls" | "dash" | "mp4",
+    format,
   };
 }
 

@@ -1,14 +1,14 @@
 import { logger } from "@/backend/logging/logger";
+import { z } from "zod";
 import type { TwitchUser } from "../../../../../shared/auth-types";
 import type { UnifiedChannel } from "../../../unified/platform-types";
 import type { TwitchRequestor } from "../twitch-requestor";
-import type {
-  PaginatedResult,
-  PaginationOptions,
-  TwitchApiFollowedChannel,
-  TwitchApiResponse,
-  TwitchApiUser,
-} from "../twitch-types";
+import {
+  helixResponseSchema,
+  twitchFollowedChannelSchema,
+  twitchUserSchema,
+} from "../twitch-helix-schemas";
+import type { PaginatedResult, PaginationOptions } from "../twitch-types";
 
 import { getChannelsById } from "./channel-endpoints";
 
@@ -17,7 +17,7 @@ import { getChannelsById } from "./channel-endpoints";
  */
 export async function getUser(client: TwitchRequestor): Promise<TwitchUser | null> {
   try {
-    const data = await client.request<TwitchApiResponse<TwitchApiUser>>("/users");
+    const data = helixResponseSchema(twitchUserSchema).parse(await client.request("/users"));
     if (data.data && data.data.length > 0) {
       const apiUser = data.data[0];
       return {
@@ -52,7 +52,9 @@ export async function getUsersById(client: TwitchRequestor, ids: string[]): Prom
   }
 
   const queryString = ids.map((id) => `id=${id}`).join("&");
-  const data = await client.request<TwitchApiResponse<TwitchApiUser>>(`/users?${queryString}`);
+  const data = helixResponseSchema(twitchUserSchema).parse(
+    await client.request(`/users?${queryString}`)
+  );
 
   return data.data.map((u) => ({
     id: u.id,
@@ -78,7 +80,9 @@ export async function getUsersByLogin(
   }
 
   const queryString = logins.map((login) => `login=${login}`).join("&");
-  const data = await client.request<TwitchApiResponse<TwitchApiUser>>(`/users?${queryString}`);
+  const data = helixResponseSchema(twitchUserSchema).parse(
+    await client.request(`/users?${queryString}`)
+  );
 
   return data.data.map((u) => ({
     id: u.id,
@@ -112,13 +116,27 @@ export async function getFollowedChannels(
     params.set("after", options.after);
   }
 
-  const data = await client.request<TwitchApiResponse<TwitchApiFollowedChannel>>(
-    `/channels/followed?${params.toString()}`
+  const data = helixResponseSchema(twitchFollowedChannelSchema).parse(
+    await client.request(`/channels/followed?${params.toString()}`)
   );
 
   // Get full channel info for each followed channel
   const channelIds = data.data.map((f) => f.broadcaster_id);
-  const channels = await getChannelsById(client, channelIds);
+  const enrichedChannels = await getChannelsById(client, channelIds);
+  const enrichedById = new Map(enrichedChannels.map((channel) => [channel.id, channel]));
+  const channels = data.data.map(
+    (follow): UnifiedChannel =>
+      enrichedById.get(follow.broadcaster_id) ?? {
+        id: follow.broadcaster_id,
+        platform: "twitch",
+        username: follow.broadcaster_login,
+        displayName: follow.broadcaster_name,
+        avatarUrl: "",
+        isLive: false,
+        isVerified: false,
+        isPartner: false,
+      }
+  );
 
   return {
     data: channels,
@@ -130,7 +148,9 @@ export async function getFollowedChannels(
 /**
  * Get all followed channels (handles pagination automatically)
  */
-export async function getAllFollowedChannels(client: TwitchRequestor): Promise<UnifiedChannel[]> {
+const followedChannelScans = new WeakMap<TwitchRequestor, Promise<UnifiedChannel[]>>();
+
+async function fetchAllFollowedChannels(client: TwitchRequestor): Promise<UnifiedChannel[]> {
   const allChannels: UnifiedChannel[] = [];
   let cursor: string | undefined;
 
@@ -141,6 +161,20 @@ export async function getAllFollowedChannels(client: TwitchRequestor): Promise<U
   } while (cursor);
 
   return allChannels;
+}
+
+export function getAllFollowedChannels(client: TwitchRequestor): Promise<UnifiedChannel[]> {
+  const inFlight = followedChannelScans.get(client);
+  if (inFlight) return inFlight;
+
+  const scan = fetchAllFollowedChannels(client);
+  const trackedScan = scan.finally(() => {
+    if (followedChannelScans.get(client) === trackedScan) {
+      followedChannelScans.delete(client);
+    }
+  });
+  followedChannelScans.set(client, trackedScan);
+  return trackedScan;
 }
 
 /**
@@ -155,18 +189,30 @@ async function getFollowerCount(
   broadcasterId: string
 ): Promise<number | null> {
   try {
-    const data = await client.request<TwitchApiResponse<unknown>>(
-      `/channels/followers?broadcaster_id=${broadcasterId}&first=1`
+    const data = helixResponseSchema(z.unknown()).parse(
+      await client.request(`/channels/followers?broadcaster_id=${broadcasterId}&first=1`)
     );
     return data.total ?? 0;
   } catch (error: unknown) {
     // Check for auth failures - return null to distinguish from 0 followers
-    const err = error as { status?: number; response?: { status?: number } };
+    const status =
+      typeof error === "object" && error !== null && "status" in error
+        ? error.status
+        : undefined;
+    const responseStatus =
+      typeof error === "object" &&
+      error !== null &&
+      "response" in error &&
+      typeof error.response === "object" &&
+      error.response !== null &&
+      "status" in error.response
+        ? error.response.status
+        : undefined;
     if (
-      err.status === 401 ||
-      err.status === 403 ||
-      err.response?.status === 401 ||
-      err.response?.status === 403
+      status === 401 ||
+      status === 403 ||
+      responseStatus === 401 ||
+      responseStatus === 403
     ) {
       logger.debug("Twitch:Endpoints:User", "getFollowerCount auth failure", {
         broadcasterId,

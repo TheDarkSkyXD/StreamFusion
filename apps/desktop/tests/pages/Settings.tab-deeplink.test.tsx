@@ -1,5 +1,6 @@
-import { within } from "@testing-library/react";
+import { act, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type React from "react";
 
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_CHAT_PREFERENCES } from "@/shared/auth-types";
 
@@ -17,7 +18,10 @@ const routerState = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, search, onClick, children, ...props }: any) => (
+  Link: ({ to, search, onClick, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+    to?: string;
+    search?: Record<string, unknown>;
+  }) => (
     <a
       href={to}
       data-search={JSON.stringify(search)}
@@ -117,19 +121,30 @@ const NAVIGATION_GROUPS = [
   },
   {
     name: "System & Support",
-    destinations: ["Updates", "Logs", "Report Bug", "About"],
+    destinations: ["Updates", "Diagnostics", "About"],
   },
 ] as const;
 
 function installDevEnvironment() {
   const api = installElectronAPIMock();
-  api.env.get = vi.fn(async () => ({
+  const get = vi.fn(async () => ({
     isDev: true,
     platform: "win32" as NodeJS.Platform,
     appVersion: "1.0.0-test",
     electronVersion: "35.0.0",
     nodeVersion: "20.0.0",
   }));
+  api.env.get = get;
+  return get;
+}
+
+let environmentGet: ReturnType<typeof installDevEnvironment>;
+
+async function settleEnvironmentProbe() {
+  await waitFor(() => expect(environmentGet).toHaveBeenCalled());
+  await act(async () => {
+    await environmentGet.mock.results[0].value;
+  });
 }
 
 function getRequestedSearch(call: unknown): Record<string, unknown> | undefined {
@@ -151,17 +166,15 @@ describe("SettingsPage navigation", () => {
     routerState.search = { tab: "playback" };
     routerState.navigate.mockReset();
     updatePreferences.mockReset();
-    installDevEnvironment();
+    environmentGet = installDevEnvironment();
   });
 
   it("groups every destination in an accessible, URL-backed navigation", async () => {
     const user = userEvent.setup();
     renderWithProviders(<SettingsPage />);
+    await settleEnvironmentProbe();
 
     const navigation = screen.getByRole("navigation", { name: "Settings navigation" });
-    await waitFor(() => {
-      expect(within(navigation).getByRole("link", { name: /^Logs\b/i })).toBeInTheDocument();
-    });
 
     for (const group of NAVIGATION_GROUPS) {
       expect(within(navigation).getByRole("heading", { name: group.name })).toBeInTheDocument();
@@ -194,11 +207,9 @@ describe("SettingsPage navigation", () => {
     routerState.search = { tab: "chat" };
 
     renderWithProviders(<SettingsPage />);
+    await settleEnvironmentProbe();
 
     const navigation = screen.getByRole("navigation", { name: "Settings navigation" });
-    await waitFor(() => {
-      expect(within(navigation).getByRole("link", { name: /^Logs\b/i })).toBeInTheDocument();
-    });
     expect(within(navigation).getByRole("link", { name: /^Chat\b/i })).toHaveAttribute(
       "aria-current",
       "page"
@@ -211,6 +222,7 @@ describe("SettingsPage navigation", () => {
   it("lets a later URL history change override an optimistic selection", async () => {
     const user = userEvent.setup();
     const { rerender } = renderWithProviders(<SettingsPage />);
+    await settleEnvironmentProbe();
     const navigation = screen.getByRole("navigation", { name: "Settings navigation" });
 
     await user.click(within(navigation).getByRole("link", { name: /^Chat\b/i }));

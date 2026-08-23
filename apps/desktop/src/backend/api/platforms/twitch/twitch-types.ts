@@ -254,7 +254,7 @@ export interface TwitchGqlResponse<T> {
     operationName: string;
     requestID: string;
   };
-  errors?: any[];
+  errors?: Array<{ message?: string; path?: Array<string | number>; extensions?: unknown }>;
 }
 
 export interface TwitchPlaybackAccessTokenData {

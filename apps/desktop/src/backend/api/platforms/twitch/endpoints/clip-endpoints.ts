@@ -1,10 +1,6 @@
 import type { TwitchRequestor } from "../twitch-requestor";
-import type {
-  PaginatedResult,
-  PaginationOptions,
-  TwitchApiClip,
-  TwitchApiResponse,
-} from "../twitch-types";
+import { helixResponseSchema, twitchClipSchema } from "../twitch-helix-schemas";
+import type { PaginatedResult, PaginationOptions, TwitchApiClip } from "../twitch-types";
 
 /**
  * Get clips by broadcaster ID
@@ -32,8 +28,8 @@ export async function getClipsByBroadcaster(
     params.set("ended_at", options.ended_at);
   }
 
-  const data = await client.request<TwitchApiResponse<TwitchApiClip>>(
-    `/clips?${params.toString()}`
+  const data = helixResponseSchema(twitchClipSchema).parse(
+    await client.request(`/clips?${params.toString()}`)
   );
 
   const first = options.first || 20;
@@ -60,8 +56,8 @@ export async function getClipsByGame(
   if (options.started_at) params.set("started_at", options.started_at);
   if (options.ended_at) params.set("ended_at", options.ended_at);
 
-  const data = await client.request<TwitchApiResponse<TwitchApiClip>>(
-    `/clips?${params.toString()}`
+  const data = helixResponseSchema(twitchClipSchema).parse(
+    await client.request(`/clips?${params.toString()}`)
   );
   const first = options.first || 20;
 

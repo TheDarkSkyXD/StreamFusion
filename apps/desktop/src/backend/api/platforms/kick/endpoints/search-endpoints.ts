@@ -1,6 +1,12 @@
 import { logger } from "@/backend/logging/logger";
 import { compactSearchIdentity } from "@/search/search-normalization";
-import type { UnifiedChannel, UnifiedStream } from "../../../unified/platform-types";
+import type {
+  UnifiedCategory,
+  UnifiedChannel,
+  UnifiedClip,
+  UnifiedStream,
+  UnifiedVideo,
+} from "../../../unified/platform-types";
 import type { KickRequestor } from "../kick-requestor";
 import type { PaginatedResult, PaginationOptions } from "../kick-types";
 
@@ -48,7 +54,26 @@ function streamToChannel(stream: UnifiedStream): UnifiedChannel {
   };
 }
 
-async function fetchPublicSearchPayload(searchQuery: string): Promise<any | null> {
+type PublicSearchRecord = Record<string, unknown>;
+
+function isRecord(value: unknown): value is PublicSearchRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringField(record: PublicSearchRecord, ...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.length > 0) return value;
+    if (typeof value === "number") return String(value);
+  }
+  return undefined;
+}
+
+function booleanField(record: PublicSearchRecord, ...keys: string[]): boolean {
+  return keys.some((key) => record[key] === true);
+}
+
+async function fetchPublicSearchPayload(searchQuery: string): Promise<unknown | null> {
   const searchEndpoints =
     searchQuery.length < 3
       ? [
@@ -75,8 +100,11 @@ async function fetchPublicSearchPayload(searchQuery: string): Promise<any | null
       if (res.ok) {
         const body = await res.text();
         try {
-          const parsed = JSON.parse(body);
-          if (parsed && (Array.isArray(parsed) || parsed.channels || parsed.data)) {
+          const parsed: unknown = JSON.parse(body);
+          if (
+            Array.isArray(parsed) ||
+            (isRecord(parsed) && (Array.isArray(parsed.channels) || Array.isArray(parsed.data)))
+          ) {
             logger.debug("Kick:Endpoints:Search", "Step 2: Got results from endpoint", {
               searchUrl,
             });
@@ -106,16 +134,21 @@ async function fetchPublicSearchPayload(searchQuery: string): Promise<any | null
   return null;
 }
 
-function publicSearchChannels(payload: any): any[] {
-  if (Array.isArray(payload)) return payload;
-  if (payload?.channels && Array.isArray(payload.channels)) return payload.channels;
-  if (payload?.data && Array.isArray(payload.data)) return payload.data;
-  if (payload) {
+function publicSearchChannels(payload: unknown): PublicSearchRecord[] {
+  const candidates = Array.isArray(payload)
+    ? payload
+    : isRecord(payload) && Array.isArray(payload.channels)
+      ? payload.channels
+      : isRecord(payload) && Array.isArray(payload.data)
+        ? payload.data
+        : [];
+  const channels = candidates.filter(isRecord);
+  if (payload !== null && channels.length === 0 && isRecord(payload)) {
     logger.debug("Kick:Endpoints:Search", "Step 2: Unknown response structure", {
       keys: Object.keys(payload),
     });
   }
-  return [];
+  return channels;
 }
 
 /**
@@ -234,25 +267,25 @@ export async function searchChannels(
 
         for (const item of channelsArray) {
           // Try different possible ID and slug fields
-          const channelId = (item.id || item.user_id || item.channel_id)?.toString();
-          const channelSlug = item.slug || item.channel_slug || item.username;
+          const channelId = stringField(item, "id", "user_id", "channel_id");
+          const channelSlug = stringField(item, "slug", "channel_slug", "username");
 
           // The user object may contain the profile picture
-          const userObj = item.user || {};
+          const userObj = isRecord(item.user) ? item.user : {};
 
           // Try multiple possible avatar field names - Kick uses various formats
           const avatarUrl =
-            item.profile_pic ||
-            item.profile_picture ||
-            item.profilePic ||
-            item.avatar ||
-            userObj.profile_pic ||
-            userObj.profile_picture ||
-            userObj.profilePic ||
-            userObj.profile_image ||
-            userObj.avatar ||
-            item.thumbnail?.url ||
-            item.thumbnail_url ||
+            stringField(item, "profile_pic", "profile_picture", "profilePic", "avatar") ||
+            stringField(
+              userObj,
+              "profile_pic",
+              "profile_picture",
+              "profilePic",
+              "profile_image",
+              "avatar"
+            ) ||
+            (isRecord(item.thumbnail) ? stringField(item.thumbnail, "url") : undefined) ||
+            stringField(item, "thumbnail_url") ||
             "";
 
           if (channelSlug) {
@@ -271,10 +304,9 @@ export async function searchChannels(
               platform: "kick",
               username: channelSlug,
               displayName:
-                item.username ||
-                userObj.username ||
-                userObj.name ||
-                item.display_name ||
+                stringField(item, "username") ||
+                stringField(userObj, "username", "name") ||
+                stringField(item, "display_name") ||
                 channelSlug,
               avatarUrl,
               bannerUrl: "",
@@ -284,15 +316,16 @@ export async function searchChannels(
               // with the merge-keeps-existing rule that meant Step 2 silently
               // clobbered Step 4's isLive: true for currently-live channels. The
               // search API agrees with /livestreams in practice, so we read it.
-              isLive: typeof item.isLive === "boolean" ? item.isLive : false,
-              isVerified:
-                item.verified ||
-                item.is_verified ||
-                item.partner ||
-                item.is_partner ||
-                item.isPartner ||
-                false,
-              isPartner: item.partner || item.is_partner || item.isPartner || false,
+              isLive: item.isLive === true,
+              isVerified: booleanField(
+                item,
+                "verified",
+                "is_verified",
+                "partner",
+                "is_partner",
+                "isPartner"
+              ),
+              isPartner: booleanField(item, "partner", "is_partner", "isPartner"),
               accountStatus: item.is_banned === true ? "suspended" : "active",
               followerCount: rawFollowers,
             };
@@ -346,52 +379,61 @@ export async function searchChannels(
     isContinuationPage || results.size === 0 || (_options.liveOnly && !hasLiveCandidate);
   if (shouldSearchLiveDirectory) {
     try {
-    logger.debug("Kick:Endpoints:Search", "Step 4: Checking live stream pages for fuzzy matches", {
-      cursor: cursorIn,
-      requestedLimit,
-    });
+      logger.debug(
+        "Kick:Endpoints:Search",
+        "Step 4: Checking live stream pages for fuzzy matches",
+        {
+          cursor: cursorIn,
+          requestedLimit,
+        }
+      );
 
-    let cursor = cursorIn;
-    let matchesFound = 0;
+      let cursor = cursorIn;
+      let matchesFound = 0;
 
-    for (let page = 0; page < LIVE_SEARCH_MAX_PAGES_PER_REQUEST; page++) {
-      const streamPage = await getPublicTopStreams({
-        limit: LIVE_SEARCH_PAGE_SIZE,
-        cursor,
-      });
-
-      logger.debug("Kick:Endpoints:Search", "Step 4: Live stream page to filter", {
-        page,
-        count: streamPage.data.length,
-        cursor,
-        nextCursor: streamPage.cursor,
-      });
-
-      for (const stream of streamPage.data) {
-        if (!streamMatchesQuery(stream, normalizedQuery)) continue;
-
-        const key = stream.channelName.toLowerCase();
-        logger.debug("Kick:Endpoints:Search", "Step 4: Found fuzzy match in live streams", {
-          channelName: stream.channelName,
+      for (let page = 0; page < LIVE_SEARCH_MAX_PAGES_PER_REQUEST; page++) {
+        const streamPage = await getPublicTopStreams({
+          limit: LIVE_SEARCH_PAGE_SIZE,
+          cursor,
         });
-        results.set(key, mergeChannel(results.get(key), streamToChannel(stream), true));
-        matchesFound++;
+
+        logger.debug("Kick:Endpoints:Search", "Step 4: Live stream page to filter", {
+          page,
+          count: streamPage.data.length,
+          cursor,
+          nextCursor: streamPage.cursor,
+        });
+
+        for (const stream of streamPage.data) {
+          if (!streamMatchesQuery(stream, normalizedQuery)) continue;
+
+          const key = stream.channelName.toLowerCase();
+          logger.debug("Kick:Endpoints:Search", "Step 4: Found fuzzy match in live streams", {
+            channelName: stream.channelName,
+          });
+          results.set(key, mergeChannel(results.get(key), streamToChannel(stream), true));
+          matchesFound++;
+        }
+
+        if (!streamPage.cursor || streamPage.cursor === cursor) {
+          nextCursor = undefined;
+          break;
+        }
+
+        nextCursor = streamPage.cursor;
+        cursor = streamPage.cursor;
+
+        if (matchesFound >= requestedLimit) break;
       }
-
-      if (!streamPage.cursor || streamPage.cursor === cursor) {
-        nextCursor = undefined;
-        break;
-      }
-
-      nextCursor = streamPage.cursor;
-      cursor = streamPage.cursor;
-
-      if (matchesFound >= requestedLimit) break;
-    }
     } catch (e) {
-      logger.warn("Kick:Endpoints:Search", "Failed to fetch live stream pages for search fallback", {
-        error: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
-      });
+      logger.warn(
+        "Kick:Endpoints:Search",
+        "Failed to fetch live stream pages for search fallback",
+        {
+          error:
+            e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
+        }
+      );
     }
   }
 
@@ -417,7 +459,13 @@ export async function search(
   client: KickRequestor,
   query: string,
   options: { channelSeeds?: UnifiedChannel[]; signal?: AbortSignal } = {}
-): Promise<{ channels: any[]; categories: any[]; streams: any[]; videos: any[]; clips: any[] }> {
+): Promise<{
+  channels: UnifiedChannel[];
+  categories: UnifiedCategory[];
+  streams: UnifiedStream[];
+  videos: UnifiedVideo[];
+  clips: UnifiedClip[];
+}> {
   const [categoriesResult, channelsResult] = await Promise.all([
     searchCategories(client, query, { signal: options.signal }),
     options.channelSeeds

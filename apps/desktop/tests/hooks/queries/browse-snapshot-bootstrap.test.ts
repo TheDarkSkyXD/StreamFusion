@@ -427,7 +427,9 @@ describe("browse snapshot bootstrap", () => {
 
     await hydratePersistedBrowseSnapshots(client);
 
-    expect(client.getQueryData(SEARCH_KEYS.everything("corrupt type", undefined, 5))).toBeUndefined();
+    expect(
+      client.getQueryData(SEARCH_KEYS.everything("corrupt type", undefined, 5))
+    ).toBeUndefined();
   });
 
   it("rejects stale and slot-mismatched snapshots", async () => {
@@ -490,7 +492,7 @@ describe("browse snapshot bootstrap", () => {
             })
           ),
           savedAt,
-          data: { pages: [{ data: [twitchStream] }], pageParams: [undefined] },
+          data: { pages: [{ success: true, data: [twitchStream] }], pageParams: [undefined] },
         };
       }
       if (key.endsWith("category-streams:kick")) {
@@ -506,7 +508,7 @@ describe("browse snapshot bootstrap", () => {
             })
           ),
           savedAt,
-          data: { pages: [{ data: [kickStream] }], pageParams: [undefined] },
+          data: { pages: [{ success: true, data: [kickStream] }], pageParams: [undefined] },
         };
       }
       return null;
@@ -524,7 +526,7 @@ describe("browse snapshot bootstrap", () => {
         undefined,
         undefined,
       ])
-    ).toEqual({ pages: [{ data: [twitchStream] }], pageParams: [undefined] });
+    ).toEqual({ pages: [{ success: true, data: [twitchStream] }], pageParams: [undefined] });
     expect(
       client.getQueryData([
         ...STREAM_KEYS.byCategory("15", "kick"),
@@ -532,7 +534,7 @@ describe("browse snapshot bootstrap", () => {
         "Just Chatting",
         undefined,
       ])
-    ).toEqual({ pages: [{ data: [kickStream] }], pageParams: [undefined] });
+    ).toEqual({ pages: [{ success: true, data: [kickStream] }], pageParams: [undefined] });
     expect(client.getQueryState(CATEGORY_KEYS.top(undefined))?.dataUpdatedAt).toBe(0);
   });
 

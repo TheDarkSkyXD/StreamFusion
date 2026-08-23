@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import type { HistoryItem } from "@/store/history-store";
 import { useHistoryStore } from "@/store/history-store";

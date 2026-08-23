@@ -1,4 +1,6 @@
-import { type BrowserWindow, ipcMain } from "electron";
+import type { BrowserWindow } from "electron";
+
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { z } from "zod";
 
 import { logger } from "@/backend/logging/logger";
@@ -61,6 +63,7 @@ export function attachKickFollowWriteService(service: KickFollowWriteService): v
   if (!followsMainWindow) return;
 
   removeAccountWriteListener?.();
+
   removeAccountWriteListener = service.onAccountWriteChanged((event) => {
     try {
       const mainWindow = followsMainWindow;
@@ -78,18 +81,18 @@ export function registerStorageHandlers(mainWindow?: BrowserWindow): void {
 
   // ========== Generic Storage (backward compatibility) ==========
   ipcMain.handle(IPC_CHANNELS.STORE_GET, (_event, { key }: { key: string }) => {
-    return storageService.get(key as keyof typeof storageService.get);
+    return storageService.get(key);
   });
 
   ipcMain.handle(
     IPC_CHANNELS.STORE_SET,
     (_event, { key, value }: { key: string; value: unknown }) => {
-      storageService.set(key as any, value as any);
+      storageService.set(key, value);
     }
   );
 
   ipcMain.handle(IPC_CHANNELS.STORE_DELETE, (_event, { key }: { key: string }) => {
-    storageService.delete(key as any);
+    storageService.delete(key);
   });
 
   // ========== Local Follows ==========

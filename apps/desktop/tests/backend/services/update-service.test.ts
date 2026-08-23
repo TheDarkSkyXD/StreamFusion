@@ -17,6 +17,7 @@ const h = vi.hoisted(() => {
     downloadUpdate: vi.fn().mockResolvedValue(undefined),
     quitAndInstall: vi.fn(),
     autoUpdaterOn: vi.fn(),
+    setFeedURL: vi.fn(),
   };
 });
 
@@ -41,6 +42,7 @@ vi.mock("electron-updater", () => ({
     checkForUpdates: h.checkForUpdates,
     downloadUpdate: h.downloadUpdate,
     quitAndInstall: h.quitAndInstall,
+    setFeedURL: h.setFeedURL,
   },
 }));
 
@@ -97,8 +99,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("update-service auto-check scheduler", () => {
-  it("auto-check ON + daily: at most one check per day across a 3-day span", async () => {
+describe("update-service Xtra-style startup checks", () => {
+  it("checks once at startup and does not poll while the app stays open", async () => {
     const svc = await loadService({
       isPackaged: true,
       store: { autoCheckEnabled: true, checkFrequency: "daily", lastCheckAt: 0 },
@@ -114,15 +116,15 @@ describe("update-service auto-check scheduler", () => {
 
     // Crossing the 24h mark fires exactly one more check.
     vi.advanceTimersByTime(2 * HOUR);
-    expect(h.checkForUpdates).toHaveBeenCalledTimes(2);
+    expect(h.checkForUpdates).toHaveBeenCalledTimes(1);
 
     // Run out to ~3 days total: exactly one check per elapsed day, never more
     // than once within any 24h window (ticks hourly, gated on lastCheckAt).
     vi.advanceTimersByTime(3 * DAY);
-    expect(h.checkForUpdates).toHaveBeenCalledTimes(5);
+    expect(h.checkForUpdates).toHaveBeenCalledTimes(1);
   });
 
-  it("a failed auto-check restores the timestamp so the next tick retries (not blocked a full interval)", async () => {
+  it("a failed startup check restores the timestamp for the next launch", async () => {
     // The immediate due-check rejects (offline); later checks resolve.
     h.checkForUpdates.mockRejectedValueOnce(new Error("offline"));
     const svc = await loadService({
@@ -139,7 +141,8 @@ describe("update-service auto-check scheduler", () => {
     // With the bug (failed check leaves lastCheckAt advanced) the next retry
     // would wait a full 24h. With the fix it retries on the very next hourly tick.
     await vi.advanceTimersByTimeAsync(HOUR);
-    expect(h.checkForUpdates).toHaveBeenCalledTimes(2);
+    expect(h.checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(h.state.store.lastCheckAt).toBe(0);
   });
 
   it("auto-check OFF: no scheduled checks fire", async () => {
@@ -166,7 +169,7 @@ describe("update-service auto-check scheduler", () => {
     expect(h.checkForUpdates).not.toHaveBeenCalled();
   });
 
-  it("frequency change reschedules without a restart", async () => {
+  it("frequency changes apply on the next startup", async () => {
     const svc = await loadService({
       isPackaged: true,
       store: { autoCheckEnabled: true, checkFrequency: "weekly", lastCheckAt: 0 },
@@ -183,14 +186,14 @@ describe("update-service auto-check scheduler", () => {
     // Switch to hourly. setAutoCheck reschedules and re-checks immediately; the
     // last check was 48h ago so the hourly interval is already due → fires now.
     svc.setAutoCheck({ frequency: "hourly" });
-    expect(h.checkForUpdates).toHaveBeenCalledTimes(2);
+    expect(h.checkForUpdates).toHaveBeenCalledTimes(1);
 
     // Now on the hourly cadence: one more after the next hour.
     vi.advanceTimersByTime(HOUR);
-    expect(h.checkForUpdates).toHaveBeenCalledTimes(3);
+    expect(h.checkForUpdates).toHaveBeenCalledTimes(1);
   });
 
-  it("enabling via setAutoCheck starts the scheduler (no restart)", async () => {
+  it("enabling auto-check waits until the next startup", async () => {
     const svc = await loadService({
       isPackaged: true,
       store: { autoCheckEnabled: false, checkFrequency: "daily", lastCheckAt: 0 },
@@ -201,7 +204,7 @@ describe("update-service auto-check scheduler", () => {
     // Turn it on — schedules + runs an immediate due-check.
     const state = svc.setAutoCheck({ enabled: true });
     expect(state.autoCheckEnabled).toBe(true);
-    expect(h.checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(h.checkForUpdates).not.toHaveBeenCalled();
   });
 
   it("disabling via setAutoCheck stops further scheduled checks", async () => {
@@ -231,10 +234,10 @@ describe("update-service auto-check scheduler", () => {
     // it falls back to the daily default, which is comfortably above the floor.
     const bogus = svc.effectiveIntervalMs("every-minute" as never);
     expect(bogus).toBeGreaterThanOrEqual(HOUR);
-    expect(bogus).toBe(DAY);
+    expect(bogus).toBe(7 * DAY);
   });
 
-  it("hourly auto-check fires at most once per hour (floor honored, not breached)", async () => {
+  it("hourly frequency still performs only the startup check", async () => {
     const svc = await loadService({
       isPackaged: true,
       store: { autoCheckEnabled: true, checkFrequency: "hourly", lastCheckAt: 0 },
@@ -250,7 +253,7 @@ describe("update-service auto-check scheduler", () => {
 
     // Crossing 1h fires exactly one more — never sub-hourly.
     vi.advanceTimersByTime(2 * 60 * 1000);
-    expect(h.checkForUpdates).toHaveBeenCalledTimes(2);
+    expect(h.checkForUpdates).toHaveBeenCalledTimes(1);
   });
 
   it("records lastCheckAt so a recent check is not repeated on init", async () => {
@@ -296,6 +299,7 @@ describe("update-service manual check + settings (unaffected by auto-check)", ()
       allowPrerelease: true,
       autoCheckEnabled: true,
       checkFrequency: "weekly",
+      updateCheckUrl: "https://github.com/TheDarkSkyXD/StreamFusion/releases/latest/download",
     });
   });
 

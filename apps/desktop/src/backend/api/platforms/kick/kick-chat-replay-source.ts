@@ -181,16 +181,15 @@ async function requestFromKickBrowser(
   signal?: AbortSignal
 ): Promise<KickReplayHttpResult> {
   throwIfAborted(signal);
-  const [{ BrowserWindow }, { acquireBrowserWindowSlot }] = await Promise.all([
-    import("electron"),
+  const [{ createHiddenKickBrowserWindow }, { acquireBrowserWindowSlot }] = await Promise.all([
+    import("./kick-hidden-browser-window"),
     import("./endpoints/channel-endpoints"),
   ]);
   throwIfAborted(signal);
   return executeKickReplayBrowserRequest(url, signal, {
     acquireSlot: acquireBrowserWindowSlot,
     createWindow: () =>
-      new BrowserWindow({
-        show: false,
+      createHiddenKickBrowserWindow({
         width: 800,
         height: 600,
         webPreferences: {

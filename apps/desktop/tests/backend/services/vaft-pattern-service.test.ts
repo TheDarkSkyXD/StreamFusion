@@ -1,10 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("electron-store", () => {
+  type FakeStoreOptions = {
+    defaults: Record<string, unknown> & {
+      adPatterns?: Record<string, unknown>;
+    };
+  };
+
   return {
     default: class FakeStore {
       private data: Record<string, unknown>;
-      constructor(opts: any) {
+      constructor(opts: FakeStoreOptions) {
         const defaults = { ...opts.defaults };
         if (defaults.adPatterns) {
           defaults.adPatterns = {
@@ -32,6 +38,42 @@ const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
 import { vaftPatternService } from "@/backend/services/vaft-pattern-service";
+import type { AdPatternUpdate } from "@/shared/adblock-types";
+
+function setPrivate(name: string, value: unknown): void {
+  Reflect.set(vaftPatternService, name, value);
+}
+
+function getPrivate(name: string): unknown {
+  return Reflect.get(vaftPatternService, name);
+}
+
+function invokePrivate(name: string, ...args: unknown[]): unknown {
+  const method = getPrivate(name);
+  if (typeof method !== "function") throw new Error(`Missing private test seam: ${name}`);
+  return Reflect.apply(method, vaftPatternService, args);
+}
+
+function parseVaftScript(script: string): AdPatternUpdate | null {
+  const result = invokePrivate("parseVaftScript", script);
+  if (result === null) return null;
+  if (typeof result !== "object") throw new Error("parseVaftScript returned an invalid result");
+  return result as AdPatternUpdate;
+}
+
+function parseValidVaftScript(script: string): AdPatternUpdate {
+  const result = parseVaftScript(script);
+  if (!result) throw new Error("Expected a valid VAFT pattern update");
+  return result;
+}
+
+function extractDateRangePatterns(script: string): string[] {
+  const result = invokePrivate("extractDateRangePatterns", script);
+  if (!Array.isArray(result) || !result.every((item) => typeof item === "string")) {
+    throw new Error("extractDateRangePatterns returned an invalid result");
+  }
+  return result;
+}
 
 const SAMPLE_VAFT_SCRIPT = `
   var ourTwitchAdSolutionsVersion = 42;
@@ -54,10 +96,10 @@ function mockFetchResponse(body: string, ok = true, status = 200) {
 describe("VaftPatternService", () => {
   beforeEach(() => {
     fetchMock.mockReset();
-    (vaftPatternService as any).isInitialized = false;
-    (vaftPatternService as any).lastCheckTime = 0;
-    (vaftPatternService as any).store = null;
-    (vaftPatternService as any).updateTimer = null;
+    setPrivate("isInitialized", false);
+    setPrivate("lastCheckTime", 0);
+    setPrivate("store", null);
+    setPrivate("updateTimer", null);
   });
 
   afterEach(() => {
@@ -70,7 +112,7 @@ describe("VaftPatternService", () => {
 
       await vaftPatternService.initialize();
 
-      expect((vaftPatternService as any).isInitialized).toBe(true);
+      expect(getPrivate("isInitialized")).toBe(true);
     });
 
     it("skips double initialization", async () => {
@@ -88,7 +130,7 @@ describe("VaftPatternService", () => {
       mockFetchResponse(SAMPLE_VAFT_SCRIPT);
       await vaftPatternService.initialize();
 
-      const result = (vaftPatternService as any).parseVaftScript(
+      const result = parseValidVaftScript(
         SAMPLE_VAFT_SCRIPT
       );
       expect(result.version).toBe(42);
@@ -98,7 +140,7 @@ describe("VaftPatternService", () => {
       mockFetchResponse(SAMPLE_VAFT_SCRIPT);
       await vaftPatternService.initialize();
 
-      const result = (vaftPatternService as any).parseVaftScript(
+      const result = parseValidVaftScript(
         SAMPLE_VAFT_SCRIPT
       );
       expect(result.adSignifiers).toContain("stitched");
@@ -108,7 +150,7 @@ describe("VaftPatternService", () => {
       mockFetchResponse(SAMPLE_VAFT_SCRIPT);
       await vaftPatternService.initialize();
 
-      const result = (vaftPatternService as any).parseVaftScript(
+      const result = parseValidVaftScript(
         SAMPLE_VAFT_SCRIPT
       );
       expect(result.backupPlayerTypes).toContain("embed");
@@ -123,7 +165,7 @@ describe("VaftPatternService", () => {
       mockFetchResponse(SAMPLE_VAFT_SCRIPT);
       await vaftPatternService.initialize();
 
-      const result = (vaftPatternService as any).parseVaftScript(
+      const result = parseValidVaftScript(
         SAMPLE_VAFT_SCRIPT
       );
       expect(result.fallbackPlayerType).toBe("embed");
@@ -133,7 +175,7 @@ describe("VaftPatternService", () => {
       mockFetchResponse(SAMPLE_VAFT_SCRIPT);
       await vaftPatternService.initialize();
 
-      const result = (vaftPatternService as any).parseVaftScript(
+      const result = parseValidVaftScript(
         SAMPLE_VAFT_SCRIPT
       );
       expect(result.clientId).toBe("kimne78kx3ncx6brgo4mv6wki5h1ko");
@@ -143,7 +185,7 @@ describe("VaftPatternService", () => {
       mockFetchResponse(SAMPLE_VAFT_SCRIPT);
       await vaftPatternService.initialize();
 
-      const result = (vaftPatternService as any).parseVaftScript(
+      const result = parseValidVaftScript(
         SAMPLE_VAFT_SCRIPT
       );
       expect(result.dateRangePatterns).toContain("stitched-ad");
@@ -154,16 +196,15 @@ describe("VaftPatternService", () => {
       mockFetchResponse(SAMPLE_VAFT_SCRIPT);
       await vaftPatternService.initialize();
 
-      const throwingService = vaftPatternService as any;
-      const origExtract = throwingService.extractDateRangePatterns;
-      throwingService.extractDateRangePatterns = () => {
+      const origExtract = getPrivate("extractDateRangePatterns");
+      setPrivate("extractDateRangePatterns", () => {
         throw new Error("parse error");
-      };
+      });
 
-      const result = throwingService.parseVaftScript("malformed");
+      const result = parseVaftScript("malformed");
       expect(result).toBeNull();
 
-      throwingService.extractDateRangePatterns = origExtract;
+      setPrivate("extractDateRangePatterns", origExtract);
     });
   });
 
@@ -173,7 +214,7 @@ describe("VaftPatternService", () => {
       await vaftPatternService.initialize();
       const callsAfterInit = fetchMock.mock.calls.length;
 
-      (vaftPatternService as any).lastCheckTime = Date.now();
+      setPrivate("lastCheckTime", Date.now());
 
       const result = await vaftPatternService.fetchAndUpdatePatterns();
       expect(result).toBeTruthy();
@@ -194,7 +235,7 @@ describe("VaftPatternService", () => {
       mockFetchResponse(SAMPLE_VAFT_SCRIPT);
       await vaftPatternService.initialize();
 
-      (vaftPatternService as any).lastCheckTime = 0;
+      setPrivate("lastCheckTime", 0);
       mockFetchResponse("", false, 500);
       mockFetchResponse("", false, 500);
 
@@ -274,7 +315,7 @@ describe("VaftPatternService", () => {
     });
 
     it("forceRefresh resets rate limit", async () => {
-      (vaftPatternService as any).lastCheckTime = Date.now();
+      setPrivate("lastCheckTime", Date.now());
       mockFetchResponse(SAMPLE_VAFT_SCRIPT);
 
       await vaftPatternService.forceRefresh();
@@ -288,7 +329,7 @@ describe("VaftPatternService", () => {
       await vaftPatternService.initialize();
 
       vaftPatternService.destroy();
-      expect((vaftPatternService as any).updateTimer).toBeNull();
+      expect(getPrivate("updateTimer")).toBeNull();
     });
   });
 });

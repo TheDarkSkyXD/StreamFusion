@@ -32,9 +32,8 @@ describe("kick follow metadata refresh", () => {
   });
 
   afterEach(async () => {
-    const { stopKickFollowMetadataRefresh } = await import(
-      "../../../src/backend/services/kick-follow-metadata-refresh"
-    );
+    const { stopKickFollowMetadataRefresh } =
+      await import("../../../src/backend/services/kick-follow-metadata-refresh");
     stopKickFollowMetadataRefresh();
     vi.useRealTimers();
   });
@@ -55,12 +54,10 @@ describe("kick follow metadata refresh", () => {
     ] as LocalFollow[];
     const { storageService } = await import("../../../src/backend/services/storage-service");
     const { kickClient } = await import("../../../src/backend/api/platforms/kick/kick-client");
-    const { repairKickFollowSlugs } = await import(
-      "../../../src/backend/services/kick-follow-metadata-repair"
-    );
-    const { refreshKickFollowMetadataNow } = await import(
-      "../../../src/backend/services/kick-follow-metadata-refresh"
-    );
+    const { repairKickFollowSlugs } =
+      await import("../../../src/backend/services/kick-follow-metadata-repair");
+    const { refreshKickFollowMetadataNow } =
+      await import("../../../src/backend/services/kick-follow-metadata-refresh");
 
     vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue(follows);
     vi.mocked(repairKickFollowSlugs).mockResolvedValue(new Map());
@@ -74,12 +71,10 @@ describe("kick follow metadata refresh", () => {
   it("throttles repeated manual refreshes", async () => {
     vi.useFakeTimers();
     const { storageService } = await import("../../../src/backend/services/storage-service");
-    const { repairKickFollowSlugs } = await import(
-      "../../../src/backend/services/kick-follow-metadata-repair"
-    );
-    const { refreshKickFollowMetadataNow } = await import(
-      "../../../src/backend/services/kick-follow-metadata-refresh"
-    );
+    const { repairKickFollowSlugs } =
+      await import("../../../src/backend/services/kick-follow-metadata-repair");
+    const { refreshKickFollowMetadataNow } =
+      await import("../../../src/backend/services/kick-follow-metadata-refresh");
 
     vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([
       {
@@ -101,16 +96,31 @@ describe("kick follow metadata refresh", () => {
     expect(repairKickFollowSlugs).toHaveBeenCalledTimes(1);
   });
 
+  it("defers nonessential metadata work while account reconciliation is active", async () => {
+    const { repairKickFollowSlugs } =
+      await import("../../../src/backend/services/kick-follow-metadata-repair");
+    const { beginKickAccountReconciliation } =
+      await import("../../../src/backend/services/kick-account-reconciliation-coordinator");
+    const { refreshKickFollowMetadataNow } =
+      await import("../../../src/backend/services/kick-follow-metadata-refresh");
+    const release = beginKickAccountReconciliation();
+    try {
+      await refreshKickFollowMetadataNow("startup", { force: true });
+    } finally {
+      release();
+    }
+
+    expect(repairKickFollowSlugs).not.toHaveBeenCalled();
+  });
+
   it("starts a startup refresh, schedules an interval, and stops the interval", async () => {
     vi.useFakeTimers();
     const { storageService } = await import("../../../src/backend/services/storage-service");
-    const { repairKickFollowSlugs } = await import(
-      "../../../src/backend/services/kick-follow-metadata-repair"
-    );
+    const { repairKickFollowSlugs } =
+      await import("../../../src/backend/services/kick-follow-metadata-repair");
     const { createManagedInterval } = await import("../../../src/lib/managed-interval");
-    const { startKickFollowMetadataRefresh, stopKickFollowMetadataRefresh } = await import(
-      "../../../src/backend/services/kick-follow-metadata-refresh"
-    );
+    const { startKickFollowMetadataRefresh, stopKickFollowMetadataRefresh } =
+      await import("../../../src/backend/services/kick-follow-metadata-refresh");
 
     vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([]);
     vi.mocked(repairKickFollowSlugs).mockResolvedValue(new Map());

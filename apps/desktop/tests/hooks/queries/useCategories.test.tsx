@@ -72,6 +72,27 @@ function rankedCatalog(count: number) {
 
 let api: ReturnType<typeof installElectronAPIMock>;
 
+type TopCategoriesResult = Awaited<ReturnType<typeof api.categories.getTop>>;
+type TopCategoriesSuccess = Extract<TopCategoriesResult, { success: true }>;
+type TopCategoriesTestResult =
+  | (Omit<TopCategoriesSuccess, "providers"> & { providers?: TopCategoriesSuccess["providers"] })
+  | Extract<TopCategoriesResult, { success: false }>;
+
+const mockGetTopCategories = (
+  implementation: (
+    params?: Parameters<typeof api.categories.getTop>[0]
+  ) => Promise<TopCategoriesTestResult>
+) =>
+  vi.fn<typeof api.categories.getTop>(async (params) => {
+    const result = await implementation(params);
+    return result.success ? { ...result, providers: result.providers ?? {} } : result;
+  });
+const mockGetTopStreams = (implementation: typeof api.streams.getTop) => vi.fn(implementation);
+const mockGetCategoryById = (implementation: typeof api.categories.getById) =>
+  vi.fn(implementation);
+const mockGetCategoryMetadata = (implementation: typeof api.categories.getMetadata) =>
+  vi.fn(implementation);
+
 beforeEach(() => {
   vi.clearAllMocks();
   api = installElectronAPIMock();
@@ -98,9 +119,9 @@ afterEach(() => {
 // Guards: unmounted category consumers cancel their generation before it can launch exhaustive hydration
 // Guards: StrictMode-style unmount/remount reuses one logical cold request instead of duplicating preview IPC and traces
 // Guards: the exhaustive category catalog stays quiet on timers and window focus, but explicit invalidation still refreshes it
-// Guards: useTopCategories surfaces the Kick winner for the "slots" key — preserves the better-metadata exception
+// Guards: useTopCategories surfaces the Kick winner for the "slots" key ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â preserves the better-metadata exception
 // Guards: useCategoryById stays idle when categoryId is empty so CategoryDetail's first render doesn't fan out a fetch with an empty id
-// Guards: useCategoryMetadata is twitch-only — Kick categories must short-circuit (their tags ship in the bulk fetch)
+// Guards: useCategoryMetadata is twitch-only ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Kick categories must short-circuit (their tags ship in the bulk fetch)
 describe("useTopCategories", () => {
   it("publishes the last successful catalog immediately after restart while one refresh runs", async () => {
     const twitch = fixtures.category({
@@ -120,16 +141,16 @@ describe("useTopCategories", () => {
     api.store.set = vi.fn(async (key: string, value: unknown) => {
       persistedValues.set(key, value);
     });
-    api.categories.getTop = vi.fn(async (params = {}) => {
-      if (params.limit && params.platform === "twitch") return { data: [twitch], error: null };
-      if (params.limit && params.platform === "kick") return { data: [kick], error: null };
+    api.categories.getTop = mockGetTopCategories(async (params = {}) => {
+      if (params.limit && params.platform === "twitch") return { success: true, data: [twitch] };
+      if (params.limit && params.platform === "kick") return { success: true, data: [kick] };
       return {
+        success: true,
         data: [twitch, kick],
-        error: null,
         providers: { twitch: "complete", kick: "complete" },
       };
     });
-    api.streams.getTop = vi.fn(async () => ({ data: [], error: null }));
+    api.streams.getTop = mockGetTopStreams(async () => ({ success: true, data: [] }));
 
     const firstMount = renderHook(() => useTopCategories(), { wrapper: makeWrapper() });
     await waitFor(() => expect(firstMount.result.current.isSuccess).toBe(true));
@@ -144,12 +165,12 @@ describe("useTopCategories", () => {
     const restartedClient = createQueryClient();
     const startedAt = performance.now();
     await hydratePersistedBrowseSnapshots(restartedClient);
-    const pendingTwitch = deferred<{ data: never[]; error: null }>();
-    const pendingKick = deferred<{ data: never[]; error: null }>();
-    api.categories.getTop = vi.fn((params = {}) =>
+    const pendingTwitch = deferred<{ success: true; data: never[] }>();
+    const pendingKick = deferred<{ success: true; data: never[] }>();
+    api.categories.getTop = mockGetTopCategories((params = {}) =>
       params.platform === "twitch" ? pendingTwitch.promise : pendingKick.promise
-    ) as typeof api.categories.getTop;
-    api.streams.getTop = vi.fn(() => new Promise(() => undefined)) as typeof api.streams.getTop;
+    );
+    api.streams.getTop = mockGetTopStreams(() => new Promise(() => undefined));
 
     const restarted = renderHook(() => useTopCategories(), {
       wrapper: makeWrapper(restartedClient),
@@ -183,8 +204,8 @@ describe("useTopCategories", () => {
     );
     const client = createProductionQueryClient();
     await hydratePersistedBrowseSnapshots(client);
-    api.categories.getTop = vi.fn(() => new Promise<never>(() => undefined));
-    api.streams.getTop = vi.fn(() => new Promise<never>(() => undefined));
+    api.categories.getTop = mockGetTopCategories(() => new Promise<never>(() => undefined));
+    api.streams.getTop = mockGetTopStreams(() => new Promise<never>(() => undefined));
 
     const mounted = renderHook(() => useTopCategories(), {
       wrapper: makeWrapper(client),
@@ -212,7 +233,7 @@ describe("useTopCategories", () => {
     api.store.set = vi.fn(async (key: string, value: unknown) => {
       persistedValues.set(key, value);
     });
-    api.categories.getTop = vi.fn(async (params = {}) =>
+    api.categories.getTop = mockGetTopCategories(async (params = {}) =>
       params.limit
         ? { success: true, data: catalog.slice(0, params.limit) }
         : {
@@ -221,7 +242,7 @@ describe("useTopCategories", () => {
             providers: { twitch: "complete", kick: "complete" },
           }
     );
-    api.streams.getTop = vi.fn(async () => ({ data: [], error: null }));
+    api.streams.getTop = mockGetTopStreams(async () => ({ success: true, data: [] }));
 
     const first = renderHook(() => useTopCategories(), { wrapper: makeWrapper() });
     await waitFor(() => expect(first.result.current.data).toHaveLength(5_200));
@@ -231,8 +252,8 @@ describe("useTopCategories", () => {
     const restartedClient = createQueryClient();
     const startedAt = performance.now();
     await hydratePersistedBrowseSnapshots(restartedClient);
-    api.categories.getTop = vi.fn(() => new Promise<never>(() => undefined));
-    api.streams.getTop = vi.fn(() => new Promise<never>(() => undefined));
+    api.categories.getTop = mockGetTopCategories(() => new Promise<never>(() => undefined));
+    api.streams.getTop = mockGetTopStreams(() => new Promise<never>(() => undefined));
     const restarted = renderHook(() => useTopCategories(), {
       wrapper: makeWrapper(restartedClient),
     });
@@ -253,8 +274,8 @@ describe("useTopCategories", () => {
     });
     const client = createQueryClient();
     client.setQueryData(CATEGORY_KEYS.top(undefined), [cached], { updatedAt: 0 });
-    api.categories.getTop = vi.fn(() => new Promise<never>(() => undefined));
-    api.streams.getTop = vi.fn(() => new Promise<never>(() => undefined));
+    api.categories.getTop = mockGetTopCategories(() => new Promise<never>(() => undefined));
+    api.streams.getTop = mockGetTopStreams(() => new Promise<never>(() => undefined));
 
     const { unmount } = renderHook(() => useTopCategories(), {
       wrapper: makeWrapper(client),
@@ -297,22 +318,37 @@ describe("useTopCategories", () => {
     });
     const client = createQueryClient();
     client.setQueryData(CATEGORY_KEYS.top(undefined), [cached], { updatedAt: 0 });
-    api.categories.getTop = vi.fn(async (params = {}) =>
+    api.categories.getTop = mockGetTopCategories(async (params = {}) =>
       params.limit
-        ? { data: [partial], error: null }
+        ? { success: true, data: [partial] }
         : {
+            success: true,
             data: [partial],
-            error: null,
             providers: { twitch: "complete", kick: "failed" },
           }
     );
-    api.streams.getTop = vi.fn(async () => ({ data: [], error: null }));
+    api.streams.getTop = mockGetTopStreams(async () => ({ success: true, data: [] }));
 
     const { result } = renderHook(() => useTopCategories(), { wrapper: makeWrapper(client) });
     await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
 
     expect(result.current.data).toEqual([expect.objectContaining({ id: "cached-complete" })]);
     expect(api.store.set).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a failed query when every provider fails and no catalog is cached", async () => {
+    api.categories.getTop = mockGetTopCategories(async (params = {}) => ({
+      success: true,
+      data: [],
+      providers: params.platform
+        ? { [params.platform]: "failed" as const }
+        : { twitch: "failed" as const, kick: "failed" as const },
+    }));
+    api.streams.getTop = mockGetTopStreams(async () => ({ success: false, error: "offline" }));
+
+    const { result } = renderHook(() => useTopCategories(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.data).toBeUndefined();
   });
 
   it("keeps the last complete catalog when provider completion metadata is absent", async () => {
@@ -328,14 +364,14 @@ describe("useTopCategories", () => {
     });
     const client = createQueryClient();
     client.setQueryData(CATEGORY_KEYS.top(undefined), [cached], { updatedAt: 0 });
-    api.categories.getTop = vi.fn(async (params = {}) => ({
+    api.categories.getTop = mockGetTopCategories(async (params = {}) => ({
       success: true,
       data: [untrusted],
       ...(params.limit && params.platform
         ? { providers: { [params.platform]: "complete" as const } }
         : {}),
     }));
-    api.streams.getTop = vi.fn(async () => ({ data: [], error: null }));
+    api.streams.getTop = mockGetTopStreams(async () => ({ success: true, data: [] }));
 
     const { result } = renderHook(() => useTopCategories(), { wrapper: makeWrapper(client) });
     await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
@@ -349,14 +385,12 @@ describe("useTopCategories", () => {
       ...fixtures.category({ id: "safe-category", platform: "twitch" }),
       accessToken: "must-not-persist",
     };
-    api.categories.getTop = vi.fn(async (params = {}) => ({
+    api.categories.getTop = mockGetTopCategories(async (params = {}) => ({
+      success: true,
       data: [category],
-      error: null,
-      ...(params.limit
-        ? {}
-        : { providers: { twitch: "complete", kick: "complete" } as const }),
+      ...(params.limit ? {} : { providers: { twitch: "complete", kick: "complete" } as const }),
     }));
-    api.streams.getTop = vi.fn(async () => ({ data: [], error: null }));
+    api.streams.getTop = mockGetTopStreams(async () => ({ success: true, data: [] }));
 
     renderHook(() => useTopCategories(), { wrapper: makeWrapper() });
     await waitFor(() => expect(api.store.set).toHaveBeenCalled());
@@ -371,7 +405,7 @@ describe("useTopCategories", () => {
     const catalog = rankedCatalog(5_200);
     const durableWrite = deferred<void>();
     api.store.set = vi.fn(async () => durableWrite.promise);
-    api.categories.getTop = vi.fn(async (params = {}) =>
+    api.categories.getTop = mockGetTopCategories(async (params = {}) =>
       params.limit
         ? { success: true, data: catalog.slice(0, params.limit) }
         : {
@@ -380,7 +414,7 @@ describe("useTopCategories", () => {
             providers: { twitch: "complete", kick: "complete" },
           }
     );
-    api.streams.getTop = vi.fn(async () => ({ data: [], error: null }));
+    api.streams.getTop = mockGetTopStreams(async () => ({ success: true, data: [] }));
 
     const { result } = renderHook(() => useTopCategories(), { wrapper: makeWrapper() });
 
@@ -413,10 +447,19 @@ describe("useTopCategories", () => {
   });
 
   it("publishes 12 useful cards from the first platform while full hydration continues", async () => {
-    const twitchPreview = deferred<{ data: ReturnType<typeof fixtures.category>[]; error: null }>();
-    const kickPreview = deferred<{ data: ReturnType<typeof fixtures.category>[]; error: null }>();
-    const fullCatalog = deferred<{ data: ReturnType<typeof fixtures.category>[]; error: null }>();
-    const streams = deferred<{ data: never[]; error: null }>();
+    const twitchPreview = deferred<{
+      success: true;
+      data: ReturnType<typeof fixtures.category>[];
+    }>();
+    const kickPreview = deferred<{
+      success: true;
+      data: ReturnType<typeof fixtures.category>[];
+    }>();
+    const fullCatalog = deferred<{
+      success: true;
+      data: ReturnType<typeof fixtures.category>[];
+    }>();
+    const streams = deferred<{ success: true; data: never[] }>();
     const twitchCategories = Array.from({ length: 12 }, (_, index) =>
       fixtures.category({
         id: `twitch-${index}`,
@@ -426,12 +469,12 @@ describe("useTopCategories", () => {
       })
     );
 
-    api.categories.getTop = vi.fn((params = {}) => {
+    api.categories.getTop = mockGetTopCategories((params = {}) => {
       if (params.limit && params.platform === "twitch") return twitchPreview.promise;
       if (params.limit && params.platform === "kick") return kickPreview.promise;
       return fullCatalog.promise;
-    }) as typeof api.categories.getTop;
-    api.streams.getTop = vi.fn(() => streams.promise) as typeof api.streams.getTop;
+    });
+    api.streams.getTop = mockGetTopStreams(() => streams.promise);
 
     const { result } = renderHook(() => useTopCategories(), { wrapper: makeWrapper() });
     await waitFor(() => {
@@ -439,7 +482,7 @@ describe("useTopCategories", () => {
       expect(api.categories.getTop).toHaveBeenCalledWith({ platform: "kick", limit: 12 });
     });
 
-    twitchPreview.resolve({ data: twitchCategories, error: null });
+    twitchPreview.resolve({ success: true, data: twitchCategories });
 
     await waitFor(() => expect(result.current.data).toHaveLength(12));
     expect(result.current.isLoading).toBe(false);
@@ -457,7 +500,7 @@ describe("useTopCategories", () => {
       expect.objectContaining({ stage: "first-useful", count: 12, elapsedMs: expect.any(Number) })
     );
 
-    kickPreview.resolve({ data: [], error: null });
+    kickPreview.resolve({ success: true, data: [] });
     await waitFor(() =>
       expect(api.categories.getTop).toHaveBeenCalledWith({ platform: undefined })
     );
@@ -469,7 +512,7 @@ describe("useTopCategories", () => {
       name: "Recovered Category",
       platform: "twitch",
     });
-    api.categories.getTop = vi.fn(async (params = {}) => {
+    api.categories.getTop = mockGetTopCategories(async (params = {}) => {
       if (params.limit) throw new Error(`${params.platform} offline`);
       return {
         success: true,
@@ -477,7 +520,7 @@ describe("useTopCategories", () => {
         providers: { twitch: "complete", kick: "complete" },
       };
     });
-    api.streams.getTop = vi.fn(async () => ({ data: [], error: null }));
+    api.streams.getTop = mockGetTopStreams(async () => ({ success: true, data: [] }));
 
     const { result } = renderHook(() => useTopCategories(), { wrapper: makeWrapper() });
 
@@ -486,42 +529,57 @@ describe("useTopCategories", () => {
   });
 
   it("does not launch exhaustive hydration after the query is cancelled", async () => {
-    const twitchPreview = deferred<{ data: ReturnType<typeof fixtures.category>[]; error: null }>();
-    const kickPreview = deferred<{ data: ReturnType<typeof fixtures.category>[]; error: null }>();
+    const twitchPreview = deferred<{
+      success: true;
+      data: ReturnType<typeof fixtures.category>[];
+    }>();
+    const kickPreview = deferred<{
+      success: true;
+      data: ReturnType<typeof fixtures.category>[];
+    }>();
     const previewCategory = fixtures.category({
       id: "preview-1",
       name: "Preview Category",
       platform: "twitch",
     });
-    api.categories.getTop = vi.fn((params = {}) => {
+    api.categories.getTop = mockGetTopCategories((params = {}) => {
       if (params.platform === "twitch") return twitchPreview.promise;
       if (params.platform === "kick") return kickPreview.promise;
-      return Promise.resolve({ data: [], error: null });
-    }) as typeof api.categories.getTop;
-    api.streams.getTop = vi.fn(async () => ({ data: [], error: null }));
+      return Promise.resolve({ success: true, data: [] });
+    });
+    api.streams.getTop = mockGetTopStreams(async () => ({ success: true, data: [] }));
 
     const { result, unmount } = renderHook(() => useTopCategories(), { wrapper: makeWrapper() });
-    twitchPreview.resolve({ data: [previewCategory], error: null });
+    twitchPreview.resolve({ success: true, data: [previewCategory] });
     await waitFor(() => expect(result.current.data).toHaveLength(1));
 
     unmount();
     await act(async () => new Promise((resolve) => setTimeout(resolve, 60)));
-    kickPreview.resolve({ data: [], error: null });
+    kickPreview.resolve({ success: true, data: [] });
     await act(async () => Promise.resolve());
 
     expect(api.categories.getTop).not.toHaveBeenCalledWith({ platform: undefined });
   });
 
   it("reuses one cold request across an immediate unmount and remount", async () => {
-    const twitchPreview = deferred<{ data: ReturnType<typeof fixtures.category>[]; error: null }>();
-    const kickPreview = deferred<{ data: ReturnType<typeof fixtures.category>[]; error: null }>();
-    const fullCatalog = deferred<{ data: ReturnType<typeof fixtures.category>[]; error: null }>();
-    api.categories.getTop = vi.fn((params = {}) => {
+    const twitchPreview = deferred<{
+      success: true;
+      data: ReturnType<typeof fixtures.category>[];
+    }>();
+    const kickPreview = deferred<{
+      success: true;
+      data: ReturnType<typeof fixtures.category>[];
+    }>();
+    const fullCatalog = deferred<{
+      success: true;
+      data: ReturnType<typeof fixtures.category>[];
+    }>();
+    api.categories.getTop = mockGetTopCategories((params = {}) => {
       if (params.platform === "twitch") return twitchPreview.promise;
       if (params.platform === "kick") return kickPreview.promise;
       return fullCatalog.promise;
-    }) as typeof api.categories.getTop;
-    api.streams.getTop = vi.fn(async () => ({ data: [], error: null }));
+    });
+    api.streams.getTop = mockGetTopStreams(async () => ({ success: true, data: [] }));
     const client = createQueryClient();
     const wrapper = makeWrapper(client);
 
@@ -553,14 +611,14 @@ describe("useTopCategories", () => {
   it("fetches and returns categories enriched with viewer counts", async () => {
     const cat = fixtures.category({ id: "cat-1", name: "Just Chatting", platform: "twitch" });
     const stream = fixtures.stream({ categoryId: "cat-1", viewerCount: 5000 });
-    api.categories.getTop = vi.fn(async (params = {}) => ({
+    api.categories.getTop = mockGetTopCategories(async (params = {}) => ({
       success: true,
       data: [cat],
       providers: params.platform
         ? { [params.platform]: "complete" as const }
         : { twitch: "complete" as const, kick: "complete" as const },
     }));
-    api.streams.getTop = vi.fn(async () => ({ data: [stream], error: null }));
+    api.streams.getTop = mockGetTopStreams(async () => ({ success: true, data: [stream] }));
 
     const { result } = renderHook(() => useTopCategories(), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -586,12 +644,12 @@ describe("useTopCategories", () => {
       platform: "kick",
       viewerCount: 500,
     });
-    api.categories.getTop = vi.fn(async () => ({
+    api.categories.getTop = mockGetTopCategories(async () => ({
       success: true,
       data: [twitchCat, kickCat],
       providers: { twitch: "complete", kick: "complete" },
     }));
-    api.streams.getTop = vi.fn(async () => ({ data: [], error: null }));
+    api.streams.getTop = mockGetTopStreams(async () => ({ success: true, data: [] }));
 
     const { result } = renderHook(() => useTopCategories(), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -606,12 +664,12 @@ describe("useTopCategories", () => {
 
   it("filters by platform when specified", async () => {
     const cat = fixtures.category({ platform: "kick" });
-    api.categories.getTop = vi.fn(async () => ({
+    api.categories.getTop = mockGetTopCategories(async () => ({
       success: true,
       data: [cat],
       providers: { kick: "complete" },
     }));
-    api.streams.getTop = vi.fn(async () => ({ data: [], error: null }));
+    api.streams.getTop = mockGetTopStreams(async () => ({ success: true, data: [] }));
 
     const { result } = renderHook(() => useTopCategories("kick"), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -622,8 +680,12 @@ describe("useTopCategories", () => {
     vi.useFakeTimers();
     focusManager.setFocused(true);
     onlineManager.setOnline(true);
-    api.categories.getTop = vi.fn(async () => ({ data: [], error: null }));
-    api.streams.getTop = vi.fn(async () => ({ data: [], error: null }));
+    api.categories.getTop = mockGetTopCategories(async () => ({
+      success: true,
+      data: [],
+      providers: { twitch: "complete", kick: "complete" },
+    }));
+    api.streams.getTop = mockGetTopStreams(async () => ({ success: true, data: [] }));
     const client = createQueryClient();
 
     const { result, unmount } = renderHook(() => useTopCategories(), {
@@ -664,7 +726,7 @@ describe("useCategoryById", () => {
     const cached = fixtures.category({ id: "cat-warm", platform: "twitch", name: "Warm Game" });
     const client = createQueryClient();
     client.setQueryData(CATEGORY_KEYS.top(undefined), [cached], { updatedAt: 0 });
-    api.categories.getById = vi.fn(() => new Promise<never>(() => undefined));
+    api.categories.getById = mockGetCategoryById(() => new Promise<never>(() => undefined));
 
     const { result } = renderHook(() => useCategoryById("cat-warm", "twitch"), {
       wrapper: makeWrapper(client),
@@ -677,7 +739,7 @@ describe("useCategoryById", () => {
 
   it("fetches a category by id and platform", async () => {
     const cat = fixtures.category({ id: "cat-99", name: "Fortnite" });
-    api.categories.getById = vi.fn(async () => ({ data: cat, error: null }));
+    api.categories.getById = mockGetCategoryById(async () => ({ success: true, data: cat }));
 
     const { result } = renderHook(() => useCategoryById("cat-99", "twitch"), {
       wrapper: makeWrapper(),
@@ -695,15 +757,19 @@ describe("useCategoryById", () => {
 
 describe("useCategoryMetadata", () => {
   it("fetches metadata for a Twitch category", async () => {
-    api.categories.getMetadata = vi.fn(async () => ({
-      data: { tags: ["fps", "shooter"] },
-      error: null,
+    api.categories.getMetadata = mockGetCategoryMetadata(async () => ({
+      success: true,
+      data: { tags: ["fps", "shooter"], streamCount: 0, streamCountExact: true },
     }));
     const cat = fixtures.category({ id: "cat-1", platform: "twitch", slug: "just-chatting" });
 
     const { result } = renderHook(() => useCategoryMetadata(cat), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toEqual({ tags: ["fps", "shooter"] });
+    expect(result.current.data).toEqual({
+      tags: ["fps", "shooter"],
+      streamCount: 0,
+      streamCountExact: true,
+    });
   });
 
   it("is disabled for Kick categories", async () => {

@@ -154,14 +154,7 @@ export interface EmotePosition {
 // ========== Message Types ==========
 
 export type MessageType =
-  | "message"
-  | "action"
-  | "system"
-  | "notice"
-  | "subscription"
-  | "raid"
-  | "bits"
-  | "ban";
+  "message" | "action" | "system" | "notice" | "subscription" | "raid" | "bits" | "ban";
 
 export type ChatHighlightKind =
   | "first-time-chat"
@@ -586,15 +579,24 @@ export interface RoomStatePatchEvent {
 }
 
 /** A send restriction that applies only to the signed-in Twitch viewer. */
-export interface ViewerChatSendRestrictionEvent {
-  platform: "twitch";
-  /** Channel login, sans leading #. */
-  channel: string;
-  /** Twitch broadcaster user id. */
-  channelId: string;
-  restriction: "verification";
-  requirement: TwitchVerificationRequirement;
-}
+export type ViewerChatSendRestrictionEvent =
+  | {
+      platform: "twitch";
+      /** Channel login, sans leading #. */
+      channel: string;
+      /** Twitch broadcaster user id. */
+      channelId: string;
+      restriction: "verification";
+      requirement: TwitchVerificationRequirement;
+    }
+  | {
+      platform: "twitch";
+      /** Channel login, sans leading #. */
+      channel: string;
+      /** Twitch broadcaster user id. */
+      channelId: string;
+      restriction: "banned";
+    };
 
 export interface ModeratorStateEvent {
   platform: "twitch";

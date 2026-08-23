@@ -1,4 +1,4 @@
-import { LuExternalLink, LuPower } from "react-icons/lu";
+import { LuExternalLink, LuPower, LuRefreshCw } from "react-icons/lu";
 
 import { getPlatformColor } from "@/assets/platforms";
 import { KickIcon, TwitchIcon } from "@/components/icons";
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useKickAuth, useTwitchAuth } from "@/hooks/useAuth";
-import type { Platform } from "@/shared/auth-types";
+import type { Platform, PlatformUser } from "@/shared/auth-types";
 import type { TwitchAuthPhase } from "@/store/auth-store";
 
 function twitchLoadingLabel(phase: TwitchAuthPhase): string {
@@ -57,6 +57,8 @@ export function AccountConnect() {
         loading={kick.loading}
         onConnect={kick.login}
         onDisconnect={kick.logout}
+        onRepair={kick.login}
+        repairLabel="Repair Kick chat"
       />
     </div>
   );
@@ -65,11 +67,13 @@ export function AccountConnect() {
 interface PlatformCardProps {
   platform: Platform;
   connected: boolean;
-  user: any;
+  user: PlatformUser | null;
   loading: boolean;
   loadingLabel?: string;
   onConnect: () => void;
   onDisconnect: () => void;
+  onRepair?: () => void;
+  repairLabel?: string;
   disabled?: boolean;
   message?: string;
 }
@@ -82,11 +86,19 @@ function PlatformCard({
   loadingLabel,
   onConnect,
   onDisconnect,
+  onRepair,
+  repairLabel,
   disabled,
   message,
 }: PlatformCardProps) {
   const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
   const color = getPlatformColor(platform);
+  const displayName = user ? ("displayName" in user ? user.displayName : user.username) : undefined;
+  const profileImageUrl = user
+    ? "profileImageUrl" in user
+      ? user.profileImageUrl
+      : user.profilePic
+    : undefined;
 
   return (
     <Card
@@ -112,7 +124,7 @@ function PlatformCard({
         </div>
         <CardDescription>
           {connected
-            ? `Connected as ${user?.displayName || user?.username}`
+            ? `Connected as ${displayName ?? "User"}`
             : `Connect your ${platformName} account to access features.`}
         </CardDescription>
       </CardHeader>
@@ -120,8 +132,7 @@ function PlatformCard({
       <CardContent>
         {connected ? (
           (() => {
-            const profileImageUrl = user?.profileImageUrl || user?.profilePic;
-            const initial = (user?.displayName || user?.username || "?").charAt(0).toUpperCase();
+            const initial = (displayName || "?").charAt(0).toUpperCase();
 
             // Custom fallback with platform color
             const fallbackElement = (
@@ -140,12 +151,12 @@ function PlatformCard({
               <div className="flex items-center gap-3">
                 <ProxiedImage
                   src={profileImageUrl}
-                  alt={user?.displayName || user?.username || "User"}
+                  alt={displayName || "User"}
                   className="h-12 w-12 rounded-full border border-border object-cover"
                   fallback={fallbackElement}
                 />
                 <div className="flex flex-col">
-                  <span className="font-semibold">{user?.displayName || user?.username}</span>
+                  <span className="font-semibold">{displayName}</span>
                   <span className="text-xs text-muted-foreground capitalize">{platform} User</span>
                 </div>
               </div>
@@ -160,16 +171,30 @@ function PlatformCard({
 
       <CardFooter className="bg-secondary/50 px-6 py-4">
         {connected ? (
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={onDisconnect}
-            disabled={loading}
-            className="w-full gap-2"
-          >
-            <LuPower className="h-4 w-4" />
-            {loading ? "Disconnecting..." : "Disconnect"}
-          </Button>
+          <div className="grid w-full gap-2">
+            {onRepair && repairLabel ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onRepair}
+                disabled={loading}
+                className="w-full gap-2"
+              >
+                <LuRefreshCw className="h-4 w-4" />
+                {loading ? "Repairing..." : repairLabel}
+              </Button>
+            ) : null}
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={onDisconnect}
+              disabled={loading}
+              className="w-full gap-2"
+            >
+              <LuPower className="h-4 w-4" />
+              {loading ? "Disconnecting..." : "Disconnect"}
+            </Button>
+          </div>
         ) : (
           <Button
             style={{

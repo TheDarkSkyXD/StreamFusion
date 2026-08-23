@@ -33,6 +33,23 @@ export function recentRaidsKey(selfBroadcasterId: string): string {
 
 const RECENT_LIMIT = 10;
 
+function isRaidTarget(value: unknown): value is RaidTarget {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "broadcasterId" in value &&
+    typeof value.broadcasterId === "string" &&
+    "broadcasterLogin" in value &&
+    typeof value.broadcasterLogin === "string" &&
+    "broadcasterName" in value &&
+    typeof value.broadcasterName === "string"
+  );
+}
+
+function raidTargetsFromStored(value: unknown): RaidTarget[] {
+  return Array.isArray(value) ? value.filter(isRaidTarget) : [];
+}
+
 export function RaidTargetPicker({ selfBroadcasterId, disabled, onChange }: RaidTargetPickerProps) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<RaidTarget | null>(null);
@@ -44,11 +61,9 @@ export function RaidTargetPicker({ selfBroadcasterId, disabled, onChange }: Raid
     let cancelled = false;
     (async () => {
       try {
-        const stored = await window.electronAPI.store.get<RaidTarget[]>(
-          recentRaidsKey(selfBroadcasterId)
-        );
-        if (!cancelled && Array.isArray(stored)) {
-          setRecent(stored.slice(0, RECENT_LIMIT));
+        const stored = await window.electronAPI.store.get(recentRaidsKey(selfBroadcasterId));
+        if (!cancelled) {
+          setRecent(raidTargetsFromStored(stored).slice(0, RECENT_LIMIT));
         }
       } catch {
         // Ignore — empty list is the right fallback.
@@ -172,7 +187,7 @@ export async function appendRecentRaid(
 ): Promise<void> {
   try {
     const key = recentRaidsKey(selfBroadcasterId);
-    const existing = (await window.electronAPI.store.get<RaidTarget[]>(key)) ?? [];
+    const existing = raidTargetsFromStored(await window.electronAPI.store.get(key));
     const deduped = [target, ...existing.filter((t) => t.broadcasterId !== target.broadcasterId)];
     await window.electronAPI.store.set(key, deduped.slice(0, RECENT_LIMIT));
   } catch {

@@ -1,4 +1,6 @@
-import { type BrowserWindow, ipcMain } from "electron";
+import type { BrowserWindow } from "electron";
+
+import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { z } from "zod";
 
 import { logger, type Logger } from "@/backend/logging/logger";
@@ -30,6 +32,7 @@ import {
 } from "../../auth/device-code-flow";
 import { twitchDeviceAuthWindow } from "../../auth/twitch-device-auth-window";
 import { kickFollowWriteService } from "../../services/kick-follow-write-service";
+import { beginKickAccountReconciliation } from "../../services/kick-account-reconciliation-coordinator";
 import { liveNotificationService } from "../../services/live-notification-service";
 import { storageService } from "../../services/storage-service";
 import { isAllowedSender } from "../sender-origin";
@@ -131,32 +134,212 @@ export function reportKickFollowSyncFailure(
 
 type FollowSyncOutcome = KickSyncOutcome;
 
+type KickFollowInput = Omit<LocalFollow, "id" | "followedAt">;
+type KickFollowVerifier = (
+  userId: string,
+  username: string,
+  channelSlug: string
+) => Promise<"followed" | "not-followed" | "unavailable">;
+type KickFollowBatchVerifier = (
+  userId: string,
+  username: string,
+  channelSlugs: string[]
+) => Promise<Map<string, "followed" | "not-followed" | "unavailable">>;
+
+export async function reconcileKickMissingFollowRows(
+  fetched: KickFollowInput[],
+  prior: LocalFollow[],
+  viewer: { id: number; username: string },
+  verify: KickFollowVerifier,
+  verifyBatch?: KickFollowBatchVerifier,
+  options: { preserveUnavailablePrior?: boolean } = {}
+): Promise<KickFollowInput[]> {
+  const MAX_CONCURRENT_RELATIONSHIP_READS = 4;
+  const verificationCache = new Map<string, Promise<Awaited<ReturnType<KickFollowVerifier>>>>();
+  if (verifyBatch) {
+    const channelSlugs = Array.from(
+      new Set([
+        ...fetched.map((row) => row.channelName.toLowerCase()),
+        ...prior.filter((row) => row.source === "kick").map((row) => row.channelName.toLowerCase()),
+      ])
+    );
+    let states = new Map<string, Awaited<ReturnType<KickFollowVerifier>>>();
+    try {
+      states = await verifyBatch(String(viewer.id), viewer.username, channelSlugs);
+    } catch {
+      // Batch failure leaves new discoveries untrusted and existing rows preserved.
+    }
+    for (const slug of channelSlugs) {
+      verificationCache.set(slug, Promise.resolve(states.get(slug) ?? "unavailable"));
+    }
+  }
+  const verifyChannel = (channelSlug: string) => {
+    const key = channelSlug.toLowerCase();
+    const cached = verificationCache.get(key);
+    if (cached) return cached;
+    const verification = verify(String(viewer.id), viewer.username, channelSlug).catch(
+      () => "unavailable" as const
+    );
+    verificationCache.set(key, verification);
+    return verification;
+  };
+  const verifyBounded = async <T>(
+    values: T[],
+    operation: (value: T) => Promise<void>
+  ): Promise<void> => {
+    for (let index = 0; index < values.length; index += MAX_CONCURRENT_RELATIONSHIP_READS) {
+      await Promise.all(
+        values
+          .slice(index, index + MAX_CONCURRENT_RELATIONSHIP_READS)
+          .map((value) => operation(value))
+      );
+    }
+  };
+  const reconciled: KickFollowInput[] = [];
+  await verifyBounded(fetched, async (candidate) => {
+    const state = await verifyChannel(candidate.channelName);
+    if (state === "followed") {
+      reconciled.push(candidate);
+      return;
+    }
+    if (state === "unavailable" && options.preserveUnavailablePrior !== false) {
+      const existing = prior.find(
+        (row) =>
+          row.source === "kick" &&
+          (row.channelId === candidate.channelId ||
+            row.channelName.toLowerCase() === candidate.channelName.toLowerCase())
+      );
+      if (existing) {
+        reconciled.push({
+          platform: "kick",
+          channelId: existing.channelId,
+          channelName: existing.channelName,
+          displayName: existing.displayName,
+          profileImage: existing.profileImage,
+          source: "kick",
+        });
+      }
+    }
+  });
+  const matchesFetched = (row: LocalFollow): boolean =>
+    fetched.some(
+      (candidate) =>
+        candidate.channelId === row.channelId ||
+        candidate.channelName.toLowerCase() === row.channelName.toLowerCase()
+    );
+
+  await verifyBounded(prior, async (row) => {
+    if (row.source !== "kick" || matchesFetched(row)) return;
+    const state = await verifyChannel(row.channelName);
+    if (
+      state === "followed" ||
+      (state === "unavailable" && options.preserveUnavailablePrior !== false)
+    ) {
+      reconciled.push({
+        platform: "kick",
+        channelId: row.channelId,
+        channelName: row.channelName,
+        displayName: row.displayName,
+        profileImage: row.profileImage,
+        source: "kick",
+      });
+    }
+  });
+  return reconciled;
+}
+
 export async function syncKickFollowsAfterLogin(
   getFollows: () => Promise<FollowedChannelsResult>,
-  storage: Pick<typeof storageService, "upsertSyncedFollows"> = storageService,
-  resumePendingWrites?: () => void
+  storage: Pick<typeof storageService, "upsertSyncedFollows"> &
+    Partial<
+      Pick<typeof storageService, "getLocalFollowsByPlatform" | "getKickUser"> &
+        Pick<
+          typeof storageService,
+          "areKickAccountFollowsVerified" | "getPendingFollowWritesByPlatform"
+        >
+    > = storageService,
+  resumePendingWrites?: () => void,
+  verifyMissingFollow?: KickFollowVerifier,
+  verifyFollowBatch?: KickFollowBatchVerifier
 ): Promise<KickSyncOutcome> {
-  const result = await getFollows();
-  if (result.status === "error") {
-    return { status: "error", reason: result.reason };
+  const releaseReconciliation = beginKickAccountReconciliation();
+  try {
+    const initialViewer = storage.getKickUser?.() ?? null;
+    const result = await getFollows();
+    if (result.status === "error") {
+      return { status: "error", reason: result.reason };
+    }
+    let kickFollows = result.channels.map(
+      (channel) =>
+        ({
+          platform: "kick",
+          channelId: channel.kickUserId ?? channel.id,
+          channelName: channel.username,
+          displayName: channel.displayName,
+          profileImage: channel.avatarUrl,
+        }) as Omit<LocalFollow, "id" | "followedAt">
+    );
+    let pruneAbsent = result.canPruneAbsent;
+    if (storage.getPendingFollowWritesByPlatform) {
+      const knownSlugs = new Set(kickFollows.map((follow) => follow.channelName.toLowerCase()));
+      for (const pending of storage.getPendingFollowWritesByPlatform("kick")) {
+        const slug = pending.slug.trim().toLowerCase();
+        if (pending.action !== "follow" || !slug || knownSlugs.has(slug)) continue;
+        kickFollows.push({
+          platform: "kick",
+          channelId: pending.channelId,
+          channelName: slug,
+          displayName: pending.slug,
+          profileImage: "",
+          source: "kick",
+        });
+        knownSlugs.add(slug);
+      }
+    }
+    if (
+      !pruneAbsent &&
+      verifyMissingFollow &&
+      storage.getLocalFollowsByPlatform &&
+      storage.getKickUser
+    ) {
+      const viewer = initialViewer;
+      if (viewer) {
+        const prior = storage.getLocalFollowsByPlatform("kick");
+        kickFollows = await reconcileKickMissingFollowRows(
+          kickFollows,
+          prior,
+          { id: viewer.id, username: viewer.slug || viewer.username },
+          verifyMissingFollow,
+          verifyFollowBatch,
+          {
+            preserveUnavailablePrior: storage.areKickAccountFollowsVerified?.() === true,
+          }
+        );
+        pruneAbsent = true;
+      }
+    }
+    if (storage.getKickUser) {
+      const currentViewer = storage.getKickUser();
+      if (
+        !initialViewer ||
+        !currentViewer ||
+        initialViewer.id !== currentViewer.id ||
+        (initialViewer.slug || initialViewer.username).toLowerCase() !==
+          (currentViewer.slug || currentViewer.username).toLowerCase()
+      ) {
+        return { status: "error", reason: "kick-account-changed" };
+      }
+    }
+    const { accountCount, pendingCount, addedCount, removedCount } = storage.upsertSyncedFollows(
+      "kick",
+      kickFollows,
+      { pruneAbsent }
+    );
+    resumePendingWrites?.();
+    return { status: "ok", count: accountCount, pendingCount, addedCount, removedCount };
+  } finally {
+    releaseReconciliation();
   }
-  const kickFollows = result.channels.map(
-    (channel) =>
-      ({
-        platform: "kick",
-        channelId: channel.kickUserId ?? channel.id,
-        channelName: channel.username,
-        displayName: channel.displayName,
-        profileImage: channel.avatarUrl,
-      }) as Omit<LocalFollow, "id" | "followedAt">
-  );
-  const { accountCount, pendingCount, addedCount, removedCount } = storage.upsertSyncedFollows(
-    "kick",
-    kickFollows,
-    { pruneAbsent: result.canPruneAbsent }
-  );
-  resumePendingWrites?.();
-  return { status: "ok", count: accountCount, pendingCount, addedCount, removedCount };
 }
 
 export async function syncTwitchFollowsAfterLogin(
@@ -185,6 +368,7 @@ export async function syncTwitchFollowsAfterLogin(
 }
 
 export const KICK_STARTUP_FOLLOW_REFRESH_GRACE_MS = 60 * 1000;
+export const FOLLOWS_REFRESH_INTERVAL_MS = 60 * 1000;
 
 export function shouldDeferKickStartupFollowRefresh(
   platform: Platform,
@@ -199,6 +383,10 @@ export function shouldDeferKickStartupFollowRefresh(
 interface SyncFollowsOptions {
   allowKickBrowserWindowFallback?: boolean;
   resumeKickPendingWrites?: boolean;
+}
+
+function getRoutineFollowSyncOptions(platform: Platform): SyncFollowsOptions {
+  return platform === "kick" ? { allowKickBrowserWindowFallback: true } : {};
 }
 
 export function persistInitialAuthToken(
@@ -328,6 +516,8 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
         // docs/plans/2026-05-21-001-feat-kick-account-follows-import-plan.md.
         const { getAllFollowedChannels } =
           await import("../../api/platforms/kick/endpoints/follow-endpoints");
+        const { getKickAccountFollowState, getKickAccountFollowStates } =
+          await import("../../api/platforms/kick/kick-public-profile-reader");
         const outcome = await syncKickFollowsAfterLogin(
           () =>
             getAllFollowedChannels({
@@ -336,7 +526,9 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
           storageService,
           options.resumeKickPendingWrites
             ? () => kickFollowWriteService.resumePendingWrites()
-            : undefined
+            : undefined,
+          getKickAccountFollowState,
+          getKickAccountFollowStates
         );
         if (outcome.status === "error") {
           // Bail out without firing AUTH_FOLLOWS_SYNCED. The renderer's prior
@@ -412,7 +604,6 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   // The single-flight Promise inside each platform's getAllFollowedChannels
   // collapses concurrent triggers, so over-firing is cheap. We still
   // cooldown the on-focus path to avoid hammering on Alt-Tab.
-  const FOLLOWS_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
   const FOCUS_REFRESH_COOLDOWN_MS = 60 * 1000;
   const lastRefreshAt: Map<Platform, number> = new Map([
     ["kick", 0],
@@ -436,7 +627,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     }
     lastRefreshAt.set(platform, now);
     logger.debug("IPC:Auth", "follow refresh", { platform, trigger });
-    syncFollowsOnLogin(platform).catch(() => {});
+    syncFollowsOnLogin(platform, getRoutineFollowSyncOptions(platform)).catch(() => {});
   }
 
   createManagedInterval(() => maybeRefreshFollows("kick", "interval"), FOLLOWS_REFRESH_INTERVAL_MS);
@@ -449,13 +640,12 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     maybeRefreshFollows("twitch", "focus");
   });
 
-  // ========== Kick Session Expiry (push event) ==========
-  // Forward the 'session-expired' event emitted by KickAuthService to the renderer
-  // so it can prompt the user to re-authenticate.
+  // ========== Kick OAuth Expiry (push event) ==========
+  // OAuth and Kick's website chat session are independent. Notify the renderer
+  // without closing a still-valid hidden chat sender.
   kickAuthService.on("session-expired", () => {
     safeSend(IPC_CHANNELS.AUTH_KICK_SESSION_EXPIRED);
     liveNotificationService.reconcileSilently();
-    void disposeSendWindow();
   });
 
   // ========== Auth - Token Management ==========
@@ -584,7 +774,19 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       return { success: false, error: "not-authenticated" };
     }
 
-    const result = await syncFollowsOnLogin(platform);
+    const result = await syncFollowsOnLogin(platform, getRoutineFollowSyncOptions(platform));
+    logger.info("IPC:Auth", "Follow sync completed", {
+      platform,
+      status: result.status,
+      ...(result.status === "ok"
+        ? {
+            count: result.count,
+            pendingCount: result.pendingCount,
+            addedCount: result.addedCount,
+            removedCount: result.removedCount,
+          }
+        : { reason: result.reason }),
+    });
     if (result.status === "error") {
       return { success: false, error: result.reason } satisfies AuthSyncFollowsResult;
     }
@@ -670,6 +872,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
 
       // Save the token
       persistInitialAuthToken(platform, token);
+      kickAuthService.scheduleProactiveRefresh();
 
       logger.debug("IPC:Auth", "Successfully authenticated", { platform });
 

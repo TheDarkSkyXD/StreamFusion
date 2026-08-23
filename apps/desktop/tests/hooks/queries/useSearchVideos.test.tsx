@@ -14,8 +14,10 @@ import {
 } from "@/hooks/queries/persisted-search-lru";
 import { useSearchVideos } from "@/hooks/queries/useSearch";
 import type { Platform } from "@/shared/auth-types";
+import type { SearchPlatformError, SearchVideosRequest } from "@/shared/search-types";
 import { installElectronAPIMock } from "../../test-utils";
 
+type BaseApi = ReturnType<typeof installElectronAPIMock>;
 function wrapper() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, gcTime: 0 } },
@@ -44,10 +46,32 @@ function recentVideo(id: string, platform: Platform = "twitch") {
   };
 }
 
-let api: ReturnType<typeof installElectronAPIMock>;
+type VideoSearchResult = {
+  success: boolean;
+  sessionId: string;
+  platform: Platform;
+  data: Array<ReturnType<typeof recentVideo>>;
+  cursor?: string;
+  endReason?: string;
+  retryAfterMs?: number;
+  retryable: boolean;
+  error?: SearchPlatformError | null;
+  requestCount?: number;
+  matchedChannelCount?: number;
+};
+type VideoSearchApi = BaseApi & {
+  search: BaseApi["search"] & {
+    videos: ReturnType<typeof vi.fn<(request: SearchVideosRequest) => Promise<VideoSearchResult>>>;
+  };
+};
+let api: VideoSearchApi;
 
 beforeEach(() => {
-  api = installElectronAPIMock();
+  const baseApi = installElectronAPIMock();
+  api = Object.assign(baseApi, {
+    search: Object.assign(baseApi.search, { videos: vi.fn() }),
+    store: { get: vi.fn(async () => null), set: vi.fn(async () => undefined) },
+  });
   resetPersistedSearchLruForTests();
   resetCachePerformanceSamples();
 });
@@ -59,14 +83,13 @@ afterEach(() => {
 
 describe("useSearchVideos", () => {
   it("starts Video fan-out only while active", async () => {
-    api.search.videos = vi.fn(async (request: { sessionId: string; platform: Platform }) => ({
+    api.search.videos = vi.fn(async (request) => ({
       success: true,
       sessionId: request.sessionId,
       platform: request.platform,
       data: [recentVideo(`${request.platform}-1`, request.platform)],
       endReason: "exhausted",
       retryable: false,
-      error: null,
       requestCount: 2,
       matchedChannelCount: 1,
     }));
@@ -103,14 +126,13 @@ describe("useSearchVideos", () => {
       pages: [{ data: [recentVideo("stale")], cursor: null }],
       pageParams: [undefined],
     });
-    api.search.videos = vi.fn(async (request: { sessionId: string; platform: Platform }) => ({
+    api.search.videos = vi.fn(async (request) => ({
       success: true,
       sessionId: request.sessionId,
       platform: request.platform,
       data: [],
       endReason: "exhausted",
       retryable: false,
-      error: null,
       requestCount: 1,
       matchedChannelCount: 1,
     }));
@@ -124,7 +146,7 @@ describe("useSearchVideos", () => {
     await waitFor(() =>
       expect(getPersistedSearchPage("videos", "streamer univer", "twitch", 12)).toBeUndefined()
     );
-    const writes = api.store.set.mock.calls.length;
+    const writes = vi.mocked(api.store.set).mock.calls.length;
     rerender();
     await act(async () => Promise.resolve());
     expect(api.store.set).toHaveBeenCalledTimes(writes);
@@ -133,7 +155,7 @@ describe("useSearchVideos", () => {
   });
 
   it("keeps failed, limited, and cancelled statuses distinct", async () => {
-    api.search.videos = vi.fn(async (request: { sessionId: string; platform: Platform }) =>
+    api.search.videos = vi.fn(async (request) =>
       request.platform === "twitch"
         ? {
             success: false,
@@ -152,7 +174,6 @@ describe("useSearchVideos", () => {
             data: [],
             endReason: "safety-limit",
             retryable: false,
-            error: null,
             requestCount: 2,
             matchedChannelCount: 1,
           }
@@ -162,14 +183,13 @@ describe("useSearchVideos", () => {
     expect(result.current.platformStates.kick?.status).toBe("limited");
     expect(result.current.limitReached).toBe(true);
 
-    api.search.videos = vi.fn(async (request: { sessionId: string; platform: Platform }) => ({
+    api.search.videos = vi.fn(async (request) => ({
       success: false,
       sessionId: request.sessionId,
       platform: request.platform,
       data: [],
       endReason: "cancelled",
       retryable: false,
-      error: null,
       requestCount: 0,
       matchedChannelCount: 0,
     }));
@@ -182,14 +202,13 @@ describe("useSearchVideos", () => {
     expect(cancelled.result.current.isFinalEmpty).toBe(false);
     cancelled.unmount();
 
-    api.search.videos = vi.fn(async (request: { sessionId: string; platform: Platform }) => ({
+    api.search.videos = vi.fn(async (request) => ({
       success: request.platform === "kick",
       sessionId: request.sessionId,
       platform: request.platform,
       data: [],
       endReason: request.platform === "twitch" ? "cancelled" : "exhausted",
       retryable: false,
-      error: null,
       requestCount: 0,
       matchedChannelCount: 0,
     }));
@@ -202,7 +221,7 @@ describe("useSearchVideos", () => {
   it("retries only the failed Platform after its advertised delay", async () => {
     let twitchCalls = 0;
     let kickCalls = 0;
-    api.search.videos = vi.fn(async (request: { sessionId: string; platform: Platform }) => {
+    api.search.videos = vi.fn(async (request) => {
       if (request.platform === "kick") {
         kickCalls += 1;
         return {
@@ -212,7 +231,6 @@ describe("useSearchVideos", () => {
           data: [recentVideo("healthy", "kick")],
           endReason: "exhausted",
           retryable: false,
-          error: null,
           requestCount: 1,
           matchedChannelCount: 1,
         };
@@ -238,7 +256,6 @@ describe("useSearchVideos", () => {
             data: [],
             endReason: "exhausted",
             retryable: false,
-            error: null,
             requestCount: 1,
             matchedChannelCount: 0,
           };
@@ -265,26 +282,24 @@ describe("useSearchVideos", () => {
   });
 
   it("ignores a late response from a superseded query", async () => {
-    let resolveOld!: (value: unknown) => void;
-    const oldResponse = new Promise((resolve) => {
+    let resolveOld!: (value: VideoSearchResult) => void;
+    const oldResponse = new Promise<VideoSearchResult>((resolve) => {
       resolveOld = resolve;
     });
     api.search.cancel = vi.fn(async () => ({ success: true, cancelled: true }));
-    api.search.videos = vi.fn(
-      (request: { sessionId: string; query: string; platform: Platform }) =>
-        request.query === "old query"
-          ? oldResponse
-          : Promise.resolve({
-              success: true,
-              sessionId: request.sessionId,
-              platform: request.platform,
-              data: [recentVideo("new")],
-              endReason: "exhausted",
-              retryable: false,
-              error: null,
-              requestCount: 2,
-              matchedChannelCount: 1,
-            })
+    api.search.videos = vi.fn((request) =>
+      request.query === "old query"
+        ? oldResponse
+        : Promise.resolve({
+            success: true,
+            sessionId: request.sessionId,
+            platform: request.platform,
+            data: [recentVideo("new")],
+            endReason: "exhausted",
+            retryable: false,
+            requestCount: 2,
+            matchedChannelCount: 1,
+          })
     );
     const { result, rerender } = renderHook(({ query }) => useSearchVideos(query, "twitch"), {
       initialProps: { query: "old query" },
@@ -301,7 +316,6 @@ describe("useSearchVideos", () => {
       data: [recentVideo("old")],
       endReason: "exhausted",
       retryable: false,
-      error: null,
       requestCount: 2,
       matchedChannelCount: 1,
     });
@@ -312,7 +326,7 @@ describe("useSearchVideos", () => {
 
   it("deduplicates appended pages while loaded count grows", async () => {
     let page = 0;
-    api.search.videos = vi.fn(async (request: { sessionId: string; platform: Platform }) => {
+    api.search.videos = vi.fn(async (request) => {
       page += 1;
       return page === 1
         ? {
@@ -322,7 +336,6 @@ describe("useSearchVideos", () => {
             data: [recentVideo("one")],
             cursor: "next",
             retryable: false,
-            error: null,
             requestCount: 2,
             matchedChannelCount: 1,
           }
@@ -333,7 +346,6 @@ describe("useSearchVideos", () => {
             data: [recentVideo("one"), recentVideo("two")],
             endReason: "exhausted",
             retryable: false,
-            error: null,
             requestCount: 3,
             matchedChannelCount: 1,
           };

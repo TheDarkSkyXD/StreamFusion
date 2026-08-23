@@ -15,6 +15,7 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  dialog,
   globalShortcut,
   Menu,
   protocol,
@@ -66,6 +67,7 @@ import { storageService } from "./backend/services/storage-service";
 import { markCleanShutdown, markSessionStarted, wasCleanShutdown } from "./backend/shutdown-marker";
 import { runLoadedFeatureCleanups } from "./backend/startup/loaded-feature-cleanup";
 import { startPrimaryInstance } from "./backend/startup/start-primary-instance";
+import { openStartupRecoveryWindow } from "./backend/startup/startup-recovery-window";
 import { beginStartupSession } from "./backend/startup/startup-session-policy";
 import { windowManager } from "./backend/window-manager";
 import { setMainLogSink } from "./lib/cross-logger";
@@ -316,6 +318,23 @@ startPrimaryInstance(app, {
 // App lifecycle events
 let stopProcessMonitor: (() => void) | null = null;
 let devRelayServer: { close(): Promise<void> } | null = null;
+let startupRecoveryDiagnosticId: string | null = null;
+
+function showStartupRecoveryOrExit(diagnosticId: string): void {
+  try {
+    openStartupRecoveryWindow(diagnosticId);
+  } catch (recoveryError) {
+    logger.error("Main", "Could not open startup recovery window", {
+      diagnosticId,
+      error: recoveryError instanceof Error ? { name: recoveryError.name } : undefined,
+    });
+    dialog.showErrorBox(
+      "StreamFusion couldn’t start safely",
+      `Your saved data was not removed. Restart the app and include diagnostic ID ${diagnosticId} if this repeats.`
+    );
+    app.exit(1);
+  }
+}
 
 async function initializeReady(): Promise<void> {
   if (process.env.STREAMFUSION_BROWSER_DEV === "1") {
@@ -399,8 +418,19 @@ async function initializeReady(): Promise<void> {
 
   // Initialize Core Services (Database & Storage)
   // MUST be called after app path configuration and before IPC handlers
-  dbService.initialize();
-  storageService.initialize();
+  try {
+    dbService.initialize();
+    storageService.initialize();
+  } catch (error) {
+    const diagnosticId = randomUUID();
+    startupRecoveryDiagnosticId = diagnosticId;
+    logger.error("Main", "Durable service initialization failed", {
+      diagnosticId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    showStartupRecoveryOrExit(diagnosticId);
+    return;
+  }
 
   // Dump effective user preferences once at boot so bug reports include the
   // user-visible configuration. redactObject scrubs any token-shaped strings
@@ -477,14 +507,19 @@ app.on("window-all-closed", () => {
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
+    if (startupRecoveryDiagnosticId) {
+      showStartupRecoveryOrExit(startupRecoveryDiagnosticId);
+      return;
+    }
     const mainWindow = windowManager.createMainWindow();
     installRendererCrashRecovery({ webContents: mainWindow.webContents });
     registerIpcHandlers(mainWindow);
   }
 });
 
-// Hardened before-quit: mark cleanly, signal renderer to fast-teardown, then
-// hard-kill if it doesn't finish in 3s. Without the timeout, an HLS buffer
+// Hardened before-quit: mark cleanly, signal renderer to fast-teardown and
+// close through its trusted window route, then hard-kill if it doesn't finish
+// in 3s. Without the timeout, an HLS buffer
 // destroy + chat-service teardown on a heap-pressured renderer can wedge the
 // quit path for tens of seconds and the user has to force-kill from the OS.
 let isQuitting = false;

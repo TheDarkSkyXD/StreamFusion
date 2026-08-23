@@ -16,11 +16,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ChatSettingsResult } from "@/backend/api/platforms/twitch/twitch-helix-chat-settings";
 import type { KickChatroomSettings } from "@/backend/api/unified/platform-types";
-import type {
-  ChatConnectionStatus,
-  RoomStatePatchEvent,
-} from "@/shared/chat-types";
+import type { ChatConnectionStatus, RoomStatePatchEvent } from "@/shared/chat-types";
 import { useRoomStateStore } from "@/store/room-state-store";
+import { fixtures, installElectronAPIMock } from "../test-utils";
 
 // ---------------------------------------------------------------------------
 // Mocks — Twitch Helix getChatSettings + chat service singletons.
@@ -69,28 +67,15 @@ vi.mock("@/backend/services/chat/kick-chat", () => ({
 // Mocks — window.electronAPI for Kick channels.getByUsername
 // ---------------------------------------------------------------------------
 
-const getByUsernameMock = vi.fn<
-  (args: { platform: string; username: string }) => Promise<{
-    success?: boolean;
-    data?: unknown;
-    error?: string;
-  }>
->();
+const getByUsernameMock = vi.fn<typeof window.electronAPI.channels.getByUsername>();
 const twitchExecuteMock = vi.fn();
 
 beforeEach(() => {
-  // biome-ignore lint/suspicious/noExplicitAny: jest-style window install
-  const w = (globalThis as any).window ?? ((globalThis as any).window = {});
-  w.electronAPI = {
-    channels: { getByUsername: getByUsernameMock },
-    twitch: { execute: twitchExecuteMock },
-    auth: {
-      // Hook calls getValidTwitchToken() before getChatSettings; returning a
-      // stable string keeps the Bearer-auth path happy without exercising the
-      // refresh flow (the wrapper covers that elsewhere).
-      getValidTwitchToken: vi.fn().mockResolvedValue("tok"),
-    },
-  };
+  const api = installElectronAPIMock();
+  api.channels.getByUsername = getByUsernameMock;
+  api.twitch.execute = twitchExecuteMock;
+  api.auth.getValidTwitchToken = vi.fn().mockResolvedValue("tok");
+  window.electronAPI = api;
 });
 
 // ---------------------------------------------------------------------------
@@ -139,7 +124,7 @@ describe("chatSettingsToPatch (Twitch)", () => {
         broadcaster_id: "1",
         follower_mode: true,
         follower_mode_duration: 10,
-      }),
+      })
     ).toEqual({ followersOnly: 10 });
   });
 
@@ -149,7 +134,7 @@ describe("chatSettingsToPatch (Twitch)", () => {
         broadcaster_id: "1",
         follower_mode: false,
         follower_mode_duration: 10,
-      }),
+      })
     ).toEqual({ followersOnly: null });
   });
 
@@ -159,7 +144,7 @@ describe("chatSettingsToPatch (Twitch)", () => {
         broadcaster_id: "1",
         slow_mode: false,
         slow_mode_wait_time: 30,
-      }),
+      })
     ).toEqual({ slowMode: null });
   });
 
@@ -169,7 +154,7 @@ describe("chatSettingsToPatch (Twitch)", () => {
         broadcaster_id: "1",
         slow_mode: true,
         slow_mode_wait_time: 30,
-      }),
+      })
     ).toEqual({ slowMode: 30 });
   });
 
@@ -180,7 +165,7 @@ describe("chatSettingsToPatch (Twitch)", () => {
         subscriber_mode: true,
         emote_mode: false,
         unique_chat_mode: true,
-      }),
+      })
     ).toEqual({
       subscribersOnly: true,
       emoteOnly: false,
@@ -197,7 +182,7 @@ describe("chatSettingsToPatch (Twitch)", () => {
       chatSettingsToPatch("twitch", {
         broadcaster_id: "1",
         follower_mode: true,
-      }),
+      })
     ).toEqual({ followersOnly: 0 });
   });
 });
@@ -232,7 +217,7 @@ describe("chatSettingsToPatch (Kick)", () => {
         followersMode: { enabled: false, minDuration: 10 },
         subscribersMode: { enabled: false },
         emoteOnlyMode: { enabled: false },
-      }),
+      })
     ).toEqual({
       slowMode: null,
       followersOnly: null,
@@ -260,7 +245,7 @@ describe("useChatSettingsSync — initial fetch", () => {
     });
 
     renderHook(() =>
-      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" }),
+      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" })
     );
 
     await waitFor(() => {
@@ -276,15 +261,16 @@ describe("useChatSettingsSync — initial fetch", () => {
   it("fetch failure does NOT write to store and does not throw", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     getChatSettingsMock.mockRejectedValueOnce(new Error("network down"));
+    useRoomStateStore.getState().updateRoomState("twitch", "123", { emoteOnly: true });
 
     renderHook(() =>
-      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" }),
+      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" })
     );
 
     await waitFor(() => {
       expect(getChatSettingsMock).toHaveBeenCalled();
     });
-    // Store stays empty; provenance never recorded a 'fetch' for this key.
+    // An unavailable snapshot cannot leave a stale restriction blocking chat.
     expect(useRoomStateStore.getState().entries["twitch:123"]).toBeUndefined();
     expect(getProvenance("twitch:123")).toBeUndefined();
     warnSpy.mockRestore();
@@ -298,7 +284,7 @@ describe("useChatSettingsSync — initial fetch", () => {
     });
 
     renderHook(() =>
-      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" }),
+      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" })
     );
 
     await waitFor(() => {
@@ -309,7 +295,7 @@ describe("useChatSettingsSync — initial fetch", () => {
 
   it("skipped entirely when channelId is null", async () => {
     renderHook(() =>
-      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: null }),
+      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: null })
     );
     // Give microtasks a chance.
     await new Promise((r) => setTimeout(r, 0));
@@ -319,22 +305,28 @@ describe("useChatSettingsSync — initial fetch", () => {
   it("Kick reads chatroomSettings off the cached UnifiedChannel via IPC", async () => {
     getByUsernameMock.mockResolvedValueOnce({
       success: true,
-      data: {
+      data: fixtures.channel({
+        platform: "kick",
         chatroomSettings: {
           slowMode: { enabled: true, interval: 60 },
           followersMode: { enabled: false, minDuration: null },
           subscribersMode: { enabled: false },
           emoteOnlyMode: { enabled: false },
         } satisfies KickChatroomSettings,
-      },
+      }),
     });
 
     renderHook(() =>
-      useChatSettingsSync({ platform: "kick", channel: "ac7ionman", channelId: "999" }),
+      useChatSettingsSync({ platform: "kick", channel: "ac7ionman", channelId: "999" })
     );
 
     await waitFor(() => {
       expect(useRoomStateStore.getState().entries["kick:999"]?.slowMode).toBe(60);
+    });
+    expect(getByUsernameMock).toHaveBeenCalledWith({
+      platform: "kick",
+      username: "ac7ionman",
+      freshChatroomSettings: true,
     });
   });
 });
@@ -347,11 +339,11 @@ describe("useChatSettingsSync — in-flight dedup + StrictMode", () => {
       () =>
         new Promise<ChatSettingsResult>((res) => {
           resolveFirst = res;
-        }),
+        })
     );
 
     const { unmount } = renderHook(() =>
-      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" }),
+      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" })
     );
     expect(isInFlight("twitch:123")).toBe(true);
 
@@ -366,7 +358,7 @@ describe("useChatSettingsSync — in-flight dedup + StrictMode", () => {
     });
 
     renderHook(() =>
-      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" }),
+      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" })
     );
 
     await waitFor(() => {
@@ -389,13 +381,13 @@ describe("useChatSettingsSync — in-flight dedup + StrictMode", () => {
       () =>
         new Promise<ChatSettingsResult>((res) => {
           resolveA = res;
-        }),
+        })
     );
 
     const { rerender } = renderHook(
       ({ channelId }: { channelId: string }) =>
         useChatSettingsSync({ platform: "twitch", channel: "a", channelId }),
-      { initialProps: { channelId: "A" } },
+      { initialProps: { channelId: "A" } }
     );
 
     // Switch to B before A resolves.
@@ -425,6 +417,47 @@ describe("useChatSettingsSync — in-flight dedup + StrictMode", () => {
 // ===========================================================================
 
 describe("useChatSettingsSync — roomState WS event", () => {
+  // Guards: an unrelated partial WS update must not discard untouched fields from the full settings snapshot.
+  it("merges a full fetch around fields changed by WS while the fetch is pending", async () => {
+    let resolveFetch: ((value: ChatSettingsResult) => void) | undefined;
+    getChatSettingsMock.mockImplementationOnce(
+      () =>
+        new Promise<ChatSettingsResult>((resolve) => {
+          resolveFetch = resolve;
+        })
+    );
+    useRoomStateStore.getState().updateRoomState("twitch", "123", { emoteOnly: true });
+
+    renderHook(() =>
+      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" })
+    );
+
+    await waitFor(() => {
+      expect(twitchStub.listenerCount("roomState")).toBe(1);
+    });
+    act(() => {
+      twitchStub.emit("roomState", {
+        platform: "twitch",
+        channel: "NINJA",
+        channelId: "123",
+        patch: { uniqueChat: true },
+        reason: "ws",
+      } satisfies RoomStatePatchEvent);
+    });
+    act(() => {
+      resolveFetch?.({
+        ok: true,
+        payload: { broadcaster_id: "123", emote_mode: false, unique_chat_mode: false },
+      });
+    });
+
+    await waitFor(() => {
+      const state = useRoomStateStore.getState().entries["twitch:123"];
+      expect(state?.emoteOnly).toBe(false);
+      expect(state?.uniqueChat).toBe(true);
+    });
+  });
+
   it("WS event for the active channel writes patch into store", async () => {
     getChatSettingsMock.mockResolvedValueOnce({
       ok: true,
@@ -432,7 +465,7 @@ describe("useChatSettingsSync — roomState WS event", () => {
     });
 
     renderHook(() =>
-      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" }),
+      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" })
     );
 
     await waitFor(() => {
@@ -463,7 +496,7 @@ describe("useChatSettingsSync — roomState WS event", () => {
     });
 
     renderHook(() =>
-      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" }),
+      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" })
     );
 
     await waitFor(() => {
@@ -490,7 +523,7 @@ describe("useChatSettingsSync — roomState WS event", () => {
       payload: { broadcaster_id: "123" },
     });
     const { unmount } = renderHook(() =>
-      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" }),
+      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" })
     );
     await waitFor(() => {
       expect(twitchStub.listenerCount("roomState")).toBe(1);
@@ -513,7 +546,7 @@ describe("useChatSettingsSync — reconnect re-fetch", () => {
     });
 
     renderHook(() =>
-      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" }),
+      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" })
     );
 
     await waitFor(() => {
@@ -542,7 +575,7 @@ describe("useChatSettingsSync — reconnect re-fetch", () => {
     });
 
     renderHook(() =>
-      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" }),
+      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" })
     );
 
     await waitFor(() => {
@@ -594,7 +627,7 @@ describe("useChatSettingsSync — reconnect re-fetch", () => {
     });
 
     renderHook(() =>
-      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" }),
+      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" })
     );
 
     await waitFor(() => {
@@ -634,7 +667,7 @@ describe("useChatSettingsSync — converge with optimistic writes", () => {
     });
 
     renderHook(() =>
-      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" }),
+      useChatSettingsSync({ platform: "twitch", channel: "ninja", channelId: "123" })
     );
 
     await waitFor(() => {

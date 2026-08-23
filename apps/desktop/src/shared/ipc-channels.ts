@@ -41,8 +41,8 @@ export const IPC_CHANNELS = {
   /**
    * Main → renderer push fired at the start of `app.before-quit`. The
    * renderer responds with an aggressive teardown (drop chat sockets, stop
-   * batching) so the close path doesn't wait on graceful WebSocket teardowns
-   * or chat-store cleanup. Main hard-kills 3s later either way.
+   * batching), then requests the normal window-close route. Main retains a
+   * three-second force-close only as a fallback for an unresponsive renderer.
    */
   APP_BEFORE_QUIT: "app:before-quit",
 
@@ -551,7 +551,11 @@ export interface IpcPayloads {
 
   // App auto-update — auto-check toggle + frequency (U15). Either field is
   // optional so the renderer can update one without resending the other.
-  [IPC_CHANNELS.UPDATE_SET_AUTO_CHECK]: { enabled?: boolean; frequency?: CheckFrequency };
+  [IPC_CHANNELS.UPDATE_SET_AUTO_CHECK]: {
+    enabled?: boolean;
+    frequency?: CheckFrequency;
+    updateCheckUrl?: string;
+  };
 
   // Kick chat send — chatroomId addresses the v2 broadcast endpoint; content
   // is the raw message text. ensure-ready and dispose take no payload.
@@ -570,7 +574,7 @@ export interface IpcPayloads {
   [IPC_CHANNELS.KICK_CHAT_SEND_MESSAGE]: {
     chatroomId: number;
     content: string;
-    broadcasterUserId?: number;
+    channelSlug?: string;
   };
   [IPC_CHANNELS.KICK_CHAT_BAN_USER]: {
     channelSlug: string;
@@ -861,13 +865,7 @@ export interface VersionInfo {
 // ========== App Auto-Update Types ==========
 
 export type UpdateStatus =
-  | "idle"
-  | "checking"
-  | "available"
-  | "not-available"
-  | "downloading"
-  | "downloaded"
-  | "error";
+  "idle" | "checking" | "available" | "not-available" | "downloading" | "downloaded" | "error";
 
 /**
  * How often the auto-check scheduler may fire. A discrete preset (never a
@@ -900,10 +898,21 @@ export interface UpdateState {
   autoCheckEnabled: boolean;
   /** How often the scheduler may fire when enabled (U15). */
   checkFrequency: CheckFrequency;
+  updateCheckUrl: string;
 }
 
 export interface UpdateSettings {
   allowPrerelease: boolean;
   autoCheckEnabled: boolean;
   checkFrequency: CheckFrequency;
+  updateCheckUrl: string;
 }
+
+/** A renderer-safe IPC response whose success and failure states cannot overlap. */
+export type IpcResult<T> =
+  { success: true; data: T; error?: never } | { success: false; data?: never; error: string };
+
+/** A paginated IPC response with optional diagnostics on successful requests. */
+export type PaginatedIpcResult<T> =
+  | { success: true; data: T; cursor?: string; debug?: string; error?: never }
+  | { success: false; data?: never; cursor?: never; debug?: never; error: string };

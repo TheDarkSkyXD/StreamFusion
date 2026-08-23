@@ -269,17 +269,17 @@ describe("KickChat", () => {
     const api = installElectronAPIMock();
     api.auth.getToken = vi.fn(async () => ({ accessToken: "kick-tok" }));
     api.chat.getKickHistory = vi.fn(async () => ({ success: false }));
-    api.kickChat.banUser = vi.fn(async () => ({ ok: true, status: 200, body: "{}" }));
-    api.kickChat.timeoutUser = vi.fn(async () => ({ ok: true, status: 200, body: "{}" }));
-    api.kickChat.unbanUser = vi.fn(async () => ({ ok: true, status: 200, body: "{}" }));
-    api.kickChat.deleteMessage = vi.fn(async () => ({ ok: true, status: 204, body: "" }));
+    api.kickChat.banUser = vi.fn(async () => ({ ok: true as const, status: 200, body: "{}" }));
+    api.kickChat.timeoutUser = vi.fn(async () => ({ ok: true as const, status: 200, body: "{}" }));
+    api.kickChat.unbanUser = vi.fn(async () => ({ ok: true as const, status: 200, body: "{}" }));
+    api.kickChat.deleteMessage = vi.fn(async () => ({ ok: true as const, status: 204, body: "" }));
     api.kickChat.getViewerRole = vi.fn(async () => ({
-      ok: true,
+      ok: true as const,
       isModerator: null,
       status: 200,
     }));
-    api.kickChat.pinMessage = vi.fn(async () => ({ ok: true }));
-    api.kickChat.unpinMessage = vi.fn(async () => ({ ok: true }));
+    api.kickChat.pinMessage = vi.fn(async () => ({ ok: true as const }));
+    api.kickChat.unpinMessage = vi.fn(async () => ({ ok: true as const }));
     storeState.connectionStatus.kick.state = "disconnected";
     storeState.connectionStatus.twitch.state = "disconnected";
     mockAuthState.kickConnected = false;
@@ -444,12 +444,7 @@ describe("KickChat", () => {
     }));
 
     renderKickChat(
-      <KickChat
-        channel="xqc"
-        channelId="411439"
-        kickChannelId="668"
-        chatroomId={12345}
-      />
+      <KickChat channel="xqc" channelId="411439" kickChannelId="668" chatroomId={12345} />
     );
 
     await waitFor(() =>
@@ -509,7 +504,7 @@ describe("KickChat", () => {
     expect(kickChatService.connect).not.toHaveBeenCalled();
   });
 
-  it("inserts recent history before joining live chat and announcing connected", async () => {
+  it("joins live chat while recent history loads and announces connected after preparation", async () => {
     type KickHistoryResult = Awaited<ReturnType<typeof window.electronAPI.chat.getKickHistory>>;
     let resolveHistory!: (result: KickHistoryResult) => void;
     window.electronAPI.chat.getKickHistory = vi.fn(
@@ -525,7 +520,7 @@ describe("KickChat", () => {
 
     await waitFor(() => expect(window.electronAPI.chat.getKickHistory).toHaveBeenCalledTimes(1));
     expect(screen.queryByText("Loading recent messages…")).not.toBeInTheDocument();
-    expect(kickChatService.joinChannel).not.toHaveBeenCalled();
+    expect(kickChatService.joinChannel).toHaveBeenCalledWith("xqc", 12345, 411439);
     expect(
       (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls.some(
         ([message]) => (message as ChatMessage).rawContent === "Connected to the channel"
@@ -572,16 +567,12 @@ describe("KickChat", () => {
       "kick:xqc",
       expect.arrayContaining([expect.objectContaining({ id: "recent-message" })])
     );
-    expect(storeState.prependMessages.mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(kickChatService.joinChannel).mock.invocationCallOrder[0]
-    );
     expect(vi.mocked(kickChatService.joinChannel).mock.invocationCallOrder[0]).toBeLessThan(
-      (storeState.addMessage as ReturnType<typeof vi.fn>).mock.invocationCallOrder.at(-1) ??
-        Number.MAX_SAFE_INTEGER
+      storeState.prependMessages.mock.invocationCallOrder[0]
     );
   });
 
-  it("settles Kick history before showing connection state or joining live chat", async () => {
+  it("shows connecting and joins before remote Kick history settles", async () => {
     type KickHistoryResult = Awaited<ReturnType<typeof window.electronAPI.chat.getKickHistory>>;
     let resolveHistory!: (result: KickHistoryResult) => void;
     window.electronAPI.chat.getKickHistory = vi.fn(
@@ -592,12 +583,7 @@ describe("KickChat", () => {
     );
 
     renderKickChat(
-      <KickChat
-        channel="xqc"
-        channelId="411439"
-        kickChannelId="668"
-        chatroomId={12345}
-      />
+      <KickChat channel="xqc" channelId="411439" kickChannelId="668" chatroomId={12345} />
     );
 
     await waitFor(() =>
@@ -606,12 +592,12 @@ describe("KickChat", () => {
         channelSlug: "xqc",
       })
     );
-    expect(kickChatService.joinChannel).not.toHaveBeenCalled();
+    expect(kickChatService.joinChannel).toHaveBeenCalledWith("xqc", 12345, 411439);
     expect(
       (storeState.addMessage as ReturnType<typeof vi.fn>).mock.calls.some(
         ([message]) => (message as ChatMessage).rawContent === "Connecting to channel..."
       )
-    ).toBe(false);
+    ).toBe(true);
 
     await act(async () => {
       resolveHistory({ success: true, data: { messages: [], pinnedMessage: null } });
@@ -680,13 +666,11 @@ describe("KickChat", () => {
       })
     );
 
-    rerender(
-      <KickChat channel="beta" channelId="222" kickChannelId="222" chatroomId={2002} />
-    );
+    rerender(<KickChat channel="beta" channelId="222" kickChannelId="222" chatroomId={2002} />);
     await waitFor(() =>
       expect(kickChatService.joinChannel).toHaveBeenCalledWith("beta", 2002, 222)
     );
-    expect(kickChatService.joinChannel).not.toHaveBeenCalledWith("alpha", 1001, 111);
+    expect(kickChatService.joinChannel).toHaveBeenCalledWith("alpha", 1001, 111);
 
     await act(async () => {
       resolveAlphaHistory({
@@ -721,7 +705,7 @@ describe("KickChat", () => {
     expect(kickChatService.setModeratorState).not.toHaveBeenCalledWith("alpha", true);
   });
 
-  it("keeps live chat connected when recent history rejects", async () => {
+  it("keeps live chat connected without an alarming banner when recent history rejects", async () => {
     window.electronAPI.chat.getKickHistory = vi.fn(async () => {
       throw new Error("history unavailable");
     });
@@ -743,8 +727,8 @@ describe("KickChat", () => {
     expect(storeState.prependMessages).not.toHaveBeenCalled();
     expect(kickChatService.emit).not.toHaveBeenCalledWith("pinnedMessage", expect.anything());
     expect(
-      screen.getByText("Kick history unavailable; showing session messages")
-    ).toBeInTheDocument();
+      screen.queryByText("Kick history unavailable; showing session messages")
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("message-list")).toBeInTheDocument();
     expect(screen.getByTestId("chat-input")).toBeInTheDocument();
   });

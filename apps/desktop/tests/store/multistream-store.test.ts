@@ -262,6 +262,32 @@ describe("multistream-store schema migration", () => {
     expect(migrated.multiviewCap).toBe(MULTIVIEW_CAP_MAX);
   });
 
+  // Guards: persisted state is an untrusted boundary. Invalid nested entries
+  // must be discarded before Zustand exposes them as typed application state.
+  it("discards malformed persisted streams and favorites", () => {
+    const migrated = migrateMultiStreamState(
+      {
+        streams: [
+          { id: "kick-valid", platform: "kick", channelName: "valid", isMuted: false, volume: 0.5 },
+          { id: "bad-platform", platform: "youtube", channelName: "bad", isMuted: false, volume: 0.5 },
+          { id: "bad-volume", platform: "twitch", channelName: "bad", isMuted: false, volume: "loud" },
+        ],
+        favoriteStreams: [
+          { platform: "twitch", channelId: "1", channelName: "valid", displayName: "Valid" },
+          { platform: "kick", channelId: 2, channelName: "bad", displayName: "Bad" },
+        ],
+      },
+      MULTISTREAM_STORE_VERSION
+    );
+
+    expect(migrated.streams).toEqual([
+      { id: "kick-valid", platform: "kick", channelName: "valid", isMuted: false, volume: 0.5 },
+    ]);
+    expect(migrated.favoriteStreams).toEqual([
+      { platform: "twitch", channelId: "1", channelName: "valid", displayName: "Valid" },
+    ]);
+  });
+
   it("does not overwrite chatStreamId when one is already set", () => {
     useMultiStreamStore.getState().addStream("kick", "first");
     useMultiStreamStore.getState().addStream("kick", "second");

@@ -13,6 +13,7 @@ import { IoMdSettings } from "react-icons/io";
 
 import { PersistentPlayerShell } from "@/components/player/persistent-player-shell";
 import { RecordingOutcomeBridge } from "@/components/recording/recording-completion-notice";
+import { RecoveryBoundary } from "@/components/recovery/RecoveryBoundary";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { StreamRecordingProvider } from "@/hooks/use-stream-recording-state";
 import { cn } from "@/lib/utils";
@@ -108,7 +109,9 @@ export function AppLayout({ children }: AppLayoutProps) {
               <div className="mx-3 my-1 h-px bg-[var(--color-border)] opacity-50" />
 
               {/* Followed Channels */}
-              <SidebarFollows collapsed={sidebarCollapsed} />
+              <RecoveryBoundary name="Following sidebar" resetKey={location.pathname}>
+                <SidebarFollows collapsed={sidebarCollapsed} />
+              </RecoveryBoundary>
             </aside>
 
             {/* Main Content */}
@@ -119,9 +122,11 @@ export function AppLayout({ children }: AppLayoutProps) {
 
           {/* Persistent player moves between the stream-page dock and mini mode. */}
           {shouldRenderPersistentPlayer && (
-            <Suspense fallback={null}>
-              <MiniPlayer />
-            </Suspense>
+            <RecoveryBoundary name="Mini player" resetKey={currentPipStream?.channelName}>
+              <Suspense fallback={null}>
+                <MiniPlayer />
+              </Suspense>
+            </RecoveryBoundary>
           )}
           <NetworkStatusBanner
             isOnline={isOnline}

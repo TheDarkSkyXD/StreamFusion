@@ -20,7 +20,7 @@ vi.mock("@/store/follow-store", () => ({
 
 import { CHANNEL_KEYS } from "@/hooks/queries/useChannels";
 import { STREAM_KEYS } from "@/hooks/queries/useStreams";
-import { DEFAULT_USER_PREFERENCES, type TwitchUser } from "@/shared/auth-types";
+import { DEFAULT_USER_PREFERENCES, type KickUser, type TwitchUser } from "@/shared/auth-types";
 import type { AuthStatus } from "@/shared/ipc-channels";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -58,8 +58,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // biome-ignore lint/suspicious/noExplicitAny: cleanup of test stub
-  delete (window as any).electronAPI;
+  Reflect.deleteProperty(window, "electronAPI");
 });
 
 describe("auth-store logoutTwitch — follow-cache cleanup", () => {
@@ -400,6 +399,27 @@ describe("auth-store session-expired listeners — follow-cache cleanup", () => 
     });
     expect(followStoreHydrateSpy).toHaveBeenCalled();
   });
+
+  it("Kick OAuth expiry preserves the remembered identity for website chat", async () => {
+    const ctl = makeAuthApiCapture();
+    const kickUser: KickUser = {
+      id: 42,
+      username: "kick-user",
+      slug: "kick-user",
+      profilePic: "",
+      verified: false,
+    };
+    await useAuthStore.getState().initializeAuth();
+    useAuthStore.setState({ kickUser, kickConnected: true, isGuest: false });
+
+    ctl.triggerKickSessionExpired();
+
+    expect(useAuthStore.getState()).toMatchObject({
+      kickUser,
+      kickConnected: false,
+      isGuest: false,
+    });
+  });
 });
 
 // Guards: a transient Twitch refresh failure during startup must not erase the backend-owned saved session.
@@ -600,6 +620,70 @@ describe("auth-store Twitch startup persistence", () => {
   });
 });
 
+// Guards: a thrown Kick refresh error during startup must preserve backend-owned OAuth, website auth, and identity.
+describe("auth-store Kick startup persistence", () => {
+  it("reconciles authoritative status without clearing credentials in the renderer", async () => {
+    const kickUser: KickUser = {
+      id: 42,
+      username: "kick-user",
+      slug: "kick-user",
+      profilePic: "",
+      verified: false,
+    };
+    const status: AuthStatus = {
+      twitch: { connected: false, user: null, hasToken: false, isExpired: false },
+      kick: {
+        connected: false,
+        user: kickUser,
+        hasToken: true,
+        isExpired: true,
+      },
+      isGuest: false,
+    };
+    const clearToken = vi.fn(async () => {});
+    const clearKickUser = vi.fn(async () => {});
+    const getStatus = vi.fn(async () => status);
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      writable: true,
+      value: {
+        auth: {
+          getStatus,
+          refreshKickToken: vi.fn(async () => {
+            throw new Error("temporary network failure");
+          }),
+          clearToken,
+          clearKickUser,
+          onTwitchAuthLost: vi.fn(() => () => {}),
+          onKickSessionExpired: vi.fn(() => () => {}),
+          onFollowsSynced: vi.fn(() => () => {}),
+          syncFollows: vi.fn(async () => ({ success: true })),
+        },
+        follows: { getAll: vi.fn(async () => []) },
+        preferences: { get: vi.fn(async () => ({})) },
+      },
+    });
+    useAuthStore.setState({
+      ...initialAuthState,
+      kickUser: null,
+      kickConnected: false,
+    });
+
+    await useAuthStore.getState().initializeAuth();
+
+    expect(getStatus).toHaveBeenCalledTimes(2);
+    expect(clearToken).not.toHaveBeenCalled();
+    expect(clearKickUser).not.toHaveBeenCalled();
+    expect(useAuthStore.getState()).toMatchObject({
+      kickUser,
+      kickConnected: false,
+      isGuest: false,
+      initialized: true,
+      error: null,
+    });
+  });
+});
+
 describe("auth-store account-follow startup sync", () => {
   // Guards: existing Kick sessions request an account-follow sync after the renderer
   // listener is registered, so restart shows the real Kick account's live/offline follows.
@@ -719,7 +803,7 @@ describe("auth-store manual account-follow sync", () => {
 
     expect(syncFollows).toHaveBeenCalledWith("twitch");
     expect(syncFollows).toHaveBeenCalledWith("kick");
-    expect(result).toEqual({ synced: ["twitch", "kick"], failed: [] });
+    expect(result).toEqual({ synced: ["twitch", "kick"], failed: [], failureReasons: {} });
   });
 
   it("syncs only the connected platform", async () => {
@@ -739,7 +823,7 @@ describe("auth-store manual account-follow sync", () => {
 
     expect(syncFollows).toHaveBeenCalledOnce();
     expect(syncFollows).toHaveBeenCalledWith("twitch");
-    expect(result).toEqual({ synced: ["twitch"], failed: [] });
+    expect(result).toEqual({ synced: ["twitch"], failed: [], failureReasons: {} });
   });
 
   it("returns partial failures and timestamps only successful platforms", async () => {
@@ -760,7 +844,11 @@ describe("auth-store manual account-follow sync", () => {
 
     const result = await useAuthStore.getState().syncConnectedFollows();
 
-    expect(result).toEqual({ synced: ["twitch"], failed: ["kick"] });
+    expect(result).toEqual({
+      synced: ["twitch"],
+      failed: ["kick"],
+      failureReasons: { kick: undefined },
+    });
     expect(useAuthStore.getState().followSyncLastSyncedAt.twitch).toEqual(expect.any(String));
     expect(useAuthStore.getState().followSyncLastSyncedAt.kick).toBeUndefined();
   });
@@ -780,11 +868,15 @@ describe("auth-store manual account-follow sync", () => {
 
     const result = await useAuthStore.getState().syncConnectedFollows();
 
-    expect(result).toEqual({ synced: [], failed: ["twitch", "kick"] });
+    expect(result).toEqual({
+      synced: [],
+      failed: ["twitch", "kick"],
+      failureReasons: { twitch: undefined, kick: undefined },
+    });
     expect(followStoreHydrateSpy).not.toHaveBeenCalled();
   });
 
-  it("blocks duplicate manual sync while one is in flight", async () => {
+  it("joins duplicate manual sync callers to the in-flight result", async () => {
     const resolveFirstSync: { current?: (value: { success: true }) => void } = {};
     const syncFollows = vi.fn(
       () =>
@@ -805,13 +897,16 @@ describe("auth-store manual account-follow sync", () => {
 
     const first = useAuthStore.getState().syncConnectedFollows();
     expect(useAuthStore.getState().followSyncInProgress).toBe(true);
-    const second = await useAuthStore.getState().syncConnectedFollows();
+    const second = useAuthStore.getState().syncConnectedFollows();
 
-    expect(second).toEqual({ synced: [], failed: [] });
+    expect(second).toBe(first);
     expect(syncFollows).toHaveBeenCalledOnce();
     expect(resolveFirstSync.current).toBeDefined();
     resolveFirstSync.current?.({ success: true });
-    await first;
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { synced: ["twitch"], failed: [], failureReasons: {} },
+      { synced: ["twitch"], failed: [], failureReasons: {} },
+    ]);
     expect(useAuthStore.getState().followSyncInProgress).toBe(false);
   });
 });

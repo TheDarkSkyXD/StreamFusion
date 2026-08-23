@@ -225,7 +225,7 @@ async function loadProgressiveCategoryData(
     }
   }
 
-  return [categoriesResponse, streamsResponse, accepted] as const;
+  return [categoriesResponse, streamsResponse, accepted, fullCatalog, refreshComplete] as const;
 }
 
 interface ProgressiveCategoryRequest {
@@ -356,7 +356,8 @@ export function useTopCategories(platform?: Platform, options: { enabled?: boole
   const query = useQuery({
     queryKey,
     queryFn: async ({ signal }) => {
-      const [categoriesResponse, streamsResponse, accepted] = await acquireProgressiveCategoryData(
+      const [categoriesResponse, _streamsResponse, accepted, fullCatalog, refreshComplete] =
+        await acquireProgressiveCategoryData(
         platform,
         signal,
         queryClient,
@@ -366,10 +367,12 @@ export function useTopCategories(platform?: Platform, options: { enabled?: boole
       if (categoriesResponse.success === false) {
         throw new Error(categoriesResponse.error);
       }
-      if (!accepted) {
-        return queryClient.getQueryData<UnifiedCategory[]>(queryKey) ?? [];
-      }
-      return queryClient.getQueryData<UnifiedCategory[]>(queryKey) ?? [];
+      if (accepted || refreshComplete) return fullCatalog;
+
+      const cached = queryClient.getQueryData<UnifiedCategory[]>(queryKey);
+      if (cached?.length) return cached;
+      if (fullCatalog.length > 0) return fullCatalog;
+      throw new Error("Couldn’t load categories from Twitch or Kick");
     },
     ...getQueryCacheOptions("categories"),
     refetchOnWindowFocus: false,
@@ -432,6 +435,7 @@ export function useUnifiedCategoryLink(
         platform: otherPlatform,
         limit: 10,
       });
+      if (response.success === false) throw new Error(response.error);
       const candidates = (response.data as UnifiedCategory[]) || [];
       return candidates.find((c) => normalizeCategoryName(c.name) === key) || null;
     },

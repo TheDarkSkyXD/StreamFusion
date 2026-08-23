@@ -13,7 +13,6 @@ import {
   type ProgressInfo,
 } from "electron-updater";
 import { logger } from "@/backend/logging/logger";
-import { createManagedInterval } from "@/lib/managed-interval";
 import type {
   CheckFrequency,
   UpdateInfo,
@@ -34,9 +33,12 @@ interface UpdateStoreSchema {
   checkFrequency: CheckFrequency;
   /** Unix-ms timestamp of the last completed check; gates the interval. */
   lastCheckAt: number;
+  updateCheckUrl: string;
 }
 
-const DEFAULT_CHECK_FREQUENCY: CheckFrequency = "daily";
+const DEFAULT_CHECK_FREQUENCY: CheckFrequency = "weekly";
+export const DEFAULT_UPDATE_CHECK_URL =
+  "https://github.com/TheDarkSkyXD/StreamFusion/releases/latest/download";
 
 // How long each preset waits between checks, in milliseconds.
 const FREQUENCY_INTERVAL_MS: Record<CheckFrequency, number> = {
@@ -70,6 +72,7 @@ const updateStore = new Store<UpdateStoreSchema>({
     autoCheckEnabled: false,
     checkFrequency: DEFAULT_CHECK_FREQUENCY,
     lastCheckAt: 0,
+    updateCheckUrl: DEFAULT_UPDATE_CHECK_URL,
   },
 } as ConstructorParameters<typeof Store<UpdateStoreSchema>>[0]);
 
@@ -82,10 +85,8 @@ let currentState: UpdateState = {
   allowPrerelease: updateStore.get("allowPrerelease", false),
   autoCheckEnabled: updateStore.get("autoCheckEnabled", false),
   checkFrequency: updateStore.get("checkFrequency", DEFAULT_CHECK_FREQUENCY),
+  updateCheckUrl: updateStore.get("updateCheckUrl", DEFAULT_UPDATE_CHECK_URL),
 };
-
-// Handle for the auto-check interval timer (null when not scheduled).
-let autoCheckTimer: { stop: () => void } | null = null;
 
 // Reference to main window for sending updates
 let mainWindowRef: BrowserWindow | null = null;
@@ -157,6 +158,7 @@ export function initUpdateService(mainWindow: BrowserWindow): void {
   autoUpdater.autoDownload = false; // Manual download control
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowPrerelease = currentState.allowPrerelease;
+  autoUpdater.setFeedURL({ provider: "generic", url: currentState.updateCheckUrl });
 
   // Set up event listeners
   autoUpdater.on("checking-for-update", () => {
@@ -222,9 +224,9 @@ export function initUpdateService(mainWindow: BrowserWindow): void {
   logger.info("Service:Updater", "Update service initialized");
   isInitialized = true;
 
-  // Start (or skip) the auto-check scheduler based on the persisted setting.
-  // Gated on app.isPackaged so dev builds never poll the update feed.
-  startAutoCheckScheduler();
+  // Match Xtra: check once during startup when the saved interval has elapsed.
+  // Do not keep polling while the app remains open.
+  maybeRunStartupCheck();
 }
 
 /**
@@ -253,47 +255,20 @@ async function runAutoCheck(): Promise<void> {
   }
 }
 
-/**
- * Tick handler: fire an automatic check only once the effective interval has
- * elapsed since the last recorded check. Runs on a fixed MIN_INTERVAL_MS cadence
- * so even "weekly" stays self-correcting without a long-lived timer.
- */
-function maybeRunScheduledCheck(): void {
+/** Run the single interval-gated update check performed during app startup. */
+function maybeRunStartupCheck(): void {
+  if (!isInitialized || !currentState.autoCheckEnabled || !app.isPackaged) {
+    if (!app.isPackaged) {
+      logger.info("Service:Updater", "Skipping startup update check in development mode");
+    }
+    return;
+  }
+
   const interval = effectiveIntervalMs(currentState.checkFrequency);
   const lastCheckAt = updateStore.get("lastCheckAt", 0);
   if (Date.now() - lastCheckAt >= interval) {
     void runAutoCheck();
   }
-}
-
-/**
- * (Re)build the auto-check interval timer from the current settings. Clears any
- * existing timer first so a settings change reschedules without a restart. No
- * timer runs when auto-check is off, the service isn't initialized, or the build
- * isn't packaged (dev never polls the feed).
- */
-function startAutoCheckScheduler(): void {
-  if (autoCheckTimer) {
-    autoCheckTimer.stop();
-    autoCheckTimer = null;
-  }
-
-  if (!isInitialized || !currentState.autoCheckEnabled || !app.isPackaged) {
-    if (!app.isPackaged) {
-      logger.info("Service:Updater", "Skipping auto-check scheduler in development mode");
-    }
-    return;
-  }
-
-  // Tick at the 1-hour floor and gate each tick on the last-check timestamp, so
-  // the effective cadence honors the frequency while a bad value can't spin a
-  // sub-hour loop. Check once on (re)schedule too, so enabling it doesn't wait a
-  // full tick when a check is already due.
-  maybeRunScheduledCheck();
-  autoCheckTimer = createManagedInterval(maybeRunScheduledCheck, MIN_INTERVAL_MS);
-  logger.info("Service:Updater", "Auto-check scheduler started", {
-    frequency: currentState.checkFrequency,
-  });
 }
 
 /**
@@ -374,13 +349,13 @@ export function setAllowPrerelease(allow: boolean): UpdateState {
 }
 
 /**
- * Set whether the app auto-checks for updates on an interval, and/or the
- * check frequency. Either argument may be omitted to update only the other.
- * Reschedules the interval timer immediately (no restart needed).
+ * Set whether the app checks for updates on startup, and/or the minimum
+ * interval between startup checks. Changes apply on the next startup, as in Xtra.
  */
 export function setAutoCheck(settings: {
   enabled?: boolean;
   frequency?: CheckFrequency;
+  updateCheckUrl?: string;
 }): UpdateState {
   if (typeof settings.enabled === "boolean") {
     updateStore.set("autoCheckEnabled", settings.enabled);
@@ -390,10 +365,13 @@ export function setAutoCheck(settings: {
     updateStore.set("checkFrequency", settings.frequency);
     currentState = { ...currentState, checkFrequency: settings.frequency };
   }
-
-  // Rebuild the timer from the new settings (no-op when not initialized / not
-  // packaged / disabled — handled inside).
-  startAutoCheckScheduler();
+  if (settings.updateCheckUrl) {
+    updateStore.set("updateCheckUrl", settings.updateCheckUrl);
+    currentState = { ...currentState, updateCheckUrl: settings.updateCheckUrl };
+    if (isInitialized) {
+      autoUpdater.setFeedURL({ provider: "generic", url: settings.updateCheckUrl });
+    }
+  }
 
   // Mirror the settings change to the renderer (matches setAllowPrerelease,
   // which surfaces via the returned state; this also pushes a status event).
@@ -410,5 +388,6 @@ export function getUpdateSettings(): UpdateSettings {
     allowPrerelease: currentState.allowPrerelease,
     autoCheckEnabled: currentState.autoCheckEnabled,
     checkFrequency: currentState.checkFrequency,
+    updateCheckUrl: currentState.updateCheckUrl,
   };
 }

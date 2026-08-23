@@ -13,6 +13,98 @@ import type { UnifiedChannel, UnifiedStream } from "../../../unified/platform-ty
 import { acquireKickRequestSlot } from "../kick-network-health";
 import { rememberKickLivePlaybackFromChannelPayload } from "../kick-playback-cache";
 import type { KickRequestor } from "../kick-requestor";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+interface PrivateLivestream {
+  id?: string;
+  viewers_count?: number;
+  thumbnail_url?: string;
+  started_at?: string;
+  streamer?: { channel?: { id?: string; slug?: string }; user?: { username?: string; profile_picture?: string } };
+  metadata?: { title?: string; language?: string; has_mature_content?: boolean; category?: { id?: string; name?: string; tags?: string[] } };
+}
+
+interface LegacyChannelPayload {
+  slug: string;
+  user?: { username?: string; profile_picture?: string; profile_pic?: string; profilepic?: string };
+  livestream: null | {
+    id: string | number;
+    channel_id: string | number;
+    session_title?: string;
+    viewer_count?: number;
+    viewers?: number;
+    thumbnail?: { url?: string };
+    start_time?: string;
+    created_at?: string;
+    language?: string;
+    custom_tags?: string[];
+    tags?: string[];
+    is_mature?: boolean;
+    categories?: Array<{ id?: string | number; name?: string }>;
+  };
+}
+
+function isLegacyChannelPayload(value: unknown): value is LegacyChannelPayload {
+  if (!isRecord(value) || typeof value.slug !== "string" || !("livestream" in value)) return false;
+  return value.livestream === null || isRecord(value.livestream);
+}
+
+function isPrivateLivestream(value: unknown): value is PrivateLivestream {
+  return isRecord(value);
+}
+
+interface DirectoryNode {
+  id?: string | number;
+  slug?: string;
+  name?: string;
+  username?: string;
+  user_id?: string | number;
+  profile_picture?: string;
+  profile_pic?: string;
+  profilepic?: string;
+  url?: string;
+  src?: string;
+  thumbnail_url?: string;
+  title?: string;
+  language?: string;
+  has_mature_content?: boolean;
+  user?: DirectoryNode;
+  channel?: DirectoryNode;
+  category?: DirectoryNode;
+  thumbnail?: DirectoryNode;
+}
+
+interface DirectoryLivestream extends DirectoryNode {
+  streamer?: DirectoryNode;
+  metadata?: DirectoryNode;
+  livestream?: DirectoryNode;
+  categories?: DirectoryNode[];
+  session_id?: string | number;
+  channel_id?: string | number;
+  category_id?: string | number;
+  broadcaster_user_id?: string | number;
+  broadcaster_username?: string;
+  broadcaster_display_name?: string;
+  broadcaster_name?: string;
+  session_title?: string;
+  viewers_count?: number;
+  viewer_count?: number;
+  viewers?: number;
+  started_at?: string;
+  created_at?: string;
+  start_time?: string;
+  custom_tags?: string[];
+  tags?: string[];
+  is_mature?: boolean;
+  has_mature_content?: boolean;
+}
+
+function isDirectoryLivestream(value: unknown): value is DirectoryLivestream {
+  return isRecord(value);
+}
 import {
   normalizeKickDate,
   transformKickLivestream,
@@ -22,6 +114,7 @@ import {
   KICK_LEGACY_API_V1_BASE,
   type KickApiLivestream,
   type KickApiResponse,
+  type KickApiUser,
   type KickApiUserLivestream,
   type PaginatedResult,
   type PaginationOptions,
@@ -138,7 +231,7 @@ async function getChannelDisplayInfo(
   try {
     const { net } = require("electron");
 
-    let data: any = null;
+    let data: unknown = null;
     try {
       const res: Response = await net.fetch(`${KICK_LEGACY_API_V1_BASE}/channels/${slug}`, {
         headers: {
@@ -157,14 +250,15 @@ async function getChannelDisplayInfo(
       // timeout or network error
     }
 
-    if (!data) return null;
+    if (!isRecord(data)) return null;
 
     // Prefer official API field (profile_picture) over legacy (profile_pic)
     // Official API returns kick.com/img/... URLs which work directly
     // Legacy API returns files.kick.com/... URLs which may return 403
+    const channelUser = isRecord(data.user) ? data.user : {};
     const result = {
-      displayName: data.user?.username || slug,
-      avatar: data.user?.profile_picture || data.user?.profile_pic || data.user?.profilepic || "",
+      displayName: typeof channelUser.username === "string" ? channelUser.username : slug,
+      avatar: [channelUser.profile_picture, channelUser.profile_pic, channelUser.profilepic].find((value): value is string => typeof value === "string") || "",
       isVerified: isKickChannelVerified(data),
     };
 
@@ -179,17 +273,16 @@ async function getChannelDisplayInfo(
   }
 }
 
-function isKickChannelVerified(data: any): boolean {
+function isKickChannelVerified(data: unknown): boolean {
+  if (!isRecord(data)) return false;
+  const user = isRecord(data.user) ? data.user : {};
+  const streamer = isRecord(data.streamer) ? data.streamer : {};
+  const streamerUser = isRecord(streamer.user) ? streamer.user : {};
+  const verified = isRecord(data.verified) ? data.verified.id : data.verified;
+  const userVerified = isRecord(user.verified) ? user.verified.id : user.verified;
+  const streamerVerified = isRecord(streamerUser.verified) ? streamerUser.verified.id : streamerUser.verified;
   return !!(
-    data?.verified?.id ??
-    data?.verified ??
-    data?.is_verified ??
-    data?.user?.verified?.id ??
-    data?.user?.verified ??
-    data?.user?.is_verified ??
-    data?.streamer?.user?.verified?.id ??
-    data?.streamer?.user?.verified ??
-    data?.streamer?.user?.is_verified ??
+    verified ?? data.is_verified ?? userVerified ?? user.is_verified ?? streamerVerified ?? streamerUser.is_verified ??
     false
   );
 }
@@ -519,7 +612,7 @@ async function _doFetchPublicStreamBySlug(
         throw new Error(`Status ${res.status}`);
       }
 
-      let data: any = null;
+      let data: unknown = null;
       if (res.status !== 404) {
         try {
           data = await res.json();
@@ -536,7 +629,7 @@ async function _doFetchPublicStreamBySlug(
       // 404 means the channel doesn't exist, not that Kick is down.
       recordPlatformSuccess("kick");
 
-      if (!data) return null;
+      if (!isLegacyChannelPayload(data)) return null;
 
       const livestream = data.livestream;
       // `data.livestream === null` means the channel exists but is offline.
@@ -576,12 +669,12 @@ async function _doFetchPublicStreamBySlug(
       rememberKickLivePlaybackFromChannelPayload(key, data);
       _publicStreamSuccessCache.set(key, { data: result, timestamp: Date.now() });
       return result;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Normalize TimeoutError/AbortError from AbortSignal.timeout and raw
       // network errors (net::ERR_*) from net.fetch into the TRANSIENT: prefix
       // so the retry/classification logic below is unchanged.
       let normalizedError: Error;
-      if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+      if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
         normalizedError = new Error("TRANSIENT:timeout");
       } else if (
         error instanceof Error &&
@@ -866,7 +959,7 @@ async function getPublicStreamsByCategorySlug(
   const cursorParam = options.cursor ? `?cursor=${encodeURIComponent(options.cursor)}` : "";
   const url = `https://api.kick.com/private/v1/categories/${encodeURIComponent(slug)}/livestreams${cursorParam}`;
 
-  let data: any = null;
+  let data: unknown = null;
   try {
     const res: Response = await net.fetch(url, {
       headers: {
@@ -886,16 +979,19 @@ async function getPublicStreamsByCategorySlug(
     // timeout or network error
   }
 
-  const livestreams = data?.data?.livestreams || [];
+  const responseData = isRecord(data) && isRecord(data.data) ? data.data : null;
+  const livestreams = responseData && Array.isArray(responseData.livestreams)
+    ? responseData.livestreams.filter(isPrivateLivestream)
+    : [];
   if (!Array.isArray(livestreams) || livestreams.length === 0) {
     return { data: [] };
   }
 
-  const streams: UnifiedStream[] = livestreams.map((item: any): UnifiedStream => {
-    const channel = item.streamer?.channel || {};
-    const user = item.streamer?.user || {};
-    const meta = item.metadata || {};
-    const category = meta.category || {};
+  const streams: UnifiedStream[] = livestreams.map((item): UnifiedStream => {
+    const channel = item.streamer?.channel ?? {};
+    const user = item.streamer?.user ?? {};
+    const meta = item.metadata ?? {};
+    const category = meta.category ?? {};
     return {
       id: String(item.id || ""),
       platform: "kick",
@@ -923,7 +1019,7 @@ async function getPublicStreamsByCategorySlug(
   // Only advertise a next cursor if it actually advances. The endpoint
   // sometimes echoes back the same cursor it was given, which would cause
   // useInfiniteQuery to refetch the same page in a loop.
-  const nextCursor = data?.data?.next_cursor;
+  const nextCursor = responseData && typeof responseData.next_cursor === "string" ? responseData.next_cursor : undefined;
   const advances = nextCursor && nextCursor !== options.cursor;
   return {
     data: streams,
@@ -981,12 +1077,12 @@ export async function getPublicTopStreams(
           `https://kick.com/stream/featured-livestreams/${language}`,
         ];
 
-    let bestData: any = null;
+    let bestData: unknown = null;
     let bestCount = 0;
 
     for (const url of endpoints) {
       try {
-        let data: any = null;
+        let data: unknown = null;
         try {
           const res: Response = await net.fetch(url, {
             headers: {
@@ -1007,11 +1103,15 @@ export async function getPublicTopStreams(
         }
 
         if (data) {
-          const rawList = Array.isArray(data)
+          const dataRecord = isRecord(data) ? data : null;
+          const nestedData = dataRecord && isRecord(dataRecord.data) ? dataRecord.data : null;
+          const rawList: unknown[] = Array.isArray(data)
             ? data
-            : Array.isArray(data.data)
-              ? data.data
-              : data.data?.livestreams || data.livestreams || [];
+            : dataRecord && Array.isArray(dataRecord.data)
+              ? dataRecord.data
+              : nestedData && Array.isArray(nestedData.livestreams)
+                ? nestedData.livestreams
+                : dataRecord && Array.isArray(dataRecord.livestreams) ? dataRecord.livestreams : [];
 
           if (rawList.length > bestCount) {
             bestData = data;
@@ -1035,14 +1135,21 @@ export async function getPublicTopStreams(
     const streams: UnifiedStream[] = [];
 
     // Handle different response formats
-    const rawList = Array.isArray(bestData)
+    const bestRecord = isRecord(bestData) ? bestData : null;
+    const bestNested = bestRecord && isRecord(bestRecord.data) ? bestRecord.data : null;
+    const rawList: unknown[] = Array.isArray(bestData)
       ? bestData
-      : Array.isArray(bestData.data)
-        ? bestData.data
-        : bestData.data?.livestreams || bestData.livestreams || [];
-    const nextCursor = bestData?.data?.next_cursor || bestData?.next_cursor;
+      : bestRecord && Array.isArray(bestRecord.data)
+        ? bestRecord.data
+        : bestNested && Array.isArray(bestNested.livestreams)
+          ? bestNested.livestreams
+          : bestRecord && Array.isArray(bestRecord.livestreams) ? bestRecord.livestreams : [];
+    const nextCursor =
+      (bestNested && typeof bestNested.next_cursor === "string" ? bestNested.next_cursor : undefined) ||
+      (bestRecord && typeof bestRecord.next_cursor === "string" ? bestRecord.next_cursor : undefined);
 
     for (const item of rawList) {
+      if (!isDirectoryLivestream(item)) continue;
       // Basic validation - handle different response structures
       // IMPORTANT: Prefer channel slug fields (the actual channel slug like "xqc")
       // over item.slug which is the LIVESTREAM slug (UUID-prefixed, e.g., "f084f107-atl-w-...")
@@ -1214,7 +1321,7 @@ export async function getTopStreams(
     // But /users endpoint usually works with App Token for public profiles
     const userIds = rawStreams.map((s) => s.broadcaster_user_id);
 
-    let userMap = new Map<number, any>();
+    let userMap = new Map<number, KickApiUser>();
     try {
       // Only fetch if we have streams
       if (userIds.length > 0) {

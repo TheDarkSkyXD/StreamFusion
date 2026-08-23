@@ -24,24 +24,22 @@ const storageServiceMock = vi.hoisted(() => ({
 
 const notificationMock = vi.hoisted(() => ({
   options: [] as Array<Record<string, unknown>>,
+  show: vi.fn(),
+  isSupported: vi.fn(),
 }));
 
 vi.mock("electron", () => {
-  const _showFn = vi.fn();
-  const _isSupportedFn = vi.fn();
-
   class MockNotification {
-    static isSupported = _isSupportedFn;
-    static _showFn = _showFn;
-    static _isSupportedFn = _isSupportedFn;
+    static isSupported = notificationMock.isSupported;
     static _options = notificationMock.options;
-    show = _showFn;
+    show = notificationMock.show;
     constructor(opts: Record<string, unknown>) {
       notificationMock.options.push(opts);
     }
   }
 
   return {
+    BrowserWindow: class {},
     ipcMain: {
       handle: vi.fn(),
       on: vi.fn(),
@@ -72,7 +70,7 @@ vi.mock("@/backend/services/storage-service", () => ({
   storageService: storageServiceMock,
 }));
 
-import { app, ipcMain, Notification, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, ipcMain, nativeTheme, shell } from "electron";
 
 import { registerSystemHandlers } from "@/backend/ipc/handlers/system-handlers";
 
@@ -80,21 +78,21 @@ type InvokeHandler = (event: unknown, args?: unknown) => unknown;
 type OnHandler = (event: unknown, ...args: unknown[]) => void;
 
 function getInvokeHandler(channel: string): InvokeHandler {
-  const calls = vi.mocked(ipcMain.handle).mock.calls as unknown as Array<[string, InvokeHandler]>;
+  const calls = vi.mocked(ipcMain.handle).mock.calls;
   const call = calls.find(([c]) => c === channel);
   if (!call) throw new Error(`invoke handler not registered: ${channel}`);
-  return call[1];
+  return (event, args) => Reflect.apply(call[1], undefined, [event, args]);
 }
 
 function getOnHandler(channel: string): OnHandler {
-  const calls = vi.mocked(ipcMain.on).mock.calls as unknown as Array<[string, OnHandler]>;
+  const calls = vi.mocked(ipcMain.on).mock.calls;
   const call = calls.find(([c]) => c === channel);
   if (!call) throw new Error(`on handler not registered: ${channel}`);
-  return call[1];
+  return (event, ...args) => Reflect.apply(call[1], undefined, [event, ...args]);
 }
 
 function makeFakeMainWindow() {
-  return {
+  return Object.assign(new BrowserWindow(), {
     isDestroyed: vi.fn(() => false),
     isMaximized: vi.fn(() => false),
     minimize: vi.fn(),
@@ -107,7 +105,7 @@ function makeFakeMainWindow() {
       send: vi.fn(),
       toggleDevTools: vi.fn(),
     },
-  };
+  });
 }
 
 let mainWindow: ReturnType<typeof makeFakeMainWindow>;
@@ -116,7 +114,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   notificationMock.options.length = 0;
   mainWindow = makeFakeMainWindow();
-  registerSystemHandlers(mainWindow as unknown as Electron.BrowserWindow);
+  registerSystemHandlers(mainWindow);
 });
 
 describe("App Info handlers", () => {
@@ -134,10 +132,10 @@ describe("App Info handlers", () => {
     vi.mocked(app.getVersion).mockReturnValue("1.2.3");
     vi.clearAllMocks();
     mainWindow = makeFakeMainWindow();
-    registerSystemHandlers(mainWindow as unknown as Electron.BrowserWindow);
+    registerSystemHandlers(mainWindow);
 
     const handler = getInvokeHandler(IPC_CHANNELS.APP_GET_VERSION_INFO);
-    const info = handler({}) as any;
+    const info = handler({}) as { version: string; isPrerelease: boolean; channel: string; displayVersion: string };
 
     expect(info.version).toBe("1.2.3");
     expect(info.isPrerelease).toBe(false);
@@ -149,10 +147,10 @@ describe("App Info handlers", () => {
     vi.mocked(app.getVersion).mockReturnValue("2.0.0-beta.1");
     vi.clearAllMocks();
     mainWindow = makeFakeMainWindow();
-    registerSystemHandlers(mainWindow as unknown as Electron.BrowserWindow);
+    registerSystemHandlers(mainWindow);
 
     const handler = getInvokeHandler(IPC_CHANNELS.APP_GET_VERSION_INFO);
-    const info = handler({}) as any;
+    const info = handler({}) as { isPrerelease: boolean; channel: string; displayVersion: string };
 
     expect(info.isPrerelease).toBe(true);
     expect(info.channel).toBe("beta");
@@ -163,10 +161,10 @@ describe("App Info handlers", () => {
     vi.mocked(app.getVersion).mockReturnValue("3.0.0-alpha.2");
     vi.clearAllMocks();
     mainWindow = makeFakeMainWindow();
-    registerSystemHandlers(mainWindow as unknown as Electron.BrowserWindow);
+    registerSystemHandlers(mainWindow);
 
     const handler = getInvokeHandler(IPC_CHANNELS.APP_GET_VERSION_INFO);
-    const info = handler({}) as any;
+    const info = handler({}) as { channel: string; displayVersion: string };
 
     expect(info.channel).toBe("alpha");
     expect(info.displayVersion).toBe("3.0.0-alpha.2 (Alpha)");
@@ -176,10 +174,10 @@ describe("App Info handlers", () => {
     vi.mocked(app.getVersion).mockReturnValue("1.0.0-rc.1");
     vi.clearAllMocks();
     mainWindow = makeFakeMainWindow();
-    registerSystemHandlers(mainWindow as unknown as Electron.BrowserWindow);
+    registerSystemHandlers(mainWindow);
 
     const handler = getInvokeHandler(IPC_CHANNELS.APP_GET_VERSION_INFO);
-    const info = handler({}) as any;
+    const info = handler({}) as { channel: string; displayVersion: string };
 
     expect(info.channel).toBe("rc");
     expect(info.displayVersion).toBe("1.0.0-rc.1 (Rc)");
@@ -239,13 +237,13 @@ describe("WINDOW_TOGGLE_DEV_TOOLS", () => {
 
 describe("Theme handler", () => {
   it("THEME_GET_SYSTEM returns 'dark' when shouldUseDarkColors is true", () => {
-    (nativeTheme as any).shouldUseDarkColors = true;
+    Reflect.set(nativeTheme, "shouldUseDarkColors", true);
     const handler = getInvokeHandler(IPC_CHANNELS.THEME_GET_SYSTEM);
     expect(handler({})).toBe("dark");
   });
 
   it("THEME_GET_SYSTEM returns 'light' when shouldUseDarkColors is false", () => {
-    (nativeTheme as any).shouldUseDarkColors = false;
+    Reflect.set(nativeTheme, "shouldUseDarkColors", false);
     const handler = getInvokeHandler(IPC_CHANNELS.THEME_GET_SYSTEM);
     expect(handler({})).toBe("light");
   });
@@ -287,8 +285,8 @@ describe("SHELL_OPEN_EXTERNAL", () => {
 
 describe("NOTIFICATION_SHOW", () => {
   it("shows notification when supported", () => {
-    const isSupportedFn = (Notification as any)._isSupportedFn;
-    const showFn = (Notification as any)._showFn;
+    const isSupportedFn = notificationMock.isSupported;
+    const showFn = notificationMock.show;
     isSupportedFn.mockReturnValue(true);
 
     const handler = getInvokeHandler(IPC_CHANNELS.NOTIFICATION_SHOW);
@@ -298,8 +296,8 @@ describe("NOTIFICATION_SHOW", () => {
   });
 
   it("does not show notification when not supported", () => {
-    const isSupportedFn = (Notification as any)._isSupportedFn;
-    const showFn = (Notification as any)._showFn;
+    const isSupportedFn = notificationMock.isSupported;
+    const showFn = notificationMock.show;
     isSupportedFn.mockReturnValue(false);
 
     const handler = getInvokeHandler(IPC_CHANNELS.NOTIFICATION_SHOW);
@@ -309,8 +307,8 @@ describe("NOTIFICATION_SHOW", () => {
   });
 
   it("does not show notification when desktop notifications are disabled", () => {
-    const isSupportedFn = (Notification as any)._isSupportedFn;
-    const showFn = (Notification as any)._showFn;
+    const isSupportedFn = notificationMock.isSupported;
+    const showFn = notificationMock.show;
     isSupportedFn.mockReturnValue(true);
     storageServiceMock.getPreferences.mockReturnValueOnce({
       notifications: { enabled: false, sound: true },
@@ -323,8 +321,8 @@ describe("NOTIFICATION_SHOW", () => {
   });
 
   it("uses a silent native notification when sound is disabled", () => {
-    const isSupportedFn = (Notification as any)._isSupportedFn;
-    const showFn = (Notification as any)._showFn;
+    const isSupportedFn = notificationMock.isSupported;
+    const showFn = notificationMock.show;
     isSupportedFn.mockReturnValue(true);
     storageServiceMock.getPreferences.mockReturnValueOnce({
       notifications: { enabled: true, sound: false },
@@ -334,7 +332,7 @@ describe("NOTIFICATION_SHOW", () => {
     handler({}, { title: "Test", body: "Body" });
 
     expect(showFn).toHaveBeenCalledTimes(1);
-    expect((Notification as any)._options[0]).toMatchObject({ silent: true });
+    expect(notificationMock.options[0]).toMatchObject({ silent: true });
   });
 });
 

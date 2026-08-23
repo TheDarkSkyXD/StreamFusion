@@ -134,6 +134,10 @@ vi.mock("@/components/player/hls-player", async () => {
       forwardedRef
     ) {
       const videoRef = React.useRef<HTMLVideoElement>(null);
+      const onHlsInstanceRef = React.useRef(onHlsInstance);
+      const onQualityLevelsRef = React.useRef(onQualityLevels);
+      onHlsInstanceRef.current = onHlsInstance;
+      onQualityLevelsRef.current = onQualityLevels;
       React.useImperativeHandle(forwardedRef, () => videoRef.current as HTMLVideoElement);
       React.useEffect(() => {
         const video = videoRef.current;
@@ -144,8 +148,8 @@ vi.mock("@/components/player/hls-player", async () => {
           value: 2,
           writable: true,
         });
-        onHlsInstance?.(createEngine(src));
-        onQualityLevels?.([
+        onHlsInstanceRef.current?.(createEngine(src));
+        onQualityLevelsRef.current?.([
           { id: "auto", label: "Auto", width: 0, height: 0, bitrate: 0, isAuto: true },
         ]);
       }, [src]);
@@ -173,6 +177,10 @@ vi.mock("@/components/player/twitch/twitch-hls-player", async () => {
         forwardedRef
       ) {
         const videoRef = React.useRef<HTMLVideoElement>(null);
+        const onHlsInstanceRef = React.useRef(onHlsInstance);
+        const onQualityLevelsRef = React.useRef(onQualityLevels);
+        onHlsInstanceRef.current = onHlsInstance;
+        onQualityLevelsRef.current = onQualityLevels;
         React.useImperativeHandle(forwardedRef, () => videoRef.current as HTMLVideoElement);
         React.useEffect(() => {
           const video = videoRef.current;
@@ -182,8 +190,8 @@ vi.mock("@/components/player/twitch/twitch-hls-player", async () => {
             value: 2,
             writable: true,
           });
-          onHlsInstance?.(createEngine(src));
-          onQualityLevels?.([
+          onHlsInstanceRef.current?.(createEngine(src));
+          onQualityLevelsRef.current?.([
             { id: "auto", label: "Auto", width: 0, height: 0, bitrate: 0, isAuto: true },
           ]);
         }, [src]);

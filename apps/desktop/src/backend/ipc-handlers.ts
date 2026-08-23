@@ -9,6 +9,7 @@ import type { BrowserWindow } from "electron";
 
 import { logger } from "@/backend/logging/logger";
 import { registerLazyIpcFeatureLoader } from "./ipc/lazy-feature-loader";
+import { TrustedIpcRegistry } from "./ipc/trusted-ipc-registry";
 
 function registerIpcHandlerGroup(group: string, registrar: () => void): void {
   try {
@@ -25,8 +26,9 @@ function registerIpcHandlerGroup(group: string, registrar: () => void): void {
 }
 
 export function registerIpcHandlers(mainWindow: BrowserWindow): void {
+  const registry = new TrustedIpcRegistry(mainWindow);
   registerIpcHandlerGroup("feature-loader", () =>
-    registerLazyIpcFeatureLoader(mainWindow)
+    registerLazyIpcFeatureLoader(mainWindow, registry)
   );
 
   logger.debug("IPC:Bootstrap", "Core IPC handlers registered");

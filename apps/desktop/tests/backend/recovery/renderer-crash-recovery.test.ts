@@ -17,7 +17,10 @@
 
 import { EventEmitter } from "node:events";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+// Guards: a first unexpected renderer loss reloads once instead of leaving a blank window
+// Guards: repeated or integrity-related renderer failures enter static safe mode instead of a reload loop
 
 vi.mock("@/backend/logging/logger", () => ({
   logger: {
@@ -30,12 +33,16 @@ vi.mock("@/backend/logging/logger", () => ({
 
 interface FakeWebContents extends EventEmitter {
   reload: ReturnType<typeof vi.fn>;
+  loadURL: ReturnType<typeof vi.fn>;
+  getURL: () => string;
   isDestroyed: () => boolean;
 }
 
 function makeFakeWebContents(opts?: { destroyed?: boolean }): FakeWebContents {
   const ee = new EventEmitter() as FakeWebContents;
   ee.reload = vi.fn();
+  ee.loadURL = vi.fn().mockResolvedValue(undefined);
+  ee.getURL = () => "http://localhost:5173/#/settings";
   const destroyed = opts?.destroyed ?? false;
   ee.isDestroyed = (): boolean => destroyed;
   return ee;
@@ -100,7 +107,7 @@ describe("installRendererCrashRecovery — non-recoverable reasons", () => {
     expect(wc.reload).not.toHaveBeenCalled();
   });
 
-  it("does NOT reload on 'crashed' (kept for log-only behavior; not part of slice scope)", async () => {
+  it("reloads once on an unexpected renderer crash", async () => {
     const mod = await import("@/backend/recovery/renderer-crash-recovery");
     const wc = makeFakeWebContents();
     uninstall = mod.installRendererCrashRecovery({
@@ -109,7 +116,34 @@ describe("installRendererCrashRecovery — non-recoverable reasons", () => {
 
     emitGone(wc, { reason: "crashed", exitCode: 11 });
 
+    expect(wc.reload).toHaveBeenCalledOnce();
+  });
+
+  it("opens static safe mode instead of looping after a second crash", async () => {
+    const mod = await import("@/backend/recovery/renderer-crash-recovery");
+    const wc = makeFakeWebContents();
+    uninstall = mod.installRendererCrashRecovery({
+      webContents: wc as unknown as Electron.WebContents,
+    });
+
+    emitGone(wc, { reason: "crashed", exitCode: 11 });
+    emitGone(wc, { reason: "crashed", exitCode: 11 });
+
+    expect(wc.reload).toHaveBeenCalledOnce();
+    expect(wc.loadURL).toHaveBeenCalledWith(expect.stringMatching(/^data:text\/html/));
+  });
+
+  it("opens safe mode immediately for an integrity failure", async () => {
+    const mod = await import("@/backend/recovery/renderer-crash-recovery");
+    const wc = makeFakeWebContents();
+    uninstall = mod.installRendererCrashRecovery({
+      webContents: wc as unknown as Electron.WebContents,
+    });
+
+    emitGone(wc, { reason: "integrity-failure", exitCode: 12 });
+
     expect(wc.reload).not.toHaveBeenCalled();
+    expect(wc.loadURL).toHaveBeenCalledOnce();
   });
 });
 

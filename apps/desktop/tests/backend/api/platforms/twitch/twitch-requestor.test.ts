@@ -45,15 +45,28 @@ vi.mock("@/backend/api/unified/platform-health", () => ({
 
 import { TwitchRequestor } from "@/backend/api/platforms/twitch/twitch-requestor";
 
-function spyNetRequest(
-  requestor: TwitchRequestor,
-  impl: (...args: unknown[]) => Promise<unknown>
-) {
-  return vi.spyOn(requestor as any, "netRequest").mockImplementation(impl);
+type NetRequest = (
+  url: string,
+  options?: {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+    signal?: AbortSignal;
+  }
+) => Promise<{ data: unknown | null; status: number; headers: Record<string, string> }>;
+function spyNetRequest(requestor: TwitchRequestor, impl: NetRequest) {
+  const mock = vi.fn<NetRequest>(impl);
+  if (!Reflect.set(requestor, "netRequest", mock)) {
+    throw new Error("Could not install the Twitch network-request test seam");
+  }
+  return mock;
 }
 
 // Guards: authenticated Helix calls go directly from Electron main to Twitch with main-owned credentials.
 // Guards: transient HTTP 500 responses retry so followed-channel pagination survives brief Twitch outages.
+// Guards: decoded Helix calls reject response shapes that do not satisfy their endpoint contract.
+// Guards: empty Helix responses remain distinct from JSON objects.
+// Guards: caller cancellation stops immediately and authentication refresh is attempted at most once.
 describe("TwitchRequestor", () => {
   let requestor: TwitchRequestor;
 
@@ -69,8 +82,39 @@ describe("TwitchRequestor", () => {
   });
 
   describe("request", () => {
+    it("validates JSON through the endpoint decoder", async () => {
+      spyNetRequest(requestor, async () => ({
+        data: { unexpected: true },
+        status: 200,
+        headers: {},
+      }));
+
+      const decode = (value: unknown): { data: unknown[] } => {
+        if (
+          typeof value !== "object" ||
+          value === null ||
+          !("data" in value) ||
+          !Array.isArray(value.data)
+        ) {
+          throw new Error("Invalid streams response");
+        }
+        return { data: value.data };
+      };
+
+      await expect(requestor.requestDecoded("/streams", decode)).rejects.toThrow(
+        "Invalid streams response"
+      );
+    });
+
+    it("accepts only null as an empty response", async () => {
+      spyNetRequest(requestor, async () => ({ data: null, status: 204, headers: {} }));
+      await expect(
+        requestor.requestEmpty("/channels/followed", { method: "DELETE" })
+      ).resolves.toBeUndefined();
+    });
+
     it("calls Twitch Helix directly with main-owned credentials", async () => {
-      const spy = spyNetRequest(requestor, async (url: unknown) => ({
+      const spy = spyNetRequest(requestor, async () => ({
         data: { ok: true },
         status: 200,
         headers: {},
@@ -79,7 +123,8 @@ describe("TwitchRequestor", () => {
       const result = await requestor.request("/streams");
 
       expect(spy).toHaveBeenCalledTimes(1);
-      const [url, opts] = spy.mock.calls[0] as [string, { headers: Record<string, string> }];
+      const [url, opts] = spy.mock.calls[0];
+      if (!opts?.headers) throw new Error("Expected request headers");
       expect(url).toBe("https://api.twitch.tv/helix/streams");
       expect(opts.headers.Authorization).toBe("Bearer test-token");
       expect(opts.headers["Client-Id"]).toBe("test-client-id");
@@ -101,7 +146,8 @@ describe("TwitchRequestor", () => {
         },
       });
 
-      const [, opts] = spy.mock.calls[0] as [string, { headers: Record<string, string> }];
+      const [, opts] = spy.mock.calls[0];
+      if (!opts?.headers) throw new Error("Expected request headers");
       expect(opts.headers.Authorization).toBe("Bearer test-token");
       expect(opts.headers["Client-Id"]).toBe("test-client-id");
     });
@@ -140,8 +186,11 @@ describe("TwitchRequestor", () => {
 
     it("attempts token refresh on 401 and retries", async () => {
       mockRefreshToken.mockResolvedValueOnce(true);
+      mockGetValidAccessToken
+        .mockResolvedValueOnce("expired-token")
+        .mockResolvedValueOnce("refreshed-token");
       let callCount = 0;
-      spyNetRequest(requestor, async () => {
+      const spy = spyNetRequest(requestor, async () => {
         callCount++;
         if (callCount === 1) return { data: {}, status: 401, headers: {} };
         return { data: { ok: true }, status: 200, headers: {} };
@@ -150,7 +199,26 @@ describe("TwitchRequestor", () => {
       const result = await requestor.request("/streams");
 
       expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+      expect(spy.mock.calls[1]?.[1]?.headers?.Authorization).toBe("Bearer refreshed-token");
       expect(result).toEqual({ ok: true });
+    });
+
+    it("does not recurse or refresh twice when the refreshed token is also rejected", async () => {
+      mockRefreshToken.mockResolvedValueOnce(true);
+      const spy = spyNetRequest(requestor, async () => ({ data: {}, status: 401, headers: {} }));
+
+      await expect(requestor.request("/streams")).rejects.toThrow("Authentication failed");
+      expect(mockRefreshToken).toHaveBeenCalledOnce();
+      expect(spy).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not retry a caller-aborted request", async () => {
+      const controller = new AbortController();
+      controller.abort();
+      const spy = spyNetRequest(requestor, async () => ({ data: {}, status: 200, headers: {} }));
+
+      await expect(requestor.request("/streams", { signal: controller.signal })).rejects.toThrow();
+      expect(spy).not.toHaveBeenCalled();
     });
 
     it("throws when 401 and refresh fails", async () => {
@@ -180,6 +248,18 @@ describe("TwitchRequestor", () => {
       expect(sleep).toHaveBeenCalledTimes(2);
       expect(sleep).toHaveBeenNthCalledWith(1, 1000);
       expect(sleep).toHaveBeenNthCalledWith(2, 2000);
+    });
+
+    it("retries a non-JSON 503 response instead of misclassifying it as a parse failure", async () => {
+      const { net } = await import("electron");
+      vi.mocked(net.fetch)
+        .mockResolvedValueOnce(
+          new Response("<html>temporarily unavailable</html>", { status: 503 })
+        )
+        .mockResolvedValueOnce(new Response('{"data":[]}', { status: 200 }));
+
+      await expect(requestor.request("/streams")).resolves.toEqual({ data: [] });
+      expect(net.fetch).toHaveBeenCalledTimes(2);
     });
 
     it("retries a transient 500 response", async () => {
@@ -236,7 +316,7 @@ describe("TwitchRequestor", () => {
         callCount++;
         if (callCount === 1) {
           const err = new Error("connection reset");
-          (err as any).cause = { code: "ECONNRESET" };
+          Object.defineProperty(err, "cause", { value: { code: "ECONNRESET" } });
           throw err;
         }
         return { data: { data: [] }, status: 200, headers: {} };
@@ -267,7 +347,8 @@ describe("TwitchRequestor", () => {
         body: JSON.stringify({ title: "New Title" }),
       });
 
-      const [, opts] = spy.mock.calls[0] as [string, { method: string; body: string }];
+      const [, opts] = spy.mock.calls[0];
+      if (!opts) throw new Error("Expected request options");
       expect(opts.method).toBe("POST");
       expect(opts.body).toBe(JSON.stringify({ title: "New Title" }));
     });
@@ -382,7 +463,7 @@ describe("TwitchRequestor", () => {
     it("calls recordPlatformFailure('twitch', 'net-error') on ECONNRESET after retries exhausted", async () => {
       spyNetRequest(requestor, async () => {
         const err = new Error("connection reset");
-        (err as any).cause = { code: "ECONNRESET" };
+        Object.defineProperty(err, "cause", { value: { code: "ECONNRESET" } });
         throw err;
       });
 

@@ -9,11 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mockNetFetch = vi.fn<(...args: unknown[]) => Promise<Response>>();
 
 const _origRequire = Module.prototype.require;
-(Module.prototype as any).require = function (id: string) {
+Module.prototype.require = function (id: string) {
   if (id === "electron") {
     return { net: { fetch: (...args: unknown[]) => mockNetFetch(...args) } };
   }
-  return _origRequire.apply(this, [id] as any);
+  return _origRequire.call(this, id);
 };
 
 function jsonResponse(body: unknown, status = 200): Response {

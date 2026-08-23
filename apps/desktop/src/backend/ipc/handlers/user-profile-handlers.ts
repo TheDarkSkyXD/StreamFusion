@@ -1,6 +1,3 @@
-import path from "node:path";
-import { pathToFileURL } from "node:url";
-
 import { app, type IpcMainInvokeEvent } from "electron";
 
 import { getUserProfileFixture } from "../../../dev-relay/user-profile-fixtures";
@@ -13,16 +10,9 @@ import type {
   TwitchPublicIdentity,
   TwitchResolvedChannel,
 } from "../../../shared/user-profile-types";
-import { registerTrustedIpcHandler, type TrustedIpcSender } from "../register-trusted-ipc-handler";
+import type { TrustedIpcRegistry } from "../trusted-ipc-registry";
 
 const unavailableProfile = { state: "failed", message: "Unavailable" } as const;
-
-function getMainRendererUrl(): string {
-  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
-    return process.env.ELECTRON_RENDERER_URL;
-  }
-  return pathToFileURL(path.join(__dirname, "../renderer/index.html")).href;
-}
 
 async function readWithDevelopmentFixture<T>(
   event: IpcMainInvokeEvent,
@@ -43,17 +33,12 @@ async function readWithDevelopmentFixture<T>(
   return read();
 }
 
-export function registerUserProfileHandlers(
-  trustedSender: TrustedIpcSender,
-  trustedDocumentUrl = getMainRendererUrl()
-): void {
-  registerTrustedIpcHandler({
+export function registerUserProfileHandlers(registry: TrustedIpcRegistry): void {
+  registry.handle({
     channel: IPC_CHANNELS.USER_PROFILE_TWITCH_IDENTITY,
     contract: userProfileIpcContracts[IPC_CHANNELS.USER_PROFILE_TWITCH_IDENTITY],
-    trustedSender,
-    trustedDocumentUrl,
     failureResponse: unavailableProfile,
-    handle: async (event, request) =>
+    execute: async (event, request) =>
       readWithDevelopmentFixture<TwitchPublicIdentity>(
         event,
         ["userProfiles", "getTwitchIdentity"],
@@ -65,13 +50,11 @@ export function registerUserProfileHandlers(
       ),
   });
 
-  registerTrustedIpcHandler({
+  registry.handle({
     channel: IPC_CHANNELS.USER_PROFILE_KICK_IDENTITY,
     contract: userProfileIpcContracts[IPC_CHANNELS.USER_PROFILE_KICK_IDENTITY],
-    trustedSender,
-    trustedDocumentUrl,
     failureResponse: unavailableProfile,
-    handle: async (event, request) =>
+    execute: async (event, request) =>
       readWithDevelopmentFixture<KickPublicIdentity>(
         event,
         ["userProfiles", "getKickIdentity"],
@@ -83,13 +66,11 @@ export function registerUserProfileHandlers(
       ),
   });
 
-  registerTrustedIpcHandler({
+  registry.handle({
     channel: IPC_CHANNELS.USER_PROFILE_KICK_ACCOUNT_CREATED,
     contract: userProfileIpcContracts[IPC_CHANNELS.USER_PROFILE_KICK_ACCOUNT_CREATED],
-    trustedSender,
-    trustedDocumentUrl,
     failureResponse: unavailableProfile,
-    handle: async (event, request) =>
+    execute: async (event, request) =>
       readWithDevelopmentFixture<string>(
         event,
         ["userProfiles", "getKickAccountCreated"],
@@ -101,13 +82,11 @@ export function registerUserProfileHandlers(
       ),
   });
 
-  registerTrustedIpcHandler({
+  registry.handle({
     channel: IPC_CHANNELS.USER_PROFILE_KICK_FOLLOW,
     contract: userProfileIpcContracts[IPC_CHANNELS.USER_PROFILE_KICK_FOLLOW],
-    trustedSender,
-    trustedDocumentUrl,
     failureResponse: unavailableProfile,
-    handle: async (event, request) =>
+    execute: async (event, request) =>
       readWithDevelopmentFixture<string>(event, ["userProfiles", "getKickFollow"], async () => {
         const { getKickFollowRelationship } =
           await import("../../api/platforms/kick/kick-public-profile-reader");
@@ -115,13 +94,11 @@ export function registerUserProfileHandlers(
       }),
   });
 
-  registerTrustedIpcHandler({
+  registry.handle({
     channel: IPC_CHANNELS.USER_PROFILE_KICK_CHANNEL,
     contract: userProfileIpcContracts[IPC_CHANNELS.USER_PROFILE_KICK_CHANNEL],
-    trustedSender,
-    trustedDocumentUrl,
     failureResponse: unavailableProfile,
-    handle: async (event, request) =>
+    execute: async (event, request) =>
       readWithDevelopmentFixture<KickResolvedChannel>(
         event,
         ["userProfiles", "resolveKickChannel"],
@@ -133,13 +110,11 @@ export function registerUserProfileHandlers(
       ),
   });
 
-  registerTrustedIpcHandler({
+  registry.handle({
     channel: IPC_CHANNELS.USER_PROFILE_TWITCH_ACCOUNT_CREATED,
     contract: userProfileIpcContracts[IPC_CHANNELS.USER_PROFILE_TWITCH_ACCOUNT_CREATED],
-    trustedSender,
-    trustedDocumentUrl,
     failureResponse: unavailableProfile,
-    handle: async (event, request) =>
+    execute: async (event, request) =>
       readWithDevelopmentFixture<string>(
         event,
         ["userProfiles", "getTwitchAccountCreated"],
@@ -151,13 +126,11 @@ export function registerUserProfileHandlers(
       ),
   });
 
-  registerTrustedIpcHandler({
+  registry.handle({
     channel: IPC_CHANNELS.USER_PROFILE_TWITCH_FOLLOW,
     contract: userProfileIpcContracts[IPC_CHANNELS.USER_PROFILE_TWITCH_FOLLOW],
-    trustedSender,
-    trustedDocumentUrl,
     failureResponse: unavailableProfile,
-    handle: async (event, request) =>
+    execute: async (event, request) =>
       readWithDevelopmentFixture<string>(event, ["userProfiles", "getTwitchFollow"], async () => {
         const { getTwitchFollowRelationship } =
           await import("../../api/platforms/twitch/twitch-public-profile-reader");
@@ -165,13 +138,11 @@ export function registerUserProfileHandlers(
       }),
   });
 
-  registerTrustedIpcHandler({
+  registry.handle({
     channel: IPC_CHANNELS.USER_PROFILE_TWITCH_CHANNEL,
     contract: userProfileIpcContracts[IPC_CHANNELS.USER_PROFILE_TWITCH_CHANNEL],
-    trustedSender,
-    trustedDocumentUrl,
     failureResponse: unavailableProfile,
-    handle: async (event, request) =>
+    execute: async (event, request) =>
       readWithDevelopmentFixture<TwitchResolvedChannel>(
         event,
         ["userProfiles", "resolveTwitchChannel"],

@@ -1,13 +1,12 @@
 import type { UnifiedCategory, UnifiedChannel } from "../../../unified/platform-types";
 import type { TwitchRequestor } from "../twitch-requestor";
+import {
+  helixResponseSchema,
+  twitchGameSchema,
+  twitchSearchChannelSchema,
+} from "../twitch-helix-schemas";
 import { transformTwitchCategory, transformTwitchSearchChannel } from "../twitch-transformers";
-import type {
-  PaginatedResult,
-  PaginationOptions,
-  TwitchApiGame,
-  TwitchApiResponse,
-  TwitchApiSearchChannel,
-} from "../twitch-types";
+import type { PaginatedResult, PaginationOptions } from "../twitch-types";
 
 /**
  * Search for channels
@@ -29,8 +28,8 @@ export async function searchChannels(
     params.set("live_only", String(options.liveOnly));
   }
 
-  const data = await client.request<TwitchApiResponse<TwitchApiSearchChannel>>(
-    `/search/channels?${params.toString()}`
+  const data = helixResponseSchema(twitchSearchChannelSchema).parse(
+    await client.request(`/search/channels?${params.toString()}`)
   );
 
   // Transform search results to unified channels
@@ -59,8 +58,8 @@ export async function searchCategories(
     params.set("after", options.after);
   }
 
-  const data = await client.request<TwitchApiResponse<TwitchApiGame>>(
-    `/search/categories?${params.toString()}`
+  const data = helixResponseSchema(twitchGameSchema).parse(
+    await client.request(`/search/categories?${params.toString()}`)
   );
 
   return {

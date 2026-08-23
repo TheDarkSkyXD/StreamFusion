@@ -43,12 +43,11 @@ afterEach(() => {
 describe("useFollowedChannels", () => {
   it("fetches followed channels for a platform", async () => {
     const ch = fixtures.channel({ username: "xqc" });
-    api.channels.getFollowed = vi.fn(async () => ({ data: [ch], error: null }));
+    api.channels.getFollowed = vi.fn(async () => ({ success: true as const, data: [ch] }));
 
-    const { result } = renderHook(
-      () => useFollowedChannels("twitch", { enabled: true }),
-      { wrapper: makeWrapper() }
-    );
+    const { result } = renderHook(() => useFollowedChannels("twitch", { enabled: true }), {
+      wrapper: makeWrapper(),
+    });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toHaveLength(1);
     expect(result.current.data![0].username).toBe("xqc");
@@ -56,6 +55,7 @@ describe("useFollowedChannels", () => {
 
   it("dedupes duplicate same-platform channels from IPC by slug", async () => {
     api.channels.getFollowed = vi.fn(async () => ({
+      success: true as const,
       data: [
         fixtures.channel({
           platform: "kick",
@@ -72,13 +72,11 @@ describe("useFollowedChannels", () => {
           avatarUrl: "https://example.com/hennytingzz.webp",
         }),
       ],
-      error: null,
     }));
 
-    const { result } = renderHook(
-      () => useFollowedChannels("kick", { enabled: true }),
-      { wrapper: makeWrapper() }
-    );
+    const { result } = renderHook(() => useFollowedChannels("kick", { enabled: true }), {
+      wrapper: makeWrapper(),
+    });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toHaveLength(1);
     expect(result.current.data![0]).toMatchObject({
@@ -88,20 +86,18 @@ describe("useFollowedChannels", () => {
   });
 
   it("returns an error when the followed-channel IPC request fails", async () => {
-    api.channels.getFollowed = vi.fn(async () => ({ data: null, error: "auth" }));
-    const { result } = renderHook(
-      () => useFollowedChannels("kick", { enabled: true }),
-      { wrapper: makeWrapper() }
-    );
+    api.channels.getFollowed = vi.fn(async () => ({ success: false as const, error: "auth" }));
+    const { result } = renderHook(() => useFollowedChannels("kick", { enabled: true }), {
+      wrapper: makeWrapper(),
+    });
     await waitFor(() => expect(result.current.isError).toBe(true), { timeout: 2_500 });
     expect(result.current.error).toEqual(new Error("auth"));
   });
 
   it("does not fetch when enabled=false", async () => {
-    const { result } = renderHook(
-      () => useFollowedChannels("twitch", { enabled: false }),
-      { wrapper: makeWrapper() }
-    );
+    const { result } = renderHook(() => useFollowedChannels("twitch", { enabled: false }), {
+      wrapper: makeWrapper(),
+    });
     await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
   });
 });
@@ -109,33 +105,28 @@ describe("useFollowedChannels", () => {
 describe("useChannelByUsername", () => {
   it("fetches a channel by username and platform", async () => {
     const ch = fixtures.channel({ username: "ninja", displayName: "Ninja" });
-    api.channels.getByUsername = vi.fn(async () => ({ data: ch, error: null }));
+    api.channels.getByUsername = vi.fn(async () => ({ success: true as const, data: ch }));
 
-    const { result } = renderHook(
-      () => useChannelByUsername("ninja", "twitch"),
-      { wrapper: makeWrapper() }
-    );
+    const { result } = renderHook(() => useChannelByUsername("ninja", "twitch"), {
+      wrapper: makeWrapper(),
+    });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data!.displayName).toBe("Ninja");
   });
 
   it("is disabled when username is empty", async () => {
-    const { result } = renderHook(
-      () => useChannelByUsername("", "twitch"),
-      { wrapper: makeWrapper() }
-    );
+    const { result } = renderHook(() => useChannelByUsername("", "twitch"), {
+      wrapper: makeWrapper(),
+    });
     await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
   });
 
   it("passes correct arguments to the IPC call", async () => {
     api.channels.getByUsername = vi.fn(async () => ({
+      success: true as const,
       data: fixtures.channel(),
-      error: null,
     }));
-    renderHook(
-      () => useChannelByUsername("xqc", "kick"),
-      { wrapper: makeWrapper() }
-    );
+    renderHook(() => useChannelByUsername("xqc", "kick"), { wrapper: makeWrapper() });
     await waitFor(() =>
       expect(api.channels.getByUsername).toHaveBeenCalledWith({
         username: "xqc",
@@ -161,7 +152,7 @@ describe("useChannelByUsername", () => {
       username: "new-login",
       displayName: "New Login",
     });
-    api.channels.getByUsername = vi.fn(async () => ({ data: canonical, error: null }));
+    api.channels.getByUsername = vi.fn(async () => ({ success: true as const, data: canonical }));
     api.follows.getAll = vi
       .fn()
       .mockResolvedValueOnce([

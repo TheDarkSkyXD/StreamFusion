@@ -17,7 +17,7 @@ vi.stubGlobal("window", {
   },
 } as unknown as Window);
 
-import { bttvEmoteProvider } from "@/backend/services/emotes/bttv-emotes";
+import { BTTVEmoteProvider, bttvEmoteProvider } from "@/backend/services/emotes/bttv-emotes";
 
 function makeBTTVEmote(overrides: Record<string, unknown> = {}) {
   return {
@@ -188,12 +188,12 @@ describe("BTTVEmoteProvider", () => {
 
   describe("buildEmoteUrl (static)", () => {
     it("builds CDN URL with default size", () => {
-      const url = (bttvEmoteProvider.constructor as any).buildEmoteUrl("abc123");
+      const url = BTTVEmoteProvider.buildEmoteUrl("abc123");
       expect(url).toBe("https://cdn.betterttv.net/emote/abc123/2x.webp");
     });
 
     it("builds CDN URL with custom size", () => {
-      const url = (bttvEmoteProvider.constructor as any).buildEmoteUrl("abc123", "3x");
+      const url = BTTVEmoteProvider.buildEmoteUrl("abc123", "3x");
       expect(url).toBe("https://cdn.betterttv.net/emote/abc123/3x.webp");
     });
   });

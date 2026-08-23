@@ -1183,7 +1183,54 @@ describe("ChatInput — subscriber-only preflight", () => {
 // Guards: platform send rejections become the same single blocker banner as preflight restrictions.
 // Guards: authoritative room-mode changes promptly remove stale send blockers.
 // Guards: switching channels cannot inherit a room-mode blocker from the prior channel.
+// Guards: viewer bans replace room-mode banners with an unambiguous banned-from-chat banner.
 describe("ChatInput — send rejection blockers", () => {
+  it("shows only the banned-from-chat banner and blocks Twitch retries", async () => {
+    infoBannerImpl.mockReturnValue(<div data-testid="info-banner-stub">Emote Only Mode</div>);
+    renderInput({ isAuthenticated: true, canSend: true, viewerUserId: "viewer-1" });
+
+    act(() => {
+      twitchChatService.emit("viewerSendRestriction", {
+        platform: "twitch",
+        channel: "ninja",
+        channelId: "12345",
+        restriction: "banned",
+      });
+    });
+
+    expect(screen.getByTestId("chat-send-blocker")).toHaveTextContent("You are banned from chat");
+    expect(screen.queryByTestId("info-banner-stub")).toBeNull();
+
+    const editor = getEditor();
+    typeInEditor(editor, "retry message");
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+    expect(twitchChatService.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("turns a Kick forbidden send result into a banned-from-chat banner", async () => {
+    infoBannerImpl.mockReturnValue(<div data-testid="info-banner-stub">Emote Only Mode</div>);
+    vi.mocked(kickChatService.sendMessage).mockRejectedValueOnce(
+      new KickChatSendError({
+        ok: false,
+        kind: "forbidden",
+        message: "You are banned or timed out in this channel.",
+      })
+    );
+    renderInput({ platform: "kick", isAuthenticated: true, canSend: true });
+    const editor = getEditor();
+    typeInEditor(editor, "blocked message");
+
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+
+    expect(screen.getByTestId("chat-send-blocker")).toHaveTextContent("You are banned from chat");
+    expect(screen.queryByTestId("info-banner-stub")).toBeNull();
+    expect(editor).toHaveTextContent("blocked message");
+  });
+
   it("restores the rejected draft and blocks retries after Twitch reports phone verification", async () => {
     infoBannerImpl.mockReturnValue(null);
     renderInput({ isAuthenticated: true, canSend: true, viewerUserId: "viewer-1" });
@@ -1412,9 +1459,7 @@ describe("ChatInput — send rejection blockers", () => {
 
   it("removes a stale Kick subscribers-only blocker when the current room turns the mode off", async () => {
     infoBannerImpl.mockReturnValue(null);
-    useRoomStateStore
-      .getState()
-      .updateRoomState("kick", "12345", { subscribersOnly: true });
+    useRoomStateStore.getState().updateRoomState("kick", "12345", { subscribersOnly: true });
     vi.mocked(kickChatService.sendMessage).mockRejectedValueOnce(
       new KickChatSendError({
         ok: false,
@@ -1432,9 +1477,7 @@ describe("ChatInput — send rejection blockers", () => {
     expect(screen.queryByTestId("chat-send-blocker")).toBeNull();
 
     act(() => {
-      useRoomStateStore
-        .getState()
-        .updateRoomState("kick", "12345", { subscribersOnly: false });
+      useRoomStateStore.getState().updateRoomState("kick", "12345", { subscribersOnly: false });
     });
 
     expect(screen.queryByTestId("chat-send-blocker")).toBeNull();
@@ -1687,27 +1730,27 @@ describe("ChatInput — footer actions", () => {
   it.each(["twitch", "kick"] as const)(
     "opens %s quick settings above the composer without covering footer controls",
     (platform) => {
-    infoBannerImpl.mockReturnValue(null);
-    renderInput({ platform });
-    const settingsButton = screen.getByRole("button", { name: /chat settings/i });
-    fireEvent.click(settingsButton);
-    const popover = screen.getByTestId("chat-quick-settings-popover");
-    const actionRow = screen.getByTestId("chat-input-action-row");
+      infoBannerImpl.mockReturnValue(null);
+      renderInput({ platform });
+      const settingsButton = screen.getByRole("button", { name: /chat settings/i });
+      fireEvent.click(settingsButton);
+      const popover = screen.getByTestId("chat-quick-settings-popover");
+      const actionRow = screen.getByTestId("chat-input-action-row");
 
-    expect(actionRow).not.toContainElement(popover);
-    const overlayAnchor = screen.getByTestId("chat-quick-settings-overlay-anchor");
-    expect(overlayAnchor).toContainElement(popover);
-    expect(overlayAnchor.parentElement).toHaveClass("relative", "flex", "flex-col");
-    expect(overlayAnchor).toHaveClass(
-      "absolute",
-      "inset-x-0",
-      "bottom-full",
-      "mb-12",
-      "max-w-full"
-    );
-    expect(quickSettingsPopoverCalls.at(-1)?.placement).toBe("top");
-    expect(quickSettingsPopoverCalls.at(-1)?.platform).toBe(platform);
-    expect(quickSettingsPopoverCalls.at(-1)?.triggerRef?.current).toBe(settingsButton);
+      expect(actionRow).not.toContainElement(popover);
+      const overlayAnchor = screen.getByTestId("chat-quick-settings-overlay-anchor");
+      expect(overlayAnchor).toContainElement(popover);
+      expect(overlayAnchor.parentElement).toHaveClass("relative", "flex", "flex-col");
+      expect(overlayAnchor).toHaveClass(
+        "absolute",
+        "inset-x-0",
+        "bottom-full",
+        "mb-12",
+        "max-w-full"
+      );
+      expect(quickSettingsPopoverCalls.at(-1)?.placement).toBe("top");
+      expect(quickSettingsPopoverCalls.at(-1)?.platform).toBe(platform);
+      expect(quickSettingsPopoverCalls.at(-1)?.triggerRef?.current).toBe(settingsButton);
     }
   );
 
@@ -2235,9 +2278,7 @@ describe("ChatInput — quick emote action bar", () => {
     const emote = makeQuickEmote({ id: "25", name: "Kappa", provider: "twitch" });
     emoteStoreState.getEmotesByProvider = () =>
       new Map<EmoteProvider, Emote[]>([["twitch", [emote]]]);
-    useRoomStateStore
-      .getState()
-      .updateRoomState("twitch", "12345", { subscribersOnly: true });
+    useRoomStateStore.getState().updateRoomState("twitch", "12345", { subscribersOnly: true });
     const checkSubscriberEligibility = vi.fn().mockResolvedValue({ status: "subscribed" as const });
     const writeLog = vi.fn();
     window.electronAPI = { logs: { write: writeLog } } as unknown as typeof window.electronAPI;
