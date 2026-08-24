@@ -80,6 +80,65 @@ function InfiniteSearchSentinel({
   );
 }
 
+function SearchVideoCard({ video }: { video: UnifiedVideo }) {
+  const [thumbnailFailed, setThumbnailFailed] = React.useState(!video.thumbnailUrl.trim());
+
+  if (thumbnailFailed) return null;
+
+  return (
+    <Link
+      to="/video/$platform/$videoId"
+      params={{ platform: video.platform, videoId: video.id }}
+      search={{
+        title: video.title,
+        channelName: video.channelName,
+        channelDisplayName: video.channelDisplayName,
+        channelAvatar: video.channelAvatar || undefined,
+        thumbnail: video.thumbnailUrl,
+        views: String(video.viewCount),
+        date: video.publishedAt,
+        duration: formatDuration(video.duration),
+        shareUrl: video.shareUrl,
+      }}
+      className="group block rounded-xl overflow-hidden bg-[var(--color-background-secondary)] transition-all hover:-translate-y-1 hover:shadow-lg hover:shadow-[var(--color-storm-primary)]/10"
+    >
+      <div className="relative aspect-video">
+        <ProxiedImage
+          src={video.thumbnailUrl}
+          alt={video.title}
+          className="w-full h-full object-cover"
+          onProxyError={() => setThumbnailFailed(true)}
+        />
+        <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/80 text-white text-xs backdrop-blur-sm">
+          {formatDuration(video.duration)}
+        </div>
+      </div>
+      <div className="p-3">
+        <div className="flex gap-3">
+          <PlatformAvatar
+            src={video.channelAvatar}
+            alt={video.channelName}
+            platform={video.platform}
+            size="w-10 h-10"
+          />
+          <div className="min-w-0">
+            <h3 className="font-bold text-white truncate group-hover:text-[var(--color-storm-primary)] transition-colors">
+              {video.title}
+            </h3>
+            <p className="text-sm text-[var(--color-foreground-secondary)]">
+              {video.channelDisplayName}
+            </p>
+            <p className="text-xs text-[var(--color-foreground-muted)] mt-1">
+              {(video.viewCount || 0).toLocaleString()} views •{" "}
+              {new Date(video.publishedAt).toLocaleDateString()}
+            </p>
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 // Platform-agnostic unified search
 export function SearchPage() {
   const search = useSearch({ from: "/_app/search" });
@@ -471,7 +530,7 @@ export function SearchPage() {
                 className={cn(
                   "px-3 py-1 text-xs font-bold rounded-md transition-all",
                   platformFilter === "all"
-                    ? "bg-[var(--color-foreground-secondary)] text-black"
+                    ? "bg-white text-black"
                     : "text-[var(--color-foreground-muted)] hover:text-white"
                 )}
               >
@@ -693,56 +752,7 @@ export function SearchPage() {
           </h2>
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {filteredVideos.map((video: UnifiedVideo) => (
-              <Link
-                to="/video/$platform/$videoId"
-                params={{ platform: video.platform, videoId: video.id }}
-                search={{
-                  title: video.title,
-                  channelName: video.channelName,
-                  channelDisplayName: video.channelDisplayName,
-                  channelAvatar: video.channelAvatar || undefined,
-                  thumbnail: video.thumbnailUrl,
-                  views: String(video.viewCount),
-                  date: video.publishedAt,
-                  duration: formatDuration(video.duration),
-                  shareUrl: video.shareUrl,
-                }}
-                key={`${video.platform}-${video.id}`}
-                className="group block rounded-xl overflow-hidden bg-[var(--color-background-secondary)] transition-all hover:-translate-y-1 hover:shadow-lg hover:shadow-[var(--color-storm-primary)]/10"
-              >
-                <div className="relative aspect-video">
-                  <ProxiedImage
-                    src={video.thumbnailUrl}
-                    alt={video.title}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/80 text-white text-xs backdrop-blur-sm">
-                    {formatDuration(video.duration)}
-                  </div>
-                </div>
-                <div className="p-3">
-                  <div className="flex gap-3">
-                    <PlatformAvatar
-                      src={video.channelAvatar}
-                      alt={video.channelName}
-                      platform={video.platform}
-                      size="w-10 h-10"
-                    />
-                    <div className="min-w-0">
-                      <h3 className="font-bold text-white truncate group-hover:text-[var(--color-storm-primary)] transition-colors">
-                        {video.title}
-                      </h3>
-                      <p className="text-sm text-[var(--color-foreground-secondary)]">
-                        {video.channelDisplayName}
-                      </p>
-                      <p className="text-xs text-[var(--color-foreground-muted)] mt-1">
-                        {(video.viewCount || 0).toLocaleString()} views •{" "}
-                        {new Date(video.publishedAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </Link>
+              <SearchVideoCard key={`${video.platform}-${video.id}`} video={video} />
             ))}
           </div>
         </section>

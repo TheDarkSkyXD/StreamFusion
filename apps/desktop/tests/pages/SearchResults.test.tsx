@@ -34,10 +34,18 @@ vi.mock("@/components/ui/platform-avatar", () => ({
 }));
 
 vi.mock("@/components/ui/proxied-image", () => ({
-  ProxiedImage: ({ src, alt }: { src: string; alt: string }) => (
-    <div data-testid="proxied-image" data-src={src}>
+  ProxiedImage: ({
+    src,
+    alt,
+    onProxyError,
+  }: {
+    src: string;
+    alt: string;
+    onProxyError?: () => void;
+  }) => (
+    <button data-testid="proxied-image" data-src={src} onClick={onProxyError}>
       {alt}
-    </div>
+    </button>
   ),
 }));
 
@@ -84,6 +92,7 @@ function channelQuery(
 // Guards: focused tabs render loading or empty feedback instead of a blank panel
 // Guards: focused Videos and Clips tabs render recent content returned for channels matching the search term
 // Guards: focused media tabs fetch another batch at the scroll sentinel and stop requesting after provider exhaustion
+// Guards: a VOD card disappears when its thumbnail fails instead of presenting a broken recording tile
 describe("SearchPage", () => {
   beforeEach(() => {
     intersectionCallbacks = [];
@@ -468,6 +477,44 @@ describe("SearchPage", () => {
     renderWithProviders(<SearchPage />);
 
     expect(screen.getByTestId("proxied-image")).toHaveAttribute("data-src", kickThumbnail);
+  });
+
+  it("hides a video card when its thumbnail fails", () => {
+    useSearchAllMock.mockReturnValue({
+      data: {
+        ...emptyResults(),
+        videos: [
+          {
+            id: "broken-vod",
+            platform: "kick",
+            title: "Broken thumbnail VOD",
+            thumbnailUrl: "https://images.kick.com/missing.webp",
+            duration: 120,
+            channelAvatar: "",
+            channelName: "kickchannel",
+            channelDisplayName: "Kick Channel",
+            viewCount: 10,
+            publishedAt: "2026-01-01T00:00:00Z",
+          },
+        ],
+      },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useSearchAll>);
+
+    renderWithProviders(<SearchPage />);
+    fireEvent.click(screen.getByTestId("proxied-image"));
+
+    expect(screen.queryByText("Broken thumbnail VOD")).not.toBeInTheDocument();
+  });
+
+  it("uses a solid white background for the selected All platform filter", () => {
+    useSearchAllMock.mockReturnValue({ data: emptyResults(), isLoading: false } as unknown as ReturnType<
+      typeof useSearchAll
+    >);
+
+    renderWithProviders(<SearchPage />);
+
+    expect(screen.getByRole("button", { name: "ALL" })).toHaveClass("bg-white");
   });
 
   it('loading: forwards isLoading=true to the grids so skeletons render instead of "0 streams"', () => {
