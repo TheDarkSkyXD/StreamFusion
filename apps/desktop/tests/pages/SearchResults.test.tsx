@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fixtures, renderWithProviders, routerMock, screen } from "../test-utils";
 
 const routeMockState = vi.hoisted(() => ({ search: { q: "A" } }));
+let intersectionCallbacks: IntersectionObserverCallback[] = [];
 
 vi.mock("@tanstack/react-router", () => routerMock({ search: routeMockState.search }));
 
@@ -82,8 +83,27 @@ function channelQuery(
 // Guards: focused tabs enable and render only their dedicated result source instead of stale All-tab data
 // Guards: focused tabs render loading or empty feedback instead of a blank panel
 // Guards: focused Videos and Clips tabs render recent content returned for channels matching the search term
+// Guards: focused media tabs fetch another batch at the scroll sentinel and stop requesting after provider exhaustion
 describe("SearchPage", () => {
   beforeEach(() => {
+    intersectionCallbacks = [];
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          intersectionCallbacks.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+        unobserve() {}
+        takeRecords() {
+          return [];
+        }
+        root = null;
+        rootMargin = "";
+        thresholds = [];
+      }
+    );
     routeMockState.search.q = "A";
     useSearchAllMock.mockReset();
     useSearchCategoriesMock.mockReset();
@@ -365,6 +385,43 @@ describe("SearchPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clips" }));
     expect(screen.getAllByText("Matching Channel Clip")).not.toHaveLength(0);
     expect(screen.getByText("Recent content from matching channels.")).toBeInTheDocument();
+  });
+
+  it("loads focused Twitch and Kick media in scroll batches and stops at exhaustion", () => {
+    const fetchMoreVideos = vi.fn().mockResolvedValue(undefined);
+    const fetchMoreClips = vi.fn().mockResolvedValue(undefined);
+    useSearchAllMock.mockReturnValue({
+      data: emptyResults(),
+      isLoading: false,
+    } as unknown as ReturnType<typeof useSearchAll>);
+    useSearchVideosMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      hasNextPage: true,
+      isFetchingNextPage: false,
+      fetchNextPage: fetchMoreVideos,
+    } as unknown as ReturnType<typeof useSearchVideos>);
+    useSearchClipsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: fetchMoreClips,
+    } as unknown as ReturnType<typeof useSearchClips>);
+
+    renderWithProviders(<SearchPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Videos" }));
+    expect(screen.getByTestId("videos-infinite-sentinel")).toBeInTheDocument();
+    const videoObserver = intersectionCallbacks.at(-1)!;
+    videoObserver(
+      [{ isIntersecting: true } as IntersectionObserverEntry],
+      {} as IntersectionObserver
+    );
+    expect(fetchMoreVideos).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Clips" }));
+    expect(screen.queryByTestId("clips-infinite-sentinel")).not.toBeInTheDocument();
+    expect(fetchMoreClips).not.toHaveBeenCalled();
   });
 
   it("shows loading feedback while a focused media query is pending", () => {

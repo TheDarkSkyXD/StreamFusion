@@ -48,6 +48,38 @@ function ChannelDisplayName({
   );
 }
 
+function InfiniteSearchSentinel({
+  enabled,
+  fetching,
+  fetchNextPage,
+  label,
+}: {
+  enabled: boolean;
+  fetching: boolean;
+  fetchNextPage: () => Promise<unknown>;
+  label: "videos" | "clips";
+}) {
+  const sentinelRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const target = sentinelRef.current;
+    if (!enabled || fetching || !target || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) void fetchNextPage();
+      },
+      { rootMargin: "320px" }
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [enabled, fetchNextPage, fetching]);
+
+  if (!enabled) return null;
+  return (
+    <div ref={sentinelRef} data-testid={`${label}-infinite-sentinel`} className="h-1" aria-hidden />
+  );
+}
+
 // Platform-agnostic unified search
 export function SearchPage() {
   const search = useSearch({ from: "/_app/search" });
@@ -377,10 +409,24 @@ export function SearchPage() {
     filteredClips.length +
     filteredCategories.length;
   const activeHasResults = totalResults > 0;
+  const focusedMediaHasNextPage =
+    activeTab === "videos"
+      ? videosQuery.hasNextPage
+      : activeTab === "clips"
+        ? clipsQuery.hasNextPage
+        : false;
+  const focusedMediaFetchingNextPage =
+    activeTab === "videos"
+      ? videosQuery.isFetchingNextPage
+      : activeTab === "clips"
+        ? clipsQuery.isFetchingNextPage
+        : false;
   const activeQuerySettled =
     !activeLoading &&
     (activeTab !== "channels" ||
-      (!channelsFetchingNextPage && (!channelsHasNextPage || channelsExhaustedByRepeat)));
+      (!channelsFetchingNextPage && (!channelsHasNextPage || channelsExhaustedByRepeat))) &&
+    ((activeTab !== "videos" && activeTab !== "clips") ||
+      (!focusedMediaFetchingNextPage && !focusedMediaHasNextPage));
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -756,6 +802,23 @@ export function SearchPage() {
             ))}
           </div>
         </section>
+      )}
+
+      {activeTab === "videos" && (
+        <InfiniteSearchSentinel
+          enabled={Boolean(videosQuery.hasNextPage)}
+          fetching={videosQuery.isFetchingNextPage}
+          fetchNextPage={videosQuery.fetchNextPage}
+          label="videos"
+        />
+      )}
+      {activeTab === "clips" && (
+        <InfiniteSearchSentinel
+          enabled={Boolean(clipsQuery.hasNextPage)}
+          fetching={clipsQuery.isFetchingNextPage}
+          fetchNextPage={clipsQuery.fetchNextPage}
+          label="clips"
+        />
       )}
 
       {/* EMPTY STATE */}

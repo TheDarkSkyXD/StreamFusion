@@ -33,8 +33,10 @@ const clip = (id: string, owner: UnifiedChannel): UnifiedClip => ({
 
 const profile = { pageSize: 2, maxConcurrentRequests: 1 };
 
+// Guards: focused clip search returns bounded resumable batches until every matched channel and provider cursor is exhausted.
+// Guards: rate limits, repeated cursors, and cancellation cannot duplicate results or continue stale work.
 describe("progressive Clip search", () => {
-  it("walks every Channel page and every Clip page without an age cutoff", async () => {
+  it("returns bounded batches, then walks every Channel and Clip page without an age cutoff", async () => {
     const owners = [channel("1"), channel("2")];
     const channelCursors: Array<string | undefined> = [];
     const clipCursors = new Map<string, Array<string | undefined>>();
@@ -60,14 +62,33 @@ describe("progressive Clip search", () => {
       },
     });
 
-    const result = await search.next({
+    const firstPage = await search.next({
       sessionId: "exhaustive",
       platform: "twitch",
       query: "creator",
       limit: 10,
     });
+    const pages = [firstPage];
+    while (pages.at(-1)?.cursor) {
+      pages.push(
+        await search.next({
+          sessionId: "exhaustive",
+          platform: "twitch",
+          query: "creator",
+          limit: 10,
+          cursor: pages.at(-1)?.cursor,
+        })
+      );
+    }
+    const result = pages.at(-1)!;
 
-    expect(result.data.map((item) => item.id)).toEqual(["1-a", "1-b", "2-a", "2-b"]);
+    expect(firstPage.data.map((item) => item.id)).toEqual(["1-a"]);
+    expect(pages.flatMap((page) => page.data).map((item) => item.id)).toEqual([
+      "1-a",
+      "1-b",
+      "2-a",
+      "2-b",
+    ]);
     expect(channelCursors).toEqual([undefined, "channels-2"]);
     expect(clipCursors).toEqual(
       new Map([
@@ -97,14 +118,27 @@ describe("progressive Clip search", () => {
       source: { searchChannels, fetchClips },
     });
 
-    const result = await search.next({
-      sessionId: "repeated",
-      platform: "twitch",
-      query: "creator",
-      limit: 10,
-    });
+    const pages = [
+      await search.next({
+        sessionId: "repeated",
+        platform: "twitch",
+        query: "creator",
+        limit: 10,
+      }),
+    ];
+    while (pages.at(-1)?.cursor) {
+      pages.push(
+        await search.next({
+          sessionId: "repeated",
+          platform: "twitch",
+          query: "creator",
+          limit: 10,
+          cursor: pages.at(-1)?.cursor,
+        })
+      );
+    }
 
-    expect(result.data.map((item) => item.id)).toEqual(["same"]);
+    expect(pages.flatMap((page) => page.data).map((item) => item.id)).toEqual(["same"]);
     expect(searchChannels).toHaveBeenCalledTimes(2);
     expect(fetchClips).toHaveBeenCalledTimes(2);
   });

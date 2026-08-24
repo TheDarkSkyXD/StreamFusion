@@ -1,4 +1,8 @@
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
+import type {
+  UnifiedChannel,
+  UnifiedClip,
+  UnifiedVideo,
+} from "@/backend/api/unified/platform-types";
 import { kickClient } from "@/backend/api/platforms/kick/kick-client";
 import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
 import type { ClipSearchSource } from "@/backend/search/progressive-clip-search";
@@ -7,27 +11,99 @@ import type { VideoSearchSource } from "@/backend/search/progressive-video-searc
 import { rankSearchChannels } from "@/search/channel-search-contract";
 import type { Platform } from "@/shared/auth-types";
 
-const MATCHED_CHANNEL_LIMIT = 8;
 const MATCHED_LIVE_CHANNEL_LIMIT = 20;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function textValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function numberValue(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number.parseInt(textValue(value), 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function durationSeconds(value: unknown, sourceDurationMs?: unknown): number {
+  if (typeof sourceDurationMs === "number" && Number.isFinite(sourceDurationMs)) {
+    return Math.max(0, Math.round(sourceDurationMs / 1_000));
+  }
+  if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, value);
+  const parts = textValue(value).split(":").map(Number);
+  if (parts.some((part) => !Number.isFinite(part))) return 0;
+  return parts.reduce((total, part) => total * 60 + part, 0);
+}
+
+function normalizeKickVideos(channel: UnifiedChannel, values: readonly unknown[]): UnifiedVideo[] {
+  return values.flatMap((value) => {
+    if (!isRecord(value)) return [];
+    const publishedAt = textValue(value.sourceCreatedAt || value.created_at || value.date);
+    const url = textValue(value.shareUrl || value.url || value.source);
+    return [
+      {
+        ...value,
+        platform: "kick",
+        channelId: channel.id,
+        channelName: channel.username,
+        channelDisplayName: channel.displayName,
+        channelAvatar: channel.avatarUrl,
+        thumbnailUrl: textValue(value.thumbnailUrl),
+        duration: durationSeconds(value.duration, value.sourceDurationMs),
+        viewCount: numberValue(value.viewCount ?? value.views),
+        publishedAt,
+        url,
+        shareUrl: textValue(value.shareUrl) || url,
+        type: "archive",
+      },
+    ];
+  });
+}
+
+function normalizeKickClips(channel: UnifiedChannel, values: readonly unknown[]): UnifiedClip[] {
+  return values.flatMap((value) => {
+    if (!isRecord(value)) return [];
+    const clipUrl = textValue(value.url || value.shareUrl || value.embedUrl);
+    const embedUrl = textValue(value.embedUrl || value.url);
+    return [
+      {
+        ...value,
+        platform: "kick",
+        channelId: channel.id,
+        channelName: channel.username,
+        channelDisplayName: channel.displayName,
+        channelAvatar: channel.avatarUrl,
+        thumbnailUrl: textValue(value.thumbnailUrl),
+        clipUrl,
+        embedUrl,
+        duration: durationSeconds(value.duration),
+        viewCount: numberValue(value.viewCount ?? value.views),
+        createdAt: textValue(value.createdAt || value.created_at || value.date),
+        creatorName: textValue(value.creatorName),
+      },
+    ];
+  });
+}
 
 async function searchMatchedChannels(
   platform: Platform,
   query: string,
-  options: { limit: number; signal: AbortSignal; consumeRequest: () => void },
+  options: { cursor?: string; limit: number; signal: AbortSignal; consumeRequest: () => void },
   liveOnly: boolean = false
 ) {
   options.signal.throwIfAborted();
   options.consumeRequest();
-  const limit = Math.min(
-    options.limit,
-    liveOnly ? MATCHED_LIVE_CHANNEL_LIMIT : MATCHED_CHANNEL_LIMIT
-  );
+  const limit = liveOnly ? Math.min(options.limit, MATCHED_LIVE_CHANNEL_LIMIT) : options.limit;
   const result =
     platform === "twitch"
-      ? await twitchClient.searchChannels(query, { first: limit, liveOnly })
-      : await kickClient.searchChannels(query, { limit, liveOnly });
+      ? await twitchClient.searchChannels(query, { first: limit, after: options.cursor, liveOnly })
+      : await kickClient.searchChannels(query, { limit, cursor: options.cursor, liveOnly });
   options.signal.throwIfAborted();
-  return { data: rankSearchChannels(result.data, query).slice(0, limit) };
+  return {
+    data: rankSearchChannels(result.data, query),
+    cursor: result.cursor,
+  };
 }
 
 function recentContentSources(platform: Platform): {
@@ -62,7 +138,10 @@ function recentContentSources(platform: Platform): {
                 signal: options.signal,
               });
         options.signal.throwIfAborted();
-        return { data: result.data };
+        return {
+          data: platform === "kick" ? normalizeKickVideos(channel, result.data) : result.data,
+          cursor: result.cursor,
+        };
       },
     },
     clips: {
@@ -82,7 +161,10 @@ function recentContentSources(platform: Platform): {
                 signal: options.signal,
               });
         options.signal.throwIfAborted();
-        return { data: result.data };
+        return {
+          data: platform === "kick" ? normalizeKickClips(channel, result.data) : result.data,
+          cursor: result.cursor,
+        };
       },
     },
   };

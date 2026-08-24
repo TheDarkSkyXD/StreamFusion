@@ -187,6 +187,7 @@ function useProgressiveSearch<T extends ProgressiveSearchItem>({
   );
   const warmSnapshot = useQuery<T[]>({
     queryKey: publicQueryKey,
+    queryFn: async () => queryClient.getQueryData<T[]>(publicQueryKey) ?? [],
     enabled: false,
     gcTime: getQueryCacheOptions("searchResults").gcTime,
   });

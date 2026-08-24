@@ -1,14 +1,11 @@
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
-import { mapWithConcurrency } from "@/backend/search/progressive-stream-search";
 import type { Platform } from "@/shared/auth-types";
 
 export type RecentContentSearchEndReason = "exhausted" | "safety-limit" | "rate-limited";
-
 export interface RecentContentSearchProfile {
   pageSize: number;
   maxConcurrentRequests: number;
 }
-
 export interface RecentContentSearchProviderPage<T> {
   data: T[];
   cursor?: string;
@@ -17,22 +14,19 @@ export interface RecentContentSearchProviderPage<T> {
 export interface RecentContentSearchSource {
   searchChannels(
     query: string,
-    options: {
-      cursor?: string;
-      limit: number;
-      signal: AbortSignal;
-      consumeRequest: () => void;
-    }
+    options: PageOptions
   ): Promise<RecentContentSearchProviderPage<UnifiedChannel>>;
   fetchContent(
     channel: UnifiedChannel,
-    options: {
-      cursor?: string;
-      limit: number;
-      signal: AbortSignal;
-      consumeRequest: () => void;
-    }
+    options: PageOptions
   ): Promise<RecentContentSearchProviderPage<unknown>>;
+}
+
+interface PageOptions {
+  cursor?: string;
+  limit: number;
+  signal: AbortSignal;
+  consumeRequest: () => void;
 }
 
 export interface RecentContentSearchRequest {
@@ -53,15 +47,28 @@ export interface RecentContentSearchPage<TContent> {
   matchedChannelCount: number;
 }
 
+type DiscoveryState =
+  { kind: "open"; cursor?: string; seenCursors: Set<string> } | { kind: "exhausted" };
+
+interface ContentLane {
+  channel: UnifiedChannel;
+  cursor?: string;
+  seenCursors: Set<string>;
+}
+
 interface SessionState<TContent> {
   query: string;
-  startedAt: number;
   requestCount: number;
   matchedChannelCount: number;
-  loaded: boolean;
+  discovery: DiscoveryState;
+  discoveredChannels: Set<string>;
+  lanes: ContentLane[];
   pending: TContent[];
-  endReason?: RecentContentSearchEndReason;
+  emitted: Set<string>;
+  activeController?: AbortController;
 }
+
+type WaveResult = { kind: "ok" } | { kind: "rate-limited"; retryAfterMs?: number };
 
 function abortError(label: string): Error {
   const error = new Error(`${label} search cancelled`);
@@ -80,7 +87,13 @@ function retryAfter(error: unknown): number | undefined | null {
   return typeof value.retryAfterMs === "number" ? value.retryAfterMs : undefined;
 }
 
-export function createProgressiveRecentContentSearch<TContent>(options: {
+function hasMore<TContent>(state: SessionState<TContent>): boolean {
+  return state.pending.length > 0 || state.lanes.length > 0 || state.discovery.kind === "open";
+}
+
+export function createProgressiveRecentContentSearch<
+  TContent extends { id: string; platform: Platform },
+>(options: {
   source: RecentContentSearchSource;
   profile: RecentContentSearchProfile;
   filterRankAndDeduplicate: (values: readonly unknown[], query: string) => TContent[];
@@ -88,74 +101,110 @@ export function createProgressiveRecentContentSearch<TContent>(options: {
 }) {
   const sessions = new Map<string, SessionState<TContent>>();
 
-  const collectChannels = async (
+  const createState = (query: string): SessionState<TContent> => ({
+    query,
+    requestCount: 0,
+    matchedChannelCount: 0,
+    discovery: { kind: "open", seenCursors: new Set<string>() },
+    discoveredChannels: new Set<string>(),
+    lanes: [],
+    pending: [],
+    emitted: new Set<string>(),
+  });
+
+  const discoverChannels = async (
+    state: SessionState<TContent>,
     query: string,
     signal: AbortSignal,
     consumeRequest: () => void
-  ): Promise<UnifiedChannel[]> => {
-    const channels = new Map<string, UnifiedChannel>();
-    const seenCursors = new Set<string>();
-    let cursor: string | undefined;
-    let hasMore = true;
-
-    while (hasMore) {
-      assertActive(signal, options.label);
-      const page = await options.source.searchChannels(query, {
-        cursor,
-        limit: options.profile.pageSize,
-        signal,
-        consumeRequest,
-      });
-      assertActive(signal, options.label);
-      for (const channel of page.data) {
-        channels.set(`${channel.platform}:${channel.id}`, channel);
-      }
-      if (!page.cursor || seenCursors.has(page.cursor)) {
-        hasMore = false;
-      } else {
-        seenCursors.add(page.cursor);
-        cursor = page.cursor;
-      }
+  ): Promise<void> => {
+    if (state.discovery.kind === "exhausted") return;
+    const discovery = state.discovery;
+    const page = await options.source.searchChannels(query, {
+      cursor: discovery.cursor,
+      limit: options.profile.pageSize,
+      signal,
+      consumeRequest,
+    });
+    assertActive(signal, options.label);
+    for (const channel of page.data) {
+      const identity = `${channel.platform}:${channel.id}`;
+      if (state.discoveredChannels.has(identity)) continue;
+      state.discoveredChannels.add(identity);
+      state.matchedChannelCount += 1;
+      state.lanes.push({ channel, seenCursors: new Set<string>() });
     }
-
-    return [...channels.values()];
+    if (!page.cursor || discovery.seenCursors.has(page.cursor)) {
+      state.discovery = { kind: "exhausted" };
+    } else {
+      discovery.seenCursors.add(page.cursor);
+      discovery.cursor = page.cursor;
+    }
   };
 
-  const collectContent = async (
-    channel: UnifiedChannel,
+  const fetchContentWave = async (
+    state: SessionState<TContent>,
+    query: string,
     signal: AbortSignal,
     consumeRequest: () => void
-  ): Promise<unknown[]> => {
-    const content: unknown[] = [];
-    const seenCursors = new Set<string>();
-    let cursor: string | undefined;
-    let hasMore = true;
-
-    while (hasMore) {
-      assertActive(signal, options.label);
-      const page = await options.source.fetchContent(channel, {
-        cursor,
-        limit: options.profile.pageSize,
-        signal,
-        consumeRequest,
-      });
-      assertActive(signal, options.label);
-      content.push(...page.data);
-      if (!page.cursor || seenCursors.has(page.cursor)) {
-        hasMore = false;
-      } else {
-        seenCursors.add(page.cursor);
-        cursor = page.cursor;
+  ): Promise<WaveResult> => {
+    const lanes = state.lanes.splice(0, options.profile.maxConcurrentRequests);
+    const results = await Promise.allSettled(
+      lanes.map(async (lane) => ({
+        lane,
+        page: await options.source.fetchContent(lane.channel, {
+          cursor: lane.cursor,
+          limit: options.profile.pageSize,
+          signal,
+          consumeRequest,
+        }),
+      }))
+    );
+    assertActive(signal, options.label);
+    const ordinaryFailure = results.find(
+      (result) => result.status === "rejected" && retryAfter(result.reason) === null
+    );
+    if (ordinaryFailure?.status === "rejected") {
+      state.lanes.unshift(...lanes);
+      throw ordinaryFailure.reason;
+    }
+    const rawContent: unknown[] = [];
+    let rateLimited = false;
+    let retryAfterMs: number | undefined;
+    for (let index = 0; index < results.length; index += 1) {
+      const result = results[index];
+      const lane = lanes[index];
+      if (result.status === "rejected") {
+        state.lanes.push(lane);
+        const delay = retryAfter(result.reason);
+        if (delay === null) continue;
+        rateLimited = true;
+        retryAfterMs = delay;
+        continue;
+      }
+      rawContent.push(...result.value.page.data);
+      const nextCursor = result.value.page.cursor;
+      if (nextCursor && !lane.seenCursors.has(nextCursor)) {
+        lane.seenCursors.add(nextCursor);
+        lane.cursor = nextCursor;
+        state.lanes.push(lane);
       }
     }
-
-    return content;
+    for (const item of options.filterRankAndDeduplicate(rawContent, query)) {
+      const identity = `${item.platform}:${item.id}`;
+      if (state.emitted.has(identity)) continue;
+      state.emitted.add(identity);
+      state.pending.push(item);
+    }
+    return rateLimited ? { kind: "rate-limited", retryAfterMs } : { kind: "ok" };
   };
 
   return {
     clear(sessionId: string): void {
-      for (const key of sessions.keys()) {
-        if (key.startsWith(`${sessionId}:`)) sessions.delete(key);
+      for (const [key, state] of sessions) {
+        if (!key.startsWith(`${sessionId}:`)) continue;
+        state.activeController?.abort(abortError(options.label));
+        sessions.delete(key);
       }
     },
 
@@ -163,76 +212,60 @@ export function createProgressiveRecentContentSearch<TContent>(options: {
       assertActive(request.signal, options.label);
       const key = `${request.sessionId}:${request.platform}`;
       let state = sessions.get(key);
-      if (
-        !state ||
-        state.query !== request.query ||
-        (state.endReason === "rate-limited" && !request.cursor)
-      ) {
-        state = {
-          query: request.query,
-          startedAt: Date.now(),
-          requestCount: 0,
-          matchedChannelCount: 0,
-          loaded: false,
-          pending: [],
-        };
+      if (!state || state.query !== request.query) {
+        state = createState(request.query);
         sessions.set(key, state);
       }
-
-      if (!state.loaded) {
-        state.loaded = true;
-        const consumeRequest = () => {
-          state.requestCount += 1;
-        };
-        const internalController = new AbortController();
-        const signal = request.signal
-          ? AbortSignal.any([request.signal, internalController.signal])
-          : internalController.signal;
-
-        try {
-          const channels = await collectChannels(request.query, signal, consumeRequest);
-          assertActive(request.signal, options.label);
-          state.matchedChannelCount = channels.length;
-          const pages = await mapWithConcurrency(
-            channels,
-            options.profile.maxConcurrentRequests,
-            async (channel) => {
-              try {
-                return await collectContent(channel, signal, consumeRequest);
-              } catch (error) {
-                internalController.abort();
-                throw error;
-              }
-            }
-          );
-          state.pending = options.filterRankAndDeduplicate(pages.flat(), request.query);
-          state.endReason = "exhausted";
-        } catch (error) {
-          assertActive(request.signal, options.label);
-          const advertisedDelay = retryAfter(error);
-          if (advertisedDelay !== null) {
-            state.endReason = "rate-limited";
-            return {
-              data: [],
-              endReason: state.endReason,
-              retryAfterMs: advertisedDelay,
-              requestCount: state.requestCount,
-              matchedChannelCount: state.matchedChannelCount,
-            };
-          }
-          sessions.delete(key);
-          throw error;
-        }
-      }
-
-      const data = state.pending.splice(0, request.limit);
-      return {
-        data,
-        cursor: state.pending.length > 0 ? `${key}:${state.pending.length}` : undefined,
-        endReason: state.pending.length > 0 ? undefined : state.endReason,
-        requestCount: state.requestCount,
-        matchedChannelCount: state.matchedChannelCount,
+      const internalController = new AbortController();
+      state.activeController = internalController;
+      const signal = request.signal
+        ? AbortSignal.any([request.signal, internalController.signal])
+        : internalController.signal;
+      const consumeRequest = () => {
+        state.requestCount += 1;
       };
+
+      try {
+        let waveResult: WaveResult = { kind: "ok" };
+        if (
+          state.pending.length === 0 &&
+          state.lanes.length === 0 &&
+          state.discovery.kind === "open"
+        ) {
+          try {
+            await discoverChannels(state, request.query, signal, consumeRequest);
+          } catch (error) {
+            const delay = retryAfter(error);
+            if (delay === null) throw error;
+            waveResult = { kind: "rate-limited", retryAfterMs: delay };
+          }
+        }
+        if (waveResult.kind === "ok" && state.pending.length === 0 && state.lanes.length > 0) {
+          waveResult = await fetchContentWave(state, request.query, signal, consumeRequest);
+        }
+        const data = state.pending.splice(0, request.limit);
+        const hasContinuation = hasMore(state);
+        return {
+          data,
+          cursor: hasContinuation
+            ? `${key}:${state.requestCount}:${state.pending.length}`
+            : undefined,
+          endReason:
+            waveResult.kind === "rate-limited"
+              ? "rate-limited"
+              : hasContinuation
+                ? undefined
+                : "exhausted",
+          retryAfterMs: waveResult.kind === "rate-limited" ? waveResult.retryAfterMs : undefined,
+          requestCount: state.requestCount,
+          matchedChannelCount: state.matchedChannelCount,
+        };
+      } catch (error) {
+        sessions.delete(key);
+        throw error;
+      } finally {
+        if (state.activeController === internalController) state.activeController = undefined;
+      }
     },
   };
 }
