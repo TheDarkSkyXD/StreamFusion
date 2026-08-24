@@ -13,19 +13,18 @@ import { fixtures, renderWithProviders, screen, waitFor } from "../test-utils";
 
 vi.mock("@/hooks/queries/useSearch", () => ({
   useSearchAll: vi.fn(),
+  useSearchCategories: vi.fn(() => ({ data: { pages: [] }, isLoading: false })),
   useSearchChannels: vi.fn(),
+  useSearchClips: vi.fn(() => ({ data: [], isLoading: false })),
   useSearchStreams: vi.fn(),
+  useSearchVideos: vi.fn(() => ({ data: [], isLoading: false })),
 }));
 
 vi.mock("@/components/ui/proxied-image", () => ({
   ProxiedImage: ({ alt }: { alt: string }) => <div>{alt}</div>,
 }));
 
-import {
-  useSearchAll,
-  useSearchChannels,
-  useSearchStreams,
-} from "@/hooks/queries/useSearch";
+import { useSearchAll, useSearchChannels, useSearchStreams } from "@/hooks/queries/useSearch";
 import { SearchPage } from "@/pages/SearchResults";
 
 const useSearchAllMock = vi.mocked(useSearchAll);
@@ -61,7 +60,10 @@ async function renderSearchPage() {
     getParentRoute: () => appRoute,
     path: "/stream/$platform/$channel",
     validateSearch: (search: Record<string, unknown>) => ({
-      tab: search.tab === "home" || search.tab === "videos" || search.tab === "clips" ? search.tab : undefined,
+      tab:
+        search.tab === "home" || search.tab === "videos" || search.tab === "clips"
+          ? search.tab
+          : undefined,
     }),
     component: () => <div>Watching selected stream</div>,
   });

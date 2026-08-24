@@ -16,12 +16,16 @@ import { StreamVerifiedBadge } from "@/components/stream/stream-verified-badge";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSearchAll, useSearchChannels } from "@/hooks/queries/useSearch";
-import { cn, formatDuration } from "@/lib/utils";
 import {
-  isExactChannelSearchMatch,
-  rankSearchChannels,
-} from "@/search/channel-search-contract";
+  useSearchAll,
+  useSearchCategories,
+  useSearchChannels,
+  useSearchClips,
+  useSearchStreams,
+  useSearchVideos,
+} from "@/hooks/queries/useSearch";
+import { cn, formatDuration } from "@/lib/utils";
+import { isExactChannelSearchMatch, rankSearchChannels } from "@/search/channel-search-contract";
 
 /* CATEGORIES SECTION */
 type SearchTab = "all" | "channels" | "streams" | "videos" | "clips" | "categories";
@@ -57,10 +61,10 @@ export function SearchPage() {
   const [clipError, setClipError] = React.useState<string | null>(null);
   const [channelsExhaustedByRepeat, setChannelsExhaustedByRepeat] = React.useState(false);
   const channelSearchPlatform = platformFilter === "all" ? undefined : platformFilter;
-  const channelSearchKey = `${q.trim().toLowerCase()}|${channelSearchPlatform ?? "all"}`;
+  const channelSearchKey = `${q.trim().toLowerCase()}|${channelSearchPlatform ?? "all"}|${liveOnly}`;
 
   // Pass platform filter to the query. Pass undefined if 'all'.
-  const { data, isLoading } = useSearchAll(
+  const { data: allResults, isLoading: allLoading } = useSearchAll(
     q,
     channelSearchPlatform,
     20,
@@ -76,18 +80,35 @@ export function SearchPage() {
     q,
     channelSearchPlatform,
     SEARCH_RESULTS_CHANNEL_PAGE_SIZE,
-    false,
+    liveOnly,
     activeTab === "channels"
   );
+  const streamsQuery = useSearchStreams(
+    q,
+    channelSearchPlatform,
+    20,
+    activeTab === "streams",
+    liveOnly
+  );
+  const videosQuery = useSearchVideos(q, channelSearchPlatform, 12, activeTab === "videos");
+  const clipsQuery = useSearchClips(q, channelSearchPlatform, 12, activeTab === "clips");
+  const categoriesQuery = useSearchCategories(
+    q,
+    channelSearchPlatform,
+    20,
+    activeTab === "categories"
+  );
 
-  const results = data;
   const channelPages = channelsInfiniteData?.pages;
-  const searchAllChannels = results?.channels;
+  const categoryPages = categoriesQuery.data?.pages;
+  const searchAllChannels = allResults?.channels;
   const rawChannelResults = React.useMemo(
     () =>
       activeTab === "channels"
         ? (channelPages?.flatMap((page) => page.data) ?? [])
-        : (searchAllChannels ?? []),
+        : activeTab === "all"
+          ? (searchAllChannels ?? [])
+          : [],
     [activeTab, channelPages, searchAllChannels]
   );
 
@@ -172,25 +193,48 @@ export function SearchPage() {
 
   const filteredStreams = React.useMemo(
     () =>
-      (results?.streams || []).filter(
+      (activeTab === "streams"
+        ? (streamsQuery.data ?? [])
+        : activeTab === "all"
+          ? (allResults?.streams ?? [])
+          : []
+      ).filter(
         (stream) => typeof stream.channelName === "string" && stream.channelName.trim().length > 0
       ),
-    [results?.streams]
+    [activeTab, allResults?.streams, streamsQuery.data]
   ); // Streams are inherently live
 
-  const filteredCategories = results?.categories || []; // Categories don't have a live state
+  const filteredCategories = React.useMemo(
+    () =>
+      activeTab === "categories"
+        ? (categoryPages?.flatMap((page) => page.data) ?? [])
+        : activeTab === "all"
+          ? (allResults?.categories ?? [])
+          : [],
+    [activeTab, allResults?.categories, categoryPages]
+  );
 
   const filteredVideos = React.useMemo(() => {
-    const videos = results?.videos || [];
+    const videos =
+      activeTab === "videos"
+        ? (videosQuery.data ?? [])
+        : activeTab === "all"
+          ? (allResults?.videos ?? [])
+          : [];
     if (liveOnly) return []; // Hide videos when looking for live content
     return videos;
-  }, [results?.videos, liveOnly]);
+  }, [activeTab, allResults?.videos, liveOnly, videosQuery.data]);
 
   const filteredClips = React.useMemo(() => {
-    const clips = results?.clips || [];
+    const clips =
+      activeTab === "clips"
+        ? (clipsQuery.data ?? [])
+        : activeTab === "all"
+          ? (allResults?.clips ?? [])
+          : [];
     if (liveOnly) return []; // Hide clips when looking for live content
     return clips;
-  }, [results?.clips, liveOnly]);
+  }, [activeTab, allResults?.clips, clipsQuery.data, liveOnly]);
 
   const selectedClipForDialog: VideoOrClip | null = React.useMemo(() => {
     if (!selectedClip) return null;
@@ -306,6 +350,18 @@ export function SearchPage() {
     (channelsLoading ||
       channelsFetchingNextPage ||
       (channelsHasNextPage && !channelsExhaustedByRepeat));
+  const activeLoading =
+    activeTab === "all"
+      ? allLoading
+      : activeTab === "channels"
+        ? showChannelLoading
+        : activeTab === "streams"
+          ? streamsQuery.isLoading
+          : activeTab === "videos"
+            ? videosQuery.isLoading
+            : activeTab === "clips"
+              ? clipsQuery.isLoading
+              : categoriesQuery.isLoading;
   const showCategories =
     (activeTab === "all" || activeTab === "categories") && filteredCategories.length > 0;
   const showStreams =
@@ -320,6 +376,11 @@ export function SearchPage() {
     filteredVideos.length +
     filteredClips.length +
     filteredCategories.length;
+  const activeHasResults = totalResults > 0;
+  const activeQuerySettled =
+    !activeLoading &&
+    (activeTab !== "channels" ||
+      (!channelsFetchingNextPage && (!channelsHasNextPage || channelsExhaustedByRepeat)));
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -410,6 +471,17 @@ export function SearchPage() {
           </div>
         </div>
       </div>
+
+      {activeLoading && (activeTab === "videos" || activeTab === "clips") && (
+        <div
+          className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+          aria-label={`Loading ${activeTab}`}
+        >
+          {Array.from({ length: 6 }).map((_, index) => (
+            <Skeleton key={`${activeTab}-loading-${index}`} className="aspect-video rounded-xl" />
+          ))}
+        </div>
+      )}
 
       {/* BEST MATCHES SECTION */}
       {showTopMatches && (
@@ -522,37 +594,41 @@ export function SearchPage() {
       )}
 
       {/* CATEGORIES SECTION */}
-      {(showCategories || isLoading) && (
+      {(showCategories ||
+        (activeTab === "all" && allLoading) ||
+        (activeTab === "categories" && activeLoading)) && (
         <section>
-          {!isLoading && showCategories && (
+          {!activeLoading && showCategories && (
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
               Categories
             </h2>
           )}
-          {isLoading && <Skeleton className="h-8 w-32 mb-4" />}
+          {activeLoading && <Skeleton className="h-8 w-32 mb-4" />}
 
           <CategoryGrid
             categories={filteredCategories}
-            isLoading={isLoading}
+            isLoading={activeLoading}
             skeletons={12}
-            className={!showCategories && !isLoading ? "hidden" : ""}
+            className={!showCategories && !activeLoading ? "hidden" : ""}
           />
         </section>
       )}
 
       {/* STREAMS SECTION */}
-      {(showStreams || isLoading) && (
+      {(showStreams ||
+        (activeTab === "all" && allLoading) ||
+        (activeTab === "streams" && activeLoading)) && (
         <section>
-          {!isLoading && showStreams && (
+          {!activeLoading && showStreams && (
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">Streams</h2>
           )}
-          {isLoading && <Skeleton className="h-8 w-32 mb-4" />}
+          {activeLoading && <Skeleton className="h-8 w-32 mb-4" />}
 
           <StreamGrid
             streams={filteredStreams}
-            isLoading={isLoading}
+            isLoading={activeLoading}
             skeletons={6}
-            className={!showStreams && !isLoading ? "hidden" : ""}
+            className={!showStreams && !activeLoading ? "hidden" : ""}
           />
         </section>
       )}
@@ -677,24 +753,16 @@ export function SearchPage() {
       )}
 
       {/* EMPTY STATE */}
-      {results &&
-        filteredChannels.length === 0 &&
-        !channelsLoading &&
-        !channelsFetchingNextPage &&
-        (!channelsHasNextPage || channelsExhaustedByRepeat) &&
-        filteredStreams.length === 0 &&
-        filteredCategories.length === 0 &&
-        filteredVideos.length === 0 &&
-        filteredClips.length === 0 && (
-          <div className="text-center py-20 bg-[var(--color-background-secondary)]/30 rounded-2xl border border-[var(--color-border)] border-dashed">
-            <p className="text-xl text-[var(--color-foreground-secondary)] font-medium">
-              No results found for "{q}"
-            </p>
-            <p className="text-[var(--color-foreground-muted)] mt-2">
-              Try adjusting your filters or checking your spelling.
-            </p>
-          </div>
-        )}
+      {activeQuerySettled && !activeHasResults && (
+        <div className="text-center py-20 bg-[var(--color-background-secondary)]/30 rounded-2xl border border-[var(--color-border)] border-dashed">
+          <p className="text-xl text-[var(--color-foreground-secondary)] font-medium">
+            No results found for "{q}"
+          </p>
+          <p className="text-[var(--color-foreground-muted)] mt-2">
+            Try adjusting your filters or checking your spelling.
+          </p>
+        </div>
+      )}
       <ClipDialog
         selectedClip={selectedClipForDialog}
         onClose={() => setSelectedClip(null)}

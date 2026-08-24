@@ -9,7 +9,11 @@ vi.mock("@tanstack/react-router", () => routerMock({ search: routeMockState.sear
 
 vi.mock("@/hooks/queries/useSearch", () => ({
   useSearchAll: vi.fn(),
+  useSearchCategories: vi.fn(),
   useSearchChannels: vi.fn(),
+  useSearchClips: vi.fn(),
+  useSearchStreams: vi.fn(),
+  useSearchVideos: vi.fn(),
 }));
 
 vi.mock("@/components/stream/stream-grid", () => ({
@@ -36,11 +40,22 @@ vi.mock("@/components/ui/proxied-image", () => ({
   ),
 }));
 
-import { useSearchAll, useSearchChannels } from "@/hooks/queries/useSearch";
+import {
+  useSearchAll,
+  useSearchCategories,
+  useSearchChannels,
+  useSearchClips,
+  useSearchStreams,
+  useSearchVideos,
+} from "@/hooks/queries/useSearch";
 import { SearchPage } from "@/pages/SearchResults";
 
 const useSearchAllMock = vi.mocked(useSearchAll);
+const useSearchCategoriesMock = vi.mocked(useSearchCategories);
 const useSearchChannelsMock = vi.mocked(useSearchChannels);
+const useSearchClipsMock = vi.mocked(useSearchClips);
+const useSearchStreamsMock = vi.mocked(useSearchStreams);
+const useSearchVideosMock = vi.mocked(useSearchVideos);
 
 function emptyResults() {
   return { channels: [], streams: [], videos: [], clips: [], categories: [] };
@@ -64,12 +79,31 @@ function channelQuery(
 // Guards: error state — useSearchAll returns data=undefined (GQL failed) → the page falls through to the empty results header. We pass this distinct from "0 hits" via the consumer's empty copy
 // Guards: empty state — useSearchAll returns empty arrays for every category → "Found 0 results" header surfaces, distinct from the no-query "type to search" empty state above
 // Guards: Kick video/clip thumbnails render through ProxiedImage so images.kick.com 720.webp URLs do not produce direct browser 403s
+// Guards: focused tabs enable and render only their dedicated result source instead of stale All-tab data
+// Guards: focused tabs render loading or empty feedback instead of a blank panel
 describe("SearchPage", () => {
   beforeEach(() => {
     routeMockState.search.q = "A";
     useSearchAllMock.mockReset();
+    useSearchCategoriesMock.mockReset();
     useSearchChannelsMock.mockReset();
+    useSearchClipsMock.mockReset();
+    useSearchStreamsMock.mockReset();
+    useSearchVideosMock.mockReset();
     useSearchChannelsMock.mockReturnValue(channelQuery());
+    useSearchCategoriesMock.mockReturnValue({
+      data: { pages: [{ data: [] }] },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useSearchCategories>);
+    useSearchStreamsMock.mockReturnValue({ data: [], isLoading: false } as unknown as ReturnType<
+      typeof useSearchStreams
+    >);
+    useSearchVideosMock.mockReturnValue({ data: [], isLoading: false } as unknown as ReturnType<
+      typeof useSearchVideos
+    >);
+    useSearchClipsMock.mockReturnValue({ data: [], isLoading: false } as unknown as ReturnType<
+      typeof useSearchClips
+    >);
   });
 
   it("renders the search header for a non-empty query with no hits", () => {
@@ -226,6 +260,75 @@ describe("SearchPage", () => {
     renderWithProviders(<SearchPage />);
 
     expect(screen.getByTestId("category-grid")).toHaveTextContent("1 categories");
+  });
+
+  it("uses only the dedicated result source for each focused tab", () => {
+    const allOnlyStreams = [
+      fixtures.stream({ id: "all-stream-1", title: "All Stream One" }),
+      fixtures.stream({ id: "all-stream-2", title: "All Stream Two" }),
+    ];
+    const focusedStream = fixtures.stream({ id: "focused-stream", title: "Focused Stream" });
+    const focusedCategory = fixtures.category({ id: "focused-category", name: "Focused Category" });
+    useSearchAllMock.mockReturnValue({
+      data: { ...emptyResults(), streams: allOnlyStreams },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useSearchAll>);
+    useSearchStreamsMock.mockReturnValue({
+      data: [focusedStream],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useSearchStreams>);
+    useSearchCategoriesMock.mockReturnValue({
+      data: { pages: [{ data: [focusedCategory] }] },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useSearchCategories>);
+
+    renderWithProviders(<SearchPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Streams" }));
+
+    expect(useSearchStreamsMock).toHaveBeenLastCalledWith("A", undefined, 20, true, false);
+    expect(screen.getByTestId("stream-grid")).toHaveTextContent("1 streams");
+
+    fireEvent.click(screen.getByRole("button", { name: "Categories" }));
+
+    expect(useSearchCategoriesMock).toHaveBeenLastCalledWith("A", undefined, 20, true);
+    expect(screen.getByTestId("category-grid")).toHaveTextContent("1 categories");
+  });
+
+  it("shows a focused empty state after a dedicated query settles", () => {
+    const allOnlyChannel = fixtures.channel({ id: "all-channel", displayName: "All Channel" });
+    useSearchAllMock.mockReturnValue({
+      data: {
+        ...emptyResults(),
+        channels: [allOnlyChannel],
+        streams: [fixtures.stream({ id: "all-only" })],
+      },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useSearchAll>);
+
+    renderWithProviders(<SearchPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Videos" }));
+
+    expect(useSearchVideosMock).toHaveBeenLastCalledWith("A", undefined, 12, true);
+    expect(screen.getByText(/found 0 results/i)).toBeInTheDocument();
+    expect(screen.queryByText("All Channel")).not.toBeInTheDocument();
+    expect(screen.getByText(/no results found for/i)).toBeInTheDocument();
+  });
+
+  it("shows loading feedback while a focused media query is pending", () => {
+    useSearchAllMock.mockReturnValue({
+      data: emptyResults(),
+      isLoading: false,
+    } as unknown as ReturnType<typeof useSearchAll>);
+    useSearchClipsMock.mockReturnValue({ data: [], isLoading: true } as unknown as ReturnType<
+      typeof useSearchClips
+    >);
+
+    renderWithProviders(<SearchPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Clips" }));
+
+    expect(useSearchClipsMock).toHaveBeenLastCalledWith("A", undefined, 12, true);
+    expect(screen.getByLabelText("Loading clips")).toBeInTheDocument();
+    expect(screen.queryByText(/no results found for/i)).not.toBeInTheDocument();
   });
 
   it("renders video thumbnails through ProxiedImage instead of raw img tags", () => {
