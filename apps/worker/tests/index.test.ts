@@ -14,8 +14,6 @@ function createEnv(overrides: Partial<Env> = {}): Env {
     KICK_CLIENT_SECRET: "kick-secret",
     KICK_AUTH_IP_RATE_LIMITER: createLimiter(),
     KICK_AUTH_SUBJECT_RATE_LIMITER: createLimiter(),
-    KICK_API_IP_RATE_LIMITER: createLimiter(),
-    KICK_API_BEARER_RATE_LIMITER: createLimiter(),
     ...overrides,
   };
 }
@@ -162,53 +160,6 @@ describe("Kick Worker abuse protection", () => {
     expect(upstreamFetch).not.toHaveBeenCalled();
   });
 
-  it("rejects Kick API traffic when its shared per-IP abuse ceiling is exhausted", async () => {
-    const upstreamFetch = vi.fn();
-    vi.stubGlobal("fetch", upstreamFetch);
-    const ipLimiter = createLimiter(false);
-    const env = createEnv({ KICK_API_IP_RATE_LIMITER: ipLimiter });
-
-    const response = await dispatch(
-      new Request("https://worker.test/kick/channels?slug[]=streamer", {
-        headers: {
-          "CF-Connecting-IP": "203.0.113.10",
-          "X-StreamFusion-Auth": "app",
-        },
-      }),
-      env
-    );
-
-    expect(response.status).toBe(429);
-    expect(ipLimiter.limit).toHaveBeenCalledWith({ key: "kick-api:ip:203.0.113.10" });
-    expect(env.KICK_API_BEARER_RATE_LIMITER.limit).not.toHaveBeenCalled();
-    expect(upstreamFetch).not.toHaveBeenCalled();
-  });
-
-  it("limits authenticated Kick API traffic by a SHA-256 bearer-token key", async () => {
-    const upstreamFetch = vi.fn().mockResolvedValue(Response.json({ data: [] }));
-    vi.stubGlobal("fetch", upstreamFetch);
-    const bearerLimiter = createLimiter(false);
-    const env = createEnv({ KICK_API_BEARER_RATE_LIMITER: bearerLimiter });
-    const bearerToken = "private-kick-access-token";
-
-    const response = await dispatch(
-      new Request("https://worker.test/kick/channels", {
-        headers: {
-          "CF-Connecting-IP": "203.0.113.10",
-          Authorization: `Bearer ${bearerToken}`,
-        },
-      }),
-      env
-    );
-
-    expect(response.status).toBe(429);
-    expect(bearerLimiter.limit).toHaveBeenCalledOnce();
-    const key = vi.mocked(bearerLimiter.limit).mock.calls[0][0].key;
-    expect(key).toMatch(/^kick-api:bearer:[a-f0-9]{64}$/);
-    expect(key).not.toContain(bearerToken);
-    expect(upstreamFetch).not.toHaveBeenCalled();
-  });
-
   it("fails closed when a limiter throws", async () => {
     const upstreamFetch = vi.fn();
     vi.stubGlobal("fetch", upstreamFetch);
@@ -286,7 +237,7 @@ describe("Kick Worker abuse protection", () => {
     expect(upstreamFetch).toHaveBeenCalledTimes(2);
   });
 
-  it("does not consume Kick counters for preflight, health, or unrelated routes", async () => {
+  it("does not consume auth counters for preflight or unrelated routes", async () => {
     const upstreamFetch = vi.fn();
     vi.stubGlobal("fetch", upstreamFetch);
     const env = createEnv({ KICK_CLIENT_ID: "", KICK_CLIENT_SECRET: "" });
@@ -295,13 +246,10 @@ describe("Kick Worker abuse protection", () => {
       new Request("https://worker.test/auth/kick/token", { method: "OPTIONS" }),
       env
     );
-    await dispatch(new Request("https://worker.test/health"), env);
     await dispatch(new Request("https://worker.test/not-a-route"), env);
 
     expect(env.KICK_AUTH_IP_RATE_LIMITER.limit).not.toHaveBeenCalled();
     expect(env.KICK_AUTH_SUBJECT_RATE_LIMITER.limit).not.toHaveBeenCalled();
-    expect(env.KICK_API_IP_RATE_LIMITER.limit).not.toHaveBeenCalled();
-    expect(env.KICK_API_BEARER_RATE_LIMITER.limit).not.toHaveBeenCalled();
     expect(upstreamFetch).not.toHaveBeenCalled();
   });
 });
@@ -333,48 +281,61 @@ describe("retired Twitch Worker surface", () => {
   });
 });
 
-describe("Worker health", () => {
-  it("reports local Kick configuration without making an upstream request", async () => {
+describe("Kick Worker route boundary", () => {
+  it.each(["/auth/kick/token", "/auth/kick/refresh"])(
+    "answers OPTIONS for %s with the auth-only CORS contract",
+    async (path) => {
+      const upstreamFetch = vi.fn();
+      vi.stubGlobal("fetch", upstreamFetch);
+
+      const response = await dispatch(
+        new Request(`https://worker.test${path}`, { method: "OPTIONS" }),
+        createEnv()
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
+      expect(response.headers.get("Access-Control-Allow-Methods")).toBe("POST, OPTIONS");
+      expect(response.headers.get("Access-Control-Allow-Headers")).toBe("Content-Type");
+      expect(upstreamFetch).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(["/health", "/kick/channels", "/kick/public/v2/categories"])(
+    "returns 404 for removed route %s without upstream traffic",
+    async (path) => {
+      const upstreamFetch = vi.fn();
+      vi.stubGlobal("fetch", upstreamFetch);
+
+      for (const method of ["GET", "OPTIONS"]) {
+        const response = await dispatch(
+          new Request(`https://worker.test${path}`, { method }),
+          createEnv()
+        );
+        expect(response.status).toBe(404);
+        expect(await response.text()).toBe("Not Found");
+      }
+      expect(upstreamFetch).not.toHaveBeenCalled();
+    }
+  );
+
+  it("rejects invalid auth input without requiring OAuth secrets", async () => {
     const upstreamFetch = vi.fn();
     vi.stubGlobal("fetch", upstreamFetch);
+    const env = createEnv({ KICK_CLIENT_ID: "", KICK_CLIENT_SECRET: "" });
 
-    const response = await dispatch(new Request("https://worker.test/health"), createEnv());
+    const response = await dispatch(
+      new Request("https://worker.test/auth/kick/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: "missing-pkce-fields" }),
+      }),
+      env
+    );
 
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      status: "ok",
-      secrets_configured: { kick: true },
-      timestamp: expect.any(String),
-    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(upstreamFetch).not.toHaveBeenCalled();
-  });
-
-  it("does not accept state-changing methods on the health route", async () => {
-    const upstreamFetch = vi.fn();
-    vi.stubGlobal("fetch", upstreamFetch);
-
-    const response = await dispatch(
-      new Request("https://worker.test/health", { method: "POST" }),
-      createEnv()
-    );
-
-    expect(response.status).toBe(404);
-    expect(upstreamFetch).not.toHaveBeenCalled();
-  });
-
-  it("answers health preflight locally with the Worker CORS contract", async () => {
-    const upstreamFetch = vi.fn();
-    vi.stubGlobal("fetch", upstreamFetch);
-
-    const response = await dispatch(
-      new Request("https://worker.test/health", { method: "OPTIONS" }),
-      createEnv()
-    );
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
-    expect(response.headers.get("Access-Control-Allow-Methods")).toContain("OPTIONS");
     expect(upstreamFetch).not.toHaveBeenCalled();
   });
 });

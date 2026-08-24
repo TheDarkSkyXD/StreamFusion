@@ -3,13 +3,6 @@ export interface Env {
     KICK_CLIENT_SECRET: string;
     KICK_AUTH_IP_RATE_LIMITER: RateLimit;
     KICK_AUTH_SUBJECT_RATE_LIMITER: RateLimit;
-    KICK_API_IP_RATE_LIMITER: RateLimit;
-    KICK_API_BEARER_RATE_LIMITER: RateLimit;
-}
-
-interface CachedToken {
-    accessToken: string;
-    expiresAt: number;
 }
 
 interface KickTokenExchangeBody {
@@ -32,30 +25,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-let kickAppTokenCache: CachedToken | null = null;
-
 export default {
-    async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    async fetch(request: Request, env: Env): Promise<Response> {
         const url = new URL(request.url);
         const path = url.pathname;
 
-        // CORS Headers
         const corsHeaders = {
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, Client-Id, X-StreamFusion-Auth",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
         };
 
-        if (request.method === "OPTIONS") {
+        const isKickAuthPath = path === "/auth/kick/token" || path === "/auth/kick/refresh";
+        if (isKickAuthPath && request.method === "OPTIONS") {
             return new Response(null, { headers: corsHeaders });
         }
 
-        // Health Check
-        if (path === "/health" && request.method === "GET") {
-            return handleHealthCheck(env, corsHeaders);
-        }
-
-        // Kick Auth (Token Exchange)
         if (path === "/auth/kick/token" && request.method === "POST") {
             const limited = await enforceKickAuthIpLimit(request, env, corsHeaders);
             if (limited) return limited;
@@ -66,7 +51,6 @@ export default {
             return handleKickTokenExchange(body, env, corsHeaders);
         }
 
-        // Kick Auth (Token Refresh)
         if (path === "/auth/kick/refresh" && request.method === "POST") {
             const limited = await enforceKickAuthIpLimit(request, env, corsHeaders);
             if (limited) return limited;
@@ -79,15 +63,6 @@ export default {
             );
             if (subjectLimited) return subjectLimited;
             return handleKickTokenRefresh(body, env, corsHeaders);
-        }
-
-        // Kick API Proxy
-        if (path.startsWith("/kick/")) {
-            const limited = await enforceKickApiIpLimit(request, env, corsHeaders);
-            if (limited) return limited;
-            const bearerLimited = await enforceKickApiBearerLimit(request, env, corsHeaders);
-            if (bearerLimited) return bearerLimited;
-            return handleKickProxy(request, env, path.replace("/kick", ""), corsHeaders);
         }
 
         return new Response("Not Found", { status: 404, headers: corsHeaders });
@@ -147,32 +122,6 @@ async function readKickTokenRefreshBody(request: Request): Promise<KickTokenRefr
     }
 
     return { refresh_token };
-}
-
-async function enforceKickApiIpLimit(
-    request: Request,
-    env: Env,
-    corsHeaders: CorsHeaders
-): Promise<Response | null> {
-    const ip = request.headers.get("CF-Connecting-IP") || "missing";
-    return enforceLimit(env.KICK_API_IP_RATE_LIMITER, `kick-api:ip:${ip}`, corsHeaders);
-}
-
-async function enforceKickApiBearerLimit(
-    request: Request,
-    env: Env,
-    corsHeaders: CorsHeaders
-): Promise<Response | null> {
-    const authorization = request.headers.get("Authorization");
-    const match = authorization?.match(/^Bearer\s+([^\s]+)$/i);
-    if (!match) return null;
-
-    const digest = await sha256Hex(match[1]);
-    return enforceLimit(
-        env.KICK_API_BEARER_RATE_LIMITER,
-        `kick-api:bearer:${digest}`,
-        corsHeaders
-    );
 }
 
 async function enforceLimit(
@@ -319,115 +268,4 @@ async function handleKickTokenRefresh(
     } catch (err: unknown) {
         return Response.json({ error: errorMessage(err) }, { status: 500, headers: corsHeaders });
     }
-}
-
-function handleHealthCheck(env: Env, corsHeaders: CorsHeaders): Response {
-    return Response.json({
-        status: "ok",
-        secrets_configured: {
-            kick: !!(env.KICK_CLIENT_ID && env.KICK_CLIENT_SECRET)
-        },
-        timestamp: new Date().toISOString()
-    }, {
-        status: 200,
-        headers: {
-            ...corsHeaders,
-            "Cache-Control": "no-store"
-        }
-    });
-}
-
-async function fetchKickAppToken(env: Env): Promise<string> {
-    const now = Date.now();
-    if (kickAppTokenCache && kickAppTokenCache.expiresAt > now + 60_000) {
-        return kickAppTokenCache.accessToken;
-    }
-
-    const params = new URLSearchParams({
-        client_id: env.KICK_CLIENT_ID,
-        client_secret: env.KICK_CLIENT_SECRET,
-        grant_type: "client_credentials"
-    });
-
-    const response = await fetch("https://id.kick.com/oauth/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: params
-    });
-
-    const data: unknown = await response.json();
-    if (!isRecord(data)) {
-        throw new Error("Kick app token response was not an object");
-    }
-    if (!response.ok) {
-        const candidate = data.error_description ?? data.message ?? data.error;
-        const message = typeof candidate === "string"
-            ? candidate
-            : `Kick app token failed: HTTP ${response.status}`;
-        throw new Error(message);
-    }
-
-    const expiresInSeconds = typeof data.expires_in === "number" ? data.expires_in : 3600;
-    if (typeof data.access_token !== "string" || data.access_token.length === 0) {
-        throw new Error("Kick app token response did not include an access token");
-    }
-    kickAppTokenCache = {
-        accessToken: data.access_token,
-        expiresAt: now + expiresInSeconds * 1000
-    };
-
-    return data.access_token;
-}
-
-async function handleKickProxy(request: Request, env: Env, subPath: string, corsHeaders: CorsHeaders) {
-    const publicPath = subPath.startsWith("/public/v1/") || subPath.startsWith("/public/v2/")
-        ? subPath
-        : `/public/v1${subPath}`;
-    const url = `https://api.kick.com${publicPath}${new URL(request.url).search}`;
-
-    const headers = new Headers(request.headers);
-    const hasCallerBearer = headers.has("Authorization");
-    const useAppToken = headers.get("X-StreamFusion-Auth") === "app" || !hasCallerBearer;
-    headers.delete("X-StreamFusion-Auth");
-    const body =
-        request.method === "GET" || request.method === "HEAD"
-            ? undefined
-            : await request.arrayBuffer();
-
-    if (useAppToken) {
-        try {
-            headers.set("Authorization", `Bearer ${await fetchKickAppToken(env)}`);
-        } catch (err: unknown) {
-            return Response.json({ error: errorMessage(err) }, { status: 502, headers: corsHeaders });
-        }
-    }
-
-    let response = await fetch(url, {
-        method: request.method,
-        headers: headers,
-        body
-    });
-
-    if (useAppToken && response.status === 401) {
-        kickAppTokenCache = null;
-        try {
-            headers.set("Authorization", `Bearer ${await fetchKickAppToken(env)}`);
-            response = await fetch(url, {
-                method: request.method,
-                headers,
-                body
-            });
-        } catch (err: unknown) {
-            return Response.json({ error: errorMessage(err) }, { status: 502, headers: corsHeaders });
-        }
-    }
-
-    const responseHeaders = new Headers(response.headers);
-    responseHeaders.set("Access-Control-Allow-Origin", "*");
-
-    return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: responseHeaders
-    });
 }

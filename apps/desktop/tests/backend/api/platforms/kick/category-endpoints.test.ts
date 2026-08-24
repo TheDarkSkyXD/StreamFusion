@@ -25,7 +25,6 @@ function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor
   return {
     request: vi.fn(),
     isAuthenticated: vi.fn(() => true),
-    baseUrl: "https://test.example.com",
     ...overrides,
   };
 }
@@ -37,7 +36,8 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-// Guards: Kick categories should use the official /public/v2/categories API before private fallback paths.
+// Guards: authenticated Kick categories use the official /public/v2/categories API before private fallback paths.
+// Guards: signed-out Kick categories bypass the official requestor and OAuth Worker.
 // Guards: bounded discovery requests must forward the requested official limit and cursor instead of exhausting the catalog.
 // Guards: category-by-ID lookup must use the documented ID filter and return the requested category even when the response is not ordered.
 describe("category-endpoints", () => {
@@ -70,9 +70,7 @@ describe("category-endpoints", () => {
       expect(result.data).toHaveLength(1);
       expect(result.cursor).toBe("cursor-3");
       expect(request).toHaveBeenCalledWith(
-        "/public/v2/categories?limit=12&cursor=cursor-2",
-        undefined,
-        "app"
+        "https://api.kick.com/public/v2/categories?limit=12&cursor=cursor-2"
       );
     });
 
@@ -91,7 +89,7 @@ describe("category-endpoints", () => {
       expect(result.data.map((c) => c.name)).toEqual(["Fortnite", "Just Chatting"]);
       expect(result.data[0].tags).toEqual(["FPS"]);
       expect(result.cursor).toBe("cursor-2");
-      expect(request).toHaveBeenCalledWith("/public/v2/categories?limit=1000", undefined, "app");
+      expect(request).toHaveBeenCalledWith("https://api.kick.com/public/v2/categories?limit=1000");
     });
 
     it("falls back to private category list when official API throws", async () => {
@@ -123,6 +121,22 @@ describe("category-endpoints", () => {
         name: "Public Category",
         viewerCount: 1000,
       });
+    });
+
+    it("skips the official API while signed out", async () => {
+      const request = vi.fn();
+      const client = createMockClient({
+        isAuthenticated: vi.fn(() => false),
+        request,
+      });
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({ data: { categories: [], next_cursor: null } })
+      );
+
+      await getTopCategories(client);
+
+      expect(request).not.toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalled();
     });
   });
 
@@ -238,7 +252,7 @@ describe("category-endpoints", () => {
       const result = await getCategoryById(client, "16");
 
       expect(result).toMatchObject({ id: "16", name: "Pools, Hot Tubs & Bikinis" });
-      expect(request).toHaveBeenCalledWith("/public/v2/categories?id=16", undefined, "app");
+      expect(request).toHaveBeenCalledWith("https://api.kick.com/public/v2/categories?id=16");
     });
 
     it("selects the requested category when the response is not ordered", async () => {
@@ -314,15 +328,11 @@ describe("category-endpoints", () => {
       expect(result.map((c) => c.name)).toEqual(["Cat1", "Cat2"]);
       expect(request).toHaveBeenNthCalledWith(
         1,
-        "/public/v2/categories?limit=1000",
-        undefined,
-        "app"
+        "https://api.kick.com/public/v2/categories?limit=1000"
       );
       expect(request).toHaveBeenNthCalledWith(
         2,
-        "/public/v2/categories?limit=1000&cursor=cursor-2",
-        undefined,
-        "app"
+        "https://api.kick.com/public/v2/categories?limit=1000&cursor=cursor-2"
       );
     });
 

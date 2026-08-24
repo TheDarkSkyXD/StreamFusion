@@ -25,14 +25,13 @@ StreamFusion talks to Kick through **three distinct API surfaces**, each with di
 | **Private/legacy `api/v1` & `api/v2`** | VODs, clips, chatroom IDs, unauthenticated channel info | Medium; undocumented, subject to change |
 | **Hidden BrowserWindow scrape** | Unauthenticated channel lookups when Cloudflare blocks `electron.net` | Low; expensive (full Chromium renderer per call) |
 
-The public API is **proxied through a Cloudflare Worker** at `streamfusion.leveluptogetherbiz.workers.dev/kick/...` so we don't need to surface OAuth client secrets to the desktop client. The Worker forwards to `https://api.kick.com/public/v1`.
+The Electron main process calls the official Public API directly with the signed-in user's bearer token. The Cloudflare Worker handles only OAuth token exchange and refresh, where the Kick client secret is required.
 
 ## Base URLs
 
 | Type | URL | Auth |
 |---|---|---|
-| **Public API (proxied)** | `https://streamfusion.leveluptogetherbiz.workers.dev/kick` | OAuth Bearer |
-| **Public API (direct, for reference)** | `https://api.kick.com/public/v1` | OAuth Bearer |
+| **Public API (direct)** | `https://api.kick.com/public/v1` | User OAuth Bearer |
 | **Internal v2 (legacy)** | `https://kick.com/api/v2` | Cookie / Cloudflare bypass |
 | **Internal v1 (legacy)** | `https://kick.com/api/v1` | None / cookie |
 | **Private (anonymous)** | `https://api.kick.com/private/v1` | None |

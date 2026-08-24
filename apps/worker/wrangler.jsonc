@@ -22,22 +22,6 @@
                 "limit": 6,
                 "period": 60
             }
-        },
-        {
-            "name": "KICK_API_IP_RATE_LIMITER",
-            "namespace_id": "1003",
-            "simple": {
-                "limit": 600,
-                "period": 60
-            }
-        },
-        {
-            "name": "KICK_API_BEARER_RATE_LIMITER",
-            "namespace_id": "1004",
-            "simple": {
-                "limit": 300,
-                "period": 60
-            }
         }
     ],
     "observability": {

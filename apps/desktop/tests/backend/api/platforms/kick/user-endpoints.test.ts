@@ -45,13 +45,11 @@ import {
 } from "@/backend/api/platforms/kick/endpoints/user-endpoints";
 import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
 import { kickAuthService } from "@/backend/auth/kick-auth";
-import { logger } from "@/lib/cross-logger";
 
 function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor {
   return {
     request: vi.fn(),
     isAuthenticated: vi.fn(() => true),
-    baseUrl: "https://test.example.com",
     ...overrides,
   };
 }
@@ -97,7 +95,7 @@ describe("user-endpoints", () => {
   // Guards: Kick profile enrichment chunks more than 50 requested users instead of losing names and avatars for large Following lists.
   // Guards: Kick user enrichment rejects profiles whose IDs were not requested.
   describe("getUsersById", () => {
-    it("uses app auth when viewer is not authenticated", async () => {
+    it("returns empty without an official request when viewer is not authenticated", async () => {
       const client = createMockClient({
         isAuthenticated: vi.fn(() => false),
         request: vi.fn().mockResolvedValueOnce({ data: [] }),
@@ -106,7 +104,7 @@ describe("user-endpoints", () => {
       const result = await getUsersById(client, [1, 2, 3]);
 
       expect(result).toEqual([]);
-      expect(client.request).toHaveBeenCalledWith("/users?id=1&id=2&id=3", undefined, "app");
+      expect(client.request).not.toHaveBeenCalled();
     });
 
     it("returns empty array when ids list is empty", async () => {
@@ -118,7 +116,7 @@ describe("user-endpoints", () => {
       expect(client.request).not.toHaveBeenCalled();
     });
 
-    it("uses user auth for user enrichment when the viewer is authenticated", async () => {
+    it("uses the official user endpoint when the viewer is authenticated", async () => {
       const mockUsers = [
         { user_id: 1, name: "User1", profile_picture: null },
         { user_id: 2, name: "User2", profile_picture: "https://example.com/2.webp" },
@@ -129,7 +127,7 @@ describe("user-endpoints", () => {
 
       const result = await getUsersById(client, [1, 2]);
 
-      expect(client.request).toHaveBeenCalledWith("/users?id=1&id=2", undefined, "user");
+      expect(client.request).toHaveBeenCalledWith("/users?id=1&id=2");
       expect(result).toEqual(mockUsers);
     });
 
@@ -140,7 +138,7 @@ describe("user-endpoints", () => {
 
       await getUsersById(client, [1, 1, 1]);
 
-      expect(client.request).toHaveBeenCalledWith("/users?id=1", undefined, "user");
+      expect(client.request).toHaveBeenCalledWith("/users?id=1");
     });
 
     it("chunks a 108-channel Following profile request at the official 50-ID limit", async () => {
@@ -163,30 +161,15 @@ describe("user-endpoints", () => {
       expect(client.request).toHaveBeenCalledTimes(3);
       expect(client.request).toHaveBeenNthCalledWith(
         1,
-        `/users?${ids
-          .slice(0, 50)
-          .map((id) => `id=${id}`)
-          .join("&")}`,
-        undefined,
-        "user"
+        `/users?${ids.slice(0, 50).map((id) => `id=${id}`).join("&")}`
       );
       expect(client.request).toHaveBeenNthCalledWith(
         2,
-        `/users?${ids
-          .slice(50, 100)
-          .map((id) => `id=${id}`)
-          .join("&")}`,
-        undefined,
-        "user"
+        `/users?${ids.slice(50, 100).map((id) => `id=${id}`).join("&")}`
       );
       expect(client.request).toHaveBeenNthCalledWith(
         3,
-        `/users?${ids
-          .slice(100)
-          .map((id) => `id=${id}`)
-          .join("&")}`,
-        undefined,
-        "user"
+        `/users?${ids.slice(100).map((id) => `id=${id}`).join("&")}`
       );
       expect(result).toEqual(users);
     });
@@ -227,25 +210,7 @@ describe("user-endpoints", () => {
       expect(result).toEqual([]);
     });
 
-    it("logs an expected official API circuit-open failure at debug level", async () => {
-      const error = new Error(
-        "Kick official API app-token proxy unavailable while Kick is degraded"
-      );
-      const client = createMockClient({
-        isAuthenticated: vi.fn(() => false),
-        request: vi.fn().mockRejectedValueOnce(error),
-      });
 
-      const result = await getUsersById(client, [1]);
-
-      expect(result).toEqual([]);
-      expect(logger.debug).toHaveBeenCalledWith(
-        "Kick:Endpoints:User",
-        "Failed to fetch Kick users",
-        expect.objectContaining({ error: expect.objectContaining({ message: error.message }) })
-      );
-      expect(logger.error).not.toHaveBeenCalled();
-    });
   });
 
   // Guards: explicit null following_since survives normalization distinctly from absent or malformed relationship data.

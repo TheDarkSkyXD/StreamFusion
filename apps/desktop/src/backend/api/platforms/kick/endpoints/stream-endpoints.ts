@@ -897,6 +897,8 @@ export async function getStreamsByBroadcasterIds(
   client: KickRequestor,
   broadcasterUserIds: number[]
 ): Promise<UnifiedStream[]> {
+  if (!client.isAuthenticated()) return [];
+
   const uniqueIds = [
     ...new Set(broadcasterUserIds.filter((id) => Number.isSafeInteger(id) && id > 0)),
   ];
@@ -912,9 +914,7 @@ export async function getStreamsByBroadcasterIds(
     }
 
     const response = await client.request<KickApiResponse<KickApiUserLivestream[]>>(
-      `/users/livestreams?${params.toString()}`,
-      undefined,
-      "app"
+      `/users/livestreams?${params.toString()}`
     );
     const requested = new Set(ids);
 
@@ -1288,6 +1288,10 @@ export async function getTopStreams(
   const offsetIn = options.cursor ? parseInt(options.cursor, 10) : 0;
   const safeOffset = Number.isFinite(offsetIn) && offsetIn > 0 ? offsetIn : 0;
 
+  if (!client.isAuthenticated()) {
+    return safeOffset > 0 ? { data: [] } : getPublicTopStreams(options);
+  }
+
   try {
     const params = new URLSearchParams();
 
@@ -1309,16 +1313,10 @@ export async function getTopStreams(
     const queryString = params.toString();
     const endpoint = queryString ? `/livestreams?${queryString}` : "/livestreams";
 
-    const response = await client.request<KickApiResponse<KickApiLivestream[]>>(
-      endpoint,
-      undefined,
-      "app"
-    );
+    const response = await client.request<KickApiResponse<KickApiLivestream[]>>(endpoint);
     const rawStreams = response.data || [];
 
     // Fetch avatars
-    // Note: With App Token, getting users might fail if we hit rate limits or if it requires user scope
-    // But /users endpoint usually works with App Token for public profiles
     const userIds = rawStreams.map((s) => s.broadcaster_user_id);
 
     let userMap = new Map<number, KickApiUser>();
@@ -1522,12 +1520,6 @@ export async function getStreamsByCategory(
     return filterByLang(result);
   }
 
-  // The app-token /public/v1/livestreams?category_id=X path that getTopStreams
-  // hits always throws for anonymous users, then its catch arm logs a
-  // misleading "for top streams" warning, kills pagination at offset > 0, and
-  // falls back to getPublicTopStreams. Skip the wasted hop: getPublicTopStreams
-  // already resolves the slug and uses /private/v1/categories/{slug}/livestreams
-  // (real server-side filter + cursor pagination).
   const primary = client.isAuthenticated()
     ? await getTopStreams(client, { ...options, categoryId })
     : await getPublicTopStreams({ ...options, categoryId });

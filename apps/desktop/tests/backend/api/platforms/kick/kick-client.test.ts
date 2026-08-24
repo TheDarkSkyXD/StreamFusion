@@ -33,7 +33,6 @@ vi.mock("@/backend/api/platforms/kick/kick-network-health", () => ({
 vi.mock("@/backend/api/unified/platform-health", () => ({
   isPlatformHealthy: vi.fn(() => true),
   recordPlatformLocalNetError: vi.fn(),
-  recordPlatformOfficialApiAuthFailure: vi.fn(),
 }));
 
 vi.mock("@/backend/auth/kick-auth", () => ({
@@ -111,11 +110,7 @@ vi.mock("@/backend/api/platforms/kick/endpoints/video-endpoints", () => ({
   getVideosByChannelSlug: vi.fn(),
 }));
 
-import {
-  isPlatformHealthy,
-  recordPlatformLocalNetError,
-  recordPlatformOfficialApiAuthFailure,
-} from "@/backend/api/unified/platform-health";
+import { isPlatformHealthy, recordPlatformLocalNetError } from "@/backend/api/unified/platform-health";
 import { kickAuthService } from "@/backend/auth/kick-auth";
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
@@ -154,111 +149,7 @@ describe("KickClient", () => {
       await expect(kickClient.request("/test")).rejects.toThrow("No Kick user token");
     });
 
-    it("uses an app token when the caller explicitly requests app auth", async () => {
-      vi.mocked(kickAuthService.isAuthenticated).mockReturnValue(false);
-      mockFetch.mockResolvedValueOnce(jsonResponse({ result: "ok" }));
-
-      await kickClient.request("/channels?broadcaster_user_id[]=123", undefined, "app");
-
-      const fetchOptions = mockFetch.mock.calls[0][1] as Record<string, unknown>;
-      const fetchHeaders = fetchOptions.headers as Record<string, string>;
-      expect(fetchHeaders.Authorization).toBeUndefined();
-      expect(fetchHeaders["X-StreamFusion-Auth"]).toBe("app");
-    });
-
-    it("marks Kick degraded when the Worker app-token proxy returns 401", async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({}, 401));
-
-      await expect(
-        kickClient.request("/channels?slug[]=hennytingzz", undefined, "app")
-      ).rejects.toThrow("401");
-
-      expect(recordPlatformOfficialApiAuthFailure).toHaveBeenCalledWith("kick", 401);
-      expect(kickAuthService.refreshToken).not.toHaveBeenCalled();
-    });
-
-    // Guards: anonymous Kick successes must not immediately re-enable a Worker app-token proxy that returned 401.
-    it("keeps the app-token proxy cooling down when shared Kick health recovers", async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({}, 401));
-
-      await expect(
-        kickClient.request("/channels?slug[]=first-probe", undefined, "app")
-      ).rejects.toThrow("401");
-
-      vi.mocked(isPlatformHealthy).mockReturnValue(true);
-
-      await expect(
-        kickClient.request("/channels?slug[]=fallback-metadata", undefined, "app")
-      ).rejects.toThrow("Kick official API app-token proxy unavailable while Kick is degraded");
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-    });
-
-    // Guards: a failed app-token recovery probe must re-arm cooldown so fallback callers do not probe repeatedly.
-    it("re-arms the app-token cooldown when its recovery probe fails", async () => {
-      const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
-      mockFetch.mockResolvedValueOnce(jsonResponse({}, 401));
-
-      await expect(
-        kickClient.request("/channels?slug[]=initial-probe", undefined, "app")
-      ).rejects.toThrow("401");
-
-      now.mockReturnValue(301_001);
-      mockFetch.mockRejectedValueOnce(new Error("net::ERR_FAILED"));
-      await expect(
-        kickClient.request("/channels?slug[]=failed-recovery", undefined, "app")
-      ).rejects.toThrow("net::ERR_FAILED");
-
-      await expect(
-        kickClient.request("/channels?slug[]=fallback-after-failure", undefined, "app")
-      ).rejects.toThrow("Kick official API app-token proxy unavailable while Kick is degraded");
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-    });
-
-    // Guards: cooldown expiry permits one Worker recovery probe while concurrent callers keep using fallbacks.
-    it("allows only one app-token recovery probe after cooldown expires", async () => {
-      const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
-      mockFetch.mockResolvedValueOnce(jsonResponse({}, 401));
-      await expect(
-        kickClient.request("/channels?slug[]=initial-probe", undefined, "app")
-      ).rejects.toThrow("401");
-
-      now.mockReturnValue(301_001);
-      let resolveRecovery!: (response: Response) => void;
-      mockFetch.mockImplementationOnce(
-        () =>
-          new Promise<Response>((resolve) => {
-            resolveRecovery = resolve;
-          })
-      );
-
-      const recovery = kickClient.request("/channels?slug[]=recovery", undefined, "app");
-      await expect(
-        kickClient.request("/channels?slug[]=concurrent-fallback", undefined, "app")
-      ).rejects.toThrow("Kick official API app-token proxy unavailable while Kick is degraded");
-
-      await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
-      resolveRecovery(jsonResponse({ data: [{ slug: "recovered" }] }));
-      await expect(recovery).resolves.toEqual({ data: [{ slug: "recovered" }] });
-
-      mockFetch.mockResolvedValueOnce(jsonResponse({ data: [] }));
-      await expect(
-        kickClient.request("/channels?slug[]=after-recovery", undefined, "app")
-      ).resolves.toEqual({ data: [] });
-      expect(mockFetch).toHaveBeenCalledTimes(3);
-    });
-
-    it("does not retry the app-token proxy while Kick is already degraded", async () => {
-      vi.mocked(isPlatformHealthy).mockReturnValue(false);
-
-      await expect(
-        kickClient.request("/channels?slug[]=already-degraded", undefined, "app")
-      ).rejects.toThrow("Kick official API app-token proxy unavailable while Kick is degraded");
-
-      expect(mockFetch).not.toHaveBeenCalled();
-      expect(recordPlatformOfficialApiAuthFailure).not.toHaveBeenCalled();
-    });
-
-    it("sends Authorization header with Bearer token", async () => {
+    it("sends the user bearer directly to api.kick.com without a proxy header", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ result: "ok" }));
 
       await kickClient.request("/test");
@@ -267,6 +158,8 @@ describe("KickClient", () => {
       const fetchOptions = mockFetch.mock.calls[0][1] as Record<string, unknown>;
       const fetchHeaders = fetchOptions.headers as Record<string, string>;
       expect(fetchHeaders.Authorization).toBe("Bearer test-token");
+      expect(fetchHeaders["X-StreamFusion-Auth"]).toBeUndefined();
+      expect(mockFetch.mock.calls[0][0]).toBe("https://api.kick.com/public/v1/test");
     });
 
     it("prepends baseUrl for relative endpoints", async () => {
@@ -279,8 +172,8 @@ describe("KickClient", () => {
       expect(url).toContain("/test-endpoint");
     });
 
-    it("builds official API URLs from the shared Worker base URL", async () => {
-      expect(kickClient.baseUrl).toBe("https://streamfusion.leveluptogetherbiz.workers.dev/kick");
+    it("uses the official Kick API base URL", async () => {
+      expect(kickClient.baseUrl).toBe("https://api.kick.com/public/v1");
     });
 
     it("uses absolute URL for endpoints starting with http", async () => {

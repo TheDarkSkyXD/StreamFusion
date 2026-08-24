@@ -1,5 +1,4 @@
 const baseUrl = process.env.WORKER_BASE_URL || "https://streamfusion.leveluptogetherbiz.workers.dev";
-const probeSlug = process.env.KICK_PROBE_SLUG || "hennytingzz";
 
 async function readJson(response) {
   const text = await response.text();
@@ -17,76 +16,47 @@ function assert(condition, message) {
 }
 
 async function main() {
-  const healthUrl = new URL("/health", baseUrl);
-  const healthResponse = await fetch(healthUrl);
-  const health = await readJson(healthResponse);
+  const tokenUrl = new URL("/auth/kick/token", baseUrl);
+  const preflightResponse = await fetch(tokenUrl, { method: "OPTIONS" });
 
   assert(
-    healthResponse.status === 200,
-    `/health returned ${healthResponse.status}; expected 200. Body: ${JSON.stringify(health)}`
+    preflightResponse.status === 200,
+    `/auth/kick/token preflight returned ${preflightResponse.status}; expected 200`
   );
-  assert(health?.status === "ok", `/health status was ${health?.status}; expected ok`);
   assert(
-    health?.secrets_configured?.kick === true,
-    "/health reports that Kick credentials are not configured"
+    preflightResponse.headers.get("Access-Control-Allow-Methods") === "POST, OPTIONS",
+    "/auth/kick/token preflight did not return the auth-only method contract"
   );
 
-  const channelUrl = new URL("/kick/channels", baseUrl);
-  channelUrl.searchParams.append("slug[]", probeSlug);
-  const channelResponse = await fetch(channelUrl, {
+  const invalidResponse = await fetch(tokenUrl, {
+    method: "POST",
     headers: {
-      Accept: "application/json",
-      "X-StreamFusion-Auth": "app",
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify({ code: "missing-pkce-fields" }),
   });
-  const channel = await readJson(channelResponse);
+  const invalidBody = await readJson(invalidResponse);
 
   assert(
-    channelResponse.status === 200,
-    `/kick/channels returned ${channelResponse.status}; expected 200. Body: ${JSON.stringify(channel)}`
-  );
-  assert(Array.isArray(channel?.data), "/kick/channels response did not include a data array");
-  assert(channel.data.length > 0, `/kick/channels returned no rows for ${probeSlug}`);
-  const probeChannel = channel.data.find(
-    (row) => row?.slug?.toLowerCase() === probeSlug.toLowerCase()
+    invalidResponse.status === 400,
+    `/auth/kick/token invalid input returned ${invalidResponse.status}; expected 400. Body: ${JSON.stringify(invalidBody)}`
   );
   assert(
-    probeChannel,
-    `/kick/channels did not include slug ${probeSlug}`
-  );
-  assert(
-    Number.isSafeInteger(probeChannel.broadcaster_user_id),
-    `/kick/channels row for ${probeSlug} did not include a numeric broadcaster_user_id`
+    invalidBody?.error === "invalid_request",
+    `/auth/kick/token invalid input returned ${JSON.stringify(invalidBody)}`
   );
 
-  const broadcasterUrl = new URL("/kick/channels", baseUrl);
-  broadcasterUrl.searchParams.append(
-    "broadcaster_user_id[]",
-    probeChannel.broadcaster_user_id.toString()
+  const removedDataUrl = new URL("/kick/channels", baseUrl);
+  const removedDataResponse = await fetch(removedDataUrl);
+  assert(
+    removedDataResponse.status === 404,
+    `/kick/channels returned ${removedDataResponse.status}; expected 404`
   );
-  const broadcasterResponse = await fetch(broadcasterUrl, {
-    headers: {
-      Accept: "application/json",
-      "X-StreamFusion-Auth": "app",
-    },
-  });
-  const broadcasterChannel = await readJson(broadcasterResponse);
 
+  const removedPreflightResponse = await fetch(removedDataUrl, { method: "OPTIONS" });
   assert(
-    broadcasterResponse.status === 200,
-    `/kick/channels by broadcaster_user_id returned ${broadcasterResponse.status}; expected 200. Body: ${JSON.stringify(
-      broadcasterChannel
-    )}`
-  );
-  assert(
-    Array.isArray(broadcasterChannel?.data),
-    "/kick/channels by broadcaster_user_id response did not include a data array"
-  );
-  assert(
-    broadcasterChannel.data.some(
-      (row) => row?.broadcaster_user_id === probeChannel.broadcaster_user_id
-    ),
-    `/kick/channels by broadcaster_user_id did not include ${probeChannel.broadcaster_user_id}`
+    removedPreflightResponse.status === 404,
+    `/kick/channels preflight returned ${removedPreflightResponse.status}; expected 404`
   );
 
   console.log(
@@ -94,11 +64,10 @@ async function main() {
       {
         ok: true,
         baseUrl,
-        health_status: health.status,
-        kick_configured: health.secrets_configured.kick,
-        channel_rows: channel.data.length,
-        broadcaster_id: probeChannel.broadcaster_user_id,
-        broadcaster_rows: broadcasterChannel.data.length,
+        auth_preflight_status: preflightResponse.status,
+        invalid_auth_status: invalidResponse.status,
+        removed_data_status: removedDataResponse.status,
+        removed_data_preflight_status: removedPreflightResponse.status,
       },
       null,
       2

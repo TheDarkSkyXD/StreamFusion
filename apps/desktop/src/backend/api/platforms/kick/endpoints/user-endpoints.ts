@@ -15,13 +15,6 @@ const KICK_USERS_FILTER_LIMIT = 50;
 const ISO_TIMESTAMP_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
-function isExpectedOfficialApiCircuitOpen(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    error.message === "Kick official API app-token proxy unavailable while Kick is degraded"
-  );
-}
-
 export interface KickPublicChannelUserProfile {
   userId: string;
   username: string;
@@ -113,15 +106,14 @@ export async function getUser(): Promise<KickUser | null> {
  * https://docs.kick.com/apis/users - GET /public/v1/users?id=:id
  */
 export async function getUsersById(client: KickRequestor, ids: number[]): Promise<KickApiUser[]> {
-  if (ids.length === 0) {
+  if (ids.length === 0 || !client.isAuthenticated()) {
     return [];
   }
 
   try {
     return await getUsersByIdStrict(client, ids);
   } catch (error) {
-    const log = isExpectedOfficialApiCircuitOpen(error) ? logger.debug : logger.error;
-    log("Kick:Endpoints:User", "Failed to fetch Kick users", {
+    logger.error("Kick:Endpoints:User", "Failed to fetch Kick users", {
       error:
         error instanceof Error
           ? { name: error.name, message: error.message, stack: error.stack }
@@ -136,18 +128,14 @@ export async function getUsersByIdStrict(
   ids: number[]
 ): Promise<KickApiUser[]> {
   if (ids.length === 0) return [];
+  if (!client.isAuthenticated()) return [];
   const uniqueIds = Array.from(new Set(ids));
-  const authMode = client.isAuthenticated() ? "user" : "app";
   const users: KickApiUser[] = [];
 
   for (let index = 0; index < uniqueIds.length; index += KICK_USERS_FILTER_LIMIT) {
     const chunk = uniqueIds.slice(index, index + KICK_USERS_FILTER_LIMIT);
     const queryString = chunk.map((id) => `id=${id}`).join("&");
-    const response = await client.request<KickApiResponse<KickApiUser[]>>(
-      `/users?${queryString}`,
-      undefined,
-      authMode
-    );
+    const response = await client.request<KickApiResponse<KickApiUser[]>>(`/users?${queryString}`);
     const requestedIds = new Set(chunk);
     users.push(...(response.data || []).filter((user) => requestedIds.has(user.user_id)));
   }

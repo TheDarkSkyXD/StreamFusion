@@ -57,7 +57,6 @@ function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor
   return {
     request: vi.fn(),
     isAuthenticated: vi.fn(() => true),
-    baseUrl: "https://test.example.com",
     ...overrides,
   };
 }

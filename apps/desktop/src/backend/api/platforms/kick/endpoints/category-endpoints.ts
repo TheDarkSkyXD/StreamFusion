@@ -11,7 +11,7 @@ import type {
 } from "../kick-types";
 import { rememberCategorySlug } from "./stream-endpoints";
 
-const KICK_PUBLIC_V2_CATEGORIES_PATH = "/public/v2/categories";
+const KICK_PUBLIC_V2_CATEGORIES_URL = "https://api.kick.com/public/v2/categories";
 const OFFICIAL_CATEGORY_PAGE_LIMIT = 1000;
 const OFFICIAL_CATEGORY_MAX_PAGES = 20;
 
@@ -30,7 +30,7 @@ const PUBLIC_CATEGORY_LIST_MAX_PAGES = 50;
 
 function officialCategoriesEndpoint(params: URLSearchParams): string {
   const query = params.toString();
-  return query ? `${KICK_PUBLIC_V2_CATEGORIES_PATH}?${query}` : KICK_PUBLIC_V2_CATEGORIES_PATH;
+  return query ? `${KICK_PUBLIC_V2_CATEGORIES_URL}?${query}` : KICK_PUBLIC_V2_CATEGORIES_URL;
 }
 
 function sortCategories(categories: UnifiedCategory[]): UnifiedCategory[] {
@@ -217,6 +217,10 @@ export async function getTopCategories(
   client: KickRequestor,
   options: PaginationOptions = {}
 ): Promise<PaginatedResult<UnifiedCategory>> {
+  if (!client.isAuthenticated()) {
+    return getPublicTopCategories();
+  }
+
   try {
     const params = new URLSearchParams();
     params.set(
@@ -229,9 +233,7 @@ export async function getTopCategories(
     if (options.cursor) params.set("cursor", options.cursor);
 
     const response = await client.request<KickApiCursorResponse<KickApiCategory[]>>(
-      officialCategoriesEndpoint(params),
-      undefined,
-      "app"
+      officialCategoriesEndpoint(params)
     );
     const categories = sortCategories((response.data || []).map(transformKickCategory));
 
@@ -257,11 +259,8 @@ export async function getTopCategories(
 /**
  * Search for categories.
  *
- * Uses the anonymous web category list first. The official category search
- * endpoint is app-token authenticated, so a stale Worker app-token path can
- * turn every keystroke in unified search into a 401 log burst. The public list
- * is already used as the degraded source for top/all category reads and carries
- * enough data for search results.
+ * Uses the anonymous web category list. Search must remain available without
+ * sending discovery traffic through the OAuth Worker.
  */
 export async function searchCategories(
   _client: KickRequestor,
@@ -279,14 +278,17 @@ export async function getCategoryById(
   client: KickRequestor,
   id: string
 ): Promise<UnifiedCategory | null> {
+  if (!client.isAuthenticated()) {
+    const publicResult = await getPublicTopCategories();
+    return publicResult.data.find((category) => category.id === id) || null;
+  }
+
   try {
     const params = new URLSearchParams();
     params.set("id", id);
 
     const response = await client.request<KickApiCursorResponse<KickApiCategory[]>>(
-      officialCategoriesEndpoint(params),
-      undefined,
-      "app"
+      officialCategoriesEndpoint(params)
     );
 
     const category = response.data?.find((candidate) => String(candidate.id) === id);
@@ -314,6 +316,11 @@ export async function getCategoryById(
  * Get all Kick categories via the official cursor-paginated category API.
  */
 export async function getAllCategories(client: KickRequestor): Promise<UnifiedCategory[]> {
+  if (!client.isAuthenticated()) {
+    const publicResult = await getPublicTopCategories();
+    return publicResult.data;
+  }
+
   const categoryMap = new Map<number, UnifiedCategory>();
 
   try {
@@ -325,9 +332,7 @@ export async function getAllCategories(client: KickRequestor): Promise<UnifiedCa
       if (cursor) params.set("cursor", cursor);
 
       const response = await client.request<KickApiCursorResponse<KickApiCategory[]>>(
-        officialCategoriesEndpoint(params),
-        undefined,
-        "app"
+        officialCategoriesEndpoint(params)
       );
 
       for (const category of response.data || []) {

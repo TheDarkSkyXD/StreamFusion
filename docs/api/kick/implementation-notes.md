@@ -2,18 +2,13 @@
 
 > [← Back to Kick docs](./README.md)
 
-This page captures the **non-obvious wiring** that the endpoint tables don't reveal — why the code is the way it is.
+This page explains the wiring that the endpoint tables do not show.
 
-## Cloudflare Worker proxy
+## OAuth Worker boundary
 
-The desktop client cannot store an OAuth **client secret**. To avoid that, all authenticated Kick API traffic is proxied through a Cloudflare Worker at `streamfusion.leveluptogetherbiz.workers.dev/kick/...`. The Worker:
+The desktop cannot store the Kick OAuth client secret. The Cloudflare Worker uses that secret only for authorization-code exchange and refresh at `/auth/kick/token` and `/auth/kick/refresh`.
 
-- Injects the client secret on `POST /oauth/token` exchanges
-- Forwards the user's bearer token on every other request
-- Strips response headers that leak Cloudflare internals
-- Rate-limits its own egress to Kick to mitigate abuse
-
-In the source, `KickClient.baseUrl` in [`kick-client.ts:110`](../../../src/backend/api/platforms/kick/kick-client.ts#L110) points at the Worker, **not** `api.kick.com` directly. Endpoint paths in the docs are relative to that base.
+`KickClient.baseUrl` points directly at `https://api.kick.com/public/v1`. Official API requests carry the signed-in user's bearer token. The Worker has no Kick data, health, or app-token routes.
 
 ## Why three API surfaces
 

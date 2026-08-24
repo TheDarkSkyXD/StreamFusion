@@ -3,11 +3,12 @@ import { logger } from "@/backend/logging/logger";
 import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
 
 // Guards: followed Kick stream live status uses the current 100-ID bulk API instead of the deprecated endpoint or fan-out legacy slug checks.
+// Guards: signed-out broadcaster lookups do not call the official requestor or OAuth Worker.
 // Guards: successful Kick stream metadata fetch seeds live playback cache so stream opens can resolve from memory.
 // Guards: Kick public-stream-cache + fan-out 4-part contract (regressions cb0b7b6 + 6d3606d, refactored in 640870a).
-// Guards: positive-cache TTL > poll interval — a second call to the same slug within 90s must NOT hit electron.net.fetch again. Without this, the 60s `useFollowedStreams` poll re-bursts on every cycle.
-// Guards: stagger fires AFTER cache check — a cache-hit path returns synchronously with `staggerOffsetMs > 0`. Otherwise back-to-back same-slug callers eat a delay they don't need.
-// Guards: AbortController is scoped per dispatch — an aborted staggerDelay rejects with an "AbortError" before reaching the network; orphan stagger timers from a stale dispatch don't fire into the network.
+// Guards: positive-cache TTL > poll interval - a second call to the same slug within 90s must NOT hit electron.net.fetch again. Without this, the 60s `useFollowedStreams` poll re-bursts on every cycle.
+// Guards: stagger fires AFTER cache check - a cache-hit path returns synchronously with `staggerOffsetMs > 0`. Otherwise back-to-back same-slug callers eat a delay they don't need.
+// Guards: AbortController is scoped per dispatch - an aborted staggerDelay rejects with an "AbortError" before reaching the network; orphan stagger timers from a stale dispatch don't fire into the network.
 // Guards: a transient timeout serves the last-known-good stream instead of returning null, so followed Kick streams do not disappear during a flaky refresh.
 // Guards: official Kick hidden-count zero is replaced only by a positive legacy count from the same channel and live session.
 // Guards: followed Kick streams recover thumbnails omitted by the official bulk response only from the same channel and live session.
@@ -27,13 +28,13 @@ const mockState = vi.hoisted(() => {
   };
 
   // Fake net.fetch that dequeues from responseQueue and returns a Response-like object.
-  // If the queue is empty, the promise never resolves (simulating a hung request —
+  // If the queue is empty, the promise never resolves (simulating a hung request -
   // AbortSignal.timeout from the source will fire and reject it).
   async function fakeFetch(url: string, _options?: unknown): Promise<Response> {
     state.netRequestCalls.push({ url });
     const next = state.responseQueue.shift();
     if (!next) {
-      // Hang forever — AbortSignal.timeout in the source will abort this.
+      // Hang forever - AbortSignal.timeout in the source will abort this.
       return new Promise<Response>(() => {});
     }
     if (next.kind === "error") {
@@ -163,29 +164,28 @@ function createOfficialTopLivestream({
 type TestKickRequestor = KickRequestor & { requestSpy: ReturnType<typeof vi.fn> };
 
 function requestorFrom(
-  handler: (path: string, options?: RequestInit, authMode?: "user" | "app") => Promise<unknown>,
+  handler: (path: string, options?: RequestInit) => Promise<unknown>,
   authenticated: boolean
 ): TestKickRequestor {
   const requestSpy = vi.fn(handler);
-  const request: KickRequestor["request"] = async <T>(
-    path: string,
-    options?: RequestInit,
-    authMode?: "user" | "app"
-  ) => {
-    const result = await requestSpy(path, options, authMode);
+  const request: KickRequestor["request"] = async <T>(path: string, options?: RequestInit) => {
+    const result = await requestSpy(path, options);
     return result as T;
   };
   return {
-    baseUrl: "https://api.kick.com/public/v1",
     isAuthenticated: () => authenticated,
     request,
     requestSpy,
   };
 }
 
-function asRequestor(client: { request: (path: string, options?: RequestInit, authMode?: "user" | "app") => Promise<unknown>; isAuthenticated?: () => boolean }): KickRequestor {
-  const requestor = requestorFrom(client.request, client.isAuthenticated?.() ?? false);
-  requestor.request = async <T>(path: string, options?: RequestInit, authMode?: "user" | "app") => (await client.request(path, options, authMode)) as T;
+function asRequestor(client: {
+  request: (path: string, options?: RequestInit) => Promise<unknown>;
+  isAuthenticated?: () => boolean;
+}): KickRequestor {
+  const requestor = requestorFrom(client.request, client.isAuthenticated?.() ?? true);
+  requestor.request = async <T>(path: string, options?: RequestInit) =>
+    (await client.request(path, options)) as T;
   return requestor;
 }
 
@@ -235,7 +235,7 @@ function createDirectStreamClient(officialViewerCount: number = 0): KickRequesto
       }
       if (path.startsWith("/users?")) return { data: [] };
       throw new Error(`Unexpected path: ${path}`);
-    }), false);
+    }), true);
 }
 
 function createLegacyLiveBody({
@@ -270,7 +270,7 @@ function createLegacyLiveBody({
   });
 }
 
-describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
+describe("getPublicStreamBySlug - fan-out + cache 4-part contract", () => {
   let getPublicStreamBySlug: typeof import("@/backend/api/platforms/kick/endpoints/stream-endpoints").getPublicStreamBySlug;
 
   beforeEach(async () => {
@@ -286,19 +286,19 @@ describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
     vi.useRealTimers();
   });
 
-  it("contract 1: positive-cache TTL (90s) > poll interval — second call within window hits cache, not network", async () => {
+  it("contract 1: positive-cache TTL (90s) > poll interval - second call within window hits cache, not network", async () => {
     mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });
 
     const first = await getPublicStreamBySlug("ac7ionman");
     expect(first?.id).toBe("999");
     expect(mockState.state.netRequestCalls).toHaveLength(1);
 
-    // 60 seconds later — within the 90-second TTL.
+    // 60 seconds later - within the 90-second TTL.
     await vi.advanceTimersByTimeAsync(60_000);
 
     const second = await getPublicStreamBySlug("ac7ionman");
     expect(second?.id).toBe("999");
-    expect(mockState.state.netRequestCalls).toHaveLength(1); // Still 1 — no second network hit.
+    expect(mockState.state.netRequestCalls).toHaveLength(1); // Still 1 - no second network hit.
   });
 
   it("refreshes a cached offline channel when an active viewer requests fresh status", async () => {
@@ -347,7 +347,7 @@ describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
     expect(result?.channelIsVerified).toBe(true);
   });
 
-  it("contract 2: stagger fires AFTER cache check — cache-hit path is synchronous even with staggerOffsetMs > 0", async () => {
+  it("contract 2: stagger fires AFTER cache check - cache-hit path is synchronous even with staggerOffsetMs > 0", async () => {
     mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });
 
     // Prime the cache.
@@ -356,14 +356,14 @@ describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
 
     // Second call with a non-zero stagger. The stagger only fires for
     // cache-miss work; a cache-hit must short-circuit synchronously.
-    // We DON'T advance fake timers — if the implementation incorrectly
+    // We DON'T advance fake timers - if the implementation incorrectly
     // staggered before checking the cache, the await below would hang.
     const second = await getPublicStreamBySlug("ac7ionman", 500);
     expect(second?.id).toBe("999");
     expect(mockState.state.netRequestCalls).toHaveLength(1); // Cache hit, no stagger.
   });
 
-  it("contract 3: AbortController is scoped per dispatch — an aborted signal short-circuits before the network", async () => {
+  it("contract 3: AbortController is scoped per dispatch - an aborted signal short-circuits before the network", async () => {
     const ac = new AbortController();
     ac.abort(); // Pre-aborted: simulates a stale-dispatch signal.
 
@@ -435,8 +435,7 @@ describe("getStreamsByBroadcasterIds", () => {
 
     expect(client.request).toHaveBeenCalledWith(
       "/users/livestreams?user_id=123&user_id=789",
-      undefined,
-      "app"
+      undefined
     );
     expect(result).toEqual([
       expect.objectContaining({
@@ -560,6 +559,16 @@ describe("getStreamsByBroadcasterIds", () => {
     expect((firstPath.match(/user_id=/g) ?? []).length).toBe(100);
     expect((secondPath.match(/user_id=/g) ?? []).length).toBe(1);
     expect(secondPath).toContain("user_id=101");
+  });
+
+  it("returns empty without an official request while signed out", async () => {
+    vi.resetModules();
+    const { getStreamsByBroadcasterIds } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+    const client = requestorFrom(vi.fn(), false);
+
+    await expect(getStreamsByBroadcasterIds(client, [123])).resolves.toEqual([]);
+    expect(client.requestSpy).not.toHaveBeenCalled();
   });
 });
 
@@ -889,13 +898,12 @@ describe("getTopStreams official viewer counts", () => {
     ]);
     expect(client.requestSpy).toHaveBeenCalledWith(
       expect.stringContaining("category_id=15"),
-      undefined,
-      "app"
+      undefined
     );
   });
 });
 
-describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)", () => {
+describe("getPublicStreamBySlug - platform-health instrumentation (slice 01)", () => {
   let getPublicStreamBySlug: typeof import("@/backend/api/platforms/kick/endpoints/stream-endpoints").getPublicStreamBySlug;
 
   beforeEach(async () => {
@@ -922,7 +930,7 @@ describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)",
   });
 
   it("records a server-5xx failure on a 502 response (no retry on the rest of the loop)", async () => {
-    // Three 502s — one per attempt in the existing 3× retry loop.
+    // Three 502s - one per attempt in the existing 3x retry loop.
     mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
     mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
     mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
@@ -1004,11 +1012,11 @@ describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)",
     mockState.state.netRequestCalls.length = 0;
     const orig = mockState.fakeFetch;
     // Push a synthetic Response with status 404 via a custom queue entry.
-    // The fakeFetch helper only knows {kind:"ok", body} as a success — patch
+    // The fakeFetch helper only knows {kind:"ok", body} as a success - patch
     // it by registering a custom hook on responseQueue: shipping a body of
     // "" won't trigger a 404, so we use a temporary monkey-patch.
     // Simpler: feed a Response wrapper directly via a throw of the 404 path.
-    // The source path for 404 is `res.status === 404` — bypassing parse;
+    // The source path for 404 is `res.status === 404` - bypassing parse;
     // both branches converge on success-cache write. To exercise this in
     // the existing fakeFetch shim we need a way to return non-200. Inject
     // by reassigning fakeFetch for this test only.
@@ -1026,8 +1034,8 @@ describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)",
   });
 
   it("does NOT record on a non-TRANSIENT 'Status N' response (excluded per PRD)", async () => {
-    // Single 401 — source classifies as non-transient ⇒ break out of the
-    // retry loop ⇒ no platform-health record per the PRD exclusion list.
+    // Single 401 - source classifies as non-transient ? break out of the
+    // retry loop ? no platform-health record per the PRD exclusion list.
     const orig = mockState.fakeFetch;
     mockState.fakeFetch = async (_url: string) =>
       new Response("", { status: 401 });
@@ -1043,7 +1051,7 @@ describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)",
   });
 
   it("does NOT record on a parse error (excluded per PRD)", async () => {
-    // 200 OK with invalid JSON — source throws "Failed to parse JSON",
+    // 200 OK with invalid JSON - source throws "Failed to parse JSON",
     // breaks out, treated as a non-transient error.
     const orig = mockState.fakeFetch;
     mockState.fakeFetch = async (_url: string) =>
@@ -1074,7 +1082,7 @@ describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)",
   });
 });
 
-describe("getPublicStreamBySlug — per-slug log suppression (slice 04)", () => {
+describe("getPublicStreamBySlug - per-slug log suppression (slice 04)", () => {
   let getPublicStreamBySlug: typeof import("@/backend/api/platforms/kick/endpoints/stream-endpoints").getPublicStreamBySlug;
 
   beforeEach(async () => {

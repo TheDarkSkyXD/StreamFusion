@@ -67,7 +67,6 @@ function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor
   return {
     request: vi.fn(),
     isAuthenticated: vi.fn(() => true),
-    baseUrl: "https://test.example.com",
     ...overrides,
   };
 }
@@ -100,6 +99,15 @@ describe("channel-endpoints", () => {
   });
 
   describe("getOfficialKickChannelAccountStatus", () => {
+    it("returns unavailable without querying the official API while signed out", async () => {
+      const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
+
+      await expect(getOfficialKickChannelAccountStatus(client, "deleted-channel")).resolves.toBe(
+        "unavailable"
+      );
+      expect(client.request).not.toHaveBeenCalled();
+    });
+
     it("classifies an explicit provider 404 as not_found", async () => {
       const client = createMockClient({
         request: vi.fn().mockRejectedValue(new Error("Kick API error: 404")),
@@ -690,7 +698,7 @@ describe("channel-endpoints", () => {
 
       const result = await getChannelsBySlugs(client, ["a", "b"]);
 
-      expect(client.request).toHaveBeenCalledWith("/channels?slug=a&slug=b", undefined, "app");
+      expect(client.request).toHaveBeenCalledWith("/channels?slug=a&slug=b");
       expect(result).toHaveLength(2);
     });
 
@@ -782,8 +790,6 @@ describe("channel-endpoints", () => {
     });
   });
 
-  // Guards: signed-in Kick follow slug repair uses user-token channel reads so a broken app-token proxy does not spam 401s during follow hydration.
-  // Guards: guest Kick follow slug repair still uses the worker-backed app token because no user token is available.
   // Guards: Kick broadcaster filters use OpenAPI collectionFormat multi instead of ignored bracket-suffixed parameters.
   // Guards: an ignored Kick broadcaster filter cannot substitute the signed-in user's channel during username repair.
   // Guards: followed-channel refresh preserves Kick's cased profile name instead of replacing it with the lowercase slug.
@@ -837,9 +843,7 @@ describe("channel-endpoints", () => {
       const result = await getChannelsByBroadcasterIds(client, [123, 456]);
 
       expect(client.request).toHaveBeenCalledWith(
-        "/channels?broadcaster_user_id=123&broadcaster_user_id=456",
-        undefined,
-        "user"
+        "/channels?broadcaster_user_id=123&broadcaster_user_id=456"
       );
       expect(result.map((channel) => channel.username)).toEqual(["new-slug", "other-slug"]);
     });
@@ -898,70 +902,15 @@ describe("channel-endpoints", () => {
       expect(result).toEqual([]);
     });
 
-    it("uses app auth for broadcaster ID repair when no Kick user token is available", async () => {
+    it("returns empty without an official request when no Kick user token is available", async () => {
       const client = createMockClient({
         isAuthenticated: vi.fn(() => false),
-        request: vi.fn().mockResolvedValueOnce({
-          data: [
-            {
-              broadcaster_user_id: 123,
-              slug: "guest-repair",
-              channel_description: "",
-              stream: null,
-              stream_title: "",
-              banner_picture: null,
-              category: null,
-            },
-          ],
-        }),
       });
 
       const result = await getChannelsByBroadcasterIds(client, [123]);
 
-      expect(client.request).toHaveBeenCalledWith(
-        expect.stringContaining("broadcaster_user_id=123"),
-        undefined,
-        "app"
-      );
-      expect(result.map((channel) => channel.username)).toEqual(["guest-repair"]);
-    });
-
-    it("falls back to app auth if a signed-in user's channel read is rejected", async () => {
-      const client = createMockClient({
-        request: vi
-          .fn()
-          .mockRejectedValueOnce(new Error("Kick API error: 401"))
-          .mockResolvedValueOnce({
-            data: [
-              {
-                broadcaster_user_id: 123,
-                slug: "fallback-repair",
-                channel_description: "",
-                stream: null,
-                stream_title: "",
-                banner_picture: null,
-                category: null,
-              },
-            ],
-          }),
-      });
-
-      const result = await getChannelsByBroadcasterIds(client, [123]);
-
-      expect(vi.mocked(client.request).mock.calls.map((call) => call[2])).toEqual(["user", "app"]);
-      expect(result.map((channel) => channel.username)).toEqual(["fallback-repair"]);
-    });
-
-    it("does not retry app auth after a non-auth user-token failure", async () => {
-      const client = createMockClient({
-        request: vi.fn().mockRejectedValueOnce(new Error("Kick API error: 500")),
-      });
-
-      const result = await getChannelsByBroadcasterIds(client, [123]);
-
-      expect(client.request).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(client.request).mock.calls[0][2]).toBe("user");
       expect(result).toEqual([]);
+      expect(client.request).not.toHaveBeenCalled();
     });
 
     it("chunks broadcaster IDs into conservative 20-item requests without dropping later follows", async () => {
@@ -994,7 +943,7 @@ describe("channel-endpoints", () => {
         20, 20, 20,
       ]);
       expect(calls[2]).toContain("broadcaster_user_id=60");
-      expect(vi.mocked(client.request).mock.calls.every((call) => call[2] === "user")).toBe(true);
+      expect(vi.mocked(client.request).mock.calls.every((call) => call.length === 1)).toBe(true);
       expect(result.map((channel) => channel.username)).toEqual(["renamed-after-first-page"]);
     });
 
@@ -1198,9 +1147,7 @@ describe("channel-endpoints", () => {
       expect(result).not.toBeNull();
       expect(result!.id).toBe("100");
       expect(client.request).toHaveBeenCalledWith(
-        "/channels?slug=official-first",
-        undefined,
-        "app"
+        "/channels?slug=official-first"
       );
       expect(mockLoadURL).toHaveBeenCalled();
     });
@@ -1324,27 +1271,24 @@ describe("channel-endpoints", () => {
       expect(getLatestCompletedVideoEndedAtMock).toHaveBeenCalledWith("vod-time-fallback");
     });
 
-    it("uses official app-token API without requiring a viewer login", async () => {
+    it("skips the official API and uses the legacy fallback without a viewer login", async () => {
+      mockExecuteJavaScript.mockResolvedValueOnce(
+        JSON.stringify({
+          id: 200,
+          user_id: 200,
+          slug: "signed-out-read",
+          user: { username: "Signed Out Read" },
+          livestream: null,
+        })
+      );
       const client = createMockClient({
         isAuthenticated: vi.fn(() => false),
-        request: vi.fn().mockResolvedValueOnce({
-          data: [
-            {
-              broadcaster_user_id: 200,
-              slug: "app-token-read",
-              channel_description: "desc",
-              stream_title: "title",
-              banner_picture: null,
-              category: null,
-              stream: null,
-            },
-          ],
-        }),
       });
 
-      const result = await getChannel(client, "app-token-read");
+      const result = await getChannel(client, "signed-out-read");
 
       expect(result).not.toBeNull();
+      expect(client.request).not.toHaveBeenCalled();
     });
 
     it("returns null when both APIs fail", async () => {

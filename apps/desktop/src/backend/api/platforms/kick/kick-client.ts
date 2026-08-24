@@ -16,7 +16,6 @@ import { sleep } from "@/lib/sleep";
 import { session } from "electron";
 import type { KickUser, Platform } from "../../../../shared/auth-types";
 import { kickAuthService } from "../../../auth/kick-auth";
-import { WORKER_BASE_URL } from "../../../auth/oauth-config";
 import {
   purgeStoredThirdPartyCookies,
   registerThirdPartyCookieStripper,
@@ -31,7 +30,6 @@ export type { PaginatedResult, PaginationOptions } from "./kick-types";
 import {
   isPlatformHealthy,
   recordPlatformLocalNetError,
-  recordPlatformOfficialApiAuthFailure,
 } from "../../unified/platform-health";
 // Import endpoints
 import * as CategoryEndpoints from "./endpoints/category-endpoints";
@@ -43,8 +41,13 @@ import * as StreamEndpoints from "./endpoints/stream-endpoints";
 import * as UserEndpoints from "./endpoints/user-endpoints";
 import * as VideoEndpoints from "./endpoints/video-endpoints";
 import { acquireKickRequestSlot } from "./kick-network-health";
-import type { KickAuthMode, KickRequestor } from "./kick-requestor";
-import type { KickApiUser, PaginatedResult, PaginationOptions } from "./kick-types";
+import type { KickRequestor } from "./kick-requestor";
+import {
+  KICK_API_BASE,
+  type KickApiUser,
+  type PaginatedResult,
+  type PaginationOptions,
+} from "./kick-types";
 
 // ========== Global Rate Limiter ==========
 // Prevents 429 Too Many Requests by limiting request rate
@@ -113,7 +116,7 @@ const kickRateLimiter = new KickRateLimiter();
 // ========== Image fetch dedupe + negative cache ==========
 // Renderer often double-fetches the same URL (StrictMode, remounts, two cards
 // for the same VOD), so we share the in-flight promise across concurrent calls.
-// Kick's S3-backed CDN returns AccessDenied for purged VOD thumbnails — those
+// Kick's S3-backed CDN returns AccessDenied for purged VOD thumbnails - those
 // URLs will never succeed, so we negative-cache 4xx responses to skip the round
 // trip on re-renders. Transient errors (timeouts, network) stay uncached.
 export interface KickImageBytes {
@@ -124,17 +127,12 @@ export interface KickImageBytes {
 const _imageInFlight = new Map<string, Promise<KickImageBytes | null>>();
 const _imageNegativeCache = new Map<string, number>();
 const _IMAGE_NEG_CACHE_TTL_MS = 10 * 60 * 1000;
-const _APP_TOKEN_PROXY_401_COOLDOWN_MS = 5 * 60 * 1000;
-const _APP_TOKEN_PROXY_DEGRADED_ERROR =
-  "Kick official API app-token proxy unavailable while Kick is degraded";
 
 // ========== Kick API Client Class ==========
 
 class KickClient implements KickRequestor, IPlatformReader {
   readonly platform: Platform = "kick";
-  readonly baseUrl = `${WORKER_BASE_URL}/kick`;
-  private appTokenProxyUnavailableUntil = 0;
-  private appTokenRecoveryProbeInFlight = false;
+  readonly baseUrl = KICK_API_BASE;
 
   /**
    * Make an authenticated request to the official Kick Public API v1
@@ -309,8 +307,8 @@ class KickClient implements KickRequestor, IPlatformReader {
     // designed for retry loops (API, stream polls) that benefit from a brief
     // back-off. Image reads have their own bounded retry below, and the
     // renderer retries custom-protocol failures in place. Previously, a
-    // single 3-second unhealthy window — rolled
-    // forward by concurrent net::ERR_FAILED bursts from other Kick callers —
+    // single 3-second unhealthy window - rolled
+    // forward by concurrent net::ERR_FAILED bursts from other Kick callers -
     // can leave the whole discover grid stuck on broken avatars/thumbnails.
     // The semaphore in `acquireKickRequestSlot` caps concurrency at 4, so
     // removing the gate doesn't re-introduce the thundering-herd it was
@@ -350,7 +348,7 @@ class KickClient implements KickRequestor, IPlatformReader {
 
         // 3s timeout (vs the default 15s for API calls): image fetches are
         // best-effort and now contend for the same 4-slot semaphore as API
-        // traffic during outages — see the bypass-justification block above.
+        // traffic during outages - see the bypass-justification block above.
         // Keep the first attempt short for a fast healthy grid, then retry the
         // same real provider URL once with a wider bounded budget. A one-off
         // timeout must not become a permanently missing thumbnail in the
@@ -398,71 +396,23 @@ class KickClient implements KickRequestor, IPlatformReader {
     }
   }
 
-  private async getOfficialApiBearerToken(authMode: KickAuthMode): Promise<
-    | {
-        token: string;
-        kind: "user";
-      }
-    | {
-        token: null;
-        kind: "app";
-      }
-    | null
-  > {
-    if (authMode === "app") {
-      return { token: null, kind: "app" };
-    }
-
+  private async getOfficialApiBearerToken(): Promise<string | null> {
     if (kickAuthService.isAuthenticated()) {
       await kickAuthService.ensureValidToken();
       const userToken = kickAuthService.getAccessToken();
       if (userToken) {
-        return { token: userToken, kind: "user" };
+        return userToken;
       }
     }
 
     return null;
   }
 
-  private finishAppTokenRecoveryProbe(isRecoveryProbe: boolean, succeeded: boolean): void {
-    if (!isRecoveryProbe) {
-      return;
-    }
-
-    this.appTokenProxyUnavailableUntil = succeeded
-      ? 0
-      : Date.now() + _APP_TOKEN_PROXY_401_COOLDOWN_MS;
-    this.appTokenRecoveryProbeInFlight = false;
-  }
-
-  async request<T>(
-    endpoint: string,
-    options: RequestInit = {},
-    authMode: KickAuthMode = "user"
-  ): Promise<T> {
-    let isAppTokenRecoveryProbe = false;
-    if (authMode === "app") {
-      const now = Date.now();
-      if (now < this.appTokenProxyUnavailableUntil) {
-        throw new Error(_APP_TOKEN_PROXY_DEGRADED_ERROR);
-      }
-      if (!isPlatformHealthy("kick")) {
-        throw new Error(_APP_TOKEN_PROXY_DEGRADED_ERROR);
-      }
-      if (this.appTokenProxyUnavailableUntil !== 0) {
-        if (this.appTokenRecoveryProbeInFlight) {
-          throw new Error(_APP_TOKEN_PROXY_DEGRADED_ERROR);
-        }
-        this.appTokenRecoveryProbeInFlight = true;
-        isAppTokenRecoveryProbe = true;
-      }
-    }
-
-    let bearer = await this.getOfficialApiBearerToken(authMode);
+  async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    let bearer = await this.getOfficialApiBearerToken();
 
     if (!bearer) {
-      this.finishAppTokenRecoveryProbe(isAppTokenRecoveryProbe, false);
-      throw new Error(`No Kick ${authMode} token is available.`);
+      throw new Error("No Kick user token is available.");
     }
 
     const headers: Record<string, string> = {
@@ -479,11 +429,7 @@ class KickClient implements KickRequestor, IPlatformReader {
       "sec-ch-ua-platform": '"Windows"',
       ...(options.headers as Record<string, string>),
     };
-    if (bearer.kind === "user") {
-      headers.Authorization = `Bearer ${bearer.token}`;
-    } else {
-      headers["X-StreamFusion-Auth"] = "app";
-    }
+    headers.Authorization = `Bearer ${bearer}`;
 
     const maxAttempts = 2;
     let attempt = 0;
@@ -560,19 +506,10 @@ class KickClient implements KickRequestor, IPlatformReader {
             );
           }
 
-          if (response.statusCode === 401 && bearer.kind === "app") {
-            this.appTokenProxyUnavailableUntil = Date.now() + _APP_TOKEN_PROXY_401_COOLDOWN_MS;
-            recordPlatformOfficialApiAuthFailure("kick", response.statusCode);
-            logger.warn(
-              "Kick:Client",
-              "Kick official API app-token proxy returned 401; marking Kick degraded"
-            );
-          }
-
-          if (response.statusCode === 401 && bearer.kind === "user" && !retriedOn401) {
+          if (response.statusCode === 401 && !retriedOn401) {
             // Token may have expired between the pre-flight ensureValidToken() and
             // the actual request. Attempt one refresh and update the Authorization
-            // header in-place — no recursive call to avoid infinite loops.
+            // header in-place - no recursive call to avoid infinite loops.
             logger.debug(
               "Kick:Client",
               "Kick user token rejected (401); attempting one-shot refresh"
@@ -580,21 +517,19 @@ class KickClient implements KickRequestor, IPlatformReader {
             retriedOn401 = true;
             const refreshed = await kickAuthService.refreshToken();
             if (refreshed) {
-              bearer = { token: refreshed.accessToken, kind: "user" };
+              bearer = refreshed.accessToken;
               headers.Authorization = `Bearer ${refreshed.accessToken}`;
               continue; // retry the same request with the new token
             }
-            // Refresh failed — kickAuthService already cleared state & emitted
+            // Refresh failed - kickAuthService already cleared state & emitted
             // 'session-expired'. Fall through to throw below.
           }
 
           throw new Error(`Kick API error: ${response.statusCode}`);
         }
 
-        this.finishAppTokenRecoveryProbe(isAppTokenRecoveryProbe, true);
         return response.data;
       } catch (error: unknown) {
-        this.finishAppTokenRecoveryProbe(isAppTokenRecoveryProbe, false);
         // If it's a 429 error we deliberately threw above, re-throw it
         if (error instanceof Error && error.message.includes("429")) {
           throw error;
@@ -607,23 +542,17 @@ class KickClient implements KickRequestor, IPlatformReader {
           recordPlatformLocalNetError("kick");
         }
 
-        const isClassifiedAppAuthFailure =
-          bearer.kind === "app" && /^Kick API error: 401\b/.test(errMsg);
-
-        if (!isClassifiedAppAuthFailure) {
-          logger.error("Kick:Client", "Kick API request failed", {
-            endpoint,
-            error:
-              error instanceof Error
-                ? { name: error.name, message: error.message, stack: error.stack }
-                : String(error),
-          });
-        }
+        logger.error("Kick:Client", "Kick API request failed", {
+          endpoint,
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
         throw error;
       }
     }
 
-    this.finishAppTokenRecoveryProbe(isAppTokenRecoveryProbe, false);
     throw new Error("Kick API request failed after retries");
   }
 
@@ -847,7 +776,7 @@ class KickClient implements KickRequestor, IPlatformReader {
   // isPlatformHealthy). This convenience returns a flat array; callers that
   // need the failure tag (notably syncFollowsOnLogin) should import
   // FollowEndpoints directly so a transient fetch failure doesn't get
-  // silently coerced into "user follows zero channels" — see U4/A1 in
+  // silently coerced into "user follows zero channels" - see U4/A1 in
   // docs/plans/2026-05-21-001-feat-kick-account-follows-import-plan.md.
 
   /**

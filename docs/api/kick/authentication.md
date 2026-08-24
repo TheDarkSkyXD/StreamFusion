@@ -7,7 +7,7 @@
 
 ## Flow
 
-Kick uses **OAuth 2.1 with PKCE** for user authentication. There is no app-token (client-credentials) flow in this codebase — the client secret lives on the Cloudflare Worker and we haven't built a `/auth/kick/app-token` proxy. Callers that need to work for logged-out users **fall back to the public/legacy API** (no auth).
+Kick uses **OAuth 2.1 with PKCE** for user authentication. The Cloudflare Worker uses the client secret only to exchange and refresh user tokens. StreamFusion does not request Kick app tokens or proxy Kick data through the Worker. Logged-out reads use direct legacy/private fallbacks where available.
 
 ```
 Desktop app           Cloudflare Worker             id.kick.com
@@ -37,19 +37,20 @@ The app currently requests:
 
 ## Token use at the request layer
 
-`KickClient.request()` ([`kick-client.ts:427`](../../../src/backend/api/platforms/kick/kick-client.ts#L427)):
+`KickClient.request()`:
 
 1. Calls `kickAuthService.ensureValidToken()` — refreshes if expiry is within the buffer.
 2. Reads the access token and sets `Authorization: Bearer <token>`.
 3. On `401`, calls `refreshToken()` once and retries the same request with the new token.
-4. Throws `"Not authenticated with Kick. Use the public API fallback."` if no token is available — caller is expected to switch to the public/legacy path.
+4. Sends the request directly to `https://api.kick.com`.
+5. Throws `"No Kick user token is available."` if no token is available. Endpoint functions select a public/legacy fallback or return no data before calling the requestor.
 
 ## ✅ When to require auth vs. fall back
 
 | Operation | Auth required? | Fallback |
 |---|---|---|
 | `getUsersById`, `getChannelsBySlugs` (batched) | Yes | None — returns `[]` if not authenticated |
-| `getChannel` (single slug) | Tries public first, then auth | [`getPublicChannel`](./endpoints.md#getpublicchannel) (BrowserWindow) |
+| `getChannel` (single slug) | Tries auth first when signed in | [`getPublicChannel`](./endpoints.md#getpublicchannel) (BrowserWindow) |
 | `searchChannels` | No | Mixed: public search + top-streams fuzzy match |
 | `getTopStreams` | Yes | [`getPublicTopStreams`](./endpoints.md#getpublictopstreams) |
 | `getStreamBySlug` | Yes | [`getPublicStreamBySlug`](./endpoints.md#getpublicstreambyslug) |
@@ -57,4 +58,4 @@ The app currently requests:
 
 ## ⚠️ Identity-mismatch bug
 
-The authenticated `GET /channels?slug[]=X` occasionally returns the **authenticated user's own channel** instead of the requested one when a single slug is passed. `getChannel()` ([`channel-endpoints.ts:34`](../../../src/backend/api/platforms/kick/endpoints/channel-endpoints.ts#L34)) tries the public API first to avoid this, and validates the returned `slug` against the requested one before returning. **Don't remove this validation** — it's the only thing keeping bad data out of the channel cache.
+The authenticated `GET /channels?slug[]=X` occasionally returns the **authenticated user's own channel** instead of the requested one when a single slug is passed. When signed in, `getChannel()` ([`channel-endpoints.ts:34`](../../../src/backend/api/platforms/kick/endpoints/channel-endpoints.ts#L34)) tries the official API first and validates the returned `slug` against the requested one before returning. If that response is missing or mismatched, it falls back to the direct legacy channel source. **Don't remove this validation** — it's the only thing keeping bad data out of the channel cache.

@@ -5,7 +5,7 @@ import type { ChannelAccountStatus } from "@/shared/channel-account-status-types
 import { getPlatformHealth } from "../../../unified/platform-health";
 import type { KickChatroomSettings, UnifiedChannel } from "../../../unified/platform-types";
 import type { SubscriberBadge } from "../../../../services/chat/kick-parser";
-import type { KickAuthMode, KickRequestor } from "../kick-requestor";
+import type { KickRequestor } from "../kick-requestor";
 import { createHiddenKickBrowserWindow } from "../kick-hidden-browser-window";
 import { requestPublicKickSession } from "../kick-session-request";
 import { transformKickChannel } from "../kick-transformers";
@@ -44,7 +44,7 @@ function mergeKickUserMetadata(channel: UnifiedChannel, user: KickApiUser): Unif
  * `account_age` is not in the v2 initial-fetch payload (only delivered via WS),
  * so this mapper leaves it absent.
  *
- * Pure function — exported for unit testing without spinning up the BrowserWindow.
+ * Pure function - exported for unit testing without spinning up the BrowserWindow.
  */
 export function mapKickChatroomToSettings(raw: unknown): KickChatroomSettings | undefined {
   if (!raw || typeof raw !== "object") return undefined;
@@ -244,12 +244,14 @@ export async function getOfficialKickChannelAccountStatus(
   client: KickRequestor,
   slug: string
 ): Promise<Exclude<ChannelAccountStatus, "suspended"> | "not_found"> {
+  if (!client.isAuthenticated()) {
+    return "unavailable";
+  }
+
   const normalizedSlug = slug.trim().toLowerCase();
   try {
     const response = await client.request<KickApiResponse<KickApiChannel[]>>(
-      `/channels?slug=${encodeURIComponent(normalizedSlug)}`,
-      undefined,
-      "app"
+      `/channels?slug=${encodeURIComponent(normalizedSlug)}`
     );
     const exactChannel = Array.isArray(response?.data)
       ? response.data.find((channel) => channel?.slug?.trim().toLowerCase() === normalizedSlug)
@@ -264,8 +266,8 @@ export async function getOfficialKickChannelAccountStatus(
  * Get channel info by slug
  * https://docs.kick.com/apis/channels - GET /public/v1/channels?slug=:slug
  *
- * Uses the official app-token API first. Legacy Kick web lookup is only a
- * last-resort compatibility path.
+ * Uses the signed-in user's token for the official API. Signed-out reads use
+ * the legacy Kick web lookup.
  */
 export async function getChannel(
   client: KickRequestor,
@@ -284,12 +286,10 @@ export async function getChannel(
     return cached.channel;
   }
 
-  if (!isKickOfficialApiUnavailable()) {
+  if (client.isAuthenticated() && !isKickOfficialApiUnavailable()) {
     try {
       const response = await client.request<KickApiResponse<KickApiChannel[]>>(
-        `/channels?slug=${encodeURIComponent(normalizedSlug)}`,
-        undefined,
-        "app"
+        `/channels?slug=${encodeURIComponent(normalizedSlug)}`
       );
 
       if (response.data && response.data.length > 0) {
@@ -432,7 +432,7 @@ export async function getChannelsBySlugs(
     return [];
   }
 
-  if (isKickOfficialApiUnavailable()) {
+  if (!client.isAuthenticated() || isKickOfficialApiUnavailable()) {
     return [];
   }
 
@@ -441,11 +441,7 @@ export async function getChannelsBySlugs(
     const limitedSlugs = slugs.slice(0, 50);
     const params = limitedSlugs.map((s) => `slug=${encodeURIComponent(s)}`).join("&");
 
-    const response = await client.request<KickApiResponse<KickApiChannel[]>>(
-      `/channels?${params}`,
-      undefined,
-      "app"
-    );
+    const response = await client.request<KickApiResponse<KickApiChannel[]>>(`/channels?${params}`);
 
     const requestedSlugs = new Set(limitedSlugs.map((slug) => slug.trim().toLowerCase()));
     const channels = (response.data || [])
@@ -476,42 +472,13 @@ export async function getChannelsByBroadcasterIds(
     return [];
   }
 
-  if (isKickOfficialApiUnavailable()) {
+  if (!client.isAuthenticated() || isKickOfficialApiUnavailable()) {
     return [];
   }
 
-  const authModes: KickAuthMode[] = client.isAuthenticated() ? ["user", "app"] : ["app"];
-  let lastError: unknown;
-
   try {
-    for (const authMode of authModes) {
-      try {
-        const channels = await fetchChannelsByBroadcasterIds(client, broadcasterUserIds, authMode);
-        return await enrichChannelsWithKickUsers(client, channels);
-      } catch (error) {
-        lastError = error;
-        if (
-          authMode === "user" &&
-          authModes.includes("app") &&
-          shouldRetryBroadcasterIdLookupWithAppAuth(error)
-        ) {
-          logger.debug(
-            "Kick:Endpoints:Channel",
-            "User-token broadcaster ID lookup failed; retrying with app auth",
-            {
-              error:
-                error instanceof Error
-                  ? { name: error.name, message: error.message, stack: error.stack }
-                  : String(error),
-            }
-          );
-          continue;
-        }
-
-        throw error;
-      }
-    }
-    throw lastError;
+    const channels = await fetchChannelsByBroadcasterIds(client, broadcasterUserIds);
+    return await enrichChannelsWithKickUsers(client, channels);
   } catch (error) {
     const log = isKickAppAuthFailure(error) ? logger.warn : logger.error;
     log("Kick:Endpoints:Channel", "Failed to fetch Kick channels by broadcaster ID", {
@@ -564,8 +531,7 @@ const KICK_CHANNEL_FALLBACK_BATCH_SIZE = 10;
 
 async function fetchChannelsByBroadcasterIds(
   client: KickRequestor,
-  broadcasterUserIds: number[],
-  authMode: KickAuthMode
+  broadcasterUserIds: number[]
 ): Promise<UnifiedChannel[]> {
   const channels: UnifiedChannel[] = [];
 
@@ -573,7 +539,7 @@ async function fetchChannelsByBroadcasterIds(
     const ids = broadcasterUserIds.slice(i, i + KICK_CHANNEL_BATCH_SIZE);
 
     try {
-      channels.push(...(await requestChannelsByBroadcasterIds(client, ids, authMode)));
+      channels.push(...(await requestChannelsByBroadcasterIds(client, ids)));
     } catch (error) {
       if (!isKickServerError(error) || ids.length <= KICK_CHANNEL_FALLBACK_BATCH_SIZE) {
         throw error;
@@ -595,7 +561,7 @@ async function fetchChannelsByBroadcasterIds(
           fallbackIndex + KICK_CHANNEL_FALLBACK_BATCH_SIZE
         );
         try {
-          channels.push(...(await requestChannelsByBroadcasterIds(client, fallbackIds, authMode)));
+          channels.push(...(await requestChannelsByBroadcasterIds(client, fallbackIds)));
         } catch (fallbackError) {
           if (!isKickServerError(fallbackError)) {
             throw fallbackError;
@@ -613,19 +579,14 @@ async function fetchChannelsByBroadcasterIds(
 
 async function requestChannelsByBroadcasterIds(
   client: KickRequestor,
-  broadcasterUserIds: number[],
-  authMode: KickAuthMode
+  broadcasterUserIds: number[]
 ): Promise<UnifiedChannel[]> {
   // The official endpoint rejects mixed slug and broadcaster_user_id
   // parameters, so every request remains ID-only.
   const params = broadcasterUserIds
     .map((id) => `broadcaster_user_id=${encodeURIComponent(id.toString())}`)
     .join("&");
-  const response = await client.request<KickApiResponse<KickApiChannel[]>>(
-    `/channels?${params}`,
-    undefined,
-    authMode
-  );
+  const response = await client.request<KickApiResponse<KickApiChannel[]>>(`/channels?${params}`);
   const requestedIds = new Set(broadcasterUserIds);
 
   return (response.data || [])
@@ -659,7 +620,7 @@ const _publicChannelInFlight = new Map<string, PublicChannelInFlight>();
 
 // Failure-only negative cache. The positive `_channelCache` lives in
 // `getChannel`, but direct callers of `getPublicChannel` (search-endpoints,
-// search-handlers' verifyAndEnrichKickChannels) bypass it — and nothing was
+// search-handlers' verifyAndEnrichKickChannels) bypass it - and nothing was
 // caching failures, so a single unreachable slug would re-open a BrowserWindow
 // on every hover/refetch.
 const _publicChannelFailureCache = new Map<string, number>();
@@ -683,13 +644,9 @@ function isKickAppAuthFailure(error: unknown): boolean {
   return error instanceof Error && /^Kick API error: 401\b/.test(error.message);
 }
 
-function shouldRetryBroadcasterIdLookupWithAppAuth(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  return /^(Kick API error: 40[13]\b|No Kick user token is available\.)/.test(error.message);
-}
 
 // Serialise BrowserWindow creation. Each hidden window spins up a fresh
-// Chromium renderer + GPU context — opening 5 at once (search-handlers'
+// Chromium renderer + GPU context - opening 5 at once (search-handlers'
 // batch-of-5 verification) is the single largest GPU-load spike under the
 // app's control and a likely trigger for the `exit_code=34` GPU crash that
 // then drags Chromium's network service down with it. With CHUNK_SIZE=3 in
@@ -796,7 +753,7 @@ async function _doFetchPublicChannel(
 
   // Skip the BrowserWindow round-trip if the network service is currently
   // crashed/restarting. loadURL would just time out, and a hidden window is
-  // an expensive resource (renderer + GPU + network partition) — exactly the
+  // an expensive resource (renderer + GPU + network partition) - exactly the
   // load profile that triggered the cascade in the first place.
   if (isKickLocallyDown()) return null;
 
@@ -1023,7 +980,7 @@ async function _doFetchPublicChannel(
     };
   } catch (error) {
     // If the network service crashed mid-load, the failure isn't this slug's
-    // fault — don't penalise it with a 5-minute lockout. Re-check after the
+    // fault - don't penalise it with a 5-minute lockout. Re-check after the
     // failure since the crash event may have fired during loadURL.
     networkBlip = isKickLocallyDown();
     const errorMeta = {
