@@ -40,7 +40,10 @@ vi.mock("electron", () => ({
   },
 }));
 
-import { fetch7TVGlobalEmoteSet, fetch7TVUserByConnection } from "@/backend/services/emotes/7tv-emotes-service";
+import {
+  fetch7TVGlobalEmoteSet,
+  fetch7TVUserByConnection,
+} from "@/backend/services/emotes/7tv-emotes-service";
 
 describe("fetch7TVUserByConnection", () => {
   beforeEach(() => {
@@ -63,6 +66,19 @@ describe("fetch7TVUserByConnection", () => {
 
     expect(mockState.state.fetchCalls).toHaveLength(1);
     expect(mockState.state.fetchCalls[0]!.url).toBe("https://7tv.io/v3/users/KICK/58371235");
+    expect(result).toEqual(userJson);
+  });
+
+  it("accepts a channel emote set larger than the shared 2 MiB default", async () => {
+    const userJson = {
+      id: "71092938",
+      emote_set: { id: "set-1", emotes: [] },
+      providerMetadata: "x".repeat(2 * 1024 * 1024),
+    };
+    mockState.state.responseQueue.push({ kind: "ok", body: JSON.stringify(userJson) });
+
+    const result = await fetch7TVUserByConnection("twitch", "71092938");
+
     expect(result).toEqual(userJson);
   });
 
@@ -111,7 +127,19 @@ describe("fetch7TVGlobalEmoteSet", () => {
   });
 
   it("hits /v3/emote-sets/global and returns parsed JSON on 200", async () => {
-    const setJson = { id: "global", emotes: [{ id: "01F", name: "FeelsOkayMan" }] };
+    const setJson = {
+      id: "global",
+      emotes: [
+        {
+          id: "01F",
+          name: "FeelsOkayMan",
+          flags: 0,
+          timestamp: 0,
+          actor_id: null,
+          data: { id: "01F", flags: 0, animated: false },
+        },
+      ],
+    };
     mockState.state.responseQueue.push({ kind: "ok", body: JSON.stringify(setJson) });
 
     const result = await fetch7TVGlobalEmoteSet();

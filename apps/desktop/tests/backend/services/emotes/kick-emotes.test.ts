@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createIpcReplyMock } from "../../../helpers/ipc-reply-mock";
 
 const getMock = vi.fn();
 
@@ -90,26 +91,25 @@ describe("KickEmoteProvider.transformEmote", () => {
     { setName: null, kickSection: "channel", isGlobal: false },
     { setName: "Global", kickSection: "global", isGlobal: true },
     { setName: "Emojis", kickSection: "emoji", isGlobal: true },
-  ])("maps KickTalk set '$setName' to kickSection=$kickSection", ({
-    setName,
-    kickSection,
-    isGlobal,
-  }) => {
-    const out = transform()(
-      { id: 123, name: "kickThing", subscribers_only: false },
-      "channel-42",
-      setName
-    ) as { kickSection?: string; isGlobal: boolean };
+  ])(
+    "maps KickTalk set '$setName' to kickSection=$kickSection",
+    ({ setName, kickSection, isGlobal }) => {
+      const out = transform()(
+        { id: 123, name: "kickThing", subscribers_only: false },
+        "channel-42",
+        setName
+      ) as { kickSection?: string; isGlobal: boolean };
 
-    expect(out.kickSection).toBe(kickSection);
-    expect(out.isGlobal).toBe(isGlobal);
-  });
+      expect(out.kickSection).toBe(kickSection);
+      expect(out.isGlobal).toBe(isGlobal);
+    }
+  );
 });
 
 // Guards: Kick channel emote loading uses the Electron bridge when available so expected Kick 404s stay out of renderer DevTools.
 describe("KickEmoteProvider.fetchChannelEmotes", () => {
   it("loads channel emote sets through the Electron bridge without renderer fetches", async () => {
-    const getChannelEmotes = vi.fn().mockResolvedValue({
+    const getChannelEmotes = createIpcReplyMock().mockResolvedValue({
       emoteSets: [
         {
           id: "set-1",
@@ -139,7 +139,7 @@ describe("KickEmoteProvider.fetchChannelEmotes", () => {
   });
 
   it("returns empty channel emotes when the bridge reports an expected Kick miss", async () => {
-    const getChannelEmotes = vi.fn().mockResolvedValue(null);
+    const getChannelEmotes = createIpcReplyMock().mockResolvedValue(null);
     Reflect.set(window, "electronAPI", {
       emotes: {
         kick: {
@@ -159,7 +159,7 @@ describe("KickEmoteProvider.fetchChannelEmotes", () => {
 
 describe("KickEmoteProvider.fetchUserEmotes", () => {
   it("loads subscribed channels through the Electron Kick web-session bridge when available", async () => {
-    const getUserSubscriptions = vi.fn().mockResolvedValue({
+    const getUserSubscriptions = createIpcReplyMock().mockResolvedValue({
       data: [
         {
           channel: {

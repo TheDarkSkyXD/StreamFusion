@@ -607,13 +607,6 @@ export interface IpcPayloads {
   [IPC_CHANNELS.MODERATION_TIMEOUT_SNAPSHOT]: TimeoutActionBinding;
   [IPC_CHANNELS.MODERATION_TIMEOUT_SUBMIT]: TimeoutSubmitInput;
 
-  // 7TV REST (main-process transport). Identifier is the platform's own
-  // numeric id (Twitch user_id or Kick channel.id), NOT the slug.
-  [IPC_CHANNELS.EMOTES_7TV_GET_USER_BY_CONNECTION]: { platform: Platform; identifier: string };
-  [IPC_CHANNELS.EMOTES_BTTV_GET_USER_BY_TWITCH_ID]: { channelId: string };
-  [IPC_CHANNELS.EMOTES_FFZ_GET_ROOM]: { name?: string; channelId?: string };
-  [IPC_CHANNELS.EMOTES_KICK_GET_CHANNEL_EMOTES]: { slug: string; accessToken?: string };
-
   // Renderer → main log bridge. `level` is restricted to the four supported
   // severities; the handler drops anything else. `tag` is prefixed with
   // `Renderer:` before reaching the logger so the file format stays unambiguous.

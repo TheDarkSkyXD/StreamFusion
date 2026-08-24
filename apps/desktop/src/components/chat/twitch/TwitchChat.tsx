@@ -7,6 +7,7 @@ import { SevenTvCosmeticsClient } from "@/backend/services/chat/seven-tv-cosmeti
 import { TwitchHermesClient } from "@/backend/services/chat/twitch-hermes-client";
 import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPrediction";
 import { logger } from "@/renderer/logging/logger";
+import { unwrapIpcReply } from "@/lib/ipc-reply";
 import { router } from "@/routes/router";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
 import type { UnifiedPrediction } from "@/shared/chat-types";
@@ -546,6 +547,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       return;
     }
     void getBttvBadges()
+      .then(unwrapIpcReply)
       .then((catalog) => {
         store.setGlobalProviderBadges(
           "bttv",
@@ -574,6 +576,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
       return;
     }
     void getFfzBadges()
+      .then(unwrapIpcReply)
       .then((catalog) => {
         const definitions = new Map(catalog.badges.map((badge) => [String(badge.id), badge]));
         const assignments = Object.entries(catalog.users).flatMap(([badgeId, userIds]) => {
@@ -608,7 +611,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
     let active = true;
     const getFfzRoom = window.electronAPI.emotes.ffz.getRoom;
     if (typeof getFfzRoom === "function") {
-      void getFfzRoom({ name: channel, channelId })
+      void getFfzRoom({ kind: "name", name: channel })
+        .then(unwrapIpcReply)
         .then((room) => {
           if (!active) return;
           const roleBadge = (

@@ -387,31 +387,38 @@ describe("TwitchChat", () => {
     vi.stubEnv("VITE_TWITCH_CLIENT_ID", "test-client-id");
     const api = installElectronAPIMock();
     getBttvBadgesMock.mockReset();
-    getBttvBadgesMock.mockResolvedValue([
-      { providerId: "bttv-user", badge: { description: "BTTV Pro", svg: "bttv.svg" } },
-    ]);
+    getBttvBadgesMock.mockResolvedValue({
+      kind: "ok",
+      value: [{ providerId: "bttv-user", badge: { description: "BTTV Pro", svg: "bttv.svg" } }],
+    });
     getFfzBadgesMock.mockReset();
     getFfzBadgesMock.mockResolvedValue({
-      badges: [
-        {
-          id: 9,
-          title: "FFZ Dev",
-          color: "#00ad03",
-          slot: 2,
-          replaces: "moderator",
-          urls: { "4": "ffz.png", "1": "ffz-small.png" },
-        },
-      ],
-      users: { "9": ["ffz-user"] },
+      kind: "ok",
+      value: {
+        badges: [
+          {
+            id: 9,
+            title: "FFZ Dev",
+            color: "#00ad03",
+            slot: 2,
+            replaces: "moderator",
+            urls: { "4": "ffz.png", "1": "ffz-small.png" },
+          },
+        ],
+        users: { "9": ["ffz-user"] },
+      },
     });
     getFfzRoomMock.mockReset();
     getFfzRoomMock.mockResolvedValue({
-      room: {
-        set: 1,
-        mod_urls: { "4": "room-mod.png", "1": "room-mod-small.png" },
-        vip_badge: { "4": "room-vip.png", "1": "room-vip-small.png" },
+      kind: "ok",
+      value: {
+        room: {
+          set: 1,
+          mod_urls: { "4": "room-mod.png", "1": "room-mod-small.png" },
+          vip_badge: { "4": "room-vip.png", "1": "room-vip-small.png" },
+        },
+        sets: {},
       },
-      sets: {},
     });
     api.emotes.bttv.getBadges = getBttvBadgesMock;
     api.emotes.ffz.getBadges = getFfzBadgesMock;

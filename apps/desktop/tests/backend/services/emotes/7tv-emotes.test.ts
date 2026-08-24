@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createIpcReplyMock } from "../../../helpers/ipc-reply-mock";
 
 // Guards: 7TV REST prefers electronAPI.emotes.* (main-process IPC) — direct API fetch is only the fallback when the preload bridge is absent.
 // Guards: 404 path is a null sentinel from main (NOT a thrown error) — the renderer logs at info and returns [] without ever hitting ApiClient[error]
@@ -7,8 +8,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getMock = vi.fn();
 const emotesApi = {
-  get7TVUserByConnection: vi.fn(),
-  get7TVGlobalEmoteSet: vi.fn(),
+  get7TVUserByConnection: createIpcReplyMock(),
+  get7TVGlobalEmoteSet: createIpcReplyMock(),
 };
 
 vi.mock("@/lib/api-client", () => ({

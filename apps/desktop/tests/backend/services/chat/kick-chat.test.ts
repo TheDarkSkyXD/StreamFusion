@@ -53,10 +53,17 @@ interface InternalChannelInfo {
 interface ServiceInternals {
   channels: Map<string, InternalChannelInfo>;
   channelUsers: Map<string, number>;
-  senderBadgesCache: Map<string, Map<string, Array<{ setId: string; version: string; imageUrl: string; title: string }>>>;
+  senderBadgesCache: Map<
+    string,
+    Map<string, Array<{ setId: string; version: string; imageUrl: string; title: string }>>
+  >;
   handleChatMessage(event: KickChatMessageEvent, channel: string): void;
   pusher: {
-    connection: { state: string; bind?: (...args: unknown[]) => void; unbind?: (...args: unknown[]) => void };
+    connection: {
+      state: string;
+      bind?: (...args: unknown[]) => void;
+      unbind?: (...args: unknown[]) => void;
+    };
     subscribe?: (name: string) => { bind: (...args: unknown[]) => void };
     unsubscribe?: (name: string) => void;
   } | null;
@@ -714,6 +721,33 @@ describe("KickChatService teardown does not race the Pusher socket close", () =>
       pusherChannel,
     });
   }
+
+  it.each(["disconnect", "forceShutdown"] as const)(
+    "%s cancels an in-flight connection wait without a delayed timeout error",
+    async (teardown) => {
+      vi.useFakeTimers();
+      const pusher = makePusherStub("connecting", 0);
+      vi.mocked(Pusher).mockImplementationOnce(function makeConnectingPusher() {
+        return pusher as unknown as Pusher;
+      });
+      const service = new KickChatService();
+      const errors: Error[] = [];
+      service.on("error", (error) => errors.push(error));
+
+      const connection = service.connect();
+      expect(vi.getTimerCount()).toBe(1);
+
+      await service[teardown]();
+      expect(vi.getTimerCount()).toBe(0);
+      await expect(connection).resolves.toBeUndefined();
+
+      await vi.advanceTimersByTimeAsync(45_000);
+
+      expect(errors).toEqual([]);
+      expect(pusher.connection.unbind).toHaveBeenCalledWith("connected", expect.any(Function));
+      expect(pusher.connection.unbind).toHaveBeenCalledWith("failed", expect.any(Function));
+    }
+  );
 
   it("leaveChannel does not call pusher.unsubscribe when the socket is already disconnected", async () => {
     const { service, internals } = makeService();

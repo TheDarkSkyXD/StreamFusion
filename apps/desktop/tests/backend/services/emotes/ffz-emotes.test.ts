@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createIpcReplyMock } from "../../../helpers/ipc-reply-mock";
 
 // Guards: FFZ REST goes through electronAPI.emotes.ffz.* (main-process IPC) — calling renderer fetch reintroduces the DevTools 404 line PRD #62 closed
 // Guards: 404 is a null sentinel from main (NOT a thrown error); renderer logs info and returns []
 // Guards: FFZ is Twitch-only — Kick callers short-circuit WITHOUT touching the IPC. Renderer hands {name, channelId} to main and lets the service pick the endpoint
 
 const ffzApi = {
-  getGlobal: vi.fn(),
-  getRoom: vi.fn(),
+  getGlobal: createIpcReplyMock(),
+  getRoom: createIpcReplyMock(),
 };
 
 vi.stubGlobal("window", {
@@ -122,7 +123,7 @@ describe("FFZEmoteProvider", () => {
 
       const result = await ffzEmoteProvider.fetchChannelEmotes("12345", "testchannel");
 
-      expect(ffzApi.getRoom).toHaveBeenCalledWith({ name: "testchannel", channelId: "12345" });
+      expect(ffzApi.getRoom).toHaveBeenCalledWith({ kind: "name", name: "testchannel" });
       expect(result).toHaveLength(1);
       expect(result[0].isGlobal).toBe(false);
       expect(result[0].channelId).toBe("12345");
@@ -145,7 +146,7 @@ describe("FFZEmoteProvider", () => {
       });
 
       await ffzEmoteProvider.fetchChannelEmotes("12345");
-      expect(ffzApi.getRoom).toHaveBeenCalledWith({ name: undefined, channelId: "12345" });
+      expect(ffzApi.getRoom).toHaveBeenCalledWith({ kind: "channel-id", channelId: "12345" });
     });
 
     it("returns [] for non-twitch platform WITHOUT touching IPC", async () => {

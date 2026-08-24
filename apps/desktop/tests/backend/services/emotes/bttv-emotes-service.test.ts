@@ -51,8 +51,12 @@ describe("fetchBTTVBadges", () => {
   it("hits /3/cached/badges and returns the parsed catalog on 200", async () => {
     const badges = [
       {
+        id: "54ee2465b822020506c52a52",
+        name: "night",
+        displayName: "Night",
         providerId: "user123",
         badge: {
+          type: 1,
           description: "BTTV Developer",
           svg: "https://cdn.betterttv.net/badge/developer.svg",
         },
@@ -63,7 +67,15 @@ describe("fetchBTTVBadges", () => {
     const result = await fetchBTTVBadges();
 
     expect(mockState.state.fetchCalls[0]!.url).toBe("https://api.betterttv.net/3/cached/badges");
-    expect(result).toEqual(badges);
+    expect(result).toEqual([
+      {
+        providerId: "user123",
+        badge: {
+          description: "BTTV Developer",
+          svg: "https://cdn.betterttv.net/badge/developer.svg",
+        },
+      },
+    ]);
   });
 
   it("throws when the badge catalog request fails", async () => {

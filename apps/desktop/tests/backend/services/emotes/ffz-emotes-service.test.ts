@@ -54,8 +54,11 @@ describe("fetchFFZBadges", () => {
       badges: [
         {
           id: 1,
+          name: "developer",
           title: "FFZ Developer",
           color: "#ff0000",
+          image: "https://cdn.frankerfacez.com/badge/1/1",
+          css: null,
           urls: {
             "1": "https://cdn.frankerfacez.com/badge/1/1",
             "4": "https://cdn.frankerfacez.com/badge/1/4",
@@ -69,7 +72,20 @@ describe("fetchFFZBadges", () => {
     const result = await fetchFFZBadges();
 
     expect(mockState.state.fetchCalls[0]!.url).toBe("https://api.frankerfacez.com/v1/badges/ids");
-    expect(result).toEqual(catalog);
+    expect(result).toEqual({
+      badges: [
+        {
+          id: 1,
+          title: "FFZ Developer",
+          color: "#ff0000",
+          urls: {
+            "1": "https://cdn.frankerfacez.com/badge/1/1",
+            "4": "https://cdn.frankerfacez.com/badge/1/4",
+          },
+        },
+      ],
+      users: { "1": ["11111", 22222] },
+    });
   });
 
   it("throws when the badge catalog request fails", async () => {
@@ -92,7 +108,10 @@ describe("fetchFFZGlobalEmotes", () => {
   });
 
   it("hits /v1/set/global and returns parsed JSON on 200", async () => {
-    const globals = { default_sets: [3], sets: { "3": { id: 3, _type: 0, title: "Global", emoticons: [] } } };
+    const globals = {
+      default_sets: [3],
+      sets: { "3": { id: 3, _type: 0, title: "Global", emoticons: [] } },
+    };
     mockState.state.responseQueue.push({ kind: "ok", body: JSON.stringify(globals) });
 
     const result = await fetchFFZGlobalEmotes();
@@ -124,7 +143,7 @@ describe("fetchFFZRoom", () => {
       kind: "ok",
       body: '{"room":{"set":1},"sets":{}}',
     });
-    await fetchFFZRoom({ name: "XQc", channelId: "71092938" });
+    await fetchFFZRoom({ kind: "name", name: "XQc" });
     expect(mockState.state.fetchCalls[0]!.url).toBe("https://api.frankerfacez.com/v1/room/xqc");
   });
 
@@ -133,24 +152,49 @@ describe("fetchFFZRoom", () => {
       kind: "ok",
       body: '{"room":{"set":1},"sets":{}}',
     });
-    await fetchFFZRoom({ channelId: "71092938" });
+    await fetchFFZRoom({ kind: "channel-id", channelId: "71092938" });
     expect(mockState.state.fetchCalls[0]!.url).toBe(
       "https://api.frankerfacez.com/v1/room/id/71092938"
     );
   });
 
   it("returns the parsed FFZRoomResponse on 200", async () => {
-    const room = { room: { _id: 1, twitch_id: 71092938, id: "xqc", is_group: false, display_name: "xQc", set: 10, moderator_badge: null }, sets: {} };
+    const room = {
+      room: {
+        _id: 1,
+        twitch_id: 71092938,
+        youtube_id: null,
+        id: "xqc",
+        is_group: false,
+        display_name: "xQc",
+        set: 10,
+        moderator_badge: null,
+        user_badges: {},
+        css: null,
+      },
+      sets: {},
+    };
     mockState.state.responseQueue.push({ kind: "ok", body: JSON.stringify(room) });
 
-    const result = await fetchFFZRoom({ name: "xqc" });
+    const result = await fetchFFZRoom({ kind: "name", name: "xqc" });
 
-    expect(result).toEqual(room);
+    expect(result).toEqual({
+      room: {
+        _id: 1,
+        twitch_id: 71092938,
+        id: "xqc",
+        is_group: false,
+        display_name: "xQc",
+        set: 10,
+        moderator_badge: null,
+      },
+      sets: {},
+    });
   });
 
   it("returns null on 404 (channel not on FFZ)", async () => {
     mockState.state.responseQueue.push({ kind: "status", status: 404 });
-    const result = await fetchFFZRoom({ name: "xqc" });
+    const result = await fetchFFZRoom({ kind: "name", name: "xqc" });
     expect(result).toBeNull();
   });
 
@@ -159,6 +203,6 @@ describe("fetchFFZRoom", () => {
       { kind: "status", status: 503 },
       { kind: "status", status: 503 }
     );
-    await expect(fetchFFZRoom({ name: "xqc" })).rejects.toThrow(/503/);
+    await expect(fetchFFZRoom({ kind: "name", name: "xqc" })).rejects.toThrow(/503/);
   });
 });

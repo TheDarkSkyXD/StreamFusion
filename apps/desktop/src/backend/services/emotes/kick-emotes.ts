@@ -10,6 +10,7 @@ import { api } from "@/lib/api-client";
 // barrel. Using @/backend/logging/logger would drag electron-log/main into
 // the renderer bundle and crash with `__dirname is not defined`.
 import { logger } from "@/lib/cross-logger";
+import { unwrapIpcReply } from "@/lib/ipc-reply";
 import type { Emote, EmoteProviderService, KickEmoteSection } from "./emote-types";
 
 /** Kick emote structure from API */
@@ -293,7 +294,7 @@ class KickEmoteProvider implements EmoteProviderService {
   private getKickSubscriptionsBridge(): (() => Promise<unknown | null>) | null {
     if (typeof window === "undefined") return null;
     const bridge = window.electronAPI?.emotes?.kick?.getUserSubscriptions;
-    return typeof bridge === "function" ? bridge : null;
+    return typeof bridge === "function" ? async () => unwrapIpcReply(await bridge()) : null;
   }
 
   private getKickChannelEmotesBridge():
@@ -305,7 +306,8 @@ class KickEmoteProvider implements EmoteProviderService {
     if (typeof window === "undefined") return null;
     const bridge = window.electronAPI?.emotes?.kick?.getChannelEmotes;
     if (typeof bridge !== "function") return null;
-    return async (params) => this.asChannelEmotesBridgePayload(await bridge(params));
+    return async (params) =>
+      this.asChannelEmotesBridgePayload(unwrapIpcReply(await bridge(params)));
   }
 
   private extractChannelEmotesPayload(

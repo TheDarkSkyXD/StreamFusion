@@ -11,31 +11,12 @@
 // `@/backend/logging/logger` would drag electron-log/main into the
 // renderer bundle and crash with `__dirname is not defined`.
 import { logger } from "@/lib/cross-logger";
+import { unwrapIpcReply } from "@/lib/ipc-reply";
+import type { BttvEmote, BttvUser } from "@/ipc-contracts/third-party-emote-schemas";
 import type { Emote, EmoteProviderService } from "./emote-types";
 
 /** BTTV emote structure */
-interface BTTVEmote {
-  id: string;
-  code: string;
-  imageType: "png" | "gif" | "webp";
-  animated: boolean;
-  userId?: string;
-  user?: {
-    id: string;
-    name: string;
-    displayName: string;
-    providerId: string;
-  };
-}
-
-/** BTTV channel response */
-interface BTTVChannelResponse {
-  id: string;
-  bots: string[];
-  avatar: string;
-  channelEmotes: BTTVEmote[];
-  sharedEmotes: BTTVEmote[];
-}
+type BTTVEmote = BttvEmote;
 
 class BTTVEmoteProvider implements EmoteProviderService {
   readonly name = "bttv" as const;
@@ -44,7 +25,7 @@ class BTTVEmoteProvider implements EmoteProviderService {
 
   async fetchGlobalEmotes(): Promise<Emote[]> {
     try {
-      const data = (await window.electronAPI.emotes.bttv.getGlobal()) as BTTVEmote[] | null;
+      const data = unwrapIpcReply(await window.electronAPI.emotes.bttv.getGlobal());
       if (!data) return [];
       return data.map((emote) => this.transformEmote(emote, true));
     } catch (error) {
@@ -78,9 +59,9 @@ class BTTVEmoteProvider implements EmoteProviderService {
     }
 
     try {
-      const data = (await window.electronAPI.emotes.bttv.getUserByTwitchId(
-        channelId
-      )) as BTTVChannelResponse | null;
+      const data: BttvUser | null = unwrapIpcReply(
+        await window.electronAPI.emotes.bttv.getUserByTwitchId(channelId)
+      );
 
       if (!data) {
         logger.info("Emote:BTTV", "Channel has no BTTV emotes", {

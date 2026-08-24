@@ -35,6 +35,7 @@ import type {
   UserProfileRequest,
   UserProfileResponse,
 } from "../ipc-contracts/user-profile-contracts";
+import type { EmoteIpcResponse, FfzRoomRequest } from "../ipc-contracts/emote-contracts";
 import type { SearchResultCollection } from "../search/search-result-validation";
 import type {
   AccountFollowWriteRequest,
@@ -77,12 +78,9 @@ import {
   type AppEnvironment,
   type AuthStatus,
   type AuthSyncFollowsResult,
-  type BTTVBadgeCatalog,
   type BugReportResult,
   type CheckFrequency,
   type ConnectivityCheckResult,
-  type FFZBadgeCatalog,
-  type FFZRoomResponse,
   type IpcResult,
   IPC_CHANNELS,
   IPC_FEATURES,
@@ -1022,27 +1020,43 @@ const electronAPI = {
   // 7TV / BTTV / FFZ REST runs in main so the 404s for channels with no
   // linked / known account never reach renderer DevTools. See ADR-0004.
   emotes: {
-    get7TVUserByConnection: (platform: Platform, identifier: string): Promise<unknown | null> =>
+    get7TVUserByConnection: (
+      platform: Platform,
+      identifier: string
+    ): Promise<EmoteIpcResponse<typeof IPC_CHANNELS.EMOTES_7TV_GET_USER_BY_CONNECTION>> =>
       invokeIpc(IPC_CHANNELS.EMOTES_7TV_GET_USER_BY_CONNECTION, { platform, identifier }),
-    get7TVGlobalEmoteSet: (): Promise<unknown> =>
-      invokeIpc(IPC_CHANNELS.EMOTES_7TV_GET_GLOBAL_EMOTE_SET),
+    get7TVGlobalEmoteSet: (): Promise<
+      EmoteIpcResponse<typeof IPC_CHANNELS.EMOTES_7TV_GET_GLOBAL_EMOTE_SET>
+    > => invokeIpc(IPC_CHANNELS.EMOTES_7TV_GET_GLOBAL_EMOTE_SET),
     bttv: {
-      getBadges: (): Promise<BTTVBadgeCatalog> => invokeIpc(IPC_CHANNELS.EMOTES_BTTV_GET_BADGES),
-      getGlobal: (): Promise<unknown> => invokeIpc(IPC_CHANNELS.EMOTES_BTTV_GET_GLOBAL),
-      getUserByTwitchId: (channelId: string): Promise<unknown | null> =>
+      getBadges: (): Promise<EmoteIpcResponse<typeof IPC_CHANNELS.EMOTES_BTTV_GET_BADGES>> =>
+        invokeIpc(IPC_CHANNELS.EMOTES_BTTV_GET_BADGES),
+      getGlobal: (): Promise<EmoteIpcResponse<typeof IPC_CHANNELS.EMOTES_BTTV_GET_GLOBAL>> =>
+        invokeIpc(IPC_CHANNELS.EMOTES_BTTV_GET_GLOBAL),
+      getUserByTwitchId: (
+        channelId: string
+      ): Promise<EmoteIpcResponse<typeof IPC_CHANNELS.EMOTES_BTTV_GET_USER_BY_TWITCH_ID>> =>
         invokeIpc(IPC_CHANNELS.EMOTES_BTTV_GET_USER_BY_TWITCH_ID, { channelId }),
     },
     ffz: {
-      getBadges: (): Promise<FFZBadgeCatalog> => invokeIpc(IPC_CHANNELS.EMOTES_FFZ_GET_BADGES),
-      getGlobal: (): Promise<unknown> => invokeIpc(IPC_CHANNELS.EMOTES_FFZ_GET_GLOBAL),
-      getRoom: (opts: { name?: string; channelId?: string }): Promise<FFZRoomResponse | null> =>
-        invokeIpc(IPC_CHANNELS.EMOTES_FFZ_GET_ROOM, opts),
+      getBadges: (): Promise<EmoteIpcResponse<typeof IPC_CHANNELS.EMOTES_FFZ_GET_BADGES>> =>
+        invokeIpc(IPC_CHANNELS.EMOTES_FFZ_GET_BADGES),
+      getGlobal: (): Promise<EmoteIpcResponse<typeof IPC_CHANNELS.EMOTES_FFZ_GET_GLOBAL>> =>
+        invokeIpc(IPC_CHANNELS.EMOTES_FFZ_GET_GLOBAL),
+      getRoom: (
+        request: FfzRoomRequest
+      ): Promise<EmoteIpcResponse<typeof IPC_CHANNELS.EMOTES_FFZ_GET_ROOM>> =>
+        invokeIpc(IPC_CHANNELS.EMOTES_FFZ_GET_ROOM, request),
     },
     kick: {
-      getChannelEmotes: (params: { slug: string; accessToken?: string }): Promise<unknown | null> =>
+      getChannelEmotes: (params: {
+        slug: string;
+        accessToken?: string;
+      }): Promise<EmoteIpcResponse<typeof IPC_CHANNELS.EMOTES_KICK_GET_CHANNEL_EMOTES>> =>
         invokeIpc(IPC_CHANNELS.EMOTES_KICK_GET_CHANNEL_EMOTES, params),
-      getUserSubscriptions: (): Promise<unknown | null> =>
-        invokeIpc(IPC_CHANNELS.EMOTES_KICK_GET_USER_SUBSCRIPTIONS),
+      getUserSubscriptions: (): Promise<
+        EmoteIpcResponse<typeof IPC_CHANNELS.EMOTES_KICK_GET_USER_SUBSCRIPTIONS>
+      > => invokeIpc(IPC_CHANNELS.EMOTES_KICK_GET_USER_SUBSCRIPTIONS),
     },
   },
 

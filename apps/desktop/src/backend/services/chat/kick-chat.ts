@@ -235,6 +235,11 @@ const MESSAGE_RATE_LIMIT = 10; // Messages per 10 seconds (conservative)
 const MOD_MESSAGE_RATE_LIMIT = 50; // Messages per 10 seconds for mods
 const CONNECTION_TIMEOUT_MS = 30000; // 30 second timeout for initial connection
 
+interface PendingConnectionWait {
+  client: Pusher;
+  cancel: () => void;
+}
+
 // WebSocket close codes that are transient and should not trigger error emissions
 // 1006 = Abnormal closure (network issue, will auto-retry)
 // 1001 = Going away (page unload, etc.)
@@ -248,6 +253,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   private connectionState: ChatConnectionState = "disconnected";
   private reconnectAttempts = 0;
   private reconnectTimer: CancellableSleep | null = null;
+  private pendingConnectionWaits = new Set<PendingConnectionWait>();
   private debugMode = false;
 
   // Rate limiting
@@ -350,39 +356,51 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
    */
   private waitForConnection(): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (!this.pusher) {
+      const client = this.pusher;
+      if (!client) {
         reject(new Error("Pusher client not initialized"));
         return;
       }
 
       // If already connected, resolve immediately
-      if (this.pusher.connection.state === "connected") {
+      if (client.connection.state === "connected") {
         resolve();
         return;
       }
 
       let timeoutId: NodeJS.Timeout | null = null;
-      let hasResolved = false;
+      let settled = false;
+
+      const cleanup = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        client.connection.unbind("connected", onConnected);
+        client.connection.unbind("failed", onFailed);
+        this.pendingConnectionWaits.delete(pendingWait);
+      };
+
+      const settle = (complete: () => void) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        complete();
+      };
 
       const onConnected = () => {
-        if (hasResolved) return;
-        hasResolved = true;
-        cleanup();
-        resolve();
+        settle(resolve);
       };
 
       const onFailed = () => {
-        if (hasResolved) return;
-        hasResolved = true;
-        cleanup();
-        reject(new Error("Pusher connection failed permanently"));
+        settle(() => reject(new Error("Pusher connection failed permanently")));
       };
 
       const onTimeout = () => {
-        if (hasResolved) return;
+        if (settled) return;
 
         // Check Pusher's actual state before timing out
-        const currentState = this.pusher?.connection.state;
+        const currentState = client.connection.state;
 
         // If Pusher is still actively trying, extend the timeout
         if (currentState === "connecting" || currentState === "unavailable") {
@@ -399,26 +417,23 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         }
 
         // Otherwise, truly timed out
-        hasResolved = true;
-        cleanup();
-        reject(new Error(`Pusher connection timed out (state: ${currentState})`));
+        settle(() => reject(new Error(`Pusher connection timed out (state: ${currentState})`)));
       };
 
-      const cleanup = () => {
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
-        }
-        this.pusher?.connection.unbind("connected", onConnected);
-        this.pusher?.connection.unbind("failed", onFailed);
+      const pendingWait: PendingConnectionWait = {
+        client,
+        cancel: () => {
+          settle(resolve);
+        },
       };
+      this.pendingConnectionWaits.add(pendingWait);
 
       // Set up initial timeout
       timeoutId = setTimeout(onTimeout, CONNECTION_TIMEOUT_MS); // timer-allowlist: Pusher connect deadline (SP1/SP3 out-of-scope)
 
       // Set up one-time listeners for connection result
-      this.pusher.connection.bind("connected", onConnected);
-      this.pusher.connection.bind("failed", onFailed);
+      client.connection.bind("connected", onConnected);
+      client.connection.bind("failed", onFailed);
       // Note: We don't bind to 'error' here because Pusher errors are often
       // transient and Pusher will automatically retry the connection.
     });
@@ -431,12 +446,15 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   async disconnect(): Promise<void> {
     this.clearReconnectTimer();
     this.reconnectGeneration += 1;
-    if (!this.pusher) return;
+    const client = this.pusher;
+    if (!client) return;
+
+    this.cancelConnectionWaits(client);
 
     try {
       // No per-channel unsubscribe: closing the socket cleans them up
       // server-side, and the explicit frame races pusher.disconnect().
-      this.disconnectPusherSafe(this.pusher);
+      this.disconnectPusherSafe(client);
     } catch {
       // Ignore disconnect errors
     }
@@ -541,15 +559,18 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     }
     this.channelUsers.clear();
 
-    if (!this.pusher) {
+    const client = this.pusher;
+    if (!client) {
       this.setConnectionState("disconnected");
       void disposeSendWindow();
       return;
     }
 
+    this.cancelConnectionWaits(client);
+
     try {
       // Unbind ALL connection handlers
-      this.pusher.connection.unbind_all();
+      client.connection.unbind_all();
 
       // unbind_all() drops the per-channel handler closures (local
       // memory, no socket frame). The matching pusher.unsubscribe()
@@ -561,7 +582,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         }
       }
 
-      this.disconnectPusherSafe(this.pusher);
+      this.disconnectPusherSafe(client);
     } catch {
       // Ignore disconnect errors
     }
@@ -874,6 +895,12 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       forceTLS: true,
       enabledTransports: ["ws", "wss"],
     });
+  }
+
+  private cancelConnectionWaits(client: Pusher): void {
+    for (const pendingWait of this.pendingConnectionWaits) {
+      if (pendingWait.client === client) pendingWait.cancel();
+    }
   }
 
   private disconnectPusherSafe(pusher: Pusher): void {

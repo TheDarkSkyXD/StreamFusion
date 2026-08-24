@@ -8,7 +8,11 @@ import { net } from "electron";
 
 import type { BTTVBadgeCatalog } from "@/shared/ipc-channels";
 import { runBoundedJsonRead } from "@/backend/reliability/bounded-json-read";
-import { bttvBadgeCatalogSchema, bttvEmoteListSchema, bttvUserSchema } from "./third-party-emote-schemas";
+import {
+  bttvBadgeCatalogSchema,
+  bttvEmoteListSchema,
+  bttvUserSchema,
+} from "@/ipc-contracts/third-party-emote-schemas";
 
 const BTTV_V3_BASE = "https://api.betterttv.net/3";
 

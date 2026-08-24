@@ -113,7 +113,7 @@ const featureLoaders = {
   [IPC_FEATURES.EMOTES]: async (context) => {
     await ensureConfiguredProxy(context);
     const { registerEmoteHandlers } = await import("./handlers/emote-handlers");
-    registerEmoteHandlers();
+    registerEmoteHandlers(context.registry);
   },
   [IPC_FEATURES.KICK_CHAT]: async (context) => {
     await ensureConfiguredProxy(context);

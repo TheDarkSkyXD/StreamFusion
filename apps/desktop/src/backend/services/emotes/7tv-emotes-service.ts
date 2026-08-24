@@ -8,9 +8,13 @@ import { net } from "electron";
 
 import type { Platform } from "@/shared/auth-types";
 import { runBoundedJsonRead } from "@/backend/reliability/bounded-json-read";
-import { sevenTvGlobalSetSchema, sevenTvUserSchema } from "./third-party-emote-schemas";
+import {
+  sevenTvGlobalSetSchema,
+  sevenTvUserSchema,
+} from "@/ipc-contracts/third-party-emote-schemas";
 
 const SEVENTV_V3_BASE = "https://7tv.io/v3";
+const SEVENTV_CHANNEL_MAX_BODY_BYTES = 4 * 1024 * 1024;
 
 // 7TV routes by exact case on the platform segment — lowercase 404s.
 export async function fetch7TVUserByConnection(
@@ -21,6 +25,7 @@ export async function fetch7TVUserByConnection(
   return runBoundedJsonRead({
     dependency: "7tv",
     notFound: "return-null",
+    maxBodyBytes: SEVENTV_CHANNEL_MAX_BODY_BYTES,
     attempt: (signal) => net.fetch(`${SEVENTV_V3_BASE}/users/${alias}/${identifier}`, { signal }),
     decode: (value) => sevenTvUserSchema.parse(value),
   });

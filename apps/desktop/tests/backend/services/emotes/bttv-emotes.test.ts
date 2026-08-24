@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createIpcReplyMock } from "../../../helpers/ipc-reply-mock";
 
 // Guards: BTTV REST goes through electronAPI.emotes.bttv.* (main-process IPC) — calling renderer fetch reintroduces the DevTools red "Failed to load resource: ... 404" line PRD #62 closed
 // Guards: 404 path is a null sentinel from main (NOT a thrown error) — the renderer logs at info and returns [] without hitting the ApiClient error log
 // Guards: BTTV is Twitch-only and expects a numeric Twitch user id — non-twitch platforms and non-numeric channel ids short-circuit WITHOUT touching the IPC
 
 const bttvApi = {
-  getGlobal: vi.fn(),
-  getUserByTwitchId: vi.fn(),
+  getGlobal: createIpcReplyMock(),
+  getUserByTwitchId: createIpcReplyMock(),
 };
 
 vi.stubGlobal("window", {

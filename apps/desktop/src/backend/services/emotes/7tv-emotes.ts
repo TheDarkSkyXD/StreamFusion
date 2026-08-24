@@ -16,82 +16,13 @@ import { api } from "@/lib/api-client";
 // `@/backend/logging/logger` would drag electron-log/main into the
 // renderer bundle and crash with `__dirname is not defined`.
 import { logger } from "@/lib/cross-logger";
+import { unwrapIpcReply } from "@/lib/ipc-reply";
+import type { SevenTvEmoteSet, SevenTvUser } from "@/ipc-contracts/third-party-emote-schemas";
 import type { Emote, EmoteProviderService } from "./emote-types";
 
-/** 7TV emote file structure */
-interface SevenTVEmoteFile {
-  name: string;
-  static_name: string;
-  width: number;
-  height: number;
-  frame_count: number;
-  size: number;
-  format: "AVIF" | "WEBP" | "PNG" | "GIF";
-}
-
-/** 7TV emote host structure */
-interface SevenTVEmoteHost {
-  url: string;
-  files: SevenTVEmoteFile[];
-}
-
-/** 7TV emote data structure */
-interface SevenTVEmoteData {
-  id: string;
-  name: string;
-  flags: number;
-  lifecycle: number;
-  state: string[];
-  listed: boolean;
-  animated: boolean;
-  owner?: {
-    id: string;
-    username: string;
-    display_name: string;
-    avatar_url?: string;
-  };
-  host: SevenTVEmoteHost;
-}
-
-/** 7TV emote wrapper (in emote sets) */
-interface SevenTVEmote {
-  id: string;
-  name: string;
-  flags: number;
-  timestamp: number;
-  actor_id: string | null;
-  data: SevenTVEmoteData;
-}
-
-/** 7TV emote set */
-interface SevenTVEmoteSet {
-  id: string;
-  name: string;
-  flags: number;
-  tags: string[];
-  immutable: boolean;
-  privileged: boolean;
-  emotes: SevenTVEmote[];
-  emote_count: number;
-  capacity: number;
-  owner?: {
-    id: string;
-    username: string;
-    display_name: string;
-  };
-}
-
-/** 7TV user connection (platform link) */
-interface SevenTVUserConnection {
-  id: string;
-  platform: "TWITCH" | "YOUTUBE" | "DISCORD" | "KICK";
-  username: string;
-  display_name: string;
-  linked_at: number;
-  emote_capacity: number;
-  emote_set_id: string | null;
-  emote_set: SevenTVEmoteSet | null;
-}
+type SevenTVEmote = SevenTvEmoteSet["emotes"][number];
+type SevenTVEmoteSet = SevenTvEmoteSet;
+type SevenTVUserConnection = SevenTvUser;
 
 /** 7TV emote flags */
 const SevenTVEmoteFlags = {
@@ -123,7 +54,7 @@ class SevenTVEmoteProvider implements EmoteProviderService {
     try {
       const bridge = window.electronAPI?.emotes;
       const data = bridge
-        ? ((await bridge.get7TVGlobalEmoteSet()) as SevenTVEmoteSet | null)
+        ? unwrapIpcReply(await bridge.get7TVGlobalEmoteSet())
         : await api
             .get(`${SevenTVEmoteProvider.BASE_URL}/emote-sets/global`)
             .json<SevenTVEmoteSet>();
@@ -188,11 +119,8 @@ class SevenTVEmoteProvider implements EmoteProviderService {
       // know this user (the 404 we're trying to keep out of DevTools). Real
       // failures (5xx, network) throw — caught below.
       const bridge = window.electronAPI?.emotes;
-      const connection = bridge
-        ? ((await bridge.get7TVUserByConnection(
-            platform,
-            identifier
-          )) as SevenTVUserConnection | null)
+      const connection: SevenTvUser | null = bridge
+        ? unwrapIpcReply(await bridge.get7TVUserByConnection(platform, identifier))
         : await api
             .get(`${SevenTVEmoteProvider.BASE_URL}/users/${platform.toUpperCase()}/${identifier}`)
             .json<SevenTVUserConnection>();

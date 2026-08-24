@@ -3,12 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // Guards: emote-handlers registers IPC channels EMOTES_7TV_GET_USER_BY_CONNECTION and EMOTES_7TV_GET_GLOBAL_EMOTE_SET, forwarding to fetch7TVUserByConnection / fetch7TVGlobalEmoteSet without transforming the result
 // Guards: 404 from the service surfaces to the renderer as a null result (NOT a thrown error) — the renderer's ApiClient[error] line + DevTools red `Failed to load resource` are the symptoms we're fixing; the handler must preserve the null sentinel
 
-const ipcMock = vi.hoisted(() => ({
+const registryMock = vi.hoisted(() => ({
   handle: vi.fn(),
-}));
-
-vi.mock("electron", () => ({
-  ipcMain: ipcMock,
+  internalError: vi.fn(() => ({
+    kind: "error" as const,
+    error: {
+      code: "internal" as const,
+      retry: { kind: "manual" as const },
+      diagnosticId: "00000000-0000-4000-8000-000000000000",
+    },
+  })),
 }));
 
 const serviceMock = vi.hoisted(() => ({
@@ -46,17 +50,32 @@ vi.mock("@/backend/services/emotes/kick-user-subscriptions-service", () => ({
 }));
 
 import { registerEmoteHandlers } from "@/backend/ipc/handlers/emote-handlers";
+import type { TrustedIpcRegistry } from "@/backend/ipc/trusted-ipc-registry";
 import { IPC_CHANNELS } from "@/shared/ipc-channels";
 
 function captureHandler(channel: string): (event: unknown, params: unknown) => Promise<unknown> {
-  const call = ipcMock.handle.mock.calls.find(([c]) => c === channel);
+  const call = registryMock.handle.mock.calls.find(([route]) => route.channel === channel);
   if (!call) throw new Error(`Handler for ${channel} was not registered`);
-  return call[1] as (event: unknown, params: unknown) => Promise<unknown>;
+  const execute = call[0].execute as (event: unknown, params: unknown) => Promise<unknown>;
+  return async (event, params) => {
+    const reply = await execute(event, params);
+    if (
+      typeof reply === "object" &&
+      reply !== null &&
+      "kind" in reply &&
+      reply.kind === "ok" &&
+      "value" in reply
+    ) {
+      return reply.value;
+    }
+    return reply;
+  };
 }
 
 describe("registerEmoteHandlers", () => {
   beforeEach(() => {
-    ipcMock.handle.mockReset();
+    registryMock.handle.mockReset();
+    registryMock.internalError.mockClear();
     serviceMock.fetch7TVUserByConnection.mockReset();
     serviceMock.fetch7TVGlobalEmoteSet.mockReset();
     serviceMock.fetchBTTVBadges.mockReset();
@@ -67,14 +86,14 @@ describe("registerEmoteHandlers", () => {
     serviceMock.fetchFFZRoom.mockReset();
     serviceMock.fetchKickChannelEmotes.mockReset();
     serviceMock.fetchKickUserSubscriptions.mockReset();
-    registerEmoteHandlers();
+    registerEmoteHandlers(registryMock as unknown as TrustedIpcRegistry);
   });
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
   it("registers both 7TV channels", () => {
-    const registeredChannels = ipcMock.handle.mock.calls.map(([c]) => c);
+    const registeredChannels = registryMock.handle.mock.calls.map(([route]) => route.channel);
     expect(registeredChannels).toContain(IPC_CHANNELS.EMOTES_7TV_GET_USER_BY_CONNECTION);
     expect(registeredChannels).toContain(IPC_CHANNELS.EMOTES_7TV_GET_GLOBAL_EMOTE_SET);
   });
@@ -111,7 +130,7 @@ describe("registerEmoteHandlers", () => {
   });
 
   it("registers all BTTV + FFZ channels", () => {
-    const registered = ipcMock.handle.mock.calls.map(([c]) => c);
+    const registered = registryMock.handle.mock.calls.map(([route]) => route.channel);
     expect(registered).toContain(IPC_CHANNELS.EMOTES_BTTV_GET_GLOBAL);
     expect(registered).toContain(IPC_CHANNELS.EMOTES_BTTV_GET_USER_BY_TWITCH_ID);
     expect(registered).toContain(IPC_CHANNELS.EMOTES_FFZ_GET_GLOBAL);
@@ -151,9 +170,9 @@ describe("registerEmoteHandlers", () => {
     serviceMock.fetchFFZRoom.mockResolvedValue(room);
     const handler = captureHandler(IPC_CHANNELS.EMOTES_FFZ_GET_ROOM);
 
-    const result = await handler({}, { name: "xqc" });
+    const result = await handler({}, { kind: "name", name: "xqc" });
 
-    expect(serviceMock.fetchFFZRoom).toHaveBeenCalledWith({ name: "xqc" });
+    expect(serviceMock.fetchFFZRoom).toHaveBeenCalledWith({ kind: "name", name: "xqc" });
     expect(result).toEqual(room);
   });
 

@@ -11,6 +11,7 @@
 // `@/backend/logging/logger` would drag electron-log/main into the
 // renderer bundle and crash with `__dirname is not defined`.
 import { logger } from "@/lib/cross-logger";
+import { unwrapIpcReply } from "@/lib/ipc-reply";
 import type { Emote, EmoteProviderService } from "./emote-types";
 
 /** FFZ emote structure */
@@ -78,7 +79,9 @@ class FFZEmoteProvider implements EmoteProviderService {
 
   async fetchGlobalEmotes(): Promise<Emote[]> {
     try {
-      const data = (await window.electronAPI.emotes.ffz.getGlobal()) as FFZGlobalResponse | null;
+      const data = unwrapIpcReply(
+        await window.electronAPI.emotes.ffz.getGlobal()
+      ) as FFZGlobalResponse | null;
       if (!data) return [];
 
       const emotes: Emote[] = [];
@@ -116,10 +119,12 @@ class FFZEmoteProvider implements EmoteProviderService {
     }
 
     try {
-      const data = (await window.electronAPI.emotes.ffz.getRoom({
-        name: channelName,
-        channelId,
-      })) as FFZRoomResponse | null;
+      const request = channelName
+        ? ({ kind: "name", name: channelName } as const)
+        : ({ kind: "channel-id", channelId } as const);
+      const data = unwrapIpcReply(
+        await window.electronAPI.emotes.ffz.getRoom(request)
+      ) as FFZRoomResponse | null;
 
       if (!data) {
         logger.info("Emote:FFZ", "Channel has no FFZ emotes", {
