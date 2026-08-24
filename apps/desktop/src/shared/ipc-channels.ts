@@ -188,6 +188,9 @@ export const IPC_CHANNELS = {
   SEARCH_CHANNELS: "search:channels",
   SEARCH_ALL: "search:all",
   SEARCH_CANCEL: "search:cancel",
+  SEARCH_STREAMS: "search:streams",
+  SEARCH_VIDEOS: "search:videos",
+  SEARCH_CLIPS: "search:clips",
 
   // ========== Discovery: Channels ==========
   CHANNELS_GET_BY_ID: "channels:get-by-id",

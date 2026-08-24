@@ -158,6 +158,9 @@ describe("registerSearchHandlers", () => {
     expect(channels).toContain(IPC_CHANNELS.SEARCH_CHANNELS);
     expect(channels).toContain(IPC_CHANNELS.SEARCH_ALL);
     expect(channels).toContain(IPC_CHANNELS.SEARCH_CANCEL);
+    expect(channels).toContain(IPC_CHANNELS.SEARCH_STREAMS);
+    expect(channels).toContain(IPC_CHANNELS.SEARCH_VIDEOS);
+    expect(channels).toContain(IPC_CHANNELS.SEARCH_CLIPS);
   });
 });
 // Guards: authenticated Kick search enriches slug-like display names even when upstream already supplied an avatar or live metadata.

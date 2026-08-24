@@ -28,7 +28,9 @@ import type {
 import type {
   UnifiedCategory,
   UnifiedChannel,
+  UnifiedClip,
   UnifiedStream,
+  UnifiedVideo,
 } from "../backend/api/unified/platform-types";
 import type {
   UserProfileChannel,
@@ -74,6 +76,26 @@ import type {
   VideoDownloadRequest,
 } from "../shared/download-types";
 import type { DiscoveryResult } from "../shared/discovery-types";
+import type {
+  SearchClipsRequest,
+  SearchStreamsRequest,
+  SearchVideosRequest,
+} from "../shared/search-types";
+
+type FocusedSearchIpcResponse<T> = {
+  success: boolean;
+  sessionId: string;
+  platform: Platform;
+  data: T[];
+  cursor?: string;
+  endReason?: string;
+  retryAfterMs?: number;
+  retryable: boolean;
+  error?: { platform: Platform; message: string; code?: string } | null;
+  scannedPages?: number;
+  requestCount: number;
+  matchedChannelCount?: number;
+};
 import {
   type AppEnvironment,
   type AuthStatus,
@@ -610,6 +632,15 @@ const electronAPI = {
       requestId?: string;
     }): Promise<DiscoveryResult<SearchResultCollection>> =>
       invokeIpc(IPC_CHANNELS.SEARCH_ALL, params),
+
+    streams: (params: SearchStreamsRequest): Promise<FocusedSearchIpcResponse<UnifiedStream>> =>
+      invokeIpc(IPC_CHANNELS.SEARCH_STREAMS, params),
+
+    videos: (params: SearchVideosRequest): Promise<FocusedSearchIpcResponse<UnifiedVideo>> =>
+      invokeIpc(IPC_CHANNELS.SEARCH_VIDEOS, params),
+
+    clips: (params: SearchClipsRequest): Promise<FocusedSearchIpcResponse<UnifiedClip>> =>
+      invokeIpc(IPC_CHANNELS.SEARCH_CLIPS, params),
 
     cancel: (params: { requestId: string }): Promise<{ success: boolean; cancelled: boolean }> =>
       invokeIpc(IPC_CHANNELS.SEARCH_CANCEL, params),

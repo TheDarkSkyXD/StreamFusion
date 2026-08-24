@@ -472,6 +472,12 @@ export function SearchPage() {
         </div>
       </div>
 
+      {(activeTab === "videos" || activeTab === "clips") && (
+        <p className="text-sm text-[var(--color-foreground-muted)]">
+          Recent content from matching channels.
+        </p>
+      )}
+
       {activeLoading && (activeTab === "videos" || activeTab === "clips") && (
         <div
           className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3"

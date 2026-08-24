@@ -12,8 +12,6 @@ import type { Platform } from "../../shared/auth-types";
 import type {
   SearchPlatformError,
   SearchPlatformStatus,
-  SearchStreamsRequest,
-  SearchVideosRequest,
 } from "../../shared/search-types";
 import { sleep } from "../../lib/sleep";
 import { normalizeSearchQuery } from "../../search/search-normalization";
@@ -86,13 +84,6 @@ interface ProgressiveSearchResponse<T extends ProgressiveSearchItem> {
   error: SearchPlatformError | null;
 }
 
-interface ProgressiveSearchBoundary {
-  streams?: (request: SearchStreamsRequest) => Promise<ProgressiveSearchResponse<UnifiedStream>>;
-  videos?: (request: SearchVideosRequest) => Promise<ProgressiveSearchResponse<UnifiedVideo>>;
-  clips?: (request: SearchVideosRequest) => Promise<ProgressiveSearchResponse<UnifiedClip>>;
-  cancel?: (request: { sessionId: string }) => Promise<unknown>;
-}
-
 interface ProgressivePlatformState<T extends ProgressiveSearchItem> {
   status: SearchPlatformStatus;
   retryable: boolean;
@@ -129,19 +120,12 @@ function createSearchSessionId(scope: string = ""): string {
   return `renderer-search-${Date.now()}-${nextSearchSessionId}-${scope.length}`;
 }
 
-function getProgressiveSearchBoundary(): ProgressiveSearchBoundary {
-  return window.electronAPI.search as typeof window.electronAPI.search & ProgressiveSearchBoundary;
-}
-
 function getProgressiveSearchMethod<T extends ProgressiveSearchItem>(
   kind: ProgressiveSearchKind
 ): (request: ProgressiveSearchRequest) => Promise<ProgressiveSearchResponse<T>> {
-  const search = getProgressiveSearchBoundary();
-  const method = search[kind];
-  if (typeof method !== "function") {
-    throw new Error(`Search API method "${kind}" is unavailable on window.electronAPI.search`);
-  }
-  return method as (request: ProgressiveSearchRequest) => Promise<ProgressiveSearchResponse<T>>;
+  return window.electronAPI.search[kind] as unknown as (
+    request: ProgressiveSearchRequest
+  ) => Promise<ProgressiveSearchResponse<T>>;
 }
 
 function platformsFor(platform: Platform | undefined): Platform[] {
@@ -273,8 +257,7 @@ function useProgressiveSearch<T extends ProgressiveSearchItem>({
   useEffect(() => {
     if (!active || !sessionId) return;
     return () => {
-      const cancel = getProgressiveSearchBoundary().cancel;
-      if (typeof cancel === "function") void cancel({ sessionId }).catch(() => undefined);
+      void window.electronAPI.search.cancel({ requestId: sessionId }).catch(() => undefined);
     };
   }, [active, sessionId]);
 

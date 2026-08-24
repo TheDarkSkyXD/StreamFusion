@@ -1,10 +1,32 @@
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@/backend/logging/logger";
+import { createProgressiveClipSearch } from "@/backend/search/progressive-clip-search";
+import {
+  focusedRecentContentSources,
+  focusedStreamSources,
+} from "@/backend/search/focused-search-sources";
+import {
+  createProgressiveStreamSearch,
+  readStreamSearchFailureProgress,
+  STREAM_SEARCH_BUDGET_PROFILES,
+} from "@/backend/search/progressive-stream-search";
+import { createProgressiveVideoSearch } from "@/backend/search/progressive-video-search";
+import {
+  attachSearchSession,
+  cancelSearchSession,
+  isSearchCancelled,
+} from "@/backend/search/search-session-manager";
 import { rankSearchChannels } from "@/search/channel-search-contract";
 import type { SearchResultCollection } from "@/search/search-result-validation";
 import type { UnifiedChannel } from "../../api/unified/platform-types";
 import type { Platform } from "../../../shared/auth-types";
+import type {
+  SearchStreamsRequest,
+  SearchStreamsResponse,
+  SearchVideosRequest,
+  SearchVideosResponse,
+} from "../../../shared/search-types";
 import type {
   DiscoveryProviderCompletion,
   DiscoveryResult,
@@ -376,11 +398,124 @@ async function filterVerifiedChannels(
 
 export function registerSearchHandlers(): void {
   const activeBroadSearches = new Map<string, AbortController>();
+  const streamSearches = {
+    twitch: createProgressiveStreamSearch({
+      sources: { twitch: focusedStreamSources.twitch },
+      profile: STREAM_SEARCH_BUDGET_PROFILES.twitch,
+    }),
+    kick: createProgressiveStreamSearch({
+      sources: { kick: focusedStreamSources.kick },
+      profile: STREAM_SEARCH_BUDGET_PROFILES.kick,
+    }),
+  };
+  const videoSearches = {
+    twitch: createProgressiveVideoSearch({
+      source: focusedRecentContentSources.twitch.videos,
+      profile: { pageSize: 12, maxConcurrentRequests: 3 },
+    }),
+    kick: createProgressiveVideoSearch({
+      source: focusedRecentContentSources.kick.videos,
+      profile: { pageSize: 12, maxConcurrentRequests: 3 },
+    }),
+  };
+  const clipSearches = {
+    twitch: createProgressiveClipSearch({
+      source: focusedRecentContentSources.twitch.clips,
+      profile: { pageSize: 12, maxConcurrentRequests: 3 },
+    }),
+    kick: createProgressiveClipSearch({
+      source: focusedRecentContentSources.kick.clips,
+      profile: { pageSize: 12, maxConcurrentRequests: 3 },
+    }),
+  };
+
+  ipcMain.handle(
+    IPC_CHANNELS.SEARCH_STREAMS,
+    async (_event, params: SearchStreamsRequest): Promise<SearchStreamsResponse> => {
+      const session = attachSearchSession(params.sessionId);
+      try {
+        const page = await streamSearches[params.platform].next({
+          ...params,
+          signal: session.signal,
+        });
+        return {
+          success: true,
+          sessionId: params.sessionId,
+          platform: params.platform,
+          retryable: page.endReason === "rate-limited",
+          error: null,
+          ...page,
+        };
+      } catch (error) {
+        const cancelled = isSearchCancelled(error);
+        const progress = readStreamSearchFailureProgress(error);
+        return {
+          success: false,
+          sessionId: params.sessionId,
+          platform: params.platform,
+          data: [],
+          endReason: cancelled ? "cancelled" : undefined,
+          retryable: !cancelled,
+          error: cancelled
+            ? null
+            : { platform: params.platform, message: error instanceof Error ? error.message : String(error) },
+          scannedPages: progress?.scannedPages ?? 0,
+          requestCount: progress?.requestCount ?? 0,
+        };
+      } finally {
+        session.release();
+      }
+    }
+  );
+
+  const registerRecentContentHandler = <T>(
+    channel: string,
+    searches: Record<Platform, { next(request: SearchVideosRequest & { signal: AbortSignal }): Promise<{ data: T[]; cursor?: string; endReason?: "exhausted" | "safety-limit" | "rate-limited"; retryAfterMs?: number; requestCount: number; matchedChannelCount: number }> }>
+  ) => {
+    ipcMain.handle(channel, async (_event, params: SearchVideosRequest): Promise<SearchVideosResponse<T>> => {
+      const session = attachSearchSession(params.sessionId);
+      try {
+        const page = await searches[params.platform].next({ ...params, signal: session.signal });
+        return {
+          success: true,
+          sessionId: params.sessionId,
+          platform: params.platform,
+          retryable: page.endReason === "rate-limited",
+          error: null,
+          ...page,
+        };
+      } catch (error) {
+        const cancelled = isSearchCancelled(error);
+        return {
+          success: false,
+          sessionId: params.sessionId,
+          platform: params.platform,
+          data: [],
+          endReason: cancelled ? "cancelled" : undefined,
+          retryable: !cancelled,
+          error: cancelled
+            ? null
+            : { platform: params.platform, message: error instanceof Error ? error.message : String(error) },
+          requestCount: 0,
+          matchedChannelCount: 0,
+        };
+      } finally {
+        session.release();
+      }
+    });
+  };
+
+  registerRecentContentHandler(IPC_CHANNELS.SEARCH_VIDEOS, videoSearches);
+  registerRecentContentHandler(IPC_CHANNELS.SEARCH_CLIPS, clipSearches);
 
   ipcMain.handle(IPC_CHANNELS.SEARCH_CANCEL, async (_event, params: { requestId: string }) => {
     const controller = activeBroadSearches.get(params.requestId);
     controller?.abort(new DOMException("Stale search request", "AbortError"));
-    return { success: true, cancelled: controller !== undefined };
+    const progressiveCancelled = cancelSearchSession(params.requestId);
+    for (const search of Object.values(streamSearches)) search.clear(params.requestId);
+    for (const search of Object.values(videoSearches)) search.clear(params.requestId);
+    for (const search of Object.values(clipSearches)) search.clear(params.requestId);
+    return { success: true, cancelled: controller !== undefined || progressiveCancelled };
   });
 
   /**

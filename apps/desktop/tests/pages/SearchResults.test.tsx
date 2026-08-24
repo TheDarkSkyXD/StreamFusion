@@ -81,6 +81,7 @@ function channelQuery(
 // Guards: Kick video/clip thumbnails render through ProxiedImage so images.kick.com 720.webp URLs do not produce direct browser 403s
 // Guards: focused tabs enable and render only their dedicated result source instead of stale All-tab data
 // Guards: focused tabs render loading or empty feedback instead of a blank panel
+// Guards: focused Videos and Clips tabs render recent content returned for channels matching the search term
 describe("SearchPage", () => {
   beforeEach(() => {
     routeMockState.search.q = "A";
@@ -312,6 +313,58 @@ describe("SearchPage", () => {
     expect(screen.getByText(/found 0 results/i)).toBeInTheDocument();
     expect(screen.queryByText("All Channel")).not.toBeInTheDocument();
     expect(screen.getByText(/no results found for/i)).toBeInTheDocument();
+  });
+
+  it("renders dedicated video and clip data as recent content from matching channels", () => {
+    useSearchAllMock.mockReturnValue({
+      data: emptyResults(),
+      isLoading: false,
+    } as unknown as ReturnType<typeof useSearchAll>);
+    useSearchVideosMock.mockReturnValue({
+      data: [
+        {
+          id: "focused-video",
+          platform: "twitch",
+          title: "Matching Channel Video",
+          thumbnailUrl: "https://example.com/video.jpg",
+          duration: 120,
+          channelName: "matchingchannel",
+          channelDisplayName: "Matching Channel",
+          channelAvatar: "",
+          viewCount: 10,
+          publishedAt: "2026-08-24T00:00:00.000Z",
+        },
+      ],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useSearchVideos>);
+    useSearchClipsMock.mockReturnValue({
+      data: [
+        {
+          id: "focused-clip",
+          platform: "kick",
+          title: "Matching Channel Clip",
+          thumbnailUrl: "https://example.com/clip.jpg",
+          duration: 30,
+          channelName: "matchingchannel",
+          channelDisplayName: "Matching Channel",
+          channelAvatar: "",
+          creatorName: "viewer",
+          viewCount: 20,
+          createdAt: "2026-08-24T00:00:00.000Z",
+          clipUrl: "https://kick.com/matchingchannel/clips/focused-clip",
+        },
+      ],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useSearchClips>);
+
+    renderWithProviders(<SearchPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Videos" }));
+    expect(screen.getAllByText("Matching Channel Video")).not.toHaveLength(0);
+    expect(screen.getByText("Recent content from matching channels.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clips" }));
+    expect(screen.getAllByText("Matching Channel Clip")).not.toHaveLength(0);
+    expect(screen.getByText("Recent content from matching channels.")).toBeInTheDocument();
   });
 
   it("shows loading feedback while a focused media query is pending", () => {
