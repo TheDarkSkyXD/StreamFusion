@@ -334,6 +334,7 @@ describe("STREAMS_GET_BY_CHANNEL", () => {
   });
 });
 
+// Guards: overlapping followed-status consumers share one scan and a short-lived result without changing response data.
 describe("STREAMS_GET_FOLLOWED", () => {
   it("classifies Kick rate-limit failures without matching unrelated errors", () => {
     expect(isKickRateLimitError(new Error("Request failed with status 429"))).toBe(true);
@@ -463,7 +464,7 @@ describe("STREAMS_GET_FOLLOWED", () => {
     expect(kickClient.getPublicStreamBySlug).not.toHaveBeenCalled();
   });
 
-  it("does not let a concurrent Kick followed-stream scan abort an already visible scan", async () => {
+  it("shares concurrent and immediately repeated Kick followed-stream scans", async () => {
     vi.mocked(twitchClient.isAuthenticated).mockReturnValue(false);
     vi.mocked(kickClient.isAuthenticated).mockReturnValue(false);
     vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) =>
@@ -491,7 +492,8 @@ describe("STREAMS_GET_FOLLOWED", () => {
     await vi.waitFor(() => expect(pending).toHaveLength(2));
 
     const second = handler({}, { platform: "kick" });
-    await vi.waitFor(() => expect(pending).toHaveLength(4));
+    await Promise.resolve();
+    expect(pending).toHaveLength(2);
 
     expect(pending[0].signal.aborted).toBe(false);
     expect(pending[1].signal.aborted).toBe(false);
@@ -512,6 +514,10 @@ describe("STREAMS_GET_FOLLOWED", () => {
       "kick-one-stream",
       "kick-two-stream",
     ]);
+
+    const cachedResult = await handler({}, { platform: "kick" });
+    expect(pending).toHaveLength(2);
+    expect(cachedResult.data).toEqual(firstResult.data);
   });
 
   it("merges and sorts by viewerCount when both platforms requested", async () => {

@@ -15,6 +15,43 @@ import {
 } from "./kick-follow-repair";
 
 export const KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS = 0;
+const FOLLOWED_STREAM_REQUEST_TTL_MS = 5_000;
+
+type FollowedStreamResponse =
+  | { success: true; data: UnifiedStream[]; platform?: Platform; cursor?: string; error?: string }
+  | { success: false; data?: UnifiedStream[]; error: string };
+
+const followedStreamResponses = new Map<
+  string,
+  { expiresAt: number; response: FollowedStreamResponse }
+>();
+const followedStreamRequests = new Map<string, Promise<FollowedStreamResponse>>();
+
+function collapseFollowedStreamRequest(
+  params: { platform?: Platform; limit?: number; cursor?: string },
+  load: () => Promise<FollowedStreamResponse>
+): Promise<FollowedStreamResponse> {
+  const key = `${params.platform ?? "all"}:${params.limit ?? "default"}:${params.cursor ?? ""}`;
+  const cached = followedStreamResponses.get(key);
+  if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.response);
+
+  const pending = followedStreamRequests.get(key);
+  if (pending) return pending;
+
+  const request = load()
+    .then((response) => {
+      if (response.success && !response.error) {
+        followedStreamResponses.set(key, {
+          expiresAt: Date.now() + FOLLOWED_STREAM_REQUEST_TTL_MS,
+          response,
+        });
+      }
+      return response;
+    })
+    .finally(() => followedStreamRequests.delete(key));
+  followedStreamRequests.set(key, request);
+  return request;
+}
 
 export function isKickRateLimitError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
@@ -31,6 +68,8 @@ export function shouldDeferKickStartupFollowedStreamScan(
 }
 
 export function registerStreamHandlers(): void {
+  followedStreamResponses.clear();
+  followedStreamRequests.clear();
   const streamHandlersStartedAt = Date.now();
   /**
    * Get top streams from one or both platforms.
@@ -227,7 +266,8 @@ export function registerStreamHandlers(): void {
       const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
       const { kickClient } = await import("../../api/platforms/kick/kick-client");
 
-      try {
+      return collapseFollowedStreamRequest(params, async () => {
+        try {
         const results: { platform: Platform; data: UnifiedStream[]; cursor?: string }[] = [];
 
         const fetchTwitchFollowed = async () => {
@@ -462,19 +502,20 @@ export function registerStreamHandlers(): void {
           ...(result || {}),
           data: dedupeStreamsByChannelIdentity(result?.data || []),
         };
-      } catch (error) {
-        logger.error("IPC:Stream", "Failed to get followed streams", {
-          error:
-            error instanceof Error
-              ? { name: error.name, message: error.message, stack: error.stack }
-              : String(error),
-        });
-        return {
-          success: true,
-          data: [],
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
-      }
+        } catch (error) {
+          logger.error("IPC:Stream", "Failed to get followed streams", {
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message, stack: error.stack }
+                : String(error),
+          });
+          return {
+            success: true,
+            data: [],
+            error: error instanceof Error ? error.message : "Unknown error",
+          };
+        }
+      });
     }
   );
 
