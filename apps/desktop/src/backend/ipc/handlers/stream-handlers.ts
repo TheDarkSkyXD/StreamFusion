@@ -123,7 +123,7 @@ export function registerStreamHandlers(): void {
         if (!params.platform) {
           const allStreams = results.flatMap((r) => r.data);
           allStreams.sort((a, b) => b.viewerCount - a.viewerCount);
-          return { success: true, data: allStreams };
+          return { success: true, data: allStreams.slice(0, params.limit || 20) };
         }
 
         return { success: true, ...results[0] };

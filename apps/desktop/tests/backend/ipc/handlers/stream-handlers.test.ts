@@ -197,6 +197,7 @@ describe("registerStreamHandlers", () => {
   });
 });
 
+// Guards: a cross-platform limit caps the merged result, not each provider independently.
 describe("STREAMS_GET_TOP", () => {
   it("returns single platform result when platform is specified", async () => {
     const twitchReader = reader("twitch", [stream("1", "twitch", 100)]);
@@ -225,6 +226,23 @@ describe("STREAMS_GET_TOP", () => {
     expect(result.success).toBe(true);
     expect(result.data[0].id).toBe("k1");
     expect(result.data[1].id).toBe("t1");
+  });
+
+  it("applies the requested limit after merging both platforms", async () => {
+    const twitchReader = reader("twitch", [
+      stream("t1", "twitch", 300),
+      stream("t2", "twitch", 100),
+    ]);
+    const kickReader = reader("kick", [
+      stream("k1", "kick", 200),
+      stream("k2", "kick", 50),
+    ]);
+    vi.mocked(clients.all).mockReturnValue([twitchReader, kickReader]);
+
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_TOP);
+    const result = await handler({}, { limit: 2 });
+
+    expect(result.data.map((item) => item.id)).toEqual(["t1", "k1"]);
   });
 
   it("returns partial results when one platform throws", async () => {
