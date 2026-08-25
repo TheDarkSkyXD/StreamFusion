@@ -10,10 +10,7 @@ import { useSearchCategories, useSearchChannels } from "@/hooks/queries/useSearc
 import { useDebounce } from "@/hooks/useDebounce";
 import { type SearchHistoryScope, useSearchHistory } from "@/hooks/useSearchHistory";
 import { cn, normalizeCategoryName, pickWinner } from "@/lib/utils";
-import {
-  isExactChannelSearchMatch,
-  rankSearchChannels,
-} from "@/search/channel-search-contract";
+import { isExactChannelSearchMatch, rankSearchChannels } from "@/search/channel-search-contract";
 import type { Platform } from "@/shared/auth-types";
 
 interface UnifiedSearchInputProps {
@@ -349,13 +346,11 @@ export function UnifiedSearchInput({
   );
 
   const channelQueries = React.useMemo(
-    () =>
-      splitPlatformSearch ? [twitchChannelQuery, kickChannelQuery] : [singleChannelQuery],
+    () => (splitPlatformSearch ? [twitchChannelQuery, kickChannelQuery] : [singleChannelQuery]),
     [kickChannelQuery, singleChannelQuery, splitPlatformSearch, twitchChannelQuery]
   );
   const categoryQueries = React.useMemo(
-    () =>
-      splitPlatformSearch ? [twitchCategoryQuery, kickCategoryQuery] : [singleCategoryQuery],
+    () => (splitPlatformSearch ? [twitchCategoryQuery, kickCategoryQuery] : [singleCategoryQuery]),
     [kickCategoryQuery, singleCategoryQuery, splitPlatformSearch, twitchCategoryQuery]
   );
 
@@ -664,7 +659,10 @@ export function UnifiedSearchInput({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => setIsFocused(true)}
+          onFocus={() => {
+            setIsFocused(true);
+            void import("@/pages/SearchResults");
+          }}
           // Prevent default autocomplete
           autoComplete="off"
         />
