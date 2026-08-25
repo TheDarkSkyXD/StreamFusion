@@ -26,6 +26,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 // Guards: Kick clip responses construct the current public page URL instead of trusting legacy media fields
 // Guards: Kick clip listing degrades to empty results for missing channels and transport failures
 // Guards: Category Clip discovery uses Kick's native Category slug, sort, range, and cursor route.
+// Guards: Category Clip cards retain channel avatars across Kick's legacy avatar field variants.
 describe("clip-endpoints — getClipsByChannelSlug", () => {
   let getClipsByChannelSlug: typeof import("@/backend/api/platforms/kick/endpoints/clip-endpoints").getClipsByChannelSlug;
   let getClipsByCategorySlug: typeof import("@/backend/api/platforms/kick/endpoints/clip-endpoints").getClipsByCategorySlug;
@@ -35,9 +36,8 @@ describe("clip-endpoints — getClipsByChannelSlug", () => {
     mockNetFetch.mockReset();
     // Default: return empty clips
     mockNetFetch.mockResolvedValue(jsonResponse({ clips: [] }));
-    ({ getClipsByChannelSlug, getClipsByCategorySlug } = await import(
-      "@/backend/api/platforms/kick/endpoints/clip-endpoints"
-    ));
+    ({ getClipsByChannelSlug, getClipsByCategorySlug } =
+      await import("@/backend/api/platforms/kick/endpoints/clip-endpoints"));
   });
 
   afterEach(() => {
@@ -243,6 +243,35 @@ describe("clip-endpoints — getClipsByChannelSlug", () => {
     expect(mockNetFetch.mock.calls[0][0]).toBe(
       "https://kick.com/api/v2/categories/just-chatting/clips?cursor=next-page&limit=20&sort=view&time=week"
     );
+  });
+
+  it("maps a nested legacy channel avatar for Category Clip cards", async () => {
+    mockNetFetch.mockResolvedValueOnce(
+      jsonResponse({
+        clips: [
+          {
+            id: "clip-avatar",
+            title: "Avatar clip",
+            duration: 20,
+            views: 10,
+            created_at: "2026-08-20T12:00:00Z",
+            video_url: "https://clips.kick.com/avatar.mp4",
+            thumbnail_url: "https://files.kick.com/avatar.webp",
+            category: { id: 15, name: "Just Chatting" },
+            channel: {
+              id: 42,
+              slug: "streamer",
+              username: "Streamer",
+              user: { profile_picture: "https://example.com/nested-avatar.webp" },
+            },
+          },
+        ],
+      })
+    );
+
+    const result = await getClipsByCategorySlug("just-chatting");
+
+    expect(result.data[0].channelAvatar).toBe("https://example.com/nested-avatar.webp");
   });
 
   it("rejects Category Clip transport failures so IPC can distinguish unavailable from empty", async () => {

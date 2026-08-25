@@ -226,7 +226,8 @@ describe("initLogger + getCurrentLogPath", () => {
 
 // Guards: routine app info and warnings remain durable without obscuring terminal errors
 // Guards: console interception cannot bypass the main logger's error-only terminal transport
-// Guards: debug thresholds and structured metadata remain file-side concerns
+// Guards: debug thresholds apply to files and diagnostic sinks while structured metadata remains safely redacted
+// Guards: diagnostic sinks receive measured transport time so I/O timing cannot stay zero by omission
 describe("logger.<level>", () => {
   it("writes info and warn only to the file while error also reaches the terminal", async () => {
     const originalWrite = process.stderr.write;
@@ -308,6 +309,48 @@ describe("logger.<level>", () => {
     });
   });
 
+  it("reports measured file-transport time to registered sinks", async () => {
+    const mod = await freshLoggerModule();
+    mod.initLogger({
+      logsDir: currentTmpDir,
+      sessionStamp: "2026-06-07T15:51:25.027Z",
+    });
+    const sink = vi.fn();
+    const removeSink = mod.addLogSink(sink);
+
+    mod.logger.info("Diagnostics", "timed write");
+    removeSink();
+
+    expect(sink).toHaveBeenCalledOnce();
+    expect(sink.mock.calls[0]?.[0].durationMs).toBeGreaterThan(0);
+  });
+
+  it("redacts secrets before registered sinks and the session file receive them", async () => {
+    const mod = await freshLoggerModule();
+    mod.initLogger({
+      logsDir: currentTmpDir,
+      sessionStamp: "2026-06-07T15:51:25.025Z",
+    });
+    const sink = vi.fn();
+    const removeSink = mod.addLogSink(sink);
+
+    mod.logger.error("Bearer sink-secret", "request failed access_token=url-secret", {
+      authorization: "Bearer metadata-secret",
+    });
+    removeSink();
+
+    const file = fs.readFileSync(mod.getCurrentLogPath(), "utf8");
+    const event = sink.mock.calls[0]?.[0];
+    expect(file).not.toContain("sink-secret");
+    expect(file).not.toContain("url-secret");
+    expect(file).not.toContain("metadata-secret");
+    expect(event).toMatchObject({
+      tag: "Bearer [REDACTED]",
+      message: "request failed access_token=[REDACTED]",
+      meta: { authorization: "[REDACTED]" },
+    });
+  });
+
   it("keeps an intercepted console.warn in the file and out of the terminal", async () => {
     const originalWrite = process.stderr.write;
     const terminalWrite = vi.fn().mockReturnValue(true);
@@ -369,11 +412,15 @@ describe("logger.<level>", () => {
       sessionStamp: "2026-06-07T15:51:25.016Z",
       level: "info",
     });
+    const sink = vi.fn();
+    mod.addLogSink(sink);
     mod.logger.debug("Main", "should-not-appear");
     mod.logger.info("Main", "should-appear");
     const lines = readAllLines(mod.getCurrentLogPath());
     expect(lines.some((l) => l.includes("should-not-appear"))).toBe(false);
     expect(lines.some((l) => l.includes("should-appear"))).toBe(true);
+    expect(sink).toHaveBeenCalledOnce();
+    expect(sink.mock.calls[0]?.[0]).toMatchObject({ level: "info", message: "should-appear" });
   });
 
   it("respects STREAMFUSION_LOG_LEVEL=debug as an override of opts.level=info", async () => {

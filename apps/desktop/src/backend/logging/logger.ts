@@ -23,6 +23,8 @@ import path from "node:path";
 // and renderer) MUST import from `@/lib/cross-logger` instead.
 import electronLog from "electron-log/main";
 
+import { redactObject, redactString } from "./redactor";
+
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export interface InitLoggerOpts {
@@ -44,6 +46,7 @@ export type LogSink = (entry: {
   message: string;
   meta?: Record<string, unknown>;
   line: string;
+  durationMs: number;
 }) => void;
 
 const VALID_LEVELS: readonly LogLevel[] = ["debug", "info", "warn", "error"] as const;
@@ -52,12 +55,14 @@ interface LoggerState {
   initialized: boolean;
   shutDown: boolean;
   filePath: string;
+  minimumLevel: LogLevel;
 }
 
 const state: LoggerState = {
   initialized: false,
   shutDown: false,
   filePath: "",
+  minimumLevel: "info",
 };
 
 const sinks = new Set<LogSink>();
@@ -100,17 +105,23 @@ function emit(level: LogLevel, tag: string, message: string, meta?: Record<strin
   if (!state.initialized) {
     throw new Error("Logger is not initialized — call initLogger() first.");
   }
+  if (VALID_LEVELS.indexOf(level) < VALID_LEVELS.indexOf(state.minimumLevel)) return;
+  const safeTag = redactString(tag);
+  const safeMessage = redactString(message);
+  const safeMeta = meta === undefined ? undefined : redactObject(meta);
   const line = formatLine({
     timestamp: new Date().toISOString(),
     level,
-    tag,
-    message,
-    meta,
+    tag: safeTag,
+    message: safeMessage,
+    meta: safeMeta,
   });
+  const writeStartedAtNs = process.hrtime.bigint();
   writeRaw(level, line);
+  const durationMs = Number(process.hrtime.bigint() - writeStartedAtNs) / 1_000_000;
   for (const sink of sinks) {
     try {
-      sink({ level, tag, message, meta, line });
+      sink({ level, tag: safeTag, message: safeMessage, meta: safeMeta, line, durationMs });
     } catch {
       // Side-channel diagnostics must never break the primary logger.
     }
@@ -153,6 +164,7 @@ export function initLogger(opts: InitLoggerOpts): void {
   state.initialized = true;
   state.shutDown = false;
   state.filePath = filePath;
+  state.minimumLevel = effectiveLevel;
 
   // Pointer file — one-line text file containing the absolute path of THIS
   // session's log. AI agents and the streamfusion-debug skill read this to

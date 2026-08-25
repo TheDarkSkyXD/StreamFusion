@@ -293,7 +293,15 @@ export async function getCategoryById(
 
     const category = response.data?.find((candidate) => String(candidate.id) === id);
     if (category) {
-      return transformKickCategory(category);
+      const official = transformKickCategory(category);
+      const publicResult = await getPublicTopCategories();
+      const publicCategory = publicResult.data.find((candidate) => candidate.id === id);
+      if (!publicCategory) return official;
+      return {
+        ...official,
+        slug: publicCategory.slug ?? official.slug,
+        viewerCount: publicCategory.viewerCount ?? official.viewerCount,
+      };
     }
     return null;
   } catch (error) {

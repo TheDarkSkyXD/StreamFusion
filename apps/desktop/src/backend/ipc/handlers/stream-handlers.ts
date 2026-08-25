@@ -418,7 +418,7 @@ export function registerStreamHandlers(): void {
               }
             }
 
-            logger.info("IPC:Stream", "Completed Kick followed-stream scan", {
+            logger.debug("IPC:Stream", "Completed Kick followed-stream scan", {
               followCount: localKick.length,
               officialIdCount: stableBroadcasterIds.length,
               scannedCount: slugsToScan.length,

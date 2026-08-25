@@ -106,6 +106,10 @@ const featureLoaders = {
     const { registerConnectivityHandlers } = await import("./handlers/connectivity-handlers");
     registerConnectivityHandlers();
   },
+  [IPC_FEATURES.DIAGNOSTICS]: async ({ mainWindow, registry }) => {
+    const { registerDiagnosticsHandlers } = await import("./handlers/diagnostics-handlers");
+    registerDiagnosticsHandlers(mainWindow, registry);
+  },
   [IPC_FEATURES.DOWNLOADS]: async ({ mainWindow }) => {
     const { registerDownloadHandlers } = await import("./handlers/download-handlers");
     registerDownloadHandlers(mainWindow);

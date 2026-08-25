@@ -33,10 +33,7 @@ async function fetchLegacyClipPage(url: string): Promise<{
 /**
  * Get clips by channel slug using legacy API v2
  */
-export async function getClipsByChannelSlug(
-  slug: string,
-  options: PaginationOptions = {}
-) {
+export async function getClipsByChannelSlug(slug: string, options: PaginationOptions = {}) {
   try {
     const limit = options.limit || 20;
     const cursor = options.cursor || 0; // V2 often uses cursor/offset
@@ -99,35 +96,41 @@ export async function getClipsByCategorySlug(
   const page = await fetchLegacyClipPage(url);
 
   return {
-      data: page.clips.map((clip: KickLegacyApiClip) => {
-        const channelSlug = clip.channel?.slug || "";
-        const publicClipUrl = `https://kick.com/${encodeURIComponent(channelSlug)}/clips/${encodeURIComponent(clip.id)}`;
+    data: page.clips.map((clip: KickLegacyApiClip) => {
+      const channelSlug = clip.channel?.slug || "";
+      const publicClipUrl = `https://kick.com/${encodeURIComponent(channelSlug)}/clips/${encodeURIComponent(clip.id)}`;
 
-        return {
-          id: clip.id,
-          title: clip.title,
-          duration: formatDuration(clip.duration),
-          views: clip.views?.toString() || clip.view_count?.toString() || "0",
-          date: new Date(clip.created_at).toLocaleDateString(),
-          created_at: clip.created_at,
-          creatorName: clip.creator?.username || clip.creator?.slug || "",
-          embedUrl: clip.video_url,
-          url: publicClipUrl,
-          shareUrl: publicClipUrl,
-          gameId: clip.category?.id?.toString() || "",
-          gameName: clip.category?.name || "Unknown",
-          category: clip.category?.name || "Unknown",
-          thumbnailUrl: clip.thumbnail_url,
-          vodId: clip.livestream_id || "",
-          channelId: clip.channel_id?.toString() || clip.channel?.id?.toString() || "",
-          channelName: channelSlug,
-          channelDisplayName: clip.channel?.username || channelSlug,
-          channelAvatar: clip.channel?.profile_pic || "",
-          platform: "kick" as const,
-        };
-      }),
-      cursor: page.cursor,
-    };
+      return {
+        id: clip.id,
+        title: clip.title,
+        duration: formatDuration(clip.duration),
+        views: clip.views?.toString() || clip.view_count?.toString() || "0",
+        date: new Date(clip.created_at).toLocaleDateString(),
+        created_at: clip.created_at,
+        creatorName: clip.creator?.username || clip.creator?.slug || "",
+        embedUrl: clip.video_url,
+        url: publicClipUrl,
+        shareUrl: publicClipUrl,
+        gameId: clip.category?.id?.toString() || "",
+        gameName: clip.category?.name || "Unknown",
+        category: clip.category?.name || "Unknown",
+        thumbnailUrl: clip.thumbnail_url,
+        vodId: clip.livestream_id || "",
+        channelId: clip.channel_id?.toString() || clip.channel?.id?.toString() || "",
+        channelName: channelSlug,
+        channelDisplayName: clip.channel?.username || channelSlug,
+        channelAvatar:
+          clip.channel?.profile_pic ||
+          clip.channel?.profile_picture ||
+          clip.channel?.avatar_url ||
+          clip.channel?.user?.profile_pic ||
+          clip.channel?.user?.profile_picture ||
+          "",
+        platform: "kick" as const,
+      };
+    }),
+    cursor: page.cursor,
+  };
 }
 
 function formatDuration(seconds: number): string {

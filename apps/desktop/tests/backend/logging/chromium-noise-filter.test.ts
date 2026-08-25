@@ -130,8 +130,25 @@ describe("isHarmlessChromiumNoise — SharedImageManager mailbox miss", () => {
 
 describe("isHarmlessChromiumNoise — Chromium cache metadata repair", () => {
   it("matches the exact invalid current cache-size ERROR line from the bug report", () => {
+    const line = "[33224:0608/215341.464:ERROR:backend_impl.cc(1908)] Invalid cache (current) size";
+    expect(isHarmlessChromiumNoise(line)).toBe(true);
+  });
+
+  it("matches Chromium's colon-formatted invalid cache-size line", () => {
     const line =
-      "[33224:0608/215341.464:ERROR:backend_impl.cc(1908)] Invalid cache (current) size";
+      "[62724:0823/172215.893:ERROR:net\\disk_cache\\blockfile\\backend_impl.cc:2015] Invalid cache (current) size";
+    expect(isHarmlessChromiumNoise(line)).toBe(true);
+  });
+
+  it("matches routine partial cache revalidation misses", () => {
+    const line =
+      "[65144:0823/173616.164:WARNING:net\\http\\http_cache_transaction.cc:3556] Failed to revalidate partial entry";
+    expect(isHarmlessChromiumNoise(line)).toBe(true);
+  });
+
+  it("matches late HTTP/2 headers for an already-closed stream", () => {
+    const line =
+      "[65144:0823/173619.361:WARNING:net\\spdy\\spdy_session.cc:3186] Received HEADERS for invalid stream 315";
     expect(isHarmlessChromiumNoise(line)).toBe(true);
   });
 });
@@ -157,16 +174,29 @@ describe("isHarmlessChromiumNoise — must NOT swallow real errors", () => {
     expect(isHarmlessChromiumNoise(line)).toBe(false);
   });
 
-  it("does not match WebRTC TURN allocate diagnostics from Kick/IVS startup", () => {
+  it("matches repetitive WebRTC TURN allocate diagnostics from normal Kick player startup", () => {
     const line =
       "[22460:0608/154909.231:WARNING:turn_port.cc(1455)] Port[64ee600:0:1:0:relay:Net[{F088CF09-876F-463C-9F47-DEC20DF8174D}:192.168.10.x/24:Ethernet:id=5]]: Received TURN allocate error response, id=705a494b4a4259324a344770, code=400, rtt=50";
-    expect(isHarmlessChromiumNoise(line)).toBe(false);
+    expect(isHarmlessChromiumNoise(line)).toBe(true);
   });
 
-  it("does not match WebRTC TURN bound-address diagnostics from Kick/IVS startup", () => {
+  it("matches repetitive WebRTC TURN bound-address diagnostics from normal Kick player startup", () => {
     const line =
       "[22460:0608/154907.023:WARNING:turn_port.cc(559)] Port[64ee600:0:1:0:relay:Net[{FC01FCD5-2B9D-2FD8-78D8-CB78B313E2B2}:10.5.0.x/16:Unknown:id=6]]: Socket is bound to the address:192.168.10.x:49770, rather than an address associated with network:Net[{FC01FCD5-2B9D-2FD8-78D8-CB78B313E2B2}:10.5.0.x/16:Unknown:id=6]. Discarding TURN port.";
-    expect(isHarmlessChromiumNoise(line)).toBe(false);
+    expect(isHarmlessChromiumNoise(line)).toBe(true);
+  });
+
+  it("matches repeated Kick player SDK and inactive collector banners", () => {
+    expect(
+      isHarmlessChromiumNoise(
+        '[29128:0823/165430.829:INFO:CONSOLE:2] "Amazon IVS Player SDK 1.54.1", source: https://kick.com/ivs/1.54.1/amazon-ivs-wasmworker.min.js (2)'
+      )
+    ).toBe(true);
+    expect(
+      isHarmlessChromiumNoise(
+        '[29128:0823/165430.830:INFO:CONSOLE:1] "[DZ] This collector is not active. Configure it to a data pipe to start sending events.", source: https://kick.com/datazoom/2.32.0/datazoom.js (1)'
+      )
+    ).toBe(true);
   });
 
   it("does not match Chromium H264 constrained-baseline startup diagnostics", () => {
@@ -305,7 +335,7 @@ describe("chromium-log-tailer — noise demotion", () => {
     expect(logger.debug).not.toHaveBeenCalledWith("Chromium", certAuthorityErr);
   });
 
-  it("keeps a WebRTC TURN warning line visible", async () => {
+  it("demotes repetitive WebRTC TURN startup warnings", async () => {
     const { mod, logger } = await freshTailer();
     const filePath = path.join(tmpDir, "chromium.log");
     await fsp.writeFile(filePath, "", "utf8");
@@ -317,8 +347,8 @@ describe("chromium-log-tailer — noise demotion", () => {
     await fsp.appendFile(filePath, `${turnWarning}\n`, "utf8");
     await pause();
 
-    expect(logger.warn).toHaveBeenCalledWith("Chromium", turnWarning);
-    expect(logger.debug).not.toHaveBeenCalledWith("Chromium", turnWarning);
+    expect(logger.debug).toHaveBeenCalledWith("Chromium", turnWarning);
+    expect(logger.warn).not.toHaveBeenCalledWith("Chromium", turnWarning);
   });
 });
 

@@ -18,13 +18,25 @@ const IDCOMPOSITION_PROBE = /QueryInterface to IDComposition(Device|Visual)\d+ f
 const AUTOFILL_NOT_FOUND = /Request Autofill\.\w+ failed\. \{"code":-32601/;
 const SHARED_IMAGE_MAILBOX_MISS =
   /SharedImageManager::ProduceSkia: Trying to Produce a Skia representation from a non-existent mailbox\./;
-const DISK_CACHE_INVALID_CURRENT_SIZE = /backend_impl\.cc\(\d+\).*Invalid cache \(current\) size/;
-const DISK_CACHE_DESTROYING_INVALID_ENTRY = /backend_impl\.cc\(\d+\).*Destroying invalid entry\./;
+const DISK_CACHE_INVALID_CURRENT_SIZE =
+  /backend_impl\.cc(?::|\()\d+\)?.*Invalid cache \(current\) size/;
+const DISK_CACHE_DESTROYING_INVALID_ENTRY =
+  /backend_impl\.cc(?::|\()\d+\)?.*Destroying invalid entry\./;
+const HTTP_CACHE_PARTIAL_REVALIDATION =
+  /http_cache_transaction\.cc(?::|\()\d+\)?.*Failed to revalidate partial entry/;
+const SPDY_CLOSED_STREAM_HEADERS =
+  /spdy_session\.cc(?::|\()\d+\)?.*Received HEADERS for invalid stream/;
 const SSL_CONNECTION_RESET = /ssl_client_socket_impl\.cc(?:\(\d+\)|:\d+).*net_error -101\b/;
 const VIZ_NULL_HYPOTHESIS = /VizNullHypothesis is disabled \(not a warning\)/;
 const VITE_DEV_CLIENT = /\[vite\] (connecting|connected)\.{1,3}/;
 const REACT_DEVTOOLS_RECOMMENDATION =
   /Download the React DevTools for a better development experience/;
+const WEBRTC_TURN_STARTUP =
+  /turn_port\.cc(?::|\().*(Socket is bound to|TURN allocate error response)/;
+const WEBRTC_THREAD_STARTUP = /Running WebRTC with a combined Network and Worker thread/;
+const KICK_PLAYER_SDK_BANNER = /(?:AWS Elemental MediaTailor|Amazon IVS Player) SDK/;
+const KICK_DATAZOOM_INACTIVE = /\[DZ\] This collector is not active/;
+const EMPTY_CONSOLE_MESSAGE = /:INFO:CONSOLE(?::|\()\d*\)?\]\s+"\s*",\s+source:\s*\s*\(0\)$/;
 
 export function isHarmlessChromiumNoise(line: string): boolean {
   return (
@@ -33,9 +45,16 @@ export function isHarmlessChromiumNoise(line: string): boolean {
     SHARED_IMAGE_MAILBOX_MISS.test(line) ||
     DISK_CACHE_INVALID_CURRENT_SIZE.test(line) ||
     DISK_CACHE_DESTROYING_INVALID_ENTRY.test(line) ||
+    HTTP_CACHE_PARTIAL_REVALIDATION.test(line) ||
+    SPDY_CLOSED_STREAM_HEADERS.test(line) ||
     SSL_CONNECTION_RESET.test(line) ||
     VIZ_NULL_HYPOTHESIS.test(line) ||
     VITE_DEV_CLIENT.test(line) ||
-    REACT_DEVTOOLS_RECOMMENDATION.test(line)
+    REACT_DEVTOOLS_RECOMMENDATION.test(line) ||
+    WEBRTC_TURN_STARTUP.test(line) ||
+    WEBRTC_THREAD_STARTUP.test(line) ||
+    KICK_PLAYER_SDK_BANNER.test(line) ||
+    KICK_DATAZOOM_INACTIVE.test(line) ||
+    EMPTY_CONSOLE_MESSAGE.test(line)
   );
 }

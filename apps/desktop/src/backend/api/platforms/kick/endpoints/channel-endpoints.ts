@@ -7,6 +7,7 @@ import type { KickChatroomSettings, UnifiedChannel } from "../../../unified/plat
 import type { SubscriberBadge } from "../../../../services/chat/kick-parser";
 import type { KickRequestor } from "../kick-requestor";
 import { createHiddenKickBrowserWindow } from "../kick-hidden-browser-window";
+import { isKickRequestCancellation } from "../kick-error-classification";
 import { requestPublicKickSession } from "../kick-session-request";
 import { transformKickChannel } from "../kick-transformers";
 import {
@@ -44,7 +45,7 @@ function mergeKickUserMetadata(channel: UnifiedChannel, user: KickApiUser): Unif
  * `account_age` is not in the v2 initial-fetch payload (only delivered via WS),
  * so this mapper leaves it absent.
  *
- * Pure function - exported for unit testing without spinning up the BrowserWindow.
+ * Pure function — exported for unit testing without spinning up the BrowserWindow.
  */
 export function mapKickChatroomToSettings(raw: unknown): KickChatroomSettings | undefined {
   if (!raw || typeof raw !== "object") return undefined;
@@ -380,7 +381,9 @@ export async function getChannel(
         return enrichedChannel;
       }
     } catch (error) {
-      logger.warn("Kick:Endpoints:Channel", "Official channel API failed", {
+      const message = error instanceof Error ? error.message : String(error);
+      const log = isKickRequestCancellation(message) ? logger.debug : logger.warn;
+      log("Kick:Endpoints:Channel", "Official channel API failed", {
         slug,
         error:
           error instanceof Error
@@ -449,7 +452,7 @@ export async function getChannelsBySlugs(
       .map(transformKickChannel);
     return await enrichChannelsWithKickUsers(client, channels);
   } catch (error) {
-    const log = isKickAppAuthFailure(error) ? logger.warn : logger.error;
+    const log = getKickChannelFailureLogger(error);
     log("Kick:Endpoints:Channel", "Failed to fetch Kick channels", {
       error:
         error instanceof Error
@@ -459,6 +462,11 @@ export async function getChannelsBySlugs(
     return [];
   }
 }
+
+const broadcasterChannelRequests = new WeakMap<
+  KickRequestor,
+  Map<string, Promise<UnifiedChannel[]>>
+>();
 
 /**
  * Get multiple channels by stable Kick broadcaster user IDs.
@@ -476,18 +484,39 @@ export async function getChannelsByBroadcasterIds(
     return [];
   }
 
+  const requestKey = Array.from(new Set(broadcasterUserIds))
+    .sort((left, right) => left - right)
+    .join(",");
+  let clientRequests = broadcasterChannelRequests.get(client);
+  if (!clientRequests) {
+    clientRequests = new Map();
+    broadcasterChannelRequests.set(client, clientRequests);
+  }
+
+  const existingRequest = clientRequests.get(requestKey);
+  if (existingRequest) return existingRequest;
+
+  const request = (async () => {
+    try {
+      const channels = await fetchChannelsByBroadcasterIds(client, broadcasterUserIds);
+      return await enrichChannelsWithKickUsers(client, channels);
+    } catch (error) {
+      const log = getKickChannelFailureLogger(error);
+      log("Kick:Endpoints:Channel", "Failed to fetch Kick channels by broadcaster ID", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
+      return [];
+    }
+  })();
+  clientRequests.set(requestKey, request);
+
   try {
-    const channels = await fetchChannelsByBroadcasterIds(client, broadcasterUserIds);
-    return await enrichChannelsWithKickUsers(client, channels);
-  } catch (error) {
-    const log = isKickAppAuthFailure(error) ? logger.warn : logger.error;
-    log("Kick:Endpoints:Channel", "Failed to fetch Kick channels by broadcaster ID", {
-      error:
-        error instanceof Error
-          ? { name: error.name, message: error.message, stack: error.stack }
-          : String(error),
-    });
-    return [];
+    return await request;
+  } finally {
+    if (clientRequests.get(requestKey) === request) clientRequests.delete(requestKey);
   }
 }
 
@@ -620,7 +649,7 @@ const _publicChannelInFlight = new Map<string, PublicChannelInFlight>();
 
 // Failure-only negative cache. The positive `_channelCache` lives in
 // `getChannel`, but direct callers of `getPublicChannel` (search-endpoints,
-// search-handlers' verifyAndEnrichKickChannels) bypass it - and nothing was
+// search-handlers' verifyAndEnrichKickChannels) bypass it — and nothing was
 // caching failures, so a single unreachable slug would re-open a BrowserWindow
 // on every hover/refetch.
 const _publicChannelFailureCache = new Map<string, number>();
@@ -640,13 +669,18 @@ function isKickOfficialApiUnavailable(): boolean {
   return health === "degraded" || health === "down";
 }
 
-function isKickAppAuthFailure(error: unknown): boolean {
+function isKickOfficialAuthFailure(error: unknown): boolean {
   return error instanceof Error && /^Kick API error: 401\b/.test(error.message);
 }
 
+function getKickChannelFailureLogger(error: unknown): typeof logger.debug {
+  const message = error instanceof Error ? error.message : String(error);
+  if (isKickRequestCancellation(message)) return logger.debug;
+  return isKickOfficialAuthFailure(error) ? logger.warn : logger.error;
+}
 
 // Serialise BrowserWindow creation. Each hidden window spins up a fresh
-// Chromium renderer + GPU context - opening 5 at once (search-handlers'
+// Chromium renderer + GPU context — opening 5 at once (search-handlers'
 // batch-of-5 verification) is the single largest GPU-load spike under the
 // app's control and a likely trigger for the `exit_code=34` GPU crash that
 // then drags Chromium's network service down with it. With CHUNK_SIZE=3 in
@@ -753,7 +787,7 @@ async function _doFetchPublicChannel(
 
   // Skip the BrowserWindow round-trip if the network service is currently
   // crashed/restarting. loadURL would just time out, and a hidden window is
-  // an expensive resource (renderer + GPU + network partition) - exactly the
+  // an expensive resource (renderer + GPU + network partition) — exactly the
   // load profile that triggered the cascade in the first place.
   if (isKickLocallyDown()) return null;
 
@@ -980,7 +1014,7 @@ async function _doFetchPublicChannel(
     };
   } catch (error) {
     // If the network service crashed mid-load, the failure isn't this slug's
-    // fault - don't penalise it with a 5-minute lockout. Re-check after the
+    // fault — don't penalise it with a 5-minute lockout. Re-check after the
     // failure since the crash event may have fired during loadURL.
     networkBlip = isKickLocallyDown();
     const errorMeta = {

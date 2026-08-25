@@ -10296,3 +10296,12 @@
 {"ts":"2026-08-10T14:13:16.189Z","platform":"kick","fromState":"down","toState":"down","sampleSize":22,"failureRate":0,"source":"internal"}
 {"ts":"2026-08-10T14:13:58.725Z","platform":"kick","fromState":"down","toState":"degraded","sampleSize":8,"failureRate":1,"source":"internal"}
 {"ts":"2026-08-10T14:14:28.764Z","platform":"kick","fromState":"degraded","toState":"healthy","sampleSize":56,"failureRate":0.26785714285714285,"source":"internal"}
+{"ts":"2026-08-14T05:29:22.896Z","platform":"kick","fromState":"healthy","toState":"degraded","sampleSize":8,"failureRate":0.875,"source":"internal"}
+{"ts":"2026-08-14T05:29:55.441Z","platform":"kick","fromState":"degraded","toState":"healthy","sampleSize":38,"failureRate":0.39473684210526316,"source":"internal"}
+{"ts":"2026-08-21T01:07:14.192Z","platform":"kick","fromState":"healthy","toState":"down","sampleSize":5,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-21T01:07:14.198Z","platform":"twitch","fromState":"healthy","toState":"down","sampleSize":106,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-23T20:51:15.681Z","platform":"kick","fromState":"healthy","toState":"down","sampleSize":15,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-24T02:11:47.987Z","platform":"kick","fromState":"healthy","toState":"down","sampleSize":3,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-24T02:11:47.991Z","platform":"twitch","fromState":"healthy","toState":"down","sampleSize":86,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-24T16:39:53.597Z","platform":"kick","fromState":"healthy","toState":"down","sampleSize":5,"failureRate":0,"source":"internal"}
+{"ts":"2026-08-24T16:39:53.602Z","platform":"twitch","fromState":"healthy","toState":"down","sampleSize":65,"failureRate":0,"source":"internal"}

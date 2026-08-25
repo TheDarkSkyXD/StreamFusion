@@ -9,6 +9,10 @@ vi.mock("@/lib/managed-interval", () => ({
   createManagedInterval: vi.fn(),
 }));
 
+vi.mock("@/lib/cross-logger", () => ({
+  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
 const { getUsersByIdMock, getLatestCompletedVideoEndedAtMock } = vi.hoisted(() => ({
   getUsersByIdMock: vi.fn(),
   getLatestCompletedVideoEndedAtMock: vi.fn(),
@@ -62,6 +66,7 @@ import {
 } from "@/backend/api/platforms/kick/endpoints/channel-endpoints";
 import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
 import { getPlatformHealth, isPlatformHealthy } from "@/backend/api/unified/platform-health";
+import { logger } from "@/lib/cross-logger";
 
 function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor {
   return {
@@ -86,6 +91,9 @@ describe("channel-endpoints", () => {
     vi.mocked(isPlatformHealthy).mockReturnValue(true);
     getUsersByIdMock.mockReset().mockResolvedValue([]);
     getLatestCompletedVideoEndedAtMock.mockReset().mockResolvedValue(undefined);
+    vi.mocked(logger.debug).mockClear();
+    vi.mocked(logger.warn).mockClear();
+    vi.mocked(logger.error).mockClear();
   });
 
   afterEach(() => {
@@ -788,12 +796,32 @@ describe("channel-endpoints", () => {
 
       expect(result).toEqual([]);
     });
+
+    it("does not report a canceled navigation as a channel-fetch error", async () => {
+      const cancellation = new Error("net::ERR_ABORTED");
+      const client = createMockClient({
+        request: vi.fn().mockRejectedValueOnce(cancellation),
+      });
+
+      const result = await getChannelsByBroadcasterIds(client, [123]);
+
+      expect(result).toEqual([]);
+      expect(logger.debug).toHaveBeenCalledWith(
+        "Kick:Endpoints:Channel",
+        "Failed to fetch Kick channels by broadcaster ID",
+        expect.objectContaining({
+          error: expect.objectContaining({ message: "net::ERR_ABORTED" }),
+        })
+      );
+      expect(logger.error).not.toHaveBeenCalled();
+    });
   });
 
   // Guards: Kick broadcaster filters use OpenAPI collectionFormat multi instead of ignored bracket-suffixed parameters.
   // Guards: an ignored Kick broadcaster filter cannot substitute the signed-in user's channel during username repair.
   // Guards: followed-channel refresh preserves Kick's cased profile name instead of replacing it with the lowercase slug.
   // Guards: a provider 5xx on a broadcaster batch falls back once to smaller requests, preserving healthy follow repairs without an unbounded retry storm.
+  // Guards: concurrent broadcaster lookups for the same ID set share one full request operation, while a later lookup runs again.
   describe("getChannelsByBroadcasterIds", () => {
     it("returns empty array for empty broadcaster ID input", async () => {
       const client = createMockClient();
@@ -913,6 +941,31 @@ describe("channel-endpoints", () => {
       expect(client.request).not.toHaveBeenCalled();
     });
 
+    it("coalesces concurrent set-equivalent broadcaster lookups until the shared operation settles", async () => {
+      let resolveRequest!: (response: { data: [] }) => void;
+      const pendingResponse = new Promise<{ data: [] }>((resolve) => {
+        resolveRequest = resolve;
+      });
+      const requestMock = vi.fn(() => pendingResponse);
+      const client = createMockClient({ request: requestMock as KickRequestor["request"] });
+
+      const first = getChannelsByBroadcasterIds(client, [123, 456, 123]);
+      const second = getChannelsByBroadcasterIds(client, [456, 123]);
+
+      expect(requestMock).toHaveBeenCalledTimes(1);
+      expect(requestMock).toHaveBeenCalledWith(
+        "/channels?broadcaster_user_id=123&broadcaster_user_id=456&broadcaster_user_id=123"
+      );
+
+      resolveRequest({ data: [] });
+      await expect(Promise.all([first, second])).resolves.toEqual([[], []]);
+
+      requestMock.mockResolvedValueOnce({ data: [] });
+      await getChannelsByBroadcasterIds(client, [123, 456]);
+
+      expect(requestMock).toHaveBeenCalledTimes(2);
+    });
+
     it("chunks broadcaster IDs into conservative 20-item requests without dropping later follows", async () => {
       const ids = Array.from({ length: 60 }, (_, i) => i + 1);
       const client = createMockClient({
@@ -995,6 +1048,26 @@ describe("channel-endpoints", () => {
   });
 
   describe("getChannel", () => {
+    it("keeps canceled official lookups out of warning logs", async () => {
+      mockLoadURL.mockRejectedValueOnce(new Error("fallback unavailable"));
+      const client = createMockClient({
+        request: vi.fn().mockRejectedValueOnce(new Error("net::ERR_ABORTED")),
+      });
+
+      await getChannel(client, "canceled-channel");
+
+      expect(logger.debug).toHaveBeenCalledWith(
+        "Kick:Endpoints:Channel",
+        "Official channel API failed",
+        expect.objectContaining({ slug: "canceled-channel" })
+      );
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        "Kick:Endpoints:Channel",
+        "Official channel API failed",
+        expect.anything()
+      );
+    });
+
     it("hydrates chatroom metadata for a live channel returned by the official API", async () => {
       const client = createMockClient({
         request: vi.fn().mockResolvedValueOnce({
@@ -1335,8 +1408,6 @@ describe("channel-endpoints", () => {
     });
 
     it("keeps authenticated API identity mismatches out of warning logs", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-      const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => undefined);
       mockLoadURL.mockRejectedValueOnce(new Error("timeout"));
 
       const client = createMockClient({
@@ -1358,8 +1429,8 @@ describe("channel-endpoints", () => {
       const result = await getChannel(client, "requested-channel");
 
       expect(result).toBeNull();
-      expect(debugSpy).toHaveBeenCalledWith(
-        "[Kick:Endpoints:Channel]",
+      expect(logger.debug).toHaveBeenCalledWith(
+        "Kick:Endpoints:Channel",
         "API identity mismatch; rejecting response (Kick API bug)",
         expect.objectContaining({
           requestedSlug: "requested-channel",
@@ -1367,7 +1438,7 @@ describe("channel-endpoints", () => {
         })
       );
       expect(
-        warnSpy.mock.calls.some(
+        vi.mocked(logger.warn).mock.calls.some(
           ([, message]) => message === "API identity mismatch; rejecting response (Kick API bug)"
         )
       ).toBe(false);

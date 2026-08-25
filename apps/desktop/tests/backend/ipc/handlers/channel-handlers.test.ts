@@ -84,6 +84,7 @@ afterEach(() => {
   databaseLifecycle.dispose();
 });
 // Guards: CHANNELS_GET_BY_ID / CHANNELS_GET_BY_USERNAME / CHANNELS_GET_FOLLOWED IPC handlers — platform-discriminated routing (twitch → twitchClient, kick → kickClient), the {success, data}/{success, error} envelope contract, and the "Twitch not authenticated returns empty array (doesn't throw)" path. Wiring-only "registers all three channel IPC channels" assertion was removed in U20.c — getHandler() throws if a channel isn't registered, so the behavior tests below already pin the registration as a side-effect.
+// Guards: renamed Kick follows repair identity metadata without competing with authoritative account-sync avatar persistence.
 
 describe("CHANNELS_GET_BY_ID", () => {
   it("fetches Twitch channel by ID", async () => {
@@ -830,7 +831,6 @@ describe("CHANNELS_GET_FOLLOWED", () => {
     expect(storageService.updateLocalFollow).toHaveBeenCalledWith("row-1", {
       channelName: "new-slug",
       displayName: "New Slug",
-      profileImage: "https://example.com/new.jpg",
     });
   });
 

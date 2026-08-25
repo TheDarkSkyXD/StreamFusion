@@ -199,11 +199,33 @@ function preserveStoredDisplayName(current: UnifiedChannel, follow: LocalFollow)
   return current;
 }
 
+function getKickProfileAssetIdentity(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.hostname.toLowerCase() !== "files.kick.com") return null;
+    const userId = /\/images\/user\/(\d+)\/profile_image\//i.exec(url.pathname)?.[1];
+    const assetId =
+      /\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:-[^/.]+)?\.[^/]+$/i.exec(
+        url.pathname
+      )?.[1];
+    return userId && assetId ? `${userId}:${assetId.toLowerCase()}` : null;
+  } catch {
+    return null;
+  }
+}
+
+function areEquivalentKickProfileImages(current: string, stored: string): boolean {
+  if (current === stored) return true;
+  const currentIdentity = getKickProfileAssetIdentity(current);
+  return currentIdentity !== null && currentIdentity === getKickProfileAssetIdentity(stored);
+}
+
 export async function repairKickFollowSlugs(
   kickClient: KickFollowRepairClient,
   follows: LocalFollow[]
 ): Promise<Map<string, UnifiedChannel>> {
   const allKickFollows = storageService.getLocalFollowsByPlatform("kick");
+  const storedFollowsById = new Map(allKickFollows.map((follow) => [follow.id, follow]));
   const repairIds = uniqueByLowercase(
     follows
       .map((follow) => getKickRepairBroadcasterUserId(follow, allKickFollows) ?? "")
@@ -321,13 +343,21 @@ export async function repairKickFollowSlugs(
   await commitVerificationCache(cacheUpdates, selectedIds.length, repairIds.length);
 
   const channelsByFollowId = new Map<string, UnifiedChannel>();
+  let updatedFollowCount = 0;
+  const updatedFieldCounts = {
+    channelId: 0,
+    channelName: 0,
+    displayName: 0,
+    profileImage: 0,
+  };
 
   for (const follow of follows) {
+    const storedFollow = storedFollowsById.get(follow.id) ?? follow;
     const repairId = getKickRepairBroadcasterUserId(follow, allKickFollows);
     const resolved = repairId
       ? channelsById.get(repairId)
       : channelsBySlug.get(follow.channelName.toLowerCase());
-    const current = resolved ? preserveStoredDisplayName(resolved, follow) : undefined;
+    const current = resolved ? preserveStoredDisplayName(resolved, storedFollow) : undefined;
     if (!current?.username) continue;
 
     const isVerified = repairId ? verificationByBroadcasterId.get(repairId) : undefined;
@@ -337,28 +367,40 @@ export async function repairKickFollowSlugs(
     );
 
     const updates: Partial<LocalFollow> = {};
-    if (current.id !== follow.channelId) {
+    if (current.id !== storedFollow.channelId) {
       updates.channelId = current.id;
     }
-    if (current.username.toLowerCase() !== follow.channelName.toLowerCase()) {
+    if (current.username.toLowerCase() !== storedFollow.channelName.toLowerCase()) {
       updates.channelName = current.username;
     }
-    if (current.displayName && current.displayName !== follow.displayName) {
+    if (current.displayName && current.displayName !== storedFollow.displayName) {
       updates.displayName = current.displayName;
     }
-    if (current.avatarUrl && current.avatarUrl !== follow.profileImage) {
+    if (
+      storedFollow.source !== "kick" &&
+      current.avatarUrl &&
+      !areEquivalentKickProfileImages(current.avatarUrl, storedFollow.profileImage)
+    ) {
       updates.profileImage = current.avatarUrl;
     }
 
     if (Object.keys(updates).length > 0) {
       storageService.updateLocalFollow(follow.id, updates);
-      logger.info("IPC:KickFollowRepair", "Updated stale Kick follow metadata", {
-        followId: follow.id,
-        channelId: follow.channelId,
-        oldSlug: follow.channelName,
-        newSlug: updates.channelName ?? follow.channelName,
-      });
+      updatedFollowCount += 1;
+      if (updates.channelId !== undefined) updatedFieldCounts.channelId += 1;
+      if (updates.channelName !== undefined) updatedFieldCounts.channelName += 1;
+      if (updates.displayName !== undefined) updatedFieldCounts.displayName += 1;
+      if (updates.profileImage !== undefined) updatedFieldCounts.profileImage += 1;
     }
+  }
+
+  if (updatedFollowCount > 0) {
+    logger.info("IPC:KickFollowRepair", "Kick follow metadata repair completed", {
+      requestedCount: follows.length,
+      resolvedCount: channelsByFollowId.size,
+      updatedCount: updatedFollowCount,
+      updatedFieldCounts,
+    });
   }
 
   return channelsByFollowId;

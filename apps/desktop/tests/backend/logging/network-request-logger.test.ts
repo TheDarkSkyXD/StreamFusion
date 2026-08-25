@@ -115,7 +115,7 @@ describe("installNetworkRequestLogger", () => {
     expect(JSON.stringify(meta)).not.toContain("Bearer secret");
   });
 
-  it("logs successful playlist loads for visibility without logging every successful segment", () => {
+  it("keeps successful playlist loads at debug without logging every successful segment", () => {
     const { session, webRequest } = makeSession();
     installNetworkRequestLogger(session as unknown as Electron.Session);
 
@@ -146,8 +146,9 @@ describe("installNetworkRequestLogger", () => {
       error: "",
     });
 
-    expect(loggerMock.info).toHaveBeenCalledTimes(1);
-    expect(loggerMock.info).toHaveBeenCalledWith(
+    expect(loggerMock.info).not.toHaveBeenCalled();
+    expect(loggerMock.debug).toHaveBeenCalledTimes(1);
+    expect(loggerMock.debug).toHaveBeenCalledWith(
       "Network:Request",
       "stream playlist request completed",
       expect.objectContaining({ sizeBytes: 4096, status: "200", statusCode: 200, kind: "playlist" })

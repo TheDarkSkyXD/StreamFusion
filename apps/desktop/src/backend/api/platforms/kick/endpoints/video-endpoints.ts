@@ -1,17 +1,12 @@
 import { logger } from "@/backend/logging/logger";
+import { isKickRequestCancellation } from "../kick-error-classification";
 import { normalizeKickDate } from "../kick-transformers";
-import {
-  KICK_LEGACY_API_V2_BASE,
-  type PaginationOptions,
-} from "../kick-types";
+import { KICK_LEGACY_API_V2_BASE, type PaginationOptions } from "../kick-types";
 
 /**
  * Get videos by channel slug using legacy API
  */
-export async function getVideosByChannelSlug(
-  slug: string,
-  options: PaginationOptions = {}
-) {
+export async function getVideosByChannelSlug(slug: string, options: PaginationOptions = {}) {
   try {
     const { net } = require("electron");
     const limit = options.limit || 20;
@@ -99,7 +94,8 @@ export async function getVideosByChannelSlug(
     }
 
     return {
-      data: videos.filter(isLegacyVideoRecord)
+      data: videos
+        .filter(isLegacyVideoRecord)
         // Drop unplayable records: streamer-deleted (deleted_at), platform-pruned
         // (is_pruned — Kick purges old VOD media but the API record persists), and
         // private (is_private). These return thumbnail 403s from images.kick.com
@@ -148,7 +144,17 @@ export async function getVideosByChannelSlug(
             channelSlug: v.channel?.slug || v.livestream?.channel?.slug || "",
             channelName: v.channel?.user?.username || v.livestream?.channel?.user?.username || "",
             channelAvatar:
-              v.channel?.user?.profile_pic || v.livestream?.channel?.user?.profile_pic || null,
+              v.channel?.user?.profile_pic ||
+              v.channel?.user?.profile_picture ||
+              v.channel?.profile_pic ||
+              v.channel?.profile_picture ||
+              v.channel?.avatar_url ||
+              v.livestream?.channel?.user?.profile_pic ||
+              v.livestream?.channel?.user?.profile_picture ||
+              v.livestream?.channel?.profile_pic ||
+              v.livestream?.channel?.profile_picture ||
+              v.livestream?.channel?.avatar_url ||
+              null,
             // Category info - check multiple possible locations
             category:
               v.categories?.[0]?.name ||
@@ -163,7 +169,9 @@ export async function getVideosByChannelSlug(
       cursor: nextCursor,
     };
   } catch (error) {
-    logger.warn("Kick:Endpoints:Video", "Failed to fetch videos", {
+    const message = error instanceof Error ? error.message : String(error);
+    const log = isKickRequestCancellation(message) ? logger.debug : logger.warn;
+    log("Kick:Endpoints:Video", "Failed to fetch videos", {
       slug,
       error:
         error instanceof Error
@@ -193,19 +201,42 @@ type LegacyVideoRecord = Record<string, unknown> & {
   thumbnail?: { src?: string; url?: string };
   thumbnail_url?: string;
   thumb?: string;
-  channel?: { slug?: string; user?: { username?: string; profile_pic?: string } };
-  livestream?: { channel?: { slug?: string; user?: { username?: string; profile_pic?: string } }; categories?: Array<{ name?: string }>; session_title?: string; language?: string };
+  channel?: {
+    slug?: string;
+    profile_pic?: string;
+    profile_picture?: string;
+    avatar_url?: string;
+    user?: { username?: string; profile_pic?: string; profile_picture?: string };
+  };
+  livestream?: {
+    channel?: {
+      slug?: string;
+      profile_pic?: string;
+      profile_picture?: string;
+      avatar_url?: string;
+      user?: { username?: string; profile_pic?: string; profile_picture?: string };
+    };
+    categories?: Array<{ name?: string }>;
+    session_title?: string;
+    language?: string;
+  };
   categories?: Array<{ name?: string }>;
   category?: { name?: string };
   language?: string;
 };
 
 function isLegacyVideoRecord(value: unknown): value is LegacyVideoRecord {
-  return typeof value === "object" && value !== null && "id" in value &&
-    (typeof value.id === "string" || typeof value.id === "number");
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    (typeof value.id === "string" || typeof value.id === "number")
+  );
 }
 
-function isWrappedVideoPage(value: unknown): value is { videos?: unknown[]; nextCursor?: string | number } {
+function isWrappedVideoPage(
+  value: unknown
+): value is { videos?: unknown[]; nextCursor?: string | number } {
   return typeof value === "object" && value !== null;
 }
 

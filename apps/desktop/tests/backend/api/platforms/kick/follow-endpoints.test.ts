@@ -89,9 +89,7 @@ it("uses the authenticated page API before the DOM compatibility fallback", () =
 
   expect(KICK_FOLLOWED_CHANNELS_API_PATH).toBe("/api/v2/channels/followed");
   expect(KICK_FOLLOWED_CHANNELS_PAGE_API_PATH).toBe("/api/v2/channels/followed-page");
-  expect(source).toContain(
-    JSON.stringify('/api/v2/channels/followed-page?cursor=7&x="quoted"')
-  );
+  expect(source).toContain(JSON.stringify('/api/v2/channels/followed-page?cursor=7&x="quoted"'));
   expect(source).toContain(JSON.stringify("Bearer 1|abc"));
   expect(source).toContain('cache: "no-store"');
   expect(source).toContain('credentials: "include"');
@@ -244,8 +242,13 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
     expect(serializedLogs).not.toContain("private-channel-value");
     expect(vi.mocked(logger.info)).toHaveBeenCalledWith(
       "Kick:Endpoints:Follow",
-      "Kick web followed-list parser completed",
-      { outcome: "accepted", count: 1 }
+      "Kick followed-list collection completed",
+      {
+        pageCount: 1,
+        channelCount: 1,
+        discardedRowCount: 0,
+        viewerVerificationRequired: true,
+      }
     );
   });
 
@@ -264,9 +267,7 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
       channels: [expect.objectContaining({ username: "newly-followed" })],
       canPruneAbsent: false,
     });
-    expect(fetchKickWebApiGetMock).toHaveBeenCalledWith(
-      "/api/v2/channels/followed-page"
-    );
+    expect(fetchKickWebApiGetMock).toHaveBeenCalledWith("/api/v2/channels/followed-page");
   });
 
   // Guards: nullable presentation metadata and additive response fields must not discard valid follow pages.
@@ -390,14 +391,8 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
 
     const result = await _tryWebSessionFetch();
 
-    expect(fetchKickWebApiGetMock).toHaveBeenNthCalledWith(
-      1,
-      "/api/v2/channels/followed"
-    );
-    expect(fetchKickWebApiGetMock).toHaveBeenNthCalledWith(
-      2,
-      "/api/v2/channels/followed?cursor=7"
-    );
+    expect(fetchKickWebApiGetMock).toHaveBeenNthCalledWith(1, "/api/v2/channels/followed");
+    expect(fetchKickWebApiGetMock).toHaveBeenNthCalledWith(2, "/api/v2/channels/followed?cursor=7");
     expect(result).toMatchObject({
       status: "ok",
       channels: [{ username: "one" }, { username: "duplicate" }, { username: "two" }],
@@ -529,7 +524,7 @@ describe("_tryBearerFetch and getAllFollowedChannels", () => {
       status: "error",
       reason: "parse-error",
     });
-    const serializedLogs = JSON.stringify(vi.mocked(logger.info).mock.calls);
+    const serializedLogs = JSON.stringify(vi.mocked(logger.warn).mock.calls);
     expect(serializedLogs).not.toContain(sentinel);
     expect(serializedLogs).not.toContain("987654");
     expect(serializedLogs).toContain('"keys":["unexpected"]');

@@ -306,7 +306,7 @@ export function installNetworkRequestLogger(targetSession: Session): void {
     }
 
     if (requestKind(details.url) === "playlist") {
-      logger.info("Network:Request", "stream playlist request completed", meta);
+      logger.debug("Network:Request", "stream playlist request completed", meta);
     }
   });
 

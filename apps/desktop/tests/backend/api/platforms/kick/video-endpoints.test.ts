@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Module from "module";
 
+const loggerMock = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+}));
+
+vi.mock("@/backend/logging/logger", () => ({ logger: loggerMock }));
+
 /* ------------------------------------------------------------------ *
  * Electron mock: video-endpoints.ts uses `require("electron")` (CJS) *
  * inside function bodies. vi.mock only intercepts ESM imports, so we  *
@@ -26,6 +35,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 // Guards: Kick VODs expose a public share URL only when the API supplies a canonical slug
 // Guards: malformed and unavailable Kick VOD responses fail closed without exposing deleted content
 // Guards: last-live fallback uses only trustworthy end timestamps from completed Kick VODs.
+// Guards: Kick VOD cards retain channel avatars when legacy responses place them on the channel.
 describe("video-endpoints — getVideosByChannelSlug", () => {
   let getVideosByChannelSlug: typeof import("@/backend/api/platforms/kick/endpoints/video-endpoints").getVideosByChannelSlug;
   let getLatestCompletedVideoEndedAtByChannelSlug: typeof import("@/backend/api/platforms/kick/endpoints/video-endpoints").getLatestCompletedVideoEndedAtByChannelSlug;
@@ -33,11 +43,11 @@ describe("video-endpoints — getVideosByChannelSlug", () => {
   beforeEach(async () => {
     vi.resetModules();
     mockNetFetch.mockReset();
+    vi.clearAllMocks();
     // Default: return empty array
     mockNetFetch.mockResolvedValue(jsonResponse([]));
-    ({ getVideosByChannelSlug, getLatestCompletedVideoEndedAtByChannelSlug } = await import(
-      "@/backend/api/platforms/kick/endpoints/video-endpoints"
-    ));
+    ({ getVideosByChannelSlug, getLatestCompletedVideoEndedAtByChannelSlug } =
+      await import("@/backend/api/platforms/kick/endpoints/video-endpoints"));
   });
 
   afterEach(() => {
@@ -93,6 +103,28 @@ describe("video-endpoints — getVideosByChannelSlug", () => {
     expect(result.data[0].channelName).toBe("Streamer");
     expect(result.data[0].category).toBe("Just Chatting");
     expect(result.cursor).toBe("next-cursor-value");
+  });
+
+  it("maps a channel-level legacy avatar when the nested user omits one", async () => {
+    mockNetFetch.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          id: 101,
+          session_title: "Channel avatar fallback",
+          duration: 3_600_000,
+          created_at: "2026-08-20T12:00:00Z",
+          channel: {
+            slug: "streamer",
+            profile_picture: "https://example.com/channel-avatar.webp",
+            user: { username: "Streamer" },
+          },
+        },
+      ])
+    );
+
+    const result = await getVideosByChannelSlug("streamer");
+
+    expect(result.data[0].channelAvatar).toBe("https://example.com/channel-avatar.webp");
   });
 
   it("returns the newest source-backed end time from a completed video", async () => {
@@ -475,6 +507,20 @@ describe("video-endpoints — getVideosByChannelSlug", () => {
     expect(result).toEqual({ data: [] });
   });
 
+  it("keeps canceled video enrichment out of warning logs", async () => {
+    mockNetFetch.mockRejectedValueOnce(new Error("net::ERR_ABORTED"));
+
+    const result = await getVideosByChannelSlug("canceled-channel");
+
+    expect(result).toEqual({ data: [] });
+    expect(loggerMock.debug).toHaveBeenCalledWith(
+      "Kick:Endpoints:Video",
+      "Failed to fetch videos",
+      expect.objectContaining({ slug: "canceled-channel" })
+    );
+    expect(loggerMock.warn).not.toHaveBeenCalled();
+  });
+
   it("returns empty data on non-ok non-404 status", async () => {
     mockNetFetch.mockResolvedValueOnce(new Response("", { status: 500 }));
 
@@ -550,8 +596,6 @@ describe("video-endpoints — getVideosByChannelSlug", () => {
 
     expect(mockNetFetch).toHaveBeenCalledTimes(1);
     expect(result.data).toHaveLength(1);
-    expect(result.data[0].thumbnailUrl).toBe(
-      "https://example.com/video-thumb.webp"
-    );
+    expect(result.data[0].thumbnailUrl).toBe("https://example.com/video-thumb.webp");
   });
 });

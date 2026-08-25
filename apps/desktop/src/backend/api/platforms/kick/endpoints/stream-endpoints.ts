@@ -10,6 +10,7 @@ import {
   recordPlatformSuccess,
 } from "../../../unified/platform-health";
 import type { UnifiedChannel, UnifiedStream } from "../../../unified/platform-types";
+import { isKickNetworkFailure, isKickRequestCancellation } from "../kick-error-classification";
 import { acquireKickRequestSlot } from "../kick-network-health";
 import { rememberKickLivePlaybackFromChannelPayload } from "../kick-playback-cache";
 import type { KickRequestor } from "../kick-requestor";
@@ -23,8 +24,16 @@ interface PrivateLivestream {
   viewers_count?: number;
   thumbnail_url?: string;
   started_at?: string;
-  streamer?: { channel?: { id?: string; slug?: string }; user?: { username?: string; profile_picture?: string } };
-  metadata?: { title?: string; language?: string; has_mature_content?: boolean; category?: { id?: string; name?: string; tags?: string[] } };
+  streamer?: {
+    channel?: { id?: string; slug?: string };
+    user?: { username?: string; profile_picture?: string };
+  };
+  metadata?: {
+    title?: string;
+    language?: string;
+    has_mature_content?: boolean;
+    category?: { id?: string; name?: string; tags?: string[] };
+  };
 }
 
 interface LegacyChannelPayload {
@@ -258,7 +267,10 @@ async function getChannelDisplayInfo(
     const channelUser = isRecord(data.user) ? data.user : {};
     const result = {
       displayName: typeof channelUser.username === "string" ? channelUser.username : slug,
-      avatar: [channelUser.profile_picture, channelUser.profile_pic, channelUser.profilepic].find((value): value is string => typeof value === "string") || "",
+      avatar:
+        [channelUser.profile_picture, channelUser.profile_pic, channelUser.profilepic].find(
+          (value): value is string => typeof value === "string"
+        ) || "",
       isVerified: isKickChannelVerified(data),
     };
 
@@ -280,9 +292,16 @@ function isKickChannelVerified(data: unknown): boolean {
   const streamerUser = isRecord(streamer.user) ? streamer.user : {};
   const verified = isRecord(data.verified) ? data.verified.id : data.verified;
   const userVerified = isRecord(user.verified) ? user.verified.id : user.verified;
-  const streamerVerified = isRecord(streamerUser.verified) ? streamerUser.verified.id : streamerUser.verified;
+  const streamerVerified = isRecord(streamerUser.verified)
+    ? streamerUser.verified.id
+    : streamerUser.verified;
   return !!(
-    verified ?? data.is_verified ?? userVerified ?? user.is_verified ?? streamerVerified ?? streamerUser.is_verified ??
+    verified ??
+    data.is_verified ??
+    userVerified ??
+    user.is_verified ??
+    streamerVerified ??
+    streamerUser.is_verified ??
     false
   );
 }
@@ -674,7 +693,10 @@ async function _doFetchPublicStreamBySlug(
       // network errors (net::ERR_*) from net.fetch into the TRANSIENT: prefix
       // so the retry/classification logic below is unchanged.
       let normalizedError: Error;
-      if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      if (
+        error instanceof Error &&
+        (error.name === "TimeoutError" || error.name === "AbortError")
+      ) {
         normalizedError = new Error("TRANSIENT:timeout");
       } else if (
         error instanceof Error &&
@@ -694,7 +716,7 @@ async function _doFetchPublicStreamBySlug(
         // Feed net::ERR_* failures into the health tracker so a burst across
         // concurrent slugs flips the global flag and the remaining retries
         // (here and at other Kick call sites) bail out fast.
-        if (/net::ERR_/.test(normalizedError.message)) {
+        if (isKickNetworkFailure(normalizedError.message)) {
           recordPlatformLocalNetError("kick");
         }
         // Map TRANSIENT shapes onto PlatformFailureClass. Excluded shapes
@@ -702,12 +724,13 @@ async function _doFetchPublicStreamBySlug(
         // reach this branch.
         if (normalizedError.message === "TRANSIENT:timeout") {
           recordPlatformFailure("kick", "timeout");
-        } else if (/^TRANSIENT:net::ERR_/.test(normalizedError.message)) {
+        } else if (isKickNetworkFailure(normalizedError.message)) {
           recordPlatformFailure("kick", "net-error");
-        } else {
+        } else if (!isKickRequestCancellation(normalizedError.message)) {
           // TRANSIENT:502 | 503 | 504.
           recordPlatformFailure("kick", "server-5xx");
         }
+        if (isKickRequestCancellation(normalizedError.message)) break;
         if (getPlatformHealth("kick") === "down") break;
         // Don't delay after the final attempt
         if (attempt < maxRetries - 1) {
@@ -980,9 +1003,10 @@ async function getPublicStreamsByCategorySlug(
   }
 
   const responseData = isRecord(data) && isRecord(data.data) ? data.data : null;
-  const livestreams = responseData && Array.isArray(responseData.livestreams)
-    ? responseData.livestreams.filter(isPrivateLivestream)
-    : [];
+  const livestreams =
+    responseData && Array.isArray(responseData.livestreams)
+      ? responseData.livestreams.filter(isPrivateLivestream)
+      : [];
   if (!Array.isArray(livestreams) || livestreams.length === 0) {
     return { data: [] };
   }
@@ -1019,7 +1043,10 @@ async function getPublicStreamsByCategorySlug(
   // Only advertise a next cursor if it actually advances. The endpoint
   // sometimes echoes back the same cursor it was given, which would cause
   // useInfiniteQuery to refetch the same page in a loop.
-  const nextCursor = responseData && typeof responseData.next_cursor === "string" ? responseData.next_cursor : undefined;
+  const nextCursor =
+    responseData && typeof responseData.next_cursor === "string"
+      ? responseData.next_cursor
+      : undefined;
   const advances = nextCursor && nextCursor !== options.cursor;
   return {
     data: streams,
@@ -1111,7 +1138,9 @@ export async function getPublicTopStreams(
               ? dataRecord.data
               : nestedData && Array.isArray(nestedData.livestreams)
                 ? nestedData.livestreams
-                : dataRecord && Array.isArray(dataRecord.livestreams) ? dataRecord.livestreams : [];
+                : dataRecord && Array.isArray(dataRecord.livestreams)
+                  ? dataRecord.livestreams
+                  : [];
 
           if (rawList.length > bestCount) {
             bestData = data;
@@ -1143,10 +1172,16 @@ export async function getPublicTopStreams(
         ? bestRecord.data
         : bestNested && Array.isArray(bestNested.livestreams)
           ? bestNested.livestreams
-          : bestRecord && Array.isArray(bestRecord.livestreams) ? bestRecord.livestreams : [];
+          : bestRecord && Array.isArray(bestRecord.livestreams)
+            ? bestRecord.livestreams
+            : [];
     const nextCursor =
-      (bestNested && typeof bestNested.next_cursor === "string" ? bestNested.next_cursor : undefined) ||
-      (bestRecord && typeof bestRecord.next_cursor === "string" ? bestRecord.next_cursor : undefined);
+      (bestNested && typeof bestNested.next_cursor === "string"
+        ? bestNested.next_cursor
+        : undefined) ||
+      (bestRecord && typeof bestRecord.next_cursor === "string"
+        ? bestRecord.next_cursor
+        : undefined);
 
     for (const item of rawList) {
       if (!isDirectoryLivestream(item)) continue;
@@ -1500,49 +1535,81 @@ export async function getTopStreamsCached(client: KickRequestor): Promise<Unifie
  * Kick category wasn't in the limited public top-streams dump).
  */
 export async function getStreamsByCategory(
-  client: KickRequestor,
+  _client: KickRequestor,
   categoryId: string,
   options: PaginationOptions & { categoryName?: string; language?: string } = {}
 ): Promise<PaginatedResult<UnifiedStream>> {
-  const lang = options.language;
-  // The slug endpoint doesn't accept a language param, so we filter the response
-  // client-side. Keeps the surface consistent whether the caller passes language or not.
-  const filterByLang = (result: PaginatedResult<UnifiedStream>): PaginatedResult<UnifiedStream> =>
-    lang ? { ...result, data: result.data.filter((s) => s.language === lang) } : result;
+  if (!categoryId) return { data: [] };
 
-  // No numeric id but we have a name — go straight to the slug-based endpoint.
-  // Falling through to getPublicTopStreams with an empty categoryId would
-  // bypass its filter and return the global dump (unrelated streams).
-  if (!categoryId && options.categoryName) {
-    const slug = toKickCategorySlug(options.categoryName);
-    if (!slug) return { data: [] };
-    const result = await getPublicStreamsByCategorySlug(slug, { cursor: options.cursor });
-    return filterByLang(result);
-  }
-
-  const primary = client.isAuthenticated()
-    ? await getTopStreams(client, { ...options, categoryId })
-    : await getPublicTopStreams({ ...options, categoryId });
-
-  if (primary.data.length > 0 || !options.categoryName) {
-    return filterByLang(primary);
-  }
-
-  // Empty result AND we have a name to guess from — try the slug-based endpoint.
-  const slug = toKickCategorySlug(options.categoryName);
-  if (!slug) return filterByLang(primary);
-
-  const fallback = await getPublicStreamsByCategorySlug(slug, {
-    cursor: options.cursor,
-    numericCategoryId: categoryId || undefined,
+  const params = new URLSearchParams({
+    limit: String(Math.min(Math.max(options.limit ?? 24, 1), 24)),
+    sort: "viewer_count_desc",
+    category_id: categoryId,
   });
+  if (options.cursor) params.set("after", options.cursor);
 
-  if (fallback.data.length === 0) return filterByLang(primary);
-
-  // Cache the resolved slug so subsequent pages take the fast path through
-  // getPublicTopStreams without re-guessing.
-  if (categoryId) rememberCategorySlug(categoryId, slug);
-  return filterByLang(fallback);
+  try {
+    const response = await net.fetch(`https://web.kick.com/api/v1/livestreams?${params}`, {
+      headers: {
+        Accept: "application/json",
+        Referer: "https://kick.com/",
+        Origin: "https://kick.com",
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) return { data: [] };
+    const body: unknown = await response.json();
+    if (!isRecord(body) || !isRecord(body.data)) return { data: [] };
+    const rawStreams = Array.isArray(body.data.livestreams) ? body.data.livestreams : [];
+    const pagination = isRecord(body.data.pagination) ? body.data.pagination : null;
+    const streams = rawStreams.flatMap((raw): UnifiedStream[] => {
+      if (!isRecord(raw) || !isRecord(raw.channel) || !isRecord(raw.category)) return [];
+      const channelSlug = typeof raw.channel.slug === "string" ? raw.channel.slug : "";
+      if (!channelSlug) return [];
+      const streamLanguage = typeof raw.language === "string" ? raw.language : "";
+      if (options.language && streamLanguage !== options.language) return [];
+      const thumbnail = isRecord(raw.thumbnail) ? raw.thumbnail : null;
+      const tags = Array.isArray(raw.tags)
+        ? raw.tags.filter((tag): tag is string => typeof tag === "string")
+        : [];
+      return [
+        {
+          id: String(raw.id ?? ""),
+          platform: "kick",
+          channelId: String(raw.channel.id ?? ""),
+          channelName: channelSlug,
+          channelDisplayName:
+            typeof raw.channel.username === "string" ? raw.channel.username : channelSlug,
+          channelAvatar: typeof raw.channel.profile_pic === "string" ? raw.channel.profile_pic : "",
+          channelIsVerified: false,
+          title: typeof raw.title === "string" ? raw.title : "",
+          viewerCount: typeof raw.viewer_count === "number" ? raw.viewer_count : 0,
+          thumbnailUrl: thumbnail && typeof thumbnail.src === "string" ? thumbnail.src : "",
+          isLive: true,
+          startedAt: normalizeKickDate(
+            typeof raw.start_time === "string" ? raw.start_time : undefined
+          ),
+          language: streamLanguage,
+          tags,
+          isMature: raw.is_mature === true,
+          categoryId: String(raw.category.id ?? categoryId),
+          categoryName: typeof raw.category.name === "string" ? raw.category.name : "",
+        },
+      ];
+    });
+    const nextCursor =
+      pagination && typeof pagination.next_cursor === "string" ? pagination.next_cursor : undefined;
+    return {
+      data: streams,
+      cursor: nextCursor && nextCursor !== options.cursor ? nextCursor : undefined,
+    };
+  } catch (error) {
+    logger.warn("Kick:Endpoints:Stream", "Failed to fetch Kick web category streams", {
+      categoryId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { data: [] };
+  }
 }
 
 /**

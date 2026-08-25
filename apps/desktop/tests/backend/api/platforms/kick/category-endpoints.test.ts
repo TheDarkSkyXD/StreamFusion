@@ -273,6 +273,37 @@ describe("category-endpoints", () => {
       expect(result).toMatchObject({ id: "16", name: "Pools, Hot Tubs & Bikinis" });
     });
 
+    it("merges the public slug and authoritative viewer count into an official category", async () => {
+      const client = createMockClient({
+        request: vi.fn().mockResolvedValueOnce({
+          data: [{ id: 16, name: "Pools, Hot Tubs & Bikinis", thumbnail: "official.webp" }],
+        }),
+      });
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            categories: [
+              {
+                name: "Pools, Hot Tubs & Bikinis",
+                slug: "pools-hot-tubs-and-bikinis",
+                viewers_count: 321,
+                image_url: "https://files.kick.com/images/subcategories/16/banner/img.webp",
+              },
+            ],
+            next_cursor: null,
+          },
+        })
+      );
+
+      const result = await getCategoryById(client, "16");
+
+      expect(result).toMatchObject({
+        id: "16",
+        slug: "pools-hot-tubs-and-bikinis",
+        viewerCount: 321,
+      });
+    });
+
     it("returns null when official v2 returns no category", async () => {
       const client = createMockClient({
         request: vi.fn().mockResolvedValueOnce({ data: [] }),

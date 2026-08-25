@@ -370,7 +370,13 @@ export interface KickLegacyApiClip {
     id: number;
     username: string;
     slug: string;
-    profile_pic: string | null;
+    profile_pic?: string | null;
+    profile_picture?: string | null;
+    avatar_url?: string | null;
+    user?: {
+      profile_pic?: string | null;
+      profile_picture?: string | null;
+    };
   };
   category: {
     id: number;

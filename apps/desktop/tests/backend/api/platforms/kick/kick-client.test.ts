@@ -112,6 +112,7 @@ vi.mock("@/backend/api/platforms/kick/endpoints/video-endpoints", () => ({
 
 import { isPlatformHealthy, recordPlatformLocalNetError } from "@/backend/api/unified/platform-health";
 import { kickAuthService } from "@/backend/auth/kick-auth";
+import { logger } from "@/backend/logging/logger";
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -122,6 +123,7 @@ function jsonResponse(body: unknown, status = 200, headers: Record<string, strin
 
 // Guards: official Kick reads use bounded retries, response sizes, and caller cancellation.
 // Guards: authentication refresh is attempted only once and updates the retried request.
+// Guards: canceled Electron requests do not create outage signals or error-log noise.
 describe("KickClient", () => {
   let kickClient: typeof import("@/backend/api/platforms/kick/kick-client").kickClient;
 
@@ -289,6 +291,22 @@ describe("KickClient", () => {
       expect(recordPlatformLocalNetError).toHaveBeenCalledWith("kick");
     });
 
+    it("does not treat a canceled request as a Kick outage", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("net::ERR_ABORTED"));
+
+      await expect(kickClient.request("/navigation-canceled")).rejects.toThrow("net::ERR_ABORTED");
+
+      expect(recordPlatformLocalNetError).not.toHaveBeenCalled();
+      expect(logger.debug).toHaveBeenCalledWith("Kick:Client", "Kick API request canceled", {
+        endpoint: "/navigation-canceled",
+      });
+      expect(logger.error).not.toHaveBeenCalledWith(
+        "Kick:Client",
+        "Kick API request failed",
+        expect.anything()
+      );
+    });
+
     it("uses Retry-After header for 429 backoff when available", async () => {
       const { sleep } = await import("@/lib/sleep");
 
@@ -417,6 +435,14 @@ describe("KickClient", () => {
       await kickClient.fetchImageBytes("https://files.kick.com/transient.webp");
 
       expect(recordPlatformLocalNetError).toHaveBeenCalledWith("kick");
+    });
+
+    it("does not treat a canceled image request as a Kick outage", async () => {
+      installBinaryRequestMock().mockRejectedValue(new Error("net::ERR_ABORTED"));
+
+      await kickClient.fetchImageBytes("https://files.kick.com/canceled.webp");
+
+      expect(recordPlatformLocalNetError).not.toHaveBeenCalled();
     });
   });
 

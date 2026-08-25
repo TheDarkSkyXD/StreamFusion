@@ -33,6 +33,7 @@ import {
   repairKickFollowSlugs,
   resolveKickFollowPlaybackSlug,
 } from "@/backend/services/kick-follow-metadata-repair";
+import { logger } from "@/backend/logging/logger";
 import { storageService } from "@/backend/services/storage-service";
 import type { LocalFollow } from "@/shared/auth-types";
 
@@ -72,6 +73,8 @@ beforeEach(() => {
 // Guards: verified metadata discovered during a slug repair survives later calls and process restarts under the stable Kick broadcaster ID.
 // Guards: legacy slug-keyed follows remain repairable for listing, scanning, and playback through the exact ID in their canonical avatar URL.
 // Guards: ID-less Kick follows hydrate by slug without replacing richer stored display-name casing with a lowercase slug fallback.
+// Guards: stale callers do not repeat persisted repairs, and real repair batches emit one count-only summary instead of per-channel success logs.
+// Guards: account follow sync owns account avatars, while guest repair accepts a genuinely new asset without oscillating renditions.
 describe("repairKickFollowSlugs verification metadata", () => {
   it("repairs a slug-keyed follow through the broadcaster ID in its avatar URL", async () => {
     const staleFollow = makeFollow({
@@ -134,6 +137,122 @@ describe("repairKickFollowSlugs verification metadata", () => {
     });
     expect(storageService.updateLocalFollow).toHaveBeenCalledWith("row-nickwhite", {
       channelId: "123",
+    });
+  });
+
+  it("does not rewrite metadata when a stale caller is behind the stored follow", async () => {
+    const staleRequest = makeFollow();
+    const storedCurrent = makeFollow({
+      channelName: "hennytingzz",
+      displayName: "Hennytingzz",
+      profileImage: "https://example.com/current-henny.webp",
+    });
+    const currentChannel = makeChannel({
+      username: "hennytingzz",
+      displayName: "Hennytingzz",
+      avatarUrl: "https://example.com/current-henny.webp",
+    });
+    vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([storedCurrent]);
+    const client = {
+      getChannelsByBroadcasterIds: vi.fn().mockResolvedValue([currentChannel]),
+      getPublicChannel: vi.fn().mockResolvedValue({
+        ...currentChannel,
+        kickUserId: currentChannel.id,
+      }),
+    };
+
+    await repairKickFollowSlugs(client, [staleRequest]);
+
+    expect(storageService.updateLocalFollow).not.toHaveBeenCalled();
+    expect(logger.info).not.toHaveBeenCalled();
+  });
+
+  it("summarizes a repair batch without logging one success per follow", async () => {
+    const follows = [
+      makeFollow({ id: "row-one", channelId: "101", channelName: "old-one" }),
+      makeFollow({ id: "row-two", channelId: "202", channelName: "old-two" }),
+    ];
+    const channels = [
+      makeChannel({ id: "101", username: "new-one", displayName: "New One" }),
+      makeChannel({ id: "202", username: "new-two", displayName: "New Two" }),
+    ];
+    vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue(follows);
+    const client = {
+      getChannelsByBroadcasterIds: vi.fn().mockResolvedValue(channels),
+      getPublicChannel: vi.fn().mockImplementation(async (slug: string) => {
+        const channel = channels.find((candidate) => candidate.username === slug);
+        return channel ? { ...channel, kickUserId: channel.id } : null;
+      }),
+    };
+
+    await repairKickFollowSlugs(client, follows);
+
+    expect(logger.info).toHaveBeenCalledOnce();
+    expect(logger.info).toHaveBeenCalledWith(
+      "IPC:KickFollowRepair",
+      "Kick follow metadata repair completed",
+      {
+        requestedCount: 2,
+        resolvedCount: 2,
+        updatedCount: 2,
+        updatedFieldCounts: {
+          channelId: 0,
+          channelName: 2,
+          displayName: 2,
+          profileImage: 0,
+        },
+      }
+    );
+  });
+
+  it("treats medium and fullsize renditions of the same Kick avatar as equivalent", async () => {
+    const assetId = "3a5f6300-2462-407f-ac56-d351783055b5";
+    const storedFollow = makeFollow({
+      channelName: "hennytingzz",
+      displayName: "Hennytingzz",
+      profileImage: `https://files.kick.com/images/user/21103818/profile_image/conversion/${assetId}-medium.webp`,
+    });
+    const currentChannel = makeChannel({
+      avatarUrl: `https://files.kick.com/images/user/21103818/profile_image/conversion/${assetId}-fullsize.webp`,
+    });
+    vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([storedFollow]);
+    const client = {
+      getChannelsByBroadcasterIds: vi.fn().mockResolvedValue([currentChannel]),
+      getPublicChannel: vi.fn().mockResolvedValue({
+        ...currentChannel,
+        kickUserId: currentChannel.id,
+      }),
+    };
+
+    await repairKickFollowSlugs(client, [storedFollow]);
+
+    expect(storageService.updateLocalFollow).not.toHaveBeenCalled();
+  });
+
+  it("persists a genuinely new Kick avatar asset", async () => {
+    const storedFollow = makeFollow({
+      source: "guest",
+      channelName: "hennytingzz",
+      displayName: "Hennytingzz",
+      profileImage:
+        "https://files.kick.com/images/user/21103818/profile_image/conversion/3a5f6300-2462-407f-ac56-d351783055b5-medium.webp",
+    });
+    const currentAvatar =
+      "https://files.kick.com/images/user/21103818/profile_image/conversion/9db9ed3e-2fb6-4948-9085-4bf467367e3d-fullsize.webp";
+    const currentChannel = makeChannel({ avatarUrl: currentAvatar });
+    vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([storedFollow]);
+    const client = {
+      getChannelsByBroadcasterIds: vi.fn().mockResolvedValue([currentChannel]),
+      getPublicChannel: vi.fn().mockResolvedValue({
+        ...currentChannel,
+        kickUserId: currentChannel.id,
+      }),
+    };
+
+    await repairKickFollowSlugs(client, [storedFollow]);
+
+    expect(storageService.updateLocalFollow).toHaveBeenCalledWith(storedFollow.id, {
+      profileImage: currentAvatar,
     });
   });
 

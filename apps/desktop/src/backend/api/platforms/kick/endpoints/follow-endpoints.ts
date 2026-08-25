@@ -31,10 +31,7 @@ import { storageService } from "../../../../services/storage-service";
 import { waitForWebContentsCondition } from "../../../../services/web-contents-ready";
 import type { UnifiedChannel } from "../../../unified/platform-types";
 import { createHiddenKickBrowserWindow } from "../kick-hidden-browser-window";
-import {
-  installKickWebBearerCapture,
-  readPersistedKickWebBearer,
-} from "../kick-web-credential";
+import { installKickWebBearerCapture, readPersistedKickWebBearer } from "../kick-web-credential";
 import { transformKickFollowedChannelLegacy } from "../kick-transformers";
 import type { KickLegacyApiFollowedChannel } from "../kick-types";
 import { KICK_LEGACY_API_V2_BASE } from "../kick-types";
@@ -365,6 +362,7 @@ async function tryWebSessionFollowCollection(
   const collected = new Map<string, UnifiedChannel>();
   const seenCursors = new Set<number>();
   let discardedRows = 0;
+  let pageCount = 0;
   let cursor: number | undefined;
   for (let pageIndex = 0; pageIndex < 100; pageIndex += 1) {
     let response: KickWebApiGetResult;
@@ -377,7 +375,7 @@ async function tryWebSessionFollowCollection(
       logger.debug("Kick:Endpoints:Follow", "Kick web followed-list request threw");
       return { status: "error", reason: "network-error" };
     }
-    logger.info("Kick:Endpoints:Follow", "Kick web followed-list response", {
+    logger.debug("Kick:Endpoints:Follow", "Kick web followed-list response", {
       ok: response.ok,
       status: response.status,
       kind: response.ok ? "ok" : response.kind,
@@ -408,13 +406,17 @@ async function tryWebSessionFollowCollection(
       return { status: "error", reason: "parse-error" };
     }
     const page = parseKickWebFollowPage(parsed);
-    const channels = page?.channels ?? null;
-    logger.info("Kick:Endpoints:Follow", "Kick web followed-list parser completed", {
-      outcome: channels ? "accepted" : "invalid-shape",
-      count: channels?.length ?? 0,
-      ...(channels ? {} : { shape: describePayloadShape(parsed) }),
+    if (!page) {
+      logger.warn("Kick:Endpoints:Follow", "Kick web followed-list parser rejected response", {
+        outcome: "invalid-shape",
+        shape: describePayloadShape(parsed),
+      });
+      return { status: "error", reason: "parse-error" };
+    }
+    logger.debug("Kick:Endpoints:Follow", "Kick web followed-list page parsed", {
+      count: page.channels.length,
     });
-    if (!page) return { status: "error", reason: "parse-error" };
+    pageCount += 1;
     discardedRows += page.discardedRows;
     for (const channel of page.channels) collected.set(channel.username, channel);
     if (page.nextCursor === 0) break;
@@ -423,6 +425,12 @@ async function tryWebSessionFollowCollection(
     cursor = page.nextCursor;
     if (pageIndex === 99) return { status: "error", reason: "parse-error" };
   }
+  logger.info("Kick:Endpoints:Follow", "Kick followed-list collection completed", {
+    pageCount,
+    channelCount: collected.size,
+    discardedRowCount: discardedRows,
+    viewerVerificationRequired: verifyViewer,
+  });
   if (!verifyViewer) {
     return { status: "ok", channels: [...collected.values()], canPruneAbsent: false };
   }
@@ -454,9 +462,7 @@ function isUnknownRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function readKickWebViewerIdentity(
-  payload: unknown
-): { id: string; username: string } | null {
+function readKickWebViewerIdentity(payload: unknown): { id: string; username: string } | null {
   if (!isUnknownRecord(payload)) return null;
   const data = isUnknownRecord(payload.data) ? payload.data : null;
   const candidates = [
@@ -682,7 +688,10 @@ async function fetchFollowedChannelsFromPageApi(
       `${KICK_FOLLOWED_CHANNELS_API_PATH}${params.size > 0 ? `?${params}` : ""}`
     );
     if (!response || response.status < 200 || response.status >= 300) {
-      return { status: "error", reason: response?.status === 401 ? "auth-failed" : "network-error" };
+      return {
+        status: "error",
+        reason: response?.status === 401 ? "auth-failed" : "network-error",
+      };
     }
     let page: KickWebFollowPage | null;
     try {
@@ -1090,10 +1099,7 @@ async function _fetchViaBrowserWindow(): Promise<FollowedChannelsResult> {
       );
       scrapeResult = (await Promise.race([scrapePromise, scrapeTimeout])) as string;
     } catch (err) {
-      _warnOnce(
-        "parse-error",
-        `BrowserWindow fallback: DOM scrape threw: ${String(err)}`
-      );
+      _warnOnce("parse-error", `BrowserWindow fallback: DOM scrape threw: ${String(err)}`);
       return { status: "error", reason: "parse-error" };
     }
 

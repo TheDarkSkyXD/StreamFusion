@@ -13,9 +13,7 @@ const API_COMPONENT_PATTERN = /api|helix|gql|eventsub/i;
 
 const TWITCH_STATUS_URL = "https://status.twitch.com/api/v2/status.json";
 const TWITCH_INCIDENTS_URL = "https://status.twitch.com/api/v2/incidents.json";
-const KICK_SERVICES_URL = "https://status.kick.com/api/services";
-const KICK_POSTS_URL = "https://status.kick.com/api/posts?is_featured=true&limit=500";
-const KICK_POST_ENUMS_URL = "https://status.kick.com/api/post_enums";
+const KICK_STATUS_CONFIG_URL = "https://status.kick.com/config.json";
 const KICK_STARTUP_STATUS_POLL_DELAY_MS = 8_000;
 const KICK_STATUS_SHAPE_BACKOFF_MS = 15 * 60_000;
 
@@ -31,19 +29,7 @@ const KICK_IMPACT_PATTERNS: Array<[RegExp, string]> = [
   [/\bdegraded performance\b/i, "Degraded performance"],
   [/\bdegraded\b/i, "Degraded"],
 ];
-const KICK_SERVICE_NAME_KEYS = ["display_name", "displayName", "name", "label", "service_name"];
-const KICK_SERVICE_STATUS_KEYS = ["status", "impact", "state", "status_text", "statusText"];
-const KICK_MAIN_STATUS_SERVICES = new Set([
-  "public api",
-  "public apis",
-  "platform",
-  "streaming",
-  "authentication",
-  "chat",
-  "notifications",
-  "payments",
-  "data services",
-]);
+const KICK_COMPONENT_NAME_PATTERN = /^(?:kick\.com|kick)$/i;
 
 const pollers = new Map<Platform, ReturnType<typeof createManagedInterval>>();
 const warnedKickStatusShapeUrls = new Set<string>();
@@ -123,231 +109,85 @@ function findKickImpact(strings: string[]): string | undefined {
   return undefined;
 }
 
-interface KickServiceStatus {
+interface KickStatusComponent {
   name: string;
   status: string;
 }
 
-interface KickServiceReference {
-  id: string;
-  name: string;
+interface KickStatusIncident {
+  currentStatus: string;
+  resolved: boolean;
+  title?: string;
 }
 
-interface KickPostEnum {
-  id: string;
-  name: string;
-  post_enum_type?: string;
-}
-
-interface KickPostImpact {
-  service_id?: string;
-  severity_id?: string;
-}
-
-interface KickPostUpdate {
-  status_id?: string;
-  severity_id?: string;
-  impacts?: KickPostImpact[];
-}
-
-interface KickPost {
-  post_type?: string;
-  latest_update?: KickPostUpdate;
-}
-
-function stringValueFromKeys(record: Record<string, unknown>, keys: string[]): string | undefined {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "string" && value.trim().length > 0) return sanitizeStatusString(value);
-  }
-  return undefined;
-}
-
-function collectKickServiceStatuses(
-  value: unknown,
-  out: KickServiceStatus[] = []
-): KickServiceStatus[] {
-  if (out.length > 100) return out;
-  if (Array.isArray(value)) {
-    for (const item of value) collectKickServiceStatuses(item, out);
-    return out;
-  }
-  if (value === null || typeof value !== "object") return out;
-
-  const record = value as Record<string, unknown>;
-  const name = stringValueFromKeys(record, KICK_SERVICE_NAME_KEYS);
-  const status = stringValueFromKeys(record, KICK_SERVICE_STATUS_KEYS);
-  if (
-    name != null &&
-    status != null &&
-    (DEGRADED_TEXT_PATTERN.test(status) || OPERATIONAL_TEXT_PATTERN.test(status))
-  ) {
-    out.push({ name, status });
-  }
-
-  for (const item of Object.values(record)) collectKickServiceStatuses(item, out);
-  return out;
+interface KickStatusConfig {
+  components: KickStatusComponent[];
+  incidents: KickStatusIncident[];
 }
 
 function normalizeKickStatusLabel(value: string): string {
-  const impact = findKickImpact([value]);
+  const normalizedValue = value.replace(/[_-]+/g, " ");
+  const impact = findKickImpact([normalizedValue]);
   if (impact != null) return impact;
-  const sanitized = sanitizeStatusString(value).toLowerCase();
+  const sanitized = sanitizeStatusString(normalizedValue).toLowerCase();
   return sanitized.length === 0 ? value : sanitized[0].toUpperCase() + sanitized.slice(1);
 }
 
-function normalizeKickServiceName(name: string): string {
-  return sanitizeStatusString(name)
-    .toLowerCase()
-    .replace(/^kick\s*-\s*/, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function isKickMainStatusService(name: string): boolean {
-  return KICK_MAIN_STATUS_SERVICES.has(normalizeKickServiceName(name));
-}
-
-function buildServiceStatusDetail(servicesJson: unknown): StatusPageDetail | undefined {
-  const affected = collectKickServiceStatuses(servicesJson)
-    .map((service) => ({
-      name: service.name,
-      impact: normalizeKickStatusLabel(service.status),
-    }))
-    .filter((service) => isKickMainStatusService(service.name))
-    .filter((service) => !OPERATIONAL_TEXT_PATTERN.test(service.impact));
-
-  if (affected.length === 0) return undefined;
-
-  const [first] = affected;
-  const impact = first.impact;
-  const summary = `Kick status: ${impact}.`;
-
-  return { summary, impact };
-}
-
-function collectKickServices(
-  value: unknown,
-  out: KickServiceReference[] = []
-): KickServiceReference[] {
-  if (out.length > 200) return out;
-  if (Array.isArray(value)) {
-    for (const item of value) collectKickServices(item, out);
-    return out;
-  }
-  if (value === null || typeof value !== "object") return out;
-
+function parseKickStatusConfig(value: unknown): KickStatusConfig | undefined {
+  if (value === null || typeof value !== "object") return undefined;
   const record = value as Record<string, unknown>;
-  const id = typeof record.id === "string" ? record.id : undefined;
-  const name = stringValueFromKeys(record, ["display_name", "displayName", "name", "label"]);
-  if (id != null && name != null) out.push({ id, name });
+  if (!Array.isArray(record.components) || !Array.isArray(record.incidents)) return undefined;
 
-  for (const item of Object.values(record)) collectKickServices(item, out);
-  return out;
-}
-
-function collectKickPostEnums(value: unknown, out: KickPostEnum[] = []): KickPostEnum[] {
-  if (out.length > 200) return out;
-  if (Array.isArray(value)) {
-    for (const item of value) collectKickPostEnums(item, out);
-    return out;
+  const components: KickStatusComponent[] = [];
+  for (const component of record.components) {
+    if (component === null || typeof component !== "object") return undefined;
+    const componentRecord = component as Record<string, unknown>;
+    if (typeof componentRecord.name !== "string" || typeof componentRecord.status !== "string") {
+      return undefined;
+    }
+    components.push({
+      name: sanitizeStatusString(componentRecord.name),
+      status: sanitizeStatusString(componentRecord.status),
+    });
   }
-  if (value === null || typeof value !== "object") return out;
 
-  const record = value as Record<string, unknown>;
-  if (typeof record.id === "string" && typeof record.name === "string") {
-    out.push({
-      id: record.id,
-      name: sanitizeStatusString(record.name),
-      post_enum_type:
-        typeof record.post_enum_type === "string"
-          ? sanitizeStatusString(record.post_enum_type)
+  const incidents: KickStatusIncident[] = [];
+  for (const incident of record.incidents) {
+    if (incident === null || typeof incident !== "object") return undefined;
+    const incidentRecord = incident as Record<string, unknown>;
+    if (typeof incidentRecord.currentStatus !== "string") return undefined;
+    incidents.push({
+      currentStatus: sanitizeStatusString(incidentRecord.currentStatus),
+      resolved: incidentRecord.resolved === true,
+      title:
+        typeof incidentRecord.title === "string"
+          ? sanitizeStatusString(incidentRecord.title)
           : undefined,
     });
   }
 
-  for (const item of Object.values(record)) collectKickPostEnums(item, out);
-  return out;
+  return { components, incidents };
 }
 
-function collectKickPosts(value: unknown): KickPost[] {
-  if (value === null || typeof value !== "object") return [];
-  const record = value as Record<string, unknown>;
-  const posts = record.posts;
-  return Array.isArray(posts) ? (posts as KickPost[]) : [];
-}
+function buildKickStatusDetail(config: KickStatusConfig): StatusPageDetail | undefined {
+  const activeIncident = config.incidents.find(
+    (incident) => !incident.resolved && !RESOLVED_STATUSES.has(incident.currentStatus.toLowerCase())
+  );
+  const affectedComponent = config.components.find(
+    (component) =>
+      KICK_COMPONENT_NAME_PATTERN.test(component.name) &&
+      !OPERATIONAL_TEXT_PATTERN.test(component.status.replace(/[_-]+/g, " "))
+  );
 
-function buildEnumNameMap(enumsJson: unknown): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const item of collectKickPostEnums(enumsJson)) {
-    map.set(item.id, item.name);
-  }
-  return map;
-}
+  if (affectedComponent == null && activeIncident == null) return undefined;
 
-function buildServiceNameMap(servicesJson: unknown): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const service of collectKickServices(servicesJson)) {
-    map.set(service.id, service.name);
-  }
-  return map;
-}
-
-function getEnumName(enumMap: Map<string, string>, id: string | undefined): string | undefined {
-  return id == null ? undefined : enumMap.get(id);
-}
-
-function isOpenKickPost(post: KickPost, enumMap: Map<string, string>): boolean {
-  const status = getEnumName(enumMap, post.latest_update?.status_id);
-  return status == null || !RESOLVED_STATUSES.has(status.toLowerCase());
-}
-
-function buildKickPostStatusDetail(
-  servicesJson: unknown,
-  postsJson: unknown,
-  enumsJson: unknown
-): StatusPageDetail | undefined {
-  const enumMap = buildEnumNameMap(enumsJson);
-  const serviceMap = buildServiceNameMap(servicesJson);
-  const affected = collectKickPosts(postsJson)
-    .filter((post) => isOpenKickPost(post, enumMap))
-    .flatMap((post) => post.latest_update?.impacts ?? [])
-    .map((impact) => {
-      const serviceName = serviceMap.get(impact.service_id ?? "");
-      if (serviceName == null || !isKickMainStatusService(serviceName)) return undefined;
-      const status = getEnumName(enumMap, impact.severity_id);
-      return status == null
-        ? undefined
-        : {
-            name: serviceName,
-            impact: normalizeKickStatusLabel(status),
-          };
-    })
-    .filter((service): service is { name: string; impact: string } => service != null)
-    .filter((service) => !OPERATIONAL_TEXT_PATTERN.test(service.impact));
-
-  if (affected.length === 0) return undefined;
-
-  const deduped = new Map<string, { name: string; impact: string }>();
-  for (const service of affected) deduped.set(`${service.name}:${service.impact}`, service);
-
-  const [first] = [...deduped.values()];
-  const impact = first.impact;
-  const summary = `Kick status: ${impact}.`;
-
-  return { summary, impact };
-}
-
-function buildKickStatusDetail(
-  servicesJson: unknown,
-  postsJson?: unknown,
-  enumsJson?: unknown
-): StatusPageDetail | undefined {
-  if (postsJson != null && enumsJson != null) {
-    const postDetail = buildKickPostStatusDetail(servicesJson, postsJson, enumsJson);
-    if (postDetail != null) return postDetail;
-  }
-  return buildServiceStatusDetail(servicesJson);
+  const impact = normalizeKickStatusLabel(
+    affectedComponent?.status ?? activeIncident?.currentStatus ?? "degraded"
+  );
+  const headline = activeIncident?.title;
+  return headline == null
+    ? { summary: `Kick status: ${impact}.`, impact }
+    : { summary: `Kick status: ${impact}.`, impact, headline };
 }
 
 function toPollResult(signal: StatusPageSignal, detail?: StatusPageDetail): StatusPagePollResult {
@@ -389,49 +229,27 @@ async function pollTwitchStatus(): Promise<StatusPagePollResult> {
 async function pollKickStatus(): Promise<StatusPagePollResult> {
   if (Date.now() < kickStatusShapeBackoffUntil) return toPollResult("no-signal");
 
-  let url = KICK_SERVICES_URL;
+  const url = KICK_STATUS_CONFIG_URL;
   try {
     const chromiumFetch = getChromiumFetch();
-    const servicesRes = await chromiumFetch(url, {
+    const configResponse = await chromiumFetch(url, {
       headers: {
         Accept: "application/json, text/plain, */*",
-        Referer: "https://status.kick.com/posts/dashboard",
+        Referer: "https://status.kick.com/",
       },
       signal: AbortSignal.timeout(10_000),
     });
-    if (!servicesRes.ok) return toPollResult("no-signal");
+    if (!configResponse.ok) return toPollResult("no-signal");
 
-    const servicesResult = await readKickStatusJson(servicesRes, url);
-    if (!servicesResult.ok) return toPollResult("no-signal");
-    const servicesJson = servicesResult.value;
+    const configResult = await readKickStatusJson(configResponse, url);
+    if (!configResult.ok) return toPollResult("no-signal");
+    const config = parseKickStatusConfig(configResult.value);
+    if (config == null) {
+      kickStatusShapeBackoffUntil = Date.now() + KICK_STATUS_SHAPE_BACKOFF_MS;
+      return toPollResult("no-signal");
+    }
 
-    url = KICK_POSTS_URL;
-    const postsRes = await chromiumFetch(url, {
-      headers: {
-        Accept: "application/json, text/plain, */*",
-        Referer: "https://status.kick.com/posts/dashboard",
-      },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!postsRes.ok) return toPollResult("no-signal");
-    const postsResult = await readKickStatusJson(postsRes, url);
-    if (!postsResult.ok) return toPollResult("no-signal");
-    const postsJson = postsResult.value;
-
-    url = KICK_POST_ENUMS_URL;
-    const enumsRes = await chromiumFetch(url, {
-      headers: {
-        Accept: "application/json, text/plain, */*",
-        Referer: "https://status.kick.com/posts/dashboard",
-      },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!enumsRes.ok) return toPollResult("no-signal");
-    const enumsResult = await readKickStatusJson(enumsRes, url);
-    if (!enumsResult.ok) return toPollResult("no-signal");
-    const enumsJson = enumsResult.value;
-
-    const detail = buildKickStatusDetail(servicesJson, postsJson, enumsJson);
+    const detail = buildKickStatusDetail(config);
     if (detail != null) return toPollResult("confirmed-outage", detail);
 
     return toPollResult("all-clear");

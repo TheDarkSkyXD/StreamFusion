@@ -45,6 +45,7 @@ import {
 } from "@/backend/api/platforms/kick/endpoints/user-endpoints";
 import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
 import { kickAuthService } from "@/backend/auth/kick-auth";
+import { logger } from "@/lib/cross-logger";
 
 function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor {
   return {
@@ -94,6 +95,7 @@ describe("user-endpoints", () => {
   // Guards: Kick user ID filters use the OpenAPI repeated query parameter so profile metadata resolves for the requested broadcasters.
   // Guards: Kick profile enrichment chunks more than 50 requested users instead of losing names and avatars for large Following lists.
   // Guards: Kick user enrichment rejects profiles whose IDs were not requested.
+  // Guards: canceled profile enrichment is quiet at the error level while real request failures remain visible.
   describe("getUsersById", () => {
     it("returns empty without an official request when viewer is not authenticated", async () => {
       const client = createMockClient({
@@ -210,6 +212,22 @@ describe("user-endpoints", () => {
       expect(result).toEqual([]);
     });
 
+    it("logs a canceled profile enrichment at debug level", async () => {
+      const error = new Error("net::ERR_ABORTED");
+      const client = createMockClient({
+        request: vi.fn().mockRejectedValueOnce(error),
+      });
+
+      const result = await getUsersById(client, [1]);
+
+      expect(result).toEqual([]);
+      expect(logger.debug).toHaveBeenCalledWith(
+        "Kick:Endpoints:User",
+        "Failed to fetch Kick users",
+        expect.objectContaining({ error: expect.objectContaining({ message: error.message }) })
+      );
+      expect(logger.error).not.toHaveBeenCalled();
+    });
 
   });
 

@@ -6,9 +6,9 @@ import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor"
 // Guards: signed-out broadcaster lookups do not call the official requestor or OAuth Worker.
 // Guards: successful Kick stream metadata fetch seeds live playback cache so stream opens can resolve from memory.
 // Guards: Kick public-stream-cache + fan-out 4-part contract (regressions cb0b7b6 + 6d3606d, refactored in 640870a).
-// Guards: positive-cache TTL > poll interval - a second call to the same slug within 90s must NOT hit electron.net.fetch again. Without this, the 60s `useFollowedStreams` poll re-bursts on every cycle.
-// Guards: stagger fires AFTER cache check - a cache-hit path returns synchronously with `staggerOffsetMs > 0`. Otherwise back-to-back same-slug callers eat a delay they don't need.
-// Guards: AbortController is scoped per dispatch - an aborted staggerDelay rejects with an "AbortError" before reaching the network; orphan stagger timers from a stale dispatch don't fire into the network.
+// Guards: positive-cache TTL > poll interval — a second call to the same slug within 90s must NOT hit electron.net.fetch again. Without this, the 60s `useFollowedStreams` poll re-bursts on every cycle.
+// Guards: stagger fires AFTER cache check — a cache-hit path returns synchronously with `staggerOffsetMs > 0`. Otherwise back-to-back same-slug callers eat a delay they don't need.
+// Guards: AbortController is scoped per dispatch — an aborted staggerDelay rejects with an "AbortError" before reaching the network; orphan stagger timers from a stale dispatch don't fire into the network.
 // Guards: a transient timeout serves the last-known-good stream instead of returning null, so followed Kick streams do not disappear during a flaky refresh.
 // Guards: official Kick hidden-count zero is replaced only by a positive legacy count from the same channel and live session.
 // Guards: followed Kick streams recover thumbnails omitted by the official bulk response only from the same channel and live session.
@@ -28,13 +28,13 @@ const mockState = vi.hoisted(() => {
   };
 
   // Fake net.fetch that dequeues from responseQueue and returns a Response-like object.
-  // If the queue is empty, the promise never resolves (simulating a hung request -
+  // If the queue is empty, the promise never resolves (simulating a hung request —
   // AbortSignal.timeout from the source will fire and reject it).
   async function fakeFetch(url: string, _options?: unknown): Promise<Response> {
     state.netRequestCalls.push({ url });
     const next = state.responseQueue.shift();
     if (!next) {
-      // Hang forever - AbortSignal.timeout in the source will abort this.
+      // Hang forever — AbortSignal.timeout in the source will abort this.
       return new Promise<Response>(() => {});
     }
     if (next.kind === "error") {
@@ -190,7 +190,8 @@ function asRequestor(client: {
 }
 
 function createOfficialTopClient(streams = [createOfficialTopLivestream()]): TestKickRequestor {
-  return requestorFrom(vi.fn(async (path: string) => {
+  return requestorFrom(
+    vi.fn(async (path: string) => {
       if (path.startsWith("/livestreams?")) return { data: streams };
       if (path.startsWith("/users?")) {
         return {
@@ -202,11 +203,14 @@ function createOfficialTopClient(streams = [createOfficialTopLivestream()]): Tes
         };
       }
       throw new Error(`Unexpected path: ${path}`);
-    }), true);
+    }),
+    true
+  );
 }
 
 function createDirectStreamClient(officialViewerCount: number = 0): KickRequestor {
-  return requestorFrom(vi.fn(async (path: string) => {
+  return requestorFrom(
+    vi.fn(async (path: string) => {
       if (path.startsWith("/channels?")) {
         return {
           data: [
@@ -235,7 +239,9 @@ function createDirectStreamClient(officialViewerCount: number = 0): KickRequesto
       }
       if (path.startsWith("/users?")) return { data: [] };
       throw new Error(`Unexpected path: ${path}`);
-    }), true);
+    }),
+    true
+  );
 }
 
 function createLegacyLiveBody({
@@ -270,7 +276,7 @@ function createLegacyLiveBody({
   });
 }
 
-describe("getPublicStreamBySlug - fan-out + cache 4-part contract", () => {
+describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
   let getPublicStreamBySlug: typeof import("@/backend/api/platforms/kick/endpoints/stream-endpoints").getPublicStreamBySlug;
 
   beforeEach(async () => {
@@ -286,19 +292,19 @@ describe("getPublicStreamBySlug - fan-out + cache 4-part contract", () => {
     vi.useRealTimers();
   });
 
-  it("contract 1: positive-cache TTL (90s) > poll interval - second call within window hits cache, not network", async () => {
+  it("contract 1: positive-cache TTL (90s) > poll interval — second call within window hits cache, not network", async () => {
     mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });
 
     const first = await getPublicStreamBySlug("ac7ionman");
     expect(first?.id).toBe("999");
     expect(mockState.state.netRequestCalls).toHaveLength(1);
 
-    // 60 seconds later - within the 90-second TTL.
+    // 60 seconds later — within the 90-second TTL.
     await vi.advanceTimersByTimeAsync(60_000);
 
     const second = await getPublicStreamBySlug("ac7ionman");
     expect(second?.id).toBe("999");
-    expect(mockState.state.netRequestCalls).toHaveLength(1); // Still 1 - no second network hit.
+    expect(mockState.state.netRequestCalls).toHaveLength(1); // Still 1 — no second network hit.
   });
 
   it("refreshes a cached offline channel when an active viewer requests fresh status", async () => {
@@ -347,7 +353,7 @@ describe("getPublicStreamBySlug - fan-out + cache 4-part contract", () => {
     expect(result?.channelIsVerified).toBe(true);
   });
 
-  it("contract 2: stagger fires AFTER cache check - cache-hit path is synchronous even with staggerOffsetMs > 0", async () => {
+  it("contract 2: stagger fires AFTER cache check — cache-hit path is synchronous even with staggerOffsetMs > 0", async () => {
     mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });
 
     // Prime the cache.
@@ -356,14 +362,14 @@ describe("getPublicStreamBySlug - fan-out + cache 4-part contract", () => {
 
     // Second call with a non-zero stagger. The stagger only fires for
     // cache-miss work; a cache-hit must short-circuit synchronously.
-    // We DON'T advance fake timers - if the implementation incorrectly
+    // We DON'T advance fake timers — if the implementation incorrectly
     // staggered before checking the cache, the await below would hang.
     const second = await getPublicStreamBySlug("ac7ionman", 500);
     expect(second?.id).toBe("999");
     expect(mockState.state.netRequestCalls).toHaveLength(1); // Cache hit, no stagger.
   });
 
-  it("contract 3: AbortController is scoped per dispatch - an aborted signal short-circuits before the network", async () => {
+  it("contract 3: AbortController is scoped per dispatch — an aborted signal short-circuits before the network", async () => {
     const ac = new AbortController();
     ac.abort(); // Pre-aborted: simulates a stale-dispatch signal.
 
@@ -855,9 +861,7 @@ describe("getTopStreams official viewer counts", () => {
       await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
 
     const result = await getTopStreams(
-      createOfficialTopClient([
-        createOfficialTopLivestream({ viewerCount: 42, thumbnail: "" }),
-      ]),
+      createOfficialTopClient([createOfficialTopLivestream({ viewerCount: 42, thumbnail: "" })]),
       { limit: 20 }
     );
 
@@ -881,12 +885,32 @@ describe("getTopStreams official viewer counts", () => {
     ]);
   });
 
-  it("returns the recovered count through the authenticated category surface", async () => {
+  it("returns the web count through the authenticated category surface", async () => {
     vi.resetModules();
     vi.useRealTimers();
     mockState.state.responseQueue.length = 0;
     mockState.state.netRequestCalls.length = 0;
-    mockState.state.responseQueue.push({ kind: "ok", body: createLegacyLiveBody() });
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: JSON.stringify({
+        data: {
+          livestreams: [
+            {
+              id: 999,
+              title: "Live now",
+              viewer_count: 512,
+              thumbnail: { src: "https://files.kick.com/thumb.webp" },
+              start_time: "2026-05-20T12:00:00Z",
+              channel: { id: 12345, slug: "tazo", username: "Tazo" },
+              category: { id: 15, name: "Just Chatting", slug: "just-chatting" },
+              language: "en",
+              tags: [],
+            },
+          ],
+          pagination: { next_cursor: null },
+        },
+      }),
+    });
     const { getStreamsByCategory } =
       await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
     const client = createOfficialTopClient();
@@ -896,14 +920,73 @@ describe("getTopStreams official viewer counts", () => {
     expect(result.data).toEqual([
       expect.objectContaining({ channelName: "tazo", isLive: true, viewerCount: 512 }),
     ]);
-    expect(client.requestSpy).toHaveBeenCalledWith(
-      expect.stringContaining("category_id=15"),
-      undefined
-    );
+    expect(client.requestSpy).not.toHaveBeenCalled();
   });
 });
 
-describe("getPublicStreamBySlug - platform-health instrumentation (slice 01)", () => {
+describe("getStreamsByCategory web pagination", () => {
+  it("uses the Kick web category endpoint for authenticated clients and advances its cursor", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: JSON.stringify({
+        data: {
+          livestreams: [
+            {
+              id: 101,
+              title: "Category stream",
+              viewer_count: 777,
+              show_view_count: true,
+              thumbnail: { src: "https://example.com/thumb.jpg" },
+              start_time: "2026-08-24T12:00:00Z",
+              channel: {
+                id: 55,
+                slug: "streamer",
+                profile_pic: "https://example.com/avatar.jpg",
+                username: "Streamer",
+              },
+              category: { id: 15, name: "Just Chatting", slug: "just-chatting" },
+              language: "en",
+              is_mature: false,
+              tags: ["chat"],
+            },
+          ],
+          pagination: { next_cursor: "page-2" },
+        },
+      }),
+    });
+    const { getStreamsByCategory } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+    const client = createOfficialTopClient();
+
+    const result = await getStreamsByCategory(asRequestor(client), "15", {
+      limit: 30,
+      cursor: "page-1",
+      language: "en",
+    });
+
+    expect(mockState.state.netRequestCalls[0]?.url).toBe(
+      "https://web.kick.com/api/v1/livestreams?limit=24&sort=viewer_count_desc&category_id=15&after=page-1"
+    );
+    expect(client.requestSpy).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      data: [
+        expect.objectContaining({
+          id: "101",
+          channelName: "streamer",
+          viewerCount: 777,
+          categoryId: "15",
+        }),
+      ],
+      cursor: "page-2",
+    });
+  });
+});
+
+describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)", () => {
   let getPublicStreamBySlug: typeof import("@/backend/api/platforms/kick/endpoints/stream-endpoints").getPublicStreamBySlug;
 
   beforeEach(async () => {
@@ -911,6 +994,7 @@ describe("getPublicStreamBySlug - platform-health instrumentation (slice 01)", (
     vi.useFakeTimers();
     mockState.state.responseQueue.length = 0;
     mockState.state.netRequestCalls.length = 0;
+    platformHealthSpies.recordPlatformLocalNetError.mockReset();
     platformHealthSpies.recordPlatformFailure.mockReset();
     platformHealthSpies.recordPlatformSuccess.mockReset();
     ({ getPublicStreamBySlug } =
@@ -930,7 +1014,7 @@ describe("getPublicStreamBySlug - platform-health instrumentation (slice 01)", (
   });
 
   it("records a server-5xx failure on a 502 response (no retry on the rest of the loop)", async () => {
-    // Three 502s - one per attempt in the existing 3x retry loop.
+    // Three 502s — one per attempt in the existing 3× retry loop.
     mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
     mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
     mockState.state.responseQueue.push({ kind: "error", message: "TRANSIENT:502" });
@@ -1005,6 +1089,18 @@ describe("getPublicStreamBySlug - platform-health instrumentation (slice 01)", (
     }
   });
 
+  it("does not treat a canceled Chromium request as a Kick outage", async () => {
+    mockState.state.responseQueue.push({
+      kind: "error",
+      message: "net::ERR_ABORTED",
+    });
+
+    await getPublicStreamBySlug("navigation-canceled");
+
+    expect(platformHealthSpies.recordPlatformLocalNetError).not.toHaveBeenCalled();
+    expect(platformHealthSpies.recordPlatformFailure).not.toHaveBeenCalled();
+  });
+
   it("treats a 404 as a success (channel doesn't exist, platform is fine)", async () => {
     // The source treats 404 as a non-error short-circuit (the channel just
     // doesn't exist). The PRD's excluded-classes list explicitly excludes
@@ -1012,16 +1108,15 @@ describe("getPublicStreamBySlug - platform-health instrumentation (slice 01)", (
     mockState.state.netRequestCalls.length = 0;
     const orig = mockState.fakeFetch;
     // Push a synthetic Response with status 404 via a custom queue entry.
-    // The fakeFetch helper only knows {kind:"ok", body} as a success - patch
+    // The fakeFetch helper only knows {kind:"ok", body} as a success — patch
     // it by registering a custom hook on responseQueue: shipping a body of
     // "" won't trigger a 404, so we use a temporary monkey-patch.
     // Simpler: feed a Response wrapper directly via a throw of the 404 path.
-    // The source path for 404 is `res.status === 404` - bypassing parse;
+    // The source path for 404 is `res.status === 404` — bypassing parse;
     // both branches converge on success-cache write. To exercise this in
     // the existing fakeFetch shim we need a way to return non-200. Inject
     // by reassigning fakeFetch for this test only.
-    mockState.fakeFetch = async (_url: string) =>
-      new Response("", { status: 404 });
+    mockState.fakeFetch = async (_url: string) => new Response("", { status: 404 });
 
     try {
       await getPublicStreamBySlug("nonexistent-slug");
@@ -1034,11 +1129,10 @@ describe("getPublicStreamBySlug - platform-health instrumentation (slice 01)", (
   });
 
   it("does NOT record on a non-TRANSIENT 'Status N' response (excluded per PRD)", async () => {
-    // Single 401 - source classifies as non-transient ? break out of the
-    // retry loop ? no platform-health record per the PRD exclusion list.
+    // Single 401 — source classifies as non-transient ⇒ break out of the
+    // retry loop ⇒ no platform-health record per the PRD exclusion list.
     const orig = mockState.fakeFetch;
-    mockState.fakeFetch = async (_url: string) =>
-      new Response("", { status: 401 });
+    mockState.fakeFetch = async (_url: string) => new Response("", { status: 401 });
 
     try {
       await getPublicStreamBySlug("auth-required");
@@ -1051,11 +1145,10 @@ describe("getPublicStreamBySlug - platform-health instrumentation (slice 01)", (
   });
 
   it("does NOT record on a parse error (excluded per PRD)", async () => {
-    // 200 OK with invalid JSON - source throws "Failed to parse JSON",
+    // 200 OK with invalid JSON — source throws "Failed to parse JSON",
     // breaks out, treated as a non-transient error.
     const orig = mockState.fakeFetch;
-    mockState.fakeFetch = async (_url: string) =>
-      new Response("{not-json", { status: 200 });
+    mockState.fakeFetch = async (_url: string) => new Response("{not-json", { status: 200 });
 
     try {
       await getPublicStreamBySlug("broken-payload");
@@ -1082,7 +1175,7 @@ describe("getPublicStreamBySlug - platform-health instrumentation (slice 01)", (
   });
 });
 
-describe("getPublicStreamBySlug - per-slug log suppression (slice 04)", () => {
+describe("getPublicStreamBySlug — per-slug log suppression (slice 04)", () => {
   let getPublicStreamBySlug: typeof import("@/backend/api/platforms/kick/endpoints/stream-endpoints").getPublicStreamBySlug;
 
   beforeEach(async () => {

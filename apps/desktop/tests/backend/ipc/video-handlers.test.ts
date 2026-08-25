@@ -45,6 +45,7 @@ vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
     getClips: vi.fn(),
     getClipsByCategory: vi.fn(),
     getVideos: vi.fn(),
+    getStreamsByCategory: vi.fn(),
   },
 }));
 
@@ -56,7 +57,9 @@ vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
     getVideoById: vi.fn(),
     getVideosByChannel: vi.fn(),
     getVideosByGame: vi.fn(),
+    getVideosByUser: vi.fn(),
     getVideosGameData: vi.fn(),
+    getTopStreams: vi.fn(),
   },
 }));
 
@@ -83,9 +86,13 @@ const FROZEN_NOW = new Date("2026-06-06T12:00:00.000Z").getTime();
 const getClipsMock = vi.mocked(kickClient.getClips);
 const getClipsByCategoryMock = vi.mocked(kickClient.getClipsByCategory);
 const getVideosMock = vi.mocked(kickClient.getVideos);
+const getStreamsByCategoryMock = vi.mocked(kickClient.getStreamsByCategory);
 const twitchGetClipsByChannelMock = vi.mocked(twitchClient.getClipsByChannel);
 const twitchGetClipsByGameMock = vi.mocked(twitchClient.getClipsByGame);
 const twitchGetVideosByGameMock = vi.mocked(twitchClient.getVideosByGame);
+const twitchGetVideosByChannelMock = vi.mocked(twitchClient.getVideosByChannel);
+const twitchGetVideosByUserMock = vi.mocked(twitchClient.getVideosByUser);
+const twitchGetTopStreamsMock = vi.mocked(twitchClient.getTopStreams);
 const twitchGetUsersByIdMock = vi.mocked(twitchClient.getUsersById);
 type ClipAgeRow = readonly [id: string, ageMs: number];
 type KickClip = Awaited<ReturnType<typeof kickClient.getClips>>["data"][number];
@@ -103,36 +110,76 @@ function expectSuccessful<T extends { success: boolean }>(
 
 function kickCategoryClip(overrides: Partial<KickCategoryClip> = {}): KickCategoryClip {
   return {
-    id: "kick-clip-1", title: "Kick clip", duration: "0:30", views: "1",
-    date: "1/1/2026", created_at: "2026-01-01T00:00:00Z", creatorName: "Clipper",
-    embedUrl: "https://example.com/clip.mp4", url: "https://kick.com/channel/clips/kick-clip-1",
-    shareUrl: "https://kick.com/channel/clips/kick-clip-1", gameId: "15", gameName: "Just Chatting",
-    category: "Just Chatting", thumbnailUrl: "https://example.com/clip.jpg", vodId: "vod-1",
-    channelId: "channel-1", channelName: "channel", channelDisplayName: "Channel",
-    channelAvatar: "https://example.com/avatar.jpg", platform: "kick", ...overrides,
+    id: "kick-clip-1",
+    title: "Kick clip",
+    duration: "0:30",
+    views: "1",
+    date: "1/1/2026",
+    created_at: "2026-01-01T00:00:00Z",
+    creatorName: "Clipper",
+    embedUrl: "https://example.com/clip.mp4",
+    url: "https://kick.com/channel/clips/kick-clip-1",
+    shareUrl: "https://kick.com/channel/clips/kick-clip-1",
+    gameId: "15",
+    gameName: "Just Chatting",
+    category: "Just Chatting",
+    thumbnailUrl: "https://example.com/clip.jpg",
+    vodId: "vod-1",
+    channelId: "channel-1",
+    channelName: "channel",
+    channelDisplayName: "Channel",
+    channelAvatar: "https://example.com/avatar.jpg",
+    platform: "kick",
+    ...overrides,
   };
 }
 
 function unifiedVideo(overrides: Partial<UnifiedVideo> = {}): UnifiedVideo {
   return {
-    id: "v1", platform: "twitch", channelId: "c1", channelName: "streamer",
-    channelDisplayName: "Streamer", channelAvatar: "https://avatar.jpg", title: "Stream",
-    description: "desc", thumbnailUrl: "https://thumb.jpg", duration: 3661, viewCount: 5000,
-    publishedAt: "2026-01-01T00:00:00Z", url: "https://twitch.tv/videos/v1", type: "archive",
+    id: "v1",
+    platform: "twitch",
+    channelId: "c1",
+    channelName: "streamer",
+    channelDisplayName: "Streamer",
+    channelAvatar: "https://avatar.jpg",
+    title: "Stream",
+    description: "desc",
+    thumbnailUrl: "https://thumb.jpg",
+    duration: 3661,
+    viewCount: 5000,
+    publishedAt: "2026-01-01T00:00:00Z",
+    url: "https://twitch.tv/videos/v1",
+    type: "archive",
     ...overrides,
   };
 }
 
 function kickVideo(overrides: Partial<TestKickVideo> = {}): TestKickVideo {
   return {
-    id: "v1", uuid: "uuid-v1", slug: "video-v1", title: "Kick VOD", duration: "1:00",
-    sourceDurationMs: 60_000, views: "1", date: "2026-01-01T00:00:00Z",
-    created_at: "2026-01-01T00:00:00Z", sourceCreatedAt: "2026-01-01T00:00:00Z",
-    sourceEndedAt: "2026-01-01T01:00:00Z", thumbnailUrl: "https://example.com/vod.jpg",
-    source: "https://example.com/vod.m3u8", url: "https://kick.com/video/video-v1",
-    shareUrl: "https://kick.com/video/video-v1", platform: "kick", isLive: false,
-    isSubOnly: false, channelSlug: "test", channelName: "Test", channelAvatar: null,
-    category: "Just Chatting", language: "en", ...overrides,
+    id: "v1",
+    uuid: "uuid-v1",
+    slug: "video-v1",
+    title: "Kick VOD",
+    duration: "1:00",
+    sourceDurationMs: 60_000,
+    views: "1",
+    date: "2026-01-01T00:00:00Z",
+    created_at: "2026-01-01T00:00:00Z",
+    sourceCreatedAt: "2026-01-01T00:00:00Z",
+    sourceEndedAt: "2026-01-01T01:00:00Z",
+    thumbnailUrl: "https://example.com/vod.jpg",
+    source: "https://example.com/vod.m3u8",
+    url: "https://kick.com/video/video-v1",
+    shareUrl: "https://kick.com/video/video-v1",
+    platform: "kick",
+    isLive: false,
+    isSubOnly: false,
+    channelSlug: "test",
+    channelName: "Test",
+    channelAvatar: null,
+    category: "Just Chatting",
+    language: "en",
+    ...overrides,
   };
 }
 
@@ -360,9 +407,30 @@ describe("fillPageWithCutoff", () => {
 
 describe("handleGetClipsByChannel - Kick - strict cutoff", () => {
   it.each([
-    ["day" as const, [["twelve-hours", DAY_MS / 2], ["one-minute", 60_000], ["one-hour", 60 * 60_000]] as const satisfies readonly ClipAgeRow[]],
-    ["week" as const, [["five-days", 5 * DAY_MS], ["one-minute", 60_000], ["one-day", DAY_MS]] as const satisfies readonly ClipAgeRow[]],
-    ["month" as const, [["twelve-days", 12 * DAY_MS], ["one-minute", 60_000], ["one-day", DAY_MS]] as const satisfies readonly ClipAgeRow[]],
+    [
+      "day" as const,
+      [
+        ["twelve-hours", DAY_MS / 2],
+        ["one-minute", 60_000],
+        ["one-hour", 60 * 60_000],
+      ] as const satisfies readonly ClipAgeRow[],
+    ],
+    [
+      "week" as const,
+      [
+        ["five-days", 5 * DAY_MS],
+        ["one-minute", 60_000],
+        ["one-day", DAY_MS],
+      ] as const satisfies readonly ClipAgeRow[],
+    ],
+    [
+      "month" as const,
+      [
+        ["twelve-days", 12 * DAY_MS],
+        ["one-minute", 60_000],
+        ["one-day", DAY_MS],
+      ] as const satisfies readonly ClipAgeRow[],
+    ],
   ])("sorts %s Most Recent clips by clip age, newest first", async (timeRange, rows) => {
     getClipsMock.mockResolvedValueOnce({
       data: rows.map(([id, ageMs]) => clip(id, ageMs)),
@@ -709,9 +777,30 @@ describe("handleGetClipsByChannel - Kick - views-sort + day/week/month Deep Fetc
 
 describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
   it.each([
-    ["day" as const, [["twelve-hours", DAY_MS / 2], ["one-minute", 60_000], ["one-hour", 60 * 60_000]] as const satisfies readonly ClipAgeRow[]],
-    ["week" as const, [["five-days", 5 * DAY_MS], ["one-minute", 60_000], ["one-day", DAY_MS]] as const satisfies readonly ClipAgeRow[]],
-    ["month" as const, [["twelve-days", 12 * DAY_MS], ["one-minute", 60_000], ["one-day", DAY_MS]] as const satisfies readonly ClipAgeRow[]],
+    [
+      "day" as const,
+      [
+        ["twelve-hours", DAY_MS / 2],
+        ["one-minute", 60_000],
+        ["one-hour", 60 * 60_000],
+      ] as const satisfies readonly ClipAgeRow[],
+    ],
+    [
+      "week" as const,
+      [
+        ["five-days", 5 * DAY_MS],
+        ["one-minute", 60_000],
+        ["one-day", DAY_MS],
+      ] as const satisfies readonly ClipAgeRow[],
+    ],
+    [
+      "month" as const,
+      [
+        ["twelve-days", 12 * DAY_MS],
+        ["one-minute", 60_000],
+        ["one-day", DAY_MS],
+      ] as const satisfies readonly ClipAgeRow[],
+    ],
   ])("sorts %s Most Recent clips by clip age, newest first", async (timeRange, rows) => {
     const data = rows.map(([id, ageMs]) => twitchClip(id, ageMs));
     if (timeRange === "day") {
@@ -802,9 +891,9 @@ describe("handleGetClipsByChannel - Twitch - strict cutoff", () => {
       LAST_WEEK: {
         data: [
           twitchClip("fresh", 1000),
-        twitchClip("just-inside-7d", 7 * DAY_MS - 1000),
-        twitchClip("just-outside-7d", 7 * DAY_MS + 1000),
-        twitchClip("far-out", 14 * DAY_MS),
+          twitchClip("just-inside-7d", 7 * DAY_MS - 1000),
+          twitchClip("just-outside-7d", 7 * DAY_MS + 1000),
+          twitchClip("far-out", 14 * DAY_MS),
         ],
         cursor: "gql-next",
       },
@@ -1188,29 +1277,63 @@ const kickResolverProto = vi.mocked(KickStreamResolver.prototype);
 
 type Handler<Result> = (event: unknown, params: unknown) => Promise<Result>;
 type DisplayVideo = {
-  id: string; title: string; duration: string; views: string; platform: "kick" | "twitch";
+  id: string;
+  title: string;
+  duration: string;
+  views: string;
+  platform: "kick" | "twitch";
   gameName?: string;
 };
 type VideoMetadata = {
-  id: string; title: string; channelId: string; channelName: string; channelDisplayName: string;
-  channelAvatar: string | null; views: number; duration: string; createdAt: string;
-  thumbnailUrl: string; description: string; type: string; platform: string; shareUrl?: string;
+  id: string;
+  title: string;
+  channelId: string;
+  channelName: string;
+  channelDisplayName: string;
+  channelAvatar: string | null;
+  views: number;
+  duration: string;
+  createdAt: string;
+  thumbnailUrl: string;
+  description: string;
+  type: string;
+  platform: string;
+  shareUrl?: string;
 };
 type LivestreamVideo = {
-  id: string; title: string; source: string; thumbnailUrl: string; duration: string; views: string;
-  date: string; channelSlug: string; channelName: string; category: string; shareUrl?: string;
+  id: string;
+  title: string;
+  source: string;
+  thumbnailUrl: string;
+  duration: string;
+  views: string;
+  date: string;
+  channelSlug: string;
+  channelName: string;
+  category: string;
+  shareUrl?: string;
 };
 type VideoHandlerResults = {
-  [IPC_CHANNELS.CLIPS_GET_BY_CATEGORY]: Awaited<ReturnType<Window["electronAPI"]["clips"]["getByCategory"]>>;
-  [IPC_CHANNELS.CLIPS_GET_PLAYBACK_URL]: Awaited<ReturnType<Window["electronAPI"]["clips"]["getPlaybackUrl"]>>;
-  [IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY]: Awaited<ReturnType<Window["electronAPI"]["videos"]["getByCategory"]>>;
+  [IPC_CHANNELS.CLIPS_GET_BY_CATEGORY]: Awaited<
+    ReturnType<Window["electronAPI"]["clips"]["getByCategory"]>
+  >;
+  [IPC_CHANNELS.CLIPS_GET_PLAYBACK_URL]: Awaited<
+    ReturnType<Window["electronAPI"]["clips"]["getPlaybackUrl"]>
+  >;
+  [IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY]: Awaited<
+    ReturnType<Window["electronAPI"]["videos"]["getByCategory"]>
+  >;
   [IPC_CHANNELS.VIDEOS_GET_BY_CHANNEL]: PaginatedIpcResult<DisplayVideo[]>;
   [IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID]: IpcResult<LivestreamVideo>;
   [IPC_CHANNELS.VIDEOS_GET_METADATA]: IpcResult<VideoMetadata>;
-  [IPC_CHANNELS.VIDEOS_GET_PLAYBACK_URL]: Awaited<ReturnType<Window["electronAPI"]["videos"]["getPlaybackUrl"]>>;
+  [IPC_CHANNELS.VIDEOS_GET_PLAYBACK_URL]: Awaited<
+    ReturnType<Window["electronAPI"]["videos"]["getPlaybackUrl"]>
+  >;
 };
 
-function getHandler<Channel extends keyof VideoHandlerResults>(channel: Channel): Handler<VideoHandlerResults[Channel]> {
+function getHandler<Channel extends keyof VideoHandlerResults>(
+  channel: Channel
+): Handler<VideoHandlerResults[Channel]> {
   const calls = vi.mocked(ipcMain.handle).mock.calls;
   const call = calls.find(([c]) => c === channel);
   if (!call) throw new Error(`handler not registered: ${channel}`);
@@ -1229,7 +1352,15 @@ describe("IPC handlers - CLIPS_GET_BY_CATEGORY", () => {
   });
 
   it("loads Kick Clips from the native Category slug", async () => {
-    const clips = [kickCategoryClip()];
+    const clips = [
+      kickCategoryClip(),
+      kickCategoryClip({
+        id: "wrong-id",
+        gameId: "99",
+        gameName: "Fortnite",
+        category: "Fortnite",
+      }),
+    ];
     getClipsByCategoryMock.mockResolvedValue({ data: clips, cursor: "next-page" });
     const request = {
       platform: "kick" as const,
@@ -1252,7 +1383,7 @@ describe("IPC handlers - CLIPS_GET_BY_CATEGORY", () => {
     expect(result).toEqual({
       success: true,
       availability: "available",
-      data: clips,
+      data: [clips[0]],
       cursor: "next-page",
     });
   });
@@ -1293,14 +1424,17 @@ describe("IPC handlers - CLIPS_GET_BY_CATEGORY", () => {
       cursor: "next-page",
     });
 
-    const result = await getHandler(IPC_CHANNELS.CLIPS_GET_BY_CATEGORY)({}, {
-      platform: "twitch",
-      categoryId: "509658",
-      categoryName: "Just Chatting",
-      limit: 20,
-      sort: "views",
-      timeRange: "all",
-    });
+    const result = await getHandler(IPC_CHANNELS.CLIPS_GET_BY_CATEGORY)(
+      {},
+      {
+        platform: "twitch",
+        categoryId: "509658",
+        categoryName: "Just Chatting",
+        limit: 20,
+        sort: "views",
+        timeRange: "all",
+      }
+    );
 
     expect(twitchGetClipsByGameMock).toHaveBeenCalledWith("509658", {
       first: 20,
@@ -1326,31 +1460,183 @@ describe("IPC handlers - CLIPS_GET_BY_CATEGORY", () => {
   });
 });
 
-// Guards: Kick Category Videos remain explicitly unsupported instead of silently fanning out over live Channels.
+// Guards: Kick Category Videos aggregate the current category channels with bounded provider calls.
+// Guards: limited Category Video results represent distinct channels before repeating a channel.
+// Guards: an empty native Twitch game-video feed falls back to bounded live-channel VOD aggregation.
 describe("IPC handlers - VIDEOS_GET_BY_CATEGORY", () => {
   beforeEach(() => {
     vi.useRealTimers();
     vi.mocked(ipcMain.handle).mockReset();
     twitchGetVideosByGameMock.mockReset();
+    twitchGetVideosByChannelMock.mockReset();
+    twitchGetVideosByUserMock.mockReset();
+    twitchGetTopStreamsMock.mockReset();
     twitchGetUsersByIdMock.mockReset();
+    getStreamsByCategoryMock.mockReset();
+    getVideosMock.mockReset();
     registerVideoHandlers();
   });
 
-  it("returns the typed unsupported result for Kick", async () => {
-    const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY);
-    const result = await handler({}, {
-      platform: "kick",
-      categoryId: "15",
-      categorySlug: "just-chatting",
-      categoryName: "Just Chatting",
-      sort: "views",
+  it("loads, filters, sorts, and deduplicates Kick videos from category channels", async () => {
+    getStreamsByCategoryMock.mockResolvedValue({
+      data: [
+        {
+          id: "stream-1",
+          platform: "kick",
+          channelId: "channel-1",
+          channelName: "streamer",
+          channelDisplayName: "Streamer",
+          channelAvatar: "https://example.com/avatar.jpg",
+          title: "Live",
+          viewerCount: 42,
+          thumbnailUrl: "https://example.com/live.jpg",
+          isLive: true,
+          startedAt: "2026-01-01T00:00:00Z",
+          language: "en",
+          tags: [],
+          isMature: false,
+          categoryId: "15",
+          categoryName: "Just Chatting",
+        },
+      ],
     });
+    getVideosMock.mockResolvedValue({
+      data: [
+        kickVideo({ id: "popular", views: "100" }),
+        kickVideo({ id: "quiet", views: "1" }),
+        kickVideo({ id: "wrong-category", views: "999", category: "Gaming" }),
+        kickVideo({ id: "popular", views: "100" }),
+      ],
+    });
+    const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY);
+    const result = await handler(
+      {},
+      {
+        platform: "kick",
+        categoryId: "15",
+        categorySlug: "just-chatting",
+        categoryName: "Just Chatting",
+        limit: 1,
+        sort: "views",
+        direction: "asc",
+      }
+    );
 
+    expect(getStreamsByCategoryMock).toHaveBeenCalledWith("15", {
+      limit: 24,
+      categoryName: "Just Chatting",
+      cursor: undefined,
+    });
+    expect(getVideosMock).toHaveBeenCalledWith("streamer", { limit: 1, sort: "views" });
     expect(result).toEqual({
-      success: false,
-      availability: "unsupported",
-      errorCode: "unsupported",
-      error: "Kick does not provide a complete category-wide Video source",
+      success: true,
+      availability: "available",
+      data: [
+        expect.objectContaining({
+          id: "quiet",
+          channelId: "channel-1",
+          channelDisplayName: "Streamer",
+          gameId: "15",
+        }),
+        expect.objectContaining({ id: "popular" }),
+      ],
+      cursor: undefined,
+    });
+  });
+
+  it("includes one video per Kick channel before adding repeat videos", async () => {
+    getStreamsByCategoryMock.mockResolvedValue({
+      data: [
+        {
+          id: "stream-alpha",
+          platform: "kick",
+          channelId: "channel-alpha",
+          channelName: "alpha",
+          channelDisplayName: "Alpha",
+          channelAvatar: null,
+          title: "Alpha live",
+          viewerCount: 100,
+          thumbnailUrl: "https://example.com/alpha-live.jpg",
+          isLive: true,
+          startedAt: "2026-01-01T00:00:00Z",
+          language: "en",
+          tags: [],
+          isMature: false,
+          categoryId: "15",
+          categoryName: "Just Chatting",
+        },
+        {
+          id: "stream-beta",
+          platform: "kick",
+          channelId: "channel-beta",
+          channelName: "beta",
+          channelDisplayName: "Beta",
+          channelAvatar: null,
+          title: "Beta live",
+          viewerCount: 10,
+          thumbnailUrl: "https://example.com/beta-live.jpg",
+          isLive: true,
+          startedAt: "2026-01-01T00:00:00Z",
+          language: "en",
+          tags: [],
+          isMature: false,
+          categoryId: "15",
+          categoryName: "Just Chatting",
+        },
+      ],
+    });
+    getVideosMock.mockImplementation(async (channelName) => ({
+      data:
+        channelName === "alpha"
+          ? [
+              kickVideo({ id: "alpha-1", channelSlug: "alpha", views: "1000" }),
+              kickVideo({ id: "alpha-2", channelSlug: "alpha", views: "900" }),
+            ]
+          : [kickVideo({ id: "beta-1", channelSlug: "beta", views: "1" })],
+    }));
+
+    const result = await getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY)(
+      {},
+      {
+        platform: "kick",
+        categoryId: "15",
+        categorySlug: "just-chatting",
+        categoryName: "Just Chatting",
+        limit: 2,
+        sort: "views",
+        direction: "desc",
+      }
+    );
+
+    expectSuccessful(result);
+    expect(result.data.map((video) => video.id)).toEqual(["alpha-1", "beta-1", "alpha-2"]);
+  });
+
+  it("continues Kick category videos from the encoded channel cursor", async () => {
+    getStreamsByCategoryMock.mockResolvedValue({ data: [], cursor: "page-3" });
+
+    const result = await getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY)(
+      {},
+      {
+        platform: "kick",
+        categoryId: "15",
+        categoryName: "Just Chatting",
+        limit: 20,
+        sort: "date",
+        cursor: "channels:page-2",
+      }
+    );
+
+    expect(getStreamsByCategoryMock).toHaveBeenCalledWith("15", {
+      limit: 24,
+      categoryName: "Just Chatting",
+      cursor: "page-2",
+    });
+    expect(result).toEqual({
+      success: true,
+      availability: "available",
+      data: [],
+      cursor: "channels:page-3",
     });
   });
 
@@ -1392,13 +1678,16 @@ describe("IPC handlers - VIDEOS_GET_BY_CATEGORY", () => {
       cursor: "next-page",
     });
 
-    const result = await getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY)({}, {
-      platform: "twitch",
-      categoryId: "509658",
-      categoryName: "Just Chatting",
-      limit: 20,
-      sort: "views",
-    });
+    const result = await getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY)(
+      {},
+      {
+        platform: "twitch",
+        categoryId: "509658",
+        categoryName: "Just Chatting",
+        limit: 20,
+        sort: "views",
+      }
+    );
 
     expect(twitchGetVideosByGameMock).toHaveBeenCalledWith("509658", {
       first: 20,
@@ -1420,6 +1709,114 @@ describe("IPC handlers - VIDEOS_GET_BY_CATEGORY", () => {
         }),
       ],
       cursor: "next-page",
+    });
+  });
+
+  it("falls back to current Twitch category channels when the native game feed is empty", async () => {
+    twitchGetVideosByGameMock.mockResolvedValue({ data: [], cursor: undefined });
+    twitchGetTopStreamsMock.mockResolvedValue({
+      data: [
+        {
+          id: "stream-alpha",
+          platform: "twitch",
+          channelId: "channel-alpha",
+          channelName: "alpha",
+          channelDisplayName: "Alpha",
+          channelAvatar: "https://example.com/alpha.jpg",
+          title: "Alpha live",
+          viewerCount: 100,
+          thumbnailUrl: "https://example.com/alpha-live.jpg",
+          isLive: true,
+          startedAt: "2026-01-01T00:00:00Z",
+          language: "en",
+          tags: [],
+          categoryId: "509672",
+          categoryName: "IRL",
+        },
+        {
+          id: "stream-beta",
+          platform: "twitch",
+          channelId: "channel-beta",
+          channelName: "beta",
+          channelDisplayName: "Beta",
+          channelAvatar: "https://example.com/beta.jpg",
+          title: "Beta live",
+          viewerCount: 10,
+          thumbnailUrl: "https://example.com/beta-live.jpg",
+          isLive: true,
+          startedAt: "2026-01-01T00:00:00Z",
+          language: "en",
+          tags: [],
+          categoryId: "509672",
+          categoryName: "IRL",
+        },
+      ],
+      cursor: "stream-page-2",
+    });
+    twitchGetVideosByChannelMock.mockImplementation(async (channelName) => ({
+      data: [
+        {
+          id: `${channelName}-video`,
+          platform: "twitch",
+          channelId: `channel-${channelName}`,
+          channelName,
+          channelDisplayName: channelName === "alpha" ? "Alpha" : "Beta",
+          channelAvatar: `https://example.com/${channelName}.jpg`,
+          title: `${channelName} VOD`,
+          description: "",
+          thumbnailUrl: `https://example.com/${channelName}-vod.jpg`,
+          duration: 3600,
+          viewCount: channelName === "alpha" ? 1000 : 1,
+          publishedAt: "2026-01-01T00:00:00Z",
+          url: `https://www.twitch.tv/videos/${channelName}-video`,
+          type: "archive",
+        },
+      ],
+      cursor: undefined,
+    }));
+
+    const result = await getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY)(
+      {},
+      {
+        platform: "twitch",
+        categoryId: "509672",
+        categoryName: "IRL",
+        limit: 2,
+        sort: "views",
+        direction: "desc",
+        language: "en",
+      }
+    );
+
+    expect(twitchGetTopStreamsMock).toHaveBeenCalledWith({
+      first: 2,
+      gameId: "509672",
+      language: "en",
+      after: undefined,
+    });
+    expect(twitchGetVideosByChannelMock).toHaveBeenCalledTimes(2);
+    expectSuccessful(result);
+    expect(result.data.map((video) => video.id)).toEqual(["alpha-video", "beta-video"]);
+    expect(result.data.every((video) => video.gameId === "509672")).toBe(true);
+    expect(result.cursor).toBe("channels:stream-page-2");
+
+    await getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY)(
+      {},
+      {
+        platform: "twitch",
+        categoryId: "509672",
+        categoryName: "IRL",
+        limit: 2,
+        sort: "views",
+        cursor: "channels:stream-page-2",
+      }
+    );
+    expect(twitchGetVideosByGameMock).toHaveBeenCalledTimes(1);
+    expect(twitchGetTopStreamsMock).toHaveBeenLastCalledWith({
+      first: 2,
+      gameId: "509672",
+      language: undefined,
+      after: "stream-page-2",
     });
   });
 });
@@ -1511,10 +1908,18 @@ describe("IPC handlers - VIDEOS_GET_METADATA", () => {
 
   it("returns Kick video metadata from resolver", async () => {
     const metadata = {
-      id: "k1", title: "Kick VOD", channelId: "c1", channelName: "kickuser",
-      channelDisplayName: "Kick User", channelAvatar: null, views: 10, duration: "1:00",
-      createdAt: "2026-01-01T00:00:00Z", thumbnailUrl: "https://example.com/vod.jpg",
-      platform: "kick", category: "Just Chatting",
+      id: "k1",
+      title: "Kick VOD",
+      channelId: "c1",
+      channelName: "kickuser",
+      channelDisplayName: "Kick User",
+      channelAvatar: null,
+      views: 10,
+      duration: "1:00",
+      createdAt: "2026-01-01T00:00:00Z",
+      thumbnailUrl: "https://example.com/vod.jpg",
+      platform: "kick",
+      category: "Just Chatting",
     };
     kickResolverProto.getVideoMetadata.mockResolvedValue(metadata);
 
@@ -1545,9 +1950,7 @@ describe("IPC handlers - VIDEOS_GET_BY_CHANNEL", () => {
 
   it("returns mapped Twitch videos with game data", async () => {
     vi.mocked(twitchClient.getVideosByChannel).mockResolvedValue({
-      data: [
-        unifiedVideo({ id: "v1", title: "Stream 1", duration: 7200, viewCount: 1000 }),
-      ],
+      data: [unifiedVideo({ id: "v1", title: "Stream 1", duration: 7200, viewCount: 1000 })],
       cursor: "vc",
     });
     vi.mocked(twitchClient.getVideosGameData).mockResolvedValue({
@@ -1555,10 +1958,13 @@ describe("IPC handlers - VIDEOS_GET_BY_CHANNEL", () => {
     });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CHANNEL);
-    const result = await handler({}, {
-      platform: "twitch",
-      channelName: "TestChannel",
-    });
+    const result = await handler(
+      {},
+      {
+        platform: "twitch",
+        channelName: "TestChannel",
+      }
+    );
 
     expectSuccessful(result);
     expect(result.data).toHaveLength(1);
@@ -1592,11 +1998,14 @@ describe("IPC handlers - VIDEOS_GET_BY_CHANNEL", () => {
     vi.mocked(twitchClient.getVideosGameData).mockResolvedValue({});
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CHANNEL);
-    const result = await handler({}, {
-      platform: "twitch",
-      channelName: "test",
-      sort: "views",
-    });
+    const result = await handler(
+      {},
+      {
+        platform: "twitch",
+        channelName: "test",
+        sort: "views",
+      }
+    );
 
     expectSuccessful(result);
     expect(result.data[0].id).toBe("v2");
@@ -1604,19 +2013,19 @@ describe("IPC handlers - VIDEOS_GET_BY_CHANNEL", () => {
 
   it("returns Kick videos with client-side view sort", async () => {
     vi.mocked(kickClient.getVideos).mockResolvedValue({
-      data: [
-        kickVideo({ id: "k1", views: "50" }),
-        kickVideo({ id: "k2", views: "200" }),
-      ],
+      data: [kickVideo({ id: "k1", views: "50" }), kickVideo({ id: "k2", views: "200" })],
       cursor: "kc",
     });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CHANNEL);
-    const result = await handler({}, {
-      platform: "kick",
-      channelName: "kickuser",
-      sort: "views",
-    });
+    const result = await handler(
+      {},
+      {
+        platform: "kick",
+        channelName: "kickuser",
+        sort: "views",
+      }
+    );
 
     expectSuccessful(result);
     expect(result.data[0].id).toBe("k2");
@@ -1624,10 +2033,13 @@ describe("IPC handlers - VIDEOS_GET_BY_CHANNEL", () => {
 
   it("returns error for unsupported platform", async () => {
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CHANNEL);
-    const result = await handler({}, {
-      platform: "youtube",
-      channelName: "test",
-    });
+    const result = await handler(
+      {},
+      {
+        platform: "youtube",
+        channelName: "test",
+      }
+    );
 
     expect(result.success).toBe(false);
   });
@@ -1656,11 +2068,14 @@ describe("IPC handlers - CLIPS_GET_PLAYBACK_URL", () => {
 
   it("returns Kick clip URL directly with hls format for .m3u8", async () => {
     const handler = getHandler(IPC_CHANNELS.CLIPS_GET_PLAYBACK_URL);
-    const result = await handler({}, {
-      platform: "kick",
-      clipId: "k1",
-      clipUrl: "https://kick.com/clip.m3u8",
-    });
+    const result = await handler(
+      {},
+      {
+        platform: "kick",
+        clipId: "k1",
+        clipUrl: "https://kick.com/clip.m3u8",
+      }
+    );
 
     expectSuccessful(result);
     expect(result.data.url).toBe("https://kick.com/clip.m3u8");
@@ -1669,11 +2084,14 @@ describe("IPC handlers - CLIPS_GET_PLAYBACK_URL", () => {
 
   it("returns Kick clip URL with mp4 format for non-.m3u8 URLs", async () => {
     const handler = getHandler(IPC_CHANNELS.CLIPS_GET_PLAYBACK_URL);
-    const result = await handler({}, {
-      platform: "kick",
-      clipId: "k1",
-      clipUrl: "https://kick.com/clip.mp4",
-    });
+    const result = await handler(
+      {},
+      {
+        platform: "kick",
+        clipId: "k1",
+        clipUrl: "https://kick.com/clip.mp4",
+      }
+    );
 
     expectSuccessful(result);
     expect(result.data.format).toBe("mp4");
@@ -1707,16 +2125,24 @@ describe("IPC handlers - VIDEOS_GET_BY_LIVESTREAM_ID", () => {
     vi.mocked(kickClient.getVideos).mockResolvedValue({
       data: [
         kickVideo({ id: "v1", livestreamId: "999", title: "Wrong VOD" }),
-        kickVideo({ id: "v2", livestreamId: "123", title: "Correct VOD", source: "https://vod.m3u8" }),
+        kickVideo({
+          id: "v2",
+          livestreamId: "123",
+          title: "Correct VOD",
+          source: "https://vod.m3u8",
+        }),
       ],
       cursor: undefined,
     });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID);
-    const result = await handler({}, {
-      channelSlug: "test",
-      livestreamId: "123",
-    });
+    const result = await handler(
+      {},
+      {
+        channelSlug: "test",
+        livestreamId: "123",
+      }
+    );
 
     expectSuccessful(result);
     expect(result.data.id).toBe("v2");
@@ -1730,15 +2156,25 @@ describe("IPC handlers - VIDEOS_GET_BY_LIVESTREAM_ID", () => {
         cursor: "page2",
       })
       .mockResolvedValueOnce({
-        data: [kickVideo({ id: "v2", livestreamId: "target", title: "Found", source: "https://vod.m3u8" })],
+        data: [
+          kickVideo({
+            id: "v2",
+            livestreamId: "target",
+            title: "Found",
+            source: "https://vod.m3u8",
+          }),
+        ],
         cursor: undefined,
       });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID);
-    const result = await handler({}, {
-      channelSlug: "test",
-      livestreamId: "target",
-    });
+    const result = await handler(
+      {},
+      {
+        channelSlug: "test",
+        livestreamId: "target",
+      }
+    );
 
     expectSuccessful(result);
     expect(result.data.id).toBe("v2");
@@ -1752,10 +2188,13 @@ describe("IPC handlers - VIDEOS_GET_BY_LIVESTREAM_ID", () => {
     });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID);
-    const result = await handler({}, {
-      channelSlug: "test",
-      livestreamId: "nonexistent",
-    });
+    const result = await handler(
+      {},
+      {
+        channelSlug: "test",
+        livestreamId: "nonexistent",
+      }
+    );
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("VOD not found");
@@ -1768,10 +2207,13 @@ describe("IPC handlers - VIDEOS_GET_BY_LIVESTREAM_ID", () => {
     });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID);
-    const result = await handler({}, {
-      channelSlug: "test",
-      livestreamId: "never-found",
-    });
+    const result = await handler(
+      {},
+      {
+        channelSlug: "test",
+        livestreamId: "never-found",
+      }
+    );
 
     expect(result.success).toBe(false);
     expect(kickClient.getVideos).toHaveBeenCalledTimes(5);
@@ -1781,10 +2223,13 @@ describe("IPC handlers - VIDEOS_GET_BY_LIVESTREAM_ID", () => {
     vi.mocked(kickClient.getVideos).mockRejectedValue(new Error("network error"));
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID);
-    const result = await handler({}, {
-      channelSlug: "test",
-      livestreamId: "123",
-    });
+    const result = await handler(
+      {},
+      {
+        channelSlug: "test",
+        livestreamId: "123",
+      }
+    );
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("network error");
@@ -1793,16 +2238,24 @@ describe("IPC handlers - VIDEOS_GET_BY_LIVESTREAM_ID", () => {
   it("matches live_stream_id field variant", async () => {
     vi.mocked(kickClient.getVideos).mockResolvedValue({
       data: [
-        kickVideo({ id: "v1", live_stream_id: "123", title: "Matched", source: "https://vod.m3u8" }),
+        kickVideo({
+          id: "v1",
+          live_stream_id: "123",
+          title: "Matched",
+          source: "https://vod.m3u8",
+        }),
       ],
       cursor: undefined,
     });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID);
-    const result = await handler({}, {
-      channelSlug: "test",
-      livestreamId: "123",
-    });
+    const result = await handler(
+      {},
+      {
+        channelSlug: "test",
+        livestreamId: "123",
+      }
+    );
 
     expectSuccessful(result);
     expect(result.data.id).toBe("v1");
@@ -1815,10 +2268,13 @@ describe("IPC handlers - VIDEOS_GET_BY_LIVESTREAM_ID", () => {
     });
 
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_LIVESTREAM_ID);
-    const result = await handler({}, {
-      channelSlug: "test",
-      livestreamId: "123",
-    });
+    const result = await handler(
+      {},
+      {
+        channelSlug: "test",
+        livestreamId: "123",
+      }
+    );
 
     expect(result.success).toBe(false);
   });

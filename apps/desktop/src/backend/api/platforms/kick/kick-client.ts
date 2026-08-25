@@ -40,6 +40,7 @@ import * as SearchEndpoints from "./endpoints/search-endpoints";
 import * as StreamEndpoints from "./endpoints/stream-endpoints";
 import * as UserEndpoints from "./endpoints/user-endpoints";
 import * as VideoEndpoints from "./endpoints/video-endpoints";
+import { isKickNetworkFailure, isKickRequestCancellation } from "./kick-error-classification";
 import { acquireKickRequestSlot } from "./kick-network-health";
 import type { KickRequestor } from "./kick-requestor";
 import {
@@ -116,7 +117,7 @@ const kickRateLimiter = new KickRateLimiter();
 // ========== Image fetch dedupe + negative cache ==========
 // Renderer often double-fetches the same URL (StrictMode, remounts, two cards
 // for the same VOD), so we share the in-flight promise across concurrent calls.
-// Kick's S3-backed CDN returns AccessDenied for purged VOD thumbnails - those
+// Kick's S3-backed CDN returns AccessDenied for purged VOD thumbnails — those
 // URLs will never succeed, so we negative-cache 4xx responses to skip the round
 // trip on re-renders. Transient errors (timeouts, network) stay uncached.
 export interface KickImageBytes {
@@ -307,8 +308,8 @@ class KickClient implements KickRequestor, IPlatformReader {
     // designed for retry loops (API, stream polls) that benefit from a brief
     // back-off. Image reads have their own bounded retry below, and the
     // renderer retries custom-protocol failures in place. Previously, a
-    // single 3-second unhealthy window - rolled
-    // forward by concurrent net::ERR_FAILED bursts from other Kick callers -
+    // single 3-second unhealthy window — rolled
+    // forward by concurrent net::ERR_FAILED bursts from other Kick callers —
     // can leave the whole discover grid stuck on broken avatars/thumbnails.
     // The semaphore in `acquireKickRequestSlot` caps concurrency at 4, so
     // removing the gate doesn't re-introduce the thundering-herd it was
@@ -348,7 +349,7 @@ class KickClient implements KickRequestor, IPlatformReader {
 
         // 3s timeout (vs the default 15s for API calls): image fetches are
         // best-effort and now contend for the same 4-slot semaphore as API
-        // traffic during outages - see the bypass-justification block above.
+        // traffic during outages — see the bypass-justification block above.
         // Keep the first attempt short for a fast healthy grid, then retry the
         // same real provider URL once with a wider bounded budget. A one-off
         // timeout must not become a permanently missing thumbnail in the
@@ -378,7 +379,7 @@ class KickClient implements KickRequestor, IPlatformReader {
         const isPermanent = /^HTTP 4\d{2}$/.test(message);
         if (isPermanent) {
           _imageNegativeCache.set(url, Date.now() + _IMAGE_NEG_CACHE_TTL_MS);
-        } else if (/net::ERR_/.test(message)) {
+        } else if (isKickNetworkFailure(message)) {
           recordPlatformLocalNetError("kick");
         }
         const isQuiet = isPermanent || !isPlatformHealthy("kick");
@@ -509,7 +510,7 @@ class KickClient implements KickRequestor, IPlatformReader {
           if (response.statusCode === 401 && !retriedOn401) {
             // Token may have expired between the pre-flight ensureValidToken() and
             // the actual request. Attempt one refresh and update the Authorization
-            // header in-place - no recursive call to avoid infinite loops.
+            // header in-place — no recursive call to avoid infinite loops.
             logger.debug(
               "Kick:Client",
               "Kick user token rejected (401); attempting one-shot refresh"
@@ -521,7 +522,7 @@ class KickClient implements KickRequestor, IPlatformReader {
               headers.Authorization = `Bearer ${refreshed.accessToken}`;
               continue; // retry the same request with the new token
             }
-            // Refresh failed - kickAuthService already cleared state & emitted
+            // Refresh failed — kickAuthService already cleared state & emitted
             // 'session-expired'. Fall through to throw below.
           }
 
@@ -538,17 +539,21 @@ class KickClient implements KickRequestor, IPlatformReader {
         // Feed net::ERR_* into the health tracker so concurrent callers learn
         // about the outage and bail out of their own retry loops.
         const errMsg = error instanceof Error ? error.message : String(error);
-        if (/net::ERR_/.test(errMsg)) {
+        if (isKickNetworkFailure(errMsg)) {
           recordPlatformLocalNetError("kick");
         }
 
-        logger.error("Kick:Client", "Kick API request failed", {
-          endpoint,
-          error:
-            error instanceof Error
-              ? { name: error.name, message: error.message, stack: error.stack }
-              : String(error),
-        });
+        if (isKickRequestCancellation(errMsg)) {
+          logger.debug("Kick:Client", "Kick API request canceled", { endpoint });
+        } else {
+          logger.error("Kick:Client", "Kick API request failed", {
+            endpoint,
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message, stack: error.stack }
+                : String(error),
+          });
+        }
         throw error;
       }
     }
@@ -776,7 +781,7 @@ class KickClient implements KickRequestor, IPlatformReader {
   // isPlatformHealthy). This convenience returns a flat array; callers that
   // need the failure tag (notably syncFollowsOnLogin) should import
   // FollowEndpoints directly so a transient fetch failure doesn't get
-  // silently coerced into "user follows zero channels" - see U4/A1 in
+  // silently coerced into "user follows zero channels" — see U4/A1 in
   // docs/plans/2026-05-21-001-feat-kick-account-follows-import-plan.md.
 
   /**

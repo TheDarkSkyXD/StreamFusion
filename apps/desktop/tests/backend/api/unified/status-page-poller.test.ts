@@ -25,16 +25,21 @@ function fireEvent(event: HealthEvent) {
 
 function defaultKickStatusResponse(url: string | URL | Request): Response {
   const href = String(url);
-  if (href.includes("/api/services")) {
-    return new Response(JSON.stringify({ services: [{ name: "Other", status: "Operational" }] }), {
-      status: 200,
-    });
+  if (href.endsWith("/config.json")) {
+    return new Response(
+      JSON.stringify({
+        name: "Kick Status Page",
+        components: [{ name: "kick.com", status: "operational" }],
+        incidents: [],
+      }),
+      { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" } }
+    );
   }
   return new Response(JSON.stringify({}), { status: 200 });
 }
 
-// Guards: Kick status-page incidents tied only to Other/catch-all stay all-clear so the global outage banner only follows main system-status services.
-// Guards: a successful HTML response from Kick's JSON endpoint fails closed without warning spam or dependent requests, then backs off before retrying.
+// Guards: Kick's Datadog status-page config is the sole machine-readable source. The former
+// PagerDuty API routes now return an HTML shell with HTTP 200 and must never drive the banner.
 describe("status-page-poller (slice 08)", () => {
   let originalFetch: typeof globalThis.fetch;
   let platformHealth: typeof import("@/backend/api/unified/platform-health");
@@ -178,172 +183,41 @@ describe("status-page-poller (slice 08)", () => {
     expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("twitch", "all-clear");
   });
 
-  it("Kick: partial outage service produces 'confirmed-outage'", async () => {
+  it("Kick: current Datadog operational config produces 'all-clear' from one request", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ services: [{ name: "Platform", status: "Partial outage" }] }), {
-        status: 200,
-      })
+      new Response(
+        JSON.stringify({
+          name: "Kick Status Page",
+          components: [{ name: "kick.com", status: "operational", type: "Component" }],
+          incidents: [{ currentStatus: "resolved", resolved: true, title: "Resolved" }],
+        }),
+        { status: 200, headers: { "Content-Type": "text/plain; charset=utf-8" } }
+      )
     );
 
     await vi.advanceTimersByTimeAsync(60_000);
 
-    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith(
-      "kick",
-      "confirmed-outage",
-      expect.objectContaining({
-        summary: "Kick status: Partial outage.",
-        impact: "Partial outage",
-      })
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "https://status.kick.com/config.json",
+      expect.anything()
     );
-  });
-
-  it("Kick: PagerDuty posts + service IDs produce simple system-status detail and ignore HTML body", async () => {
-    vi.mocked(globalThis.fetch)
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            services: [
-              {
-                id: "PLATFORM",
-                name: "Platform",
-                display_name: "Platform",
-              },
-            ],
-          }),
-          { status: 200 }
-        )
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            posts: [
-              {
-                post_type: "incident",
-                latest_update: {
-                  status_id: "PSU2YIK",
-                  impacts: [{ service_id: "PLATFORM", severity_id: "PCAUUKL" }],
-                  message:
-                    "<p>KICK is currently experiencing a degraded performance. We are aware of this and looking into it.</p>",
-                },
-              },
-            ],
-          }),
-          { status: 200 }
-        )
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            post_enums: [
-              {
-                id: "PSU2YIK",
-                name: "investigating",
-                post_enum_type: "status",
-              },
-              {
-                id: "PCAUUKL",
-                name: "partial outage",
-                post_enum_type: "impacts",
-              },
-            ],
-          }),
-          { status: 200 }
-        )
-      );
-
-    await vi.advanceTimersByTimeAsync(60_000);
-
-    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith(
-      "kick",
-      "confirmed-outage",
-      expect.objectContaining({
-        summary: "Kick status: Partial outage.",
-        impact: "Partial outage",
-      })
-    );
-    expect(platformHealth.recordStatusPageSignal).not.toHaveBeenCalledWith(
-      "kick",
-      "confirmed-outage",
-      expect.objectContaining({
-        summary: expect.stringContaining("<p>"),
-      })
-    );
-  });
-
-  it("Kick: PagerDuty posts affecting only Other produce 'all-clear'", async () => {
-    vi.mocked(globalThis.fetch)
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            services: [
-              {
-                id: "P3CL6N4",
-                name: "KICK - Catch All",
-                display_name: "Other",
-              },
-            ],
-          }),
-          { status: 200 }
-        )
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            posts: [
-              {
-                post_type: "incident",
-                latest_update: {
-                  status_id: "PSU2YIK",
-                  impacts: [{ service_id: "P3CL6N4", severity_id: "PCAUUKL" }],
-                },
-              },
-            ],
-          }),
-          { status: 200 }
-        )
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            post_enums: [
-              {
-                id: "PSU2YIK",
-                name: "investigating",
-                post_enum_type: "status",
-              },
-              {
-                id: "PCAUUKL",
-                name: "partial outage",
-                post_enum_type: "impacts",
-              },
-            ],
-          }),
-          { status: 200 }
-        )
-      );
-
-    await vi.advanceTimersByTimeAsync(60_000);
-
     expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "all-clear");
   });
 
-  it("Kick: direct Other service outage produces 'all-clear'", async () => {
+  it("Kick: degraded Datadog component produces a readable confirmed outage", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(
       new Response(
-        JSON.stringify({ services: [{ name: "KICK - Other", status: "Partial outage" }] }),
-        { status: 200 }
-      )
-    );
-
-    await vi.advanceTimersByTimeAsync(60_000);
-
-    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "all-clear");
-  });
-
-  it("Kick: Data Services outage produces 'confirmed-outage'", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ services: [{ name: "Data Services", status: "Partial outage" }] }),
+        JSON.stringify({
+          components: [{ name: "kick.com", status: "degraded" }],
+          incidents: [
+            {
+              currentStatus: "investigating",
+              resolved: false,
+              title: "Playback is degraded",
+            },
+          ],
+        }),
         { status: 200 }
       )
     );
@@ -354,17 +228,48 @@ describe("status-page-poller (slice 08)", () => {
       "kick",
       "confirmed-outage",
       expect.objectContaining({
-        summary: "Kick status: Partial outage.",
-        impact: "Partial outage",
+        summary: "Kick status: Degraded.",
+        impact: "Degraded",
+        headline: "Playback is degraded",
       })
     );
   });
 
-  it("Kick: major outage service wording is forwarded as status-page detail", async () => {
+  it("Kick: unresolved Datadog incident is an outage even before the component degrades", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ services: [{ name: "Platform", status: "Major outage" }] }), {
-        status: 200,
+      new Response(
+        JSON.stringify({
+          components: [{ name: "kick.com", status: "operational" }],
+          incidents: [
+            { currentStatus: "investigating", resolved: false, title: "Investigating errors" },
+          ],
+        }),
+        { status: 200 }
+      )
+    );
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith(
+      "kick",
+      "confirmed-outage",
+      expect.objectContaining({
+        summary: "Kick status: Investigating.",
+        impact: "Investigating",
+        headline: "Investigating errors",
       })
+    );
+  });
+
+  it("Kick: major_outage Datadog status is normalized for the banner", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          components: [{ name: "kick.com", status: "major_outage" }],
+          incidents: [],
+        }),
+        { status: 200 }
+      )
     );
 
     await vi.advanceTimersByTimeAsync(60_000);
@@ -379,18 +284,6 @@ describe("status-page-poller (slice 08)", () => {
     );
   });
 
-  it("Kick: operational services produce 'all-clear'", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
-      new Response(JSON.stringify({ services: [{ name: "Other", status: "Operational" }] }), {
-        status: 200,
-      })
-    );
-
-    await vi.advanceTimersByTimeAsync(60_000);
-
-    expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "all-clear");
-  });
-
   it("fetch failure produces 'no-signal' (never throws)", async () => {
     vi.mocked(globalThis.fetch).mockRejectedValue(new Error("network error"));
 
@@ -399,7 +292,7 @@ describe("status-page-poller (slice 08)", () => {
     expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "no-signal");
   });
 
-  it("Kick: HTML from the services endpoint fails closed and backs off without warning spam", async () => {
+  it("Kick: HTML from config fails closed and backs off without warning spam", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
       new Response("<!doctype html><html><body>Status page</body></html>", {
         status: 200,
@@ -411,7 +304,7 @@ describe("status-page-poller (slice 08)", () => {
     await vi.advanceTimersByTimeAsync(5 * 60_000);
 
     const urls = vi.mocked(globalThis.fetch).mock.calls.map(([url]) => String(url));
-    expect(urls).toEqual(["https://status.kick.com/api/services"]);
+    expect(urls).toEqual(["https://status.kick.com/config.json"]);
     expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "no-signal");
     expect(platformHealth.recordStatusPageSignal).not.toHaveBeenCalledWith(
       "kick",
@@ -482,7 +375,7 @@ describe("status-page-poller (slice 08)", () => {
     ];
     expect(tag).toBe("StatusPoller");
     expect(message).toContain("[poller-r9c2]");
-    expect(meta.url).toBe("https://status.kick.com/api/services");
+    expect(meta.url).toBe("https://status.kick.com/config.json");
     expect(typeof meta.err).toBe("string");
     expect((meta.err as string).length).toBeGreaterThan(0);
     expect(platformHealth.recordStatusPageSignal).toHaveBeenCalledWith("kick", "no-signal");

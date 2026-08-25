@@ -676,11 +676,11 @@ async function fetchKickWebApiGetWithinDeadline(path: string): Promise<KickWebAp
     };
   }
 
-  logger.info("Kick:SendWindow", "Kick web API GET phase", { phase: "request-start" });
+  logger.debug("Kick:SendWindow", "Kick web API GET phase", { phase: "request-start" });
   const directResult = await tryDirectKickWebApiGet(path);
   if (directResult) return directResult;
 
-  logger.info("Kick:SendWindow", "Kick web API GET phase", { phase: "renderer-fallback" });
+  logger.debug("Kick:SendWindow", "Kick web API GET phase", { phase: "renderer-fallback" });
   try {
     await ensureSendWindowReady();
   } catch (error) {
@@ -701,7 +701,7 @@ async function fetchKickWebApiGetWithinDeadline(path: string): Promise<KickWebAp
           : "Kick web API session was not ready before the deadline.",
     };
   }
-  logger.info("Kick:SendWindow", "Kick web API GET phase", { phase: "ready" });
+  logger.debug("Kick:SendWindow", "Kick web API GET phase", { phase: "ready" });
   if (!sendWindow || sendWindow.isDestroyed() || latestKickWebBearer === null) {
     return {
       ok: false,
@@ -735,7 +735,7 @@ export async function fetchKickWebApiGet(path: string): Promise<KickWebApiGetRes
         // timer-allowlist: hard wall-clock bound for readiness, reload, and renderer execution.
         deadline = setTimeout(() => {
           void disposeSendWindow();
-          logger.info("Kick:SendWindow", "Kick web API GET phase", {
+          logger.warn("Kick:SendWindow", "Kick web API GET phase", {
             phase: "ready-failed",
             reason: "deadline",
           });
