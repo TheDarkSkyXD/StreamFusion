@@ -61,6 +61,8 @@ vi.mock("@/backend/services/storage-service", () => ({
     getActiveFollowsByPlatform: vi.fn(),
     getLocalFollowsByPlatform: vi.fn(),
     updateLocalFollow: vi.fn(),
+    getKickFollowedStreamsCache: vi.fn(),
+    saveKickFollowedStreamsCache: vi.fn(),
   },
 }));
 
@@ -178,6 +180,7 @@ beforeEach(() => {
   databaseLifecycle.initialize();
   vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([]);
   vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([]);
+  vi.mocked(storageService.getKickFollowedStreamsCache).mockReturnValue(undefined);
   vi.mocked(kickClient.getStreamsByBroadcasterIds).mockResolvedValue([]);
   registerStreamHandlers();
 });
@@ -233,10 +236,7 @@ describe("STREAMS_GET_TOP", () => {
       stream("t1", "twitch", 300),
       stream("t2", "twitch", 100),
     ]);
-    const kickReader = reader("kick", [
-      stream("k1", "kick", 200),
-      stream("k2", "kick", 50),
-    ]);
+    const kickReader = reader("kick", [stream("k1", "kick", 200), stream("k2", "kick", 50)]);
     vi.mocked(clients.all).mockReturnValue([twitchReader, kickReader]);
 
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_TOP);
@@ -382,7 +382,26 @@ describe("STREAMS_GET_FOLLOWED", () => {
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_FOLLOWED);
     const result = await handler({}, { platform: "kick" });
 
-    expect(result.error).toContain("429");
+    expect(result).toEqual({ success: true, platform: "kick", data: [] });
+    expect(kickClient.getPublicStreamBySlug).not.toHaveBeenCalled();
+  });
+
+  it("reuses a recent persisted Kick snapshot without making restart network calls", async () => {
+    const cachedStream = stream("cached-kick", "kick", 42);
+    vi.mocked(storageService.getKickFollowedStreamsCache).mockReturnValue({
+      cachedAt: Date.now(),
+      streams: [cachedStream],
+    });
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) =>
+      platform === "kick" ? [follow("cached-kick")] : []
+    );
+
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_FOLLOWED);
+    const result = await handler({}, { platform: "kick" });
+
+    expect(result.data).toEqual([cachedStream]);
+    expect(kickClient.getFollowedStreams).not.toHaveBeenCalled();
+    expect(kickClient.getStreamsByBroadcasterIds).not.toHaveBeenCalled();
     expect(kickClient.getPublicStreamBySlug).not.toHaveBeenCalled();
   });
 

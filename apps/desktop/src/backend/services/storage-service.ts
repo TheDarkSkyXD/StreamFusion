@@ -849,6 +849,30 @@ class StorageService {
     this.storeInstance.set("windowBounds", bounds);
   }
 
+  // ========== Kick API continuity (Electron Store) ==========
+
+  getKickApiRateLimitState(): StorageSchema["kickApiRateLimit"] {
+    return this.storeInstance.get("kickApiRateLimit");
+  }
+
+  saveKickApiRateLimitState(state: NonNullable<StorageSchema["kickApiRateLimit"]>): void {
+    this.storeInstance.set("kickApiRateLimit", state);
+  }
+
+  clearKickApiRateLimitState(): void {
+    this.storeInstance.delete("kickApiRateLimit");
+  }
+
+  getKickFollowedStreamsCache(): StorageSchema["kickFollowedStreamsCache"] {
+    return this.storeInstance.get("kickFollowedStreamsCache");
+  }
+
+  saveKickFollowedStreamsCache(
+    snapshot: NonNullable<StorageSchema["kickFollowedStreamsCache"]>
+  ): void {
+    this.storeInstance.set("kickFollowedStreamsCache", snapshot);
+  }
+
   // ========== Downloads Queue (Electron Store) ==========
 
   getDownloadQueue(): DownloadQueueSnapshot {

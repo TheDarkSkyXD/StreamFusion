@@ -16,6 +16,8 @@ import {
 
 export const KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS = 0;
 const FOLLOWED_STREAM_REQUEST_TTL_MS = 5_000;
+const KICK_FOLLOWED_RESTART_CACHE_TTL_MS = 60_000;
+const KICK_FOLLOWED_RATE_LIMIT_STALE_TTL_MS = 15 * 60_000;
 
 type FollowedStreamResponse =
   | { success: true; data: UnifiedStream[]; platform?: Platform; cursor?: string; error?: string }
@@ -26,6 +28,33 @@ const followedStreamResponses = new Map<
   { expiresAt: number; response: FollowedStreamResponse }
 >();
 const followedStreamRequests = new Map<string, Promise<FollowedStreamResponse>>();
+
+function readKickFollowedStreamsCache(maxAgeMs: number, now = Date.now()): UnifiedStream[] | null {
+  const snapshot = storageService.getKickFollowedStreamsCache();
+  if (!snapshot || !Number.isFinite(snapshot.cachedAt) || now - snapshot.cachedAt > maxAgeMs) {
+    return null;
+  }
+
+  const streams = snapshot.streams.filter(isCachedKickStream);
+  return streams.length === snapshot.streams.length ? streams : null;
+}
+
+function isCachedKickStream(value: unknown): value is UnifiedStream {
+  if (!value || typeof value !== "object") return false;
+  const stream = value as Partial<UnifiedStream>;
+  return (
+    stream.platform === "kick" &&
+    typeof stream.id === "string" &&
+    typeof stream.channelId === "string" &&
+    typeof stream.channelName === "string" &&
+    typeof stream.channelDisplayName === "string" &&
+    typeof stream.title === "string" &&
+    typeof stream.viewerCount === "number" &&
+    typeof stream.thumbnailUrl === "string" &&
+    stream.isLive === true &&
+    Array.isArray(stream.tags)
+  );
+}
 
 function collapseFollowedStreamRequest(
   params: { platform?: Platform; limit?: number; cursor?: string },
@@ -268,241 +297,272 @@ export function registerStreamHandlers(): void {
 
       return collapseFollowedStreamRequest(params, async () => {
         try {
-        const results: { platform: Platform; data: UnifiedStream[]; cursor?: string }[] = [];
+          const results: { platform: Platform; data: UnifiedStream[]; cursor?: string }[] = [];
 
-        const fetchTwitchFollowed = async () => {
-          const localTwitch = storageService.getActiveFollowsByPlatform("twitch");
-          const twitchStreams: UnifiedStream[] = [];
-          const seenIds = new Set<string>();
+          const fetchTwitchFollowed = async () => {
+            const localTwitch = storageService.getActiveFollowsByPlatform("twitch");
+            const twitchStreams: UnifiedStream[] = [];
+            const seenIds = new Set<string>();
 
-          // 1. Remote (User Authenticated)
-          if (twitchClient.isAuthenticated()) {
-            try {
-              const result = await twitchClient.getFollowedStreams({
-                first: params.limit || 100,
-                after: params.cursor,
-              });
-              result.data.forEach((s) => {
-                if (!seenIds.has(s.id)) {
-                  twitchStreams.push(s);
-                  seenIds.add(s.id);
-                }
-              });
-              results.push({ platform: "twitch", data: twitchStreams, cursor: result.cursor });
-            } catch (err) {
-              logger.warn("IPC:Stream", "Failed to fetch Twitch remote followed streams", {
-                error:
-                  err instanceof Error
-                    ? { name: err.name, message: err.message, stack: err.stack }
-                    : String(err),
-              });
-            }
-          }
-
-          // 2. Local Follows (GQL - no auth needed, works for guests)
-          if (localTwitch.length > 0) {
-            try {
-              // Use channel logins (not IDs) so GQL can handle this without auth
-              const loginsToFetch = [...new Set(localTwitch.map((f) => f.channelName))];
-
-              if (loginsToFetch.length > 0) {
-                try {
-                  const localStreamsResult = await twitchClient.getStreamsByLogins(loginsToFetch);
-                  localStreamsResult.data.forEach((s) => {
-                    if (!seenIds.has(s.id)) {
-                      twitchStreams.push(s);
-                      seenIds.add(s.id);
-                    }
-                  });
-                } catch (e) {
-                  logger.warn("IPC:Stream", "Failed to fetch local twitch streams via GQL", {
-                    error:
-                      e instanceof Error
-                        ? { name: e.name, message: e.message, stack: e.stack }
-                        : String(e),
-                  });
-                }
-
-                const existingTwitch = results.find((r) => r.platform === "twitch");
-                if (existingTwitch) {
-                  existingTwitch.data = twitchStreams;
-                } else if (twitchStreams.length > 0) {
-                  results.push({ platform: "twitch", data: twitchStreams });
-                }
-              }
-            } catch (err) {
-              logger.warn("IPC:Stream", "Failed to fetch Twitch local followed streams", {
-                error:
-                  err instanceof Error
-                    ? { name: err.name, message: err.message, stack: err.stack }
-                    : String(err),
-              });
-            }
-          }
-        };
-
-        const fetchKickFollowed = async () => {
-          const deferLocalFollowScan = shouldDeferKickStartupFollowedStreamScan(
-            params.platform,
-            Date.now(),
-            streamHandlersStartedAt
-          );
-          const localKick = storageService.getActiveFollowsByPlatform("kick");
-          const kickStreams: UnifiedStream[] = [];
-          const seenIds = new Set<string>();
-
-          // 1. Remote (User Authenticated)
-          if (kickClient.isAuthenticated()) {
-            try {
-              const result = await kickClient.getFollowedStreams({
-                limit: params.limit || 100,
-              });
-              result.data.forEach((s) => {
-                if (!seenIds.has(s.id)) {
-                  kickStreams.push(s);
-                  seenIds.add(s.id);
-                }
-              });
-            } catch (err) {
-              logger.warn("IPC:Stream", "Failed to fetch Kick remote followed streams", {
-                error:
-                  err instanceof Error
-                    ? { name: err.name, message: err.message, stack: err.stack }
-                    : String(err),
-              });
-            }
-          }
-
-          // 2. Local Follows (Guest/Public)
-          if (localKick.length > 0 && deferLocalFollowScan) {
-            logger.info("IPC:Stream", "Deferred Kick followed-stream scan during startup", {
-              followCount: localKick.length,
-              graceMs: KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS,
-            });
-          } else if (localKick.length > 0) {
-            const scanStartedAt = Date.now();
-            const uniqueSlugs = await getKickFollowScanSlugs(kickClient, localKick);
-            const stableBroadcasterIds = [
-              ...new Set(
-                localKick
-                  .map((follow) => parseKickBroadcasterUserId(follow.channelId))
-                  .filter((id): id is number => id !== null)
-              ),
-            ];
-            let officialLiveLookupSucceeded = stableBroadcasterIds.length === 0;
-
-            if (stableBroadcasterIds.length > 0) {
+            // 1. Remote (User Authenticated)
+            if (twitchClient.isAuthenticated()) {
               try {
-                const liveStreams =
-                  await kickClient.getStreamsByBroadcasterIds(stableBroadcasterIds);
-                for (const stream of liveStreams) {
-                  if (!seenIds.has(stream.id)) {
-                    kickStreams.push(stream);
-                    seenIds.add(stream.id);
+                const result = await twitchClient.getFollowedStreams({
+                  first: params.limit || 100,
+                  after: params.cursor,
+                });
+                result.data.forEach((s) => {
+                  if (!seenIds.has(s.id)) {
+                    twitchStreams.push(s);
+                    seenIds.add(s.id);
                   }
-                }
-                officialLiveLookupSucceeded = true;
+                });
+                results.push({ platform: "twitch", data: twitchStreams, cursor: result.cursor });
               } catch (err) {
-                if (isKickRateLimitError(err)) {
-                  logger.info(
-                    "IPC:Stream",
-                    "Kick live-status bulk lookup rate limited; preserving cached renderer data"
-                  );
-                  throw err;
-                }
-                logger.warn(
-                  "IPC:Stream",
-                  "Failed to fetch Kick live status via official livestreams API; falling back to slug scan",
-                  {
-                    error:
-                      err instanceof Error
-                        ? { name: err.name, message: err.message, stack: err.stack }
-                        : String(err),
-                  }
-                );
-              }
-            }
-
-            const slugsToScan = officialLiveLookupSucceeded
-              ? [
-                  ...new Set(
-                    localKick
-                      .filter((follow) => parseKickBroadcasterUserId(follow.channelId) === null)
-                      .map((follow) => follow.channelName)
-                      .filter(Boolean)
-                  ),
-                ]
-              : uniqueSlugs;
-
-            // Stagger by 60ms each so N parallel /channels/{slug} fetches don't
-            // fan-out on the same JS tick. The actual sleep lives inside
-            // getPublicStreamBySlug, after its cache check — so warm-cache
-            // polls return synchronously and only cache-miss work pays the
-            // dispatch spread. Use one AbortController per scan; the sidebar
-            // and /following page can query at the same time, and one visible
-            // query must not cancel the other into a partial/empty result.
-            const abort = new AbortController();
-
-            const fanOutStaggerMs = 60;
-            const settled = await Promise.allSettled(
-              slugsToScan.map((slug, i) =>
-                kickClient.getPublicStreamBySlug(slug, i * fanOutStaggerMs, abort.signal)
-              )
-            );
-
-            for (const result of settled) {
-              if (result.status === "fulfilled") {
-                if (result.value && !seenIds.has(result.value.id)) {
-                  kickStreams.push(result.value);
-                  seenIds.add(result.value.id);
-                }
-              } else if ((result.reason as Error)?.message !== "AbortError") {
-                logger.warn("IPC:Stream", "Failed to fetch Kick stream", {
+                logger.warn("IPC:Stream", "Failed to fetch Twitch remote followed streams", {
                   error:
-                    result.reason instanceof Error
-                      ? {
-                          name: result.reason.name,
-                          message: result.reason.message,
-                          stack: result.reason.stack,
-                        }
-                      : String(result.reason),
+                    err instanceof Error
+                      ? { name: err.name, message: err.message, stack: err.stack }
+                      : String(err),
                 });
               }
             }
 
-            logger.debug("IPC:Stream", "Completed Kick followed-stream scan", {
-              followCount: localKick.length,
-              officialIdCount: stableBroadcasterIds.length,
-              scannedCount: slugsToScan.length,
-              liveCount: kickStreams.length,
-              durationMs: Date.now() - scanStartedAt,
+            // 2. Local Follows (GQL - no auth needed, works for guests)
+            if (localTwitch.length > 0) {
+              try {
+                // Use channel logins (not IDs) so GQL can handle this without auth
+                const loginsToFetch = [...new Set(localTwitch.map((f) => f.channelName))];
+
+                if (loginsToFetch.length > 0) {
+                  try {
+                    const localStreamsResult = await twitchClient.getStreamsByLogins(loginsToFetch);
+                    localStreamsResult.data.forEach((s) => {
+                      if (!seenIds.has(s.id)) {
+                        twitchStreams.push(s);
+                        seenIds.add(s.id);
+                      }
+                    });
+                  } catch (e) {
+                    logger.warn("IPC:Stream", "Failed to fetch local twitch streams via GQL", {
+                      error:
+                        e instanceof Error
+                          ? { name: e.name, message: e.message, stack: e.stack }
+                          : String(e),
+                    });
+                  }
+
+                  const existingTwitch = results.find((r) => r.platform === "twitch");
+                  if (existingTwitch) {
+                    existingTwitch.data = twitchStreams;
+                  } else if (twitchStreams.length > 0) {
+                    results.push({ platform: "twitch", data: twitchStreams });
+                  }
+                }
+              } catch (err) {
+                logger.warn("IPC:Stream", "Failed to fetch Twitch local followed streams", {
+                  error:
+                    err instanceof Error
+                      ? { name: err.name, message: err.message, stack: err.stack }
+                      : String(err),
+                });
+              }
+            }
+          };
+
+          const fetchKickFollowed = async () => {
+            const restartSnapshot = readKickFollowedStreamsCache(
+              KICK_FOLLOWED_RESTART_CACHE_TTL_MS
+            );
+            if (restartSnapshot) {
+              results.push({ platform: "kick", data: restartSnapshot });
+              logger.debug("IPC:Stream", "Reused Kick followed-stream snapshot after restart", {
+                liveCount: restartSnapshot.length,
+              });
+              return;
+            }
+
+            const preserveSnapshotDuringCooldown = () => {
+              const snapshot =
+                readKickFollowedStreamsCache(KICK_FOLLOWED_RATE_LIMIT_STALE_TTL_MS) ?? [];
+              results.push({ platform: "kick", data: snapshot });
+              logger.info("IPC:Stream", "Kick rate limit active; reused followed-stream snapshot", {
+                liveCount: snapshot.length,
+              });
+            };
+            const deferLocalFollowScan = shouldDeferKickStartupFollowedStreamScan(
+              params.platform,
+              Date.now(),
+              streamHandlersStartedAt
+            );
+            const localKick = storageService.getActiveFollowsByPlatform("kick");
+            const kickStreams: UnifiedStream[] = [];
+            const seenIds = new Set<string>();
+
+            // 1. Remote (User Authenticated)
+            if (kickClient.isAuthenticated()) {
+              try {
+                const result = await kickClient.getFollowedStreams({
+                  limit: params.limit || 100,
+                });
+                result.data.forEach((s) => {
+                  if (!seenIds.has(s.id)) {
+                    kickStreams.push(s);
+                    seenIds.add(s.id);
+                  }
+                });
+              } catch (err) {
+                if (isKickRateLimitError(err)) {
+                  preserveSnapshotDuringCooldown();
+                  return;
+                }
+                logger.warn("IPC:Stream", "Failed to fetch Kick remote followed streams", {
+                  error:
+                    err instanceof Error
+                      ? { name: err.name, message: err.message, stack: err.stack }
+                      : String(err),
+                });
+              }
+            }
+
+            // 2. Local Follows (Guest/Public)
+            if (localKick.length > 0 && deferLocalFollowScan) {
+              logger.info("IPC:Stream", "Deferred Kick followed-stream scan during startup", {
+                followCount: localKick.length,
+                graceMs: KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS,
+              });
+            } else if (localKick.length > 0) {
+              const scanStartedAt = Date.now();
+              const uniqueSlugs = await getKickFollowScanSlugs(kickClient, localKick);
+              const stableBroadcasterIds = [
+                ...new Set(
+                  localKick
+                    .map((follow) => parseKickBroadcasterUserId(follow.channelId))
+                    .filter((id): id is number => id !== null)
+                ),
+              ];
+              let officialLiveLookupSucceeded = stableBroadcasterIds.length === 0;
+
+              if (stableBroadcasterIds.length > 0) {
+                try {
+                  const liveStreams =
+                    await kickClient.getStreamsByBroadcasterIds(stableBroadcasterIds);
+                  for (const stream of liveStreams) {
+                    if (!seenIds.has(stream.id)) {
+                      kickStreams.push(stream);
+                      seenIds.add(stream.id);
+                    }
+                  }
+                  officialLiveLookupSucceeded = true;
+                } catch (err) {
+                  if (isKickRateLimitError(err)) {
+                    preserveSnapshotDuringCooldown();
+                    return;
+                  }
+                  logger.warn(
+                    "IPC:Stream",
+                    "Failed to fetch Kick live status via official livestreams API; falling back to slug scan",
+                    {
+                      error:
+                        err instanceof Error
+                          ? { name: err.name, message: err.message, stack: err.stack }
+                          : String(err),
+                    }
+                  );
+                }
+              }
+
+              const slugsToScan = officialLiveLookupSucceeded
+                ? [
+                    ...new Set(
+                      localKick
+                        .filter((follow) => parseKickBroadcasterUserId(follow.channelId) === null)
+                        .map((follow) => follow.channelName)
+                        .filter(Boolean)
+                    ),
+                  ]
+                : uniqueSlugs;
+
+              // Stagger by 60ms each so N parallel /channels/{slug} fetches don't
+              // fan-out on the same JS tick. The actual sleep lives inside
+              // getPublicStreamBySlug, after its cache check — so warm-cache
+              // polls return synchronously and only cache-miss work pays the
+              // dispatch spread. Use one AbortController per scan; the sidebar
+              // and /following page can query at the same time, and one visible
+              // query must not cancel the other into a partial/empty result.
+              const abort = new AbortController();
+
+              const fanOutStaggerMs = 60;
+              const settled = await Promise.allSettled(
+                slugsToScan.map((slug, i) =>
+                  kickClient.getPublicStreamBySlug(slug, i * fanOutStaggerMs, abort.signal)
+                )
+              );
+
+              for (const result of settled) {
+                if (result.status === "fulfilled") {
+                  if (result.value && !seenIds.has(result.value.id)) {
+                    kickStreams.push(result.value);
+                    seenIds.add(result.value.id);
+                  }
+                } else if ((result.reason as Error)?.message !== "AbortError") {
+                  logger.warn("IPC:Stream", "Failed to fetch Kick stream", {
+                    error:
+                      result.reason instanceof Error
+                        ? {
+                            name: result.reason.name,
+                            message: result.reason.message,
+                            stack: result.reason.stack,
+                          }
+                        : String(result.reason),
+                  });
+                }
+              }
+
+              logger.debug("IPC:Stream", "Completed Kick followed-stream scan", {
+                followCount: localKick.length,
+                officialIdCount: stableBroadcasterIds.length,
+                scannedCount: slugsToScan.length,
+                liveCount: kickStreams.length,
+                durationMs: Date.now() - scanStartedAt,
+              });
+            }
+
+            const dedupedKickStreams = dedupeStreamsByChannelIdentity(kickStreams);
+            storageService.saveKickFollowedStreamsCache({
+              cachedAt: Date.now(),
+              streams: dedupedKickStreams,
             });
+            results.push({ platform: "kick", data: dedupedKickStreams });
+          };
+
+          if (!params.platform) {
+            await Promise.all([fetchTwitchFollowed(), fetchKickFollowed()]);
+          } else if (params.platform === "twitch") {
+            await fetchTwitchFollowed();
+          } else if (params.platform === "kick") {
+            await fetchKickFollowed();
           }
 
-          results.push({ platform: "kick", data: kickStreams });
-        };
+          if (!params.platform) {
+            const allStreams = dedupeStreamsByChannelIdentity(results.flatMap((r) => r.data));
+            allStreams.sort((a, b) => b.viewerCount - a.viewerCount);
+            return { success: true, data: allStreams };
+          }
 
-        if (!params.platform) {
-          await Promise.all([fetchTwitchFollowed(), fetchKickFollowed()]);
-        } else if (params.platform === "twitch") {
-          await fetchTwitchFollowed();
-        } else if (params.platform === "kick") {
-          await fetchKickFollowed();
-        }
-
-        if (!params.platform) {
-          const allStreams = dedupeStreamsByChannelIdentity(results.flatMap((r) => r.data));
-          allStreams.sort((a, b) => b.viewerCount - a.viewerCount);
-          return { success: true, data: allStreams };
-        }
-
-        const result = results[0];
-        return {
-          success: true,
-          ...(result || {}),
-          data: dedupeStreamsByChannelIdentity(result?.data || []),
-        };
+          const result = results[0];
+          return {
+            success: true,
+            ...(result || {}),
+            data: dedupeStreamsByChannelIdentity(result?.data || []),
+          };
         } catch (error) {
+          if (isKickRateLimitError(error)) {
+            return {
+              success: true,
+              data: readKickFollowedStreamsCache(KICK_FOLLOWED_RATE_LIMIT_STALE_TTL_MS) ?? [],
+            };
+          }
           logger.error("IPC:Stream", "Failed to get followed streams", {
             error:
               error instanceof Error

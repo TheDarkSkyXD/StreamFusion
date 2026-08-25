@@ -682,6 +682,17 @@ export interface StorageSchema {
   // Persisted clip and VOD download history/state
   downloadQueue: DownloadQueueSnapshot;
 
+  // Kick transport continuity across app restarts.
+  kickApiRateLimit?: {
+    blockedUntil: number;
+  };
+
+  // Validated by the backend before use; shared types stay API-shape agnostic.
+  kickFollowedStreamsCache?: {
+    cachedAt: number;
+    streams: unknown[];
+  };
+
   // Durable active/interrupted Stream Recording recovery state
   streamRecordingJournal: unknown;
 

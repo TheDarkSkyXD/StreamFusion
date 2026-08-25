@@ -27,10 +27,7 @@ import { clients } from "../../unified/registry";
 // Re-export common types for compatibility
 export type { PaginatedResult, PaginationOptions } from "./kick-types";
 
-import {
-  isPlatformHealthy,
-  recordPlatformLocalNetError,
-} from "../../unified/platform-health";
+import { isPlatformHealthy, recordPlatformLocalNetError } from "../../unified/platform-health";
 // Import endpoints
 import * as CategoryEndpoints from "./endpoints/category-endpoints";
 import * as ChannelEndpoints from "./endpoints/channel-endpoints";
@@ -42,6 +39,7 @@ import * as UserEndpoints from "./endpoints/user-endpoints";
 import * as VideoEndpoints from "./endpoints/video-endpoints";
 import { isKickNetworkFailure, isKickRequestCancellation } from "./kick-error-classification";
 import { acquireKickRequestSlot } from "./kick-network-health";
+import { KickRateLimitError, kickRateLimitGuard } from "./kick-rate-limit-guard";
 import type { KickRequestor } from "./kick-requestor";
 import {
   KICK_API_BASE,
@@ -410,6 +408,8 @@ class KickClient implements KickRequestor, IPlatformReader {
   }
 
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    options.signal?.throwIfAborted();
+    kickRateLimitGuard.assertRequestAllowed();
     let bearer = await this.getOfficialApiBearerToken();
 
     if (!bearer) {
@@ -460,27 +460,16 @@ class KickClient implements KickRequestor, IPlatformReader {
         );
 
         if (response.statusCode !== 200) {
-          // Handle rate limiting (429) with retry
+          // Persist authoritative server backpressure before returning. This
+          // prevents a rapid app restart from resetting the cooldown and
+          // repeating the rejected request.
           if (response.statusCode === 429) {
-            if (attempt >= maxAttempts) {
-              throw new Error(`Kick API error: 429 (Max attempts exceeded)`);
-            }
-
-            // Calculate backoff: 5s, 10s, 20s (longer delays for rate limiting)
-            // Use Retry-After header if available
             const retryHeader = response.responseHeaders["retry-after"];
-            const requestedBackoff = retryHeader ? parseInt(retryHeader, 10) * 1000 : 5000;
-            const backoff = Number.isFinite(requestedBackoff)
-              ? Math.min(Math.max(requestedBackoff, 0), 10_000)
-              : 5000;
-
-            logger.warn("Kick:Client", "Kick API 429 Too Many Requests; retrying", {
-              backoffMs: backoff,
-              attempt,
-              maxAttempts,
+            const rateLimitError = kickRateLimitGuard.recordRateLimit(retryHeader);
+            logger.info("Kick:Client", "Kick API cooldown recorded", {
+              retryAfterMs: rateLimitError.retryAfterMs,
             });
-            await sleep(backoff);
-            continue;
+            throw rateLimitError;
           }
 
           // Handle transient server errors (500-504) with retry
@@ -531,8 +520,7 @@ class KickClient implements KickRequestor, IPlatformReader {
 
         return response.data;
       } catch (error: unknown) {
-        // If it's a 429 error we deliberately threw above, re-throw it
-        if (error instanceof Error && error.message.includes("429")) {
+        if (error instanceof KickRateLimitError) {
           throw error;
         }
 

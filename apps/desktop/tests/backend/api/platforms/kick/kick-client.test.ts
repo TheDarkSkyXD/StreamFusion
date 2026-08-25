@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * ------------------------------------------------------------------ */
 const mockFetch = vi.fn<(...args: unknown[]) => Promise<Response>>();
 const mockSessionFetch = vi.fn<(...args: unknown[]) => Promise<Response>>();
+const rateLimitStore = vi.hoisted(() => ({ blockedUntil: undefined as number | undefined }));
 
 const _origRequire = Module.prototype.require;
 Module.prototype.require = function (id: string) {
@@ -41,6 +42,22 @@ vi.mock("@/backend/auth/kick-auth", () => ({
     ensureValidToken: vi.fn().mockResolvedValue(undefined),
     getAccessToken: vi.fn(() => "test-token"),
     refreshToken: vi.fn().mockResolvedValue(null),
+  },
+}));
+
+vi.mock("@/backend/services/storage-service", () => ({
+  storageService: {
+    getKickApiRateLimitState: vi.fn(() =>
+      rateLimitStore.blockedUntil === undefined
+        ? undefined
+        : { blockedUntil: rateLimitStore.blockedUntil }
+    ),
+    saveKickApiRateLimitState: vi.fn((state: { blockedUntil: number }) => {
+      rateLimitStore.blockedUntil = state.blockedUntil;
+    }),
+    clearKickApiRateLimitState: vi.fn(() => {
+      rateLimitStore.blockedUntil = undefined;
+    }),
   },
 }));
 
@@ -110,7 +127,10 @@ vi.mock("@/backend/api/platforms/kick/endpoints/video-endpoints", () => ({
   getVideosByChannelSlug: vi.fn(),
 }));
 
-import { isPlatformHealthy, recordPlatformLocalNetError } from "@/backend/api/unified/platform-health";
+import {
+  isPlatformHealthy,
+  recordPlatformLocalNetError,
+} from "@/backend/api/unified/platform-health";
 import { kickAuthService } from "@/backend/auth/kick-auth";
 import { logger } from "@/backend/logging/logger";
 
@@ -132,6 +152,7 @@ describe("KickClient", () => {
     vi.clearAllMocks();
     mockFetch.mockReset();
     mockSessionFetch.mockReset();
+    rateLimitStore.blockedUntil = undefined;
     vi.mocked(kickAuthService.isAuthenticated).mockReturnValue(true);
     vi.mocked(kickAuthService.getAccessToken).mockReturnValue("test-token");
     vi.mocked(kickAuthService.ensureValidToken).mockResolvedValue(true);
@@ -186,26 +207,25 @@ describe("KickClient", () => {
       expect(mockFetch.mock.calls[0][0]).toBe("https://custom.api.com/endpoint");
     });
 
-    it("retries on 429 with exponential backoff", async () => {
-      mockFetch
-        .mockResolvedValueOnce(jsonResponse({}, 429))
-        .mockResolvedValueOnce(jsonResponse({ result: "ok" }));
+    it("records a durable cooldown and does not amplify a 429 with a retry", async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({}, 429));
 
-      const result = await kickClient.request("/rate-limited");
-
-      expect(result).toEqual({ result: "ok" });
-      expect(mockFetch).toHaveBeenCalledTimes(2);
+      await expect(kickClient.request("/rate-limited")).rejects.toMatchObject({ status: 429 });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(rateLimitStore.blockedUntil).toBeGreaterThan(Date.now());
     });
 
-    it("throws after max retries on persistent 429", async () => {
-      mockFetch
-        .mockResolvedValueOnce(jsonResponse({}, 429))
-        .mockResolvedValueOnce(jsonResponse({}, 429))
-        .mockResolvedValueOnce(jsonResponse({}, 429))
-        .mockResolvedValueOnce(jsonResponse({}, 429));
+    it("blocks a request after a simulated app restart while the cooldown is active", async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({}, 429));
+      await expect(kickClient.request("/first-launch")).rejects.toMatchObject({ status: 429 });
 
-      await expect(kickClient.request("/always-429")).rejects.toThrow("429");
-      expect(mockFetch).toHaveBeenCalledTimes(2);
+      vi.resetModules();
+      const restartedClient = (await import("@/backend/api/platforms/kick/kick-client")).kickClient;
+
+      await expect(restartedClient.request("/second-launch")).rejects.toMatchObject({
+        status: 429,
+      });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
     it("retries on 502/503/504 server errors", async () => {
@@ -307,27 +327,22 @@ describe("KickClient", () => {
       );
     });
 
-    it("uses Retry-After header for 429 backoff when available", async () => {
-      const { sleep } = await import("@/lib/sleep");
+    it("uses Retry-After for a durable cooldown with a safe minimum", async () => {
+      const before = Date.now();
+      mockFetch.mockResolvedValueOnce(jsonResponse({}, 429, { "retry-after": "3" }));
 
-      mockFetch
-        .mockResolvedValueOnce(jsonResponse({}, 429, { "retry-after": "3" }))
-        .mockResolvedValueOnce(jsonResponse({ result: "ok" }));
-
-      await kickClient.request("/retry-after");
-
-      expect(sleep).toHaveBeenCalledWith(3000);
+      await expect(kickClient.request("/retry-after")).rejects.toMatchObject({ status: 429 });
+      expect(rateLimitStore.blockedUntil).toBeGreaterThanOrEqual(before + 60_000);
+      expect(rateLimitStore.blockedUntil).toBeLessThanOrEqual(Date.now() + 60_000);
     });
 
-    it("caps an excessive Retry-After delay", async () => {
-      const { sleep } = await import("@/lib/sleep");
-      mockFetch
-        .mockResolvedValueOnce(jsonResponse({}, 429, { "retry-after": "600" }))
-        .mockResolvedValueOnce(jsonResponse({ result: "ok" }));
+    it("honors a long Retry-After without holding the request open", async () => {
+      const before = Date.now();
+      mockFetch.mockResolvedValueOnce(jsonResponse({}, 429, { "retry-after": "600" }));
 
-      await kickClient.request("/retry-after");
-
-      expect(sleep).toHaveBeenCalledWith(10_000);
+      await expect(kickClient.request("/retry-after")).rejects.toMatchObject({ status: 429 });
+      expect(rateLimitStore.blockedUntil).toBeGreaterThanOrEqual(before + 600_000);
+      expect(rateLimitStore.blockedUntil).toBeLessThanOrEqual(Date.now() + 600_000);
     });
 
     it("does not start a request after caller cancellation", async () => {
