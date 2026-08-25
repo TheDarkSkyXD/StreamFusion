@@ -18,8 +18,7 @@ export function useDiagnosticsWorkspace(view: DiagnosticsView) {
     snapshot: null,
   });
   const leaseIdRef = useRef<string | null>(null);
-  const viewRef = useRef(view);
-  viewRef.current = view;
+  const initialViewRef = useRef(view);
 
   useEffect(() => startRendererDiagnosticsReporter(), []);
 
@@ -32,7 +31,7 @@ export function useDiagnosticsWorkspace(view: DiagnosticsView) {
     });
 
     void window.electronAPI.diagnostics
-      .openLease({ documentInstanceId, view: viewRef.current })
+      .openLease({ documentInstanceId, view: initialViewRef.current })
       .then(async (reply) => {
         if (reply.kind === "error") {
           if (!cancelled) {

@@ -1,5 +1,5 @@
 import type Hls from "hls.js";
-import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 
 import { useInterval } from "@/hooks/useInterval";
 import { logger } from "@/renderer/logging/logger";
@@ -54,39 +54,37 @@ export function useLivePlaybackStallRecovery({
   shouldSuppress,
 }: UseLivePlaybackStallRecoveryOptions): LivePlaybackStallRecovery {
   const generationRef = useRef(0);
-  const controllerRef = useRef<LivePlaybackStallController | null>(null);
   const suppressRef = useRef(shouldSuppress);
   const lastPresentedFrameAtRef = useRef<number | null>(null);
   const lastFragmentLoadedAtRef = useRef<number | null>(null);
   const lastEvaluatedCurrentTimeRef = useRef(0);
   const cleanFrameNotifiedRef = useRef(false);
+  const [controller] = useState(
+    () =>
+      new LivePlaybackStallController((transition) => {
+        logger.info("Player:HLS", "live playback stall transition", {
+          generation: generationRef.current,
+          ...transition,
+        });
+        if (transition.to === "soft" || transition.to === "hard") {
+          onRecoveryStateChangeRef?.current?.(true);
+        } else if (
+          transition.to === "healthy" ||
+          transition.to === "startup" ||
+          transition.to === "exhausted"
+        ) {
+          onRecoveryStateChangeRef?.current?.(false);
+        }
+      })
+  );
 
   useEffect(() => {
     suppressRef.current = shouldSuppress;
   }, [shouldSuppress]);
 
-  if (!controllerRef.current) {
-    controllerRef.current = new LivePlaybackStallController((transition) => {
-      logger.info("Player:HLS", "live playback stall transition", {
-        generation: generationRef.current,
-        ...transition,
-      });
-      if (transition.to === "soft" || transition.to === "hard") {
-        onRecoveryStateChangeRef?.current?.(true);
-      } else if (
-        transition.to === "healthy" ||
-        transition.to === "startup" ||
-        transition.to === "exhausted"
-      ) {
-        onRecoveryStateChangeRef?.current?.(false);
-      }
-    });
-  }
-
   useEffect(() => {
     const video = videoRef.current;
-    const controller = controllerRef.current;
-    if (!enabled || !video || !controller) return;
+    if (!enabled || !video) return;
 
     const generation = ++generationRef.current;
     controller.resetSource(generation, Date.now(), video.currentTime);
@@ -184,13 +182,12 @@ export function useLivePlaybackStallRecovery({
       generationRef.current = generation + 1;
       controller.resetSource(generation + 1, Date.now(), 0);
     };
-  }, [enabled, isActiveRef, onCleanPresentedFrameRef, onRecoveryStateChangeRef, sourceKey, videoRef]);
+  }, [controller, enabled, isActiveRef, onCleanPresentedFrameRef, sourceKey, videoRef]);
 
   useInterval(
     () => {
       const video = videoRef.current;
-      const controller = controllerRef.current;
-      if (!enabled || !video || !controller || !isActiveRef.current) return;
+      if (!enabled || !video || !isActiveRef.current) return;
 
       const action = controller.evaluate(Date.now(), {
         currentTime: video.currentTime,
@@ -238,16 +235,16 @@ export function useLivePlaybackStallRecovery({
   const noteFragmentLoaded = useCallback(() => {
     const now = Date.now();
     lastFragmentLoadedAtRef.current = now;
-    controllerRef.current?.noteFragmentLoaded(now);
-  }, []);
+    controller.noteFragmentLoaded(now);
+  }, [controller]);
 
   const noteManifestParsed = useCallback(() => {
-    controllerRef.current?.noteManifestParsed(Date.now());
-  }, []);
+    controller.noteManifestParsed(Date.now());
+  }, [controller]);
 
   const noteNetworkError = useCallback(() => {
-    controllerRef.current?.noteNetworkError(Date.now());
-  }, []);
+    controller.noteNetworkError(Date.now());
+  }, [controller]);
 
   return useMemo(
     () => ({ noteFragmentLoaded, noteManifestParsed, noteNetworkError }),

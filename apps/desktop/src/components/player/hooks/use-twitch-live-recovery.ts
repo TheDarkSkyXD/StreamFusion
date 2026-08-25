@@ -148,7 +148,9 @@ export function useTwitchLiveRecovery({
     exhaustedRef.current = false;
   }, []);
 
-  handleErrorRef.current = handleError;
+  useLayoutEffect(() => {
+    handleErrorRef.current = handleError;
+  }, [handleError]);
 
   return useMemo(
     () => ({ handleError, markPlaybackHealthy }),
