@@ -229,6 +229,27 @@ describe("user-endpoints", () => {
       expect(logger.error).not.toHaveBeenCalled();
     });
 
+    it("does not log an active official API cooldown as an error", async () => {
+      const rateLimitError = Object.assign(new Error("Kick API rate limit active"), {
+        name: "KickRateLimitError",
+        status: 429,
+      });
+      const client = createMockClient({
+        request: vi.fn().mockRejectedValueOnce(rateLimitError),
+      });
+
+      await expect(getUsersById(client, [1])).resolves.toEqual([]);
+
+      expect(logger.debug).toHaveBeenCalledWith(
+        "Kick:Endpoints:User",
+        "Failed to fetch Kick users",
+        expect.objectContaining({
+          error: expect.objectContaining({ name: "KickRateLimitError" }),
+        })
+      );
+      expect(logger.error).not.toHaveBeenCalled();
+    });
+
   });
 
   // Guards: explicit null following_since survives normalization distinctly from absent or malformed relationship data.

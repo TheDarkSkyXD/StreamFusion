@@ -815,6 +815,27 @@ describe("channel-endpoints", () => {
       );
       expect(logger.error).not.toHaveBeenCalled();
     });
+
+    it("treats an active official API cooldown as expected control flow", async () => {
+      const rateLimitError = Object.assign(new Error("Kick API rate limit active"), {
+        name: "KickRateLimitError",
+        status: 429,
+      });
+      const client = createMockClient({
+        request: vi.fn().mockRejectedValueOnce(rateLimitError),
+      });
+
+      await expect(getChannelsByBroadcasterIds(client, [123])).resolves.toEqual([]);
+
+      expect(logger.debug).toHaveBeenCalledWith(
+        "Kick:Endpoints:Channel",
+        "Failed to fetch Kick channels by broadcaster ID",
+        expect.objectContaining({
+          error: expect.objectContaining({ name: "KickRateLimitError" }),
+        })
+      );
+      expect(logger.error).not.toHaveBeenCalled();
+    });
   });
 
   // Guards: Kick broadcaster filters use OpenAPI collectionFormat multi instead of ignored bracket-suffixed parameters.

@@ -73,10 +73,10 @@ vi.mock("@/backend/logging/logger", () => ({
 import { app, ipcMain } from "electron";
 
 import { kickClient } from "@/backend/api/platforms/kick/kick-client";
+import { isKickRateLimitError } from "@/backend/api/platforms/kick/kick-error-classification";
 import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
 import { clients } from "@/backend/api/unified/registry";
 import {
-  isKickRateLimitError,
   KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS,
   registerStreamHandlers,
   shouldDeferKickStartupFollowedStreamScan,

@@ -579,6 +579,24 @@ describe("getStreamsByBroadcasterIds", () => {
 });
 
 describe("getStreamBySlug live-state authority", () => {
+  it("does not start a legacy request while the official API cooldown is active", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });
+    const { getStreamBySlug } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+    const rateLimitError = Object.assign(new Error("Kick API rate limit active; retry after 60s"), {
+      name: "KickRateLimitError",
+      status: 429,
+    });
+    const client = requestorFrom(vi.fn().mockRejectedValue(rateLimitError), true);
+
+    await expect(getStreamBySlug(client, "ac7ionman")).rejects.toBe(rateLimitError);
+    expect(mockState.state.netRequestCalls).toHaveLength(0);
+  });
+
   it("bypasses cached legacy offline evidence for an active-channel status refresh", async () => {
     vi.resetModules();
     vi.useRealTimers();

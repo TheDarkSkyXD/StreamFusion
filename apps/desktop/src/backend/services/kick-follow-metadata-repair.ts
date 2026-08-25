@@ -5,6 +5,7 @@ import {
 } from "@/lib/kick-channel-identity";
 import type { LocalFollow } from "../../shared/auth-types";
 import type { UnifiedChannel } from "../api/unified/platform-types";
+import { isKickRateLimitError } from "../api/platforms/kick/kick-error-classification";
 import { dbService } from "./database-service";
 import { storageService } from "./storage-service";
 
@@ -243,7 +244,8 @@ export async function repairKickFollowSlugs(
     try {
       channels = await kickClient.getChannelsByBroadcasterIds(ids);
     } catch (error) {
-      logger.warn("IPC:KickFollowRepair", "Failed to resolve Kick follow slugs by broadcaster ID", {
+      const log = isKickRateLimitError(error) ? logger.debug : logger.warn;
+      log("IPC:KickFollowRepair", "Failed to resolve Kick follow slugs by broadcaster ID", {
         error:
           error instanceof Error
             ? { name: error.name, message: error.message, stack: error.stack }
@@ -257,7 +259,8 @@ export async function repairKickFollowSlugs(
     try {
       slugChannels = await kickClient.getChannelsBySlugs(unresolvedSlugs);
     } catch (error) {
-      logger.warn("IPC:KickFollowRepair", "Failed to resolve legacy Kick follows by slug", {
+      const log = isKickRateLimitError(error) ? logger.debug : logger.warn;
+      log("IPC:KickFollowRepair", "Failed to resolve legacy Kick follows by slug", {
         error:
           error instanceof Error
             ? { name: error.name, message: error.message, stack: error.stack }

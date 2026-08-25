@@ -10,7 +10,11 @@ import {
   recordPlatformSuccess,
 } from "../../../unified/platform-health";
 import type { UnifiedChannel, UnifiedStream } from "../../../unified/platform-types";
-import { isKickNetworkFailure, isKickRequestCancellation } from "../kick-error-classification";
+import {
+  isKickNetworkFailure,
+  isKickRateLimitError,
+  isKickRequestCancellation,
+} from "../kick-error-classification";
 import { acquireKickRequestSlot } from "../kick-network-health";
 import { rememberKickLivePlaybackFromChannelPayload } from "../kick-playback-cache";
 import type { KickRequestor } from "../kick-requestor";
@@ -863,6 +867,7 @@ export async function getStreamBySlug(
           return stream;
         }
       } catch (error) {
+        if (isKickRateLimitError(error)) throw error;
         logger.warn("Kick:Endpoints:Stream", "Official stream details failed; trying legacy", {
           slug,
           error:
@@ -875,6 +880,7 @@ export async function getStreamBySlug(
       return createOfflineStreamEvidence(channel);
     }
   } catch (e) {
+    if (isKickRateLimitError(e)) throw e;
     logger.warn("Kick:Endpoints:Stream", "Official stream API failed; trying legacy", {
       slug,
       error: e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),

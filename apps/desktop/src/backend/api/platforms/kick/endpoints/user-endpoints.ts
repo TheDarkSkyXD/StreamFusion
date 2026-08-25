@@ -5,7 +5,7 @@ import type { KickUser } from "../../../../../shared/auth-types";
 import { kickAuthService } from "../../../../auth/kick-auth";
 import { getPlatformHealth } from "../../../unified/platform-health";
 import type { KickRequestor } from "../kick-requestor";
-import { isKickRequestCancellation } from "../kick-error-classification";
+import { isKickRateLimitError, isKickRequestCancellation } from "../kick-error-classification";
 import { createHiddenKickBrowserWindow } from "../kick-hidden-browser-window";
 import { KICK_LEGACY_API_V2_BASE, type KickApiResponse, type KickApiUser } from "../kick-types";
 
@@ -115,7 +115,10 @@ export async function getUsersById(client: KickRequestor, ids: number[]): Promis
     return await getUsersByIdStrict(client, ids);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const log = isKickRequestCancellation(message) ? logger.debug : logger.error;
+    const log =
+      isKickRequestCancellation(message) || isKickRateLimitError(error)
+        ? logger.debug
+        : logger.error;
     log("Kick:Endpoints:User", "Failed to fetch Kick users", {
       error:
         error instanceof Error

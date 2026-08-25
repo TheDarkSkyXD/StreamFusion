@@ -7,7 +7,7 @@ import type { KickChatroomSettings, UnifiedChannel } from "../../../unified/plat
 import type { SubscriberBadge } from "../../../../services/chat/kick-parser";
 import type { KickRequestor } from "../kick-requestor";
 import { createHiddenKickBrowserWindow } from "../kick-hidden-browser-window";
-import { isKickRequestCancellation } from "../kick-error-classification";
+import { isKickRateLimitError, isKickRequestCancellation } from "../kick-error-classification";
 import { requestPublicKickSession } from "../kick-session-request";
 import { transformKickChannel } from "../kick-transformers";
 import {
@@ -382,7 +382,10 @@ export async function getChannel(
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const log = isKickRequestCancellation(message) ? logger.debug : logger.warn;
+      const log =
+        isKickRequestCancellation(message) || isKickRateLimitError(error)
+          ? logger.debug
+          : logger.warn;
       log("Kick:Endpoints:Channel", "Official channel API failed", {
         slug,
         error:
@@ -452,6 +455,7 @@ export async function getChannelsBySlugs(
       .map(transformKickChannel);
     return await enrichChannelsWithKickUsers(client, channels);
   } catch (error) {
+    if (isKickRateLimitError(error)) throw error;
     const log = getKickChannelFailureLogger(error);
     log("Kick:Endpoints:Channel", "Failed to fetch Kick channels", {
       error:
@@ -675,7 +679,7 @@ function isKickOfficialAuthFailure(error: unknown): boolean {
 
 function getKickChannelFailureLogger(error: unknown): typeof logger.debug {
   const message = error instanceof Error ? error.message : String(error);
-  if (isKickRequestCancellation(message)) return logger.debug;
+  if (isKickRequestCancellation(message) || isKickRateLimitError(error)) return logger.debug;
   return isKickOfficialAuthFailure(error) ? logger.warn : logger.error;
 }
 

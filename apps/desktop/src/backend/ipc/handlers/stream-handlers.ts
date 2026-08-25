@@ -4,6 +4,7 @@ import { logger } from "@/backend/logging/logger";
 import { dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
 import type { Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
+import { isKickRateLimitError } from "../../api/platforms/kick/kick-error-classification";
 import type { IPlatformReader } from "../../api/unified/platform-reader";
 import type { UnifiedStream } from "../../api/unified/platform-types";
 import { clients } from "../../api/unified/registry";
@@ -80,11 +81,6 @@ function collapseFollowedStreamRequest(
     .finally(() => followedStreamRequests.delete(key));
   followedStreamRequests.set(key, request);
   return request;
-}
-
-export function isKickRateLimitError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /(?:\b429\b|rate[ -]?limit)/i.test(message);
 }
 
 export function shouldDeferKickStartupFollowedStreamScan(
