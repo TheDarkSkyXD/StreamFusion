@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import type { RefObject } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   LuClapperboard,
   LuHeart,
@@ -19,7 +19,6 @@ import type {
 import { CategoryGrid } from "@/components/discovery/category-grid";
 import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
 import { ClipCard } from "@/components/stream/related-content/ClipCard";
-import { ClipDialog } from "@/components/stream/related-content/ClipDialog";
 import { VideoCard } from "@/components/stream/related-content/VideoCard";
 import { StreamGrid } from "@/components/stream/stream-grid";
 import { StreamVerifiedBadge } from "@/components/stream/stream-verified-badge";
@@ -66,6 +65,11 @@ import { usePipStore } from "@/store/pip-store";
 type FollowingTab = "live" | "videos" | "clips" | "categories" | "channels";
 
 const CONTENT_PAGE_SIZE = 24;
+const ClipDialog = lazy(() =>
+  import("@/components/stream/related-content/ClipDialog").then((module) => ({
+    default: module.ClipDialog,
+  }))
+);
 const CATEGORY_THUMBNAIL_PRELOAD_LIMIT = CONTENT_PAGE_SIZE;
 const preloadedCategoryThumbnails = new Map<string, HTMLImageElement>();
 const EMPTY_FOLLOWED_CHANNELS: UnifiedChannel[] = [];
@@ -1168,20 +1172,24 @@ export function FollowingPage() {
         )}
       </div>
 
-      <ClipDialog
-        selectedClip={selectedClip}
-        onClose={() => setSelectedClip(null)}
-        clipLoading={isClipPlaybackLoading}
-        clipError={clipPlaybackError instanceof Error ? clipPlaybackError.message : null}
-        clipPlaybackUrl={clipPlayback?.url ?? null}
-        clipQualities={clipPlayback?.qualities}
-        platform={selectedClip?.platform ?? "twitch"}
-        channelName={selectedClip ? getContentChannelName(selectedClip) : ""}
-        channelData={selectedClip ? getContentChannel(selectedClip) : null}
-        onPlaybackError={() => {
-          void refetchClipPlayback();
-        }}
-      />
+      {selectedClip && (
+        <Suspense fallback={null}>
+          <ClipDialog
+            selectedClip={selectedClip}
+            onClose={() => setSelectedClip(null)}
+            clipLoading={isClipPlaybackLoading}
+            clipError={clipPlaybackError instanceof Error ? clipPlaybackError.message : null}
+            clipPlaybackUrl={clipPlayback?.url ?? null}
+            clipQualities={clipPlayback?.qualities}
+            platform={selectedClip.platform ?? "twitch"}
+            channelName={getContentChannelName(selectedClip)}
+            channelData={getContentChannel(selectedClip)}
+            onPlaybackError={() => {
+              void refetchClipPlayback();
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

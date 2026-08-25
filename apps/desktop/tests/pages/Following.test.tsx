@@ -275,6 +275,7 @@ function createDeferredRefresh() {
 // Guards: partnered/verified followed channels keep their platform badge on Following page cards, and live cards receive badge metadata before rendering through StreamGrid
 // Guards: mini-player continuity - the currently watched PiP stream identity is forwarded into the live grid so followed live cards can render selected while playback stays in the mini player
 // Guards: Videos and Clips tabs aggregate recent content from followed channels instead of rendering unavailable placeholders
+// Guards: clip playback loads on selection without delaying the default Live tab.
 // Guards: Videos and Clips tab filters are forwarded into followed-content queries
 // Guards: Videos and Clips tabs limit large followed-content lists behind an infinite-scroll sentinel so the page does not render every card at once
 // Guards: Categories tab uses the shared category-card grid rather than custom summary cards
@@ -1395,7 +1396,7 @@ describe("FollowingPage", () => {
     observer.restore();
   });
 
-  it("shows recent clips from followed channels and opens the clip dialog", () => {
+  it("shows recent clips from followed channels and opens the clip dialog", async () => {
     storeState.localFollows = [
       fixtures.channel({
         id: "clip-channel",
@@ -1428,7 +1429,7 @@ describe("FollowingPage", () => {
     fireEvent.click(screen.getByTestId("clip-card"));
 
     expect(screen.getByTestId("clip-card")).toHaveTextContent("Followed Channel Clip");
-    expect(screen.getByTestId("clip-dialog")).toHaveTextContent("Followed Channel Clip");
+    expect(await screen.findByTestId("clip-dialog")).toHaveTextContent("Followed Channel Clip");
     expect(screen.getByText("Filter by:")).toBeInTheDocument();
     expect(screen.getByText("All Time")).toBeInTheDocument();
     expect(screen.getByText("Sort by:")).toBeInTheDocument();
