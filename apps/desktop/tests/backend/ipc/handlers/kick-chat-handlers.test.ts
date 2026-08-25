@@ -15,7 +15,9 @@ vi.mock("@/backend/api/platforms/kick/kick-send-window", () => ({
   unbanKickChatUser: vi.fn(),
   deleteKickChatMessage: vi.fn(),
   disposeSendWindow: vi.fn(),
-  setSendWindowChatActive: vi.fn(),
+  retainSendWindowForComposer: vi.fn(),
+  releaseSendWindowForComposer: vi.fn(),
+  releaseSendWindowComposerLeasesForOwner: vi.fn(),
 }));
 
 import { ipcMain } from "electron";
@@ -26,6 +28,9 @@ import {
   disposeSendWindow,
   ensureSendWindowReady,
   getKickChannelViewerRole,
+  releaseSendWindowComposerLeasesForOwner,
+  releaseSendWindowForComposer,
+  retainSendWindowForComposer,
   sendKickChatMessage,
   timeoutKickChatUser,
   unbanKickChatUser,
@@ -62,6 +67,49 @@ describe("registerKickChatHandlers", () => {
     expect(channels).toContain(IPC_CHANNELS.KICK_CHAT_DELETE_MESSAGE);
     expect(channels).toContain(IPC_CHANNELS.KICK_CHAT_GET_VIEWER_ROLE);
     expect(channels).toContain(IPC_CHANNELS.KICK_CHAT_DISPOSE_SEND_WINDOW);
+    expect(channels).toContain(IPC_CHANNELS.KICK_CHAT_SET_SEND_WINDOW_COMPOSER_RETENTION);
+  });
+});
+
+describe("KICK_CHAT_SET_SEND_WINDOW_COMPOSER_RETENTION", () => {
+  function createSender(id: number) {
+    const listeners = new Map<string, () => void>();
+    const sender = {
+      id,
+      on: vi.fn((event: string, listener: () => void) => listeners.set(event, listener)),
+    };
+    return { sender, listeners };
+  }
+
+  it("scopes composer leases to the sender and releases them on renderer failure", async () => {
+    const { sender, listeners } = createSender(17);
+    const event = {
+      sender,
+      senderFrame: { url: "http://localhost:5173/#/stream/kick/xqc" },
+    };
+    const handler = getHandler(IPC_CHANNELS.KICK_CHAT_SET_SEND_WINDOW_COMPOSER_RETENTION);
+
+    await handler(event, { kind: "retain", leaseId: "kick-chat-service" });
+    expect(retainSendWindowForComposer).toHaveBeenCalledWith(17, "kick-chat-service");
+
+    await handler(event, { kind: "release", leaseId: "kick-chat-service" });
+    expect(releaseSendWindowForComposer).toHaveBeenCalledWith(17, "kick-chat-service");
+
+    listeners.get("render-process-gone")?.();
+    expect(releaseSendWindowComposerLeasesForOwner).toHaveBeenCalledWith(17);
+  });
+
+  it("rejects malformed lease changes", async () => {
+    const { sender } = createSender(23);
+    const handler = getHandler(IPC_CHANNELS.KICK_CHAT_SET_SEND_WINDOW_COMPOSER_RETENTION);
+
+    await handler(
+      { sender, senderFrame: { url: "http://localhost:5173/#/stream/kick/xqc" } },
+      { kind: "retain", leaseId: "" }
+    );
+
+    expect(retainSendWindowForComposer).not.toHaveBeenCalled();
+    expect(releaseSendWindowForComposer).not.toHaveBeenCalled();
   });
 });
 

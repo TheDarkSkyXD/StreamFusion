@@ -51,6 +51,9 @@ import {
   isKickWebApiReady,
   isSanctumBearer,
   parseKickChannelViewerRoleBody,
+  releaseSendWindowComposerLeasesForOwner,
+  releaseSendWindowForComposer,
+  retainSendWindowForComposer,
   setBearerForTest,
   timeoutKickChatUser,
   type KickSendResult,
@@ -1581,5 +1584,88 @@ describe("disposeSendWindow", () => {
 
   it("is a no-op when no window exists", async () => {
     await expect(disposeSendWindow()).resolves.toBeUndefined();
+  });
+});
+
+describe("composer-owned idle reaping", () => {
+  it("waits for the final composer lease before destroying the hidden window", async () => {
+    vi.useFakeTimers();
+    const destroy = vi.fn();
+    const fakeWin = {
+      loadURL: vi.fn(() => {
+        setBearerForTest("Bearer 1|abc");
+        return Promise.resolve();
+      }),
+      webContents: {
+        executeJavaScript: vi.fn(() => Promise.resolve(true)),
+        on: vi.fn(),
+        session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
+      },
+      destroy,
+      isDestroyed: vi.fn(() => false),
+    };
+    BrowserWindowMock.mockImplementation(function (this: unknown) {
+      return fakeWin;
+    });
+
+    try {
+      await ensureSendWindowReady();
+      retainSendWindowForComposer(7, "first");
+      retainSendWindowForComposer(7, "second");
+      releaseSendWindowForComposer(7, "first");
+
+      await vi.advanceTimersByTimeAsync(5_100);
+      expect(destroy).not.toHaveBeenCalled();
+
+      releaseSendWindowComposerLeasesForOwner(7);
+      await vi.advanceTimersByTimeAsync(5_100);
+      expect(destroy).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not reap the window while a web mutation is still executing", async () => {
+    vi.useFakeTimers();
+    const destroy = vi.fn();
+    let resolveMutation: ((value: string) => void) | undefined;
+    const executeJavaScript = vi.fn((source: string) => {
+      if (source.includes("/api/v2/channels/xqc/follow")) {
+        return new Promise<string>((resolve) => {
+          resolveMutation = resolve;
+        });
+      }
+      return Promise.resolve(true);
+    });
+    const fakeWin = {
+      loadURL: vi.fn(() => {
+        setBearerForTest("Bearer 1|abc");
+        return Promise.resolve();
+      }),
+      webContents: {
+        executeJavaScript,
+        on: vi.fn(),
+        session: { webRequest: { onBeforeSendHeaders: vi.fn() } },
+      },
+      destroy,
+      isDestroyed: vi.fn(() => false),
+    };
+    BrowserWindowMock.mockImplementation(function (this: unknown) {
+      return fakeWin;
+    });
+
+    try {
+      await ensureSendWindowReady();
+      const mutation = fetchKickWebApiMutation("POST", "/api/v2/channels/xqc/follow");
+      await vi.advanceTimersByTimeAsync(5_100);
+      expect(destroy).not.toHaveBeenCalled();
+
+      resolveMutation?.(JSON.stringify({ ok: true, status: 200, body: "{}" }));
+      await expect(mutation).resolves.toEqual({ ok: true, status: 200, body: "{}" });
+      await vi.advanceTimersByTimeAsync(5_100);
+      expect(destroy).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

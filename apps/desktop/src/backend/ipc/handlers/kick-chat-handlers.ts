@@ -9,9 +9,13 @@
  *
  * See `mod-log-types.ts` for the same pattern.
  */
+import type { WebContents } from "electron";
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { logger } from "@/backend/logging/logger";
-import { IPC_CHANNELS } from "../../../shared/ipc-channels";
+import {
+  IPC_CHANNELS,
+  type KickSendWindowComposerRetentionChange,
+} from "../../../shared/ipc-channels";
 import {
   type KickPinMutationResult,
   type KickPinPayload,
@@ -24,8 +28,10 @@ import {
   disposeSendWindow,
   ensureSendWindowReady,
   getKickChannelViewerRole,
+  releaseSendWindowComposerLeasesForOwner,
+  releaseSendWindowForComposer,
+  retainSendWindowForComposer,
   sendKickChatMessage,
-  setSendWindowChatActive,
   type KickChannelViewerRoleResult,
   type KickSendResult,
   type KickWebApiMutationResult,
@@ -33,6 +39,31 @@ import {
   unbanKickChatUser,
 } from "../../api/platforms/kick/kick-send-window";
 import { isAllowedSender } from "../sender-origin";
+
+const composerLeaseCleanupInstalled = new WeakSet<WebContents>();
+const MAX_COMPOSER_LEASE_ID_LENGTH = 128;
+
+function isComposerRetentionChange(
+  value: unknown
+): value is KickSendWindowComposerRetentionChange {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as { kind?: unknown; leaseId?: unknown };
+  return (
+    (candidate.kind === "retain" || candidate.kind === "release") &&
+    typeof candidate.leaseId === "string" &&
+    candidate.leaseId.length > 0 &&
+    candidate.leaseId.length <= MAX_COMPOSER_LEASE_ID_LENGTH
+  );
+}
+
+function installComposerLeaseCleanup(sender: WebContents): void {
+  if (composerLeaseCleanupInstalled.has(sender)) return;
+  composerLeaseCleanupInstalled.add(sender);
+  const releaseOwner = () => releaseSendWindowComposerLeasesForOwner(sender.id);
+  sender.on("did-start-loading", releaseOwner);
+  sender.on("render-process-gone", releaseOwner);
+  sender.on("destroyed", releaseOwner);
+}
 
 function rejectedKickWebMutation(message = "Rejected sender origin."): KickWebApiMutationResult {
   return {
@@ -50,10 +81,15 @@ function rejectedKickSend(message = "Rejected sender origin."): KickSendResult {
 
 export function registerKickChatHandlers(): void {
   ipcMain.handle(
-    IPC_CHANNELS.KICK_CHAT_SET_SEND_WINDOW_CHAT_ACTIVE,
-    (event, active: boolean): void => {
-      if (!isAllowedSender(event)) return;
-      setSendWindowChatActive(active);
+    IPC_CHANNELS.KICK_CHAT_SET_SEND_WINDOW_COMPOSER_RETENTION,
+    (event, change: unknown): void => {
+      if (!isAllowedSender(event) || !isComposerRetentionChange(change)) return;
+      installComposerLeaseCleanup(event.sender);
+      if (change.kind === "retain") {
+        retainSendWindowForComposer(event.sender.id, change.leaseId);
+      } else {
+        releaseSendWindowForComposer(event.sender.id, change.leaseId);
+      }
     }
   );
 

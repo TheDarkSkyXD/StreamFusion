@@ -76,7 +76,7 @@ let warmupPromise: Promise<void> | null = null;
 let reloadPromise: Promise<void> | null = null;
 let sessionRenewalPromise: Promise<void> | null = null;
 let lastSessionRenewalAt = 0;
-let sendWindowChatActive = false;
+const sendWindowComposerLeases = new Map<number, Set<string>>();
 let activeWindowOperations = 0;
 let sendWindowGeneration = 0;
 let idleReapTimer: ReturnType<typeof setTimeout> | null = null;
@@ -91,14 +91,14 @@ function cancelIdleReap(): void {
 
 function scheduleIdleReap(): void {
   cancelIdleReap();
-  if (sendWindowChatActive || activeWindowOperations > 0 || !sendWindow) return;
+  if (sendWindowComposerLeases.size > 0 || activeWindowOperations > 0 || !sendWindow) return;
   const capturedWindow = sendWindow;
   const capturedGeneration = sendWindowGeneration;
   // timer-allowlist: lifecycle reap owns a cancellable module-level handle across operations
   idleReapTimer = setTimeout(() => {
     idleReapTimer = null;
     if (
-      !sendWindowChatActive &&
+      sendWindowComposerLeases.size === 0 &&
       activeWindowOperations === 0 &&
       sendWindow === capturedWindow &&
       sendWindowGeneration === capturedGeneration
@@ -121,10 +121,24 @@ function beginWindowOperation(): () => void {
   };
 }
 
-export function setSendWindowChatActive(active: boolean): void {
-  sendWindowChatActive = active;
-  if (active) cancelIdleReap();
-  else scheduleIdleReap();
+export function retainSendWindowForComposer(ownerId: number, leaseId: string): void {
+  const ownerLeases = sendWindowComposerLeases.get(ownerId) ?? new Set<string>();
+  ownerLeases.add(leaseId);
+  sendWindowComposerLeases.set(ownerId, ownerLeases);
+  cancelIdleReap();
+}
+
+export function releaseSendWindowForComposer(ownerId: number, leaseId: string): void {
+  const ownerLeases = sendWindowComposerLeases.get(ownerId);
+  if (!ownerLeases) return;
+  ownerLeases.delete(leaseId);
+  if (ownerLeases.size === 0) sendWindowComposerLeases.delete(ownerId);
+  scheduleIdleReap();
+}
+
+export function releaseSendWindowComposerLeasesForOwner(ownerId: number): void {
+  if (!sendWindowComposerLeases.delete(ownerId)) return;
+  scheduleIdleReap();
 }
 
 /**
@@ -153,7 +167,7 @@ export function clearBearerForTest(): void {
   reloadPromise = null;
   sessionRenewalPromise = null;
   lastSessionRenewalAt = 0;
-  sendWindowChatActive = false;
+  sendWindowComposerLeases.clear();
   activeWindowOperations = 0;
   sendWindowGeneration = 0;
   cancelIdleReap();
@@ -606,6 +620,7 @@ export async function ensureSendWindowReady(channelSlug?: string): Promise<void>
     try {
       await ensureSendWindowReadyOnce(attempt, channelSlug);
       await renewKickWebSessionIfDue();
+      scheduleIdleReap();
       return;
     } catch (error) {
       lastError = error;
@@ -858,49 +873,54 @@ export async function fetchKickWebApiMutation(
     };
   }
 
-  logger.info("Kick:SendWindow", "Kick web API mutation requested", logMeta);
-  await ensureSendWindowReady();
-  if (!sendWindow || sendWindow.isDestroyed() || latestKickWebBearer === null) {
-    logger.warn("Kick:SendWindow", "Kick web API mutation send window unavailable", logMeta);
-    return {
-      ok: false,
-      kind: "network",
-      status: 0,
-      body: "",
-      message: "Send window failed to initialize.",
-    };
-  }
+  const releaseOperation = beginWindowOperation();
+  try {
+    logger.info("Kick:SendWindow", "Kick web API mutation requested", logMeta);
+    await ensureSendWindowReady();
+    if (!sendWindow || sendWindow.isDestroyed() || latestKickWebBearer === null) {
+      logger.warn("Kick:SendWindow", "Kick web API mutation send window unavailable", logMeta);
+      return {
+        ok: false,
+        kind: "network",
+        status: 0,
+        body: "",
+        message: "Send window failed to initialize.",
+      };
+    }
 
-  let result = await _fireKickWebApiMutation(method, path, body);
-  if (!result.ok && result.kind === "auth-expired") {
-    logger.warn("Kick:SendWindow", "Kick web API mutation auth expired; reloading session", {
-      ...logMeta,
-      status: result.status,
-      kind: result.kind,
-    });
-    try {
-      await _reloadAndRecapture(sendWindow);
-    } catch {
-      logger.warn("Kick:SendWindow", "Kick web API mutation session reload failed", {
+    let result = await _fireKickWebApiMutation(method, path, body);
+    if (!result.ok && result.kind === "auth-expired") {
+      logger.warn("Kick:SendWindow", "Kick web API mutation auth expired; reloading session", {
         ...logMeta,
         status: result.status,
         kind: result.kind,
       });
-      return result;
+      try {
+        await _reloadAndRecapture(sendWindow);
+      } catch {
+        logger.warn("Kick:SendWindow", "Kick web API mutation session reload failed", {
+          ...logMeta,
+          status: result.status,
+          kind: result.kind,
+        });
+        return result;
+      }
+      if (latestKickWebBearer === null || sendWindow.isDestroyed()) return result;
+      result = await _fireKickWebApiMutation(method, path, body);
     }
-    if (latestKickWebBearer === null || sendWindow.isDestroyed()) return result;
-    result = await _fireKickWebApiMutation(method, path, body);
+    logger[result.ok ? "info" : "warn"](
+      "Kick:SendWindow",
+      result.ok ? "Kick web API mutation succeeded" : "Kick web API mutation failed",
+      {
+        ...logMeta,
+        status: result.status,
+        kind: result.ok ? "ok" : result.kind,
+      }
+    );
+    return result;
+  } finally {
+    releaseOperation();
   }
-  logger[result.ok ? "info" : "warn"](
-    "Kick:SendWindow",
-    result.ok ? "Kick web API mutation succeeded" : "Kick web API mutation failed",
-    {
-      ...logMeta,
-      status: result.status,
-      kind: result.ok ? "ok" : result.kind,
-    }
-  );
-  return result;
 }
 
 export function deleteKickChatMessage(
@@ -1228,7 +1248,6 @@ async function _fireSend(chatroomId: number, content: string): Promise<KickSendR
 export async function disposeSendWindow(): Promise<void> {
   cancelIdleReap();
   sendWindowGeneration += 1;
-  sendWindowChatActive = false;
   const w = sendWindow;
   sendWindow = null;
   latestKickWebBearer = null;

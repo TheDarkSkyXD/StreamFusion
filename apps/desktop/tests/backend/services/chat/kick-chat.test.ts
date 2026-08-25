@@ -22,7 +22,7 @@ vi.mock("@/lib/cross-logger", () => ({
 // here so the tests can assert on the bridge surface instead of the underlying
 // module. See `apps/desktop/src/backend/ipc/handlers/kick-chat-handlers.ts`.
 const kickChatApi = {
-  setSendWindowChatActive: vi.fn(() => Promise.resolve()),
+  setSendWindowComposerRetention: vi.fn(() => Promise.resolve()),
   ensureSendWindowReady: vi.fn(() => Promise.resolve()),
   sendMessage: vi.fn(),
   disposeSendWindow: vi.fn(() => Promise.resolve()),
@@ -358,7 +358,7 @@ describe("KickChatService.sendMessage", () => {
     kickChatApi.sendMessage.mockReset();
     kickChatApi.ensureSendWindowReady.mockClear();
     kickChatApi.disposeSendWindow.mockClear();
-    kickChatApi.setSendWindowChatActive.mockClear();
+    kickChatApi.setSendWindowComposerRetention.mockClear();
   });
 
   it("sends the chatroom id and content through the page-context transport", async () => {
@@ -642,12 +642,17 @@ describe("KickChatService.sendMessage", () => {
   });
 });
 
-describe("KickChatService.joinChannel send-window warmup", () => {
-  // Guards: joining Kick chat must not warm the hidden kick.com send window during stream startup.
-  // Chat send still initializes it on demand via sendMessage, avoiding hidden player/network churn.
-  it("does not warm the send window until a message is sent", async () => {
+describe("KickChatService send-window retention", () => {
+  // Guards: read-only Kick chat must not retain the hidden kick.com send window during Home startup.
+  // Guards: composer retention is ref-counted so one composer unmount cannot release another composer's warm send path.
+  beforeEach(() => {
+    kickChatApi.ensureSendWindowReady.mockClear();
+    kickChatApi.disposeSendWindow.mockClear();
+    kickChatApi.setSendWindowComposerRetention.mockClear();
+  });
+
+  it("joining receive chat does not retain the hidden send window", async () => {
     const { service, internals } = makeService();
-    // Fake Pusher state so joinChannel doesn't blow up on the WebSocket path.
     internals.pusher = {
       connection: { state: "connected" },
       subscribe: vi.fn(() => ({ bind: vi.fn() })),
@@ -655,13 +660,33 @@ describe("KickChatService.joinChannel send-window warmup", () => {
     internals.connectionState = "connected";
     await service.joinChannel("ac7ionman", 999_111, 42);
     expect(kickChatApi.ensureSendWindowReady).not.toHaveBeenCalled();
-    expect(kickChatApi.setSendWindowChatActive).toHaveBeenCalledWith(true);
+    expect(kickChatApi.setSendWindowComposerRetention).not.toHaveBeenCalled();
     expect(internals.channels.has("ac7ionman")).toBe(true);
   });
-});
 
-describe("send-window retention", () => {
-  it("leaveChannel that empties the active set releases the window", async () => {
+  it("retains the send window while any composer is mounted", () => {
+    const { service } = makeService();
+
+    service.acquireSendWindowRetention();
+    service.acquireSendWindowRetention();
+    service.releaseSendWindowRetention();
+
+    expect(kickChatApi.setSendWindowComposerRetention).toHaveBeenCalledTimes(1);
+    expect(kickChatApi.setSendWindowComposerRetention).toHaveBeenCalledWith({
+      kind: "retain",
+      leaseId: "kick-chat-service",
+    });
+
+    service.releaseSendWindowRetention();
+
+    expect(kickChatApi.setSendWindowComposerRetention).toHaveBeenCalledTimes(2);
+    expect(kickChatApi.setSendWindowComposerRetention).toHaveBeenLastCalledWith({
+      kind: "release",
+      leaseId: "kick-chat-service",
+    });
+  });
+
+  it("leaveChannel does not release composer-owned send-window retention", async () => {
     const { service, internals } = makeService();
     internals.channels.set("ac7ionman", {
       slug: "ac7ionman",
@@ -673,7 +698,7 @@ describe("send-window retention", () => {
       unsubscribe: vi.fn(),
     };
     await service.leaveChannel("ac7ionman");
-    expect(kickChatApi.setSendWindowChatActive).toHaveBeenCalledWith(false);
+    expect(kickChatApi.setSendWindowComposerRetention).not.toHaveBeenCalled();
     expect(kickChatApi.disposeSendWindow).not.toHaveBeenCalled();
   });
 
@@ -696,9 +721,18 @@ describe("send-window retention", () => {
 
   it("forceShutdown disposes the window", async () => {
     const { service } = makeService();
+    service.acquireSendWindowRetention();
     kickChatApi.disposeSendWindow.mockClear();
+    kickChatApi.setSendWindowComposerRetention.mockClear();
     await service.forceShutdown();
     expect(kickChatApi.disposeSendWindow).toHaveBeenCalled();
+    expect(kickChatApi.setSendWindowComposerRetention).toHaveBeenCalledWith({
+      kind: "release",
+      leaseId: "kick-chat-service",
+    });
+    kickChatApi.setSendWindowComposerRetention.mockClear();
+    service.releaseSendWindowRetention();
+    expect(kickChatApi.setSendWindowComposerRetention).not.toHaveBeenCalled();
   });
 });
 

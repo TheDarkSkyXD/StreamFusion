@@ -256,6 +256,11 @@ export const KickChat: React.FC<KickChatProps> = ({
   // refresh required.
   const isAuthenticated = useAuthStore((state) => state.kickConnected);
   const loginKick = useAuthStore((state) => state.loginKick);
+  useEffect(() => {
+    if (!showComposer || !isAuthenticated) return;
+    kickChatService.acquireSendWindowRetention();
+    return () => kickChatService.releaseSendWindowRetention();
+  }, [isAuthenticated, showComposer]);
   // U5 — gate the in-chat poll + prediction widgets on viewer prefs. Reactive
   // selectors so toggling them live shows/hides the widget without remounting.
   const showPolls = useAuthStore(

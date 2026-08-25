@@ -266,7 +266,7 @@ export const IPC_CHANNELS = {
   // Renderer goes through these channels so kick-chat.ts stays renderer-safe
   // (no transitive better-sqlite3 / electron import via channel-endpoints).
   KICK_CHAT_ENSURE_SEND_WINDOW_READY: "kick-chat:ensure-send-window-ready",
-  KICK_CHAT_SET_SEND_WINDOW_CHAT_ACTIVE: "kick-chat:set-send-window-chat-active",
+  KICK_CHAT_SET_SEND_WINDOW_COMPOSER_RETENTION: "kick-chat:set-send-window-composer-retention",
   KICK_CHAT_SEND_MESSAGE: "kick-chat:send-message",
   KICK_CHAT_BAN_USER: "kick-chat:ban-user",
   KICK_CHAT_TIMEOUT_USER: "kick-chat:timeout-user",
@@ -469,6 +469,10 @@ export type IpcFeature = (typeof IPC_FEATURES)[keyof typeof IPC_FEATURES];
 // Type for channel names
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
 
+export type KickSendWindowComposerRetentionChange =
+  | { kind: "retain"; leaseId: string }
+  | { kind: "release"; leaseId: string };
+
 // ========== Payload Types for IPC Calls ==========
 
 export interface IpcPayloads {
@@ -601,6 +605,7 @@ export interface IpcPayloads {
     content: string;
     channelSlug?: string;
   };
+  [IPC_CHANNELS.KICK_CHAT_SET_SEND_WINDOW_COMPOSER_RETENTION]: KickSendWindowComposerRetentionChange;
   [IPC_CHANNELS.KICK_CHAT_BAN_USER]: {
     channelSlug: string;
     username: string;

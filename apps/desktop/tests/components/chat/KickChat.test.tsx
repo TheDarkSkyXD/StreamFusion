@@ -120,6 +120,8 @@ vi.mock("@/backend/services/chat/kick-chat", () => ({
     isConnected: vi.fn(() => false),
     sendMessage: vi.fn(async () => true),
     joinChannel: vi.fn(async () => true),
+    acquireSendWindowRetention: vi.fn(),
+    releaseSendWindowRetention: vi.fn(),
     setChannelBadges: vi.fn(),
     setModeratorState: vi.fn(),
     emit: vi.fn(),
@@ -306,6 +308,8 @@ describe("KickChat", () => {
     savePersistedChatHistoryMock.mockClear();
     vi.mocked(kickChatService.connect).mockClear();
     vi.mocked(kickChatService.joinChannel).mockClear();
+    vi.mocked(kickChatService.acquireSendWindowRetention).mockClear();
+    vi.mocked(kickChatService.releaseSendWindowRetention).mockClear();
     vi.mocked(kickChatService.acquire).mockClear();
     vi.mocked(kickChatService.release).mockClear();
     vi.mocked(kickChatService.getActiveUserCount).mockClear();
@@ -330,6 +334,29 @@ describe("KickChat", () => {
     renderKickChat(<KickChat channel="xqc" chatroomId={12345} />);
     expect(screen.getByTestId("message-list")).toBeInTheDocument();
     expect(screen.getByTestId("chat-input")).toBeInTheDocument();
+  });
+
+  it("does not retain the Kick send window for read-only chat", () => {
+    mockAuthState.kickConnected = true;
+
+    renderKickChat(<KickChat channel="xqc" chatroomId={12345} showComposer={false} />);
+
+    expect(kickChatService.acquireSendWindowRetention).not.toHaveBeenCalled();
+    expect(kickChatService.releaseSendWindowRetention).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("chat-input")).toBeNull();
+  });
+
+  it("retains the Kick send window only while an authenticated composer is mounted", () => {
+    mockAuthState.kickConnected = true;
+
+    const { unmount } = renderKickChat(<KickChat channel="xqc" chatroomId={12345} />);
+
+    expect(kickChatService.acquireSendWindowRetention).toHaveBeenCalledTimes(1);
+    expect(kickChatService.releaseSendWindowRetention).not.toHaveBeenCalled();
+
+    unmount();
+
+    expect(kickChatService.releaseSendWindowRetention).toHaveBeenCalledTimes(1);
   });
 
   it("opens Recent Chatters over the live chat without unmounting it", () => {

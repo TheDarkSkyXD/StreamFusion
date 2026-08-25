@@ -71,12 +71,12 @@ const sendKickChatMessage = (
 ): Promise<KickSendResult> =>
   window.electronAPI.kickChat.sendMessage(chatroomId, content, channelSlug);
 
-const ensureSendWindowReady = (): Promise<void> =>
-  window.electronAPI.kickChat.ensureSendWindowReady();
-
 const disposeSendWindow = (): Promise<void> => window.electronAPI.kickChat.disposeSendWindow();
-const setSendWindowChatActive = (active: boolean): Promise<void> =>
-  window.electronAPI.kickChat.setSendWindowChatActive(active);
+const setSendWindowComposerRetention = (kind: "retain" | "release"): Promise<void> =>
+  window.electronAPI.kickChat.setSendWindowComposerRetention({
+    kind,
+    leaseId: "kick-chat-service",
+  });
 
 const WEB_SOCKET_CONNECTING_READY_STATE = 0;
 const WEB_SOCKET_OPEN_READY_STATE = 1;
@@ -286,8 +286,20 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   // Only performs full shutdown when count reaches 0
   private activeUsers = 0;
   private channelUsers: Map<string, number> = new Map();
+  private sendWindowRetentionUsers = 0;
 
   // ========== Public API ==========
+
+  acquireSendWindowRetention(): void {
+    this.sendWindowRetentionUsers += 1;
+    if (this.sendWindowRetentionUsers === 1) void setSendWindowComposerRetention("retain");
+  }
+
+  releaseSendWindowRetention(): void {
+    if (this.sendWindowRetentionUsers === 0) return;
+    this.sendWindowRetentionUsers -= 1;
+    if (this.sendWindowRetentionUsers === 0) void setSendWindowComposerRetention("release");
+  }
 
   /**
    * Connect to Kick Pusher WebSocket
@@ -566,6 +578,10 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     this.clearReconnectTimer();
     this.reconnectGeneration += 1;
     this.activeUsers = 0;
+    if (this.sendWindowRetentionUsers > 0) {
+      await setSendWindowComposerRetention("release");
+    }
+    this.sendWindowRetentionUsers = 0;
     this.reconnectAttempts = 0;
 
     const { dropChannel } = useChatStore.getState();
@@ -659,7 +675,6 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     try {
       this.log(`Subscribing to chatroom ${chatroomId}...`);
       this.subscribeTrackedChannel(normalizedChannel, chatroomId, broadcasterUserId);
-      if (this.channels.size === 1) void setSendWindowChatActive(true);
 
       // NOTE: Channel badges should be set by caller via setChannelBadges()
 
@@ -733,10 +748,6 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     this.senderBadgesCache.delete(normalizedChannel);
     this.emitConnectionStatus();
     this.log(`Left channel: ${normalizedChannel}`);
-
-    if (this.channels.size === 0) {
-      void setSendWindowChatActive(false);
-    }
   }
 
   /**
