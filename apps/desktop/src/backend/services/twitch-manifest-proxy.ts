@@ -610,11 +610,18 @@ class TwitchManifestProxyService {
     const state = this.getCandidateState(streamInfo, scope);
     const candidate = state.readyCandidate;
     if (candidate) {
+      state.readyCandidate = null;
       streamInfo.servedBackups.set(scope, candidate);
+      this.startBackupRefresh(streamInfo, scope, state, candidate);
       return candidate.playlist;
     }
 
-    if (candidate) state.readyCandidate = null;
+    const servedBackup = streamInfo.servedBackups.get(scope);
+    if (servedBackup) {
+      this.startBackupRefresh(streamInfo, scope, state, servedBackup);
+      return servedBackup.playlist;
+    }
+
     if (state.candidatePromise || Date.now() < state.nextRetryAt) return null;
 
     const candidatePromise = this.getOrStartBackupMasterPreload(streamInfo)
@@ -657,6 +664,65 @@ class TwitchManifestProxyService {
 
     state.candidatePromise = candidatePromise;
     return null;
+  }
+
+  private startBackupRefresh(
+    streamInfo: ProxyStreamInfo,
+    scope: string,
+    state: ProxyCandidateState,
+    servedBackup: PreparedBackup
+  ): void {
+    if (state.candidatePromise || Date.now() < state.nextRetryAt) return;
+
+    const refreshPromise = this.fetchWithRetry(servedBackup.rendition.url)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Backup refresh failed with ${response.status}`);
+        const playlist = await response.text();
+        const refreshScope = `${scope}:backup:${servedBackup.playerType}:${servedBackup.rendition.resolution}:${servedBackup.rendition.frameRate}:${servedBackup.rendition.codecs}`;
+        streamInfo.detectionScopes.add(refreshScope);
+        if (this.analyzeAds(playlist, refreshScope).verdict !== "clean") {
+          throw new Error("Backup refresh was not clean");
+        }
+        if (
+          this.streamInfos.get(streamInfo.channelName) !== streamInfo ||
+          streamInfo.servedBackups.get(scope) !== servedBackup
+        ) {
+          return;
+        }
+
+        state.readyCandidate = { ...servedBackup, playlist };
+        state.consecutiveMisses = 0;
+        state.nextRetryAt = 0;
+      })
+      .catch((error: unknown) => {
+        if (
+          this.streamInfos.get(streamInfo.channelName) !== streamInfo ||
+          streamInfo.servedBackups.get(scope) !== servedBackup
+        ) {
+          return;
+        }
+
+        // A failed refresh makes the current media window stale. Remove it so
+        // later polls fail closed instead of replaying the same segments.
+        streamInfo.servedBackups.delete(scope);
+        state.consecutiveMisses += 1;
+        state.nextRetryAt =
+          Date.now() +
+          Math.min(
+            BACKUP_MISS_RETRY_BASE_MS * 2 ** (state.consecutiveMisses - 1),
+            BACKUP_MISS_RETRY_MAX_MS
+          );
+        logger.debug("Service:TwitchManifest", "Backup playlist refresh deferred", {
+          channelName: streamInfo.channelName,
+          retryInMs: state.nextRetryAt - Date.now(),
+          error: error instanceof Error ? error.message : String(error),
+        });
+      })
+      .finally(() => {
+        if (state.candidatePromise === refreshPromise) state.candidatePromise = null;
+      });
+
+    state.candidatePromise = refreshPromise;
   }
 
   /**
