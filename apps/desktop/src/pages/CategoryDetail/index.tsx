@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getQueryCacheOptions } from "@/hooks/queries/cache-policy";
-import { useCategoryById } from "@/hooks/queries/useCategories";
+import { useCategoryById, useInfiniteTopCategories } from "@/hooks/queries/useCategories";
 import { useInfiniteStreamsByCategory } from "@/hooks/queries/useInfiniteStreams";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getStreamElementKey } from "@/lib/id-utils";
@@ -96,7 +96,10 @@ export function CategoryDetailPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [clipSort, setClipSort] = useState<"views" | "recent">("views");
+  const [videoSort, setVideoSort] = useState<"views" | "recent">("recent");
   const [clipTimeRange, setClipTimeRange] = useState(getSavedClipTimeRange);
+  const [isCategoryNavStuck, setIsCategoryNavStuck] = useState(false);
+  const { data: mergedCategoryCatalog } = useInfiniteTopCategories();
 
   const tab = routeSearch.tab ?? "live";
   const platformScope = routeSearch.platform ?? "all";
@@ -235,6 +238,20 @@ export function CategoryDetailPage() {
     if (isPlainPrimaryClick(event)) resetContentScroll();
   }, []);
 
+  const categoryNavSentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const sentinel = categoryNavSentinelRef.current;
+    const root = document.getElementById("main-content-scroll-area");
+    if (!sentinel || !root) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsCategoryNavStuck(!entry.isIntersecting),
+      { root, threshold: 1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
+
   const otherCategoryName = useMemo(() => {
     if (otherPlatform !== "kick" || !category?.name) return undefined;
     const normalizedKey = normalizeCategoryName(category.name);
@@ -256,10 +273,8 @@ export function CategoryDetailPage() {
   const kickCategorySlug =
     currentPlatform === "kick" ? category?.slug : (providedOtherCategory?.slug ?? category?.slug);
   const kickCategoryName = currentPlatform === "kick" ? category?.name : otherCategoryName;
-  const hasOtherPlatformMediaIdentity = currentPlatform === "twitch" || Boolean(otherCategoryId);
-  const isNativeKickMediaOnly =
-    tab !== "live" && currentPlatform === "kick" && !hasOtherPlatformMediaIdentity;
-  const mediaPlatformScope = isNativeKickMediaOnly ? "kick" : platformScope;
+  const isKickOnlyCategory = currentPlatform === "kick" && identityIsSettled && !otherCategoryId;
+  const effectivePlatformScope = isKickOnlyCategory ? "kick" : platformScope;
 
   const updateClipTimeRange = useCallback((value: "day" | "week" | "month" | "all") => {
     setClipTimeRange(value);
@@ -267,7 +282,7 @@ export function CategoryDetailPage() {
   }, []);
 
   const langParam = language || undefined;
-  const datasetKey = `${platformScope}:${language}:${tagQuery}:${sortOrder}`;
+  const datasetKey = `${effectivePlatformScope}:${language}:${tagQuery}:${sortOrder}`;
   const primaryQuery = useInfiniteStreamsByCategory(
     categoryId,
     currentPlatform,
@@ -299,9 +314,9 @@ export function CategoryDetailPage() {
       mergedList.push(stream);
     }
     const scoped =
-      platformScope === "all"
+      effectivePlatformScope === "all"
         ? mergedList
-        : mergedList.filter((stream) => stream.platform === platformScope);
+        : mergedList.filter((stream) => stream.platform === effectivePlatformScope);
     const lowerTag = tagQuery.trim().toLowerCase();
     const filtered = lowerTag
       ? scoped.filter((stream) =>
@@ -314,14 +329,20 @@ export function CategoryDetailPage() {
         : (left.viewerCount ?? 0) - (right.viewerCount ?? 0)
     );
     return { merged: mergedList, scopedMerged: scoped, streams: sorted };
-  }, [platformScope, primaryQuery.data, secondaryQuery.data, sortOrder, tagQuery]);
+  }, [effectivePlatformScope, primaryQuery.data, secondaryQuery.data, sortOrder, tagQuery]);
 
+  const mergedCategory = category?.name
+    ? mergedCategoryCatalog?.find(
+        (candidate) =>
+          normalizeCategoryName(candidate.name) === normalizeCategoryName(category.name)
+      )
+    : undefined;
   const streamsSum = merged.reduce((sum, stream) => sum + (stream.viewerCount || 0), 0);
-  const totalViewers = category?.viewerCount ?? streamsSum;
+  const totalViewers = mergedCategory?.viewerCount ?? category?.viewerCount ?? streamsSum;
   const selectedQuery =
-    platformScope === "all"
+    effectivePlatformScope === "all"
       ? null
-      : platformScope === currentPlatform
+      : effectivePlatformScope === currentPlatform
         ? primaryQuery
         : secondaryQuery;
   const isStreamsLoading = selectedQuery
@@ -335,10 +356,20 @@ export function CategoryDetailPage() {
     : primaryQuery.hasNextPage || secondaryQuery.hasNextPage;
   const selectedPlatformIsUnavailable = Boolean(selectedQuery?.error && scopedMerged.length === 0);
 
-  const queriesRef = useRef({ primaryQuery, secondaryQuery, platformScope, currentPlatform });
+  const queriesRef = useRef({
+    primaryQuery,
+    secondaryQuery,
+    platformScope: effectivePlatformScope,
+    currentPlatform,
+  });
   useLayoutEffect(() => {
-    queriesRef.current = { primaryQuery, secondaryQuery, platformScope, currentPlatform };
-  }, [currentPlatform, platformScope, primaryQuery, secondaryQuery]);
+    queriesRef.current = {
+      primaryQuery,
+      secondaryQuery,
+      platformScope: effectivePlatformScope,
+      currentPlatform,
+    };
+  }, [currentPlatform, effectivePlatformScope, primaryQuery, secondaryQuery]);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const sentinelRef = useCallback((node: HTMLDivElement | null) => {
     if (observerRef.current) {
@@ -426,9 +457,14 @@ export function CategoryDetailPage() {
         </div>
       )}
 
+      <div ref={categoryNavSentinelRef} aria-hidden="true" className="h-px" />
       <nav
         aria-label="Category content"
-        className="sticky top-0 z-10 flex min-h-10 items-end gap-6 border-b border-[var(--color-border)] bg-[var(--color-background-primary)]"
+        className={`sticky top-0 z-30 -mt-px flex min-h-11 items-end gap-5 border-b border-[var(--color-border)] transition-colors duration-150 ${
+          isCategoryNavStuck
+            ? "bg-[var(--color-background-secondary)]"
+            : "bg-[var(--color-background-primary)]"
+        }`}
       >
         {CATEGORY_TABS.map(({ value, label }) => {
           const isSelected = tab === value;
@@ -440,20 +476,24 @@ export function CategoryDetailPage() {
               search={{ ...navigationSearch, tab: value }}
               aria-current={isSelected ? "page" : undefined}
               onClick={handleNativeLinkClick}
-              className={`inline-flex min-h-10 items-center border-b-2 px-1 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
-                isSelected
-                  ? "border-white text-white"
-                  : "border-transparent text-[var(--color-foreground-muted)] hover:text-white"
+              className={`relative inline-flex min-h-11 items-center px-1 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
+                isSelected ? "text-white" : "text-[var(--color-foreground-muted)] hover:text-white"
               }`}
             >
               {label}
+              {isSelected && (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-x-0 bottom-0 h-0.5 bg-[var(--color-primary)]"
+                />
+              )}
             </Link>
           );
         })}
       </nav>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        {!isNativeKickMediaOnly && (
+        {!isKickOnlyCategory && (
           <div
             role="group"
             aria-label="Platform"
@@ -507,33 +547,47 @@ export function CategoryDetailPage() {
                 sortOrder={sortOrder}
                 onSortOrderChange={(value) => updateSearch({ sort: value })}
                 showViewerSort={false}
+                compact
               />
             </div>
-            {tab === "clips" && (
-              <div
-                role="group"
-                aria-label="Category clip filters"
-                className="flex min-w-0 flex-wrap items-center gap-3 sm:ml-auto sm:justify-end"
-              >
-                <span className="shrink-0 whitespace-nowrap font-bold text-[var(--color-foreground)]">
-                  Filter by:
-                </span>
-                <Select value={clipTimeRange} onValueChange={updateClipTimeRange}>
-                  <SelectTrigger aria-label="Filter clips by time range" className="min-w-[120px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="day">Last Day</SelectItem>
-                    <SelectItem value="week">Last Week</SelectItem>
-                    <SelectItem value="month">Last Month</SelectItem>
-                    <SelectItem value="all">All Time</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div
+              role="group"
+              aria-label={`Category ${tab} filters`}
+              className="flex min-w-0 flex-wrap items-center gap-3 sm:ml-auto sm:justify-end"
+            >
+              {tab === "clips" && (
+                <label className="flex items-center gap-2 text-xs font-semibold text-[var(--color-foreground-secondary)]">
+                  <span>Time</span>
+                  <Select value={clipTimeRange} onValueChange={updateClipTimeRange}>
+                    <SelectTrigger
+                      aria-label="Filter clips by time range"
+                      className="h-8 min-w-[108px] px-2.5 text-xs"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="day">Last Day</SelectItem>
+                      <SelectItem value="week">Last Week</SelectItem>
+                      <SelectItem value="month">Last Month</SelectItem>
+                      <SelectItem value="all">All Time</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </label>
+              )}
+              <label className="flex items-center gap-2 text-xs font-semibold text-[var(--color-foreground-secondary)]">
+                <span>Sort</span>
                 <Select
-                  value={clipSort}
-                  onValueChange={(value) => setClipSort(value as "views" | "recent")}
+                  value={tab === "clips" ? clipSort : videoSort}
+                  onValueChange={(value) =>
+                    tab === "clips"
+                      ? setClipSort(value as "views" | "recent")
+                      : setVideoSort(value as "views" | "recent")
+                  }
                 >
-                  <SelectTrigger aria-label="Sort Category clips" className="min-w-[140px]">
+                  <SelectTrigger
+                    aria-label={`Sort Category ${tab}`}
+                    className="h-8 min-w-[112px] px-2.5 text-xs"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -541,8 +595,8 @@ export function CategoryDetailPage() {
                     <SelectItem value="recent">Most Recent</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-            )}
+              </label>
+            </div>
           </div>
         )}
       </div>
@@ -645,7 +699,7 @@ export function CategoryDetailPage() {
       {tab !== "live" && (
         <CategoryMediaTab
           kind={tab}
-          platformScope={mediaPlatformScope}
+          platformScope={effectivePlatformScope}
           twitchCategoryId={twitchCategoryId}
           kickCategoryId={kickCategoryId}
           kickCategorySlug={kickCategorySlug}
@@ -654,7 +708,7 @@ export function CategoryDetailPage() {
           tag={rawTagQuery}
           direction={tab === "clips" ? "desc" : sortOrder}
           timeRange={clipTimeRange}
-          sort={tab === "clips" ? clipSort : "views"}
+          sort={tab === "clips" ? clipSort : videoSort}
         />
       )}
     </div>

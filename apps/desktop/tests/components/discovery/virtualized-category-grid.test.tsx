@@ -38,6 +38,7 @@ function categoryDataset(prefix: string, count: number) {
 // Guards: a 50-category result mounts only the eight startup-prewarmed cards initially, then preserves order while eventually exposing every result in bounded paint batches.
 // Guards: switching to a different ordered dataset resets synchronously and an already-dequeued callback from the old dataset cannot reveal extra cards.
 // Guards: scrolling into an unrevealed category window shows skeleton cards until that render batch is ready.
+// Guards: replacing the loading skeleton with the scroll container attaches the load-more listener so page two can be requested.
 describe("VirtualizedCategoryGrid progressive rendering", () => {
   const originalClientHeight = Object.getOwnPropertyDescriptor(
     HTMLElement.prototype,
@@ -182,5 +183,39 @@ describe("VirtualizedCategoryGrid progressive rendering", () => {
       "Category 28",
       "Category 29",
     ]);
+  });
+
+  it("attaches infinite scrolling after the loading state resolves", () => {
+    Object.defineProperties(HTMLElement.prototype, {
+      clientHeight: { configurable: true, get: () => 500 },
+      scrollHeight: { configurable: true, get: () => 1_000 },
+    });
+    const onLoadMore = vi.fn();
+    const view = renderWithProviders(
+      <VirtualizedCategoryGrid
+        categories={categoryDataset("Category", 20)}
+        isLoading
+        hasNextPage
+        onLoadMore={onLoadMore}
+      />
+    );
+
+    view.rerender(
+      <VirtualizedCategoryGrid
+        categories={categoryDataset("Category", 20)}
+        hasNextPage
+        onLoadMore={onLoadMore}
+      />
+    );
+    const scrollContainer = view.container.querySelector<HTMLElement>('[style*="contain"]');
+    expect(scrollContainer).not.toBeNull();
+    onLoadMore.mockClear();
+
+    if (scrollContainer) {
+      scrollContainer.scrollTop = 500;
+      fireEvent.scroll(scrollContainer);
+    }
+
+    expect(onLoadMore).toHaveBeenCalledOnce();
   });
 });

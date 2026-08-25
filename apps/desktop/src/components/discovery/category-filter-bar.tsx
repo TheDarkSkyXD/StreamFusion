@@ -18,6 +18,7 @@ interface Props {
   sortOrder: "desc" | "asc";
   onSortOrderChange: (v: "desc" | "asc") => void;
   showViewerSort?: boolean;
+  compact?: boolean;
 }
 
 // Radix Select forbids empty-string values, so we use a sentinel for "all".
@@ -31,6 +32,7 @@ export function CategoryFilterBar({
   sortOrder,
   onSortOrderChange,
   showViewerSort = true,
+  compact = false,
 }: Props) {
   const [tagInput, setTagInput] = useState(tagQuery);
   const languageOptions = useMemo(
@@ -46,12 +48,15 @@ export function CategoryFilterBar({
   }, [tagQuery]);
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className={`flex flex-wrap items-center ${compact ? "gap-2" : "gap-3"}`}>
       <Select
         value={language || ALL_LANGUAGES}
         onValueChange={(v) => onLanguageChange(v === ALL_LANGUAGES ? "" : v)}
       >
-        <SelectTrigger aria-label="Language" className="min-w-[160px] w-auto">
+        <SelectTrigger
+          aria-label="Language"
+          className={compact ? "h-8 min-w-[132px] w-auto px-2.5 text-xs" : "min-w-[160px] w-auto"}
+        >
           <SelectValue placeholder="All languages" />
         </SelectTrigger>
         <SelectContent>
@@ -64,7 +69,7 @@ export function CategoryFilterBar({
         </SelectContent>
       </Select>
 
-      <div className="relative min-w-[160px]">
+      <div className={`relative ${compact ? "w-36" : "min-w-[160px]"}`}>
         <LuSearch
           className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-foreground-muted)] pointer-events-none"
           aria-hidden="true"
@@ -78,7 +83,7 @@ export function CategoryFilterBar({
             onTagQueryChange(e.target.value);
           }}
           placeholder="Search tags…"
-          className="h-9 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background-tertiary)] pl-9 pr-3 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-zinc-500 focus:border-zinc-500"
+          className={`${compact ? "h-8 pl-8 pr-2.5 text-xs" : "h-9 pl-9 pr-3 text-sm"} w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background-tertiary)] shadow-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500`}
         />
       </div>
 

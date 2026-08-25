@@ -12,7 +12,7 @@ vi.mock('@tanstack/react-router', () => routerMock({ params: { platform: 'twitch
 
 vi.mock('@/hooks/queries/useCategories', () => ({
   useCategoryById: vi.fn(),
-  useTopCategories: vi.fn(),
+  useInfiniteTopCategories: vi.fn(),
 }));
 
 vi.mock('@/hooks/queries/useInfiniteStreams', () => ({
@@ -31,11 +31,12 @@ vi.mock('@/components/ui/proxied-image', () => ({
   ProxiedImage: ({ alt }: { alt: string }) => <div data-testid="proxied-image">{alt}</div>,
 }));
 
-import { useCategoryById } from '@/hooks/queries/useCategories';
+import { useCategoryById, useInfiniteTopCategories } from '@/hooks/queries/useCategories';
 import { useInfiniteStreamsByCategory } from '@/hooks/queries/useInfiniteStreams';
 import { CategoryDetailPage } from '@/pages/CategoryDetail';
 
 const useCategoryByIdMock = vi.mocked(useCategoryById);
+const useInfiniteTopCategoriesMock = vi.mocked(useInfiniteTopCategories);
 const useInfiniteStreamsByCategoryMock = vi.mocked(useInfiniteStreamsByCategory);
 
 function emptyInfinite() {
@@ -55,6 +56,8 @@ describe('CategoryDetailPage', () => {
   beforeEach(() => {
     installElectronAPIMock();
     useCategoryByIdMock.mockReset();
+    useInfiniteTopCategoriesMock.mockReset();
+    useInfiniteTopCategoriesMock.mockReturnValue({ data: [], isLoading: false } as unknown as ReturnType<typeof useInfiniteTopCategories>);
     useInfiniteStreamsByCategoryMock.mockReset();
     useInfiniteStreamsByCategoryMock.mockReturnValue(emptyInfinite());
   });
@@ -96,6 +99,22 @@ describe('CategoryDetailPage', () => {
     } as unknown as ReturnType<typeof useInfiniteStreamsByCategory>);
     renderWithProviders(<CategoryDetailPage />);
     expect(screen.getByTestId('stream-grid')).toHaveTextContent('2 streams');
+  });
+
+  it('uses the same merged viewer count shown on the category card', () => {
+    useCategoryByIdMock.mockReturnValue({
+      data: fixtures.category({ name: 'IRL', viewerCount: 111 }),
+      isLoading: false,
+    } as ReturnType<typeof useCategoryById>);
+    useInfiniteTopCategoriesMock.mockReturnValue({
+      data: [fixtures.category({ name: 'irl', viewerCount: 777, crossPlatformId: 'kick-irl' })],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useInfiniteTopCategories>);
+
+    renderWithProviders(<CategoryDetailPage />);
+
+    expect(screen.getByText('777')).toBeInTheDocument();
+    expect(screen.queryByText('111')).not.toBeInTheDocument();
   });
 
   it('error: useCategoryById returns data=undefined (Helix 5xx) → streams grid still mounts so users can browse live streams while metadata recovers', () => {

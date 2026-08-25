@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ClipCard } from "@/components/stream/related-content/ClipCard";
 import { ClipDialog } from "@/components/stream/related-content/ClipDialog";
@@ -66,24 +66,40 @@ export function CategoryMediaTab({
   timeRange,
   sort,
 }: CategoryMediaTabProps) {
-  const { items, isLoading, failures } = useCategoryMedia({
-    kind,
-    platformScope,
-    twitch: { platform: "twitch", categoryId: twitchCategoryId },
-    kick: {
-      platform: "kick",
-      categoryId: kickCategoryId,
-      categorySlug: kickCategorySlug,
-      categoryName: kickCategoryName,
-    },
-    sort,
-    language,
-    tag,
-    direction,
-    timeRange,
-  });
+  const { items, isLoading, failures, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useCategoryMedia({
+      kind,
+      platformScope,
+      twitch: { platform: "twitch", categoryId: twitchCategoryId },
+      kick: {
+        platform: "kick",
+        categoryId: kickCategoryId,
+        categorySlug: kickCategorySlug,
+        categoryName: kickCategoryName,
+      },
+      sort,
+      language,
+      tag,
+      direction,
+      timeRange,
+    });
   const [selectedClip, setSelectedClip] = useState<VideoOrClip | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const clipPlayback = useFollowedClipPlayback(selectedClip);
+
+  useEffect(() => {
+    const target = loadMoreRef.current;
+    if (!target || !hasNextPage) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !isFetchingNextPage) void fetchNextPage();
+      },
+      { rootMargin: "400px" }
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   if (isLoading) {
     return (
@@ -157,6 +173,13 @@ export function CategoryMediaTab({
                   channelData={null}
                 />
               ))}
+        </div>
+      )}
+
+      {hasNextPage && <div ref={loadMoreRef} aria-hidden="true" className="h-px" />}
+      {isFetchingNextPage && (
+        <div role="status" className="flex justify-center py-4" aria-label={`Loading more ${kind}`}>
+          <Skeleton className="h-4 w-32" />
         </div>
       )}
 

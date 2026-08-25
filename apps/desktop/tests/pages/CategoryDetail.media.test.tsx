@@ -34,7 +34,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/hooks/queries/useCategories", () => ({
   useCategoryById: vi.fn(),
-  useTopCategories: vi.fn(),
+  useInfiniteTopCategories: vi.fn(),
 }));
 
 vi.mock("@/hooks/queries/useInfiniteStreams", () => ({
@@ -65,12 +65,12 @@ vi.mock("@/components/ui/platform-avatar", () => ({
   ),
 }));
 
-import { useCategoryById, useTopCategories } from "@/hooks/queries/useCategories";
+import { useCategoryById, useInfiniteTopCategories } from "@/hooks/queries/useCategories";
 import { useInfiniteStreamsByCategory } from "@/hooks/queries/useInfiniteStreams";
 import { CategoryDetailPage } from "@/pages/CategoryDetail";
 
 const useCategoryByIdMock = vi.mocked(useCategoryById);
-const useTopCategoriesMock = vi.mocked(useTopCategories);
+const useInfiniteTopCategoriesMock = vi.mocked(useInfiniteTopCategories);
 const useInfiniteStreamsByCategoryMock = vi.mocked(useInfiniteStreamsByCategory);
 
 function categoryMediaItem(
@@ -79,12 +79,21 @@ function categoryMediaItem(
 ): CategoryMediaItem {
   const createdAt = "2026-07-15T12:00:00.000Z";
   return {
-    id: `${platform}-media`, title: `${platform} media`, duration: "0:30", views: "1",
-    date: createdAt, created_at: createdAt, thumbnailUrl: `https://example.com/${platform}.jpg`,
-    platform, channelId: `${platform}-channel`, channelName: `${platform} channel`,
+    id: `${platform}-media`,
+    title: `${platform} media`,
+    duration: "0:30",
+    views: "1",
+    date: createdAt,
+    created_at: createdAt,
+    thumbnailUrl: `https://example.com/${platform}.jpg`,
+    platform,
+    channelId: `${platform}-channel`,
+    channelName: `${platform} channel`,
     channelAvatar: `https://example.com/${platform}-avatar.jpg`,
-    gameId: platform === "twitch" ? "509658" : "15", gameName: "Just Chatting",
-    category: "Just Chatting", ...overrides,
+    gameId: platform === "twitch" ? "509658" : "15",
+    gameName: "Just Chatting",
+    category: "Just Chatting",
+    ...overrides,
   };
 }
 
@@ -116,7 +125,7 @@ function installCategoryFixtures() {
         refetch: vi.fn(),
       }) as unknown as ReturnType<typeof useCategoryById>
   );
-  useTopCategoriesMock.mockReturnValue({
+  useInfiniteTopCategoriesMock.mockReturnValue({
     data: [
       fixtures.category({
         id: "509658",
@@ -127,12 +136,12 @@ function installCategoryFixtures() {
       }),
     ],
     isLoading: false,
-  } as unknown as ReturnType<typeof useTopCategories>);
+  } as unknown as ReturnType<typeof useInfiniteTopCategories>);
   useInfiniteStreamsByCategoryMock.mockReturnValue(emptyInfiniteStreams());
 }
 
 // Guards: a deep-linked Clips tab lazily requests both native Category feeds, hides Live Streams, and renders mixed-Platform Clip cards with accumulated View Counts
-// Guards: a deep-linked Videos tab lazily requests both native Category feeds, hides Live Streams, and routes each Video card using the item's Platform while showing accumulated View Counts
+// Guards: a deep-linked Videos tab requests 60 items from both native Category feeds, hides Live Streams, and routes each Video card using the item's Platform while showing accumulated View Counts
 // Guards: Category media tabs keep the shared Language, Tag, and View-sort filters visible and forward their values to both Platform requests
 // Guards: Kick media still loads from category slug/name when a cross-Platform otherId cannot be resolved
 // Guards: Category cards preserve numeric game IDs and non-empty channel avatars from the backend payload
@@ -166,14 +175,26 @@ describe("CategoryDetailPage media tabs", () => {
       data:
         platform === "twitch"
           ? [
-              categoryMediaItem("twitch", { id: "twitch-offline-clip", channelName: "Offline Twitch",
-                title: "Twitch Category Highlight", duration: "0:42", views: "1250",
-                embedUrl: "https://clips.twitch.tv/embed?clip=twitch-offline-clip", creatorName: "Clipper One" }),
+              categoryMediaItem("twitch", {
+                id: "twitch-offline-clip",
+                channelName: "Offline Twitch",
+                title: "Twitch Category Highlight",
+                duration: "0:42",
+                views: "1250",
+                embedUrl: "https://clips.twitch.tv/embed?clip=twitch-offline-clip",
+                creatorName: "Clipper One",
+              }),
             ]
           : [
-              categoryMediaItem("kick", { id: "kick-offline-clip", channelName: "Offline Kick",
-                title: "Kick Category Highlight", duration: "0:31", views: "900",
-                embedUrl: "https://example.com/kick-clip.mp4", creatorName: "Clipper Two" }),
+              categoryMediaItem("kick", {
+                id: "kick-offline-clip",
+                channelName: "Offline Kick",
+                title: "Kick Category Highlight",
+                duration: "0:31",
+                views: "900",
+                embedUrl: "https://example.com/kick-clip.mp4",
+                creatorName: "Clipper Two",
+              }),
             ],
       cursor: undefined,
     }));
@@ -280,10 +301,15 @@ describe("CategoryDetailPage media tabs", () => {
       timeout: 250,
     });
     expect(api.videos.getByCategory).toHaveBeenCalledWith(
-      expect.objectContaining({ platform: "twitch", categoryId: "509658", sort: "views" })
+      expect.objectContaining({
+        platform: "twitch",
+        categoryId: "509658",
+        sort: "date",
+        limit: 60,
+      })
     );
     expect(api.videos.getByCategory).toHaveBeenCalledWith(
-      expect.objectContaining({ platform: "kick", categoryId: "15", sort: "views" })
+      expect.objectContaining({ platform: "kick", categoryId: "15", sort: "date", limit: 60 })
     );
     expect(api.clips.getByCategory).not.toHaveBeenCalled();
     expect(screen.getByRole("link", { name: "Videos" })).toHaveAttribute("aria-current", "page");
@@ -311,7 +337,7 @@ describe("CategoryDetailPage media tabs", () => {
             JSON.stringify({ platform: "kick", categoryId: "15" })
         )
     ).toBe(true);
-    expect(screen.queryByText("Filter by:")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Sort Category videos")).toHaveTextContent("Most Recent");
   });
 
   it("applies shared category filters while keeping Clips Views sort most-viewed-first", async () => {
@@ -419,11 +445,10 @@ describe("CategoryDetailPage media tabs", () => {
     renderWithProviders(<CategoryDetailPage />);
 
     await waitFor(() => expect(api.clips.getByCategory).toHaveBeenCalledTimes(2));
-    expect(screen.getByText("Filter by:")).toHaveClass("shrink-0", "whitespace-nowrap");
     expect(screen.getByLabelText("Filter clips by time range")).toHaveTextContent("Last Week");
     const filterRow = screen.getByRole("group", { name: "Category filters" });
     const textFilters = screen.getByRole("group", { name: "Category text filters" });
-    const clipFilters = screen.getByRole("group", { name: "Category clip filters" });
+    const clipFilters = screen.getByRole("group", { name: "Category clips filters" });
     expect(filterRow).toContainElement(textFilters);
     expect(filterRow).toContainElement(clipFilters);
     expect(textFilters).toContainElement(screen.getByLabelText("Language"));
@@ -448,7 +473,7 @@ describe("CategoryDetailPage media tabs", () => {
     expect(localStorage.getItem("clips-filter-preference")).toBe("month");
   });
 
-  it("keeps Kick-only Category Clips and Videos usable without a Twitch mapping", async () => {
+  it("keeps Kick-only Category Clips and Videos usable", async () => {
     routeState.platform = "kick";
     routeState.categoryId = "15";
     searchState.tab = "clips";
@@ -489,20 +514,12 @@ describe("CategoryDetailPage media tabs", () => {
       data: [
         categoryMediaItem("kick", {
           id: "kick-only-video",
-          channelId: "kick-only-channel",
-          channelName: "Kick Only",
-          channelAvatar: "https://example.com/kick-only-avatar.jpg",
           title: "Kick-only Category Video",
-          thumbnailUrl: "https://example.com/kick-only-video.jpg",
-          duration: "0:20:00",
-          views: "80",
-          url: "https://kick.com/kick_only/videos/kick-only-video",
           gameId: "15",
           gameName: "Just Chatting",
         }),
       ],
     }));
-
     const { rerender } = renderWithProviders(<CategoryDetailPage />);
 
     await waitFor(() => expect(api.clips.getByCategory).toHaveBeenCalledTimes(1));
@@ -523,6 +540,7 @@ describe("CategoryDetailPage media tabs", () => {
     expect(screen.queryByLabelText("View order")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Date order")).not.toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Platform" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Videos" })).toBeInTheDocument();
 
     searchState.tab = "videos";
     rerender(<CategoryDetailPage />);
@@ -534,11 +552,13 @@ describe("CategoryDetailPage media tabs", () => {
         categoryId: "15",
         language: "en",
         tag: "speedrun",
+        sort: "date",
         direction: "asc",
       })
     );
     expect(screen.getByText("Kick-only Category Video")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Filter clips by time range")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Sort Category videos")).toHaveTextContent("Most Recent");
+    expect(screen.queryByRole("group", { name: "Platform" })).not.toBeInTheDocument();
   });
 
   it("re-requests Category Clips as each filter control changes", async () => {

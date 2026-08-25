@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import type { UnifiedClip, UnifiedVideo } from "@/backend/api/unified/platform-types";
@@ -137,7 +137,7 @@ function usePlatformCategoryMedia(
   timeRange: CategoryClipTimeRange,
   limit: number
 ) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: [
       "category-media",
       kind,
@@ -152,7 +152,7 @@ function usePlatformCategoryMedia(
       kind === "clips" ? timeRange : null,
       limit,
     ],
-    queryFn: async (): Promise<CategoryMediaItem[]> => {
+    queryFn: async ({ pageParam }): Promise<{ items: CategoryMediaItem[]; cursor?: string }> => {
       if (!hasUsableCategoryIdentity(source)) {
         throw new Error(`Missing ${source.platform} category identity`);
       }
@@ -173,6 +173,7 @@ function usePlatformCategoryMedia(
               tag,
               direction,
               timeRange,
+              cursor: pageParam || undefined,
             })
           : await window.electronAPI.videos.getByCategory({
               platform: source.platform,
@@ -184,6 +185,7 @@ function usePlatformCategoryMedia(
               language,
               tag,
               direction,
+              cursor: pageParam || undefined,
             });
 
       if (
@@ -193,8 +195,13 @@ function usePlatformCategoryMedia(
         throw new Error(response.error || `Failed to load ${source.platform} ${kind}`);
       }
 
-      return ((response.data ?? []) as RawCategoryMediaItem[]).map(normalizeMediaItem);
+      return {
+        items: ((response.data ?? []) as RawCategoryMediaItem[]).map(normalizeMediaItem),
+        cursor: response.cursor,
+      };
     },
+    initialPageParam: "",
+    getNextPageParam: (lastPage) => lastPage.cursor,
     enabled,
     retry: false,
     networkMode: "always",
@@ -212,8 +219,9 @@ export function useCategoryMedia({
   tag,
   direction = "desc",
   timeRange = "all",
-  limit = 20,
+  limit,
 }: UseCategoryMediaOptions) {
+  const resolvedLimit = limit ?? (kind === "videos" ? 60 : 20);
   const twitchQuery = usePlatformCategoryMedia(
     kind,
     twitch,
@@ -223,7 +231,7 @@ export function useCategoryMedia({
     tag,
     direction,
     timeRange,
-    limit
+    resolvedLimit
   );
   const kickQuery = usePlatformCategoryMedia(
     kind,
@@ -234,14 +242,18 @@ export function useCategoryMedia({
     tag,
     direction,
     timeRange,
-    limit
+    resolvedLimit
   );
 
   const items = useMemo(() => {
     const deduped = new Map<string, CategoryMediaItem>();
     const selectedItems = [
-      ...(includesPlatform(platformScope, "twitch") ? (twitchQuery.data ?? []) : []),
-      ...(includesPlatform(platformScope, "kick") ? (kickQuery.data ?? []) : []),
+      ...(includesPlatform(platformScope, "twitch")
+        ? (twitchQuery.data?.pages.flatMap((page) => page.items) ?? [])
+        : []),
+      ...(includesPlatform(platformScope, "kick")
+        ? (kickQuery.data?.pages.flatMap((page) => page.items) ?? [])
+        : []),
     ];
     for (const item of selectedItems) {
       const key = `${item.platform}:${item.id}`;
@@ -267,5 +279,14 @@ export function useCategoryMedia({
     failures: selectedQueries
       .filter(({ query }) => query.error)
       .map(({ platform, query }) => ({ platform, error: query.error, retry: query.refetch })),
+    hasNextPage: selectedQueries.some(({ query }) => query.hasNextPage),
+    isFetchingNextPage: selectedQueries.some(({ query }) => query.isFetchingNextPage),
+    fetchNextPage: async () => {
+      await Promise.all(
+        selectedQueries
+          .filter(({ query }) => query.hasNextPage && !query.isFetchingNextPage)
+          .map(({ query }) => query.fetchNextPage())
+      );
+    },
   };
 }

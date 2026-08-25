@@ -55,6 +55,37 @@ function installSearchMocks(state: SearchState): () => void {
         providers: platform ? { [platform]: "complete" } : { twitch: "complete", kick: "complete" },
       };
     },
+    streams: async ({ sessionId, platform }) => ({
+      success: true,
+      sessionId,
+      platform,
+      data: data.streams.filter((stream) => stream.platform === platform),
+      retryable: false,
+      error: null,
+      scannedPages: 1,
+      requestCount: 1,
+    }),
+    videos: async ({ sessionId, platform }) => ({
+      success: true,
+      sessionId,
+      platform,
+      data: data.videos.filter((video) => video.platform === platform),
+      retryable: false,
+      error: null,
+      requestCount: 1,
+      matchedChannelCount: 1,
+    }),
+    clips: async ({ sessionId, platform }) => ({
+      success: true,
+      sessionId,
+      platform,
+      data: data.clips.filter((clip) => clip.platform === platform),
+      retryable: false,
+      error: null,
+      requestCount: 1,
+      matchedChannelCount: 1,
+    }),
+    cancelSession: async () => ({ success: true, cancelled: true }),
     cancel: async () => ({ success: true, cancelled: true }),
   };
   const search = Object.assign(

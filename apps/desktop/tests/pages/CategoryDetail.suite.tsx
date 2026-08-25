@@ -38,7 +38,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/hooks/queries/useCategories", () => ({
   useCategoryById: vi.fn(),
-  useTopCategories: vi.fn(),
+  useInfiniteTopCategories: vi.fn(),
 }));
 
 vi.mock("@/hooks/queries/useInfiniteStreams", () => ({
@@ -77,12 +77,15 @@ vi.mock("@/components/ui/proxied-image", () => ({
   ProxiedImage: ({ alt }: { alt: string }) => <div data-testid="proxied-image">{alt}</div>,
 }));
 
-import { useCategoryById, useTopCategories } from "@/hooks/queries/useCategories";
+import {
+  useCategoryById,
+  useInfiniteTopCategories,
+} from "@/hooks/queries/useCategories";
 import { useInfiniteStreamsByCategory } from "@/hooks/queries/useInfiniteStreams";
 import { CategoryDetailPage } from "@/pages/CategoryDetail";
 
 const useCategoryByIdMock = vi.mocked(useCategoryById);
-const useTopCategoriesMock = vi.mocked(useTopCategories);
+const useInfiniteTopCategoriesMock = vi.mocked(useInfiniteTopCategories);
 const useInfiniteStreamsByCategoryMock = vi.mocked(useInfiniteStreamsByCategory);
 let categoryDetailQueryClient: QueryClient;
 
@@ -109,6 +112,7 @@ function emptyInfinite() {
 // Guards: cached category metadata and streams render in the initial commit without waiting for an unrelated post-paint gate
 // Guards: category header uses the merged Twitch + Kick total instead of a platform-only total or partial loaded-stream sum
 // Guards: URL-backed tabs and Live filters preserve Category identity and reproduce copied or history-restored views
+// Guards: Category content tabs remain visibly sticky with the primary active and keyboard-focus treatment
 // Guards: late stale-otherId repair cannot redirect after the Category route becomes inactive
 // Guards: Platform scope keeps loading, filtering, pagination, failure retry, and empty states independent
 // Guards: Live Viewer Count updates immediately restore the selected exact ordering
@@ -134,10 +138,11 @@ function registerCategoryDetailTests(name: string, registerTests: () => void) {
       categoryNavigateMock.mockReset();
       installElectronAPIMock();
       useCategoryByIdMock.mockReset();
-      useTopCategoriesMock.mockReset();
-      useTopCategoriesMock.mockReturnValue({ data: [], isLoading: false } as unknown as ReturnType<
-        typeof useTopCategories
-      >);
+      useInfiniteTopCategoriesMock.mockReset();
+      useInfiniteTopCategoriesMock.mockReturnValue({
+        data: [],
+        isLoading: false,
+      } as unknown as ReturnType<typeof useInfiniteTopCategories>);
       useInfiniteStreamsByCategoryMock.mockReset();
       useInfiniteStreamsByCategoryMock.mockReturnValue(emptyInfinite());
     });
@@ -492,9 +497,17 @@ export function registerIdentityTests() {
       expect(tabs[0]).toHaveAttribute("aria-current", "page");
       expect(tabs[1]).not.toHaveAttribute("aria-current");
       expect(tabs[2]).not.toHaveAttribute("aria-current");
-      expect(tabs[0]).toHaveClass("relative", "text-white");
-      expect(tabs[0]).not.toHaveClass("bg-[var(--color-background-secondary)]");
-      expect(tabs[0].querySelector('[data-active-underline="true"]')).toHaveClass("bg-white");
+      expect(navigation).toHaveClass(
+        "sticky",
+        "top-0",
+        "z-30",
+        "bg-[var(--color-background-secondary)]"
+      );
+      expect(tabs[0]).toHaveClass(
+        "border-b-[var(--color-primary)]",
+        "text-white",
+        "focus-visible:ring-[var(--color-primary)]"
+      );
       expect(tabs[1]).toHaveClass("text-[var(--color-foreground-muted)]");
     });
 
@@ -520,7 +533,7 @@ export function registerIdentityTests() {
         data: fixtures.category({ name: "IRL", viewerCount: 111 }),
         isLoading: false,
       } as ReturnType<typeof useCategoryById>);
-      useTopCategoriesMock.mockReturnValue({
+      useInfiniteTopCategoriesMock.mockReturnValue({
         data: [
           fixtures.category({
             name: "irl",
@@ -529,7 +542,7 @@ export function registerIdentityTests() {
           }),
         ],
         isLoading: false,
-      } as unknown as ReturnType<typeof useTopCategories>);
+      } as unknown as ReturnType<typeof useInfiniteTopCategories>);
       useInfiniteStreamsByCategoryMock.mockReturnValueOnce({
         data: { pages: [{ data: [fixtures.stream({ id: "partial", viewerCount: 33 })] }] },
         isLoading: false,
@@ -552,10 +565,10 @@ export function registerIdentityTests() {
         data: fixtures.category({ name: "IRL", platform: "twitch", viewerCount: 111 }),
         isLoading: false,
       } as ReturnType<typeof useCategoryById>);
-      useTopCategoriesMock.mockReturnValue({
+      useInfiniteTopCategoriesMock.mockReturnValue({
         data: [fixtures.category({ name: "irl", platform: "twitch", viewerCount: 777 })],
         isLoading: false,
-      } as unknown as ReturnType<typeof useTopCategories>);
+      } as unknown as ReturnType<typeof useInfiniteTopCategories>);
 
       renderWithProviders(<CategoryDetailPage />);
 

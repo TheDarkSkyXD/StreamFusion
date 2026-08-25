@@ -82,6 +82,14 @@ export function ClipDialog({
   const [readyPlaybackKey, setReadyPlaybackKey] = useState<string | null>(null);
   const [failedPlaybackKey, setFailedPlaybackKey] = useState<string | null>(null);
   const clipPlatform = selectedClip?.platform ?? platform;
+  const channelSlug = (
+    selectedClip?.channelSlug ||
+    channelData?.username ||
+    channelName
+  ).trim();
+  const channelDestination = channelSlug
+    ? { platform: clipPlatform, channel: channelSlug }
+    : null;
   const channelDisplayName = channelData?.displayName || selectedClip?.channelName || channelName;
   const channelAvatar = channelData?.avatarUrl || selectedClip?.channelAvatar || "";
   const followerCount = channelData?.followerCount ?? selectedClip?.channelFollowerCount;
@@ -356,9 +364,18 @@ export function ClipDialog({
                     className="bg-neutral-800"
                   />
                   <div className="flex flex-col">
-                    <span className="font-bold text-lg hover:underline decoration-2 underline-offset-4 decoration-[var(--color-primary)] cursor-pointer">
-                      {channelDisplayName}
-                    </span>
+                    {channelDestination ? (
+                      <Link
+                        to="/stream/$platform/$channel"
+                        params={channelDestination}
+                        onClick={onClose}
+                        className="font-bold text-lg hover:underline decoration-2 underline-offset-4 decoration-[var(--color-primary)]"
+                      >
+                        {channelDisplayName}
+                      </Link>
+                    ) : (
+                      <span className="font-bold text-lg">{channelDisplayName}</span>
+                    )}
                     <span className="text-[var(--color-foreground-muted)] text-sm">
                       {typeof followerCount === "number"
                         ? `${formatViews(followerCount)} followers`

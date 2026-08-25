@@ -1,4 +1,10 @@
-import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
+import { useCallback, useRef } from "react";
 
 import type { UnifiedCategory } from "../../backend/api/unified/platform-types";
 import { getEquivalentCategoryName, normalizeCategoryName, pickWinner } from "../../lib/utils";
@@ -16,6 +22,7 @@ interface StreamSummary {
 }
 
 const CATEGORY_PREVIEW_LIMIT = 12;
+const CATEGORY_SCROLL_PAGE_LIMIT = 100;
 let categoryRequestSequence = 0;
 
 function elapsedMs(startedAt: number): number {
@@ -357,12 +364,7 @@ export function useTopCategories(platform?: Platform, options: { enabled?: boole
     queryKey,
     queryFn: async ({ signal }) => {
       const [categoriesResponse, _streamsResponse, accepted, fullCatalog, refreshComplete] =
-        await acquireProgressiveCategoryData(
-        platform,
-        signal,
-        queryClient,
-        queryKey
-      );
+        await acquireProgressiveCategoryData(platform, signal, queryClient, queryKey);
 
       if (categoriesResponse.success === false) {
         throw new Error(categoriesResponse.error);
@@ -387,6 +389,126 @@ export function useTopCategories(platform?: Platform, options: { enabled?: boole
     surface: "categories",
   });
   return query;
+}
+
+interface CategoryProviderCursors {
+  twitch: string | null;
+  kick: string | null;
+}
+
+interface CategoryScrollPage {
+  categories: UnifiedCategory[];
+  cursors: CategoryProviderCursors;
+}
+
+interface CategoryScrollPageParam {
+  cursors: CategoryProviderCursors;
+  knownCategoryKeys: string[];
+}
+
+const FIRST_CATEGORY_SCROLL_PAGE: CategoryScrollPageParam = {
+  cursors: { twitch: "", kick: "" },
+  knownCategoryKeys: [],
+};
+
+/** Cursor-driven category catalog used by the Categories page. */
+export function useInfiniteTopCategories() {
+  const query = useInfiniteQuery({
+    queryKey: [...CATEGORY_KEYS.top(undefined), "infinite"] as const,
+    initialPageParam: FIRST_CATEGORY_SCROLL_PAGE,
+    queryFn: async ({ pageParam, signal }): Promise<CategoryScrollPage> => {
+      const knownCategoryKeys = new Set(pageParam.knownCategoryKeys);
+      const categories: UnifiedCategory[] = [];
+      let cursors = { ...pageParam.cursors };
+
+      while (cursors.twitch !== null || cursors.kick !== null) {
+        const activePlatforms = (["twitch", "kick"] as const).filter(
+          (platform) => cursors[platform] !== null
+        );
+        const results = await Promise.all(
+          activePlatforms.map(async (platform) => {
+            const cursor = cursors[platform] || undefined;
+            const response = await window.electronAPI.categories.getTop({
+              platform,
+              limit: CATEGORY_SCROLL_PAGE_LIMIT,
+              ...(cursor ? { cursor } : {}),
+            });
+            return { platform, response };
+          })
+        );
+        if (signal.aborted) throw new DOMException("Category request cancelled", "AbortError");
+
+        let cursorAdvanced = false;
+        let receivedCategories = false;
+        let successfulProviders = 0;
+        const nextCursors = { ...cursors };
+        for (const { platform, response } of results) {
+          if (response.success === false) {
+            nextCursors[platform] = null;
+            continue;
+          }
+          successfulProviders += 1;
+          const batch = response.data ?? [];
+          categories.push(...batch);
+          receivedCategories ||= batch.length > 0;
+          const nextCursor = response.cursor ?? null;
+          const didAdvance = nextCursor !== cursors[platform];
+          cursorAdvanced ||= didAdvance;
+          nextCursors[platform] = didAdvance ? nextCursor : null;
+        }
+        cursors = nextCursors;
+
+        if (successfulProviders === 0 && categories.length === 0) {
+          throw new Error("Couldn’t load categories from Twitch or Kick");
+        }
+
+        const addedCount = mergeCategories(categories).reduce(
+          (count, category) =>
+            count + (knownCategoryKeys.has(normalizeCategoryName(category.name)) ? 0 : 1),
+          0
+        );
+        if (
+          addedCount >= CATEGORY_SCROLL_PAGE_LIMIT ||
+          (!receivedCategories && !cursorAdvanced)
+        ) {
+          break;
+        }
+      }
+
+      return { categories, cursors };
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      if (lastPage.cursors.twitch === null && lastPage.cursors.kick === null) return undefined;
+      const knownCategoryKeys = Array.from(
+        new Set(
+          mergeCategories(allPages.flatMap((page) => page.categories)).map((category) =>
+            normalizeCategoryName(category.name)
+          )
+        )
+      );
+      return { cursors: lastPage.cursors, knownCategoryKeys };
+    },
+    ...getQueryCacheOptions("categories"),
+    refetchOnWindowFocus: false,
+  });
+
+  const loadMoreInFlight = useRef<ReturnType<typeof query.fetchNextPage> | null>(null);
+  const fetchNextPage: typeof query.fetchNextPage = useCallback((options) => {
+    if (loadMoreInFlight.current) return loadMoreInFlight.current;
+    const request = query.fetchNextPage({ ...options, cancelRefetch: false });
+    loadMoreInFlight.current = request;
+    const clear = () => {
+      if (loadMoreInFlight.current === request) loadMoreInFlight.current = null;
+    };
+    void request.then(clear, clear);
+    return request;
+  }, [query.fetchNextPage]);
+
+  return {
+    ...query,
+    fetchNextPage,
+    data: mergeCategories(query.data?.pages.flatMap((page) => page.categories) ?? []),
+  };
 }
 
 /**

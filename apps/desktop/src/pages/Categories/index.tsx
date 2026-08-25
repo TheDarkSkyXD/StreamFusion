@@ -3,14 +3,21 @@ import { useCallback, useMemo, useState } from "react";
 import { LuRefreshCw, LuSearch, LuTriangleAlert } from "react-icons/lu";
 
 import { VirtualizedCategoryGrid } from "@/components/discovery/virtualized-category-grid";
-import { useTopCategories } from "@/hooks/queries/useCategories";
+import { useInfiniteTopCategories } from "@/hooks/queries/useCategories";
 import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 
 export function CategoriesPage() {
-  // Fetch ALL categories (cached, deduped with Twitch priority).
-  // The list comes back fully — the grid is virtualized, so we hand the entire
-  // filtered list straight to it and let windowing handle render perf.
-  const { data: categories, isLoading, isError, refetch } = useTopCategories();
+  // Accumulate cursor pages while the virtualized grid keeps rendering only
+  // the currently visible category cards.
+  const {
+    data: categories,
+    isLoading,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteTopCategories();
   const canRenderGrid = useAfterFirstPaint();
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -60,8 +67,7 @@ export function CategoriesPage() {
             <LuTriangleAlert className="mb-3 h-8 w-8 text-amber-300" aria-hidden="true" />
             <h2 className="text-lg font-semibold text-white">Couldn’t load categories</h2>
             <p className="mt-2 text-sm text-[var(--color-foreground-secondary)]">
-              Twitch or Kick may be temporarily unavailable. Your saved browse data was not
-              changed.
+              Twitch or Kick may be temporarily unavailable. Your saved browse data was not changed.
             </p>
             <button
               type="button"
@@ -76,6 +82,9 @@ export function CategoriesPage() {
           <VirtualizedCategoryGrid
             categories={filteredCategories}
             isLoading={isLoading || !canRenderGrid}
+            isFetchingNextPage={isFetchingNextPage}
+            hasNextPage={hasNextPage}
+            onLoadMore={() => void fetchNextPage()}
             skeletonCount={12}
             scrollKey="categories-page"
             emptyMessage={

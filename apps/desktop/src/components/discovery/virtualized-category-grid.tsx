@@ -180,14 +180,17 @@ export function VirtualizedCategoryGrid({
     }
   }, []);
 
+  const hasScrollContainer = !isLoading && categories.length > 0;
+
   useEffect(() => {
+    if (!hasScrollContainer) return;
     const container = containerRef.current;
     if (!container) return;
 
     handleScroll(); // Initial calculation
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
-  }, [handleScroll]);
+  }, [handleScroll, hasScrollContainer]);
 
   // Re-run handleScroll once when categories.length grows so visibleRange
   // expands without waiting for the next scroll event.
@@ -306,11 +309,7 @@ export function VirtualizedCategoryGrid({
               key={`${category.platform}-${category.id}`}
               className="transition-opacity duration-150"
             >
-              <CategoryCard
-                category={category}
-                imageLoading="eager"
-                imageFetchPriority="high"
-              />
+              <CategoryCard category={category} imageLoading="eager" imageFetchPriority="high" />
             </div>
           ))}
           {isPendingWindow &&

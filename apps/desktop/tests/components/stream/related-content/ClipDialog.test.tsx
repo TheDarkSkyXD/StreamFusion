@@ -61,12 +61,22 @@ vi.mock("@/hooks/queries/useHistoryQuery", () => ({
 const mockNavigate = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
-  Link: ({ children, to, params }: React.PropsWithChildren<{ to: string; params?: Record<string, unknown> }>) => (
+  Link: ({
+    children,
+    to,
+    params,
+    onClick,
+  }: React.PropsWithChildren<{
+    to: string;
+    params?: Record<string, unknown>;
+    onClick?: React.MouseEventHandler<HTMLAnchorElement>;
+  }>) => (
     <a
       href={to}
       data-params={JSON.stringify(params)}
       onClick={(e) => {
         e.preventDefault();
+        onClick?.(e);
         mockNavigate({ to, params });
       }}
     >
@@ -80,6 +90,7 @@ vi.mock("@tanstack/react-router", () => ({
 // Guards: Twitch clip history keeps stable clip identity and never persists its reversible playback URL
 // Guards: player failures unmount playback, show retry guidance, and disable Share and Download
 // Guards: switching Clips clears Copied state and waits for the new player readiness signal
+// Guards: the displayed channel name routes by the selected Clip's canonical Platform and slug and closes the dialog
 describe("[Unit] ClipDialog", () => {
   const mockOnClose = vi.fn();
   const mockOnPlaybackError = vi.fn();
@@ -439,6 +450,30 @@ describe("[Unit] ClipDialog", () => {
     expect(screen.getByText("1K followers")).toBeInTheDocument();
     expect(screen.queryByText("Followers hidden")).not.toBeInTheDocument();
     expect(screen.getByTestId("platform-avatar")).toHaveAttribute("data-src", "avatar.jpg");
+  });
+
+  it("routes the channel name using the selected clip identity and closes the dialog", () => {
+    render(
+      <ClipDialog
+        selectedClip={{ ...mockClip, platform: "kick", channelSlug: "canonical-channel" }}
+        onClose={mockOnClose}
+        clipLoading={false}
+        clipError={null}
+        clipPlaybackUrl="http://video.url"
+        platform="twitch"
+        channelName="stale-parent-channel"
+        channelData={{ ...mockChannelData, username: "stale-channel-data" }}
+        onPlaybackError={mockOnPlaybackError}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "CoolStreamer" }));
+
+    expect(mockOnClose).toHaveBeenCalledTimes(1);
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/stream/$platform/$channel",
+      params: { platform: "kick", channel: "canonical-channel" },
+    });
   });
 
   it("should render category and view count when clip payload uses viewCount", () => {
