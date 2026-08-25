@@ -53,6 +53,7 @@ vi.mock("@/components/chat", () => ({
     channelId?: string;
     kickChannelId?: string;
     chatroomId?: number;
+    showComposer?: boolean;
   }) => (
     <div
       data-testid="featured-chat-panel"
@@ -61,6 +62,7 @@ vi.mock("@/components/chat", () => ({
       data-channel-id={props.channelId}
       data-kick-channel-id={props.kickChannelId}
       data-chatroom-id={props.chatroomId}
+      data-show-composer={String(props.showComposer)}
     />
   ),
 }));
@@ -101,6 +103,22 @@ describe("FeaturedStage", () => {
       isError: false,
       refetch: vi.fn(),
     });
+  });
+
+  it("mounts the Home chat rail without a composer", () => {
+    renderWithProviders(
+      <FeaturedStage
+        stream={fixtures.stream()}
+        streams={[fixtures.stream()]}
+        isLoading={false}
+        canRenderContent={true}
+      />
+    );
+
+    expect(screen.getByTestId("featured-chat-panel")).toHaveAttribute(
+      "data-show-composer",
+      "false"
+    );
   });
 
   it("changes chat targets with the active carousel stream", () => {

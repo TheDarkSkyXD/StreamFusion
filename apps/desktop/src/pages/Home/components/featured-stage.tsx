@@ -53,11 +53,7 @@ export function FeaturedStage({
     () => {
       selectActiveIndex(activeIndex >= carouselStreams.length - 1 ? 0 : activeIndex + 1);
     },
-    canRenderContent &&
-      !isLoading &&
-      !isWide &&
-      carouselStreams.length > 1 &&
-      !isCarouselPaused
+    canRenderContent && !isLoading && !isWide && carouselStreams.length > 1 && !isCarouselPaused
       ? homeCarouselIntervalMs
       : null
   );
@@ -168,6 +164,7 @@ function getFeaturedChatTarget({
         subscriberBadges: channel.subscriberBadges,
         badgeCatalogState: "ready",
         retryBadgeCatalog: retry,
+        showComposer: false,
       },
     };
   }
@@ -180,6 +177,7 @@ function getFeaturedChatTarget({
       initialPlatform: "twitch",
       initialChannel: activeStream.channelName,
       channelId: channel.id,
+      showComposer: false,
     },
   };
 }

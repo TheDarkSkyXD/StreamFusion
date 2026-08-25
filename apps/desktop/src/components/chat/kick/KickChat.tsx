@@ -82,6 +82,7 @@ export interface KickChatProps {
   subscriberBadges?: SubscriberBadge[];
   badgeCatalogState?: "loading" | "ready" | "failed";
   retryBadgeCatalog?: () => void;
+  showComposer?: boolean;
 }
 
 /** U13 — Kick has no raid/commercial/shield/unique-chat. The strip only fires
@@ -216,6 +217,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   subscriberBadges,
   badgeCatalogState = subscriberBadges === undefined ? "loading" : "ready",
   retryBadgeCatalog = () => {},
+  showComposer = true,
 }) => {
   useRenderCount("KickChat");
   const queryClient = useQueryClient();
@@ -1362,27 +1364,29 @@ export const KickChat: React.FC<KickChatProps> = ({
         />
       </div>
 
-      <ChatComposerFooter>
-        {/* Footer composer owns message send actions and quick chat settings. */}
-        <ChatInput
-          ref={chatInputRef}
-          platform="kick"
-          channel={channel}
-          channelId={kickRoomKey || null}
-          chatroomId={chatroomId}
-          kickUserId={kickUserId}
-          canSend={isAuthenticated && isKickConnected}
-          isAuthenticated={isAuthenticated}
-          viewerUserId={isAuthenticated && kickUser ? String(kickUser.id) : undefined}
-          onAuthRequired={() => loginKick()}
-          viewerCanBypassRoomModes={isMod}
-          checkSubscriberEligibility={(request) =>
-            window.electronAPI.chat.checkSubscriberEligibility(request)
-          }
-          showModViewLink={isAuthenticated && isMod}
-          onSendEligibilityChange={handleSendEligibilityChange}
-        />
-      </ChatComposerFooter>
+      {showComposer && (
+        <ChatComposerFooter>
+          {/* Footer composer owns message send actions and quick chat settings. */}
+          <ChatInput
+            ref={chatInputRef}
+            platform="kick"
+            channel={channel}
+            channelId={kickRoomKey || null}
+            chatroomId={chatroomId}
+            kickUserId={kickUserId}
+            canSend={isAuthenticated && isKickConnected}
+            isAuthenticated={isAuthenticated}
+            viewerUserId={isAuthenticated && kickUser ? String(kickUser.id) : undefined}
+            onAuthRequired={() => loginKick()}
+            viewerCanBypassRoomModes={isMod}
+            checkSubscriberEligibility={(request) =>
+              window.electronAPI.chat.checkSubscriberEligibility(request)
+            }
+            showModViewLink={isAuthenticated && isMod}
+            onSendEligibilityChange={handleSendEligibilityChange}
+          />
+        </ChatComposerFooter>
+      )}
     </div>
   );
 

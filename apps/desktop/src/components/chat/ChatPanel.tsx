@@ -12,12 +12,16 @@ import { useRenderCount } from "../dev/use-render-count";
 
 import type { SubscriberBadge } from "@/backend/services/chat/kick-parser";
 
-let kickChatComponentPromise: Promise<{
-  default: typeof import("./kick/KickChat").KickChat;
-}> | undefined;
-let twitchChatComponentPromise: Promise<{
-  default: typeof import("./twitch/TwitchChat").TwitchChat;
-}> | undefined;
+let kickChatComponentPromise:
+  | Promise<{
+      default: typeof import("./kick/KickChat").KickChat;
+    }>
+  | undefined;
+let twitchChatComponentPromise:
+  | Promise<{
+      default: typeof import("./twitch/TwitchChat").TwitchChat;
+    }>
+  | undefined;
 
 const loadKickChatComponent = () =>
   (kickChatComponentPromise ??= Promise.all([
@@ -58,6 +62,8 @@ export interface ChatPanelProps {
   subscriberBadges?: SubscriberBadge[];
   badgeCatalogState?: "loading" | "ready" | "failed";
   retryBadgeCatalog?: () => void;
+  /** Mount the message composer. Home uses a read-only chat rail. */
+  showComposer?: boolean;
 }
 
 // Memoized: combined with the narrowed connectionStatus selectors in
@@ -73,6 +79,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
   subscriberBadges,
   badgeCatalogState,
   retryBadgeCatalog,
+  showComposer = true,
 }) {
   useRenderCount("ChatPanel");
   // Register emote providers lazily — chat is the only consumer, so pages
@@ -96,6 +103,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
           subscriberBadges={subscriberBadges}
           badgeCatalogState={badgeCatalogState}
           retryBadgeCatalog={retryBadgeCatalog}
+          showComposer={showComposer}
         />
       </Suspense>
     );
@@ -103,7 +111,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
 
   return (
     <Suspense fallback={<ChatPanelLoading />}>
-      <LazyTwitchChat channel={initialChannel} channelId={channelId} />
+      <LazyTwitchChat channel={initialChannel} channelId={channelId} showComposer={showComposer} />
     </Suspense>
   );
 });

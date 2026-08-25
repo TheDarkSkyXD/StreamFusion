@@ -76,6 +76,7 @@ export interface TwitchChatProps {
   channel: string;
   /** Channel ID (broadcaster ID) */
   channelId?: string;
+  showComposer?: boolean;
 }
 
 /** U13/U15 — widened mod-action state. `messageScoped` covers U11's hover
@@ -161,7 +162,11 @@ function createConnectionStatusMessage(
   };
 }
 
-export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) => {
+export const TwitchChat: React.FC<TwitchChatProps> = ({
+  channel,
+  channelId,
+  showComposer = true,
+}) => {
   useRenderCount("TwitchChat");
   const queryClient = useQueryClient();
   // Chat store — subscribe only to fields read in render; actions have stable refs.
@@ -1617,25 +1622,27 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({ channel, channelId }) =>
         />
       </div>
 
-      <ChatComposerFooter>
-        {/* Footer composer owns message send actions and quick chat settings. */}
-        <ChatInput
-          ref={chatInputRef}
-          platform="twitch"
-          channel={channel}
-          channelId={channelId ?? null}
-          canSend={isAuthenticated && isTwitchConnected}
-          isAuthenticated={isAuthenticated}
-          viewerUserId={isAuthenticated ? twitchUser?.id : undefined}
-          onAuthRequired={() => loginTwitch()}
-          viewerCanBypassRoomModes={isMod}
-          checkSubscriberEligibility={(request) =>
-            window.electronAPI.chat.checkSubscriberEligibility(request)
-          }
-          showModViewLink={isAuthenticated && isMod}
-          onSendEligibilityChange={handleSendEligibilityChange}
-        />
-      </ChatComposerFooter>
+      {showComposer && (
+        <ChatComposerFooter>
+          {/* Footer composer owns message send actions and quick chat settings. */}
+          <ChatInput
+            ref={chatInputRef}
+            platform="twitch"
+            channel={channel}
+            channelId={channelId ?? null}
+            canSend={isAuthenticated && isTwitchConnected}
+            isAuthenticated={isAuthenticated}
+            viewerUserId={isAuthenticated ? twitchUser?.id : undefined}
+            onAuthRequired={() => loginTwitch()}
+            viewerCanBypassRoomModes={isMod}
+            checkSubscriberEligibility={(request) =>
+              window.electronAPI.chat.checkSubscriberEligibility(request)
+            }
+            showModViewLink={isAuthenticated && isMod}
+            onSendEligibilityChange={handleSendEligibilityChange}
+          />
+        </ChatComposerFooter>
+      )}
     </div>
   );
 
