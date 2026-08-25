@@ -107,7 +107,7 @@ describe("useFollowedStreams", () => {
     expect(api.streams.getFollowed).toHaveBeenCalledTimes(2);
   });
 
-  it("refreshes Kick followed status every 15 seconds", async () => {
+  it("refreshes Kick followed status every 60 seconds", async () => {
     vi.useFakeTimers();
     api.streams.getFollowed = vi.fn(async () => ({
       success: true as const,
@@ -122,7 +122,7 @@ describe("useFollowedStreams", () => {
     expect(api.streams.getFollowed).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(14_999);
+      await vi.advanceTimersByTimeAsync(59_999);
     });
     expect(api.streams.getFollowed).toHaveBeenCalledTimes(1);
 

@@ -55,6 +55,21 @@ vi.mock("@/hooks/queries/useSearch", () => ({
     hasNextPage: false,
     fetchNextPage: vi.fn(),
   }),
+  useSearchStreams: () => ({ data: [], isLoading: false }),
+  useSearchVideos: () => ({
+    data: [],
+    isLoading: false,
+    isFetchingNextPage: false,
+    hasNextPage: false,
+    fetchNextPage: vi.fn(),
+  }),
+  useSearchClips: () => ({
+    data: [],
+    isLoading: false,
+    isFetchingNextPage: false,
+    hasNextPage: false,
+    fetchNextPage: vi.fn(),
+  }),
 }));
 
 vi.mock("@/hooks/useDebounce", () => ({

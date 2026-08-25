@@ -818,7 +818,7 @@ describe("useInfiniteTopCategories", () => {
       ),
     });
     await act(async () => firstLoad);
-    expect(result.current.data).toHaveLength(200);
+    await waitFor(() => expect(result.current.data).toHaveLength(200));
   });
 });
 

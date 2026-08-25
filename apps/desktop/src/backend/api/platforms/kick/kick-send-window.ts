@@ -94,6 +94,7 @@ function scheduleIdleReap(): void {
   if (sendWindowChatActive || activeWindowOperations > 0 || !sendWindow) return;
   const capturedWindow = sendWindow;
   const capturedGeneration = sendWindowGeneration;
+  // timer-allowlist: lifecycle reap owns a cancellable module-level handle across operations
   idleReapTimer = setTimeout(() => {
     idleReapTimer = null;
     if (

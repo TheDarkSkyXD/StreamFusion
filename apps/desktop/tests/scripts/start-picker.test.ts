@@ -69,7 +69,7 @@ describe("start picker", () => {
     expect(launch).toHaveBeenCalledWith("dev:electron");
   });
 
-  it("exposes direct automation scripts while routing root npm start through the picker", () => {
+  it("exposes direct automation scripts while routing root npm start through quality checks", () => {
     const desktopPackage = JSON.parse(
       readFileSync(resolve(__dirname, "../../package.json"), "utf8")
     ) as { scripts: Record<string, string> };
@@ -77,7 +77,7 @@ describe("start picker", () => {
       readFileSync(resolve(__dirname, "../../../../package.json"), "utf8")
     ) as { scripts: Record<string, string> };
 
-    expect(rootPackage.scripts.start).toBe("node apps/desktop/scripts/start-picker.js");
+    expect(rootPackage.scripts.start).toBe("pnpm --dir apps/desktop start:checked");
     expect(desktopPackage.scripts.start).toBe("node scripts/start-picker.js");
     expect(desktopPackage.scripts.dev).toBe(
       "cross-env STREAMFUSION_BROWSER_DEV=1 node scripts/start-dev.js"
