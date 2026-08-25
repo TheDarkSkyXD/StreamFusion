@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { withAppRouter } from "../../../.storybook/story-router";
+import { makeChannel } from "../../../.storybook/catalog-fixtures";
 
 import { HomePage } from "./index";
 import { homeStreamFixtures } from "./story-fixtures";
@@ -13,6 +14,7 @@ function installHomeMocks(state: HomeQueryState): () => void {
   const previousDescriptor = Object.getOwnPropertyDescriptor(window, "electronAPI");
   const previousBridge = window.electronAPI;
   const streams = Object.create(previousBridge.streams) as typeof previousBridge.streams;
+  const channels = Object.create(previousBridge.channels) as typeof previousBridge.channels;
 
   streams.getTop = async () => {
     if (state === "populated") return { success: true, data: homeStreamFixtures };
@@ -27,9 +29,35 @@ function installHomeMocks(state: HomeQueryState): () => void {
     success: false,
     error: "Channel is offline in Storybook.",
   });
+  channels.getByUsername = async ({ username, platform }) => {
+    const streamIndex = homeStreamFixtures.findIndex(
+      (stream) => stream.platform === platform && stream.channelName === username
+    );
+    const stream = homeStreamFixtures[streamIndex];
+    if (!stream) return { success: false, error: "Channel fixture not found." };
+
+    return {
+      success: true,
+      data: makeChannel(streamIndex, {
+        id: stream.channelId,
+        platform: stream.platform,
+        username: stream.channelName,
+        displayName: stream.channelDisplayName,
+        avatarUrl: stream.channelAvatar,
+        ...(stream.platform === "kick"
+          ? {
+              kickChannelId: `legacy-${stream.channelId}`,
+              chatroomId: streamIndex + 1000,
+              kickUserId: `user-${stream.channelId}`,
+            }
+          : {}),
+      }),
+    };
+  };
 
   const bridge = Object.create(previousBridge) as typeof previousBridge;
   Object.defineProperty(bridge, "streams", { configurable: true, value: streams });
+  Object.defineProperty(bridge, "channels", { configurable: true, value: channels });
   Object.defineProperty(window, "electronAPI", { configurable: true, value: bridge });
 
   return () => {

@@ -1,11 +1,11 @@
 import { Link } from "@tanstack/react-router";
 
-import { FeaturedStream } from "@/components/stream/featured-stream";
 import { Button } from "@/components/ui/button";
 import { useTopStreams } from "@/hooks/queries/useStreams";
 import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 
 import { LiveNowSection } from "./components/live-now-section";
+import { FeaturedStage } from "./components/featured-stage";
 
 export function HomePage() {
   const { data: streams, isLoading, error } = useTopStreams(undefined, 25);
@@ -29,13 +29,13 @@ export function HomePage() {
 
   return (
     <div className="p-6 space-y-8 max-w-[1800px] mx-auto">
-      {/* Featured Stream Section */}
       <section>
-        {canRenderContent ? (
-          <FeaturedStream stream={featuredStream} streams={featuredStreams} isLoading={isLoading} />
-        ) : (
-          <div className="h-[420px] rounded-xl bg-[var(--color-background-secondary)] animate-pulse" />
-        )}
+        <FeaturedStage
+          stream={featuredStream}
+          streams={featuredStreams}
+          isLoading={isLoading}
+          canRenderContent={canRenderContent}
+        />
       </section>
 
       {/* Live Channels Section */}
