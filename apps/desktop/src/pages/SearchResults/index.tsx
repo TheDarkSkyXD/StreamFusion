@@ -9,7 +9,6 @@ import type {
 } from "@/backend/api/unified/platform-types";
 import { CategoryGrid } from "@/components/discovery/category-grid";
 import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
-import { ClipDialog } from "@/components/stream/related-content/ClipDialog";
 import type { VideoOrClip } from "@/components/stream/related-content/types";
 import { StreamGrid } from "@/components/stream/stream-grid";
 import { StreamVerifiedBadge } from "@/components/stream/stream-verified-badge";
@@ -30,6 +29,11 @@ import { isExactChannelSearchMatch, rankSearchChannels } from "@/search/channel-
 /* CATEGORIES SECTION */
 type SearchTab = "all" | "channels" | "streams" | "videos" | "clips" | "categories";
 const SEARCH_RESULTS_CHANNEL_PAGE_SIZE = 50;
+const ClipDialog = React.lazy(() =>
+  import("@/components/stream/related-content/ClipDialog").then((module) => ({
+    default: module.ClipDialog,
+  }))
+);
 
 function ChannelDisplayName({
   channel,
@@ -842,17 +846,21 @@ export function SearchPage() {
           </p>
         </div>
       )}
-      <ClipDialog
-        selectedClip={selectedClipForDialog}
-        onClose={() => setSelectedClip(null)}
-        clipLoading={clipLoading}
-        clipError={clipError}
-        clipPlaybackUrl={clipPlaybackUrl}
-        platform={selectedClip?.platform || "twitch"}
-        channelName={selectedClip?.channelName || ""}
-        channelData={null}
-        onPlaybackError={() => setClipError("Failed to play clip")}
-      />
+      {selectedClip && (
+        <React.Suspense fallback={null}>
+          <ClipDialog
+            selectedClip={selectedClipForDialog}
+            onClose={() => setSelectedClip(null)}
+            clipLoading={clipLoading}
+            clipError={clipError}
+            clipPlaybackUrl={clipPlaybackUrl}
+            platform={selectedClip.platform}
+            channelName={selectedClip.channelName}
+            channelData={null}
+            onPlaybackError={() => setClipError("Failed to play clip")}
+          />
+        </React.Suspense>
+      )}
     </div>
   );
 }
