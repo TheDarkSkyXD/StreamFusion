@@ -406,6 +406,14 @@ export const IPC_CHANNELS = {
   EMOTES_KICK_GET_CHANNEL_EMOTES: "emotes:kick:get-channel-emotes",
   EMOTES_KICK_GET_USER_SUBSCRIPTIONS: "emotes:kick:get-user-subscriptions",
 
+  // ========== Diagnostics ==========
+  DIAGNOSTICS_OPEN_LEASE: "diagnostics:open-lease",
+  DIAGNOSTICS_CONFIGURE_LEASE: "diagnostics:configure-lease",
+  DIAGNOSTICS_CLOSE_LEASE: "diagnostics:close-lease",
+  DIAGNOSTICS_REFRESH: "diagnostics:refresh",
+  DIAGNOSTICS_REPORT_RENDERER: "diagnostics:report-renderer",
+  DIAGNOSTICS_SNAPSHOT_CHANGED: "diagnostics:snapshot-changed",
+
   // ========== Bug Reports ==========
   // Renderer-driven bug-report capture. The handler stitches the description,
   // tail of the main log, and tail of the noise log into a markdown file in
@@ -431,6 +439,7 @@ export const IPC_FEATURES = {
   CHAT_REPLAY: "chat-replay",
   CONNECTIVITY: "connectivity",
   DOWNLOADS: "downloads",
+  DIAGNOSTICS: "diagnostics",
   EMOTES: "emotes",
   KICK_CHAT: "kick-chat",
   LOCAL_CAPTIONS: "local-captions",
@@ -463,6 +472,18 @@ export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
 
 export interface IpcPayloads {
   [IPC_CHANNELS.IPC_FEATURE_LOAD]: IpcFeature;
+
+  [IPC_CHANNELS.DIAGNOSTICS_OPEN_LEASE]: {
+    documentInstanceId: string;
+    view: import("./diagnostics-types").DiagnosticsView;
+  };
+  [IPC_CHANNELS.DIAGNOSTICS_CONFIGURE_LEASE]: {
+    leaseId: string;
+    view: import("./diagnostics-types").DiagnosticsView;
+  };
+  [IPC_CHANNELS.DIAGNOSTICS_CLOSE_LEASE]: { leaseId: string };
+  [IPC_CHANNELS.DIAGNOSTICS_REFRESH]: { leaseId: string };
+  [IPC_CHANNELS.DIAGNOSTICS_REPORT_RENDERER]: import("./diagnostics-types").RendererPerformanceSummary;
 
   // Generic storage
   [IPC_CHANNELS.STORE_GET]: { key: string };

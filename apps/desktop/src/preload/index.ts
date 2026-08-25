@@ -38,6 +38,7 @@ import type {
   UserProfileResponse,
 } from "../ipc-contracts/user-profile-contracts";
 import type { EmoteIpcResponse, FfzRoomRequest } from "../ipc-contracts/emote-contracts";
+import { diagnosticsSnapshotChangedSchema } from "../ipc-contracts/diagnostics-contracts";
 import type { SearchResultCollection } from "../search/search-result-validation";
 import type {
   AccountFollowWriteRequest,
@@ -76,6 +77,14 @@ import type {
   VideoDownloadRequest,
 } from "../shared/download-types";
 import type { DiscoveryResult } from "../shared/discovery-types";
+import type {
+  DiagnosticsLeaseOpened,
+  DiagnosticsSnapshot,
+  DiagnosticsSnapshotChanged,
+  DiagnosticsView,
+  RendererPerformanceSummary,
+} from "../shared/diagnostics-types";
+import type { IpcReply } from "../shared/reliability-types";
 import type {
   SearchClipsRequest,
   SearchStreamsRequest,
@@ -231,6 +240,33 @@ const electronAPI = {
   // ========== Internet Connectivity ==========
   connectivity: {
     check: (): Promise<PhysicalConnectivityResult> => invokeIpc(IPC_CHANNELS.CONNECTIVITY_CHECK),
+  },
+
+  diagnostics: {
+    openLease: (request: {
+      documentInstanceId: string;
+      view: DiagnosticsView;
+    }): Promise<IpcReply<DiagnosticsLeaseOpened>> =>
+      invokeIpc(IPC_CHANNELS.DIAGNOSTICS_OPEN_LEASE, request),
+    configureLease: (request: {
+      leaseId: string;
+      view: DiagnosticsView;
+    }): Promise<IpcReply<DiagnosticsSnapshot>> =>
+      invokeIpc(IPC_CHANNELS.DIAGNOSTICS_CONFIGURE_LEASE, request),
+    closeLease: (leaseId: string): Promise<IpcReply<null>> =>
+      invokeIpc(IPC_CHANNELS.DIAGNOSTICS_CLOSE_LEASE, { leaseId }),
+    refresh: (leaseId: string): Promise<IpcReply<DiagnosticsSnapshot>> =>
+      invokeIpc(IPC_CHANNELS.DIAGNOSTICS_REFRESH, { leaseId }),
+    reportRenderer: (summary: RendererPerformanceSummary): Promise<IpcReply<null>> =>
+      invokeIpc(IPC_CHANNELS.DIAGNOSTICS_REPORT_RENDERER, summary),
+    onSnapshotChanged: (callback: (event: DiagnosticsSnapshotChanged) => void): (() => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, value: unknown) => {
+        const parsed = diagnosticsSnapshotChangedSchema.safeParse(value);
+        if (parsed.success) callback(parsed.data);
+      };
+      ipcRenderer.on(IPC_CHANNELS.DIAGNOSTICS_SNAPSHOT_CHANGED, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.DIAGNOSTICS_SNAPSHOT_CHANGED, handler);
+    },
   },
 
   // ========== Window Controls ==========

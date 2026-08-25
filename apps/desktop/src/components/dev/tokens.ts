@@ -1,8 +1,6 @@
 /**
- * Design tokens shared by the dev DebugPanel and its tools. Lives in its own
- * module so DebugPanel ↔ tool imports don't form a circular dependency
- * (DebugPanel.tsx imports the tools, the tools import these tokens — if they
- * imported them from DebugPanel.tsx they'd hit a TDZ ReferenceError).
+ * Design tokens shared by the Developer Console and its tools. This module
+ * keeps the console and tool imports acyclic.
  *
  * Mirrors the StreamFusion app theme (apps/desktop/src/global.css): dark
  * backgrounds (#0f0f0f / #252525 / #2d2d2d), crimson brand accent (#dc143c),

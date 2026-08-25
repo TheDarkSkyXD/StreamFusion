@@ -95,9 +95,9 @@ import {
 } from "@/store/multistream-store";
 import { useSeekIntervalStore } from "@/store/seek-interval-store";
 
-const DiagnosticsPrototype = lazy(() =>
-  import("./diagnostics-prototype/DiagnosticsPrototype").then((module) => ({
-    default: module.DiagnosticsPrototype,
+const DiagnosticsWorkspace = lazy(() =>
+  import("./diagnostics/DiagnosticsWorkspace").then((module) => ({
+    default: module.DiagnosticsWorkspace,
   }))
 );
 
@@ -357,8 +357,8 @@ const TAB_META: Record<TabKey, { label: string; description: string; icon: typeo
   },
   updates: { label: "Updates", description: "Auto update preferences", icon: LuRefreshCw },
   diagnostics: {
-    label: "Diagnostics prototype",
-    description: "Compare three diagnostics layouts",
+    label: "Diagnostics",
+    description: "Inspect live performance, processes, traces, and logs",
     icon: LuActivity,
   },
   logs: { label: "Logs", description: "In-app log viewer & diagnostics", icon: LuFileText },
@@ -691,6 +691,10 @@ export function SettingsPage() {
     previousActiveTabRef.current = activeTab;
     if (contentScrollerRef.current) contentScrollerRef.current.scrollTop = 0;
   }, [activeTab]);
+
+  const resetContentScroll = useCallback(() => {
+    if (contentScrollerRef.current) contentScrollerRef.current.scrollTop = 0;
+  }, []);
 
   const navigateToTab = useCallback(
     (tab: TabKey, replace = false, optimistic = false) => {
@@ -2432,17 +2436,16 @@ export function SettingsPage() {
                 />
               )}
 
-              {/* PROTOTYPE, WIPE ME. Three URL-switchable Diagnostics layouts. */}
               {activeTab === "diagnostics" && (
                 <Suspense
                   fallback={
-                    <div className="space-y-4" aria-label="Loading Diagnostics prototype">
+                    <div className="space-y-4" aria-label="Loading Diagnostics">
                       <div className="h-20 animate-pulse rounded-xl bg-[var(--color-background-secondary)]" />
                       <div className="h-72 animate-pulse rounded-xl border border-[var(--color-border)] bg-[var(--color-background-secondary)]" />
                     </div>
                   }
                 >
-                  <DiagnosticsPrototype />
+                  <DiagnosticsWorkspace onSectionChange={resetContentScroll} />
                 </Suspense>
               )}
 

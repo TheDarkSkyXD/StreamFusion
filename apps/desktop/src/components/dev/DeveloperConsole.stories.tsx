@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { seedChatSubsystemStoryStores } from "../chat/chat-subsystem-story-fixtures";
-import { DebugPanel } from "./DebugPanel";
+import { DeveloperConsole } from "./DeveloperConsole";
 
 const meta = {
   title: "Components/Developer Tools/Debug Panel",
-  component: DebugPanel,
+  component: DeveloperConsole,
   parameters: {
     layout: "fullscreen",
     docs: {
@@ -15,7 +15,7 @@ const meta = {
       },
     },
   },
-} satisfies Meta<typeof DebugPanel>;
+} satisfies Meta<typeof DeveloperConsole>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -26,7 +26,7 @@ export const Expanded: Story = {
     window.localStorage.removeItem("streamfusion-debug-panel");
     return (
       <div className="min-h-[720px] bg-[#0f0f0f]">
-        <DebugPanel />
+        <DeveloperConsole />
       </div>
     );
   },

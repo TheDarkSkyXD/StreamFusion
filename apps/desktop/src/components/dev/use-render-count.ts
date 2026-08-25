@@ -11,7 +11,6 @@
 const counters = new Map<string, { count: number }>();
 
 export function useRenderCount(name: string): void {
-  if (!import.meta.env.DEV) return;
   let entry = counters.get(name);
   if (!entry) {
     entry = { count: 0 };

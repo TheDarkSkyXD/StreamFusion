@@ -29,7 +29,13 @@ import { startChromiumLogTailer } from "./backend/logging/chromium-log-tailer";
 import { installConsoleIntercept } from "./backend/logging/console-intercept";
 import { installCrashHooks } from "./backend/logging/crash-hooks";
 import { computeLogPaths, setBugReportsDir, setTelemetryDir } from "./backend/logging/log-paths";
-import { getCurrentLogPath, initLogger, logger, shutdownLogger } from "./backend/logging/logger";
+import {
+  addLogSink,
+  getCurrentLogPath,
+  initLogger,
+  logger,
+  shutdownLogger,
+} from "./backend/logging/logger";
 import { installNativeStderrIntercept } from "./backend/logging/native-stderr-intercept";
 import { installNetworkDevtoolsRecorder } from "./backend/logging/network-devtools-recorder";
 import { installNetworkLogRouter } from "./backend/logging/network-log-router";
@@ -43,7 +49,8 @@ import {
   initNoiseLogger,
   shutdownNoiseLogger,
 } from "./backend/logging/noise-logger";
-import { startProcessMonitor } from "./backend/logging/process-monitor";
+import { diagnosticsRuntime } from "./backend/diagnostics/diagnostics-runtime-singleton";
+import { diagnosticsObservability } from "./backend/diagnostics/diagnostics-observability";
 import { redactObject } from "./backend/logging/redactor";
 import { pruneLogs } from "./backend/logging/rotation";
 import {
@@ -198,6 +205,27 @@ function initializeBeforeReady(): void {
   app.commandLine.appendSwitch("log-file", chromiumLogPath);
 
   initLogger({ logsDir, sessionStamp });
+  void diagnosticsObservability.initializePersistence(logsDir, sessionStamp).catch((error) => {
+    logger.warn("Diagnostics", "Could not initialize trace persistence", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
+  addLogSink((entry) => {
+    const diagnosticMeta = entry.meta
+      ? JSON.stringify(entry.meta, (key, value) => (key === "stack" ? undefined : value))
+      : null;
+    diagnosticsObservability.recordLog({
+      level: entry.level,
+      source: entry.tag,
+      message: diagnosticMeta ? `${entry.message} ${diagnosticMeta}` : entry.message,
+    });
+    diagnosticsObservability.recordIo({
+      component: "main-log",
+      operation: "append",
+      logicalWriteBytes: Buffer.byteLength(entry.line, "utf8") + 1,
+      durationMs: entry.durationMs,
+    });
+  });
   initNoiseLogger({ logsDir, sessionStamp });
   initNetworkLogger({ logsDir, sessionStamp });
   installCrashHooks({ app });
@@ -316,7 +344,7 @@ startPrimaryInstance(app, {
 });
 
 // App lifecycle events
-let stopProcessMonitor: (() => void) | null = null;
+let stopDiagnosticsRuntime: (() => void) | null = null;
 let devRelayServer: { close(): Promise<void> } | null = null;
 let startupRecoveryDiagnosticId: string | null = null;
 
@@ -447,7 +475,8 @@ async function initializeReady(): Promise<void> {
 
   // Start the resource probe. Stored at module scope so before-quit can stop
   // it before the logger shuts down.
-  stopProcessMonitor = startProcessMonitor();
+  await diagnosticsRuntime.start();
+  stopDiagnosticsRuntime = () => diagnosticsRuntime.stop();
 
   // Register kick-image:// streaming image protocol (replaces base64 IPC proxy)
   registerKickImageProtocol();
@@ -529,9 +558,9 @@ app.on("before-quit", (event) => {
   logger.info("App", "Quitting");
   // Stop the resource probe synchronously — any subsequent tick would race
   // the logger shutdown below.
-  if (stopProcessMonitor) {
-    stopProcessMonitor();
-    stopProcessMonitor = null;
+  if (stopDiagnosticsRuntime) {
+    stopDiagnosticsRuntime();
+    stopDiagnosticsRuntime = null;
   }
   const featureCleanup = runLoadedFeatureCleanups();
   // `use-resume-playback.ts` saves position every 30s and on pause; chat is

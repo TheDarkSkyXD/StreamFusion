@@ -9,7 +9,6 @@ let installed = false;
 
 export function installIntervalTracker(): void {
   if (installed) return;
-  if (!import.meta.env.DEV) return;
   installed = true;
 
   const origSet = window.setInterval.bind(window);

@@ -1,6 +1,6 @@
 /**
- * Dev-only debug panel. Hosts multiple tools (perf measurements, chat event
- * simulator, etc.) under one toggleable widget. Returns null in production.
+ * Dev-only developer console. Hosts chat and UI simulators under one
+ * toggleable widget. Returns null in production.
  *
  * Interaction model:
  * - Drag the header (expanded) or the whole circle (collapsed) to reposition.
@@ -11,7 +11,6 @@
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { PerfTool } from "./PerfTool";
 import { DEBUG_TOKENS } from "./tokens";
 import { UiDebugTool } from "./UiDebugTool";
 
@@ -84,6 +83,24 @@ function ShieldIcon({ size = 14 }: { size?: number }) {
   );
 }
 
+function DiagnosticsIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 12h4l2-7 4 14 2-7h6" />
+    </svg>
+  );
+}
+
 function DragGrip() {
   // Three vertical dots — a quiet "this is draggable" affordance.
   const dot: React.CSSProperties = {
@@ -120,7 +137,6 @@ interface DebugTool {
 }
 
 const TOOLS: DebugTool[] = [
-  { id: "perf", label: "Perf", Component: PerfTool },
   { id: "chat-sim", label: "Chat Sim", Component: ChatSimTool },
   { id: "ui", label: "UI", Component: UiDebugTool },
 ];
@@ -176,12 +192,12 @@ function clampPosition(p: Position, w: number, h: number): Position {
   };
 }
 
-export function DebugPanel() {
+export function DeveloperConsole() {
   if (!import.meta.env.DEV) return null;
-  return <DebugPanelImpl />;
+  return <DeveloperConsoleImpl />;
 }
 
-function DebugPanelImpl() {
+function DeveloperConsoleImpl() {
   const persisted = useRef<PersistedState>(loadPersisted()).current;
 
   const [hidden, setHidden] = useState<boolean>(persisted.hidden ?? false);
@@ -301,8 +317,8 @@ function DebugPanelImpl() {
             setCollapsed(false);
           })
         }
-        title="Show Debug Console"
-        aria-label="Show Debug Console"
+        title="Show Developer Console"
+        aria-label="Show Developer Console"
         style={{
           position: "fixed",
           left: position.x,
@@ -409,10 +425,41 @@ function DebugPanelImpl() {
             <BugIcon size={15} />
           </span>
           <strong style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.3 }}>
-            Debug Console
+            Developer Console
           </strong>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <button
+            type="button"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              window.location.hash = "#/settings?tab=diagnostics";
+            }}
+            title="Open Diagnostics"
+            aria-label="Open Diagnostics"
+            style={{
+              background: "transparent",
+              color: DEBUG_TOKENS.accent,
+              border: "none",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "8px 10px",
+              borderRadius: 6,
+              transition: "background 0.12s, color 0.12s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = DEBUG_TOKENS.surfaceRaised;
+              e.currentTarget.style.color = DEBUG_TOKENS.textPrimary;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.color = DEBUG_TOKENS.accent;
+            }}
+          >
+            <DiagnosticsIcon size={18} />
+          </button>
           <button
             type="button"
             onMouseDown={(e) => e.stopPropagation()}
