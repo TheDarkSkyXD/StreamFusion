@@ -58,6 +58,10 @@ class TwitchEmoteProvider implements EmoteProviderService {
     this.isConfigured = true;
   }
 
+  disable(): void {
+    this.isConfigured = false;
+  }
+
   /**
    * Check if provider is configured
    */

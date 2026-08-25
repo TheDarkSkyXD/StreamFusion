@@ -35,8 +35,8 @@ let emoteProvidersInitialized = false;
 
 /**
  * Idempotent variant of initializeEmoteProviders for use from feature mount
- * points (e.g. ChatPanel). Pages with no chat (Home, Categories) don't pay
- * the cost of loading + registering 5 providers at app boot.
+ * points (e.g. ChatPanel). Pages with no chat don't pay the cost of loading
+ * and registering five providers at app boot.
  */
 export function ensureEmoteProvidersInitialized(): void {
   if (emoteProvidersInitialized) return;
@@ -48,7 +48,17 @@ export function ensureEmoteProvidersInitialized(): void {
  * Enable the Twitch provider. Its Helix requests cross the typed main-process bridge.
  */
 export async function initializeTwitchEmotes(): Promise<void> {
-  twitchEmoteProvider.configure();
+  try {
+    const status = await window.electronAPI.auth.tokenStatus("twitch");
+    if (status.connected && status.valid) {
+      twitchEmoteProvider.configure();
+      return;
+    }
+  } catch {
+    // Treat an unavailable auth capability as signed out. The next chat mount
+    // or identity change rechecks status before enabling Helix emote reads.
+  }
+  twitchEmoteProvider.disable();
 }
 
 /**

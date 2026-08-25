@@ -57,6 +57,7 @@ describe("fetchFFZBadges", () => {
           name: "developer",
           title: "FFZ Developer",
           color: "#ff0000",
+          replaces: null,
           image: "https://cdn.frankerfacez.com/badge/1/1",
           css: null,
           urls: {

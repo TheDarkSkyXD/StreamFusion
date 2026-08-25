@@ -54,6 +54,14 @@ describe("TwitchEmoteProvider", () => {
     it("does not accept renderer-owned Twitch credentials", () => {
       expect(twitchEmoteProvider.configure.length).toBe(0);
     });
+
+    it("can disable Helix reads after Twitch signs out", async () => {
+      twitchEmoteProvider.configure();
+      twitchEmoteProvider.disable();
+
+      await expect(twitchEmoteProvider.fetchGlobalEmotes()).resolves.toEqual([]);
+      expect(executeMock).not.toHaveBeenCalled();
+    });
   });
 
   describe("fetchGlobalEmotes", () => {

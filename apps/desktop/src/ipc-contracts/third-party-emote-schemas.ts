@@ -89,7 +89,11 @@ export const ffzBadgeCatalogSchema = z
           title: z.string(),
           color: z.string(),
           slot: z.number().optional(),
-          replaces: z.string().optional(),
+          replaces: z
+            .string()
+            .nullable()
+            .optional()
+            .transform((value) => value ?? undefined),
           urls: ffzUrlsSchema,
         })
         .strip()
