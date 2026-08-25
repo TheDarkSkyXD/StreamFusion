@@ -85,7 +85,6 @@ function installSearchMocks(state: SearchState): () => void {
       requestCount: 1,
       matchedChannelCount: 1,
     }),
-    cancelSession: async () => ({ success: true, cancelled: true }),
     cancel: async () => ({ success: true, cancelled: true }),
   };
   const search = Object.assign(

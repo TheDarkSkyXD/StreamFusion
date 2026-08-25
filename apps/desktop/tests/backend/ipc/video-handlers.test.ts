@@ -103,7 +103,10 @@ type TestKickVideo = KickVideo & { livestreamId?: string; live_stream_id?: strin
 
 function expectSuccessful<T extends { success: boolean }>(
   result: T
-): asserts result is Extract<T, { success: true }> {
+): asserts result is T & {
+  success: true;
+  data: T extends { data?: infer Data } ? NonNullable<Data> : never;
+} {
   expect(result.success).toBe(true);
   if (!result.success) throw new Error(`Expected successful result`);
 }
@@ -1507,6 +1510,7 @@ describe("IPC handlers - VIDEOS_GET_BY_CATEGORY", () => {
         kickVideo({ id: "wrong-category", views: "999", category: "Gaming" }),
         kickVideo({ id: "popular", views: "100" }),
       ],
+      cursor: undefined,
     });
     const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY);
     const result = await handler(
@@ -1553,7 +1557,7 @@ describe("IPC handlers - VIDEOS_GET_BY_CATEGORY", () => {
           channelId: "channel-alpha",
           channelName: "alpha",
           channelDisplayName: "Alpha",
-          channelAvatar: null,
+          channelAvatar: "",
           title: "Alpha live",
           viewerCount: 100,
           thumbnailUrl: "https://example.com/alpha-live.jpg",
@@ -1571,7 +1575,7 @@ describe("IPC handlers - VIDEOS_GET_BY_CATEGORY", () => {
           channelId: "channel-beta",
           channelName: "beta",
           channelDisplayName: "Beta",
-          channelAvatar: null,
+          channelAvatar: "",
           title: "Beta live",
           viewerCount: 10,
           thumbnailUrl: "https://example.com/beta-live.jpg",
@@ -1593,6 +1597,7 @@ describe("IPC handlers - VIDEOS_GET_BY_CATEGORY", () => {
               kickVideo({ id: "alpha-2", channelSlug: "alpha", views: "900" }),
             ]
           : [kickVideo({ id: "beta-1", channelSlug: "beta", views: "1" })],
+      cursor: undefined,
     }));
 
     const result = await getHandler(IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY)(

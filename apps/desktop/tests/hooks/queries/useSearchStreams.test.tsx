@@ -5,17 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useSearchStreams } from "@/hooks/queries/useSearch";
 import type { Platform } from "@/shared/auth-types";
+import type { SearchStreamsRequest } from "@/shared/search-types";
 import { fixtures, installElectronAPIMock } from "../../test-utils";
 
-interface StreamSearchRequest {
-  sessionId: string;
-  platform: Platform;
-  [key: string]: unknown;
-}
-
 type BaseApi = ReturnType<typeof installElectronAPIMock>;
+type StreamSearchResult = Awaited<ReturnType<BaseApi["search"]["streams"]>>;
 type SearchStreamsMock = ReturnType<
-  typeof vi.fn<(request: StreamSearchRequest) => Promise<unknown>>
+  typeof vi.fn<BaseApi["search"]["streams"]>
 >;
 type SearchTestApi = Omit<BaseApi, "search"> & {
   search: BaseApi["search"] & { streams: SearchStreamsMock };
@@ -47,7 +43,7 @@ afterEach(() => {
 
 describe("useSearchStreams", () => {
   it("includes Live Only in the progressive Stream request identity", async () => {
-    api.search.streams = vi.fn(async (request: StreamSearchRequest) => ({
+    api.search.streams = vi.fn(async (request: SearchStreamsRequest) => ({
       success: true,
       sessionId: request.sessionId,
       platform: request.platform,
@@ -65,7 +61,7 @@ describe("useSearchStreams", () => {
   });
 
   it("does not treat cancelled-only or cancelled-plus-exhausted Streams as final empty", async () => {
-    api.search.streams = vi.fn(async (request: StreamSearchRequest) => ({
+    api.search.streams = vi.fn(async (request: SearchStreamsRequest) => ({
       success: false,
       sessionId: request.sessionId,
       platform: request.platform,
@@ -84,7 +80,7 @@ describe("useSearchStreams", () => {
     expect(cancelled.result.current.isFinalEmpty).toBe(false);
     cancelled.unmount();
 
-    api.search.streams = vi.fn(async (request: StreamSearchRequest) => ({
+    api.search.streams = vi.fn(async (request: SearchStreamsRequest) => ({
       success: request.platform === "kick",
       sessionId: request.sessionId,
       platform: request.platform,
@@ -104,7 +100,7 @@ describe("useSearchStreams", () => {
 
   it("starts a fresh session for query, Platform, tab, and Live Only changes", async () => {
     api.search.cancel = vi.fn(async () => ({ success: true, cancelled: true }));
-    api.search.streams = vi.fn(async (request: StreamSearchRequest) => ({
+    api.search.streams = vi.fn(async (request: SearchStreamsRequest) => ({
       success: true,
       sessionId: request.sessionId,
       platform: request.platform,
@@ -145,9 +141,9 @@ describe("useSearchStreams", () => {
   it("keeps a completed Stream cache visible during an off-on background refresh", async () => {
     const warm = fixtures.stream({ id: "warm", title: "Warm stream" });
     const fresh = fixtures.stream({ id: "fresh", title: "Fresh stream" });
-    let resolveRefresh!: (value: unknown) => void;
+    let resolveRefresh!: (value: StreamSearchResult) => void;
     let calls = 0;
-    api.search.streams = vi.fn((request: StreamSearchRequest) => {
+    api.search.streams = vi.fn((request: SearchStreamsRequest) => {
       calls += 1;
       if (calls === 1) {
         return Promise.resolve({
@@ -157,6 +153,7 @@ describe("useSearchStreams", () => {
           data: [warm],
           endReason: "exhausted",
           retryable: false,
+          requestCount: 1,
         });
       }
       return new Promise((resolve) => {
@@ -183,6 +180,7 @@ describe("useSearchStreams", () => {
       data: [fresh],
       endReason: "exhausted",
       retryable: false,
+      requestCount: 1,
     });
     await waitFor(() => expect(result.current.data).toEqual([fresh]));
   });
@@ -190,7 +188,7 @@ describe("useSearchStreams", () => {
   it("retains a dedicated cached Stream when its background refresh fails", async () => {
     const warm = fixtures.stream({ id: "warm-failure", title: "Warm failure fallback" });
     let calls = 0;
-    api.search.streams = vi.fn(async (request: StreamSearchRequest) => {
+    api.search.streams = vi.fn(async (request: SearchStreamsRequest) => {
       calls += 1;
       return {
         success: calls === 1,
@@ -200,6 +198,7 @@ describe("useSearchStreams", () => {
         endReason: calls === 1 ? "exhausted" : "rate-limited",
         retryable: calls > 1,
         error: calls > 1 ? { platform: request.platform, message: "Unavailable" } : null,
+        requestCount: 1,
       };
     });
     const { result, rerender } = renderHook(
@@ -218,9 +217,9 @@ describe("useSearchStreams", () => {
   // Guards: cancelling a same-intent tab session prevents its late response replacing the new one.
   it("ignores a late same-key Stream response after a rapid off-on activation", async () => {
     const current = fixtures.stream({ id: "current", title: "Current stream" });
-    let resolveOld!: (value: unknown) => void;
+    let resolveOld!: (value: StreamSearchResult) => void;
     let call = 0;
-    api.search.streams = vi.fn((request: StreamSearchRequest) => {
+    api.search.streams = vi.fn((request: SearchStreamsRequest) => {
       call += 1;
       if (call === 1) {
         return new Promise((resolve) => {
@@ -234,6 +233,7 @@ describe("useSearchStreams", () => {
         data: [current],
         endReason: "exhausted",
         retryable: false,
+        requestCount: 1,
       });
     });
     const { result, rerender } = renderHook(
@@ -254,14 +254,15 @@ describe("useSearchStreams", () => {
       data: [fixtures.stream({ id: "late", title: "Late stream" })],
       endReason: "exhausted",
       retryable: false,
+      requestCount: 1,
     });
     await waitFor(() => expect(result.current.data).toEqual([current]));
   });
 
   it("ignores a late page from a superseded query", async () => {
-    let resolveOld!: (value: unknown) => void;
+    let resolveOld!: (value: StreamSearchResult) => void;
     const current = fixtures.stream({ id: "current-stream", title: "Current stream" });
-    api.search.streams = vi.fn((request: StreamSearchRequest) =>
+    api.search.streams = vi.fn((request: SearchStreamsRequest) =>
       request.query === "old query"
         ? new Promise((resolve) => {
             resolveOld = resolve;
@@ -301,7 +302,7 @@ describe("useSearchStreams", () => {
   it("appends the next page from the Platform that still has a cursor", async () => {
     const first = fixtures.stream({ id: "stream-1" });
     const second = fixtures.stream({ id: "stream-2" });
-    api.search.streams = vi.fn(async (request: StreamSearchRequest) => ({
+    api.search.streams = vi.fn(async (request: SearchStreamsRequest) => ({
       success: true,
       sessionId: request.sessionId,
       platform: request.platform,
@@ -325,7 +326,7 @@ describe("useSearchStreams", () => {
   it("retries only the rate-limited Platform after Retry-After", async () => {
     const kickStream = fixtures.stream({ id: "kick-ok", platform: "kick" });
     let twitchAttempts = 0;
-    api.search.streams = vi.fn(async (request: StreamSearchRequest) => {
+    api.search.streams = vi.fn(async (request: SearchStreamsRequest) => {
       if (request.platform === "kick")
         return {
           success: true,

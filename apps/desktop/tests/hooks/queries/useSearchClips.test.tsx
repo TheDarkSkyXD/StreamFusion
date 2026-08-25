@@ -14,7 +14,6 @@ import {
 } from "@/hooks/queries/persisted-search-lru";
 import { SEARCH_KEYS, useSearchClips } from "@/hooks/queries/useSearch";
 import type { Platform } from "@/shared/auth-types";
-import type { SearchPlatformError, SearchVideosRequest } from "@/shared/search-types";
 import { installElectronAPIMock } from "../../test-utils";
 
 type BaseApi = ReturnType<typeof installElectronAPIMock>;
@@ -47,22 +46,10 @@ function recentClip(id: string, platform: Platform = "twitch") {
   };
 }
 
-type ClipSearchResult = {
-  success: boolean;
-  sessionId: string;
-  platform: Platform;
-  data: Array<ReturnType<typeof recentClip>>;
-  cursor?: string;
-  endReason?: string;
-  retryAfterMs?: number;
-  retryable: boolean;
-  error?: SearchPlatformError | null;
-  requestCount?: number;
-  matchedChannelCount?: number;
-};
+type ClipSearchResult = Awaited<ReturnType<BaseApi["search"]["clips"]>>;
 type ClipSearchApi = BaseApi & {
   search: BaseApi["search"] & {
-    clips: ReturnType<typeof vi.fn<(request: SearchVideosRequest) => Promise<ClipSearchResult>>>;
+    clips: ReturnType<typeof vi.fn<BaseApi["search"]["clips"]>>;
   };
 };
 let api: ClipSearchApi;

@@ -44,11 +44,13 @@ function normalizeKickVideos(channel: UnifiedChannel, values: readonly unknown[]
     return [
       {
         ...value,
+        id: textValue(value.id),
         platform: "kick",
         channelId: channel.id,
         channelName: channel.username,
         channelDisplayName: channel.displayName,
         channelAvatar: channel.avatarUrl,
+        title: textValue(value.title),
         thumbnailUrl: textValue(value.thumbnailUrl),
         duration: durationSeconds(value.duration, value.sourceDurationMs),
         viewCount: numberValue(value.viewCount ?? value.views),
@@ -69,11 +71,13 @@ function normalizeKickClips(channel: UnifiedChannel, values: readonly unknown[])
     return [
       {
         ...value,
+        id: textValue(value.id),
         platform: "kick",
         channelId: channel.id,
         channelName: channel.username,
         channelDisplayName: channel.displayName,
         channelAvatar: channel.avatarUrl,
+        title: textValue(value.title),
         thumbnailUrl: textValue(value.thumbnailUrl),
         clipUrl,
         embedUrl,

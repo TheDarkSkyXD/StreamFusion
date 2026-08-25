@@ -493,16 +493,17 @@ export function useInfiniteTopCategories() {
   });
 
   const loadMoreInFlight = useRef<ReturnType<typeof query.fetchNextPage> | null>(null);
+  const fetchNextQueryPage = query.fetchNextPage;
   const fetchNextPage: typeof query.fetchNextPage = useCallback((options) => {
     if (loadMoreInFlight.current) return loadMoreInFlight.current;
-    const request = query.fetchNextPage({ ...options, cancelRefetch: false });
+    const request = fetchNextQueryPage({ ...options, cancelRefetch: false });
     loadMoreInFlight.current = request;
     const clear = () => {
       if (loadMoreInFlight.current === request) loadMoreInFlight.current = null;
     };
     void request.then(clear, clear);
     return request;
-  }, [query.fetchNextPage]);
+  }, [fetchNextQueryPage]);
 
   return {
     ...query,

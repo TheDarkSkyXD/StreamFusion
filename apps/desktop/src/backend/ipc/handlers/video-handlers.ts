@@ -4,6 +4,7 @@ import { logger } from "@/backend/logging/logger";
 import type { Platform } from "../../../shared/auth-types";
 import type {
   CategoryClipsRequest,
+  CategoryMediaItem,
   CategoryMediaResult,
   CategoryVideosRequest,
 } from "../../../shared/category-media-types";
@@ -22,6 +23,7 @@ type KickVideo = Awaited<
     typeof import("../../api/platforms/kick/endpoints/video-endpoints").getVideosByChannelSlug
   >
 >["data"][number];
+type CategoryVideo = CategoryMediaItem & { channelDisplayName: string };
 
 // Instances
 const twitchResolver = new TwitchStreamResolver();
@@ -762,7 +764,7 @@ export function registerVideoHandlers(): void {
           const channels = [
             ...new Map(streams.data.map((stream) => [stream.channelName, stream])).values(),
           ];
-          const videos = [];
+          const videos: CategoryVideo[] = [];
           const perChannelLimit = Math.min(request.limit ?? 20, 5);
 
           for (let index = 0; index < channels.length; index += 4) {
@@ -783,7 +785,11 @@ export function registerVideoHandlers(): void {
                   channelId: channel.channelId,
                   channelName: video.channelName || channel.channelName,
                   channelDisplayName: channel.channelDisplayName,
-                  channelAvatar: video.channelAvatar || channel.channelAvatar,
+                  channelAvatar:
+                    (typeof video.channelAvatar === "string" ? video.channelAvatar : "") ||
+                    channel.channelAvatar,
+                  thumbnailUrl:
+                    typeof video.thumbnailUrl === "string" ? video.thumbnailUrl : "",
                   gameId: request.categoryId,
                   gameName: video.category || request.categoryName || "",
                 });
@@ -809,8 +815,8 @@ export function registerVideoHandlers(): void {
           });
 
           const representedChannels = new Set<string>();
-          const firstVideoByChannel = [];
-          const remainingVideos = [];
+          const firstVideoByChannel: CategoryVideo[] = [];
+          const remainingVideos: CategoryVideo[] = [];
           uniqueVideos.forEach((video) => {
             if (representedChannels.has(video.channelId)) {
               remainingVideos.push(video);
@@ -866,7 +872,7 @@ export function registerVideoHandlers(): void {
             ...new Map(streams.data.map((stream) => [stream.channelId, stream])).values(),
           ];
           const perChannelLimit = Math.min(Math.max(Math.ceil(limit / channels.length), 1), 5);
-          const videos = [];
+          const videos: CategoryVideo[] = [];
 
           for (let index = 0; index < channels.length; index += 4) {
             const batch = channels.slice(index, index + 4);
@@ -914,8 +920,8 @@ export function registerVideoHandlers(): void {
             return difference * direction;
           });
           const representedChannels = new Set<string>();
-          const firstVideoByChannel = [];
-          const remainingVideos = [];
+          const firstVideoByChannel: CategoryVideo[] = [];
+          const remainingVideos: CategoryVideo[] = [];
           uniqueVideos.forEach((video) => {
             if (representedChannels.has(video.channelId)) {
               remainingVideos.push(video);
