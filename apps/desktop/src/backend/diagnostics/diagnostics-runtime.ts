@@ -22,9 +22,11 @@ import type { ProcessIoSnapshot } from "./process-io-sampler";
 
 const BASELINE_INTERVAL_MS = 30_000;
 const VISIBLE_INTERVAL_MS = 1_000;
+const VISIBLE_PUBLISH_INTERVAL_MS = 5_000;
 const HISTORY_RETENTION_MS = 60 * 60 * 1_000;
 const HISTORY_CAPACITY = 3_600;
 const PROCESS_HISTORY_CAPACITY = 100_000;
+const TRANSPORT_HISTORY_CAPACITY = 120;
 const EXPECTED_GAP_MULTIPLIER = 2.5;
 const KB_TO_BYTES = 1_024;
 const SAFE_ELECTRON_PROCESS_NAMES = new Set([
@@ -85,6 +87,7 @@ interface DiagnosticsLease {
   readonly ownerId: number;
   readonly documentInstanceId: string;
   view: DiagnosticsView;
+  lastPublishedAtMs: number;
   readonly publish: (leaseId: string, snapshot: DiagnosticsSnapshot) => void;
 }
 
@@ -170,6 +173,44 @@ function formatMegabytes(bytes: number): number {
   return Math.round(bytes / (1_024 * 1_024));
 }
 
+function averageNullable(
+  points: readonly ResourcePoint[],
+  select: (point: ResourcePoint) => number | null
+): number | null {
+  let total = 0;
+  let count = 0;
+  for (const point of points) {
+    const value = select(point);
+    if (value === null) continue;
+    total += value;
+    count += 1;
+  }
+  return count === 0 ? null : total / count;
+}
+
+function compactResourceHistory(history: readonly ResourcePoint[]): readonly ResourcePoint[] {
+  if (history.length <= TRANSPORT_HISTORY_CAPACITY) return history;
+
+  const compacted: ResourcePoint[] = [];
+  for (let bucket = 0; bucket < TRANSPORT_HISTORY_CAPACITY; bucket += 1) {
+    const start = Math.floor((bucket * history.length) / TRANSPORT_HISTORY_CAPACITY);
+    const end = Math.floor(((bucket + 1) * history.length) / TRANSPORT_HISTORY_CAPACITY);
+    const points = history.slice(start, Math.max(start + 1, end));
+    const latest = points.at(-1);
+    if (!latest) continue;
+    compacted.push({
+      observedAtMs: latest.observedAtMs,
+      cpuPercent: points.reduce((total, point) => total + point.cpuPercent, 0) / points.length,
+      residentMemoryBytes:
+        points.reduce((total, point) => total + point.residentMemoryBytes, 0) / points.length,
+      processCount: latest.processCount,
+      readBytesPerSecond: averageNullable(points, (point) => point.readBytesPerSecond),
+      writeBytesPerSecond: averageNullable(points, (point) => point.writeBytesPerSecond),
+    });
+  }
+  return compacted;
+}
+
 export class DiagnosticsRuntime {
   readonly #dependencies: RuntimeDependencies;
   readonly #instanceId: string;
@@ -235,7 +276,11 @@ export class DiagnosticsRuntime {
     }
 
     const leaseId = this.#dependencies.createId();
-    this.#leases.set(leaseId, { leaseId, ...input });
+    this.#leases.set(leaseId, {
+      leaseId,
+      ...input,
+      lastPublishedAtMs: this.#lastSample?.observedAtMs ?? this.#dependencies.nowMs(),
+    });
     this.#rescheduleForCadenceChange();
     await this.sampleNow();
     return { leaseId, snapshot: this.snapshot(input.view) };
@@ -331,7 +376,9 @@ export class DiagnosticsRuntime {
     rendererPerformance: RendererPerformanceSummary | undefined
   ): DiagnosticsDetail {
     const cutoff = sample.observedAtMs - view.windowMinutes * 60_000;
-    const history = this.#history.filter((point) => point.observedAtMs >= cutoff);
+    const history = compactResourceHistory(
+      this.#history.filter((point) => point.observedAtMs >= cutoff)
+    );
     const processes = this.#processesForWindow(sample.processes, cutoff);
     if (view.tab === "overview") return { tab: "overview" };
     if (view.tab === "resources") {
@@ -798,7 +845,11 @@ export class DiagnosticsRuntime {
   }
 
   #publishSnapshots(): void {
+    const observedAtMs = this.#lastSample?.observedAtMs;
+    if (observedAtMs === undefined) return;
     for (const lease of this.#leases.values()) {
+      if (observedAtMs - lease.lastPublishedAtMs < VISIBLE_PUBLISH_INTERVAL_MS) continue;
+      lease.lastPublishedAtMs = observedAtMs;
       lease.publish(lease.leaseId, this.snapshot(lease.view));
     }
   }

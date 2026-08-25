@@ -103,6 +103,7 @@ function createHarness(initialMetrics: readonly ElectronProcessMetric[] = [metri
 // Guards: process history exposes windowed average and peak CPU rather than copying the latest sample.
 // Guards: process identity tracks starts, exits, parentage, and observed I/O totals for the resource monitor and tree.
 // Guards: trace snapshots transport latest and grouped failure evidence through the strict IPC schema.
+// Guards: live resource snapshots keep IPC history bounded while the runtime retains the full statistical window.
 describe("DiagnosticsRuntime", () => {
   it("validates the failure collections carried by the Traces detail", async () => {
     const harness = createHarness();
@@ -175,6 +176,32 @@ describe("DiagnosticsRuntime", () => {
     expect(harness.timerDelays.at(-1)).toBe(30_000);
     expect(harness.ioIntervals).toEqual([1_000, null]);
     expect(harness.runtime.closeLease(7, first.leaseId)).toBe(false);
+  });
+
+  it("samples visible resources every second without publishing renderer snapshots every second", async () => {
+    const harness = createHarness();
+    await harness.runtime.start();
+    const publish = vi.fn();
+    await harness.runtime.openLease({
+      ownerId: 7,
+      documentInstanceId: "document-a",
+      view: { tab: "resources", windowMinutes: 15 },
+      publish,
+    });
+
+    for (let second = 1; second < 5; second += 1) {
+      harness.advance(1_000);
+      await harness.runtime.sampleNow();
+    }
+    expect(publish).not.toHaveBeenCalled();
+
+    harness.advance(1_000);
+    await harness.runtime.sampleNow();
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish.mock.calls[0]?.[1]).toMatchObject({
+      observedAtMs: 15_000,
+      view: { tab: "resources", windowMinutes: 15 },
+    });
   });
 
   it("reports Windows process I/O as temporarily unavailable while its collector warms", async () => {
@@ -264,6 +291,24 @@ describe("DiagnosticsRuntime", () => {
         },
       ],
     });
+    expect(diagnosticsSnapshotSchema.safeParse(snapshot).success).toBe(true);
+  });
+
+  it("bounds resource history transported by the live diagnostics lease", async () => {
+    const harness = createHarness();
+    await harness.runtime.start();
+
+    for (let sample = 1; sample <= 300; sample += 1) {
+      harness.advance(1_000);
+      await harness.runtime.sampleNow();
+    }
+
+    const snapshot = harness.runtime.snapshot({ tab: "resources", windowMinutes: 15 });
+    expect(snapshot.overview.collection.retainedSamples).toBe(301);
+    expect(snapshot.detail).toMatchObject({ tab: "resources" });
+    if (snapshot.detail.tab !== "resources") throw new Error("Expected resource detail");
+    expect(snapshot.detail.history.length).toBeLessThanOrEqual(120);
+    expect(snapshot.detail.history.at(-1)?.observedAtMs).toBe(snapshot.observedAtMs);
     expect(diagnosticsSnapshotSchema.safeParse(snapshot).success).toBe(true);
   });
 
