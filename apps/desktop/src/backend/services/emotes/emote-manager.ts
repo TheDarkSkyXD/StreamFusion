@@ -171,7 +171,7 @@ class EmoteManager extends EventEmitter {
           provider: providerName,
         });
       } else {
-        logger.error("Emote:Manager", "Failed to load global emotes", {
+        logger.warn("Emote:Manager", "Optional global emote provider unavailable", {
           provider: providerName,
           error:
             result.reason instanceof Error

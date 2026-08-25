@@ -587,15 +587,14 @@ export function registerStreamHandlers(): void {
         username: string;
       }
     ) => {
-      const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-      const { kickClient } = await import("../../api/platforms/kick/kick-client");
-
       try {
         let stream = null;
 
         if (params.platform === "twitch") {
+          const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
           stream = await twitchClient.getStreamByLogin(params.username);
         } else if (params.platform === "kick") {
+          const { kickClient } = await import("../../api/platforms/kick/kick-client");
           stream = await kickClient.getStreamBySlug(params.username, {
             freshStatus: true,
           });
@@ -603,6 +602,25 @@ export function registerStreamHandlers(): void {
 
         return { success: true, data: stream };
       } catch (error) {
+        if (params.platform === "kick" && isKickRateLimitError(error)) {
+          const retryAfterMs =
+            typeof error === "object" &&
+            error !== null &&
+            "retryAfterMs" in error &&
+            typeof error.retryAfterMs === "number" &&
+            Number.isFinite(error.retryAfterMs)
+              ? Math.max(0, error.retryAfterMs)
+              : 60_000;
+          logger.debug("IPC:Stream", "Kick stream status refresh paused for API cooldown", {
+            username: params.username,
+            retryAfterMs,
+          });
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : "Kick API rate limit active",
+            retryAfterMs,
+          };
+        }
         logger.error("IPC:Stream", "Failed to get stream by channel", {
           error:
             error instanceof Error
@@ -630,19 +648,20 @@ export function registerStreamHandlers(): void {
         channelSlug: string;
       }
     ) => {
-      const { TwitchStreamResolver } =
-        await import("../../api/platforms/twitch/twitch-stream-resolver");
-      const { KickStreamResolver } = await import("../../api/platforms/kick/kick-stream-resolver");
-      const { kickClient } = await import("../../api/platforms/kick/kick-client");
-
-      const twitchResolver = new TwitchStreamResolver();
-      const kickResolver = new KickStreamResolver();
-
       try {
         if (params.platform === "twitch") {
+          const { TwitchStreamResolver } = await import(
+            "../../api/platforms/twitch/twitch-stream-resolver"
+          );
+          const twitchResolver = new TwitchStreamResolver();
           const result = await twitchResolver.getStreamPlaybackUrl(params.channelSlug);
           return { success: true, data: result };
         } else if (params.platform === "kick") {
+          const [{ KickStreamResolver }, { kickClient }] = await Promise.all([
+            import("../../api/platforms/kick/kick-stream-resolver"),
+            import("../../api/platforms/kick/kick-client"),
+          ]);
+          const kickResolver = new KickStreamResolver();
           try {
             const result = await kickResolver.getStreamPlaybackUrl(params.channelSlug);
             return { success: true, data: result };

@@ -93,7 +93,7 @@ class FFZEmoteProvider implements EmoteProviderService {
       }
       return emotes;
     } catch (error) {
-      logger.error("Emote:FFZ", "Failed to fetch global emotes", {
+      logger.warn("Emote:FFZ", "Optional global emotes unavailable", {
         error:
           error instanceof Error
             ? { name: error.name, message: error.message, stack: error.stack }

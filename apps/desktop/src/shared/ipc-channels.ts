@@ -931,7 +931,8 @@ export interface UpdateSettings {
 
 /** A renderer-safe IPC response whose success and failure states cannot overlap. */
 export type IpcResult<T> =
-  { success: true; data: T; error?: never } | { success: false; data?: never; error: string };
+  | { success: true; data: T; error?: never; retryAfterMs?: never }
+  | { success: false; data?: never; error: string; retryAfterMs?: number };
 
 /** A paginated IPC response with optional diagnostics on successful requests. */
 export type PaginatedIpcResult<T> =

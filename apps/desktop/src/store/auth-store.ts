@@ -322,7 +322,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         };
 
         if (status.twitch.connected) void syncStartupFollows("twitch");
-        if (status.kick.connected) void syncStartupFollows("kick");
+        // Kick account rows are persisted locally and refreshed after login, on
+        // an intentional manual sync, or by the main-process refresh schedule.
+        // Avoid opening Kick's full website fallback during every cold start.
       } catch (error) {
         logger.error("Store:Auth", "failed to initialize auth", {
           error: error instanceof Error ? error.message : String(error),

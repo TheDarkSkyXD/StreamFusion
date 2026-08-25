@@ -72,6 +72,7 @@ vi.mock("@/backend/logging/logger", () => ({
 
 import { app, ipcMain } from "electron";
 
+import { logger } from "@/backend/logging/logger";
 import { kickClient } from "@/backend/api/platforms/kick/kick-client";
 import { isKickRateLimitError } from "@/backend/api/platforms/kick/kick-error-classification";
 import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
@@ -349,6 +350,29 @@ describe("STREAMS_GET_BY_CHANNEL", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("offline");
+  });
+
+  it("returns cooldown metadata without logging expected Kick rate limits as errors", async () => {
+    const rateLimit = Object.assign(new Error("Kick API rate limit active; retry after 60s"), {
+      name: "KickRateLimitError",
+      retryAfterMs: 60_000,
+    });
+    vi.mocked(kickClient.getStreamBySlug).mockRejectedValue(rateLimit);
+
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_BY_CHANNEL);
+    const result = await handler({}, { platform: "kick", username: "kickuser" });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Kick API rate limit active; retry after 60s",
+      retryAfterMs: 60_000,
+    });
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalledWith(
+      "IPC:Stream",
+      "Kick stream status refresh paused for API cooldown",
+      { username: "kickuser", retryAfterMs: 60_000 }
+    );
   });
 });
 

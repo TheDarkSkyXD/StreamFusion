@@ -25,6 +25,13 @@ export const STREAM_KEYS = {
 const KICK_FOLLOWED_STATUS_REFETCH_INTERVAL_MS = 60_000;
 const KICK_CHANNEL_STATUS_REFETCH_INTERVAL_MS = 10_000;
 
+class StreamStatusRateLimitError extends Error {
+  constructor(readonly retryAfterMs: number) {
+    super("Stream status refresh paused for platform rate limit");
+    this.name = "StreamStatusRateLimitError";
+  }
+}
+
 export function removeFollowedStreamFromCache(
   client: QueryClient,
   platform: Platform,
@@ -69,10 +76,8 @@ export function useTopStreams(platform?: Platform, limit: number = 20) {
     queryKey,
     queryFn: async () => {
       const response = await window.electronAPI.streams.getTop({ platform, limit });
-      if (response.error) {
-        throw new Error(response.error as unknown as string);
-      }
-      return response.data as UnifiedStream[];
+      if (!response.success) throw new Error(response.error);
+      return response.data;
     },
     ...getQueryCacheOptions("streamList"),
   });
@@ -95,10 +100,8 @@ function useStreamsByCategory(categoryId: string, platform?: Platform, limit: nu
         platform,
         limit,
       });
-      if (response.error) {
-        throw new Error(response.error as unknown as string);
-      }
-      return response.data as UnifiedStream[];
+      if (!response.success) throw new Error(response.error);
+      return response.data;
     },
     enabled: !!categoryId,
     ...getQueryCacheOptions("streamList"),
@@ -218,15 +221,23 @@ export function getStreamByChannelQueryOptions(username: string, platform: Platf
     queryKey,
     queryFn: async () => {
       const response = await window.electronAPI.streams.getByChannel({ username, platform });
-      if (response.error) {
-        throw new Error(response.error as unknown as string);
+      if (!response.success) {
+        if (response.retryAfterMs !== undefined) {
+          throw new StreamStatusRateLimitError(response.retryAfterMs);
+        }
+        throw new Error(response.error);
       }
-      return response.data as UnifiedStream | null;
+      return response.data;
     },
     enabled: !!username && !!platform,
     ...cacheOptions,
     refetchInterval:
-      platform === "kick" ? KICK_CHANNEL_STATUS_REFETCH_INTERVAL_MS : cacheOptions.refetchInterval,
+      platform === "kick"
+        ? (query) =>
+            query.state.error instanceof StreamStatusRateLimitError
+              ? Math.max(KICK_CHANNEL_STATUS_REFETCH_INTERVAL_MS, query.state.error.retryAfterMs)
+              : KICK_CHANNEL_STATUS_REFETCH_INTERVAL_MS
+        : cacheOptions.refetchInterval,
     retry: false, // Don't retry - stream might simply be offline
   });
 }

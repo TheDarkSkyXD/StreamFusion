@@ -685,8 +685,8 @@ describe("auth-store Kick startup persistence", () => {
 });
 
 describe("auth-store account-follow startup sync", () => {
-  // Guards: existing Kick sessions request an account-follow sync after the renderer
-  // listener is registered, so restart shows the real Kick account's live/offline follows.
+  // Guards: restart preserves persisted Kick follows without opening the platform's
+  // full website fallback. Twitch's lightweight API sync still runs at startup.
   function installAuthApi(status: AuthStatus) {
     let followsSyncedCb:
       | ((data: {
@@ -740,7 +740,7 @@ describe("auth-store account-follow startup sync", () => {
     };
   }
 
-  it("requests a Kick follow sync on startup when an existing Kick account is connected", async () => {
+  it("does not run the browser-capable Kick follow sync during cold start", async () => {
     const { api } = installAuthApi({
       twitch: { connected: false, user: null, hasToken: false, isExpired: false },
       kick: {
@@ -754,8 +754,8 @@ describe("auth-store account-follow startup sync", () => {
 
     await useAuthStore.getState().initializeAuth();
 
-    expect(api.auth.onFollowsSynced).toHaveBeenCalledBefore(api.auth.syncFollows);
-    expect(api.auth.syncFollows).toHaveBeenCalledWith("kick");
+    expect(api.auth.onFollowsSynced).toHaveBeenCalledOnce();
+    expect(api.auth.syncFollows).not.toHaveBeenCalled();
   });
 
   it("invalidates Kick followed channels and streams when Kick sync completes", async () => {
