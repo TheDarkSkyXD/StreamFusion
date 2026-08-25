@@ -4,14 +4,12 @@ import { useState } from "react";
 import { LuHistory as HistoryIcon, LuPlay, LuTrash2 } from "react-icons/lu";
 
 import { ClipDialog } from "@/components/stream/related-content/ClipDialog";
-import {
-  parseVideoOrClips,
-  type VideoOrClip,
-} from "@/components/stream/related-content/types";
+import { parseVideoOrClips, type VideoOrClip } from "@/components/stream/related-content/types";
 import { VodProgressBar } from "@/components/stream/vod-progress-bar";
 import { Button } from "@/components/ui/button";
 import { useChannelByUsername } from "@/hooks/queries/useChannels";
 import { useHistoryActions, useHistoryQuery } from "@/hooks/queries/useHistoryQuery";
+import { resolveProxiedImageSrc } from "@/lib/proxied-image-url";
 import type { HistoryItem } from "@/store/history-store";
 
 const HistoryItemLink = ({
@@ -242,111 +240,114 @@ export function HistoryPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {history.map((item) => (
-            <div
-              key={item.id}
-              className="group relative bg-[var(--color-background-secondary)] rounded-lg overflow-hidden border border-[var(--color-border)] hover:border-[var(--color-primary)] transition-all"
-            >
-              {/* Thumbnail Container */}
-              <div className="relative aspect-video bg-black/50">
-                {item.thumbnail ? (
-                  <img
-                    src={item.thumbnail}
-                    alt={item.title}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-zinc-800">
-                    <LuPlay className="w-8 h-8 text-white/20" />
-                  </div>
-                )}
+          {history.map((item) => {
+            const thumbnail = resolveProxiedImageSrc(item.thumbnail);
+            return (
+              <div
+                key={item.id}
+                className="group relative bg-[var(--color-background-secondary)] rounded-lg overflow-hidden border border-[var(--color-border)] hover:border-[var(--color-primary)] transition-all"
+              >
+                {/* Thumbnail Container */}
+                <div className="relative aspect-video bg-black/50">
+                  {thumbnail ? (
+                    <img
+                      src={thumbnail}
+                      alt={item.title}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-zinc-800">
+                      <LuPlay className="w-8 h-8 text-white/20" />
+                    </div>
+                  )}
 
-                {/* Overlay on hover */}
-                <div className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                  {/* Overlay on hover */}
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                    {item.type === "stream" ? (
+                      <HistoryItemLink
+                        item={item}
+                        className="flex h-12 w-12 scale-90 items-center justify-center rounded-full border border-white/35 bg-black/70 text-white backdrop-blur-sm transition-all hover:bg-white hover:text-black group-hover:scale-100"
+                      >
+                        <LuPlay className="h-5 w-5 fill-current" />
+                      </HistoryItemLink>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => watchHistoryItem(item)}
+                        disabled={verifyingItemId === item.id}
+                        className="flex h-12 w-12 scale-90 items-center justify-center rounded-full border border-white/35 bg-black/70 text-white backdrop-blur-sm transition-all hover:bg-white hover:text-black disabled:opacity-60 group-hover:scale-100"
+                        aria-label={`Watch ${item.title}`}
+                      >
+                        <LuPlay className="h-5 w-5 fill-current" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Platform Badge */}
+                  <div className="absolute top-2 left-2 px-2 py-0.5 rounded text-xs font-bold uppercase text-white bg-black/60 backdrop-blur-sm">
+                    {item.platform}
+                  </div>
+
+                  {/* Type Badge */}
+                  <div className="absolute top-2 right-2 rounded bg-white px-2 py-0.5 text-xs font-bold uppercase text-black">
+                    {item.type}
+                  </div>
+
+                  {/* Remove Button */}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      removeFromHistory(item.id);
+                    }}
+                    className="absolute bottom-2 right-2 p-1.5 rounded-full bg-black/60 hover:bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Remove from history"
+                  >
+                    <LuTrash2 className="w-3.5 h-3.5" />
+                  </button>
+
+                  {item.type === "video" && (
+                    <VodProgressBar platform={item.platform} videoId={item.originalId} />
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="p-3">
                   {item.type === "stream" ? (
-                    <HistoryItemLink
-                      item={item}
-                      className="flex h-12 w-12 scale-90 items-center justify-center rounded-full border border-white/35 bg-black/70 text-white backdrop-blur-sm transition-all hover:bg-white hover:text-black group-hover:scale-100"
-                    >
-                      <LuPlay className="h-5 w-5 fill-current" />
+                    <HistoryItemLink item={item} className="block">
+                      <h3
+                        className="font-medium text-sm line-clamp-2 mb-1 group-hover:text-[var(--color-primary)] transition-colors"
+                        title={item.title}
+                      >
+                        {item.title || `Untitled ${item.type}`}
+                      </h3>
                     </HistoryItemLink>
                   ) : (
                     <button
                       type="button"
                       onClick={() => watchHistoryItem(item)}
                       disabled={verifyingItemId === item.id}
-                      className="flex h-12 w-12 scale-90 items-center justify-center rounded-full border border-white/35 bg-black/70 text-white backdrop-blur-sm transition-all hover:bg-white hover:text-black disabled:opacity-60 group-hover:scale-100"
-                      aria-label={`Watch ${item.title}`}
+                      className="block w-full text-left disabled:opacity-60"
                     >
-                      <LuPlay className="h-5 w-5 fill-current" />
+                      <h3
+                        className="font-medium text-sm line-clamp-2 mb-1 group-hover:text-[var(--color-primary)] transition-colors"
+                        title={item.title}
+                      >
+                        {item.title || `Untitled ${item.type}`}
+                      </h3>
                     </button>
                   )}
-                </div>
-
-                {/* Platform Badge */}
-                <div className="absolute top-2 left-2 px-2 py-0.5 rounded text-xs font-bold uppercase text-white bg-black/60 backdrop-blur-sm">
-                  {item.platform}
-                </div>
-
-                {/* Type Badge */}
-                <div className="absolute top-2 right-2 rounded bg-white px-2 py-0.5 text-xs font-bold uppercase text-black">
-                  {item.type}
-                </div>
-
-                {/* Remove Button */}
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    removeFromHistory(item.id);
-                  }}
-                  className="absolute bottom-2 right-2 p-1.5 rounded-full bg-black/60 hover:bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Remove from history"
-                >
-                  <LuTrash2 className="w-3.5 h-3.5" />
-                </button>
-
-                {item.type === "video" && (
-                  <VodProgressBar platform={item.platform} videoId={item.originalId} />
-                )}
-              </div>
-
-              {/* Info */}
-              <div className="p-3">
-                {item.type === "stream" ? (
-                  <HistoryItemLink item={item} className="block">
-                    <h3
-                      className="font-medium text-sm line-clamp-2 mb-1 group-hover:text-[var(--color-primary)] transition-colors"
-                      title={item.title}
-                    >
-                      {item.title || `Untitled ${item.type}`}
-                    </h3>
-                  </HistoryItemLink>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => watchHistoryItem(item)}
-                    disabled={verifyingItemId === item.id}
-                    className="block w-full text-left disabled:opacity-60"
-                  >
-                    <h3
-                      className="font-medium text-sm line-clamp-2 mb-1 group-hover:text-[var(--color-primary)] transition-colors"
-                      title={item.title}
-                    >
-                      {item.title || `Untitled ${item.type}`}
-                    </h3>
-                  </button>
-                )}
-                <div className="flex justify-between items-center text-xs text-[var(--color-foreground-secondary)]">
-                  <span className="font-medium hover:text-[var(--color-foreground)] transition-colors">
-                    {item.channelDisplayName || item.channelName}
-                  </span>
-                  <span>{formatDate(item.timestamp)}</span>
+                  <div className="flex justify-between items-center text-xs text-[var(--color-foreground-secondary)]">
+                    <span className="font-medium hover:text-[var(--color-foreground)] transition-colors">
+                      {item.channelDisplayName || item.channelName}
+                    </span>
+                    <span>{formatDate(item.timestamp)}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
       <ClipDialog

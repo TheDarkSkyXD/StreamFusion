@@ -203,6 +203,45 @@ describe("HistoryPage", () => {
     expect(screen.getByText("kick")).toBeInTheDocument();
   });
 
+  it("never requests persisted provider thumbnails from their raw CDN URLs", () => {
+    const twitchProcessingThumbnail =
+      "https://vod-secure.twitch.tv/_404/404_processing_90x60.png";
+    const kickThumbnail =
+      "https://images.kick.com/video_thumbnails/DsuAwCgUc9Bh/lB7LKqQzyR6s/720.webp";
+    mockHistory = [
+      {
+        id: "twitch-video-processing",
+        originalId: "v-processing",
+        title: "Processing Twitch VOD",
+        platform: "twitch",
+        type: "video",
+        channelName: "twitch-channel",
+        thumbnail: twitchProcessingThumbnail,
+        timestamp: Date.now(),
+      },
+      {
+        id: "kick-video-thumbnail",
+        originalId: "v-kick",
+        title: "Kick VOD",
+        platform: "kick",
+        type: "video",
+        channelName: "kick-channel",
+        thumbnail: kickThumbnail,
+        timestamp: Date.now(),
+      },
+    ];
+
+    renderWithProviders(<HistoryPage />);
+
+    expect(screen.queryByRole("img", { name: "Processing Twitch VOD" })).toBeNull();
+    expect(screen.getByRole("img", { name: "Kick VOD" })).toHaveAttribute(
+      "src",
+      expect.stringMatching(/^kick-image:\/\/image\?u=/)
+    );
+    expect(document.querySelector(`img[src="${twitchProcessingThumbnail}"]`)).toBeNull();
+    expect(document.querySelector(`img[src="${kickThumbnail}"]`)).toBeNull();
+  });
+
   it("opens playable clip history items in the clip dialog", async () => {
     vi.mocked(window.electronAPI.clips.getByChannel).mockResolvedValue({
       success: true,

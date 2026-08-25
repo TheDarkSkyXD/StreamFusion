@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSeekPreview } from "@/components/player/hooks/use-seek-preview";
 import { TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { logger } from "@/renderer/logging/logger";
+import { resolveProxiedImageSrc } from "@/lib/proxied-image-url";
 import { useSeekIntervalStore } from "@/store/seek-interval-store";
 
 import { useDefaultQuality } from "../hooks/use-default-quality";
@@ -57,6 +58,7 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
     title,
     thumbnail,
   } = props;
+  const resolvedThumbnail = resolveProxiedImageSrc(thumbnail || poster) ?? undefined;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -137,7 +139,7 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
   // Seek Preview Hook
   const { previewImage, handleSeekHover } = useSeekPreview({
     streamUrl,
-    thumbnail: thumbnail || poster,
+    thumbnail: resolvedThumbnail,
   });
 
   // Apply user's default quality preference
@@ -202,14 +204,17 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
     await togglePip();
   }, [togglePip]);
 
-  const handleSeek = useCallback((time: number) => {
-    const video = videoRef.current;
-    if (!video) return;
-    setIsLoading(true);
-    setCurrentTime(time);
-    commitSeek(time);
-    video.currentTime = time;
-  }, [commitSeek]);
+  const handleSeek = useCallback(
+    (time: number) => {
+      const video = videoRef.current;
+      if (!video) return;
+      setIsLoading(true);
+      setCurrentTime(time);
+      commitSeek(time);
+      video.currentTime = time;
+    },
+    [commitSeek]
+  );
 
   const handleSeekBackward = useCallback(() => {
     const video = videoRef.current;
@@ -280,7 +285,7 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
         <TwitchVodHlsPlayer
           ref={videoRef}
           src={streamUrl}
-          poster={poster}
+          poster={resolvedThumbnail}
           muted={isMuted}
           autoPlay={autoPlay}
           currentLevel={currentQualityId}

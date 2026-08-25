@@ -11,6 +11,8 @@ const KICK_PROXY_PATTERNS = [/^https?:\/\/(www\.)?kick\.com\/img\//i];
 const TWITCH_PROXY_PATTERNS = [/^https:\/\/static-cdn\.jtvnw\.net\/jtv_user_pictures\//i];
 export const TWITCH_PREVIEW_PATTERN =
   /^https:\/\/static-cdn\.jtvnw\.net\/previews-ttv\/live_user_[^/?#]+-\d+x\d+\.jpg(?:[?#]|$)/i;
+const TWITCH_PROCESSING_PLACEHOLDER_HOST = "vod-secure.twitch.tv";
+const TWITCH_PROCESSING_PLACEHOLDER_PATH = /^\/_404\/404_processing_\d+x\d+\.png$/;
 
 type ProxyScheme = typeof KICK_IMAGE_SCHEME | typeof TWITCH_IMAGE_SCHEME;
 
@@ -69,6 +71,18 @@ export function resolveProxiedImageSrc(src: string | undefined | null): string |
   if (!src || src.trim() === "") return null;
   if (src.startsWith("data:")) return src;
   if (!src.startsWith("http")) return null;
+  try {
+    const parsed = new URL(src);
+    if (
+      parsed.protocol === "https:" &&
+      parsed.hostname === TWITCH_PROCESSING_PLACEHOLDER_HOST &&
+      TWITCH_PROCESSING_PLACEHOLDER_PATH.test(parsed.pathname)
+    ) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
   const scheme = chooseProxy(src);
   return scheme ? resolveProxiedSrc(src, scheme) : src;
 }

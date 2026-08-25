@@ -6,6 +6,14 @@ import { KickVodPlayer } from "@/components/player/kick/kick-vod-player";
 import type { QualityLevel } from "@/components/player/types";
 import { createChatReplayPlaybackStore } from "@/hooks/chat-replay-playback-store";
 
+const hookMocks = vi.hoisted(() => ({
+  useResumePlayback: vi.fn(),
+  useSeekPreview: vi.fn(() => ({
+    previewImage: undefined,
+    handleSeekHover: vi.fn(),
+  })),
+}));
+
 const hlsBoundary = vi.hoisted(() => ({
   startLoad: vi.fn(),
   stopLoad: vi.fn(),
@@ -17,10 +25,11 @@ const hlsBoundary = vi.hoisted(() => ({
 }));
 
 vi.mock("@/components/player/hooks/use-seek-preview", () => ({
-  useSeekPreview: () => ({
-    previewImage: undefined,
-    handleSeekHover: vi.fn(),
-  }),
+  useSeekPreview: hookMocks.useSeekPreview,
+}));
+
+vi.mock("@/components/player/hooks/use-resume-playback", () => ({
+  useResumePlayback: hookMocks.useResumePlayback,
 }));
 
 vi.mock("@/components/player/kick/kick-vod-player-controls", () => ({
@@ -79,10 +88,36 @@ vi.mock("@/components/player/hls-player", () => ({
 // Guards: unresolved Kick VOD seeks exhaust once at 7.5 seconds and never leave loading indefinite.
 // Guards: pausing an active HLS VOD seek clears loading without later recovery or failure.
 // Guards: a new stream URL clears terminal seek state and cannot revive the old generation.
+// Guards: Kick VOD thumbnails use the image proxy for poster and seek preview while persistence keeps the provider URL.
 describe("KickVodPlayer", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+  });
+
+  it("resolves the reported Kick thumbnail once for poster and seek preview", () => {
+    const thumbnail = "https://images.kick.com/video_thumbnails/DsuAwCgUc9Bh/lB7LKqQzyR6s/720.webp";
+    const resolvedThumbnail =
+      "kick-image://image?u=aHR0cHM6Ly9pbWFnZXMua2ljay5jb20vdmlkZW9fdGh1bWJuYWlscy9Ec3VBd0NnVWM5QmgvbEI3TEtxUXp5UjZzLzcyMC53ZWJw";
+
+    render(
+      <KickVodPlayer
+        streamUrl="https://stream.kick.com/vod/123.m3u8"
+        videoId="123"
+        thumbnail={thumbnail}
+      />
+    );
+
+    expect(screen.getByTestId("kick-vod-video")).toHaveAttribute("poster", resolvedThumbnail);
+    expect(hookMocks.useSeekPreview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        streamUrl: "https://stream.kick.com/vod/123.m3u8",
+        thumbnail: resolvedThumbnail,
+      })
+    );
+    expect(hookMocks.useResumePlayback).toHaveBeenCalledWith(
+      expect.objectContaining({ thumbnail })
+    );
   });
 
   it("becomes ready on canplay, not when quality levels are published", () => {
@@ -307,9 +342,7 @@ describe("KickVodPlayer", () => {
       playbackStore.requestSeek(48);
       vi.advanceTimersByTime(7_500);
     });
-    expect(
-      screen.queryByRole("button", { name: "Seek to 72 seconds" })
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Seek to 72 seconds" })).not.toBeInTheDocument();
     expect(onError).toHaveBeenCalledTimes(1);
 
     rerender(

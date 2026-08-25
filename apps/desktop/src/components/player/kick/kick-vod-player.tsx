@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSeekPreview } from "@/components/player/hooks/use-seek-preview";
 import { KickLoadingSpinner } from "@/components/ui/loading-spinner";
 import { logger } from "@/renderer/logging/logger";
+import { resolveProxiedImageSrc } from "@/lib/proxied-image-url";
 import { useSeekIntervalStore } from "@/store/seek-interval-store";
 
 import { useDefaultQuality } from "../hooks/use-default-quality";
@@ -62,6 +63,7 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
     onPlaybackStateChange,
     subscribeToSeek,
   } = props;
+  const resolvedThumbnail = resolveProxiedImageSrc(thumbnail || poster) ?? undefined;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -145,7 +147,7 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
   // Seek Preview Hook
   const { previewImage, handleSeekHover } = useSeekPreview({
     streamUrl,
-    thumbnail: thumbnail || poster,
+    thumbnail: resolvedThumbnail,
     hlsConfig,
   });
 
@@ -240,14 +242,17 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
     await togglePip();
   }, [togglePip]);
 
-  const handleSeek = useCallback((time: number) => {
-    const video = videoRef.current;
-    if (!video) return;
-    setIsLoading(true);
-    setCurrentTime(time);
-    commitSeek(time);
-    video.currentTime = time;
-  }, [commitSeek]);
+  const handleSeek = useCallback(
+    (time: number) => {
+      const video = videoRef.current;
+      if (!video) return;
+      setIsLoading(true);
+      setCurrentTime(time);
+      commitSeek(time);
+      video.currentTime = time;
+    },
+    [commitSeek]
+  );
 
   const handleSeekBackward = useCallback(() => {
     const video = videoRef.current;
@@ -323,7 +328,7 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
         <KickHlsPlayer
           ref={videoRef}
           src={streamUrl}
-          poster={poster}
+          poster={resolvedThumbnail}
           muted={isMuted}
           autoPlay={autoPlay}
           currentLevel={currentQualityId}

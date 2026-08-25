@@ -5,6 +5,21 @@ import { isAllowedPlatformImageUrl, resolveProxiedImageSrc } from "@/lib/proxied
 // Guards: Kick replay accepts the observed ext.cdn badge host without allowing HTTP or hostname-confusion variants.
 // Guards: browser development uses the HTTP media relay while Electron keeps its custom image protocol
 describe("proxied image URL policy", () => {
+  it("rejects Twitch processing placeholders without issuing a network request", () => {
+    expect(
+      resolveProxiedImageSrc("https://vod-secure.twitch.tv/_404/404_processing_90x60.png")
+    ).toBeNull();
+    expect(
+      resolveProxiedImageSrc("https://vod-secure.twitch.tv/_404/404_processing_320x180.png")
+    ).toBeNull();
+    expect(
+      resolveProxiedImageSrc("https://example.test/_404/404_processing_90x60.png")
+    ).toBe("https://example.test/_404/404_processing_90x60.png");
+    expect(resolveProxiedImageSrc("https://vod-secure.twitch.tv/vod/123.png")).toBe(
+      "https://vod-secure.twitch.tv/vod/123.png"
+    );
+  });
+
   it("allows only the exact HTTPS Kick extension CDN host", () => {
     const badgeUrl = "https://ext.cdn.kick.com/chat/badges/subscriber.png";
 

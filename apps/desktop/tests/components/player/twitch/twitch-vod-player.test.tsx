@@ -5,11 +5,20 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { TwitchVodPlayer } from "@/components/player/twitch/twitch-vod-player";
 import type { QualityLevel } from "@/components/player/types";
 
-vi.mock("@/components/player/hooks/use-seek-preview", () => ({
-  useSeekPreview: () => ({
+const hookMocks = vi.hoisted(() => ({
+  useResumePlayback: vi.fn(),
+  useSeekPreview: vi.fn(() => ({
     previewImage: undefined,
     handleSeekHover: vi.fn(),
-  }),
+  })),
+}));
+
+vi.mock("@/components/player/hooks/use-seek-preview", () => ({
+  useSeekPreview: hookMocks.useSeekPreview,
+}));
+
+vi.mock("@/components/player/hooks/use-resume-playback", () => ({
+  useResumePlayback: hookMocks.useResumePlayback,
 }));
 
 vi.mock("@/components/player/twitch/twitch-vod-player-controls", () => ({
@@ -73,11 +82,33 @@ vi.mock("@/components/player/hls-player", () => ({
 // Guards: unresolved native MP4 seeks exhaust once at 7.5 seconds and never leave loading indefinite.
 // Guards: pausing an active native MP4 seek clears loading without later recovery or failure.
 // Guards: a new stream URL clears terminal seek state and cannot revive the old generation.
+// Guards: Twitch processing placeholders never reach the poster or seek preview while persistence keeps the provider URL.
 describe("TwitchVodPlayer", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.clearAllMocks();
+  });
+
+  it("rejects the reported Twitch processing thumbnail before player consumers", () => {
+    const thumbnail = "https://vod-secure.twitch.tv/_404/404_processing_90x60.png";
+
+    render(
+      <TwitchVodPlayer
+        streamUrl="https://usher.ttvnw.net/vod/123.m3u8"
+        videoId="123"
+        thumbnail={thumbnail}
+      />
+    );
+
+    expect(screen.getByTestId("twitch-vod-video")).not.toHaveAttribute("poster");
+    expect(hookMocks.useSeekPreview).toHaveBeenCalledWith({
+      streamUrl: "https://usher.ttvnw.net/vod/123.m3u8",
+      thumbnail: undefined,
+    });
+    expect(hookMocks.useResumePlayback).toHaveBeenCalledWith(
+      expect.objectContaining({ thumbnail })
+    );
   });
 
   it("does not play a paused VOD when its video surface is clicked", () => {
@@ -297,9 +328,7 @@ describe("TwitchVodPlayer", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Seek to 61 seconds" }));
     act(() => vi.advanceTimersByTime(7_500));
-    expect(
-      screen.queryByRole("button", { name: "Seek to 61 seconds" })
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Seek to 61 seconds" })).not.toBeInTheDocument();
     expect(onError).toHaveBeenCalledTimes(1);
     expect(reseekTargets).toEqual([61, 61, 60.75, 61]);
 
