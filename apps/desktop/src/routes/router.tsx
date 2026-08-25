@@ -10,6 +10,7 @@ import { Suspense } from "react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { RecoveryBoundary } from "@/components/recovery/RecoveryBoundary";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import {
   CategoriesPage,
   CategoryDetailPage,
@@ -29,10 +30,14 @@ import {
 import { validateCategoryDetailSearch } from "@/routes/category-detail-search";
 import { validateSearchQuery, validateVideoSearch } from "@/routes/route-boundaries";
 
-// Loading fallback for lazy-loaded pages
 const PageLoader = () => (
-  <div data-route-page-loader="true" className="flex items-center justify-center h-full">
-    <div className="w-8 h-8 border-2 border-storm-accent border-t-transparent rounded-full animate-spin" />
+  <div
+    role="status"
+    aria-label="Loading page"
+    data-route-page-loader="true"
+    className="flex h-full items-center justify-center"
+  >
+    <LoadingSpinner size="md" className="motion-reduce:animate-none" />
   </div>
 );
 
