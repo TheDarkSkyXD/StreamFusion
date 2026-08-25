@@ -81,7 +81,7 @@ import { FeaturedStream } from "@/components/stream/featured-stream";
 // Guards: no-data state renders null because the parent owns empty-state layout.
 // Guards: success state renders title, channel, viewer badge, and watch CTA in the hero panel.
 // Guards: carousel state switches the active stream without refetching or remounting the home page.
-// Guards: preview state mounts one muted live player for the active slide without waiting for interaction.
+// Guards: preview playback starts only after explicit intent so Home can remain resource-idle.
 // Guards: preview audio can be user-unmuted without navigating away from the carousel.
 // Guards: Twitch previews use the same ad-blocking HLS player path as normal stream playback.
 // Guards: autoplay state advances the featured slide using the user's configured interval.
@@ -128,22 +128,8 @@ describe("FeaturedStream", () => {
     expect(screen.getAllByText(/feature channel/i).length).toBeGreaterThan(0);
     expect(screen.getByText("6.9K")).toBeInTheDocument();
     expect(screen.getAllByText(/watch now/i).length).toBeGreaterThan(0);
-    expect(screen.getByTestId("featured-twitch-preview-player")).toHaveAttribute(
-      "data-src",
-      "https://example.com/live.m3u8"
-    );
-    expect(screen.getByTestId("featured-twitch-preview-player")).toHaveAttribute(
-      "data-autoplay",
-      "true"
-    );
-    expect(screen.getByTestId("featured-twitch-preview-player")).toHaveAttribute(
-      "data-muted",
-      "true"
-    );
-    expect(screen.getByTestId("featured-twitch-preview-player")).toHaveAttribute(
-      "data-volume",
-      "1"
-    );
+    expect(screen.queryByTestId("featured-twitch-preview-player")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /play preview/i })).toBeInTheDocument();
   });
 
   it("renders duplicate tag labels once before applying the two-pill limit", () => {
@@ -163,19 +149,16 @@ describe("FeaturedStream", () => {
     ]);
   });
 
-  it("lets the user unmute the preview audio", () => {
+  it("starts preview playback only after explicit user intent", () => {
     renderWithProviders(
       <FeaturedStream stream={fixtures.stream({ platform: "kick", channelName: "kickchan" })} />
     );
 
-    fireEvent.focus(screen.getAllByText(/watch now/i)[0]);
-
-    expect(screen.getByTestId("featured-preview-player")).toHaveAttribute("data-muted", "true");
-    expect(screen.getByTestId("featured-preview-player")).toHaveAttribute("data-volume", "1");
-
-    fireEvent.click(screen.getByRole("button", { name: /unmute preview/i }));
+    expect(screen.queryByTestId("featured-preview-player")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /play preview/i }));
 
     expect(screen.getByTestId("featured-preview-player")).toHaveAttribute("data-muted", "false");
+    expect(screen.getByTestId("featured-preview-player")).toHaveAttribute("data-volume", "1");
     expect(screen.getByRole("button", { name: /mute preview/i })).toBeInTheDocument();
   });
 
@@ -184,7 +167,7 @@ describe("FeaturedStream", () => {
       <FeaturedStream stream={fixtures.stream({ platform: "twitch", channelName: "twitchchan" })} />
     );
 
-    fireEvent.pointerMove(screen.getAllByText(/watch now/i)[0].closest(".group")!);
+    fireEvent.click(screen.getByRole("button", { name: /play preview/i }));
 
     expect(screen.getByTestId("featured-twitch-preview-player")).toHaveAttribute(
       "data-channel-name",
@@ -201,7 +184,7 @@ describe("FeaturedStream", () => {
       <FeaturedStream stream={fixtures.stream({ platform: "kick", channelName: "kickchan" })} />
     );
 
-    fireEvent.pointerMove(screen.getAllByText(/watch now/i)[0].closest(".group")!);
+    fireEvent.click(screen.getByRole("button", { name: /play preview/i }));
 
     expect(screen.getByTestId("featured-preview-player")).toHaveAttribute(
       "data-src",
@@ -248,14 +231,13 @@ describe("FeaturedStream", () => {
     renderWithProviders(<FeaturedStream stream={streams[0]} streams={streams} />);
 
     expect(screen.getAllByText(/first featured/i).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /play preview/i }));
+    expect(mocks.useStreamPlayback).toHaveBeenLastCalledWith("twitch", "first-channel");
     fireEvent.click(screen.getByRole("button", { name: /next featured stream/i }));
     expect(screen.getAllByText(/second featured/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/second channel/i).length).toBeGreaterThan(0);
-    expect(mocks.useStreamPlayback).toHaveBeenLastCalledWith("twitch", "second-channel");
-    expect(screen.getByTestId("featured-twitch-preview-player")).toHaveAttribute(
-      "data-autoplay",
-      "true"
-    );
+    expect(screen.queryByTestId("featured-twitch-preview-player")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /play preview/i })).toBeInTheDocument();
   });
 
   it("reports carousel changes to a controlled owner", () => {

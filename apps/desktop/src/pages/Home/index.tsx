@@ -7,8 +7,10 @@ import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 import { LiveNowSection } from "./components/live-now-section";
 import { FeaturedStage } from "./components/featured-stage";
 
+const HOME_STREAM_LIMIT = 13;
+
 export function HomePage() {
-  const { data: streams, isLoading, error } = useTopStreams(undefined, 25);
+  const { data: streams, isLoading, error } = useTopStreams(undefined, HOME_STREAM_LIMIT);
   const canRenderContent = useAfterFirstPaint();
 
   const featuredStream = streams && streams.length > 0 ? streams[0] : undefined;

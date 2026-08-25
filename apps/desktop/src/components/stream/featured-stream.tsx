@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { LuChevronLeft, LuChevronRight, LuVolume2, LuVolumeX } from "react-icons/lu";
+import { LuChevronLeft, LuChevronRight, LuPlay, LuVolume2, LuVolumeX } from "react-icons/lu";
 
 import type { UnifiedStream } from "@/backend/api/unified/platform-types";
 import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
@@ -24,6 +24,10 @@ interface FeaturedStreamProps {
   isAutoRotationEnabled?: boolean;
 }
 
+type FeaturedPreviewState =
+  | { kind: "idle" }
+  | { kind: "playing"; streamIdentity: string; muted: boolean };
+
 export function FeaturedStream({
   stream,
   streams,
@@ -37,9 +41,18 @@ export function FeaturedStream({
     return candidates.slice(0, 10);
   }, [stream, streams]);
   const [uncontrolledActiveIndex, setUncontrolledActiveIndex] = useState(0);
-  const [isPreviewMuted, setIsPreviewMuted] = useState(true);
+  const [previewState, setPreviewState] = useState<FeaturedPreviewState>({ kind: "idle" });
   const activeIndex = controlledActiveIndex ?? uncontrolledActiveIndex;
   const activeStream = carouselStreams[activeIndex] ?? carouselStreams[0];
+  const activeStreamIdentity = activeStream
+    ? `${activeStream.platform}:${activeStream.channelName}`
+    : null;
+  const activePreview =
+    previewState.kind === "playing" && previewState.streamIdentity === activeStreamIdentity
+      ? previewState
+      : null;
+  const previewRequested = activePreview !== null;
+  const isPreviewMuted = activePreview?.muted ?? true;
   const hasMultipleSlides = carouselStreams.length > 1;
   const homeCarouselIntervalMs = useAppStore((state) => state.homeCarouselIntervalMs);
   const volume = useVolumeStore((state) => state.volume);
@@ -113,11 +126,12 @@ export function FeaturedStream({
   };
 
   const togglePreviewAudio = () => {
-    setIsPreviewMuted((current) => {
-      if (current && volume <= 0) {
-        setVolume(50);
-      }
-      return !current;
+    if (!activeStreamIdentity) return;
+    if (isPreviewMuted && volume <= 0) setVolume(50);
+    setPreviewState({
+      kind: "playing",
+      streamIdentity: activeStreamIdentity,
+      muted: !isPreviewMuted,
     });
   };
 
@@ -138,11 +152,13 @@ export function FeaturedStream({
           width={1920}
           height={1080}
         />
-        <FeaturedStreamPreview
-          stream={activeStream}
-          muted={previewMuted}
-          volume={previewVolume > 0 ? previewVolume : 0.5}
-        />
+        {previewRequested && (
+          <FeaturedStreamPreview
+            stream={activeStream}
+            muted={previewMuted}
+            volume={previewVolume > 0 ? previewVolume : 0.5}
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/15" />
       </Link>
 
@@ -154,11 +170,21 @@ export function FeaturedStream({
       <button
         type="button"
         className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded bg-black/65 text-white transition-colors hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-        aria-label={previewMuted ? "Unmute preview" : "Mute preview"}
-        title={previewMuted ? "Unmute preview" : "Mute preview"}
+        aria-label={
+          !previewRequested ? "Play preview" : previewMuted ? "Unmute preview" : "Mute preview"
+        }
+        title={
+          !previewRequested ? "Play preview" : previewMuted ? "Unmute preview" : "Mute preview"
+        }
         onClick={togglePreviewAudio}
       >
-        {previewMuted ? <LuVolumeX className="h-5 w-5" /> : <LuVolume2 className="h-5 w-5" />}
+        {!previewRequested ? (
+          <LuPlay className="h-5 w-5 fill-current" />
+        ) : previewMuted ? (
+          <LuVolumeX className="h-5 w-5" />
+        ) : (
+          <LuVolume2 className="h-5 w-5" />
+        )}
       </button>
 
       <div className="absolute inset-x-4 bottom-4 rounded-lg border border-white/10 bg-black/65 p-4 text-white backdrop-blur-md">

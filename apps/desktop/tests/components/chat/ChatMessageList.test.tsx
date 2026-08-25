@@ -351,8 +351,8 @@ describe("ChatMessageList", () => {
   it("keeps the virtualized pre-render window narrow for emote-heavy fast chat", () => {
     render(<ChatMessageList channelKey={channelA} />);
     expect(virtuosoWindowProps.at(-1)).toEqual({
-      overscan: 150,
-      increaseViewportBy: { top: 240, bottom: 480 },
+      overscan: 80,
+      increaseViewportBy: { top: 120, bottom: 240 },
       defaultItemHeight: 36,
     });
   });

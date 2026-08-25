@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import type { UnifiedChannel, UnifiedStream } from "@/backend/api/unified/platform-types";
 import { ChatPanel, type ChatPanelProps } from "@/components/chat";
@@ -49,23 +49,15 @@ export function FeaturedStage({
     : undefined;
   const isCarouselPaused = isPointerInsideChat || isFocusInsideChat;
 
-  useEffect(() => {
-    setActiveStreamIdentity((current) => {
-      if (
-        current &&
-        carouselStreams.some((candidate) => getFeaturedStreamIdentity(candidate) === current)
-      ) {
-        return current;
-      }
-      return carouselStreams[0] ? getFeaturedStreamIdentity(carouselStreams[0]) : undefined;
-    });
-  }, [carouselStreams]);
-
   useInterval(
     () => {
       selectActiveIndex(activeIndex >= carouselStreams.length - 1 ? 0 : activeIndex + 1);
     },
-    canRenderContent && !isLoading && carouselStreams.length > 1 && !isCarouselPaused
+    canRenderContent &&
+      !isLoading &&
+      !isWide &&
+      carouselStreams.length > 1 &&
+      !isCarouselPaused
       ? homeCarouselIntervalMs
       : null
   );

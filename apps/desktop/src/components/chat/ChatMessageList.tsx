@@ -26,8 +26,8 @@ import type { UsernameChannelContext } from "./Username";
 
 const MemoizedChatMessage = memo(ChatMessage);
 const EMPTY_MESSAGES: ChatMessageType[] = [];
-const CHAT_LIST_OVERSCAN_PX = 150;
-const CHAT_LIST_INCREASE_VIEWPORT_BY = { top: 240, bottom: 480 };
+const CHAT_LIST_OVERSCAN_PX = 80;
+const CHAT_LIST_INCREASE_VIEWPORT_BY = { top: 120, bottom: 240 };
 const CHAT_AT_BOTTOM_THRESHOLD_PX = 20;
 const BOTTOM_FOLLOW_RESIDUAL_GAP_PX = 4;
 const VIRTUOSO_FIRST_ITEM_INDEX_BASE = 1_000_000;

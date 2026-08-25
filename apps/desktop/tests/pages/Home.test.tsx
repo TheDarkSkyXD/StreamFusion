@@ -6,14 +6,21 @@ import { fixtures, renderWithProviders, routerMock, screen } from "../test-utils
 
 type TopStreamsState = Pick<ReturnType<typeof useTopStreams>, "data" | "isLoading" | "error">;
 
-const topStreamsMock = vi.hoisted<{ state: TopStreamsState }>(() => ({
+const topStreamsMock = vi.hoisted<{
+  state: TopStreamsState;
+  lastArgs: [platform: unknown, limit: number] | undefined;
+}>(() => ({
   state: { data: undefined, isLoading: false, error: null },
+  lastArgs: undefined,
 }));
 
 vi.mock("@tanstack/react-router", () => routerMock());
 
 vi.mock("@/hooks/queries/useStreams", () => ({
-  useTopStreams: () => topStreamsMock.state,
+  useTopStreams: (platform: unknown, limit: number) => {
+    topStreamsMock.lastArgs = [platform, limit];
+    return topStreamsMock.state;
+  },
   useStreamsByCategory: vi.fn(),
   useFollowedStreams: vi.fn(),
   useStreamByChannel: vi.fn(),
@@ -49,6 +56,12 @@ import { HomePage } from "@/pages/Home";
 describe("HomePage", () => {
   beforeEach(() => {
     topStreamsMock.state = { data: undefined, isLoading: false, error: null };
+    topStreamsMock.lastArgs = undefined;
+  });
+
+  it("requests only the curated home-page stream budget", () => {
+    renderWithProviders(<HomePage />);
+    expect(topStreamsMock.lastArgs).toEqual([undefined, 13]);
   });
 
   it("shows loading state passed to featured + live-now while fetching", () => {

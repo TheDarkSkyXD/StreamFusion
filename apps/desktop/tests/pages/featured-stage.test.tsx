@@ -247,6 +247,7 @@ describe("FeaturedStage", () => {
 
   it("uses one stage-owned timer for carousel rotation", () => {
     vi.useFakeTimers();
+    setWideViewport(false);
     const streams = [
       fixtures.stream({ id: "first", channelName: "first-channel", title: "First" }),
       fixtures.stream({ id: "second", channelName: "second-channel", title: "Second" }),
@@ -273,6 +274,39 @@ describe("FeaturedStage", () => {
       );
       act(() => vi.advanceTimersByTime(HOME_CAROUSEL_INTERVAL_DEFAULT_MS));
       expect(screen.getByTestId("featured-media")).toHaveAttribute("data-active-index", "1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the visible desktop chat connected to one stream during idle", () => {
+    vi.useFakeTimers();
+    const streams = [
+      fixtures.stream({ id: "first", channelName: "first-channel", title: "First" }),
+      fixtures.stream({ id: "second", channelName: "second-channel", title: "Second" }),
+    ];
+    mocks.useChannelByUsername.mockImplementation((username: string) => ({
+      data: fixtures.channel({ username }),
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    }));
+
+    try {
+      renderWithProviders(
+        <FeaturedStage
+          stream={streams[0]}
+          streams={streams}
+          isLoading={false}
+          canRenderContent={true}
+        />
+      );
+      act(() => vi.advanceTimersByTime(HOME_CAROUSEL_INTERVAL_DEFAULT_MS * 3));
+      expect(screen.getByTestId("featured-media")).toHaveAttribute("data-active-index", "0");
+      expect(screen.getByTestId("featured-chat-panel")).toHaveAttribute(
+        "data-channel",
+        "first-channel"
+      );
     } finally {
       vi.useRealTimers();
     }
