@@ -359,20 +359,30 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       }
     }
 
-    // Leave and evict the specific channel only after its final panel releases.
+    this.activeUsers = Math.max(0, this.activeUsers - 1);
+    this.log(`Service released (active users: ${this.activeUsers})`);
+
+    // A final release disconnects the socket, so waiting for a separate IRC
+    // PART first is redundant and can block teardown until tmi.js reports
+    // "No response from Twitch". Evict the requested bucket immediately and
+    // let the hard shutdown close the transport once.
+    if (this.activeUsers === 0) {
+      if (channel && shouldLeaveChannel) {
+        useChatStore
+          .getState()
+          .dropChannel(buildChannelKey("twitch", this.normalizeChannel(channel)));
+      }
+      await this.shutdown();
+      return;
+    }
+
+    // When other panels still use the shared connection, PART only the channel
+    // whose final panel was released and keep the transport alive.
     if (channel && shouldLeaveChannel) {
       await this.leaveChannel(channel);
       useChatStore
         .getState()
         .dropChannel(buildChannelKey("twitch", this.normalizeChannel(channel)));
-    }
-
-    this.activeUsers = Math.max(0, this.activeUsers - 1);
-    this.log(`Service released (active users: ${this.activeUsers})`);
-
-    // If no more users, perform full shutdown
-    if (this.activeUsers === 0) {
-      await this.shutdown();
     }
   }
 
@@ -425,6 +435,9 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
       dropChannel(buildChannelKey("twitch", channel));
     }
     this.channelUsers.clear();
+    this.channels.clear();
+    this.broadcasterId.clear();
+    this.isModerator.clear();
 
     if (!this.client) {
       this.setConnectionState("disconnected");
@@ -441,9 +454,6 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     }
 
     this.client = null;
-    this.channels.clear();
-    this.broadcasterId.clear();
-    this.isModerator.clear();
     this.setConnectionState("disconnected");
     this.log("Twitch chat service shutdown complete");
   }

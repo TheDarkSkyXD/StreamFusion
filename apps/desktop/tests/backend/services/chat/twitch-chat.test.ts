@@ -313,6 +313,24 @@ describe("TwitchChatService connect() single-flight", () => {
     expect(internals.channels.has("xqc")).toBe(false);
   });
 
+  it("disconnects directly on the final release without waiting for a redundant PART", async () => {
+    const service = new TwitchChatService();
+    const internals = service as unknown as ServiceInternals;
+    const client = Object.assign(new EventEmitter(), {
+      disconnect: vi.fn(() => Promise.resolve()),
+      part: vi.fn(() => Promise.reject(new Error("No response from Twitch."))),
+    });
+    (service as unknown as { client: typeof client }).client = client;
+    internals.channels.add("xqc");
+    service.acquire("xqc");
+
+    await service.release("xqc");
+
+    expect(client.part).not.toHaveBeenCalled();
+    expect(client.disconnect).toHaveBeenCalledTimes(1);
+    expect(service.getActiveUserCount()).toBe(0);
+  });
+
   it("evicts active channel buckets during force shutdown", async () => {
     const service = new TwitchChatService();
     const internals = service as unknown as ServiceInternals;
