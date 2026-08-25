@@ -266,6 +266,7 @@ export const IPC_CHANNELS = {
   // Renderer goes through these channels so kick-chat.ts stays renderer-safe
   // (no transitive better-sqlite3 / electron import via channel-endpoints).
   KICK_CHAT_ENSURE_SEND_WINDOW_READY: "kick-chat:ensure-send-window-ready",
+  KICK_CHAT_SET_SEND_WINDOW_CHAT_ACTIVE: "kick-chat:set-send-window-chat-active",
   KICK_CHAT_SEND_MESSAGE: "kick-chat:send-message",
   KICK_CHAT_BAN_USER: "kick-chat:ban-user",
   KICK_CHAT_TIMEOUT_USER: "kick-chat:timeout-user",
@@ -815,9 +816,7 @@ export interface AppEnvironment {
 }
 
 /** Main-process observation of the operating system's physical network state. */
-export type PhysicalConnectivityResult =
-  | { status: "online" }
-  | { status: "offline" };
+export type PhysicalConnectivityResult = { status: "online" } | { status: "offline" };
 
 /**
  * Result of a `BUG_REPORT_WRITE` call. `filePath` is set on success; `error`

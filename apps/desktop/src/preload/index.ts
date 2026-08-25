@@ -1037,6 +1037,8 @@ const electronAPI = {
   // electron + the storage / database-service chain into the renderer
   // bundle and break the build).
   kickChat: {
+    setSendWindowChatActive: (active: boolean): Promise<void> =>
+      invokeIpc(IPC_CHANNELS.KICK_CHAT_SET_SEND_WINDOW_CHAT_ACTIVE, active),
     ensureSendWindowReady: (): Promise<void> =>
       invokeIpc(IPC_CHANNELS.KICK_CHAT_ENSURE_SEND_WINDOW_READY),
     sendMessage: (

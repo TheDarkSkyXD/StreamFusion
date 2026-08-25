@@ -25,6 +25,7 @@ import {
   ensureSendWindowReady,
   getKickChannelViewerRole,
   sendKickChatMessage,
+  setSendWindowChatActive,
   type KickChannelViewerRoleResult,
   type KickSendResult,
   type KickWebApiMutationResult,
@@ -48,6 +49,14 @@ function rejectedKickSend(message = "Rejected sender origin."): KickSendResult {
 }
 
 export function registerKickChatHandlers(): void {
+  ipcMain.handle(
+    IPC_CHANNELS.KICK_CHAT_SET_SEND_WINDOW_CHAT_ACTIVE,
+    (event, active: boolean): void => {
+      if (!isAllowedSender(event)) return;
+      setSendWindowChatActive(active);
+    }
+  );
+
   ipcMain.handle(IPC_CHANNELS.KICK_CHAT_ENSURE_SEND_WINDOW_READY, async (): Promise<void> => {
     await ensureSendWindowReady();
   });

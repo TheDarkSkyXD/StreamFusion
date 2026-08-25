@@ -15,6 +15,7 @@ vi.mock("@/backend/api/platforms/kick/kick-send-window", () => ({
   unbanKickChatUser: vi.fn(),
   deleteKickChatMessage: vi.fn(),
   disposeSendWindow: vi.fn(),
+  setSendWindowChatActive: vi.fn(),
 }));
 
 import { ipcMain } from "electron";
@@ -29,7 +30,11 @@ import {
   timeoutKickChatUser,
   unbanKickChatUser,
 } from "@/backend/api/platforms/kick/kick-send-window";
-import type { KickChannelViewerRoleResult, KickSendResult, KickWebApiMutationResult } from "@/backend/api/platforms/kick/kick-send-window";
+import type {
+  KickChannelViewerRoleResult,
+  KickSendResult,
+  KickWebApiMutationResult,
+} from "@/backend/api/platforms/kick/kick-send-window";
 import { registerKickChatHandlers } from "@/backend/ipc/handlers/kick-chat-handlers";
 
 type Handler = (event: unknown, payload?: unknown) => Promise<unknown>;
@@ -167,7 +172,11 @@ describe("KICK_CHAT_DELETE_MESSAGE", () => {
 
 describe("KICK_CHAT_GET_VIEWER_ROLE", () => {
   it("passes channelSlug to getKickChannelViewerRole", async () => {
-    const expected = { ok: true, isModerator: true, status: 200 } satisfies KickChannelViewerRoleResult;
+    const expected = {
+      ok: true,
+      isModerator: true,
+      status: 200,
+    } satisfies KickChannelViewerRoleResult;
     vi.mocked(getKickChannelViewerRole).mockResolvedValue(expected);
 
     const handler = getHandler(IPC_CHANNELS.KICK_CHAT_GET_VIEWER_ROLE);

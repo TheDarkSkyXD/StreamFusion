@@ -76,8 +76,55 @@ let warmupPromise: Promise<void> | null = null;
 let reloadPromise: Promise<void> | null = null;
 let sessionRenewalPromise: Promise<void> | null = null;
 let lastSessionRenewalAt = 0;
+let sendWindowChatActive = false;
+let activeWindowOperations = 0;
+let sendWindowGeneration = 0;
+let idleReapTimer: ReturnType<typeof setTimeout> | null = null;
 
 const SESSION_RENEWAL_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const SEND_WINDOW_IDLE_REAP_MS = 5_000;
+
+function cancelIdleReap(): void {
+  if (idleReapTimer) clearTimeout(idleReapTimer);
+  idleReapTimer = null;
+}
+
+function scheduleIdleReap(): void {
+  cancelIdleReap();
+  if (sendWindowChatActive || activeWindowOperations > 0 || !sendWindow) return;
+  const capturedWindow = sendWindow;
+  const capturedGeneration = sendWindowGeneration;
+  idleReapTimer = setTimeout(() => {
+    idleReapTimer = null;
+    if (
+      !sendWindowChatActive &&
+      activeWindowOperations === 0 &&
+      sendWindow === capturedWindow &&
+      sendWindowGeneration === capturedGeneration
+    ) {
+      void disposeSendWindow();
+    }
+  }, SEND_WINDOW_IDLE_REAP_MS);
+}
+
+function beginWindowOperation(): () => void {
+  activeWindowOperations += 1;
+  sendWindowGeneration += 1;
+  cancelIdleReap();
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    activeWindowOperations = Math.max(0, activeWindowOperations - 1);
+    scheduleIdleReap();
+  };
+}
+
+export function setSendWindowChatActive(active: boolean): void {
+  sendWindowChatActive = active;
+  if (active) cancelIdleReap();
+  else scheduleIdleReap();
+}
 
 /**
  * Recognise the Laravel Sanctum personal-access-token format kick.com web
@@ -105,6 +152,10 @@ export function clearBearerForTest(): void {
   reloadPromise = null;
   sessionRenewalPromise = null;
   lastSessionRenewalAt = 0;
+  sendWindowChatActive = false;
+  activeWindowOperations = 0;
+  sendWindowGeneration = 0;
+  cancelIdleReap();
 }
 
 /**
@@ -589,39 +640,44 @@ export async function sendKickChatMessage(
   content: string,
   channelSlug?: string
 ): Promise<KickSendResult> {
+  const releaseOperation = beginWindowOperation();
   try {
-    await ensureSendWindowReady(channelSlug);
-  } catch (error) {
-    if (error instanceof KickSendWindowReadinessError) {
-      return { ok: false, kind: error.kind, message: error.userMessage };
-    }
-    return {
-      ok: false,
-      kind: "network",
-      message: "Kick send window failed to initialize; try again.",
-    };
-  }
-  if (!sendWindow || sendWindow.isDestroyed() || latestKickWebBearer === null) {
-    return {
-      ok: false,
-      kind: "network",
-      message: "Send window failed to initialize.",
-    };
-  }
-  let result = await _fireSend(chatroomId, content);
-  if (!result.ok && result.kind === "auth-expired") {
-    clearPersistedKickWebBearer();
-    // One reload + one retry. Failing again surfaces auth-expired without
-    // a second reload (per spec R25).
     try {
-      await _reloadAndRecapture(sendWindow);
-    } catch {
-      return result;
+      await ensureSendWindowReady(channelSlug);
+    } catch (error) {
+      if (error instanceof KickSendWindowReadinessError) {
+        return { ok: false, kind: error.kind, message: error.userMessage };
+      }
+      return {
+        ok: false,
+        kind: "network",
+        message: "Kick send window failed to initialize; try again.",
+      };
     }
-    if (latestKickWebBearer === null || sendWindow.isDestroyed()) return result;
-    result = await _fireSend(chatroomId, content);
+    if (!sendWindow || sendWindow.isDestroyed() || latestKickWebBearer === null) {
+      return {
+        ok: false,
+        kind: "network",
+        message: "Send window failed to initialize.",
+      };
+    }
+    let result = await _fireSend(chatroomId, content);
+    if (!result.ok && result.kind === "auth-expired") {
+      clearPersistedKickWebBearer();
+      // One reload + one retry. Failing again surfaces auth-expired without
+      // a second reload (per spec R25).
+      try {
+        await _reloadAndRecapture(sendWindow);
+      } catch {
+        return result;
+      }
+      if (latestKickWebBearer === null || sendWindow.isDestroyed()) return result;
+      result = await _fireSend(chatroomId, content);
+    }
+    return result;
+  } finally {
+    releaseOperation();
   }
-  return result;
 }
 
 const ALLOWED_KICK_WEB_API_GET_PATHS = [
@@ -727,6 +783,7 @@ async function fetchKickWebApiGetWithinDeadline(path: string): Promise<KickWebAp
 }
 
 export async function fetchKickWebApiGet(path: string): Promise<KickWebApiGetResult> {
+  const releaseOperation = beginWindowOperation();
   let deadline: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
@@ -734,7 +791,6 @@ export async function fetchKickWebApiGet(path: string): Promise<KickWebApiGetRes
       new Promise<KickWebApiGetResult>((resolve) => {
         // timer-allowlist: hard wall-clock bound for readiness, reload, and renderer execution.
         deadline = setTimeout(() => {
-          void disposeSendWindow();
           logger.warn("Kick:SendWindow", "Kick web API GET phase", {
             phase: "ready-failed",
             reason: "deadline",
@@ -751,6 +807,7 @@ export async function fetchKickWebApiGet(path: string): Promise<KickWebApiGetRes
     ]);
   } finally {
     if (deadline) clearTimeout(deadline);
+    releaseOperation();
   }
 }
 
@@ -1168,6 +1225,9 @@ async function _fireSend(chatroomId: number, content: string): Promise<KickSendR
   });
 }
 export async function disposeSendWindow(): Promise<void> {
+  cancelIdleReap();
+  sendWindowGeneration += 1;
+  sendWindowChatActive = false;
   const w = sendWindow;
   sendWindow = null;
   latestKickWebBearer = null;

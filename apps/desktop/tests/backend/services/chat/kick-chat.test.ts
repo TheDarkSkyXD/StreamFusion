@@ -22,6 +22,7 @@ vi.mock("@/lib/cross-logger", () => ({
 // here so the tests can assert on the bridge surface instead of the underlying
 // module. See `apps/desktop/src/backend/ipc/handlers/kick-chat-handlers.ts`.
 const kickChatApi = {
+  setSendWindowChatActive: vi.fn(() => Promise.resolve()),
   ensureSendWindowReady: vi.fn(() => Promise.resolve()),
   sendMessage: vi.fn(),
   disposeSendWindow: vi.fn(() => Promise.resolve()),
@@ -328,6 +329,7 @@ describe("KickChatService.sendMessage", () => {
     kickChatApi.sendMessage.mockReset();
     kickChatApi.ensureSendWindowReady.mockClear();
     kickChatApi.disposeSendWindow.mockClear();
+    kickChatApi.setSendWindowChatActive.mockClear();
   });
 
   it("sends the chatroom id and content through the page-context transport", async () => {
@@ -624,12 +626,13 @@ describe("KickChatService.joinChannel send-window warmup", () => {
     internals.connectionState = "connected";
     await service.joinChannel("ac7ionman", 999_111, 42);
     expect(kickChatApi.ensureSendWindowReady).not.toHaveBeenCalled();
+    expect(kickChatApi.setSendWindowChatActive).toHaveBeenCalledWith(true);
     expect(internals.channels.has("ac7ionman")).toBe(true);
   });
 });
 
-describe("send-window disposal", () => {
-  it("leaveChannel that empties the active set disposes the window", async () => {
+describe("send-window retention", () => {
+  it("leaveChannel that empties the active set releases the window", async () => {
     const { service, internals } = makeService();
     internals.channels.set("ac7ionman", {
       slug: "ac7ionman",
@@ -641,7 +644,8 @@ describe("send-window disposal", () => {
       unsubscribe: vi.fn(),
     };
     await service.leaveChannel("ac7ionman");
-    expect(kickChatApi.disposeSendWindow).toHaveBeenCalled();
+    expect(kickChatApi.setSendWindowChatActive).toHaveBeenCalledWith(false);
+    expect(kickChatApi.disposeSendWindow).not.toHaveBeenCalled();
   });
 
   it("leaveChannel that leaves other channels active does NOT dispose", async () => {

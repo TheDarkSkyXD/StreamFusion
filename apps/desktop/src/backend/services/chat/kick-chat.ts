@@ -75,6 +75,8 @@ const ensureSendWindowReady = (): Promise<void> =>
   window.electronAPI.kickChat.ensureSendWindowReady();
 
 const disposeSendWindow = (): Promise<void> => window.electronAPI.kickChat.disposeSendWindow();
+const setSendWindowChatActive = (active: boolean): Promise<void> =>
+  window.electronAPI.kickChat.setSendWindowChatActive(active);
 
 const WEB_SOCKET_CONNECTING_READY_STATE = 0;
 const WEB_SOCKET_OPEN_READY_STATE = 1;
@@ -639,6 +641,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     try {
       this.log(`Subscribing to chatroom ${chatroomId}...`);
       this.subscribeTrackedChannel(normalizedChannel, chatroomId, broadcasterUserId);
+      if (this.channels.size === 1) void setSendWindowChatActive(true);
 
       // NOTE: Channel badges should be set by caller via setChannelBadges()
 
@@ -714,7 +717,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     this.log(`Left channel: ${normalizedChannel}`);
 
     if (this.channels.size === 0) {
-      void disposeSendWindow();
+      void setSendWindowChatActive(false);
     }
   }
 
