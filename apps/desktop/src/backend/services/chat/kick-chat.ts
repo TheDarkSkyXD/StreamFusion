@@ -319,16 +319,24 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     this.setConnectionState("connecting");
 
     try {
+      const staleClient = this.pusher;
+      if (staleClient) {
+        this.cancelConnectionWaits(staleClient);
+        staleClient.connection.unbind_all();
+        this.disconnectPusherSafe(staleClient);
+      }
+
       // Create Pusher client
-      this.pusher = this.createPusherClient();
+      const client = this.createPusherClient();
+      this.pusher = client;
 
       // Set up connection event handlers
-      this.setupConnectionHandlers();
+      this.setupConnectionHandlers(client);
 
       this.log("Connecting to Kick Pusher WebSocket...");
 
       // Wait for the connection to actually be established
-      await this.waitForConnection();
+      await this.waitForConnection(client);
 
       // Check if service was deactivated during connection
       if (!this.isActive) {
@@ -340,6 +348,12 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         }
         this.pusher = null;
         return;
+      }
+
+      if (this.pusher === client) {
+        for (const [slug, info] of [...this.channels]) {
+          this.subscribeTrackedChannel(slug, info.chatroomId, info.broadcasterUserId);
+        }
       }
     } catch (error) {
       this.handleConnectionError(error);
@@ -356,9 +370,8 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
    * - Don't reject while Pusher is in 'connecting' or 'unavailable' states (actively retrying)
    * - Allow Pusher's internal exponential backoff to work
    */
-  private waitForConnection(): Promise<void> {
+  private waitForConnection(client: Pusher | null = this.pusher): Promise<void> {
     return new Promise((resolve, reject) => {
-      const client = this.pusher;
       if (!client) {
         reject(new Error("Pusher client not initialized"));
         return;
@@ -626,16 +639,21 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       return;
     }
 
-    if (!this.pusher || this.connectionState !== "connected") {
-      throw new Error("Not connected to Kick Pusher");
+    if (
+      !this.pusher ||
+      this.connectionState !== "connected" ||
+      this.pusher.connection.state !== "connected"
+    ) {
+      await this.connect({ debug: this.debugMode });
     }
 
-    // Verify Pusher is actually connected (internal state can differ from ours)
-    const pusherState = this.pusher.connection.state;
-    if (pusherState !== "connected") {
-      this.log(`Pusher not ready (state: ${pusherState}), waiting...`);
-      // Wait for connection to be ready
-      await this.waitForConnection();
+    const client = this.pusher;
+    if (
+      !client ||
+      this.connectionState !== "connected" ||
+      client.connection.state !== "connected"
+    ) {
+      throw new Error("Kick Pusher connection did not become ready");
     }
 
     try {
@@ -946,21 +964,22 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   /**
    * Set up connection event handlers for the Pusher client
    */
-  private setupConnectionHandlers(): void {
-    if (!this.pusher) return;
-
-    this.pusher.connection.bind("connected", () => {
+  private setupConnectionHandlers(client: Pusher): void {
+    client.connection.bind("connected", () => {
+      if (this.pusher !== client) return;
       this.log("Pusher connected");
       this.setConnectionState("connected");
       this.reconnectAttempts = 0;
     });
 
-    this.pusher.connection.bind("disconnected", () => {
+    client.connection.bind("disconnected", () => {
+      if (this.pusher !== client) return;
       this.log("Pusher disconnected");
       this.handleDisconnect();
     });
 
-    this.pusher.connection.bind("error", (error: unknown) => {
+    client.connection.bind("error", (error: unknown) => {
+      if (this.pusher !== client) return;
       // Pusher errors come in different formats
       // PusherError objects have type and data properties
       const errorObj = error as {
@@ -1007,17 +1026,20 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       }
     });
 
-    this.pusher.connection.bind("connecting", () => {
+    client.connection.bind("connecting", () => {
+      if (this.pusher !== client) return;
       this.log("Pusher connecting...");
       this.setConnectionState("connecting");
     });
 
-    this.pusher.connection.bind("unavailable", () => {
+    client.connection.bind("unavailable", () => {
+      if (this.pusher !== client) return;
       this.log("Pusher unavailable");
       this.setConnectionState("reconnecting");
     });
 
-    this.pusher.connection.bind("failed", () => {
+    client.connection.bind("failed", () => {
+      if (this.pusher !== client) return;
       this.log("Pusher connection failed");
       this.handleConnectionError(new Error("Pusher connection failed"));
     });
@@ -1210,15 +1232,6 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
 
     try {
       await this.connect({ debug: this.debugMode });
-      if (
-        this.isActive &&
-        this.reconnectGeneration === capturedGeneration &&
-        this.connectionState === "connected"
-      ) {
-        for (const [slug, info] of [...this.channels]) {
-          this.subscribeTrackedChannel(slug, info.chatroomId, info.broadcasterUserId);
-        }
-      }
     } catch (error) {
       logger.error("Chat:Kick", "Reconnection failed", {
         error:

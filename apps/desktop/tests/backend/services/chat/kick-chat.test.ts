@@ -260,6 +260,35 @@ describe("KickChatService reconnect lifecycle", () => {
     expect(replacementPusher.subscribe).toHaveBeenCalledWith("chatrooms.123.v2");
     expect(replacementPusher.subscribe).toHaveBeenCalledWith("chatrooms.123");
   });
+
+  // Guards: a channel join arriving during reconnect replaces the stale socket and waits for readiness instead of surfacing a false "Not connected" error.
+  it("waits for a replacement socket when join arrives during reconnect", async () => {
+    vi.useFakeTimers();
+    const initialPusher = makeReconnectPusher("disconnected");
+    const replacementPusher = makeReconnectPusher("disconnected");
+    vi.mocked(Pusher)
+      .mockImplementationOnce(function makeInitialPusher() {
+        return initialPusher as unknown as Pusher;
+      })
+      .mockImplementationOnce(function makeReplacementPusher() {
+        return replacementPusher as unknown as Pusher;
+      });
+
+    const service = new KickChatService();
+    const initialConnect = service.connect();
+    initialPusher.__emitConnection("connected");
+    await initialConnect;
+    initialPusher.__emitConnection("disconnected");
+
+    const joining = service.joinChannel("xqc", 123, 456);
+    replacementPusher.__emitConnection("connected");
+    await joining;
+
+    expect(initialPusher.connection.unbind_all).toHaveBeenCalledOnce();
+    expect(initialPusher.disconnect).toHaveBeenCalledOnce();
+    expect(replacementPusher.subscribe).toHaveBeenCalledWith("chatrooms.123.v2");
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });
 
 describe("KickChatService channel-scoped release eviction", () => {
