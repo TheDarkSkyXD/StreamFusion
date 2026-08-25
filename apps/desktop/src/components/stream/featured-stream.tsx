@@ -28,6 +28,7 @@ export function FeaturedStream({ stream, streams, isLoading }: FeaturedStreamPro
   }, [stream, streams]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isPreviewMuted, setIsPreviewMuted] = useState(true);
+  const [previewRequested, setPreviewRequested] = useState(false);
   const activeStream = carouselStreams[activeIndex] ?? carouselStreams[0];
   const hasMultipleSlides = carouselStreams.length > 1;
   const homeCarouselIntervalMs = useAppStore((state) => state.homeCarouselIntervalMs);
@@ -39,6 +40,10 @@ export function FeaturedStream({ stream, streams, isLoading }: FeaturedStreamPro
   useEffect(() => {
     setActiveIndex((current) => (current >= carouselStreams.length ? 0 : current));
   }, [carouselStreams.length]);
+
+  useEffect(() => {
+    setPreviewRequested(false);
+  }, [activeStream?.platform, activeStream?.channelName]);
 
   useInterval(
     () => {
@@ -101,7 +106,11 @@ export function FeaturedStream({ stream, streams, isLoading }: FeaturedStreamPro
   };
 
   return (
-    <div className="group relative h-[560px] w-full overflow-hidden rounded-lg border border-[var(--color-border)] bg-black">
+    <div
+      className="group relative h-[560px] w-full overflow-hidden rounded-lg border border-[var(--color-border)] bg-black"
+      onPointerEnter={() => setPreviewRequested(true)}
+      onFocusCapture={() => setPreviewRequested(true)}
+    >
       <Link
         to="/stream/$platform/$channel"
         params={{ platform: activeStream.platform, channel: activeStream.channelName }}
@@ -117,11 +126,13 @@ export function FeaturedStream({ stream, streams, isLoading }: FeaturedStreamPro
           width={1920}
           height={1080}
         />
-        <FeaturedStreamPreview
-          stream={activeStream}
-          muted={previewMuted}
-          volume={previewVolume > 0 ? previewVolume : 0.5}
-        />
+        {previewRequested && (
+          <FeaturedStreamPreview
+            stream={activeStream}
+            muted={previewMuted}
+            volume={previewVolume > 0 ? previewVolume : 0.5}
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/15" />
       </Link>
 
