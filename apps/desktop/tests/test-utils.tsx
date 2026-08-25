@@ -141,7 +141,7 @@ export function installElectronAPIMock(): ElectronAPIMock {
   );
 
   namespaces.connectivity = {
-    check: vi.fn(async () => ({ reachable: true, latencyMs: 25 })),
+    check: vi.fn(async () => ({ status: "online" as const })),
   };
 
   namespaces.twitch = {

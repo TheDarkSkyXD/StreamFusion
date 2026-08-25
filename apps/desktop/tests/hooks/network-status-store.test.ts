@@ -1,8 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createNetworkStatusStore } from "@/hooks/network-status-store";
+import {
+  type ConnectivityObservation,
+  createNetworkStatusStore,
+} from "@/hooks/network-status-store";
 
-// Guards: failed end-to-end probes retry after 5s, 10s, 15s, then every 30s without stopping.
+const observation = (online: boolean): ConnectivityObservation => ({
+  status: online ? "online" : "offline",
+});
+
+// Guards: confirmed physical disconnection retries after 5s, 10s, 15s, then every 30s.
 describe("network status retry loop", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -10,11 +17,10 @@ describe("network status retry loop", () => {
 
   it("uses the required capped retry schedule forever", async () => {
     vi.useFakeTimers();
-    const probe = vi.fn().mockResolvedValue(false);
+    const probe = vi.fn().mockResolvedValue(observation(false));
     const store = createNetworkStatusStore({
       probe,
       eventTarget: new EventTarget(),
-      readBrowserOnline: () => true,
     });
     const unsubscribe = store.subscribe(() => undefined);
 
@@ -42,18 +48,19 @@ describe("network status retry loop", () => {
     }
   });
 
-  it("treats a browser online event as a probe hint, not proof of internet access", async () => {
+  it("treats a browser online event as a hint, not proof of physical connectivity", async () => {
     vi.useFakeTimers();
     const events = new EventTarget();
-    let resolveRecovery!: (reachable: boolean) => void;
+    let resolveRecovery!: (value: ConnectivityObservation) => void;
     const probe = vi
-      .fn<() => Promise<boolean>>()
-      .mockResolvedValueOnce(false)
-      .mockReturnValueOnce(new Promise<boolean>((resolve) => (resolveRecovery = resolve)));
+      .fn<() => Promise<ConnectivityObservation>>()
+      .mockResolvedValueOnce(observation(false))
+      .mockReturnValueOnce(
+        new Promise<ConnectivityObservation>((resolve) => (resolveRecovery = resolve))
+      );
     const store = createNetworkStatusStore({
       probe,
       eventTarget: events,
-      readBrowserOnline: () => true,
     });
     const unsubscribe = store.subscribe(() => undefined);
 
@@ -64,7 +71,7 @@ describe("network status retry loop", () => {
       events.dispatchEvent(new Event("online"));
       expect(store.getSnapshot().status).toBe("offline");
 
-      resolveRecovery(true);
+      resolveRecovery(observation(true));
       await vi.advanceTimersByTimeAsync(0);
       expect(store.getSnapshot()).toMatchObject({
         status: "online",
@@ -76,13 +83,42 @@ describe("network status retry loop", () => {
     }
   });
 
+  it("waits for the main-process result before treating a browser offline event as confirmed", async () => {
+    let resolveProbe!: (value: ConnectivityObservation) => void;
+    const events = new EventTarget();
+    const probe = vi
+      .fn<() => Promise<ConnectivityObservation>>()
+      .mockResolvedValueOnce(observation(true))
+      .mockReturnValueOnce(
+        new Promise<ConnectivityObservation>((resolve) => (resolveProbe = resolve))
+      );
+    const store = createNetworkStatusStore({
+      probe,
+      eventTarget: events,
+    });
+    const unsubscribe = store.subscribe(() => undefined);
+
+    try {
+      await vi.waitFor(() => expect(store.getSnapshot().status).toBe("online"));
+
+      events.dispatchEvent(new Event("offline"));
+      expect(store.getSnapshot().status).toBe("online");
+
+      resolveProbe(observation(false));
+      await vi.waitFor(() => expect(store.getSnapshot().status).toBe("offline"));
+    } finally {
+      unsubscribe();
+    }
+  });
+
   it("coalesces concurrent checks into one main-process probe", async () => {
-    let resolveProbe!: (reachable: boolean) => void;
-    const probe = vi.fn(() => new Promise<boolean>((resolve) => (resolveProbe = resolve)));
+    let resolveProbe!: (value: ConnectivityObservation) => void;
+    const probe = vi.fn(
+      () => new Promise<ConnectivityObservation>((resolve) => (resolveProbe = resolve))
+    );
     const store = createNetworkStatusStore({
       probe,
       eventTarget: new EventTarget(),
-      readBrowserOnline: () => true,
     });
     const unsubscribe = store.subscribe(() => undefined);
 
@@ -92,8 +128,8 @@ describe("network status retry loop", () => {
       expect(second).toBe(first);
       expect(probe).toHaveBeenCalledTimes(1);
 
-      resolveProbe(true);
-      await expect(first).resolves.toBe(true);
+      resolveProbe(observation(true));
+      await expect(first).resolves.toEqual(observation(true));
     } finally {
       unsubscribe();
     }
@@ -101,15 +137,16 @@ describe("network status retry loop", () => {
 
   it("keeps confirmed offline state visible while a scheduled probe is checking", async () => {
     vi.useFakeTimers();
-    let resolveRetry!: (reachable: boolean) => void;
+    let resolveRetry!: (value: ConnectivityObservation) => void;
     const probe = vi
-      .fn<() => Promise<boolean>>()
-      .mockResolvedValueOnce(false)
-      .mockReturnValueOnce(new Promise<boolean>((resolve) => (resolveRetry = resolve)));
+      .fn<() => Promise<ConnectivityObservation>>()
+      .mockResolvedValueOnce(observation(false))
+      .mockReturnValueOnce(
+        new Promise<ConnectivityObservation>((resolve) => (resolveRetry = resolve))
+      );
     const store = createNetworkStatusStore({
       probe,
       eventTarget: new EventTarget(),
-      readBrowserOnline: () => true,
     });
     const unsubscribe = store.subscribe(() => undefined);
 
@@ -125,7 +162,7 @@ describe("network status retry loop", () => {
         retryInSeconds: null,
       });
 
-      resolveRetry(false);
+      resolveRetry(observation(false));
       await vi.advanceTimersByTimeAsync(0);
       expect(store.getSnapshot()).toMatchObject({
         status: "offline",
@@ -139,17 +176,20 @@ describe("network status retry loop", () => {
   });
 
   it("queues one fresh probe when browser online fires during an outage probe", async () => {
-    let resolveFirst!: (reachable: boolean) => void;
-    let resolveSecond!: (reachable: boolean) => void;
+    let resolveFirst!: (value: ConnectivityObservation) => void;
+    let resolveSecond!: (value: ConnectivityObservation) => void;
     const probe = vi
-      .fn<() => Promise<boolean>>()
-      .mockReturnValueOnce(new Promise<boolean>((resolve) => (resolveFirst = resolve)))
-      .mockReturnValueOnce(new Promise<boolean>((resolve) => (resolveSecond = resolve)));
+      .fn<() => Promise<ConnectivityObservation>>()
+      .mockReturnValueOnce(
+        new Promise<ConnectivityObservation>((resolve) => (resolveFirst = resolve))
+      )
+      .mockReturnValueOnce(
+        new Promise<ConnectivityObservation>((resolve) => (resolveSecond = resolve))
+      );
     const events = new EventTarget();
     const store = createNetworkStatusStore({
       probe,
       eventTarget: events,
-      readBrowserOnline: () => false,
     });
     const unsubscribe = store.subscribe(() => undefined);
 
@@ -159,14 +199,14 @@ describe("network status retry loop", () => {
       events.dispatchEvent(new Event("online"));
       expect(probe).toHaveBeenCalledTimes(1);
 
-      resolveFirst(false);
-      await expect(first).resolves.toBe(false);
+      resolveFirst(observation(false));
+      await expect(first).resolves.toEqual(observation(false));
       await Promise.resolve();
       expect(probe).toHaveBeenCalledTimes(2);
 
       await Promise.resolve();
       expect(probe).toHaveBeenCalledTimes(2);
-      resolveSecond(true);
+      resolveSecond(observation(true));
       await Promise.resolve();
       expect(probe).toHaveBeenCalledTimes(2);
     } finally {
@@ -174,20 +214,19 @@ describe("network status retry loop", () => {
     }
   });
 
-  it("does not let a stale probe consume the current probe's queued online hint", async () => {
-    let resolveA!: (reachable: boolean) => void;
-    let resolveB!: (reachable: boolean) => void;
-    let resolveC!: (reachable: boolean) => void;
+  it("coalesces browser hints without losing a recheck requested during the next probe", async () => {
+    let resolveA!: (value: ConnectivityObservation) => void;
+    let resolveB!: (value: ConnectivityObservation) => void;
+    let resolveC!: (value: ConnectivityObservation) => void;
     const probe = vi
-      .fn<() => Promise<boolean>>()
-      .mockReturnValueOnce(new Promise<boolean>((resolve) => (resolveA = resolve)))
-      .mockReturnValueOnce(new Promise<boolean>((resolve) => (resolveB = resolve)))
-      .mockReturnValueOnce(new Promise<boolean>((resolve) => (resolveC = resolve)));
+      .fn<() => Promise<ConnectivityObservation>>()
+      .mockReturnValueOnce(new Promise<ConnectivityObservation>((resolve) => (resolveA = resolve)))
+      .mockReturnValueOnce(new Promise<ConnectivityObservation>((resolve) => (resolveB = resolve)))
+      .mockReturnValueOnce(new Promise<ConnectivityObservation>((resolve) => (resolveC = resolve)));
     const events = new EventTarget();
     const store = createNetworkStatusStore({
       probe,
       eventTarget: events,
-      readBrowserOnline: () => true,
     });
     const unsubscribe = store.subscribe(() => undefined);
 
@@ -195,18 +234,16 @@ describe("network status retry loop", () => {
       expect(probe).toHaveBeenCalledTimes(1); // A
       events.dispatchEvent(new Event("offline"));
       events.dispatchEvent(new Event("online"));
-      expect(probe).toHaveBeenCalledTimes(2); // B
+      expect(probe).toHaveBeenCalledTimes(1);
+
+      resolveA(observation(false));
+      await vi.waitFor(() => expect(probe).toHaveBeenCalledTimes(2)); // B
       events.dispatchEvent(new Event("online")); // queue a fresh probe after B
 
-      resolveA(false); // stale A must not clear B's queued hint
-      await Promise.resolve();
-      await Promise.resolve();
-      expect(probe).toHaveBeenCalledTimes(2);
-
-      resolveB(false);
+      resolveB(observation(false));
       await vi.waitFor(() => expect(probe).toHaveBeenCalledTimes(3)); // C starts immediately
 
-      resolveC(true);
+      resolveC(observation(true));
       await Promise.resolve();
       expect(probe).toHaveBeenCalledTimes(3);
     } finally {

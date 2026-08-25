@@ -36,11 +36,13 @@ describe("QueryProvider", () => {
 
   it("refetches active queries only after confirmed internet recovery", async () => {
     const events = new EventTarget();
-    const probe = vi.fn<() => Promise<boolean>>().mockResolvedValueOnce(false).mockResolvedValue(true);
+    const probe = vi
+      .fn()
+      .mockResolvedValueOnce({ status: "offline" as const })
+      .mockResolvedValue({ status: "online" as const });
     const store = createNetworkStatusStore({
       probe,
       eventTarget: events,
-      readBrowserOnline: () => true,
     });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const queryFn = vi.fn(async () => "fresh");

@@ -130,7 +130,7 @@ async function renderFixture(search: string) {
     {
       call: (path, args) =>
         path.join(".") === "connectivity.check"
-          ? Promise.resolve({ reachable: true })
+          ? Promise.resolve({ status: "online" })
           : relayCall(path, args),
       subscribe: () => () => undefined,
     },

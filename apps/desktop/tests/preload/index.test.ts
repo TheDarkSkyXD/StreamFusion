@@ -159,10 +159,10 @@ describe("preload third-party badge catalogs", () => {
   });
 });
 
-// Guards: renderer reachability checks can only invoke the narrow main-process connectivity probe.
+// Guards: renderer physical-connectivity checks can only invoke the narrow main-process observation.
 describe("preload connectivity boundary", () => {
-  it("forwards an end-to-end reachability check through its named IPC channel", async () => {
-    const result = { reachable: true };
+  it("forwards a physical-connectivity check through its named IPC channel", async () => {
+    const result = { status: "online" };
     electronMocks.invoke.mockResolvedValueOnce(result);
 
     await expect(electronMocks.exposedApi.connectivity.check()).resolves.toBe(result);

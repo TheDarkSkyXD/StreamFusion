@@ -793,10 +793,10 @@ export interface AppEnvironment {
   nodeVersion: string;
 }
 
-/** Result of the main-process end-to-end internet reachability probe. */
-export interface ConnectivityCheckResult {
-  reachable: boolean;
-}
+/** Main-process observation of the operating system's physical network state. */
+export type PhysicalConnectivityResult =
+  | { status: "online" }
+  | { status: "offline" };
 
 /**
  * Result of a `BUG_REPORT_WRITE` call. `filePath` is set on success; `error`

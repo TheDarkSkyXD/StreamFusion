@@ -1,5 +1,6 @@
 import { createManagedInterval } from "@/lib/managed-interval";
 import { sleep } from "@/lib/sleep";
+import type { PhysicalConnectivityResult } from "@shared/ipc-channels";
 
 export type ConnectivityStatus = "checking" | "online" | "offline";
 
@@ -15,15 +16,16 @@ export interface NetworkStatusSnapshot {
 }
 
 interface NetworkStatusStoreDependencies {
-  probe: () => Promise<boolean>;
+  probe: () => Promise<ConnectivityObservation>;
   eventTarget: Pick<Window, "addEventListener" | "removeEventListener"> | EventTarget;
-  readBrowserOnline: () => boolean;
 }
+
+export type ConnectivityObservation = PhysicalConnectivityResult | { status: "unknown" };
 
 export interface NetworkStatusStore {
   subscribe(listener: () => void): () => void;
   getSnapshot(): NetworkStatusSnapshot;
-  checkNow(): Promise<boolean>;
+  checkNow(): Promise<ConnectivityObservation>;
   setDebugOverride(isOnline: boolean | null): void;
 }
 
@@ -32,10 +34,9 @@ const RETRY_DELAYS_MS = [5_000, 10_000, 15_000, 30_000] as const;
 export function createNetworkStatusStore({
   probe,
   eventTarget,
-  readBrowserOnline,
 }: NetworkStatusStoreDependencies): NetworkStatusStore {
   const listeners = new Set<() => void>();
-  let confirmedStatus: ConnectivityStatus = readBrowserOnline() ? "checking" : "offline";
+  let confirmedStatus: ConnectivityStatus = "checking";
   let debugOverride: boolean | null = null;
   let failureCount = 0;
   let recoveryCount = 0;
@@ -43,7 +44,7 @@ export function createNetworkStatusStore({
   let nextRetryAt: number | null = null;
   let retryScheduleGeneration = 0;
   let countdownTimer: { stop: () => void } | null = null;
-  let inFlight: Promise<boolean> | null = null;
+  let inFlight: Promise<ConnectivityObservation> | null = null;
   let onlineRecheckRequested = false;
   let checkGeneration = 0;
   let started = false;
@@ -94,9 +95,9 @@ export function createNetworkStatusStore({
     emit();
   }
 
-  function applyProbeResult(reachable: boolean): void {
+  function applyProbeResult(observation: ConnectivityObservation): void {
     checking = false;
-    if (reachable) {
+    if (observation.status === "online") {
       const recovered = confirmedStatus === "offline";
       confirmedStatus = "online";
       failureCount = 0;
@@ -106,48 +107,44 @@ export function createNetworkStatusStore({
       return;
     }
 
+    if (observation.status === "unknown") {
+      failureCount += 1;
+      scheduleRetry();
+      return;
+    }
+
     confirmedStatus = "offline";
     failureCount += 1;
     scheduleRetry();
   }
 
-  function checkNow(): Promise<boolean> {
+  function checkNow(): Promise<ConnectivityObservation> {
     if (inFlight) return inFlight;
     clearRetrySchedule();
     checking = true;
     emit();
     const generation = ++checkGeneration;
     const pending = probe()
-      .catch(() => false)
-      .then((reachable) => {
+      .catch((): ConnectivityObservation => ({ status: "unknown" }))
+      .then((observation) => {
         // Release the single-flight latch before notifying subscribers. A
         // subscriber may synchronously react to the offline transition by
         // requesting another check; it must not receive this completed probe.
         if (inFlight === pending) inFlight = null;
         const isCurrent = generation === checkGeneration;
         if (isCurrent) {
-          const shouldRecheck = onlineRecheckRequested && !reachable && started;
+          const shouldRecheck = onlineRecheckRequested && started;
           onlineRecheckRequested = false;
-          applyProbeResult(reachable);
+          applyProbeResult(observation);
           if (shouldRecheck) void checkNow();
         }
-        return reachable;
+        return observation;
       });
     inFlight = pending;
     return pending;
   }
 
-  function onBrowserOffline(): void {
-    checkGeneration += 1;
-    inFlight = null;
-    onlineRecheckRequested = false;
-    checking = false;
-    confirmedStatus = "offline";
-    failureCount = Math.max(failureCount, 1);
-    scheduleRetry();
-  }
-
-  function onBrowserOnline(): void {
+  function onBrowserConnectivityHint(): void {
     if (inFlight) {
       // Coalesce repeated browser hints, but do not let an outage-era probe
       // consume the only signal that a network link just returned.
@@ -160,20 +157,16 @@ export function createNetworkStatusStore({
   function start(): void {
     if (started) return;
     started = true;
-    eventTarget.addEventListener("online", onBrowserOnline);
-    eventTarget.addEventListener("offline", onBrowserOffline);
-    if (readBrowserOnline()) {
-      void checkNow();
-    } else {
-      onBrowserOffline();
-    }
+    eventTarget.addEventListener("online", onBrowserConnectivityHint);
+    eventTarget.addEventListener("offline", onBrowserConnectivityHint);
+    void checkNow();
   }
 
   function stop(): void {
     if (!started) return;
     started = false;
-    eventTarget.removeEventListener("online", onBrowserOnline);
-    eventTarget.removeEventListener("offline", onBrowserOffline);
+    eventTarget.removeEventListener("online", onBrowserConnectivityHint);
+    eventTarget.removeEventListener("offline", onBrowserConnectivityHint);
     checkGeneration += 1;
     inFlight = null;
     onlineRecheckRequested = false;
@@ -206,13 +199,16 @@ function getWindow(): Window | undefined {
   return (globalThis as unknown as { window?: Window }).window;
 }
 
-async function probeConnectivity(): Promise<boolean> {
+async function probeConnectivity(): Promise<ConnectivityObservation> {
   const w = getWindow();
-  if (!w) return true;
+  if (!w) return { status: "online" };
   const check = w.electronAPI?.connectivity?.check;
-  if (!check) return w.navigator.onLine;
-  const result = await check();
-  return result.reachable;
+  if (!check) return { status: "unknown" };
+  try {
+    return await check();
+  } catch {
+    return { status: "unknown" };
+  }
 }
 
 const windowTarget = getWindow();
@@ -220,5 +216,4 @@ const windowTarget = getWindow();
 export const networkStatusStore = createNetworkStatusStore({
   probe: probeConnectivity,
   eventTarget: windowTarget ?? new EventTarget(),
-  readBrowserOnline: () => windowTarget?.navigator.onLine ?? true,
 });

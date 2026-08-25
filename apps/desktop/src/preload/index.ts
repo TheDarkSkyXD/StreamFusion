@@ -102,11 +102,11 @@ import {
   type AuthSyncFollowsResult,
   type BugReportResult,
   type CheckFrequency,
-  type ConnectivityCheckResult,
   type IpcResult,
   IPC_CHANNELS,
   IPC_FEATURES,
   type PaginatedIpcResult,
+  type PhysicalConnectivityResult,
   type ProxyApplyConfig,
   type ProxyApplyResult,
   type ProxyCredentialsInput,
@@ -230,7 +230,7 @@ const electronAPI = {
 
   // ========== Internet Connectivity ==========
   connectivity: {
-    check: (): Promise<ConnectivityCheckResult> => invokeIpc(IPC_CHANNELS.CONNECTIVITY_CHECK),
+    check: (): Promise<PhysicalConnectivityResult> => invokeIpc(IPC_CHANNELS.CONNECTIVITY_CHECK),
   },
 
   // ========== Window Controls ==========
