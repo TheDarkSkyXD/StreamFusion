@@ -29,6 +29,10 @@ import { isExactChannelSearchMatch, rankSearchChannels } from "@/search/channel-
 /* CATEGORIES SECTION */
 type SearchTab = "all" | "channels" | "streams" | "videos" | "clips" | "categories";
 const SEARCH_RESULTS_CHANNEL_PAGE_SIZE = 50;
+const SEARCH_ALL_CHANNEL_LIMIT = 12;
+const SEARCH_ALL_STREAM_LIMIT = 12;
+const SEARCH_ALL_CATEGORY_LIMIT = 12;
+const SEARCH_ALL_MEDIA_LIMIT = 6;
 const ClipDialog = React.lazy(() =>
   import("@/components/stream/related-content/ClipDialog").then((module) => ({
     default: module.ClipDialog,
@@ -412,6 +416,21 @@ export function SearchPage() {
     return { topMatches: top, otherMatches: others };
   }, [filteredChannels, q]);
 
+  const visibleTopMatches =
+    activeTab === "all" ? topMatches.slice(0, SEARCH_ALL_CHANNEL_LIMIT) : topMatches;
+  const visibleOtherMatches =
+    activeTab === "all"
+      ? otherMatches.slice(0, Math.max(0, SEARCH_ALL_CHANNEL_LIMIT - visibleTopMatches.length))
+      : otherMatches;
+  const visibleCategories =
+    activeTab === "all" ? filteredCategories.slice(0, SEARCH_ALL_CATEGORY_LIMIT) : filteredCategories;
+  const visibleStreams =
+    activeTab === "all" ? filteredStreams.slice(0, SEARCH_ALL_STREAM_LIMIT) : filteredStreams;
+  const visibleVideos =
+    activeTab === "all" ? filteredVideos.slice(0, SEARCH_ALL_MEDIA_LIMIT) : filteredVideos;
+  const visibleClips =
+    activeTab === "all" ? filteredClips.slice(0, SEARCH_ALL_MEDIA_LIMIT) : filteredClips;
+
   if (!q) {
     return (
       <div className="flex flex-col items-center justify-center p-12 mt-12 text-center animate-in fade-in zoom-in duration-300">
@@ -438,8 +457,10 @@ export function SearchPage() {
     );
   }
 
-  const showTopMatches = (activeTab === "all" || activeTab === "channels") && topMatches.length > 0;
-  const showChannels = (activeTab === "all" || activeTab === "channels") && otherMatches.length > 0;
+  const showTopMatches =
+    (activeTab === "all" || activeTab === "channels") && visibleTopMatches.length > 0;
+  const showChannels =
+    (activeTab === "all" || activeTab === "channels") && visibleOtherMatches.length > 0;
   const showChannelLoading =
     activeTab === "channels" &&
     (channelsLoading ||
@@ -458,11 +479,11 @@ export function SearchPage() {
               ? clipsQuery.isLoading
               : categoriesQuery.isLoading;
   const showCategories =
-    (activeTab === "all" || activeTab === "categories") && filteredCategories.length > 0;
+    (activeTab === "all" || activeTab === "categories") && visibleCategories.length > 0;
   const showStreams =
-    (activeTab === "all" || activeTab === "streams") && filteredStreams.length > 0;
-  const showVideos = (activeTab === "all" || activeTab === "videos") && filteredVideos.length > 0;
-  const showClips = (activeTab === "all" || activeTab === "clips") && filteredClips.length > 0;
+    (activeTab === "all" || activeTab === "streams") && visibleStreams.length > 0;
+  const showVideos = (activeTab === "all" || activeTab === "videos") && visibleVideos.length > 0;
+  const showClips = (activeTab === "all" || activeTab === "clips") && visibleClips.length > 0;
 
   // Calculate total count based on filtered results
   const totalResults =
@@ -605,7 +626,7 @@ export function SearchPage() {
             Best Matches
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {topMatches.map((channel) => (
+            {visibleTopMatches.map((channel) => (
               <Link
                 key={`${channel.platform}-${channel.id}`}
                 to="/stream/$platform/$channel"
@@ -654,7 +675,7 @@ export function SearchPage() {
         <section>
           <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">Channels</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {otherMatches.map((channel) => (
+            {visibleOtherMatches.map((channel) => (
               <Link
                 key={`${channel.platform}-${channel.id}`}
                 to="/stream/$platform/$channel"
@@ -721,7 +742,7 @@ export function SearchPage() {
           {activeLoading && <Skeleton className="h-8 w-32 mb-4" />}
 
           <CategoryGrid
-            categories={filteredCategories}
+            categories={visibleCategories}
             isLoading={activeLoading}
             skeletons={12}
             className={!showCategories && !activeLoading ? "hidden" : ""}
@@ -740,7 +761,7 @@ export function SearchPage() {
           {activeLoading && <Skeleton className="h-8 w-32 mb-4" />}
 
           <StreamGrid
-            streams={filteredStreams}
+            streams={visibleStreams}
             isLoading={activeLoading}
             skeletons={6}
             className={!showStreams && !activeLoading ? "hidden" : ""}
@@ -755,7 +776,7 @@ export function SearchPage() {
             <LuPlay className="w-5 h-5 text-[var(--color-storm-primary)]" /> Videos
           </h2>
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            {filteredVideos.map((video: UnifiedVideo) => (
+            {visibleVideos.map((video: UnifiedVideo) => (
               <SearchVideoCard key={`${video.platform}-${video.id}`} video={video} />
             ))}
           </div>
@@ -769,7 +790,7 @@ export function SearchPage() {
             <LuClapperboard className="w-5 h-5 text-white" /> Clips
           </h2>
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
-            {filteredClips.map((clip: UnifiedClip) => (
+            {visibleClips.map((clip: UnifiedClip) => (
               <div
                 onClick={() => setSelectedClip(clip)}
                 key={`${clip.platform}-${clip.id}`}
