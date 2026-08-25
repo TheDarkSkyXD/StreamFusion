@@ -12,6 +12,7 @@ import { CHANNEL_KEYS } from "@/hooks/queries/useChannels";
 import { STREAM_KEYS } from "@/hooks/queries/useStreams";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { cn, formatLanguageLabel, formatViewerCount, uniqueTagLabels } from "@/lib/utils";
+import { preloadStreamExperience } from "@/lib/stream-route-preload";
 import { StreamVerifiedBadge } from "./stream-verified-badge";
 
 interface StreamCardProps {
@@ -24,18 +25,6 @@ interface StreamCardProps {
 // trigger prefetches, short enough that intentional hovers still warm the
 // cache before the user clicks.
 const HOVER_PREFETCH_DELAY_MS = 150;
-export const KICK_STARTUP_HOVER_PREFETCH_GRACE_MS = 45 * 1000;
-
-const streamCardModuleStartedAt = Date.now();
-
-export function shouldDeferKickStartupHoverPrefetch(
-  platform: UnifiedStream["platform"],
-  now: number,
-  startedAt: number
-): boolean {
-  return platform === "kick" && now - startedAt < KICK_STARTUP_HOVER_PREFETCH_GRACE_MS;
-}
-
 // Memoize StreamCard to prevent re-renders when grid updates but individual stream hasn't changed
 export const StreamCard = React.memo(
   ({ stream, showCategory = true, isWatching = false }: StreamCardProps) => {
@@ -43,19 +32,10 @@ export const StreamCard = React.memo(
     const platformColor = stream.platform === "twitch" ? "text-[#9146FF]" : "text-[#53FC18]";
 
     const queryClient = useQueryClient();
+    const pointerIntentStartedRef = React.useRef(false);
 
     const prefetchTimer = useManagedTimeout(
       useCallback(() => {
-        if (
-          shouldDeferKickStartupHoverPrefetch(
-            stream.platform,
-            Date.now(),
-            streamCardModuleStartedAt
-          )
-        ) {
-          return;
-        }
-
         queryClient.prefetchQuery({
           queryKey: CHANNEL_KEYS.byUsername(stream.channelName, stream.platform),
           queryFn: async () => {
@@ -84,12 +64,21 @@ export const StreamCard = React.memo(
       }, [queryClient, stream.channelName, stream.platform])
     );
 
-    const handleMouseEnter = useCallback(() => {
+    const handlePointerMove = useCallback(() => {
+      if (pointerIntentStartedRef.current) return;
+      pointerIntentStartedRef.current = true;
+      void preloadStreamExperience();
       prefetchTimer.start(HOVER_PREFETCH_DELAY_MS);
     }, [prefetchTimer]);
 
     const handleMouseLeave = useCallback(() => {
+      pointerIntentStartedRef.current = false;
       prefetchTimer.clear();
+    }, [prefetchTimer]);
+
+    const handleFocus = useCallback(() => {
+      void preloadStreamExperience();
+      prefetchTimer.start(0);
     }, [prefetchTimer]);
 
     const displayTags = useMemo<string[] | null>(() => {
@@ -130,8 +119,9 @@ export const StreamCard = React.memo(
         search={{ tab: "home" }}
         className="block group"
         aria-current={isWatching ? "true" : undefined}
-        onMouseEnter={handleMouseEnter}
+        onPointerMove={handlePointerMove}
         onMouseLeave={handleMouseLeave}
+        onFocus={handleFocus}
       >
         <Card
           data-testid="stream-card"

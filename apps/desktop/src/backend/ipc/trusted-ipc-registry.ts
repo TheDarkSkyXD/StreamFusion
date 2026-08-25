@@ -1,9 +1,8 @@
 import { randomUUID } from "node:crypto";
 
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
-import type { z } from "zod";
-
 import type { IpcChannel } from "../../shared/ipc-channels";
+import type { StructuralSchema } from "../../shared/feature-loader-contract";
 import type { IpcReply } from "../../shared/reliability-types";
 import { registerTrustedIpcHandler } from "./register-trusted-ipc-handler";
 import { configureTrustedIpcMain } from "./trusted-ipc-main";
@@ -12,8 +11,8 @@ import { getMainRendererDocumentUrl } from "./trusted-document-url";
 interface TrustedRoute<Request, Response> {
   channel: IpcChannel;
   contract: {
-    request: z.ZodType<Request>;
-    response: z.ZodType<Response>;
+    request: StructuralSchema<Request>;
+    response: StructuralSchema<Response>;
   };
   failureResponse: Response;
   createFailureResponse?: () => Response;

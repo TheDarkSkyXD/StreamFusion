@@ -1,16 +1,15 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
-import type { z } from "zod";
-
 import { logger } from "../logging/logger";
 import type { IpcChannel } from "../../shared/ipc-channels";
+import type { StructuralSchema } from "../../shared/feature-loader-contract";
 import { isAllowedSender } from "./sender-origin";
 
 export type IpcBoundaryFailure =
   "untrusted-sender" | "invalid-request" | "invalid-response" | "handler-error";
 
 interface IpcContract<Request, Response> {
-  request: z.ZodType<Request>;
-  response: z.ZodType<Response>;
+  request: StructuralSchema<Request>;
+  response: StructuralSchema<Response>;
 }
 
 export interface TrustedIpcSender {
