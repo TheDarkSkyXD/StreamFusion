@@ -1,9 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import type React from "react";
-import { useState } from "react";
+import { lazy, Suspense, useState, type ReactNode } from "react";
 import { LuHistory as HistoryIcon, LuPlay, LuTrash2 } from "react-icons/lu";
 
-import { ClipDialog } from "@/components/stream/related-content/ClipDialog";
 import { parseVideoOrClips, type VideoOrClip } from "@/components/stream/related-content/types";
 import { VodProgressBar } from "@/components/stream/vod-progress-bar";
 import { Button } from "@/components/ui/button";
@@ -12,13 +10,19 @@ import { useHistoryActions, useHistoryQuery } from "@/hooks/queries/useHistoryQu
 import { resolveProxiedImageSrc } from "@/lib/proxied-image-url";
 import type { HistoryItem } from "@/store/history-store";
 
+const ClipDialog = lazy(() =>
+  import("@/components/stream/related-content/ClipDialog").then((module) => ({
+    default: module.ClipDialog,
+  }))
+);
+
 const HistoryItemLink = ({
   item,
   children,
   className,
 }: {
   item: HistoryItem;
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
 }) => {
   if (item.type === "video") {
@@ -350,26 +354,28 @@ export function HistoryPage() {
           })}
         </div>
       )}
-      <ClipDialog
-        selectedClip={selectedClip}
-        onClose={() => {
-          setSelectedClip(null);
-          setClipPlaybackUrl(null);
-          setClipError(null);
-        }}
-        clipLoading={clipLoading}
-        clipError={clipError}
-        clipPlaybackUrl={clipPlaybackUrl}
-        platform={selectedClip?.platform || "twitch"}
-        channelName={selectedClip?.channelSlug || selectedClip?.channelName || ""}
-        channelData={selectedClipChannelData}
-        onPlaybackError={() => {
-          setClipError("Failed to play clip");
-          if (selectedClip) {
-            removeFromHistory(`${selectedClip.platform}-clip-${selectedClip.id}`);
-          }
-        }}
-      />
+      {selectedClip && (
+        <Suspense fallback={null}>
+          <ClipDialog
+            selectedClip={selectedClip}
+            onClose={() => {
+              setSelectedClip(null);
+              setClipPlaybackUrl(null);
+              setClipError(null);
+            }}
+            clipLoading={clipLoading}
+            clipError={clipError}
+            clipPlaybackUrl={clipPlaybackUrl}
+            platform={selectedClip.platform || "twitch"}
+            channelName={selectedClip.channelSlug || selectedClip.channelName || ""}
+            channelData={selectedClipChannelData}
+            onPlaybackError={() => {
+              setClipError("Failed to play clip");
+              removeFromHistory(`${selectedClip.platform}-clip-${selectedClip.id}`);
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
