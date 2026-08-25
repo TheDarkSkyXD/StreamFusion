@@ -11,7 +11,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const toastErrorMock = vi.hoisted(() => vi.fn());
 const twitchChatListeners = vi.hoisted(() => new Map<string, Set<(event: unknown) => void>>());
@@ -252,6 +252,10 @@ vi.mock("@/components/chat/MentionAutocomplete", () => {
 });
 
 import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
+import {
+  loadKickChatModule,
+  loadTwitchChatModule,
+} from "@/backend/services/chat/chat-service-loader";
 import { KickChatSendError, kickChatService } from "@/backend/services/chat/kick-chat";
 import { twitchChatService } from "@/backend/services/chat/twitch-chat";
 import type { Emote, EmoteProvider } from "@/backend/services/emotes/emote-types";
@@ -262,6 +266,10 @@ import type { ChatMessage } from "@/shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
 import { useRoomStateStore } from "@/store/room-state-store";
+
+beforeAll(async () => {
+  await Promise.all([loadKickChatModule(), loadTwitchChatModule()]);
+});
 
 beforeEach(() => {
   emotePickerPopoverCalls.length = 0;

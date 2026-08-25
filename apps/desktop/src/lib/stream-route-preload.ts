@@ -1,4 +1,7 @@
-let streamExperiencePromise: Promise<void> | undefined;
+import type { ChatPlatform } from "@/shared/chat-types";
+
+const streamExperiencePromises = new Map<ChatPlatform | "base", Promise<void>>();
+let pagesModulePromise: Promise<typeof import("@/pages")> | undefined;
 let lastPreloadOutcome: "ready" | "failed" | undefined;
 
 interface StreamExperiencePrewarmMark {
@@ -17,20 +20,26 @@ function markNow(): number {
 }
 
 /** Warm the Stream route and its nested chat module before an intent click. */
-export function preloadStreamExperience(): Promise<void> {
-  streamExperiencePromise ??= (() => {
+export function preloadStreamExperience(platform?: ChatPlatform): Promise<void> {
+  const key = platform ?? "base";
+  const existingPromise = streamExperiencePromises.get(key);
+  if (existingPromise) return existingPromise;
+
+  const promise = (() => {
     lastPreloadOutcome = undefined;
-    return import("@/pages")
-      .then((module) => module.preloadStreamPage())
+    pagesModulePromise ??= import("@/pages");
+    return pagesModulePromise
+      .then((module) => module.preloadStreamPage(platform))
       .then(() => {
         lastPreloadOutcome = "ready";
       })
       .catch(() => {
         lastPreloadOutcome = "failed";
-        streamExperiencePromise = undefined;
+        streamExperiencePromises.delete(key);
       });
   })();
-  return streamExperiencePromise;
+  streamExperiencePromises.set(key, promise);
+  return promise;
 }
 
 /** Schedule a one-time app-shell warmup after first paint without blocking it. */

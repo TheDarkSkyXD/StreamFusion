@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const preloadStreamPage = vi.hoisted(() => vi.fn<() => Promise<unknown>>());
+const preloadStreamPage = vi.hoisted(() =>
+  vi.fn<(platform?: "twitch" | "kick") => Promise<unknown>>()
+);
 
 vi.mock("@/pages", () => ({ preloadStreamPage }));
 
@@ -30,6 +32,7 @@ describe("stream route intent preload", () => {
 
     frames[0](0);
     await vi.waitFor(() => expect(preloadStreamPage).toHaveBeenCalledTimes(1));
+    expect(preloadStreamPage).toHaveBeenCalledWith(undefined);
     expect(requestIdle).not.toHaveBeenCalled();
     await vi.waitFor(() =>
       expect(
@@ -96,6 +99,19 @@ describe("stream route intent preload", () => {
 
     resolveChat?.();
     await expect(first).resolves.toBeUndefined();
+  });
+
+  it("warms each platform chat independently", async () => {
+    preloadStreamPage.mockResolvedValue(undefined);
+    const { preloadStreamExperience } = await import("@/lib/stream-route-preload");
+
+    await Promise.all([
+      preloadStreamExperience("twitch"),
+      preloadStreamExperience("twitch"),
+      preloadStreamExperience("kick"),
+    ]);
+
+    expect(preloadStreamPage.mock.calls).toEqual([["twitch"], ["kick"]]);
   });
 
   it("absorbs a failed best-effort warmup and retries on the next intent", async () => {

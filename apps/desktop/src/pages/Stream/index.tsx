@@ -25,17 +25,21 @@ import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 import { useStreamPlayback } from "@/hooks/useStreamPlayback";
 import { logger } from "@/renderer/logging/logger";
 import { requirePlatform } from "@/routes/route-boundaries";
+import type { ChatPlatform } from "@/shared/chat-types";
 import { useAppStore } from "@/store/app-store";
 import { useAuthStore } from "@/store/auth-store";
 import { usePipStore } from "@/store/pip-store";
 
-let chatPanelModulePromise: Promise<{ default: typeof import("@/components/chat").ChatPanel }>;
+let chatPanelModulePromise: Promise<typeof import("@/components/chat")> | undefined;
+const loadChatPanelModule = () =>
+  (chatPanelModulePromise ??= import("@/components/chat"));
 const loadChatPanel = () =>
-  (chatPanelModulePromise ??= import("@/components/chat").then((module) => ({
-    default: module.ChatPanel,
-  })));
+  loadChatPanelModule().then((module) => ({ default: module.ChatPanel }));
 
-export const preloadChatPanel = (): Promise<unknown> => loadChatPanel();
+export const preloadChatPanel = (platform?: ChatPlatform): Promise<unknown> =>
+  loadChatPanelModule().then((module) =>
+    platform ? module.preloadPlatformChat(platform) : undefined
+  );
 
 const ChatPanel = lazy(loadChatPanel);
 const KickLivePlayer = lazy(() =>

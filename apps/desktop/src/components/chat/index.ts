@@ -7,7 +7,7 @@
 
 export type { ChatInputHandle, ChatInputProps } from "./ChatInput";
 export type { ChatPanelProps } from "./ChatPanel";
-export { ChatPanel } from "./ChatPanel";
+export { ChatPanel, preloadPlatformChat } from "./ChatPanel";
 export type { RecentChatter } from "./MentionAutocomplete";
 
 // Will be added in future phases

@@ -1,5 +1,5 @@
 import { act, fireEvent, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/backend/services/chat/twitch-chat", () => ({
   twitchChatService: {
@@ -16,10 +16,15 @@ vi.mock("@/hooks/queries/useChannels", () => ({
 }));
 
 import { ChatInput } from "@/components/chat/ChatInput";
+import { loadTwitchChatModule } from "@/backend/services/chat/chat-service-loader";
 import { twitchChatService } from "@/backend/services/chat/twitch-chat";
 import { useFollowStore } from "@/store/follow-store";
 import { useRoomStateStore } from "@/store/room-state-store";
 import { renderWithProviders as render } from "../../test-utils";
+
+beforeAll(async () => {
+  await loadTwitchChatModule();
+});
 
 // Guards: local follower-only chat restrictions retain the draft and never send it while the
 // ChatInput listener remains compatible with the Twitch chat event contract.

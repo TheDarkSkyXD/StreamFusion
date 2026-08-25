@@ -7,7 +7,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const streamModuleMocks = vi.hoisted(() => ({
-  preloadChatPanel: vi.fn<() => Promise<unknown>>(),
+  preloadChatPanel: vi.fn<(platform?: "twitch" | "kick") => Promise<unknown>>(),
 }));
 const historyModuleMocks = vi.hoisted(() => ({
   loaded: vi.fn(),
@@ -216,8 +216,9 @@ describe("primary route chunk preload", () => {
     );
     const { preloadStreamPage } = await import("@/pages");
 
-    const preload = preloadStreamPage();
+    const preload = preloadStreamPage("kick");
     await vi.waitFor(() => expect(streamModuleMocks.preloadChatPanel).toHaveBeenCalledTimes(1));
+    expect(streamModuleMocks.preloadChatPanel).toHaveBeenCalledWith("kick");
 
     let settled = false;
     void preload.then(() => {

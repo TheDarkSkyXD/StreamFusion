@@ -67,9 +67,9 @@ export const StreamCard = React.memo(
     const handlePointerMove = useCallback(() => {
       if (pointerIntentStartedRef.current) return;
       pointerIntentStartedRef.current = true;
-      void preloadStreamExperience();
+      void preloadStreamExperience(stream.platform);
       prefetchTimer.start(HOVER_PREFETCH_DELAY_MS);
-    }, [prefetchTimer]);
+    }, [prefetchTimer, stream.platform]);
 
     const handleMouseLeave = useCallback(() => {
       pointerIntentStartedRef.current = false;
@@ -77,9 +77,9 @@ export const StreamCard = React.memo(
     }, [prefetchTimer]);
 
     const handleFocus = useCallback(() => {
-      void preloadStreamExperience();
+      void preloadStreamExperience(stream.platform);
       prefetchTimer.start(0);
-    }, [prefetchTimer]);
+    }, [prefetchTimer, stream.platform]);
 
     const displayTags = useMemo<string[] | null>(() => {
       const tags: string[] = [];

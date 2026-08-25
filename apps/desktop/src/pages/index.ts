@@ -1,4 +1,5 @@
 import { type ComponentType, lazy, type ReactElement } from "react";
+import type { ChatPlatform } from "@/shared/chat-types";
 
 import { createPreloadableComponent } from "./preloadable-component";
 
@@ -85,10 +86,10 @@ const streamPageRoute = createPreloadableRoute(() =>
   loadStreamPageModule().then((module) => ({ default: module.StreamPage }))
 );
 
-export function preloadStreamPage(): Promise<void> {
+export function preloadStreamPage(platform?: ChatPlatform): Promise<void> {
   return Promise.all([
     streamPageRoute.preload(),
-    loadStreamPageModule().then((module) => module.preloadChatPanel()),
+    loadStreamPageModule().then((module) => module.preloadChatPanel(platform)),
   ]).then(() => undefined);
 }
 

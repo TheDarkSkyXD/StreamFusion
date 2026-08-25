@@ -18,19 +18,19 @@ import {
 // Guards: ChatPanel must always route to the correct platform-specific chat child — silently mounting the wrong one would render zero messages on a live channel
 // Guards: empty initial channel (no `initialChannel` prop) still mounts the routed child, so the chat tree exists when the parent finishes loading the channel data
 describe('ChatPanel', () => {
-  it('renders TwitchChat for twitch platform', () => {
+  it('renders TwitchChat for twitch platform', async () => {
     render(<ChatPanel initialPlatform="twitch" initialChannel="ninja" />);
-    expect(screen.getByTestId('twitch-chat')).toHaveTextContent('tw:ninja');
+    expect(await screen.findByTestId('twitch-chat')).toHaveTextContent('tw:ninja');
   });
 
-  it('renders KickChat for kick platform', () => {
+  it('renders KickChat for kick platform', async () => {
     render(<ChatPanel initialPlatform="kick" initialChannel="xqc" chatroomId={123} />);
-    expect(screen.getByTestId('kick-chat')).toHaveTextContent('kk:xqc');
+    expect(await screen.findByTestId('kick-chat')).toHaveTextContent('kk:xqc');
   });
 
-  it('defaults to twitch when no platform passed', () => {
+  it('defaults to twitch when no platform passed', async () => {
     render(<ChatPanel initialChannel="some" />);
-    expect(screen.getByTestId('twitch-chat')).toBeInTheDocument();
+    expect(await screen.findByTestId('twitch-chat')).toBeInTheDocument();
   });
 });
 

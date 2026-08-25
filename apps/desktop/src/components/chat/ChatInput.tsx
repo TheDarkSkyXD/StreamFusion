@@ -30,8 +30,13 @@ import { BsGear } from "react-icons/bs";
 import { LuShield, LuTriangleAlert, LuX } from "react-icons/lu";
 import { toast } from "sonner";
 import { logger } from "@/renderer/logging/logger";
-import { KickChatSendError, kickChatService } from "../../backend/services/chat/kick-chat";
-import { twitchChatService } from "../../backend/services/chat/twitch-chat";
+import {
+  getLoadedKickChatModule,
+  getLoadedTwitchChatModule,
+  loadKickChatModule,
+  loadTwitchChatModule,
+} from "../../backend/services/chat/chat-service-loader";
+import type { KickChatSendError } from "../../backend/services/chat/kick-chat";
 import type { Emote } from "../../backend/services/emotes/emote-types";
 import { useChatRoomState } from "../../hooks/useChatRoomState";
 import { channelsMatch } from "../../lib/id-utils";
@@ -357,16 +362,16 @@ function formatSlowModeWait(seconds: number): string {
 
 function isKickChatSendError(err: unknown): err is KickChatSendError {
   return (
-    err instanceof KickChatSendError ||
-    (err instanceof Error &&
-      typeof (err as { kickSendResult?: unknown }).kickSendResult === "object" &&
-      (err as { kickSendResult?: unknown }).kickSendResult !== null)
+    err instanceof Error &&
+    "kickSendResult" in err &&
+    typeof err.kickSendResult === "object" &&
+    err.kickSendResult !== null
   );
 }
 
 function getKickSendResult(err: unknown): KickChatSendError["kickSendResult"] | null {
   if (!isKickChatSendError(err)) return null;
-  return (err as { kickSendResult: KickChatSendError["kickSendResult"] }).kickSendResult;
+  return err.kickSendResult;
 }
 
 function classifySendRejection(platform: ChatPlatform, err: unknown): ClassifiedSendBlocker | null {
@@ -864,6 +869,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     }, [activeRoomBlocker, roomState.subscribersOnly, viewerChatContext]);
     useEffect(() => {
       if (platform !== "twitch") return;
+      let detachListener: (() => void) | undefined;
+      let cancelled = false;
 
       const handleViewerSendRestriction = (event: ViewerChatSendRestrictionEvent) => {
         const normalizedEventChannel = event.channel.replace(/^#/, "").toLowerCase();
@@ -897,9 +904,28 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         setReply(submittedDraft.reply);
       };
 
-      twitchChatService.on("viewerSendRestriction", handleViewerSendRestriction);
+      const attachListener = ({
+        twitchChatService,
+      }: Awaited<ReturnType<typeof loadTwitchChatModule>>) => {
+        if (cancelled) return;
+        twitchChatService.on("viewerSendRestriction", handleViewerSendRestriction);
+        detachListener = () => {
+          twitchChatService.off("viewerSendRestriction", handleViewerSendRestriction);
+        };
+      };
+      const loadedModule = getLoadedTwitchChatModule();
+      if (loadedModule) {
+        attachListener(loadedModule);
+      } else {
+        void loadTwitchChatModule().then(attachListener).catch((error: unknown) => {
+          logger.warn("UI:Chat:Input", "twitch chat events failed to load", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      }
       return () => {
-        twitchChatService.off("viewerSendRestriction", handleViewerSendRestriction);
+        cancelled = true;
+        detachListener?.();
       };
     }, [channel, channelId, platform, viewerChatContext]);
     const viewerFollowsChannel = useMemo(() => {
@@ -1546,6 +1572,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         if (reply) {
           const replyPayload = withReplyMention(reply.username, trimmedMessage, localFragments);
           if (platform === "twitch") {
+            const { twitchChatService } =
+              getLoadedTwitchChatModule() ?? (await loadTwitchChatModule());
             await twitchChatService.sendReply(
               channel,
               reply.messageId,
@@ -1553,6 +1581,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               replyPayload.fragments
             );
           } else {
+            const { kickChatService } =
+              getLoadedKickChatModule() ?? (await loadKickChatModule());
             const localReplyTo: ReplyInfo = {
               parentMessageId: reply.messageId,
               parentUserId: reply.userId,
@@ -1572,8 +1602,12 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         }
 
         if (platform === "twitch") {
+          const { twitchChatService } =
+            getLoadedTwitchChatModule() ?? (await loadTwitchChatModule());
           await twitchChatService.sendMessage(channel, trimmedMessage, localFragments);
         } else {
+          const { kickChatService } =
+            getLoadedKickChatModule() ?? (await loadKickChatModule());
           await kickChatService.sendMessage(
             channel,
             trimmedMessage,
@@ -1869,10 +1903,14 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           if (command === "me") {
             const actionMessage = args.join(" ");
             if (platform === "twitch") {
+              const { twitchChatService } =
+                getLoadedTwitchChatModule() ?? (await loadTwitchChatModule());
               // /me strips emote-slot context: actionMessage is rebuilt from the
               // serialized wire string's args, so no fragments to pass.
               await twitchChatService.sendAction(channel, actionMessage);
             } else {
+              const { kickChatService } =
+                getLoadedKickChatModule() ?? (await loadKickChatModule());
               // /me strips emote slot context (actionMessage rebuilt from args
               // of the serialized wire string), so no fragments to pass — the
               // echo falls back to single text, matching prior behavior.
@@ -1884,8 +1922,12 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             }
           } else {
             if (platform === "twitch") {
+              const { twitchChatService } =
+                getLoadedTwitchChatModule() ?? (await loadTwitchChatModule());
               await twitchChatService.sendMessage(channel, trimmedMessage, localFragments);
             } else {
+              const { kickChatService } =
+                getLoadedKickChatModule() ?? (await loadKickChatModule());
               await kickChatService.sendMessage(
                 channel,
                 trimmedMessage,

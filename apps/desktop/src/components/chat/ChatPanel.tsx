@@ -1,22 +1,45 @@
 import type React from "react";
-import { memo, useEffect } from "react";
+import { lazy, memo, Suspense, useEffect } from "react";
 
+import {
+  preloadChatService,
+  shutdownLoadedChatServices,
+} from "../../backend/services/chat/chat-service-loader";
 import { ensureEmoteProvidersInitialized } from "../../backend/services/emotes";
 import { registerAppShutdownTask } from "../../hooks/app-shutdown-registry";
 import type { ChatPlatform } from "../../shared/chat-types";
 import { useRenderCount } from "../dev/use-render-count";
 
-import { KickChat } from "./kick/KickChat";
-import { TwitchChat } from "./twitch/TwitchChat";
 import type { SubscriberBadge } from "@/backend/services/chat/kick-parser";
 
-registerAppShutdownTask("chat-services", async () => {
-  const [{ kickChatService }, { twitchChatService }] = await Promise.all([
-    import("../../backend/services/chat/kick-chat"),
-    import("../../backend/services/chat/twitch-chat"),
-  ]);
-  await Promise.allSettled([kickChatService.forceShutdown(), twitchChatService.forceShutdown()]);
-});
+let kickChatComponentPromise: Promise<{
+  default: typeof import("./kick/KickChat").KickChat;
+}> | undefined;
+let twitchChatComponentPromise: Promise<{
+  default: typeof import("./twitch/TwitchChat").TwitchChat;
+}> | undefined;
+
+const loadKickChatComponent = () =>
+  (kickChatComponentPromise ??= Promise.all([
+    import("./kick/KickChat"),
+    preloadChatService("kick"),
+  ]).then(([module]) => ({ default: module.KickChat })));
+const loadTwitchChatComponent = () =>
+  (twitchChatComponentPromise ??= Promise.all([
+    import("./twitch/TwitchChat"),
+    preloadChatService("twitch"),
+  ]).then(([module]) => ({ default: module.TwitchChat })));
+
+const LazyKickChat = lazy(loadKickChatComponent);
+const LazyTwitchChat = lazy(loadTwitchChatComponent);
+
+export function preloadPlatformChat(platform: ChatPlatform): Promise<void> {
+  const componentPromise =
+    platform === "kick" ? loadKickChatComponent() : loadTwitchChatComponent();
+  return Promise.all([componentPromise, preloadChatService(platform)]).then(() => undefined);
+}
+
+registerAppShutdownTask("chat-services", shutdownLoadedChatServices);
 
 export interface ChatPanelProps {
   /** Initial platform to display/send to */
@@ -63,18 +86,35 @@ export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
 
   if (initialPlatform === "kick") {
     return (
-      <KickChat
-        channel={initialChannel}
-        channelId={channelId}
-        kickChannelId={kickChannelId}
-        chatroomId={chatroomId}
-        kickUserId={kickUserId}
-        subscriberBadges={subscriberBadges}
-        badgeCatalogState={badgeCatalogState}
-        retryBadgeCatalog={retryBadgeCatalog}
-      />
+      <Suspense fallback={<ChatPanelLoading />}>
+        <LazyKickChat
+          channel={initialChannel}
+          channelId={channelId}
+          kickChannelId={kickChannelId}
+          chatroomId={chatroomId}
+          kickUserId={kickUserId}
+          subscriberBadges={subscriberBadges}
+          badgeCatalogState={badgeCatalogState}
+          retryBadgeCatalog={retryBadgeCatalog}
+        />
+      </Suspense>
     );
   }
 
-  return <TwitchChat channel={initialChannel} channelId={channelId} />;
+  return (
+    <Suspense fallback={<ChatPanelLoading />}>
+      <LazyTwitchChat channel={initialChannel} channelId={channelId} />
+    </Suspense>
+  );
 });
+
+function ChatPanelLoading() {
+  return (
+    <div
+      className="flex h-full min-h-48 items-center justify-center text-sm text-[var(--color-foreground-muted)]"
+      role="status"
+    >
+      Loading chat…
+    </div>
+  );
+}

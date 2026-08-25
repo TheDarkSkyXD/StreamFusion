@@ -23,8 +23,11 @@
 
 import { useEffect } from "react";
 import type { KickChatroomSettings, UnifiedChannel } from "@/backend/api/unified/platform-types";
-import { kickChatService } from "@/backend/services/chat/kick-chat";
-import { twitchChatService } from "@/backend/services/chat/twitch-chat";
+import {
+  getLoadedChatRoomStateEventSource,
+  loadChatRoomStateEventSource,
+  type ChatRoomStateEventSource,
+} from "@/backend/services/chat/chat-service-loader";
 import { logger } from "@/renderer/logging/logger";
 import type { ChatConnectionStatus, ChatPlatform, RoomStatePatchEvent } from "@/shared/chat-types";
 import type { TwitchChatSettings } from "@/shared/twitch-api-types";
@@ -212,10 +215,10 @@ export function useChatSettingsSync({
     // Preserve WS writes without discarding untouched fields from the
     // authoritative snapshot.
     let wsFieldsDuringFetch: Set<keyof RoomState> | null = null;
+    let detachServiceListeners: (() => void) | undefined;
 
     const updateRoomState = useRoomStateStore.getState().updateRoomState;
     const resetRoomState = useRoomStateStore.getState().resetRoomState;
-    const service = platform === "twitch" ? twitchChatService : kickChatService;
 
     const clearUnavailableSnapshot = (wsFields: Set<keyof RoomState>): void => {
       if (wsFields.size === 0) {
@@ -290,41 +293,50 @@ export function useChatSettingsSync({
       }
     };
 
-    // R2 — Seed `hasConnectedOnce` from the service's CURRENT state so a
-    // mount arriving while the service is already connected doesn't
-    // misclassify the next reconnect as "first connect" and silently skip
-    // the re-seed. Defensive optional call — test stubs may not implement
-    // `getConnectionStatus`, in which case we fall back to the original
-    // "treat first observed connect as initial" behavior.
-    let hasConnectedOnce = service.getConnectionStatus?.()?.state === "connected";
-
-    const handleConnectionStateChange = (status: ChatConnectionStatus): void => {
-      if (status.platform !== platform) return;
-      if (status.state !== "connected") return;
-      if (!hasConnectedOnce) {
-        // First connect — the mount-path fetch already covers initial state.
-        hasConnectedOnce = true;
-        return;
-      }
-      // Reconnect — re-seed RoomState from the authoritative fetch.
-      // R4 — Abort any prior in-flight fetch before starting the new one
-      // and clear the in-flight key so `runFetch` doesn't short-circuit.
-      if (fetchController) fetchController.abort();
-      inFlight.delete(key);
-      void runFetch();
-    };
-
-    service.on("roomState", handleRoomState);
-    service.on("connectionStateChange", handleConnectionStateChange);
-
     // Kick off the initial fetch.
     void runFetch();
+
+    const attachServiceListeners = (service: ChatRoomStateEventSource): void => {
+      if (mountController.signal.aborted) return;
+
+      // R2 — Seed from the service's current state so a hook mounting after
+      // connect still treats the next connection as a reconnect.
+      let hasConnectedOnce = service.getConnectionStatus?.()?.state === "connected";
+      const handleConnectionStateChange = (status: ChatConnectionStatus): void => {
+        if (status.platform !== platform || status.state !== "connected") return;
+        if (!hasConnectedOnce) {
+          hasConnectedOnce = true;
+          return;
+        }
+        if (fetchController) fetchController.abort();
+        inFlight.delete(key);
+        void runFetch();
+      };
+
+      service.on("roomState", handleRoomState);
+      service.on("connectionStateChange", handleConnectionStateChange);
+      detachServiceListeners = () => {
+        service.off("roomState", handleRoomState);
+        service.off("connectionStateChange", handleConnectionStateChange);
+      };
+    };
+
+    const loadedService = getLoadedChatRoomStateEventSource(platform);
+    if (loadedService) {
+      attachServiceListeners(loadedService);
+    } else {
+      void loadChatRoomStateEventSource(platform).then(attachServiceListeners).catch((error: unknown) => {
+        if (mountController.signal.aborted) return;
+        logger.warn("Hook:ChatSettings", "chat event source failed to load", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }
 
     return () => {
       mountController.abort();
       if (fetchController) fetchController.abort();
-      service.off("roomState", handleRoomState);
-      service.off("connectionStateChange", handleConnectionStateChange);
+      detachServiceListeners?.();
       // Aborted fetches still need their key cleared so a same-key remount
       // can immediately re-fetch. The `finally` in runFetch handles this
       // when the rejected promise resolves, but eagerly clearing here keeps
