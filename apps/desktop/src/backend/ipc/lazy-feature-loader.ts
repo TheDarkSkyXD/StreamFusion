@@ -2,6 +2,7 @@ import type { BrowserWindow } from "electron";
 
 import { getBugReportsDir } from "@/backend/logging/log-paths";
 import { logger } from "@/backend/logging/logger";
+import { storageService } from "@/backend/services/storage-service";
 import { registerLoadedFeatureCleanup } from "@/backend/startup/loaded-feature-cleanup";
 import { featureLoaderIpcContract } from "@/ipc-contracts/feature-loader-contracts";
 import { IPC_CHANNELS, IPC_FEATURES, type IpcFeature } from "@/shared/ipc-channels";
@@ -15,7 +16,6 @@ interface FeatureContext {
 type FeatureLoader = (context: FeatureContext) => Promise<void>;
 
 async function ensureConfiguredProxy(context: FeatureContext): Promise<void> {
-  const { storageService } = await import("../services/storage-service");
   if (storageService.getPreferences().proxy.enabled) {
     await loadIpcFeature(IPC_FEATURES.PROXY, context);
   }

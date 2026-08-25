@@ -10,8 +10,6 @@ import {
 } from "../twitch-helix-schemas";
 import type { PaginatedResult, PaginationOptions } from "../twitch-types";
 
-import { getChannelsById } from "./channel-endpoints";
-
 /**
  * Get the currently authenticated user
  */
@@ -122,6 +120,7 @@ export async function getFollowedChannels(
 
   // Get full channel info for each followed channel
   const channelIds = data.data.map((f) => f.broadcaster_id);
+  const { getChannelsById } = await import("./channel-endpoints");
   const enrichedChannels = await getChannelsById(client, channelIds);
   const enrichedById = new Map(enrichedChannels.map((channel) => [channel.id, channel]));
   const channels = data.data.map(
