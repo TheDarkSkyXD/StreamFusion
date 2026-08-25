@@ -8,13 +8,14 @@ import type {
   UnifiedVideo,
 } from "../../../unified/platform-types";
 import type { KickRequestor } from "../kick-requestor";
+import { acquireKickRequestSlot } from "../kick-network-health";
 import type { PaginatedResult, PaginationOptions } from "../kick-types";
 
 import { searchCategories } from "./category-endpoints";
 import { getChannel } from "./channel-endpoints";
 import { getPublicTopStreams, getStreamBySlug } from "./stream-endpoints";
 
-const PUBLIC_SEARCH_TIMEOUT_MS = 3000;
+const PUBLIC_SEARCH_TOTAL_BUDGET_MS = 3000;
 const LIVE_SEARCH_PAGE_SIZE = 100;
 const LIVE_SEARCH_MAX_PAGES_PER_REQUEST = 5;
 
@@ -74,6 +75,7 @@ function booleanField(record: PublicSearchRecord, ...keys: string[]): boolean {
 }
 
 async function fetchPublicSearchPayload(searchQuery: string): Promise<unknown | null> {
+  const deadline = Date.now() + PUBLIC_SEARCH_TOTAL_BUDGET_MS;
   const searchEndpoints =
     searchQuery.length < 3
       ? [
@@ -84,7 +86,11 @@ async function fetchPublicSearchPayload(searchQuery: string): Promise<unknown | 
       : [`https://kick.com/api/search?searched_word=${encodeURIComponent(searchQuery)}`];
 
   for (const searchUrl of searchEndpoints) {
+    if (Date.now() >= deadline) break;
+    const releaseSlot = await acquireKickRequestSlot();
     try {
+      const remainingBudgetMs = deadline - Date.now();
+      if (remainingBudgetMs <= 0) continue;
       const { net } = require("electron");
       const res: Response = await net.fetch(searchUrl, {
         headers: {
@@ -95,7 +101,7 @@ async function fetchPublicSearchPayload(searchQuery: string): Promise<unknown | 
           Origin: "https://kick.com",
           "X-Requested-With": "XMLHttpRequest",
         },
-        signal: AbortSignal.timeout(PUBLIC_SEARCH_TIMEOUT_MS),
+        signal: AbortSignal.timeout(remainingBudgetMs),
       });
       if (res.ok) {
         const body = await res.text();
@@ -128,6 +134,8 @@ async function fetchPublicSearchPayload(searchQuery: string): Promise<unknown | 
       logger.debug("Kick:Endpoints:Search", "Step 2: Endpoint error; trying next", {
         searchUrl,
       });
+    } finally {
+      releaseSlot();
     }
   }
 

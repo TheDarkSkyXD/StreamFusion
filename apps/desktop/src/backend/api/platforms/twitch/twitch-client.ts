@@ -228,7 +228,8 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
   /**
    * Search for channels
    * Authenticated searches prefer Helix because it supports real cursor
-   * pagination. Logged-out searches fall back to public GQL.
+   * pagination. Logged-out searches use public GQL. Each transport is attempted
+   * at most once so a dual failure cannot loop back into a duplicate Helix call.
    */
   async searchChannels(
     query: string,
@@ -248,18 +249,7 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
       }
     }
 
-    try {
-      return await GqlClient.gqlSearchChannels(query, options);
-    } catch (error) {
-      logger.warn("Twitch:Client", "GQL searchChannels failed, falling back to Helix", {
-        error:
-          error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : String(error),
-      });
-      const SearchEndpoints = await import("./endpoints/search-endpoints");
-      return SearchEndpoints.searchChannels(this, query, options);
-    }
+    return GqlClient.gqlSearchChannels(query, options);
   }
 
   // ========== Categories/Games (GQL) ==========
@@ -305,25 +295,29 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
   }
 
   /**
-   * Search for categories/games
-   * Uses GQL - no API key needed
+   * Search for categories/games. Prefer the documented Helix endpoint when a
+   * token exists; logged-out callers use public GQL. Do not retry a failed
+   * transport twice.
    */
   async searchCategories(
     query: string,
     options: PaginationOptions = {}
   ): Promise<PaginatedResult<UnifiedCategory>> {
-    try {
-      return await GqlClient.gqlSearchCategories(query, options);
-    } catch (error) {
-      logger.warn("Twitch:Client", "GQL searchCategories failed, falling back to Helix", {
-        error:
-          error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : String(error),
-      });
-      const SearchEndpoints = await import("./endpoints/search-endpoints");
-      return SearchEndpoints.searchCategories(this, query, options);
+    if (this.isAuthenticated()) {
+      try {
+        const SearchEndpoints = await import("./endpoints/search-endpoints");
+        return await SearchEndpoints.searchCategories(this, query, options);
+      } catch (error) {
+        logger.warn("Twitch:Client", "Helix searchCategories failed, falling back to GQL", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
+      }
     }
+
+    return GqlClient.gqlSearchCategories(query, options);
   }
 
   /**

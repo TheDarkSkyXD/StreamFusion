@@ -41,6 +41,7 @@ vi.mock("@/backend/api/platforms/kick/endpoints/category-endpoints", () => ({
 }));
 
 import { searchCategories } from "@/backend/api/platforms/kick/endpoints/category-endpoints";
+import { acquireKickRequestSlot } from "@/backend/api/platforms/kick/kick-network-health";
 import {
   getChannel,
   getPublicChannel,
@@ -90,6 +91,7 @@ describe("search-endpoints", () => {
     vi.mocked(getPublicTopStreams).mockReset().mockResolvedValue({ data: [] });
     vi.mocked(getStreamBySlug).mockReset().mockResolvedValue(null);
     vi.mocked(searchCategories).mockReset().mockResolvedValue({ data: [] });
+    vi.mocked(acquireKickRequestSlot).mockReset().mockImplementation(async () => () => {});
   });
 
   afterEach(() => {
@@ -143,6 +145,20 @@ describe("search-endpoints", () => {
       expect(found!.followerCount).toBe(5000);
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(getPublicTopStreams).not.toHaveBeenCalled();
+    });
+
+    it("runs every legacy public search request through the global Kick request budget", async () => {
+      const releaseSlot = vi.fn();
+      vi.mocked(acquireKickRequestSlot).mockResolvedValueOnce(releaseSlot);
+      mockFetch.mockResolvedValueOnce(jsonResponse({ channels: [] }));
+
+      await searchChannels(
+        createMockClient({ isAuthenticated: vi.fn(() => false) }),
+        "search"
+      );
+
+      expect(acquireKickRequestSlot).toHaveBeenCalledTimes(1);
+      expect(releaseSlot).toHaveBeenCalledTimes(1);
     });
 
     it("starts original and compact first-page searches together and merges in variant order", async () => {

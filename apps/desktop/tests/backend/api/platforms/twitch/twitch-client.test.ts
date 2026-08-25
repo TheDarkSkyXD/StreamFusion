@@ -274,6 +274,18 @@ describe("TwitchClient", () => {
 
       expect(result).toEqual(channels);
     });
+
+    it("does not retry Helix after both search transports fail", async () => {
+      const { searchChannels } = await import(
+        "@/backend/api/platforms/twitch/endpoints/search-endpoints"
+      );
+      (searchChannels as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Helix error"));
+      mockGqlSearchChannels.mockRejectedValueOnce(new Error("GQL error"));
+
+      await expect(twitchClient.searchChannels("test")).rejects.toThrow("GQL error");
+      expect(searchChannels).toHaveBeenCalledTimes(1);
+      expect(mockGqlSearchChannels).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("getTopCategories", () => {
@@ -315,13 +327,46 @@ describe("TwitchClient", () => {
   });
 
   describe("searchCategories", () => {
-    it("delegates to GQL on success", async () => {
+    it("uses the documented Helix endpoint when authenticated", async () => {
+      const { searchCategories } = await import(
+        "@/backend/api/platforms/twitch/endpoints/search-endpoints"
+      );
+      (searchCategories as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        data: [{ id: "helix-g1" }],
+      });
+
+      const result = await twitchClient.searchCategories("chat", { first: 25 });
+
+      expect(result).toEqual({ data: [{ id: "helix-g1" }] });
+      expect(searchCategories).toHaveBeenCalledWith(twitchClient, "chat", { first: 25 });
+      expect(mockGqlSearchCategories).not.toHaveBeenCalled();
+    });
+
+    it("uses public GQL when logged out", async () => {
+      (twitchAuthService.isAuthenticated as ReturnType<typeof vi.fn>).mockReturnValueOnce(false);
       const cats = { data: [{ id: "g1" }] };
       mockGqlSearchCategories.mockResolvedValueOnce(cats);
 
       const result = await twitchClient.searchCategories("chat");
 
       expect(result).toEqual(cats);
+    });
+
+    it("falls back once to GQL when authenticated Helix search fails", async () => {
+      const { searchCategories } = await import(
+        "@/backend/api/platforms/twitch/endpoints/search-endpoints"
+      );
+      (searchCategories as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error("Helix error")
+      );
+      const cats = { data: [{ id: "gql-g1" }] };
+      mockGqlSearchCategories.mockResolvedValueOnce(cats);
+
+      const result = await twitchClient.searchCategories("chat");
+
+      expect(result).toEqual(cats);
+      expect(searchCategories).toHaveBeenCalledTimes(1);
+      expect(mockGqlSearchCategories).toHaveBeenCalledTimes(1);
     });
   });
 
