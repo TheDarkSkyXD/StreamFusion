@@ -534,6 +534,58 @@ https://backup/live-9630.ts`,
       expect(streamInfo.servedBackups.get(scope)).toBe(candidate);
     });
 
+    it("advances the served backup playlist across repeated ad polls", async () => {
+      const originalUrl = "https://original/source.m3u8";
+      const candidate = {
+        playerType: "embed",
+        rendition: {
+          url: "https://backup/source.m3u8",
+          resolution: "1920x1080",
+          bandwidth: 6_000_000,
+          codecs: "avc1.64002A",
+          frameRate: 60,
+        },
+        playlist: `#EXTM3U
+#EXT-X-MEDIA-SEQUENCE:42
+#EXTINF:2.000,live
+https://backup/live-42.ts`,
+      };
+      const advancedPlaylist = candidate.playlist
+        .replace("MEDIA-SEQUENCE:42", "MEDIA-SEQUENCE:43")
+        .replaceAll("live-42.ts", "live-43.ts");
+      const streamInfo = {
+        channelName: "test",
+        resolutions: new Map([[originalUrl, candidate.rendition]]),
+        detectionScopes: new Set<string>(),
+        candidateStates: new Map(),
+        servedBackups: new Map(),
+      };
+      const scope = proxy().getDetectionScope(streamInfo, originalUrl);
+      const candidateState = {
+        candidatePromise: null,
+        readyCandidate: candidate,
+        consecutiveMisses: 0,
+        nextRetryAt: 0,
+      };
+      streamInfo.candidateStates.set(scope, candidateState);
+      proxy().streamInfos.set("test", streamInfo);
+      vi.spyOn(proxy(), "fetchWithRetry").mockResolvedValue({
+        ok: true,
+        text: async () => advancedPlaylist,
+      });
+
+      const first = await proxy().tryGetBackupStream(streamInfo, originalUrl, AD_MEDIA_PLAYLIST);
+      await proxy().tryGetBackupStream(streamInfo, originalUrl, AD_MEDIA_PLAYLIST);
+      await vi.waitFor(() => {
+        expect(candidateState.readyCandidate?.playlist).toContain("MEDIA-SEQUENCE:43");
+      });
+      const third = await proxy().tryGetBackupStream(streamInfo, originalUrl, AD_MEDIA_PLAYLIST);
+
+      expect(first).toContain("MEDIA-SEQUENCE:42");
+      expect(third).toContain("MEDIA-SEQUENCE:43");
+      expect(proxy().fetchWithRetry).toHaveBeenCalledWith(candidate.rendition.url);
+    });
+
     it("prepares a clean exact candidate despite the stitched ad sequence namespace", async () => {
       const originalUrl = "https://original/source.m3u8";
       const streamInfo = {
