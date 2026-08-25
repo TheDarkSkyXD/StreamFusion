@@ -10,8 +10,8 @@
   },
   "scripts": {
     "preinstall": "node scripts/require-pnpm.mjs",
-    "start": "node apps/desktop/scripts/start-picker.js",
-    "desktop": "node apps/desktop/scripts/start-picker.js",
+    "start": "pnpm --dir apps/desktop start:checked",
+    "desktop": "pnpm --dir apps/desktop start:checked",
     "build": "pnpm --dir apps/desktop build",
     "dist": "pnpm --dir apps/desktop dist",
     "dist:win": "pnpm --dir apps/desktop dist:win",

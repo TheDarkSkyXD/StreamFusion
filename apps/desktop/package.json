@@ -17,7 +17,7 @@
     "dev:mcp": "node scripts/start-dev.js -- --remote-debugging-port=9222",
     "build": "electron-vite build",
     "start": "node scripts/start-picker.js",
-    "start:checked": "pnpm run check && node scripts/start-picker.js",
+    "start:checked": "pnpm run typecheck && pnpm run lint && node scripts/start-picker.js",
     "preview": "electron-vite preview",
     "dist": "pnpm run rebuild-deps && pnpm run build && electron-builder --publish never",
     "dist:win": "pnpm run rebuild-deps && pnpm run build && electron-builder --win --publish never",
