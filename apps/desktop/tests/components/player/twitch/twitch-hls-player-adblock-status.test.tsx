@@ -1244,21 +1244,15 @@ describe("TwitchHlsPlayer adblock status", () => {
     });
 
     act(() => {
-      vi.advanceTimersByTime(9_999);
+      vi.advanceTimersByTime(25_499);
     });
-    expect(onError).not.toHaveBeenCalled();
-
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
-
     expect(hls.startLoad).toHaveBeenCalledTimes(2);
     expect(hls.startLoad).toHaveBeenLastCalledWith(-1);
     expect(onError).not.toHaveBeenCalled();
     expect(hls.destroy).not.toHaveBeenCalled();
 
     act(() => {
-      vi.advanceTimersByTime(1_000);
+      vi.advanceTimersByTime(1);
     });
 
     expect(onError).toHaveBeenCalledTimes(1);
@@ -1292,21 +1286,15 @@ describe("TwitchHlsPlayer adblock status", () => {
     });
 
     act(() => {
-      vi.advanceTimersByTime(9_999);
+      vi.advanceTimersByTime(24_999);
     });
-    expect(onError).not.toHaveBeenCalled();
-
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
-
     expect(hls.startLoad).toHaveBeenCalledTimes(2);
     expect(hls.startLoad).toHaveBeenLastCalledWith(-1);
     expect(onError).not.toHaveBeenCalled();
     expect(hls.destroy).not.toHaveBeenCalled();
 
     act(() => {
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(1);
     });
 
     expect(onError).toHaveBeenCalledTimes(1);

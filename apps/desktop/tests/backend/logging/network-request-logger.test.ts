@@ -155,6 +155,31 @@ describe("installNetworkRequestLogger", () => {
     );
   });
 
+  it("treats a stale Twitch live manifest as an offline state instead of an app error", () => {
+    const { session, webRequest } = makeSession();
+    installNetworkRequestLogger(session as unknown as Electron.Session);
+
+    listenerAt<Electron.OnCompletedListenerDetails>(webRequest.onCompleted)({
+      id: 81,
+      url: "https://usher.ttvnw.net/api/channel/hls/offline.m3u8?token=expired&sig=old",
+      method: "GET",
+      resourceType: "xhr",
+      referrer: "file:///app/index.html",
+      timestamp: 1200,
+      fromCache: false,
+      statusCode: 404,
+      statusLine: "HTTP/2 404",
+      error: "",
+    });
+
+    expect(loggerMock.error).not.toHaveBeenCalled();
+    expect(loggerMock.info).toHaveBeenCalledWith(
+      "Network:Request",
+      "Twitch live manifest unavailable",
+      expect.objectContaining({ statusCode: 404, kind: "playlist" })
+    );
+  });
+
   it("does not register duplicate listeners for the same session", () => {
     const { session, webRequest } = makeSession();
     const electronSession = session as unknown as Electron.Session;

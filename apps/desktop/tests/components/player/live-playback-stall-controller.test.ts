@@ -162,26 +162,41 @@ describe("LivePlaybackStallController", () => {
     });
   });
 
-  it("bounds startup when a parsed manifest never produces a fragment", () => {
+  it("allows a pending startup playlist read to outlive ordinary CDN latency", () => {
     const controller = new LivePlaybackStallController();
     controller.resetSource(1, 0, 0);
     controller.notePlay(0, 0);
     controller.noteManifestParsed(0);
 
     expect(controller.evaluate(3_000, playableSnapshot({ currentTime: 0 }))).toBeNull();
-    expect(controller.evaluate(5_500, playableSnapshot({ currentTime: 0 }))).toEqual({
+    expect(controller.evaluate(12_999, playableSnapshot({ currentTime: 0 }))).toBeNull();
+    expect(controller.evaluate(13_000, playableSnapshot({ currentTime: 0 }))).toEqual({
       type: "start-load",
       stage: "soft",
       reason: "input-starved",
     });
-    expect(controller.evaluate(8_500, playableSnapshot({ currentTime: 0 }))).toEqual({
+    expect(controller.evaluate(19_000, playableSnapshot({ currentTime: 0 }))).toEqual({
       type: "start-load",
       stage: "hard",
       reason: "input-starved",
     });
-    expect(controller.evaluate(10_500, playableSnapshot({ currentTime: 0 }))).toEqual({
+    expect(controller.evaluate(25_000, playableSnapshot({ currentTime: 0 }))).toEqual({
       type: "fatal",
       stage: "exhausted",
+      reason: "input-starved",
+    });
+  });
+
+  it("keeps the fast startup ladder after an explicit network failure", () => {
+    const controller = new LivePlaybackStallController();
+    controller.resetSource(1, 0, 0);
+    controller.notePlay(0, 0);
+    controller.noteManifestParsed(0);
+    controller.noteNetworkError(0);
+
+    expect(controller.evaluate(2_500, playableSnapshot({ currentTime: 0 }))).toEqual({
+      type: "start-load",
+      stage: "soft",
       reason: "input-starved",
     });
   });

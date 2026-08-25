@@ -33,6 +33,9 @@ export interface LivePlaybackStallTransition {
 const SOFT_RECOVERY_MS = 2_500;
 const HARD_RECOVERY_MS = 5_500;
 const FATAL_RECOVERY_MS = 7_500;
+const STARTUP_SOFT_RECOVERY_MS = 10_000;
+const STARTUP_HARD_RECOVERY_MS = 16_000;
+const STARTUP_FATAL_RECOVERY_MS = 22_000;
 const SEEK_GRACE_MS = 2_500;
 const HEALTHY_RESET_MS = 2_000;
 const FRESH_FRAGMENT_MS = 3_000;
@@ -45,11 +48,13 @@ export class LivePlaybackStallController {
   private phase: LivePlaybackStallPhase = "startup";
   private armed = false;
   private expectedToPlay = false;
+  private hasStartedPlayback = false;
   private waiting = false;
   private stalled = false;
   private networkError = false;
   private incidentStartedAt: number | null = null;
   private incidentReason: LivePlaybackStallReason | null = null;
+  private startupIncident = false;
   private fragmentLoadedAt: number | null = null;
   private manifestParsedAt: number | null = null;
   private lastPresentedFrameAt: number | null = null;
@@ -63,11 +68,13 @@ export class LivePlaybackStallController {
   resetSource(_generation: number, _now: number, currentTime: number): void {
     this.armed = false;
     this.expectedToPlay = false;
+    this.hasStartedPlayback = false;
     this.waiting = false;
     this.stalled = false;
     this.networkError = false;
     this.incidentStartedAt = null;
     this.incidentReason = null;
+    this.startupIncident = false;
     this.fragmentLoadedAt = null;
     this.manifestParsedAt = null;
     this.lastPresentedFrameAt = null;
@@ -86,6 +93,7 @@ export class LivePlaybackStallController {
   notePlaying(now: number, currentTime: number): void {
     this.expectedToPlay = true;
     this.armed = true;
+    this.hasStartedPlayback = true;
     this.lastCurrentTime = currentTime;
     this.clearSignals();
     if (this.phase !== "startup" && this.phase !== "healthy" && this.phase !== "exhausted") {
@@ -195,6 +203,7 @@ export class LivePlaybackStallController {
     }
 
     if (this.incidentStartedAt === null) {
+      this.startupIncident = this.phase === "startup" && !this.hasStartedPlayback;
       this.incidentStartedAt =
         snapshot.videoFrameCallbacksSupported && snapshot.lastPresentedFrameAt !== null
           ? Math.min(now, snapshot.lastPresentedFrameAt)
@@ -214,17 +223,28 @@ export class LivePlaybackStallController {
     }
 
     const elapsedMs = now - this.incidentStartedAt;
-    if (elapsedMs >= FATAL_RECOVERY_MS) {
+    const deferPendingStartupRead =
+      this.startupIncident && reason === "input-starved" && !this.networkError;
+    const softRecoveryMs = deferPendingStartupRead
+      ? STARTUP_SOFT_RECOVERY_MS
+      : SOFT_RECOVERY_MS;
+    const hardRecoveryMs = deferPendingStartupRead
+      ? STARTUP_HARD_RECOVERY_MS
+      : HARD_RECOVERY_MS;
+    const fatalRecoveryMs = deferPendingStartupRead
+      ? STARTUP_FATAL_RECOVERY_MS
+      : FATAL_RECOVERY_MS;
+    if (elapsedMs >= fatalRecoveryMs) {
       this.transitionTo("exhausted", reason, elapsedMs);
       return { type: "fatal", stage: "exhausted", reason };
     }
-    if (elapsedMs >= HARD_RECOVERY_MS && this.phase !== "hard") {
+    if (elapsedMs >= hardRecoveryMs && this.phase !== "hard") {
       this.transitionTo("hard", reason, elapsedMs);
       return reason === "decoder-stall"
         ? { type: "recover-media", stage: "hard", reason }
         : { type: "start-load", stage: "hard", reason };
     }
-    if (elapsedMs >= SOFT_RECOVERY_MS && this.phase === "suspect") {
+    if (elapsedMs >= softRecoveryMs && this.phase === "suspect") {
       this.transitionTo("soft", reason, elapsedMs);
       return reason === "decoder-stall"
         ? { type: "nudge", stage: "soft", reason }
@@ -235,7 +255,10 @@ export class LivePlaybackStallController {
 
   private startIncidentIfArmed(now: number): void {
     if (!this.armed || !this.expectedToPlay || this.phase === "exhausted") return;
-    if (this.incidentStartedAt === null) this.incidentStartedAt = now;
+    if (this.incidentStartedAt === null) {
+      this.startupIncident = this.phase === "startup" && !this.hasStartedPlayback;
+      this.incidentStartedAt = now;
+    }
   }
 
   private classifyStall(
@@ -277,6 +300,7 @@ export class LivePlaybackStallController {
   private recordProgress(now: number, currentTime: number): void {
     this.armed = true;
     this.expectedToPlay = true;
+    this.hasStartedPlayback = true;
     this.lastCurrentTime = currentTime;
     this.clearSignals();
     this.clearIncident();
@@ -303,6 +327,7 @@ export class LivePlaybackStallController {
   private clearIncident(): void {
     this.incidentStartedAt = null;
     this.incidentReason = null;
+    this.startupIncident = false;
   }
 
   private transitionTo(

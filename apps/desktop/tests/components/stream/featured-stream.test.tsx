@@ -31,11 +31,15 @@ vi.mock("@/components/player/hls-player", () => ({
     autoPlay,
     muted,
     volume,
+    preferredQuality,
+    onError,
   }: {
     src: string;
     autoPlay?: boolean;
     muted?: boolean;
     volume?: number;
+    preferredQuality?: string;
+    onError?: () => void;
   }) => (
     <div
       data-testid="featured-preview-player"
@@ -43,6 +47,8 @@ vi.mock("@/components/player/hls-player", () => ({
       data-autoplay={String(autoPlay)}
       data-muted={String(muted)}
       data-volume={String(volume)}
+      data-preferred-quality={preferredQuality}
+      onClick={onError}
     />
   ),
 }));
@@ -55,6 +61,8 @@ vi.mock("@/components/player/twitch/twitch-hls-player", () => ({
     autoPlay,
     muted,
     volume,
+    preferredQuality,
+    onError,
   }: {
     src: string;
     channelName: string;
@@ -62,6 +70,8 @@ vi.mock("@/components/player/twitch/twitch-hls-player", () => ({
     autoPlay?: boolean;
     muted?: boolean;
     volume?: number;
+    preferredQuality?: string;
+    onError?: () => void;
   }) => (
     <div
       data-testid="featured-twitch-preview-player"
@@ -71,6 +81,8 @@ vi.mock("@/components/player/twitch/twitch-hls-player", () => ({
       data-autoplay={String(autoPlay)}
       data-muted={String(muted)}
       data-volume={String(volume)}
+      data-preferred-quality={preferredQuality}
+      onClick={onError}
     />
   ),
 }));
@@ -82,6 +94,8 @@ import { FeaturedStream } from "@/components/stream/featured-stream";
 // Guards: success state renders title, channel, viewer badge, and watch CTA in the hero panel.
 // Guards: carousel state switches the active stream without refetching or remounting the home page.
 // Guards: exactly one muted preview starts automatically so Home feels live without audible autoplay.
+// Guards: Home preview playback is capped at 360p to keep long-running renderer and GPU memory bounded.
+// Guards: an offline featured channel advances once to the next candidate instead of leaving a dead hero or retry-looping every failed candidate.
 // Guards: preview audio can be user-unmuted without navigating away from the carousel.
 // Guards: Twitch previews use the same ad-blocking HLS player path as normal stream playback.
 // Guards: autoplay state advances the featured slide using the user's configured interval.
@@ -132,6 +146,10 @@ describe("FeaturedStream", () => {
       "data-autoplay",
       "true"
     );
+    expect(screen.getByTestId("featured-twitch-preview-player")).toHaveAttribute(
+      "data-preferred-quality",
+      "360p"
+    );
     expect(screen.getByRole("button", { name: /unmute preview/i })).toBeInTheDocument();
   });
 
@@ -160,6 +178,10 @@ describe("FeaturedStream", () => {
     expect(screen.getByTestId("featured-preview-player")).toHaveAttribute("data-muted", "true");
     expect(screen.getByTestId("featured-preview-player")).toHaveAttribute("data-autoplay", "true");
     expect(screen.getByTestId("featured-preview-player")).toHaveAttribute("data-volume", "1");
+    expect(screen.getByTestId("featured-preview-player")).toHaveAttribute(
+      "data-preferred-quality",
+      "360p"
+    );
     fireEvent.click(screen.getByRole("button", { name: /unmute preview/i }));
     expect(screen.getByTestId("featured-preview-player")).toHaveAttribute("data-muted", "false");
     expect(screen.getByRole("button", { name: /mute preview/i })).toBeInTheDocument();
@@ -239,6 +261,18 @@ describe("FeaturedStream", () => {
       "data-autoplay",
       "true"
     );
+  });
+
+  it("advances to the next candidate when the active preview is unavailable", () => {
+    const streams = [
+      fixtures.stream({ id: "offline", channelName: "offline-channel" }),
+      fixtures.stream({ id: "live", channelName: "live-channel" }),
+    ];
+
+    renderWithProviders(<FeaturedStream stream={streams[0]} streams={streams} />);
+    fireEvent.click(screen.getByTestId("featured-twitch-preview-player"));
+
+    expect(mocks.useStreamPlayback).toHaveBeenLastCalledWith("twitch", "live-channel");
   });
 
   it("reports carousel changes to a controlled owner", () => {

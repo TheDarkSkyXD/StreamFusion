@@ -131,6 +131,15 @@ function requestKind(rawUrl: string): "playlist" | "segment" | "websocket" | "me
   return "media";
 }
 
+function isUnavailableTwitchLiveManifest(rawUrl: string, statusCode: number): boolean {
+  if (statusCode !== 404 && statusCode !== 410) return false;
+  const url = safeUrl(rawUrl);
+  return (
+    url?.hostname.toLowerCase() === "usher.ttvnw.net" &&
+    /^\/api\/(?:v2\/)?channel\/(?:hls\/)?[^/]+\.m3u8$/i.test(url.pathname)
+  );
+}
+
 function requestName(rawUrl: string): string {
   const redacted = redactedUrl(rawUrl);
   const url = safeUrl(redacted);
@@ -296,6 +305,10 @@ export function installNetworkRequestLogger(targetSession: Session): void {
     };
 
     if (details.statusCode >= 400) {
+      if (isUnavailableTwitchLiveManifest(details.url, details.statusCode)) {
+        logger.info("Network:Request", "Twitch live manifest unavailable", meta);
+        return;
+      }
       logger.error("Network:Request", "stream request failed with HTTP status", meta);
       return;
     }

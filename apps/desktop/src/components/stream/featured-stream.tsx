@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LuChevronLeft, LuChevronRight, LuVolume2, LuVolumeX } from "react-icons/lu";
 
 import type { UnifiedStream } from "@/backend/api/unified/platform-types";
@@ -38,6 +38,11 @@ export function FeaturedStream({
   }, [stream, streams]);
   const [uncontrolledActiveIndex, setUncontrolledActiveIndex] = useState(0);
   const [isPreviewMuted, setIsPreviewMuted] = useState(true);
+  const unavailablePreviewIdentitiesRef = useRef(new Set<string>());
+  const carouselIdentity = useMemo(
+    () => carouselStreams.map((item) => `${item.platform}:${item.channelName}`).join("|"),
+    [carouselStreams]
+  );
   const activeIndex = controlledActiveIndex ?? uncontrolledActiveIndex;
   const activeStream = carouselStreams[activeIndex] ?? carouselStreams[0];
   const hasMultipleSlides = carouselStreams.length > 1;
@@ -52,6 +57,10 @@ export function FeaturedStream({
       return;
     setUncontrolledActiveIndex(0);
   }, [carouselStreams.length, controlledActiveIndex, uncontrolledActiveIndex]);
+
+  useEffect(() => {
+    unavailablePreviewIdentitiesRef.current.clear();
+  }, [carouselIdentity]);
 
   useInterval(
     () => {
@@ -112,6 +121,21 @@ export function FeaturedStream({
     changeActiveIndex(activeIndex >= carouselStreams.length - 1 ? 0 : activeIndex + 1);
   };
 
+  const skipUnavailablePreview = () => {
+    const unavailable = unavailablePreviewIdentitiesRef.current;
+    const activeIdentity = `${activeStream.platform}:${activeStream.channelName}`;
+    if (unavailable.has(activeIdentity)) return;
+    unavailable.add(activeIdentity);
+
+    for (let offset = 1; offset < carouselStreams.length; offset += 1) {
+      const candidateIndex = (activeIndex + offset) % carouselStreams.length;
+      const candidate = carouselStreams[candidateIndex];
+      if (!candidate || unavailable.has(`${candidate.platform}:${candidate.channelName}`)) continue;
+      changeActiveIndex(candidateIndex);
+      return;
+    }
+  };
+
   const togglePreviewAudio = () => {
     if (isPreviewMuted && volume <= 0) setVolume(50);
     setIsPreviewMuted((current) => !current);
@@ -138,6 +162,7 @@ export function FeaturedStream({
           stream={activeStream}
           muted={previewMuted}
           volume={previewVolume > 0 ? previewVolume : 0.5}
+          onUnavailable={skipUnavailablePreview}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/15" />
       </Link>
@@ -277,10 +302,12 @@ function FeaturedStreamPreview({
   stream,
   muted,
   volume,
+  onUnavailable,
 }: {
   stream: UnifiedStream;
   muted: boolean;
   volume: number;
+  onUnavailable: () => void;
 }) {
   const { playback } = useStreamPlayback(stream.platform, stream.channelName);
 
@@ -294,6 +321,7 @@ function FeaturedStreamPreview({
       url={playback.url}
       muted={muted}
       volume={volume}
+      onUnavailable={onUnavailable}
     />
   );
 }
@@ -304,12 +332,14 @@ function FeaturedStreamPreviewPlayer({
   url,
   muted,
   volume,
+  onUnavailable,
 }: {
   platform: UnifiedStream["platform"];
   channelName: string;
   url: string;
   muted: boolean;
   volume: number;
+  onUnavailable: () => void;
 }) {
   const enableAdBlock = useAdBlockStore((state) => state.enableAdBlock);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
@@ -327,13 +357,16 @@ function FeaturedStreamPreviewPlayer({
         autoPlay={true}
         muted={muted}
         volume={volume}
-        currentLevel="auto"
+        preferredQuality="360p"
         controls={false}
         aria-hidden="true"
         tabIndex={-1}
         className={previewClassName}
         onPlaying={() => setIsPreviewReady(true)}
-        onError={() => setIsPreviewReady(false)}
+        onError={() => {
+          setIsPreviewReady(false);
+          onUnavailable();
+        }}
       />
     );
   }
@@ -347,11 +380,14 @@ function FeaturedStreamPreviewPlayer({
       isLive={true}
       aria-hidden="true"
       tabIndex={-1}
-      currentLevel="auto"
+      preferredQuality="360p"
       controls={false}
       className={previewClassName}
       onPlaying={() => setIsPreviewReady(true)}
-      onError={() => setIsPreviewReady(false)}
+      onError={() => {
+        setIsPreviewReady(false);
+        onUnavailable();
+      }}
     />
   );
 }
