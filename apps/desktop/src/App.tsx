@@ -1,7 +1,6 @@
+import { lazy, Suspense } from "react";
 import { RouterProvider } from "@tanstack/react-router";
 import { AuthProvider } from "@/components/auth/AuthProvider";
-import { DeveloperConsole } from "@/components/dev/DeveloperConsole";
-import { DownloadDuplicateConfirmationDialog } from "@/components/download-duplicate-confirmation-dialog";
 import { RecoveryBoundary } from "@/components/recovery/RecoveryBoundary";
 import { ToastRoot } from "@/components/ToastRoot";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +8,21 @@ import { useAppShutdown } from "@/hooks/use-app-shutdown";
 import { useLiveNotificationBridge } from "@/hooks/use-live-notification-bridge";
 import { QueryProvider } from "@/providers/query-provider";
 import { router } from "@/routes/router";
+import { useDownloadDuplicateConfirmationStore } from "@/store/download-duplicate-confirmation-store";
+
+const DeveloperConsole = import.meta.env.DEV
+  ? lazy(() =>
+      import("@/components/dev/DeveloperConsole").then((module) => ({
+        default: module.DeveloperConsole,
+      }))
+    )
+  : null;
+
+const DownloadDuplicateConfirmationDialog = lazy(() =>
+  import("@/components/download-duplicate-confirmation-dialog").then((module) => ({
+    default: module.DownloadDuplicateConfirmationDialog,
+  }))
+);
 
 function App() {
   // Emote providers are registered lazily on first ChatPanel mount via
@@ -25,13 +39,31 @@ function App() {
         <TooltipProvider>
           <AuthProvider>
             <RouterProvider router={router} />
-            <DownloadDuplicateConfirmationDialog />
-            <DeveloperConsole />
+            <DeferredDownloadDuplicateConfirmationDialog />
+            {DeveloperConsole && (
+              <Suspense fallback={null}>
+                <DeveloperConsole />
+              </Suspense>
+            )}
             <ToastRoot />
           </AuthProvider>
         </TooltipProvider>
       </QueryProvider>
     </RecoveryBoundary>
+  );
+}
+
+function DeferredDownloadDuplicateConfirmationDialog() {
+  const hasPendingConfirmation = useDownloadDuplicateConfirmationStore(
+    (state) => state.pending !== null
+  );
+
+  if (!hasPendingConfirmation) return null;
+
+  return (
+    <Suspense fallback={null}>
+      <DownloadDuplicateConfirmationDialog />
+    </Suspense>
   );
 }
 
