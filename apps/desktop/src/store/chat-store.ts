@@ -167,8 +167,7 @@ function mergeKnownUsers(
     if (!shouldReplace) continue;
 
     if (!next) next = { ...current };
-    const incomingIsNewest =
-      !existing || user.lastSeen.getTime() >= existing.lastSeen.getTime();
+    const incomingIsNewest = !existing || user.lastSeen.getTime() >= existing.lastSeen.getTime();
     next[key] = {
       ...existing,
       ...user,
@@ -342,6 +341,10 @@ const __debug = {
   deleteMessagesByUser: 0,
   updateConnectionStatus: 0,
 };
+
+export function getChatStoreDiagnosticCounters(): Readonly<typeof __debug> {
+  return { ...__debug };
+}
 
 export const useChatStore = create<ChatState>()(
   subscribeWithSelector((set, get) => {
@@ -611,7 +614,9 @@ export const useChatStore = create<ChatState>()(
 
       replaceHistoricalMessages: (channelKey, messages) => {
         set((state) => {
-          const replacementUsers = mergeKnownUsersFromMessages({}, channelKey, messages)[channelKey];
+          const replacementUsers = mergeKnownUsersFromMessages({}, channelKey, messages)[
+            channelKey
+          ];
           const usersByChannel = { ...state.usersByChannel };
           if (replacementUsers) {
             usersByChannel[channelKey] = replacementUsers;

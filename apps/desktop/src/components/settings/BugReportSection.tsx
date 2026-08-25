@@ -143,7 +143,6 @@ export function BugReportSection() {
           </label>
           <textarea
             id="bug-description"
-            autoFocus
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Describe what happened, what you expected, and any reproduction steps"

@@ -92,7 +92,7 @@ export class RecoveryBoundary extends React.Component<
             type="button"
             autoFocus
             onClick={isApp ? this.reload : this.retry}
-            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-[var(--color-primary-foreground)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
             <LuRefreshCw className="h-4 w-4" aria-hidden="true" />
             {isApp ? "Reload app" : "Try again"}

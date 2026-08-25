@@ -3,6 +3,7 @@
 // calls `bugReports.write` with the description and the two include flags,
 // success surfaces the saved path inline, failure surfaces an error toast,
 // and Open Folder routes through the preload helper.
+// Guards: mounting below the log viewer does not steal focus and scroll Logs & Reports downward.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BugReportSection } from "@/components/settings/BugReportSection";
@@ -57,6 +58,15 @@ describe("BugReportSection", () => {
     vi.clearAllMocks();
     toastErrorMock.mockClear();
     toastSuccessMock.mockClear();
+  });
+
+  it("does not autofocus the description when mounted", async () => {
+    installBugReportsApi();
+    renderWithProviders(<BugReportSection />);
+
+    const textarea = await waitFor(() => screen.getByPlaceholderText(/describe what happened/i));
+
+    expect(textarea).not.toHaveFocus();
   });
 
   it("renders the form (description, include switches, submit + open-folder buttons)", async () => {

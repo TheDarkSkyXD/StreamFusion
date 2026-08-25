@@ -7,7 +7,7 @@ import type { LiveNotificationPayload } from "@/shared/auth-types";
 vi.mock("@/components/auth/AuthProvider", () => ({
   AuthProvider: ({ children }: { children: ReactNode }) => children,
 }));
-vi.mock("@/components/dev/DebugPanel", () => ({ DebugPanel: () => null }));
+vi.mock("@/components/dev/DeveloperConsole", () => ({ DeveloperConsole: () => null }));
 vi.mock("@/components/download-duplicate-confirmation-dialog", () => ({
   DownloadDuplicateConfirmationDialog: () => null,
 }));

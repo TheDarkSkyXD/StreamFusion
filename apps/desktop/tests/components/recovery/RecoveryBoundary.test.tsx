@@ -29,7 +29,9 @@ describe("RecoveryBoundary", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent("Following sidebar hit a problem");
-    expect(screen.getByRole("button", { name: "Try again" })).toHaveFocus();
+    const retryButton = screen.getByRole("button", { name: "Try again" });
+    expect(retryButton).toHaveFocus();
+    expect(retryButton).toHaveClass("text-[var(--color-primary-foreground)]");
     expect(screen.queryByText("private failure detail")).not.toBeInTheDocument();
     expect(loggerError).toHaveBeenCalledOnce();
 

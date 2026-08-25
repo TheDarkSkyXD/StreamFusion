@@ -14,7 +14,7 @@ import {
   pickWinner,
 } from "@/lib/utils";
 
-// Guards: cross-platform category-name normalization keeps Twitch + Kick variants on the same key (Slots, GTA, Black Desert, Counter-Strike) so dedup + cross-platform links work
+// Guards: cross-platform category-name normalization keeps Twitch + Kick variants on the same key (Slots, GTA, Black Desert, Counter-Strike, Free Fire) so dedup + cross-platform links work
 // Guards: formatViewerCount K/M abbreviations strip trailing .0 — viewer-count badges must not say "5.0K"
 // Guards: formatDuration rejects NaN/negative/fractional and pads HH:MM:SS so player-overlay timestamps never glitch
 // Guards: formatLanguageLabel returns Intl display names for BCP-47 and title-cases Kick's full-word codes ("ENGLISH")
@@ -158,6 +158,11 @@ describe("normalizeCategoryName", () => {
     expect(normalizeCategoryName("Black Desert")).toBe("black-desert");
     expect(normalizeCategoryName("Black Desert Online")).toBe("black-desert");
   });
+
+  it("maps Twitch and Kick Free Fire names to the same key", () => {
+    expect(normalizeCategoryName("Free Fire")).toBe("free-fire");
+    expect(normalizeCategoryName("Garena Free Fire")).toBe("free-fire");
+  });
 });
 
 describe("getEquivalentCategoryName", () => {
@@ -183,6 +188,8 @@ describe("getEquivalentCategoryName", () => {
     expect(getEquivalentCategoryName("counter-strike", "kick")).toBe("Counter-Strike 2");
     expect(getEquivalentCategoryName("black-desert", "twitch")).toBe("Black Desert");
     expect(getEquivalentCategoryName("black-desert", "kick")).toBe("Black Desert Online");
+    expect(getEquivalentCategoryName("free-fire", "twitch")).toBe("Free Fire");
+    expect(getEquivalentCategoryName("free-fire", "kick")).toBe("Garena Free Fire");
   });
 });
 

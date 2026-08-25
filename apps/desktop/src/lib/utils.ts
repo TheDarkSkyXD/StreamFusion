@@ -116,6 +116,7 @@ const CATEGORY_EQUIVALENCES: Array<{ key: string; twitch: string; kick: string }
   { key: "grand-theft-auto-v", twitch: "Grand Theft Auto V", kick: "Grand Theft Auto V (GTA)" },
   { key: "counter-strike", twitch: "Counter-Strike", kick: "Counter-Strike 2" },
   { key: "black-desert", twitch: "Black Desert", kick: "Black Desert Online" },
+  { key: "free-fire", twitch: "Free Fire", kick: "Garena Free Fire" },
 ];
 
 const NAME_TO_KEY = new Map<string, string>();

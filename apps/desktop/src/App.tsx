@@ -1,6 +1,6 @@
 import { RouterProvider } from "@tanstack/react-router";
 import { AuthProvider } from "@/components/auth/AuthProvider";
-import { DebugPanel } from "@/components/dev/DebugPanel";
+import { DeveloperConsole } from "@/components/dev/DeveloperConsole";
 import { DownloadDuplicateConfirmationDialog } from "@/components/download-duplicate-confirmation-dialog";
 import { RecoveryBoundary } from "@/components/recovery/RecoveryBoundary";
 import { ToastRoot } from "@/components/ToastRoot";
@@ -26,7 +26,7 @@ function App() {
           <AuthProvider>
             <RouterProvider router={router} />
             <DownloadDuplicateConfirmationDialog />
-            <DebugPanel />
+            <DeveloperConsole />
             <ToastRoot />
           </AuthProvider>
         </TooltipProvider>
