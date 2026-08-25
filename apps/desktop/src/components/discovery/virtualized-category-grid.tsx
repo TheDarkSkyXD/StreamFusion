@@ -22,7 +22,6 @@ interface VirtualizedCategoryGridProps {
 }
 
 const STARTUP_PREWARM_COUNT = 8;
-const REVEAL_BATCH_SIZE = 8;
 
 /**
  * Virtualized category grid that only renders visible items for performance.
@@ -38,18 +37,13 @@ export function VirtualizedCategoryGrid({
   emptyMessage = "No categories found",
   className,
   rowHeight = 280, // Approximate card height including gap
-  overscan = 3,
+  overscan = 1,
   skeletonCount = 7, // Default to 7 skeletons
   scrollKey, // Optional key for scroll persistence
   datasetKey,
 }: VirtualizedCategoryGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [visibleRange, setVisibleRange] = useState({ start: 0, end: 50 });
-  const [revealedEnd, setRevealedEnd] = useState(() =>
-    Math.min(categories.length, STARTUP_PREWARM_COUNT)
-  );
-  const [hasScrolled, setHasScrolled] = useState(false);
-  const datasetGenerationRef = useRef(0);
+  const [visibleRange, setVisibleRange] = useState({ start: 0, end: STARTUP_PREWARM_COUNT });
 
   // Calculate responsive items per row based on grid columns
   // Optimized breakpoints: 2 → 3 → 4 → 5 → 6 → 7 → 8 (max)
@@ -78,27 +72,11 @@ export function VirtualizedCategoryGrid({
     return () => window.removeEventListener("resize", updateColumns);
   }, []);
 
-  // A filter/sort switch must immediately discard the old progressive queue.
-  // The generation guard also makes a callback that was already dequeued before
-  // cancellation harmless.
+  // A filter/sort switch must discard the old window before the next paint.
   useLayoutEffect(() => {
-    datasetGenerationRef.current += 1;
-    setRevealedEnd(Math.min(categories.length, STARTUP_PREWARM_COUNT));
-    setVisibleRange({ start: 0, end: 50 });
-    setHasScrolled(false);
-  }, [categories.length, datasetKey]);
-
-  useEffect(() => {
-    if (revealedEnd >= categories.length) return;
-
-    const generation = datasetGenerationRef.current;
-    const frameId = window.requestAnimationFrame(() => {
-      if (generation !== datasetGenerationRef.current) return;
-      setRevealedEnd((current) => Math.min(categories.length, current + REVEAL_BATCH_SIZE));
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [categories.length, datasetKey, revealedEnd]);
+    if (containerRef.current) containerRef.current.scrollTop = 0;
+    setVisibleRange({ start: 0, end: STARTUP_PREWARM_COUNT });
+  }, [datasetKey]);
 
   // Calculate row count and total height
   const totalRows = Math.ceil(categories.length / itemsPerRow);
@@ -141,8 +119,6 @@ export function VirtualizedCategoryGrid({
   const handleScroll = useCallback((event?: Event) => {
     if (!containerRef.current) return;
 
-    if (event) setHasScrolled(true);
-
     const {
       rowHeight: rh,
       overscan: ov,
@@ -164,8 +140,7 @@ export function VirtualizedCategoryGrid({
     const endIndex = Math.min(categoriesLength, (endRow + ov) * ipr);
 
     setVisibleRange((prev) => {
-      // Only update if changed significantly to avoid excessive rerenders
-      if (Math.abs(prev.start - startIndex) > ipr || Math.abs(prev.end - endIndex) > ipr) {
+      if (prev.start !== startIndex || prev.end !== endIndex) {
         return { start: startIndex, end: endIndex };
       }
       return prev;
@@ -239,23 +214,14 @@ export function VirtualizedCategoryGrid({
     return () => container.removeEventListener("scroll", saveScrollPosition);
   }, [scrollKey]);
 
-  const activeRange = useMemo(
-    () => (hasScrolled ? visibleRange : { start: 0, end: revealedEnd }),
-    [hasScrolled, revealedEnd, visibleRange]
-  );
-  const isPendingWindow = hasScrolled && activeRange.end > revealedEnd;
-
   // Visible items slice
   const visibleCategories = useMemo(
-    () =>
-      isPendingWindow
-        ? []
-        : categories.slice(activeRange.start, Math.min(activeRange.end, revealedEnd)),
-    [activeRange, categories, isPendingWindow, revealedEnd]
+    () => categories.slice(visibleRange.start, visibleRange.end),
+    [categories, visibleRange]
   );
 
   // Calculate offset for visible items
-  const startRow = Math.floor(activeRange.start / itemsPerRow);
+  const startRow = Math.floor(visibleRange.start / itemsPerRow);
   const offsetTop = startRow * rowHeight;
 
   // Dynamic grid style based on itemsPerRow
@@ -304,18 +270,22 @@ export function VirtualizedCategoryGrid({
           className={cn("absolute left-0 right-0 pl-0.5 pr-4 pt-2", className)}
           style={{ ...gridStyle, top: offsetTop }}
         >
-          {visibleCategories.map((category) => (
-            <div
-              key={`${category.platform}-${category.id}`}
-              className="transition-opacity duration-150"
-            >
-              <CategoryCard category={category} imageLoading="eager" imageFetchPriority="high" />
-            </div>
-          ))}
-          {isPendingWindow &&
-            Array.from({ length: activeRange.end - activeRange.start }).map((_, index) => (
-              <CategoryCardSkeleton key={`pending-${activeRange.start + index}`} />
-            ))}
+          {visibleCategories.map((category, index) => {
+            const absoluteIndex = visibleRange.start + index;
+            const prioritizeImage = absoluteIndex < itemsPerRow * 2;
+            return (
+              <div
+                key={`${category.platform}-${category.id}`}
+                className="transition-opacity duration-150"
+              >
+                <CategoryCard
+                  category={category}
+                  imageLoading={prioritizeImage ? "eager" : "lazy"}
+                  imageFetchPriority={prioritizeImage ? "high" : "auto"}
+                />
+              </div>
+            );
+          })}
         </div>
 
         {/* Loading skeletons at bottom when fetching more */}

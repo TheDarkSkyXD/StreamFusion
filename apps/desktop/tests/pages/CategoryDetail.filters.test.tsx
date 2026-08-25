@@ -34,6 +34,7 @@ vi.mock("@/hooks/queries/useCategories", () => ({
     error: null,
   })),
   useTopCategories: vi.fn(() => ({ data: [] })),
+  useInfiniteTopCategories: vi.fn(() => ({ data: [], isLoading: false })),
 }));
 
 vi.mock("@/hooks/queries/useInfiniteStreams", () => ({

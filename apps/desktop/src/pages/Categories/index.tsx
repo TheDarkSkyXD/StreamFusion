@@ -87,6 +87,7 @@ export function CategoriesPage() {
             onLoadMore={() => void fetchNextPage()}
             skeletonCount={12}
             scrollKey="categories-page"
+            datasetKey={searchQuery.trim().toLowerCase() || "all"}
             emptyMessage={
               searchQuery ? `No categories matching "${searchQuery}"` : "No categories found"
             }
