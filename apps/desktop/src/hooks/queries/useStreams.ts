@@ -22,7 +22,7 @@ export const STREAM_KEYS = {
     [...STREAM_KEYS.all, "channel", platform, username] as const,
 };
 
-const KICK_FOLLOWED_STATUS_REFETCH_INTERVAL_MS = 15_000;
+const KICK_FOLLOWED_STATUS_REFETCH_INTERVAL_MS = 60_000;
 const KICK_CHANNEL_STATUS_REFETCH_INTERVAL_MS = 10_000;
 
 export function removeFollowedStreamFromCache(

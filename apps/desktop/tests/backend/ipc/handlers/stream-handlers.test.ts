@@ -74,6 +74,7 @@ import { kickClient } from "@/backend/api/platforms/kick/kick-client";
 import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
 import { clients } from "@/backend/api/unified/registry";
 import {
+  isKickRateLimitError,
   KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS,
   registerStreamHandlers,
   shouldDeferKickStartupFollowedStreamScan,
@@ -334,6 +335,38 @@ describe("STREAMS_GET_BY_CHANNEL", () => {
 });
 
 describe("STREAMS_GET_FOLLOWED", () => {
+  it("classifies Kick rate-limit failures without matching unrelated errors", () => {
+    expect(isKickRateLimitError(new Error("Request failed with status 429"))).toBe(true);
+    expect(isKickRateLimitError(new Error("Kick rate limit exceeded"))).toBe(true);
+    expect(isKickRateLimitError(new Error("Request failed with status 500"))).toBe(false);
+  });
+
+  it("does not fan a rate-limited bulk status request out across every followed slug", async () => {
+    vi.mocked(twitchClient.isAuthenticated).mockReturnValue(false);
+    vi.mocked(kickClient.isAuthenticated).mockReturnValue(false);
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) =>
+      platform === "kick"
+        ? [
+            { ...follow("kick-one"), channelId: "101" },
+            { ...follow("kick-two"), channelId: "102" },
+          ]
+        : []
+    );
+    vi.mocked(kickClient.getStreamsByBroadcasterIds).mockRejectedValue(
+      new Error("Request failed with status 429")
+    );
+    vi.mocked(kickClient.getChannelsByBroadcasterIds).mockResolvedValue([
+      channel("101", "kick-one"),
+      channel("102", "kick-two"),
+    ]);
+
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_FOLLOWED);
+    const result = await handler({}, { platform: "kick" });
+
+    expect(result.error).toContain("429");
+    expect(kickClient.getPublicStreamBySlug).not.toHaveBeenCalled();
+  });
+
   it("keeps startup Kick followed-stream scans enabled", () => {
     expect(shouldDeferKickStartupFollowedStreamScan(undefined, 1000, 0)).toBe(false);
     expect(shouldDeferKickStartupFollowedStreamScan("kick", 1000, 0)).toBe(false);

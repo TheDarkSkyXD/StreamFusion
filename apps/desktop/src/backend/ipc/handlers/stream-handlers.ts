@@ -16,6 +16,11 @@ import {
 
 export const KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS = 0;
 
+export function isKickRateLimitError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /(?:\b429\b|rate[ -]?limit)/i.test(message);
+}
+
 export function shouldDeferKickStartupFollowedStreamScan(
   platform: Platform | undefined,
   now: number,
@@ -358,6 +363,13 @@ export function registerStreamHandlers(): void {
                 }
                 officialLiveLookupSucceeded = true;
               } catch (err) {
+                if (isKickRateLimitError(err)) {
+                  logger.info(
+                    "IPC:Stream",
+                    "Kick live-status bulk lookup rate limited; preserving cached renderer data"
+                  );
+                  throw err;
+                }
                 logger.warn(
                   "IPC:Stream",
                   "Failed to fetch Kick live status via official livestreams API; falling back to slug scan",
@@ -521,9 +533,8 @@ export function registerStreamHandlers(): void {
         channelSlug: string;
       }
     ) => {
-      const { TwitchStreamResolver } = await import(
-        "../../api/platforms/twitch/twitch-stream-resolver"
-      );
+      const { TwitchStreamResolver } =
+        await import("../../api/platforms/twitch/twitch-stream-resolver");
       const { KickStreamResolver } = await import("../../api/platforms/kick/kick-stream-resolver");
       const { kickClient } = await import("../../api/platforms/kick/kick-client");
 

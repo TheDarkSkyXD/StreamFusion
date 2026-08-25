@@ -19,16 +19,26 @@ interface FeaturedStreamProps {
   stream?: UnifiedStream;
   streams?: UnifiedStream[];
   isLoading?: boolean;
+  activeIndex?: number;
+  onActiveIndexChange?: (index: number) => void;
+  isAutoRotationEnabled?: boolean;
 }
 
-export function FeaturedStream({ stream, streams, isLoading }: FeaturedStreamProps) {
+export function FeaturedStream({
+  stream,
+  streams,
+  isLoading,
+  activeIndex: controlledActiveIndex,
+  onActiveIndexChange,
+  isAutoRotationEnabled = true,
+}: FeaturedStreamProps) {
   const carouselStreams = useMemo(() => {
     const candidates = streams && streams.length > 0 ? streams : stream ? [stream] : [];
     return candidates.slice(0, 10);
   }, [stream, streams]);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [uncontrolledActiveIndex, setUncontrolledActiveIndex] = useState(0);
   const [isPreviewMuted, setIsPreviewMuted] = useState(true);
-  const [previewRequested, setPreviewRequested] = useState(false);
+  const activeIndex = controlledActiveIndex ?? uncontrolledActiveIndex;
   const activeStream = carouselStreams[activeIndex] ?? carouselStreams[0];
   const hasMultipleSlides = carouselStreams.length > 1;
   const homeCarouselIntervalMs = useAppStore((state) => state.homeCarouselIntervalMs);
@@ -38,18 +48,16 @@ export function FeaturedStream({ stream, streams, isLoading }: FeaturedStreamPro
   const previewMuted = isPreviewMuted || previewVolume <= 0;
 
   useEffect(() => {
-    setActiveIndex((current) => (current >= carouselStreams.length ? 0 : current));
-  }, [carouselStreams.length]);
-
-  useEffect(() => {
-    setPreviewRequested(false);
-  }, [activeStream?.platform, activeStream?.channelName]);
+    if (controlledActiveIndex !== undefined || uncontrolledActiveIndex < carouselStreams.length)
+      return;
+    setUncontrolledActiveIndex(0);
+  }, [carouselStreams.length, controlledActiveIndex, uncontrolledActiveIndex]);
 
   useInterval(
     () => {
-      setActiveIndex((current) => (current >= carouselStreams.length - 1 ? 0 : current + 1));
+      changeActiveIndex(activeIndex >= carouselStreams.length - 1 ? 0 : activeIndex + 1);
     },
-    hasMultipleSlides ? homeCarouselIntervalMs : null
+    hasMultipleSlides && isAutoRotationEnabled ? homeCarouselIntervalMs : null
   );
 
   if (isLoading) {
@@ -72,6 +80,14 @@ export function FeaturedStream({ stream, streams, isLoading }: FeaturedStreamPro
 
   if (!activeStream) return null;
 
+  function changeActiveIndex(index: number) {
+    if (onActiveIndexChange) {
+      onActiveIndexChange(index);
+      return;
+    }
+    setUncontrolledActiveIndex(index);
+  }
+
   const PlatformIcon = activeStream.platform === "twitch" ? TwitchIcon : KickIcon;
   const platformColor = activeStream.platform === "twitch" ? "text-[#9146FF]" : "text-[#53FC18]";
   const platformLiveDotColor = activeStream.platform === "twitch" ? "bg-[#9146FF]" : "bg-[#53FC18]";
@@ -87,13 +103,13 @@ export function FeaturedStream({ stream, streams, isLoading }: FeaturedStreamPro
   const showTags = uniqueTagLabels(tags).slice(0, 2);
 
   const goToPrevious = () => {
-    setActiveIndex((current) =>
-      current === 0 ? Math.max(carouselStreams.length - 1, 0) : current - 1
+    changeActiveIndex(
+      activeIndex === 0 ? Math.max(carouselStreams.length - 1, 0) : activeIndex - 1
     );
   };
 
   const goToNext = () => {
-    setActiveIndex((current) => (current >= carouselStreams.length - 1 ? 0 : current + 1));
+    changeActiveIndex(activeIndex >= carouselStreams.length - 1 ? 0 : activeIndex + 1);
   };
 
   const togglePreviewAudio = () => {
@@ -106,11 +122,7 @@ export function FeaturedStream({ stream, streams, isLoading }: FeaturedStreamPro
   };
 
   return (
-    <div
-      className="group relative h-[560px] w-full overflow-hidden rounded-lg border border-[var(--color-border)] bg-black"
-      onPointerEnter={() => setPreviewRequested(true)}
-      onFocusCapture={() => setPreviewRequested(true)}
-    >
+    <div className="group relative h-[560px] w-full overflow-hidden rounded-lg border border-[var(--color-border)] bg-black">
       <Link
         to="/stream/$platform/$channel"
         params={{ platform: activeStream.platform, channel: activeStream.channelName }}
@@ -126,13 +138,11 @@ export function FeaturedStream({ stream, streams, isLoading }: FeaturedStreamPro
           width={1920}
           height={1080}
         />
-        {previewRequested && (
-          <FeaturedStreamPreview
-            stream={activeStream}
-            muted={previewMuted}
-            volume={previewVolume > 0 ? previewVolume : 0.5}
-          />
-        )}
+        <FeaturedStreamPreview
+          stream={activeStream}
+          muted={previewMuted}
+          volume={previewVolume > 0 ? previewVolume : 0.5}
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/15" />
       </Link>
 
@@ -224,7 +234,7 @@ export function FeaturedStream({ stream, streams, isLoading }: FeaturedStreamPro
                   )}
                   aria-label={`Show ${carouselStream.channelDisplayName}`}
                   aria-current={index === activeIndex ? "true" : undefined}
-                  onClick={() => setActiveIndex(index)}
+                  onClick={() => changeActiveIndex(index)}
                 />
               ))}
             </div>

@@ -13,8 +13,8 @@ import {
 } from "@/backend/ipc/handlers/auth-handlers";
 import { isKickAccountReconciliationActive } from "@/backend/services/kick-account-reconciliation-coordinator";
 
-it("polls connected account follows every minute in the background", () => {
-  expect(FOLLOWS_REFRESH_INTERVAL_MS).toBe(60_000);
+it("polls connected account follows every fifteen minutes in the background", () => {
+  expect(FOLLOWS_REFRESH_INTERVAL_MS).toBe(15 * 60_000);
 });
 
 // Guards: a Kick row missing from an additive DOM scrape is deleted only after its own identity-matched first-party relationship explicitly confirms not-followed.

@@ -36,13 +36,38 @@ interface AppLayoutProps {
 }
 
 const navItems = [
-  { path: "/", label: "Home", icon: LuHouse },
-  { path: "/following", label: "Following", icon: LuHeart },
-  { path: "/categories", label: "Categories", icon: LuGrid3X3 },
-  { path: "/multistream", label: "MultiView", icon: LuLayoutDashboard },
-  { path: "/history", label: "History", icon: LuHistory },
-  { path: "/downloads", label: "Downloads", icon: LuDownload },
-  { path: "/settings", label: "Settings", icon: IoMdSettings },
+  { path: "/", label: "Home", icon: LuHouse, preload: () => import("@/pages/Home") },
+  {
+    path: "/following",
+    label: "Following",
+    icon: LuHeart,
+    preload: () => import("@/pages/Following"),
+  },
+  {
+    path: "/categories",
+    label: "Categories",
+    icon: LuGrid3X3,
+    preload: () => import("@/pages/Categories"),
+  },
+  {
+    path: "/multistream",
+    label: "MultiView",
+    icon: LuLayoutDashboard,
+    preload: () => import("@/pages/MultiStream"),
+  },
+  { path: "/history", label: "History", icon: LuHistory, preload: () => import("@/pages/History") },
+  {
+    path: "/downloads",
+    label: "Downloads",
+    icon: LuDownload,
+    preload: () => import("@/pages/Downloads"),
+  },
+  {
+    path: "/settings",
+    label: "Settings",
+    icon: IoMdSettings,
+    preload: () => import("@/pages/Settings"),
+  },
 ] as const;
 
 export function AppLayout({ children }: AppLayoutProps) {
@@ -89,6 +114,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                       <li key={item.path}>
                         <Link
                           to={item.path}
+                          onPointerEnter={() => void item.preload()}
+                          onFocus={() => void item.preload()}
                           className={cn(
                             "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
                             isActive

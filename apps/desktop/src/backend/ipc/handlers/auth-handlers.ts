@@ -368,7 +368,7 @@ export async function syncTwitchFollowsAfterLogin(
 }
 
 export const KICK_STARTUP_FOLLOW_REFRESH_GRACE_MS = 60 * 1000;
-export const FOLLOWS_REFRESH_INTERVAL_MS = 60 * 1000;
+export const FOLLOWS_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 
 export function shouldDeferKickStartupFollowRefresh(
   platform: Platform,

@@ -1,34 +1,31 @@
-import { act } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  HOME_CAROUSEL_INTERVAL_DEFAULT_MS,
-  useAppStore,
-} from '@/store/app-store';
-import { useVolumeStore } from '@/store/volume-store';
+import { HOME_CAROUSEL_INTERVAL_DEFAULT_MS, useAppStore } from "@/store/app-store";
+import { useVolumeStore } from "@/store/volume-store";
 
-import { fireEvent, fixtures, renderWithProviders, routerMock, screen } from '../../test-utils';
+import { fireEvent, fixtures, renderWithProviders, routerMock, screen } from "../../test-utils";
 
 const mocks = vi.hoisted(() => ({
   useStreamPlayback: vi.fn(),
 }));
 
-vi.mock('@tanstack/react-router', () => routerMock());
+vi.mock("@tanstack/react-router", () => routerMock());
 
-vi.mock('@/components/ui/proxied-image', () => ({
+vi.mock("@/components/ui/proxied-image", () => ({
   ProxiedImage: ({ alt }: { alt: string }) => <div data-testid="featured-img">{alt}</div>,
 }));
 
-vi.mock('@/hooks/useStreamPlayback', () => ({
+vi.mock("@/hooks/useStreamPlayback", () => ({
   useStreamPlayback: mocks.useStreamPlayback,
 }));
 
-vi.mock('@/store/adblock-store', () => ({
+vi.mock("@/store/adblock-store", () => ({
   useAdBlockStore: (selector: (state: { enableAdBlock: boolean }) => boolean) =>
     selector({ enableAdBlock: true }),
 }));
 
-vi.mock('@/components/player/hls-player', () => ({
+vi.mock("@/components/player/hls-player", () => ({
   HlsPlayer: ({
     src,
     autoPlay,
@@ -50,7 +47,7 @@ vi.mock('@/components/player/hls-player', () => ({
   ),
 }));
 
-vi.mock('@/components/player/twitch/twitch-hls-player', () => ({
+vi.mock("@/components/player/twitch/twitch-hls-player", () => ({
   TwitchHlsPlayer: ({
     src,
     channelName,
@@ -78,24 +75,24 @@ vi.mock('@/components/player/twitch/twitch-hls-player', () => ({
   ),
 }));
 
-import { FeaturedStream } from '@/components/stream/featured-stream';
+import { FeaturedStream } from "@/components/stream/featured-stream";
 
 // Guards: loading state renders a skeleton variant so the featured slot does not flash blank while streams load.
 // Guards: no-data state renders null because the parent owns empty-state layout.
 // Guards: success state renders title, channel, viewer badge, and watch CTA in the hero panel.
 // Guards: carousel state switches the active stream without refetching or remounting the home page.
-// Guards: preview state defers playback until pointer or keyboard intent, then renders one muted live player for the active slide.
+// Guards: preview state mounts one muted live player for the active slide without waiting for interaction.
 // Guards: preview audio can be user-unmuted without navigating away from the carousel.
 // Guards: Twitch previews use the same ad-blocking HLS player path as normal stream playback.
 // Guards: autoplay state advances the featured slide using the user's configured interval.
 // Guards: duplicate stream tags render once in first-seen order so repeated labels cannot hide a distinct hero tag or trigger duplicate React keys.
-describe('FeaturedStream', () => {
+describe("FeaturedStream", () => {
   beforeEach(() => {
     localStorage.clear();
     useAppStore.setState({ homeCarouselIntervalMs: HOME_CAROUSEL_INTERVAL_DEFAULT_MS });
     useVolumeStore.setState({ volume: 100, isMuted: false });
     mocks.useStreamPlayback.mockReturnValue({
-      playback: { url: 'https://example.com/live.m3u8', format: 'hls' },
+      playback: { url: "https://example.com/live.m3u8", format: "hls" },
       isLoading: false,
       error: null,
       reload: vi.fn(),
@@ -105,23 +102,23 @@ describe('FeaturedStream', () => {
     });
   });
 
-  it('loading: renders skeleton variant when isLoading=true', () => {
+  it("loading: renders skeleton variant when isLoading=true", () => {
     const { container } = renderWithProviders(<FeaturedStream isLoading={true} />);
     expect(container.querySelector('[class*="rounded-lg"]')).toBeInTheDocument();
-    expect(container.firstElementChild?.className).toContain('h-[560px]');
+    expect(container.firstElementChild?.className).toContain("h-[560px]");
   });
 
-  it('renders nothing when no stream and not loading', () => {
+  it("renders nothing when no stream and not loading", () => {
     const { container } = renderWithProviders(<FeaturedStream />);
     expect(container.firstChild).toBeNull();
   });
 
-  it('renders the media banner details when a stream is provided', () => {
+  it("renders the media banner details when a stream is provided", () => {
     renderWithProviders(
       <FeaturedStream
         stream={fixtures.stream({
-          title: 'My Featured',
-          channelDisplayName: 'Feature Channel',
+          title: "My Featured",
+          channelDisplayName: "Feature Channel",
           viewerCount: 6900,
         })}
       />
@@ -129,105 +126,101 @@ describe('FeaturedStream', () => {
 
     expect(screen.getAllByText(/my featured/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/feature channel/i).length).toBeGreaterThan(0);
-    expect(screen.getByText('6.9K')).toBeInTheDocument();
+    expect(screen.getByText("6.9K")).toBeInTheDocument();
     expect(screen.getAllByText(/watch now/i).length).toBeGreaterThan(0);
-    expect(screen.queryByTestId('featured-twitch-preview-player')).not.toBeInTheDocument();
-
-    fireEvent.pointerEnter(screen.getAllByText(/my featured/i)[0].closest('.group')!);
-
-    expect(screen.getByTestId('featured-twitch-preview-player')).toHaveAttribute(
-      'data-src',
-      'https://example.com/live.m3u8'
+    expect(screen.getByTestId("featured-twitch-preview-player")).toHaveAttribute(
+      "data-src",
+      "https://example.com/live.m3u8"
     );
-    expect(screen.getByTestId('featured-twitch-preview-player')).toHaveAttribute(
-      'data-autoplay',
-      'true'
+    expect(screen.getByTestId("featured-twitch-preview-player")).toHaveAttribute(
+      "data-autoplay",
+      "true"
     );
-    expect(screen.getByTestId('featured-twitch-preview-player')).toHaveAttribute(
-      'data-muted',
-      'true'
+    expect(screen.getByTestId("featured-twitch-preview-player")).toHaveAttribute(
+      "data-muted",
+      "true"
     );
-    expect(screen.getByTestId('featured-twitch-preview-player')).toHaveAttribute(
-      'data-volume',
-      '1'
+    expect(screen.getByTestId("featured-twitch-preview-player")).toHaveAttribute(
+      "data-volume",
+      "1"
     );
   });
 
-  it('renders duplicate tag labels once before applying the two-pill limit', () => {
+  it("renders duplicate tag labels once before applying the two-pill limit", () => {
     renderWithProviders(
       <FeaturedStream
         stream={fixtures.stream({
           categoryName: undefined,
           language: undefined,
-          tags: ['Tactical', 'Tactical', 'RTS', 'RTS'],
+          tags: ["Tactical", "Tactical", "RTS", "RTS"],
         })}
       />
     );
 
     expect(screen.getAllByText(/^(Tactical|RTS)$/).map((tag) => tag.textContent)).toEqual([
-      'Tactical',
-      'RTS',
+      "Tactical",
+      "RTS",
     ]);
   });
 
-  it('lets the user unmute the preview audio', () => {
+  it("lets the user unmute the preview audio", () => {
     renderWithProviders(
-      <FeaturedStream stream={fixtures.stream({ platform: 'kick', channelName: 'kickchan' })} />
+      <FeaturedStream stream={fixtures.stream({ platform: "kick", channelName: "kickchan" })} />
     );
 
     fireEvent.focus(screen.getAllByText(/watch now/i)[0]);
 
-    expect(screen.getByTestId('featured-preview-player')).toHaveAttribute('data-muted', 'true');
-    expect(screen.getByTestId('featured-preview-player')).toHaveAttribute('data-volume', '1');
+    expect(screen.getByTestId("featured-preview-player")).toHaveAttribute("data-muted", "true");
+    expect(screen.getByTestId("featured-preview-player")).toHaveAttribute("data-volume", "1");
 
-    fireEvent.click(screen.getByRole('button', { name: /unmute preview/i }));
+    fireEvent.click(screen.getByRole("button", { name: /unmute preview/i }));
 
-    expect(screen.getByTestId('featured-preview-player')).toHaveAttribute('data-muted', 'false');
-    expect(screen.getByRole('button', { name: /mute preview/i })).toBeInTheDocument();
+    expect(screen.getByTestId("featured-preview-player")).toHaveAttribute("data-muted", "false");
+    expect(screen.getByRole("button", { name: /mute preview/i })).toBeInTheDocument();
   });
 
-  it('uses the Twitch ad-blocking player for Twitch previews', () => {
+  it("uses the Twitch ad-blocking player for Twitch previews", () => {
     renderWithProviders(
-      <FeaturedStream stream={fixtures.stream({ platform: 'twitch', channelName: 'twitchchan' })} />
+      <FeaturedStream stream={fixtures.stream({ platform: "twitch", channelName: "twitchchan" })} />
     );
 
-    fireEvent.pointerEnter(screen.getAllByText(/watch now/i)[0].closest('.group')!);
+    fireEvent.pointerMove(screen.getAllByText(/watch now/i)[0].closest(".group")!);
 
-    expect(screen.getByTestId('featured-twitch-preview-player')).toHaveAttribute(
-      'data-channel-name',
-      'twitchchan'
+    expect(screen.getByTestId("featured-twitch-preview-player")).toHaveAttribute(
+      "data-channel-name",
+      "twitchchan"
     );
-    expect(screen.getByTestId('featured-twitch-preview-player')).toHaveAttribute(
-      'data-enable-ad-block',
-      'true'
+    expect(screen.getByTestId("featured-twitch-preview-player")).toHaveAttribute(
+      "data-enable-ad-block",
+      "true"
     );
   });
 
-  it('uses the standard HLS player for Kick previews', () => {
+  it("uses the standard HLS player for Kick previews", () => {
     renderWithProviders(
-      <FeaturedStream stream={fixtures.stream({ platform: 'kick', channelName: 'kickchan' })} />
+      <FeaturedStream stream={fixtures.stream({ platform: "kick", channelName: "kickchan" })} />
     );
 
-    fireEvent.pointerEnter(screen.getAllByText(/watch now/i)[0].closest('.group')!);
+    fireEvent.pointerMove(screen.getAllByText(/watch now/i)[0].closest(".group")!);
 
-    expect(screen.getByTestId('featured-preview-player')).toHaveAttribute(
-      'data-src',
-      'https://example.com/live.m3u8'
+    expect(screen.getByTestId("featured-preview-player")).toHaveAttribute(
+      "data-src",
+      "https://example.com/live.m3u8"
     );
-    expect(screen.queryByTestId('featured-twitch-preview-player')).not.toBeInTheDocument();
+    expect(screen.queryByTestId("featured-twitch-preview-player")).not.toBeInTheDocument();
   });
 
   it.each([
-    ['twitch', 'bg-[#9146FF]', 'text-white'],
-    ['kick', 'bg-[#53FC18]', 'text-black'],
+    ["twitch", "bg-[#9146FF]", "text-white"],
+    ["kick", "bg-[#53FC18]", "text-black"],
   ] as const)(
-    'uses %s color for the live dot and Watch now button',
+    "uses %s color for the live dot and Watch now button",
     (platform, expectedBgClass, expectedTextClass) => {
       const { container } = renderWithProviders(
         <FeaturedStream stream={fixtures.stream({ platform })} />
       );
 
-      const liveDot = container.querySelector('.absolute.left-4.top-4 span');
+      const liveDot = container.querySelector(".absolute.left-4.top-4 span");
       expect(liveDot?.className).toContain(expectedBgClass);
 
       const watchNowButton = screen.getAllByText(/watch now/i)[0];
@@ -236,25 +229,88 @@ describe('FeaturedStream', () => {
     }
   );
 
-  it('switches active stream with carousel controls', () => {
+  it("switches active stream with carousel controls", () => {
     const streams = [
-      fixtures.stream({ id: 's1', title: 'First Featured', channelDisplayName: 'First Channel' }),
-      fixtures.stream({ id: 's2', title: 'Second Featured', channelDisplayName: 'Second Channel' }),
+      fixtures.stream({
+        id: "s1",
+        channelName: "first-channel",
+        title: "First Featured",
+        channelDisplayName: "First Channel",
+      }),
+      fixtures.stream({
+        id: "s2",
+        channelName: "second-channel",
+        title: "Second Featured",
+        channelDisplayName: "Second Channel",
+      }),
     ];
 
     renderWithProviders(<FeaturedStream stream={streams[0]} streams={streams} />);
 
     expect(screen.getAllByText(/first featured/i).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole('button', { name: /next featured stream/i }));
+    fireEvent.click(screen.getByRole("button", { name: /next featured stream/i }));
     expect(screen.getAllByText(/second featured/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/second channel/i).length).toBeGreaterThan(0);
+    expect(mocks.useStreamPlayback).toHaveBeenLastCalledWith("twitch", "second-channel");
+    expect(screen.getByTestId("featured-twitch-preview-player")).toHaveAttribute(
+      "data-autoplay",
+      "true"
+    );
   });
 
-  it('auto-advances to the next stream every 15 seconds', () => {
+  it("reports carousel changes to a controlled owner", () => {
+    const onActiveIndexChange = vi.fn();
+    const streams = [
+      fixtures.stream({ id: "s1", title: "First Featured" }),
+      fixtures.stream({ id: "s2", title: "Second Featured" }),
+    ];
+
+    renderWithProviders(
+      <FeaturedStream
+        stream={streams[0]}
+        streams={streams}
+        activeIndex={0}
+        onActiveIndexChange={onActiveIndexChange}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /next featured stream/i }));
+    expect(onActiveIndexChange).toHaveBeenCalledWith(1);
+    expect(screen.getAllByText(/first featured/i).length).toBeGreaterThan(0);
+  });
+
+  it("does not start a second timer when a controlled owner rotates the carousel", () => {
+    vi.useFakeTimers();
+    const onActiveIndexChange = vi.fn();
+    const streams = [
+      fixtures.stream({ id: "s1", title: "First Featured" }),
+      fixtures.stream({ id: "s2", title: "Second Featured" }),
+    ];
+
+    try {
+      renderWithProviders(
+        <FeaturedStream
+          stream={streams[0]}
+          streams={streams}
+          activeIndex={0}
+          onActiveIndexChange={onActiveIndexChange}
+          isAutoRotationEnabled={false}
+        />
+      );
+      act(() => {
+        vi.advanceTimersByTime(HOME_CAROUSEL_INTERVAL_DEFAULT_MS);
+      });
+      expect(onActiveIndexChange).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("auto-advances to the next stream every 15 seconds", () => {
     vi.useFakeTimers();
     const streams = [
-      fixtures.stream({ id: 's1', title: 'First Featured', channelDisplayName: 'First Channel' }),
-      fixtures.stream({ id: 's2', title: 'Second Featured', channelDisplayName: 'Second Channel' }),
+      fixtures.stream({ id: "s1", title: "First Featured", channelDisplayName: "First Channel" }),
+      fixtures.stream({ id: "s2", title: "Second Featured", channelDisplayName: "Second Channel" }),
     ];
 
     try {
@@ -270,12 +326,12 @@ describe('FeaturedStream', () => {
     }
   });
 
-  it('uses the configured carousel interval for auto-advance', () => {
+  it("uses the configured carousel interval for auto-advance", () => {
     vi.useFakeTimers();
     useAppStore.setState({ homeCarouselIntervalMs: 30_000 });
     const streams = [
-      fixtures.stream({ id: 's1', title: 'First Featured', channelDisplayName: 'First Channel' }),
-      fixtures.stream({ id: 's2', title: 'Second Featured', channelDisplayName: 'Second Channel' }),
+      fixtures.stream({ id: "s1", title: "First Featured", channelDisplayName: "First Channel" }),
+      fixtures.stream({ id: "s2", title: "Second Featured", channelDisplayName: "Second Channel" }),
     ];
 
     try {
