@@ -48,4 +48,4 @@ The renderer entry point is `renderer.tsx`. The React tree root is `App.tsx`, wh
 - **Custom URL schemes are registered before `app.ready`.** `kick-image://` and `twitch-image://` are privileged schemes registered in `main.ts`. Do not add new schemes without registering them in the same `protocol.registerSchemesAsPrivileged` call.
 - **Emote providers initialize lazily.** Emote provider setup runs on first `ChatPanel` mount via `ensureEmoteProvidersInitialized()` — do not eagerly initialize in `App.tsx` or at module load time.
 - **Dev and production use separate `userData` directories.** Dev appends ` (Dev)` to the path so both can run simultaneously. Do not hardcode userData paths.
-- **`webSecurity: false` is intentional.** Required for cross-origin video stream playback. Do not remove without resolving the worker-auth/proxy-removal dependency.
+- **`webSecurity: false` is intentional.** Required for cross-origin video stream playback. Do not remove without validating Twitch and Kick playback in the packaged app.

@@ -3,7 +3,7 @@
   "permissionDenyToAskHealV1": true,
   "valoPermissionGroupRuleVersions": {
     "index": 1,
-    "ghost": 1
+    "ghost": 2
   },
   "valoPermissionGroupChoices": {
     "index": "ask",
@@ -14,6 +14,7 @@
       "mcp__valo-index__index",
       "mcp__valo__ghost_click",
       "mcp__valo__ghost_click_xy",
+      "mcp__valo__ghost_upload_file",
       "mcp__valo__ghost_type",
       "mcp__valo__ghost_key",
       "mcp__valo__ghost_scroll",

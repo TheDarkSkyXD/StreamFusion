@@ -49,7 +49,7 @@ Each client transforms raw API → Unified types via `*-transformers.ts`.
 
 ### Requestor Pattern
 - Twitch: Standard `fetch`, OAuth2 app token
-- Kick: `electron.net` (IPv6 issues), dual token strategy
+- Kick: `electron.net` (IPv6 issues), signed-in user token for official API calls
 
 ### Method Naming
 ```
@@ -59,7 +59,7 @@ getTopStreams           ↔  getTopStreams
 
 ## ANTI-PATTERNS
 
-- **kick-client.ts**: Mixes HTTP, auth, retries, and API proxying
+- **kick-client.ts**: Mixes HTTP, auth, retries, and endpoint delegation
 - **stream-endpoints.ts**: Manual `net.request` reimplementation
 - Kick has official Public API docs at `https://docs.kick.com/`; legacy/undocumented APIs still exist as fallbacks for gaps. See `kick/AGENTS.md`.
 

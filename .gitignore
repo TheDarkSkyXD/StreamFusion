@@ -5,6 +5,9 @@ logs
 /.scratch/logs/
 /.scratch/images/
 /.scratch/runtime/
+/apps/desktop/.scratch-icon-package/
+/.tmp-*.png
+/.claude/settings.local.json
 
 # Claude Code worktrees (per-session isolated checkouts under .claude/worktrees/)
 .claude/worktrees/

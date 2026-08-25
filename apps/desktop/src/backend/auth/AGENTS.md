@@ -80,7 +80,7 @@ tokenExchangeService.refreshToken({ platform, refreshToken })
 - **Kick sandbox: false.** Kick's BrowserWindow runs without Chromium sandbox to allow Kasada bot-detection challenges to execute. Twitch stays sandboxed.
 - **Cloudflare cookies are preserved on Kick logout.** `clearKickSessionCookies` skips `cf_clearance` and `__cf_bm` so the next visit doesn't re-trigger a WAF challenge.
 - **Kick OAuth and website chat auth are separate credential families.** Refresh failure may invalidate OAuth, but must not close the website chat sender or erase its cookies/bearer. Explicit logout clears both families.
-- **Kick app tokens stay inside the Worker.** Desktop code must never fetch or store a Kick app token; official Kick public reads go through the Worker `/kick/*` proxy, which mints/caches the app token server-side and injects `Authorization`.
+- **Kick official API reads are direct and user-authenticated.** The main process sends the current user bearer to `api.kick.com`. Signed-out reads use named legacy/private fallbacks or return no data.
 - **Twitch user authentication is direct and public-client safe.** Device Code Grant and refresh call Twitch directly with the client ID and never use a Worker auth endpoint or client secret.
 - **Raw Twitch tokens remain in main except for IRC/Hermes.** The guarded `AUTH_GET_VALID_TWITCH_TOKEN` bridge exists only because those chat sockets are renderer-owned. Helix, EventSub, emotes, moderation, and account features must use main-owned capabilities and metadata responses.
 
@@ -96,7 +96,7 @@ tokenExchangeService.refreshToken({ platform, refreshToken })
 
 ## Anti-Patterns
 
-- **Do not mint app tokens in Electron.** For Kick, do not fetch app tokens into desktop at all; use the Worker-backed official API proxy. Never add client secrets to desktop config.
+- **Do not mint Kick app tokens.** The Worker is only for user-token exchange and refresh. Never add the Kick client secret or a client-credentials flow to the desktop.
 - **Do not start a second `oauthCallbackServer` while one is already waiting** — the server is a singleton and will conflict on the port.
 - **Do not call `kickAuthService.refreshToken` from multiple concurrent code paths** — the single-flight guard handles it, but the design relies on callers using the service methods rather than calling `tokenExchangeService.refreshToken` directly.
 - **Do not cache the access token string outside `storageService`** — proactive refresh rotates it at any time; always read from the service (`getAccessToken()` / `getValidAccessToken()`).

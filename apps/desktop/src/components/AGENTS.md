@@ -14,7 +14,7 @@ All React UI components for the desktop app. This directory owns visual renderin
 |-----------|---------|
 | `auth/` | Auth lifecycle: `AuthProvider` (initializes auth + follows + moderated-channels on mount), `LoginDialog`, `ProfileDropdown`, `AccountConnect`, `GuestMode`, and `ReconnectForModDialog` (prompts moderators to re-auth with mod scope). |
 | `channel/` | Placeholder — channel card/list components are stubbed out, nothing exported yet. |
-| `dev/` | Development-only tooling: `DebugPanel` (draggable overlay, hidden in production via `import.meta.env.DEV`), `PerfTool`, `ChatSimTool`, `useRenderCount` hook, and `interval-tracker`. Never import in production code paths. |
+| `dev/` | Development-only tooling: `DeveloperConsole` (draggable overlay, hidden in production via `import.meta.env.DEV`), `ChatSimTool`, `UiDebugTool`, `useRenderCount` hook, and `interval-tracker`. Never import in production code paths. |
 | `discovery/` | Browse/discover UI: `CategoryGrid` (responsive grid with skeleton loading), `VirtualizedCategoryGrid`, `CategoryCard`, `CategoryCardSkeleton`, and `CategoryFilterBar`. Consumes `UnifiedCategory` from the backend API. |
 | `icons/` | SVG icon components: `TwitchIcon`, `KickIcon`, `SevenTVIcon`, `KickEmoteIcon`. Thin wrappers; no logic. |
 | `layout/` | App shell: `AppLayout` (title bar + top nav + collapsible sidebar + main content area + persistent `MiniPlayer`), `TitleBar` (Electron window controls), `SidebarFollows` (live followed channels list). |
@@ -30,7 +30,7 @@ All React UI components for the desktop app. This directory owns visual renderin
 
 - **Platform-agnostic root, platform-specific subdirs**: shared/agnostic code lives at the directory root; Twitch- or Kick-specific code goes in `twitch/` or `kick/` subdirs. Do not add platform-specific branches to root components.
 - **`ProxiedImage` for all external images**: any `<img>` pointing at Kick CDN (`files.kick.com`, `images.kick.com`, `kick.com/img/`) or Twitch profile images (`static-cdn.jtvnw.net/jtv_user_pictures/`) must go through `<ProxiedImage>` — direct `<img src>` will 403.
-- **`DebugPanel` is dev-only**: `DebugPanel` returns `null` when `import.meta.env.DEV` is false. Never import `dev/` modules from production component trees.
+- **`DeveloperConsole` is dev-only**: `DeveloperConsole` returns `null` when `import.meta.env.DEV` is false. Never import `dev/` modules from production component trees.
 - **Store reads via selectors**: subscribe to individual store fields (not the whole store object) to avoid unnecessary re-renders. See `TopNavBar` and `AppLayout` for the established pattern.
 - **`channel/` is a stub**: nothing is exported from `channel/index.ts` yet. Do not add an import that depends on it.
 

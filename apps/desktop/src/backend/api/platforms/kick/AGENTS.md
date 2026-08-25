@@ -16,6 +16,8 @@ Owns Kick-specific API knowledge for `kick-client.ts`, `kick-requestor.ts`, `kic
 
 - Prefer official `api.kick.com/public/*` endpoints when they cover the behavior.
 - Use `KickRequestor.request()` for official authenticated API calls so token refresh, retry, rate limiting, and Electron networking stay centralized.
+- `KickRequestor.request()` sends the signed-in user's bearer directly to `api.kick.com`. It does not support app tokens or Worker-proxied data calls.
+- Keep the Cloudflare Worker limited to Kick OAuth token exchange and refresh.
 - Label any `https://kick.com/api/v1/*` or `https://kick.com/api/v2/*` usage as legacy/internal and document why the official API cannot replace it yet.
 - Do not mix official endpoint response shapes with legacy response shapes in the same transformer without naming both source contracts.
 - Re-check the OpenAPI spec before adding or changing endpoints. Kick deprecates and adds routes without this repo changing.
