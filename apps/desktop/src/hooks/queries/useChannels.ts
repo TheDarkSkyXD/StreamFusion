@@ -10,6 +10,7 @@ import type { Platform } from "../../shared/auth-types";
 
 import { useQueryCachePerformance } from "./cache-performance";
 import { getQueryCacheOptions } from "./cache-policy";
+import { savePersistedChannelMetadata } from "./persisted-channel-lru";
 
 export const CHANNEL_KEYS = {
   all: ["channels"] as const,
@@ -60,7 +61,15 @@ export function useChannelByUsername(username: string, platform: Platform) {
       if (response.error) {
         throw new Error(response.error);
       }
-      return response.data as UnifiedChannel;
+      const channel = response.data as UnifiedChannel;
+      void savePersistedChannelMetadata(channel).catch((error: unknown) => {
+        logger.warn("Hook:Queries:Channels", "failed to persist channel metadata", {
+          error: error instanceof Error ? error.message : String(error),
+          platform,
+          username,
+        });
+      });
+      return channel;
     },
     enabled: !!username && !!platform,
     ...getQueryCacheOptions("followedChannelList"),

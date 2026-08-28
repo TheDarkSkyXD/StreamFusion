@@ -72,11 +72,23 @@ export function createFollowedStreamSnapshotIdentity(
 
 export function useTopStreams(platform?: Platform, limit: number = 20) {
   const queryKey = STREAM_KEYS.top(platform, limit);
+  const snapshotSlot = `top-streams:${platform ?? "all"}`;
+  const snapshotIdentity = { platform: platform ?? "all", limit } as const;
   const query = useQuery({
     queryKey,
     queryFn: async () => {
       const response = await window.electronAPI.streams.getTop({ platform, limit });
       if (!response.success) throw new Error(response.error);
+      const persistence =
+        response.data.length > 0
+          ? savePersistedSnapshot(snapshotSlot, snapshotIdentity, response.data)
+          : deletePersistedSnapshot(snapshotSlot);
+      void persistence.catch((error: unknown) => {
+        logger.warn("Hook:Queries:Streams", "failed to persist top streams", {
+          error: error instanceof Error ? error.message : String(error),
+          platform: platform ?? "all",
+        });
+      });
       return response.data;
     },
     ...getQueryCacheOptions("streamList"),

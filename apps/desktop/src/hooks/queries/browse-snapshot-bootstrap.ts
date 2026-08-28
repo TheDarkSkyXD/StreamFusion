@@ -86,6 +86,18 @@ function setIfAbsent(
   if (client.getQueryData(key) === undefined) client.setQueryData(key, data, { updatedAt });
 }
 
+function setPersistedChannelIfAbsent(
+  client: QueryClient,
+  entry: ReturnType<typeof getPersistedChannelEntries>[number]
+): void {
+  setIfAbsent(
+    client,
+    CHANNEL_KEYS.byUsername(entry.username, entry.platform),
+    entry.data,
+    entry.savedAt
+  );
+}
+
 async function readSlot<T>(
   slot: string,
   isData: (value: unknown) => value is T
@@ -308,10 +320,7 @@ export async function hydratePersistedBrowseSnapshots(client: QueryClient): Prom
 
   await channelLruHydration;
   for (const entry of getPersistedChannelEntries()) {
-    // Exact normalized identities prevent one provider or similarly named
-    // channel from supplying the Stream page's chatroom metadata. Seed stale
-    // so the route paints immediately and still refreshes in the background.
-    setIfAbsent(client, CHANNEL_KEYS.byUsername(entry.username, entry.platform), entry.data, 0);
+    setPersistedChannelIfAbsent(client, entry);
   }
 
   await chatHistoryHydration;

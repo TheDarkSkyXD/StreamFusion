@@ -53,6 +53,7 @@ afterEach(() => {
 // Guards: the combined Following live-status query refreshes every 30 seconds, while Kick-specific followed surfaces refresh every 15 seconds and an open Kick channel every 10 seconds.
 // Guards: confirmed offline status removes only the matching Kick channel from both followed-stream caches so the sidebar changes state immediately without disturbing other platforms.
 // Guards: hook tests isolate app-wide connectivity bootstrap so generic IPC mocks cannot pause enabled stream queries.
+// Guards: successful Home discovery refreshes persist an exact restart snapshot so the next launch can paint before either platform network responds.
 describe("useTopStreams", () => {
   it("fetches top streams", async () => {
     const stream = fixtures.stream();
@@ -77,6 +78,31 @@ describe("useTopStreams", () => {
     renderHook(() => useTopStreams("kick", 10), { wrapper: makeWrapper() });
     await waitFor(() =>
       expect(api.streams.getTop).toHaveBeenCalledWith({ platform: "kick", limit: 10 })
+    );
+  });
+
+  it("persists a successful Home result under its exact platform and limit", async () => {
+    const stream = fixtures.stream({ id: "restart-home" });
+    api.streams.getTop = vi.fn(async () => ({
+      success: true as const,
+      data: [stream],
+      cursor: undefined,
+    }));
+
+    const { result } = renderHook(() => useTopStreams(undefined, 13), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await waitFor(() =>
+      expect(api.store.set).toHaveBeenCalledWith(
+        "browse-query-snapshot:v1:top-streams:all",
+        expect.objectContaining({
+          version: 1,
+          identity: JSON.stringify({ platform: "all", limit: 13 }),
+          data: [stream],
+        })
+      )
     );
   });
 });

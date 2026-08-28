@@ -216,7 +216,8 @@ describe("browse snapshot bootstrap", () => {
     });
   });
 
-  it("hydrates exact recent channel metadata as stale before a cold stream click", async () => {
+  it("hydrates exact recent channel metadata with its real freshness timestamp", async () => {
+    const savedAt = Date.now() - 1_000;
     const kickChannel = fixtures.channel({
       id: "kick-blame",
       platform: "kick",
@@ -231,7 +232,7 @@ describe("browse snapshot bootstrap", () => {
               {
                 platform: "kick",
                 username: "blame",
-                savedAt: Date.now(),
+                savedAt,
                 data: kickChannel,
               },
             ],
@@ -247,9 +248,9 @@ describe("browse snapshot bootstrap", () => {
       id: "kick-blame",
       chatroomId: 98765,
     });
-    expect(client.getQueryState(exactKey)?.dataUpdatedAt).toBe(0);
     expect(client.getQueryData(CHANNEL_KEYS.byUsername("blame", "twitch"))).toBeUndefined();
     expect(client.getQueryData(CHANNEL_KEYS.byUsername("other", "kick"))).toBeUndefined();
+    expect(client.getQueryState(exactKey)?.dataUpdatedAt).toBe(savedAt);
   });
 
   it("hydrates Home, Categories, and exact last-search cache keys", async () => {

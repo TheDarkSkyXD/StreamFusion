@@ -11,6 +11,7 @@ vi.mock("@/providers/query-provider", () => ({
 }));
 
 import { useChannelByUsername, useFollowedChannels } from "@/hooks/queries/useChannels";
+import { resetPersistedChannelLruForTests } from "@/hooks/queries/persisted-channel-lru";
 import { useFollowStore } from "@/store/follow-store";
 import { installElectronAPIMock, fixtures } from "../../test-utils";
 
@@ -29,6 +30,7 @@ let api: ReturnType<typeof installElectronAPIMock>;
 
 beforeEach(() => {
   api = installElectronAPIMock();
+  resetPersistedChannelLruForTests();
   useFollowStore.setState({ localFollows: [], sourceByKey: new Map(), isHydrated: true });
 });
 
@@ -40,6 +42,7 @@ afterEach(() => {
 // Guards: useFollowedChannels stays idle when enabled=false — guest state must not fan out IPC on first render
 // Guards: useChannelByUsername threads (username, platform) verbatim through IPC so a Kick lookup never accidentally hits Twitch
 // Guards: fresh canonical channel lookups self-heal stale followed usernames through the follow-store boundary.
+// Guards: resolved chat metadata is retained across restarts so Home and Stream chat do not repeat the channel-details waterfall.
 describe("useFollowedChannels", () => {
   it("fetches followed channels for a platform", async () => {
     const ch = fixtures.channel({ username: "xqc" });
@@ -132,6 +135,30 @@ describe("useChannelByUsername", () => {
         username: "xqc",
         platform: "kick",
       })
+    );
+  });
+
+  it("persists resolved channel metadata for restart chat hydration", async () => {
+    const channel = fixtures.channel({
+      platform: "kick",
+      username: "fast-chat",
+      chatroomId: 12345,
+    });
+    api.channels.getByUsername = vi.fn(async () => ({ success: true as const, data: channel }));
+
+    const { result } = renderHook(() => useChannelByUsername("fast-chat", "kick"), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await waitFor(() =>
+      expect(api.store.set).toHaveBeenCalledWith(
+        "channel-metadata-lru:v1",
+        expect.objectContaining({
+          version: 1,
+          entries: [expect.objectContaining({ platform: "kick", username: "fast-chat" })],
+        })
+      )
     );
   });
 

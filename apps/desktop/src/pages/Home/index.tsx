@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
 import { useTopStreams } from "@/hooks/queries/useStreams";
-import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 
 import { LiveNowSection } from "./components/live-now-section";
 import { FeaturedStage } from "./components/featured-stage";
@@ -11,7 +10,6 @@ const HOME_STREAM_LIMIT = 13;
 
 export function HomePage() {
   const { data: streams, isLoading, error } = useTopStreams(undefined, HOME_STREAM_LIMIT);
-  const canRenderContent = useAfterFirstPaint();
 
   const featuredStream = streams && streams.length > 0 ? streams[0] : undefined;
   const featuredStreams = streams?.slice(0, 10);
@@ -36,26 +34,11 @@ export function HomePage() {
           stream={featuredStream}
           streams={featuredStreams}
           isLoading={isLoading}
-          canRenderContent={canRenderContent}
         />
       </section>
 
       {/* Live Channels Section */}
-      {canRenderContent ? (
-        <LiveNowSection streams={otherStreams} isLoading={isLoading} />
-      ) : (
-        <div className="space-y-4">
-          <div className="h-7 w-36 rounded bg-[var(--color-background-secondary)] animate-pulse" />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <div
-                key={index}
-                className="aspect-video rounded-xl bg-[var(--color-background-secondary)] animate-pulse"
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      <LiveNowSection streams={otherStreams} isLoading={isLoading} />
 
       {/* Browse Categories Link */}
       <div className="flex justify-center pt-8">

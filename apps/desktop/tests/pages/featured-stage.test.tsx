@@ -92,6 +92,7 @@ function setWideViewport(matches: boolean) {
 // Guards: the media and chat rail use the same active stream identity through carousel changes.
 // Guards: Kick chat never mounts until the authoritative channel has all required metadata.
 // Guards: narrow layouts unmount the chat rail instead of keeping a hidden chat socket alive.
+// Guards: Twitch Home chat starts from top-stream metadata without waiting on a duplicate channel lookup.
 describe("FeaturedStage", () => {
   beforeEach(() => {
     mocks.useChannelByUsername.mockReset();
@@ -106,12 +107,12 @@ describe("FeaturedStage", () => {
   });
 
   it("mounts the Home chat rail without a composer", () => {
+    const stream = fixtures.stream({ channelId: "fast-twitch-channel" });
     renderWithProviders(
       <FeaturedStage
-        stream={fixtures.stream()}
-        streams={[fixtures.stream()]}
+        stream={stream}
+        streams={[stream]}
         isLoading={false}
-        canRenderContent={true}
       />
     );
 
@@ -119,6 +120,11 @@ describe("FeaturedStage", () => {
       "data-show-composer",
       "false"
     );
+    expect(screen.getByTestId("featured-chat-panel")).toHaveAttribute(
+      "data-channel-id",
+      "fast-twitch-channel"
+    );
+    expect(mocks.useChannelByUsername).not.toHaveBeenCalled();
   });
 
   it("changes chat targets with the active carousel stream", () => {
@@ -138,7 +144,6 @@ describe("FeaturedStage", () => {
         stream={streams[0]}
         streams={streams}
         isLoading={false}
-        canRenderContent={true}
       />
     );
 
@@ -175,7 +180,6 @@ describe("FeaturedStage", () => {
             stream={streams[0]}
             streams={streams}
             isLoading={false}
-            canRenderContent={true}
           />
           <button type="button" onClick={() => setStreams([second, first])}>
             Reorder catalog
@@ -208,7 +212,7 @@ describe("FeaturedStage", () => {
     });
 
     renderWithProviders(
-      <FeaturedStage stream={stream} isLoading={false} canRenderContent={true} />
+      <FeaturedStage stream={stream} isLoading={false} />
     );
 
     expect(screen.queryByTestId("featured-chat-panel")).not.toBeInTheDocument();
@@ -216,7 +220,7 @@ describe("FeaturedStage", () => {
   });
 
   it("uses the combined media and chat skeleton while the featured section loads", () => {
-    renderWithProviders(<FeaturedStage isLoading={true} canRenderContent={true} />);
+    renderWithProviders(<FeaturedStage isLoading={true} />);
 
     expect(screen.getByTestId("featured-stage-skeleton")).toBeInTheDocument();
     expect(screen.getByTestId("featured-chat-skeleton")).toBeInTheDocument();
@@ -225,7 +229,7 @@ describe("FeaturedStage", () => {
   it("does not render the chat rail below the wide breakpoint", () => {
     setWideViewport(false);
     renderWithProviders(
-      <FeaturedStage stream={fixtures.stream()} isLoading={false} canRenderContent={true} />
+      <FeaturedStage stream={fixtures.stream()} isLoading={false} />
     );
 
     expect(screen.queryByTestId("featured-chat-rail")).not.toBeInTheDocument();
@@ -251,7 +255,6 @@ describe("FeaturedStage", () => {
           stream={streams[0]}
           streams={streams}
           isLoading={false}
-          canRenderContent={true}
         />
       );
       const rail = screen.getByTestId("featured-chat-rail");
@@ -283,7 +286,6 @@ describe("FeaturedStage", () => {
           stream={streams[0]}
           streams={streams}
           isLoading={false}
-          canRenderContent={true}
         />
       );
       expect(screen.getByTestId("featured-media")).toHaveAttribute(
@@ -316,7 +318,6 @@ describe("FeaturedStage", () => {
           stream={streams[0]}
           streams={streams}
           isLoading={false}
-          canRenderContent={true}
         />
       );
       act(() => vi.advanceTimersByTime(HOME_CAROUSEL_INTERVAL_DEFAULT_MS * 3));

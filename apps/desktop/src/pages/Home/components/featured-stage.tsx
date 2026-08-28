@@ -24,15 +24,9 @@ interface FeaturedStageProps {
   stream?: UnifiedStream;
   streams?: UnifiedStream[];
   isLoading: boolean;
-  canRenderContent: boolean;
 }
 
-export function FeaturedStage({
-  stream,
-  streams,
-  isLoading,
-  canRenderContent,
-}: FeaturedStageProps) {
+export function FeaturedStage({ stream, streams, isLoading }: FeaturedStageProps) {
   const carouselStreams = useMemo(() => {
     const candidates = streams && streams.length > 0 ? streams : stream ? [stream] : [];
     return candidates.slice(0, 10);
@@ -53,12 +47,12 @@ export function FeaturedStage({
     () => {
       selectActiveIndex(activeIndex >= carouselStreams.length - 1 ? 0 : activeIndex + 1);
     },
-    canRenderContent && !isLoading && !isWide && carouselStreams.length > 1 && !isCarouselPaused
+    !isLoading && !isWide && carouselStreams.length > 1 && !isCarouselPaused
       ? homeCarouselIntervalMs
       : null
   );
 
-  if (!canRenderContent || isLoading) {
+  if (isLoading) {
     return <FeaturedStageSkeleton showChat={isWide} />;
   }
 
@@ -102,15 +96,6 @@ function FeaturedChatRail({
   onFocusInsideChange: (isInside: boolean) => void;
   onPointerInsideChange: (isInside: boolean) => void;
 }) {
-  const channelQuery = useChannelByUsername(activeStream.channelName, activeStream.platform);
-  const target = getFeaturedChatTarget({
-    activeStream,
-    channel: channelQuery.data,
-    isLoading: channelQuery.isLoading,
-    isError: channelQuery.isError,
-    retry: () => void channelQuery.refetch(),
-  });
-
   return (
     <aside
       data-testid="featured-chat-rail"
@@ -124,9 +109,38 @@ function FeaturedChatRail({
         }
       }}
     >
-      {renderFeaturedChatTarget(target, identity)}
+      {activeStream.platform === "twitch" ? (
+        <ChatPanel
+          key={identity}
+          initialPlatform="twitch"
+          initialChannel={activeStream.channelName}
+          channelId={activeStream.channelId}
+          showComposer={false}
+        />
+      ) : (
+        <KickFeaturedChat activeStream={activeStream} identity={identity} />
+      )}
     </aside>
   );
+}
+
+function KickFeaturedChat({
+  activeStream,
+  identity,
+}: {
+  activeStream: UnifiedStream;
+  identity: FeaturedStreamIdentity;
+}) {
+  const channelQuery = useChannelByUsername(activeStream.channelName, "kick");
+  const target = getFeaturedChatTarget({
+    activeStream,
+    channel: channelQuery.data,
+    isLoading: channelQuery.isLoading,
+    isError: channelQuery.isError,
+    retry: () => void channelQuery.refetch(),
+  });
+
+  return renderFeaturedChatTarget(target, identity);
 }
 
 function getFeaturedChatTarget({
@@ -147,36 +161,22 @@ function getFeaturedChatTarget({
   if (isError) return { kind: "failed", retry };
   if (!channel || !isMatchingChannel(activeStream, channel)) return { kind: "failed", retry };
 
-  if (activeStream.platform === "kick") {
-    if (!channel.id || !channel.kickChannelId || !channel.chatroomId) {
-      return { kind: "failed", retry };
-    }
-
-    return {
-      kind: "ready",
-      chatPanelProps: {
-        initialPlatform: "kick",
-        initialChannel: activeStream.channelName,
-        channelId: channel.id,
-        kickChannelId: channel.kickChannelId,
-        chatroomId: channel.chatroomId,
-        kickUserId: channel.kickUserId,
-        subscriberBadges: channel.subscriberBadges,
-        badgeCatalogState: "ready",
-        retryBadgeCatalog: retry,
-        showComposer: false,
-      },
-    };
+  if (!channel.id || !channel.kickChannelId || !channel.chatroomId) {
+    return { kind: "failed", retry };
   }
-
-  if (!channel.id) return { kind: "failed", retry };
 
   return {
     kind: "ready",
     chatPanelProps: {
-      initialPlatform: "twitch",
+      initialPlatform: "kick",
       initialChannel: activeStream.channelName,
       channelId: channel.id,
+      kickChannelId: channel.kickChannelId,
+      chatroomId: channel.chatroomId,
+      kickUserId: channel.kickUserId,
+      subscriberBadges: channel.subscriberBadges,
+      badgeCatalogState: "ready",
+      retryBadgeCatalog: retry,
       showComposer: false,
     },
   };
