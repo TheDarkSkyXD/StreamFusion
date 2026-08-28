@@ -75,6 +75,7 @@ function makeFakeTmiClient(): typeof fakeClient {
 // Guards: failed Twitch replies release their reservation, while successful replies consume exactly one slot.
 // Guards: pending Twitch actions consume the shared rolling-window capacity before IRC transport settles.
 // Guards: failed Twitch actions release their reservation, while successful actions consume exactly one slot.
+// Guards: a rapid remount waits for final-release teardown before opening its replacement Twitch connection.
 describe("TwitchChatService connect() single-flight", () => {
   beforeEach(() => {
     fakeClient = Object.assign(new EventEmitter(), {
@@ -329,6 +330,48 @@ describe("TwitchChatService connect() single-flight", () => {
     expect(client.part).not.toHaveBeenCalled();
     expect(client.disconnect).toHaveBeenCalledTimes(1);
     expect(service.getActiveUserCount()).toBe(0);
+  });
+
+  it("waits for a final-release shutdown before connecting the next panel", async () => {
+    let finishDisconnect!: () => void;
+    fakeClient.disconnect.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishDisconnect = resolve;
+        })
+    );
+    const service = new TwitchChatService();
+    service.acquire("xqc");
+    const initialConnect = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await initialConnect;
+
+    const replacementClient = Object.assign(new EventEmitter(), {
+      connect: vi.fn(() => Promise.resolve(["irc-ws.chat.twitch.tv", 443])),
+      disconnect: vi.fn(() => Promise.resolve()),
+      join: vi.fn(() => Promise.resolve(["#tumblurr"])),
+      say: vi.fn(() => Promise.resolve(["#tumblurr", "hello"])),
+      action: vi.fn(() => Promise.resolve(["#tumblurr", "waves"])),
+      raw: vi.fn(() => Promise.resolve()),
+    });
+    ClientCtor.mockImplementationOnce(function makeReplacementClient() {
+      return replacementClient;
+    });
+
+    const release = service.release("xqc");
+    service.acquire("tumblurr");
+    const reconnect = service.connect({ anonymous: true });
+    await Promise.resolve();
+
+    expect(ClientCtor).toHaveBeenCalledTimes(1);
+    finishDisconnect();
+    await release;
+    await Promise.resolve();
+    replacementClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await reconnect;
+
+    expect(ClientCtor).toHaveBeenCalledTimes(2);
+    expect(service.getConnectionStatus().state).toBe("connected");
   });
 
   it("evicts active channel buckets during force shutdown", async () => {
