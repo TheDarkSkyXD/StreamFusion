@@ -100,6 +100,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
   // Single-flight: a concurrent connect() awaits the in-flight attempt instead
   // of racing a second one. Mirrors the `_inFlight` pattern in follow-endpoints.
   private connectingPromise: Promise<void> | null = null;
+  private shutdownPromise: Promise<void> | null = null;
 
   // Platform isolation: prevents zombie reconnections when service should be inactive
   // When false, ALL connection attempts and reconnections are blocked
@@ -122,6 +123,14 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     // Mark service as active - allows connections and reconnections
     this.isActive = true;
     this.storeAuthOptions(options);
+
+    const shutdownPromise = this.shutdownPromise;
+    if (shutdownPromise) await shutdownPromise;
+
+    if (!this.isActive) {
+      this.log("Service deactivated, aborting connection");
+      return;
+    }
 
     // If already connected, just return
     if (this.client && this.connectionState === "connected") {
@@ -439,23 +448,36 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     this.broadcasterId.clear();
     this.isModerator.clear();
 
-    if (!this.client) {
+    if (this.shutdownPromise) {
+      await this.shutdownPromise;
+      return;
+    }
+
+    const client = this.client;
+    if (!client) {
       this.setConnectionState("disconnected");
       return;
     }
 
     // Remove ALL listeners to prevent any callbacks from firing
-    this.client.removeAllListeners();
+    client.removeAllListeners();
+
+    const shutdownPromise = (async () => {
+      await client.disconnect().catch(() => undefined);
+
+      if (this.client === client) {
+        this.client = null;
+        this.setConnectionState("disconnected");
+        this.log("Twitch chat service shutdown complete");
+      }
+    })();
+    this.shutdownPromise = shutdownPromise;
 
     try {
-      await this.client.disconnect();
-    } catch {
-      // Ignore disconnect errors
+      await shutdownPromise;
+    } finally {
+      if (this.shutdownPromise === shutdownPromise) this.shutdownPromise = null;
     }
-
-    this.client = null;
-    this.setConnectionState("disconnected");
-    this.log("Twitch chat service shutdown complete");
   }
 
   /**

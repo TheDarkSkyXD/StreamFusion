@@ -76,6 +76,7 @@ function makeFakeTmiClient(): typeof fakeClient {
 // Guards: pending Twitch actions consume the shared rolling-window capacity before IRC transport settles.
 // Guards: failed Twitch actions release their reservation, while successful actions consume exactly one slot.
 // Guards: a rapid remount waits for final-release teardown before opening its replacement Twitch connection.
+// Guards: concurrent force shutdown calls share one physical Twitch disconnect.
 describe("TwitchChatService connect() single-flight", () => {
   beforeEach(() => {
     fakeClient = Object.assign(new EventEmitter(), {
@@ -367,11 +368,35 @@ describe("TwitchChatService connect() single-flight", () => {
     finishDisconnect();
     await release;
     await Promise.resolve();
+    expect(service.getActiveUserCount()).toBe(1);
     replacementClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
     await reconnect;
 
     expect(ClientCtor).toHaveBeenCalledTimes(2);
     expect(service.getConnectionStatus().state).toBe("connected");
+  });
+
+  it("shares one physical disconnect across concurrent force shutdown calls", async () => {
+    let finishDisconnect!: () => void;
+    fakeClient.disconnect.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishDisconnect = resolve;
+        })
+    );
+    const service = new TwitchChatService();
+    const connectPromise = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+
+    const firstShutdown = service.forceShutdown();
+    const secondShutdown = service.forceShutdown();
+
+    expect(fakeClient.disconnect).toHaveBeenCalledTimes(1);
+    finishDisconnect();
+    await Promise.all([firstShutdown, secondShutdown]);
+
+    expect(service.getConnectionStatus().state).toBe("disconnected");
   });
 
   it("evicts active channel buckets during force shutdown", async () => {
