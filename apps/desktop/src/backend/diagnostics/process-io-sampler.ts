@@ -3,6 +3,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type { DiagnosticPlatform } from "../../shared/diagnostics-types";
 
 const PROCESS_SET_REFRESH_MS = 30_000;
+const PROCESS_SET_SETTLE_MS = 2_000;
 const RESTART_AFTER_FAILURE_MS = 2_000;
 const MAX_BUFFER_LENGTH = 2 * 1_024 * 1_024;
 
@@ -34,6 +35,12 @@ interface CounterColumn {
   readonly index: number;
   readonly instance: string;
   readonly kind: CounterKind;
+}
+
+interface TypeperfCollector {
+  readonly child: ChildProcessWithoutNullStreams;
+  headerLine: string | null;
+  buffer: string;
 }
 
 function parseCsvLine(line: string): readonly string[] | null {
@@ -131,12 +138,13 @@ class WindowsProcessIoSampler implements ProcessIoSampler {
   readonly #nowMs: () => number;
   readonly #onFailure: (message: string) => void;
   #intervalMs: number | null = null;
-  #child: ChildProcessWithoutNullStreams | null = null;
-  #headerLine: string | null = null;
-  #buffer = "";
+  #activeCollector: TypeperfCollector | null = null;
+  #replacementCollector: TypeperfCollector | null = null;
   #latest: ProcessIoSnapshot;
   #refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  #processSetRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   #restartTimer: ReturnType<typeof setTimeout> | null = null;
+  #refreshRequestedWhileReplacing = false;
   #failureReported = false;
 
   constructor(nowMs: () => number, onFailure: (message: string) => void) {
@@ -150,7 +158,7 @@ class WindowsProcessIoSampler implements ProcessIoSampler {
     if (this.#intervalMs === normalized) return;
     this.#intervalMs = normalized;
     this.#clearScheduledWork();
-    this.#stopChild();
+    this.#stopCollectors();
     this.#latest = { kind: "unavailable", sinceMs: this.#nowMs() };
     if (normalized !== null) this.#start();
   }
@@ -163,18 +171,30 @@ class WindowsProcessIoSampler implements ProcessIoSampler {
   }
 
   refreshProcessSet(): void {
-    if (this.#intervalMs !== null) this.#restart();
+    if (this.#intervalMs === null) return;
+    if (this.#processSetRefreshTimer) clearTimeout(this.#processSetRefreshTimer);
+    // timer-allowlist: coalesces process churn without interrupting the active typeperf stream
+    this.#processSetRefreshTimer = setTimeout(() => {
+      this.#processSetRefreshTimer = null;
+      this.#beginRefresh();
+    }, PROCESS_SET_SETTLE_MS);
   }
 
   stop(): void {
     this.#intervalMs = null;
     this.#clearScheduledWork();
-    this.#stopChild();
+    this.#stopCollectors();
   }
 
   #start(): void {
-    if (this.#intervalMs === null || this.#child) return;
-    const intervalSeconds = Math.max(1, Math.round(this.#intervalMs / 1_000));
+    if (this.#intervalMs === null || this.#activeCollector) return;
+    this.#activeCollector = this.#spawnCollector();
+    this.#schedulePeriodicRefresh();
+  }
+
+  #spawnCollector(): TypeperfCollector {
+    const intervalMs = this.#intervalMs ?? 1_000;
+    const intervalSeconds = Math.max(1, Math.round(intervalMs / 1_000));
     const child = spawn(
       "typeperf",
       [
@@ -187,53 +207,79 @@ class WindowsProcessIoSampler implements ProcessIoSampler {
       ],
       { windowsHide: true }
     );
-    this.#child = child;
-    this.#headerLine = null;
-    this.#buffer = "";
+    const collector: TypeperfCollector = { child, headerLine: null, buffer: "" };
     child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => this.#consume(chunk));
-    child.once("error", (error) => this.#handleFailure(child, error.message));
+    child.stdout.on("data", (chunk: string) => this.#consume(collector, chunk));
+    child.once("error", (error) => this.#handleFailure(collector, error.message));
     child.once("close", (code) => {
-      if (this.#child !== child) return;
-      this.#handleFailure(child, `typeperf exited with code ${String(code)}`);
+      this.#handleFailure(collector, `typeperf exited with code ${String(code)}`);
     });
-    // timer-allowlist: refreshes typeperf's wildcard process set so newly spawned renderers appear
-    this.#refreshTimer = setTimeout(() => this.#restart(), PROCESS_SET_REFRESH_MS);
+    return collector;
   }
 
-  #consume(chunk: string): void {
-    this.#buffer += chunk;
-    if (this.#buffer.length > MAX_BUFFER_LENGTH) {
-      this.#handleFailure(this.#child, "typeperf output exceeded the diagnostics buffer limit");
+  #consume(collector: TypeperfCollector, chunk: string): void {
+    if (collector !== this.#activeCollector && collector !== this.#replacementCollector) return;
+    collector.buffer += chunk;
+    if (collector.buffer.length > MAX_BUFFER_LENGTH) {
+      this.#handleFailure(collector, "typeperf output exceeded the diagnostics buffer limit");
       return;
     }
-    const lines = this.#buffer.split(/\r?\n/);
-    this.#buffer = lines.pop() ?? "";
+    const lines = collector.buffer.split(/\r?\n/);
+    collector.buffer = lines.pop() ?? "";
     for (const rawLine of lines) {
       const line = rawLine.trim();
       if (!line) continue;
-      if (this.#headerLine === null) {
-        if (line.includes("(PDH-CSV")) this.#headerLine = line;
+      if (collector.headerLine === null) {
+        if (line.includes("(PDH-CSV")) collector.headerLine = line;
         continue;
       }
-      const countersByPid = parseTypeperfProcessIoSample(this.#headerLine, line);
+      const countersByPid = parseTypeperfProcessIoSample(collector.headerLine, line);
       if (!countersByPid || countersByPid.size === 0) continue;
+      if (collector === this.#replacementCollector) this.#promoteReplacement(collector);
+      if (collector !== this.#activeCollector) return;
       this.#latest = { kind: "ready", observedAtMs: this.#nowMs(), countersByPid };
       this.#failureReported = false;
     }
   }
 
-  #restart(): void {
+  #beginRefresh(): void {
     if (this.#intervalMs === null) return;
-    this.#clearScheduledWork();
-    this.#stopChild();
-    this.#start();
+    if (!this.#activeCollector) {
+      this.#start();
+      return;
+    }
+    if (this.#replacementCollector) {
+      this.#refreshRequestedWhileReplacing = true;
+      return;
+    }
+    this.#replacementCollector = this.#spawnCollector();
   }
 
-  #handleFailure(child: ChildProcessWithoutNullStreams | null, message: string): void {
-    if (child && this.#child !== child) return;
-    this.#stopChild();
-    this.#latest = { kind: "unavailable", sinceMs: this.#nowMs() };
+  #promoteReplacement(collector: TypeperfCollector): void {
+    if (this.#replacementCollector !== collector) return;
+    const previous = this.#activeCollector;
+    this.#activeCollector = collector;
+    this.#replacementCollector = null;
+    this.#stopCollector(previous);
+    if (this.#refreshTimer) clearTimeout(this.#refreshTimer);
+    this.#refreshTimer = null;
+    this.#schedulePeriodicRefresh();
+    if (this.#refreshRequestedWhileReplacing) {
+      this.#refreshRequestedWhileReplacing = false;
+      this.refreshProcessSet();
+    }
+  }
+
+  #handleFailure(collector: TypeperfCollector, message: string): void {
+    const isReplacement = collector === this.#replacementCollector;
+    if (!isReplacement && collector !== this.#activeCollector) return;
+    this.#stopCollector(collector);
+    if (isReplacement) {
+      this.#replacementCollector = null;
+    } else {
+      this.#activeCollector = null;
+      this.#latest = { kind: "unavailable", sinceMs: this.#nowMs() };
+    }
     if (!this.#failureReported) {
       this.#failureReported = true;
       this.#onFailure(message);
@@ -242,21 +288,40 @@ class WindowsProcessIoSampler implements ProcessIoSampler {
     // timer-allowlist: retries a failed native counter source without a polling loop
     this.#restartTimer = setTimeout(() => {
       this.#restartTimer = null;
-      this.#start();
+      if (this.#activeCollector) this.#beginRefresh();
+      else this.#start();
     }, RESTART_AFTER_FAILURE_MS);
+  }
+
+  #schedulePeriodicRefresh(): void {
+    if (this.#intervalMs === null || this.#refreshTimer) return;
+    // timer-allowlist: refreshes typeperf's wildcard process set so newly spawned renderers appear
+    this.#refreshTimer = setTimeout(() => {
+      this.#refreshTimer = null;
+      this.#beginRefresh();
+    }, PROCESS_SET_REFRESH_MS);
   }
 
   #clearScheduledWork(): void {
     if (this.#refreshTimer) clearTimeout(this.#refreshTimer);
+    if (this.#processSetRefreshTimer) clearTimeout(this.#processSetRefreshTimer);
     if (this.#restartTimer) clearTimeout(this.#restartTimer);
     this.#refreshTimer = null;
+    this.#processSetRefreshTimer = null;
     this.#restartTimer = null;
   }
 
-  #stopChild(): void {
-    const child = this.#child;
-    this.#child = null;
-    if (!child) return;
+  #stopCollectors(): void {
+    this.#stopCollector(this.#replacementCollector);
+    this.#stopCollector(this.#activeCollector);
+    this.#replacementCollector = null;
+    this.#activeCollector = null;
+    this.#refreshRequestedWhileReplacing = false;
+  }
+
+  #stopCollector(collector: TypeperfCollector | null): void {
+    if (!collector) return;
+    const { child } = collector;
     child.removeAllListeners();
     child.stdout.removeAllListeners();
     child.stderr.removeAllListeners();
