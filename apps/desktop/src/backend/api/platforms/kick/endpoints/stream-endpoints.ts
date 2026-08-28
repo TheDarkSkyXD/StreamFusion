@@ -1464,6 +1464,7 @@ export async function getTopStreams(
       cursor: nextCursor,
     };
   } catch (error) {
+    if (isKickRateLimitError(error)) throw error;
     // Unauthenticated or API error → use public (no-auth) API.
     // The public fallback doesn't support offset, so we only serve the first
     // page (offset === 0). Subsequent paginated requests return empty so the
@@ -1506,7 +1507,14 @@ export async function getTopStreamsCached(client: KickRequestor): Promise<Unifie
           };
           return result.data;
         }
-      } catch (_e) {
+      } catch (error) {
+        if (isKickRateLimitError(error)) {
+          logger.debug(
+            "Kick:Endpoints:Stream",
+            "Official API cooldown active; preserving top-stream cache"
+          );
+          return _topStreamsCache?.data || [];
+        }
         logger.warn("Kick:Endpoints:Stream", "Official API top streams failed, trying fallback");
       }
     }

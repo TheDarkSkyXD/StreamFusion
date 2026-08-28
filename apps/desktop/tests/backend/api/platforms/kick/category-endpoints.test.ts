@@ -40,6 +40,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 // Guards: signed-out Kick categories bypass the official requestor and OAuth Worker.
 // Guards: bounded discovery requests must forward the requested official limit and cursor instead of exhausting the catalog.
 // Guards: category-by-ID lookup must use the documented ID filter and return the requested category even when the response is not ordered.
+// Guards: an active official API cooldown must not amplify a 429 through the legacy category fallback.
 describe("category-endpoints", () => {
   let getTopCategories: typeof import("@/backend/api/platforms/kick/endpoints/category-endpoints").getTopCategories;
   let searchCategories: typeof import("@/backend/api/platforms/kick/endpoints/category-endpoints").searchCategories;
@@ -121,6 +122,18 @@ describe("category-endpoints", () => {
         name: "Public Category",
         viewerCount: 1000,
       });
+    });
+
+    it("propagates an official rate limit without starting the legacy fallback", async () => {
+      const rateLimit = Object.assign(new Error("Kick API rate limit active"), {
+        name: "KickRateLimitError",
+      });
+      const client = createMockClient({
+        request: vi.fn().mockRejectedValueOnce(rateLimit),
+      });
+
+      await expect(getTopCategories(client)).rejects.toBe(rateLimit);
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
     it("skips the official API while signed out", async () => {
@@ -391,6 +404,18 @@ describe("category-endpoints", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe("Fallback Cat");
+    });
+
+    it("does not paginate through a legacy list during an official API cooldown", async () => {
+      const rateLimit = Object.assign(new Error("429 Too Many Requests"), {
+        name: "KickRateLimitError",
+      });
+      const client = createMockClient({
+        request: vi.fn().mockRejectedValueOnce(rateLimit),
+      });
+
+      await expect(getAllCategories(client)).rejects.toBe(rateLimit);
+      expect(mockFetch).not.toHaveBeenCalled();
     });
   });
 });

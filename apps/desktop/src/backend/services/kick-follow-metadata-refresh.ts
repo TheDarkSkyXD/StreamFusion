@@ -67,7 +67,6 @@ export function startKickFollowMetadataRefresh(): void {
     return;
   }
 
-  void refreshKickFollowMetadataNow("startup", { force: true });
   refreshTimer = createManagedInterval(
     () => {
       void refreshKickFollowMetadataNow("interval");

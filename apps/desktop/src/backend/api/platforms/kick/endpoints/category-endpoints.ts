@@ -1,6 +1,7 @@
 import { logger } from "@/backend/logging/logger";
 import { sleep } from "@/lib/sleep";
 import type { UnifiedCategory } from "../../../unified/platform-types";
+import { isKickRateLimitError } from "../kick-error-classification";
 import type { KickRequestor } from "../kick-requestor";
 import { transformKickCategory } from "../kick-transformers";
 import type {
@@ -241,6 +242,7 @@ export async function getTopCategories(
       return { data: categories, cursor: response.pagination?.next_cursor || undefined };
     }
   } catch (error) {
+    if (isKickRateLimitError(error)) throw error;
     logger.warn(
       "Kick:Endpoints:Category",
       "Failed to fetch categories via official API; falling back to public legacy category list",
@@ -305,6 +307,7 @@ export async function getCategoryById(
     }
     return null;
   } catch (error) {
+    if (isKickRateLimitError(error)) throw error;
     logger.warn(
       "Kick:Endpoints:Category",
       "Failed to fetch Kick category via official API; falling back to public",
@@ -355,6 +358,7 @@ export async function getAllCategories(client: KickRequestor): Promise<UnifiedCa
       await sleep(300);
     }
   } catch (error) {
+    if (isKickRateLimitError(error)) throw error;
     logger.warn(
       "Kick:Endpoints:Category",
       "Failed to fetch all Kick categories via official API; falling back to public",

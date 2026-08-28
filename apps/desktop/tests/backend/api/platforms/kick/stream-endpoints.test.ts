@@ -12,6 +12,7 @@ import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor"
 // Guards: a transient timeout serves the last-known-good stream instead of returning null, so followed Kick streams do not disappear during a flaky refresh.
 // Guards: official Kick hidden-count zero is replaced only by a positive legacy count from the same channel and live session.
 // Guards: followed Kick streams recover thumbnails omitted by the official bulk response only from the same channel and live session.
+// Guards: an active official top-stream cooldown does not fan out into the anonymous fallback and amplify a 429.
 
 // Guards: an official Kick channel response with no active stream returns route-matched offline evidence instead of ambiguous null, so stale player and channel caches cannot keep a finished stream live.
 
@@ -852,6 +853,38 @@ describe("getPublicTopStreams", () => {
 });
 
 describe("getTopStreams official viewer counts", () => {
+  it("does not amplify an official API cooldown through the public top-stream fallback", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    const { getTopStreams } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+    const rateLimit = Object.assign(new Error("Kick API rate limit active"), {
+      name: "KickRateLimitError",
+    });
+    const client = requestorFrom(vi.fn(async () => Promise.reject(rateLimit)), true);
+
+    await expect(getTopStreams(client, { limit: 20 })).rejects.toBe(rateLimit);
+    expect(mockState.state.netRequestCalls).toHaveLength(0);
+  });
+
+  it("serves the top-stream search cache without a public retry during cooldown", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    const { getTopStreamsCached } =
+      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+    const rateLimit = Object.assign(new Error("429 Too Many Requests"), {
+      name: "KickRateLimitError",
+    });
+    const client = requestorFrom(vi.fn(async () => Promise.reject(rateLimit)), true);
+
+    await expect(getTopStreamsCached(client)).resolves.toEqual([]);
+    expect(mockState.state.netRequestCalls).toHaveLength(0);
+  });
+
   it("preserves a positive official top count without legacy recovery", async () => {
     vi.resetModules();
     vi.useRealTimers();

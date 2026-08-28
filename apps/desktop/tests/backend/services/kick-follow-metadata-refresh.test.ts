@@ -113,7 +113,7 @@ describe("kick follow metadata refresh", () => {
     expect(repairKickFollowSlugs).not.toHaveBeenCalled();
   });
 
-  it("starts a startup refresh, schedules an interval, and stops the interval", async () => {
+  it("defers the nonessential full follow sweep until the interval and stops it cleanly", async () => {
     vi.useFakeTimers();
     const { storageService } = await import("../../../src/backend/services/storage-service");
     const { repairKickFollowSlugs } =
@@ -126,9 +126,8 @@ describe("kick follow metadata refresh", () => {
     vi.mocked(repairKickFollowSlugs).mockResolvedValue(new Map());
 
     startKickFollowMetadataRefresh();
-    await vi.runAllTimersAsync();
 
-    expect(storageService.getLocalFollowsByPlatform).toHaveBeenCalledWith("kick");
+    expect(storageService.getLocalFollowsByPlatform).not.toHaveBeenCalled();
     expect(createManagedInterval).toHaveBeenCalledWith(expect.any(Function), 15 * 60 * 1000, {
       unref: true,
     });
