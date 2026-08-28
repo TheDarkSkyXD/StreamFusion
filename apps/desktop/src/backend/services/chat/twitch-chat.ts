@@ -100,7 +100,7 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
   // Single-flight: a concurrent connect() awaits the in-flight attempt instead
   // of racing a second one. Mirrors the `_inFlight` pattern in follow-endpoints.
   private connectingPromise: Promise<void> | null = null;
-  private shutdownPromise: Promise<void> | null = null;
+  private teardownPromise: Promise<void> | null = null;
 
   // Platform isolation: prevents zombie reconnections when service should be inactive
   // When false, ALL connection attempts and reconnections are blocked
@@ -124,8 +124,8 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     this.isActive = true;
     this.storeAuthOptions(options);
 
-    const shutdownPromise = this.shutdownPromise;
-    if (shutdownPromise) await shutdownPromise;
+    const teardownPromise = this.teardownPromise;
+    if (teardownPromise) await teardownPromise;
 
     if (!this.isActive) {
       this.log("Service deactivated, aborting connection");
@@ -270,24 +270,37 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     this.currentConnectionId++;
     this.connectingPromise = null;
 
-    if (!this.client) {
+    if (this.teardownPromise) {
+      await this.teardownPromise;
+      return;
+    }
+
+    const client = this.client;
+    if (!client) {
       this.setConnectionState("disconnected");
       return;
     }
 
     // Prevent reconnect logic from triggering during intentional disconnect
-    this.client.removeAllListeners("disconnected");
+    client.removeAllListeners("disconnected");
+
+    const teardownPromise = (async () => {
+      await this.disconnectClient(client);
+
+      if (this.client === client) {
+        this.client = null;
+        this.channels.clear();
+        this.setConnectionState("disconnected");
+        this.log("Disconnected from Twitch IRC");
+      }
+    })();
+    this.teardownPromise = teardownPromise;
 
     try {
-      await this.client.disconnect();
-    } catch {
-      // Ignore disconnect errors
+      await teardownPromise;
+    } finally {
+      if (this.teardownPromise === teardownPromise) this.teardownPromise = null;
     }
-
-    this.client = null;
-    this.channels.clear();
-    this.setConnectionState("disconnected");
-    this.log("Disconnected from Twitch IRC");
   }
 
   /**
@@ -448,8 +461,8 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     this.broadcasterId.clear();
     this.isModerator.clear();
 
-    if (this.shutdownPromise) {
-      await this.shutdownPromise;
+    if (this.teardownPromise) {
+      await this.teardownPromise;
       return;
     }
 
@@ -462,8 +475,8 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     // Remove ALL listeners to prevent any callbacks from firing
     client.removeAllListeners();
 
-    const shutdownPromise = (async () => {
-      await client.disconnect().catch(() => undefined);
+    const teardownPromise = (async () => {
+      await this.disconnectClient(client);
 
       if (this.client === client) {
         this.client = null;
@@ -471,12 +484,12 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
         this.log("Twitch chat service shutdown complete");
       }
     })();
-    this.shutdownPromise = shutdownPromise;
+    this.teardownPromise = teardownPromise;
 
     try {
-      await shutdownPromise;
+      await teardownPromise;
     } finally {
-      if (this.shutdownPromise === shutdownPromise) this.shutdownPromise = null;
+      if (this.teardownPromise === teardownPromise) this.teardownPromise = null;
     }
   }
 
@@ -812,12 +825,13 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
 
   private async disposeConnectionAttempt(client: tmi.Client): Promise<void> {
     client.removeAllListeners();
-    try {
-      await client.disconnect();
-    } catch {
-      // Ignore teardown failures; the attempt is already detached locally.
-    }
+    await this.disconnectClient(client);
     if (this.client === client) this.client = null;
+  }
+
+  private async disconnectClient(client: tmi.Client): Promise<void> {
+    if (client.readyState?.() === "CLOSED") return;
+    await client.disconnect().catch(() => undefined);
   }
 
   private refreshOwnModeratorState(channel: string): void {

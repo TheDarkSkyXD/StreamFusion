@@ -57,6 +57,7 @@ function seedTwitchBucket(channel: string): string {
 let fakeClient: EventEmitter & {
   connect: ReturnType<typeof vi.fn>;
   disconnect: ReturnType<typeof vi.fn>;
+  readyState: ReturnType<typeof vi.fn>;
   join: ReturnType<typeof vi.fn>;
   say: ReturnType<typeof vi.fn>;
   action: ReturnType<typeof vi.fn>;
@@ -76,12 +77,14 @@ function makeFakeTmiClient(): typeof fakeClient {
 // Guards: pending Twitch actions consume the shared rolling-window capacity before IRC transport settles.
 // Guards: failed Twitch actions release their reservation, while successful actions consume exactly one slot.
 // Guards: a rapid remount waits for final-release teardown before opening its replacement Twitch connection.
-// Guards: concurrent force shutdown calls share one physical Twitch disconnect.
+// Guards: concurrent soft and hard shutdown calls share one physical Twitch disconnect.
+// Guards: soft and final teardown do not ask tmi.js to disconnect a socket that is already closed.
 describe("TwitchChatService connect() single-flight", () => {
   beforeEach(() => {
     fakeClient = Object.assign(new EventEmitter(), {
       connect: vi.fn(() => Promise.resolve(["irc-ws.chat.twitch.tv", 443])),
       disconnect: vi.fn(() => Promise.resolve()),
+      readyState: vi.fn(() => "OPEN" as const),
       join: vi.fn(() => Promise.resolve(["#xqc"])),
       say: vi.fn(() => Promise.resolve(["#xqc", "hello"])),
       action: vi.fn(() => Promise.resolve(["#xqc", "waves"])),
@@ -396,6 +399,54 @@ describe("TwitchChatService connect() single-flight", () => {
     finishDisconnect();
     await Promise.all([firstShutdown, secondShutdown]);
 
+    expect(service.getConnectionStatus().state).toBe("disconnected");
+  });
+
+  it("shares one physical disconnect between soft and final teardown", async () => {
+    let finishDisconnect!: () => void;
+    fakeClient.disconnect.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishDisconnect = resolve;
+        })
+    );
+    const service = new TwitchChatService();
+    const connectPromise = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+
+    const softDisconnect = service.disconnect();
+    const finalShutdown = service.forceShutdown();
+
+    expect(fakeClient.disconnect).toHaveBeenCalledTimes(1);
+    finishDisconnect();
+    await Promise.all([softDisconnect, finalShutdown]);
+    expect(service.getConnectionStatus().state).toBe("disconnected");
+  });
+
+  it("skips the physical disconnect when the Twitch socket is already closed", async () => {
+    const service = new TwitchChatService();
+    const connectPromise = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+    fakeClient.readyState.mockReturnValue("CLOSED");
+
+    await service.forceShutdown();
+
+    expect(fakeClient.disconnect).not.toHaveBeenCalled();
+    expect(service.getConnectionStatus().state).toBe("disconnected");
+  });
+
+  it("skips a soft disconnect when the Twitch socket is already closed", async () => {
+    const service = new TwitchChatService();
+    const connectPromise = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+    fakeClient.readyState.mockReturnValue("CLOSED");
+
+    await service.disconnect();
+
+    expect(fakeClient.disconnect).not.toHaveBeenCalled();
     expect(service.getConnectionStatus().state).toBe("disconnected");
   });
 
