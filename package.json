@@ -24,7 +24,8 @@
     "test": "pnpm --dir apps/desktop test && pnpm --dir apps/worker test",
     "test:package-policy": "node --test scripts/package-policy.test.mjs scripts/validate-lockfile-release-age.test.mjs",
     "test:release-policy": "node --test scripts/release-policy.test.mjs scripts/merge-artifacts.test.mjs scripts/release-workflow.test.mjs",
-    "typecheck": "pnpm --dir apps/desktop typecheck && pnpm --dir apps/worker typecheck"
+    "typecheck": "pnpm --dir apps/desktop typecheck && pnpm --dir apps/worker typecheck",
+    "perf:soak": "pnpm --dir apps/desktop perf:soak"
   },
   "devDependencies": {
     "eslint": "^9.39.5",

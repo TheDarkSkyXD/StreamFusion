@@ -5,6 +5,9 @@ logs
 /.scratch/logs/
 /.scratch/images/
 /.scratch/runtime/
+/.scratch/electron-cdp.mjs
+/.scratch/media-trigger-trace.mjs
+/.scratch/perf-profile-*/
 /apps/desktop/.scratch-icon-package/
 /.tmp-*.png
 /.claude/settings.local.json
@@ -119,6 +122,8 @@ reference/
 .playwright-cli/
 .playwright/
 .playwright-mcp/
+
+/.audit/
 
 # StreamFusion log + bug-report directories (dev: repo-root; prod-win: install dir)
 /logs/

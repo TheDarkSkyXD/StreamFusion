@@ -38,7 +38,8 @@
     "build-storybook": "storybook build",
     "storybook:coverage": "node scripts/check-storybook-coverage.mjs",
     "reliability:boundaries": "node scripts/check-reliability-boundaries.mjs",
-    "bundle:analyze": "cross-env ANALYZE=true pnpm run build"
+    "bundle:analyze": "cross-env ANALYZE=true pnpm run build",
+    "perf:soak": "node scripts/performance-soak.mjs"
   },
   "build": {
     "appId": "com.streamfusion.app",
