@@ -6,5 +6,6 @@ Read the context documents relevant to the area being changed.
 | ------- | ----- | --------------- |
 | Desktop | Electron desktop client, renderer, main process, preload bridge, Twitch and Kick integrations | `apps/desktop/CONTEXT.md` |
 | Worker | Cloudflare Worker for Kick OAuth token exchange, refresh, and auth rate limiting | `apps/worker/CONTEXT.md` |
+| Mobile | Android-only Expo client planning and continuous Desktop outcome parity | `docs/research/streamfusion-mobile/CONTEXT.md` |
 
 System-wide architecture decisions live in `docs/adr/`. Context-specific decisions may live under `<context>/docs/adr/`.

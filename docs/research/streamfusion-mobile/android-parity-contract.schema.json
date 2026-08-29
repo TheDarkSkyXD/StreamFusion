@@ -1,0 +1,499 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/TheDarkSkyXD/StreamFusion/blob/main/docs/research/streamfusion-mobile/android-parity-contract.schema.json",
+  "title": "StreamFusion Android parity release decision",
+  "description": "The versioned contract between one Desktop outcome inventory and one Android release candidate.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "visibility",
+    "desktopBaseline",
+    "mobileCandidate",
+    "policyDigests",
+    "capabilities",
+    "automatedReleaseFacts",
+    "humanApprovals"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "visibility": {
+      "enum": ["internal", "draft", "prerelease", "stable"]
+    },
+    "desktopBaseline": {
+      "$ref": "#/$defs/desktopBaseline"
+    },
+    "mobileCandidate": {
+      "$ref": "#/$defs/mobileCandidate"
+    },
+    "policyDigests": {
+      "$ref": "#/$defs/policyDigests"
+    },
+    "capabilities": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/capabilityParity"
+      }
+    },
+    "automatedReleaseFacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidenceFact"
+      }
+    },
+    "humanApprovals": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/approval"
+      }
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "gitSha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullableDigest": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/digest"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "nullableRef": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ref"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "desktopBaseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observedMainCommit",
+        "outcomeInventoryDigest",
+        "structuralInventoryDigest",
+        "capabilities"
+      ],
+      "properties": {
+        "observedMainCommit": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "outcomeInventoryDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "structuralInventoryDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/desktopCapability"
+          }
+        }
+      }
+    },
+    "desktopCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "desktopCapabilityDigest", "acceptanceCriteriaDigest"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "desktopCapabilityDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "acceptanceCriteriaDigest": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "mobileCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "buildId", "apkDigest"],
+      "properties": {
+        "commit": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "buildId": {
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "apkDigest": {
+          "$ref": "#/$defs/nullableDigest"
+        }
+      }
+    },
+    "policyDigests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence",
+        "devices",
+        "platformIntegrations",
+        "signingAndUpdates"
+      ],
+      "properties": {
+        "evidence": {
+          "$ref": "#/$defs/nullableDigest"
+        },
+        "devices": {
+          "$ref": "#/$defs/nullableDigest"
+        },
+        "platformIntegrations": {
+          "$ref": "#/$defs/nullableDigest"
+        },
+        "signingAndUpdates": {
+          "$ref": "#/$defs/nullableDigest"
+        }
+      }
+    },
+    "capabilityParity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "specification",
+        "tracking",
+        "facts",
+        "approvals",
+        "computed"
+      ],
+      "properties": {
+        "specification": {
+          "$ref": "#/$defs/capabilitySpecification"
+        },
+        "tracking": {
+          "$ref": "#/$defs/capabilityTracking"
+        },
+        "facts": {
+          "$ref": "#/$defs/capabilityFacts"
+        },
+        "approvals": {
+          "$ref": "#/$defs/capabilityApprovals"
+        },
+        "computed": {
+          "$ref": "#/$defs/computedStatus"
+        }
+      }
+    },
+    "capabilitySpecification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "desktopCapabilityDigest",
+        "acceptanceCriteriaDigest",
+        "delivery"
+      ],
+      "properties": {
+        "desktopCapabilityDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "acceptanceCriteriaDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "delivery": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/delivery"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "delivery": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": {
+              "const": "direct"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "adaptationRef", "equivalenceCriterionIds"],
+          "properties": {
+            "kind": {
+              "const": "adapted"
+            },
+            "adaptationRef": {
+              "$ref": "#/$defs/ref"
+            },
+            "equivalenceCriterionIds": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "capabilityTracking": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockerRefs", "developmentException"],
+      "properties": {
+        "blockerRefs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/ref"
+          }
+        },
+        "developmentException": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/developmentException"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "developmentException": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "issueRef",
+        "owner",
+        "reason",
+        "affectedRequirementIds",
+        "expiresAt",
+        "removalCriteria",
+        "desktopCapabilityDigest",
+        "approvalRef"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "issueRef": {
+          "$ref": "#/$defs/ref"
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "affectedRequirementIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "removalCriteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "desktopCapabilityDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "approvalRef": {
+          "$ref": "#/$defs/ref"
+        }
+      }
+    },
+    "capabilityFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence"],
+      "properties": {
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidenceFact"
+          }
+        }
+      }
+    },
+    "evidenceFact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirementId",
+        "kind",
+        "result",
+        "observedAt",
+        "artifactRef",
+        "desktopCapabilityDigest",
+        "acceptanceCriteriaDigest",
+        "evidencePolicyDigest",
+        "mobileCommit",
+        "buildId",
+        "apkDigest"
+      ],
+      "properties": {
+        "requirementId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "automated",
+            "android-device",
+            "live-platform",
+            "native-performance",
+            "trusted-service",
+            "accessibility",
+            "manual-outcome-review",
+            "release-artifact"
+          ]
+        },
+        "result": {
+          "enum": ["pass", "fail"]
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "artifactRef": {
+          "$ref": "#/$defs/ref"
+        },
+        "desktopCapabilityDigest": {
+          "$ref": "#/$defs/nullableDigest"
+        },
+        "acceptanceCriteriaDigest": {
+          "$ref": "#/$defs/nullableDigest"
+        },
+        "evidencePolicyDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "mobileCommit": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "buildId": {
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "apkDigest": {
+          "$ref": "#/$defs/nullableDigest"
+        }
+      }
+    },
+    "capabilityApprovals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcomeContractApprovalRef", "deliveryApprovalRef"],
+      "properties": {
+        "outcomeContractApprovalRef": {
+          "$ref": "#/$defs/nullableRef"
+        },
+        "deliveryApprovalRef": {
+          "$ref": "#/$defs/nullableRef"
+        }
+      }
+    },
+    "computedStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["progress", "freshness"],
+      "properties": {
+        "progress": {
+          "enum": ["unassessed", "specified", "implemented", "verified"]
+        },
+        "freshness": {
+          "enum": ["missing", "stale", "current"]
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "subjectDigest",
+        "approvedBy",
+        "approvedAt",
+        "reviewRef",
+        "revokedAt"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "outcome-contract",
+            "delivery",
+            "development-exception",
+            "policy",
+            "release-promotion"
+          ]
+        },
+        "subjectDigest": {
+          "$ref": "#/$defs/digest"
+        },
+        "approvedBy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approvedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "reviewRef": {
+          "$ref": "#/$defs/ref"
+        },
+        "revokedAt": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}
