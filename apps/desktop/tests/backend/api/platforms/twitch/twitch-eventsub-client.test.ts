@@ -9,6 +9,8 @@
  */
 
 // Guards: Twitch EventSub WebSocket lifecycle — handshake, reconnect, dispatch, cleanup, terminal POST rejection quarantine, stable client reuse, and late-success orphan deletion.
+// Guards: a revocation received before its POST response cannot resurrect the subscription or trigger a redundant DELETE.
+// Guards: an unmatched pre-response revocation applies only to that POST attempt and cannot poison a later subscription.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -103,6 +105,17 @@ interface FetchCall {
 let fetchCalls: FetchCall[] = [];
 let nextPostId = 0;
 let fetchOverride: ((call: FetchCall) => Response | Promise<Response>) | null = null;
+
+function createDeferredResponse(): {
+  promise: Promise<Response>;
+  resolve: (response: Response) => void;
+} {
+  let resolve!: (response: Response) => void;
+  const promise = new Promise<Response>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+  return { promise, resolve };
+}
 
 function installFetch(): void {
   fetchCalls = [];
@@ -465,12 +478,10 @@ describe("TwitchEventSubClient — connection + subscription lifecycle", () => {
   });
 
   it("deletes a subscription that finishes creating after its last listener left", async () => {
-    let resolvePost: ((response: Response) => void) | undefined;
+    const postResponse = createDeferredResponse();
     fetchOverride = (call) => {
       if (call.method === "POST") {
-        return new Promise<Response>((resolve) => {
-          resolvePost = resolve;
-        });
+        return postResponse.promise;
       }
       return new Response(null, { status: 204 });
     };
@@ -480,17 +491,21 @@ describe("TwitchEventSubClient — connection + subscription lifecycle", () => {
     const ws = MockWebSocket.instances[0]!;
     ws._open();
     ws._emit(welcomeEnvelope());
-    await flushMicrotasks();
+    await vi.waitFor(() => {
+      expect(fetchCalls.filter((call) => call.method === "POST")).toHaveLength(1);
+    });
 
     unsubscribe();
-    resolvePost?.(
+    postResponse.resolve(
       new Response(JSON.stringify({ data: [{ id: "late-sub" }] }), {
         status: 202,
         headers: { "Content-Type": "application/json" },
       })
     );
-    await flushMicrotasks();
 
+    await vi.waitFor(() => {
+      expect(fetchCalls.filter((call) => call.method === "DELETE")).toHaveLength(1);
+    });
     const deletes = fetchCalls.filter((call) => call.method === "DELETE");
     expect(deletes).toHaveLength(1);
     expect(deletes[0]!.url).toContain("id=late-sub");
@@ -808,34 +823,97 @@ describe("TwitchEventSubClient — dispatch + observability", () => {
     );
   });
 
-  it("revocation drops local tracking so a fresh subscribe re-POSTs", async () => {
+  it("a revocation before POST completion cannot resurrect the id or trigger DELETE", async () => {
+    const postResponse = createDeferredResponse();
+    let postCount = 0;
+    fetchOverride = (call) => {
+      if (call.method !== "POST") return new Response(null, { status: 204 });
+      postCount += 1;
+      if (postCount === 1) return postResponse.promise;
+      return new Response(JSON.stringify({ data: [{ id: `sub-${postCount}` }] }), {
+        status: 202,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+
     const client = getClient();
     const unsub = client.subscribe("channel.moderate", "chan-1", () => {});
     const ws = MockWebSocket.instances[0]!;
     ws._open();
     ws._emit(welcomeEnvelope());
-    await flushMicrotasks();
-    expect(fetchCalls.filter((c) => c.method === "POST")).toHaveLength(1);
+    await vi.waitFor(() => {
+      expect(fetchCalls.filter((call) => call.method === "POST")).toHaveLength(1);
+    });
 
     ws._emit(revocationEnvelope("sub-1", "channel.moderate", "chan-1"));
-    await flushMicrotasks();
+    postResponse.resolve(
+      new Response(JSON.stringify({ data: [{ id: "sub-1" }] }), {
+        status: 202,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
 
     // Drop the original listener so we hit a clean refcount path, then resub.
     unsub();
-    await flushMicrotasks();
-    // The unsub fired a DELETE for the dropped local id — but since revocation
-    // already cleared the subscriptionId, no DELETE goes out.
-    const deletesAfterRevoke = fetchCalls.filter((c) => c.method === "DELETE");
-    expect(deletesAfterRevoke).toHaveLength(0);
 
     // After unsub the WS closed; resubscribing opens a fresh socket.
-    client.subscribe("channel.moderate", "chan-1", () => {});
+    const replacement = getClient();
+    replacement.subscribe("channel.moderate", "chan-1", () => {});
     const ws2 = MockWebSocket.instances[MockWebSocket.instances.length - 1]!;
     ws2._open();
     ws2._emit(welcomeEnvelope());
-    await flushMicrotasks();
-    const posts = fetchCalls.filter((c) => c.method === "POST");
-    expect(posts.length).toBeGreaterThanOrEqual(2);
+    await vi.waitFor(() => {
+      expect(fetchCalls.filter((call) => call.method === "POST")).toHaveLength(2);
+    });
+
+    expect(fetchCalls.filter((call) => call.method === "DELETE")).toHaveLength(0);
+  });
+
+  it("clears an unmatched pending revocation before a later POST on the same entry", async () => {
+    const firstPost = createDeferredResponse();
+    const firstResponse = new Response(JSON.stringify({ data: [{ id: "active-sub" }] }), {
+      status: 202,
+      headers: { "Content-Type": "application/json" },
+    });
+    const secondResponse = new Response(JSON.stringify({ data: [{ id: "stale-sub" }] }), {
+      status: 202,
+      headers: { "Content-Type": "application/json" },
+    });
+    let postCount = 0;
+    fetchOverride = (call) => {
+      if (call.method !== "POST") return new Response(null, { status: 204 });
+      postCount += 1;
+      return postCount === 1 ? firstPost.promise : secondResponse;
+    };
+
+    const client = getClient();
+    const unsubA = client.subscribe("channel.moderate", "chan-1", () => {});
+    const ws = MockWebSocket.instances[0]!;
+    ws._open();
+    ws._emit(welcomeEnvelope());
+    await vi.waitFor(() => {
+      expect(fetchCalls.filter((call) => call.method === "POST")).toHaveLength(1);
+    });
+
+    ws._emit(revocationEnvelope("stale-sub", "channel.moderate", "chan-1"));
+    firstPost.resolve(firstResponse);
+    await vi.waitFor(() => {
+      expect(firstResponse.bodyUsed).toBe(true);
+    });
+
+    ws._emit(revocationEnvelope("active-sub", "channel.moderate", "chan-1"));
+    const unsubB = client.subscribe("channel.moderate", "chan-1", () => {});
+    await vi.waitFor(() => {
+      expect(fetchCalls.filter((call) => call.method === "POST")).toHaveLength(2);
+      expect(secondResponse.bodyUsed).toBe(true);
+    });
+
+    unsubA();
+    unsubB();
+    await vi.waitFor(() => {
+      expect(fetchCalls.filter((call) => call.method === "DELETE")).toHaveLength(1);
+    });
+    expect(fetchCalls.find((call) => call.method === "DELETE")?.url).toContain("id=stale-sub");
   });
 
   it("onConnectionStateChange emits the state transitions", async () => {
