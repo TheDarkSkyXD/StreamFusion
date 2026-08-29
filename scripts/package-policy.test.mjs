@@ -44,6 +44,34 @@ test("the install guard accepts only the pinned npm version", () => {
   }
 });
 
+test("root start supports npm 11 while installs remain pinned", () => {
+  const rootPackage = JSON.parse(readFileSync("package.json", "utf8"));
+  const desktopPackage = JSON.parse(
+    readFileSync("apps/desktop/package.json", "utf8"),
+  );
+
+  for (const packageManifest of [rootPackage, desktopPackage]) {
+    assert.equal(packageManifest.engines.npm, ">=11.8.0 <12");
+    assert.equal(packageManifest.devEngines.packageManager.version, ">=11.8.0 <12");
+    assert.equal(packageManifest.devEngines.packageManager.onFail, "error");
+    assert.equal(packageManifest.packageManager, `npm@${REQUIRED_NPM_VERSION}`);
+    assert.match(packageManifest.scripts.preinstall, /require-npm\.mjs/);
+  }
+
+  assert.equal(
+    rootPackage.scripts.start,
+    "npm --prefix apps/desktop run start:checked",
+  );
+  assert.match(
+    desktopPackage.scripts["start:checked"],
+    /node scripts\/start-picker\.js/,
+  );
+
+  for (const npmConfigPath of [".npmrc", "apps/desktop/.npmrc"]) {
+    assert.match(readFileSync(npmConfigPath, "utf8"), /^loglevel=error$/m);
+  }
+});
+
 test("dependency policy rejects Git, URL, tarball, and local sources", () => {
   for (const specifier of [
     "git+ssh://git@github.com/org/repo.git",
