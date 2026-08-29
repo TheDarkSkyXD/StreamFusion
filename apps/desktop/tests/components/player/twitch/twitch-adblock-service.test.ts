@@ -23,6 +23,7 @@ import {
   setPlayerCallbacks,
   setStatusChangeCallback,
   updateAdBlockConfig,
+  waitForTwitchAdBlockServiceIdleForTests,
 } from "@/features/playback/components/player/twitch/twitch-adblock-service";
 
 const SAMPLE_MASTER_PLAYLIST = `#EXTM3U
@@ -330,23 +331,17 @@ https://backup.example/retry-1080p60.m3u8`;
       try {
         await processMasterPlaylist(masterUrl, SAMPLE_MASTER_PLAYLIST, "retrychannel");
         await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
-        await vi.waitFor(() => {
-          expect(gqlRequests).toBe(5);
-          expect(usherRequests).toBe(5);
-        });
+        await waitForTwitchAdBlockServiceIdleForTests();
+        expect(gqlRequests).toBe(5);
+        expect(usherRequests).toBe(5);
 
         backupAvailable = true;
         await vi.advanceTimersByTimeAsync(2_000);
         await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
-        await vi.waitFor(() => {
-          expect(gqlRequests).toBe(10);
-          expect(usherRequests).toBe(10);
-        });
-        await vi.waitFor(async () => {
-          await expect(processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)).resolves.toBe(
-            cleanBackup
-          );
-        });
+        await waitForTwitchAdBlockServiceIdleForTests();
+        expect(gqlRequests).toBe(10);
+        expect(usherRequests).toBe(10);
+        await expect(processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)).resolves.toBe(cleanBackup);
       } finally {
         clearStreamInfo("retrychannel");
         vi.useRealTimers();
@@ -968,17 +963,15 @@ https://backup.example/1080p60/seg-12348.ts`;
 
       await processMasterPlaylist(masterUrl, SAMPLE_MASTER_PLAYLIST, "continuitychannel");
       await processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST);
-      await vi.waitFor(() => expect(backupPlaylistRequests).toBe(5));
-      await vi.waitFor(async () => {
-        await expect(processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)).resolves.toBe(firstBackup);
-      });
+      await waitForTwitchAdBlockServiceIdleForTests();
+      expect(backupPlaylistRequests).toBe(5);
+      await expect(processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)).resolves.toBe(firstBackup);
       const reloadCountAfterSwitch = onReload.mock.calls.length;
-      await vi.waitFor(() => expect(backupPlaylistRequests).toBeGreaterThanOrEqual(6));
-      await vi.waitFor(async () => {
-        await expect(processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)).resolves.toBe(
-          refreshedBackup
-        );
-      });
+      await waitForTwitchAdBlockServiceIdleForTests();
+      expect(backupPlaylistRequests).toBeGreaterThanOrEqual(6);
+      await expect(processMediaPlaylist(mediaUrl, AD_MEDIA_PLAYLIST)).resolves.toBe(
+        refreshedBackup
+      );
 
       expect(backupPlaylistRequests).toBeGreaterThanOrEqual(6);
       expect(gqlRequests).toBe(5);
@@ -1365,9 +1358,8 @@ https://backup.example/avc.m3u8`;
 
       await processMasterPlaylist(masterUrl, mixedCodecMaster, "codecscopechannel");
       await processMediaPlaylist(avcUrl, AD_MEDIA_PLAYLIST);
-      await vi.waitFor(async () => {
-        await expect(processMediaPlaylist(avcUrl, AD_MEDIA_PLAYLIST)).resolves.toBe(cleanAvcBackup);
-      });
+      await waitForTwitchAdBlockServiceIdleForTests();
+      await expect(processMediaPlaylist(avcUrl, AD_MEDIA_PLAYLIST)).resolves.toBe(cleanAvcBackup);
 
       const firstHevcResult = await processMediaPlaylist(hevcUrl, AD_MEDIA_PLAYLIST);
 

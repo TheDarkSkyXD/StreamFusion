@@ -1828,3 +1828,15 @@ export function resetTwitchAdBlockServiceForTests(): void {
   isMainProcessProxyActive = false;
   legacyPlayerReloadCallback = null;
 }
+
+export async function waitForTwitchAdBlockServiceIdleForTests(): Promise<void> {
+  while (true) {
+    const pending = [...renditionSwitchStates.values()].flatMap((state) =>
+      [state.candidatePromise, state.refreshPromise].filter(
+        (promise): promise is Promise<void> => promise !== null
+      )
+    );
+    if (pending.length === 0) return;
+    await Promise.allSettled(pending);
+  }
+}

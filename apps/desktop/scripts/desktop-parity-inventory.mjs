@@ -180,11 +180,12 @@ function discoverFacts(repositoryRoot) {
     }
   }
 
+  const isStoreModule = (path) => /store[^/]*\.tsx?$/.test(basename(path));
   const storePaths = [
-    ...walkFiles(join(frontendRoot, "store")),
-    ...walkFiles(join(frontendRoot, "features")).filter((path) => /store[^/]*\.tsx?$/.test(path)),
-    ...walkFiles(join(frontendRoot, "hooks")).filter((path) => /store[^/]*\.tsx?$/.test(path)),
-  ].filter((path) => /store[^/]*\.tsx?$/.test(path));
+    ...walkFiles(join(frontendRoot, "store")).filter((path) => /\.tsx?$/.test(path)),
+    ...walkFiles(join(frontendRoot, "features")).filter(isStoreModule),
+    ...walkFiles(join(frontendRoot, "hooks")).filter(isStoreModule),
+  ];
   for (const path of [...new Set(storePaths)].sort((left, right) => left.localeCompare(right))) {
     const sourcePath = toSourcePath(repositoryRoot, path);
     addFact(facts, {

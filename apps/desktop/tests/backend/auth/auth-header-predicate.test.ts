@@ -7,6 +7,8 @@ function evaluate(predicate: string): boolean {
   return vm.runInThisContext(predicate) as boolean;
 }
 
+// Guards: anonymous, avatar-based, and icon-only Kick headers all release the authentication readiness wait.
+// Guards: channel images and an incomplete app shell cannot impersonate an authenticated Kick header.
 describe("HEADER_RENDERED_PREDICATE", () => {
   afterEach(() => {
     document.body.innerHTML = "";
@@ -22,7 +24,6 @@ describe("HEADER_RENDERED_PREDICATE", () => {
     expect(evaluate(HEADER_RENDERED_PREDICATE)).toBe(true);
   });
 
-  // Guards: Kick's current logged-in header uses an unlabeled account icon, so repair must not wait forever for legacy avatar attributes.
   it("is true for Kick's current icon-only authenticated navigation", () => {
     document.body.innerHTML = `<nav><button><svg /></button><button><svg /></button><button><svg data-account-icon /></button></nav>`;
     expect(evaluate(HEADER_RENDERED_PREDICATE)).toBe(true);

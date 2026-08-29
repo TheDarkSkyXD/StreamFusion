@@ -650,8 +650,6 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
           eventType: entry.eventType,
           channelId: entry.channelId,
         });
-        entry.revokedSubscriptionIds.clear();
-        entry.posting = false;
         return;
       }
       const parsed = z
@@ -659,19 +657,15 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         .parse(await res.json());
       const subId = parsed.data?.[0]?.id ?? null;
       const wasRevoked = subId ? entry.revokedSubscriptionIds.delete(subId) : false;
-      entry.revokedSubscriptionIds.clear();
       if (wasRevoked) {
-        entry.posting = false;
         return;
       }
       const currentEntry = this.subs.get(pairKey(entry.eventType, entry.channelId));
       if (subId && (this.closed || currentEntry !== entry || entry.refcount === 0)) {
-        entry.posting = false;
         void this.deleteSubscription(subId);
         return;
       }
       entry.subscriptionId = subId;
-      entry.posting = false;
       if (subId) {
         this.subIdToPair.set(subId, {
           eventType: entry.eventType,
@@ -679,14 +673,15 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         });
       }
     } catch (err) {
-      entry.revokedSubscriptionIds.clear();
-      entry.posting = false;
       logger.warn("Twitch:EventSub", "subscription POST threw", {
         error:
           err instanceof Error
             ? { name: err.name, message: err.message, stack: err.stack }
-            : String(err),
+          : String(err),
       });
+    } finally {
+      entry.revokedSubscriptionIds.clear();
+      entry.posting = false;
     }
   }
 
