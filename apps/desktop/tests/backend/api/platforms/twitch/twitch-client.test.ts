@@ -46,6 +46,7 @@ const mockGqlGetTopCategories = vi.fn();
 const mockGqlGetAllTopCategories = vi.fn();
 const mockGqlSearchCategories = vi.fn();
 const mockGqlGetCategoryById = vi.fn();
+const mockGqlGetCategoryViewerCountsByIds = vi.fn(async (..._args: unknown[]) => ({}));
 const mockGqlGetVideosByChannel = vi.fn();
 const mockGqlGetVideoMetadata = vi.fn();
 const mockGqlFetchGamesForVideos = vi.fn();
@@ -63,6 +64,8 @@ vi.mock("@backend/api/platforms/twitch/twitch-gql-client", () => ({
   gqlGetAllTopCategories: (...args: unknown[]) => mockGqlGetAllTopCategories(...args),
   gqlSearchCategories: (...args: unknown[]) => mockGqlSearchCategories(...args),
   gqlGetCategoryById: (...args: unknown[]) => mockGqlGetCategoryById(...args),
+  gqlGetCategoryViewerCountsByIds: (...args: unknown[]) =>
+    mockGqlGetCategoryViewerCountsByIds(...args),
   gqlGetVideosByChannel: (...args: unknown[]) => mockGqlGetVideosByChannel(...args),
   gqlGetVideoMetadata: (...args: unknown[]) => mockGqlGetVideoMetadata(...args),
   gqlFetchGamesForVideos: (...args: unknown[]) => mockGqlFetchGamesForVideos(...args),
@@ -326,19 +329,66 @@ describe("TwitchClient", () => {
     });
   });
 
+  // Guards: authenticated Twitch category search preserves Helix results while adding aggregate viewer counts.
   describe("searchCategories", () => {
-    it("uses the documented Helix endpoint when authenticated", async () => {
+    it("hydrates authenticated Helix results with aggregate viewer counts", async () => {
       const { searchCategories } = await import(
         "@backend/api/platforms/twitch/endpoints/search-endpoints"
       );
-      (searchCategories as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        data: [{ id: "helix-g1" }],
+      const helixResult = {
+        data: [
+          {
+            id: "116747788",
+            platform: "twitch" as const,
+            name: "Pools, Hot Tubs, and Beaches",
+            boxArtUrl: "https://helix.test/pools.jpg",
+          },
+          {
+            id: "509658",
+            platform: "twitch" as const,
+            name: "Just Chatting",
+            boxArtUrl: "https://helix.test/chatting.jpg",
+          },
+        ],
+        cursor: "helix-next",
+      };
+      (searchCategories as ReturnType<typeof vi.fn>).mockResolvedValueOnce(helixResult);
+      mockGqlGetCategoryViewerCountsByIds.mockResolvedValueOnce({ "116747788": 3830 });
+
+      const result = await twitchClient.searchCategories("pools", { first: 25 });
+
+      expect(result).toEqual({
+        ...helixResult,
+        data: [{ ...helixResult.data[0], viewerCount: 3830 }, helixResult.data[1]],
       });
+      expect(searchCategories).toHaveBeenCalledWith(twitchClient, "pools", { first: 25 });
+      expect(mockGqlGetCategoryViewerCountsByIds).toHaveBeenCalledWith(["116747788", "509658"]);
+      expect(mockGqlSearchCategories).not.toHaveBeenCalled();
+    });
 
-      const result = await twitchClient.searchCategories("chat", { first: 25 });
+    it("returns unchanged Helix results when viewer count hydration fails", async () => {
+      const { searchCategories } = await import(
+        "@backend/api/platforms/twitch/endpoints/search-endpoints"
+      );
+      const helixResult = {
+        data: [
+          {
+            id: "116747788",
+            platform: "twitch" as const,
+            name: "Pools, Hot Tubs, and Beaches",
+            boxArtUrl: "https://helix.test/pools.jpg",
+          },
+        ],
+        cursor: "helix-next",
+      };
+      (searchCategories as ReturnType<typeof vi.fn>).mockResolvedValueOnce(helixResult);
+      mockGqlGetCategoryViewerCountsByIds.mockRejectedValueOnce(new Error("GQL count error"));
 
-      expect(result).toEqual({ data: [{ id: "helix-g1" }] });
-      expect(searchCategories).toHaveBeenCalledWith(twitchClient, "chat", { first: 25 });
+      const result = await twitchClient.searchCategories("pools", { first: 25 });
+
+      expect(result).toEqual(helixResult);
+      expect(searchCategories).toHaveBeenCalledTimes(1);
+      expect(mockGqlGetCategoryViewerCountsByIds).toHaveBeenCalledWith(["116747788"]);
       expect(mockGqlSearchCategories).not.toHaveBeenCalled();
     });
 
@@ -350,6 +400,7 @@ describe("TwitchClient", () => {
       const result = await twitchClient.searchCategories("chat");
 
       expect(result).toEqual(cats);
+      expect(mockGqlGetCategoryViewerCountsByIds).not.toHaveBeenCalled();
     });
 
     it("falls back once to GQL when authenticated Helix search fails", async () => {
@@ -367,6 +418,7 @@ describe("TwitchClient", () => {
       expect(result).toEqual(cats);
       expect(searchCategories).toHaveBeenCalledTimes(1);
       expect(mockGqlSearchCategories).toHaveBeenCalledTimes(1);
+      expect(mockGqlGetCategoryViewerCountsByIds).not.toHaveBeenCalled();
     });
   });
 

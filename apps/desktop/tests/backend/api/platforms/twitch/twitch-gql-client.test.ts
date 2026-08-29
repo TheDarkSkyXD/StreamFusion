@@ -21,6 +21,7 @@ import {
   gqlFetchGamesForVideos,
   gqlGetAllTopCategories,
   gqlGetCategoryById,
+  gqlGetCategoryViewerCountsByIds,
   gqlGetChannelByLogin,
   gqlGetClipAccessToken,
   gqlGetClipsByChannel,
@@ -1242,6 +1243,87 @@ describe("gqlGetCategoryById", () => {
       "GetGameById query errors",
       expect.objectContaining({ messages: "Partial error" })
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("gqlGetCategoryViewerCountsByIds", () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("dedupes IDs, passes them as variables, and preserves zero counts", async () => {
+    stubFetch(fetchMock, {
+      data: {
+        g0: { id: "123", viewersCount: 0 },
+        g1: { id: "456", viewersCount: 42 },
+      },
+    });
+
+    const result = await gqlGetCategoryViewerCountsByIds(["123", " 123 ", "456"]);
+
+    expect(result).toEqual({ "123": 0, "456": 42 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const request = JSON.parse(lastFetchBody(fetchMock))[0];
+    expect(request.variables).toEqual({ id0: "123", id1: "456" });
+    expect(request.query).toContain("g0: game(id: $id0) { id viewersCount }");
+    expect(request.query).toContain("g1: game(id: $id1) { id viewersCount }");
+    expect(request.query).not.toContain('game(id: "123")');
+    expect(request.query).not.toContain('game(id: "456")');
+  });
+
+  it("omits null, negative, non-finite, and missing game results", async () => {
+    stubFetch(fetchMock, {
+      data: {
+        g0: null,
+        g1: { id: "null-count", viewersCount: null },
+        g2: { id: "negative", viewersCount: -1 },
+        g3: { id: "non-finite", viewersCount: Number.NaN },
+        g4: { viewersCount: 10 },
+        g5: { id: "valid", viewersCount: 7 },
+      },
+    });
+
+    const result = await gqlGetCategoryViewerCountsByIds([
+      "missing",
+      "null-count",
+      "negative",
+      "non-finite",
+      "bad-shape",
+      "valid",
+    ]);
+
+    expect(result).toEqual({ valid: 7 });
+  });
+
+  it("returns empty without a request when no IDs remain", async () => {
+    const result = await gqlGetCategoryViewerCountsByIds(["", "   "]);
+
+    expect(result).toEqual({});
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("caps IDs to one bounded GQL request", async () => {
+    stubFetch(fetchMock, { data: {} });
+
+    const result = await gqlGetCategoryViewerCountsByIds(
+      Array.from({ length: 105 }, (_, index) => String(index + 1))
+    );
+
+    expect(result).toEqual({});
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const request = JSON.parse(lastFetchBody(fetchMock))[0];
+    expect(Object.keys(request.variables)).toHaveLength(100);
+    expect(request.variables.id99).toBe("100");
+    expect(request.variables.id100).toBeUndefined();
   });
 });
 

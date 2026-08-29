@@ -95,6 +95,7 @@ const GQL_ENDPOINT = "https://gql.twitch.tv/gql";
 // because they simulate the web client with paired Client-Integrity headers.)
 const GQL_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp";
 const MAX_QUERIES_PER_REQUEST = 35;
+const MAX_CATEGORY_VIEWER_COUNT_IDS = 100;
 // Hard timeout on every gql.twitch.tv POST. Without this, a hung Twitch
 // endpoint freezes pagination indefinitely — React Query's isFetchingNextPage
 // stays true, the dropdown's skeleton flickers stick, and stale queries
@@ -1011,6 +1012,63 @@ export async function gqlGetCategoryById(id: string): Promise<UnifiedCategory | 
     boxArtUrl: game.boxArtURL.replace("{width}", "285").replace("{height}", "380"),
     viewerCount: game.viewersCount ?? undefined,
   };
+}
+
+type CategoryViewerCountGame = {
+  id: string;
+  viewersCount: number | null;
+};
+
+function isCategoryViewerCountGame(value: unknown): value is CategoryViewerCountGame {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    typeof value.id === "string" &&
+    "viewersCount" in value &&
+    (value.viewersCount === null ||
+      (typeof value.viewersCount === "number" && Number.isFinite(value.viewersCount)))
+  );
+}
+
+/**
+ * Fetch aggregate Twitch category viewer counts by exact game ID.
+ * Uses one bounded raw GQL query to preserve Helix search ordering and cursor.
+ */
+export async function gqlGetCategoryViewerCountsByIds(
+  ids: readonly string[]
+): Promise<Record<string, number>> {
+  const uniqueIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean))).slice(
+    0,
+    MAX_CATEGORY_VIEWER_COUNT_IDS
+  );
+  if (uniqueIds.length === 0) return {};
+
+  const variableDefinitions = uniqueIds.map((_, index) => `$id${index}: ID!`).join(", ");
+  const fields = uniqueIds
+    .map((_, index) => `g${index}: game(id: $id${index}) { id viewersCount }`)
+    .join("\n");
+  const variables = Object.fromEntries(uniqueIds.map((id, index) => [`id${index}`, id]));
+  const query = `query GetCategoryViewerCounts(${variableDefinitions}) {
+    ${fields}
+  }`;
+
+  const [response] = await gqlRequest([
+    getRawQuery<Record<string, unknown>>({ query, variables }),
+  ]);
+  if (response.errors) {
+    logger.warn("Twitch:GQL", "GetCategoryViewerCounts query errors", {
+      messages: response.errors.map((error) => error.message).join(", "),
+    });
+  }
+
+  const counts: Record<string, number> = {};
+  for (const game of Object.values(response.data ?? {})) {
+    if (!isCategoryViewerCountGame(game)) continue;
+    if (game.viewersCount === null || game.viewersCount < 0) continue;
+    counts[game.id] = game.viewersCount;
+  }
+  return counts;
 }
 
 /**

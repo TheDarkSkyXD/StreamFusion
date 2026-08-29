@@ -33,6 +33,19 @@ import type {
 // Re-export types for backward compatibility
 export type { PaginationOptions, PaginatedResult, PaginationEndReason, TwitchClientError };
 
+function mergeCategoryViewerCounts(
+  result: PaginatedResult<UnifiedCategory>,
+  countsById: Record<string, number>
+): PaginatedResult<UnifiedCategory> {
+  return {
+    ...result,
+    data: result.data.map((category) => {
+      const viewerCount = countsById[category.id];
+      return viewerCount === undefined ? category : { ...category, viewerCount };
+    }),
+  };
+}
+
 // ========== Twitch API Client Class ==========
 
 class TwitchClient extends TwitchRequestor implements IPlatformReader {
@@ -304,9 +317,10 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
     options: PaginationOptions = {}
   ): Promise<PaginatedResult<UnifiedCategory>> {
     if (this.isAuthenticated()) {
+      const SearchEndpoints = await import("./endpoints/search-endpoints");
+      let helixResult: PaginatedResult<UnifiedCategory>;
       try {
-        const SearchEndpoints = await import("./endpoints/search-endpoints");
-        return await SearchEndpoints.searchCategories(this, query, options);
+        helixResult = await SearchEndpoints.searchCategories(this, query, options);
       } catch (error) {
         logger.warn("Twitch:Client", "Helix searchCategories failed, falling back to GQL", {
           error:
@@ -314,6 +328,22 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
               ? { name: error.name, message: error.message, stack: error.stack }
               : String(error),
         });
+        return GqlClient.gqlSearchCategories(query, options);
+      }
+
+      try {
+        const countsById = await GqlClient.gqlGetCategoryViewerCountsByIds(
+          helixResult.data.map((category) => category.id)
+        );
+        return mergeCategoryViewerCounts(helixResult, countsById);
+      } catch (error) {
+        logger.warn("Twitch:Client", "GQL category viewer count hydration failed", {
+          error:
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error),
+        });
+        return helixResult;
       }
     }
 
