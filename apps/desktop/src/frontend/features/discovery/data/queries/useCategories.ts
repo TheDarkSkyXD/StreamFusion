@@ -2,6 +2,7 @@ import {
   useInfiniteQuery,
   useQuery,
   useQueryClient,
+  type FetchNextPageOptions,
   type QueryClient,
 } from "@tanstack/react-query";
 import { useCallback, useRef } from "react";
@@ -108,6 +109,8 @@ function mergeCategories(
 export const CATEGORY_KEYS = {
   all: ["categories"] as const,
   top: (platform?: Platform) => [...CATEGORY_KEYS.all, "top", platform] as const,
+  infinite: (platform: Platform) =>
+    [...CATEGORY_KEYS.top(undefined), "infinite", platform] as const,
   byId: (categoryId: string, platform: Platform) =>
     [...CATEGORY_KEYS.all, "id", platform, categoryId] as const,
   metadata: (categoryId: string, platform: Platform) =>
@@ -395,105 +398,70 @@ export function useTopCategories(platform?: Platform, options: { enabled?: boole
   return query;
 }
 
-interface CategoryProviderCursors {
-  twitch: string | null;
-  kick: string | null;
-}
-
-interface CategoryScrollPage {
+interface CategoryProviderScrollPage {
   categories: UnifiedCategory[];
-  cursors: CategoryProviderCursors;
+  cursor: string | null;
 }
 
-interface CategoryScrollPageParam {
-  cursors: CategoryProviderCursors;
+interface CategoryProviderScrollPageParam {
+  cursor?: string;
   knownCategoryKeys: string[];
 }
 
-const FIRST_CATEGORY_SCROLL_PAGE: CategoryScrollPageParam = {
-  cursors: { twitch: "", kick: "" },
+const FIRST_CATEGORY_PROVIDER_PAGE: CategoryProviderScrollPageParam = {
   knownCategoryKeys: [],
 };
 
-/** Cursor-driven category catalog used by the Categories page. */
-export function useInfiniteTopCategories() {
-  const query = useInfiniteQuery({
-    queryKey: [...CATEGORY_KEYS.top(undefined), "infinite"] as const,
-    initialPageParam: FIRST_CATEGORY_SCROLL_PAGE,
-    queryFn: async ({ pageParam, signal }): Promise<CategoryScrollPage> => {
+function useInfiniteProviderCategories(platform: Platform) {
+  return useInfiniteQuery({
+    queryKey: CATEGORY_KEYS.infinite(platform),
+    initialPageParam: FIRST_CATEGORY_PROVIDER_PAGE,
+    queryFn: async ({ pageParam, signal }): Promise<CategoryProviderScrollPage> => {
       const knownCategoryKeys = new Set(pageParam.knownCategoryKeys);
       const categories: UnifiedCategory[] = [];
-      let cursors = { ...pageParam.cursors };
+      let cursor: string | null | undefined = pageParam.cursor;
 
-      while (cursors.twitch !== null || cursors.kick !== null) {
-        const activePlatforms = (["twitch", "kick"] as const).filter(
-          (platform) => cursors[platform] !== null
-        );
-        const results = await Promise.all(
-          activePlatforms.map(async (platform) => {
-            const cursor = cursors[platform] || undefined;
-            try {
-              const response = await window.electronAPI.categories.getTop({
-                platform,
-                limit: CATEGORY_SCROLL_PAGE_LIMIT,
-                ...(cursor ? { cursor } : {}),
-              });
-              return { kind: "fulfilled", platform, response } as const;
-            } catch (error) {
-              return { kind: "rejected", platform, error } as const;
-            }
-          })
-        );
-        if (signal.aborted) throw new DOMException("Category request cancelled", "AbortError");
+      while (cursor !== null) {
+        try {
+          const response = await window.electronAPI.categories.getTop({
+            platform,
+            limit: CATEGORY_SCROLL_PAGE_LIMIT,
+            ...(cursor ? { cursor } : {}),
+          });
+          if (signal.aborted) throw new DOMException("Category request cancelled", "AbortError");
+          if (response.success === false) throw new Error(response.error);
 
-        let cursorAdvanced = false;
-        let receivedCategories = false;
-        let successfulProviders = 0;
-        const nextCursors = { ...cursors };
-        for (const result of results) {
-          if (result.kind === "rejected") {
-            nextCursors[result.platform] = null;
-            logger.warn("Hook:Queries:Categories", "category provider request rejected", {
-              platform: result.platform,
-              stage: "provider-rejection",
-              error: result.error instanceof Error ? result.error.message : String(result.error),
-            });
-            continue;
-          }
-          const { platform, response } = result;
-          if (response.success === false) {
-            nextCursors[platform] = null;
-            continue;
-          }
-          successfulProviders += 1;
           const batch = response.data ?? [];
           categories.push(...batch);
-          receivedCategories ||= batch.length > 0;
           const nextCursor = response.cursor ?? null;
-          const didAdvance = nextCursor !== cursors[platform];
-          cursorAdvanced ||= didAdvance;
-          nextCursors[platform] = didAdvance ? nextCursor : null;
-        }
-        cursors = nextCursors;
-
-        if (successfulProviders === 0 && categories.length === 0) {
-          throw new Error("Couldn’t load categories from Twitch or Kick");
-        }
-
-        const addedCount = mergeCategories(categories).reduce(
-          (count, category) =>
-            count + (knownCategoryKeys.has(normalizeCategoryName(category.name)) ? 0 : 1),
-          0
-        );
-        if (addedCount >= CATEGORY_SCROLL_PAGE_LIMIT || (!receivedCategories && !cursorAdvanced)) {
-          break;
+          const cursorAdvanced: boolean = nextCursor !== (cursor ?? null);
+          cursor = cursorAdvanced ? nextCursor : null;
+          const addedCount = mergeCategories(categories).reduce(
+            (count, category) =>
+              count + (knownCategoryKeys.has(normalizeCategoryName(category.name)) ? 0 : 1),
+            0
+          );
+          if (
+            addedCount >= CATEGORY_SCROLL_PAGE_LIMIT ||
+            (batch.length === 0 && !cursorAdvanced)
+          ) {
+            break;
+          }
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") throw error;
+          logger.warn("Hook:Queries:Categories", "category provider request rejected", {
+            platform,
+            stage: "provider-rejection",
+            error: error instanceof Error ? error.message : String(error),
+          });
+          throw error;
         }
       }
 
-      return { categories, cursors };
+      return { categories, cursor: cursor ?? null };
     },
     getNextPageParam: (lastPage, allPages) => {
-      if (lastPage.cursors.twitch === null && lastPage.cursors.kick === null) return undefined;
+      if (lastPage.cursor === null) return undefined;
       const knownCategoryKeys = Array.from(
         new Set(
           mergeCategories(allPages.flatMap((page) => page.categories)).map((category) =>
@@ -501,18 +469,52 @@ export function useInfiniteTopCategories() {
           )
         )
       );
-      return { cursors: lastPage.cursors, knownCategoryKeys };
+      return { cursor: lastPage.cursor, knownCategoryKeys };
     },
     ...getQueryCacheOptions("categories"),
     refetchOnWindowFocus: false,
   });
+}
 
-  const loadMoreInFlight = useRef<ReturnType<typeof query.fetchNextPage> | null>(null);
-  const fetchNextQueryPage = query.fetchNextPage;
-  const fetchNextPage: typeof query.fetchNextPage = useCallback(
-    (options) => {
+/** Cursor-driven category catalog used by the Categories page. */
+export function useInfiniteTopCategories() {
+  const twitchQuery = useInfiniteProviderCategories("twitch");
+  const kickQuery = useInfiniteProviderCategories("kick");
+  const providerQueries = [twitchQuery, kickQuery] as const;
+  const providerCategories: UnifiedCategory[] = [];
+  for (const query of providerQueries) {
+    for (const page of query.data?.pages ?? []) providerCategories.push(...page.categories);
+  }
+  const data = mergeCategories(providerCategories);
+  const hasData = data.length > 0;
+  const isLoading = !hasData && providerQueries.some((query) => query.isLoading);
+  const isError = !hasData && !isLoading && providerQueries.every((query) => query.isError);
+  const isSuccess = hasData || (!isLoading && providerQueries.some((query) => query.isSuccess));
+  const {
+    fetchNextPage: fetchNextTwitchPage,
+    hasNextPage: twitchHasNextPage,
+    isFetchingNextPage: isFetchingNextTwitchPage,
+    refetch: refetchTwitch,
+  } = twitchQuery;
+  const {
+    fetchNextPage: fetchNextKickPage,
+    hasNextPage: kickHasNextPage,
+    isFetchingNextPage: isFetchingNextKickPage,
+    refetch: refetchKick,
+  } = kickQuery;
+
+  const loadMoreInFlight = useRef<Promise<unknown> | null>(null);
+  const fetchNextPage = useCallback(
+    (options?: FetchNextPageOptions) => {
       if (loadMoreInFlight.current) return loadMoreInFlight.current;
-      const request = fetchNextQueryPage({ ...options, cancelRefetch: false });
+      const requests: Promise<unknown>[] = [];
+      if (twitchHasNextPage && !isFetchingNextTwitchPage) {
+        requests.push(fetchNextTwitchPage({ ...options, cancelRefetch: false }));
+      }
+      if (kickHasNextPage && !isFetchingNextKickPage) {
+        requests.push(fetchNextKickPage({ ...options, cancelRefetch: false }));
+      }
+      const request = Promise.all(requests);
       loadMoreInFlight.current = request;
       const clear = () => {
         if (loadMoreInFlight.current === request) loadMoreInFlight.current = null;
@@ -520,13 +522,37 @@ export function useInfiniteTopCategories() {
       void request.then(clear, clear);
       return request;
     },
-    [fetchNextQueryPage]
+    [
+      fetchNextKickPage,
+      fetchNextTwitchPage,
+      isFetchingNextKickPage,
+      isFetchingNextTwitchPage,
+      kickHasNextPage,
+      twitchHasNextPage,
+    ]
+  );
+
+  const refetch = useCallback(
+    () => Promise.all([refetchTwitch(), refetchKick()]),
+    [refetchKick, refetchTwitch]
   );
 
   return {
-    ...query,
+    data,
+    error: isError ? new Error("Couldn’t load categories from Twitch or Kick") : null,
     fetchNextPage,
-    data: mergeCategories(query.data?.pages.flatMap((page) => page.categories) ?? []),
+    fetchStatus: providerQueries.some((query) => query.fetchStatus === "fetching")
+      ? ("fetching" as const)
+      : providerQueries.some((query) => query.fetchStatus === "paused")
+        ? ("paused" as const)
+        : ("idle" as const),
+    hasNextPage: providerQueries.some((query) => query.hasNextPage),
+    isError,
+    isFetching: providerQueries.some((query) => query.isFetching),
+    isFetchingNextPage: providerQueries.some((query) => query.isFetchingNextPage),
+    isLoading,
+    isSuccess,
+    refetch,
   };
 }
 
@@ -637,16 +663,17 @@ function getCachedCategoryReference(
     addCandidate(state?.data, state?.dataUpdatedAt ?? 0);
   }
 
-  const infiniteState = queryClient.getQueryState<{ pages: CategoryScrollPage[] }>([
-    ...CATEGORY_KEYS.top(undefined),
-    "infinite",
-  ]);
-  addCandidate(
-    infiniteState?.data
-      ? mergeCategories(infiniteState.data.pages.flatMap((page) => page.categories))
-      : undefined,
-    infiniteState?.dataUpdatedAt ?? 0
-  );
+  for (const candidatePlatform of ["twitch", "kick"] as const) {
+    const infiniteState = queryClient.getQueryState<{
+      pages: CategoryProviderScrollPage[];
+    }>(CATEGORY_KEYS.infinite(candidatePlatform));
+    addCandidate(
+      infiniteState?.data
+        ? mergeCategories(infiniteState.data.pages.flatMap((page) => page.categories))
+        : undefined,
+      infiniteState?.dataUpdatedAt ?? 0
+    );
+  }
 
   return candidates.reduce<CachedCategoryReference | undefined>(
     (freshest, candidate) =>

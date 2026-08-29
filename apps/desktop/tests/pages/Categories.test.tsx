@@ -4,6 +4,12 @@ import { fireEvent, fixtures, renderWithProviders, routerMock, screen } from "..
 
 vi.mock("@tanstack/react-router", () => routerMock());
 
+const firstPaintState = vi.hoisted(() => ({ hasPainted: true }));
+
+vi.mock("@/hooks/useAfterFirstPaint", () => ({
+  useAfterFirstPaint: () => firstPaintState.hasPainted,
+}));
+
 vi.mock("@/features/discovery/data/queries/useCategories", () => ({
   useInfiniteTopCategories: vi.fn(),
   useCategoryById: vi.fn(),
@@ -48,8 +54,10 @@ const useInfiniteTopCategoriesMock = vi.mocked(useInfiniteTopCategories);
 // Guards: empty state — search filter matches zero categories: query-aware "no categories matching X" empty copy surfaces, distinct from the generic empty state
 // Guards: reaching the category grid's load-more boundary delegates to the infinite query so browsing does not stop after page one.
 // Guards: the page owns one internal category scrollbar even when a Platform health banner reduces the shell height.
+// Guards: ready Category data renders without waiting for an animation frame that Electron may throttle during cold start.
 describe("CategoriesPage", () => {
   beforeEach(() => {
+    firstPaintState.hasPainted = true;
     useInfiniteTopCategoriesMock.mockReset();
   });
 
@@ -76,6 +84,19 @@ describe("CategoriesPage", () => {
     expect(screen.getByText("Just Chatting")).toBeInTheDocument();
     expect(screen.getByText("GTA V")).toBeInTheDocument();
     expect(view.container.firstElementChild).toHaveClass("overflow-hidden");
+  });
+
+  it("renders ready categories before the first animation frame", () => {
+    firstPaintState.hasPainted = false;
+    useInfiniteTopCategoriesMock.mockReturnValue({
+      data: [fixtures.category({ id: "c1", name: "Just Chatting" })],
+      isLoading: false,
+    } as ReturnType<typeof useInfiniteTopCategories>);
+
+    renderWithProviders(<CategoriesPage />);
+
+    expect(screen.getByText("Just Chatting")).toBeInTheDocument();
+    expect(screen.queryByText("loading-grid")).not.toBeInTheDocument();
   });
 
   it("filters categories via the search input", () => {

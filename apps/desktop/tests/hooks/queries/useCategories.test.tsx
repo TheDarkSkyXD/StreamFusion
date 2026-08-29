@@ -727,7 +727,35 @@ describe("useTopCategories", () => {
 // Guards: repeated load-more signals while a provider round is pending reuse the active request instead of starting overlapping rounds.
 // Guards: one rejected provider IPC request cannot hide categories returned by the other provider.
 // Guards: the category query still reports an error when every provider IPC request rejects.
+// Guards: the first useful Platform page replaces cold-start skeletons without waiting for a slower Platform request.
 describe("useInfiniteTopCategories", () => {
+  it("publishes Twitch categories while the first Kick page is still pending", async () => {
+    const kickPage = deferred<TopCategoriesTestResult>();
+    const twitchCategories = rankedCatalog(100);
+    api.categories.getTop = mockGetTopCategories(async (params = {}) => {
+      if (params.platform === "kick") return kickPage.promise;
+      return { success: true, data: twitchCategories };
+    });
+
+    const { result } = renderHook(() => useInfiniteTopCategories(), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(api.categories.getTop).toHaveBeenCalledWith({
+        platform: "twitch",
+        limit: 100,
+      });
+      expect(api.categories.getTop).toHaveBeenCalledWith({
+        platform: "kick",
+        limit: 100,
+      });
+    });
+    await waitFor(() => expect(result.current.data).toHaveLength(100));
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isFetching).toBe(true);
+  });
+
   it.each([
     ["Twitch", "twitch", "kick"],
     ["Kick", "kick", "twitch"],
@@ -874,8 +902,8 @@ describe("useCategoryById", () => {
   it("reuses a fresh category from the infinite catalog without fetching by id", async () => {
     const cached = fixtures.category({ id: "kick-42", platform: "kick", name: "Kick Game" });
     const client = createQueryClient();
-    client.setQueryData([...CATEGORY_KEYS.top(undefined), "infinite"], {
-      pages: [{ categories: [cached], cursors: { twitch: null, kick: null } }],
+    client.setQueryData(CATEGORY_KEYS.infinite("kick"), {
+      pages: [{ categories: [cached], cursor: null }],
       pageParams: [],
     });
 

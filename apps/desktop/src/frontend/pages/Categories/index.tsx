@@ -4,7 +4,6 @@ import { LuRefreshCw, LuSearch, LuTriangleAlert } from "react-icons/lu";
 
 import { VirtualizedCategoryGrid } from "@/features/discovery/components/discovery/virtualized-category-grid";
 import { useInfiniteTopCategories } from "@/features/discovery/data/queries/useCategories";
-import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 
 export function CategoriesPage() {
   // Accumulate cursor pages while the virtualized grid keeps rendering only
@@ -18,7 +17,6 @@ export function CategoriesPage() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteTopCategories();
-  const canRenderGrid = useAfterFirstPaint();
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredCategories = useMemo(() => {
@@ -82,7 +80,7 @@ export function CategoriesPage() {
         ) : (
           <VirtualizedCategoryGrid
             categories={filteredCategories}
-            isLoading={isLoading || !canRenderGrid}
+            isLoading={isLoading}
             isFetchingNextPage={isFetchingNextPage}
             hasNextPage={hasNextPage}
             onLoadMore={() => void fetchNextPage()}
