@@ -147,6 +147,10 @@ jobs:
       - name: Rebuild native dependencies
         run: npm --prefix apps/desktop run rebuild-deps:${{ matrix.arch }}
 
+      - name: Test Windows system contracts
+        if: matrix.platform == 'windows'
+        run: npm --prefix apps/desktop run test:system
+
       - name: Build desktop
         run: npm --prefix apps/desktop run build
 

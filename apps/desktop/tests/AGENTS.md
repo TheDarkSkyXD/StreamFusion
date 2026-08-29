@@ -36,9 +36,14 @@ tests/
 npm test                  # Run the full vitest suite once
 npm run test:node         # Run main-process tests in the Node environment
 npm run test:dom          # Run renderer and DOM-dependent tests in jsdom
+npm run test:system       # Run host-dependent system tests, such as real bundled FFmpeg contracts
+npm run test:all          # Run deterministic tests, then system tests
+npm run test:benchmark    # Measure deterministic suite wall time and worker-count stability
 npm run test:watch        # Watch mode
 npm run test:coverage     # With coverage report
 ```
+
+`npm test` is the deterministic suite. It includes Node, jsdom, mocked integrations, loopback-server tests, temporary-file tests, and other tests that do not require a host binary, a public service, or long wall-clock delays. Host-dependent contracts use the `.system.test.ts` or `.system.test.tsx` suffix and run through `npm run test:system`.
 
 E2E is **not** part of `npm test`. It's interactive — see `tests/e2e/README.md`.
 
@@ -252,6 +257,8 @@ For tests that guard a non-obvious behavior class — especially regressions or 
 
 The vitest config is at [`apps/desktop/vitest.config.ts`](../vitest.config.ts). Notable:
 
+- **Deterministic projects.** `node` and `dom` are the default `npm test` projects. They exclude `*.system.test.*` files so local and required CI runs do not start host binaries by accident.
+- **System project.** `system-windows` runs `*.system.test.*` files in Node with one worker and no file parallelism. Use this for real bundled executables or other host-boundary contracts.
 - **`better-sqlite3` is aliased to `tests/helpers/better-sqlite3-shim.ts`** — a `node:sqlite`-backed shim with parity coverage in `tests/helpers/better-sqlite3-shim.test.ts`. The native `better-sqlite3` binary is built against Electron's NODE_MODULE_VERSION; vitest runs under system Node. Aliasing avoids the binary rebuild dance.
 - **Globals are enabled** (`globals: true`) so `describe / it / expect` are available without imports.
 - **Node project** — backend tests run without jsdom except for the explicit DOM-contract files listed in `vitest.config.ts`.

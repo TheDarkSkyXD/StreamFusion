@@ -1,6 +1,10 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vitest/config';
+import { availableParallelism } from 'node:os';
 import path from 'path';
+
+const systemTestPattern = 'tests/**/*.system.test.{ts,tsx}';
+const deterministicWorkers = Math.min(8, availableParallelism());
 
 const backendDomTests = [
   'tests/backend/api/platforms/kick/follow-grid-predicate.test.ts',
@@ -23,7 +27,8 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    maxWorkers: '25%',
+    maxWorkers: deterministicWorkers,
+    silent: 'passed-only',
     projects: [
       {
         extends: true,
@@ -32,7 +37,7 @@ export default defineConfig({
           environment: 'node',
           setupFiles: [path.resolve(__dirname, './tests/setup-node.ts')],
           include: ['tests/backend/**/*.test.{ts,tsx}'],
-          exclude: backendDomTests,
+          exclude: [...backendDomTests, systemTestPattern],
         },
       },
       {
@@ -42,6 +47,18 @@ export default defineConfig({
           environment: 'jsdom',
           setupFiles: [path.resolve(__dirname, './tests/setup.ts')],
           include: [...nonBackendTests, ...backendDomTests],
+          exclude: [systemTestPattern],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'system-windows',
+          environment: 'node',
+          setupFiles: [path.resolve(__dirname, './tests/setup-node.ts')],
+          include: [systemTestPattern],
+          maxWorkers: 1,
+          fileParallelism: false,
         },
       },
     ],
