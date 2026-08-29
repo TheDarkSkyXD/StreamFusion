@@ -27,7 +27,7 @@ interface StreamSummary {
 }
 
 const CATEGORY_PREVIEW_LIMIT = 12;
-const CATEGORY_SCROLL_PAGE_LIMIT = 100;
+const CATEGORY_SCROLL_PAGE_LIMIT = 20;
 let categoryRequestSequence = 0;
 
 function elapsedMs(startedAt: number): number {

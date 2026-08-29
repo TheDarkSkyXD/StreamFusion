@@ -984,7 +984,6 @@ async function getPublicStreamsByCategorySlug(
   slug: string,
   options: { cursor?: string; numericCategoryId?: string } = {}
 ): Promise<PaginatedResult<UnifiedStream>> {
-  const { net } = require("electron");
   const cursorParam = options.cursor ? `?cursor=${encodeURIComponent(options.cursor)}` : "";
   const url = `https://api.kick.com/private/v1/categories/${encodeURIComponent(slug)}/livestreams${cursorParam}`;
 
@@ -1553,7 +1552,25 @@ export async function getStreamsByCategory(
   categoryId: string,
   options: PaginationOptions & { categoryName?: string; language?: string } = {}
 ): Promise<PaginatedResult<UnifiedStream>> {
-  if (!categoryId) return { data: [] };
+  const getSlugFallback = async (): Promise<PaginatedResult<UnifiedStream>> => {
+    if (!options.categoryName) return { data: [] };
+    const slug = toKickCategorySlug(options.categoryName);
+    if (!slug) return { data: [] };
+
+    const result = await getPublicStreamsByCategorySlug(slug, {
+      cursor: options.cursor,
+      numericCategoryId: categoryId || undefined,
+    });
+    if (categoryId && result.data.length > 0) rememberCategorySlug(categoryId, slug);
+    return options.language
+      ? {
+          ...result,
+          data: result.data.filter((stream) => stream.language === options.language),
+        }
+      : result;
+  };
+
+  if (!categoryId) return getSlugFallback();
 
   const params = new URLSearchParams({
     limit: String(Math.min(Math.max(options.limit ?? 24, 1), 24)),
@@ -1571,9 +1588,9 @@ export async function getStreamsByCategory(
       },
       signal: AbortSignal.timeout(10_000),
     });
-    if (!response.ok) return { data: [] };
+    if (!response.ok) return getSlugFallback();
     const body: unknown = await response.json();
-    if (!isRecord(body) || !isRecord(body.data)) return { data: [] };
+    if (!isRecord(body) || !isRecord(body.data)) return getSlugFallback();
     const rawStreams = Array.isArray(body.data.livestreams) ? body.data.livestreams : [];
     const pagination = isRecord(body.data.pagination) ? body.data.pagination : null;
     const streams = rawStreams.flatMap((raw): UnifiedStream[] => {
@@ -1613,16 +1630,17 @@ export async function getStreamsByCategory(
     });
     const nextCursor =
       pagination && typeof pagination.next_cursor === "string" ? pagination.next_cursor : undefined;
-    return {
+    const result = {
       data: streams,
       cursor: nextCursor && nextCursor !== options.cursor ? nextCursor : undefined,
     };
+    return streams.length > 0 || !options.categoryName ? result : getSlugFallback();
   } catch (error) {
     logger.warn("Kick:Endpoints:Stream", "Failed to fetch Kick web category streams", {
       categoryId,
       error: error instanceof Error ? error.message : String(error),
     });
-    return { data: [] };
+    return getSlugFallback();
   }
 }
 

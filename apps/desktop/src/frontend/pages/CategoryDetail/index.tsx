@@ -301,7 +301,7 @@ export function CategoryDetailPage() {
   );
   const hasSecondaryStreams = secondaryQuery.data?.pages.some((page) => page?.data?.some(Boolean));
 
-  const { merged, scopedMerged, streams } = useMemo(() => {
+  const { primaryStreamViewers, scopedMerged, secondaryStreamViewers, streams } = useMemo(() => {
     const primary = primaryQuery.data?.pages.flatMap((page) => page?.data ?? []) ?? [];
     const secondary = secondaryQuery.data?.pages.flatMap((page) => page?.data ?? []) ?? [];
     const seen = new Set<string>();
@@ -328,7 +328,15 @@ export function CategoryDetailPage() {
         ? (right.viewerCount ?? 0) - (left.viewerCount ?? 0)
         : (left.viewerCount ?? 0) - (right.viewerCount ?? 0)
     );
-    return { merged: mergedList, scopedMerged: scoped, streams: sorted };
+    return {
+      primaryStreamViewers: primary.reduce((sum, stream) => sum + (stream?.viewerCount ?? 0), 0),
+      scopedMerged: scoped,
+      secondaryStreamViewers: secondary.reduce(
+        (sum, stream) => sum + (stream?.viewerCount ?? 0),
+        0
+      ),
+      streams: sorted,
+    };
   }, [effectivePlatformScope, primaryQuery.data, secondaryQuery.data, sortOrder, tagQuery]);
 
   const mergedCategory = category?.name
@@ -337,8 +345,10 @@ export function CategoryDetailPage() {
           normalizeCategoryName(candidate.name) === normalizeCategoryName(category.name)
       )
     : undefined;
-  const streamsSum = merged.reduce((sum, stream) => sum + (stream.viewerCount || 0), 0);
-  const totalViewers = mergedCategory?.viewerCount ?? category?.viewerCount ?? streamsSum;
+  const loadedViewerTotal = primaryStreamViewers + secondaryStreamViewers;
+  const totalViewers = mergedCategory?.crossPlatformId
+    ? (mergedCategory.viewerCount ?? loadedViewerTotal)
+    : (category?.viewerCount ?? primaryStreamViewers) + secondaryStreamViewers;
   const selectedQuery =
     effectivePlatformScope === "all"
       ? null
