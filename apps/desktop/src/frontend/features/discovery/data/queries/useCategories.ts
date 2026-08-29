@@ -7,7 +7,11 @@ import {
 import { useCallback, useRef } from "react";
 
 import type { UnifiedCategory } from "../../../../../shared/platform-types";
-import { getEquivalentCategoryName, normalizeCategoryName, pickWinner } from "../../../../lib/utils";
+import {
+  getEquivalentCategoryName,
+  normalizeCategoryName,
+  pickWinner,
+} from "../../../../lib/utils";
 import { logger } from "../../../../renderer/logging/logger";
 import type { Platform } from "../../../../../shared/auth-types";
 
@@ -428,12 +432,16 @@ export function useInfiniteTopCategories() {
         const results = await Promise.all(
           activePlatforms.map(async (platform) => {
             const cursor = cursors[platform] || undefined;
-            const response = await window.electronAPI.categories.getTop({
-              platform,
-              limit: CATEGORY_SCROLL_PAGE_LIMIT,
-              ...(cursor ? { cursor } : {}),
-            });
-            return { platform, response };
+            try {
+              const response = await window.electronAPI.categories.getTop({
+                platform,
+                limit: CATEGORY_SCROLL_PAGE_LIMIT,
+                ...(cursor ? { cursor } : {}),
+              });
+              return { kind: "fulfilled", platform, response } as const;
+            } catch (error) {
+              return { kind: "rejected", platform, error } as const;
+            }
           })
         );
         if (signal.aborted) throw new DOMException("Category request cancelled", "AbortError");
@@ -442,7 +450,17 @@ export function useInfiniteTopCategories() {
         let receivedCategories = false;
         let successfulProviders = 0;
         const nextCursors = { ...cursors };
-        for (const { platform, response } of results) {
+        for (const result of results) {
+          if (result.kind === "rejected") {
+            nextCursors[result.platform] = null;
+            logger.warn("Hook:Queries:Categories", "category provider request rejected", {
+              platform: result.platform,
+              stage: "provider-rejection",
+              error: result.error instanceof Error ? result.error.message : String(result.error),
+            });
+            continue;
+          }
+          const { platform, response } = result;
           if (response.success === false) {
             nextCursors[platform] = null;
             continue;

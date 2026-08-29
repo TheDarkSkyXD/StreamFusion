@@ -725,7 +725,54 @@ describe("useTopCategories", () => {
 
 // Guards: one load-more action keeps requesting sequential 100-item provider rounds until it adds 100 distinct merged categories.
 // Guards: repeated load-more signals while a provider round is pending reuse the active request instead of starting overlapping rounds.
+// Guards: one rejected provider IPC request cannot hide categories returned by the other provider.
+// Guards: the category query still reports an error when every provider IPC request rejects.
 describe("useInfiniteTopCategories", () => {
+  it.each([
+    ["Twitch", "twitch", "kick"],
+    ["Kick", "kick", "twitch"],
+  ] as const)(
+    "keeps %s categories when the other provider IPC request rejects",
+    async (_label, successfulPlatform, rejectedPlatform) => {
+      const availableCategory = fixtures.category({
+        id: `${successfulPlatform}-available`,
+        name: `${successfulPlatform} available`,
+        platform: successfulPlatform,
+      });
+      api.categories.getTop = mockGetTopCategories(async (params = {}) => {
+        if (params.platform === rejectedPlatform) {
+          throw new Error(`${rejectedPlatform} IPC unavailable`);
+        }
+        return { success: true, data: [availableCategory] };
+      });
+
+      const { result } = renderHook(() => useInfiniteTopCategories(), {
+        wrapper: makeWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data).toEqual([availableCategory]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Hook:Queries:Categories",
+        "category provider request rejected",
+        expect.objectContaining({ platform: rejectedPlatform, stage: "provider-rejection" })
+      );
+    }
+  );
+
+  it("reports an error when every provider IPC request rejects", async () => {
+    api.categories.getTop = mockGetTopCategories(async (params = {}) => {
+      throw new Error(`${params.platform} IPC unavailable`);
+    });
+
+    const { result } = renderHook(() => useInfiniteTopCategories(), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.data).toEqual([]);
+  });
+
   it("fills one load-more action to 100 new merged categories", async () => {
     const firstPage = rankedCatalog(100);
     const partlyDuplicatePage = [
