@@ -723,7 +723,7 @@ describe("useTopCategories", () => {
   });
 });
 
-// Guards: one load-more action keeps requesting sequential 100-item provider rounds until it adds 100 distinct merged categories.
+// Guards: category providers publish natural 20-item pages instead of delaying Kick behind a 100-item batch.
 // Guards: repeated load-more signals while a provider round is pending reuse the active request instead of starting overlapping rounds.
 // Guards: one rejected provider IPC request cannot hide categories returned by the other provider.
 // Guards: the category query still reports an error when every provider IPC request rejects.
@@ -731,7 +731,7 @@ describe("useTopCategories", () => {
 describe("useInfiniteTopCategories", () => {
   it("publishes Twitch categories while the first Kick page is still pending", async () => {
     const kickPage = deferred<TopCategoriesTestResult>();
-    const twitchCategories = rankedCatalog(100);
+    const twitchCategories = rankedCatalog(20);
     api.categories.getTop = mockGetTopCategories(async (params = {}) => {
       if (params.platform === "kick") return kickPage.promise;
       return { success: true, data: twitchCategories };
@@ -744,14 +744,14 @@ describe("useInfiniteTopCategories", () => {
     await waitFor(() => {
       expect(api.categories.getTop).toHaveBeenCalledWith({
         platform: "twitch",
-        limit: 100,
+        limit: 20,
       });
       expect(api.categories.getTop).toHaveBeenCalledWith({
         platform: "kick",
-        limit: 100,
+        limit: 20,
       });
     });
-    await waitFor(() => expect(result.current.data).toHaveLength(100));
+    await waitFor(() => expect(result.current.data).toHaveLength(20));
     expect(result.current.isLoading).toBe(false);
     expect(result.current.isFetching).toBe(true);
   });
@@ -801,11 +801,11 @@ describe("useInfiniteTopCategories", () => {
     expect(result.current.data).toEqual([]);
   });
 
-  it("fills one load-more action to 100 new merged categories", async () => {
-    const firstPage = rankedCatalog(100);
+  it("fills one load-more action to 20 new merged categories", async () => {
+    const firstPage = rankedCatalog(20);
     const partlyDuplicatePage = [
-      ...firstPage.slice(0, 50),
-      ...Array.from({ length: 10 }, (_, index) =>
+      ...firstPage.slice(0, 10),
+      ...Array.from({ length: 2 }, (_, index) =>
         fixtures.category({
           id: `second-${index}`,
           name: `Second Category ${index}`,
@@ -813,12 +813,12 @@ describe("useInfiniteTopCategories", () => {
         })
       ),
     ];
-    const finalPage = Array.from({ length: 90 }, (_, index) =>
+    const finalPage = Array.from({ length: 18 }, (_, index) =>
       fixtures.category({
         id: `third-${index}`,
         name: `Third Category ${index}`,
         platform: "twitch",
-        viewerCount: 100 - index,
+        viewerCount: 20 - index,
       })
     );
 
@@ -837,7 +837,7 @@ describe("useInfiniteTopCategories", () => {
       wrapper: makeWrapper(),
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toHaveLength(100);
+    expect(result.current.data).toHaveLength(20);
     expect(result.current.hasNextPage).toBe(true);
 
     await act(async () => {
@@ -846,16 +846,16 @@ describe("useInfiniteTopCategories", () => {
 
     expect(api.categories.getTop).toHaveBeenCalledWith({
       platform: "twitch",
-      limit: 100,
+      limit: 20,
       cursor: "twitch-page-2",
     });
     expect(api.categories.getTop).toHaveBeenCalledWith({
       platform: "twitch",
-      limit: 100,
+      limit: 20,
       cursor: "twitch-page-3",
     });
-    await waitFor(() => expect(result.current.data).toHaveLength(200));
-    expect(result.current.data?.some((category) => category.name === "Third Category 89")).toBe(
+    await waitFor(() => expect(result.current.data).toHaveLength(40));
+    expect(result.current.data?.some((category) => category.name === "Third Category 17")).toBe(
       true
     );
     expect(result.current.hasNextPage).toBe(false);
@@ -866,7 +866,7 @@ describe("useInfiniteTopCategories", () => {
     api.categories.getTop = mockGetTopCategories(async (params = {}) => {
       if (params.platform === "kick") return { success: true, data: [] };
       if (params.cursor === "twitch-page-2") return nextPage.promise;
-      return { success: true, data: rankedCatalog(100), cursor: "twitch-page-2" };
+      return { success: true, data: rankedCatalog(20), cursor: "twitch-page-2" };
     });
 
     const { result } = renderHook(() => useInfiniteTopCategories(), {
@@ -885,7 +885,7 @@ describe("useInfiniteTopCategories", () => {
 
     nextPage.resolve({
       success: true,
-      data: Array.from({ length: 100 }, (_, index) =>
+      data: Array.from({ length: 20 }, (_, index) =>
         fixtures.category({
           id: `next-${index}`,
           name: `Next Category ${index}`,
@@ -894,7 +894,7 @@ describe("useInfiniteTopCategories", () => {
       ),
     });
     await act(async () => firstLoad);
-    await waitFor(() => expect(result.current.data).toHaveLength(200));
+    await waitFor(() => expect(result.current.data).toHaveLength(40));
   });
 });
 

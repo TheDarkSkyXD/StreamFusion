@@ -38,6 +38,9 @@ function jsonResponse(body: unknown, status = 200): Response {
 // Guards: failed or incomplete pagination never replaces the last complete catalog.
 // Guards: an unavailable uncached catalog rejects so provider retry remains possible.
 // Guards: caller cancellation propagates instead of becoming an empty catalog.
+// Guards: bounded category discovery returns its first Kick page without crawling the full catalog.
+// Guards: catalog growth beyond 50 pages remains complete instead of discarding every Kick category.
+// Guards: an exact category search stops once its live match is found.
 describe("category-endpoints", () => {
   let getTopCategories: typeof import("@backend/api/platforms/kick/endpoints/category-endpoints").getTopCategories;
   let searchCategories: typeof import("@backend/api/platforms/kick/endpoints/category-endpoints").searchCategories;
@@ -56,6 +59,59 @@ describe("category-endpoints", () => {
   });
 
   describe("getTopCategories", () => {
+    it("returns one live catalog page for a bounded discovery request", async () => {
+      const client = createMockClient();
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            categories: [
+              {
+                name: "IRL",
+                slug: "irl",
+                viewers_count: 4321,
+                image_url: "https://files.kick.com/images/subcategories/8549/banner/img.webp",
+              },
+            ],
+            next_cursor: "page-2",
+          },
+        })
+      );
+
+      const result = await getTopCategories(client, { limit: 20 });
+
+      expect(result).toEqual({
+        data: [expect.objectContaining({ id: "8549", name: "IRL", viewerCount: 4321 })],
+        cursor: "page-2",
+      });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("collects a live catalog that has grown beyond 50 pages", async () => {
+      const client = createMockClient();
+      let page = 0;
+      mockFetch.mockImplementation(async () => {
+        page += 1;
+        return jsonResponse({
+          data: {
+            categories: [
+              {
+                name: `Category ${page}`,
+                slug: `category-${page}`,
+                viewers_count: 1000 - page,
+                image_url: `https://files.kick.com/images/subcategories/${page}/banner/img.webp`,
+              },
+            ],
+            next_cursor: page < 51 ? `page-${page + 1}` : null,
+          },
+        });
+      });
+
+      const result = await getTopCategories(client);
+
+      expect(result.data).toHaveLength(51);
+      expect(mockFetch).toHaveBeenCalledTimes(51);
+    });
+
     it("uses the same live category catalog while signed in and signed out", async () => {
       const request = vi.fn();
       const authenticatedClient = createMockClient({ request });
@@ -242,6 +298,32 @@ describe("category-endpoints", () => {
   });
 
   describe("searchCategories", () => {
+    it("returns an exact live match without crawling later catalog pages", async () => {
+      const client = createMockClient();
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            categories: [
+              {
+                name: "IRL",
+                slug: "irl",
+                viewers_count: 4321,
+                image_url: "https://files.kick.com/images/subcategories/8549/banner/img.webp",
+              },
+            ],
+            next_cursor: "page-2",
+          },
+        })
+      );
+
+      const result = await searchCategories(client, "IRL", { limit: 10 });
+
+      expect(result.data).toEqual([
+        expect.objectContaining({ id: "8549", name: "IRL", viewerCount: 4321 }),
+      ]);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
     it("searches via anonymous public category list without app-token auth", async () => {
       const request = vi.fn();
       const client = createMockClient({ request });

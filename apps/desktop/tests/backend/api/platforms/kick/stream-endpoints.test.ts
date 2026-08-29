@@ -13,6 +13,7 @@ import type { KickRequestor } from "@backend/api/platforms/kick/kick-requestor";
 // Guards: official Kick hidden-count zero is replaced only by a positive legacy count from the same channel and live session.
 // Guards: followed Kick streams recover thumbnails omitted by the official bulk response only from the same channel and live session.
 // Guards: an active official top-stream cooldown does not fan out into the anonymous fallback and amplify a 429.
+// Guards: cross-platform category browsing can fetch Kick streams by category name before its numeric ID resolves.
 
 // Guards: an official Kick channel response with no active stream returns route-matched offline evidence instead of ambiguous null, so stale player and channel caches cannot keep a finished stream live.
 
@@ -863,7 +864,10 @@ describe("getTopStreams official viewer counts", () => {
     const rateLimit = Object.assign(new Error("Kick API rate limit active"), {
       name: "KickRateLimitError",
     });
-    const client = requestorFrom(vi.fn(async () => Promise.reject(rateLimit)), true);
+    const client = requestorFrom(
+      vi.fn(async () => Promise.reject(rateLimit)),
+      true
+    );
 
     await expect(getTopStreams(client, { limit: 20 })).rejects.toBe(rateLimit);
     expect(mockState.state.netRequestCalls).toHaveLength(0);
@@ -879,7 +883,10 @@ describe("getTopStreams official viewer counts", () => {
     const rateLimit = Object.assign(new Error("429 Too Many Requests"), {
       name: "KickRateLimitError",
     });
-    const client = requestorFrom(vi.fn(async () => Promise.reject(rateLimit)), true);
+    const client = requestorFrom(
+      vi.fn(async () => Promise.reject(rateLimit)),
+      true
+    );
 
     await expect(getTopStreamsCached(client)).resolves.toEqual([]);
     expect(mockState.state.netRequestCalls).toHaveLength(0);
@@ -976,6 +983,53 @@ describe("getTopStreams official viewer counts", () => {
 });
 
 describe("getStreamsByCategory web pagination", () => {
+  it("uses the category slug while its numeric Kick ID is still resolving", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: JSON.stringify({
+        data: {
+          livestreams: [
+            {
+              id: "stream-1",
+              viewers_count: 321,
+              thumbnail_url: "https://example.com/thumb.jpg",
+              started_at: "2026-08-29T12:00:00Z",
+              streamer: {
+                channel: { id: "channel-1", slug: "streamer" },
+                user: { username: "Streamer", profile_picture: "https://example.com/avatar.jpg" },
+              },
+              metadata: {
+                title: "IRL stream",
+                language: "en",
+                category: { id: "kick-irl", name: "IRL", tags: ["irl"] },
+              },
+            },
+          ],
+          next_cursor: "page-2",
+        },
+      }),
+    });
+    const { getStreamsByCategory } =
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
+
+    const result = await getStreamsByCategory(asRequestor(createOfficialTopClient()), "", {
+      categoryName: "IRL",
+      limit: 30,
+    });
+
+    expect(mockState.state.netRequestCalls[0]?.url).toBe(
+      "https://api.kick.com/private/v1/categories/irl/livestreams"
+    );
+    expect(result).toEqual({
+      data: [expect.objectContaining({ channelName: "streamer", viewerCount: 321 })],
+      cursor: "page-2",
+    });
+  });
+
   it("uses the Kick web category endpoint for authenticated clients and advances its cursor", async () => {
     vi.resetModules();
     vi.useRealTimers();
