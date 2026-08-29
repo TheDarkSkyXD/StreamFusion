@@ -42,6 +42,8 @@ export interface ComputeLogPathsOpts {
 }
 
 export function computeLogPaths(opts: ComputeLogPathsOpts): LogPaths {
+  const platformPath = opts.platform === "win32" ? path.win32 : path.posix;
+
   if (!opts.isPackaged) {
     if (!opts.projectRoot) {
       throw new Error("projectRoot required in dev");
@@ -51,29 +53,29 @@ export function computeLogPaths(opts: ComputeLogPathsOpts): LogPaths {
     // pattern. Prod paths stay unprefixed — they live in install / app-data
     // dirs where the hidden-dot convention doesn't help.
     return {
-      logsDir: path.join(opts.projectRoot, ".logs"),
-      bugReportsDir: path.join(opts.projectRoot, "bug-reports"),
-      telemetryDir: path.join(opts.projectRoot, "telemetry"),
+      logsDir: platformPath.join(opts.projectRoot, ".logs"),
+      bugReportsDir: platformPath.join(opts.projectRoot, "bug-reports"),
+      telemetryDir: platformPath.join(opts.projectRoot, "telemetry"),
     };
   }
 
   if (opts.platform === "win32") {
-    const installDir = path.dirname(opts.exePath);
+    const installDir = platformPath.dirname(opts.exePath);
     return {
-      logsDir: path.join(installDir, "logs"),
-      bugReportsDir: path.join(installDir, "bug-reports"),
-      telemetryDir: path.join(installDir, "stream health telemetry"),
+      logsDir: platformPath.join(installDir, "logs"),
+      bugReportsDir: platformPath.join(installDir, "bug-reports"),
+      telemetryDir: platformPath.join(installDir, "stream health telemetry"),
     };
   }
 
   // mac / linux prod: install location is read-only — sibling under the
   // fallback path keeps the dev/win invariant that bug-reports is a sibling
   // of logs.
-  const fallbackParent = path.dirname(opts.fallbackLogsPath);
+  const fallbackParent = platformPath.dirname(opts.fallbackLogsPath);
   return {
     logsDir: opts.fallbackLogsPath,
-    bugReportsDir: path.join(fallbackParent, "bug-reports"),
-    telemetryDir: path.join(fallbackParent, "stream health telemetry"),
+    bugReportsDir: platformPath.join(fallbackParent, "bug-reports"),
+    telemetryDir: platformPath.join(fallbackParent, "stream health telemetry"),
   };
 }
 

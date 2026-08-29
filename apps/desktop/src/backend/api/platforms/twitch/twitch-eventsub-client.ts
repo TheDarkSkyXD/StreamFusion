@@ -115,6 +115,8 @@ type SubEntry = {
   listeners: Set<(payload: NotificationPayload<unknown>) => void>;
   /** Twitch-assigned subscription id, set after the Helix POST resolves. */
   subscriptionId: string | null;
+  /** Revocations received before their matching Helix POST response resolves. */
+  revokedSubscriptionIds: Set<string>;
   /** True while the Helix POST is in flight (or queued waiting for welcome). */
   posting: boolean;
   /** Permanent Helix rejection for this local subscription entry. */
@@ -204,6 +206,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         refcount: 0,
         listeners: new Set(),
         subscriptionId: null,
+        revokedSubscriptionIds: new Set(),
         posting: false,
         terminalFailureStatus: null,
       };
@@ -586,7 +589,13 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
 
   private onRevocation(payload: RevocationPayload): void {
     const subId = payload.subscription.id;
-    const pair = this.subIdToPair.get(subId);
+    const indexedPair = this.subIdToPair.get(subId);
+    const broadcasterUserId = payload.subscription.condition.broadcaster_user_id;
+    const payloadPair =
+      typeof broadcasterUserId === "string"
+        ? { eventType: payload.subscription.type, channelId: broadcasterUserId }
+        : null;
+    const pair = indexedPair ?? payloadPair;
     logger.warn("Twitch:EventSub", "subscription revoked", {
       subId,
       status: payload.subscription.status,
@@ -595,8 +604,11 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     if (!pair) return;
     const entry = this.subs.get(pairKey(pair.eventType, pair.channelId));
     if (!entry) return;
-    // Drop the upstream id so a future subscribe call will re-POST.
-    entry.subscriptionId = null;
+    if (entry.subscriptionId === subId) {
+      entry.subscriptionId = null;
+    } else if (entry.posting) {
+      entry.revokedSubscriptionIds.add(subId);
+    }
     // Listeners simply stop receiving events (no upstream sub anymore).
   }
 
@@ -638,6 +650,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
           eventType: entry.eventType,
           channelId: entry.channelId,
         });
+        entry.revokedSubscriptionIds.clear();
         entry.posting = false;
         return;
       }
@@ -645,6 +658,12 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         .object({ data: z.array(z.object({ id: z.string().optional() })).optional() })
         .parse(await res.json());
       const subId = parsed.data?.[0]?.id ?? null;
+      const wasRevoked = subId ? entry.revokedSubscriptionIds.delete(subId) : false;
+      entry.revokedSubscriptionIds.clear();
+      if (wasRevoked) {
+        entry.posting = false;
+        return;
+      }
       const currentEntry = this.subs.get(pairKey(entry.eventType, entry.channelId));
       if (subId && (this.closed || currentEntry !== entry || entry.refcount === 0)) {
         entry.posting = false;
@@ -660,6 +679,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         });
       }
     } catch (err) {
+      entry.revokedSubscriptionIds.clear();
       entry.posting = false;
       logger.warn("Twitch:EventSub", "subscription POST threw", {
         error:

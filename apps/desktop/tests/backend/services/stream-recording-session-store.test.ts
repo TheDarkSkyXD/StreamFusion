@@ -1,3 +1,4 @@
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { createStreamRecordingSessionStore } from "@backend/services/stream-recording-session-store";
@@ -6,6 +7,10 @@ import type {
   StreamRecordingJournalV2,
   StreamRecordingSession,
 } from "@shared/stream-recording-types";
+import { testVideoPath } from "./stream-recording-test-paths";
+
+const streamDestinationPath = testVideoPath("stream.mp4");
+const streamSectionPath = testVideoPath("stream.streamfusion-recording-session-1-part-001.ts");
 
 function ownedRecoverySession(): StreamRecordingSession {
   return {
@@ -14,7 +19,7 @@ function ownedRecoverySession(): StreamRecordingSession {
     channelName: "ninja",
     title: "Stream",
     status: "recording",
-    destinationPath: "D:\\Videos\\stream.mp4",
+    destinationPath: streamDestinationPath,
     qualityLabel: "Source",
     desiredQuality: { quality: "Source", height: 1080, fps: 60 },
     currentQuality: { quality: "Source", height: 1080, fps: 60 },
@@ -22,7 +27,7 @@ function ownedRecoverySession(): StreamRecordingSession {
     sections: [
       {
         id: "recording-session-1-part-1",
-        path: "D:\\Videos\\stream.streamfusion-recording-session-1-part-001.ts",
+        path: streamSectionPath,
         startedAt: "2026-07-11T12:00:00.000Z",
       },
     ],
@@ -55,21 +60,31 @@ describe("stream recording session store", () => {
     {
       name: "arbitrary same-directory TS path",
       mutate: (session: StreamRecordingSession) => {
-        session.sections[0].path = "D:\\Videos\\someone-elses-capture.ts";
+        session.sections[0].path = path.join(
+          path.dirname(streamDestinationPath),
+          "someone-elses-capture.ts"
+        );
       },
     },
     {
       name: "outside path",
       mutate: (session: StreamRecordingSession) => {
-        session.sections[0].path =
-          "D:\\Outside\\stream.streamfusion-recording-session-1-part-001.ts";
+        session.sections[0].path = path.join(
+          path.dirname(path.dirname(streamDestinationPath)),
+          "streamfusion-outside",
+          "stream.streamfusion-recording-session-1-part-001.ts"
+        );
       },
     },
     {
       name: "traversal path",
       mutate: (session: StreamRecordingSession) => {
-        session.sections[0].path =
-          "D:\\Videos\\..\\Outside\\stream.streamfusion-recording-session-1-part-001.ts";
+        session.sections[0].path = [
+          path.dirname(streamDestinationPath),
+          "..",
+          "streamfusion-outside",
+          "stream.streamfusion-recording-session-1-part-001.ts",
+        ].join(path.sep);
       },
     },
     {
@@ -109,7 +124,11 @@ describe("stream recording session store", () => {
     session.recoveryExhaustion = {
       state: "pending-probe",
       error: "interrupted",
-      outputPath: "D:\\Outside\\unrelated.mp4",
+      outputPath: path.join(
+        path.dirname(path.dirname(streamDestinationPath)),
+        "streamfusion-outside",
+        "unrelated.mp4"
+      ),
       outputFormat: "mp4",
       usedFallback: false,
       artifactIdentity: { algorithm: "sha256", digest: "owned", size: 10 },
@@ -249,13 +268,13 @@ describe("stream recording session store", () => {
         channelName: "ninja",
         title: "Stream",
         status: "finalizing",
-        destinationPath: "D:/Videos/stream.mp4",
+        destinationPath: streamDestinationPath,
         qualityLabel: "source",
         capturedDurationSeconds: 10,
         sections: [
           {
             id: "recording-session-1-part-1",
-            path: "D:/Videos/stream.streamfusion-recording-session-1-part-001.ts",
+            path: streamSectionPath,
             startedAt: "2026-07-11T12:00:00.000Z",
             endedAt: "2026-07-11T12:00:10.000Z",
           },
@@ -288,7 +307,7 @@ describe("stream recording session store", () => {
         platform: "twitch",
         channelName: "ninja",
         title: "Stream",
-        outputPath: "D:/Videos/stream.mp4",
+        outputPath: streamDestinationPath,
         outputFormat: "mp4",
         artifactIdentity: { algorithm: "sha256", digest: "owned", size: 1 },
       })
@@ -344,13 +363,13 @@ describe("stream recording session store", () => {
       channelName: "ninja",
       title: "Stream",
       status: "preparing",
-      destinationPath: "D:\\Videos\\ninja-Stream.mp4",
+      destinationPath: testVideoPath("ninja-Stream.mp4"),
       qualityLabel: "source",
       capturedDurationSeconds: 0,
       sections: [
         {
           id: "recording-session-1-part-1",
-          path: "D:\\Videos\\ninja-Stream.streamfusion-recording-session-1-part-001.ts",
+          path: testVideoPath("ninja-Stream.streamfusion-recording-session-1-part-001.ts"),
           startedAt: "2026-07-11T12:00:00.000Z",
         },
       ],
@@ -406,13 +425,13 @@ describe("stream recording session store", () => {
         channelName: "ninja",
         title: "Stream",
         status,
-        destinationPath: "D:/Videos/stream.mp4",
+        destinationPath: streamDestinationPath,
         qualityLabel: "source",
         capturedDurationSeconds: 10,
         sections: [
           {
             id: "recording-session-1-part-1",
-            path: "D:/Videos/stream.streamfusion-recording-session-1-part-001.ts",
+            path: streamSectionPath,
             startedAt: "2026-07-11T12:00:00.000Z",
           },
         ],
@@ -452,7 +471,7 @@ describe("stream recording session store", () => {
         channelName: "ninja",
         title: "Legacy Stream",
         status: "recording",
-        destinationPath: "D:/Videos/legacy.mp4",
+        destinationPath: testVideoPath("legacy.mp4"),
         qualityLabel: "source",
         capturedDurationSeconds: 3,
         gaps: [],
@@ -492,7 +511,7 @@ describe("stream recording session store", () => {
       platform: "kick",
       channelName: "xqc",
       title: "Stream",
-      outputPath: "D:/Videos/stream.mp4",
+      outputPath: streamDestinationPath,
       outputFormat: "mp4",
       artifactIdentity: { algorithm: "sha256", digest: "owned", size: 1 },
     });
@@ -502,7 +521,7 @@ describe("stream recording session store", () => {
       notice: expect.objectContaining({
         sessionId: "recording-session-1",
         outcome: "completed",
-        outputPath: "D:/Videos/stream.mp4",
+        outputPath: streamDestinationPath,
       }),
     });
     expect(journal).toEqual({ version: 2, state: "empty", session: null });
@@ -525,13 +544,13 @@ describe("stream recording session store", () => {
       channelName: "ninja",
       title: "Stream",
       status: "interrupted" as const,
-      destinationPath: "D:/Videos/stream.mp4",
+      destinationPath: streamDestinationPath,
       qualityLabel: "source",
       capturedDurationSeconds: 10,
       sections: [
         {
           id: "recording-session-1-part-1",
-          path: "D:/Videos/stream.streamfusion-recording-session-1-part-001.ts",
+          path: streamSectionPath,
           startedAt: "2026-07-11T12:00:00.000Z",
         },
       ],
@@ -552,7 +571,7 @@ describe("stream recording session store", () => {
 
     expect(store.getJournal().session).toMatchObject({
       id: "recording-session-1",
-      sections: [{ path: "D:/Videos/stream.streamfusion-recording-session-1-part-001.ts" }],
+      sections: [{ path: streamSectionPath }],
     });
   });
 
@@ -565,13 +584,13 @@ describe("stream recording session store", () => {
         channelName: "xqc",
         title: "Interrupted Stream",
         status: "interrupted",
-        destinationPath: "D:/Videos/partial.mp4",
+        destinationPath: testVideoPath("partial.mp4"),
         qualityLabel: "source",
         capturedDurationSeconds: 12,
         sections: [
           {
             id: "recording-session-partial-part-1",
-            path: "D:/Videos/partial.streamfusion-recording-session-partial-part-001.ts",
+            path: testVideoPath("partial.streamfusion-recording-session-partial-part-001.ts"),
             startedAt: "2026-07-11T12:00:00.000Z",
           },
         ],
@@ -603,19 +622,19 @@ describe("stream recording session store", () => {
         channelName: "ninja",
         title: "Stream",
         status: "paused",
-        destinationPath: "D:/Videos/stream.mp4",
+        destinationPath: streamDestinationPath,
         qualityLabel: "source",
         capturedDurationSeconds: 21,
         sections: [
           {
             id: "recording-session-sections-part-1",
-            path: "D:/Videos/stream.streamfusion-recording-session-sections-part-001.ts",
+            path: testVideoPath("stream.streamfusion-recording-session-sections-part-001.ts"),
             startedAt: "2026-07-11T12:00:00.000Z",
             endedAt: "2026-07-11T12:00:12.000Z",
           },
           {
             id: "recording-session-sections-part-2",
-            path: "D:/Videos/stream.streamfusion-recording-session-sections-part-002.ts",
+            path: testVideoPath("stream.streamfusion-recording-session-sections-part-002.ts"),
             startedAt: "2026-07-11T12:00:15.000Z",
             endedAt: "2026-07-11T12:00:24.000Z",
           },

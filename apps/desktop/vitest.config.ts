@@ -5,6 +5,7 @@ import path from 'path';
 
 const systemTestPattern = 'tests/**/*.system.test.{ts,tsx}';
 const deterministicWorkers = Math.min(8, availableParallelism());
+const nodeOnlyTests = ['tests/helpers/better-sqlite3-shim.test.ts'];
 
 const backendDomTests = [
   'tests/backend/api/platforms/kick/follow-grid-predicate.test.ts',
@@ -36,7 +37,7 @@ export default defineConfig({
           name: 'node',
           environment: 'node',
           setupFiles: [path.resolve(__dirname, './tests/setup-node.ts')],
-          include: ['tests/backend/**/*.test.{ts,tsx}'],
+          include: ['tests/backend/**/*.test.{ts,tsx}', ...nodeOnlyTests],
           exclude: [...backendDomTests, systemTestPattern],
         },
       },
@@ -47,7 +48,7 @@ export default defineConfig({
           environment: 'jsdom',
           setupFiles: [path.resolve(__dirname, './tests/setup.ts')],
           include: [...nonBackendTests, ...backendDomTests],
-          exclude: [systemTestPattern],
+          exclude: [systemTestPattern, ...nodeOnlyTests],
         },
       },
       {

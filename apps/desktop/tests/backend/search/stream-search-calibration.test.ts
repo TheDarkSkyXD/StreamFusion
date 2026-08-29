@@ -1,17 +1,11 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import checkedInProfile from "@backend/search/stream-search-budget-profile.json";
+import observations from "../../fixtures/search/stream-search-calibration.observations.json";
 import { deriveStreamSearchCalibration } from "../../../scripts/calibrate-stream-search.mjs";
 
 // Guards: checked-in Stream search budgets must be reproducible from real Electron observations, not invented latency/request arrays
 describe("Stream search calibration", () => {
   it("reproduces the checked-in calibrated profile from all six Electron observations", () => {
-    const observationPath = resolve(
-      process.cwd(),
-      "../../.scratch/logs/runtime/stream-search-calibration.observations.json"
-    );
-    const observations = JSON.parse(readFileSync(observationPath, "utf8"));
     const regenerated = deriveStreamSearchCalibration(observations, checkedInProfile.generatedAt);
     const { generatedAt: _checkedInTimestamp, ...checkedInComparable } = checkedInProfile;
     const { generatedAt: _regeneratedTimestamp, ...regeneratedComparable } = regenerated;

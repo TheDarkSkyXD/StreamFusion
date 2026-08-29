@@ -1,7 +1,7 @@
 import vm from "node:vm";
 import { afterEach, describe, it, expect } from "vitest";
 
-import { GRID_READY_PREDICATE } from "@backend/api/platforms/kick/endpoints/follow-endpoints";
+import { GRID_READY_PREDICATE } from "@backend/api/platforms/kick/follow-grid-predicate";
 
 // The predicate string is the exact JS executed in the page; run it against
 // fixture DOM in jsdom (the default Vitest environment for this repo).

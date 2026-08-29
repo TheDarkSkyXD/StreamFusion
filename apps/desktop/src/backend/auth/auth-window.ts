@@ -23,30 +23,9 @@ import {
   getRedirectUri,
   type PkceChallenge,
 } from "./oauth-config";
+import { HEADER_RENDERED_PREDICATE } from "./auth-header-predicate";
 
-/**
- * Readiness predicate (page-context JS) for kick.com's header: true once EITHER
- * auth state's markers have rendered — a Sign In/Up button (anonymous) OR an
- * avatar/user-menu element (logged in). Either proves the SPA header finished
- * rendering, so the subsequent `_isKickWebAuthenticated` check runs against real
- * DOM rather than a half-rendered page. Markers mirror `_isKickWebAuthenticated`;
- * keep them in sync. Exported for unit testing against fixture DOM.
- */
-export const HEADER_RENDERED_PREDICATE = `(() => {
-  const els = Array.from(document.querySelectorAll('button, a'));
-  const hasAuthButton = els.some((el) => /^\\s*(Sign\\s*In|Log\\s*In|Sign\\s*Up)\\s*$/i.test((el.textContent || '').trim()));
-  const navButtons = Array.from(document.querySelectorAll('nav button'));
-  const hasIconOnlyAccountControl = navButtons.length >= 3 && navButtons.some((button, index) =>
-    index === navButtons.length - 1 && !(button.textContent || '').trim() && !!button.querySelector('svg')
-  );
-  const hasAvatar =
-    !!document.querySelector('header img[alt][src*="profile"], nav img[alt][src*="profile"]') ||
-    !!document.querySelector('header img[alt][src*="default-avatar"], nav img[alt][src*="default-avatar"]') ||
-    !!document.querySelector('button[aria-haspopup="menu"]') ||
-    !!document.querySelector('[data-testid*="user"]') ||
-    hasIconOnlyAccountControl;
-  return hasAuthButton || hasAvatar;
-})()`;
+export { HEADER_RENDERED_PREDICATE } from "./auth-header-predicate";
 
 export function shouldConfirmKickWebAuthentication(
   cookieRotated: boolean,

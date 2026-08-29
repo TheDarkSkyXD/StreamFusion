@@ -4,23 +4,29 @@ import { describe, expect, it } from "vitest";
 
 import { computeLogPaths } from "@backend/logging/log-paths";
 
-// computeLogPaths is a pure function — the per-environment branch is the
-// load-bearing decision (writeable install dir on Windows; .app/AppImage are
-// read-only on mac/linux so we fall back to app.getPath('logs')).
+// Guards: each target Platform uses its own path semantics regardless of the CI runner's host OS
+// Guards: writable Windows installs keep diagnostics beside the app while macOS and Linux use app-data fallbacks
 
 describe("computeLogPaths — dev (!isPackaged)", () => {
   it("returns repo-root /.logs and /bug-reports when projectRoot is supplied", () => {
-    const projectRoot = path.join("C:", "repos", "StreamFusion");
+    const projectRoot = path.win32.join("C:\\", "repos", "StreamFusion");
     const result = computeLogPaths({
       isPackaged: false,
       platform: "win32",
-      exePath: path.join(projectRoot, "node_modules", ".bin", "electron.exe"),
-      fallbackLogsPath: path.join("C:", "Users", "test", "AppData", "Roaming", "StreamFusion"),
+      exePath: path.win32.join(projectRoot, "node_modules", ".bin", "electron.exe"),
+      fallbackLogsPath: path.win32.join(
+        "C:\\",
+        "Users",
+        "test",
+        "AppData",
+        "Roaming",
+        "StreamFusion"
+      ),
       projectRoot,
     });
 
-    expect(result.logsDir).toBe(path.join(projectRoot, ".logs"));
-    expect(result.bugReportsDir).toBe(path.join(projectRoot, "bug-reports"));
+    expect(result.logsDir).toBe(path.win32.join(projectRoot, ".logs"));
+    expect(result.bugReportsDir).toBe(path.win32.join(projectRoot, "bug-reports"));
   });
 
   it("uses projectRoot regardless of platform in dev (linux)", () => {
@@ -33,8 +39,8 @@ describe("computeLogPaths — dev (!isPackaged)", () => {
       projectRoot,
     });
 
-    expect(result.logsDir).toBe(path.join(projectRoot, ".logs"));
-    expect(result.bugReportsDir).toBe(path.join(projectRoot, "bug-reports"));
+    expect(result.logsDir).toBe(path.posix.join(projectRoot, ".logs"));
+    expect(result.bugReportsDir).toBe(path.posix.join(projectRoot, "bug-reports"));
   });
 
   it("throws a clear Error when projectRoot is missing in dev", () => {
@@ -51,8 +57,8 @@ describe("computeLogPaths — dev (!isPackaged)", () => {
 
 describe("computeLogPaths — prod windows (install dir is writable, perMachine:false)", () => {
   it("places logs and bug-reports inside the install dir derived from exePath", () => {
-    const installDir = path.join(
-      "C:",
+    const installDir = path.win32.join(
+      "C:\\",
       "Users",
       "alice",
       "AppData",
@@ -60,13 +66,13 @@ describe("computeLogPaths — prod windows (install dir is writable, perMachine:
       "Programs",
       "StreamFusion"
     );
-    const exePath = path.join(installDir, "StreamFusion.exe");
+    const exePath = path.win32.join(installDir, "StreamFusion.exe");
     const result = computeLogPaths({
       isPackaged: true,
       platform: "win32",
       exePath,
-      fallbackLogsPath: path.join(
-        "C:",
+      fallbackLogsPath: path.win32.join(
+        "C:\\",
         "Users",
         "alice",
         "AppData",
@@ -76,19 +82,19 @@ describe("computeLogPaths — prod windows (install dir is writable, perMachine:
       ),
     });
 
-    expect(result.logsDir).toBe(path.join(installDir, "logs"));
-    expect(result.bugReportsDir).toBe(path.join(installDir, "bug-reports"));
+    expect(result.logsDir).toBe(path.win32.join(installDir, "logs"));
+    expect(result.bugReportsDir).toBe(path.win32.join(installDir, "bug-reports"));
   });
 
   it("does NOT touch fallbackLogsPath on prod windows even when supplied", () => {
-    const installDir = path.join("D:", "Apps", "StreamFusion");
-    const exePath = path.join(installDir, "StreamFusion.exe");
+    const installDir = path.win32.join("D:\\", "Apps", "StreamFusion");
+    const exePath = path.win32.join(installDir, "StreamFusion.exe");
     const result = computeLogPaths({
       isPackaged: true,
       platform: "win32",
       exePath,
-      fallbackLogsPath: path.join(
-        "C:",
+      fallbackLogsPath: path.win32.join(
+        "C:\\",
         "Users",
         "alice",
         "AppData",
@@ -115,7 +121,9 @@ describe("computeLogPaths — prod macOS (.app bundle is read-only)", () => {
     });
 
     expect(result.logsDir).toBe(fallbackLogsPath);
-    expect(result.bugReportsDir).toBe(path.join(path.dirname(fallbackLogsPath), "bug-reports"));
+    expect(result.bugReportsDir).toBe(
+      path.posix.join(path.posix.dirname(fallbackLogsPath), "bug-reports")
+    );
   });
 });
 
@@ -131,7 +139,9 @@ describe("computeLogPaths — prod linux (AppImage / /opt are read-only)", () =>
     });
 
     expect(result.logsDir).toBe(fallbackLogsPath);
-    expect(result.bugReportsDir).toBe(path.join(path.dirname(fallbackLogsPath), "bug-reports"));
+    expect(result.bugReportsDir).toBe(
+      path.posix.join(path.posix.dirname(fallbackLogsPath), "bug-reports")
+    );
   });
 });
 
@@ -157,11 +167,11 @@ describe("computeLogPaths — bug-reports state", () => {
       fallbackLogsPath: "/Users/me/Library/Logs/StreamFusion",
     });
 
-    expect(path.isAbsolute(dev.logsDir)).toBe(true);
-    expect(path.isAbsolute(dev.bugReportsDir)).toBe(true);
-    expect(path.isAbsolute(prodWin.logsDir)).toBe(true);
-    expect(path.isAbsolute(prodWin.bugReportsDir)).toBe(true);
-    expect(path.isAbsolute(prodMac.logsDir)).toBe(true);
-    expect(path.isAbsolute(prodMac.bugReportsDir)).toBe(true);
+    expect(path.win32.isAbsolute(dev.logsDir)).toBe(true);
+    expect(path.win32.isAbsolute(dev.bugReportsDir)).toBe(true);
+    expect(path.win32.isAbsolute(prodWin.logsDir)).toBe(true);
+    expect(path.win32.isAbsolute(prodWin.bugReportsDir)).toBe(true);
+    expect(path.posix.isAbsolute(prodMac.logsDir)).toBe(true);
+    expect(path.posix.isAbsolute(prodMac.bugReportsDir)).toBe(true);
   });
 });

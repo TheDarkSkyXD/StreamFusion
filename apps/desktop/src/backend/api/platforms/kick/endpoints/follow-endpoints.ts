@@ -42,38 +42,14 @@ import {
   type KickWebApiMutationResult,
 } from "../kick-send-window";
 import { acquireBrowserWindowSlot } from "./channel-endpoints";
+import { GRID_READY_PREDICATE } from "../follow-grid-predicate";
+
+export { GRID_READY_PREDICATE } from "../follow-grid-predicate";
 
 export const KICK_FOLLOWED_CHANNELS_API_PATH = "/api/v2/channels/followed";
 export const KICK_FOLLOWED_CHANNELS_PAGE_API_PATH = "/api/v2/channels/followed-page";
 const FOLLOWED_CHANNELS_URL = `${KICK_LEGACY_API_V2_BASE}/channels/followed`;
 const FETCH_TIMEOUT_MS = 10000;
-
-/**
- * Readiness predicate (page-context JS) for the /following/channels scrape:
- * true once the dedicated following section has either rendered a channel card
- * or an explicit empty state. Recommendation sections do not count.
- */
-export const GRID_READY_PREDICATE = `(() => {
-  for (const h of document.querySelectorAll('h1, h2, h3, [role="heading"]')) {
-    if (/^(following|followed channels|channels you follow|following channels)$/i.test((h.textContent || '').trim())) {
-      let p = h.parentElement;
-      for (let i = 0; i < 6 && p; i++) {
-        const includesRecommendations = Array.from(
-          p.querySelectorAll('h1, h2, h3, [role="heading"]')
-        ).some((candidate) => /^live channels$/i.test((candidate.textContent || '').trim()));
-        if (!includesRecommendations && p.querySelectorAll('a[href] img').length >= 1) return true;
-        if (
-          !includesRecommendations &&
-          /(?:aren't|are not|not following|no followed channels|don't follow any channels)/i.test(
-            p.textContent || ''
-          )
-        ) return true;
-        p = p.parentElement;
-      }
-    }
-  }
-  return false;
-})()`;
 
 export type FollowedChannelsResult =
   | { status: "ok"; channels: UnifiedChannel[]; canPruneAbsent: boolean }

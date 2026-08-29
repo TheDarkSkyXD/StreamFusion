@@ -11,6 +11,15 @@ import type {
   StreamRecordingQuality,
   StreamRecordingSession,
 } from "@shared/stream-recording-types";
+import { testVideoPath } from "./stream-recording-test-paths";
+
+const recordingDestinationPath = testVideoPath("ninja-live.mp4");
+
+function restartSectionPath(index: number, sessionId = "recording-restart-1"): string {
+  return testVideoPath(
+    `ninja-live.streamfusion-${sessionId}-part-${String(index).padStart(3, "0")}.ts`
+  );
+}
 
 const source: StreamRecordingQuality = {
   quality: "Source",
@@ -41,7 +50,7 @@ function interruptedSession(): StreamRecordingSession {
     channelName: "ninja",
     title: "Live",
     status: "recording",
-    destinationPath: "D:/Videos/ninja-live.mp4",
+    destinationPath: recordingDestinationPath,
     qualityLabel: "Source",
     desiredQuality: source,
     currentQuality: source,
@@ -49,7 +58,7 @@ function interruptedSession(): StreamRecordingSession {
     sections: [
       {
         id: "recording-restart-1-part-1",
-        path: "D:/Videos/ninja-live.streamfusion-recording-restart-1-part-001.ts",
+        path: restartSectionPath(1),
         startedAt: "2026-07-11T12:00:00.000Z",
       },
     ],
@@ -90,7 +99,7 @@ function recoveryHarness(
     getAvailablePath: (candidate: string) => candidate,
     resolveFfmpegPath: () => "ffmpeg",
     createSectionPath: (_destination: string, index: number, sessionId: string) =>
-      `D:/Videos/ninja-live.streamfusion-${sessionId}-part-${String(index).padStart(3, "0")}.ts`,
+      restartSectionPath(index, sessionId),
     now: vi
       .fn()
       .mockReturnValueOnce("2026-07-11T12:05:01.000Z")
@@ -142,7 +151,7 @@ describe("Stream Recording restart recovery", () => {
     expect(harness.dependencies.startRecorder).toHaveBeenCalledWith(
       expect.objectContaining({
         inputUrl: source.url,
-        destinationPath: "D:/Videos/ninja-live.streamfusion-recording-restart-1-part-002.ts",
+        destinationPath: restartSectionPath(2),
       })
     );
     expect(harness.store.getJournal()).toMatchObject({
@@ -247,7 +256,7 @@ describe("Stream Recording restart recovery", () => {
     session.sections[0].endedAt = "2026-07-11T12:00:06.000Z";
     session.sections.push({
       id: "recording-restart-1-part-2",
-      path: "D:/Videos/ninja-live.streamfusion-recording-restart-1-part-002.ts",
+      path: restartSectionPath(2),
       startedAt: "2026-07-11T12:00:06.000Z",
       endedAt: "2026-07-11T12:00:12.000Z",
     });
@@ -288,7 +297,7 @@ describe("Stream Recording restart recovery", () => {
     checkpointed.recoveryExhaustion = {
       state,
       error: "Recording interrupted during finalization",
-      outputPath: "D:/Videos/ninja-live.mp4",
+      outputPath: recordingDestinationPath,
       outputFormat: "mp4",
       usedFallback: false,
       artifactIdentity,
@@ -381,7 +390,7 @@ describe("Stream Recording restart recovery", () => {
     expect(cleanupAbortedSection).not.toHaveBeenCalled();
 
     finishRecorder({
-      outputPath: "D:/Videos/ninja-live.streamfusion-recording-restart-1-part-002.ts",
+      outputPath: restartSectionPath(2),
       format: "ts",
       partial: true,
     });
@@ -390,9 +399,7 @@ describe("Stream Recording restart recovery", () => {
       code: "resume-failed",
       error: "journal disk full",
     });
-    expect(cleanupAbortedSection).toHaveBeenCalledWith(
-      "D:\\Videos\\ninja-live.streamfusion-recording-restart-1-part-002.ts"
-    );
+    expect(cleanupAbortedSection).toHaveBeenCalledWith(restartSectionPath(2));
   });
 
   it("removes a nonempty unjournaled section only after its failed recovery writer closes", async () => {
@@ -459,7 +466,7 @@ describe("Stream Recording restart recovery", () => {
 
     expect(harness.dependencies.startRecorder).toHaveBeenCalledWith(
       expect.objectContaining({
-        destinationPath: "D:/Videos/ninja-live.streamfusion-recording-restart-1-part-002.ts",
+        destinationPath: restartSectionPath(2),
       })
     );
   });
@@ -484,7 +491,7 @@ describe("Stream Recording restart recovery", () => {
       },
     });
     const stop = vi.fn(async () => ({
-      outputPath: "D:/Videos/ninja-live.streamfusion-recording-restart-1-part-002.ts",
+      outputPath: restartSectionPath(2),
       format: "ts" as const,
       partial: true,
     }));
@@ -517,9 +524,7 @@ describe("Stream Recording restart recovery", () => {
     });
 
     expect(stop).toHaveBeenCalledTimes(1);
-    expect(cleanupAbortedSection).toHaveBeenCalledWith(
-      "D:\\Videos\\ninja-live.streamfusion-recording-restart-1-part-002.ts"
-    );
+    expect(cleanupAbortedSection).toHaveBeenCalledWith(restartSectionPath(2));
     expect(store.getJournal()).toMatchObject({
       state: "interrupted",
       session: {
@@ -558,13 +563,13 @@ describe("Stream Recording restart recovery", () => {
   it("finalizes every preserved section offline and clears the journal only after durable success", async () => {
     const finalize = vi.fn(async ({ sections, beforeCommit }) => {
       await beforeCommit?.({
-        outputPath: "D:/Videos/ninja-live.mp4",
+        outputPath: recordingDestinationPath,
         format: "mp4" as const,
         usedFallback: false,
         artifactIdentity,
       });
       return {
-        outputPath: "D:/Videos/ninja-live.mp4",
+        outputPath: recordingDestinationPath,
         format: "mp4" as const,
         usedFallback: false,
         ownedSectionPaths: sections.map((section: { path: string }) => section.path),
@@ -596,11 +601,11 @@ describe("Stream Recording restart recovery", () => {
     expect(phases).toContain("finalizing");
     expect(finalize).toHaveBeenCalledWith(
       expect.objectContaining({
-        destinationPath: "D:\\Videos\\ninja-live.mp4",
+        destinationPath: recordingDestinationPath,
         sections: [
           expect.objectContaining({
             id: "recording-restart-1-part-1",
-            path: "D:/Videos/ninja-live.streamfusion-recording-restart-1-part-001.ts",
+            path: restartSectionPath(1),
           }),
         ],
         beforeCommit: expect.any(Function),
@@ -609,7 +614,7 @@ describe("Stream Recording restart recovery", () => {
     expect(harness.store.getJournal()).toEqual({ version: 2, state: "empty", session: null });
     expect(harness.service.getSnapshot().notice).toMatchObject({
       outcome: "partial",
-      outputPath: "D:/Videos/ninja-live.mp4",
+      outputPath: recordingDestinationPath,
       artifactIdentity,
     });
   });
@@ -691,7 +696,7 @@ describe("Stream Recording restart recovery", () => {
         status: "interrupted",
         sections: [
           expect.objectContaining({
-            path: "D:/Videos/ninja-live.streamfusion-recording-restart-1-part-001.ts",
+            path: restartSectionPath(1),
           }),
         ],
         statusMessage: "Could not assemble sections",
@@ -710,7 +715,7 @@ describe("Stream Recording restart recovery", () => {
     session.recoveryExhaustion = {
       state,
       error: "Recording interrupted when StreamFusion closed",
-      outputPath: "D:/Videos/ninja-live.mp4",
+      outputPath: recordingDestinationPath,
       outputFormat: "mp4",
       usedFallback: false,
       artifactIdentity,
@@ -744,7 +749,7 @@ describe("Stream Recording restart recovery", () => {
     expect(finalize).not.toHaveBeenCalled();
     expect(probeArtifact).toHaveBeenCalledWith({
       ffmpegPath: "ffmpeg",
-      outputPath: "D:/Videos/ninja-live.mp4",
+      outputPath: recordingDestinationPath,
     });
     expect(harness.service.getSnapshot().notice).toMatchObject({ outcome: "partial" });
   });
@@ -752,7 +757,7 @@ describe("Stream Recording restart recovery", () => {
   it("reuses a verified committed output from normal finalization after restart", async () => {
     const session = interruptedSession();
     session.status = "finalizing";
-    session.committedOutputPath = "D:/Videos/ninja-live.mp4";
+    session.committedOutputPath = recordingDestinationPath;
     session.committedArtifactIdentity = artifactIdentity;
     session.outputFormat = "mp4";
     session.usedFallback = false;
@@ -786,15 +791,13 @@ describe("Stream Recording restart recovery", () => {
     expect(finalize).not.toHaveBeenCalled();
     expect(probeArtifact).toHaveBeenCalledWith({
       ffmpegPath: "ffmpeg",
-      outputPath: "D:/Videos/ninja-live.mp4",
+      outputPath: recordingDestinationPath,
     });
-    expect(cleanupSections).toHaveBeenCalledWith([
-      "D:/Videos/ninja-live.streamfusion-recording-restart-1-part-001.ts",
-    ]);
+    expect(cleanupSections).toHaveBeenCalledWith([restartSectionPath(1)]);
     expect(harness.store.getJournal()).toEqual({ version: 2, state: "empty", session: null });
     expect(harness.service.getSnapshot().notice).toMatchObject({
       outcome: "partial",
-      outputPath: "D:/Videos/ninja-live.mp4",
+      outputPath: recordingDestinationPath,
       artifactIdentity,
     });
   });
@@ -850,7 +853,7 @@ describe("Stream Recording restart recovery", () => {
 
   it("never finalizes or deletes an arbitrary TS path from a tampered journal", async () => {
     const tampered = interruptedSession();
-    tampered.sections[0].path = "D:/Videos/unrelated.ts";
+    tampered.sections[0].path = path.join(path.dirname(recordingDestinationPath), "unrelated.ts");
     const finalize = vi.fn();
     const cleanupSections = vi.fn();
     const cleanupFailedArtifact = vi.fn();

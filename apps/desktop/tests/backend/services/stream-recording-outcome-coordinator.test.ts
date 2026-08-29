@@ -8,6 +8,9 @@ import type {
   StreamRecordingJournal,
   StreamRecordingNotice,
 } from "@shared/stream-recording-types";
+import { testVideoPath } from "./stream-recording-test-paths";
+
+const completedOutputPath = testVideoPath("Ranked.mp4");
 
 const identity: StreamRecordingArtifactIdentity = {
   algorithm: "sha256",
@@ -24,13 +27,13 @@ function createStore() {
       channelName: "ninja",
       title: "Ranked",
       status: "finalizing",
-      destinationPath: "D:/Videos/Ranked.mp4",
+      destinationPath: completedOutputPath,
       qualityLabel: "Source",
       capturedDurationSeconds: 30,
       sections: [
         {
           id: "recording-session-1-part-1",
-          path: createOwnedRecordingSectionPath("D:/Videos/Ranked.mp4", "recording-session-1", 1),
+          path: createOwnedRecordingSectionPath(completedOutputPath, "recording-session-1", 1),
           startedAt: "2026-07-11T12:00:00.000Z",
           endedAt: "2026-07-11T12:00:30.000Z",
         },
@@ -57,7 +60,7 @@ function completedNotice(): StreamRecordingNotice {
     platform: "twitch",
     channelName: "ninja",
     title: "Ranked",
-    outputPath: "D:/Videos/Ranked.mp4",
+    outputPath: completedOutputPath,
     outputFormat: "mp4",
     artifactIdentity: identity,
   };
@@ -361,7 +364,7 @@ describe("stream recording outcome coordinator", () => {
       showNative: vi.fn(),
       focusWindow: vi.fn(),
       recordingFileActions: {
-        exists: (path) => path === "D:/Videos/Ranked.mp4",
+        exists: (path) => path === completedOutputPath,
         openPath,
         showItemInFolder: vi.fn(),
       },
@@ -376,8 +379,8 @@ describe("stream recording outcome coordinator", () => {
     });
     await expect(coordinator.open("recording-session-1")).resolves.toEqual({ success: true });
 
-    expect(verifyArtifactIdentity).toHaveBeenCalledWith("D:/Videos/Ranked.mp4", identity);
-    expect(openPath).toHaveBeenCalledWith("D:/Videos/Ranked.mp4");
+    expect(verifyArtifactIdentity).toHaveBeenCalledWith(completedOutputPath, identity);
+    expect(openPath).toHaveBeenCalledWith(completedOutputPath);
   });
 
   it("shows and dismisses only the current recording outcome by session identity", async () => {
@@ -410,7 +413,7 @@ describe("stream recording outcome coordinator", () => {
       error: "Recording outcome not found",
     });
     await expect(coordinator.show("recording-session-1")).resolves.toEqual({ success: true });
-    expect(showItemInFolder).toHaveBeenCalledWith("D:/Videos/Ranked.mp4");
+    expect(showItemInFolder).toHaveBeenCalledWith(completedOutputPath);
     expect(coordinator.dismiss("wrong-session")).toBe(false);
     expect(coordinator.dismiss("recording-session-1")).toBe(true);
     expect(coordinator.getCurrentNotice()).toBeNull();

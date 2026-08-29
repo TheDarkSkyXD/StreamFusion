@@ -28,6 +28,9 @@ import type {
   StreamRecordingQuality,
   StreamRecordingSession,
 } from "@shared/stream-recording-types";
+import { testVideoPath } from "./stream-recording-test-paths";
+
+const recordingOutputPath = testVideoPath("recording.mp4");
 
 type RecorderInput = Parameters<
   Parameters<typeof createStreamRecordingService>[0]["startRecorder"]
@@ -164,7 +167,7 @@ describe("Stream Recording reconnect recovery", () => {
       })),
       resolveQualityCatalog,
       chooseQuality: vi.fn(async () => source),
-      chooseSavePath: vi.fn(async () => "D:/Videos/recording.mp4"),
+      chooseSavePath: vi.fn(async () => recordingOutputPath),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn((input) => {
@@ -187,8 +190,8 @@ describe("Stream Recording reconnect recovery", () => {
     inputs[1].onProgress({ elapsedSeconds: 3 });
 
     expect(inputs.map((input) => [input.destinationPath, input.inputUrl])).toEqual([
-      [ownedSectionPath("D:/Videos/recording.mp4", 1, "recording-1"), source.url],
-      [ownedSectionPath("D:/Videos/recording.mp4", 2, "recording-1"), source.url],
+      [ownedSectionPath(recordingOutputPath, 1, "recording-1"), source.url],
+      [ownedSectionPath(recordingOutputPath, 2, "recording-1"), source.url],
     ]);
     expect(store.getJournal().session).toMatchObject({
       desiredQuality: sourceMetadata,
@@ -198,10 +201,10 @@ describe("Stream Recording reconnect recovery", () => {
       capturedDurationSeconds: 15,
       sections: [
         {
-          path: ownedSectionPath("D:/Videos/recording.mp4", 1, "recording-1"),
+          path: ownedSectionPath(recordingOutputPath, 1, "recording-1"),
           endedAt: expect.any(String),
         },
-        { path: ownedSectionPath("D:/Videos/recording.mp4", 2, "recording-1") },
+        { path: ownedSectionPath(recordingOutputPath, 2, "recording-1") },
       ],
       gaps: [{ reason: "reconnect", endedAt: expect.any(String) }],
     });
@@ -228,7 +231,7 @@ describe("Stream Recording reconnect recovery", () => {
       resolvePlayback,
       resolveQualityCatalog,
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/recording.mp4"),
+      chooseSavePath: vi.fn(async () => recordingOutputPath),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -273,7 +276,7 @@ describe("Stream Recording reconnect recovery", () => {
       })),
       resolveQualityCatalog: catalogs,
       chooseQuality: vi.fn(async () => source),
-      chooseSavePath: vi.fn(async () => "D:/Videos/recording.mp4"),
+      chooseSavePath: vi.fn(async () => recordingOutputPath),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn().mockReturnValueOnce(first.recorder).mockReturnValue(second.recorder),
@@ -341,7 +344,7 @@ describe("Stream Recording reconnect recovery", () => {
       })),
       resolveQualityCatalog: catalogs,
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/recording.mp4"),
+      chooseSavePath: vi.fn(async () => recordingOutputPath),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -362,7 +365,7 @@ describe("Stream Recording reconnect recovery", () => {
       qualityChange: null,
       sections: [
         {
-          path: ownedSectionPath("D:/Videos/recording.mp4", 1, "recording-1"),
+          path: ownedSectionPath(recordingOutputPath, 1, "recording-1"),
           endedAt: expect.any(String),
         },
       ],
@@ -392,8 +395,8 @@ describe("Stream Recording reconnect recovery", () => {
       qualityLabel: "720p60",
       qualityChange: { revision: 1, fromQuality: "Source", toQuality: "720p60" },
       sections: [
-        { path: ownedSectionPath("D:/Videos/recording.mp4", 1, "recording-1") },
-        { path: ownedSectionPath("D:/Videos/recording.mp4", 2, "recording-1") },
+        { path: ownedSectionPath(recordingOutputPath, 1, "recording-1") },
+        { path: ownedSectionPath(recordingOutputPath, 2, "recording-1") },
       ],
     });
     const announcementSnapshots = snapshots.filter(
@@ -425,7 +428,7 @@ describe("Stream Recording reconnect recovery", () => {
       })),
       resolveQualityCatalog: catalogs,
       chooseQuality: vi.fn(async () => source),
-      chooseSavePath: vi.fn(async () => "D:/Videos/recording.mp4"),
+      chooseSavePath: vi.fn(async () => recordingOutputPath),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn((input) => {
@@ -573,10 +576,10 @@ describe("Stream Recording reconnect recovery", () => {
       streamId: "stream-live-123",
     }));
     const finalize = vi.fn(async () => ({
-      outputPath: "D:/Videos/recording.mp4",
+      outputPath: recordingOutputPath,
       format: "mp4" as const,
       usedFallback: false,
-      ownedSectionPaths: [ownedSectionPath("D:/Videos/recording.mp4", 1, "recording-removed")],
+      ownedSectionPaths: [ownedSectionPath(recordingOutputPath, 1, "recording-removed")],
       artifactIdentity: ownedIdentity,
     }));
     const service = createStreamRecordingService({
@@ -586,7 +589,7 @@ describe("Stream Recording reconnect recovery", () => {
       resolvePlayback,
       resolveQualityCatalog: vi.fn(async () => [source]),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/recording.mp4"),
+      chooseSavePath: vi.fn(async () => recordingOutputPath),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => first.recorder),
@@ -605,14 +608,14 @@ describe("Stream Recording reconnect recovery", () => {
       expect.objectContaining({
         sections: [
           expect.objectContaining({
-            path: ownedSectionPath("D:/Videos/recording.mp4", 1, "recording-removed"),
+            path: ownedSectionPath(recordingOutputPath, 1, "recording-removed"),
           }),
         ],
       })
     );
     expect(service.getSnapshot().notice).toMatchObject({
       outcome: "partial",
-      outputPath: "D:/Videos/recording.mp4",
+      outputPath: recordingOutputPath,
       artifactIdentity: ownedIdentity,
       error: "Stream access removed",
     });
@@ -1051,7 +1054,7 @@ describe("Stream Recording reconnect recovery", () => {
       resolvePlayback,
       resolveQualityCatalog: vi.fn(async () => [source]),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/recording.mp4"),
+      chooseSavePath: vi.fn(async () => recordingOutputPath),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -1098,10 +1101,10 @@ describe("Stream Recording reconnect recovery", () => {
       });
     const startRecorder = vi.fn(() => first.recorder);
     const finalize = vi.fn(async () => ({
-      outputPath: "D:/Videos/recording.mp4",
+      outputPath: recordingOutputPath,
       format: "mp4" as const,
       usedFallback: false,
-      ownedSectionPaths: [ownedSectionPath("D:/Videos/recording.mp4", 1, "recording-1")],
+      ownedSectionPaths: [ownedSectionPath(recordingOutputPath, 1, "recording-1")],
       artifactIdentity: ownedIdentity,
     }));
     const service = createStreamRecordingService({
@@ -1111,7 +1114,7 @@ describe("Stream Recording reconnect recovery", () => {
       resolvePlayback,
       resolveQualityCatalog: vi.fn(async () => [source]),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/recording.mp4"),
+      chooseSavePath: vi.fn(async () => recordingOutputPath),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -1136,7 +1139,7 @@ describe("Stream Recording reconnect recovery", () => {
       expect.objectContaining({
         sections: [
           expect.objectContaining({
-            path: ownedSectionPath("D:/Videos/recording.mp4", 1, "recording-1"),
+            path: ownedSectionPath(recordingOutputPath, 1, "recording-1"),
           }),
         ],
       })

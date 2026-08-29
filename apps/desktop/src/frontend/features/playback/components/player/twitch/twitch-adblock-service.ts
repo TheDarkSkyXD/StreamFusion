@@ -1798,3 +1798,33 @@ function cancelPlayerReloadGuardReset(channelName: string): void {
   if (timer) clearTimeout(timer);
   playerReloadGuardResetTimers.delete(channelName);
 }
+
+export function resetTwitchAdBlockServiceForTests(): void {
+  for (const scopes of detectionScopesByChannel.values()) {
+    for (const scope of scopes) playlistAdDetector.clear(scope);
+  }
+  for (const timer of playerReloadGuardResetTimers.values()) clearTimeout(timer);
+
+  adSegmentCache.clear();
+  streamInfos.clear();
+  streamInfosByUrl.clear();
+  detectionScopesByChannel.clear();
+  renditionSwitchStates.clear();
+  backupMasterPromises.clear();
+  missingResolutionFallbackLoggedChannels.clear();
+  statusChangeSubscribers.clear();
+  playerReloadCallbacks.clear();
+  channelsWithAdStartReload.clear();
+  playerReloadGuardResetTimers.clear();
+
+  config = { ...DEFAULT_ADBLOCK_CONFIG };
+  onStatusChange = null;
+  gqlDeviceId = null;
+  authorizationHeader = undefined;
+  clientIntegrityHeader = null;
+  clientVersion = null;
+  clientSession = null;
+  useV2Api = false;
+  isMainProcessProxyActive = false;
+  legacyPlayerReloadCallback = null;
+}

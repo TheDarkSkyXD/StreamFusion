@@ -7,6 +7,7 @@ import { createOwnedRecordingSectionPath } from "@backend/services/stream-record
 import { createStreamRecordingService } from "@backend/services/stream-recording-service";
 import { createStreamRecordingSessionStore } from "@backend/services/stream-recording-session-store";
 import type { StreamRecordingJournal } from "@shared/stream-recording-types";
+import { testVideoPath } from "./stream-recording-test-paths";
 
 type StartRecorderInput = Parameters<
   Parameters<typeof createStreamRecordingService>[0]["startRecorder"]
@@ -44,7 +45,7 @@ function ownedSectionPath(destinationPath: string, sectionNumber: number, sessio
 function pendingRecorder() {
   return {
     stop: vi.fn(async () => ({
-      outputPath: "D:/Videos/stream.mp4",
+      outputPath: testVideoPath("stream.mp4"),
       format: "mp4" as const,
       partial: false,
     })),
@@ -73,7 +74,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => recorder),
@@ -87,7 +88,7 @@ describe("direct-to-file Stream Recording service", () => {
 
     expect(recorder.stop).toHaveBeenCalledTimes(1);
     expect(discardArtifacts).toHaveBeenCalledWith([
-      ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1"),
+      ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1"),
     ]);
     expect(sessionStore.getJournal().session).toBeNull();
     expect(service.getSnapshot()).toEqual({ active: null, notice: null });
@@ -107,7 +108,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => pendingRecorder()),
@@ -119,7 +120,7 @@ describe("direct-to-file Stream Recording service", () => {
     sessionStore.saveSession({
       ...active,
       outputFormat: "mp4",
-      committedOutputPath: "D:/Videos/stream.mp4",
+      committedOutputPath: testVideoPath("stream.mp4"),
       committedArtifactIdentity: artifactIdentity,
       usedFallback: false,
     });
@@ -129,12 +130,12 @@ describe("direct-to-file Stream Recording service", () => {
     });
 
     expect(verifyArtifactIdentity).toHaveBeenCalledWith(
-      "D:/Videos/stream.mp4",
+      testVideoPath("stream.mp4"),
       artifactIdentity
     );
     expect(discardArtifacts).toHaveBeenCalledWith([
-      ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1"),
-      "D:/Videos/stream.mp4",
+      ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1"),
+      testVideoPath("stream.mp4"),
     ]);
   });
 
@@ -153,7 +154,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => recorder),
@@ -193,7 +194,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -212,9 +213,9 @@ describe("direct-to-file Stream Recording service", () => {
     thirdProgress({ elapsedSeconds: 2 });
 
     expect(recorderInputs.map((input) => input.destinationPath)).toEqual([
-      "D:\\Videos\\stream.streamfusion-recording-session-1-part-001.ts",
-      "D:\\Videos\\stream.streamfusion-recording-session-1-part-002.ts",
-      "D:\\Videos\\stream.streamfusion-recording-session-1-part-003.ts",
+      testVideoPath("stream.streamfusion-recording-session-1-part-001.ts"),
+      testVideoPath("stream.streamfusion-recording-session-1-part-002.ts"),
+      testVideoPath("stream.streamfusion-recording-session-1-part-003.ts"),
     ]);
     expect(sessionStore.getJournal().session).toMatchObject({
       streamId: "stream-live-123",
@@ -223,15 +224,15 @@ describe("direct-to-file Stream Recording service", () => {
       sections: [
         {
           id: "recording-session-1-part-1",
-          path: ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1"),
+          path: ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1"),
         },
         {
           id: "recording-session-1-part-2",
-          path: ownedSectionPath("D:/Videos/stream.mp4", 2, "recording-session-1"),
+          path: ownedSectionPath(testVideoPath("stream.mp4"), 2, "recording-session-1"),
         },
         {
           id: "recording-session-1-part-3",
-          path: ownedSectionPath("D:/Videos/stream.mp4", 3, "recording-session-1"),
+          path: ownedSectionPath(testVideoPath("stream.mp4"), 3, "recording-session-1"),
         },
       ],
     });
@@ -239,7 +240,7 @@ describe("direct-to-file Stream Recording service", () => {
 
   it("refuses to start without an authoritative Stream identity", async () => {
     const sessionStore = createSessionStore();
-    const chooseSavePath = vi.fn(async () => "D:/Videos/stream.mp4");
+    const chooseSavePath = vi.fn(async () => testVideoPath("stream.mp4"));
     const startRecorder = vi.fn(() => pendingRecorder());
     const service = createStreamRecordingService({
       sessionStore,
@@ -278,7 +279,7 @@ describe("direct-to-file Stream Recording service", () => {
         format: "hls",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -317,7 +318,7 @@ describe("direct-to-file Stream Recording service", () => {
         format: "hls",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -360,7 +361,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -416,7 +417,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -474,7 +475,7 @@ describe("direct-to-file Stream Recording service", () => {
       createSectionPath: ownedSectionPath,
       resolvePlayback,
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -527,7 +528,7 @@ describe("direct-to-file Stream Recording service", () => {
         finishResumedRecorder = resolve;
       }
     );
-    const resumedPath = ownedSectionPath("D:/Videos/stream.mp4", 2, "recording-session-1");
+    const resumedPath = ownedSectionPath(testVideoPath("stream.mp4"), 2, "recording-session-1");
     const resumedStop = vi.fn(() => resumedDone);
     const startRecorder = vi
       .fn()
@@ -544,7 +545,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -626,7 +627,7 @@ describe("direct-to-file Stream Recording service", () => {
     const recorder = pendingRecorder();
     recorder.stop.mockImplementation(async () => {
       await stopPending;
-      return { outputPath: "D:/Videos/section-1.mp4", format: "mp4", partial: false };
+      return { outputPath: testVideoPath("section-1.mp4"), format: "mp4", partial: false };
     });
     const service = createStreamRecordingService({
       sessionStore: createSessionStore(),
@@ -638,7 +639,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => recorder),
@@ -688,7 +689,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => recorder),
@@ -704,7 +705,7 @@ describe("direct-to-file Stream Recording service", () => {
       statusMessage: "Pausing",
     });
 
-    resolveDone({ outputPath: "D:/Videos/stream.mp4", format: "mp4", partial: true });
+    resolveDone({ outputPath: testVideoPath("stream.mp4"), format: "mp4", partial: true });
     await expect(pause).resolves.toEqual({ success: true });
     await Promise.resolve();
 
@@ -735,7 +736,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => recorder),
@@ -750,7 +751,7 @@ describe("direct-to-file Stream Recording service", () => {
     expect(sessionStore.getJournal().session).toMatchObject({
       status: "interrupted",
       partial: true,
-      sections: [{ path: ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1") }],
+      sections: [{ path: ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1") }],
     });
   });
 
@@ -782,7 +783,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => recorder),
@@ -812,7 +813,7 @@ describe("direct-to-file Stream Recording service", () => {
     const recorder = pendingRecorder();
     recorder.stop.mockImplementation(async () => {
       await stopPending;
-      return { outputPath: "D:/Videos/section-1.mp4", format: "mp4", partial: true };
+      return { outputPath: testVideoPath("section-1.mp4"), format: "mp4", partial: true };
     });
     let releaseFinalizer: () => void = () => {};
     const finalizerPending = new Promise<void>((resolve) => {
@@ -821,10 +822,12 @@ describe("direct-to-file Stream Recording service", () => {
     const finalize = vi.fn(async () => {
       await finalizerPending;
       return {
-        outputPath: "D:/Videos/stream.mp4",
+        outputPath: testVideoPath("stream.mp4"),
         format: "mp4" as const,
         usedFallback: false,
-        ownedSectionPaths: [ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1")],
+        ownedSectionPaths: [
+          ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1"),
+        ],
         artifactIdentity,
       };
     });
@@ -847,7 +850,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => recorder),
@@ -874,10 +877,10 @@ describe("direct-to-file Stream Recording service", () => {
     expect(finalize).toHaveBeenCalledWith(
       expect.objectContaining({
         ffmpegPath: "ffmpeg",
-        destinationPath: path.normalize("D:/Videos/stream.mp4"),
+        destinationPath: path.normalize(testVideoPath("stream.mp4")),
         sections: [
           expect.objectContaining({
-            path: ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1"),
+            path: ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1"),
             endedAt: expect.any(String),
           }),
         ],
@@ -894,7 +897,7 @@ describe("direct-to-file Stream Recording service", () => {
     expect(sessionStore.getJournal().session).toBeNull();
     expect(service.getSnapshot().notice).toMatchObject({
       outcome: "completed",
-      outputPath: "D:/Videos/stream.mp4",
+      outputPath: testVideoPath("stream.mp4"),
       outputFormat: "mp4",
       usedFallback: false,
     });
@@ -917,12 +920,15 @@ describe("direct-to-file Stream Recording service", () => {
         },
       },
     });
-    let finishRecorder: (result: { outputPath: string; format: "ts"; partial: boolean }) => void =
-      () => undefined;
+    let finishRecorder: (result: {
+      outputPath: string;
+      format: "ts";
+      partial: boolean;
+    }) => void = () => undefined;
     const done = new Promise<{ outputPath: string; format: "ts"; partial: boolean }>((resolve) => {
       finishRecorder = resolve;
     });
-    const outputPath = ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1");
+    const outputPath = ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1");
     const stop = vi.fn(() => done);
     const service = createStreamRecordingService({
       sessionStore,
@@ -934,7 +940,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => ({ stop, done })),
@@ -979,10 +985,10 @@ describe("direct-to-file Stream Recording service", () => {
     });
     const recorder = pendingRecorder();
     const finalize = vi.fn(async () => ({
-      outputPath: "D:/Videos/stream.mp4",
+      outputPath: testVideoPath("stream.mp4"),
       format: "mp4" as const,
       usedFallback: false,
-      ownedSectionPaths: [ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1")],
+      ownedSectionPaths: [ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1")],
       artifactIdentity,
     }));
     const cleanupSections = vi.fn(async () => {
@@ -998,7 +1004,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => recorder),
@@ -1016,9 +1022,9 @@ describe("direct-to-file Stream Recording service", () => {
 
     expect(sessionStore.getJournal().session).toMatchObject({
       status: "finalizing",
-      committedOutputPath: "D:/Videos/stream.mp4",
+      committedOutputPath: testVideoPath("stream.mp4"),
       outputFormat: "mp4",
-      sections: [{ path: ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1") }],
+      sections: [{ path: ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1") }],
     });
     expect(cleanupSections).not.toHaveBeenCalled();
 
@@ -1027,7 +1033,7 @@ describe("direct-to-file Stream Recording service", () => {
     expect(finalize).toHaveBeenCalledTimes(1);
     expect(sessionStore.getJournal().session).toBeNull();
     expect(cleanupSections).toHaveBeenCalledWith([
-      ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1"),
+      ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1"),
     ]);
     expect(events.indexOf("clear-succeeded")).toBeLessThan(events.indexOf("cleanup-sections"));
   });
@@ -1037,7 +1043,7 @@ describe("direct-to-file Stream Recording service", () => {
     const recorder = pendingRecorder();
     const finalize = vi.fn(async ({ beforeCommit }) => {
       await beforeCommit?.({
-        outputPath: "D:/Videos/stream.mp4",
+        outputPath: testVideoPath("stream.mp4"),
         format: "mp4" as const,
         usedFallback: false,
         artifactIdentity,
@@ -1054,7 +1060,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => recorder),
@@ -1071,7 +1077,7 @@ describe("direct-to-file Stream Recording service", () => {
       status: "interrupted",
       recoveryExhaustion: {
         state: "commit-intent",
-        outputPath: "D:/Videos/stream.mp4",
+        outputPath: testVideoPath("stream.mp4"),
         artifactIdentity,
       },
     });
@@ -1087,8 +1093,8 @@ describe("direct-to-file Stream Recording service", () => {
         channelName: "ninja",
         title: "Stream",
         status: "interrupted",
-        destinationPath: "D:/Videos/stream.mp4",
-        committedOutputPath: "D:/Videos/stream.mp4",
+        destinationPath: testVideoPath("stream.mp4"),
+        committedOutputPath: testVideoPath("stream.mp4"),
         committedArtifactIdentity: artifactIdentity,
         outputFormat: "mp4",
         usedFallback: false,
@@ -1097,7 +1103,7 @@ describe("direct-to-file Stream Recording service", () => {
         sections: [
           {
             id: "recording-session-1-part-1",
-            path: ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1"),
+            path: ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1"),
             startedAt: "2026-07-11T12:00:00.000Z",
             endedAt: "2026-07-11T12:00:10.000Z",
           },
@@ -1122,7 +1128,7 @@ describe("direct-to-file Stream Recording service", () => {
       probeArtifact: vi.fn(async () => true),
       verifyArtifactIdentity: vi.fn(async () => true),
       recordingFileActions: {
-        exists: (candidate) => candidate === "D:/Videos/stream.mp4",
+        exists: (candidate) => candidate === testVideoPath("stream.mp4"),
         openPath: vi.fn(),
         showItemInFolder: vi.fn(),
       },
@@ -1133,11 +1139,11 @@ describe("direct-to-file Stream Recording service", () => {
     expect(finalize).not.toHaveBeenCalled();
     expect(sessionStore.getJournal().session).toBeNull();
     expect(cleanupSections).toHaveBeenCalledWith([
-      ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1"),
+      ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1"),
     ]);
     expect(service.getSnapshot().notice).toMatchObject({
       outcome: "completed",
-      outputPath: "D:/Videos/stream.mp4",
+      outputPath: testVideoPath("stream.mp4"),
     });
   });
 
@@ -1155,7 +1161,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => recorder),
@@ -1174,7 +1180,7 @@ describe("direct-to-file Stream Recording service", () => {
     expect(finalize).toHaveBeenCalledWith(
       expect.objectContaining({
         ffmpegPath: "ffmpeg",
-        destinationPath: path.normalize("D:/Videos/stream.mp4"),
+        destinationPath: path.normalize(testVideoPath("stream.mp4")),
         sections: preservedSections,
         beforeCommit: expect.any(Function),
       })
@@ -1204,17 +1210,17 @@ describe("direct-to-file Stream Recording service", () => {
     }));
     const startRecorder = vi.fn(() => ({
       stop: vi.fn(async () => ({
-        outputPath: "D:/Videos/section-1.mp4",
+        outputPath: testVideoPath("section-1.mp4"),
         format: "mp4" as const,
         partial: true,
       })),
       done,
     }));
     const finalize = vi.fn(async () => ({
-      outputPath: "D:/Videos/stream.mp4",
+      outputPath: testVideoPath("stream.mp4"),
       format: "mp4" as const,
       usedFallback: false,
-      ownedSectionPaths: [ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1")],
+      ownedSectionPaths: [ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1")],
       artifactIdentity,
     }));
     const service = createStreamRecordingService({
@@ -1223,7 +1229,7 @@ describe("direct-to-file Stream Recording service", () => {
       createSectionPath: ownedSectionPath,
       resolvePlayback,
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -1288,7 +1294,7 @@ describe("direct-to-file Stream Recording service", () => {
       createSectionPath: ownedSectionPath,
       resolvePlayback,
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -1340,7 +1346,7 @@ describe("direct-to-file Stream Recording service", () => {
     });
     const stop = vi.fn();
     const startRecorder = vi.fn(() => ({ stop, done }));
-    const outputPath = ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1");
+    const outputPath = ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1");
     const service = createStreamRecordingService({
       sessionStore,
       createId: () => "recording-session-1",
@@ -1351,7 +1357,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -1409,7 +1415,7 @@ describe("direct-to-file Stream Recording service", () => {
         finishSecondCapture = resolve;
       }
     );
-    const secondPath = ownedSectionPath("D:/Videos/stream.mp4", 2, "recording-session-1");
+    const secondPath = ownedSectionPath(testVideoPath("stream.mp4"), 2, "recording-session-1");
     const secondStop = vi.fn(() => {
       const result = { outputPath: secondPath, format: "ts" as const, partial: true };
       finishSecondCapture(result);
@@ -1432,7 +1438,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -1465,10 +1471,10 @@ describe("direct-to-file Stream Recording service", () => {
     const sessionStore = createSessionStore();
     const recorder = pendingRecorder();
     const finalize = vi.fn(async () => ({
-      outputPath: "D:/Videos/stream.mp4",
+      outputPath: testVideoPath("stream.mp4"),
       format: "mp4" as const,
       usedFallback: false,
-      ownedSectionPaths: [ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1")],
+      ownedSectionPaths: [ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1")],
       artifactIdentity,
     }));
     let stopping: Promise<{ success: boolean; error?: string }> | null = null;
@@ -1489,7 +1495,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => recorder),
@@ -1528,7 +1534,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn((input: StartRecorderInput) => {
@@ -1547,7 +1553,7 @@ describe("direct-to-file Stream Recording service", () => {
     });
     expect(statuses).toEqual(["preparing", "recording"]);
     expect(recorderInputs[0]?.destinationPath).toBe(
-      ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1")
+      ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1")
     );
     expect(sessionStore.getJournal().session).toMatchObject({
       id: "recording-session-1",
@@ -1557,44 +1563,47 @@ describe("direct-to-file Stream Recording service", () => {
   });
 
   it.each([
-    ["D:/Videos/stream", "D:/Videos/stream.mp4"],
-    ["D:/Videos/stream.webm", "D:/Videos/stream.mp4"],
-    ["D:/Videos/stream.MP4", "D:/Videos/stream.mp4"],
-  ])("normalizes the Save destination %s to MP4 before reserving sections", async (chosen, expected) => {
-    const sessionStore = createSessionStore();
-    const recorderInputs: StartRecorderInput[] = [];
-    const service = createStreamRecordingService({
-      sessionStore,
-      createId: () => "recording-session-1",
-      resolvePlayback: vi.fn(async () => ({
-        url: "https://cdn.example/live.m3u8",
-        format: "hls",
-        streamId: "stream-live-123",
-      })),
-      chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => chosen),
-      getAvailablePath: (candidate) => candidate,
-      resolveFfmpegPath: () => "ffmpeg",
-      startRecorder: vi.fn((input: StartRecorderInput) => {
-        recorderInputs.push(input);
-        return pendingRecorder();
-      }),
-    });
+    [testVideoPath("stream"), testVideoPath("stream.mp4")],
+    [testVideoPath("stream.webm"), testVideoPath("stream.mp4")],
+    [testVideoPath("stream.MP4"), testVideoPath("stream.mp4")],
+  ])(
+    "normalizes the Save destination %s to MP4 before reserving sections",
+    async (chosen, expected) => {
+      const sessionStore = createSessionStore();
+      const recorderInputs: StartRecorderInput[] = [];
+      const service = createStreamRecordingService({
+        sessionStore,
+        createId: () => "recording-session-1",
+        resolvePlayback: vi.fn(async () => ({
+          url: "https://cdn.example/live.m3u8",
+          format: "hls",
+          streamId: "stream-live-123",
+        })),
+        chooseQuality: vi.fn(),
+        chooseSavePath: vi.fn(async () => chosen),
+        getAvailablePath: (candidate) => candidate,
+        resolveFfmpegPath: () => "ffmpeg",
+        startRecorder: vi.fn((input: StartRecorderInput) => {
+          recorderInputs.push(input);
+          return pendingRecorder();
+        }),
+      });
 
-    await service.startRecording({ platform: "twitch", channelName: "ninja", title: "Stream" });
+      await service.startRecording({ platform: "twitch", channelName: "ninja", title: "Stream" });
 
-    expect(sessionStore.getJournal().session?.destinationPath).toBe(path.normalize(expected));
-    expect(recorderInputs[0]?.destinationPath).toBe(
-      ownedSectionPath(expected, 1, "recording-session-1")
-    );
-  });
+      expect(sessionStore.getJournal().session?.destinationPath).toBe(path.normalize(expected));
+      expect(recorderInputs[0]?.destinationPath).toBe(
+        ownedSectionPath(expected, 1, "recording-session-1")
+      );
+    }
+  );
 
   it("persists nothing and releases its reservation when Save is cancelled", async () => {
     const sessionStore = createSessionStore();
     const chooseSavePath = vi
       .fn()
       .mockResolvedValueOnce(null)
-      .mockResolvedValue("D:/Videos/stream.mp4");
+      .mockResolvedValue(testVideoPath("stream.mp4"));
     const service = createStreamRecordingService({
       sessionStore,
       createId: () => "recording-session-1",
@@ -1638,7 +1647,7 @@ describe("direct-to-file Stream Recording service", () => {
       createId: () => "recording-session-1",
       resolvePlayback: playback,
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => pendingRecorder()),
@@ -1680,13 +1689,13 @@ describe("direct-to-file Stream Recording service", () => {
         channelName: "active-channel",
         title: "Active Stream",
         status: "recording",
-        destinationPath: "D:/Videos/active.mp4",
+        destinationPath: testVideoPath("active.mp4"),
         qualityLabel: "1080p60",
         capturedDurationSeconds: 12,
         sections: [
           {
             id: "recording-session-existing-part-1",
-            path: ownedSectionPath("D:/Videos/active.mp4", 1, "recording-session-existing"),
+            path: ownedSectionPath(testVideoPath("active.mp4"), 1, "recording-session-existing"),
             startedAt: "2026-07-11T12:00:00.000Z",
           },
         ],
@@ -1744,7 +1753,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -1785,7 +1794,7 @@ describe("direct-to-file Stream Recording service", () => {
       createSectionPath: ownedSectionPath,
       resolvePlayback,
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -1816,13 +1825,17 @@ describe("direct-to-file Stream Recording service", () => {
         channelName: "ninja",
         title: "Interrupted Stream",
         status: "interrupted",
-        destinationPath: "D:/Videos/interrupted.mp4",
+        destinationPath: testVideoPath("interrupted.mp4"),
         qualityLabel: "source",
         capturedDurationSeconds: 10,
         sections: [
           {
             id: "recording-session-interrupted-part-1",
-            path: ownedSectionPath("D:/Videos/interrupted.mp4", 1, "recording-session-interrupted"),
+            path: ownedSectionPath(
+              testVideoPath("interrupted.mp4"),
+              1,
+              "recording-session-interrupted"
+            ),
             startedAt: "2026-07-11T12:00:00.000Z",
           },
         ],
@@ -1860,7 +1873,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(({ onProgress }) => {
@@ -1892,12 +1905,15 @@ describe("direct-to-file Stream Recording service", () => {
         },
       },
     });
-    let finishRecorder: (result: { outputPath: string; format: "ts"; partial: boolean }) => void =
-      () => undefined;
+    let finishRecorder: (result: {
+      outputPath: string;
+      format: "ts";
+      partial: boolean;
+    }) => void = () => undefined;
     const done = new Promise<{ outputPath: string; format: "ts"; partial: boolean }>((resolve) => {
       finishRecorder = resolve;
     });
-    const outputPath = ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1");
+    const outputPath = ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1");
     const stop = vi.fn(() => done);
     const service = createStreamRecordingService({
       sessionStore,
@@ -1909,7 +1925,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(({ onProgress }) => {
@@ -1960,12 +1976,15 @@ describe("direct-to-file Stream Recording service", () => {
         },
       },
     });
-    let finishRecorder: (result: { outputPath: string; format: "ts"; partial: boolean }) => void =
-      () => undefined;
+    let finishRecorder: (result: {
+      outputPath: string;
+      format: "ts";
+      partial: boolean;
+    }) => void = () => undefined;
     const done = new Promise<{ outputPath: string; format: "ts"; partial: boolean }>((resolve) => {
       finishRecorder = resolve;
     });
-    const outputPath = ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1");
+    const outputPath = ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1");
     const stop = vi.fn(() => done);
     const service = createStreamRecordingService({
       sessionStore,
@@ -1977,7 +1996,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => ({ stop, done })),
@@ -2029,13 +2048,16 @@ describe("direct-to-file Stream Recording service", () => {
       },
     });
     const recorderInputs: StartRecorderInput[] = [];
-    let finishRecorder: (result: { outputPath: string; format: "ts"; partial: boolean }) => void =
-      () => undefined;
+    let finishRecorder: (result: {
+      outputPath: string;
+      format: "ts";
+      partial: boolean;
+    }) => void = () => undefined;
     const done = new Promise<{ outputPath: string; format: "ts"; partial: boolean }>((resolve) => {
       finishRecorder = resolve;
     });
     const stoppedResult = {
-      outputPath: ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1"),
+      outputPath: ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1"),
       format: "ts" as const,
       partial: true,
     };
@@ -2053,7 +2075,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn((input) => {
@@ -2077,7 +2099,7 @@ describe("direct-to-file Stream Recording service", () => {
           sections: [
             expect.objectContaining({
               id: "recording-session-1-part-1",
-              path: ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1"),
+              path: ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1"),
               endedAt: expect.any(String),
             }),
           ],
@@ -2106,15 +2128,18 @@ describe("direct-to-file Stream Recording service", () => {
       },
     });
     const recorderInputs: StartRecorderInput[] = [];
-    let finishRecorder: (result: { outputPath: string; format: "ts"; partial: boolean }) => void =
-      () => undefined;
+    let finishRecorder: (result: {
+      outputPath: string;
+      format: "ts";
+      partial: boolean;
+    }) => void = () => undefined;
     const done = new Promise<{ outputPath: string; format: "ts"; partial: boolean }>((resolve) => {
       finishRecorder = resolve;
     });
-    const outputPath = ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1");
+    const outputPath = ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1");
     const stop = vi.fn(() => done);
     const finalize = vi.fn(async () => ({
-      outputPath: "D:/Videos/stream.mp4",
+      outputPath: testVideoPath("stream.mp4"),
       format: "mp4" as const,
       usedFallback: false,
       ownedSectionPaths: [outputPath],
@@ -2130,7 +2155,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn((input) => {
@@ -2191,12 +2216,15 @@ describe("direct-to-file Stream Recording service", () => {
         },
       },
     });
-    let finishRecorder: (result: { outputPath: string; format: "ts"; partial: boolean }) => void =
-      () => undefined;
+    let finishRecorder: (result: {
+      outputPath: string;
+      format: "ts";
+      partial: boolean;
+    }) => void = () => undefined;
     const done = new Promise<{ outputPath: string; format: "ts"; partial: boolean }>((resolve) => {
       finishRecorder = resolve;
     });
-    const outputPath = ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1");
+    const outputPath = ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1");
     const stop = vi.fn(() => done);
     const service = createStreamRecordingService({
       sessionStore,
@@ -2208,7 +2236,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => ({ stop, done })),
@@ -2247,12 +2275,15 @@ describe("direct-to-file Stream Recording service", () => {
         },
       },
     });
-    let finishRecorder: (result: { outputPath: string; format: "ts"; partial: boolean }) => void =
-      () => undefined;
+    let finishRecorder: (result: {
+      outputPath: string;
+      format: "ts";
+      partial: boolean;
+    }) => void = () => undefined;
     const done = new Promise<{ outputPath: string; format: "ts"; partial: boolean }>((resolve) => {
       finishRecorder = resolve;
     });
-    const outputPath = ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1");
+    const outputPath = ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1");
     const stop = vi.fn(() => done);
     const service = createStreamRecordingService({
       sessionStore,
@@ -2264,7 +2295,7 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => ({ stop, done })),
@@ -2305,7 +2336,7 @@ describe("direct-to-file Stream Recording service", () => {
       createId: () => "recording-session-1",
       resolvePlayback: playback,
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => pendingRecorder()),
@@ -2350,7 +2381,7 @@ describe("direct-to-file Stream Recording service", () => {
         qualities,
       })),
       chooseQuality: vi.fn(async () => qualities[1]),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -2383,7 +2414,7 @@ describe("direct-to-file Stream Recording service", () => {
         qualities,
       })),
       chooseQuality,
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder,
@@ -2420,7 +2451,7 @@ describe("direct-to-file Stream Recording service", () => {
         qualities,
       })),
       chooseQuality,
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => pendingRecorder()),
@@ -2465,16 +2496,18 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (path) => path,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => ({ stop: vi.fn(), done })),
       sectionFinalizer: {
         finalize: vi.fn(async () => ({
-          outputPath: "D:/Videos/stream.mp4",
+          outputPath: testVideoPath("stream.mp4"),
           format: "mp4" as const,
           usedFallback: false,
-          ownedSectionPaths: [ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1")],
+          ownedSectionPaths: [
+            ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1"),
+          ],
           artifactIdentity,
         })),
       },
@@ -2490,14 +2523,14 @@ describe("direct-to-file Stream Recording service", () => {
     });
     await service.startRecording({ platform: "twitch", channelName: "ninja", title: "Stream" });
 
-    finish({ outputPath: "D:/Videos/stream.mp4", format: "mp4", partial: false });
+    finish({ outputPath: testVideoPath("stream.mp4"), format: "mp4", partial: false });
 
     await vi.waitFor(() => expect(service.getSnapshot().active).toBeNull());
     expect(sessionStore.getJournal()).toEqual({ version: 2, state: "empty", session: null });
     expect(service.getSnapshot().notice).toMatchObject({
       sessionId: "recording-session-1",
       outcome: "completed",
-      outputPath: "D:/Videos/stream.mp4",
+      outputPath: testVideoPath("stream.mp4"),
       outputFormat: "mp4",
     });
     expect(scheduleNoticeClear).toHaveBeenCalledWith(expect.any(Function), 8000);
@@ -2511,8 +2544,8 @@ describe("direct-to-file Stream Recording service", () => {
       success: false,
       error: "Recording outcome not found",
     });
-    expect(openPath).toHaveBeenCalledWith("D:/Videos/stream.mp4");
-    expect(showItemInFolder).toHaveBeenCalledWith("D:/Videos/stream.mp4");
+    expect(openPath).toHaveBeenCalledWith(testVideoPath("stream.mp4"));
+    expect(showItemInFolder).toHaveBeenCalledWith(testVideoPath("stream.mp4"));
 
     clearNotice();
     expect(service.getSnapshot()).toEqual({ active: null, notice: null });
@@ -2535,17 +2568,17 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/unplayable.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("unplayable.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => ({ stop: vi.fn(), done })),
       sectionFinalizer: {
         finalize: vi.fn(async () => ({
-          outputPath: "D:/Videos/unplayable.mp4",
+          outputPath: testVideoPath("unplayable.mp4"),
           format: "mp4" as const,
           usedFallback: false,
           ownedSectionPaths: [
-            ownedSectionPath("D:/Videos/unplayable.mp4", 1, "recording-session-1"),
+            ownedSectionPath(testVideoPath("unplayable.mp4"), 1, "recording-session-1"),
           ],
           artifactIdentity,
         })),
@@ -2556,7 +2589,7 @@ describe("direct-to-file Stream Recording service", () => {
     });
     await service.startRecording({ platform: "twitch", channelName: "ninja", title: "Stream" });
 
-    finish({ outputPath: "D:/Videos/unplayable.mp4", format: "mp4", partial: false });
+    finish({ outputPath: testVideoPath("unplayable.mp4"), format: "mp4", partial: false });
     await vi.waitFor(() => expect(service.getSnapshot().notice?.outcome).toBe("failed"));
 
     const notice = service.getSnapshot().notice;
@@ -2567,7 +2600,7 @@ describe("direct-to-file Stream Recording service", () => {
     });
     expect(notice).not.toHaveProperty("outputPath");
     expect(sessionStore.getJournal()).toEqual({ version: 2, state: "empty", session: null });
-    expect(cleanupFailedArtifact).toHaveBeenCalledWith(["D:/Videos/unplayable.mp4"]);
+    expect(cleanupFailedArtifact).toHaveBeenCalledWith([testVideoPath("unplayable.mp4")]);
   });
 
   it("finishes cleanup when native outcome presentation throws after durable settlement", async () => {
@@ -2607,16 +2640,18 @@ describe("direct-to-file Stream Recording service", () => {
         streamId: "stream-live-123",
       })),
       chooseQuality: vi.fn(),
-      chooseSavePath: vi.fn(async () => "D:/Videos/stream.mp4"),
+      chooseSavePath: vi.fn(async () => testVideoPath("stream.mp4")),
       getAvailablePath: (candidate) => candidate,
       resolveFfmpegPath: () => "ffmpeg",
       startRecorder: vi.fn(() => recorder),
       sectionFinalizer: {
         finalize: vi.fn(async () => ({
-          outputPath: "D:/Videos/stream.mp4",
+          outputPath: testVideoPath("stream.mp4"),
           format: "mp4" as const,
           usedFallback: false,
-          ownedSectionPaths: [ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1")],
+          ownedSectionPaths: [
+            ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1"),
+          ],
           artifactIdentity,
         })),
       },
@@ -2635,7 +2670,7 @@ describe("direct-to-file Stream Recording service", () => {
     expect(sessionStore.getJournal()).toEqual({ version: 2, state: "empty", session: null });
     expect(service.getSnapshot().notice).toMatchObject({ outcome: "completed", delivery: "none" });
     expect(cleanupSections).toHaveBeenCalledWith([
-      ownedSectionPath("D:/Videos/stream.mp4", 1, "recording-session-1"),
+      ownedSectionPath(testVideoPath("stream.mp4"), 1, "recording-session-1"),
     ]);
   });
 });
