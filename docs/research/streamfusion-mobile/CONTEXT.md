@@ -35,3 +35,15 @@ _Avoid_: Stable release when referring to all public APKs.
 **Android Release Gate**:
 The single publish decision that combines Android Outcome Parity, current evidence, policy approval, and final signed APK checks. Every condition must pass.
 _Avoid_: Release checklist, parity score.
+
+**Parity-Qualified Device**:
+An installable Android device that passes the lowest approved runtime profile and therefore belongs to StreamFusion Mobile's public support contract.
+_Avoid_: Supported model, compatible device, high-end device.
+
+**Capability Profile**:
+The current measured record of the Android workloads that one device can sustain while preserving Android Outcome Parity.
+_Avoid_: Hardware tier, device class, model allowlist.
+
+**Runtime Degradation**:
+A temporary, visible reduction in concurrency, quality, or duration that protects a focused task or recoverable artifact without removing an Android outcome.
+_Avoid_: Unsupported feature, silent fallback, permanent Adaptation.
