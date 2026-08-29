@@ -47,6 +47,7 @@ const useInfiniteTopCategoriesMock = vi.mocked(useInfiniteTopCategories);
 // Guards: error state — an undefined infinite-query result renders the retryable error rather than throwing on .length
 // Guards: empty state — search filter matches zero categories: query-aware "no categories matching X" empty copy surfaces, distinct from the generic empty state
 // Guards: reaching the category grid's load-more boundary delegates to the infinite query so browsing does not stop after page one.
+// Guards: the page owns one internal category scrollbar even when a Platform health banner reduces the shell height.
 describe("CategoriesPage", () => {
   beforeEach(() => {
     useInfiniteTopCategoriesMock.mockReset();
@@ -71,9 +72,10 @@ describe("CategoriesPage", () => {
       ],
       isLoading: false,
     } as ReturnType<typeof useInfiniteTopCategories>);
-    renderWithProviders(<CategoriesPage />);
+    const view = renderWithProviders(<CategoriesPage />);
     expect(screen.getByText("Just Chatting")).toBeInTheDocument();
     expect(screen.getByText("GTA V")).toBeInTheDocument();
+    expect(view.container.firstElementChild).toHaveClass("overflow-hidden");
   });
 
   it("filters categories via the search input", () => {

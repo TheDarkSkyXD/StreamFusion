@@ -40,6 +40,8 @@ function categoryDataset(prefix: string, count: number) {
 // Guards: scrolling replaces the mounted window with the newly visible categories.
 // Guards: replacing the loading skeleton with the scroll container attaches the load-more listener so page two can be requested.
 // Guards: pagination skeletons start below the measured card row instead of overlapping tall category cards.
+// Guards: row spacing contracts again when the rendered category window is shorter.
+// Guards: newly mounted category thumbnails request immediately after scrolling.
 describe("VirtualizedCategoryGrid progressive rendering", () => {
   const originalClientHeight = Object.getOwnPropertyDescriptor(
     HTMLElement.prototype,
@@ -159,6 +161,13 @@ describe("VirtualizedCategoryGrid progressive rendering", () => {
       "Category 28",
       "Category 29",
     ]);
+    expect(
+      screen
+        .getAllByTestId("category-card")
+        .every(
+          (card) => card.dataset.imageLoading === "eager" && card.dataset.imagePriority === "high"
+        )
+    ).toBe(true);
   });
 
   it("attaches infinite scrolling after the loading state resolves", () => {
@@ -212,5 +221,34 @@ describe("VirtualizedCategoryGrid progressive rendering", () => {
     expect(paginationGrid).not.toBeNull();
     expect(paginationGrid).toHaveStyle({ top: "336px" });
     expect(view.container.querySelector('[style*="height: 672px"]')).not.toBeNull();
+  });
+
+  it("removes stale spacing when the next rendered window is shorter", () => {
+    let cardHeight = 320;
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(() => cardHeight);
+    Object.defineProperties(HTMLElement.prototype, {
+      clientHeight: { configurable: true, get: () => 280 },
+      scrollHeight: { configurable: true, get: () => 6_720 },
+    });
+
+    const view = renderWithProviders(
+      <VirtualizedCategoryGrid
+        categories={categoryDataset("Category", 50)}
+        isFetchingNextPage
+        skeletonCount={5}
+        overscan={0}
+      />
+    );
+    const scrollContainer = view.container.querySelector<HTMLElement>('[style*="contain"]');
+    const paginationGrid = screen.getAllByTestId("category-skeleton")[0].parentElement;
+
+    expect(paginationGrid).toHaveStyle({ top: "3360px" });
+    cardHeight = 280;
+    if (scrollContainer) {
+      scrollContainer.scrollTop = 1_400;
+      fireEvent.scroll(scrollContainer);
+    }
+
+    expect(paginationGrid).toHaveStyle({ top: "2960px" });
   });
 });

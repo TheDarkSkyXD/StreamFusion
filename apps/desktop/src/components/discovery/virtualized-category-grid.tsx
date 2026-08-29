@@ -96,7 +96,7 @@ export function VirtualizedCategoryGrid({
       }, 0);
 
       if (renderedRowHeight === 0) return;
-      setMeasuredRowHeight((current) => Math.max(current, renderedRowHeight + ROW_GAP));
+      setMeasuredRowHeight(renderedRowHeight + ROW_GAP);
     };
 
     measureRowHeight();
@@ -283,7 +283,7 @@ export function VirtualizedCategoryGrid({
   return (
     <div
       ref={containerRef}
-      className="h-[calc(100vh-220px)] overflow-y-auto overflow-x-hidden"
+      className="h-full overflow-y-auto overflow-x-hidden"
       style={{ contain: "strict" }}
     >
       {/* Spacer to maintain scroll height */}
@@ -294,22 +294,14 @@ export function VirtualizedCategoryGrid({
           className={cn("absolute left-0 right-0 pl-0.5 pr-4 pt-2", className)}
           style={{ ...gridStyle, top: offsetTop }}
         >
-          {visibleCategories.map((category, index) => {
-            const absoluteIndex = visibleRange.start + index;
-            const prioritizeImage = absoluteIndex < itemsPerRow * 2;
-            return (
-              <div
-                key={`${category.platform}-${category.id}`}
-                className="transition-opacity duration-150"
-              >
-                <CategoryCard
-                  category={category}
-                  imageLoading={prioritizeImage ? "eager" : "lazy"}
-                  imageFetchPriority={prioritizeImage ? "high" : "auto"}
-                />
-              </div>
-            );
-          })}
+          {visibleCategories.map((category) => (
+            <div
+              key={`${category.platform}-${category.id}`}
+              className="transition-opacity duration-150"
+            >
+              <CategoryCard category={category} imageLoading="eager" imageFetchPriority="high" />
+            </div>
+          ))}
         </div>
 
         {/* Loading skeletons at bottom when fetching more */}
