@@ -467,10 +467,7 @@ export function useInfiniteTopCategories() {
             count + (knownCategoryKeys.has(normalizeCategoryName(category.name)) ? 0 : 1),
           0
         );
-        if (
-          addedCount >= CATEGORY_SCROLL_PAGE_LIMIT ||
-          (!receivedCategories && !cursorAdvanced)
-        ) {
+        if (addedCount >= CATEGORY_SCROLL_PAGE_LIMIT || (!receivedCategories && !cursorAdvanced)) {
           break;
         }
       }
@@ -494,16 +491,19 @@ export function useInfiniteTopCategories() {
 
   const loadMoreInFlight = useRef<ReturnType<typeof query.fetchNextPage> | null>(null);
   const fetchNextQueryPage = query.fetchNextPage;
-  const fetchNextPage: typeof query.fetchNextPage = useCallback((options) => {
-    if (loadMoreInFlight.current) return loadMoreInFlight.current;
-    const request = fetchNextQueryPage({ ...options, cancelRefetch: false });
-    loadMoreInFlight.current = request;
-    const clear = () => {
-      if (loadMoreInFlight.current === request) loadMoreInFlight.current = null;
-    };
-    void request.then(clear, clear);
-    return request;
-  }, [fetchNextQueryPage]);
+  const fetchNextPage: typeof query.fetchNextPage = useCallback(
+    (options) => {
+      if (loadMoreInFlight.current) return loadMoreInFlight.current;
+      const request = fetchNextQueryPage({ ...options, cancelRefetch: false });
+      loadMoreInFlight.current = request;
+      const clear = () => {
+        if (loadMoreInFlight.current === request) loadMoreInFlight.current = null;
+      };
+      void request.then(clear, clear);
+      return request;
+    },
+    [fetchNextQueryPage]
+  );
 
   return {
     ...query,
@@ -596,9 +596,51 @@ export function useUnifiedCategoryLink(
   return { linkPlatform: platform, linkCategoryId: categoryId };
 }
 
+interface CachedCategoryReference {
+  category: UnifiedCategory;
+  updatedAt: number;
+}
+
+function getCachedCategoryReference(
+  queryClient: QueryClient,
+  categoryId: string,
+  platform: Platform
+): CachedCategoryReference | undefined {
+  const candidates: CachedCategoryReference[] = [];
+  const addCandidate = (categories: UnifiedCategory[] | undefined, updatedAt: number) => {
+    const category = categories?.find(
+      (candidate) => candidate.id === categoryId && candidate.platform === platform
+    );
+    if (category) candidates.push({ category, updatedAt });
+  };
+
+  for (const key of [CATEGORY_KEYS.top(platform), CATEGORY_KEYS.top(undefined)]) {
+    const state = queryClient.getQueryState<UnifiedCategory[]>(key);
+    addCandidate(state?.data, state?.dataUpdatedAt ?? 0);
+  }
+
+  const infiniteState = queryClient.getQueryState<{ pages: CategoryScrollPage[] }>([
+    ...CATEGORY_KEYS.top(undefined),
+    "infinite",
+  ]);
+  addCandidate(
+    infiniteState?.data
+      ? mergeCategories(infiniteState.data.pages.flatMap((page) => page.categories))
+      : undefined,
+    infiniteState?.dataUpdatedAt ?? 0
+  );
+
+  return candidates.reduce<CachedCategoryReference | undefined>(
+    (freshest, candidate) =>
+      !freshest || candidate.updatedAt > freshest.updatedAt ? candidate : freshest,
+    undefined
+  );
+}
+
 export function useCategoryById(categoryId: string, platform: Platform) {
   const queryClient = useQueryClient();
   const queryKey = CATEGORY_KEYS.byId(categoryId, platform);
+  const cachedReference = getCachedCategoryReference(queryClient, categoryId, platform);
   const query = useQuery({
     queryKey,
     queryFn: async () => {
@@ -609,18 +651,8 @@ export function useCategoryById(categoryId: string, platform: Platform) {
       return response.data as UnifiedCategory;
     },
     enabled: !!categoryId && !!platform,
-    initialData: () => {
-      const platformCatalog = queryClient.getQueryData<UnifiedCategory[]>(
-        CATEGORY_KEYS.top(platform)
-      );
-      const sharedCatalog = queryClient.getQueryData<UnifiedCategory[]>(
-        CATEGORY_KEYS.top(undefined)
-      );
-      return [...(platformCatalog ?? []), ...(sharedCatalog ?? [])].find(
-        (category) => category.id === categoryId && category.platform === platform
-      );
-    },
-    initialDataUpdatedAt: 0,
+    initialData: cachedReference?.category,
+    initialDataUpdatedAt: cachedReference?.updatedAt,
     ...getQueryCacheOptions("categoryReference"),
   });
   useQueryCachePerformance({

@@ -85,6 +85,7 @@ export function VirtualizedCategoryGrid({
   const effectiveRowHeight = Math.max(rowHeight, measuredRowHeight);
   const totalRows = Math.ceil(categories.length / itemsPerRow);
   const totalHeight = totalRows * effectiveRowHeight;
+  const hasScrollContainer = !isLoading && categories.length > 0;
 
   useLayoutEffect(() => {
     const grid = gridRef.current;
@@ -100,10 +101,7 @@ export function VirtualizedCategoryGrid({
     };
 
     measureRowHeight();
-    const observer = new ResizeObserver(measureRowHeight);
-    observer.observe(grid);
-    return () => observer.disconnect();
-  }, [itemsPerRow, rowHeight, visibleRange]);
+  }, [hasScrollContainer, itemsPerRow, rowHeight]);
 
   // Volatile deps for the scroll handler are stored in refs so the handler
   // identity stays stable and the scroll listener doesn't re-attach on every
@@ -177,8 +175,6 @@ export function VirtualizedCategoryGrid({
       olm();
     }
   }, []);
-
-  const hasScrollContainer = !isLoading && categories.length > 0;
 
   useEffect(() => {
     if (!hasScrollContainer) return;
@@ -277,7 +273,8 @@ export function VirtualizedCategoryGrid({
   }
 
   // Calculate total height including space for loading indicator
-  const loadingIndicatorHeight = isFetchingNextPage || hasNextPage ? effectiveRowHeight : 0;
+  const loadingRows = isFetchingNextPage ? Math.ceil(skeletonCount / itemsPerRow) : 0;
+  const loadingIndicatorHeight = loadingRows * effectiveRowHeight;
   const totalHeightWithLoading = totalHeight + loadingIndicatorHeight;
 
   return (

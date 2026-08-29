@@ -122,6 +122,7 @@ afterEach(() => {
 // Guards: the exhaustive category catalog stays quiet on timers and window focus, but explicit invalidation still refreshes it
 // Guards: useTopCategories surfaces the Kick winner for the "slots" key ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â preserves the better-metadata exception
 // Guards: useCategoryById stays idle when categoryId is empty so CategoryDetail's first render doesn't fan out a fetch with an empty id
+// Guards: category detail reuses a fresh infinite-catalog card instead of spending another Kick request during an active cooldown.
 // Guards: useCategoryMetadata is twitch-only ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Kick categories must short-circuit (their tags ship in the bulk fetch)
 describe("useTopCategories", () => {
   it("publishes the last successful catalog immediately after restart while one refresh runs", async () => {
@@ -823,6 +824,23 @@ describe("useInfiniteTopCategories", () => {
 });
 
 describe("useCategoryById", () => {
+  it("reuses a fresh category from the infinite catalog without fetching by id", async () => {
+    const cached = fixtures.category({ id: "kick-42", platform: "kick", name: "Kick Game" });
+    const client = createQueryClient();
+    client.setQueryData([...CATEGORY_KEYS.top(undefined), "infinite"], {
+      pages: [{ categories: [cached], cursors: { twitch: null, kick: null } }],
+      pageParams: [],
+    });
+
+    const { result } = renderHook(() => useCategoryById("kick-42", "kick"), {
+      wrapper: makeWrapper(client),
+    });
+
+    expect(result.current.data).toEqual(cached);
+    await act(async () => Promise.resolve());
+    expect(api.categories.getById).not.toHaveBeenCalled();
+  });
+
   it("publishes matching warm-catalog metadata while the detail refresh is pending", async () => {
     const cached = fixtures.category({ id: "cat-warm", platform: "twitch", name: "Warm Game" });
     const client = createQueryClient();

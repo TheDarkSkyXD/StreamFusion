@@ -79,7 +79,7 @@ export const CategoryCard = React.memo(
         onMouseLeave={handleMouseLeave}
         onFocus={handleFocus}
       >
-        <Card className="overflow-hidden cursor-pointer hover:ring-2 hover:ring-white transition-all h-full group bg-[var(--color-background-secondary)] border-transparent">
+        <Card className="overflow-hidden cursor-pointer hover:ring-2 hover:ring-white transition-shadow h-full group bg-[var(--color-background-secondary)] border-transparent">
           <div className="aspect-[3/4] bg-[var(--color-background-tertiary)] relative overflow-hidden">
             <ProxiedImage
               src={category.boxArtUrl.replace("{width}", "285").replace("{height}", "380")}
@@ -99,24 +99,23 @@ export const CategoryCard = React.memo(
             >
               {category.name}
             </h3>
-            {category.viewerCount !== undefined && category.viewerCount > 0 && (
-              <p className="text-xs text-neutral-400 mt-1 truncate">
-                {formatViewerCount(category.viewerCount)} viewers
-              </p>
-            )}
-            {tags && tags.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {tags.slice(0, 3).map((tag) => (
-                  <span
-                    key={tag}
-                    className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--color-background-tertiary)] text-neutral-300"
-                    title={tag}
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
+            <p className="text-xs text-neutral-400 mt-1 truncate">
+              {formatViewerCount(category.viewerCount ?? 0)} viewers
+            </p>
+            <div
+              data-testid="category-tags"
+              className="mt-2 flex h-5 flex-nowrap gap-1 overflow-hidden"
+            >
+              {tags?.slice(0, 3).map((tag) => (
+                <span
+                  key={tag}
+                  className="shrink-0 whitespace-nowrap rounded-full bg-[var(--color-background-tertiary)] px-2 py-0.5 text-[10px] font-medium text-neutral-300"
+                  title={tag}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </Link>

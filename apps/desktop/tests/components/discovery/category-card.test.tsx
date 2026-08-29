@@ -23,7 +23,8 @@ vi.mock("@/components/ui/proxied-image", () => ({
 
 import { CategoryCard } from "@/components/discovery/category-card";
 
-// Guards: viewerCount=0 / undefined hides the viewer-count label entirely; viewerCount>0 surfaces "Nk viewers" so users don't see "0 viewers" on a genuinely live category
+// Guards: every category renders a viewer count; missing provider data falls back to "0 viewers" instead of leaving an unexplained blank.
+// Guards: every card reserves one non-wrapping tag row so category windows cannot change virtual row height while scrolling.
 // Guards: name + box art render together and the caller's image-loading policy is forwarded; missing either degrades to a slow or unclear category-card UX
 // Guards: duplicate category tags render once, preserving the first label and order, so API duplicates cannot produce repeated pills or React key warnings.
 // Note: image-onError fallback is delegated to ProxiedImage; covered in its own tests (proxied-image mocks here keep the test fast)
@@ -45,9 +46,9 @@ describe("CategoryCard", () => {
     expect(screen.getByText(/25K viewers/i)).toBeInTheDocument();
   });
 
-  it("hides viewer count when 0 or undefined", () => {
-    renderWithProviders(<CategoryCard category={fixtures.category({ viewerCount: 0 })} />);
-    expect(screen.queryByText(/viewers/i)).not.toBeInTheDocument();
+  it.each([0, undefined])("shows 0 viewers when viewer count is %s", (viewerCount) => {
+    renderWithProviders(<CategoryCard category={fixtures.category({ viewerCount })} />);
+    expect(screen.getByText("0 viewers")).toBeInTheDocument();
   });
 
   it("forwards eager image loading for warmed category tabs", () => {
@@ -68,5 +69,15 @@ describe("CategoryCard", () => {
       "Tactical",
       "RTS",
     ]);
+  });
+
+  it("reserves one compact tag row when no tags are available", () => {
+    renderWithProviders(<CategoryCard category={fixtures.category({ tags: [] })} />);
+
+    expect(screen.getByTestId("category-tags")).toHaveClass(
+      "h-5",
+      "flex-nowrap",
+      "overflow-hidden"
+    );
   });
 });

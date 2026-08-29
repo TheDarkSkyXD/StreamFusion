@@ -40,7 +40,8 @@ function categoryDataset(prefix: string, count: number) {
 // Guards: scrolling replaces the mounted window with the newly visible categories.
 // Guards: replacing the loading skeleton with the scroll container attaches the load-more listener so page two can be requested.
 // Guards: pagination skeletons start below the measured card row instead of overlapping tall category cards.
-// Guards: row spacing contracts again when the rendered category window is shorter.
+// Guards: pagination reserves every skeleton row and no idle blank row, preventing scrollbar pulses at the loading boundary.
+// Guards: row geometry stays stable while scrolling even when later category windows are shorter.
 // Guards: newly mounted category thumbnails request immediately after scrolling.
 describe("VirtualizedCategoryGrid progressive rendering", () => {
   const originalClientHeight = Object.getOwnPropertyDescriptor(
@@ -223,7 +224,32 @@ describe("VirtualizedCategoryGrid progressive rendering", () => {
     expect(view.container.querySelector('[style*="height: 672px"]')).not.toBeNull();
   });
 
-  it("removes stale spacing when the next rendered window is shorter", () => {
+  it("reserves the exact pagination skeleton height without idle bottom spacing", () => {
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(320);
+
+    const view = renderWithProviders(
+      <VirtualizedCategoryGrid
+        categories={categoryDataset("Category", 5)}
+        isFetchingNextPage
+        hasNextPage
+        skeletonCount={10}
+      />
+    );
+
+    expect(view.container.querySelector('[style*="height: 1008px"]')).not.toBeNull();
+
+    view.rerender(
+      <VirtualizedCategoryGrid
+        categories={categoryDataset("Category", 5)}
+        hasNextPage
+        skeletonCount={10}
+      />
+    );
+
+    expect(view.container.querySelector('[style*="height: 336px"]')).not.toBeNull();
+  });
+
+  it("keeps row geometry stable when the next rendered window is shorter", () => {
     let cardHeight = 320;
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(() => cardHeight);
     Object.defineProperties(HTMLElement.prototype, {
@@ -249,6 +275,6 @@ describe("VirtualizedCategoryGrid progressive rendering", () => {
       fireEvent.scroll(scrollContainer);
     }
 
-    expect(paginationGrid).toHaveStyle({ top: "2960px" });
+    expect(paginationGrid).toHaveStyle({ top: "3360px" });
   });
 });
