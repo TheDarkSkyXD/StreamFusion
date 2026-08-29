@@ -57,6 +57,9 @@ jobs:
       - name: Typecheck desktop
         run: npm --prefix apps/desktop run typecheck
 
+      - name: Check Desktop parity inventory
+        run: npm --prefix apps/desktop run parity:desktop:check
+
       - name: Test desktop
         run: npm --prefix apps/desktop test
         # E2E playbooks are not run here: they require a live Electron build

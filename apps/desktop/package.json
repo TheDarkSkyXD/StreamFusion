@@ -73,6 +73,8 @@
     "build-storybook": "storybook build",
     "storybook:coverage": "node scripts/check-storybook-coverage.mjs",
     "architecture:features": "node scripts/migrate-source-layout.mjs --check && node scripts/migrate-renderer-features.mjs --check && node scripts/verify-feature-boundaries.mjs",
+    "parity:desktop:write": "node scripts/desktop-parity-inventory.mjs write",
+    "parity:desktop:check": "node scripts/desktop-parity-inventory.mjs check",
     "reliability:boundaries": "node scripts/check-reliability-boundaries.mjs",
     "bundle:analyze": "cross-env ANALYZE=true npm run build",
     "perf:soak": "node scripts/performance-soak.mjs"
