@@ -4,8 +4,6 @@
  * Shared type definitions for authentication across main and renderer processes.
  */
 
-import type { DownloadQueueSnapshot } from "./download-types";
-
 // ========== Platform Types ==========
 
 export type Platform = "twitch" | "kick";
@@ -649,65 +647,6 @@ export interface UserPreferences {
   captions: CaptionPreferences;
   startMinimized: boolean;
   minimizeToTray: boolean;
-}
-
-// ========== Storage Schema ==========
-
-export interface StorageSchema {
-  // Auth tokens (encrypted)
-  authTokens: {
-    twitch?: EncryptedToken;
-    kick?: EncryptedToken;
-  };
-
-  // Legacy Twitch client credential used only for account follow writes.
-  twitchFollowWriteToken?: EncryptedToken;
-
-  // Kick website Sanctum bearer captured in main and encrypted for restart recovery.
-  kickWebBearer?: EncryptedToken;
-
-  // App tokens (encrypted, for client credentials flow)
-  appTokens?: {
-    twitch?: EncryptedToken;
-    kick?: EncryptedToken;
-  };
-
-  // User data
-  twitchUser: TwitchUser | null;
-  kickUser: KickUser | null;
-
-  // Local follows (for guest mode)
-  localFollows: LocalFollow[];
-
-  // Persisted clip and VOD download history/state
-  downloadQueue: DownloadQueueSnapshot;
-
-  // Kick transport continuity across app restarts.
-  kickApiRateLimit?: {
-    blockedUntil: number;
-  };
-
-  // Validated by the backend before use; shared types stay API-shape agnostic.
-  kickFollowedStreamsCache?: {
-    cachedAt: number;
-    streams: unknown[];
-  };
-
-  // Durable active/interrupted Stream Recording recovery state
-  streamRecordingJournal: unknown;
-
-  // User preferences
-  preferences: UserPreferences;
-
-  // App state
-  lastActiveTab: string;
-  windowBounds: {
-    x?: number;
-    y?: number;
-    width: number;
-    height: number;
-    isMaximized: boolean;
-  };
 }
 
 // ========== Auth Result Types ==========

@@ -36,6 +36,20 @@ export type FollowSource = "guest" | Platform;
 export type PendingFollowAction = "follow" | "unfollow";
 export type PendingFollowWriteStatus = "pending" | "retrying" | "auth-paused" | "failed";
 
+export type JsonReadResult =
+  { kind: "missing" } | { kind: "invalid" } | { kind: "value"; value: unknown };
+
+export interface KeyValueMigrationEntry {
+  key: string;
+  value: unknown;
+}
+
+export interface KeyValueMigration {
+  entries: readonly KeyValueMigrationEntry[];
+  deleteKeys: readonly string[];
+  legacyFollows?: readonly LocalFollow[];
+}
+
 /**
  * Tombstone-equivalent row tracking a push-sync write that hasn't yet been
  * confirmed by the platform. Reconciliation (background sync) consults this
@@ -667,22 +681,68 @@ export class DatabaseService {
 
   // ========== Key-Value Operations ==========
 
-  get<T>(key: string, parse: (value: unknown) => T | null): T | null {
+  getJson(key: string): JsonReadResult {
     const stmt = this.database.prepare("SELECT value FROM key_value WHERE key = ?");
     const row = stmt.get(key) as { value: string } | undefined;
-    if (!row) return null;
+    if (!row) return { kind: "missing" };
     try {
-      return parse(JSON.parse(row.value));
+      return { kind: "value", value: JSON.parse(row.value) };
     } catch {
-      return null;
+      return { kind: "invalid" };
     }
   }
 
+  get<T>(key: string, parse: (value: unknown) => T | null): T | null {
+    const result = this.getJson(key);
+    return result.kind === "value" ? parse(result.value) : null;
+  }
+
   set(key: string, value: unknown): void {
+    const serialized = JSON.stringify(value);
+    if (serialized === undefined) {
+      throw new TypeError("SQLite key-value data must be JSON serializable");
+    }
     const stmt = this.database.prepare(
       "INSERT OR REPLACE INTO key_value (key, value) VALUES (?, ?)"
     );
-    stmt.run(key, JSON.stringify(value));
+    stmt.run(key, serialized);
+  }
+
+  migrateKeyValues({ entries, deleteKeys, legacyFollows = [] }: KeyValueMigration): void {
+    const serializedEntries = entries.map(({ key, value }) => {
+      const serialized = JSON.stringify(value);
+      if (serialized === undefined) {
+        throw new TypeError("SQLite key-value data must be JSON serializable");
+      }
+      return { key, serialized };
+    });
+    const insert = this.database.prepare(
+      "INSERT OR IGNORE INTO key_value (key, value) VALUES (?, ?)"
+    );
+    const remove = this.database.prepare("DELETE FROM key_value WHERE key = ?");
+    const insertLegacyFollow = this.database.prepare(`
+      INSERT OR IGNORE INTO local_follows (
+        id, platform, channel_id, channel_name, display_name, profile_image, followed_at, source
+      ) VALUES (
+        @id, @platform, @channelId, @channelName, @displayName, @profileImage, @followedAt, @source
+      )
+    `);
+    this.database.transaction(() => {
+      for (const { key, serialized } of serializedEntries) insert.run(key, serialized);
+      for (const key of deleteKeys) remove.run(key);
+      for (const follow of legacyFollows) {
+        insertLegacyFollow.run({
+          id: follow.id,
+          platform: follow.platform,
+          channelId: follow.channelId,
+          channelName: follow.channelName,
+          displayName: follow.displayName,
+          profileImage: follow.profileImage,
+          followedAt: follow.followedAt,
+          source: follow.source,
+        });
+      }
+    })();
   }
 
   delete(key: string): void {

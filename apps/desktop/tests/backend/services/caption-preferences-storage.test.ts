@@ -23,11 +23,21 @@ vi.mock("electron-store", () => ({
     set(key: string, value: unknown) {
       this.data[key] = value;
     }
+
+    get store() {
+      return { ...this.data };
+    }
+
+    set store(value: Record<string, unknown>) {
+      this.data = { ...value };
+    }
   },
 }));
 
 vi.mock("@/backend/services/database-service", () => ({
-  dbService: {},
+  dbService: {
+    migrateKeyValues: vi.fn(),
+  },
 }));
 
 import { storageService } from "@/backend/services/storage-service";
@@ -40,7 +50,7 @@ describe("caption preference storage", () => {
   beforeEach(() => {
     storageService.initialize();
     const { captions: _captions, ...legacyPreferences } = DEFAULT_USER_PREFERENCES;
-    storageService.set("preferences", legacyPreferences as typeof DEFAULT_USER_PREFERENCES);
+    storageService.updatePreferences(legacyPreferences as typeof DEFAULT_USER_PREFERENCES);
   });
 
   it("hydrates and round-trips logical source, model, language, enabled state, and appearance", () => {
@@ -67,7 +77,7 @@ describe("caption preference storage", () => {
   });
 
   it("uses safe defaults for malformed legacy caption values and preserves unrelated preferences", () => {
-    storageService.set("preferences", {
+    storageService.updatePreferences({
       ...DEFAULT_USER_PREFERENCES,
       theme: "light",
       playback: { ...DEFAULT_USER_PREFERENCES.playback, volume: 0.25 },
@@ -96,7 +106,7 @@ describe("caption preference storage", () => {
   });
 
   it("migrates the previous caption shape without losing its enabled, language, or appearance", () => {
-    storageService.set("preferences", {
+    storageService.updatePreferences({
       ...DEFAULT_USER_PREFERENCES,
       captions: {
         enabled: true,
@@ -117,7 +127,7 @@ describe("caption preference storage", () => {
   });
 
   it("stores only logical caption selection fields and preserves unrelated preference fields", () => {
-    storageService.set("preferences", {
+    storageService.updatePreferences({
       ...DEFAULT_USER_PREFERENCES,
       theme: "light",
       chat: { ...DEFAULT_USER_PREFERENCES.chat, fontScale: 1.25 },
@@ -143,7 +153,7 @@ describe("caption preference storage", () => {
       } as typeof logicalCaptions,
     });
 
-    const persisted = storageService.get("preferences");
+    const persisted = storageService.getPreferences();
     if (!persisted || typeof persisted !== "object") {
       throw new Error("Expected persisted preferences");
     }

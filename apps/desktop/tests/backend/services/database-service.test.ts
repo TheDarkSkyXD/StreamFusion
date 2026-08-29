@@ -68,6 +68,84 @@ describeDb("DatabaseService schema", () => {
     expect(parsed).toBeNull();
   });
 
+  it("distinguishes a missing key-value row from a stored JSON null", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+    svc.set("stored-null", null);
+
+    expect(svc.getJson("stored-null")).toEqual({ kind: "value", value: null });
+    expect(svc.getJson("missing")).toEqual({ kind: "missing" });
+  });
+
+  it("migrates key-value rows atomically without overwriting existing owners", () => {
+    const svc = new DatabaseService();
+    svc.initialize();
+    svc.set("renderer-store:existing", { owner: "sqlite" });
+    svc.set("authTokens", { leaked: true });
+    svc.set("renderer-store:preferences", { leaked: true });
+    svc.addFollow(
+      {
+        id: "existing-follow",
+        platform: "kick",
+        channelId: "456",
+        channelName: "current-streamer",
+        displayName: "Current Streamer",
+      },
+      "guest"
+    );
+
+    svc.migrateKeyValues({
+      entries: [
+        { key: "renderer-store:existing", value: { owner: "json" } },
+        { key: "operational:downloadQueue", value: { jobs: [] } },
+      ],
+      deleteKeys: ["authTokens", "renderer-store:preferences"],
+      legacyFollows: [
+        {
+          id: "legacy-follow",
+          platform: "kick",
+          channelId: "123",
+          channelName: "streamer",
+          displayName: "Streamer",
+          profileImage: "",
+          followedAt: "2025-01-01T00:00:00.000Z",
+          source: "guest",
+        },
+        {
+          id: "existing-follow",
+          platform: "kick",
+          channelId: "456",
+          channelName: "current-streamer",
+          displayName: "Stale Streamer",
+          profileImage: "",
+          followedAt: "2024-01-01T00:00:00.000Z",
+          source: "guest",
+        },
+      ],
+    });
+
+    expect(svc.getJson("renderer-store:existing")).toEqual({
+      kind: "value",
+      value: { owner: "sqlite" },
+    });
+    expect(svc.getJson("operational:downloadQueue")).toEqual({
+      kind: "value",
+      value: { jobs: [] },
+    });
+    expect(svc.getJson("authTokens")).toEqual({ kind: "missing" });
+    expect(svc.getJson("renderer-store:preferences")).toEqual({ kind: "missing" });
+    expect(svc.getAllFollows()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "legacy-follow", channelId: "123", source: "guest" }),
+        expect.objectContaining({
+          id: "existing-follow",
+          displayName: "Current Streamer",
+          source: "guest",
+        }),
+      ])
+    );
+  });
+
   it("creates mod_log and retention_settings on first initialize() and is idempotent on a second call", () => {
     const svc = new DatabaseService();
     svc.initialize();

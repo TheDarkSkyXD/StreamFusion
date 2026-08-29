@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const persistence = vi.hoisted(() => ({
+  electronData: null as Record<string, unknown> | null,
+  electronDefaults: {} as Record<string, unknown>,
+  electronReplacements: 0,
+  sqlite: new Map<string, unknown>(),
+  sqliteFollows: [] as LocalFollow[],
+}));
+
 // Electron and electron-store are not available in the vitest node runtime.
 // Mock the surfaces storage-service needs before importing the module.
 vi.mock("electron", () => ({
@@ -12,18 +20,37 @@ vi.mock("electron", () => ({
 
 vi.mock("electron-store", () => ({
   default: class MockStore {
-    private data: Record<string, unknown>;
     constructor(opts: { defaults?: Record<string, unknown> } = {}) {
-      this.data = { ...opts.defaults };
+      persistence.electronDefaults = { ...opts.defaults };
+      persistence.electronData ??= { ...opts.defaults };
     }
     get(key: string, fallback?: unknown) {
-      return key in this.data ? this.data[key] : fallback;
+      const data = persistence.electronData ?? {};
+      return key in data ? data[key] : fallback;
     }
     set(key: string, value: unknown) {
-      this.data[key] = value;
+      const data = persistence.electronData ?? {};
+      data[key] = value;
+      persistence.electronData = data;
     }
     delete(key: string) {
-      delete this.data[key];
+      const data = persistence.electronData ?? {};
+      delete data[key];
+      persistence.electronData = data;
+    }
+    clear() {
+      persistence.electronData = { ...persistence.electronDefaults };
+      persistence.electronReplacements += 1;
+    }
+    get store() {
+      return { ...(persistence.electronData ?? {}) };
+    }
+    set store(value: Record<string, unknown>) {
+      persistence.electronData = { ...value };
+      persistence.electronReplacements += 1;
+    }
+    get path() {
+      return "streamfusion-storage.json";
     }
   },
 }));
@@ -32,6 +59,11 @@ vi.mock("@/backend/services/database-service", () => ({
   dbService: {
     get: vi.fn(),
     set: vi.fn(),
+    getJson: vi.fn(),
+    delete: vi.fn(),
+    migrateKeyValues: vi.fn(),
+    clearKeyValue: vi.fn(),
+    clearFollows: vi.fn(),
     addFollow: vi.fn(),
     getAllFollows: vi.fn(),
     getFollowsByPlatformAndSource: vi.fn(),
@@ -41,7 +73,7 @@ vi.mock("@/backend/services/database-service", () => ({
 }));
 
 import { dbService } from "@/backend/services/database-service";
-import { storageService } from "@/backend/services/storage-service";
+import { StorageService, storageService } from "@/backend/services/storage-service";
 import { safeStorage } from "electron";
 import { createStreamRecordingSessionStore } from "@/backend/services/stream-recording-session-store";
 import {
@@ -85,6 +117,10 @@ let rowsBySource: Record<string, LocalFollow[]>;
 
 beforeEach(() => {
   storageService.initialize();
+  persistence.electronData = { ...persistence.electronDefaults };
+  persistence.electronReplacements = 0;
+  persistence.sqlite.clear();
+  persistence.sqliteFollows = [];
   rowsBySource = { guest: [], kick: [], twitch: [] };
   vi.mocked(dbService.getFollowsByPlatformAndSource).mockImplementation(
     (_p, source) => rowsBySource[source] ?? []
@@ -96,7 +132,35 @@ beforeEach(() => {
     profilePic: "",
     verified: false,
   });
-  vi.mocked(dbService.get).mockReturnValue("1:viewer-a");
+  vi.mocked(dbService.get).mockImplementation((key, parse) => {
+    if (key === "kick-account-follows-verified-v3") return "1:viewer-a";
+    if (!persistence.sqlite.has(key)) return null;
+    return parse(persistence.sqlite.get(key));
+  });
+  vi.mocked(dbService.getJson).mockImplementation((key) =>
+    persistence.sqlite.has(key)
+      ? { kind: "value", value: persistence.sqlite.get(key) }
+      : { kind: "missing" }
+  );
+  vi.mocked(dbService.set).mockImplementation((key, value) => {
+    persistence.sqlite.set(key, value);
+  });
+  vi.mocked(dbService.delete).mockImplementation((key) => {
+    persistence.sqlite.delete(key);
+  });
+  vi.mocked(dbService.migrateKeyValues).mockImplementation(
+    ({ entries, deleteKeys, legacyFollows = [] }) => {
+      for (const { key, value } of entries) {
+        if (!persistence.sqlite.has(key)) persistence.sqlite.set(key, value);
+      }
+      for (const key of deleteKeys) persistence.sqlite.delete(key);
+      for (const follow of legacyFollows) {
+        if (!persistence.sqliteFollows.some(({ id }) => id === follow.id)) {
+          persistence.sqliteFollows.push(follow);
+        }
+      }
+    }
+  );
   vi.mocked(dbService.upsertSyncedFollows).mockReturnValue({
     accountCount: 0,
     pendingCount: 0,
@@ -366,7 +430,7 @@ describe("storageService Kick web bearer", () => {
 
 describe("storageService.getPreferences - buffer defaults migration", () => {
   it("migrates the exact legacy latency-first buffer defaults to the stable defaults", () => {
-    storageService.set("preferences", {
+    storageService.updatePreferences({
       ...DEFAULT_USER_PREFERENCES,
       buffer: {
         lowLatencyMode: true,
@@ -386,7 +450,7 @@ describe("storageService.getPreferences - buffer defaults migration", () => {
       maxBufferLengthSec: 20,
       maxMaxBufferLengthSec: 45,
     };
-    storageService.set("preferences", {
+    storageService.updatePreferences({
       ...DEFAULT_USER_PREFERENCES,
       buffer: customBuffer,
     });
@@ -397,7 +461,7 @@ describe("storageService.getPreferences - buffer defaults migration", () => {
 
 describe("storageService.getPreferences - notification defaults migration", () => {
   it("hydrates new nested notification fields for installs with the legacy notification group", () => {
-    storageService.set("preferences", {
+    storageService.updatePreferences({
       ...DEFAULT_USER_PREFERENCES,
       notifications: {
         enabled: false,
@@ -419,7 +483,7 @@ describe("storageService.getPreferences - notification defaults migration", () =
 // Guards: legacy chat display choices must survive newly added display preferences during hydration.
 describe("storageService.getPreferences - chat display defaults migration", () => {
   it("preserves legacy chat display choices while hydrating newly added fields", () => {
-    storageService.set("preferences", {
+    storageService.updatePreferences({
       ...DEFAULT_USER_PREFERENCES,
       chatDisplay: {
         boldUsernames: true,
@@ -437,7 +501,7 @@ describe("storageService.getPreferences - chat display defaults migration", () =
   });
 
   it("preserves explicitly disabled newly added toggles", () => {
-    storageService.set("preferences", {
+    storageService.updatePreferences({
       ...DEFAULT_USER_PREFERENCES,
       chatDisplay: {
         hoverSmooth: false,
@@ -513,5 +577,169 @@ describe("storageService Stream Recording journal persistence", () => {
     storageService.saveStreamRecordingJournal(journal);
 
     expect(storageService.getStreamRecordingJournal()).toEqual(journal);
+  });
+});
+
+// Guards: growing renderer records and operational state belong to row-scoped SQLite storage, never the shared Electron Store JSON document.
+describe("storageService persistence ownership", () => {
+  it("routes generic renderer records to SQLite", () => {
+    const key = "browse-query-snapshot:v1:top-streams:all";
+    const snapshot = { streams: [{ id: "stream-1" }] };
+
+    storageService.set(key, snapshot);
+
+    expect(dbService.set).toHaveBeenCalledWith(`renderer-store:${key}`, snapshot);
+  });
+
+  it("routes typed operational records to SQLite", () => {
+    const downloadQueue: DownloadQueueSnapshot = { jobs: [] };
+    const recordingJournal: StreamRecordingJournalV2 = {
+      version: 2,
+      state: "empty",
+      session: null,
+    };
+
+    storageService.saveKickApiRateLimitState({ blockedUntil: 1234 });
+    storageService.saveKickFollowedStreamsCache({ cachedAt: 5678, streams: [] });
+    storageService.saveDownloadQueue(downloadQueue);
+    storageService.saveStreamRecordingJournal(recordingJournal);
+
+    expect(dbService.set).toHaveBeenCalledWith("operational:kickApiRateLimit", {
+      blockedUntil: 1234,
+    });
+    expect(dbService.set).toHaveBeenCalledWith("operational:kickFollowedStreamsCache", {
+      cachedAt: 5678,
+      streams: [],
+    });
+    expect(dbService.set).toHaveBeenCalledWith("operational:downloadQueue", downloadQueue);
+    expect(dbService.set).toHaveBeenCalledWith(
+      "operational:streamRecordingJournal",
+      recordingJournal
+    );
+  });
+
+  it("distinguishes a missing renderer record from stored null", () => {
+    storageService.set("recent-stream", null);
+
+    expect(storageService.get("recent-stream")).toBeNull();
+    expect(storageService.get("missing-stream")).toBeUndefined();
+  });
+
+  it("rejects protected and malformed generic keys", () => {
+    expect(() => storageService.get("authTokens")).toThrow(/protected key/);
+    expect(() => storageService.set("preferences", {})).toThrow(/protected key/);
+    expect(() => storageService.delete("windowBounds")).toThrow(/protected key/);
+    expect(() => storageService.get(" ")).toThrow(/invalid/);
+    expect(() => storageService.get("bad\u0000key")).toThrow(/invalid/);
+    expect(() => storageService.get("x".repeat(513))).toThrow(/invalid/);
+  });
+
+  it("migrates legacy JSON once and keeps existing SQLite values on restart", () => {
+    const existingSnapshot = { streams: [{ id: "sqlite-wins" }] };
+    persistence.sqlite.set(
+      "renderer-store:browse-query-snapshot:v1:top-streams:all",
+      existingSnapshot
+    );
+    persistence.sqlite.set("authTokens", { leaked: true });
+    persistence.sqlite.set("renderer-store:preferences", { leaked: true });
+    persistence.electronData = {
+      authTokens: { twitch: { encrypted: "ciphertext", encoding: "safeStorage" } },
+      twitchUser: {
+        id: "1",
+        login: "viewer",
+        displayName: "Viewer",
+        profileImageUrl: "",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        broadcasterType: "",
+      },
+      kickUser: null,
+      preferences: DEFAULT_USER_PREFERENCES,
+      lastActiveTab: "following",
+      windowBounds: { width: 1280, height: 720, isMaximized: false },
+      localFollows: [
+        {
+          id: "legacy-follow",
+          platform: "kick",
+          channelId: "123",
+          channelName: "streamer",
+          displayName: "Streamer",
+          profileImage: "",
+          followedAt: "2025-01-01T00:00:00.000Z",
+          source: "guest",
+        },
+      ],
+      downloadQueue: { jobs: [] },
+      streamRecordingJournal: { version: 2, state: "empty", session: null },
+      "browse-query-snapshot:v1:top-streams:all": { streams: [{ id: "legacy" }] },
+    };
+
+    const firstStart = new StorageService();
+    firstStart.initialize();
+
+    expect(
+      persistence.sqlite.get("renderer-store:browse-query-snapshot:v1:top-streams:all")
+    ).toEqual(existingSnapshot);
+    expect(persistence.sqlite.get("operational:downloadQueue")).toEqual({ jobs: [] });
+    expect(persistence.sqlite.get("operational:streamRecordingJournal")).toEqual({
+      version: 2,
+      state: "empty",
+      session: null,
+    });
+    expect(persistence.sqlite.has("authTokens")).toBe(false);
+    expect(persistence.sqlite.has("renderer-store:preferences")).toBe(false);
+    expect(persistence.sqlite.has("renderer-store:localFollows")).toBe(false);
+    expect(persistence.sqliteFollows).toEqual([
+      {
+        id: "legacy-follow",
+        platform: "kick",
+        channelId: "123",
+        channelName: "streamer",
+        displayName: "Streamer",
+        profileImage: "",
+        followedAt: "2025-01-01T00:00:00.000Z",
+        source: "guest",
+      },
+    ]);
+    expect(persistence.electronData).toEqual({
+      authTokens: { twitch: { encrypted: "ciphertext", encoding: "safeStorage" } },
+      appTokens: {},
+      twitchUser: {
+        id: "1",
+        login: "viewer",
+        displayName: "Viewer",
+        profileImageUrl: "",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        broadcasterType: "",
+      },
+      kickUser: null,
+      preferences: DEFAULT_USER_PREFERENCES,
+      lastActiveTab: "following",
+      windowBounds: { width: 1280, height: 720, isMaximized: false },
+    });
+    expect(persistence.electronReplacements).toBe(1);
+
+    const secondStart = new StorageService();
+    secondStart.initialize();
+
+    expect(persistence.electronReplacements).toBe(1);
+    expect(
+      persistence.sqlite.get("renderer-store:browse-query-snapshot:v1:top-streams:all")
+    ).toEqual(existingSnapshot);
+  });
+
+  it("can retry initialization after a failed migration", () => {
+    persistence.electronData = {
+      ...persistence.electronDefaults,
+      "browse-query-snapshot:v1:top-streams:all": { streams: [] },
+    };
+    vi.mocked(dbService.migrateKeyValues).mockImplementationOnce(() => {
+      throw new Error("database busy");
+    });
+    const service = new StorageService();
+
+    expect(() => service.initialize()).toThrow("database busy");
+    expect(() => service.initialize()).not.toThrow();
+    expect(dbService.migrateKeyValues).toHaveBeenCalledTimes(2);
+    expect(service.getPreferences()).toEqual(DEFAULT_USER_PREFERENCES);
   });
 });

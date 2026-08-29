@@ -25,7 +25,6 @@ import {
   type LocalFollow,
   type NotificationPreferences,
   type Platform,
-  type StorageSchema,
   type TwitchUser,
   type UserPreferences,
 } from "../../shared/auth-types";
@@ -40,6 +39,129 @@ import {
 } from "./database-service";
 
 // ========== Default Values ==========
+
+interface ElectronStoreSchema {
+  authTokens: Partial<Record<Platform, EncryptedToken>>;
+  twitchFollowWriteToken?: EncryptedToken;
+  kickWebBearer?: EncryptedToken;
+  appTokens?: Partial<Record<Platform, EncryptedToken>>;
+  twitchUser: TwitchUser | null;
+  kickUser: KickUser | null;
+  preferences: UserPreferences;
+  lastActiveTab: string;
+  windowBounds: {
+    x?: number;
+    y?: number;
+    width: number;
+    height: number;
+    isMaximized: boolean;
+  };
+}
+
+interface KickApiRateLimitState {
+  blockedUntil: number;
+}
+
+interface KickFollowedStreamsCache {
+  cachedAt: number;
+  streams: unknown[];
+}
+
+const ELECTRON_STORE_KEYS: ReadonlySet<string> = new Set([
+  "authTokens",
+  "twitchFollowWriteToken",
+  "kickWebBearer",
+  "appTokens",
+  "twitchUser",
+  "kickUser",
+  "preferences",
+  "lastActiveTab",
+  "windowBounds",
+]);
+const PROTECTED_GENERIC_KEYS: ReadonlySet<string> = new Set([
+  ...ELECTRON_STORE_KEYS,
+  "localFollows",
+]);
+const RENDERER_STORE_PREFIX = "renderer-store:";
+const OPERATIONAL_PREFIX = "operational:";
+const MAX_RENDERER_STORE_KEY_LENGTH = 512;
+const OPERATIONAL_KEYS = {
+  kickApiRateLimit: `${OPERATIONAL_PREFIX}kickApiRateLimit`,
+  kickFollowedStreamsCache: `${OPERATIONAL_PREFIX}kickFollowedStreamsCache`,
+  downloadQueue: `${OPERATIONAL_PREFIX}downloadQueue`,
+  streamRecordingJournal: `${OPERATIONAL_PREFIX}streamRecordingJournal`,
+};
+
+function rendererStoreKey(key: string): string {
+  return `${RENDERER_STORE_PREFIX}${key}`;
+}
+
+function hasControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 31 || code === 127) return true;
+  }
+  return false;
+}
+
+function assertRendererStoreKey(key: string): void {
+  if (
+    key.trim().length === 0 ||
+    key.length > MAX_RENDERER_STORE_KEY_LENGTH ||
+    hasControlCharacter(key)
+  ) {
+    throw new Error("Generic storage key is invalid");
+  }
+  if (PROTECTED_GENERIC_KEYS.has(key)) {
+    throw new Error(`Generic storage cannot access protected key: ${key}`);
+  }
+}
+
+function operationalMigrationKey(key: string): string | null {
+  if (key === "kickApiRateLimit") return OPERATIONAL_KEYS.kickApiRateLimit;
+  if (key === "kickFollowedStreamsCache") return OPERATIONAL_KEYS.kickFollowedStreamsCache;
+  if (key === "downloadQueue") return OPERATIONAL_KEYS.downloadQueue;
+  if (key === "streamRecordingJournal") return OPERATIONAL_KEYS.streamRecordingJournal;
+  return null;
+}
+
+function normalizeLegacyLocalFollows(value: unknown): LocalFollow[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((candidate, index) => {
+    if (typeof candidate !== "object" || candidate === null) return [];
+    const record = candidate as Record<string, unknown>;
+    const platform = record.platform;
+    const channelName = typeof record.channelName === "string" ? record.channelName.trim() : "";
+    const channelId =
+      typeof record.channelId === "string" && record.channelId.trim().length > 0
+        ? record.channelId.trim()
+        : channelName;
+    if ((platform !== "kick" && platform !== "twitch") || !channelName || !channelId) {
+      return [];
+    }
+    const storedSource =
+      record.source === "guest" || record.source === "kick" || record.source === "twitch"
+        ? record.source
+        : "guest";
+    const source = storedSource === "guest" || storedSource === platform ? storedSource : "guest";
+    return [
+      {
+        id:
+          typeof record.id === "string" && record.id.length > 0
+            ? record.id
+            : `${platform}-legacy-${channelId.toLowerCase()}-${index}`,
+        platform,
+        channelId,
+        channelName,
+        displayName: typeof record.displayName === "string" ? record.displayName : channelName,
+        profileImage: typeof record.profileImage === "string" ? record.profileImage : "",
+        followedAt:
+          typeof record.followedAt === "string" ? record.followedAt : "1970-01-01T00:00:00.000Z",
+        source,
+      },
+    ];
+  });
+}
 
 const KICK_ACCOUNT_FOLLOWS_VERIFIED_KEY = "kick-account-follows-verified-v3";
 
@@ -147,14 +269,11 @@ function hydratePreferences(stored: Partial<UserPreferences>): UserPreferences {
   return hydrated;
 }
 
-const defaults: StorageSchema = {
+const defaults: ElectronStoreSchema = {
   authTokens: {},
   appTokens: {},
   twitchUser: null,
   kickUser: null,
-  localFollows: [],
-  downloadQueue: { jobs: [] },
-  streamRecordingJournal: { version: 2, state: "empty", session: null },
   preferences: DEFAULT_USER_PREFERENCES,
   lastActiveTab: "home",
   windowBounds: DEFAULT_WINDOW_BOUNDS,
@@ -162,8 +281,8 @@ const defaults: StorageSchema = {
 
 // ========== Storage Service Class ==========
 
-class StorageService {
-  private store: Store<StorageSchema> | null = null;
+export class StorageService {
+  private store: Store<ElectronStoreSchema> | null = null;
   private isEncryptionAvailable = false;
   // In-memory cache of decrypted auth tokens. Avoids a safeStorage.decryptString()
   // call (DPAPI on Windows) on every API call. Lifetime = process lifetime,
@@ -173,31 +292,78 @@ class StorageService {
   initialize() {
     if (this.store) return; // Already initialized
 
-    this.store = new Store<StorageSchema>({
-      // projectName must be passed explicitly even in electron-store@11. Conf
-      // (the underlying lib) errors out when it can't derive a project name
-      // from app.getName(), and during electron-vite dev startup the app
-      // name isn't always populated before the module-level Store
-      // instantiations fire (see update-service top-level call). The
-      // commit-65b7a80 cleanup that dropped this field caused a hard crash
-      // at "Please specify the projectName option" during dev rebuild.
-      projectName: "streamfusion",
-      name: "streamfusion-storage",
-      defaults,
-    } as ConstructorParameters<typeof Store<StorageSchema>>[0]);
+    try {
+      this.store = new Store<ElectronStoreSchema>({
+        // projectName must be passed explicitly even in electron-store@11. Conf
+        // (the underlying lib) errors out when it can't derive a project name
+        // from app.getName(), and during electron-vite dev startup the app
+        // name isn't always populated before the module-level Store
+        // instantiations fire (see update-service top-level call). The
+        // commit-65b7a80 cleanup that dropped this field caused a hard crash
+        // at "Please specify the projectName option" during dev rebuild.
+        projectName: "streamfusion",
+        name: "streamfusion-storage",
+        defaults,
+      } as ConstructorParameters<typeof Store<ElectronStoreSchema>>[0]);
 
-    // Check if safeStorage encryption is available
-    this.isEncryptionAvailable = safeStorage.isEncryptionAvailable();
-    logger.debug("Service:Storage", "Storage service initialized", {
-      encryptionAvailable: this.isEncryptionAvailable,
-    });
+      this.migrateLegacyStore();
+
+      // Check if safeStorage encryption is available
+      this.isEncryptionAvailable = safeStorage.isEncryptionAvailable();
+      logger.debug("Service:Storage", "Storage service initialized", {
+        encryptionAvailable: this.isEncryptionAvailable,
+      });
+    } catch (error) {
+      this.store = null;
+      throw error;
+    }
   }
 
-  private get storeInstance(): Store<StorageSchema> {
+  private get storeInstance(): Store<ElectronStoreSchema> {
     if (!this.store) {
       throw new Error("Storage not initialized. Call initialize() first.");
     }
     return this.store;
+  }
+
+  private migrateLegacyStore(): void {
+    const source = this.storeInstance.store;
+    const sourceEntries = Object.entries(source);
+    const migrationEntries = sourceEntries.flatMap(([key, value]) => {
+      if (ELECTRON_STORE_KEYS.has(key) || key === "localFollows") return [];
+      return [{ key: operationalMigrationKey(key) ?? rendererStoreKey(key), value }];
+    });
+    const protectedKeys = [...PROTECTED_GENERIC_KEYS];
+    dbService.migrateKeyValues({
+      entries: migrationEntries,
+      legacyFollows: normalizeLegacyLocalFollows(
+        sourceEntries.find(([key]) => key === "localFollows")?.[1]
+      ),
+      deleteKeys: protectedKeys.flatMap((key) => [
+        key,
+        rendererStoreKey(key),
+        `${OPERATIONAL_PREFIX}${key}`,
+      ]),
+    });
+
+    if (Object.keys(source).some((key) => !ELECTRON_STORE_KEYS.has(key))) {
+      const retained: ElectronStoreSchema = {
+        authTokens: source.authTokens ?? defaults.authTokens,
+        appTokens: source.appTokens ?? defaults.appTokens,
+        twitchUser: source.twitchUser ?? defaults.twitchUser,
+        kickUser: source.kickUser ?? defaults.kickUser,
+        preferences: source.preferences ?? defaults.preferences,
+        lastActiveTab: source.lastActiveTab ?? defaults.lastActiveTab,
+        windowBounds: source.windowBounds ?? defaults.windowBounds,
+      };
+      if (source.twitchFollowWriteToken !== undefined) {
+        retained.twitchFollowWriteToken = source.twitchFollowWriteToken;
+      }
+      if (source.kickWebBearer !== undefined) {
+        retained.kickWebBearer = source.kickWebBearer;
+      }
+      this.storeInstance.store = retained;
+    }
   }
 
   // ========== Token Management (Electron Store) ==========
@@ -838,82 +1004,117 @@ class StorageService {
   /**
    * Get window bounds
    */
-  getWindowBounds(): StorageSchema["windowBounds"] {
+  getWindowBounds(): ElectronStoreSchema["windowBounds"] {
     return this.storeInstance.get("windowBounds") || DEFAULT_WINDOW_BOUNDS;
   }
 
   /**
    * Save window bounds
    */
-  saveWindowBounds(bounds: StorageSchema["windowBounds"]): void {
+  saveWindowBounds(bounds: ElectronStoreSchema["windowBounds"]): void {
     this.storeInstance.set("windowBounds", bounds);
   }
 
-  // ========== Kick API continuity (Electron Store) ==========
+  // ========== Kick API continuity (SQLite) ==========
 
-  getKickApiRateLimitState(): StorageSchema["kickApiRateLimit"] {
-    return this.storeInstance.get("kickApiRateLimit");
+  getKickApiRateLimitState(): KickApiRateLimitState | undefined {
+    return (
+      dbService.get(OPERATIONAL_KEYS.kickApiRateLimit, (value) => {
+        if (
+          typeof value === "object" &&
+          value !== null &&
+          "blockedUntil" in value &&
+          typeof value.blockedUntil === "number"
+        ) {
+          return { blockedUntil: value.blockedUntil };
+        }
+        return null;
+      }) ?? undefined
+    );
   }
 
-  saveKickApiRateLimitState(state: NonNullable<StorageSchema["kickApiRateLimit"]>): void {
-    this.storeInstance.set("kickApiRateLimit", state);
+  saveKickApiRateLimitState(state: KickApiRateLimitState): void {
+    dbService.set(OPERATIONAL_KEYS.kickApiRateLimit, state);
   }
 
   clearKickApiRateLimitState(): void {
-    this.storeInstance.delete("kickApiRateLimit");
+    dbService.delete(OPERATIONAL_KEYS.kickApiRateLimit);
   }
 
-  getKickFollowedStreamsCache(): StorageSchema["kickFollowedStreamsCache"] {
-    return this.storeInstance.get("kickFollowedStreamsCache");
+  getKickFollowedStreamsCache(): KickFollowedStreamsCache | undefined {
+    return (
+      dbService.get(OPERATIONAL_KEYS.kickFollowedStreamsCache, (value) => {
+        if (
+          typeof value === "object" &&
+          value !== null &&
+          "cachedAt" in value &&
+          typeof value.cachedAt === "number" &&
+          "streams" in value &&
+          Array.isArray(value.streams)
+        ) {
+          return { cachedAt: value.cachedAt, streams: value.streams };
+        }
+        return null;
+      }) ?? undefined
+    );
   }
 
-  saveKickFollowedStreamsCache(
-    snapshot: NonNullable<StorageSchema["kickFollowedStreamsCache"]>
-  ): void {
-    this.storeInstance.set("kickFollowedStreamsCache", snapshot);
+  saveKickFollowedStreamsCache(snapshot: KickFollowedStreamsCache): void {
+    dbService.set(OPERATIONAL_KEYS.kickFollowedStreamsCache, snapshot);
   }
 
-  // ========== Downloads Queue (Electron Store) ==========
+  // ========== Downloads Queue (SQLite) ==========
 
   getDownloadQueue(): DownloadQueueSnapshot {
-    return this.storeInstance.get("downloadQueue") ?? { jobs: [] };
+    return (
+      dbService.get(OPERATIONAL_KEYS.downloadQueue, (value) => {
+        if (typeof value !== "object" || value === null || !("jobs" in value)) return null;
+        if (!Array.isArray(value.jobs)) return null;
+        return { jobs: value.jobs } as DownloadQueueSnapshot;
+      }) ?? { jobs: [] }
+    );
   }
 
   saveDownloadQueue(snapshot: DownloadQueueSnapshot): void {
-    this.storeInstance.set("downloadQueue", snapshot);
+    dbService.set(OPERATIONAL_KEYS.downloadQueue, snapshot);
   }
 
-  // ========== Stream Recording Recovery Journal (Electron Store) ==========
+  // ========== Stream Recording Recovery Journal (SQLite) ==========
 
   getStreamRecordingJournal(): unknown {
-    return this.storeInstance.get("streamRecordingJournal");
+    const result = dbService.getJson(OPERATIONAL_KEYS.streamRecordingJournal);
+    return result.kind === "value" ? result.value : undefined;
   }
 
   saveStreamRecordingJournal(journal: StreamRecordingJournalV2): void {
-    this.storeInstance.set("streamRecordingJournal", journal);
+    dbService.set(OPERATIONAL_KEYS.streamRecordingJournal, journal);
   }
 
-  // ========== Generic Storage (Electron Store) ==========
+  // ========== Generic Renderer Storage (SQLite) ==========
 
   /**
    * Get a value from storage
    */
   get(key: string): unknown {
-    return this.storeInstance.get(key);
+    assertRendererStoreKey(key);
+    const result = dbService.getJson(rendererStoreKey(key));
+    return result.kind === "value" ? result.value : undefined;
   }
 
   /**
    * Set a value in storage
    */
   set(key: string, value: unknown): void {
-    this.storeInstance.set(key, value);
+    assertRendererStoreKey(key);
+    dbService.set(rendererStoreKey(key), value);
   }
 
   /**
    * Delete a value from storage
    */
   delete(key: string): void {
-    this.storeInstance.delete(key as keyof StorageSchema);
+    assertRendererStoreKey(key);
+    dbService.delete(rendererStoreKey(key));
   }
 
   /**
@@ -921,8 +1122,7 @@ class StorageService {
    */
   clearAll(): void {
     this.storeInstance.clear();
-    // Also clear DB
-    dbService.clearKeyValue(); // Though we aren't using this part anymore, good to be safe
+    dbService.clearKeyValue();
     dbService.clearFollows();
     logger.debug("Service:Storage", "All storage cleared");
   }
