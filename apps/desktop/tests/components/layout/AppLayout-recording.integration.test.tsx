@@ -37,8 +37,8 @@ vi.mock("@/components/TopNavBar/NotificationsDropdown", () => ({
 vi.mock("@/components/auth", () => ({ ProfileDropdown: () => null }));
 vi.mock("@/components/layout/SidebarFollows", () => ({ SidebarFollows: () => null }));
 vi.mock("@/components/layout/TitleBar", () => ({ TitleBar: () => null }));
-vi.mock("@/components/layout/PlatformHealthBanner", () => ({
-  PlatformHealthBanner: () => null,
+vi.mock("@/components/layout/PlatformHealthIndicator", () => ({
+  PlatformHealthIndicator: () => null,
 }));
 vi.mock("@/components/player/mini-player", () => ({ MiniPlayer: () => null }));
 

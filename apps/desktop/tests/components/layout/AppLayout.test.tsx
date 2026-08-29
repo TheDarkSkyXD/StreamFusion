@@ -33,7 +33,11 @@ vi.mock("@/store/app-store", () => ({
 }));
 
 vi.mock("@/components/TopNavBar", () => ({
-  TopNavBar: () => <div data-testid="top-nav">topnav</div>,
+  TopNavBar: ({ showPlatformHealth }: { showPlatformHealth?: boolean }) => (
+    <div data-testid="top-nav" data-show-platform-health={showPlatformHealth}>
+      topnav
+    </div>
+  ),
 }));
 
 vi.mock("@/components/layout/SidebarFollows", () => ({
@@ -42,10 +46,6 @@ vi.mock("@/components/layout/SidebarFollows", () => ({
 
 vi.mock("@/components/layout/TitleBar", () => ({
   TitleBar: () => <div data-testid="title-bar">title</div>,
-}));
-
-vi.mock("@/components/layout/PlatformHealthBanner", () => ({
-  PlatformHealthBanner: () => <div data-testid="platform-health-banner">platform</div>,
 }));
 
 vi.mock("@/components/player/mini-player", () => ({
@@ -128,7 +128,7 @@ describe("AppLayout", () => {
     );
 
     expect(screen.getByRole("status")).toHaveTextContent("No internet connection");
-    expect(screen.queryByTestId("platform-health-banner")).toBeNull();
+    expect(screen.getByTestId("top-nav")).toHaveAttribute("data-show-platform-health", "false");
   });
 
   it("keeps the offline card visible above player controls in theater mode", () => {

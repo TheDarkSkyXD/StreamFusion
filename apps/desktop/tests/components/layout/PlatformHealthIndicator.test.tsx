@@ -7,28 +7,31 @@ vi.mock("@/hooks/usePlatformHealth", () => ({
   usePlatformHealth: () => mockHook(),
 }));
 
-import { PlatformHealthBanner } from "@/components/layout/PlatformHealthBanner";
+import { PlatformHealthIndicator } from "@/components/layout/PlatformHealthIndicator";
 
-describe("PlatformHealthBanner", () => {
+// Guards: long-running Platform degradation stays in compact top-nav chrome instead of reducing every page's content height.
+// Guards: the full provider incident remains available to assistive technology while visible copy stays brief.
+describe("PlatformHealthIndicator", () => {
   it("renders nothing when no platform is degraded", () => {
     mockHook.mockReturnValue({ kick: "healthy", twitch: "healthy", anyDegraded: false });
-    const { container } = renderWithProviders(<PlatformHealthBanner />);
+    const { container } = renderWithProviders(<PlatformHealthIndicator />);
     expect(container.firstChild).toBeNull();
   });
 
   it("renders nothing for Kick-only degraded health without status-page detail", () => {
     mockHook.mockReturnValue({ kick: "degraded", twitch: "healthy", anyDegraded: true });
-    const { container } = renderWithProviders(<PlatformHealthBanner />);
+    const { container } = renderWithProviders(<PlatformHealthIndicator />);
     expect(container.firstChild).toBeNull();
   });
 
   it("renders Kick-down copy with Kick brand colors when Kick is unreachable", () => {
     mockHook.mockReturnValue({ kick: "down", twitch: "healthy", anyDegraded: true });
-    renderWithProviders(<PlatformHealthBanner />);
-    const banner = screen.getByRole("status");
-    expect(banner).toHaveTextContent("Kick is unreachable. Retrying...");
-    expect(banner.className).toMatch(/bg-black/);
-    expect(banner.className).toMatch(/text-\[#53FC18\]/);
+    renderWithProviders(<PlatformHealthIndicator />);
+    const indicator = screen.getByRole("status");
+    expect(indicator).toHaveTextContent("Kick offline");
+    expect(indicator).toHaveAccessibleName("Kick is unreachable. Retrying.");
+    expect(indicator).toHaveClass("h-8", "rounded-full");
+    expect(indicator.className).toMatch(/text-\[#8aff62\]/);
   });
 
   it("renders Kick status-page detail when available", () => {
@@ -40,32 +43,27 @@ describe("PlatformHealthBanner", () => {
         kick: { summary: "Kick status: Major outage - KICK Outage." },
       },
     });
-    renderWithProviders(<PlatformHealthBanner />);
-    expect(screen.getByRole("status")).toHaveTextContent(
+    renderWithProviders(<PlatformHealthIndicator />);
+    expect(screen.getByRole("status")).toHaveAccessibleName(
       "Kick status: Major outage - KICK Outage."
     );
   });
 
   it("renders Twitch-only copy with Twitch purple when only Twitch is degraded", () => {
     mockHook.mockReturnValue({ kick: "healthy", twitch: "degraded", anyDegraded: true });
-    renderWithProviders(<PlatformHealthBanner />);
-    const banner = screen.getByRole("status");
-    expect(banner).toHaveTextContent(
-      "Twitch is having issues right now. Some channels may not load."
-    );
-    expect(banner.className).toMatch(/bg-\[#9146FF\]/);
-    expect(banner.className).toMatch(/text-white/);
+    renderWithProviders(<PlatformHealthIndicator />);
+    const indicator = screen.getByRole("status");
+    expect(indicator).toHaveTextContent("Twitch degraded");
+    expect(indicator).toHaveAccessibleName("Twitch is degraded. Some channels may not load.");
+    expect(indicator.className).toMatch(/bg-\[#9146FF\]/);
   });
 
   it("renders Twitch-only copy when Twitch is degraded and Kick is internally degraded", () => {
     mockHook.mockReturnValue({ kick: "degraded", twitch: "degraded", anyDegraded: true });
-    renderWithProviders(<PlatformHealthBanner />);
-    const banner = screen.getByRole("status");
-    expect(banner).toHaveTextContent(
-      "Twitch is having issues right now. Some channels may not load."
-    );
-    expect(banner.className).toMatch(/bg-\[#9146FF\]/);
-    expect(banner.className).toMatch(/text-white/);
+    renderWithProviders(<PlatformHealthIndicator />);
+    const indicator = screen.getByRole("status");
+    expect(indicator).toHaveTextContent("Twitch degraded");
+    expect(indicator).toHaveAccessibleName("Twitch is degraded. Some channels may not load.");
   });
 
   it("renders both-platforms copy when Twitch is degraded and Kick has status-page detail", () => {
@@ -77,18 +75,18 @@ describe("PlatformHealthBanner", () => {
         kick: { summary: "Kick status: Partial outage." },
       },
     });
-    renderWithProviders(<PlatformHealthBanner />);
-    const banner = screen.getByRole("status");
-    expect(banner).toHaveTextContent(
-      "Kick and Twitch are degraded right now. Some data may be cached or delayed."
+    renderWithProviders(<PlatformHealthIndicator />);
+    const indicator = screen.getByRole("status");
+    expect(indicator).toHaveTextContent("Platform issues");
+    expect(indicator).toHaveAccessibleName(
+      "Kick and Twitch are degraded. Some data may be cached or delayed."
     );
-    expect(banner.className).toMatch(/bg-neutral-700/);
-    expect(banner.className).toMatch(/text-white/);
+    expect(indicator.className).toMatch(/bg-amber-300/);
   });
 
   it("does not render a dismiss / close button", () => {
     mockHook.mockReturnValue({ kick: "degraded", twitch: "healthy", anyDegraded: true });
-    renderWithProviders(<PlatformHealthBanner />);
+    renderWithProviders(<PlatformHealthIndicator />);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
@@ -101,7 +99,7 @@ describe("PlatformHealthBanner", () => {
         kick: { summary: "Kick status: Partial outage." },
       },
     });
-    renderWithProviders(<PlatformHealthBanner />);
+    renderWithProviders(<PlatformHealthIndicator />);
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 });

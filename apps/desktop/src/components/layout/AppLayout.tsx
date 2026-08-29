@@ -23,7 +23,6 @@ import { usePipStore } from "@/store/pip-store";
 import { TopNavBar } from "../TopNavBar";
 
 import { NetworkStatusBanner } from "./NetworkStatusBanner";
-import { PlatformHealthBanner } from "./PlatformHealthBanner";
 import { SidebarFollows } from "./SidebarFollows";
 import { TitleBar } from "./TitleBar";
 
@@ -88,10 +87,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <TitleBar />
 
           {/* Top Navigation Bar (search, user info) */}
-          {!isTheaterModeActive && <TopNavBar />}
-
-          {/* Visible only while a Platform is degraded and the app has network. */}
-          {!isTheaterModeActive && isOnline && <PlatformHealthBanner />}
+          {!isTheaterModeActive && <TopNavBar showPlatformHealth={isOnline} />}
 
           {/* Main Layout */}
           <div className="flex-1 flex overflow-hidden">

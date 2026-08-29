@@ -2,7 +2,7 @@ import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 
 import type { PlatformHealth, StatusPageDetail } from "@/backend/api/unified/platform-health";
 
-import { PlatformHealthBanner } from "./PlatformHealthBanner";
+import { PlatformHealthIndicator } from "./PlatformHealthIndicator";
 
 interface HealthSnapshot {
   kick: PlatformHealth;
@@ -35,8 +35,8 @@ function withPlatformHealth(snapshot: HealthSnapshot): Decorator {
 }
 
 const meta = {
-  title: "Components/Layout/PlatformHealthBanner",
-  component: PlatformHealthBanner,
+  title: "Components/Layout/PlatformHealthIndicator",
+  component: PlatformHealthIndicator,
   parameters: {
     layout: "fullscreen",
     docs: {
@@ -46,7 +46,7 @@ const meta = {
       },
     },
   },
-} satisfies Meta<typeof PlatformHealthBanner>;
+} satisfies Meta<typeof PlatformHealthIndicator>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

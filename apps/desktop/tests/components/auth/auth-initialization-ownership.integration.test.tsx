@@ -22,9 +22,6 @@ vi.mock("@/components/TopNavBar", () => ({
 vi.mock("@/components/layout/NetworkStatusBanner", () => ({
   NetworkStatusBanner: () => null,
 }));
-vi.mock("@/components/layout/PlatformHealthBanner", () => ({
-  PlatformHealthBanner: () => null,
-}));
 vi.mock("@/components/layout/SidebarFollows", () => ({
   SidebarFollows: () => <div>followed channels</div>,
 }));

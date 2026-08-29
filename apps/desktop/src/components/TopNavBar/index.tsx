@@ -4,6 +4,7 @@ import { LuMenu } from "react-icons/lu";
 
 import streamFusionLogo from "@/assets/brand/streamfusion-logo.png";
 import { ProfileDropdown } from "@/components/auth";
+import { PlatformHealthIndicator } from "@/components/layout/PlatformHealthIndicator";
 import { RecordingGlobalIndicator } from "@/components/recording/recording-global-indicator";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/app-store";
@@ -13,9 +14,13 @@ import { SearchBar } from "./SearchBar";
 
 interface TopNavBarProps {
   className?: string;
+  showPlatformHealth?: boolean;
 }
 
-export const TopNavBar = memo(function TopNavBar({ className }: TopNavBarProps) {
+export const TopNavBar = memo(function TopNavBar({
+  className,
+  showPlatformHealth = true,
+}: TopNavBarProps) {
   // Use individual selectors so this component re-renders only when these
   // two values change — destructuring the full store subscribed to every
   // mutation (theater toggle, etc.) and caused 30s viewer-count polls to
@@ -55,6 +60,7 @@ export const TopNavBar = memo(function TopNavBar({ className }: TopNavBarProps) 
 
       {/* Right side - Notifications + User */}
       <div className="flex items-center justify-end gap-4 ml-4">
+        {showPlatformHealth && <PlatformHealthIndicator />}
         <RecordingGlobalIndicator />
 
         {/* Notifications Dropdown */}
