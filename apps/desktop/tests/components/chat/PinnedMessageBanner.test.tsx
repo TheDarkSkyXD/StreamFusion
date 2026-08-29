@@ -774,10 +774,9 @@ describe("PinnedMessageBanner", () => {
 
     const expandButton = screen.getByLabelText("Expand pinned message");
     expect(expandButton).not.toHaveAttribute("aria-describedby");
-    expect(screen.getByTestId("pinned-message-expand-icon")).toHaveStyle({
-      stroke: "currentColor",
-      strokeWidth: "1.35",
-    });
+    const expandIcon = screen.getByTestId("pinned-message-expand-icon");
+    expect(expandIcon.style.stroke.toLowerCase()).toBe("currentcolor");
+    expect(expandIcon.style.strokeWidth).toBe("1.35");
 
     fireEvent.pointerMove(expandButton);
     fireEvent.pointerEnter(expandButton);

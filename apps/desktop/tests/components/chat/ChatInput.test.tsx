@@ -1689,7 +1689,7 @@ describe("ChatInput — footer actions", () => {
     const settingsButton = screen.getByRole("button", { name: /chat settings/i });
     expect(settingsButton).toHaveClass("text-white");
     expect(settingsButton).toHaveClass("h-8", "w-8", "rounded-full", "hover:bg-[#232629]");
-    expect(settingsButton.querySelector("svg")).toHaveStyle({ stroke: "currentColor" });
+    expect(settingsButton.querySelector("svg")?.style.stroke.toLowerCase()).toBe("currentcolor");
     expect(screen.getByRole("button", { name: "Chat" })).toHaveClass("bg-white", "text-[#0f0f0f]");
   });
 

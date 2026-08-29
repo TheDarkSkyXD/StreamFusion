@@ -405,18 +405,14 @@ describe("caption preferences and layout", () => {
     });
 
     const caption = screen.getByText("Readable caption");
-    expect(caption).toHaveStyle({
-      color: "rgb(255, 255, 255)",
-      fontFamily: "Inter, system-ui, sans-serif",
-      fontSize: "1.875rem",
-      backgroundColor: "rgba(0, 0, 0, 0.4)",
-    });
+    expect(caption.style.color).toBe("rgb(255, 255, 255)");
+    expect(caption.style.fontFamily).toBe("Inter, system-ui, sans-serif");
+    expect(caption.style.fontSize).toBe("1.875rem");
+    expect(caption.style.backgroundColor).toBe("rgba(0, 0, 0, 0.4)");
 
     fireEvent.click(screen.getByRole("button", { name: "Reset caption appearance" }));
-    expect(caption).toHaveStyle({
-      fontSize: "1.25rem",
-      backgroundColor: "rgba(0, 0, 0, 0.8)",
-    });
+    expect(caption.style.fontSize).toBe("1.25rem");
+    expect(caption.style.backgroundColor).toBe("rgba(0, 0, 0, 0.8)");
   });
 
   it("honors valid cue positioning and sends malformed positioning to the control-safe fallback", () => {
