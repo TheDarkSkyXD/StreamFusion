@@ -14,6 +14,14 @@ import {
 } from "react-icons/lu";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -81,15 +89,36 @@ const STATUS_CHIP_CLASSES: Record<DownloadJob["status"], string> = {
     "border-[var(--color-border)] bg-[var(--color-background-tertiary)] text-[var(--color-foreground-muted)]",
 };
 
-type DownloadAction = "openFile" | "showInFolder" | "remove" | "deleteFile";
+type ImmediateDownloadAction = "openFile" | "showInFolder" | "remove";
+type DeleteFileKind = "completed" | "partial";
 
-function DownloadActionTooltip({
-  children,
-  label,
-}: {
-  children: ReactElement;
-  label: string;
-}) {
+interface DeleteFileTarget {
+  jobId: DownloadJob["id"];
+  title: DownloadJob["title"];
+  fileKind: DeleteFileKind;
+}
+
+type DeleteFileDialogState =
+  | { phase: "closed" }
+  | { phase: "idle"; target: DeleteFileTarget }
+  | { phase: "pending"; target: DeleteFileTarget }
+  | { phase: "failed"; target: DeleteFileTarget; error: string };
+
+type OpenDeleteFileDialogState = Exclude<DeleteFileDialogState, { phase: "closed" }>;
+
+function getDeleteFileTarget(job: DownloadJob): DeleteFileTarget | null {
+  if (job.status === "completed") {
+    return { jobId: job.id, title: job.title, fileKind: "completed" };
+  }
+
+  if (job.partial === true && job.status !== "queued" && job.status !== "downloading") {
+    return { jobId: job.id, title: job.title, fileKind: "partial" };
+  }
+
+  return null;
+}
+
+function DownloadActionTooltip({ children, label }: { children: ReactElement; label: string }) {
   return (
     <Tooltip delayDuration={150}>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
@@ -131,9 +160,7 @@ function formatTransfer(job: DownloadJob): string {
     ? `${formatBytes(job.progress.bytesPerSecond)}/s`
     : null;
 
-  return [total ? `${transferred} of ${total}` : transferred, speed]
-    .filter(Boolean)
-    .join("  /  ");
+  return [total ? `${transferred} of ${total}` : transferred, speed].filter(Boolean).join("  /  ");
 }
 
 export function prewarmDownloadsFirstThumbnail(): Promise<void> {
@@ -148,7 +175,10 @@ export function prewarmDownloadsFirstThumbnail(): Promise<void> {
       prewarmViewportImages(
         queue.jobs
           .filter((job) => job.thumbnailUrl)
-          .sort((left, right) => DOWNLOAD_PREWARM_PRIORITY[left.status] - DOWNLOAD_PREWARM_PRIORITY[right.status])
+          .sort(
+            (left, right) =>
+              DOWNLOAD_PREWARM_PRIORITY[left.status] - DOWNLOAD_PREWARM_PRIORITY[right.status]
+          )
           .slice(0, 2)
           .map((job) => job.thumbnailUrl)
       )
@@ -166,15 +196,18 @@ function DownloadRow({
   job,
   onCancel,
   onAction,
+  onRequestDelete,
 }: {
   job: DownloadJob;
   onCancel: (job: DownloadJob) => void;
-  onAction: (action: DownloadAction, job: DownloadJob) => void;
+  onAction: (action: ImmediateDownloadAction, job: DownloadJob) => void;
+  onRequestDelete: (job: DownloadJob, opener: HTMLButtonElement) => void;
 }) {
   const progress = job.progress.percent === null ? undefined : job.progress.percent;
   const canCancel = job.status === "queued" || job.status === "downloading";
   const canRemove = !canCancel;
-  const hasFileActions = job.status === "completed" || job.partial === true;
+  const deleteTarget = getDeleteFileTarget(job);
+  const hasFileActions = deleteTarget !== null;
 
   return (
     <article className="group grid gap-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-4 transition-colors hover:border-[var(--color-foreground-muted)] motion-reduce:transition-none sm:grid-cols-[144px_minmax(0,1fr)] lg:grid-cols-[160px_minmax(0,1fr)_auto] lg:items-center">
@@ -208,7 +241,9 @@ function DownloadRow({
 
         <Progress value={progress} className="h-2" />
         <div className="mt-2 flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs text-[var(--color-foreground-secondary)]">
-          <span className="min-w-0 truncate">{job.error ?? job.statusMessage ?? formatTransfer(job)}</span>
+          <span className="min-w-0 truncate">
+            {job.error ?? job.statusMessage ?? formatTransfer(job)}
+          </span>
           <span className="shrink-0 tabular-nums">
             {progress === undefined ? "Progress unavailable" : `${Math.round(progress)}%`}
           </span>
@@ -269,7 +304,7 @@ function DownloadRow({
                   size="icon"
                   className="size-10"
                   aria-label={`Delete ${job.title} from disk`}
-                  onClick={() => onAction("deleteFile", job)}
+                  onClick={(event) => onRequestDelete(job, event.currentTarget)}
                 >
                   <LuTrash2 className="size-5" aria-hidden="true" />
                 </Button>
@@ -298,15 +333,112 @@ function cancelDownload(job: DownloadJob) {
   void window.electronAPI?.downloads?.cancel(job.id);
 }
 
-function runDownloadAction(action: DownloadAction, job: DownloadJob) {
+function runDownloadAction(action: ImmediateDownloadAction, job: DownloadJob) {
   void window.electronAPI?.downloads?.[action](job.id);
+}
+
+function DeleteFromDiskDialog({
+  state,
+  onCancel,
+  onConfirm,
+}: {
+  state: OpenDeleteFileDialogState;
+  onCancel: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const cancelRef = useRef<HTMLButtonElement | null>(null);
+  const isPending = state.phase === "pending";
+  const isPartial = state.target.fileKind === "partial";
+  const preventDismissWhilePending = (event: Event) => {
+    if (isPending) event.preventDefault();
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent
+        hideCloseButton
+        role="alertdialog"
+        aria-busy={isPending}
+        className="max-w-md rounded-xl border-[var(--color-border)] bg-[var(--color-background-elevated)] shadow-[0_8px_32px_rgba(0,0,0,0.5),0_2px_8px_rgba(0,0,0,0.3)] motion-reduce:duration-0"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          cancelRef.current?.focus();
+        }}
+        onEscapeKeyDown={preventDismissWhilePending}
+        onPointerDownOutside={preventDismissWhilePending}
+        onInteractOutside={preventDismissWhilePending}
+      >
+        <DialogHeader>
+          <div className="mb-1 flex size-10 items-center justify-center rounded-full bg-[var(--color-destructive)]/15 text-[var(--color-destructive)]">
+            <LuTrash2 className="size-5" aria-hidden="true" />
+          </div>
+          <DialogTitle>Delete file from disk?</DialogTitle>
+          <DialogDescription className="leading-6 text-[var(--color-foreground-secondary)]">
+            <span className="font-semibold text-[var(--color-foreground)]">
+              {state.target.title}
+            </span>{" "}
+            is a {isPartial ? "partial download" : "completed download"}. This permanently deletes
+            the {isPartial ? "partial file" : "completed file"} from this computer. This cannot be
+            undone. Remove from list keeps the file.
+          </DialogDescription>
+        </DialogHeader>
+        {isPending ? (
+          <p aria-live="polite" className="text-sm text-[var(--color-foreground-secondary)]">
+            Deleting file...
+          </p>
+        ) : null}
+        {state.phase === "failed" ? (
+          <p
+            role="alert"
+            className="rounded-md border border-[var(--color-destructive)]/30 bg-[var(--color-destructive)]/10 px-3 py-2 text-sm text-[var(--color-foreground)]"
+          >
+            {state.error}
+          </p>
+        ) : null}
+        <DialogFooter>
+          <Button
+            ref={cancelRef}
+            type="button"
+            variant="secondary"
+            disabled={isPending}
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={isPending}
+            aria-busy={isPending}
+            className="gap-2"
+            onClick={() => void onConfirm()}
+          >
+            <LuTrash2 className="size-4" aria-hidden="true" />
+            {isPending
+              ? "Deleting..."
+              : state.phase === "failed"
+                ? "Retry delete"
+                : "Delete from disk"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export function DownloadsPage() {
   const [queue, setQueue] = useState<DownloadQueueSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<DeleteFileDialogState>({ phase: "closed" });
   const isMounted = useRef(false);
   const queuePushVersion = useRef(0);
+  const deleteDialogRef = useRef<DeleteFileDialogState>({ phase: "closed" });
+  const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
+
+  const updateDeleteDialog = (next: DeleteFileDialogState) => {
+    deleteDialogRef.current = next;
+    setDeleteDialog(next);
+  };
 
   const loadQueue = useCallback(async () => {
     const api = window.electronAPI?.downloads;
@@ -354,10 +486,55 @@ export function DownloadsPage() {
     };
   }, [loadQueue]);
 
+  useEffect(() => {
+    if (deleteDialog.phase === "closed" && deleteTriggerRef.current?.isConnected) {
+      deleteTriggerRef.current.focus();
+    }
+  }, [deleteDialog.phase]);
+
   const retryLoad = () => {
     setError(null);
     setQueue(null);
     void loadQueue();
+  };
+
+  const requestFileDeletion = (job: DownloadJob, opener: HTMLButtonElement) => {
+    const target = getDeleteFileTarget(job);
+    if (!target) return;
+    deleteTriggerRef.current = opener;
+    updateDeleteDialog({ phase: "idle", target });
+  };
+
+  const dismissFileDeletion = () => {
+    if (deleteDialogRef.current.phase !== "pending") updateDeleteDialog({ phase: "closed" });
+  };
+
+  const confirmFileDeletion = async () => {
+    const state = deleteDialogRef.current;
+    if (state.phase !== "idle" && state.phase !== "failed") return;
+
+    updateDeleteDialog({ phase: "pending", target: state.target });
+    try {
+      const result = await window.electronAPI?.downloads?.deleteFile(state.target.jobId);
+      if (!isMounted.current) return;
+      if (result?.success) {
+        updateDeleteDialog({ phase: "closed" });
+      } else {
+        updateDeleteDialog({
+          phase: "failed",
+          target: state.target,
+          error: result?.error ?? "StreamFusion couldn't delete the file. Try again.",
+        });
+      }
+    } catch {
+      if (isMounted.current) {
+        updateDeleteDialog({
+          phase: "failed",
+          target: state.target,
+          error: "StreamFusion couldn't delete the file. Try again.",
+        });
+      }
+    }
   };
 
   const populatedSections = DOWNLOAD_SECTIONS.map((section) => ({
@@ -415,7 +592,10 @@ export function DownloadsPage() {
       ) : queue.jobs.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-background-secondary)] px-6 py-16 text-center">
           <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-[var(--color-background-tertiary)]">
-            <LuDownload className="size-7 text-[var(--color-foreground-muted)]" aria-hidden="true" />
+            <LuDownload
+              className="size-7 text-[var(--color-foreground-muted)]"
+              aria-hidden="true"
+            />
           </div>
           <h2 className="text-base font-bold">No downloads yet</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-[var(--color-foreground-secondary)]">
@@ -452,6 +632,7 @@ export function DownloadsPage() {
                     job={job}
                     onCancel={cancelDownload}
                     onAction={runDownloadAction}
+                    onRequestDelete={requestFileDeletion}
                   />
                 ))}
               </div>
@@ -459,6 +640,13 @@ export function DownloadsPage() {
           ))}
         </div>
       )}
+      {deleteDialog.phase !== "closed" ? (
+        <DeleteFromDiskDialog
+          state={deleteDialog}
+          onCancel={dismissFileDeletion}
+          onConfirm={confirmFileDeletion}
+        />
+      ) : null}
     </div>
   );
 }

@@ -154,6 +154,7 @@ const populatedQueue = {
 } satisfies DownloadQueueSnapshot;
 
 const cancelActiveDownload = fn(async () => ({ success: true }));
+const deleteCompletedFile = fn(async () => ({ success: true }));
 
 const meta = {
   title: "Pages/Downloads",
@@ -192,6 +193,32 @@ export const CancelActiveDownload: Story = {
       await canvas.findByRole("button", { name: "Cancel Road to radiant with calm comms" })
     );
     await expect(cancelActiveDownload).toHaveBeenCalledWith("vod-road-to-radiant");
+  },
+};
+
+export const DeleteCompletedFile: Story = {
+  decorators: [
+    withDownloadsBridge(
+      async () => ({
+        jobs: [
+          downloadJob({
+            id: "completed-delete-story",
+            title: "Championship VOD",
+            status: "completed",
+            progress: { percent: 100, transferredBytes: 1, totalBytes: 1 },
+          }),
+        ],
+      }),
+      { deleteFile: deleteCompletedFile }
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Delete Championship VOD from disk" })
+    );
+    await expect(await within(document.body).findByRole("alertdialog")).toBeInTheDocument();
+    await expect(deleteCompletedFile).not.toHaveBeenCalled();
   },
 };
 

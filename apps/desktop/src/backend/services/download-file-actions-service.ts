@@ -1,16 +1,12 @@
 import { existsSync } from "node:fs";
 import { unlink } from "node:fs/promises";
 
-import { type BrowserWindow, dialog, shell } from "electron";
+import { shell } from "electron";
 
 import type { DownloadJob } from "@shared/download-types";
 import type { DownloadQueueService } from "./download-queue-service";
 
-export interface DownloadFileActionResult {
-  success: boolean;
-  error?: string;
-  cancelled?: boolean;
-}
+export type DownloadFileActionResult = { success: true } | { success: false; error: string };
 
 export interface DownloadFileActionsService {
   showInFolder(jobId: string): Promise<DownloadFileActionResult>;
@@ -27,20 +23,23 @@ function missingFile(): DownloadFileActionResult {
   return { success: false, error: "File not found" };
 }
 
+function canDeleteFile(job: DownloadJob): boolean {
+  const isActive = job.status === "queued" || job.status === "downloading";
+  return !isActive && (job.status === "completed" || job.partial === true);
+}
+
 export function createDownloadFileActionsService({
   queue,
   exists,
   showItemInFolder,
   openPath,
-  confirmDelete,
-  deleteFile,
+  unlinkFile,
 }: {
   queue: DownloadQueueService;
   exists: (path: string) => boolean;
   showItemInFolder: (path: string) => void;
   openPath: (path: string) => Promise<string>;
-  confirmDelete: (job: DownloadJob) => Promise<boolean>;
-  deleteFile: (path: string) => Promise<void>;
+  unlinkFile: (path: string) => Promise<void>;
 }): DownloadFileActionsService {
   return {
     async showInFolder(jobId) {
@@ -65,9 +64,15 @@ export function createDownloadFileActionsService({
     async deleteFile(jobId) {
       const job = getJob(queue, jobId);
       if (!job) return { success: false, error: "Download job not found" };
+      if (!canDeleteFile(job)) {
+        return { success: false, error: "This download cannot be deleted from disk yet." };
+      }
       if (!exists(job.destinationPath)) return missingFile();
-      if (!(await confirmDelete(job))) return { success: false, cancelled: true };
-      await deleteFile(job.destinationPath);
+      try {
+        await unlinkFile(job.destinationPath);
+      } catch {
+        return { success: false, error: "The file could not be deleted." };
+      }
       queue.remove(jobId);
       return { success: true };
     },
@@ -75,7 +80,6 @@ export function createDownloadFileActionsService({
 }
 
 export function getDefaultDownloadFileActionsService(
-  mainWindow: BrowserWindow,
   queue: DownloadQueueService
 ): DownloadFileActionsService {
   return createDownloadFileActionsService({
@@ -83,19 +87,6 @@ export function getDefaultDownloadFileActionsService(
     exists: existsSync,
     showItemInFolder: (filePath) => shell.showItemInFolder(filePath),
     openPath: (filePath) => shell.openPath(filePath),
-    confirmDelete: async (job) => {
-      const result = await dialog.showMessageBox(mainWindow, {
-        type: "warning",
-        title: "Delete downloaded file?",
-        message: `Delete "${job.title}" from disk?`,
-        detail:
-          "This removes the file from your computer. Removing a row from Downloads is separate.",
-        buttons: ["Cancel", "Delete File"],
-        defaultId: 0,
-        cancelId: 0,
-      });
-      return result.response === 1;
-    },
-    deleteFile: (filePath) => unlink(filePath),
+    unlinkFile: (filePath) => unlink(filePath),
   });
 }

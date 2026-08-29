@@ -164,7 +164,7 @@ describe("DownloadsPage", () => {
     expect(screen.queryByRole("button", { name: "Open Interrupted VOD" })).not.toBeInTheDocument();
   });
 
-  it("opens, reveals, removes, and deletes a completed download", async () => {
+  it("opens, reveals, and removes a completed download", async () => {
     vi.mocked(downloads.getQueue).mockResolvedValue({
       jobs: [
         downloadJob({
@@ -176,7 +176,6 @@ describe("DownloadsPage", () => {
     downloads.openFile = vi.fn(async () => ({ success: true }));
     downloads.showInFolder = vi.fn(async () => ({ success: true }));
     downloads.remove = vi.fn(async () => ({ success: true }));
-    downloads.deleteFile = vi.fn(async () => ({ success: true }));
 
     renderWithProviders(<DownloadsPage />);
 
@@ -184,11 +183,14 @@ describe("DownloadsPage", () => {
       ["Open Friday Night Finals", "openFile"],
       ["Show Friday Night Finals in folder", "showInFolder"],
       ["Remove Friday Night Finals from list", "remove"],
-      ["Delete Friday Night Finals from disk", "deleteFile"],
     ] as const) {
       fireEvent.click(await screen.findByRole("button", { name: label }));
       expect(downloads[method]).toHaveBeenCalledWith("video-1");
     }
+
+    expect(
+      screen.getByRole("button", { name: "Delete Friday Night Finals from disk" })
+    ).toBeInTheDocument();
   });
 
   it("renders provider waiting detail and terminal failure errors", async () => {

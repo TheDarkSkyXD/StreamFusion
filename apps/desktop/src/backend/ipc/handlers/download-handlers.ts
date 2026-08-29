@@ -46,7 +46,7 @@ export function registerDownloadHandlers(mainWindow: BrowserWindow): void {
   const service = getDownloadQueueService();
   const clipDownloads = getDefaultClipDownloadService(mainWindow, service);
   const videoDownloads = getDefaultVideoDownloadService(mainWindow, service);
-  const fileActions = getDefaultDownloadFileActionsService(mainWindow, service);
+  const fileActions = getDefaultDownloadFileActionsService(service);
 
   service.subscribe((snapshot) => {
     safeSend(mainWindow, IPC_CHANNELS.DOWNLOADS_QUEUE_CHANGED, snapshot);
