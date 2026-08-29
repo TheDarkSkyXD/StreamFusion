@@ -375,6 +375,96 @@
         color: var(--muted);
       }
 
+      .search-dock {
+        padding: 8px 12px;
+        border-top: 1px solid var(--divider);
+        background: var(--surface);
+      }
+
+      .search-dock .search-field {
+        height: 48px;
+        background: var(--mid);
+      }
+
+      .search-tabs {
+        display: flex;
+        gap: 4px;
+        overflow-x: auto;
+        padding-bottom: 2px;
+        scrollbar-width: none;
+      }
+
+      .search-tabs::-webkit-scrollbar {
+        display: none;
+      }
+
+      .search-tabs button,
+      .filter-chip {
+        flex: 0 0 auto;
+        min-height: 38px;
+        padding: 0 11px;
+        border: 1px solid var(--divider);
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--secondary);
+        font-size: 10px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .search-tabs button.active,
+      .filter-chip.active {
+        border-color: #555;
+        background: var(--active);
+        color: var(--white);
+      }
+
+      .search-filters {
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+
+      .search-history-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .search-history-row {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr) 38px 38px;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        border: 1px solid var(--divider);
+        border-radius: 12px;
+        background: var(--surface);
+        color: var(--white);
+        text-align: left;
+      }
+
+      .search-history-row .compact-button {
+        min-width: 38px;
+        min-height: 38px;
+        color: var(--secondary);
+      }
+
+      .empty-state {
+        display: grid;
+        place-items: center;
+        gap: 8px;
+        min-height: 150px;
+        padding: 24px;
+        border: 1px dashed var(--divider);
+        border-radius: 12px;
+        color: var(--secondary);
+        text-align: center;
+      }
+
       .section-label {
         display: flex;
         align-items: center;
@@ -485,6 +575,49 @@
         font-size: 10px;
       }
 
+      .channel-identity {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+
+      .channel-avatar,
+      .account-avatar {
+        flex: 0 0 auto;
+        border: 1px solid var(--divider);
+        border-radius: 999px;
+        object-fit: cover;
+      }
+
+      .channel-avatar {
+        width: 28px;
+        height: 28px;
+      }
+
+      .channel-avatar.large {
+        width: 42px;
+        height: 42px;
+      }
+
+      .account-avatar {
+        width: 28px;
+        height: 28px;
+      }
+
+      .channel-copy {
+        min-width: 0;
+        display: grid;
+        gap: 2px;
+      }
+
+      .channel-copy strong,
+      .channel-copy span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
       .platform-row {
         display: flex;
         align-items: center;
@@ -584,6 +717,12 @@
         height: 100%;
         object-fit: cover;
         opacity: 0.72;
+      }
+
+      .video-stage img.channel-avatar {
+        width: 28px;
+        height: 28px;
+        opacity: 1;
       }
 
       .video-overlay {
@@ -964,6 +1103,246 @@
         cursor: pointer;
       }
 
+      .job-media {
+        display: grid;
+        grid-template-columns: 86px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .job-thumbnail,
+      .history-thumbnail,
+      .activity-visual {
+        display: block;
+        background: var(--mid);
+        object-fit: cover;
+      }
+
+      .job-thumbnail {
+        width: 86px;
+        aspect-ratio: 16 / 9;
+        border-radius: 8px;
+      }
+
+      .category-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .category-card {
+        min-width: 0;
+        overflow: hidden;
+        padding: 0;
+        border: 1px solid var(--divider);
+        border-radius: 12px;
+        background: var(--surface);
+        color: var(--white);
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .category-card img {
+        width: 100%;
+        aspect-ratio: 3 / 4;
+        display: block;
+        object-fit: cover;
+      }
+
+      .category-card div {
+        display: grid;
+        gap: 4px;
+        padding: 9px;
+      }
+
+      .category-card strong {
+        overflow: hidden;
+        font-size: 10px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .category-card span {
+        color: var(--secondary);
+        font-size: 8px;
+      }
+
+      .channel-hero {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 12px;
+        padding: 14px;
+        border: 1px solid var(--divider);
+        border-radius: 12px;
+        background: var(--surface);
+        color: var(--white);
+        text-align: left;
+      }
+
+      button.channel-hero {
+        cursor: pointer;
+      }
+
+      .channel-hero-copy {
+        min-width: 0;
+      }
+
+      .channel-hero-copy strong,
+      .channel-hero-copy span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .channel-hero-copy strong {
+        font-size: 13px;
+      }
+
+      .channel-hero-copy span {
+        margin-top: 3px;
+        color: var(--secondary);
+        font-size: 9px;
+      }
+
+      .playback-scrubber {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px;
+        color: var(--secondary);
+        font-size: 9px;
+      }
+
+      .playback-scrubber .progress-track {
+        margin-top: 0;
+      }
+
+      .settings-grid {
+        display: grid;
+        gap: 8px;
+      }
+
+      .settings-link {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        background: var(--surface);
+        color: var(--white);
+        text-align: left;
+      }
+
+      .settings-link > span:nth-child(2) strong,
+      .settings-link > span:nth-child(2) small {
+        display: block;
+      }
+
+      .settings-link > span:nth-child(2) strong {
+        font-size: 11px;
+      }
+
+      .settings-link > span:nth-child(2) small {
+        margin-top: 3px;
+        color: var(--secondary);
+        font-size: 9px;
+      }
+
+      .history-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .history-card {
+        display: grid;
+        grid-template-columns: 112px minmax(0, 1fr);
+        align-items: stretch;
+        overflow: hidden;
+        padding: 0;
+        border: 1px solid var(--divider);
+        border-radius: 12px;
+        background: var(--surface);
+        color: var(--white);
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .history-thumbnail {
+        width: 112px;
+        height: 100%;
+        min-height: 72px;
+      }
+
+      .history-card > span {
+        min-width: 0;
+        display: grid;
+        align-content: center;
+        gap: 5px;
+        padding: 10px;
+      }
+
+      .history-card strong,
+      .history-card small {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .history-card strong {
+        font-size: 11px;
+      }
+
+      .history-card small {
+        color: var(--secondary);
+        font-size: 9px;
+      }
+
+      .activity-content {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .activity-visual {
+        width: 42px;
+        height: 42px;
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+      }
+
+      .activity-visual.round {
+        border-radius: 999px;
+      }
+
+      .activity-copy {
+        min-width: 0;
+      }
+
+      .activity-copy strong,
+      .activity-copy span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .activity-copy strong {
+        font-size: 11px;
+      }
+
+      .activity-copy span {
+        margin-top: 4px;
+        color: var(--secondary);
+        font-size: 9px;
+      }
+
       .more-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
@@ -1179,6 +1558,10 @@
       }
 
       .app-frame.variant-b {
+        grid-template-rows: auto minmax(0, 1fr) auto;
+      }
+
+      .app-frame.variant-b.has-search-dock {
         grid-template-rows: auto minmax(0, 1fr) auto auto;
       }
 
@@ -1204,40 +1587,82 @@
         min-height: 78px;
       }
 
-      .now-playing {
-        display: grid;
-        grid-template-columns: 62px minmax(0, 1fr) 42px;
-        align-items: center;
-        gap: 9px;
-        min-height: 64px;
-        padding: 7px 10px;
-        border-top: 1px solid var(--divider);
-        background: var(--mid);
+      .mini-player {
+        position: absolute;
+        z-index: 30;
+        top: 88px;
+        right: 10px;
+        width: 154px;
+        aspect-ratio: 16 / 9;
+        overflow: hidden;
+        border: 1px solid var(--divider);
+        border-radius: 12px;
+        background: #080808;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+        cursor: grab;
+        touch-action: none;
+        user-select: none;
       }
 
-      .now-playing img {
-        width: 62px;
-        height: 42px;
-        border-radius: 7px;
+      .mini-player.dragging {
+        cursor: grabbing;
+      }
+
+      .mini-player img {
+        width: 100%;
+        height: 100%;
+        display: block;
         object-fit: cover;
       }
 
-      .now-playing strong,
-      .now-playing span {
-        display: block;
+      .mini-player::after {
+        position: absolute;
+        inset: 0;
+        content: "";
+        background: linear-gradient(
+          180deg,
+          rgba(0, 0, 0, 0.62),
+          transparent 45%,
+          rgba(0, 0, 0, 0.54)
+        );
+        pointer-events: none;
+      }
+
+      .mini-player-label,
+      .mini-player-close {
+        position: absolute;
+        z-index: 1;
+      }
+
+      .mini-player-label {
+        right: 8px;
+        bottom: 6px;
+        left: 8px;
         overflow: hidden;
+        color: var(--white);
+        font-size: 9px;
+        font-weight: 700;
         text-overflow: ellipsis;
         white-space: nowrap;
+        pointer-events: none;
       }
 
-      .now-playing strong {
-        font-size: 10px;
+      .mini-player-close {
+        top: 4px;
+        right: 4px;
+        width: 28px;
+        height: 28px;
+        display: grid;
+        place-items: center;
+        border: 0;
+        border-radius: 999px;
+        background: rgba(15, 15, 15, 0.82);
+        color: var(--white);
+        cursor: pointer;
       }
 
-      .now-playing span {
-        margin-top: 3px;
-        color: var(--secondary);
-        font-size: 9px;
+      .mini-player-close .material-symbols-rounded {
+        font-size: 17px;
       }
 
       .variant-b .bottom-nav {
@@ -1475,11 +1900,11 @@
           name: "B · Watch deck",
           thesis: "Five destinations, watch-first shell",
           description:
-            "Find, Following, Watch, Activity, and More stay one tap away. Activity replaces the Multistream shortcut, while Multistream remains a mode inside Watch.",
+            "Search, Following, Watch, Activity, and More stay one tap away. Search keeps its query field at the bottom, while Multistream remains a mode inside Watch.",
           notes: [
             "Followed channels stay one tap away instead of competing with recommendations.",
             "Activity collects live alerts, job progress, moderation notices, and device warnings.",
-            "The media library, moderation, settings, and diagnostics stay under More.",
+            "Active video becomes a movable mini-player outside Watch instead of a bottom strip.",
           ],
         },
         C: {
@@ -1496,14 +1921,28 @@
       };
 
       const screens = [
-        { id: "discover", label: "Discover", icon: "explore" },
+        { id: "search", label: "Search", icon: "search" },
+        { id: "home", label: "Home", icon: "home" },
+        { id: "categories", label: "Categories", icon: "category" },
+        {
+          id: "category-detail",
+          label: "Category detail",
+          icon: "view_module",
+        },
         { id: "following", label: "Following", icon: "favorite" },
-        { id: "watch", label: "Watch + chat", icon: "live_tv" },
+        { id: "channel", label: "Channel detail", icon: "person" },
+        { id: "watch", label: "Live stream viewer", icon: "live_tv" },
+        { id: "video", label: "Video + clip viewer", icon: "movie" },
         { id: "multi", label: "Multistream", icon: "grid_view" },
+        { id: "history", label: "History", icon: "history" },
         { id: "library", label: "Library + jobs", icon: "download" },
         { id: "activity", label: "Activity", icon: "notifications" },
-        { id: "moderation", label: "Moderation", icon: "shield" },
-        { id: "system", label: "Settings + diagnostics", icon: "tune" },
+        { id: "moderation-home", label: "Managed channels", icon: "shield" },
+        { id: "moderation", label: "Moderation room", icon: "gavel" },
+        { id: "settings", label: "Settings", icon: "tune" },
+        { id: "accounts", label: "Accounts", icon: "manage_accounts" },
+        { id: "system", label: "Diagnostics", icon: "diagnosis" },
+        { id: "more", label: "More", icon: "more_horiz" },
       ];
 
       const streamImages = {
@@ -1517,10 +1956,22 @@
           "https://images.unsplash.com/photo-1493711662062-fa541adb3fc8?auto=format&fit=crop&w=800&q=80",
       };
 
+      const avatarImages = {
+        NebulaNine:
+          "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&crop=face&w=160&h=160&q=85",
+        OrbitActual:
+          "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&crop=face&w=160&h=160&q=85",
+        ForgeLine:
+          "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&crop=face&w=160&h=160&q=85",
+        CircuitMara:
+          "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&crop=face&w=160&h=160&q=85",
+        pixelPilot:
+          "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&crop=face&w=160&h=160&q=85",
+      };
+
       const state = {
         variant: new URLSearchParams(location.search).get("variant") || "A",
-        screen:
-          new URLSearchParams(location.search).get("screen") || "discover",
+        screen: new URLSearchParams(location.search).get("screen") || "search",
         chatOpen: true,
         activeVideos: 2,
         configuredSlots: 6,
@@ -1532,11 +1983,19 @@
         recordingState: "recording · 03:18:42 remaining",
         diagnosticsRun: 4,
         compactDensity: true,
+        playbackActive: true,
+        searchTab: "all",
+        searchPlatform: "all",
+        searchLiveOnly: false,
+        searchQuery: "Apex Legends",
+        searchHistory: ["Apex Legends", "NebulaNine", "Speedruns"],
+        followingTab: "live",
+        categoryTab: "live",
       };
 
       if (!variants[state.variant]) state.variant = "A";
       if (!screens.some((screen) => screen.id === state.screen))
-        state.screen = "discover";
+        state.screen = "search";
 
       function icon(name) {
         return `<span class="material-symbols-rounded" aria-hidden="true">${name}</span>`;
@@ -1552,17 +2011,29 @@
 
       function topBar() {
         const titleByScreen = {
-          discover:
-            state.variant === "B" ? "Find something live" : "StreamFusion",
+          search: state.variant === "B" ? "Search" : "StreamFusion",
+          home: "Home",
+          categories: "Categories",
+          "category-detail": "Apex Legends",
           following: "Following",
+          channel: "Channel",
           watch: state.variant === "B" ? "Watch deck" : "Now watching",
+          video: "Video",
           multi: "Multistream",
+          history: "History",
           library: state.variant === "B" ? "Your media" : "Library",
           activity: "Activity",
-          moderation: "Moderation",
-          system: "System",
+          "moderation-home": "Managed channels",
+          moderation: "Mod room",
+          settings: "Settings",
+          accounts: "Accounts",
+          system: "Diagnostics",
           more: "More",
         };
+        const searchAction =
+          state.variant === "B"
+            ? ""
+            : `<button class="icon-button" type="button" data-action="search" aria-label="Search">${icon("search")}</button>`;
         return `
           <header class="topbar">
             <span class="brand-mark" aria-hidden="true">SF</span>
@@ -1570,8 +2041,8 @@
               <strong>${titleByScreen[state.screen]}</strong>
               <span>${state.variant === "C" ? "Command workspace" : "Twitch + Kick"}</span>
             </div>
-            <button class="icon-button" type="button" data-action="search" aria-label="Search">${icon("search")}</button>
-            <button class="icon-button" type="button" data-screen="more" aria-label="Open account and more">${icon("account_circle")}</button>
+            ${searchAction}
+            <button class="icon-button" type="button" data-screen="more" aria-label="Open account and more"><img class="account-avatar" src="${avatarImages.NebulaNine}" alt="" /></button>
           </header>`;
       }
 
@@ -1585,8 +2056,10 @@
             </div>
             <div class="stream-meta">
               <strong>${title}</strong>
-              <span>${channel}</span>
-              <span>${game}</span>
+              <div class="channel-identity">
+                <img class="channel-avatar" src="${avatarImages[channel] || avatarImages.NebulaNine}" alt="" />
+                <span class="channel-copy"><strong>${channel}</strong><span>${game}</span></span>
+              </div>
               <div class="platform-row">
                 <span class="platform-badge ${platform.toLowerCase()}">${platform}</span>
                 <span class="tag">English</span>
@@ -1595,17 +2068,99 @@
           </article>`;
       }
 
-      function discoverScreen() {
+      function categoryCard(name, image, detail) {
+        return `<button class="category-card" type="button" data-screen="category-detail"><img src="${image}" alt="${name} category art" /><div><strong>${name}</strong><span>${detail}</span></div></button>`;
+      }
+
+      function recordedCard(title, channel, image, kind = "Video") {
+        return `<button type="button" class="history-card" data-screen="video"><img class="history-thumbnail" src="${image}" alt="" /><span><strong>${title}</strong><small>${channel} · ${kind}</small></span></button>`;
+      }
+
+      function searchResults() {
+        if (state.searchTab === "channels") {
+          return `<div class="system-list">
+            <button type="button" class="channel-hero" data-screen="channel"><img class="channel-avatar large" src="${avatarImages.NebulaNine}" alt="" /><span class="channel-hero-copy"><strong>NebulaNine</strong><span>428K followers · live on Twitch</span></span><span class="platform-badge twitch">Twitch</span></button>
+            <button type="button" class="channel-hero" data-screen="channel"><img class="channel-avatar large" src="${avatarImages.OrbitActual}" alt="" /><span class="channel-hero-copy"><strong>OrbitActual</strong><span>96K followers · live on Kick</span></span><span class="platform-badge kick">Kick</span></button>
+          </div>`;
+        }
+        if (state.searchTab === "streams") {
+          return `<div class="stream-feed">
+            ${streamCard({ image: streamImages.nebula, title: "Ranked, no resets", channel: "NebulaNine", game: "Apex Legends", viewers: "18.4K", platform: "Twitch" })}
+            ${streamCard({ image: streamImages.orbit, title: "Night shift with chat", channel: "OrbitActual", game: "Just Chatting", viewers: "7.2K", platform: "Kick" })}
+          </div>`;
+        }
+        if (["videos", "clips"].includes(state.searchTab)) {
+          const kind =
+            state.searchTab === "clips" ? "Clip · 00:42" : "Video · 01:48:12";
+          return `<div class="history-list">${recordedCard("Final ring comeback", "NebulaNine", streamImages.nebula, kind)}${recordedCard("Movement guide", "ForgeLine", streamImages.forge, kind)}</div>`;
+        }
+        if (state.searchTab === "categories") {
+          return `<div class="category-grid">${categoryCard("Apex Legends", streamImages.nebula, "31.2K viewers · 126 live")}${categoryCard("Just Chatting", streamImages.orbit, "42.8K viewers · 314 live")}</div>`;
+        }
+        return `
+          <div class="section-label"><span>Best match</span><span>Across Twitch + Kick</span></div>
+          <button type="button" class="channel-hero" data-screen="channel"><img class="channel-avatar large" src="${avatarImages.NebulaNine}" alt="" /><span class="channel-hero-copy"><strong>NebulaNine</strong><span>Channel · live on Twitch</span></span><span class="platform-badge twitch">Twitch</span></button>
+          <div class="section-label"><span>Live streams</span><span>18 results</span></div>
+          <div class="stream-feed">${streamCard({ image: streamImages.nebula, title: "Ranked, no resets", channel: "NebulaNine", game: "Apex Legends", viewers: "18.4K", platform: "Twitch" })}</div>
+          <div class="section-label"><span>Categories</span><span>See all</span></div>
+          <div class="category-grid">${categoryCard("Apex Legends", streamImages.nebula, "31.2K viewers · 126 live")}${categoryCard("Just Chatting", streamImages.orbit, "42.8K viewers · 314 live")}</div>`;
+      }
+
+      function searchHistory() {
+        if (!state.searchHistory.length) {
+          return `<div class="empty-state">${icon("history")}<strong>No search history</strong><span>Recent Channel, Stream, and Category searches stay on this device.</span></div>`;
+        }
+        const visuals = [
+          streamImages.nebula,
+          avatarImages.NebulaNine,
+          streamImages.forge,
+        ];
+        return `<div class="system-list">${state.searchHistory
+          .map(
+            (query, index) =>
+              `<div class="search-history-row"><img class="activity-visual ${index === 1 ? "round" : ""}" src="${visuals[index] || streamImages.circuit}" alt="" /><span class="activity-copy"><strong>${query}</strong><span>${index === 1 ? "Channel" : index === 0 ? "Category" : "Stream"} · this device</span></span><button class="compact-button" type="button" data-action="repeat-search" data-query="${query}" aria-label="Search again for ${query}">${icon("north_west")}</button><button class="compact-button" type="button" data-action="remove-search" data-query="${query}" aria-label="Remove ${query} from history">${icon("close")}</button></div>`,
+          )
+          .join("")}</div>`;
+      }
+
+      function searchScreen() {
+        const tabs = [
+          "all",
+          "channels",
+          "streams",
+          "videos",
+          "clips",
+          "categories",
+        ];
         return `
           <div class="screen-content">
             <div class="screen-title-row">
-              <div><h2>${state.variant === "B" ? "Live now" : "Discover"}</h2><p>One feed, both platforms</p></div>
-              <button class="text-button" type="button">Filters</button>
+              <div><h2>Search Twitch + Kick</h2><p>Channels, streams, videos, clips, and categories</p></div>
             </div>
-            <label class="search-field">
-              ${icon("search")}
-              <input type="search" placeholder="Channels, games, categories" aria-label="Search streams" />
-            </label>
+            ${
+              state.variant === "B"
+                ? `<div class="notice">${icon("keyboard_arrow_down")}<div><strong>Search from the field below</strong><p>The query field stays in thumb reach and moves above the Android keyboard.</p></div></div>`
+                : `<label class="search-field">${icon("search")}<input type="search" value="Apex Legends" aria-label="Search streams" /></label>`
+            }
+            <div class="search-tabs" role="tablist" aria-label="Search result types">${tabs.map((tab) => `<button type="button" role="tab" data-action="search-tab" data-tab="${tab}" aria-selected="${state.searchTab === tab}" class="${state.searchTab === tab ? "active" : ""}">${tab[0].toUpperCase() + tab.slice(1)}</button>`).join("")}</div>
+            <div class="search-filters" aria-label="Search filters">
+              ${["all", "twitch", "kick"].map((platform) => `<button type="button" class="filter-chip ${state.searchPlatform === platform ? "active" : ""}" data-action="search-platform" data-platform="${platform}">${platform === "all" ? "All platforms" : platform[0].toUpperCase() + platform.slice(1)}</button>`).join("")}
+              <button type="button" class="filter-chip ${state.searchLiveOnly ? "active" : ""}" data-action="toggle-live-only" aria-pressed="${state.searchLiveOnly}">${icon("sensors")} Live only</button>
+            </div>
+            <div class="search-history-heading"><div class="section-label"><span>Search history</span><span>Last 10 per type</span></div><button class="text-button" type="button" data-action="clear-search-history">Clear</button></div>
+            ${searchHistory()}
+            <div class="section-label"><span>${state.searchTab === "all" ? "Results" : state.searchTab}</span><span>${state.searchPlatform === "all" ? "Both platforms" : state.searchPlatform}</span></div>
+            ${searchResults()}
+          </div>`;
+      }
+
+      function homeScreen() {
+        return `
+          <div class="screen-content">
+            <div class="screen-title-row">
+              <div><h2>Home</h2><p>One recommendation feed, both platforms</p></div>
+              <button class="text-button" type="button" data-screen="categories">Categories</button>
+            </div>
             <div class="section-label"><span>Recommended live</span><span>26 streams</span></div>
             <div class="stream-feed">
               ${streamCard({ image: streamImages.nebula, title: "Ranked, no resets", channel: "NebulaNine", game: "Apex Legends", viewers: "18.4K", platform: "Twitch" })}
@@ -1615,21 +2170,84 @@
           </div>`;
       }
 
+      function categoriesScreen() {
+        return `
+          <div class="screen-content">
+            <div class="screen-title-row"><div><h2>Categories</h2><p>Browse Twitch and Kick together</p></div><button class="text-button" type="button">Language</button></div>
+            <label class="search-field">${icon("search")}<input type="search" placeholder="Search categories" aria-label="Search categories" /></label>
+            <div class="category-grid">
+              ${categoryCard("Just Chatting", streamImages.orbit, "42.8K viewers · 314 live")}
+              ${categoryCard("Apex Legends", streamImages.nebula, "31.2K viewers · 126 live")}
+              ${categoryCard("Counter-Strike 2", streamImages.forge, "28.6K viewers · 98 live")}
+              ${categoryCard("Music", streamImages.circuit, "12.1K viewers · 76 live")}
+            </div>
+          </div>`;
+      }
+
+      function categoryDetailScreen() {
+        const content =
+          state.categoryTab === "clips"
+            ? `<div class="history-list">${recordedCard("Final ring comeback", "NebulaNine", streamImages.nebula, "Clip · 00:42")}${recordedCard("Impossible recovery", "CircuitMara", streamImages.circuit, "Clip · 00:31")}</div>`
+            : state.categoryTab === "videos"
+              ? `<div class="history-list">${recordedCard("Movement guide", "ForgeLine", streamImages.forge, "Video · 18:04")}${recordedCard("Solo queue challenge", "CircuitMara", streamImages.circuit, "Video · 02:14:09")}</div>`
+              : `<div class="stream-feed">${streamCard({ image: streamImages.nebula, title: "Ranked, no resets", channel: "NebulaNine", game: "Apex Legends", viewers: "18.4K", platform: "Twitch" })}${streamCard({ image: streamImages.circuit, title: "Solo queue challenge", channel: "CircuitMara", game: "Apex Legends", viewers: "5.8K", platform: "Kick" })}</div>`;
+        return `
+          <div class="screen-content">
+            <div class="channel-hero"><img class="activity-visual" src="${streamImages.nebula}" alt="Apex Legends category art" /><span class="channel-hero-copy"><strong>Apex Legends</strong><span>31.2K viewers · 126 live across Twitch + Kick</span></span><button class="text-button" type="button">Follow</button></div>
+            <label class="search-field">${icon("search")}<input type="search" placeholder="Search streams in Apex Legends" aria-label="Search within Apex Legends" /></label>
+            <div class="search-tabs" role="tablist" aria-label="Category content types">${[
+              ["live", "Live Streams"],
+              ["clips", "Clips"],
+              ["videos", "Videos"],
+            ]
+              .map(
+                ([tab, label]) =>
+                  `<button type="button" role="tab" data-action="category-tab" data-tab="${tab}" aria-selected="${state.categoryTab === tab}" class="${state.categoryTab === tab ? "active" : ""}">${label}</button>`,
+              )
+              .join("")}</div>
+            <div class="search-filters"><button class="filter-chip active" type="button">All platforms</button><button class="filter-chip" type="button">Twitch</button><button class="filter-chip" type="button">Kick</button><button class="filter-chip" type="button">Language</button><button class="filter-chip" type="button">Tags</button><button class="filter-chip" type="button">Sort</button></div>
+            <div class="section-label"><span>${state.categoryTab === "live" ? "Live in Apex Legends" : state.categoryTab}</span><span>Recommended</span></div>
+            ${content}
+          </div>`;
+      }
+
       function followingScreen() {
+        const tabs = ["live", "videos", "clips", "categories", "channels"];
+        const content =
+          state.followingTab === "videos"
+            ? `<div class="history-list">${recordedCard("Final round highlights", "ForgeLine", streamImages.forge, "Video · 01:06:42")}${recordedCard("Solo queue challenge", "CircuitMara", streamImages.circuit, "Video · 02:14:09")}</div>`
+            : state.followingTab === "clips"
+              ? `<div class="history-list">${recordedCard("Final ring comeback", "NebulaNine", streamImages.nebula, "Clip · 00:42")}${recordedCard("Cleanest rotation", "CircuitMara", streamImages.circuit, "Clip · 00:31")}</div>`
+              : state.followingTab === "categories"
+                ? `<div class="category-grid">${categoryCard("Apex Legends", streamImages.nebula, "3 followed Channels live")}${categoryCard("Just Chatting", streamImages.orbit, "2 followed Channels live")}</div>`
+                : state.followingTab === "channels"
+                  ? `<div class="system-list"><button type="button" class="channel-hero" data-screen="channel"><img class="channel-avatar large" src="${avatarImages.CircuitMara}" alt="" /><span class="channel-hero-copy"><strong>CircuitMara</strong><span>Last live 6 hours ago · Guest Follow</span></span><span class="platform-badge kick">Kick</span></button><button type="button" class="channel-hero" data-screen="channel"><img class="channel-avatar large" src="${avatarImages.ForgeLine}" alt="" /><span class="channel-hero-copy"><strong>ForgeLine</strong><span>Live now · notifications on</span></span><span class="platform-badge twitch">Twitch</span></button></div>`
+                  : `<div class="notice good">${icon("notifications_active")}<div><strong>Live alerts are current</strong><p>Twitch and Kick follows stay separate from StreamFusion Guest Follows.</p></div></div><div class="section-label"><span>Live now</span><span>Updated now</span></div><div class="stream-feed">${streamCard({ image: streamImages.nebula, title: "Ranked, no resets", channel: "NebulaNine", game: "Apex Legends", viewers: "18.4K", platform: "Twitch" })}${streamCard({ image: streamImages.orbit, title: "Night shift with chat", channel: "OrbitActual", game: "Just Chatting", viewers: "7.2K", platform: "Kick" })}</div>`;
         return `
           <div class="screen-content">
             <div class="screen-title-row">
               <div><h2>Following</h2><p>7 live · 46 channels</p></div>
               <button class="text-button" type="button">Manage</button>
             </div>
-            <div class="notice good">${icon("notifications_active")}<div><strong>Live alerts are current</strong><p>Twitch and Kick follows stay separate from StreamFusion Guest Follows.</p></div></div>
-            <div class="section-label"><span>Live first</span><span>Updated now</span></div>
-            <div class="stream-feed">
-              ${streamCard({ image: streamImages.nebula, title: "Ranked, no resets", channel: "NebulaNine", game: "Apex Legends", viewers: "18.4K", platform: "Twitch" })}
-              ${streamCard({ image: streamImages.orbit, title: "Night shift with chat", channel: "OrbitActual", game: "Just Chatting", viewers: "7.2K", platform: "Kick" })}
+            <label class="search-field">${icon("search")}<input type="search" placeholder="Search followed channels" aria-label="Search followed channels" /></label>
+            <div class="search-tabs" role="tablist" aria-label="Following content types">${tabs.map((tab) => `<button type="button" role="tab" data-action="following-tab" data-tab="${tab}" aria-selected="${state.followingTab === tab}" class="${state.followingTab === tab ? "active" : ""}">${tab[0].toUpperCase() + tab.slice(1)}</button>`).join("")}</div>
+            <div class="search-filters"><button class="filter-chip active" type="button">All</button><button class="filter-chip" type="button">Live</button><button class="filter-chip" type="button">Twitch</button><button class="filter-chip" type="button">Kick</button></div>
+            ${content}
+          </div>`;
+      }
+
+      function channelScreen() {
+        return `
+          <div class="screen-content">
+            <div class="channel-hero"><img class="channel-avatar large" src="${avatarImages.CircuitMara}" alt="" /><span class="channel-hero-copy"><strong>CircuitMara</strong><span>64K followers · Kick · Guest Follow</span></span><button class="primary-button" type="button">Following</button></div>
+            <div class="segmented"><button class="active" type="button">Home</button><button type="button">Videos</button><button type="button">Clips</button></div>
+            <div class="notice">${icon("schedule")}<div><strong>Offline</strong><p>Last live 6 hours ago. Notifications are enabled for this Channel.</p></div></div>
+            <div class="section-label"><span>Recent broadcasts</span><span>View all</span></div>
+            <div class="history-list">
+              ${recordedCard("Solo queue challenge", "CircuitMara", streamImages.circuit, "Video · 02:14:09")}
+              ${recordedCard("Cleanest rotation of the night", "CircuitMara", streamImages.nebula, "Clip · 00:31")}
             </div>
-            <div class="section-label"><span>Offline</span><span>39 channels</span></div>
-            <article class="system-card"><div class="system-top"><div><strong>CircuitMara</strong><span>Last live 6 hours ago · Guest Follow</span></div><span class="platform-badge kick">Kick</span></div></article>
+            <article class="system-card"><div class="system-top"><div><strong>About</strong><span>Competitive FPS, guides, and community nights.</span></div>${icon("info")}</div></article>
           </div>`;
       }
 
@@ -1640,7 +2258,7 @@
             <div class="video-overlay">
               <div class="video-overlay-top"><span class="live-badge" style="position:static">Live</span><span class="quality-badge">1080p60</span></div>
               <div class="video-overlay-bottom">
-                <div class="video-title"><strong>NebulaNine</strong><span>Ranked, no resets · 18.4K watching</span></div>
+                <div class="channel-identity"><img class="channel-avatar" src="${avatarImages.NebulaNine}" alt="" /><div class="video-title"><strong>NebulaNine</strong><span>Ranked, no resets · 18.4K watching</span></div></div>
                 <button class="icon-button" type="button" aria-label="Mute stream">${icon("volume_up")}</button>
               </div>
             </div>
@@ -1671,8 +2289,25 @@
         return `
           <div class="screen-content">
             ${body}
+            <div class="channel-hero"><img class="channel-avatar large" src="${avatarImages.NebulaNine}" alt="" /><span class="channel-hero-copy"><strong>Ranked, no resets</strong><span>NebulaNine · Apex Legends · 18.4K watching</span></span><button class="primary-button" type="button">Follow</button></div>
             ${state.variant !== "C" ? `<div class="control-row"><button class="secondary-button" type="button" data-screen="multi">Add to Multistream</button><button class="secondary-button" type="button">Start recording</button></div>` : ""}
             <div class="notice good">${icon("closed_caption")}<div><strong>Local captions ready</strong><p>English model stays on this device. Starting captions may pause non-focused streams.</p></div></div>
+          </div>`;
+      }
+
+      function videoScreen() {
+        return `
+          <div class="screen-content">
+            <div class="video-stage">
+              <img src="${streamImages.forge}" alt="Final round highlights video preview" />
+              <div class="video-overlay"><div class="video-overlay-top"><span class="quality-badge">Video · 1080p</span><button class="icon-button" type="button" aria-label="Cast video">${icon("cast")}</button></div><div class="video-overlay-bottom"><button class="icon-button" type="button" aria-label="Play video">${icon("play_arrow")}</button><button class="icon-button" type="button" aria-label="Enter fullscreen">${icon("fullscreen")}</button></div></div>
+            </div>
+            <div class="playback-scrubber"><span>24:18</span><div class="progress-track"><div class="progress-value" style="width:37%"></div></div><span>1:06:42</span></div>
+            <div class="channel-hero"><img class="channel-avatar large" src="${avatarImages.ForgeLine}" alt="" /><span class="channel-hero-copy"><strong>Final round highlights</strong><span>ForgeLine · 84K views · 3 days ago</span></span><button class="primary-button" type="button">Follow</button></div>
+            <div class="segmented"><button class="active" type="button">Details</button><button type="button">Comments</button><button type="button">Related</button></div>
+            <div class="control-row"><button class="secondary-button" type="button">Download</button><button class="secondary-button" type="button">Share</button><button class="secondary-button" type="button">Save</button></div>
+            <div class="section-label"><span>Related videos and clips</span><span>Both platforms</span></div>
+            <div class="history-list">${recordedCard("Movement guide", "ForgeLine", streamImages.circuit, "Video · 18:04")}${recordedCard("Impossible final shot", "NebulaNine", streamImages.nebula, "Clip · 00:24")}</div>
           </div>`;
       }
 
@@ -1713,15 +2348,27 @@
             <div class="notice warning">${icon("schedule")}<div><strong>Recording window ends in 42 minutes</strong><p>StreamFusion will finalize the current segment safely. Return to the app to continue.</p></div></div>
             <div class="job-list">
               <article class="job-card">
-                <div class="job-top"><div><strong>NebulaNine · live recording</strong><span>3 segments · 8.4 GB app-private</span></div><span class="job-state">${state.recordingState.split(" · ")[0]}</span></div>
+                <div class="job-media"><img class="job-thumbnail" src="${streamImages.nebula}" alt="" /><div class="job-top"><div><strong>NebulaNine · live recording</strong><span>3 segments · 8.4 GB app-private</span></div></div><span class="job-state">${state.recordingState.split(" · ")[0]}</span></div>
                 <div class="progress-track"><div class="progress-value" style="width:78%"></div></div>
                 <div class="job-actions"><button type="button" data-action="finalize-recording">Finalize safely</button><button type="button">Open segments</button></div>
               </article>
               <article class="job-card">
-                <div class="job-top"><div><strong>Final round highlights</strong><span>2.1 GB of 3.3 GB · Wi-Fi</span></div><span class="job-state">${state.downloadState}</span></div>
+                <div class="job-media"><img class="job-thumbnail" src="${streamImages.forge}" alt="" /><div class="job-top"><div><strong>Final round highlights</strong><span>2.1 GB of 3.3 GB · Wi-Fi</span></div></div><span class="job-state">${state.downloadState}</span></div>
                 <div class="progress-track"><div class="progress-value" style="width:${state.downloadProgress}%"></div></div>
                 <div class="job-actions"><button type="button" data-action="toggle-download">${state.downloadState === "paused" ? "Resume" : "Pause"}</button><button type="button">Cancel</button><button type="button">Export</button></div>
               </article>
+            </div>
+          </div>`;
+      }
+
+      function historyScreen() {
+        return `
+          <div class="screen-content">
+            <div class="screen-title-row"><div><h2>History</h2><p>Watched on this device</p></div><button class="text-button" type="button">Clear</button></div>
+            <div class="history-list">
+              <button type="button" class="history-card" data-screen="watch"><img class="history-thumbnail" src="${streamImages.nebula}" alt="" /><span><strong>Ranked, no resets</strong><small>NebulaNine · 18 minutes ago</small></span></button>
+              <button type="button" class="history-card" data-screen="watch"><img class="history-thumbnail" src="${streamImages.orbit}" alt="" /><span><strong>Night shift with chat</strong><small>OrbitActual · yesterday</small></span></button>
+              <button type="button" class="history-card" data-screen="video"><img class="history-thumbnail" src="${streamImages.forge}" alt="" /><span><strong>Final round highlights</strong><small>Video · 3 days ago</small></span></button>
             </div>
           </div>`;
       }
@@ -1732,10 +2379,10 @@
             <div class="screen-title-row"><div><h2>Activity</h2><p>3 unread · this device</p></div><button class="text-button" type="button">Mark read</button></div>
             <div class="segmented"><button class="active" type="button">All</button><button type="button">Channels</button><button type="button">Jobs</button></div>
             <div class="system-list">
-              <button type="button" class="system-card activity-link" data-screen="following"><span class="system-top"><span><strong>NebulaNine is live</strong><span>2 minutes ago · Twitch follow</span></span><span class="platform-badge twitch">Twitch</span></span></button>
-              <button type="button" class="system-card activity-link" data-screen="library"><span class="system-top"><span><strong>Recording window ends soon</strong><span>42 minutes remain · finalization ready</span></span>${icon("schedule")}</span></button>
-              <button type="button" class="system-card activity-link" data-screen="multi"><span class="system-top"><span><strong>Multistream reduced to 2 active videos</strong><span>Device is warm · layout preserved</span></span>${icon("device_thermostat")}</span></button>
-              <button type="button" class="system-card activity-link" data-screen="moderation"><span class="system-top"><span><strong>Moderation session needs attention</strong><span>NebulaNine · one held message</span></span>${icon("shield")}</span></button>
+              <button type="button" class="system-card activity-link" data-screen="following"><span class="activity-content"><img class="activity-visual round" src="${avatarImages.NebulaNine}" alt="" /><span class="activity-copy"><strong>NebulaNine is live</strong><span>2 minutes ago · Twitch follow</span></span><span class="platform-badge twitch">Twitch</span></span></button>
+              <button type="button" class="system-card activity-link" data-screen="library"><span class="activity-content"><img class="activity-visual" src="${streamImages.nebula}" alt="" /><span class="activity-copy"><strong>Recording window ends soon</strong><span>42 minutes remain · finalization ready</span></span>${icon("schedule")}</span></button>
+              <button type="button" class="system-card activity-link" data-screen="multi"><span class="activity-content"><img class="activity-visual" src="${streamImages.orbit}" alt="" /><span class="activity-copy"><strong>Multistream reduced to 2 active videos</strong><span>Device is warm · layout preserved</span></span>${icon("device_thermostat")}</span></button>
+              <button type="button" class="system-card activity-link" data-screen="moderation"><span class="activity-content"><img class="activity-visual round" src="${avatarImages.NebulaNine}" alt="" /><span class="activity-copy"><strong>Moderation session needs attention</strong><span>NebulaNine · one held message</span></span>${icon("shield")}</span></button>
               <button type="button" class="system-card activity-link" data-screen="system"><span class="system-top"><span><strong>Device profile checked</strong><span>Yesterday · parity-qualified</span></span>${icon("check_circle")}</span></button>
             </div>
           </div>`;
@@ -1745,18 +2392,96 @@
         return `
           <div class="screen-content">
             <div class="screen-title-row"><div><h2>Mod room</h2><p>NebulaNine · Twitch</p></div><button class="text-button" type="button">Switch</button></div>
+            <div class="search-tabs" role="tablist" aria-label="Moderation tools"><button class="active" type="button">Chat</button><button type="button">Retention</button><button type="button">Mod log</button><button type="button">Banned</button><button type="button">Engagement</button><button type="button">Unban</button><button type="button">Moderators</button><button type="button">VIPs</button></div>
             <div class="notice good">${icon("verified_user")}<div><strong>Actions are live</strong><p>Your moderator session is current. Platform-specific actions remain clearly labeled.</p></div></div>
             <div class="mod-list">
-              <article class="mod-card"><div class="mod-top"><div><strong>pixelPilot</strong><span>3 messages · first seen today</span></div><span class="platform-badge twitch">Twitch</span></div><p style="font-size:10px;color:var(--category);line-height:1.45">That link is fake, do not click it.</p><div class="moderation-action"><button type="button">Delete</button><button type="button">Timeout</button><button type="button">Ban</button></div></article>
+              <article class="mod-card"><div class="mod-top"><div class="channel-identity"><img class="channel-avatar" src="${avatarImages.pixelPilot}" alt="" /><div class="channel-copy"><strong>pixelPilot</strong><span>3 messages · first seen today</span></div></div><span class="platform-badge twitch">Twitch</span></div><p style="font-size:10px;color:var(--category);line-height:1.45">That link is fake, do not click it.</p><div class="moderation-action"><button type="button">Delete</button><button type="button">Timeout</button><button type="button">Ban</button></div></article>
               <article class="mod-card"><div class="mod-top"><div><strong>Room health</strong><span>Slow mode off · followers only off</span></div>${icon("monitoring")}</div><div class="moderation-action"><button type="button">Slow mode</button><button type="button">Followers</button><button type="button">Clear chat</button></div></article>
             </div>
+          </div>`;
+      }
+
+      function moderationHomeScreen() {
+        return `
+          <div class="screen-content">
+            <div class="screen-title-row"><div><h2>Managed channels</h2><p>Eligible moderation workspaces</p></div></div>
+            <label class="search-field">${icon("search")}<input type="search" placeholder="Search managed channels" aria-label="Search managed channels" /></label>
+            <div class="system-list">
+              <button type="button" class="channel-hero" data-screen="moderation"><img class="channel-avatar large" src="${avatarImages.NebulaNine}" alt="" /><span class="channel-hero-copy"><strong>NebulaNine</strong><span>Live · one held message · Twitch</span></span><span class="platform-badge twitch">Twitch</span></button>
+              <button type="button" class="channel-hero" data-screen="moderation"><img class="channel-avatar large" src="${avatarImages.OrbitActual}" alt="" /><span class="channel-hero-copy"><strong>OrbitActual</strong><span>Live · room healthy · Kick</span></span><span class="platform-badge kick">Kick</span></button>
+            </div>
+            <article class="system-card"><div class="system-top"><div><strong>Global retention</strong><span>30 days · channel override available</span></div>${icon("database")}</div></article>
+            <div class="notice">${icon("lock")}<div><strong>Platform permissions remain separate</strong><p>Only actions supported by the connected Twitch or Kick moderator session are shown.</p></div></div>
+          </div>`;
+      }
+
+      function settingsScreen() {
+        const groups = [
+          [
+            "palette",
+            "App and appearance",
+            "Startup, theme, density, language",
+          ],
+          ["play_circle", "Playback", "Quality, latency, captions, behavior"],
+          [
+            "notifications",
+            "Notifications",
+            "Live, followed content, jobs, moderation",
+          ],
+          [
+            "instant_mix",
+            "Player controls",
+            "Visible controls, seek intervals, volume",
+          ],
+          ["buffer", "Buffer", "Live sync, forward buffer, maximum buffer"],
+          [
+            "grid_view",
+            "Multiview",
+            "Active-video limit, background quality, audio",
+          ],
+          ["chat", "Chat", "Appearance, emotes, events, behavior"],
+          ["block", "Ad blocking", "Provider rules and status"],
+          ["vpn_lock", "Proxy", "Network proxy and credentials"],
+          [
+            "online_prediction",
+            "Predictions",
+            "Prediction display and behavior",
+          ],
+          ["extension", "Integrations", "Connected tools and services"],
+          ["key", "API tokens", "Developer and service credentials"],
+          ["system_update", "Updates", "Release channel and update checks"],
+          [
+            "diagnosis",
+            "Diagnostics",
+            "Health, resources, I/O, traces, reports",
+          ],
+          ["info", "About", "Version, licenses, maintenance, local data"],
+        ];
+        return `
+          <div class="screen-content">
+            <div class="screen-title-row"><div><h2>Settings</h2><p>Android controls with Desktop feature coverage</p></div></div>
+            <label class="search-field">${icon("search")}<input type="search" placeholder="Search settings" aria-label="Search settings" /></label>
+            <div class="settings-grid">${groups.map(([itemIcon, title, detail]) => `<button class="settings-link" type="button" ${title === "Diagnostics" ? 'data-screen="system"' : ""}>${icon(itemIcon)}<span><strong>${title}</strong><small>${detail}</small></span>${icon("chevron_right")}</button>`).join("")}</div>
+            <div class="notice warning">${icon("delete_forever")}<div><strong>Destructive controls require confirmation</strong><p>Clear history, remove downloads, disconnect accounts, and reset local data remain separate actions.</p></div></div>
+          </div>`;
+      }
+
+      function accountsScreen() {
+        return `
+          <div class="screen-content">
+            <div class="screen-title-row"><div><h2>Accounts</h2><p>Platform connections and notification identity</p></div><button class="text-button" type="button">Add</button></div>
+            <div class="system-list">
+              <article class="channel-hero"><img class="channel-avatar large" src="${avatarImages.NebulaNine}" alt="" /><span class="channel-hero-copy"><strong>NebulaNine</strong><span>Connected · follows, chat, moderation</span></span><span class="platform-badge twitch">Twitch</span></article>
+              <article class="channel-hero"><img class="channel-avatar large" src="${avatarImages.OrbitActual}" alt="" /><span class="channel-hero-copy"><strong>Guest mode</strong><span>Guest Follows only · connect for chat</span></span><span class="platform-badge kick">Kick</span></article>
+            </div>
+            <section class="system-card"><div class="panel-header" style="padding:0;border-bottom:1px solid var(--divider)"><strong>Account notifications</strong><span class="job-state">Device-local</span></div><div class="switch-row"><div><strong>Live alerts</strong><span>Followed and Guest Follow Channels</span></div><button type="button" class="switch on" aria-label="Toggle live alerts"></button></div><div class="switch-row"><div><strong>Moderation alerts</strong><span>Eligible managed channels</span></div><button type="button" class="switch on" aria-label="Toggle moderation alerts"></button></div></section>
           </div>`;
       }
 
       function systemScreen() {
         return `
           <div class="screen-content">
-            <div class="screen-title-row"><div><h2>System</h2><p>Qualified · profile checked today</p></div><button class="text-button" type="button" data-action="run-check">Run check</button></div>
+            <div class="screen-title-row"><div><h2>Diagnostics</h2><p>Qualified · profile checked today</p></div><button class="text-button" type="button" data-action="run-check">Run check</button></div>
             <div class="notice good">${icon("check_circle")}<div><strong>Parity-Qualified Device</strong><p>Two active videos, local captions, recording, downloads, and diagnostics passed the baseline.</p></div></div>
             <section class="system-card">
               <div class="panel-header" style="padding:0;border-bottom:1px solid var(--divider)"><strong>Playback and chat</strong><span class="job-state">Local</span></div>
@@ -1774,83 +2499,145 @@
       function moreScreen() {
         return `
           <div class="screen-content">
-            <div class="screen-title-row"><div><h2>More</h2><p>Account, creator, and system tools</p></div></div>
+            <div class="screen-title-row"><div><h2>More</h2><p>Browse, media, creator, and system tools</p></div></div>
             <div class="more-grid">
-              <button class="more-card" type="button" data-screen="moderation">${icon("shield")}<strong>Moderation</strong><span>Manage channels and room actions</span></button>
-              <button class="more-card" type="button" data-screen="system">${icon("tune")}<strong>Settings</strong><span>Playback, chat, accounts, appearance</span></button>
+              <button class="more-card" type="button" data-screen="home">${icon("home")}<strong>Home</strong><span>Combined recommendations and live streams</span></button>
+              <button class="more-card" type="button" data-screen="categories">${icon("category")}<strong>Categories</strong><span>Browse games and topics across platforms</span></button>
+              <button class="more-card" type="button" data-screen="multi">${icon("grid_view")}<strong>Multistream</strong><span>Open Watch with the Multistream room</span></button>
+              <button class="more-card" type="button" data-screen="history">${icon("history")}<strong>History</strong><span>Resume content watched on this device</span></button>
+              <button class="more-card" type="button" data-screen="library">${icon("video_library")}<strong>Media library</strong><span>Downloads, recordings, and exports</span></button>
+              <button class="more-card" type="button" data-screen="moderation-home">${icon("shield")}<strong>Moderation</strong><span>Manage channels and room actions</span></button>
+              <button class="more-card" type="button" data-screen="accounts">${icon("manage_accounts")}<strong>Accounts</strong><span>Twitch, Kick, Guest Follows, and alerts</span></button>
+              <button class="more-card" type="button" data-screen="settings">${icon("tune")}<strong>Settings</strong><span>Playback, chat, appearance, privacy, storage</span></button>
               <button class="more-card" type="button" data-screen="system">${icon("diagnosis")}<strong>Diagnostics</strong><span>Device profile, logs, and recovery</span></button>
-              <button class="more-card" type="button" data-screen="library">${icon("video_library")}<strong>Media library</strong><span>Downloads, recordings, exports, and history</span></button>
             </div>
           </div>`;
       }
 
       function renderScreen() {
         switch (state.screen) {
+          case "home":
+            return homeScreen();
+          case "categories":
+            return categoriesScreen();
+          case "category-detail":
+            return categoryDetailScreen();
           case "following":
             return followingScreen();
+          case "channel":
+            return channelScreen();
           case "watch":
             return watchScreen();
+          case "video":
+            return videoScreen();
           case "multi":
             return multistreamScreen();
           case "library":
             return libraryScreen();
+          case "history":
+            return historyScreen();
           case "activity":
             return activityScreen();
+          case "moderation-home":
+            return moderationHomeScreen();
           case "moderation":
             return moderationScreen();
+          case "settings":
+            return settingsScreen();
+          case "accounts":
+            return accountsScreen();
           case "system":
             return systemScreen();
           case "more":
             return moreScreen();
           default:
-            return discoverScreen();
+            return searchScreen();
         }
       }
 
       function navButton(screen, label, iconName, badge = "") {
         const active =
           state.screen === screen ||
+          (screen === "watch" &&
+            state.variant === "B" &&
+            ["watch", "video", "multi"].includes(state.screen)) ||
+          (screen === "following" &&
+            state.variant === "B" &&
+            state.screen === "channel") ||
           (screen === "more" &&
-            ["moderation", "system"].includes(state.screen));
+            state.variant === "B" &&
+            [
+              "home",
+              "categories",
+              "category-detail",
+              "history",
+              "library",
+              "moderation-home",
+              "moderation",
+              "settings",
+              "accounts",
+              "system",
+            ].includes(state.screen));
         return `<button type="button" class="nav-button ${active ? "active" : ""}" data-screen="${screen}" aria-label="${label}">${icon(iconName)}${badge ? `<span class="nav-badge">${badge}</span>` : ""}<span>${label}</span></button>`;
       }
 
       function bottomNavigation() {
         if (state.variant === "B") {
-          return `<nav class="bottom-nav" style="--nav-count:5" aria-label="Primary navigation">${navButton("discover", "Find", "explore")}${navButton("following", "Following", "favorite")}${navButton("watch", "Watch", "live_tv")}${navButton("activity", "Activity", "notifications", "3")}${navButton("more", "More", "more_horiz")}</nav>`;
+          return `<nav class="bottom-nav" style="--nav-count:5" aria-label="Primary navigation">${navButton("search", "Search", "search")}${navButton("following", "Following", "favorite")}${navButton("watch", "Watch", "live_tv")}${navButton("activity", "Activity", "notifications", "3")}${navButton("more", "More", "more_horiz")}</nav>`;
         }
-        return `<nav class="bottom-nav" style="--nav-count:5" aria-label="Primary navigation">${navButton("discover", "Home", "home")}${navButton("watch", "Watch", "live_tv")}${navButton("multi", "Multi", "grid_view")}${navButton("library", "Library", "video_library")}${navButton("more", "More", "more_horiz")}</nav>`;
+        return `<nav class="bottom-nav" style="--nav-count:5" aria-label="Primary navigation">${navButton("search", "Home", "home")}${navButton("watch", "Watch", "live_tv")}${navButton("multi", "Multi", "grid_view")}${navButton("library", "Library", "video_library")}${navButton("more", "More", "more_horiz")}</nav>`;
       }
 
       function sideRail() {
         return `<nav class="side-rail" aria-label="Primary navigation">${screens
           .filter(
-            (screen) => screen.id !== "following" && screen.id !== "activity",
+            (screen) =>
+              ![
+                "following",
+                "activity",
+                "category-detail",
+                "channel",
+                "video",
+                "moderation-home",
+                "accounts",
+              ].includes(screen.id),
           )
           .map((screen) => navButton(screen.id, screen.label, screen.icon))
           .join("")}</nav>`;
       }
 
-      function nowPlaying() {
-        return `<button type="button" class="now-playing" data-screen="watch"><img src="${streamImages.nebula}" alt="" /><span><strong>NebulaNine</strong><span>Live · captions ready</span></span>${icon("play_arrow")}</button>`;
+      function searchDock() {
+        return `<div class="search-dock"><label class="search-field">${icon("search")}<input type="search" value="${state.searchQuery}" placeholder="Channels, streams, videos, clips, categories" aria-label="Search streams" data-search-input /></label></div>`;
+      }
+
+      function miniPlayer() {
+        return `<div class="mini-player" data-mini-player role="button" tabindex="0" aria-label="Return to NebulaNine in Watch. Drag to move."><img src="${streamImages.nebula}" alt="" /><span class="mini-player-label">NebulaNine · drag to move</span><button class="mini-player-close" type="button" data-action="dismiss-player" aria-label="Close mini-player">${icon("close")}</button></div>`;
       }
 
       function renderApp() {
         const variantClass = `variant-${state.variant.toLowerCase()}`;
+        const hasSearchDock =
+          state.variant === "B" && state.screen === "search";
         const navigation = state.variant === "C" ? sideRail() : "";
         const bottom = state.variant === "C" ? "" : bottomNavigation();
         const player =
-          state.variant === "B" && state.screen !== "watch" ? nowPlaying() : "";
+          state.variant === "B" &&
+          !["watch", "video", "multi"].includes(state.screen) &&
+          state.playbackActive
+            ? miniPlayer()
+            : "";
         document.getElementById("app").innerHTML = `
           ${statusBar()}
-          <div class="app-frame ${variantClass}">
+          <div class="app-frame ${variantClass}${hasSearchDock ? " has-search-dock" : ""}">
             ${topBar()}
             ${navigation}
             <section class="screen" aria-live="polite">${renderScreen()}</section>
-            ${player}
+            ${hasSearchDock ? searchDock() : ""}
             ${bottom}
+            ${player}
           </div>`;
         bindAppEvents();
+        bindMiniPlayer();
         renderReviewChrome();
       }
 
@@ -1867,6 +2654,7 @@
 
       function setScreen(screen) {
         state.screen = screen;
+        if (["watch", "video"].includes(screen)) state.playbackActive = true;
         updateUrl();
         renderApp();
       }
@@ -1887,6 +2675,89 @@
           element.addEventListener("click", () =>
             handleAction(element.dataset.action, element.dataset),
           );
+        });
+        document
+          .querySelector("[data-search-input]")
+          ?.addEventListener("input", (event) => {
+            state.searchQuery = event.currentTarget.value;
+          });
+      }
+
+      function bindMiniPlayer() {
+        const player = document.querySelector("[data-mini-player]");
+        if (!player) return;
+
+        player.addEventListener("keydown", (event) => {
+          if (event.target.closest("[data-action]")) return;
+          if (event.key === "Enter" || event.key === " ") setScreen("watch");
+        });
+
+        let pointerId;
+        let startX = 0;
+        let startY = 0;
+        let startLeft = 0;
+        let startTop = 0;
+        let moved = false;
+
+        player.addEventListener("pointerdown", (event) => {
+          if (event.target.closest("[data-action]")) return;
+          const frame = player.closest(".app-frame");
+          const playerRect = player.getBoundingClientRect();
+          const frameRect = frame.getBoundingClientRect();
+          pointerId = event.pointerId;
+          startX = event.clientX;
+          startY = event.clientY;
+          startLeft = playerRect.left - frameRect.left;
+          startTop = playerRect.top - frameRect.top;
+          moved = false;
+          player.classList.add("dragging");
+          player.setPointerCapture(pointerId);
+        });
+
+        player.addEventListener("pointermove", (event) => {
+          if (event.pointerId !== pointerId) return;
+          const frame = player.closest(".app-frame");
+          const minTop = frame.querySelector(".topbar").offsetHeight + 8;
+          const reservedBottom =
+            (frame.querySelector(".search-dock")?.offsetHeight || 0) +
+            (frame.querySelector(".bottom-nav")?.offsetHeight || 0) +
+            8;
+          const maxLeft = frame.clientWidth - player.offsetWidth - 8;
+          const maxTop = Math.max(
+            minTop,
+            frame.clientHeight - player.offsetHeight - reservedBottom,
+          );
+          const deltaX = event.clientX - startX;
+          const deltaY = event.clientY - startY;
+          moved ||= Math.hypot(deltaX, deltaY) > 4;
+          player.style.right = "auto";
+          player.style.left = `${Math.min(maxLeft, Math.max(8, startLeft + deltaX))}px`;
+          player.style.top = `${Math.min(maxTop, Math.max(minTop, startTop + deltaY))}px`;
+        });
+
+        player.addEventListener("pointerup", (event) => {
+          if (event.pointerId !== pointerId) return;
+          player.releasePointerCapture(pointerId);
+          player.classList.remove("dragging");
+          pointerId = undefined;
+          if (!moved) {
+            setScreen("watch");
+            return;
+          }
+
+          const frame = player.closest(".app-frame");
+          const minTop = frame.querySelector(".topbar").offsetHeight + 8;
+          const reservedBottom =
+            (frame.querySelector(".search-dock")?.offsetHeight || 0) +
+            (frame.querySelector(".bottom-nav")?.offsetHeight || 0) +
+            8;
+          const maxLeft = frame.clientWidth - player.offsetWidth - 8;
+          const maxTop = Math.max(
+            minTop,
+            frame.clientHeight - player.offsetHeight - reservedBottom,
+          );
+          player.style.left = `${player.offsetLeft < maxLeft / 2 ? 8 : maxLeft}px`;
+          player.style.top = `${player.offsetTop < (minTop + maxTop) / 2 ? minTop : maxTop}px`;
         });
       }
 
@@ -1912,6 +2783,22 @@
         if (action === "run-check") state.diagnosticsRun += 1;
         if (action === "toggle-density")
           state.compactDensity = !state.compactDensity;
+        if (action === "search-tab") state.searchTab = data.tab;
+        if (action === "following-tab") state.followingTab = data.tab;
+        if (action === "category-tab") state.categoryTab = data.tab;
+        if (action === "search-platform") state.searchPlatform = data.platform;
+        if (action === "toggle-live-only")
+          state.searchLiveOnly = !state.searchLiveOnly;
+        if (action === "repeat-search") {
+          state.searchQuery = data.query;
+          state.searchTab = "all";
+        }
+        if (action === "remove-search")
+          state.searchHistory = state.searchHistory.filter(
+            (query) => query !== data.query,
+          );
+        if (action === "clear-search-history") state.searchHistory = [];
+        if (action === "dismiss-player") state.playbackActive = false;
         renderApp();
       }
 
