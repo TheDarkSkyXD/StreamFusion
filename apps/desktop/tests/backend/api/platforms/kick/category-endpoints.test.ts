@@ -11,10 +11,6 @@ Module.prototype.require = function (id: string) {
   return _origRequire.call(this, id);
 };
 
-vi.mock("@shared/utils/sleep", () => ({
-  sleep: vi.fn(() => Promise.resolve()),
-}));
-
 vi.mock("@backend/api/platforms/kick/endpoints/stream-endpoints", () => ({
   rememberCategorySlug: vi.fn(),
 }));
@@ -36,11 +32,12 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-// Guards: authenticated Kick categories use the official /public/v2/categories API before private fallback paths.
-// Guards: signed-out Kick categories bypass the official requestor and OAuth Worker.
-// Guards: bounded discovery requests must forward the requested official limit and cursor instead of exhausting the catalog.
-// Guards: category-by-ID lookup must use the documented ID filter and return the requested category even when the response is not ordered.
-// Guards: an active official API cooldown must not amplify a 429 through the legacy category fallback.
+// Guards: signed-in and signed-out discovery use the same live Kick catalog with viewer totals.
+// Guards: active category-by-ID reads avoid OAuth, while inactive direct links use official v2 only when authenticated.
+// Guards: official lookup failures, including cooldowns, resolve safely instead of breaking category navigation.
+// Guards: failed or incomplete pagination never replaces the last complete catalog.
+// Guards: an unavailable uncached catalog rejects so provider retry remains possible.
+// Guards: caller cancellation propagates instead of becoming an empty catalog.
 describe("category-endpoints", () => {
   let getTopCategories: typeof import("@backend/api/platforms/kick/endpoints/category-endpoints").getTopCategories;
   let searchCategories: typeof import("@backend/api/platforms/kick/endpoints/category-endpoints").searchCategories;
@@ -59,43 +56,12 @@ describe("category-endpoints", () => {
   });
 
   describe("getTopCategories", () => {
-    it("forwards bounded limit and cursor options to the official API", async () => {
-      const request = vi.fn().mockResolvedValueOnce({
-        data: [{ id: 20, name: "Fortnite", thumbnail: "https://example.com/fn.webp" }],
-        pagination: { next_cursor: "cursor-3" },
-      });
-      const client = createMockClient({ request });
-
-      const result = await getTopCategories(client, { limit: 12, cursor: "cursor-2" });
-
-      expect(result.data).toHaveLength(1);
-      expect(result.cursor).toBe("cursor-3");
-      expect(request).toHaveBeenCalledWith(
-        "https://api.kick.com/public/v2/categories?limit=12&cursor=cursor-2"
-      );
-    });
-
-    it("returns categories from official /public/v2/categories", async () => {
-      const request = vi.fn().mockResolvedValueOnce({
-        data: [
-          { id: 20, name: "Fortnite", thumbnail: "https://example.com/fn.webp", tags: ["FPS"] },
-          { id: 10, name: "Just Chatting", thumbnail: "https://example.com/jc.webp" },
-        ],
-        pagination: { next_cursor: "cursor-2" },
-      });
-      const client = createMockClient({ request });
-
-      const result = await getTopCategories(client);
-
-      expect(result.data.map((c) => c.name)).toEqual(["Fortnite", "Just Chatting"]);
-      expect(result.data[0].tags).toEqual(["FPS"]);
-      expect(result.cursor).toBe("cursor-2");
-      expect(request).toHaveBeenCalledWith("https://api.kick.com/public/v2/categories?limit=1000");
-    });
-
-    it("falls back to private category list when official API throws", async () => {
-      const client = createMockClient({
-        request: vi.fn().mockRejectedValueOnce(new Error("official down")),
+    it("uses the same live category catalog while signed in and signed out", async () => {
+      const request = vi.fn();
+      const authenticatedClient = createMockClient({ request });
+      const guestClient = createMockClient({
+        isAuthenticated: vi.fn(() => false),
+        request,
       });
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
@@ -114,42 +80,164 @@ describe("category-endpoints", () => {
         })
       );
 
-      const result = await getTopCategories(client);
+      const authenticated = await getTopCategories(authenticatedClient);
+      const guest = await getTopCategories(guestClient);
 
-      expect(result.data).toHaveLength(1);
-      expect(result.data[0]).toMatchObject({
+      expect(authenticated).toEqual(guest);
+      expect(authenticated.data[0]).toMatchObject({
         id: "42",
         name: "Public Category",
+        slug: "public-cat",
         viewerCount: 1000,
       });
+      expect(request).not.toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
-    it("propagates an official rate limit without starting the legacy fallback", async () => {
-      const rateLimit = Object.assign(new Error("Kick API rate limit active"), {
-        name: "KickRateLimitError",
-      });
-      const client = createMockClient({
-        request: vi.fn().mockRejectedValueOnce(rateLimit),
-      });
-
-      await expect(getTopCategories(client)).rejects.toBe(rateLimit);
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    it("skips the official API while signed out", async () => {
+    it("rejects an unavailable live catalog so the provider can retry", async () => {
       const request = vi.fn();
-      const client = createMockClient({
-        isAuthenticated: vi.fn(() => false),
-        request,
-      });
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({ data: { categories: [], next_cursor: null } })
-      );
+      const client = createMockClient({ request });
+      mockFetch.mockRejectedValueOnce(new Error("catalog unavailable"));
 
-      await getTopCategories(client);
+      await expect(getTopCategories(client)).rejects.toThrow("catalog unavailable");
 
       expect(request).not.toHaveBeenCalled();
-      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    it("serves the last complete catalog when a refresh fails", async () => {
+      const client = createMockClient();
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            categories: [
+              {
+                name: "IRL",
+                slug: "irl",
+                viewers_count: 4321,
+                image_url: "https://files.kick.com/images/subcategories/8549/banner/img.webp",
+              },
+            ],
+            next_cursor: null,
+          },
+        })
+      );
+
+      const firstResult = await getTopCategories(client);
+      const expiredAt = Date.now() + 16 * 60 * 1000;
+      vi.spyOn(Date, "now").mockReturnValue(expiredAt);
+      mockFetch.mockRejectedValueOnce(new Error("catalog unavailable"));
+
+      await expect(getTopCategories(client)).resolves.toEqual(firstResult);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not cache a catalog when later pagination fails", async () => {
+      const client = createMockClient();
+      mockFetch
+        .mockResolvedValueOnce(
+          jsonResponse({
+            data: {
+              categories: [
+                {
+                  name: "Partial",
+                  slug: "partial",
+                  viewers_count: 100,
+                  image_url: "https://files.kick.com/images/subcategories/1/banner/img.webp",
+                },
+              ],
+              next_cursor: "page-2",
+            },
+          })
+        )
+        .mockRejectedValueOnce(new Error("second page unavailable"));
+
+      await expect(getTopCategories(client)).rejects.toThrow("second page unavailable");
+
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            categories: [
+              {
+                name: "Complete",
+                slug: "complete",
+                viewers_count: 200,
+                image_url: "https://files.kick.com/images/subcategories/2/banner/img.webp",
+              },
+            ],
+            next_cursor: null,
+          },
+        })
+      );
+
+      const result = await getTopCategories(client);
+
+      expect(result.data.map((category) => category.name)).toEqual(["Complete"]);
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it("rejects a repeated pagination cursor instead of caching a partial catalog", async () => {
+      const client = createMockClient();
+      mockFetch
+        .mockResolvedValueOnce(
+          jsonResponse({
+            data: {
+              categories: [
+                {
+                  name: "First Page",
+                  viewers_count: 200,
+                  image_url: "https://files.kick.com/images/subcategories/1/banner/img.webp",
+                },
+              ],
+              next_cursor: "page-2",
+            },
+          })
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({
+            data: {
+              categories: [
+                {
+                  name: "Second Page",
+                  viewers_count: 100,
+                  image_url: "https://files.kick.com/images/subcategories/2/banner/img.webp",
+                },
+              ],
+              next_cursor: "page-2",
+            },
+          })
+        );
+
+      await expect(getTopCategories(client)).rejects.toThrow("repeated its pagination cursor");
+
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            categories: [
+              {
+                name: "Complete",
+                viewers_count: 300,
+                image_url: "https://files.kick.com/images/subcategories/3/banner/img.webp",
+              },
+            ],
+            next_cursor: null,
+          },
+        })
+      );
+
+      const retry = await getTopCategories(client);
+
+      expect(retry.data.map((category) => category.name)).toEqual(["Complete"]);
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it("propagates caller cancellation", async () => {
+      const controller = new AbortController();
+      controller.abort(new Error("category request cancelled"));
+
+      await expect(
+        getTopCategories(createMockClient(), { signal: controller.signal })
+      ).rejects.toThrow("category request cancelled");
+      expect(mockFetch).not.toHaveBeenCalled();
     });
   });
 
@@ -250,48 +338,9 @@ describe("category-endpoints", () => {
   });
 
   describe("getCategoryById", () => {
-    it("uses the official v2 id parameter", async () => {
-      const request = vi.fn().mockResolvedValueOnce({
-        data: [
-          {
-            id: 16,
-            name: "Pools, Hot Tubs & Bikinis",
-            thumbnail: "https://example.com/pools.webp",
-          },
-        ],
-      });
+    it("returns an active live category without calling the official API", async () => {
+      const request = vi.fn();
       const client = createMockClient({ request });
-
-      const result = await getCategoryById(client, "16");
-
-      expect(result).toMatchObject({ id: "16", name: "Pools, Hot Tubs & Bikinis" });
-      expect(request).toHaveBeenCalledWith("https://api.kick.com/public/v2/categories?id=16");
-    });
-
-    it("selects the requested category when the response is not ordered", async () => {
-      const request = vi.fn().mockResolvedValueOnce({
-        data: [
-          { id: 1, name: "Apex Legends", thumbnail: "https://example.com/apex.webp" },
-          {
-            id: 16,
-            name: "Pools, Hot Tubs & Bikinis",
-            thumbnail: "https://example.com/pools.webp",
-          },
-        ],
-      });
-      const client = createMockClient({ request });
-
-      const result = await getCategoryById(client, "16");
-
-      expect(result).toMatchObject({ id: "16", name: "Pools, Hot Tubs & Bikinis" });
-    });
-
-    it("merges the public slug and authoritative viewer count into an official category", async () => {
-      const client = createMockClient({
-        request: vi.fn().mockResolvedValueOnce({
-          data: [{ id: 16, name: "Pools, Hot Tubs & Bikinis", thumbnail: "official.webp" }],
-        }),
-      });
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
           data: {
@@ -315,41 +364,59 @@ describe("category-endpoints", () => {
         slug: "pools-hot-tubs-and-bikinis",
         viewerCount: 321,
       });
+      expect(request).not.toHaveBeenCalled();
     });
 
-    it("returns null when official v2 returns no category", async () => {
-      const client = createMockClient({
-        request: vi.fn().mockResolvedValueOnce({ data: [] }),
+    it("uses official v2 as an authenticated fallback for a category absent from the live catalog", async () => {
+      const request = vi.fn().mockResolvedValueOnce({
+        data: [
+          { id: 1, name: "Apex Legends", thumbnail: "https://example.com/apex.webp" },
+          {
+            id: 16,
+            name: "Pools, Hot Tubs & Bikinis",
+            thumbnail: "https://example.com/pools.webp",
+          },
+        ],
       });
+      const client = createMockClient({ request });
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({ data: { categories: [], next_cursor: null } })
+      );
+
+      const result = await getCategoryById(client, "16");
+
+      expect(result).toMatchObject({ id: "16", name: "Pools, Hot Tubs & Bikinis" });
+      expect(request).toHaveBeenCalledWith("https://api.kick.com/public/v2/categories?id=16");
+    });
+
+    it("returns null for a missing live category while signed out", async () => {
+      const request = vi.fn();
+      const client = createMockClient({
+        isAuthenticated: vi.fn(() => false),
+        request,
+      });
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({ data: { categories: [], next_cursor: null } })
+      );
 
       const result = await getCategoryById(client, "999");
 
       expect(result).toBeNull();
+      expect(request).not.toHaveBeenCalled();
     });
 
-    it("falls back to private category list on official failure", async () => {
-      const client = createMockClient({
-        request: vi.fn().mockRejectedValueOnce(new Error("fail")),
-      });
+    it.each([
+      new Error("official down"),
+      Object.assign(new Error("Kick API rate limit active"), { name: "KickRateLimitError" }),
+    ])("returns null when the authenticated fallback fails with %s", async (error) => {
+      const request = vi.fn().mockRejectedValueOnce(error);
+      const client = createMockClient({ request });
       mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          data: {
-            categories: [
-              {
-                name: "Found via public",
-                slug: "found",
-                viewers_count: 50,
-                image_url: "https://files.kick.com/images/subcategories/42/banner/img.webp",
-              },
-            ],
-            next_cursor: null,
-          },
-        })
+        jsonResponse({ data: { categories: [], next_cursor: null } })
       );
 
-      const result = await getCategoryById(client, "42");
-
-      expect(result).toMatchObject({ id: "42", name: "Found via public" });
+      await expect(getCategoryById(client, "999")).resolves.toBeNull();
+      expect(request).toHaveBeenCalledWith("https://api.kick.com/public/v2/categories?id=999");
     });
   });
 
@@ -387,36 +454,9 @@ describe("category-endpoints", () => {
       expect(request).not.toHaveBeenCalled();
     });
 
-    it("paginates official v2 categories by cursor", async () => {
-      const request = vi
-        .fn()
-        .mockResolvedValueOnce({
-          data: [{ id: 1, name: "Cat1", thumbnail: "" }],
-          pagination: { next_cursor: "cursor-2" },
-        })
-        .mockResolvedValueOnce({
-          data: [{ id: 2, name: "Cat2", thumbnail: "" }],
-          pagination: { next_cursor: null },
-        });
+    it("returns the live public catalog without calling authenticated transport", async () => {
+      const request = vi.fn();
       const client = createMockClient({ request });
-
-      const result = await getAllCategories(client);
-
-      expect(result.map((c) => c.name)).toEqual(["Cat1", "Cat2"]);
-      expect(request).toHaveBeenNthCalledWith(
-        1,
-        "https://api.kick.com/public/v2/categories?limit=1000"
-      );
-      expect(request).toHaveBeenNthCalledWith(
-        2,
-        "https://api.kick.com/public/v2/categories?limit=1000&cursor=cursor-2"
-      );
-    });
-
-    it("falls back to private category list when official returns empty categories", async () => {
-      const client = createMockClient({
-        request: vi.fn().mockResolvedValueOnce({ data: [] }),
-      });
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
           data: {
@@ -437,18 +477,7 @@ describe("category-endpoints", () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe("Fallback Cat");
-    });
-
-    it("does not paginate through a legacy list during an official API cooldown", async () => {
-      const rateLimit = Object.assign(new Error("429 Too Many Requests"), {
-        name: "KickRateLimitError",
-      });
-      const client = createMockClient({
-        request: vi.fn().mockRejectedValueOnce(rateLimit),
-      });
-
-      await expect(getAllCategories(client)).rejects.toBe(rateLimit);
-      expect(mockFetch).not.toHaveBeenCalled();
+      expect(request).not.toHaveBeenCalled();
     });
   });
 });
