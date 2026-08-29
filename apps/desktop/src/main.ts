@@ -174,6 +174,12 @@ if (!isProduction) {
 // unconditionally; computeLogPaths only consumes it in dev.
 let logsDir: string;
 
+// Verification launches redirect mutable dev artifacts into their disposable run.
+const configuredDevelopmentArtifactRoot = process.env.STREAMFUSION_DEV_ARTIFACT_ROOT?.trim();
+const developmentArtifactRoot = configuredDevelopmentArtifactRoot
+  ? path.resolve(configuredDevelopmentArtifactRoot)
+  : path.resolve(process.cwd(), "..", "..");
+
 function initializeBeforeReady(): void {
   const sessionStamp = new Date().toISOString();
   const {
@@ -185,7 +191,7 @@ function initializeBeforeReady(): void {
     platform: process.platform,
     exePath: app.getPath("exe"),
     fallbackLogsPath: app.getPath("logs"),
-    projectRoot: path.resolve(process.cwd(), "..", ".."),
+    projectRoot: developmentArtifactRoot,
   });
   logsDir = sessionLogsDir;
   setBugReportsDir(bugReportsDir);

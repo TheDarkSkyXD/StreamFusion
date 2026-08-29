@@ -5,6 +5,7 @@ logs
 /.scratch/logs/
 /.scratch/images/
 /.scratch/runtime/
+/.scratch/verify-streamfusion/
 /.scratch/electron-cdp.mjs
 /.scratch/media-trigger-trace.mjs
 /.scratch/perf-profile-*/
