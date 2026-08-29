@@ -354,6 +354,39 @@ describe("category-endpoints", () => {
   });
 
   describe("getAllCategories", () => {
+    it("uses the same live category catalog when signed in and signed out", async () => {
+      const request = vi.fn().mockResolvedValueOnce({
+        data: [{ id: 8549, name: "IRL", thumbnail: "official.webp" }],
+      });
+      const authenticatedClient = createMockClient({ request });
+      const guestClient = createMockClient({
+        isAuthenticated: vi.fn(() => false),
+        request,
+      });
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            categories: [
+              {
+                name: "IRL",
+                slug: "irl",
+                viewers_count: 4321,
+                image_url: "https://files.kick.com/images/subcategories/8549/banner/img.webp",
+              },
+            ],
+            next_cursor: null,
+          },
+        })
+      );
+
+      const authenticated = await getAllCategories(authenticatedClient);
+      const guest = await getAllCategories(guestClient);
+
+      expect(authenticated).toEqual(guest);
+      expect(authenticated[0]).toMatchObject({ id: "8549", viewerCount: 4321 });
+      expect(request).not.toHaveBeenCalled();
+    });
+
     it("paginates official v2 categories by cursor", async () => {
       const request = vi
         .fn()
