@@ -1,0 +1,1986 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>StreamFusion Android navigation prototype</title>
+    <!-- Three variants of the complete Android navigation model, switchable via ?variant=A|B|C on this throwaway prototype route. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20,500,0,0&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --void: #0f0f0f;
+        --surface: #1a1a1a;
+        --mid: #252525;
+        --raised: #2d2d2d;
+        --active: #404040;
+        --divider: #333333;
+        --white: #ffffff;
+        --secondary: #a0a0a0;
+        --muted: #737373;
+        --category: #b2b2b2;
+        --crimson: #dc143c;
+        --live: #dc2626;
+        --twitch: #9146ff;
+        --kick: #53fc18;
+        --warning: #f6b73c;
+        --good: #52d273;
+        --phone-width: 390px;
+        font-family: Inter, system-ui, sans-serif;
+        background: #080808;
+        color: var(--white);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #080808;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        color: inherit;
+      }
+
+      button:focus-visible,
+      input:focus-visible {
+        outline: 2px solid var(--white);
+        outline-offset: 2px;
+      }
+
+      .material-symbols-rounded {
+        font-size: 21px;
+        line-height: 1;
+        font-variation-settings: "FILL" 0;
+      }
+
+      .prototype-shell {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: minmax(280px, 390px) var(--phone-width) minmax(
+            280px,
+            390px
+          );
+        align-items: start;
+        justify-content: center;
+        gap: 32px;
+        padding: 36px 28px 112px;
+      }
+
+      .brief,
+      .inspector {
+        position: sticky;
+        top: 36px;
+        align-self: start;
+        max-height: calc(100vh - 72px);
+        margin-top: 72px;
+        overflow: auto;
+      }
+
+      .eyebrow {
+        margin: 0 0 10px;
+        color: var(--secondary);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .brief h1 {
+        margin: 0;
+        max-width: 12ch;
+        font-size: clamp(28px, 4vw, 48px);
+        line-height: 0.98;
+        letter-spacing: -0.055em;
+      }
+
+      .brief-copy {
+        margin: 20px 0 0;
+        max-width: 36ch;
+        color: var(--secondary);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .variant-thesis {
+        margin-top: 28px;
+        padding: 18px;
+        border: 1px solid var(--divider);
+        border-radius: 12px;
+        background: var(--surface);
+      }
+
+      .variant-thesis h2 {
+        margin: 0;
+        font-size: 15px;
+      }
+
+      .variant-thesis p {
+        margin: 8px 0 0;
+        color: var(--secondary);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .question-list {
+        display: grid;
+        gap: 8px;
+        margin-top: 18px;
+      }
+
+      .question-list button,
+      .scenario-grid button {
+        min-height: 42px;
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+        background: transparent;
+        text-align: left;
+        cursor: pointer;
+        transition:
+          background 160ms ease,
+          border-color 160ms ease;
+      }
+
+      .question-list button {
+        padding: 10px 12px;
+        color: var(--category);
+        font-size: 12px;
+      }
+
+      .question-list button:hover,
+      .scenario-grid button:hover {
+        background: var(--mid);
+      }
+
+      .question-list button[aria-pressed="true"],
+      .scenario-grid button[aria-pressed="true"] {
+        border-color: #5b5b5b;
+        background: var(--active);
+        color: var(--white);
+      }
+
+      .device {
+        position: relative;
+        width: var(--phone-width);
+        height: 780px;
+        overflow: hidden;
+        border: 8px solid #232323;
+        border-radius: 34px;
+        background: var(--void);
+        box-shadow: 0 24px 70px rgba(0, 0, 0, 0.65);
+      }
+
+      .device::before {
+        content: "";
+        position: absolute;
+        z-index: 30;
+        top: 10px;
+        left: 50%;
+        width: 84px;
+        height: 20px;
+        border-radius: 999px;
+        background: #080808;
+        transform: translateX(-50%);
+        pointer-events: none;
+      }
+
+      .app {
+        position: relative;
+        height: 100%;
+        overflow: hidden;
+        background: var(--void);
+      }
+
+      .status-bar {
+        position: relative;
+        z-index: 20;
+        height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 18px;
+        background: var(--surface);
+        color: var(--category);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+
+      .status-icons {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .status-icons .material-symbols-rounded {
+        font-size: 14px;
+      }
+
+      .app-frame {
+        position: absolute;
+        inset: 42px 0 0;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+      }
+
+      .topbar {
+        min-height: 58px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--divider);
+        background: var(--surface);
+      }
+
+      .brand-mark {
+        width: 28px;
+        height: 28px;
+        display: grid;
+        place-items: center;
+        border: 1px solid #555;
+        border-radius: 8px;
+        background: var(--white);
+        color: var(--void);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .topbar-title {
+        min-width: 0;
+        flex: 1;
+      }
+
+      .topbar-title strong {
+        display: block;
+        overflow: hidden;
+        font-size: 14px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .topbar-title span {
+        display: block;
+        margin-top: 2px;
+        color: var(--secondary);
+        font-size: 10px;
+      }
+
+      .icon-button,
+      .compact-button {
+        min-width: 42px;
+        min-height: 42px;
+        display: inline-grid;
+        place-items: center;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .icon-button:hover,
+      .compact-button:hover {
+        background: var(--mid);
+      }
+
+      .screen {
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: none;
+      }
+
+      .screen::-webkit-scrollbar {
+        display: none;
+      }
+
+      .screen-content {
+        display: grid;
+        gap: 14px;
+        padding: 16px 14px 24px;
+      }
+
+      .screen-title-row {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .screen-title-row h2 {
+        margin: 0;
+        font-size: 22px;
+        letter-spacing: -0.035em;
+      }
+
+      .screen-title-row p {
+        margin: 4px 0 0;
+        color: var(--secondary);
+        font-size: 11px;
+      }
+
+      .text-button {
+        min-height: 38px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--white);
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .text-button:hover {
+        background: var(--mid);
+      }
+
+      .search-field {
+        height: 44px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0 12px;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        background: var(--surface);
+        color: var(--secondary);
+      }
+
+      .search-field input {
+        min-width: 0;
+        flex: 1;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--white);
+        font-size: 12px;
+      }
+
+      .search-field input::placeholder {
+        color: var(--muted);
+      }
+
+      .section-label {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: var(--category);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+      }
+
+      .stream-feed {
+        display: grid;
+        gap: 12px;
+      }
+
+      .stream-card {
+        display: grid;
+        grid-template-columns: 132px minmax(0, 1fr);
+        overflow: hidden;
+        border: 1px solid transparent;
+        border-radius: 12px;
+        background: var(--surface);
+        cursor: pointer;
+        transition:
+          border-color 180ms ease,
+          background 180ms ease;
+      }
+
+      .stream-card:hover {
+        border-color: var(--divider);
+        background: var(--mid);
+      }
+
+      .thumb {
+        position: relative;
+        min-height: 94px;
+        overflow: hidden;
+        background: var(--mid);
+      }
+
+      .thumb img {
+        width: 100%;
+        height: 100%;
+        display: block;
+        object-fit: cover;
+        opacity: 0.83;
+        transition: transform 260ms ease;
+      }
+
+      .stream-card:hover .thumb img {
+        transform: scale(1.04);
+      }
+
+      .live-badge,
+      .platform-badge,
+      .quality-badge {
+        border-radius: 999px;
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 0.035em;
+        text-transform: uppercase;
+      }
+
+      .live-badge {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        padding: 3px 6px;
+        background: var(--live);
+        color: var(--white);
+      }
+
+      .viewer-count {
+        position: absolute;
+        right: 8px;
+        bottom: 8px;
+        padding: 3px 6px;
+        border-radius: 5px;
+        background: rgba(15, 15, 15, 0.88);
+        color: var(--white);
+        font-size: 9px;
+        font-weight: 700;
+      }
+
+      .stream-meta {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        justify-content: center;
+        padding: 10px;
+      }
+
+      .stream-meta strong,
+      .stream-meta span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .stream-meta strong {
+        font-size: 12px;
+      }
+
+      .stream-meta span {
+        color: var(--secondary);
+        font-size: 10px;
+      }
+
+      .platform-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 3px;
+      }
+
+      .platform-badge {
+        padding: 3px 6px;
+      }
+
+      .platform-badge.twitch {
+        background: var(--twitch);
+        color: var(--white);
+      }
+
+      .platform-badge.kick {
+        background: var(--kick);
+        color: var(--void);
+      }
+
+      .tag {
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: #4a4d55;
+        color: #efeff1;
+        font-size: 9px;
+        font-weight: 700;
+      }
+
+      .bottom-nav {
+        min-height: 68px;
+        display: grid;
+        grid-template-columns: repeat(var(--nav-count), minmax(0, 1fr));
+        padding: 5px 6px 8px;
+        border-top: 1px solid var(--divider);
+        background: var(--surface);
+      }
+
+      .nav-button {
+        position: relative;
+        min-width: 0;
+        min-height: 54px;
+        display: grid;
+        place-items: center;
+        align-content: center;
+        gap: 4px;
+        border: 0;
+        border-radius: 9px;
+        background: transparent;
+        color: var(--secondary);
+        cursor: pointer;
+      }
+
+      .nav-button span:last-child {
+        font-size: 9px;
+        font-weight: 700;
+      }
+
+      .nav-button:hover {
+        background: var(--mid);
+        color: var(--white);
+      }
+
+      .nav-button.active {
+        background: var(--active);
+        color: var(--white);
+      }
+
+      .nav-badge {
+        position: absolute;
+        top: 5px;
+        left: calc(50% + 7px);
+        min-width: 15px;
+        height: 15px;
+        display: grid;
+        place-items: center;
+        padding: 0 4px;
+        border: 2px solid var(--surface);
+        border-radius: 999px;
+        background: var(--live);
+        color: var(--white);
+        font-size: 7px;
+        font-weight: 800;
+      }
+
+      .video-stage {
+        position: relative;
+        aspect-ratio: 16 / 9;
+        overflow: hidden;
+        border-radius: 12px;
+        background: #050505;
+      }
+
+      .video-stage img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0.72;
+      }
+
+      .video-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 10px;
+        background: linear-gradient(
+          180deg,
+          rgba(0, 0, 0, 0.58),
+          transparent 45%,
+          rgba(0, 0, 0, 0.68)
+        );
+      }
+
+      .video-overlay-top,
+      .video-overlay-bottom {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .quality-badge {
+        padding: 4px 7px;
+        background: rgba(15, 15, 15, 0.88);
+      }
+
+      .video-title {
+        min-width: 0;
+      }
+
+      .video-title strong,
+      .video-title span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .video-title strong {
+        font-size: 12px;
+      }
+
+      .video-title span {
+        margin-top: 2px;
+        color: #ddd;
+        font-size: 9px;
+      }
+
+      .chat-panel,
+      .tool-panel,
+      .notice,
+      .job-card,
+      .system-card,
+      .mod-card {
+        border: 1px solid var(--divider);
+        border-radius: 12px;
+        background: var(--surface);
+      }
+
+      .notice {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 12px;
+      }
+
+      .notice.warning {
+        border-color: #6a5425;
+        background: #241f15;
+      }
+
+      .notice.good {
+        border-color: #2c5f39;
+        background: #142119;
+      }
+
+      .notice .material-symbols-rounded {
+        margin-top: 1px;
+      }
+
+      .notice.warning .material-symbols-rounded {
+        color: var(--warning);
+      }
+
+      .notice.good .material-symbols-rounded {
+        color: var(--good);
+      }
+
+      .notice strong {
+        display: block;
+        font-size: 11px;
+      }
+
+      .notice p {
+        margin: 4px 0 0;
+        color: var(--secondary);
+        font-size: 10px;
+        line-height: 1.45;
+      }
+
+      .segmented {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 3px;
+        padding: 3px;
+        border-radius: 10px;
+        background: var(--mid);
+      }
+
+      .segmented button {
+        min-height: 38px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--secondary);
+        font-size: 10px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .segmented button.active {
+        background: var(--active);
+        color: var(--white);
+      }
+
+      .chat-panel {
+        overflow: hidden;
+      }
+
+      .chat-header,
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 44px;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--divider);
+      }
+
+      .chat-header strong,
+      .panel-header strong {
+        font-size: 11px;
+      }
+
+      .chat-list {
+        display: grid;
+        gap: 9px;
+        padding: 12px;
+      }
+
+      .chat-message {
+        font-size: 10px;
+        line-height: 1.4;
+      }
+
+      .chat-message strong {
+        margin-right: 5px;
+        color: #d7c2ff;
+      }
+
+      .chat-message:nth-child(2) strong {
+        color: #9ef57d;
+      }
+
+      .chat-message:nth-child(3) strong {
+        color: #f5d87d;
+      }
+
+      .chat-compose {
+        display: flex;
+        gap: 8px;
+        padding: 10px;
+        border-top: 1px solid var(--divider);
+      }
+
+      .chat-compose input {
+        min-width: 0;
+        flex: 1;
+        height: 38px;
+        padding: 0 10px;
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+        background: var(--mid);
+        color: var(--white);
+        font-size: 10px;
+      }
+
+      .chat-compose button,
+      .primary-button,
+      .secondary-button {
+        min-height: 38px;
+        padding: 0 12px;
+        border-radius: 8px;
+        font-size: 10px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .chat-compose button,
+      .primary-button {
+        border: 0;
+        background: var(--white);
+        color: var(--void);
+      }
+
+      .secondary-button {
+        border: 1px solid var(--divider);
+        background: var(--mid);
+        color: var(--white);
+      }
+
+      .multi-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+      }
+
+      .slot {
+        position: relative;
+        aspect-ratio: 16 / 10;
+        overflow: hidden;
+        border: 1px solid var(--divider);
+        border-radius: 9px;
+        background: var(--surface);
+      }
+
+      .slot img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0.7;
+      }
+
+      .slot.paused img {
+        filter: grayscale(1);
+        opacity: 0.28;
+      }
+
+      .slot-label {
+        position: absolute;
+        inset: auto 6px 6px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 5px;
+        font-size: 9px;
+        font-weight: 700;
+      }
+
+      .slot-label span:first-child {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .slot-state {
+        padding: 2px 5px;
+        border-radius: 999px;
+        background: rgba(15, 15, 15, 0.9);
+        color: var(--category);
+        font-size: 8px;
+      }
+
+      .slot.audio {
+        border-color: var(--white);
+      }
+
+      .control-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .job-list,
+      .system-list,
+      .mod-list,
+      .more-grid {
+        display: grid;
+        gap: 10px;
+      }
+
+      .job-card,
+      .system-card,
+      .mod-card {
+        padding: 12px;
+      }
+
+      .activity-link {
+        width: 100%;
+        color: var(--white);
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .activity-link:hover {
+        background: var(--mid);
+      }
+
+      .activity-link > .system-top > span {
+        margin-top: 0;
+        color: var(--white);
+      }
+
+      .activity-link .platform-badge {
+        display: inline-flex;
+        color: var(--white);
+      }
+
+      .job-top,
+      .system-top,
+      .mod-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .job-top strong,
+      .system-top strong,
+      .mod-top strong {
+        display: block;
+        font-size: 11px;
+      }
+
+      .job-top span,
+      .system-top span,
+      .mod-top span {
+        display: block;
+        margin-top: 3px;
+        color: var(--secondary);
+        font-size: 9px;
+      }
+
+      .job-state {
+        flex: 0 0 auto;
+        padding: 4px 7px;
+        border-radius: 999px;
+        background: var(--mid);
+        color: var(--category);
+        font-size: 8px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .progress-track {
+        height: 4px;
+        overflow: hidden;
+        margin-top: 12px;
+        border-radius: 999px;
+        background: var(--mid);
+      }
+
+      .progress-value {
+        height: 100%;
+        border-radius: inherit;
+        background: var(--white);
+      }
+
+      .job-actions {
+        display: flex;
+        gap: 6px;
+        margin-top: 10px;
+      }
+
+      .job-actions button {
+        min-height: 34px;
+        padding: 0 9px;
+        border: 0;
+        border-radius: 7px;
+        background: var(--mid);
+        color: var(--white);
+        font-size: 9px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .more-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .more-card {
+        min-height: 108px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: 13px;
+        border: 1px solid var(--divider);
+        border-radius: 12px;
+        background: var(--surface);
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .more-card:hover {
+        background: var(--mid);
+      }
+
+      .more-card strong {
+        font-size: 11px;
+      }
+
+      .more-card span:last-child {
+        color: var(--secondary);
+        font-size: 9px;
+        line-height: 1.35;
+      }
+
+      .moderation-action {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+        margin-top: 10px;
+      }
+
+      .moderation-action button {
+        min-height: 36px;
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+        background: var(--mid);
+        color: var(--white);
+        font-size: 9px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .moderation-action button:last-child {
+        border-color: #72313b;
+        color: #ffb0ba;
+      }
+
+      .switch-row {
+        min-height: 54px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--divider);
+      }
+
+      .switch-row:last-child {
+        border-bottom: 0;
+      }
+
+      .switch-row strong {
+        display: block;
+        font-size: 11px;
+      }
+
+      .switch-row span {
+        display: block;
+        margin-top: 3px;
+        color: var(--secondary);
+        font-size: 9px;
+      }
+
+      .switch {
+        position: relative;
+        width: 40px;
+        height: 24px;
+        flex: 0 0 auto;
+        border: 0;
+        border-radius: 999px;
+        background: var(--active);
+        cursor: pointer;
+      }
+
+      .switch::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--secondary);
+        transition:
+          left 160ms ease,
+          background 160ms ease;
+      }
+
+      .switch.on::after {
+        left: 19px;
+        background: var(--white);
+      }
+
+      .inspector {
+        display: grid;
+        gap: 16px;
+      }
+
+      .inspector h2 {
+        margin: 0;
+        font-size: 16px;
+      }
+
+      .scenario-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+      }
+
+      .scenario-grid button {
+        padding: 8px 10px;
+        color: var(--secondary);
+        font-size: 10px;
+        font-weight: 700;
+      }
+
+      .state-box {
+        padding: 14px;
+        border: 1px solid var(--divider);
+        border-radius: 12px;
+        background: var(--surface);
+      }
+
+      .state-box pre {
+        margin: 10px 0 0;
+        overflow: auto;
+        color: var(--category);
+        font:
+          10px/1.55 ui-monospace,
+          SFMono-Regular,
+          Consolas,
+          monospace;
+        white-space: pre-wrap;
+      }
+
+      .review-notes {
+        margin: 0;
+        padding-left: 18px;
+        color: var(--secondary);
+        font-size: 11px;
+        line-height: 1.55;
+      }
+
+      .prototype-switcher {
+        position: fixed;
+        z-index: 100;
+        left: 50%;
+        bottom: 24px;
+        display: grid;
+        grid-template-columns: 48px minmax(190px, auto) 48px;
+        align-items: center;
+        overflow: hidden;
+        border: 1px solid #5a5a5a;
+        border-radius: 999px;
+        background: #f5f5f5;
+        color: #111;
+        box-shadow:
+          0 8px 32px rgba(0, 0, 0, 0.5),
+          0 2px 8px rgba(0, 0, 0, 0.3);
+      }
+
+      .prototype-switcher button {
+        width: 48px;
+        height: 48px;
+        display: grid;
+        place-items: center;
+        border: 0;
+        background: transparent;
+        color: #111;
+        cursor: pointer;
+      }
+
+      .prototype-switcher button:hover {
+        background: #dedede;
+      }
+
+      .variant-label {
+        min-width: 0;
+        padding: 0 14px;
+        border-right: 1px solid #d0d0d0;
+        border-left: 1px solid #d0d0d0;
+        text-align: center;
+      }
+
+      .variant-label strong {
+        display: block;
+        font-size: 11px;
+      }
+
+      .variant-label span {
+        display: block;
+        margin-top: 2px;
+        color: #555;
+        font-size: 9px;
+      }
+
+      .app-frame.variant-b {
+        grid-template-rows: auto minmax(0, 1fr) auto auto;
+      }
+
+      .variant-b .topbar {
+        min-height: 74px;
+        align-items: flex-end;
+      }
+
+      .variant-b .brand-mark {
+        display: none;
+      }
+
+      .variant-b .topbar-title strong {
+        font-size: 20px;
+        letter-spacing: -0.035em;
+      }
+
+      .variant-b .stream-card {
+        grid-template-columns: 86px minmax(0, 1fr);
+      }
+
+      .variant-b .thumb {
+        min-height: 78px;
+      }
+
+      .now-playing {
+        display: grid;
+        grid-template-columns: 62px minmax(0, 1fr) 42px;
+        align-items: center;
+        gap: 9px;
+        min-height: 64px;
+        padding: 7px 10px;
+        border-top: 1px solid var(--divider);
+        background: var(--mid);
+      }
+
+      .now-playing img {
+        width: 62px;
+        height: 42px;
+        border-radius: 7px;
+        object-fit: cover;
+      }
+
+      .now-playing strong,
+      .now-playing span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .now-playing strong {
+        font-size: 10px;
+      }
+
+      .now-playing span {
+        margin-top: 3px;
+        color: var(--secondary);
+        font-size: 9px;
+      }
+
+      .variant-b .bottom-nav {
+        --nav-count: 5;
+      }
+
+      .variant-b .video-stage {
+        aspect-ratio: 9 / 13;
+        border-radius: 0;
+        margin: -16px -14px 0;
+      }
+
+      .variant-b .video-overlay {
+        padding: 16px 14px;
+      }
+
+      .variant-b .chat-panel {
+        margin-top: -86px;
+        border-radius: 18px 18px 0 0;
+        background: rgba(26, 26, 26, 0.97);
+      }
+
+      .app-frame.variant-c {
+        grid-template-columns: 58px minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+      }
+
+      .variant-c .topbar {
+        grid-column: 1 / -1;
+        min-height: 54px;
+        padding-left: 10px;
+      }
+
+      .variant-c .side-rail {
+        grid-row: 2;
+        display: grid;
+        align-content: start;
+        gap: 5px;
+        padding: 8px 6px;
+        border-right: 1px solid var(--divider);
+        background: var(--surface);
+      }
+
+      .variant-c .side-rail .nav-button {
+        min-height: 48px;
+      }
+
+      .variant-c .side-rail .nav-button span:last-child {
+        display: none;
+      }
+
+      .variant-c .screen {
+        grid-row: 2;
+        grid-column: 2;
+      }
+
+      .variant-c .screen-content {
+        padding: 12px 10px 24px;
+      }
+
+      .variant-c .screen-title-row h2 {
+        font-size: 18px;
+      }
+
+      .variant-c .stream-card {
+        grid-template-columns: 1fr;
+      }
+
+      .variant-c .stream-feed {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+      }
+
+      .variant-c .stream-meta {
+        padding: 8px;
+      }
+
+      .variant-c .thumb {
+        min-height: 82px;
+      }
+
+      .variant-c .watch-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.25fr) minmax(120px, 0.75fr);
+        gap: 7px;
+      }
+
+      .variant-c .watch-layout .video-stage {
+        align-self: start;
+      }
+
+      .variant-c .chat-list {
+        gap: 7px;
+        padding: 8px;
+      }
+
+      .variant-c .chat-compose {
+        padding: 7px;
+      }
+
+      .variant-c .chat-compose button {
+        display: none;
+      }
+
+      .variant-c .multi-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 4px;
+      }
+
+      .variant-c .slot-label {
+        inset: auto 4px 4px;
+      }
+
+      @media (max-width: 1120px) {
+        .prototype-shell {
+          grid-template-columns: var(--phone-width) minmax(260px, 360px);
+        }
+
+        .brief {
+          display: none;
+        }
+      }
+
+      @media (max-width: 780px) {
+        .prototype-shell {
+          display: block;
+          padding: 0 0 92px;
+        }
+
+        .device {
+          width: 100%;
+          height: calc(100vh - 84px);
+          min-height: 620px;
+          border: 0;
+          border-radius: 0;
+          box-shadow: none;
+        }
+
+        .device::before {
+          display: none;
+        }
+
+        .inspector {
+          display: none;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="prototype-shell">
+      <section class="brief" aria-labelledby="prototype-title">
+        <p class="eyebrow">Throwaway navigation prototype</p>
+        <h1 id="prototype-title">One app. Three ways through it.</h1>
+        <p class="brief-copy">
+          Compare the complete Android shell, not isolated screens. Use the
+          scenario shortcuts to test discovery, watching with chat, Multistream
+          under pressure, background jobs, moderation, and device health.
+        </p>
+        <article class="variant-thesis" id="variant-thesis"></article>
+        <div class="question-list" aria-label="Evaluation questions">
+          <button type="button" data-question="reach" aria-pressed="true">
+            Can the core destinations be reached one-handed?
+          </button>
+          <button type="button" data-question="watch" aria-pressed="false">
+            Does playback stay primary when chat and tools open?
+          </button>
+          <button type="button" data-question="pressure" aria-pressed="false">
+            Are device limits visible before work is lost?
+          </button>
+          <button type="button" data-question="power" aria-pressed="false">
+            Can moderators and power users move quickly?
+          </button>
+        </div>
+      </section>
+
+      <section class="device" aria-label="Android phone prototype">
+        <div class="app" id="app"></div>
+      </section>
+
+      <aside class="inspector" aria-labelledby="inspector-title">
+        <div>
+          <p class="eyebrow">Review controls</p>
+          <h2 id="inspector-title">Jump to a real state</h2>
+        </div>
+        <div class="scenario-grid" id="scenario-grid"></div>
+        <div class="state-box">
+          <p class="eyebrow">Visible prototype state</p>
+          <pre id="state-output"></pre>
+        </div>
+        <ul class="review-notes" id="review-notes"></ul>
+      </aside>
+    </main>
+
+    <nav class="prototype-switcher" aria-label="Prototype variants">
+      <button type="button" id="previous-variant" aria-label="Previous variant">
+        <span class="material-symbols-rounded" aria-hidden="true"
+          >arrow_back</span
+        >
+      </button>
+      <div class="variant-label" aria-live="polite">
+        <strong id="variant-name"></strong>
+        <span>Use left and right arrow keys</span>
+      </div>
+      <button type="button" id="next-variant" aria-label="Next variant">
+        <span class="material-symbols-rounded" aria-hidden="true"
+          >arrow_forward</span
+        >
+      </button>
+    </nav>
+
+    <script>
+      const variants = {
+        A: {
+          name: "A · Outcome dock",
+          thesis: "Five stable destinations",
+          description:
+            "A familiar bottom dock keeps discovery, playback, Multistream, the media library, and More one tap away. Moderation and system tools live in More.",
+          notes: [
+            "Best one-handed reach and clearest first-run model.",
+            "Five destinations leave little room for future top-level additions.",
+            "Playback tools use a supporting panel below the video on compact screens.",
+          ],
+        },
+        B: {
+          name: "B · Watch deck",
+          thesis: "Five destinations, watch-first shell",
+          description:
+            "Find, Following, Watch, Activity, and More stay one tap away. Activity replaces the Multistream shortcut, while Multistream remains a mode inside Watch.",
+          notes: [
+            "Followed channels stay one tap away instead of competing with recommendations.",
+            "Activity collects live alerts, job progress, moderation notices, and device warnings.",
+            "The media library, moderation, settings, and diagnostics stay under More.",
+          ],
+        },
+        C: {
+          name: "C · Command rail",
+          thesis: "Six explicit workspaces",
+          description:
+            "A compact leading rail exposes every major workspace at once. Dense supporting panes favor moderators and Multistream users over casual reachability.",
+          notes: [
+            "Fastest access for repeat and power use.",
+            "The rail costs horizontal room on compact phones.",
+            "The structure adapts naturally to a labeled rail and two-pane layouts on tablets and foldables.",
+          ],
+        },
+      };
+
+      const screens = [
+        { id: "discover", label: "Discover", icon: "explore" },
+        { id: "following", label: "Following", icon: "favorite" },
+        { id: "watch", label: "Watch + chat", icon: "live_tv" },
+        { id: "multi", label: "Multistream", icon: "grid_view" },
+        { id: "library", label: "Library + jobs", icon: "download" },
+        { id: "activity", label: "Activity", icon: "notifications" },
+        { id: "moderation", label: "Moderation", icon: "shield" },
+        { id: "system", label: "Settings + diagnostics", icon: "tune" },
+      ];
+
+      const streamImages = {
+        nebula:
+          "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80",
+        orbit:
+          "https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=800&q=80",
+        forge:
+          "https://images.unsplash.com/photo-1598550476439-6847785fcea6?auto=format&fit=crop&w=800&q=80",
+        circuit:
+          "https://images.unsplash.com/photo-1493711662062-fa541adb3fc8?auto=format&fit=crop&w=800&q=80",
+      };
+
+      const state = {
+        variant: new URLSearchParams(location.search).get("variant") || "A",
+        screen:
+          new URLSearchParams(location.search).get("screen") || "discover",
+        chatOpen: true,
+        activeVideos: 2,
+        configuredSlots: 6,
+        audioOwner: "NebulaNine",
+        thermal: "warm",
+        degradation: "Non-focused slots paused to live thumbnails",
+        downloadState: "downloading",
+        downloadProgress: 64,
+        recordingState: "recording · 03:18:42 remaining",
+        diagnosticsRun: 4,
+        compactDensity: true,
+      };
+
+      if (!variants[state.variant]) state.variant = "A";
+      if (!screens.some((screen) => screen.id === state.screen))
+        state.screen = "discover";
+
+      function icon(name) {
+        return `<span class="material-symbols-rounded" aria-hidden="true">${name}</span>`;
+      }
+
+      function statusBar() {
+        return `
+          <div class="status-bar">
+            <span>9:41</span>
+            <span class="status-icons">${icon("signal_cellular_alt")}${icon("wifi")}${icon("battery_5_bar")}</span>
+          </div>`;
+      }
+
+      function topBar() {
+        const titleByScreen = {
+          discover:
+            state.variant === "B" ? "Find something live" : "StreamFusion",
+          following: "Following",
+          watch: state.variant === "B" ? "Watch deck" : "Now watching",
+          multi: "Multistream",
+          library: state.variant === "B" ? "Your media" : "Library",
+          activity: "Activity",
+          moderation: "Moderation",
+          system: "System",
+          more: "More",
+        };
+        return `
+          <header class="topbar">
+            <span class="brand-mark" aria-hidden="true">SF</span>
+            <div class="topbar-title">
+              <strong>${titleByScreen[state.screen]}</strong>
+              <span>${state.variant === "C" ? "Command workspace" : "Twitch + Kick"}</span>
+            </div>
+            <button class="icon-button" type="button" data-action="search" aria-label="Search">${icon("search")}</button>
+            <button class="icon-button" type="button" data-screen="more" aria-label="Open account and more">${icon("account_circle")}</button>
+          </header>`;
+      }
+
+      function streamCard({ image, title, channel, game, viewers, platform }) {
+        return `
+          <article class="stream-card" role="button" tabindex="0" data-screen="watch" aria-label="Watch ${channel}">
+            <div class="thumb">
+              <img src="${image}" alt="" />
+              <span class="live-badge">Live</span>
+              <span class="viewer-count">${viewers}</span>
+            </div>
+            <div class="stream-meta">
+              <strong>${title}</strong>
+              <span>${channel}</span>
+              <span>${game}</span>
+              <div class="platform-row">
+                <span class="platform-badge ${platform.toLowerCase()}">${platform}</span>
+                <span class="tag">English</span>
+              </div>
+            </div>
+          </article>`;
+      }
+
+      function discoverScreen() {
+        return `
+          <div class="screen-content">
+            <div class="screen-title-row">
+              <div><h2>${state.variant === "B" ? "Live now" : "Discover"}</h2><p>One feed, both platforms</p></div>
+              <button class="text-button" type="button">Filters</button>
+            </div>
+            <label class="search-field">
+              ${icon("search")}
+              <input type="search" placeholder="Channels, games, categories" aria-label="Search streams" />
+            </label>
+            <div class="section-label"><span>Recommended live</span><span>26 streams</span></div>
+            <div class="stream-feed">
+              ${streamCard({ image: streamImages.nebula, title: "Ranked, no resets", channel: "NebulaNine", game: "Apex Legends", viewers: "18.4K", platform: "Twitch" })}
+              ${streamCard({ image: streamImages.orbit, title: "Night shift with chat", channel: "OrbitActual", game: "Just Chatting", viewers: "7.2K", platform: "Kick" })}
+              ${streamCard({ image: streamImages.forge, title: "Road to the final", channel: "ForgeLine", game: "Counter-Strike 2", viewers: "12.1K", platform: "Twitch" })}
+            </div>
+          </div>`;
+      }
+
+      function followingScreen() {
+        return `
+          <div class="screen-content">
+            <div class="screen-title-row">
+              <div><h2>Following</h2><p>7 live · 46 channels</p></div>
+              <button class="text-button" type="button">Manage</button>
+            </div>
+            <div class="notice good">${icon("notifications_active")}<div><strong>Live alerts are current</strong><p>Twitch and Kick follows stay separate from StreamFusion Guest Follows.</p></div></div>
+            <div class="section-label"><span>Live first</span><span>Updated now</span></div>
+            <div class="stream-feed">
+              ${streamCard({ image: streamImages.nebula, title: "Ranked, no resets", channel: "NebulaNine", game: "Apex Legends", viewers: "18.4K", platform: "Twitch" })}
+              ${streamCard({ image: streamImages.orbit, title: "Night shift with chat", channel: "OrbitActual", game: "Just Chatting", viewers: "7.2K", platform: "Kick" })}
+            </div>
+            <div class="section-label"><span>Offline</span><span>39 channels</span></div>
+            <article class="system-card"><div class="system-top"><div><strong>CircuitMara</strong><span>Last live 6 hours ago · Guest Follow</span></div><span class="platform-badge kick">Kick</span></div></article>
+          </div>`;
+      }
+
+      function videoStage() {
+        return `
+          <div class="video-stage">
+            <img src="${streamImages.nebula}" alt="NebulaNine live stream preview" />
+            <div class="video-overlay">
+              <div class="video-overlay-top"><span class="live-badge" style="position:static">Live</span><span class="quality-badge">1080p60</span></div>
+              <div class="video-overlay-bottom">
+                <div class="video-title"><strong>NebulaNine</strong><span>Ranked, no resets · 18.4K watching</span></div>
+                <button class="icon-button" type="button" aria-label="Mute stream">${icon("volume_up")}</button>
+              </div>
+            </div>
+          </div>`;
+      }
+
+      function chatPanel() {
+        if (!state.chatOpen) {
+          return `<button type="button" class="secondary-button" data-action="toggle-chat">Open live chat</button>`;
+        }
+        return `
+          <section class="chat-panel">
+            <header class="chat-header"><strong>Live chat</strong><button class="icon-button" type="button" data-action="toggle-chat" aria-label="Close chat">${icon("close")}</button></header>
+            <div class="chat-list">
+              <div class="chat-message"><strong>pixelPilot</strong>That rotation was clean</div>
+              <div class="chat-message"><strong>greenRoom</strong>Audio is perfect now</div>
+              <div class="chat-message"><strong>ModMira</strong>Reminder: keep spoilers tagged</div>
+            </div>
+            <div class="chat-compose"><input aria-label="Chat message" placeholder="Message as Guest" /><button type="button">Send</button></div>
+          </section>`;
+      }
+
+      function watchScreen() {
+        const body =
+          state.variant === "C"
+            ? `<div class="watch-layout">${videoStage()}${chatPanel()}</div>`
+            : `${videoStage()}${state.variant === "A" ? `<div class="segmented"><button class="active" type="button">Chat</button><button type="button">Info</button><button type="button">Related</button></div>` : ""}${chatPanel()}`;
+        return `
+          <div class="screen-content">
+            ${body}
+            ${state.variant !== "C" ? `<div class="control-row"><button class="secondary-button" type="button" data-screen="multi">Add to Multistream</button><button class="secondary-button" type="button">Start recording</button></div>` : ""}
+            <div class="notice good">${icon("closed_caption")}<div><strong>Local captions ready</strong><p>English model stays on this device. Starting captions may pause non-focused streams.</p></div></div>
+          </div>`;
+      }
+
+      function slot(name, index, image) {
+        const active = index <= state.activeVideos;
+        const audio = name === state.audioOwner;
+        return `
+          <button type="button" class="slot ${active ? "" : "paused"} ${audio ? "audio" : ""}" data-action="audio-owner" data-channel="${name}" aria-label="Make ${name} the audio owner">
+            <img src="${image}" alt="" />
+            <span class="slot-label"><span>${name}</span><span class="slot-state">${audio ? "Audio" : active ? "Live" : "Thumb"}</span></span>
+          </button>`;
+      }
+
+      function multistreamScreen() {
+        return `
+          <div class="screen-content">
+            <div class="screen-title-row"><div><h2>Six-slot room</h2><p>${state.activeVideos} active · one audio owner</p></div><button class="text-button" type="button">Edit</button></div>
+            <div class="notice warning">${icon("device_thermostat")}<div><strong>Device is warm</strong><p>Four non-focused players are live thumbnails. Your layout and focused stream stay available.</p></div></div>
+            <div class="multi-grid">
+              ${slot("NebulaNine", 1, streamImages.nebula)}
+              ${slot("OrbitActual", 2, streamImages.orbit)}
+              ${slot("ForgeLine", 3, streamImages.forge)}
+              ${slot("CircuitMara", 4, streamImages.circuit)}
+              ${slot("SideQuest", 5, streamImages.orbit)}
+              ${slot("NightIndex", 6, streamImages.forge)}
+            </div>
+            <div class="control-row">
+              <button class="primary-button" type="button" data-action="restore-slot">Try one more video</button>
+              <button class="secondary-button" type="button" data-action="cool-device">Device cooled</button>
+            </div>
+          </div>`;
+      }
+
+      function libraryScreen() {
+        return `
+          <div class="screen-content">
+            <div class="screen-title-row"><div><h2>Media library</h2><p>Jobs survive app restarts</p></div><button class="text-button" type="button">Storage</button></div>
+            <div class="notice warning">${icon("schedule")}<div><strong>Recording window ends in 42 minutes</strong><p>StreamFusion will finalize the current segment safely. Return to the app to continue.</p></div></div>
+            <div class="job-list">
+              <article class="job-card">
+                <div class="job-top"><div><strong>NebulaNine · live recording</strong><span>3 segments · 8.4 GB app-private</span></div><span class="job-state">${state.recordingState.split(" · ")[0]}</span></div>
+                <div class="progress-track"><div class="progress-value" style="width:78%"></div></div>
+                <div class="job-actions"><button type="button" data-action="finalize-recording">Finalize safely</button><button type="button">Open segments</button></div>
+              </article>
+              <article class="job-card">
+                <div class="job-top"><div><strong>Final round highlights</strong><span>2.1 GB of 3.3 GB · Wi-Fi</span></div><span class="job-state">${state.downloadState}</span></div>
+                <div class="progress-track"><div class="progress-value" style="width:${state.downloadProgress}%"></div></div>
+                <div class="job-actions"><button type="button" data-action="toggle-download">${state.downloadState === "paused" ? "Resume" : "Pause"}</button><button type="button">Cancel</button><button type="button">Export</button></div>
+              </article>
+            </div>
+          </div>`;
+      }
+
+      function activityScreen() {
+        return `
+          <div class="screen-content">
+            <div class="screen-title-row"><div><h2>Activity</h2><p>3 unread · this device</p></div><button class="text-button" type="button">Mark read</button></div>
+            <div class="segmented"><button class="active" type="button">All</button><button type="button">Channels</button><button type="button">Jobs</button></div>
+            <div class="system-list">
+              <button type="button" class="system-card activity-link" data-screen="following"><span class="system-top"><span><strong>NebulaNine is live</strong><span>2 minutes ago · Twitch follow</span></span><span class="platform-badge twitch">Twitch</span></span></button>
+              <button type="button" class="system-card activity-link" data-screen="library"><span class="system-top"><span><strong>Recording window ends soon</strong><span>42 minutes remain · finalization ready</span></span>${icon("schedule")}</span></button>
+              <button type="button" class="system-card activity-link" data-screen="multi"><span class="system-top"><span><strong>Multistream reduced to 2 active videos</strong><span>Device is warm · layout preserved</span></span>${icon("device_thermostat")}</span></button>
+              <button type="button" class="system-card activity-link" data-screen="moderation"><span class="system-top"><span><strong>Moderation session needs attention</strong><span>NebulaNine · one held message</span></span>${icon("shield")}</span></button>
+              <button type="button" class="system-card activity-link" data-screen="system"><span class="system-top"><span><strong>Device profile checked</strong><span>Yesterday · parity-qualified</span></span>${icon("check_circle")}</span></button>
+            </div>
+          </div>`;
+      }
+
+      function moderationScreen() {
+        return `
+          <div class="screen-content">
+            <div class="screen-title-row"><div><h2>Mod room</h2><p>NebulaNine · Twitch</p></div><button class="text-button" type="button">Switch</button></div>
+            <div class="notice good">${icon("verified_user")}<div><strong>Actions are live</strong><p>Your moderator session is current. Platform-specific actions remain clearly labeled.</p></div></div>
+            <div class="mod-list">
+              <article class="mod-card"><div class="mod-top"><div><strong>pixelPilot</strong><span>3 messages · first seen today</span></div><span class="platform-badge twitch">Twitch</span></div><p style="font-size:10px;color:var(--category);line-height:1.45">That link is fake, do not click it.</p><div class="moderation-action"><button type="button">Delete</button><button type="button">Timeout</button><button type="button">Ban</button></div></article>
+              <article class="mod-card"><div class="mod-top"><div><strong>Room health</strong><span>Slow mode off · followers only off</span></div>${icon("monitoring")}</div><div class="moderation-action"><button type="button">Slow mode</button><button type="button">Followers</button><button type="button">Clear chat</button></div></article>
+            </div>
+          </div>`;
+      }
+
+      function systemScreen() {
+        return `
+          <div class="screen-content">
+            <div class="screen-title-row"><div><h2>System</h2><p>Qualified · profile checked today</p></div><button class="text-button" type="button" data-action="run-check">Run check</button></div>
+            <div class="notice good">${icon("check_circle")}<div><strong>Parity-Qualified Device</strong><p>Two active videos, local captions, recording, downloads, and diagnostics passed the baseline.</p></div></div>
+            <section class="system-card">
+              <div class="panel-header" style="padding:0;border-bottom:1px solid var(--divider)"><strong>Playback and chat</strong><span class="job-state">Local</span></div>
+              <div class="switch-row"><div><strong>Local captions</strong><span>English · 43.11 MiB</span></div><button type="button" class="switch on" aria-label="Toggle local captions"></button></div>
+              <div class="switch-row"><div><strong>Compact chat density</strong><span>Show more messages on screen</span></div><button type="button" class="switch ${state.compactDensity ? "on" : ""}" data-action="toggle-density" aria-label="Toggle compact chat density"></button></div>
+            </section>
+            <div class="system-list">
+              <article class="system-card"><div class="system-top"><div><strong>Device and media health</strong><span>Warm · 2 of 6 active · 1.8 GB free</span></div>${icon("health_metrics")}</div></article>
+              <article class="system-card"><div class="system-top"><div><strong>Diagnostics report ${state.diagnosticsRun}</strong><span>Redacted logs, exit history, jobs, profile</span></div><button class="text-button" type="button">Share</button></div></article>
+              <article class="system-card"><div class="system-top"><div><strong>Accounts and notifications</strong><span>Twitch connected · Kick guest mode</span></div>${icon("chevron_right")}</div></article>
+            </div>
+          </div>`;
+      }
+
+      function moreScreen() {
+        return `
+          <div class="screen-content">
+            <div class="screen-title-row"><div><h2>More</h2><p>Account, creator, and system tools</p></div></div>
+            <div class="more-grid">
+              <button class="more-card" type="button" data-screen="moderation">${icon("shield")}<strong>Moderation</strong><span>Manage channels and room actions</span></button>
+              <button class="more-card" type="button" data-screen="system">${icon("tune")}<strong>Settings</strong><span>Playback, chat, accounts, appearance</span></button>
+              <button class="more-card" type="button" data-screen="system">${icon("diagnosis")}<strong>Diagnostics</strong><span>Device profile, logs, and recovery</span></button>
+              <button class="more-card" type="button" data-screen="library">${icon("video_library")}<strong>Media library</strong><span>Downloads, recordings, exports, and history</span></button>
+            </div>
+          </div>`;
+      }
+
+      function renderScreen() {
+        switch (state.screen) {
+          case "following":
+            return followingScreen();
+          case "watch":
+            return watchScreen();
+          case "multi":
+            return multistreamScreen();
+          case "library":
+            return libraryScreen();
+          case "activity":
+            return activityScreen();
+          case "moderation":
+            return moderationScreen();
+          case "system":
+            return systemScreen();
+          case "more":
+            return moreScreen();
+          default:
+            return discoverScreen();
+        }
+      }
+
+      function navButton(screen, label, iconName, badge = "") {
+        const active =
+          state.screen === screen ||
+          (screen === "more" &&
+            ["moderation", "system"].includes(state.screen));
+        return `<button type="button" class="nav-button ${active ? "active" : ""}" data-screen="${screen}" aria-label="${label}">${icon(iconName)}${badge ? `<span class="nav-badge">${badge}</span>` : ""}<span>${label}</span></button>`;
+      }
+
+      function bottomNavigation() {
+        if (state.variant === "B") {
+          return `<nav class="bottom-nav" style="--nav-count:5" aria-label="Primary navigation">${navButton("discover", "Find", "explore")}${navButton("following", "Following", "favorite")}${navButton("watch", "Watch", "live_tv")}${navButton("activity", "Activity", "notifications", "3")}${navButton("more", "More", "more_horiz")}</nav>`;
+        }
+        return `<nav class="bottom-nav" style="--nav-count:5" aria-label="Primary navigation">${navButton("discover", "Home", "home")}${navButton("watch", "Watch", "live_tv")}${navButton("multi", "Multi", "grid_view")}${navButton("library", "Library", "video_library")}${navButton("more", "More", "more_horiz")}</nav>`;
+      }
+
+      function sideRail() {
+        return `<nav class="side-rail" aria-label="Primary navigation">${screens
+          .filter(
+            (screen) => screen.id !== "following" && screen.id !== "activity",
+          )
+          .map((screen) => navButton(screen.id, screen.label, screen.icon))
+          .join("")}</nav>`;
+      }
+
+      function nowPlaying() {
+        return `<button type="button" class="now-playing" data-screen="watch"><img src="${streamImages.nebula}" alt="" /><span><strong>NebulaNine</strong><span>Live · captions ready</span></span>${icon("play_arrow")}</button>`;
+      }
+
+      function renderApp() {
+        const variantClass = `variant-${state.variant.toLowerCase()}`;
+        const navigation = state.variant === "C" ? sideRail() : "";
+        const bottom = state.variant === "C" ? "" : bottomNavigation();
+        const player =
+          state.variant === "B" && state.screen !== "watch" ? nowPlaying() : "";
+        document.getElementById("app").innerHTML = `
+          ${statusBar()}
+          <div class="app-frame ${variantClass}">
+            ${topBar()}
+            ${navigation}
+            <section class="screen" aria-live="polite">${renderScreen()}</section>
+            ${player}
+            ${bottom}
+          </div>`;
+        bindAppEvents();
+        renderReviewChrome();
+      }
+
+      function updateUrl() {
+        const params = new URLSearchParams(location.search);
+        params.set("variant", state.variant);
+        params.set("screen", state.screen);
+        history.replaceState(
+          null,
+          "",
+          `${location.pathname}?${params.toString()}`,
+        );
+      }
+
+      function setScreen(screen) {
+        state.screen = screen;
+        updateUrl();
+        renderApp();
+      }
+
+      function bindAppEvents() {
+        document.querySelectorAll("[data-screen]").forEach((element) => {
+          element.addEventListener("click", () =>
+            setScreen(element.dataset.screen),
+          );
+          if (element.classList.contains("stream-card")) {
+            element.addEventListener("keydown", (event) => {
+              if (event.key === "Enter" || event.key === " ")
+                setScreen("watch");
+            });
+          }
+        });
+        document.querySelectorAll("[data-action]").forEach((element) => {
+          element.addEventListener("click", () =>
+            handleAction(element.dataset.action, element.dataset),
+          );
+        });
+      }
+
+      function handleAction(action, data) {
+        if (action === "toggle-chat") state.chatOpen = !state.chatOpen;
+        if (action === "restore-slot") {
+          state.activeVideos = Math.min(6, state.activeVideos + 1);
+          state.degradation =
+            state.activeVideos > 2
+              ? "Trial promotion while thermal state stabilizes"
+              : state.degradation;
+        }
+        if (action === "cool-device") {
+          state.thermal = "nominal";
+          state.degradation = "Recovery eligible after hysteresis window";
+        }
+        if (action === "audio-owner") state.audioOwner = data.channel;
+        if (action === "toggle-download")
+          state.downloadState =
+            state.downloadState === "paused" ? "downloading" : "paused";
+        if (action === "finalize-recording")
+          state.recordingState = "finalized · 3 recoverable segments";
+        if (action === "run-check") state.diagnosticsRun += 1;
+        if (action === "toggle-density")
+          state.compactDensity = !state.compactDensity;
+        renderApp();
+      }
+
+      function renderReviewChrome() {
+        const variant = variants[state.variant];
+        document.getElementById("variant-name").textContent = variant.name;
+        document.getElementById("variant-thesis").innerHTML =
+          `<h2>${variant.thesis}</h2><p>${variant.description}</p>`;
+        document.getElementById("review-notes").innerHTML = variant.notes
+          .map((note) => `<li>${note}</li>`)
+          .join("");
+        document.getElementById("scenario-grid").innerHTML = screens
+          .map(
+            (screen) =>
+              `<button type="button" data-jump="${screen.id}" aria-pressed="${state.screen === screen.id}">${icon(screen.icon)} ${screen.label}</button>`,
+          )
+          .join("");
+        document
+          .querySelectorAll("[data-jump]")
+          .forEach((button) =>
+            button.addEventListener("click", () =>
+              setScreen(button.dataset.jump),
+            ),
+          );
+        document.getElementById("state-output").textContent = JSON.stringify(
+          state,
+          null,
+          2,
+        );
+      }
+
+      function cycleVariant(direction) {
+        const keys = Object.keys(variants);
+        const current = keys.indexOf(state.variant);
+        state.variant = keys[(current + direction + keys.length) % keys.length];
+        updateUrl();
+        renderApp();
+      }
+
+      document
+        .getElementById("previous-variant")
+        .addEventListener("click", () => cycleVariant(-1));
+      document
+        .getElementById("next-variant")
+        .addEventListener("click", () => cycleVariant(1));
+      document.addEventListener("keydown", (event) => {
+        const tag = document.activeElement?.tagName;
+        if (
+          ["INPUT", "TEXTAREA"].includes(tag) ||
+          document.activeElement?.isContentEditable
+        )
+          return;
+        if (event.key === "ArrowLeft") cycleVariant(-1);
+        if (event.key === "ArrowRight") cycleVariant(1);
+      });
+      document.querySelectorAll("[data-question]").forEach((button) => {
+        button.addEventListener("click", () => {
+          document
+            .querySelectorAll("[data-question]")
+            .forEach((candidate) =>
+              candidate.setAttribute(
+                "aria-pressed",
+                String(candidate === button),
+              ),
+            );
+        });
+      });
+
+      renderApp();
+    </script>
+  </body>
+</html>
