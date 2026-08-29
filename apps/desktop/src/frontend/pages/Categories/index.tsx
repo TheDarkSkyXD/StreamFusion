@@ -73,7 +73,7 @@ export function CategoriesPage() {
             <button
               type="button"
               onClick={() => void refetch()}
-              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-[var(--color-primary-foreground)] transition-opacity hover:opacity-90"
             >
               <LuRefreshCw className="h-4 w-4" aria-hidden="true" />
               Try again

@@ -115,7 +115,9 @@ describe("CategoriesPage", () => {
     } as unknown as ReturnType<typeof useInfiniteTopCategories>);
     renderWithProviders(<CategoriesPage />);
     expect(screen.getByText(/couldn’t load categories/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
+    const retryButton = screen.getByRole("button", { name: /try again/i });
+    expect(retryButton).toHaveClass("text-[var(--color-primary-foreground)]");
+    fireEvent.click(retryButton);
     expect(refetch).toHaveBeenCalledOnce();
     expect(screen.queryByText(/no categories found/i)).not.toBeInTheDocument();
   });
