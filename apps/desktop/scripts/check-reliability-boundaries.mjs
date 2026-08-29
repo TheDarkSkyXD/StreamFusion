@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const desktopRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const ipcRoot = join(desktopRoot, "src", "backend", "ipc");
-const contractRoot = join(desktopRoot, "src", "ipc-contracts");
+const contractRoot = join(desktopRoot, "src", "shared", "ipc-contracts");
 
 function listFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
