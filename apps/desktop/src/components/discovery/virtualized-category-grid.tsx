@@ -22,6 +22,7 @@ interface VirtualizedCategoryGridProps {
 }
 
 const STARTUP_PREWARM_COUNT = 8;
+const ROW_GAP = 16;
 
 /**
  * Virtualized category grid that only renders visible items for performance.
@@ -43,7 +44,9 @@ export function VirtualizedCategoryGrid({
   datasetKey,
 }: VirtualizedCategoryGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: STARTUP_PREWARM_COUNT });
+  const [measuredRowHeight, setMeasuredRowHeight] = useState(rowHeight);
 
   // Calculate responsive items per row based on grid columns
   // Optimized breakpoints: 2 → 3 → 4 → 5 → 6 → 7 → 8 (max)
@@ -79,14 +82,34 @@ export function VirtualizedCategoryGrid({
   }, [datasetKey]);
 
   // Calculate row count and total height
+  const effectiveRowHeight = Math.max(rowHeight, measuredRowHeight);
   const totalRows = Math.ceil(categories.length / itemsPerRow);
-  const totalHeight = totalRows * rowHeight;
+  const totalHeight = totalRows * effectiveRowHeight;
+
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+
+    const measureRowHeight = () => {
+      const renderedRowHeight = Array.from(grid.children).reduce((height, child) => {
+        return child instanceof HTMLElement ? Math.max(height, child.offsetHeight) : height;
+      }, 0);
+
+      if (renderedRowHeight === 0) return;
+      setMeasuredRowHeight((current) => Math.max(current, renderedRowHeight + ROW_GAP));
+    };
+
+    measureRowHeight();
+    const observer = new ResizeObserver(measureRowHeight);
+    observer.observe(grid);
+    return () => observer.disconnect();
+  }, [itemsPerRow, rowHeight, visibleRange]);
 
   // Volatile deps for the scroll handler are stored in refs so the handler
   // identity stays stable and the scroll listener doesn't re-attach on every
   // load-more / categories.length change.
   const scrollStateRef = useRef({
-    rowHeight,
+    rowHeight: effectiveRowHeight,
     overscan,
     itemsPerRow,
     categoriesLength: categories.length,
@@ -96,7 +119,7 @@ export function VirtualizedCategoryGrid({
   });
   useEffect(() => {
     scrollStateRef.current = {
-      rowHeight,
+      rowHeight: effectiveRowHeight,
       overscan,
       itemsPerRow,
       categoriesLength: categories.length,
@@ -105,7 +128,7 @@ export function VirtualizedCategoryGrid({
       onLoadMore,
     };
   }, [
-    rowHeight,
+    effectiveRowHeight,
     overscan,
     itemsPerRow,
     categories.length,
@@ -189,15 +212,15 @@ export function VirtualizedCategoryGrid({
 
       // Recalculate visible range for restored position
       const clientHeight = containerRef.current.clientHeight;
-      const startRow = Math.floor(scrollTop / rowHeight);
-      const endRow = Math.ceil((scrollTop + clientHeight) / rowHeight);
+      const startRow = Math.floor(scrollTop / effectiveRowHeight);
+      const endRow = Math.ceil((scrollTop + clientHeight) / effectiveRowHeight);
       const startIndex = Math.max(0, (startRow - overscan) * itemsPerRow);
       const endIndex = Math.min(categories.length, (endRow + overscan) * itemsPerRow);
       setVisibleRange({ start: startIndex, end: endIndex });
     } else {
       hasRestoredScroll.current = true;
     }
-  }, [scrollKey, categories.length, rowHeight, overscan, itemsPerRow]);
+  }, [scrollKey, categories.length, effectiveRowHeight, overscan, itemsPerRow]);
 
   // Save scroll position on scroll (debounced via the existing handleScroll)
   useEffect(() => {
@@ -222,14 +245,14 @@ export function VirtualizedCategoryGrid({
 
   // Calculate offset for visible items
   const startRow = Math.floor(visibleRange.start / itemsPerRow);
-  const offsetTop = startRow * rowHeight;
+  const offsetTop = startRow * effectiveRowHeight;
 
   // Dynamic grid style based on itemsPerRow
   const gridStyle = useMemo(
     () => ({
       display: "grid",
       gridTemplateColumns: `repeat(${itemsPerRow}, minmax(0, 1fr))`,
-      gap: "1rem",
+      gap: `${ROW_GAP}px`,
     }),
     [itemsPerRow]
   );
@@ -254,7 +277,7 @@ export function VirtualizedCategoryGrid({
   }
 
   // Calculate total height including space for loading indicator
-  const loadingIndicatorHeight = isFetchingNextPage || hasNextPage ? rowHeight : 0;
+  const loadingIndicatorHeight = isFetchingNextPage || hasNextPage ? effectiveRowHeight : 0;
   const totalHeightWithLoading = totalHeight + loadingIndicatorHeight;
 
   return (
@@ -267,6 +290,7 @@ export function VirtualizedCategoryGrid({
       <div style={{ height: totalHeightWithLoading, position: "relative" }}>
         {/* Positioned grid with visible items only */}
         <div
+          ref={gridRef}
           className={cn("absolute left-0 right-0 pl-0.5 pr-4 pt-2", className)}
           style={{ ...gridStyle, top: offsetTop }}
         >

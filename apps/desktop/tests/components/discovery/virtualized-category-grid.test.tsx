@@ -39,6 +39,7 @@ function categoryDataset(prefix: string, count: number) {
 // Guards: switching to a different ordered dataset resets synchronously to the first bounded window.
 // Guards: scrolling replaces the mounted window with the newly visible categories.
 // Guards: replacing the loading skeleton with the scroll container attaches the load-more listener so page two can be requested.
+// Guards: pagination skeletons start below the measured card row instead of overlapping tall category cards.
 describe("VirtualizedCategoryGrid progressive rendering", () => {
   const originalClientHeight = Object.getOwnPropertyDescriptor(
     HTMLElement.prototype,
@@ -192,5 +193,24 @@ describe("VirtualizedCategoryGrid progressive rendering", () => {
     }
 
     expect(onLoadMore).toHaveBeenCalledOnce();
+  });
+
+  it("positions pagination skeletons after the rendered card row", () => {
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(320);
+
+    const view = renderWithProviders(
+      <VirtualizedCategoryGrid
+        categories={categoryDataset("Category", 5)}
+        isFetchingNextPage
+        skeletonCount={5}
+      />
+    );
+
+    const skeleton = screen.getAllByTestId("category-skeleton")[0];
+    const paginationGrid = skeleton.parentElement;
+
+    expect(paginationGrid).not.toBeNull();
+    expect(paginationGrid).toHaveStyle({ top: "336px" });
+    expect(view.container.querySelector('[style*="height: 672px"]')).not.toBeNull();
   });
 });
