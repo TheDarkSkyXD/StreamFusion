@@ -13,30 +13,36 @@ const path = require("node:path");
  *   env: NodeJS.ProcessEnv;
  *   stdio: "inherit";
  * }) => StartChild} StartSpawn
+ * @typedef {{ kind: "launch"; mode: "dev:electron" | "dev" }
+ *   | { kind: "unavailable"; name: "Mobile" }} StartSelection
  */
 
 const START_PROMPT = [
   "",
   "How would you like to start StreamFusion?",
-  "  1) Electron app only (default)",
-  "  2) Electron app + browser",
+  "  1) Electron",
+  "  2) Browser",
+  "  3) Mobile",
   "",
   "Choose a start mode [1]: ",
 ].join("\n");
 
 /**
- * Resolve the start mode selected by the user.
+ * Resolve the start selection made by the user.
  *
  * @param {{ interactive: boolean; ask: (prompt: string) => Promise<string> }} options
- * @returns {Promise<"dev:electron" | "dev">}
+ * @returns {Promise<StartSelection>}
  */
-async function chooseStartMode({ interactive, ask }) {
-  if (!interactive) return "dev:electron";
+async function chooseStartSelection({ interactive, ask }) {
+  if (!interactive) return { kind: "launch", mode: "dev:electron" };
 
   const answer = (await ask(START_PROMPT)).trim();
-  if (answer === "" || answer === "1") return "dev:electron";
-  if (answer === "2") return "dev";
-  return "dev:electron";
+  if (answer === "" || answer === "1") {
+    return { kind: "launch", mode: "dev:electron" };
+  }
+  if (answer === "2") return { kind: "launch", mode: "dev" };
+  if (answer === "3") return { kind: "unavailable", name: "Mobile" };
+  return { kind: "launch", mode: "dev:electron" };
 }
 
 /**
@@ -46,12 +52,18 @@ async function chooseStartMode({ interactive, ask }) {
  *   interactive: boolean;
  *   ask: (prompt: string) => Promise<string>;
  *   launch: (mode: "dev:electron" | "dev") => Promise<number>;
+ *   reportUnavailable?: (message: string) => void;
  * }} options
  * @returns {Promise<number>}
  */
-async function runStartPicker({ interactive, ask, launch }) {
-  const mode = await chooseStartMode({ interactive, ask });
-  return launch(mode);
+async function runStartPicker({ interactive, ask, launch, reportUnavailable = console.error }) {
+  const selection = await chooseStartSelection({ interactive, ask });
+  if (selection.kind === "unavailable") {
+    reportUnavailable(`StreamFusion ${selection.name} is not implemented yet.`);
+    return 1;
+  }
+
+  return launch(selection.mode);
 }
 
 /**
@@ -97,7 +109,7 @@ function launchStartMode(
 
 module.exports = {
   START_PROMPT,
-  chooseStartMode,
+  chooseStartSelection,
   launchStartMode,
   runStartPicker,
 };

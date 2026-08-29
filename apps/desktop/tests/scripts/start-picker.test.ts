@@ -4,14 +4,15 @@ import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  chooseStartMode,
+  chooseStartSelection,
   launchStartMode,
   runStartPicker,
 } from "../../scripts/start-picker-lib.js";
 
 // Guards: pressing Enter at the interactive start prompt launches Electron only by default.
 // Guards: piped and automation starts bypass the prompt and launch Electron only.
-// Guards: the picker exposes two human-facing modes while dev:mcp remains a direct automation script.
+// Guards: the picker exposes Electron, Browser, and Mobile in that order while dev:mcp remains a direct automation script.
+// Guards: choosing Mobile reports that it is unavailable and exits without launching Electron.
 // Guards: picker modes launch start-dev.js through Node, avoiding npm.cmd spawn EINVAL on Windows.
 // Guards: browser mode adds its development flag without mutating the inherited environment.
 // Guards: npm start forwards explicit Electron arguments after a separator so runtime proofs use their isolated profile.
@@ -20,37 +21,66 @@ describe("start picker", () => {
   it("defaults to Electron-only when the interactive answer is empty", async () => {
     const ask = vi.fn().mockResolvedValue("");
 
-    await expect(chooseStartMode({ interactive: true, ask })).resolves.toBe("dev:electron");
+    await expect(chooseStartSelection({ interactive: true, ask })).resolves.toEqual({
+      kind: "launch",
+      mode: "dev:electron",
+    });
   });
 
-  it("presents exactly two modes in order and maps them to their direct scripts", async () => {
-    const expectedModes = [
-      ["1", "dev:electron"],
-      ["2", "dev"],
+  it("presents exactly three options in order and maps each answer to its selection", async () => {
+    const expectedSelections = [
+      ["1", { kind: "launch", mode: "dev:electron" }],
+      ["2", { kind: "launch", mode: "dev" }],
+      ["3", { kind: "unavailable", name: "Mobile" }],
     ] as const;
     const expectedPrompt = [
       "",
       "How would you like to start StreamFusion?",
-      "  1) Electron app only (default)",
-      "  2) Electron app + browser",
+      "  1) Electron",
+      "  2) Browser",
+      "  3) Mobile",
       "",
       "Choose a start mode [1]: ",
     ].join("\n");
 
-    for (const [answer, expectedMode] of expectedModes) {
+    for (const [answer, expectedSelection] of expectedSelections) {
       const ask = vi.fn().mockResolvedValue(answer);
 
-      await expect(chooseStartMode({ interactive: true, ask })).resolves.toBe(expectedMode);
+      await expect(chooseStartSelection({ interactive: true, ask })).resolves.toEqual(
+        expectedSelection
+      );
       expect(ask).toHaveBeenCalledWith(expectedPrompt);
     }
   });
 
   it("defaults invalid interactive answers to Electron-only", async () => {
-    for (const answer of ["3", "garbage"]) {
+    for (const answer of ["4", "garbage"]) {
       const ask = vi.fn().mockResolvedValue(answer);
 
-      await expect(chooseStartMode({ interactive: true, ask })).resolves.toBe("dev:electron");
+      await expect(chooseStartSelection({ interactive: true, ask })).resolves.toEqual({
+        kind: "launch",
+        mode: "dev:electron",
+      });
     }
+  });
+
+  it("reports Mobile as unavailable without launching a start mode", async () => {
+    const launch = vi.fn();
+    const reportUnavailable = vi.fn();
+
+    await expect(
+      runStartPicker({
+        interactive: true,
+        ask: vi.fn().mockResolvedValue("3"),
+        launch,
+        reportUnavailable,
+      })
+    ).resolves.toBe(1);
+
+    expect(reportUnavailable).toHaveBeenCalledWith(
+      "StreamFusion Mobile is not implemented yet."
+    );
+    expect(launch).not.toHaveBeenCalled();
   });
 
   it("launches Electron-only without prompting when stdin is non-interactive", async () => {
