@@ -1,6 +1,6 @@
 # Continuous Android parity contract
 
-- Status: proposed design for [Define the continuous parity contract and Android release gate](https://github.com/TheDarkSkyXD/StreamFusion/issues/101), pending product approval
+- Status: approved design for [Define the continuous parity contract and Android release gate](https://github.com/TheDarkSkyXD/StreamFusion/issues/101)
 - Desktop source: [generated capability ledger](./desktop-parity-inventory.md)
 - Machine contract: [`android-parity-contract.schema.json`](./android-parity-contract.schema.json)
 
