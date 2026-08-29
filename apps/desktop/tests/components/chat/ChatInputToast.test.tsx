@@ -1,7 +1,7 @@
 import { act, fireEvent, screen } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/services/chat/twitch-chat", () => ({
+vi.mock("@backend/services/chat/twitch-chat", () => ({
   twitchChatService: {
     sendMessage: vi.fn(async () => true),
     sendAction: vi.fn(async () => true),
@@ -11,13 +11,13 @@ vi.mock("@/backend/services/chat/twitch-chat", () => ({
   },
 }));
 
-vi.mock("@/hooks/queries/useChannels", () => ({
+vi.mock("@/features/discovery/data/queries/useChannels", () => ({
   useChannelByUsername: () => ({ data: undefined }),
 }));
 
-import { ChatInput } from "@/components/chat/ChatInput";
-import { loadTwitchChatModule } from "@/backend/services/chat/chat-service-loader";
-import { twitchChatService } from "@/backend/services/chat/twitch-chat";
+import { ChatInput } from "@/features/chat/components/chat/ChatInput";
+import { loadTwitchChatModule } from "@backend/services/chat/chat-service-loader";
+import { twitchChatService } from "@backend/services/chat/twitch-chat";
 import { useFollowStore } from "@/store/follow-store";
 import { useRoomStateStore } from "@/store/room-state-store";
 import { renderWithProviders as render } from "../../test-utils";

@@ -1,6 +1,6 @@
-import { logger } from "@/backend/logging/logger";
-import { sleep } from "@/lib/sleep";
-import type { UnifiedCategory } from "../../../unified/platform-types";
+import { logger } from "@backend/logging/logger";
+import { sleep } from "@shared/utils/sleep";
+import type { UnifiedCategory } from "../../../../../shared/platform-types";
 import { isKickRateLimitError } from "../kick-error-classification";
 import type { KickRequestor } from "../kick-requestor";
 import { transformKickCategory } from "../kick-transformers";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mapKickChatroomToSettings } from "@/backend/api/platforms/kick/endpoints/channel-endpoints";
+import { mapKickChatroomToSettings } from "@backend/api/platforms/kick/endpoints/channel-endpoints";
 
 // Guards: Kick chatroom block → normalized settings — stale `following_min_duration` / `message_interval` values must NOT surface when their mode is disabled (these linger server-side from prior enabled states). Non-boolean mode flags treated as false defensively. `accountAge` is intentionally never populated from the initial fetch (only delivered via WebSocket later).
 

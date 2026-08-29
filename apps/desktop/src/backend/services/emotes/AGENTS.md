@@ -8,28 +8,30 @@ Fetches, normalizes, and caches emotes from all supported providers (Twitch, Kic
 
 ## File Inventory
 
-| File | Role |
-|------|------|
-| `emote-types.ts` | Canonical type definitions: `Emote`, `EmoteSet`, `EmoteUrls`, `EmoteOwner`, `EmoteProvider`, `EmoteProviderService` interface, `EmoteManagerConfig` |
+| File               | Role                                                                                                                                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `emote-types.ts`   | Canonical type definitions: `Emote`, `EmoteSet`, `EmoteUrls`, `EmoteOwner`, `EmoteProvider`, `EmoteProviderService` interface, `EmoteManagerConfig`                                                                     |
 | `emote-manager.ts` | Orchestrator singleton. Registers providers, loads global/channel emotes via `Promise.allSettled`, holds in-memory cache, enforces LRU eviction (max 5 channels), deduplicates concurrent fetches via single-flight map |
-| `7tv-emotes.ts` | 7TV v3 API. Supports both Twitch and Kick platform lookups; the only third-party that serves Kick. Maps `timestamp` → `addedAt`. Detects zero-width via flag bit `1 << 8` |
-| `bttv-emotes.ts` | BetterTTV API. Twitch-only; merges `channelEmotes` and `sharedEmotes` into a flat list. Returns `[]` for non-Twitch platforms |
-| `ffz-emotes.ts` | FrankerFaceZ API. Twitch-only; prefers animated URLs when present; treats `modifier` flag as zero-width |
-| `kick-emotes.ts` | Kick-native emotes. No global endpoint (returns `[]`). Two-step fetch: primary `/emotes/{slug}`, fallback `/api/v1/channels/{slug}`. Surfaces `subscribersOnly` flag |
-| `twitch-emotes.ts` | Twitch Helix API. Requires `clientId` + `accessToken` via `configure()`; silently skips when unconfigured. Selects `animated` format when `format[]` includes it |
-| `index.ts` | Barrel export + provider registration. Exposes `initializeEmoteProviders()` and idempotent `ensureEmoteProvidersInitialized()` (lazy-init from chat components so non-chat pages pay no cost) |
+| `7tv-emotes.ts`    | 7TV v3 API. Supports both Twitch and Kick platform lookups; the only third-party that serves Kick. Maps `timestamp` → `addedAt`. Detects zero-width via flag bit `1 << 8`                                               |
+| `bttv-emotes.ts`   | BetterTTV API. Twitch-only; merges `channelEmotes` and `sharedEmotes` into a flat list. Returns `[]` for non-Twitch platforms                                                                                           |
+| `ffz-emotes.ts`    | FrankerFaceZ API. Twitch-only; prefers animated URLs when present; treats `modifier` flag as zero-width                                                                                                                 |
+| `kick-emotes.ts`   | Kick-native emotes. No global endpoint (returns `[]`). Two-step fetch: primary `/emotes/{slug}`, fallback `/api/v1/channels/{slug}`. Surfaces `subscribersOnly` flag                                                    |
+| `twitch-emotes.ts` | Twitch Helix API. Requires `clientId` + `accessToken` via `configure()`; silently skips when unconfigured. Selects `animated` format when `format[]` includes it                                                        |
+| `index.ts`         | Barrel export + provider registration. Exposes `initializeEmoteProviders()` and idempotent `ensureEmoteProvidersInitialized()` (lazy-init from chat components so non-chat pages pay no cost)                           |
 
 ---
 
 ## Contracts & Invariants
 
 **`EmoteProviderService` interface** — every provider must implement:
+
 - `name: EmoteProvider` — one of `"twitch" | "kick" | "bttv" | "ffz" | "7tv"`
 - `fetchGlobalEmotes(): Promise<Emote[]>` — must never throw (catch internally or propagate for global-only; see note below)
 - `fetchChannelEmotes(channelId, channelName?, platform?, kickUserId?): Promise<Emote[]>` — must return `[]` rather than throw; channel emote failures are non-fatal
 - `getEmoteUrl(emote, size): string`
 
 **`Emote` shape invariants:**
+
 - `id` is a string (providers with numeric IDs must `.toString()`)
 - `urls.url1x` and `urls.url2x` are always present; `url4x` is optional (falls back to `url2x`)
 - `isZeroWidth` is always set (false when not applicable)
@@ -37,12 +39,14 @@ Fetches, normalizes, and caches emotes from all supported providers (Twitch, Kic
 - `addedAt` is only populated by 7TV (Unix ms, absent for global emotes whose set has no per-emote timestamp)
 
 **Platform routing** — `PLATFORM_PROVIDERS` in `emote-manager.ts` is the single source of truth:
+
 - `twitch`: `["twitch", "bttv", "ffz", "7tv"]`
 - `kick`: `["kick", "7tv"]`
 
 Providers outside a platform's list are never called for that platform. Do not bypass this by calling providers directly.
 
 **Cache:**
+
 - TTL: 30 minutes (`DEFAULT_EMOTE_CONFIG.cacheTTL`)
 - LRU cap: 5 channels (`MAX_CACHED_CHANNELS`)
 - Periodic cleanup every 5 minutes (runs only in browser context)
@@ -97,5 +101,5 @@ const results = emoteManager.searchEmotes(query, channelId, 20);
 ## Related Context
 
 - `../chat/AGENTS.md` — chat services that consume emotes (`third-party-emote-enrich.ts` walks parsed fragments and substitutes emotes fetched here)
-- `../../components/chat/AGENTS.md` — chat UI; calls `ensureEmoteProvidersInitialized()` and reads emote store for rendering
-- `../../../store/AGENTS.md` — `emote-store` holds the loaded emote map that components read reactively
+- `../../../frontend/features/chat/components/chat/AGENTS.md` — chat UI; calls `ensureEmoteProvidersInitialized()` and reads emote store for rendering
+- `../../../frontend/store/AGENTS.md` — renderer stores consumed by chat and emote UI

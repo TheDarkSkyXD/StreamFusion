@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createChatReplayIpcHandlers,
   registerChatReplayHandlers,
-} from "@/backend/ipc/handlers/chat-replay-handlers";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+} from "@backend/ipc/handlers/chat-replay-handlers";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 const electronMocks = vi.hoisted(() => ({ handle: vi.fn() }));
 

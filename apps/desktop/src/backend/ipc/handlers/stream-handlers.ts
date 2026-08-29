@@ -1,12 +1,12 @@
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import { dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
 import type { Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { isKickRateLimitError } from "../../api/platforms/kick/kick-error-classification";
 import type { IPlatformReader } from "../../api/unified/platform-reader";
-import type { UnifiedStream } from "../../api/unified/platform-types";
+import type { UnifiedStream } from "../../../shared/platform-types";
 import { clients } from "../../api/unified/registry";
 import { storageService } from "../../services/storage-service";
 import {

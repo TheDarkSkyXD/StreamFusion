@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { UnifiedChannel, UnifiedVideo } from "@/backend/api/unified/platform-types";
-import { createProgressiveVideoSearch } from "@/backend/search/progressive-video-search";
+import type { UnifiedChannel, UnifiedVideo } from "@shared/platform-types";
+import { createProgressiveVideoSearch } from "@backend/search/progressive-video-search";
 
 const channel = (id: string): UnifiedChannel => ({
   id,

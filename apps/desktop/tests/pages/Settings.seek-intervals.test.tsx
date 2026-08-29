@@ -7,7 +7,7 @@ import {
   DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
-} from "@/shared/auth-types";
+} from "@shared/auth-types";
 import {
   DEFAULT_SEEK_INTERVAL_SECONDS,
   SEEK_INTERVAL_STORAGE_KEY,
@@ -48,7 +48,7 @@ vi.mock("@/hooks", () => ({
   }),
 }));
 
-vi.mock("@/hooks/useAuth", () => ({
+vi.mock("@/features/auth/data/useAuth", () => ({
   useAuthError: () => ({ error: null, clearError: vi.fn() }),
 }));
 
@@ -78,7 +78,7 @@ vi.mock("@/store/adblock-store", () => ({
   },
 }));
 
-vi.mock("@/components/auth", () => ({
+vi.mock("@/features/auth/components/auth", () => ({
   AccountConnect: () => <div data-testid="account-connect">accounts</div>,
 }));
 

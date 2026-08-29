@@ -10,16 +10,16 @@ import {
 
 vi.mock('@tanstack/react-router', () => routerMock({ params: { platform: 'twitch', categoryId: 'cat-1' }, search: {} }));
 
-vi.mock('@/hooks/queries/useCategories', () => ({
+vi.mock('@/features/discovery/data/queries/useCategories', () => ({
   useCategoryById: vi.fn(),
   useInfiniteTopCategories: vi.fn(),
 }));
 
-vi.mock('@/hooks/queries/useInfiniteStreams', () => ({
+vi.mock('@/features/discovery/data/queries/useInfiniteStreams', () => ({
   useInfiniteStreamsByCategory: vi.fn(),
 }));
 
-vi.mock('@/components/stream/stream-grid', () => ({
+vi.mock('@/features/discovery/components/stream/stream-grid', () => ({
   StreamGrid: ({ streams, isLoading, emptyMessage }: { streams: unknown[]; isLoading?: boolean; emptyMessage?: string }) => (
     <div data-testid="stream-grid">
       {isLoading ? 'loading' : streams.length === 0 ? emptyMessage : `${streams.length} streams`}
@@ -31,8 +31,8 @@ vi.mock('@/components/ui/proxied-image', () => ({
   ProxiedImage: ({ alt }: { alt: string }) => <div data-testid="proxied-image">{alt}</div>,
 }));
 
-import { useCategoryById, useInfiniteTopCategories } from '@/hooks/queries/useCategories';
-import { useInfiniteStreamsByCategory } from '@/hooks/queries/useInfiniteStreams';
+import { useCategoryById, useInfiniteTopCategories } from '@/features/discovery/data/queries/useCategories';
+import { useInfiniteStreamsByCategory } from '@/features/discovery/data/queries/useInfiniteStreams';
 import { CategoryDetailPage } from '@/pages/CategoryDetail';
 
 const useCategoryByIdMock = vi.mocked(useCategoryById);

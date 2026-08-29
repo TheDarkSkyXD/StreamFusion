@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 import { createIsolatedDatabaseTestLifecycle } from "../../../helpers/database-test-lifecycle";
 
 vi.mock("electron", () => ({
@@ -8,7 +8,7 @@ vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
 }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
+vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
   twitchClient: {
     getChannelsById: vi.fn(),
     getChannelByLogin: vi.fn(),
@@ -17,7 +17,7 @@ vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
+vi.mock("@backend/api/platforms/kick/kick-client", () => ({
   kickClient: {
     getChannel: vi.fn(),
     getChannelsByBroadcasterIds: vi.fn(),
@@ -27,7 +27,7 @@ vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
   },
 }));
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: {
     getActiveFollowsByPlatform: vi.fn(),
     getLocalFollowsByPlatform: vi.fn(),
@@ -38,18 +38,18 @@ vi.mock("@/backend/services/storage-service", () => ({
   },
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
 }));
 
 import { app, ipcMain } from "electron";
 
-import { kickClient } from "@/backend/api/platforms/kick/kick-client";
-import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
-import { registerChannelHandlers } from "@/backend/ipc/handlers/channel-handlers";
-import { dbService } from "@/backend/services/database-service";
-import { storageService } from "@/backend/services/storage-service";
+import { kickClient } from "@backend/api/platforms/kick/kick-client";
+import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
+import type { UnifiedChannel } from "@shared/platform-types";
+import { registerChannelHandlers } from "@backend/ipc/handlers/channel-handlers";
+import { dbService } from "@backend/services/database-service";
+import { storageService } from "@backend/services/storage-service";
 
 type ChannelResult = { success: boolean; data: UnifiedChannel | null; error?: string };
 type ChannelListResult = { success: boolean; data: UnifiedChannel[]; error?: string };

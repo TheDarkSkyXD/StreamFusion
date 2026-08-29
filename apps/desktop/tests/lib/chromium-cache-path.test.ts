@@ -7,12 +7,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   pruneStaleChromiumDiskCaches,
   resolveChromiumDiskCachePath,
-} from "@/lib/chromium-cache-path";
+} from "@backend/utility/chromium-cache-path";
 
 const scratchDirectories: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(scratchDirectories.splice(0).map((directory) => rm(directory, { recursive: true })));
+  await Promise.all(
+    scratchDirectories.splice(0).map((directory) => rm(directory, { recursive: true }))
+  );
 });
 
 // Guards: overlapping StreamFusion processes must never contend for Chromium's disposable disk cache or place it beside persistent profile data

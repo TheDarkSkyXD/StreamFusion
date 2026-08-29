@@ -20,7 +20,7 @@ import {
   parseKickSubscription,
   parseKickUserBanned,
   type SubscriberBadge,
-} from "@/backend/services/chat/kick-parser";
+} from "@backend/services/chat/kick-parser";
 
 // ========== Fixtures ==========
 

@@ -4,7 +4,7 @@ import { fixtures, renderWithProviders, routerMock, screen } from "../../test-ut
 
 vi.mock("@tanstack/react-router", () => routerMock());
 
-vi.mock("@/hooks/useAuth", () => ({
+vi.mock("@/features/auth/data/useAuth", () => ({
   useUserInfo: () => ({
     twitchUser: null,
     kickUser: null,
@@ -23,7 +23,7 @@ vi.mock("@/components/ui/follow-button", () => ({
   FollowButton: () => <button type="button">Follow</button>,
 }));
 
-import { StreamInfo } from "@/components/stream/stream-info";
+import { StreamInfo } from "@/features/playback/components/stream-info";
 
 // Guards: an offline channel's last-live age is measured from the stream end, not its start.
 // Guards: a live channel never presents historical last-live metadata as its current state.

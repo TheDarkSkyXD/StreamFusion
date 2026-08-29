@@ -6,12 +6,12 @@ vi.mock("electron", () => ({
   ipcMain: { handle: electronMocks.handle },
 }));
 
-import { registerTwitchApiHandlers } from "@/backend/ipc/handlers/twitch-api-handlers";
-import { EmoteManager } from "@/backend/services/emotes/emote-manager";
-import { twitchEmoteProvider } from "@/backend/services/emotes/twitch-emotes";
-import type { Emote, EmoteProviderService } from "@/backend/services/emotes/emote-types";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
-import type { TwitchApiCommand, TwitchApiResult } from "@/shared/twitch-api-types";
+import { registerTwitchApiHandlers } from "@backend/ipc/handlers/twitch-api-handlers";
+import { EmoteManager } from "@backend/services/emotes/emote-manager";
+import { twitchEmoteProvider } from "@backend/services/emotes/twitch-emotes";
+import type { Emote, EmoteProviderService } from "@backend/services/emotes/emote-types";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
+import type { TwitchApiCommand, TwitchApiResult } from "@shared/twitch-api-types";
 
 type Handler = (
   event: { senderFrame?: { url?: string } },

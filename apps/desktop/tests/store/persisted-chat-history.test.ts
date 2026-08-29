@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatMessage } from "@/shared/chat-types";
+import type { ChatMessage } from "@shared/chat-types";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
 import {
   getPersistedChatHistory,

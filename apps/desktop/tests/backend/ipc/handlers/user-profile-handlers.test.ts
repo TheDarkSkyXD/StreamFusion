@@ -1,7 +1,7 @@
 import type { BrowserWindow } from "electron";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 const electronMocks = vi.hoisted(() => ({
   app: { isPackaged: false },
@@ -24,11 +24,11 @@ vi.mock("electron", () => ({
   ipcMain: { handle: electronMocks.handle },
 }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-public-profile-reader", () => readerMocks);
-vi.mock("@/backend/api/platforms/kick/kick-public-profile-reader", () => readerMocks);
+vi.mock("@backend/api/platforms/twitch/twitch-public-profile-reader", () => readerMocks);
+vi.mock("@backend/api/platforms/kick/kick-public-profile-reader", () => readerMocks);
 
-import { registerUserProfileHandlers } from "@/backend/ipc/handlers/user-profile-handlers";
-import { TrustedIpcRegistry } from "@/backend/ipc/trusted-ipc-registry";
+import { registerUserProfileHandlers } from "@backend/ipc/handlers/user-profile-handlers";
+import { TrustedIpcRegistry } from "@backend/ipc/trusted-ipc-registry";
 
 type Handler = (event: unknown, request: unknown) => Promise<unknown>;
 

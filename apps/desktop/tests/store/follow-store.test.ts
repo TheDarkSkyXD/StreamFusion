@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
-import type { FollowSource, LocalFollow } from "@/shared/auth-types";
+import type { UnifiedChannel } from "@shared/platform-types";
+import type { FollowSource, LocalFollow } from "@shared/auth-types";
 import { useFollowStore } from "@/store/follow-store";
 
 function makeChannel(overrides: Partial<UnifiedChannel> = {}): UnifiedChannel {

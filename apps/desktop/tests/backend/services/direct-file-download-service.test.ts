@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   downloadDirectFile,
   DownloadCancelledError,
-} from "@/backend/services/direct-file-download-service";
+} from "@backend/services/direct-file-download-service";
 
 function bytesResponse(bytes: Uint8Array): Response {
   return new Response(

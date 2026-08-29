@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseRawTwitchIrcLine } from "@/backend/services/chat/twitch-irc-parser";
+import { parseRawTwitchIrcLine } from "@backend/services/chat/twitch-irc-parser";
 
 describe("parseRawTwitchIrcLine", () => {
   it("returns null for empty string", () => {

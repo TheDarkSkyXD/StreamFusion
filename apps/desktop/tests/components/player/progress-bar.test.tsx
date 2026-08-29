@@ -1,6 +1,6 @@
 import { render, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { ProgressBar } from '@/components/player/progress-bar';
+import { ProgressBar } from '@/features/playback/components/player/progress-bar';
 
 describe('ProgressBar', () => {
     it('should result in 0 width when duration is 0', () => {

@@ -2,9 +2,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { UiDebugTool } from "@/components/dev/UiDebugTool";
-import { setNetworkStatusOverrideForDebug } from "@/hooks/useNetworkStatus";
+import { setNetworkStatusOverrideForDebug } from "@/features/settings/data/useNetworkStatus";
 
-vi.mock("@/hooks/useNetworkStatus", () => ({
+vi.mock("@/features/settings/data/useNetworkStatus", () => ({
   setNetworkStatusOverrideForDebug: vi.fn(),
 }));
 

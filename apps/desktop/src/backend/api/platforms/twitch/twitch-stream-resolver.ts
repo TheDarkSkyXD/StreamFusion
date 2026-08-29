@@ -5,7 +5,7 @@
  * No API key required — uses the public GQL client.
  */
 
-import { logger } from "@/lib/cross-logger";
+import { logger } from "@shared/utils/cross-logger";
 import { buildTwitchClipMediaUrl } from "../../../protocols/twitch-clip-media-url";
 import * as GqlClient from "./twitch-gql-client";
 

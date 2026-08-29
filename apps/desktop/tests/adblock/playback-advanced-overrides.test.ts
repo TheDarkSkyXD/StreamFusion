@@ -16,9 +16,9 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_ADBLOCK_CONFIG, type PlayerType } from "@/shared/adblock-types";
-import { DEFAULT_PLAYBACK_ADVANCED_PREFERENCES } from "@/shared/auth-types";
-import { resolvePlaybackAdvancedAdBlockOverrides } from "@/components/player/twitch/playback-advanced-config";
+import { DEFAULT_ADBLOCK_CONFIG, type PlayerType } from "@shared/adblock-types";
+import { DEFAULT_PLAYBACK_ADVANCED_PREFERENCES } from "@shared/auth-types";
+import { resolvePlaybackAdvancedAdBlockOverrides } from "@/features/playback/components/player/twitch/playback-advanced-config";
 
 // Mock fetch so importing the service doesn't pull in real network calls.
 global.fetch = vi.fn();
@@ -27,13 +27,13 @@ import {
   getAdBlockConfig,
   initAdBlockService,
   updateAdBlockConfig,
-} from "@/components/player/twitch/twitch-adblock-service";
+} from "@/features/playback/components/player/twitch/twitch-adblock-service";
 import {
   ADBLOCK_DEVICE_ID_STORAGE_KEY,
   generateAdBlockDeviceId,
   getAdBlockDeviceId,
   randomizeAdBlockDeviceId,
-} from "@/components/player/twitch/twitch-adblock-device-id";
+} from "@/features/playback/components/player/twitch/twitch-adblock-device-id";
 
 describe("resolvePlaybackAdvancedAdBlockOverrides (U13)", () => {
   it("returns no override for the behavior-neutral defaults", () => {

@@ -9,10 +9,10 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
-vi.unmock("@/backend/logging/logger");
-vi.unmock("@/backend/logging/native-stderr-intercept");
+vi.unmock("@backend/logging/logger");
+vi.unmock("@backend/logging/native-stderr-intercept");
 
 vi.mock("electron", () => ({
   app: {
@@ -38,7 +38,7 @@ vi.mock("electron", () => ({
   dialog: { showErrorBox: () => undefined },
 }));
 
-vi.mock("@/backend/ipc/sender-origin", () => ({
+vi.mock("@backend/ipc/sender-origin", () => ({
   isAllowedSender: vi.fn(() => true),
 }));
 
@@ -65,11 +65,11 @@ describe("renderer LOG_WRITE terminal integration", () => {
 
     vi.resetModules();
     const { ipcMain } = await import("electron");
-    const { initLogger, shutdownLogger } = await import("@/backend/logging/logger");
-    const { installConsoleIntercept } = await import("@/backend/logging/console-intercept");
+    const { initLogger, shutdownLogger } = await import("@backend/logging/logger");
+    const { installConsoleIntercept } = await import("@backend/logging/console-intercept");
     const { installNativeStderrIntercept } =
-      await import("@/backend/logging/native-stderr-intercept");
-    const { registerLogHandlers } = await import("@/backend/ipc/handlers/log-handlers");
+      await import("@backend/logging/native-stderr-intercept");
+    const { registerLogHandlers } = await import("@backend/ipc/handlers/log-handlers");
 
     initLogger({
       logsDir: tmpDir,

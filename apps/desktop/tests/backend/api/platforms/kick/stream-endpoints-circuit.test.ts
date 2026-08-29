@@ -40,7 +40,7 @@ const networkHealthSpies = vi.hoisted(() => ({
   acquireKickRequestSlot: vi.fn(async () => () => {}),
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-network-health", () => ({
+vi.mock("@backend/api/platforms/kick/kick-network-health", () => ({
   acquireKickRequestSlot: networkHealthSpies.acquireKickRequestSlot,
 }));
 
@@ -52,7 +52,7 @@ const platformHealthSpies = vi.hoisted(() => ({
   getPlatformHealth: vi.fn((): string => "healthy"),
 }));
 
-vi.mock("@/backend/api/unified/platform-health", () => ({
+vi.mock("@backend/api/unified/platform-health", () => ({
   recordPlatformFailure: platformHealthSpies.recordPlatformFailure,
   recordPlatformSuccess: platformHealthSpies.recordPlatformSuccess,
   recordPlatformLocalNetError: platformHealthSpies.recordPlatformLocalNetError,
@@ -103,8 +103,8 @@ const LIVE_BODY_B = JSON.stringify({
 });
 
 describe("getPublicStreamBySlug — circuit-open (slice 03)", () => {
-  let getPublicStreamBySlug: typeof import("@/backend/api/platforms/kick/endpoints/stream-endpoints").getPublicStreamBySlug;
-  let __resetCircuitProbeForTests: typeof import("@/backend/api/platforms/kick/endpoints/stream-endpoints").__resetCircuitProbeForTests;
+  let getPublicStreamBySlug: typeof import("@backend/api/platforms/kick/endpoints/stream-endpoints").getPublicStreamBySlug;
+  let __resetCircuitProbeForTests: typeof import("@backend/api/platforms/kick/endpoints/stream-endpoints").__resetCircuitProbeForTests;
 
   beforeEach(async () => {
     vi.resetModules();
@@ -118,7 +118,7 @@ describe("getPublicStreamBySlug — circuit-open (slice 03)", () => {
     platformHealthSpies.isPlatformHealthy.mockReturnValue(true);
     platformHealthSpies.getPlatformHealth.mockReturnValue("healthy");
     ({ getPublicStreamBySlug, __resetCircuitProbeForTests } = await import(
-      "@/backend/api/platforms/kick/endpoints/stream-endpoints"
+      "@backend/api/platforms/kick/endpoints/stream-endpoints"
     ));
     __resetCircuitProbeForTests();
   });

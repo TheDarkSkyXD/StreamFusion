@@ -4,8 +4,8 @@ import {
   FOCUSED_SLOT_CONFIG,
   HIDDEN_SLOT_CONFIG,
   resolveSlotConfig,
-} from "@/shared/slot-presence-config";
-import type { SlotPresence, SlotQualityMode } from "@/shared/slot-types";
+} from "@shared/slot-presence-config";
+import type { SlotPresence, SlotQualityMode } from "@shared/slot-types";
 
 // Guards: slice 07 of renderer-OOM PRD (#51, issue #58). Pure config module
 // — tableau-tested across every (presence, userBackgroundQuality) pair. The

@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   searchCategories,
   searchChannels,
-} from "@/backend/api/platforms/twitch/endpoints/search-endpoints";
+} from "@backend/api/platforms/twitch/endpoints/search-endpoints";
 
-import type { TwitchRequestor } from "@/backend/api/platforms/twitch/twitch-requestor";
+import type { TwitchRequestor } from "@backend/api/platforms/twitch/twitch-requestor";
 
 function makeClient(response: unknown): TwitchRequestor {
   return {

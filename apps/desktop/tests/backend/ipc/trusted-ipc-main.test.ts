@@ -4,13 +4,13 @@ const electronMocks = vi.hoisted(() => ({ handle: vi.fn(), on: vi.fn() }));
 const loggerMocks = vi.hoisted(() => ({ warn: vi.fn(), error: vi.fn() }));
 
 vi.mock("electron", () => ({ ipcMain: electronMocks }));
-vi.mock("@/backend/logging/logger", () => ({ logger: loggerMocks }));
+vi.mock("@backend/logging/logger", () => ({ logger: loggerMocks }));
 
 type RegisteredHandler = (event: unknown, ...args: unknown[]) => Promise<unknown>;
 
 async function loadConfiguredGate() {
   vi.resetModules();
-  const mod = await import("@/backend/ipc/trusted-ipc-main");
+  const mod = await import("@backend/ipc/trusted-ipc-main");
   const frame = { url: "http://localhost:5173/index.html#/home" };
   const sender = { mainFrame: frame };
   mod.configureTrustedIpcMain(sender as Electron.WebContents, "http://localhost:5173/index.html");

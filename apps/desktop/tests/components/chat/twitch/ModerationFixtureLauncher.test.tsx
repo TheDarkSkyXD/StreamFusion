@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { ModerationFixtureLauncher } from "@/components/chat/twitch/ModerationFixtureLauncher";
+import { ModerationFixtureLauncher } from "@/features/chat/components/chat/twitch/ModerationFixtureLauncher";
 import { useChatStore } from "@/store/chat-store";
 
 // Guards: moderation fixtures never inject a synthetic user, message, badge, or profile opener.

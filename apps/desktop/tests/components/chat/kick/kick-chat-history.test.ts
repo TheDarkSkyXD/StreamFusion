@@ -4,11 +4,11 @@ import { installElectronAPIMock } from '../../../test-utils';
 
 // kickPinToNormalized is imported from kick-chat (heavy module). Stub it so the
 // seed test stays focused on U5's gate + cap logic.
-vi.mock('@/backend/services/chat/kick-chat', () => ({
+vi.mock('@backend/services/chat/kick-chat', () => ({
   kickPinToNormalized: (pin: unknown) => ({ normalized: true, pin }),
 }));
 
-vi.mock('@/backend/services/chat/kick-parser', () => ({
+vi.mock('@backend/services/chat/kick-parser', () => ({
   parseKickChatMessage: (event: { id: string; content: string }) => ({
     id: event.id,
     platform: 'kick',
@@ -28,14 +28,14 @@ vi.mock('@/backend/services/chat/kick-parser', () => ({
   }),
 }));
 
-import { seedKickChatHistory } from '@/components/chat/kick/kick-chat-history';
+import { seedKickChatHistory } from '@/features/chat/components/chat/kick/kick-chat-history';
 import {
   type ChatDisplayPreferences,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
-} from '@/shared/auth-types';
+} from '@shared/auth-types';
 import { useAuthStore } from '@/store/auth-store';
 import { buildChannelKey, useChatStore } from '@/store/chat-store';
-import type { ChatMessage } from '@/shared/chat-types';
+import type { ChatMessage } from '@shared/chat-types';
 
 function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
   useAuthStore.setState((s) => ({

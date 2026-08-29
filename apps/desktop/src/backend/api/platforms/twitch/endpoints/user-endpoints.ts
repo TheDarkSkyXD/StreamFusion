@@ -1,7 +1,7 @@
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import { z } from "zod";
 import type { TwitchUser } from "../../../../../shared/auth-types";
-import type { UnifiedChannel } from "../../../unified/platform-types";
+import type { UnifiedChannel } from "../../../../../shared/platform-types";
 import type { TwitchRequestor } from "../twitch-requestor";
 import {
   helixResponseSchema,

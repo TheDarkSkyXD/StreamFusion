@@ -1,11 +1,11 @@
 import http from "node:http";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { debug: vi.fn(), error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
-import { oauthCallbackServer } from "@/backend/auth/oauth-callback-server";
+import { oauthCallbackServer } from "@backend/auth/oauth-callback-server";
 
 afterEach(() => {
   oauthCallbackServer.stop();

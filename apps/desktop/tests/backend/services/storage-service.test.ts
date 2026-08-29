@@ -55,7 +55,7 @@ vi.mock("electron-store", () => ({
   },
 }));
 
-vi.mock("@/backend/services/database-service", () => ({
+vi.mock("@backend/services/database-service", () => ({
   dbService: {
     get: vi.fn(),
     set: vi.fn(),
@@ -72,19 +72,19 @@ vi.mock("@/backend/services/database-service", () => ({
   },
 }));
 
-import { dbService } from "@/backend/services/database-service";
-import { StorageService, storageService } from "@/backend/services/storage-service";
+import { dbService } from "@backend/services/database-service";
+import { StorageService, storageService } from "@backend/services/storage-service";
 import { safeStorage } from "electron";
-import { createStreamRecordingSessionStore } from "@/backend/services/stream-recording-session-store";
+import { createStreamRecordingSessionStore } from "@backend/services/stream-recording-session-store";
 import {
   DEFAULT_BUFFER_PREFERENCES,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
   DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
-} from "@/shared/auth-types";
-import type { DownloadQueueSnapshot } from "@/shared/download-types";
-import type { StreamRecordingJournalV2 } from "@/shared/stream-recording-types";
-import type { LocalFollow } from "@/shared/auth-types";
+} from "@shared/auth-types";
+import type { DownloadQueueSnapshot } from "@shared/download-types";
+import type { StreamRecordingJournalV2 } from "@shared/stream-recording-types";
+import type { LocalFollow } from "@shared/auth-types";
 
 const kickPlatformRows: LocalFollow[] = [
   {

@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { TwitchPinMessageDialog } from "@/components/chat/twitch/TwitchPinMessageDialog";
-import type { ChatMessage } from "@/shared/chat-types";
+import { TwitchPinMessageDialog } from "@/features/chat/components/chat/twitch/TwitchPinMessageDialog";
+import type { ChatMessage } from "@shared/chat-types";
 import { installElectronAPIMock } from "../../test-utils";
 
 // Guards: the pin-message dialog must offer the same preset/custom duration choices as the pinned-message options menu, and it must report durations in seconds to the Twitch pin mutation.

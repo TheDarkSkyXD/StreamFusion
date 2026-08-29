@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Emote, EmoteProvider } from "@/backend/services/emotes/emote-types";
-import { ContextualEmoteRow } from "@/components/chat/ContextualEmoteRow";
+import type { Emote, EmoteProvider } from "@backend/services/emotes/emote-types";
+import { ContextualEmoteRow } from "@/features/chat/components/chat/ContextualEmoteRow";
 
 const storeState = vi.hoisted(() => ({
   isLoading: false,
@@ -17,7 +17,7 @@ vi.mock("@/store/emote-store", () => ({
   useEmoteStore: (selector: (state: typeof storeState) => unknown) => selector(storeState),
 }));
 
-vi.mock("@/components/chat/EmoteImage", () => ({
+vi.mock("@/features/chat/components/chat/EmoteImage", () => ({
   EmoteImage: ({ emote }: { emote: Emote }) => <img src={emote.urls.url1x} alt={emote.name} />,
 }));
 

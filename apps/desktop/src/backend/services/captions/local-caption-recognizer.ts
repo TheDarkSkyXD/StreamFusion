@@ -1,4 +1,4 @@
-import type { LocalCaptionPcmChunk, LocalCaptionResult } from "@/shared/local-caption-types";
+import type { LocalCaptionPcmChunk, LocalCaptionResult } from "@shared/local-caption-types";
 
 interface SherpaOnlineStream {
   acceptWaveform(input: { samples: Float32Array; sampleRate: number }): void;

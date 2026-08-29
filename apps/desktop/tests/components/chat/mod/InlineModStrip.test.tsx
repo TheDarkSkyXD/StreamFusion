@@ -5,7 +5,7 @@ import {
   InlineModStrip,
   type InlineModAction,
   type InlineModStripRoomState,
-} from "@/components/chat/mod/InlineModStrip";
+} from "@/features/chat/components/chat/mod/InlineModStrip";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const EMPTY_STATE: InlineModStripRoomState = {

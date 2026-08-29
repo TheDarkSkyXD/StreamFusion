@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ModActionConfirmDialog,
   type ModActionType,
-} from "@/components/chat/mod/ModActionConfirmDialog";
+} from "@/features/chat/components/chat/mod/ModActionConfirmDialog";
 
 const ACTION_COPY: Array<{
   actionType: ModActionType;

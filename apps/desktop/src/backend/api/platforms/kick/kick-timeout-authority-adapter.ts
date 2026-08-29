@@ -1,9 +1,9 @@
-import { tokenExchangeService } from "@/backend/auth/token-exchange";
+import { tokenExchangeService } from "@backend/auth/token-exchange";
 import type {
   TimeoutAuthorityAdapter,
   TimeoutBinding,
-} from "@/backend/services/moderation/timeout-moderation-service";
-import { storageService } from "@/backend/services/storage-service";
+} from "@backend/services/moderation/timeout-moderation-service";
+import { storageService } from "@backend/services/storage-service";
 
 import { getChannelUserState, type KickChannelUserState } from "./endpoints/user-endpoints";
 import {

@@ -1,9 +1,9 @@
 import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ChatMessageList } from "@/components/chat/ChatMessageList";
+import { ChatMessageList } from "@/features/chat/components/chat/ChatMessageList";
 import { getRenderCounts, resetRenderCounts } from "@/components/dev/use-render-count";
-import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
-import type { ChatMessage } from "@/shared/chat-types";
+import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@shared/auth-types";
+import type { ChatMessage } from "@shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 import { buildChannelKey, DEFAULT_BATCHING_INTERVAL_MS, useChatStore } from "@/store/chat-store";
 
@@ -42,7 +42,7 @@ const virtuosoScrollerHeight = vi.hoisted(() => ({ current: 1200 }));
 const virtuosoScrollerScrollTopWrites = vi.hoisted<number[]>(() => []);
 const virtuosoScrollers = vi.hoisted<HTMLElement[]>(() => []);
 
-vi.mock("@/components/chat/ChatMessage", () => ({
+vi.mock("@/features/chat/components/chat/ChatMessage", () => ({
   ChatMessage: ({
     message,
     onReply,

@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { VOD_LIVE_LINK_KEYS, useVodLiveLink } from "@/hooks/queries/useVodLiveLink";
+import { VOD_LIVE_LINK_KEYS, useVodLiveLink } from "@/features/playback/data/useVodLiveLink";
 import { fixtures, installElectronAPIMock } from "../../test-utils";
 
 let api: ReturnType<typeof installElectronAPIMock>;

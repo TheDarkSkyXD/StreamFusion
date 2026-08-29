@@ -1,18 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { TwitchEventSubClient } from "@/backend/api/platforms/twitch/twitch-eventsub-client";
-import type { TwitchEventSubConnectionState } from "@/backend/api/platforms/twitch/twitch-eventsub-types";
+import type { TwitchEventSubClient } from "@backend/api/platforms/twitch/twitch-eventsub-client";
+import type { TwitchEventSubConnectionState } from "@backend/api/platforms/twitch/twitch-eventsub-types";
 
-vi.mock("@/backend/api/unified/platform-health", () => ({
+vi.mock("@backend/api/unified/platform-health", () => ({
   recordPlatformFailure: vi.fn(),
   recordPlatformSuccess: vi.fn(),
 }));
 
-import { recordPlatformFailure, recordPlatformSuccess } from "@/backend/api/unified/platform-health";
+import { recordPlatformFailure, recordPlatformSuccess } from "@backend/api/unified/platform-health";
 import {
   attachEventSubHealthBridge,
   EVENTSUB_DISCONNECT_DEBOUNCE_MS,
-} from "@/backend/api/platforms/twitch/eventsub-health-bridge";
+} from "@backend/api/platforms/twitch/eventsub-health-bridge";
 
 type StateListener = (state: TwitchEventSubConnectionState) => void;
 

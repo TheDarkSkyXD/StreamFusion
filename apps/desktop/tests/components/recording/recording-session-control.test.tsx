@@ -1,8 +1,8 @@
 import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RecordingPauseResumeControl } from "@/components/recording/recording-session-control";
-import type { StreamRecordingLifecycleState } from "@/shared/stream-recording-types";
+import { RecordingPauseResumeControl } from "@/features/media-library/components/recording/recording-session-control";
+import type { StreamRecordingLifecycleState } from "@shared/stream-recording-types";
 import { renderWithProviders, userEvent } from "../../test-utils";
 
 const mocks = vi.hoisted(() => ({
@@ -24,10 +24,10 @@ const mocks = vi.hoisted(() => ({
   resume: vi.fn(async () => ({ success: true })),
 }));
 
-vi.mock("@/hooks/use-stream-recording-state", () => ({
+vi.mock("@/features/media-library/data/use-stream-recording-state", () => ({
   useStreamRecordingState: () => mocks.state,
 }));
-vi.mock("@/hooks/use-stream-recording-actions", () => ({
+vi.mock("@/features/media-library/data/use-stream-recording-actions", () => ({
   useStreamRecordingActions: () => ({ pause: mocks.pause, resume: mocks.resume }),
 }));
 

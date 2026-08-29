@@ -26,7 +26,7 @@ import os from "node:os";
 
 import { app } from "electron";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 
 const DEFAULT_INTERVAL_MS = 30_000;
 const BYTES_PER_MB = 1024 * 1024;

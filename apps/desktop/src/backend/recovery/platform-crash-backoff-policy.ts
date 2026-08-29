@@ -1,4 +1,4 @@
-import type { Platform } from "@/shared/auth-types";
+import type { Platform } from "@shared/auth-types";
 
 export type PlatformCrashBackoffReason = "gpu-process-gone" | "network-service-gone";
 

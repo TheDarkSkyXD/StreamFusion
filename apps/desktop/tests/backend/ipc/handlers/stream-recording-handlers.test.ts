@@ -1,23 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 vi.mock("electron", () => ({ ipcMain: { handle: vi.fn() } }));
-vi.mock("@/backend/services/stream-recording-default-service", () => ({
+vi.mock("@backend/services/stream-recording-default-service", () => ({
   getDefaultStreamRecordingService: vi.fn(),
 }));
-vi.mock("@/backend/services/stream-recording-session-store", () => ({
+vi.mock("@backend/services/stream-recording-session-store", () => ({
   getStreamRecordingSessionStore: vi.fn(),
 }));
 
 import type { BrowserWindow } from "electron";
 import { ipcMain } from "electron";
-import { registerStreamRecordingHandlers } from "@/backend/ipc/handlers/stream-recording-handlers";
-import { getDefaultStreamRecordingService } from "@/backend/services/stream-recording-default-service";
-import type { StreamRecordingService } from "@/backend/services/stream-recording-service";
-import type { StreamRecordingSessionStore } from "@/backend/services/stream-recording-session-store";
-import { getStreamRecordingSessionStore } from "@/backend/services/stream-recording-session-store";
-import type { StreamRecordingSnapshot } from "@/shared/stream-recording-types";
+import { registerStreamRecordingHandlers } from "@backend/ipc/handlers/stream-recording-handlers";
+import { getDefaultStreamRecordingService } from "@backend/services/stream-recording-default-service";
+import type { StreamRecordingService } from "@backend/services/stream-recording-service";
+import type { StreamRecordingSessionStore } from "@backend/services/stream-recording-session-store";
+import { getStreamRecordingSessionStore } from "@backend/services/stream-recording-session-store";
+import type { StreamRecordingSnapshot } from "@shared/stream-recording-types";
 
 type Handler = (event: unknown, payload?: unknown) => unknown;
 

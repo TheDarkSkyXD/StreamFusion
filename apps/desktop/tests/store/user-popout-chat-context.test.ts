@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ChatMessage, ChatPlatform } from "@/shared/chat-types";
+import type { ChatMessage, ChatPlatform } from "@shared/chat-types";
 import { buildChannelKey } from "@/store/chat-store";
 import {
   reconcileSelectedMessage,

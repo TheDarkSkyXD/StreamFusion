@@ -6,7 +6,7 @@ vi.mock("electron", () => ({
 
 import { ipcMain } from "electron";
 
-import { wrapHandler } from "@/backend/ipc/handlers/wrap-handler";
+import { wrapHandler } from "@backend/ipc/handlers/wrap-handler";
 
 type Handler = (event: unknown, payload: unknown) => Promise<unknown>;
 

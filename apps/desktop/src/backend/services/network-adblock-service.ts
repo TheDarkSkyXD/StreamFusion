@@ -5,7 +5,7 @@
  * Inspired by Ghostery's onBeforeRequest pattern.
  */
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 
 interface BlockStats {
   totalBlocked: number;

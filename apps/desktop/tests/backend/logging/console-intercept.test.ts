@@ -18,7 +18,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -27,7 +27,7 @@ vi.mock("@/backend/logging/logger", () => ({
   },
 }));
 
-type InterceptModule = typeof import("@/backend/logging/console-intercept");
+type InterceptModule = typeof import("@backend/logging/console-intercept");
 type LoggerMock = {
   debug: Mock;
   info: Mock;
@@ -40,8 +40,8 @@ async function freshIntercept(): Promise<{
   logger: LoggerMock;
 }> {
   vi.resetModules();
-  const mod = await import("@/backend/logging/console-intercept");
-  const { logger } = (await import("@/backend/logging/logger")) as unknown as {
+  const mod = await import("@backend/logging/console-intercept");
+  const { logger } = (await import("@backend/logging/logger")) as unknown as {
     logger: LoggerMock;
   };
   logger.debug.mockReset();

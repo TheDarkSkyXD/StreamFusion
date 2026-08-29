@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { fixtures, renderWithProviders, screen } from "../../test-utils";
 
-vi.mock("@/components/discovery/category-card", () => ({
+vi.mock("@/features/discovery/components/discovery/category-card", () => ({
   CategoryCard: ({
     category,
     imageLoading,
@@ -23,11 +23,11 @@ vi.mock("@/components/discovery/category-card", () => ({
   ),
 }));
 
-vi.mock("@/components/discovery/category-card-skeleton", () => ({
+vi.mock("@/features/discovery/components/discovery/category-card-skeleton", () => ({
   CategoryCardSkeleton: () => <div data-testid="category-skeleton" />,
 }));
 
-import { VirtualizedCategoryGrid } from "@/components/discovery/virtualized-category-grid";
+import { VirtualizedCategoryGrid } from "@/features/discovery/components/discovery/virtualized-category-grid";
 
 function categoryDataset(prefix: string, count: number) {
   return Array.from({ length: count }, (_, index) =>

@@ -1,14 +1,14 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PlayerControls } from '@/components/player/player-controls';
-import { SettingsMenu } from '@/components/player/settings-menu';
-import type { QualityLevel } from '@/components/player/types';
-import { VolumeControl } from '@/components/player/volume-control';
+import { PlayerControls } from '@/features/playback/components/player/player-controls';
+import { SettingsMenu } from '@/features/playback/components/player/settings-menu';
+import type { QualityLevel } from '@/features/playback/components/player/types';
+import { VolumeControl } from '@/features/playback/components/player/volume-control';
 import {
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   type PlayerControlsPreferences,
-} from '@/shared/auth-types';
+} from '@shared/auth-types';
 import { useAuthStore } from '@/store/auth-store';
 import { TooltipProvider } from '@/components/ui/tooltip';
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { parseKickChatReplayPage } from "@/backend/api/platforms/kick/kick-chat-replay-source";
-import { createChatReplayService } from "@/backend/services/chat-replay-service";
+import { parseKickChatReplayPage } from "@backend/api/platforms/kick/kick-chat-replay-source";
+import { createChatReplayService } from "@backend/services/chat-replay-service";
 import backwardHistory from "../api/platforms/kick/fixtures/chat-replay-backward-pages.json";
 
 // Guards: Chat Replay stays behind a replaceable Platform adapter instead of coupling UI to Twitch GQL

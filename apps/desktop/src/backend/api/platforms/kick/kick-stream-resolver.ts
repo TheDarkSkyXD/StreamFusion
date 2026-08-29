@@ -1,6 +1,6 @@
-import { logger } from "@/backend/logging/logger";
-import { sleep } from "@/lib/sleep";
-import type { StreamPlayback } from "../../../../components/player/types";
+import { logger } from "@backend/logging/logger";
+import { sleep } from "@shared/utils/sleep";
+import type { StreamPlayback } from "../../../../frontend/features/playback/components/player/types";
 import {
   getCachedKickLivePlayback,
   rememberKickLivePlaybackFromChannelPayload,

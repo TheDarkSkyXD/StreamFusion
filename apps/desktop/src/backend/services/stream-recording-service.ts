@@ -1,4 +1,4 @@
-import { sleep as defaultSleep } from "@/lib/sleep";
+import { sleep as defaultSleep } from "@shared/utils/sleep";
 import type {
   ActiveStreamRecording,
   StreamRecordingArtifactIdentity,
@@ -11,7 +11,7 @@ import type {
   StreamRecordingSession,
   StreamRecordingSnapshot,
   StreamRecordingStartResult,
-} from "@/shared/stream-recording-types";
+} from "@shared/stream-recording-types";
 import {
   createStreamRecordingArtifactProbe,
   type StreamRecordingArtifactProbe,

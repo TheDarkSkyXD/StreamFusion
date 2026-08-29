@@ -16,26 +16,26 @@ const loggerMock = vi.hoisted(() => ({
   warn: vi.fn(),
 }));
 
-vi.mock("@/backend/logging/logger", () => ({ logger: loggerMock }));
+vi.mock("@backend/logging/logger", () => ({ logger: loggerMock }));
 vi.mock("electron", () => ({ app: { isPackaged: true } }));
-vi.mock("@/backend/ipc/handlers/app-handlers", () => ({
+vi.mock("@backend/ipc/handlers/app-handlers", () => ({
   registerAppHandlers: registrars.app,
 }));
-vi.mock("@/backend/ipc/handlers/log-handlers", () => ({
+vi.mock("@backend/ipc/handlers/log-handlers", () => ({
   registerLogHandlers: registrars.logs,
 }));
-vi.mock("@/backend/ipc/handlers/storage-handlers", () => ({
+vi.mock("@backend/ipc/handlers/storage-handlers", () => ({
   registerStorageHandlers: registrars.storage,
 }));
-vi.mock("@/backend/ipc/handlers/system-handlers", () => ({
+vi.mock("@backend/ipc/handlers/system-handlers", () => ({
   registerSystemHandlers: registrars.system,
 }));
-vi.mock("@/backend/ipc/lazy-feature-loader", () => ({
+vi.mock("@backend/ipc/lazy-feature-loader", () => ({
   registerLazyIpcFeatureLoader: registrars.lazyFeatures,
 }));
 
-import { registerIpcHandlers } from "@/backend/ipc-handlers";
-import { TrustedIpcRegistry } from "@/backend/ipc/trusted-ipc-registry";
+import { registerIpcHandlers } from "@backend/ipc-handlers";
+import { TrustedIpcRegistry } from "@backend/ipc/trusted-ipc-registry";
 
 // Guards: startup registers only the feature-loader transport, leaving every handler implementation unloaded.
 // Guards: lazy feature handlers receive the trusted registry that validates renderer requests.

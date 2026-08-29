@@ -3,7 +3,7 @@ import {
   fetchTwitchChatReplayPage,
   parseTwitchChatReplayPage,
   TwitchChatReplaySourceError,
-} from "@/backend/api/platforms/twitch/twitch-chat-replay-source";
+} from "@backend/api/platforms/twitch/twitch-chat-replay-source";
 import emptyPage from "./fixtures/chat-replay-empty.json";
 import observedPage from "./fixtures/chat-replay-page.json";
 import transientError from "./fixtures/chat-replay-transient-error.json";

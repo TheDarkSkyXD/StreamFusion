@@ -19,17 +19,17 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/api/platforms/kick/kick-network-health", () => ({
+vi.mock("@backend/api/platforms/kick/kick-network-health", () => ({
   acquireKickRequestSlot: vi.fn(async () => () => {}),
 }));
 
 // Simulate the bug condition: platform is marked unhealthy.
-vi.mock("@/backend/api/unified/platform-health", () => ({
+vi.mock("@backend/api/unified/platform-health", () => ({
   isPlatformHealthy: vi.fn(() => false),
   recordPlatformLocalNetError: vi.fn(),
 }));
 
-vi.mock("@/backend/auth/kick-auth", () => ({
+vi.mock("@backend/auth/kick-auth", () => ({
   kickAuthService: { getAccessToken: () => null },
 }));
 
@@ -37,7 +37,7 @@ describe("kickClient.fetchImageBytes — network-down gate", () => {
   // Guards: fetchImageBytes must reach its network boundary even when isPlatformHealthy() is false; one-shot image fetches that short-circuit leave the caller latched on the error fallback until remount (regression: this PR).
 
   // Guards: a transient first-attempt timeout must retry the same real Kick image URL before the protocol reports the thumbnail unavailable.
-  let kickClient: typeof import("@/backend/api/platforms/kick/kick-client").kickClient;
+  let kickClient: typeof import("@backend/api/platforms/kick/kick-client").kickClient;
   type BinaryRequest = (url: string, headers: Record<string, string>, timeoutMs?: number) => Promise<{ buffer: Buffer; statusCode: number; contentType: string }>;
 
   function installBinaryRequestMock() {
@@ -50,7 +50,7 @@ describe("kickClient.fetchImageBytes — network-down gate", () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    ({ kickClient } = await import("@/backend/api/platforms/kick/kick-client"));
+    ({ kickClient } = await import("@backend/api/platforms/kick/kick-client"));
   });
 
   afterEach(() => {
@@ -62,7 +62,7 @@ describe("kickClient.fetchImageBytes — network-down gate", () => {
     // Pre-condition: the mocked health module reports platform as unhealthy.
     // If the pre-fetch gate were still in place, fetchImageBytes would return
     // null here without invoking the binary-fetch boundary.
-    const health = await import("@/backend/api/unified/platform-health");
+    const health = await import("@backend/api/unified/platform-health");
     expect(health.isPlatformHealthy("kick")).toBe(false);
 
     // Spy on the private network boundary. The cast to `any` is the test

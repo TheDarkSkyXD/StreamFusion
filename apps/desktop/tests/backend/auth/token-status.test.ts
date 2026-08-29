@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS, type TokenStatusResult } from "@/shared/ipc-channels";
+import { IPC_CHANNELS, type TokenStatusResult } from "@shared/ipc-channels";
 
 // Capture ipcMain.handle registrations so we can invoke the token-status handler
 // directly with a synthetic event (controlling senderFrame.url), exactly like
@@ -11,7 +11,7 @@ vi.mock("electron", () => ({
 
 // Mock the auth barrel — only `tokenExchangeService.getTokenStatus` is used.
 const getTokenStatus = vi.fn();
-vi.mock("@/backend/auth", () => ({
+vi.mock("@backend/auth", () => ({
   tokenExchangeService: {
     getTokenStatus: (...a: unknown[]) => getTokenStatus(...a),
   },
@@ -19,7 +19,7 @@ vi.mock("@/backend/auth", () => ({
 
 const hasToken = vi.fn();
 const getToken = vi.fn();
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: {
     hasToken: (...a: unknown[]) => hasToken(...a),
     getToken: (...a: unknown[]) => getToken(...a),
@@ -28,7 +28,7 @@ vi.mock("@/backend/services/storage-service", () => ({
 
 import { ipcMain } from "electron";
 
-import { registerTokenStatusHandlers } from "@/backend/ipc/handlers/token-status-handlers";
+import { registerTokenStatusHandlers } from "@backend/ipc/handlers/token-status-handlers";
 
 type Handler = (event: unknown, args?: unknown) => unknown;
 

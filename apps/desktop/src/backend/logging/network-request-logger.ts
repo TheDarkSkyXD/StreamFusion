@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import type { Session } from "electron";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 
 type ResourceType =
   | "mainFrame"

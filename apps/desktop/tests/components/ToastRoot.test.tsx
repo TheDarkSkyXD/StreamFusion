@@ -2,7 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import { toast } from "sonner";
 import { describe, expect, it } from "vitest";
 
-import { ToastRoot } from "@/components/ToastRoot";
+import { ToastRoot } from "@/features/shell/components/ToastRoot";
 
 // Guards: status toasts stay readable on StreamFusion's dark neutral surface instead of red-on-red or green-on-green rich fills.
 describe("ToastRoot", () => {

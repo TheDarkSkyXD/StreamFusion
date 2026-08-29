@@ -18,7 +18,7 @@ vi.mock("@/components/ui/platform-avatar", () => ({
   PlatformAvatar: ({ alt }: { alt: string }) => <div data-testid="avatar">{alt}</div>,
 }));
 
-import { StreamCard } from "@/components/stream/stream-card";
+import { StreamCard } from "@/features/discovery/components/stream/stream-card";
 
 // Guards: title/viewer-count must surface — the card is the primary way users see what's live; missing data here makes the grid look like a placeholder maze
 // Guards: live badge gating — only `isLive` streams render the "Live" badge; degrading this would let offline thumbnails look live

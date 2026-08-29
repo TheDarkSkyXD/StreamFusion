@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { emoteIpcContracts } from "@/ipc-contracts/emote-contracts";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { emoteIpcContracts } from "@shared/ipc-contracts/emote-contracts";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 describe("emote IPC contracts", () => {
   const roomContract = emoteIpcContracts[IPC_CHANNELS.EMOTES_FFZ_GET_ROOM];

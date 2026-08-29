@@ -6,13 +6,13 @@
  */
 
 import { BrowserWindow, session, shell } from "electron";
-import { logger } from "@/backend/logging/logger";
-import { persistDefaultKickWebSessionCookies } from "@/backend/api/platforms/kick/kick-web-session";
+import { logger } from "@backend/logging/logger";
+import { persistDefaultKickWebSessionCookies } from "@backend/api/platforms/kick/kick-web-session";
 import {
   installKickWebBearerCapture,
   persistKickWebBearerCandidate,
-} from "@/backend/api/platforms/kick/kick-web-credential";
-import { sleep } from "../../lib/sleep";
+} from "@backend/api/platforms/kick/kick-web-credential";
+import { sleep } from "@shared/utils/sleep";
 import type { Platform } from "../../shared/auth-types";
 import { waitForWebContentsCondition } from "../services/web-contents-ready";
 import {

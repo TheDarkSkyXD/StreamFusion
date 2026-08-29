@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { chatroomUpdatedEventToPatch } from "@/backend/services/chat/kick-roomstate";
+import { chatroomUpdatedEventToPatch } from "@backend/services/chat/kick-roomstate";
 
 // Guards: Kick chatroom-updated event → state patch — each sub-mode's `{enabled, min_duration | message_interval}` shape, including the "stale min_duration when disabled" edge case (must produce null, not the stale number). Parallel of twitch-roomstate but for Kick's WebSocket event format.
 

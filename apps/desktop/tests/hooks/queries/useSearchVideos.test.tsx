@@ -6,14 +6,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getCachePerformanceSamples,
   resetCachePerformanceSamples,
-} from "@/hooks/queries/cache-performance";
+} from "@/features/discovery/data/queries/cache-performance";
 import {
   getPersistedSearchPage,
   resetPersistedSearchLruForTests,
   savePersistedSearchPage,
-} from "@/hooks/queries/persisted-search-lru";
-import { useSearchVideos } from "@/hooks/queries/useSearch";
-import type { Platform } from "@/shared/auth-types";
+} from "@/features/discovery/data/queries/persisted-search-lru";
+import { useSearchVideos } from "@/features/discovery/data/queries/useSearch";
+import type { Platform } from "@shared/auth-types";
 import { installElectronAPIMock } from "../../test-utils";
 
 type BaseApi = ReturnType<typeof installElectronAPIMock>;

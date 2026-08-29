@@ -56,15 +56,15 @@ vi.mock("@tanstack/react-router", () => ({
   useLocation: () => ({ pathname: routerState.pathname }),
 }));
 
-vi.mock("@/hooks/queries/useChannels", () => ({
+vi.mock("@/features/discovery/data/queries/useChannels", () => ({
   useFollowedChannels: vi.fn(),
 }));
 
-vi.mock("@/hooks/queries/useStreams", () => ({
+vi.mock("@/features/discovery/data/queries/useStreams", () => ({
   useFollowedStreams: vi.fn(),
 }));
 
-vi.mock("@/hooks/useStreamPlayback", () => ({
+vi.mock("@/features/playback/data/useStreamPlayback", () => ({
   prefetchStreamPlayback: vi.fn(),
 }));
 
@@ -109,10 +109,10 @@ vi.mock("@/components/ui/platform-avatar", () => ({
   PlatformAvatar: ({ alt }: { alt: string }) => <div data-testid="avatar">{alt}</div>,
 }));
 
-import { SidebarFollows } from "@/components/layout/SidebarFollows";
-import { useFollowedChannels } from "@/hooks/queries/useChannels";
-import { useFollowedStreams } from "@/hooks/queries/useStreams";
-import { prefetchStreamPlayback } from "@/hooks/useStreamPlayback";
+import { SidebarFollows } from "@/features/shell/components/layout/SidebarFollows";
+import { useFollowedChannels } from "@/features/discovery/data/queries/useChannels";
+import { useFollowedStreams } from "@/features/discovery/data/queries/useStreams";
+import { prefetchStreamPlayback } from "@/features/playback/data/useStreamPlayback";
 
 const useFollowedChannelsMock = vi.mocked(useFollowedChannels);
 const useFollowedStreamsMock = vi.mocked(useFollowedStreams);

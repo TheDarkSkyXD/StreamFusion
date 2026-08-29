@@ -3,14 +3,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createStreamRecordingService } from "@/backend/services/stream-recording-service";
-import { createStreamRecordingSessionStore } from "@/backend/services/stream-recording-session-store";
+import { createStreamRecordingService } from "@backend/services/stream-recording-service";
+import { createStreamRecordingSessionStore } from "@backend/services/stream-recording-session-store";
 import type {
   LegacyStreamRecordingJournalV1,
   StreamRecordingJournalV2,
   StreamRecordingQuality,
   StreamRecordingSession,
-} from "@/shared/stream-recording-types";
+} from "@shared/stream-recording-types";
 
 const source: StreamRecordingQuality = {
   quality: "Source",

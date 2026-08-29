@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 let isInitialized = true;
 const hydrate = vi.fn();
 
-vi.mock('@/hooks/useAuth', () => ({
+vi.mock('@/features/auth/data/useAuth', () => ({
   useAuthInitialize: () => isInitialized,
 }));
 
@@ -12,7 +12,7 @@ vi.mock('@/store/follow-store', () => ({
   useFollowStore: (selector: (s: unknown) => unknown) => selector({ hydrate }),
 }));
 
-import { AuthProvider } from '@/components/auth/AuthProvider';
+import { AuthProvider } from '@/features/auth/components/auth/AuthProvider';
 
 // Guards: startup state — useAuthInitialize hasn't resolved → still render children so cached follows can paint before token refresh/network work completes
 // Guards: error state — token validation fail surfaces as initialized=true with no user; the children render, the auth-store flips to logged-out, hydrate still runs (no leftover follows from a prior session). The component's contract is "never block app boot on auth failure"

@@ -17,8 +17,8 @@ import {
 } from "@shared/adblock-types";
 import Store from "electron-store";
 
-import { logger } from "@/backend/logging/logger";
-import { createManagedInterval } from "@/lib/managed-interval";
+import { logger } from "@backend/logging/logger";
+import { createManagedInterval } from "@shared/utils/managed-interval";
 
 // ========== Constants ==========
 

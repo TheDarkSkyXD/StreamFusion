@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, it, expect, vi } from "vitest";
-import { VideoCard } from "@/components/stream/related-content/VideoCard";
-import type { VideoOrClip } from "@/components/stream/related-content/types";
+import { VideoCard } from "@/features/playback/components/related-content/VideoCard";
+import type { VideoOrClip } from "@/features/playback/components/related-content/types";
 import { usePlaybackPositionStore } from "@/store/playback-position-store";
 
 // Guards: navigating to a LIVE VideoCard must scroll the main content area to top so the player isn't pushed off-screen by leftover scroll position from a prior page

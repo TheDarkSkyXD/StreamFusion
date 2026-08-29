@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   decideSlotRetryOutcome,
   SLOT_RETRY_WINDOW_MS,
-} from "@/backend/api/unified/slot-retry-policy";
+} from "@backend/api/unified/slot-retry-policy";
 
 // Guards: slice 06 of renderer-OOM PRD (#51, issue #57). The slot crash
 // recovery policy is a pure function exhaustively testable against the PRD's

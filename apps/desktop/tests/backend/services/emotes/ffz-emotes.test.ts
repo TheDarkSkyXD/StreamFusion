@@ -18,7 +18,7 @@ vi.stubGlobal("window", {
   },
 } as unknown as Window);
 
-import { FFZEmoteProvider, ffzEmoteProvider } from "@/backend/services/emotes/ffz-emotes";
+import { FFZEmoteProvider, ffzEmoteProvider } from "@backend/services/emotes/ffz-emotes";
 
 function makeFFZEmote(overrides: Record<string, unknown> = {}) {
   return {

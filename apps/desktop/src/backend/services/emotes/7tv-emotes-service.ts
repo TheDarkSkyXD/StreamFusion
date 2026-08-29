@@ -6,12 +6,12 @@
 
 import { net } from "electron";
 
-import type { Platform } from "@/shared/auth-types";
-import { runBoundedJsonRead } from "@/backend/reliability/bounded-json-read";
+import type { Platform } from "@shared/auth-types";
+import { runBoundedJsonRead } from "@backend/reliability/bounded-json-read";
 import {
   sevenTvGlobalSetSchema,
   sevenTvUserSchema,
-} from "@/ipc-contracts/third-party-emote-schemas";
+} from "@shared/ipc-contracts/third-party-emote-schemas";
 
 const SEVENTV_V3_BASE = "https://7tv.io/v3";
 const SEVENTV_CHANNEL_MAX_BODY_BYTES = 4 * 1024 * 1024;

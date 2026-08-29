@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 const electronMocks = vi.hoisted(() => ({
   handle: vi.fn(),
@@ -13,7 +13,7 @@ vi.mock("electron", () => ({
   net: { fetch: electronMocks.fetch, isOnline: electronMocks.isOnline },
 }));
 
-import { registerConnectivityHandlers } from "@/backend/ipc/handlers/connectivity-handlers";
+import { registerConnectivityHandlers } from "@backend/ipc/handlers/connectivity-handlers";
 
 // Guards: physical connectivity comes from Electron's local network state, never an external HTTP endpoint.
 describe("CONNECTIVITY_CHECK", () => {

@@ -22,7 +22,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // Guards: a first unexpected renderer loss reloads once instead of leaving a blank window
 // Guards: repeated or integrity-related renderer failures enter static safe mode instead of a reload loop
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -70,7 +70,7 @@ afterEach(() => {
 
 describe("installRendererCrashRecovery — reload triggers", () => {
   it("calls webContents.reload() when render-process-gone reason is 'oom'", async () => {
-    const mod = await import("@/backend/recovery/renderer-crash-recovery");
+    const mod = await import("@backend/recovery/renderer-crash-recovery");
     const wc = makeFakeWebContents();
     uninstall = mod.installRendererCrashRecovery({
       webContents: wc as unknown as Electron.WebContents,
@@ -82,7 +82,7 @@ describe("installRendererCrashRecovery — reload triggers", () => {
   });
 
   it("calls webContents.reload() when render-process-gone reason is 'killed'", async () => {
-    const mod = await import("@/backend/recovery/renderer-crash-recovery");
+    const mod = await import("@backend/recovery/renderer-crash-recovery");
     const wc = makeFakeWebContents();
     uninstall = mod.installRendererCrashRecovery({
       webContents: wc as unknown as Electron.WebContents,
@@ -96,7 +96,7 @@ describe("installRendererCrashRecovery — reload triggers", () => {
 
 describe("installRendererCrashRecovery — non-recoverable reasons", () => {
   it("does NOT reload on 'clean-exit' (user-initiated, not a crash)", async () => {
-    const mod = await import("@/backend/recovery/renderer-crash-recovery");
+    const mod = await import("@backend/recovery/renderer-crash-recovery");
     const wc = makeFakeWebContents();
     uninstall = mod.installRendererCrashRecovery({
       webContents: wc as unknown as Electron.WebContents,
@@ -108,7 +108,7 @@ describe("installRendererCrashRecovery — non-recoverable reasons", () => {
   });
 
   it("reloads once on an unexpected renderer crash", async () => {
-    const mod = await import("@/backend/recovery/renderer-crash-recovery");
+    const mod = await import("@backend/recovery/renderer-crash-recovery");
     const wc = makeFakeWebContents();
     uninstall = mod.installRendererCrashRecovery({
       webContents: wc as unknown as Electron.WebContents,
@@ -120,7 +120,7 @@ describe("installRendererCrashRecovery — non-recoverable reasons", () => {
   });
 
   it("opens static safe mode instead of looping after a second crash", async () => {
-    const mod = await import("@/backend/recovery/renderer-crash-recovery");
+    const mod = await import("@backend/recovery/renderer-crash-recovery");
     const wc = makeFakeWebContents();
     uninstall = mod.installRendererCrashRecovery({
       webContents: wc as unknown as Electron.WebContents,
@@ -134,7 +134,7 @@ describe("installRendererCrashRecovery — non-recoverable reasons", () => {
   });
 
   it("opens safe mode immediately for an integrity failure", async () => {
-    const mod = await import("@/backend/recovery/renderer-crash-recovery");
+    const mod = await import("@backend/recovery/renderer-crash-recovery");
     const wc = makeFakeWebContents();
     uninstall = mod.installRendererCrashRecovery({
       webContents: wc as unknown as Electron.WebContents,
@@ -149,7 +149,7 @@ describe("installRendererCrashRecovery — non-recoverable reasons", () => {
 
 describe("installRendererCrashRecovery — destroyed webContents", () => {
   it("does NOT call reload() if the webContents has already been destroyed", async () => {
-    const mod = await import("@/backend/recovery/renderer-crash-recovery");
+    const mod = await import("@backend/recovery/renderer-crash-recovery");
     const wc = makeFakeWebContents({ destroyed: true });
     uninstall = mod.installRendererCrashRecovery({
       webContents: wc as unknown as Electron.WebContents,
@@ -163,7 +163,7 @@ describe("installRendererCrashRecovery — destroyed webContents", () => {
 
 describe("installRendererCrashRecovery — uninstall", () => {
   it("removes the listener so a post-uninstall render-process-gone does not trigger reload", async () => {
-    const mod = await import("@/backend/recovery/renderer-crash-recovery");
+    const mod = await import("@backend/recovery/renderer-crash-recovery");
     const wc = makeFakeWebContents();
     uninstall = mod.installRendererCrashRecovery({
       webContents: wc as unknown as Electron.WebContents,
@@ -183,8 +183,8 @@ describe("installRendererCrashRecovery — uninstall", () => {
 
 describe("installRendererCrashRecovery — logging", () => {
   it("logs a structured recovery line under tag 'CrashRecovery' when reload is triggered", async () => {
-    const mod = await import("@/backend/recovery/renderer-crash-recovery");
-    const loggerMod = await import("@/backend/logging/logger");
+    const mod = await import("@backend/recovery/renderer-crash-recovery");
+    const loggerMod = await import("@backend/logging/logger");
     const wc = makeFakeWebContents();
     uninstall = mod.installRendererCrashRecovery({
       webContents: wc as unknown as Electron.WebContents,

@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { Ref } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AdBlockStatus } from "@/shared/adblock-types";
+import type { AdBlockStatus } from "@shared/adblock-types";
 
 interface HlsHarnessProps {
   ref?: Ref<HTMLVideoElement>;
@@ -17,18 +17,18 @@ const harness = vi.hoisted(() => ({
 vi.mock("@/components/ui/loading-spinner", () => ({
   TwitchLoadingSpinner: () => <div data-testid="loading-spinner" />,
 }));
-vi.mock("@/hooks/use-ad-element-observer", () => ({ useAdElementObserver: vi.fn() }));
+vi.mock("@/features/playback/data/use-ad-element-observer", () => ({ useAdElementObserver: vi.fn() }));
 vi.mock("@/store/adblock-store", () => ({ useAdBlockStore: () => true }));
-vi.mock("@/components/player/hooks/use-default-quality", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-default-quality", () => ({
   useDefaultQuality: () => ({ defaultQuality: "auto" }),
 }));
-vi.mock("@/components/player/persistent-player-shell", () => ({
+vi.mock("@/features/playback/components/player/persistent-player-shell", () => ({
   useDockedPlayerConfig: () => null,
 }));
-vi.mock("@/components/player/hooks/use-fullscreen", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-fullscreen", () => ({
   useFullscreen: () => ({ isFullscreen: false, toggleFullscreen: vi.fn() }),
 }));
-vi.mock("@/components/player/hooks/use-local-live-captions", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-local-live-captions", () => ({
   useLocalLiveCaptions: () => ({
     activeCues: [],
     selected: false,
@@ -43,16 +43,16 @@ vi.mock("@/components/player/hooks/use-local-live-captions", () => ({
     retry: vi.fn(),
   }),
 }));
-vi.mock("@/components/player/hooks/use-picture-in-picture", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-picture-in-picture", () => ({
   usePictureInPicture: () => ({ isPip: false, togglePip: vi.fn() }),
 }));
-vi.mock("@/components/player/hooks/use-player-keyboard", () => ({ usePlayerKeyboard: vi.fn() }));
-vi.mock("@/components/player/hooks/use-player-network-recovery", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-player-keyboard", () => ({ usePlayerKeyboard: vi.fn() }));
+vi.mock("@/features/playback/components/player/hooks/use-player-network-recovery", () => ({
   usePlayerNetworkRecovery: (_hasError: boolean, recover: () => void) => {
     harness.recoverFromNetworkError = recover;
   },
 }));
-vi.mock("@/components/player/hooks/use-timed-text", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-timed-text", () => ({
   useTimedText: () => ({
     activeCues: [],
     tracks: [],
@@ -60,7 +60,7 @@ vi.mock("@/components/player/hooks/use-timed-text", () => ({
     selectTrack: vi.fn(),
   }),
 }));
-vi.mock("@/components/player/hooks/use-volume", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-volume", () => ({
   useVolume: () => ({
     volume: 50,
     isMuted: false,
@@ -69,24 +69,24 @@ vi.mock("@/components/player/hooks/use-volume", () => ({
     syncFromVideoElement: vi.fn(),
   }),
 }));
-vi.mock("@/components/player/caption-overlay", () => ({ CaptionOverlay: () => null }));
-vi.mock("@/components/player/twitch/ad-block-fallback-overlay", () => ({
+vi.mock("@/features/playback/components/player/caption-overlay", () => ({ CaptionOverlay: () => null }));
+vi.mock("@/features/playback/components/player/twitch/ad-block-fallback-overlay", () => ({
   AdBlockFallbackOverlay: () => null,
 }));
-vi.mock("@/components/player/twitch/twitch-live-player-controls", () => ({
+vi.mock("@/features/playback/components/player/twitch/twitch-live-player-controls", () => ({
   TwitchLivePlayerControls: () => null,
 }));
-vi.mock("@/components/player/twitch/video-stats-overlay", () => ({
+vi.mock("@/features/playback/components/player/twitch/video-stats-overlay", () => ({
   VideoStatsOverlay: () => null,
 }));
-vi.mock("@/components/player/twitch/twitch-hls-player", () => ({
+vi.mock("@/features/playback/components/player/twitch/twitch-hls-player", () => ({
   TwitchHlsPlayer: (props: HlsHarnessProps) => {
     harness.hlsProps = props;
     return <video ref={props.ref} data-testid="twitch-video" />;
   },
 }));
 
-import { TwitchLivePlayer } from "@/components/player/twitch/twitch-live-player";
+import { TwitchLivePlayer } from "@/features/playback/components/player/twitch/twitch-live-player";
 
 function status(overrides: Partial<AdBlockStatus> = {}): AdBlockStatus {
   return {

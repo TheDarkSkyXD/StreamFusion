@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createDownloadFileActionsService } from "@/backend/services/download-file-actions-service";
-import { createDownloadQueueService } from "@/backend/services/download-queue-service";
-import type { DownloadQueueSnapshot } from "@/shared/download-types";
+import { createDownloadFileActionsService } from "@backend/services/download-file-actions-service";
+import { createDownloadQueueService } from "@backend/services/download-queue-service";
+import type { DownloadQueueSnapshot } from "@shared/download-types";
 
 function createStorage(seed: DownloadQueueSnapshot = { jobs: [] }) {
   let value = seed;

@@ -12,7 +12,7 @@
 
 import type { App } from "electron";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 
 export interface InstallOpts {
   /** Pass electron's `app` so this module stays unit-testable (DI). */

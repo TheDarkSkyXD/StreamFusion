@@ -1,5 +1,5 @@
-import { logger } from "@/backend/logging/logger";
-import type { UnifiedCategory } from "../../../unified/platform-types";
+import { logger } from "@backend/logging/logger";
+import type { UnifiedCategory } from "../../../../../shared/platform-types";
 import type { TwitchRequestor } from "../twitch-requestor";
 import { helixResponseSchema, twitchGameSchema } from "../twitch-helix-schemas";
 import { transformTwitchCategory } from "../twitch-transformers";

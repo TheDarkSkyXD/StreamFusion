@@ -13,12 +13,12 @@ const chatModuleGate = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/components/chat", () => {
+vi.mock("@/features/chat/components/chat", () => {
   chatModuleGate.factoryCalls();
   return chatModuleGate.modulePromise;
 });
 
-import { preloadStreamPage } from "@/pages";
+import { preloadStreamPage } from "@/features/playback";
 import "@/pages/Stream";
 
 // Guards: real intent -> route -> Stream loader composition must not report ready before the nested ChatPanel module is ready.

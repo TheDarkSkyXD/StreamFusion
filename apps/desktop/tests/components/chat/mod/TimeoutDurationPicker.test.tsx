@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { TimeoutDurationPicker } from "@/components/chat/mod/TimeoutDurationPicker";
+import { TimeoutDurationPicker } from "@/features/chat/components/chat/mod/TimeoutDurationPicker";
 
 const PRESETS: Array<{ label: string; seconds: number }> = [
   { label: "10s", seconds: 10 },

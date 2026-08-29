@@ -5,7 +5,7 @@ import {
   type ChatReplayPlaybackStore,
   createChatReplayPlaybackStore,
   useChatReplayPlaybackSnapshot,
-} from "@/hooks/chat-replay-playback-store";
+} from "@/features/chat/data/chat-replay-playback-store";
 
 describe("Chat Replay playback store", () => {
   it("updates the narrow replay subscriber without rerendering the Video owner", () => {

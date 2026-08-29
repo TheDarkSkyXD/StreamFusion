@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const persistedValues = vi.hoisted(() => new Map<string, unknown>());
 
-vi.mock("@/backend/services/database-service", () => ({
+vi.mock("@backend/services/database-service", () => ({
   dbService: {
     get: vi.fn((key: string) => persistedValues.get(key) ?? null),
     set: vi.fn((key: string, value: unknown) => {
@@ -11,7 +11,7 @@ vi.mock("@/backend/services/database-service", () => ({
   },
 }));
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: {
     getLocalFollowsByPlatform: vi.fn(),
     getActiveFollowsByPlatform: vi.fn(),
@@ -19,7 +19,7 @@ vi.mock("@/backend/services/storage-service", () => ({
   },
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -27,15 +27,15 @@ vi.mock("@/backend/logging/logger", () => ({
   },
 }));
 
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
-import { dbService } from "@/backend/services/database-service";
+import type { UnifiedChannel } from "@shared/platform-types";
+import { dbService } from "@backend/services/database-service";
 import {
   repairKickFollowSlugs,
   resolveKickFollowPlaybackSlug,
-} from "@/backend/services/kick-follow-metadata-repair";
-import { logger } from "@/backend/logging/logger";
-import { storageService } from "@/backend/services/storage-service";
-import type { LocalFollow } from "@/shared/auth-types";
+} from "@backend/services/kick-follow-metadata-repair";
+import { logger } from "@backend/logging/logger";
+import { storageService } from "@backend/services/storage-service";
+import type { LocalFollow } from "@shared/auth-types";
 
 function makeFollow(overrides: Partial<LocalFollow> = {}): LocalFollow {
   return {

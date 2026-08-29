@@ -12,8 +12,8 @@ vi.mock("electron", () => ({
 
 import { ipcMain } from "electron";
 
-import { registerTimeoutModerationHandlers } from "@/backend/ipc/handlers/timeout-moderation-handlers";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { registerTimeoutModerationHandlers } from "@backend/ipc/handlers/timeout-moderation-handlers";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 type Handler = (event: { senderFrame?: { url?: string } }, payload: unknown) => Promise<unknown>;
 

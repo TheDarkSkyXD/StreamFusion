@@ -15,7 +15,7 @@
 
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import {
   IPC_CHANNELS,
   type ProxyApplyConfig,

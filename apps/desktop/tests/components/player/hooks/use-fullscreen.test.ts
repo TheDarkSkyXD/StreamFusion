@@ -5,7 +5,7 @@ vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { useFullscreen } from "@/components/player/hooks/use-fullscreen";
+import { useFullscreen } from "@/features/playback/components/player/hooks/use-fullscreen";
 
 describe("useFullscreen", () => {
   let mockContainer: HTMLElement;

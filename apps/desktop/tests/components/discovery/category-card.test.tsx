@@ -21,7 +21,7 @@ vi.mock("@/components/ui/proxied-image", () => ({
   },
 }));
 
-import { CategoryCard } from "@/components/discovery/category-card";
+import { CategoryCard } from "@/features/discovery/components/discovery/category-card";
 
 // Guards: every category renders a viewer count; missing provider data falls back to "0 viewers" instead of leaving an unexplained blank.
 // Guards: every card reserves one non-wrapping tag row so category windows cannot change virtual row height while scrolling.

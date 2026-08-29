@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { getOAuthConfig } from "@/backend/auth/oauth-config";
-import { tokenExchangeService } from "@/backend/auth/token-exchange";
+import { getOAuthConfig } from "@backend/auth/oauth-config";
+import { tokenExchangeService } from "@backend/auth/token-exchange";
 import type {
   TimeoutAuthorityAdapter,
   TimeoutBinding,
-} from "@/backend/services/moderation/timeout-moderation-service";
-import { storageService } from "@/backend/services/storage-service";
+} from "@backend/services/moderation/timeout-moderation-service";
+import { storageService } from "@backend/services/storage-service";
 
 import { getBannedUsers } from "./twitch-helix-banned-list";
 import { getModeratedChannelsResult } from "./twitch-helix-moderation";

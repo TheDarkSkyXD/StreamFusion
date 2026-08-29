@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   LocalCaptionRecognizer,
   type SherpaOnlineRecognizer,
-} from "@/backend/services/captions/local-caption-recognizer";
+} from "@backend/services/captions/local-caption-recognizer";
 
 // Guards: sherpa partials retain session and cue identity, advance revisions, rotate after finalization, and map token timestamps onto the player media clock.
 describe("LocalCaptionRecognizer", () => {

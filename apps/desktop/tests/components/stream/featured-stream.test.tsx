@@ -16,7 +16,7 @@ vi.mock("@/components/ui/proxied-image", () => ({
   ProxiedImage: ({ alt }: { alt: string }) => <div data-testid="featured-img">{alt}</div>,
 }));
 
-vi.mock("@/hooks/useStreamPlayback", () => ({
+vi.mock("@/features/playback/data/useStreamPlayback", () => ({
   useStreamPlayback: mocks.useStreamPlayback,
 }));
 
@@ -25,7 +25,7 @@ vi.mock("@/store/adblock-store", () => ({
     selector({ enableAdBlock: true }),
 }));
 
-vi.mock("@/components/player/hls-player", () => ({
+vi.mock("@/features/playback/components/player/hls-player", () => ({
   HlsPlayer: ({
     src,
     autoPlay,
@@ -53,7 +53,7 @@ vi.mock("@/components/player/hls-player", () => ({
   ),
 }));
 
-vi.mock("@/components/player/twitch/twitch-hls-player", () => ({
+vi.mock("@/features/playback/components/player/twitch/twitch-hls-player", () => ({
   TwitchHlsPlayer: ({
     src,
     channelName,
@@ -87,7 +87,7 @@ vi.mock("@/components/player/twitch/twitch-hls-player", () => ({
   ),
 }));
 
-import { FeaturedStream } from "@/components/stream/featured-stream";
+import { FeaturedStream } from "@/features/discovery/components/stream/featured-stream";
 
 // Guards: loading state renders a skeleton variant so the featured slot does not flash blank while streams load.
 // Guards: no-data state renders null because the parent owns empty-state layout.

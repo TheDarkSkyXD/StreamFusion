@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createStreamRecordingOutcomeCoordinator } from "@/backend/services/stream-recording-outcome-coordinator";
-import { createOwnedRecordingSectionPath } from "@/backend/services/stream-recording-paths";
-import { createStreamRecordingSessionStore } from "@/backend/services/stream-recording-session-store";
+import { createStreamRecordingOutcomeCoordinator } from "@backend/services/stream-recording-outcome-coordinator";
+import { createOwnedRecordingSectionPath } from "@backend/services/stream-recording-paths";
+import { createStreamRecordingSessionStore } from "@backend/services/stream-recording-session-store";
 import type {
   StreamRecordingArtifactIdentity,
   StreamRecordingJournal,
   StreamRecordingNotice,
-} from "@/shared/stream-recording-types";
+} from "@shared/stream-recording-types";
 
 const identity: StreamRecordingArtifactIdentity = {
   algorithm: "sha256",

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { LiveNotificationToast } from "@/components/LiveNotificationToast";
+import { LiveNotificationToast } from "@/features/auth/components/LiveNotificationToast";
 
 // Guards: long live-alert titles remain fully readable instead of being truncated to one line.
 describe("LiveNotificationToast", () => {

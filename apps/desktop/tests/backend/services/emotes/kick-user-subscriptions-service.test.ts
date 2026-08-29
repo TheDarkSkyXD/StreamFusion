@@ -7,16 +7,16 @@ const loggerMock = vi.hoisted(() => ({
   warn: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-send-window", () => ({
+vi.mock("@backend/api/platforms/kick/kick-send-window", () => ({
   fetchKickWebApiGet: fetchKickWebApiGetMock,
   isKickWebApiReady: isKickWebApiReadyMock,
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: loggerMock,
 }));
 
-import { fetchKickUserSubscriptions } from "@/backend/services/emotes/kick-user-subscriptions-service";
+import { fetchKickUserSubscriptions } from "@backend/services/emotes/kick-user-subscriptions-service";
 
 beforeEach(() => {
   fetchKickWebApiGetMock.mockReset();

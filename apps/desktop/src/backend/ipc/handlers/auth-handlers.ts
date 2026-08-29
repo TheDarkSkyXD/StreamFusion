@@ -3,9 +3,9 @@ import type { BrowserWindow } from "electron";
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { z } from "zod";
 
-import { logger, type Logger } from "@/backend/logging/logger";
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
-import { createManagedInterval } from "../../../lib/managed-interval";
+import { logger, type Logger } from "@backend/logging/logger";
+import type { UnifiedChannel } from "@shared/platform-types";
+import { createManagedInterval } from "@shared/utils/managed-interval";
 import type { AuthToken, LocalFollow, Platform, TwitchUser } from "../../../shared/auth-types";
 import {
   type AuthStatus,

@@ -3,7 +3,7 @@ import type { BrowserWindow } from "electron";
 import {
   diagnosticsIpcContracts,
   diagnosticsSnapshotChangedSchema,
-} from "../../../ipc-contracts/diagnostics-contracts";
+} from "../../../shared/ipc-contracts/diagnostics-contracts";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { diagnosticsObservability } from "../../diagnostics/diagnostics-observability";
 import { diagnosticsRuntime } from "../../diagnostics/diagnostics-runtime-singleton";

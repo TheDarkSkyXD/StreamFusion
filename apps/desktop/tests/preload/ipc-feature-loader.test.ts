@@ -8,8 +8,8 @@ import {
   createFeatureAwareInvoke,
   resolveIpcFeature,
   resolveIpcFeatures,
-} from "@/preload/ipc-feature-loader";
-import { IPC_CHANNELS, IPC_FEATURES } from "@/shared/ipc-channels";
+} from "@backend/preload/ipc-feature-loader";
+import { IPC_CHANNELS, IPC_FEATURES } from "@shared/ipc-channels";
 
 // Guards: feature IPC requests load their handler chunk before sending the original request.
 // Guards: concurrent and repeated requests share one feature-load operation.
@@ -18,7 +18,7 @@ import { IPC_CHANNELS, IPC_FEATURES } from "@/shared/ipc-channels";
 // Guards: the sandboxed preload feature loader cannot import runtime schema compilers blocked by CSP.
 describe("IPC feature loading", () => {
   it("keeps runtime schema compilers out of the sandboxed preload path", async () => {
-    const source = await readFile(resolve("src/preload/ipc-feature-loader.ts"), "utf8");
+    const source = await readFile(resolve("src/backend/preload/ipc-feature-loader.ts"), "utf8");
 
     expect(source).not.toMatch(/(?:from\s+|import\()\s*["'][^"']*(?:zod|ipc-contracts)/);
   });

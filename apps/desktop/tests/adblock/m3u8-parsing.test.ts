@@ -19,7 +19,7 @@ import {
   processMediaPlaylist,
   clearStreamInfo,
   getAdBlockStatus,
-} from '@/components/player/twitch/twitch-adblock-service';
+} from '@/features/playback/components/player/twitch/twitch-adblock-service';
 
 // Realistic Twitch master playlist
 const REALISTIC_MASTER_PLAYLIST = `#EXTM3U

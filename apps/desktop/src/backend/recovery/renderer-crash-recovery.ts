@@ -21,8 +21,8 @@
 
 import type { WebContents } from "electron";
 
-import { isAllowedSenderUrl } from "@/backend/ipc/sender-origin";
-import { logger } from "@/backend/logging/logger";
+import { isAllowedSenderUrl } from "@backend/ipc/sender-origin";
+import { logger } from "@backend/logging/logger";
 
 export interface InstallOpts {
   webContents: WebContents;

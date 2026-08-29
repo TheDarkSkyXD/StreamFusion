@@ -2,13 +2,13 @@
 
 const fetchKickWebApiMutationMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/backend/api/platforms/kick/kick-send-window", () => ({
+vi.mock("@backend/api/platforms/kick/kick-send-window", () => ({
   fetchKickWebApiMutation: fetchKickWebApiMutationMock,
 }));
 
-import { createKickFollowWriteService } from "@/backend/services/kick-follow-write-service";
-import type { PendingFollowWrite } from "@/backend/services/database-service";
-import type { LocalFollow } from "@/shared/auth-types";
+import { createKickFollowWriteService } from "@backend/services/kick-follow-write-service";
+import type { PendingFollowWrite } from "@backend/services/database-service";
+import type { LocalFollow } from "@shared/auth-types";
 
 const target = {
   platform: "kick",

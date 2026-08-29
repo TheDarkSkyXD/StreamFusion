@@ -25,8 +25,8 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.unmock("@/backend/logging/logger");
-vi.unmock("@/backend/logging/noise-logger");
+vi.unmock("@backend/logging/logger");
+vi.unmock("@backend/logging/noise-logger");
 
 vi.mock("electron", () => ({
   app: {
@@ -47,12 +47,12 @@ vi.mock("electron", () => ({
   dialog: { showErrorBox: () => undefined },
 }));
 
-type NoiseLoggerModule = typeof import("@/backend/logging/noise-logger");
-type LoggerModule = typeof import("@/backend/logging/logger");
+type NoiseLoggerModule = typeof import("@backend/logging/noise-logger");
+type LoggerModule = typeof import("@backend/logging/logger");
 
 async function freshNoiseModule(): Promise<NoiseLoggerModule> {
   vi.resetModules();
-  return await import("@/backend/logging/noise-logger");
+  return await import("@backend/logging/noise-logger");
 }
 
 async function freshLoggerAndNoiseModules(): Promise<{
@@ -60,8 +60,8 @@ async function freshLoggerAndNoiseModules(): Promise<{
   noiseMod: NoiseLoggerModule;
 }> {
   vi.resetModules();
-  const loggerMod = await import("@/backend/logging/logger");
-  const noiseMod = await import("@/backend/logging/noise-logger");
+  const loggerMod = await import("@backend/logging/logger");
+  const noiseMod = await import("@backend/logging/noise-logger");
   return { loggerMod, noiseMod };
 }
 
@@ -84,13 +84,13 @@ beforeEach(() => {
 
 afterEach(async () => {
   try {
-    const mod = await import("@/backend/logging/noise-logger");
+    const mod = await import("@backend/logging/noise-logger");
     await mod.shutdownNoiseLogger();
   } catch {
     // not initialized — nothing to shut down
   }
   try {
-    const mod = await import("@/backend/logging/logger");
+    const mod = await import("@backend/logging/logger");
     await mod.shutdownLogger();
   } catch {
     // not initialized — nothing to shut down

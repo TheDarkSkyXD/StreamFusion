@@ -27,7 +27,7 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock("@/backend/logging/logger", () => ({
   },
 }));
 
-type TailerModule = typeof import("@/backend/logging/chromium-log-tailer");
+type TailerModule = typeof import("@backend/logging/chromium-log-tailer");
 type LoggerMock = {
   debug: Mock;
   info: Mock;
@@ -49,8 +49,8 @@ const WAIT_MS = 250;
 
 async function freshTailer(): Promise<{ mod: TailerModule; logger: LoggerMock }> {
   vi.resetModules();
-  const mod = await import("@/backend/logging/chromium-log-tailer");
-  const { logger } = (await import("@/backend/logging/logger")) as unknown as {
+  const mod = await import("@backend/logging/chromium-log-tailer");
+  const { logger } = (await import("@backend/logging/logger")) as unknown as {
     logger: LoggerMock;
   };
   logger.debug.mockReset();

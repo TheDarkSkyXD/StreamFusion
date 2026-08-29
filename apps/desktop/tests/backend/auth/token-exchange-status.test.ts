@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { tokenExchangeService } from "@/backend/auth/token-exchange";
+import { tokenExchangeService } from "@backend/auth/token-exchange";
 
 // Exercises the real `tokenExchangeService.getTokenStatus` to prove the
 // Twitch-vs-Kick validation difference: Twitch hits /validate (OAuth header

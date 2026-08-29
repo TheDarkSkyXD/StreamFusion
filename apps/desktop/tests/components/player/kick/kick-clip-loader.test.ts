@@ -30,7 +30,7 @@ vi.mock("hls.js", () => {
 import {
   createKickClipPlaylistLoader,
   isKickClipPlaylistUrl,
-} from "@/components/player/kick/kick-clip-loader";
+} from "@/features/playback/components/player/kick/kick-clip-loader";
 
 type KickLoader = InstanceType<ReturnType<typeof createKickClipPlaylistLoader>>;
 type KickContext = Parameters<KickLoader["load"]>[0];

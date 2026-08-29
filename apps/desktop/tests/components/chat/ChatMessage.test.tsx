@@ -2,14 +2,14 @@ import { act, fireEvent, render as rtlRender, screen } from "@testing-library/re
 import { Profiler, type ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ChatMessage } from "@/components/chat/ChatMessage";
+import { ChatMessage } from "@/features/chat/components/chat/ChatMessage";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   type ChatDisplayPreferences,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
   type TimestampFormat,
-} from "@/shared/auth-types";
-import type { ChatBadge, ChatMessage as ChatMessageType } from "@/shared/chat-types";
+} from "@shared/auth-types";
+import type { ChatBadge, ChatMessage as ChatMessageType } from "@shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useChatCosmeticsStore } from "@/store/chat-cosmetics-store";
 

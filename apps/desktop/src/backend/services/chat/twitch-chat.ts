@@ -8,8 +8,8 @@
 import tmi from "tmi.js";
 // Cross-logger: imported by renderer chat components — avoids dragging
 // electron-log into the renderer bundle.
-import { logger } from "@/lib/cross-logger";
-import { createCancellableSleep, type CancellableSleep } from "@/lib/sleep";
+import { logger } from "@shared/utils/cross-logger";
+import { createCancellableSleep, type CancellableSleep } from "@shared/utils/sleep";
 import type { TwitchUser } from "../../../shared/auth-types";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
 import type {
@@ -22,7 +22,7 @@ import type {
   ModeratorStateEvent,
   UserNotice,
 } from "../../../shared/chat-types";
-import { buildChannelKey, useChatStore } from "../../../store/chat-store";
+import { buildChannelKey, useChatStore } from "../../../frontend/store/chat-store";
 import { badgeResolver } from "./badge-resolver";
 import {
   getDefaultColor,

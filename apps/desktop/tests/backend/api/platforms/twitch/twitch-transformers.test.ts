@@ -5,14 +5,14 @@ import {
   transformTwitchChannel,
   transformTwitchSearchChannel,
   transformTwitchStream,
-} from "@/backend/api/platforms/twitch/twitch-transformers";
+} from "@backend/api/platforms/twitch/twitch-transformers";
 
 import type {
   TwitchApiChannel,
   TwitchApiGame,
   TwitchApiSearchChannel,
   TwitchApiStream,
-} from "@/backend/api/platforms/twitch/twitch-types";
+} from "@backend/api/platforms/twitch/twitch-types";
 
 const STREAM: TwitchApiStream = {
   id: "stream-1",

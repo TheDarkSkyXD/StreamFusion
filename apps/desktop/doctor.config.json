@@ -3,26 +3,26 @@
     "overrides": [
       {
         "files": [
-          "src/components/player/player-controls.tsx",
-          "src/components/player/twitch/twitch-player-controls.tsx",
-          "src/components/player/twitch/twitch-live-player-controls.tsx",
-          "src/components/player/twitch/twitch-vod-player-controls.tsx",
-          "src/components/player/kick/kick-player-controls.tsx",
-          "src/components/player/kick/kick-live-player-controls.tsx",
-          "src/components/player/kick/kick-vod-player-controls.tsx"
+          "src/frontend/features/playback/components/player/player-controls.tsx",
+          "src/frontend/features/playback/components/player/twitch/twitch-player-controls.tsx",
+          "src/frontend/features/playback/components/player/twitch/twitch-live-player-controls.tsx",
+          "src/frontend/features/playback/components/player/twitch/twitch-vod-player-controls.tsx",
+          "src/frontend/features/playback/components/player/kick/kick-player-controls.tsx",
+          "src/frontend/features/playback/components/player/kick/kick-live-player-controls.tsx",
+          "src/frontend/features/playback/components/player/kick/kick-vod-player-controls.tsx"
         ],
         "rules": ["react-doctor/no-adjust-state-on-prop-change"]
       },
       {
         "files": [
-          "src/components/chat/kick/KickChat.tsx",
-          "src/components/chat/twitch/TwitchChat.tsx"
+          "src/frontend/features/chat/components/chat/kick/KickChat.tsx",
+          "src/frontend/features/chat/components/chat/twitch/TwitchChat.tsx"
         ],
         "rules": ["react-doctor/no-adjust-state-on-prop-change"]
       },
       {
         "files": [
-          "src/components/ui/proxied-image.tsx"
+          "src/frontend/components/ui/proxied-image.tsx"
         ],
         "rules": ["react-doctor/no-adjust-state-on-prop-change"]
       }

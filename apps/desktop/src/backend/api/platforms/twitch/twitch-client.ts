@@ -6,7 +6,7 @@
  * - Helix API (via Cloudflare Worker) for auth-only: followed streams, followed channels, user info
  */
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import type { Platform, TwitchUser } from "../../../../shared/auth-types";
 import { twitchAuthService } from "../../../auth/twitch-auth";
 import type { IPlatformReader, PageResult, TopStreamsOptions } from "../../unified/platform-reader";
@@ -16,7 +16,7 @@ import type {
   UnifiedClip,
   UnifiedStream,
   UnifiedVideo,
-} from "../../unified/platform-types";
+} from "../../../../shared/platform-types";
 import { clients } from "../../unified/registry";
 import * as StreamEndpoints from "./endpoints/stream-endpoints";
 import * as UserEndpoints from "./endpoints/user-endpoints";

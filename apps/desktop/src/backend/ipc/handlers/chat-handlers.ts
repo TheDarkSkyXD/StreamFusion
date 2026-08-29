@@ -1,9 +1,9 @@
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
-import { logger } from "@/backend/logging/logger";
-import { badgeResolver } from "@/backend/services/chat/badge-resolver";
-import { storageService } from "@/backend/services/storage-service";
-import { TWITCH_APP_CLIENT_ID } from "@/shared/auth-types";
+import { logger } from "@backend/logging/logger";
+import { badgeResolver } from "@backend/services/chat/badge-resolver";
+import { storageService } from "@backend/services/storage-service";
+import { TWITCH_APP_CLIENT_ID } from "@shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 
 interface MentionUserLookup {

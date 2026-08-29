@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatSimTool } from "@/components/dev/ChatSimTool";
-import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_USER_PREFERENCES } from "@/shared/auth-types";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
 
@@ -11,7 +11,7 @@ const serviceMocks = vi.hoisted(() => ({
   twitchEmit: vi.fn(),
 }));
 
-vi.mock("@/backend/services/chat/kick-chat", () => ({
+vi.mock("@backend/services/chat/kick-chat", () => ({
   kickChatService: {
     emit: (...args: unknown[]) => serviceMocks.kickEmit(...args),
   },
@@ -28,7 +28,7 @@ vi.mock("@/backend/services/chat/kick-chat", () => ({
   }),
 }));
 
-vi.mock("@/backend/services/chat/twitch-chat", () => ({
+vi.mock("@backend/services/chat/twitch-chat", () => ({
   twitchChatService: {
     emit: (...args: unknown[]) => serviceMocks.twitchEmit(...args),
   },

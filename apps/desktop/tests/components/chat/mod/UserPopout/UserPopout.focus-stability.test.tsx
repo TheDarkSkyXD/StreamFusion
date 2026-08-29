@@ -1,8 +1,8 @@
 import { act, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { UserPopout } from "@/components/chat/mod/UserPopout/UserPopout";
-import type { ProfileFieldState } from "@/shared/user-profile-types";
+import { UserPopout } from "@/features/chat/components/chat/mod/UserPopout/UserPopout";
+import type { ProfileFieldState } from "@shared/user-profile-types";
 
 import { installElectronAPIMock, renderWithProviders } from "../../../../test-utils";
 

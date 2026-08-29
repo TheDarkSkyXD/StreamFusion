@@ -1,7 +1,7 @@
 import path from "node:path";
 
 import { app, type BrowserWindow } from "electron";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 import { LocalCaptionModelStore } from "./caption-model-store";
 import { spawnCaptionUtilityProcess } from "./caption-utility-process";

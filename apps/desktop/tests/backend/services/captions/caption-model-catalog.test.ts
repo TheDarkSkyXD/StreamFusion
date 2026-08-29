@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ENGLISH_ZIPFORMER_20M_MODEL } from "@/backend/services/captions/caption-model-catalog";
+import { ENGLISH_ZIPFORMER_20M_MODEL } from "@backend/services/captions/caption-model-catalog";
 
 // Guards: the production allowlist cannot drift from the reviewed Zipformer revision, bytes, hashes, or license.
 describe("local caption model catalog", () => {

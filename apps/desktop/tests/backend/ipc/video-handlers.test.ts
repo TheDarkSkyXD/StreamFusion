@@ -13,14 +13,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 //     its non-clips channel coverage was migrated into the IPC-handler describes
 //     at the bottom of this file).
 
-import { IPC_CHANNELS, type IpcResult, type PaginatedIpcResult } from "@/shared/ipc-channels";
-import type { UnifiedVideo } from "@/backend/api/unified/platform-types";
+import { IPC_CHANNELS, type IpcResult, type PaginatedIpcResult } from "@shared/ipc-channels";
+import type { UnifiedVideo } from "@shared/platform-types";
 
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
 }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-stream-resolver", () => {
+vi.mock("@backend/api/platforms/twitch/twitch-stream-resolver", () => {
   const proto = {
     getVodPlaybackUrl: vi.fn(),
     getClipPlaybackUrl: vi.fn(),
@@ -30,7 +30,7 @@ vi.mock("@/backend/api/platforms/twitch/twitch-stream-resolver", () => {
   return { TwitchStreamResolver: MockTwitchStreamResolver };
 });
 
-vi.mock("@/backend/api/platforms/kick/kick-stream-resolver", () => {
+vi.mock("@backend/api/platforms/kick/kick-stream-resolver", () => {
   const proto = {
     getVodPlaybackUrl: vi.fn(),
     getVideoMetadata: vi.fn(),
@@ -40,7 +40,7 @@ vi.mock("@/backend/api/platforms/kick/kick-stream-resolver", () => {
   return { KickStreamResolver: MockKickStreamResolver };
 });
 
-vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
+vi.mock("@backend/api/platforms/kick/kick-client", () => ({
   kickClient: {
     getClips: vi.fn(),
     getClipsByCategory: vi.fn(),
@@ -49,7 +49,7 @@ vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
+vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
   twitchClient: {
     getClipsByChannel: vi.fn(),
     getClipsByGame: vi.fn(),
@@ -63,22 +63,22 @@ vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
   },
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
 }));
 
 import { ipcMain } from "electron";
 
-import { kickClient } from "@/backend/api/platforms/kick/kick-client";
-import { KickStreamResolver } from "@/backend/api/platforms/kick/kick-stream-resolver";
-import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
-import { TwitchStreamResolver } from "@/backend/api/platforms/twitch/twitch-stream-resolver";
+import { kickClient } from "@backend/api/platforms/kick/kick-client";
+import { KickStreamResolver } from "@backend/api/platforms/kick/kick-stream-resolver";
+import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
+import { TwitchStreamResolver } from "@backend/api/platforms/twitch/twitch-stream-resolver";
 import {
   fillPageWithCutoff,
   getCutoffMs,
   handleGetClipsByChannel,
   registerVideoHandlers,
-} from "@/backend/ipc/handlers/video-handlers";
+} from "@backend/ipc/handlers/video-handlers";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FROZEN_NOW = new Date("2026-06-06T12:00:00.000Z").getTime();

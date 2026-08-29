@@ -1,8 +1,8 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RecordingStopControl } from "@/components/recording/recording-stop-control";
-import type { StreamRecordingLifecycleState } from "@/shared/stream-recording-types";
+import { RecordingStopControl } from "@/features/media-library/components/recording/recording-stop-control";
+import type { StreamRecordingLifecycleState } from "@shared/stream-recording-types";
 import { renderWithProviders, userEvent } from "../../test-utils";
 
 const mocks = vi.hoisted(() => ({
@@ -22,10 +22,10 @@ const mocks = vi.hoisted(() => ({
   discard: vi.fn(async () => ({ success: true })),
 }));
 
-vi.mock("@/hooks/use-stream-recording-state", () => ({
+vi.mock("@/features/media-library/data/use-stream-recording-state", () => ({
   useStreamRecordingState: () => mocks.state,
 }));
-vi.mock("@/hooks/use-stream-recording-actions", () => ({
+vi.mock("@/features/media-library/data/use-stream-recording-actions", () => ({
   useStreamRecordingActions: () => ({ stop: mocks.stop, discard: mocks.discard }),
 }));
 

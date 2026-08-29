@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { savePersistedSnapshot, usePersistedSnapshot } from "@/hooks/queries/persisted-snapshot";
+import { savePersistedSnapshot, usePersistedSnapshot } from "@/features/discovery/data/queries/persisted-snapshot";
 import { installElectronAPIMock } from "../../test-utils";
 
 let api: ReturnType<typeof installElectronAPIMock>;

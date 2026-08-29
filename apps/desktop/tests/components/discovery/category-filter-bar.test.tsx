@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CategoryFilterBar } from "@/components/discovery/category-filter-bar";
+import { CategoryFilterBar } from "@/features/discovery/components/discovery/category-filter-bar";
 import { fireEvent, installElectronAPIMock, renderWithProviders, screen } from "../../test-utils";
 
 describe("CategoryFilterBar", () => {

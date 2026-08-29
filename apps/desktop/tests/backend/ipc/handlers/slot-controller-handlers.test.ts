@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 // Mock electron BEFORE importing the handler (matches platform-health-handlers.test.ts).
 // `app` + `WebContentsView` are pulled in transitively by webcontents-view-factory,
@@ -37,12 +37,12 @@ import {
   getSlotPresence,
   setSlotPresence,
   setUseWebContentsViews,
-} from "@/backend/api/unified/slot-controller";
+} from "@backend/api/unified/slot-controller";
 import {
   __resetWebContentsViewFactoryForTests,
   setWebContentsViewFactory,
-} from "@/backend/api/unified/webcontents-view-factory";
-import { registerSlotControllerHandlers } from "@/backend/ipc/handlers/slot-controller-handlers";
+} from "@backend/api/unified/webcontents-view-factory";
+import { registerSlotControllerHandlers } from "@backend/ipc/handlers/slot-controller-handlers";
 
 type InvokeHandler = (event: unknown, args?: unknown) => unknown;
 

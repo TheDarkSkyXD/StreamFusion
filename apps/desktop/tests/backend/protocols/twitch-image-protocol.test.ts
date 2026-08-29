@@ -10,8 +10,8 @@ vi.mock("electron", () => ({
   protocol: { handle: handleMock },
 }));
 
-import { resetImageByteCacheForTests } from "@/backend/protocols/image-byte-cache";
-import { registerTwitchImageProtocol } from "@/backend/protocols/twitch-image-protocol";
+import { resetImageByteCacheForTests } from "@backend/protocols/image-byte-cache";
+import { registerTwitchImageProtocol } from "@backend/protocols/twitch-image-protocol";
 
 // Guards: valid Twitch avatars mislabeled as binary/octet-stream must not become fallbacks.
 describe("twitch image protocol", () => {

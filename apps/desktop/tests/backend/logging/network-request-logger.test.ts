@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -10,12 +10,12 @@ vi.mock("@/backend/logging/logger", () => ({
   },
 }));
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import {
   installNetworkRequestLogger,
   networkRequestUrlFingerprint,
   recordDevtoolsNetworkRequestHint,
-} from "@/backend/logging/network-request-logger";
+} from "@backend/logging/network-request-logger";
 
 const loggerMock = vi.mocked(logger);
 

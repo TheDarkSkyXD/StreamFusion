@@ -4,12 +4,12 @@ import { fireEvent, fixtures, renderWithProviders, routerMock, screen } from "..
 
 vi.mock("@tanstack/react-router", () => routerMock());
 
-vi.mock("@/hooks/queries/useCategories", () => ({
+vi.mock("@/features/discovery/data/queries/useCategories", () => ({
   useInfiniteTopCategories: vi.fn(),
   useCategoryById: vi.fn(),
 }));
 
-vi.mock("@/components/discovery/virtualized-category-grid", () => ({
+vi.mock("@/features/discovery/components/discovery/virtualized-category-grid", () => ({
   VirtualizedCategoryGrid: ({
     categories,
     isLoading,
@@ -38,7 +38,7 @@ vi.mock("@/components/discovery/virtualized-category-grid", () => ({
   ),
 }));
 
-import { useInfiniteTopCategories } from "@/hooks/queries/useCategories";
+import { useInfiniteTopCategories } from "@/features/discovery/data/queries/useCategories";
 import { CategoriesPage } from "@/pages/Categories";
 
 const useInfiniteTopCategoriesMock = vi.mocked(useInfiniteTopCategories);

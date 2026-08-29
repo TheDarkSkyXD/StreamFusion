@@ -1,12 +1,12 @@
 import { act, forwardRef, useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MiniPlayer } from "@/components/player/mini-player";
+import { MiniPlayer } from "@/features/playback/components/player/mini-player";
 import {
   PersistentPlayerShell,
   useRegisterDockedPlayerConfig,
-} from "@/components/player/persistent-player-shell";
-import { useStreamPlayback } from "@/hooks/useStreamPlayback";
+} from "@/features/playback/components/player/persistent-player-shell";
+import { useStreamPlayback } from "@/features/playback/data/useStreamPlayback";
 import { usePipStore } from "@/store/pip-store";
 import { useVolumeStore } from "@/store/volume-store";
 import {
@@ -29,7 +29,7 @@ vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("@/components/player/kick/kick-hls-player", () => ({
+vi.mock("@/features/playback/components/player/kick/kick-hls-player", () => ({
   KickHlsPlayer: forwardRef<HTMLVideoElement, { src: string; muted?: boolean }>(
     ({ src, muted }, ref) => (
       <video ref={ref} data-testid="real-kick-wrapper-source" data-source={src} muted={muted} />

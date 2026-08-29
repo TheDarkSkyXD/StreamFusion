@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/store/moderated-channels-store', () => {
+vi.mock('@/features/moderation/data/moderated-channels-store', () => {
   const useStore = Object.assign(
     (selector: (s: { twitchModeratedChannelIds: Set<string> }) => unknown) =>
       selector({ twitchModeratedChannelIds: mocks.moderatedIds }),
@@ -41,7 +41,7 @@ vi.mock('@/store/auth-store', () => {
 });
 
 // Stub getModeratedChannels so the ChannelList doesn't hit fetch.
-vi.mock('@/backend/api/platforms/twitch/twitch-helix-moderation', () => ({
+vi.mock('@backend/api/platforms/twitch/twitch-helix-moderation', () => ({
   getModeratedChannels: vi.fn(async () => [
     {
       broadcaster_id: '222',

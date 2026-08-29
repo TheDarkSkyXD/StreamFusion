@@ -10,7 +10,7 @@ const electronSessionMocks = vi.hoisted(() => ({
   fetch: vi.fn(),
 }));
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: credentialMocks,
 }));
 
@@ -57,7 +57,7 @@ import {
   setBearerForTest,
   timeoutKickChatUser,
   type KickSendResult,
-} from "@/backend/api/platforms/kick/kick-send-window";
+} from "@backend/api/platforms/kick/kick-send-window";
 import { BrowserWindow, type Session } from "electron";
 
 const BrowserWindowMock = vi.mocked(BrowserWindow);
@@ -782,7 +782,7 @@ describe("ensureSendWindowReady", () => {
   });
 });
 
-import { sendKickChatMessage } from "@/backend/api/platforms/kick/kick-send-window";
+import { sendKickChatMessage } from "@backend/api/platforms/kick/kick-send-window";
 
 describe("sendKickChatMessage happy path", () => {
   it("returns ok+messageId on a 200 response with body.data.id", async () => {

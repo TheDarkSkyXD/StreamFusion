@@ -8,9 +8,9 @@
  */
 
 // Cross-logger: imported by renderer code via the emotes barrel.
-// `@/backend/logging/logger` would drag electron-log/main into the
+// `@backend/logging/logger` would drag electron-log/main into the
 // renderer bundle and crash with `__dirname is not defined`.
-import { logger } from "@/lib/cross-logger";
+import { logger } from "@shared/utils/cross-logger";
 import { unwrapIpcReply } from "@/lib/ipc-reply";
 import type { Emote, EmoteProviderService } from "./emote-types";
 

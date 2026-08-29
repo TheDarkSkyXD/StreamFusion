@@ -28,8 +28,8 @@ function jsonResponse(body: unknown, status = 200): Response {
 // Guards: Category Clip discovery uses Kick's native Category slug, sort, range, and cursor route.
 // Guards: Category Clip cards retain channel avatars across Kick's legacy avatar field variants.
 describe("clip-endpoints — getClipsByChannelSlug", () => {
-  let getClipsByChannelSlug: typeof import("@/backend/api/platforms/kick/endpoints/clip-endpoints").getClipsByChannelSlug;
-  let getClipsByCategorySlug: typeof import("@/backend/api/platforms/kick/endpoints/clip-endpoints").getClipsByCategorySlug;
+  let getClipsByChannelSlug: typeof import("@backend/api/platforms/kick/endpoints/clip-endpoints").getClipsByChannelSlug;
+  let getClipsByCategorySlug: typeof import("@backend/api/platforms/kick/endpoints/clip-endpoints").getClipsByCategorySlug;
 
   beforeEach(async () => {
     vi.resetModules();
@@ -37,7 +37,7 @@ describe("clip-endpoints — getClipsByChannelSlug", () => {
     // Default: return empty clips
     mockNetFetch.mockResolvedValue(jsonResponse({ clips: [] }));
     ({ getClipsByChannelSlug, getClipsByCategorySlug } =
-      await import("@/backend/api/platforms/kick/endpoints/clip-endpoints"));
+      await import("@backend/api/platforms/kick/endpoints/clip-endpoints"));
   });
 
   afterEach(() => {

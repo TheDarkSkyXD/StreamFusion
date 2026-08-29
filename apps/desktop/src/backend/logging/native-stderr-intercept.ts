@@ -19,8 +19,8 @@
  * logger sink from re-entering this parser.
  */
 
-import { isHarmlessChromiumNoise } from "@/backend/logging/chromium-noise-filter";
-import { logger } from "@/backend/logging/logger";
+import { isHarmlessChromiumNoise } from "@backend/logging/chromium-noise-filter";
+import { logger } from "@backend/logging/logger";
 
 export interface InstallOpts {
   /** Default tag used when a chunk doesn't match Chromium's structured prefix. */

@@ -3,12 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mockRecordPlatformSuccess = vi.fn();
 const mockRecordPlatformFailure = vi.fn();
 
-vi.mock("@/backend/api/unified/platform-health", () => ({
+vi.mock("@backend/api/unified/platform-health", () => ({
   recordPlatformSuccess: (...args: unknown[]) => mockRecordPlatformSuccess(...args),
   recordPlatformFailure: (...args: unknown[]) => mockRecordPlatformFailure(...args),
 }));
 
-vi.mock("@/lib/cross-logger", () => ({
+vi.mock("@shared/utils/cross-logger", () => ({
   logger: {
     debug: vi.fn(),
     error: vi.fn(),
@@ -39,8 +39,8 @@ import {
   gqlSearchChannels,
   type SearchChannelEdgeItem,
   type SearchGameEdgeItem,
-} from "@/backend/api/platforms/twitch/twitch-gql-client";
-import { logger } from "@/lib/cross-logger";
+} from "@backend/api/platforms/twitch/twitch-gql-client";
+import { logger } from "@shared/utils/cross-logger";
 
 type FetchMock = ReturnType<typeof vi.fn>;
 

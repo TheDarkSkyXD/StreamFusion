@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { formatTimeAgo } from "@/components/stream/related-content/utils";
+import { formatTimeAgo } from "@/features/playback/components/related-content/utils";
 
 // Guards: future Kick video timestamps must never render a negative age (regression f4f39e2)
 describe("formatTimeAgo", () => {

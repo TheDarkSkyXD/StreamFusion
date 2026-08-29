@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
-import type { TimeoutActionBinding } from "@/shared/timeout-moderation-types";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
+import type { TimeoutActionBinding } from "@shared/timeout-moderation-types";
 
 const electronMocks = vi.hoisted(() => ({
   exposedApi: {} as Window["electronAPI"],
@@ -11,7 +11,7 @@ const electronMocks = vi.hoisted(() => ({
   invoke: vi.fn(),
 }));
 
-vi.mock("@/preload/ipc-feature-loader", () => ({
+vi.mock("@backend/preload/ipc-feature-loader", () => ({
   createFeatureAwareIpc: (invoke: unknown, send: unknown) => ({
     invoke,
     send,
@@ -31,7 +31,7 @@ vi.mock("electron", () => ({
 }));
 
 beforeAll(async () => {
-  await import("@/preload/index");
+  await import("@backend/preload/index");
 });
 
 describe("preload timeout moderation", () => {

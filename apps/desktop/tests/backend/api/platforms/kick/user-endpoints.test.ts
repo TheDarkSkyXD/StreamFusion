@@ -18,21 +18,21 @@ vi.mock("electron", () => ({
   }),
 }));
 
-vi.mock("@/lib/cross-logger", () => ({
+vi.mock("@shared/utils/cross-logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("@/backend/auth/kick-auth", () => ({
+vi.mock("@backend/auth/kick-auth", () => ({
   kickAuthService: {
     fetchCurrentUser: vi.fn(),
   },
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
   acquireBrowserWindowSlot: vi.fn(async () => electronMocks.releaseSlot),
 }));
 
-vi.mock("@/backend/api/unified/platform-health", () => ({
+vi.mock("@backend/api/unified/platform-health", () => ({
   getPlatformHealth: vi.fn(() => "healthy"),
 }));
 
@@ -42,10 +42,10 @@ import {
   getPublicChannelUserProfiles,
   getUser,
   getUsersById,
-} from "@/backend/api/platforms/kick/endpoints/user-endpoints";
-import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
-import { kickAuthService } from "@/backend/auth/kick-auth";
-import { logger } from "@/lib/cross-logger";
+} from "@backend/api/platforms/kick/endpoints/user-endpoints";
+import type { KickRequestor } from "@backend/api/platforms/kick/kick-requestor";
+import { kickAuthService } from "@backend/auth/kick-auth";
+import { logger } from "@shared/utils/cross-logger";
 
 function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor {
   return {

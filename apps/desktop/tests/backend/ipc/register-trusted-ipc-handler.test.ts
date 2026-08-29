@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 const electronMocks = vi.hoisted(() => ({ handle: vi.fn() }));
 const loggerMocks = vi.hoisted(() => ({ warn: vi.fn() }));
 
 vi.mock("electron", () => ({ ipcMain: { handle: electronMocks.handle } }));
-vi.mock("@/backend/logging/logger", () => ({ logger: { warn: loggerMocks.warn } }));
+vi.mock("@backend/logging/logger", () => ({ logger: { warn: loggerMocks.warn } }));
 
-import { registerTrustedIpcHandler } from "@/backend/ipc/register-trusted-ipc-handler";
+import { registerTrustedIpcHandler } from "@backend/ipc/register-trusted-ipc-handler";
 
 type Handler = (event: unknown, request: unknown) => Promise<unknown>;
 

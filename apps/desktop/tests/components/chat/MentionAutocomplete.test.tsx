@@ -1,8 +1,8 @@
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MentionAutocomplete } from "@/components/chat/MentionAutocomplete";
-import type { ChatMessage } from "@/shared/chat-types";
+import { MentionAutocomplete } from "@/features/chat/components/chat/MentionAutocomplete";
+import type { ChatMessage } from "@shared/chat-types";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
 
 function makeMessage(

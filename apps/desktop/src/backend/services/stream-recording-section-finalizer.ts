@@ -7,7 +7,7 @@ import path from "node:path";
 import type {
   StreamRecordingArtifactIdentity,
   StreamRecordingSection,
-} from "@/shared/stream-recording-types";
+} from "@shared/stream-recording-types";
 
 export interface StreamRecordingCommitIntent {
   outputPath: string;

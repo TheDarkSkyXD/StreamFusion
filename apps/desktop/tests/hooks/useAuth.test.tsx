@@ -1,10 +1,10 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useAuthInitialize, useAuthStatus, useUserInfo } from "@/hooks/useAuth";
+import { useAuthInitialize, useAuthStatus, useUserInfo } from "@/features/auth/data/useAuth";
 import { useAuthStore } from "@/store/auth-store";
 
-import type { KickUser, TwitchUser } from "@/shared/auth-types";
+import type { KickUser, TwitchUser } from "@shared/auth-types";
 
 const twitchUser: TwitchUser = {
   id: "1",

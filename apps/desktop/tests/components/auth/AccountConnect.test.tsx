@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { AccountConnect } from "@/components/auth/AccountConnect";
+import { AccountConnect } from "@/features/auth/components/auth/AccountConnect";
 import { useAuthStore } from "@/store/auth-store";
 
 import { renderWithProviders, screen } from "../../test-utils";

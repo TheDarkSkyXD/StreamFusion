@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseDurationSeconds } from "@/lib/duration";
+import { parseDurationSeconds } from "@/features/playback/utils/duration";
 
 // Guards: download requests must convert displayed Twitch/Kick video and clip durations into seconds so HLS progress can render a real percent
 describe("parseDurationSeconds", () => {

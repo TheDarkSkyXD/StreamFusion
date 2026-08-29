@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { app, type BrowserWindow, dialog } from "electron";
 
-import type { VideoDownloadRequest } from "@/shared/download-types";
+import type { VideoDownloadRequest } from "@shared/download-types";
 import { KickStreamResolver } from "../api/platforms/kick/kick-stream-resolver";
 import { TwitchStreamResolver } from "../api/platforms/twitch/twitch-stream-resolver";
 import { assertAllowedRendererMediaUrl } from "./download-media-source";

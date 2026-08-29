@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TokenRefreshError } from "@/backend/auth/token-exchange";
-import { TWITCH_APP_SCOPES, type AuthToken } from "@/shared/auth-types";
+import { TokenRefreshError } from "@backend/auth/token-exchange";
+import { TWITCH_APP_SCOPES, type AuthToken } from "@shared/auth-types";
 
 const storageMocks = vi.hoisted(() => ({
   state: { token: null as AuthToken | null },
@@ -13,7 +13,7 @@ const storageMocks = vi.hoisted(() => ({
 // The service singleton imports storageService and tokenExchangeService at
 // module-load time. Both are mocked below so the tests don't touch disk or
 // the network and can drive the refresh chain deterministically.
-vi.mock("@/backend/services/storage-service", () => {
+vi.mock("@backend/services/storage-service", () => {
   return {
     storageService: {
       getToken: storageMocks.getToken.mockImplementation(() => storageMocks.state.token),
@@ -30,9 +30,9 @@ vi.mock("@/backend/services/storage-service", () => {
   };
 });
 
-vi.mock("@/backend/auth/token-exchange", async () => {
-  const actual = await vi.importActual<typeof import("@/backend/auth/token-exchange")>(
-    "@/backend/auth/token-exchange",
+vi.mock("@backend/auth/token-exchange", async () => {
+  const actual = await vi.importActual<typeof import("@backend/auth/token-exchange")>(
+    "@backend/auth/token-exchange",
   );
   return {
     ...actual,
@@ -45,10 +45,10 @@ vi.mock("@/backend/auth/token-exchange", async () => {
   };
 });
 
-const storageModule = await import("@/backend/services/storage-service");
-const { tokenExchangeService } = await import("@/backend/auth/token-exchange");
+const storageModule = await import("@backend/services/storage-service");
+const { tokenExchangeService } = await import("@backend/auth/token-exchange");
 const refreshTokenMock = vi.mocked(tokenExchangeService.refreshToken);
-const { twitchAuthService } = await import("@/backend/auth/twitch-auth");
+const { twitchAuthService } = await import("@backend/auth/twitch-auth");
 
 function setStoredToken(expiresInSec: number): void {
   storageMocks.state.token = {

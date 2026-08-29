@@ -26,7 +26,7 @@ vi.mock("electron", () => ({
 }));
 
 // Import after the mock is in place.
-import { DatabaseService } from "@/backend/services/database-service";
+import { DatabaseService } from "@backend/services/database-service";
 
 function makeTmpDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "streamfusion-dbtest-"));

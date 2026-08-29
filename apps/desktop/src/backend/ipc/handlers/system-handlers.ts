@@ -4,8 +4,8 @@ import { app, type BrowserWindow, Notification, nativeTheme, shell } from "elect
 
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
-import { logger } from "@/backend/logging/logger";
-import { storageService } from "@/backend/services/storage-service";
+import { logger } from "@backend/logging/logger";
+import { storageService } from "@backend/services/storage-service";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 
 const appIconPath = path.join(__dirname, "../../assets/icons/icon.png");
@@ -154,7 +154,7 @@ export function registerSystemHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle(IPC_CHANNELS.NOTIFICATION_COVERAGE_GET, async () => {
     const { liveNotificationService } =
-      await import("@/backend/services/live-notification-service");
+      await import("@backend/services/live-notification-service");
     return liveNotificationService.getCoverageStatus();
   });
 

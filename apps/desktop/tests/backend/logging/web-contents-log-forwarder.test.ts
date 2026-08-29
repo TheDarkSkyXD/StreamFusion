@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { forwardWebContentsConsole } from "@/backend/logging/web-contents-log-forwarder";
+import { forwardWebContentsConsole } from "@backend/logging/web-contents-log-forwarder";
 
 // Mock the project logger so the test can assert level + tag without touching
 // the real log file.
@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn(),
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: {
     warn: mocks.loggerWarn,
     error: mocks.loggerError,

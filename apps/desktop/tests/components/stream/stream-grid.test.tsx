@@ -4,7 +4,7 @@ import { fixtures, renderWithProviders, routerMock, screen } from "../../test-ut
 
 vi.mock("@tanstack/react-router", () => routerMock());
 
-vi.mock("@/components/stream/stream-card", () => ({
+vi.mock("@/features/discovery/components/stream/stream-card", () => ({
   StreamCard: ({ stream, isWatching }: { stream: { title: string }; isWatching?: boolean }) => (
     <div data-testid="stream-card" data-watching={isWatching ? "true" : "false"}>
       {stream.title}
@@ -12,11 +12,11 @@ vi.mock("@/components/stream/stream-card", () => ({
   ),
 }));
 
-vi.mock("@/components/stream/stream-card-skeleton", () => ({
+vi.mock("@/features/discovery/components/stream/stream-card-skeleton", () => ({
   StreamCardSkeleton: () => <div data-testid="stream-skeleton" />,
 }));
 
-import { StreamGrid } from "@/components/stream/stream-grid";
+import { StreamGrid } from "@/features/discovery/components/stream/stream-grid";
 
 // Guards: loading state — N skeletons render (count matches `skeletons` prop), distinct from empty/error so the layout doesn't flicker between modes
 // Guards: error/empty state — undefined OR empty streams array renders the emptyMessage card with the TV icon; consumers pass error-specific copy via emptyMessage so users distinguish "no streams" from "search broke"

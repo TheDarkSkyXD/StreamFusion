@@ -1,5 +1,5 @@
-import { addLogSink } from "@/backend/logging/logger";
-import { networkLogger } from "@/backend/logging/network-logger";
+import { addLogSink } from "@backend/logging/logger";
+import { networkLogger } from "@backend/logging/network-logger";
 
 const NETWORK_TAG_PATTERNS = [
   /^Chromium$/,

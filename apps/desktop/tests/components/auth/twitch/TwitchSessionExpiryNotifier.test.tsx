@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TwitchSessionExpiryNotifier } from "@/components/auth/twitch/TwitchSessionExpiryNotifier";
+import { TwitchSessionExpiryNotifier } from "@/features/auth/components/auth/twitch/TwitchSessionExpiryNotifier";
 import { renderWithProviders } from "../../../test-utils";
 
 type SonnerModule = typeof import("sonner");

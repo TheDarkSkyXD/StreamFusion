@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   getChannelsBySlugs: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
+vi.mock("@backend/api/platforms/kick/kick-client", () => ({
   kickClient: mocks,
 }));
 
@@ -19,7 +19,7 @@ import {
   getKickFollowRelationship,
   getKickPublicIdentity,
   resetKickPublicProfileReaderCacheForTests,
-} from "@/backend/api/platforms/kick/kick-public-profile-reader";
+} from "@backend/api/platforms/kick/kick-public-profile-reader";
 
 // Guards: documented Kick user data wins before the isolated first-party fallback.
 // Guards: only an identity-matched first-party payload with explicit null following_since proves a Kick unfollow.

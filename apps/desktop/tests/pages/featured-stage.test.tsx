@@ -18,7 +18,7 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
-vi.mock("@/components/stream/featured-stream", () => ({
+vi.mock("@/features/discovery/components/stream/featured-stream", () => ({
   FeaturedStream: ({
     stream,
     streams,
@@ -46,7 +46,7 @@ vi.mock("@/components/stream/featured-stream", () => ({
   ),
 }));
 
-vi.mock("@/components/chat", () => ({
+vi.mock("@/features/chat/components/chat", () => ({
   ChatPanel: (props: {
     initialPlatform: string;
     initialChannel: string;
@@ -67,7 +67,7 @@ vi.mock("@/components/chat", () => ({
   ),
 }));
 
-vi.mock("@/hooks/queries/useChannels", () => ({
+vi.mock("@/features/discovery/data/queries/useChannels", () => ({
   useChannelByUsername: mocks.useChannelByUsername,
 }));
 

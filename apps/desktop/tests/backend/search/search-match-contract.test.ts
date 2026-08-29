@@ -12,7 +12,7 @@ import {
   rankChannelMatch,
   rankCategoryMatch,
   rankStreamMatch,
-} from "@/backend/search/search-match-contract";
+} from "@backend/search/search-match-contract";
 
 // Guards: submitted search normalizes user-visible query syntax consistently before deciding eligibility
 describe("search match contract", () => {

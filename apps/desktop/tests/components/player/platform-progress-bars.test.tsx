@@ -5,8 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   KickProgressBar,
   type KickProgressBarHandle,
-} from "@/components/player/kick/kick-progress-bar";
-import { TwitchProgressBar } from "@/components/player/twitch/twitch-progress-bar";
+} from "@/features/playback/components/player/kick/kick-progress-bar";
+import { TwitchProgressBar } from "@/features/playback/components/player/twitch/twitch-progress-bar";
 
 function setProgressBarBounds(element: HTMLDivElement) {
   vi.spyOn(element, "getBoundingClientRect").mockReturnValue({

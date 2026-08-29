@@ -13,7 +13,7 @@ vi.mock("sonner", () => ({
   },
 }));
 
-import { ToastRoot } from "@/components/ToastRoot";
+import { ToastRoot } from "@/features/shell/components/ToastRoot";
 
 // Guards: global toasts render top-right below the app title bar and top navbar, not over the navigation chrome.
 describe("ToastRoot placement", () => {

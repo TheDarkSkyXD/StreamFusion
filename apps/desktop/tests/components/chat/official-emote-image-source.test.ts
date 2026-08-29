@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   getSevenTvIpv4FallbackUrl,
   useOfficialEmoteImageSource,
-} from "@/components/chat/official-emote-image-source";
+} from "@/features/chat/components/chat/official-emote-image-source";
 
 function imageEvent(sourceUrl: string) {
   return {

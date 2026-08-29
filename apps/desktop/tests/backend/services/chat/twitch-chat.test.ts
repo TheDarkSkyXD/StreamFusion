@@ -6,13 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { ClientCtor } = vi.hoisted(() => ({ ClientCtor: vi.fn() }));
 vi.mock("tmi.js", () => ({ default: { Client: ClientCtor } }));
 
-import { TwitchChatService } from "@/backend/services/chat/twitch-chat";
+import { TwitchChatService } from "@backend/services/chat/twitch-chat";
 import type {
   ChatMessage,
   ModeratorStateEvent,
   UserNotice,
   ViewerChatSendRestrictionEvent,
-} from "@/shared/chat-types";
+} from "@shared/chat-types";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
 
 interface ServiceInternals {

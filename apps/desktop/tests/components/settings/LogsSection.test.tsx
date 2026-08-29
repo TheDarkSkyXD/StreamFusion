@@ -4,7 +4,7 @@
 // button invokes the preload. Renderer-only; window.electronAPI is mocked.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LogsSection } from "@/components/settings/LogsSection";
+import { LogsSection } from "@/features/settings/components/settings/LogsSection";
 
 import { fireEvent, renderWithProviders, screen, waitFor } from "../../test-utils";
 

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-import { useStreamRecordingActions } from "@/hooks/use-stream-recording-actions";
+import { useStreamRecordingActions } from "@/features/media-library/data/use-stream-recording-actions";
 import { installElectronAPIMock } from "../test-utils";
 
 // Guards: recording starts use the dedicated preload bridge and surface success to the user

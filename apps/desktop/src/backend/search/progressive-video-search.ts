@@ -1,4 +1,4 @@
-import type { UnifiedChannel, UnifiedVideo } from "@/backend/api/unified/platform-types";
+import type { UnifiedChannel, UnifiedVideo } from "@shared/platform-types";
 import {
   createProgressiveRecentContentSearch,
   type RecentContentSearchPage,
@@ -6,8 +6,8 @@ import {
   type RecentContentSearchProviderPage,
   type RecentContentSearchRequest,
   type RecentContentSearchSource,
-} from "@/backend/search/progressive-recent-content-search";
-import { filterRankAndDeduplicateVideos } from "@/backend/search/search-match-contract";
+} from "@backend/search/progressive-recent-content-search";
+import { filterRankAndDeduplicateVideos } from "@backend/search/search-match-contract";
 
 export type VideoSearchEndReason = "exhausted" | "safety-limit" | "rate-limited";
 

@@ -7,12 +7,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   getCachePerformanceSamples,
   resetCachePerformanceSamples,
-} from "@/hooks/queries/cache-performance";
+} from "@/features/discovery/data/queries/cache-performance";
 import {
   HISTORY_QUERY_KEYS,
   useHistoryActions,
   useHistoryQuery,
-} from "@/hooks/queries/useHistoryQuery";
+} from "@/features/media-library/data/useHistoryQuery";
 import { useHistoryStore, type HistoryItem } from "@/store/history-store";
 
 function makeWrapper(client: QueryClient) {

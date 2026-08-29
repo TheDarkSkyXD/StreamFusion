@@ -2,14 +2,14 @@ import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
 import type React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { InfoBanner } from "@/components/chat/InfoBanner";
+import { InfoBanner } from "@/features/chat/components/chat/InfoBanner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useChatRoomState } from "@/hooks/useChatRoomState";
+import { useChatRoomState } from "@/features/chat/data/useChatRoomState";
 import { DEFAULT_ROOM_STATE, type RoomState } from "@/store/room-state-store";
 
 // Mock the hook — we feed RoomState directly per test rather than priming
 // the real Zustand store.
-vi.mock("@/hooks/useChatRoomState", () => ({
+vi.mock("@/features/chat/data/useChatRoomState", () => ({
   useChatRoomState: vi.fn(),
 }));
 

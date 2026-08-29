@@ -31,7 +31,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
   useQueryClient: () => ({ refetchQueries: mocks.refetchQueries }),
 }));
 
-vi.mock("@/store/multistream-store", () => ({
+vi.mock("@/features/multistream/data/multistream-store", () => ({
   useMultiStreamStore: (selector: (state: unknown) => unknown) =>
     selector({
       ...mocks.store,
@@ -42,11 +42,11 @@ vi.mock("@/store/multistream-store", () => ({
     }),
 }));
 
-vi.mock("@/hooks/queries/useLiveFavoriteStreams", () => ({
+vi.mock("@/features/discovery/data/queries/useLiveFavoriteStreams", () => ({
   useLiveFavoriteStreams: () => mocks.liveFavorites,
 }));
 
-vi.mock("@/components/search/UnifiedSearchInput", () => ({
+vi.mock("@/features/discovery/components/search/UnifiedSearchInput", () => ({
   UnifiedSearchInput: (props: {
     platform?: "twitch" | "kick";
     liveOnlyChannels?: boolean;
@@ -109,7 +109,7 @@ vi.mock("@/components/search/UnifiedSearchInput", () => ({
   },
 }));
 
-import { AddStreamDialog } from "@/components/multistream/add-stream-dialog";
+import { AddStreamDialog } from "@/features/multistream/components/multistream/add-stream-dialog";
 
 const liveFavorite = {
   id: "stream-nova",

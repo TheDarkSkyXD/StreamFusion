@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeNoDownloadCaptionPreferences } from "@/backend/services/captions/caption-preference-normalizer";
-import { DEFAULT_CAPTION_PREFERENCES } from "@/shared/auth-types";
+import { normalizeNoDownloadCaptionPreferences } from "@backend/services/captions/caption-preference-normalizer";
+import { DEFAULT_CAPTION_PREFERENCES } from "@shared/auth-types";
 
 // Guards: a saved generated-local selection becomes Off without losing valid display settings or the model ID needed for explicit cleanup.
 // Guards: an unsafe legacy model path is discarded while the generated-local selection still becomes unavailable and Off.

@@ -24,7 +24,7 @@ vi.stubGlobal("window", {
   },
 } as unknown as Window);
 
-import { SevenTVEmoteProvider } from "@/backend/services/emotes/7tv-emotes";
+import { SevenTVEmoteProvider } from "@backend/services/emotes/7tv-emotes";
 
 // 7TV's GET /v3/users/{platform}/{id} returns a flat UserConnection:
 // `emote_set` sits at the top level — no `connections[]` array. Confirmed

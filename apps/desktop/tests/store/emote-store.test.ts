@@ -20,7 +20,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Emote } from "@/backend/services/emotes/emote-types";
+import type { Emote } from "@backend/services/emotes/emote-types";
 
 const loadGlobalEmotesMock = vi.fn();
 const loadChannelEmotesMock = vi.fn();
@@ -32,7 +32,7 @@ const getAllEmotesMock = vi.fn();
 // exercised against a realistic manager surface. Reset in beforeEach.
 let enabledProviders = new Set<string>(["twitch", "kick", "bttv", "ffz", "7tv"]);
 
-vi.mock("@/backend/services/emotes", () => ({
+vi.mock("@backend/services/emotes", () => ({
   emoteManager: {
     loadGlobalEmotes: (...args: unknown[]) => loadGlobalEmotesMock(...args),
     loadChannelEmotes: (...args: unknown[]) => loadChannelEmotesMock(...args),
@@ -49,7 +49,7 @@ vi.mock("@/backend/services/emotes", () => ({
   },
 }));
 
-import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
+import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@shared/auth-types";
 
 function providerPrefs(
   overrides: Partial<Pick<ChatDisplayPreferences, "enable7tv" | "enableBttv" | "enableFfz">> = {}

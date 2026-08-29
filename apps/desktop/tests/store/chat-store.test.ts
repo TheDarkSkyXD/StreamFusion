@@ -5,8 +5,8 @@ import {
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
   type UserPreferences,
-} from '@/shared/auth-types';
-import type { ChatConnectionStatus, ChatMessage, ChatPlatform } from '@/shared/chat-types';
+} from '@shared/auth-types';
+import type { ChatConnectionStatus, ChatMessage, ChatPlatform } from '@shared/chat-types';
 import { useAuthStore } from '@/store/auth-store';
 import { buildChannelKey, DEFAULT_BATCHING_INTERVAL_MS, useChatStore } from '@/store/chat-store';
 

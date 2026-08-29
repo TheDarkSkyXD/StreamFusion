@@ -8,7 +8,7 @@ import {
   MULTIVIEW_CAP_MIN,
   migrateMultiStreamState,
   useMultiStreamStore,
-} from "@/store/multistream-store";
+} from "@/features/multistream/data/multistream-store";
 
 function resetStore() {
   useMultiStreamStore.setState({

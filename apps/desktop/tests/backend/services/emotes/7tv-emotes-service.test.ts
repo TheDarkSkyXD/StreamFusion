@@ -43,7 +43,7 @@ vi.mock("electron", () => ({
 import {
   fetch7TVGlobalEmoteSet,
   fetch7TVUserByConnection,
-} from "@/backend/services/emotes/7tv-emotes-service";
+} from "@backend/services/emotes/7tv-emotes-service";
 
 describe("fetch7TVUserByConnection", () => {
   beforeEach(() => {

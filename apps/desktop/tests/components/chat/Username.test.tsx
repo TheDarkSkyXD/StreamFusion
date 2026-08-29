@@ -1,8 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Username } from "@/components/chat/Username";
-import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
+import { Username } from "@/features/chat/components/chat/Username";
+import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useChatCosmeticsStore } from "@/store/chat-cosmetics-store";
 

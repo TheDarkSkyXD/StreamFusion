@@ -2,21 +2,21 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { KickVodPlayer, type KickVodPlayerProps } from "@/components/player/kick/kick-vod-player";
-import { TwitchVodPlayer } from "@/components/player/twitch/twitch-vod-player";
-import type { QualityLevel } from "@/components/player/types";
+import { KickVodPlayer, type KickVodPlayerProps } from "@/features/playback/components/player/kick/kick-vod-player";
+import { TwitchVodPlayer } from "@/features/playback/components/player/twitch/twitch-vod-player";
+import type { QualityLevel } from "@/features/playback/components/player/types";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { createChatReplayPlaybackStore } from "@/hooks/chat-replay-playback-store";
+import { createChatReplayPlaybackStore } from "@/features/chat/data/chat-replay-playback-store";
 import { useSeekIntervalStore } from "@/store/seek-interval-store";
 
-vi.mock("@/components/player/hooks/use-seek-preview", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-seek-preview", () => ({
   useSeekPreview: () => ({
     previewImage: undefined,
     handleSeekHover: vi.fn(),
   }),
 }));
 
-vi.mock("@/components/player/play-pause-button", () => ({
+vi.mock("@/features/playback/components/player/play-pause-button", () => ({
   PlayPauseButton: ({ onToggle }: { onToggle: () => void }) => (
     <button type="button" onClick={onToggle}>
       Play/Pause
@@ -24,23 +24,23 @@ vi.mock("@/components/player/play-pause-button", () => ({
   ),
 }));
 
-vi.mock("@/components/player/volume-control", () => ({
+vi.mock("@/features/playback/components/player/volume-control", () => ({
   VolumeControl: () => null,
 }));
 
-vi.mock("@/components/player/settings-menu", () => ({
+vi.mock("@/features/playback/components/player/settings-menu", () => ({
   SettingsMenu: () => null,
 }));
 
-vi.mock("@/components/player/twitch/twitch-progress-bar", () => ({
+vi.mock("@/features/playback/components/player/twitch/twitch-progress-bar", () => ({
   TwitchProgressBar: () => null,
 }));
 
-vi.mock("@/components/player/kick/kick-progress-bar", () => ({
+vi.mock("@/features/playback/components/player/kick/kick-progress-bar", () => ({
   KickProgressBar: () => null,
 }));
 
-vi.mock("@/components/player/hls-player", () => ({
+vi.mock("@/features/playback/components/player/hls-player", () => ({
   HlsPlayer: React.forwardRef<
     HTMLVideoElement,
     React.VideoHTMLAttributes<HTMLVideoElement> & {

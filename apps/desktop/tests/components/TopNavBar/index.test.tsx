@@ -14,23 +14,23 @@ vi.mock("@/store/app-store", () => ({
     typeof selector === "function" ? selector(appStoreState) : appStoreState,
 }));
 
-vi.mock("@/components/TopNavBar/SearchBar", () => ({
+vi.mock("@/features/shell/components/TopNavBar/SearchBar", () => ({
   SearchBar: () => <div data-testid="search-bar">search</div>,
 }));
 
-vi.mock("@/components/TopNavBar/NotificationsDropdown", () => ({
+vi.mock("@/features/shell/components/TopNavBar/NotificationsDropdown", () => ({
   NotificationsDropdown: () => <div data-testid="notifications">notif</div>,
 }));
 
-vi.mock("@/components/layout/PlatformHealthIndicator", () => ({
+vi.mock("@/features/shell/components/layout/PlatformHealthIndicator", () => ({
   PlatformHealthIndicator: () => null,
 }));
 
-vi.mock("@/components/auth", () => ({
+vi.mock("@/features/auth/components/auth", () => ({
   ProfileDropdown: () => <div data-testid="profile">profile</div>,
 }));
 
-import { TopNavBar } from "@/components/TopNavBar";
+import { TopNavBar } from "@/features/shell/components/TopNavBar";
 
 // Guards: the global menu sends explicit collapse intent instead of toggling against stale state.
 // Guards: moderation stays inside channel-scoped routes rather than leaking into global navigation.

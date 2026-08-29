@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { startConfiguredDevRelay } from "@/backend/dev-relay/dev-relay-runtime";
+import { startConfiguredDevRelay } from "@backend/dev-relay/dev-relay-runtime";
 
 // Guards: option 2 starts one loopback relay with the same origin, port, and capability
 // prepared by the development launcher; packaged production can never start it.

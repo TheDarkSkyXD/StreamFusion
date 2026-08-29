@@ -1,7 +1,7 @@
 import { act, type Ref, useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PlayerError } from "@/components/player/types";
+import type { PlayerError } from "@/features/playback/components/player/types";
 import { fireEvent, renderWithProviders, screen, waitFor } from "../../test-utils";
 
 const routerState = vi.hoisted(() => ({
@@ -46,13 +46,13 @@ vi.mock("@tanstack/react-router", () => ({
   useLocation: () => ({ pathname: routerState.pathname }),
 }));
 
-vi.mock("@/hooks/useStreamPlayback", () => streamPlaybackMock);
-vi.mock("@/hooks/queries/useStreams", () => streamStatusMock);
-vi.mock("@/hooks/useNetworkStatus", () => ({
+vi.mock("@/features/playback/data/useStreamPlayback", () => streamPlaybackMock);
+vi.mock("@/features/discovery/data/queries/useStreams", () => streamStatusMock);
+vi.mock("@/features/settings/data/useNetworkStatus", () => ({
   useNetworkStatus: () => ({ recoveryCount: networkStatusMock.recoveryCount }),
 }));
 
-vi.mock("@/components/player/kick", () => ({
+vi.mock("@/features/playback/components/player/kick", () => ({
   KickLivePlayer: (props: {
     compact?: boolean;
     onError?: (error: PlayerError) => void;
@@ -70,7 +70,7 @@ vi.mock("@/components/player/kick", () => ({
   },
 }));
 
-vi.mock("@/components/player/twitch", () => ({
+vi.mock("@/features/playback/components/player/twitch", () => ({
   TwitchLivePlayer: (props: {
     compact?: boolean;
     onError?: (error: PlayerError) => void;
@@ -89,7 +89,7 @@ vi.mock("@/components/player/twitch", () => ({
   },
 }));
 
-vi.mock("@/components/player/hooks/use-volume", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-volume", () => ({
   useVolume: () => ({
     isMuted: true,
     handleToggleMute: vi.fn(),
@@ -99,11 +99,11 @@ vi.mock("@/components/player/hooks/use-volume", () => ({
   }),
 }));
 
-import { MiniPlayer } from "@/components/player/mini-player";
+import { MiniPlayer } from "@/features/playback/components/player/mini-player";
 import {
   PersistentPlayerShell,
   useRegisterDockedPlayerConfig,
-} from "@/components/player/persistent-player-shell";
+} from "@/features/playback/components/player/persistent-player-shell";
 import { usePipStore } from "@/store/pip-store";
 
 function RegisterDockedErrorHandler({ onError }: { onError: (error: PlayerError) => void }) {

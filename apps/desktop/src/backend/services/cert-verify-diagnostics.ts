@@ -14,7 +14,7 @@
 
 import type { App, Session } from "electron";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 
 export function registerCertVerifyDiag(session: Session): void {
   session.setCertificateVerifyProc((request, callback) => {

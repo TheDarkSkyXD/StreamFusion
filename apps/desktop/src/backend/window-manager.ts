@@ -9,7 +9,7 @@ import path from "node:path";
 
 import { app, BrowserWindow, globalShortcut, screen, shell } from "electron";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import { configureWindowIdentity } from "./app-identity";
 import { installContextMenu } from "./context-menu";
 import { forwardWebContentsConsole } from "./logging/web-contents-log-forwarder";

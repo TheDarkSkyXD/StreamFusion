@@ -8,8 +8,8 @@ vi.mock("electron", () => ({
 import {
   handleTwitchClipMediaRequest,
   TWITCH_CLIP_MEDIA_SCHEME_PRIVILEGES,
-} from "@/backend/protocols/twitch-clip-media-protocol";
-import { buildTwitchClipMediaUrl } from "@/backend/protocols/twitch-clip-media-url";
+} from "@backend/protocols/twitch-clip-media-protocol";
+import { buildTwitchClipMediaUrl } from "@backend/protocols/twitch-clip-media-url";
 
 // Guards: clip playback can consume the first upstream bytes before the media response reaches EOF
 // Guards: Range requests preserve upstream partial-response status, metadata, and bytes

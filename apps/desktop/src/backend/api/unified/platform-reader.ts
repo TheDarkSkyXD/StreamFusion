@@ -1,7 +1,7 @@
 // Common read-side seam every platform adapter implements. Methods throw on error — no envelope.
 
 import type { Platform } from "../../../shared/auth-types";
-import type { UnifiedStream } from "./platform-types";
+import type { UnifiedStream } from "../../../shared/platform-types";
 
 export interface PageOptions {
   limit?: number;

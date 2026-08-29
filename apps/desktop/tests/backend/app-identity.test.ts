@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { configureAppIdentity, configureWindowIdentity } from "@/backend/app-identity";
+import { configureAppIdentity, configureWindowIdentity } from "@backend/app-identity";
 
 const packageJson = JSON.parse(
   readFileSync(path.resolve(__dirname, "../../package.json"), "utf8")

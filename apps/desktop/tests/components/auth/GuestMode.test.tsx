@@ -7,7 +7,7 @@ vi.mock('@/store/auth-store', () => ({
   useAuthStore: (selector: (s: unknown) => unknown) => selector({ isGuest: mockIsGuest }),
 }));
 
-import { GuestBadge } from '@/components/auth/GuestMode';
+import { GuestBadge } from '@/features/auth/components/auth/GuestMode';
 
 describe('GuestBadge', () => {
   it('renders nothing when not a guest', () => {

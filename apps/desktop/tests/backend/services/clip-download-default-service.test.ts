@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { resolveDefaultClipPlayback } from "@/backend/services/clip-download-default-service";
+import { resolveDefaultClipPlayback } from "@backend/services/clip-download-default-service";
 
 // Guards: renderer-provided Kick clip media is validated before privileged HTTP or FFmpeg use.
 describe("default clip download playback resolution", () => {

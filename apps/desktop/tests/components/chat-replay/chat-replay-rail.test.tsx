@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { ChatReplayRail } from "@/components/chat-replay/chat-replay-rail";
-import type { ChatReplayWindowResult } from "@/shared/chat-replay-types";
+import { ChatReplayRail } from "@/features/chat/components/chat-replay/chat-replay-rail";
+import type { ChatReplayWindowResult } from "@shared/chat-replay-types";
 
 const supportedReplay: ChatReplayWindowResult = {
   capability: "supported",

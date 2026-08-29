@@ -1,5 +1,5 @@
-import type { UnifiedStream } from "@/backend/api/unified/platform-types";
-import type { LocalFollow } from "@/shared/auth-types";
+import type { UnifiedStream } from "@shared/platform-types";
+import type { LocalFollow } from "@shared/auth-types";
 
 import type { LiveNotificationObservation } from "./live-notification-service";
 

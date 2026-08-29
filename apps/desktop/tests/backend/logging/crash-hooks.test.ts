@@ -29,7 +29,7 @@ import { EventEmitter } from "node:events";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -38,13 +38,13 @@ vi.mock("@/backend/logging/logger", () => ({
   },
 }));
 
-type CrashHooksModule = typeof import("@/backend/logging/crash-hooks");
-type LoggerModule = typeof import("@/backend/logging/logger");
+type CrashHooksModule = typeof import("@backend/logging/crash-hooks");
+type LoggerModule = typeof import("@backend/logging/logger");
 
 async function freshCrashHooksModule(): Promise<CrashHooksModule> {
   vi.resetModules();
   // Re-register the mock — vi.resetModules() drops the previous registration.
-  vi.doMock("@/backend/logging/logger", () => ({
+  vi.doMock("@backend/logging/logger", () => ({
     logger: {
       debug: vi.fn(),
       info: vi.fn(),
@@ -52,11 +52,11 @@ async function freshCrashHooksModule(): Promise<CrashHooksModule> {
       error: vi.fn(),
     },
   }));
-  return await import("@/backend/logging/crash-hooks");
+  return await import("@backend/logging/crash-hooks");
 }
 
 async function getMockedLogger(): Promise<LoggerModule["logger"]> {
-  const mod = await import("@/backend/logging/logger");
+  const mod = await import("@backend/logging/logger");
   return mod.logger;
 }
 

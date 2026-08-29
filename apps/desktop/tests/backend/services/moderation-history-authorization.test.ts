@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { KICK_APP_SCOPES, TWITCH_APP_SCOPES } from "@/shared/auth-types";
+import { KICK_APP_SCOPES, TWITCH_APP_SCOPES } from "@shared/auth-types";
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: {
     getToken: vi.fn(),
     getTwitchUser: vi.fn(),
@@ -10,36 +10,36 @@ vi.mock("@/backend/services/storage-service", () => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-helix-moderation", () => ({
+vi.mock("@backend/api/platforms/twitch/twitch-helix-moderation", () => ({
   getModeratedChannelsResult: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-send-window", () => ({
+vi.mock("@backend/api/platforms/kick/kick-send-window", () => ({
   getKickChannelViewerRole: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
+vi.mock("@backend/api/platforms/kick/kick-client", () => ({
   kickClient: {
     getChannelsBySlugs: vi.fn(),
   },
 }));
 
-vi.mock("@/backend/auth/oauth-config", () => ({
+vi.mock("@backend/auth/oauth-config", () => ({
   getOAuthConfig: vi.fn(() => ({ clientId: "client-id" })),
 }));
 
-vi.mock("@/backend/auth/token-exchange", () => ({
+vi.mock("@backend/auth/token-exchange", () => ({
   tokenExchangeService: {
     getTokenStatus: vi.fn(),
   },
 }));
 
-import { kickClient } from "@/backend/api/platforms/kick/kick-client";
-import { getKickChannelViewerRole } from "@/backend/api/platforms/kick/kick-send-window";
-import { getModeratedChannelsResult } from "@/backend/api/platforms/twitch/twitch-helix-moderation";
-import { tokenExchangeService } from "@/backend/auth/token-exchange";
-import { authorizeModerationHistory } from "@/backend/services/moderation-history-authorization";
-import { storageService } from "@/backend/services/storage-service";
+import { kickClient } from "@backend/api/platforms/kick/kick-client";
+import { getKickChannelViewerRole } from "@backend/api/platforms/kick/kick-send-window";
+import { getModeratedChannelsResult } from "@backend/api/platforms/twitch/twitch-helix-moderation";
+import { tokenExchangeService } from "@backend/auth/token-exchange";
+import { authorizeModerationHistory } from "@backend/services/moderation-history-authorization";
+import { storageService } from "@backend/services/storage-service";
 
 const twitchInput = {
   platform: "twitch" as const,

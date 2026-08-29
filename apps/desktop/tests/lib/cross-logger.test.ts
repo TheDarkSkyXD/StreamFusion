@@ -1,6 +1,6 @@
 /**
  * Guards the process-safe cross-logger that dual-use backend files
- * (e.g. mod-log-writer) use instead of `@/backend/logging/logger`. Importing
+ * (e.g. mod-log-writer) use instead of `@backend/logging/logger`. Importing
  * the backend logger from renderer-reachable code drags `electron-log/main`
  * into the renderer bundle and crashes boot — this module is the workaround,
  * so any regression in its sink-selection logic would resurrect that crash.
@@ -8,7 +8,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { logger, setMainLogSink } from "@/lib/cross-logger";
+import { logger, setMainLogSink } from "@shared/utils/cross-logger";
 
 function installRendererBridge(write: ReturnType<typeof vi.fn>) {
     Object.defineProperty(globalThis, "window", {

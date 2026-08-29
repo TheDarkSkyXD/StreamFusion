@@ -9,7 +9,7 @@
  * Cloudflare trick the Kick path needs.
  */
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 
 const RECENT_MESSAGES_BASE = "https://recent-messages.robotty.de/api/v2/recent-messages";
 const HISTORY_LIMIT = 50;

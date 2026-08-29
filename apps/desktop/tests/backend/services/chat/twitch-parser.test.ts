@@ -5,7 +5,7 @@ import {
   parseBadgeTags,
   parseTwitchMessage,
   type TwitchTags,
-} from "@/backend/services/chat/twitch-parser";
+} from "@backend/services/chat/twitch-parser";
 
 describe("getDefaultColor", () => {
   it("returns a hex color string", () => {

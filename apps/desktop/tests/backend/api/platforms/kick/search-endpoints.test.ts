@@ -15,44 +15,44 @@ Module.prototype.require = function (id: string) {
   return _origRequire.call(this, id);
 };
 
-vi.mock("@/backend/api/platforms/kick/kick-network-health", () => ({
+vi.mock("@backend/api/platforms/kick/kick-network-health", () => ({
   acquireKickRequestSlot: vi.fn(async () => () => {}),
 }));
 
-vi.mock("@/lib/managed-interval", () => ({
+vi.mock("@shared/utils/managed-interval", () => ({
   createManagedInterval: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/stream-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/stream-endpoints", () => ({
   getStreamBySlug: vi.fn().mockResolvedValue(null),
   getPublicTopStreams: vi.fn().mockResolvedValue({ data: [] }),
   rememberCategorySlug: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
   getChannel: vi.fn().mockResolvedValue(null),
   getPublicChannel: vi.fn().mockResolvedValue(null),
   acquireBrowserWindowSlot: vi.fn(async () => vi.fn()),
   mapKickChatroomToSettings: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/category-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/category-endpoints", () => ({
   searchCategories: vi.fn().mockResolvedValue({ data: [] }),
 }));
 
-import { searchCategories } from "@/backend/api/platforms/kick/endpoints/category-endpoints";
-import { acquireKickRequestSlot } from "@/backend/api/platforms/kick/kick-network-health";
+import { searchCategories } from "@backend/api/platforms/kick/endpoints/category-endpoints";
+import { acquireKickRequestSlot } from "@backend/api/platforms/kick/kick-network-health";
 import {
   getChannel,
   getPublicChannel,
-} from "@/backend/api/platforms/kick/endpoints/channel-endpoints";
-import { search, searchChannels } from "@/backend/api/platforms/kick/endpoints/search-endpoints";
+} from "@backend/api/platforms/kick/endpoints/channel-endpoints";
+import { search, searchChannels } from "@backend/api/platforms/kick/endpoints/search-endpoints";
 import {
   getPublicTopStreams,
   getStreamBySlug,
-} from "@/backend/api/platforms/kick/endpoints/stream-endpoints";
-import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
-import type { UnifiedChannel, UnifiedStream } from "@/backend/api/unified/platform-types";
+} from "@backend/api/platforms/kick/endpoints/stream-endpoints";
+import type { KickRequestor } from "@backend/api/platforms/kick/kick-requestor";
+import type { UnifiedChannel, UnifiedStream } from "@shared/platform-types";
 
 function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor {
   return {

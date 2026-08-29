@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { warn: vi.fn() },
 }));
 
-import { readEmoteReply } from "@/backend/ipc/emote-ipc-reply";
-import { BoundedReadError } from "@/backend/reliability/bounded-json-read";
+import { readEmoteReply } from "@backend/ipc/emote-ipc-reply";
+import { BoundedReadError } from "@backend/reliability/bounded-json-read";
 
 describe("readEmoteReply", () => {
   it.each([

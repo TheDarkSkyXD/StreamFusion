@@ -7,7 +7,7 @@ import {
   PERSISTED_CHANNEL_LRU_LIMITS,
   resetPersistedChannelLruForTests,
   savePersistedChannelMetadata,
-} from "@/hooks/queries/persisted-channel-lru";
+} from "@/features/discovery/data/queries/persisted-channel-lru";
 import { fixtures, installElectronAPIMock } from "../../test-utils";
 
 let api: ReturnType<typeof installElectronAPIMock>;

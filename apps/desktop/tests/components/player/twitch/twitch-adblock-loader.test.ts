@@ -27,7 +27,7 @@ const {
   mockSuperLoad: vi.fn(),
 }));
 
-vi.mock("@/components/player/twitch/twitch-adblock-service", () => ({
+vi.mock("@/features/playback/components/player/twitch/twitch-adblock-service", () => ({
   isAdBlockEnabled: () => mockIsAdBlockEnabled(),
   isAdSegment: (url: string) => mockIsAdSegment(url),
   getBlankVideoDataUrl: () => mockGetBlankVideoDataUrl(),
@@ -64,7 +64,7 @@ import {
   createAdBlockFragmentLoader,
   createAdBlockPlaylistLoader,
   getAdBlockHlsConfig,
-} from "@/components/player/twitch/twitch-adblock-loader";
+} from "@/features/playback/components/player/twitch/twitch-adblock-loader";
 
 function makeLoaderCallbacks(): LoaderCallbacks<LoaderContext> {
   return {

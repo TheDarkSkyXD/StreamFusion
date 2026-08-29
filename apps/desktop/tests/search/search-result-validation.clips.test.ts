@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   isValidUnifiedClip,
   sanitizeSearchResultCollection,
-} from "@/search/search-result-validation";
+} from "@/features/discovery/utils/search/search-result-validation";
 
 const validClip = {
   id: "clip-1",

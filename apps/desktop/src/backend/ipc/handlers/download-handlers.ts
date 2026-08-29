@@ -2,8 +2,8 @@ import type { BrowserWindow } from "electron";
 
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
-import type { ClipDownloadRequest } from "@/shared/download-types";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import type { ClipDownloadRequest } from "@shared/download-types";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 import { getDefaultClipDownloadService } from "../../services/clip-download-default-service";
 import { getDefaultDownloadFileActionsService } from "../../services/download-file-actions-service";
 import { getDownloadQueueService } from "../../services/download-queue-service";

@@ -1,8 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ChatReplaySession } from "@/components/chat-replay/chat-replay-session";
-import { createChatReplayPlaybackStore } from "@/hooks/chat-replay-playback-store";
-import { clearChatReplayWindowCache } from "@/hooks/use-chat-replay";
+import { ChatReplaySession } from "@/features/chat/components/chat-replay/chat-replay-session";
+import { createChatReplayPlaybackStore } from "@/features/chat/data/chat-replay-playback-store";
+import { clearChatReplayWindowCache } from "@/features/chat/data/use-chat-replay";
 import { installElectronAPIMock } from "../../test-utils";
 
 // Guards: narrow Video layouts expose replay as a non-modal drawer that leaves player controls reachable

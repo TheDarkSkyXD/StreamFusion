@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { NetworkStatusBanner } from "@/components/layout/NetworkStatusBanner";
+import { NetworkStatusBanner } from "@/features/shell/components/layout/NetworkStatusBanner";
 
 import { renderWithProviders, screen } from "../../test-utils";
 

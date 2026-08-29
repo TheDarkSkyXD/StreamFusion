@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   KickAccountFollowWriteChangedEvent,
   KickAccountFollowWriteRequest,
-} from "@/shared/auth-types";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+} from "@shared/auth-types";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 const enqueue = vi.hoisted(() => vi.fn());
 const onAccountWriteChanged = vi.hoisted(() => vi.fn());
@@ -16,7 +16,7 @@ vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
 }));
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: {
     hasToken: vi.fn(() => true),
     getActiveFollowsByPlatform: vi.fn(() => []),
@@ -24,15 +24,15 @@ vi.mock("@/backend/services/storage-service", () => ({
   },
 }));
 
-vi.mock("@/backend/services/kick-follow-write-service", () => ({
+vi.mock("@backend/services/kick-follow-write-service", () => ({
   kickFollowWriteService: { enqueue, onAccountWriteChanged },
 }));
 
-vi.mock("@/backend/services/twitch-follow-write-service", () => ({
+vi.mock("@backend/services/twitch-follow-write-service", () => ({
   twitchFollowWriteService: { write: writeTwitch },
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { warn },
 }));
 
@@ -41,8 +41,8 @@ import { ipcMain } from "electron";
 import {
   attachKickFollowWriteService,
   registerStorageHandlers,
-} from "@/backend/ipc/handlers/storage-handlers";
-import { storageService } from "@/backend/services/storage-service";
+} from "@backend/ipc/handlers/storage-handlers";
+import { storageService } from "@backend/services/storage-service";
 
 type Handler = (event: unknown, args?: unknown) => unknown;
 

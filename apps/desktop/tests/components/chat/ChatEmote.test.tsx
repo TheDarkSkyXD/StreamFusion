@@ -1,8 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { ChatEmote } from "@/components/chat/ChatEmote";
-import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
+import { ChatEmote } from "@/features/chat/components/chat/ChatEmote";
+import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
 // Seed the chatDisplay prefs ChatEmote reads. Mirrors the ChatMessage test

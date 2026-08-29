@@ -15,7 +15,7 @@ vi.mock("sonner", () => ({
 
 // Mock the profile fetcher BEFORE importing the popout — the hook runs an
 // effect on mount and we don't want it touching the network.
-vi.mock("@/components/chat/mod/UserPopout/useUserProfile", () => {
+vi.mock("@/features/chat/components/chat/mod/UserPopout/useUserProfile", () => {
   return {
     useUserProfile: vi.fn(),
   };
@@ -23,7 +23,7 @@ vi.mock("@/components/chat/mod/UserPopout/useUserProfile", () => {
 
 // Mock the mod-log hook the inner UserModHistory consumes so it doesn't
 // reach into the real database singleton.
-vi.mock("@/hooks/useModLog", () => ({
+vi.mock("@/features/moderation/data/useModLog", () => ({
   useModLog: () => ({
     result: { state: "verified-empty", entries: [], coverage: "complete" },
     entries: [],
@@ -32,17 +32,17 @@ vi.mock("@/hooks/useModLog", () => ({
   }),
 }));
 
-import { UserPopout, type UserPopoutProps } from "@/components/chat/mod/UserPopout/UserPopout";
-import { useUserProfile } from "@/components/chat/mod/UserPopout/useUserProfile";
+import { UserPopout, type UserPopoutProps } from "@/features/chat/components/chat/mod/UserPopout/UserPopout";
+import { useUserProfile } from "@/features/chat/components/chat/mod/UserPopout/useUserProfile";
 import {
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
   KICK_APP_SCOPES,
   TWITCH_APP_SCOPES,
-} from "@/shared/auth-types";
-import type { ChatMessage } from "@/shared/chat-types";
+} from "@shared/auth-types";
+import type { ChatMessage } from "@shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
-import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
+import { useModeratedChannelsStore } from "@/features/moderation/data/moderated-channels-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 
 const mockedUseUserProfile = vi.mocked(useUserProfile);

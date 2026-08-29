@@ -1,7 +1,7 @@
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Platform } from "@/shared/auth-types";
-import type { CategoryMediaItem } from "@/shared/category-media-types";
+import type { Platform } from "@shared/auth-types";
+import type { CategoryMediaItem } from "@shared/category-media-types";
 
 import {
   fixtures,
@@ -32,16 +32,16 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigateMock,
 }));
 
-vi.mock("@/hooks/queries/useCategories", () => ({
+vi.mock("@/features/discovery/data/queries/useCategories", () => ({
   useCategoryById: vi.fn(),
   useInfiniteTopCategories: vi.fn(),
 }));
 
-vi.mock("@/hooks/queries/useInfiniteStreams", () => ({
+vi.mock("@/features/discovery/data/queries/useInfiniteStreams", () => ({
   useInfiniteStreamsByCategory: vi.fn(),
 }));
 
-vi.mock("@/components/stream/stream-grid", () => ({
+vi.mock("@/features/discovery/components/stream/stream-grid", () => ({
   StreamGrid: () => <div data-testid="live-stream-grid">Live streams</div>,
 }));
 
@@ -65,8 +65,8 @@ vi.mock("@/components/ui/platform-avatar", () => ({
   ),
 }));
 
-import { useCategoryById, useInfiniteTopCategories } from "@/hooks/queries/useCategories";
-import { useInfiniteStreamsByCategory } from "@/hooks/queries/useInfiniteStreams";
+import { useCategoryById, useInfiniteTopCategories } from "@/features/discovery/data/queries/useCategories";
+import { useInfiniteStreamsByCategory } from "@/features/discovery/data/queries/useInfiniteStreams";
 import { CategoryDetailPage } from "@/pages/CategoryDetail";
 
 const useCategoryByIdMock = vi.mocked(useCategoryById);

@@ -13,14 +13,14 @@ vi.mock("sonner", () => ({
   toast: toastMock,
 }));
 
-import { useLiveNotificationBridge } from "@/hooks/use-live-notification-bridge";
+import { useLiveNotificationBridge } from "@/features/auth/data/use-live-notification-bridge";
 import { resolveProxiedImageSrc } from "@/lib/proxied-image-url";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
   type LiveNotificationCoverageStatus,
   type LiveNotificationPayload,
-} from "@/shared/auth-types";
+} from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useNotificationStore } from "@/store/notification-store";
 import { installElectronAPIMock } from "../test-utils";

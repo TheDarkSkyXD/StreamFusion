@@ -43,8 +43,8 @@
 
 // Cross-logger: imported by TwitchChat (renderer) — avoids dragging
 // electron-log into the renderer bundle.
-import { logger } from "@/lib/cross-logger";
-import { createManagedInterval } from "@/lib/managed-interval";
+import { logger } from "@shared/utils/cross-logger";
+import { createManagedInterval } from "@shared/utils/managed-interval";
 import type {
   ChatBadge,
   ContentFragment,

@@ -17,20 +17,20 @@
 import type { ProcessMetric } from "electron";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-type ProcessMonitorModule = typeof import("@/backend/logging/process-monitor");
-type LoggerModule = typeof import("@/backend/logging/logger");
+type ProcessMonitorModule = typeof import("@backend/logging/process-monitor");
+type LoggerModule = typeof import("@backend/logging/logger");
 
 async function freshModule(): Promise<{
   pm: ProcessMonitorModule;
   loggerMock: LoggerModule;
 }> {
   vi.resetModules();
-  const pm = await import("@/backend/logging/process-monitor");
-  const loggerMock = await import("@/backend/logging/logger");
+  const pm = await import("@backend/logging/process-monitor");
+  const loggerMock = await import("@backend/logging/logger");
   return { pm, loggerMock };
 }
 

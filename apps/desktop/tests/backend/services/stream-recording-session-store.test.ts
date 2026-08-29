@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createStreamRecordingSessionStore } from "@/backend/services/stream-recording-session-store";
+import { createStreamRecordingSessionStore } from "@backend/services/stream-recording-session-store";
 import type {
   StreamRecordingJournal,
   StreamRecordingJournalV2,
   StreamRecordingSession,
-} from "@/shared/stream-recording-types";
+} from "@shared/stream-recording-types";
 
 function ownedRecoverySession(): StreamRecordingSession {
   return {

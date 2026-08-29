@@ -1,4 +1,4 @@
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 
 export type LoadedFeatureCleanup = () => void | Promise<void>;
 

@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
 }));
 
-vi.mock("@/backend/services/database-service", () => ({
+vi.mock("@backend/services/database-service", () => ({
   dbService: {
     insertModLog: vi.fn(),
     queryModLog: vi.fn(),
@@ -18,16 +18,16 @@ vi.mock("@/backend/services/database-service", () => ({
   },
 }));
 
-vi.mock("@/backend/services/moderation-history-authorization", () => ({
+vi.mock("@backend/services/moderation-history-authorization", () => ({
   authorizeModerationHistory: vi.fn(),
 }));
 
 import { ipcMain } from "electron";
 
-import { registerModLogHandlers } from "@/backend/ipc/handlers/modlog-handlers";
-import { dbService } from "@/backend/services/database-service";
-import { authorizeModerationHistory } from "@/backend/services/moderation-history-authorization";
-import type { ModLogEntry } from "@/shared/mod-log-types";
+import { registerModLogHandlers } from "@backend/ipc/handlers/modlog-handlers";
+import { dbService } from "@backend/services/database-service";
+import { authorizeModerationHistory } from "@backend/services/moderation-history-authorization";
+import type { ModLogEntry } from "@shared/mod-log-types";
 
 type Handler = (event: unknown, args?: unknown) => unknown;
 const allowedEvent = { senderFrame: { url: "http://localhost:5173/browser.html" } };

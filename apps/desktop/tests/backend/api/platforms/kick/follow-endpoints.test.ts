@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 
 // Guards: must classify failure causes distinctly (auth vs cloudflare vs parse vs network)
 // so syncFollowsOnLogin can choose whether to mutate the local DB. A blanket
@@ -45,7 +45,7 @@ vi.mock("../../../../../src/backend/services/storage-service", () => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-send-window", () => ({
+vi.mock("@backend/api/platforms/kick/kick-send-window", () => ({
   fetchKickWebApiGet: fetchKickWebApiGetMock,
   fetchKickWebApiMutation: fetchKickWebApiMutationMock,
 }));

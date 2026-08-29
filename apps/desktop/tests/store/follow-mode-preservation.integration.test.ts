@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
-import type { LocalFollow } from "@/shared/auth-types";
-import type { AuthStatus } from "@/shared/ipc-channels";
+import type { UnifiedChannel } from "@shared/platform-types";
+import type { LocalFollow } from "@shared/auth-types";
+import type { AuthStatus } from "@shared/ipc-channels";
 import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
 

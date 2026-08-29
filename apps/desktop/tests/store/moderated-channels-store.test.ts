@@ -1,7 +1,7 @@
 import { act } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
+import { useModeratedChannelsStore } from "@/features/moderation/data/moderated-channels-store";
 import { installElectronAPIMock } from "../test-utils";
 
 const getModeratedChannelsMock = vi.fn();

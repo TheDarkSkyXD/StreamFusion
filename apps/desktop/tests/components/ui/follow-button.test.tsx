@@ -1,7 +1,7 @@
 import { fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { FollowSource } from "@/shared/auth-types";
+import type { FollowSource } from "@shared/auth-types";
 
 import { fixtures, renderWithProviders, screen } from "../../test-utils";
 
@@ -27,7 +27,7 @@ vi.mock("@/store/auth-store", () => ({
   ) => selector({ kickConnected: mockKickConnected, twitchConnected: mockTwitchConnected }),
 }));
 
-vi.mock("@/hooks/useElectron", () => ({
+vi.mock("@/features/settings/data/useElectron", () => ({
   useOpenExternal: () => openExternal,
 }));
 

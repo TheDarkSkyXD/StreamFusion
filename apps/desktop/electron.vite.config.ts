@@ -5,8 +5,8 @@ import svgr from 'vite-plugin-svgr';
 import viteCompression from 'vite-plugin-compression';
 import { visualizer } from 'rollup-plugin-visualizer';
 import { loadEnv } from 'vite';
-import { createBrowserDevelopmentConfig } from './src/dev-relay/config';
-import { createTwitchAdFrameProofConfig } from './src/dev-relay/twitch-ad-frame-proof-config';
+import { createBrowserDevelopmentConfig } from './src/frontend/dev-relay/config';
+import { createTwitchAdFrameProofConfig } from './src/frontend/dev-relay/twitch-ad-frame-proof-config';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -49,7 +49,7 @@ export default defineConfig(({ command, mode }) => {
             },
             resolve: {
                 alias: {
-                    '@': resolve(__dirname, './src'),
+                    '@': resolve(__dirname, './src/frontend'),
                     '@backend': resolve(__dirname, './src/backend'),
                     '@shared': resolve(__dirname, './src/shared'),
                 },
@@ -86,7 +86,7 @@ export default defineConfig(({ command, mode }) => {
                 },
                 rollupOptions: {
                     input: {
-                        index: resolve(__dirname, 'src/main.ts'),
+                        index: resolve(__dirname, 'src/backend/main.ts'),
                     },
                     output: {
                         // Keep feature imports as real main-process chunks. Stable
@@ -111,18 +111,19 @@ export default defineConfig(({ command, mode }) => {
         preload: {
             resolve: {
                 alias: {
-                    '@': resolve(__dirname, './src'),
+                    '@': resolve(__dirname, './src/frontend'),
+                    '@backend': resolve(__dirname, './src/backend'),
                     '@shared': resolve(__dirname, './src/shared'),
                 },
             },
             build: {
                 rollupOptions: {
                     input: {
-                        index: resolve(__dirname, 'src/preload/index.ts'),
+                        index: resolve(__dirname, 'src/backend/preload/index.ts'),
                         // Slice 05 of renderer-OOM PRD (#51): narrow preload
                         // loaded into each StreamSlot's WebContentsView. Exposes
                         // ONLY the slot IPC surface (no broader electronAPI).
-                        slot: resolve(__dirname, 'src/preload/slot.ts'),
+                        slot: resolve(__dirname, 'src/backend/preload/slot.ts'),
                     },
                 },
                 sourcemap: !isProduction,
@@ -172,7 +173,7 @@ export default defineConfig(({ command, mode }) => {
             ],
             resolve: {
                 alias: {
-                    '@': resolve(__dirname, './src'),
+                    '@': resolve(__dirname, './src/frontend'),
                     '@backend': resolve(__dirname, './src/backend'),
                     '@frontend': resolve(__dirname, './src/frontend'),
                     '@shared': resolve(__dirname, './src/shared'),
@@ -191,7 +192,7 @@ export default defineConfig(({ command, mode }) => {
                         // Slice 05 of renderer-OOM PRD #51: the slot WCV's own
                         // minimal video page. Vanilla TS + HLS.js, no React,
                         // no app chrome.
-                        slot: resolve(__dirname, 'src/slot-renderer/index.html'),
+                        slot: resolve(__dirname, 'src/frontend/slot-renderer/index.html'),
                     },
                     treeshake: {
                         moduleSideEffects: 'no-external',

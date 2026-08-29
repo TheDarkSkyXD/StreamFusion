@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildStartupRecoveryUrl } from "@/backend/startup/startup-recovery-window";
+import { buildStartupRecoveryUrl } from "@backend/startup/startup-recovery-window";
 
 // Guards: startup failures render a local, script-free recovery page without leaking raw error text
 describe("startup recovery window", () => {

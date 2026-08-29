@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { EmoteImage } from "@/components/chat/EmoteImage";
+import { EmoteImage } from "@/features/chat/components/chat/EmoteImage";
 
 const emote = {
   id: "e1",

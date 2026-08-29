@@ -34,14 +34,14 @@ vi.mock("electron-store", () => ({
   },
 }));
 
-vi.mock("@/backend/services/database-service", () => ({
+vi.mock("@backend/services/database-service", () => ({
   dbService: {
     migrateKeyValues: vi.fn(),
   },
 }));
 
-import { storageService } from "@/backend/services/storage-service";
-import { DEFAULT_USER_PREFERENCES } from "@/shared/auth-types";
+import { storageService } from "@backend/services/storage-service";
+import { DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
 
 // Guards: logical caption source, model, language, enabled state, and appearance survive durable preference round-trips.
 // Guards: older or malformed caption preferences hydrate to safe defaults without overwriting unrelated preferences.

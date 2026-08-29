@@ -13,7 +13,7 @@ import { EventEmitter } from "node:events";
 
 import { session } from "electron";
 
-import { logger } from "@/lib/cross-logger";
+import { logger } from "@shared/utils/cross-logger";
 import type { AuthToken, KickUser, Platform } from "../../shared/auth-types";
 import { clearPersistedKickWebBearer } from "../api/platforms/kick/kick-web-credential";
 import { KICK_API_BASE } from "../api/platforms/kick/kick-types";

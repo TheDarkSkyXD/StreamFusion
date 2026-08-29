@@ -1,8 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ReconnectForModDialog } from "@/components/auth/ReconnectForModDialog";
-import { KICK_APP_SCOPES, TWITCH_APP_SCOPES } from "@/shared/auth-types";
+import { ReconnectForModDialog } from "@/features/auth/components/auth/ReconnectForModDialog";
+import { KICK_APP_SCOPES, TWITCH_APP_SCOPES } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 

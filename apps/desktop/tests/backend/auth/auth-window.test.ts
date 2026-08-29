@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { debug: vi.fn(), error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
-vi.mock("@/lib/sleep", () => ({
+vi.mock("@shared/utils/sleep", () => ({
   sleep: vi.fn(async () => undefined),
 }));
 
-vi.mock("@/backend/services/web-contents-ready", () => ({
+vi.mock("@backend/services/web-contents-ready", () => ({
   waitForWebContentsCondition: vi.fn(async () => true),
 }));
 
@@ -16,7 +16,7 @@ const { mockInstallKickWebBearerCapture, mockPersistKickWebBearerCandidate } = v
   mockInstallKickWebBearerCapture: vi.fn(),
   mockPersistKickWebBearerCandidate: vi.fn(),
 }));
-vi.mock("@/backend/api/platforms/kick/kick-web-credential", () => ({
+vi.mock("@backend/api/platforms/kick/kick-web-credential", () => ({
   installKickWebBearerCapture: mockInstallKickWebBearerCapture,
   persistKickWebBearerCandidate: mockPersistKickWebBearerCandidate,
 }));
@@ -83,7 +83,7 @@ vi.mock("electron", () => {
   };
 });
 
-vi.mock("@/backend/auth/oauth-config", () => ({
+vi.mock("@backend/auth/oauth-config", () => ({
   generatePkceChallenge: vi.fn(() => ({
     codeVerifier: "test-verifier",
     codeChallenge: "test-challenge",
@@ -106,8 +106,8 @@ import {
   isAuthenticatedKickWebProbe,
   isAuthenticatedKickWebUserPayload,
   shouldConfirmKickWebAuthentication,
-} from "@/backend/auth/auth-window";
-import { persistKickWebSessionCookies } from "@/backend/api/platforms/kick/kick-web-session";
+} from "@backend/auth/auth-window";
+import { persistKickWebSessionCookies } from "@backend/api/platforms/kick/kick-web-session";
 
 beforeEach(async () => {
   const { session } = await import("electron");

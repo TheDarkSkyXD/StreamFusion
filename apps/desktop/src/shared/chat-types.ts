@@ -25,6 +25,16 @@ export interface ChatBadge {
   backgroundColor?: string;
 }
 
+export interface SubscriberBadge {
+  id: number;
+  channel_id: number;
+  months: number;
+  badge_image: {
+    src: string;
+    srcset: string;
+  };
+}
+
 export type ChatCosmeticProvider = "7tv" | "bttv" | "ffz";
 
 /** A third-party badge kept separate from the platform's official message badge array. */

@@ -1,5 +1,5 @@
 import "./browser-mocks";
-import "../src/global.css";
+import "../src/frontend/global.css";
 import "./preview.css";
 
 import type { Preview } from "@storybook/react-vite";
@@ -8,8 +8,8 @@ import { type ReactNode, useEffect, useState } from "react";
 import { sb } from "storybook/test";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-sb.mock(import("../src/components/player/kick/index.ts"), { spy: true });
-sb.mock(import("../src/components/player/twitch/index.ts"), { spy: true });
+sb.mock(import("../src/frontend/features/playback/components/player/kick/index.ts"), { spy: true });
+sb.mock(import("../src/frontend/features/playback/components/player/twitch/index.ts"), { spy: true });
 
 function StoryProviders({ children }: { children: ReactNode }) {
   const [queryClient] = useState(

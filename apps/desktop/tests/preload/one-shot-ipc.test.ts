@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createOneShotSnapshotRequest } from "@/preload/one-shot-ipc";
+import { createOneShotSnapshotRequest } from "@backend/preload/one-shot-ipc";
 
 describe("createOneShotSnapshotRequest", () => {
   it("consumes the synchronous startup snapshot once, then requests fresh data", async () => {

@@ -1,11 +1,11 @@
 import type { BrowserWindow } from "electron";
 
-import { getBugReportsDir } from "@/backend/logging/log-paths";
-import { logger } from "@/backend/logging/logger";
-import { storageService } from "@/backend/services/storage-service";
-import { registerLoadedFeatureCleanup } from "@/backend/startup/loaded-feature-cleanup";
-import { featureLoaderIpcContract } from "@/ipc-contracts/feature-loader-contracts";
-import { IPC_CHANNELS, IPC_FEATURES, type IpcFeature } from "@/shared/ipc-channels";
+import { getBugReportsDir } from "@backend/logging/log-paths";
+import { logger } from "@backend/logging/logger";
+import { storageService } from "@backend/services/storage-service";
+import { registerLoadedFeatureCleanup } from "@backend/startup/loaded-feature-cleanup";
+import { featureLoaderIpcContract } from "@shared/ipc-contracts/feature-loader-contracts";
+import { IPC_CHANNELS, IPC_FEATURES, type IpcFeature } from "@shared/ipc-channels";
 import type { TrustedIpcRegistry } from "./trusted-ipc-registry";
 
 interface FeatureContext {

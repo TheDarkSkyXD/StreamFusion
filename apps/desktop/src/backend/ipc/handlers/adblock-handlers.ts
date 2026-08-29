@@ -9,7 +9,7 @@ import type { BrowserWindow } from "electron";
 
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import { cosmeticInjectionService } from "../../services/cosmetic-injection-service";
 import { networkAdBlockService } from "../../services/network-adblock-service";
 import { twitchManifestProxy } from "../../services/twitch-manifest-proxy";

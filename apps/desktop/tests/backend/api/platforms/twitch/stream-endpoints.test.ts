@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: {
     error: vi.fn(),
     warn: vi.fn(),
@@ -14,9 +14,9 @@ import {
   getStreamByLogin,
   getStreamsByUserIds,
   getTopStreams,
-} from "@/backend/api/platforms/twitch/endpoints/stream-endpoints";
+} from "@backend/api/platforms/twitch/endpoints/stream-endpoints";
 
-import type { TwitchRequestor } from "@/backend/api/platforms/twitch/twitch-requestor";
+import type { TwitchRequestor } from "@backend/api/platforms/twitch/twitch-requestor";
 
 const STREAM = {
   id: "s1",

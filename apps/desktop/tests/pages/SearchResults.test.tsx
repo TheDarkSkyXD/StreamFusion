@@ -8,7 +8,7 @@ let intersectionCallbacks: IntersectionObserverCallback[] = [];
 
 vi.mock("@tanstack/react-router", () => routerMock({ search: routeMockState.search }));
 
-vi.mock("@/hooks/queries/useSearch", () => ({
+vi.mock("@/features/discovery/data/queries/useSearch", () => ({
   useSearchAll: vi.fn(),
   useSearchCategories: vi.fn(),
   useSearchChannels: vi.fn(),
@@ -17,13 +17,13 @@ vi.mock("@/hooks/queries/useSearch", () => ({
   useSearchVideos: vi.fn(),
 }));
 
-vi.mock("@/components/stream/stream-grid", () => ({
+vi.mock("@/features/discovery/components/stream/stream-grid", () => ({
   StreamGrid: ({ streams }: { streams?: unknown[] }) => (
     <div data-testid="stream-grid">{streams?.length ?? 0} streams</div>
   ),
 }));
 
-vi.mock("@/components/discovery/category-grid", () => ({
+vi.mock("@/features/discovery/components/discovery/category-grid", () => ({
   CategoryGrid: ({ categories }: { categories?: unknown[] }) => (
     <div data-testid="category-grid">{categories?.length ?? 0} categories</div>
   ),
@@ -56,7 +56,7 @@ import {
   useSearchClips,
   useSearchStreams,
   useSearchVideos,
-} from "@/hooks/queries/useSearch";
+} from "@/features/discovery/data/queries/useSearch";
 import { SearchPage } from "@/pages/SearchResults";
 
 const useSearchAllMock = vi.mocked(useSearchAll);

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { startPrimaryInstance } from "@/backend/startup/start-primary-instance";
+import { startPrimaryInstance } from "@backend/startup/start-primary-instance";
 
 describe("startPrimaryInstance", () => {
   it("exits a denied secondary instance without running startup", () => {

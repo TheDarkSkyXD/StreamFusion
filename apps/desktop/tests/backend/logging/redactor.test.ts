@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { redactObject, redactString } from "@/backend/logging/redactor";
+import { redactObject, redactString } from "@backend/logging/redactor";
 
 // Guards: the log redactor is the last line of defence before OAuth tokens,
 // refresh tokens, client secrets, OAuth `code` values, JWTs, and reversible

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createTimeoutModerationService,
   type TimeoutAuthorityAdapter,
-} from "@/backend/services/moderation/timeout-moderation-service";
+} from "@backend/services/moderation/timeout-moderation-service";
 
 // Guards: a Timeout snapshot is issued only from a positively verified Platform actor and target state.
 // Guards: snapshot identity binds the exact Platform, Channel, target, selected message, actor, and action.

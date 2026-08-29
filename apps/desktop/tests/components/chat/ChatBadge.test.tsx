@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { ChatBadge } from "@/components/chat/ChatBadge";
+import { ChatBadge } from "@/features/chat/components/chat/ChatBadge";
 
 // Guards: loading state (no imageUrl yet from badge-set fetch) renders null instead of a broken-image icon — the message line stays clean while the badge metadata resolves
 // Guards: error path — when badge.imageUrl is set but the CDN serves a 404 the browser's native broken-image is benign because the <img> still has alt text; verified the alt fallback below

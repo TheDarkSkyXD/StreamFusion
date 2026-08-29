@@ -7,7 +7,7 @@
 
 import type { BrowserWindow } from "electron";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 
 // CSS rules to hide Twitch ad elements (if they ever appear in our context)
 const TWITCH_COSMETIC_CSS = `

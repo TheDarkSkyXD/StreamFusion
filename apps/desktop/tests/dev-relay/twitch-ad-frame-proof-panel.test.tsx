@@ -6,7 +6,7 @@ import {
   mountTwitchAdFrameProofPanel,
   type TwitchAdFrameProofDiagnostic,
 } from "@/dev-relay/twitch-ad-frame-proof-panel";
-import type { TwitchLivePlayerProps } from "@/components/player/twitch/twitch-live-player";
+import type { TwitchLivePlayerProps } from "@/features/playback/components/player/twitch/twitch-live-player";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 
 const mountedPanels: ReturnType<typeof mountTwitchAdFrameProofPanel>[] = [];

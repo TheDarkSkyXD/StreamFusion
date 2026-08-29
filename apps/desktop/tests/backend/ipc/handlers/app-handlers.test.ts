@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 // Mock electron BEFORE importing the handler so its imports resolve to our
 // fake ipcMain (matching the pattern used by log-handlers.test.ts).
@@ -18,7 +18,7 @@ vi.mock("electron", () => ({
 
 import { app, ipcMain } from "electron";
 
-import { registerAppHandlers } from "@/backend/ipc/handlers/app-handlers";
+import { registerAppHandlers } from "@backend/ipc/handlers/app-handlers";
 
 type InvokeHandler = (event: unknown, args?: unknown) => unknown;
 

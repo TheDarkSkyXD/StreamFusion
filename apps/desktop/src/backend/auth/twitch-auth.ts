@@ -10,7 +10,7 @@
  * using the localhost callback server.
  */
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import {
   type AuthToken,
   type Platform,

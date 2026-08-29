@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { OnDemandSeekRecoveryController } from "@/components/player/on-demand-seek-recovery-controller";
+import { OnDemandSeekRecoveryController } from "@/features/playback/components/player/on-demand-seek-recovery-controller";
 
 function createManualRecoveryScheduler() {
   const scheduled = new Map<

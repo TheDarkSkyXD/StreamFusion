@@ -3,20 +3,20 @@ import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TWITCH_COLORS } from "@/assets/platforms/twitch";
-import { KickLivePlayer } from "@/components/player/kick/kick-live-player";
-import { KickVodPlayer } from "@/components/player/kick/kick-vod-player";
-import { TwitchLivePlayer } from "@/components/player/twitch/twitch-live-player";
-import { TwitchVodPlayer } from "@/components/player/twitch/twitch-vod-player";
+import { KickLivePlayer } from "@/features/playback/components/player/kick/kick-live-player";
+import { KickVodPlayer } from "@/features/playback/components/player/kick/kick-vod-player";
+import { TwitchLivePlayer } from "@/features/playback/components/player/twitch/twitch-live-player";
+import { TwitchVodPlayer } from "@/features/playback/components/player/twitch/twitch-vod-player";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { DEFAULT_USER_PREFERENCES } from "@/shared/auth-types";
+import { DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
 const captionOverlayHarness = vi.hoisted(() => ({
   highlightColors: [] as Array<string | undefined>,
 }));
 
-vi.mock("@/components/player/caption-overlay", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/components/player/caption-overlay")>();
+vi.mock("@/features/playback/components/player/caption-overlay", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/playback/components/player/caption-overlay")>();
   return {
     CaptionOverlay: (props: React.ComponentProps<typeof actual.CaptionOverlay>) => {
       captionOverlayHarness.highlightColors.push(props.localHighlightColor);
@@ -106,17 +106,17 @@ function emit(src: string, event: string, data: unknown) {
   for (const listener of engine.listeners.get(event) ?? []) listener(event, data);
 }
 
-vi.mock("@/components/player/hooks/use-resume-playback", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-resume-playback", () => ({
   useResumePlayback: vi.fn(),
 }));
 
-vi.mock("@/components/player/hooks/use-seek-preview", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-seek-preview", () => ({
   useSeekPreview: () => ({ previewImage: undefined, handleSeekHover: vi.fn() }),
 }));
 
-vi.mock("@/hooks/use-ad-element-observer", () => ({ useAdElementObserver: vi.fn() }));
+vi.mock("@/features/playback/data/use-ad-element-observer", () => ({ useAdElementObserver: vi.fn() }));
 
-vi.mock("@/components/player/hls-player", async () => {
+vi.mock("@/features/playback/components/player/hls-player", async () => {
   const React = await import("react");
   return {
     HlsPlayer: React.forwardRef<HTMLVideoElement, MockPlayerProps>(function MockHlsPlayer(
@@ -158,7 +158,7 @@ vi.mock("@/components/player/hls-player", async () => {
   };
 });
 
-vi.mock("@/components/player/twitch/twitch-hls-player", async () => {
+vi.mock("@/features/playback/components/player/twitch/twitch-hls-player", async () => {
   const React = await import("react");
   return {
     TwitchHlsPlayer: React.forwardRef<HTMLVideoElement, MockPlayerProps>(

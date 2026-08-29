@@ -1,9 +1,9 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { PlayPauseButton } from '@/components/player/play-pause-button';
-import { VolumeControl } from '@/components/player/volume-control';
-import { QualitySelector } from '@/components/player/quality-selector';
-import { QualityLevel } from '@/components/player/types';
+import { PlayPauseButton } from '@/features/playback/components/player/play-pause-button';
+import { VolumeControl } from '@/features/playback/components/player/volume-control';
+import { QualitySelector } from '@/features/playback/components/player/quality-selector';
+import { QualityLevel } from '@/features/playback/components/player/types';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 // Icons come from `react-icons/lu`, which renders raw SVG without a

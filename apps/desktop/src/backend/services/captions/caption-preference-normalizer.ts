@@ -1,4 +1,4 @@
-import { type CaptionPreferences, DEFAULT_CAPTION_PREFERENCES } from "@/shared/auth-types";
+import { type CaptionPreferences, DEFAULT_CAPTION_PREFERENCES } from "@shared/auth-types";
 
 export interface LegacyLocalCaptionUnavailable {
   status: "unavailable";

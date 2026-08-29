@@ -1,7 +1,7 @@
 import { net } from "electron";
-import { logger } from "@/backend/logging/logger";
-import { createManagedInterval } from "@/lib/managed-interval";
-import { sleep } from "@/lib/sleep";
+import { logger } from "@backend/logging/logger";
+import { createManagedInterval } from "@shared/utils/managed-interval";
+import { sleep } from "@shared/utils/sleep";
 import {
   getPlatformHealth,
   isPlatformHealthy,
@@ -9,7 +9,7 @@ import {
   recordPlatformLocalNetError,
   recordPlatformSuccess,
 } from "../../../unified/platform-health";
-import type { UnifiedChannel, UnifiedStream } from "../../../unified/platform-types";
+import type { UnifiedChannel, UnifiedStream } from "../../../../../shared/platform-types";
 import {
   isKickNetworkFailure,
   isKickRateLimitError,

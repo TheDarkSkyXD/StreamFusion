@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { captionUtilityEnvironment } from "@/backend/services/captions/caption-utility-process";
+import { captionUtilityEnvironment } from "@backend/services/captions/caption-utility-process";
 
 describe("captionUtilityEnvironment", () => {
   it("passes only runtime paths and temporary-directory variables to the utility", () => {

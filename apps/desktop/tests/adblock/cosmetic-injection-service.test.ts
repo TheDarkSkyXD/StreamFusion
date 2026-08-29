@@ -21,7 +21,7 @@ vi.mock("electron", () => ({
 }));
 
 // Import after mocking
-import { cosmeticInjectionService } from "@/backend/services/cosmetic-injection-service";
+import { cosmeticInjectionService } from "@backend/services/cosmetic-injection-service";
 
 describe("cosmetic-injection-service", () => {
   beforeEach(() => {

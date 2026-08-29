@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type {
   UnifiedPrediction,
   UnifiedPredictionOutcome,
-} from "@/shared/chat-types";
+} from "@shared/chat-types";
 
 describe("UnifiedPrediction shape (U1)", () => {
   it("constructs a Twitch ACTIVE prediction with 2 outcomes and viewer self-state", () => {

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LocalFollow, Platform } from "@/shared/auth-types";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import type { LocalFollow, Platform } from "@shared/auth-types";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 import { createIsolatedDatabaseTestLifecycle } from "../../../helpers/database-test-lifecycle";
 
 // Capture ipcMain.handle registrations so we can invoke the FOLLOWS_ADD
@@ -12,7 +12,7 @@ vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
 }));
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: {
     hasToken: vi.fn(),
     addLocalFollow: vi.fn(),
@@ -22,7 +22,7 @@ vi.mock("@/backend/services/storage-service", () => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
+vi.mock("@backend/api/platforms/kick/kick-client", () => ({
   kickClient: {
     getChannelsByBroadcasterIds: vi.fn(),
     getPublicChannel: vi.fn(),
@@ -31,10 +31,10 @@ vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
 
 import { app, ipcMain } from "electron";
 
-import { kickClient } from "@/backend/api/platforms/kick/kick-client";
-import { registerStorageHandlers } from "@/backend/ipc/handlers/storage-handlers";
-import { dbService } from "@/backend/services/database-service";
-import { storageService } from "@/backend/services/storage-service";
+import { kickClient } from "@backend/api/platforms/kick/kick-client";
+import { registerStorageHandlers } from "@backend/ipc/handlers/storage-handlers";
+import { dbService } from "@backend/services/database-service";
+import { storageService } from "@backend/services/storage-service";
 
 type AddArgs = { follow: Omit<LocalFollow, "id" | "followedAt"> };
 type Handler = (event: unknown, args?: unknown) => unknown;

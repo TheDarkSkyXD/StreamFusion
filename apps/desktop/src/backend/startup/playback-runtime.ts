@@ -1,15 +1,15 @@
 import { app, type BrowserWindow, type Session, session } from "electron";
 
-import { installNetworkRequestLogger } from "@/backend/logging/network-request-logger";
-import { logger } from "@/backend/logging/logger";
-import { cosmeticInjectionService } from "@/backend/services/cosmetic-injection-service";
-import { networkAdBlockService } from "@/backend/services/network-adblock-service";
+import { installNetworkRequestLogger } from "@backend/logging/network-request-logger";
+import { logger } from "@backend/logging/logger";
+import { cosmeticInjectionService } from "@backend/services/cosmetic-injection-service";
+import { networkAdBlockService } from "@backend/services/network-adblock-service";
 import {
   purgeStoredThirdPartyCookies,
   registerThirdPartyCookieStripper,
-} from "@/backend/services/third-party-cookie-stripper";
-import { twitchManifestProxy } from "@/backend/services/twitch-manifest-proxy";
-import { vaftPatternService } from "@/backend/services/vaft-pattern-service";
+} from "@backend/services/third-party-cookie-stripper";
+import { twitchManifestProxy } from "@backend/services/twitch-manifest-proxy";
+import { vaftPatternService } from "@backend/services/vaft-pattern-service";
 import { registerLoadedFeatureCleanup } from "./loaded-feature-cleanup";
 
 const networkBlockedSessions = new WeakSet<Session>();

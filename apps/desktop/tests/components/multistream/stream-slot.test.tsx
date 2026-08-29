@@ -1,12 +1,12 @@
 import { act } from '@testing-library/react';
-import type { PlayerError } from '@/components/player/types';
+import type { PlayerError } from '@/features/playback/components/player/types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { fixtures, renderWithProviders, routerMock, screen } from '../../test-utils';
 
 vi.mock('@tanstack/react-router', () => routerMock());
 
-vi.mock('@/store/multistream-store', () => ({
+vi.mock('@/features/multistream/data/multistream-store', () => ({
   useMultiStreamStore: () => ({
     toggleMute: vi.fn(),
     setChatStream: vi.fn(),
@@ -14,11 +14,11 @@ vi.mock('@/store/multistream-store', () => ({
   }),
 }));
 
-vi.mock('@/hooks/queries/useChannels', () => ({
+vi.mock('@/features/discovery/data/queries/useChannels', () => ({
   useChannelByUsername: () => ({ data: fixtures.channel({ displayName: 'Ninja' }) }),
 }));
 
-vi.mock('@/hooks/useStreamPlayback', () => ({
+vi.mock('@/features/playback/data/useStreamPlayback', () => ({
   useStreamPlayback: () => ({
     playback: { url: 'https://x.test/playlist.m3u8' },
     isLoading: false,
@@ -38,7 +38,7 @@ const playerMocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/components/player/twitch', () => ({
+vi.mock('@/features/playback/components/player/twitch', () => ({
   TwitchLivePlayer: (props: {
     className?: string;
     onError?: (error: PlayerError) => boolean | void;
@@ -50,7 +50,7 @@ vi.mock('@/components/player/twitch', () => ({
   },
 }));
 
-vi.mock('@/components/player/kick', () => ({
+vi.mock('@/features/playback/components/player/kick', () => ({
   KickLivePlayer: () => <div data-testid="kick-live-player">player</div>,
 }));
 
@@ -58,7 +58,7 @@ vi.mock('@/components/ui/proxied-image', () => ({
   ProxiedImage: ({ alt }: { alt: string }) => <div>{alt}</div>,
 }));
 
-import { StreamSlot } from '@/components/multistream/stream-slot';
+import { StreamSlot } from '@/features/multistream/components/multistream/stream-slot';
 
 // Guards: platform routing — twitch streams mount the Twitch live player, kick streams mount Kick. Silently mounting the wrong one would render a blank slot for the platform that didn't match
 // Guards: loading/error/offline state — when playback is null (loading or failed) the slot renders the offline overlay with "is currently offline" + Check Again, not a black square. The Check Again button triggers a fresh playback fetch via reload()

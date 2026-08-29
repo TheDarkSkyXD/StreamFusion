@@ -4,7 +4,7 @@
  * Shared type definitions for the emote provider system.
  */
 
-import type { Platform } from "@/shared/auth-types";
+import type { Platform } from "@shared/auth-types";
 
 /** Supported emote providers */
 export type EmoteProvider = "twitch" | "kick" | "bttv" | "ffz" | "7tv";

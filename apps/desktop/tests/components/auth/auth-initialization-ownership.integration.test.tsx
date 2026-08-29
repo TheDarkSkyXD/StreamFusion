@@ -8,36 +8,36 @@ import { act, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AuthProvider } from "@/components/auth/AuthProvider";
-import { AppLayout } from "@/components/layout/AppLayout";
-import { DEFAULT_USER_PREFERENCES } from "@/shared/auth-types";
-import type { AuthStatus } from "@/shared/ipc-channels";
+import { AuthProvider } from "@/features/auth/components/auth/AuthProvider";
+import { AppLayout } from "@/features/shell/components/layout/AppLayout";
+import { DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
+import type { AuthStatus } from "@shared/ipc-channels";
 import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
 import { installElectronAPIMock, renderWithProviders } from "../../test-utils";
 
-vi.mock("@/components/TopNavBar", () => ({
+vi.mock("@/features/shell/components/TopNavBar", () => ({
   TopNavBar: () => <div>top navigation</div>,
 }));
-vi.mock("@/components/layout/NetworkStatusBanner", () => ({
+vi.mock("@/features/shell/components/layout/NetworkStatusBanner", () => ({
   NetworkStatusBanner: () => null,
 }));
-vi.mock("@/components/layout/SidebarFollows", () => ({
+vi.mock("@/features/shell/components/layout/SidebarFollows", () => ({
   SidebarFollows: () => <div>followed channels</div>,
 }));
-vi.mock("@/components/layout/TitleBar", () => ({
+vi.mock("@/features/shell/components/layout/TitleBar", () => ({
   TitleBar: () => <div>title bar</div>,
 }));
-vi.mock("@/components/player/persistent-player-shell", () => ({
+vi.mock("@/features/playback/components/player/persistent-player-shell", () => ({
   PersistentPlayerShell: ({ children }: { children: ReactNode }) => children,
 }));
-vi.mock("@/components/recording/recording-completion-notice", () => ({
+vi.mock("@/features/media-library/components/recording/recording-completion-notice", () => ({
   RecordingOutcomeBridge: () => null,
 }));
-vi.mock("@/hooks/use-stream-recording-state", () => ({
+vi.mock("@/features/media-library/data/use-stream-recording-state", () => ({
   StreamRecordingProvider: ({ children }: { children: ReactNode }) => children,
 }));
-vi.mock("@/hooks/useNetworkStatus", () => ({
+vi.mock("@/features/settings/data/useNetworkStatus", () => ({
   useNetworkStatus: () => ({
     isOnline: true,
     isChecking: false,

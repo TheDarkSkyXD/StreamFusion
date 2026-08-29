@@ -11,20 +11,20 @@
 import { DEFAULT_DATERANGE_PATTERNS } from "@shared/adblock-types";
 import { session } from "electron";
 
-import { logger } from "@/backend/logging/logger";
-import { sleep } from "@/lib/sleep";
+import { logger } from "@backend/logging/logger";
+import { sleep } from "@shared/utils/sleep";
 import {
   createTwitchPlaylistAdDetector,
   type TwitchPlaylistAdDetection,
-} from "@/lib/twitch-playlist-ad-detection";
+} from "@/features/playback/utils/twitch-playlist-ad-detection";
 import {
   findTwitchPlaylistAlignment,
   keepTwitchBackupRenditions,
   rankTwitchRenditionCandidates,
   rankTwitchRenditions,
   type TwitchRendition,
-} from "@/lib/twitch-rendition-continuity";
-import { holdUnsafeTwitchMediaPlaylist } from "@/lib/twitch-unsafe-media-hold";
+} from "@/features/playback/utils/twitch-rendition-continuity";
+import { holdUnsafeTwitchMediaPlaylist } from "@/features/playback/utils/twitch-unsafe-media-hold";
 import { httpClient } from "./http-client";
 import { vaftPatternService } from "./vaft-pattern-service";
 

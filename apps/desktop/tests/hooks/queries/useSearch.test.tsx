@@ -9,12 +9,12 @@ import {
   useSearchAll,
   useSearchCategories,
   useSearchChannels,
-} from "@/hooks/queries/useSearch";
-import { hydratePersistedBrowseSnapshots } from "@/hooks/queries/browse-snapshot-bootstrap";
+} from "@/features/discovery/data/queries/useSearch";
+import { hydratePersistedBrowseSnapshots } from "@/features/discovery/data/queries/browse-snapshot-bootstrap";
 import {
   resetPersistedSearchResultsLruForTests,
   savePersistedSearchResult,
-} from "@/hooks/queries/persisted-search-results-lru";
+} from "@/features/discovery/data/queries/persisted-search-results-lru";
 import { fixtures, installElectronAPIMock } from "../../test-utils";
 
 function createQueryClient() {

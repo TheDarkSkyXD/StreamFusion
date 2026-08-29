@@ -2,7 +2,7 @@ import { act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DownloadsPage } from "@/pages/Downloads";
-import type { DownloadJob } from "@/shared/download-types";
+import type { DownloadJob } from "@shared/download-types";
 import { fireEvent, installElectronAPIMock, renderWithProviders, screen } from "../test-utils";
 
 function downloadJob(overrides: Partial<DownloadJob> = {}): DownloadJob {

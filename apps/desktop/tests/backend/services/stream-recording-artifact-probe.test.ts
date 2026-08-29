@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createStreamRecordingArtifactProbe } from "@/backend/services/stream-recording-artifact-probe";
+import { createStreamRecordingArtifactProbe } from "@backend/services/stream-recording-artifact-probe";
 
 const temporaryDirectories: string[] = [];
 afterEach(() => {

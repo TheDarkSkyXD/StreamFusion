@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { RecordingOutcomeNotice } from "@/components/recording/recording-completion-notice";
+import { RecordingOutcomeNotice } from "@/features/media-library/components/recording/recording-completion-notice";
 import { renderWithProviders, userEvent } from "../../test-utils";
 
 const actions = vi.hoisted(() => ({
@@ -10,7 +10,7 @@ const actions = vi.hoisted(() => ({
   dismissNotice: vi.fn(async () => ({ success: true })),
 }));
 
-vi.mock("@/hooks/use-stream-recording-actions", () => ({
+vi.mock("@/features/media-library/data/use-stream-recording-actions", () => ({
   useStreamRecordingActions: () => actions,
 }));
 

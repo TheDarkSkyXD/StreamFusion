@@ -22,7 +22,7 @@ import {
   setPlayerCallbacks,
   setStatusChangeCallback,
   updateAdBlockConfig,
-} from "@/components/player/twitch/twitch-adblock-service";
+} from "@/features/playback/components/player/twitch/twitch-adblock-service";
 
 const SAMPLE_MASTER_PLAYLIST = `#EXTM3U
 #EXT-X-SESSION-DATA:DATA-ID="SERVER-TIME",VALUE="1700000000.0"

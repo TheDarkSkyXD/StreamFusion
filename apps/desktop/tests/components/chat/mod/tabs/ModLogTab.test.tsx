@@ -1,14 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ModLogAction } from "@/backend/services/mod-log-writer";
-import type { ModLogEntry } from "@/shared/mod-log-types";
-import type { UseModLogOptions } from "@/hooks/useModLog";
+import type { ModLogAction } from "@backend/services/mod-log-writer";
+import type { ModLogEntry } from "@shared/mod-log-types";
+import type { UseModLogOptions } from "@/features/moderation/data/useModLog";
 
 // Mock useModLog so the tab gets deterministic data without touching SQLite.
 let lastOpts: UseModLogOptions | null = null;
 const useModLogMock = vi.fn();
-vi.mock("@/hooks/useModLog", () => ({
+vi.mock("@/features/moderation/data/useModLog", () => ({
   useModLog: (opts: UseModLogOptions) => {
     lastOpts = opts;
     return useModLogMock(opts);
@@ -16,11 +16,11 @@ vi.mock("@/hooks/useModLog", () => ({
 }));
 
 const openUserPopoutMock = vi.fn();
-vi.mock("@/components/chat/mod/UserPopout/UserPopoutProvider", () => ({
+vi.mock("@/features/chat/components/chat/mod/UserPopout/UserPopoutProvider", () => ({
   useOpenUserPopout: () => openUserPopoutMock,
 }));
 
-import { ModLogTab } from "@/components/chat/mod/tabs/ModLogTab";
+import { ModLogTab } from "@/features/chat/components/chat/mod/tabs/ModLogTab";
 
 const CHANNEL_ID = "ch-1";
 const renderTab = () => (

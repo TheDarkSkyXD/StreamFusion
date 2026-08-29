@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   __resetSlotControllerForTests,
   onSlotEvent,
-} from "@/backend/api/unified/slot-controller";
-import { createSlotHost } from "@/backend/api/unified/slot-host";
-import type { SlotEvent } from "@/shared/slot-types";
+} from "@backend/api/unified/slot-controller";
+import { createSlotHost } from "@backend/api/unified/slot-host";
+import type { SlotEvent } from "@shared/slot-types";
 
 // Guards: slot-host wraps a single slot. Slice 04 has no WCV yet — slot-host
 // just routes player ops through slot-controller's emitter so the host renderer

@@ -8,7 +8,7 @@ import {
   PcmBatcher,
   type RawDecodedAudioChunk,
   resampleMonoPcm,
-} from "@/components/player/local-audio-capture";
+} from "@/features/playback/components/player/local-audio-capture";
 
 function installMediaElementAudioHarness() {
   const source = { connect: vi.fn(), disconnect: vi.fn() };

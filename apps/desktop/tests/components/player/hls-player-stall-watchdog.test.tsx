@@ -67,7 +67,7 @@ type FakeHlsInstance = InstanceType<typeof fakeHlsModule.FakeHls>;
 
 vi.mock('hls.js', () => ({ default: fakeHlsModule.FakeHls }));
 
-import { HlsPlayer } from '@/components/player/hls-player';
+import { HlsPlayer } from '@/features/playback/components/player/hls-player';
 
 interface MutableVideo {
   currentTime: number;

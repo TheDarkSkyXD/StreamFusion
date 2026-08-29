@@ -4,8 +4,8 @@ import {
   getNotificationPreferences,
   isChannelEligibleForLiveNotification,
   liveNotificationChannelKey,
-} from "@/lib/live-notification-preferences";
-import { DEFAULT_NOTIFICATION_PREFERENCES } from "@/shared/auth-types";
+} from "@/features/auth/utils/live-notification-preferences";
+import { DEFAULT_NOTIFICATION_PREFERENCES } from "@shared/auth-types";
 
 const twitchChannel = {
   platform: "twitch" as const,

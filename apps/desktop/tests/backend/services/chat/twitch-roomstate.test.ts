@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { roomStateTagsToPatch } from "@/backend/services/chat/twitch-roomstate";
+import { roomStateTagsToPatch } from "@backend/services/chat/twitch-roomstate";
 
 // Guards: Twitch IRC ROOMSTATE tag semantics — `followers-only: "-1"` means OFF (not "follow for -1 minutes"); `slow: "0"` means OFF; r9k/emote-only/subs-only are booleans. These are easy to flip the wrong direction when refactoring; the test pins each branch explicitly.
 

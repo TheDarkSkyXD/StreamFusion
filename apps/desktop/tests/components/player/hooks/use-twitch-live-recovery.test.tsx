@@ -1,8 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { useTwitchLiveRecovery } from "@/components/player/hooks/use-twitch-live-recovery";
-import type { PlayerError } from "@/components/player/types";
+import { useTwitchLiveRecovery } from "@/features/playback/components/player/hooks/use-twitch-live-recovery";
+import type { PlayerError } from "@/features/playback/components/player/types";
 
 const stalledPlayback: PlayerError = {
   code: "PLAYBACK_STALL",

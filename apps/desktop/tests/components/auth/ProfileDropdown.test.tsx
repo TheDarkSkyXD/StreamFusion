@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { KickUser, TwitchUser } from "@/shared/auth-types";
+import type { KickUser, TwitchUser } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
 import { renderWithProviders, routerMock, screen, userEvent } from "../../test-utils";
@@ -14,7 +14,7 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigateMock,
 }));
 
-import { ProfileDropdown } from "@/components/auth/ProfileDropdown";
+import { ProfileDropdown } from "@/features/auth/components/auth/ProfileDropdown";
 
 const twitchUser: TwitchUser = {
   id: "1",

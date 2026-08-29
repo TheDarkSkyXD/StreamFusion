@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useSyncExternalStore } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
+import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@shared/auth-types";
 import { installElectronAPIMock } from "../../test-utils";
 
 // Capture the latest navigate target so the "More settings" deep-link can be
@@ -58,7 +58,7 @@ vi.mock("@/store/auth-store", () => {
   return { useAuthStore };
 });
 
-import { ChatQuickSettingsPopover } from "@/components/chat/ChatQuickSettingsPopover";
+import { ChatQuickSettingsPopover } from "@/features/chat/components/chat/ChatQuickSettingsPopover";
 
 // Guards: quick settings popup title, close button, back button, and chevrons stay sized like Kick's chat settings popup.
 // Guards: row chevrons use a bold solid glyph like Kick, not a thin outline/light chevron.

@@ -18,7 +18,7 @@ vi.stubGlobal("window", {
   },
 } as unknown as Window);
 
-import { BTTVEmoteProvider, bttvEmoteProvider } from "@/backend/services/emotes/bttv-emotes";
+import { BTTVEmoteProvider, bttvEmoteProvider } from "@backend/services/emotes/bttv-emotes";
 
 function makeBTTVEmote(overrides: Record<string, unknown> = {}) {
   return {

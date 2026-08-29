@@ -1,8 +1,8 @@
 import { QueryClient } from "@tanstack/react-query";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
-import type { ChatKnownUser, ChatMessage, NormalizedPinnedMessage } from "@/shared/chat-types";
+import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@shared/auth-types";
+import type { ChatKnownUser, ChatMessage, NormalizedPinnedMessage } from "@shared/chat-types";
 import { installElectronAPIMock, renderWithProviders as render } from "../../test-utils";
 
 // U11 — capture the latest ChatMessageList props so tests can simulate a
@@ -45,7 +45,7 @@ const getBttvBadgesMock = vi.fn();
 const getFfzBadgesMock = vi.fn();
 const getFfzRoomMock = vi.fn();
 
-vi.mock("@/backend/services/chat/seven-tv-cosmetics-client", () => ({
+vi.mock("@backend/services/chat/seven-tv-cosmetics-client", () => ({
   SevenTvCosmeticsClient: class {
     connect = vi.fn();
     disconnect = vi.fn();
@@ -74,24 +74,24 @@ vi.mock("@/store/chat-cosmetics-store", () => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-gql-pin-mutations", () => ({
+vi.mock("@backend/api/platforms/twitch/twitch-gql-pin-mutations", () => ({
   pinChatMessage: (...args: unknown[]) => pinChatMessageMock(...args),
   updatePinnedChatMessage: (...args: unknown[]) => updatePinnedChatMessageMock(...args),
   unpinChatMessage: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-helix-moderation-mutations", () => ({
+vi.mock("@backend/api/platforms/twitch/twitch-helix-moderation-mutations", () => ({
   banUser: (...args: unknown[]) => banUserMock(...args),
   timeoutUser: (...args: unknown[]) => timeoutUserMock(...args),
   unbanUser: (...args: unknown[]) => unbanUserMock(...args),
   deleteChatMessage: (...args: unknown[]) => deleteChatMessageMock(...args),
 }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-helix-moderation", () => ({
+vi.mock("@backend/api/platforms/twitch/twitch-helix-moderation", () => ({
   getModeratedChannelsResult: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-eventsub-client", () => ({
+vi.mock("@backend/api/platforms/twitch/twitch-eventsub-client", () => ({
   getTwitchEventSubClient: vi.fn(() => ({
     subscribe: vi.fn(
       (eventType: string, channelId: string, handler: (payload: unknown) => void) => {
@@ -104,7 +104,7 @@ vi.mock("@/backend/api/platforms/twitch/twitch-eventsub-client", () => ({
   })),
 }));
 
-vi.mock("@/backend/services/mod-log-writer", () => ({
+vi.mock("@backend/services/mod-log-writer", () => ({
   modLogWriter: {
     ingestEventSubModerate: (payload: unknown) => ingestEventSubModerateMock(payload),
   },
@@ -117,7 +117,7 @@ const mockModScopes = {
   missingChannelModerateEventSubScopes: [] as string[],
   loading: false,
 };
-vi.mock("@/hooks/useRequireModScopes", () => ({
+vi.mock("@/features/auth/data/useRequireModScopes", () => ({
   useRequireModScopes: () => ({
     hasModScopes: mockModScopes.hasModScopes,
     hasChannelModerateEventSubScopes: mockModScopes.hasChannelModerateEventSubScopes,
@@ -131,7 +131,7 @@ vi.mock("@/hooks/useRequireModScopes", () => ({
 // mod-action paths). The U7 viewer-path gear test flips it to false so
 // ChatPanelTabs takes its single-tab (no-chrome) branch.
 const mockIsTwitchMod = { value: true, actualAuthority: true };
-vi.mock("@/hooks/useIsTwitchMod", () => ({
+vi.mock("@/features/moderation/data/useIsTwitchMod", () => ({
   useIsTwitchMod: () => mockIsTwitchMod.value,
   useHasActualTwitchModAuthority: () => mockIsTwitchMod.actualAuthority,
 }));
@@ -181,7 +181,7 @@ vi.mock("@/store/auth-store", () => {
 // predictionUpdate without a real socket. Keyed by event name; `on` records,
 // `off` clears.
 const mockServiceHandlers: Record<string, ((arg: unknown) => void) | undefined> = {};
-vi.mock("@/backend/services/chat/twitch-chat", () => ({
+vi.mock("@backend/services/chat/twitch-chat", () => ({
   twitchChatService: {
     connect: vi.fn(async () => true),
     disconnect: vi.fn(async () => true),
@@ -208,7 +208,7 @@ vi.mock("@/backend/services/chat/twitch-chat", () => ({
   },
 }));
 
-vi.mock("@/backend/services/emotes", () => ({
+vi.mock("@backend/services/emotes", () => ({
   initializeTwitchEmotes: vi.fn(),
   initializeKickEmotes: vi.fn(),
 }));
@@ -216,7 +216,7 @@ vi.mock("@/backend/services/emotes", () => ({
 // The Hermes client opens a real WebSocket on start(); stub it so the unit
 // test neither hits the network nor surfaces undici's async WS errors. U5's
 // prediction path is exercised by firing the predictionUpdate service handler.
-vi.mock("@/backend/services/chat/twitch-hermes-client", () => ({
+vi.mock("@backend/services/chat/twitch-hermes-client", () => ({
   TwitchHermesClient: class {
     on() {}
     off() {}
@@ -288,14 +288,14 @@ vi.mock("@/store/emote-store", () => {
 const lastPinnedBannerProps: {
   onUpdateDuration?: (durationSeconds: number | null) => void | Promise<void>;
 } = {};
-vi.mock("@/components/chat/PinnedMessageBanner", () => ({
+vi.mock("@/features/chat/components/chat/PinnedMessageBanner", () => ({
   PinnedMessageBanner: (props: typeof lastPinnedBannerProps) => {
     lastPinnedBannerProps.onUpdateDuration = props.onUpdateDuration;
     return <div data-testid="pinned-message-banner">pinned</div>;
   },
 }));
 
-vi.mock("@/components/chat/ChatMessageList", () => ({
+vi.mock("@/features/chat/components/chat/ChatMessageList", () => ({
   ChatMessageList: (props: typeof lastListProps) => {
     lastListProps.channelKey = props.channelKey;
     lastListProps.onBan = props.onBan;
@@ -309,7 +309,7 @@ vi.mock("@/components/chat/ChatMessageList", () => ({
 }));
 
 const chatInputProps: { canSend?: boolean; viewerUserId?: string } = {};
-vi.mock("@/components/chat/ChatInput", () => ({
+vi.mock("@/features/chat/components/chat/ChatInput", () => ({
   ChatInput: (props: { canSend?: boolean; viewerUserId?: string }) => {
     chatInputProps.canSend = props.canSend;
     chatInputProps.viewerUserId = props.viewerUserId;
@@ -326,16 +326,16 @@ vi.mock("@/components/chat/ChatInput", () => ({
 
 // Stub the prediction banner to a marker so U5's showPredictions gate can be
 // asserted without the real countdown / dismiss internals.
-vi.mock("@/components/chat/PredictionBanner", () => ({
+vi.mock("@/features/chat/components/chat/PredictionBanner", () => ({
   PredictionBanner: () => <div data-testid="prediction-banner">prediction</div>,
 }));
 
-import { getTwitchEventSubClient } from "@/backend/api/platforms/twitch/twitch-eventsub-client";
-import { getModeratedChannelsResult } from "@/backend/api/platforms/twitch/twitch-helix-moderation";
-import { twitchChatService } from "@/backend/services/chat/twitch-chat";
-import { initializeTwitchEmotes } from "@/backend/services/emotes";
-import { TwitchChat } from "@/components/chat/twitch/TwitchChat";
-import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
+import { getTwitchEventSubClient } from "@backend/api/platforms/twitch/twitch-eventsub-client";
+import { getModeratedChannelsResult } from "@backend/api/platforms/twitch/twitch-helix-moderation";
+import { twitchChatService } from "@backend/services/chat/twitch-chat";
+import { initializeTwitchEmotes } from "@backend/services/emotes";
+import { TwitchChat } from "@/features/chat/components/chat/twitch/TwitchChat";
+import { useModeratedChannelsStore } from "@/features/moderation/data/moderated-channels-store";
 
 const getModeratedChannelsMock = vi.mocked(getModeratedChannelsResult);
 

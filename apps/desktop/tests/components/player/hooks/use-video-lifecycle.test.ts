@@ -6,7 +6,7 @@ vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { useVideoLifecycle } from "@/components/player/hooks/use-video-lifecycle";
+import { useVideoLifecycle } from "@/features/playback/components/player/hooks/use-video-lifecycle";
 
 function createMockVideo(): HTMLVideoElement {
   const parent = document.createElement("div");

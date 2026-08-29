@@ -8,7 +8,7 @@ vi.mock("electron", () => ({
   BrowserWindow: { fromWebContents: vi.fn() },
 }));
 
-import { buildContextMenuTemplate } from "@/backend/context-menu";
+import { buildContextMenuTemplate } from "@backend/context-menu";
 
 type Input = Parameters<typeof buildContextMenuTemplate>[0];
 

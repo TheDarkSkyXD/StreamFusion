@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { UnifiedStream } from "@/backend/api/unified/platform-types";
+import type { UnifiedStream } from "@shared/platform-types";
 import {
   createProgressiveStreamSearch,
   mapWithConcurrency,
@@ -7,7 +7,7 @@ import {
   STREAM_SEARCH_BUDGET_CALIBRATION,
   STREAM_SEARCH_BUDGET_PROFILES,
   type StreamDirectorySource,
-} from "@/backend/search/progressive-stream-search";
+} from "@backend/search/progressive-stream-search";
 
 const stream = (id: string, title: string): UnifiedStream => ({
   id,

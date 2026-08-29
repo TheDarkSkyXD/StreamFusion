@@ -25,7 +25,7 @@
  * defensively — present when twitch.tv sends them, null otherwise.
  */
 
-import { createCancellableSleep, type CancellableSleep } from "@/lib/sleep";
+import { createCancellableSleep, type CancellableSleep } from "@shared/utils/sleep";
 
 import { EventEmitter } from "../../../shared/browser-event-emitter";
 import type { UnifiedPrediction, UnifiedPredictionOutcome } from "../../../shared/chat-types";

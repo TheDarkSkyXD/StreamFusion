@@ -21,7 +21,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -37,13 +37,13 @@ type LoggerMock = {
   error: Mock;
 };
 
-type CertVerifyModule = typeof import("@/backend/services/cert-verify-diagnostics");
+type CertVerifyModule = typeof import("@backend/services/cert-verify-diagnostics");
 type CertVerifyProc = NonNullable<Parameters<Electron.Session["setCertificateVerifyProc"]>[0]>;
 
 async function freshModule(): Promise<{ mod: CertVerifyModule; logger: LoggerMock }> {
   vi.resetModules();
-  const mod = await import("@/backend/services/cert-verify-diagnostics");
-  const { logger } = (await import("@/backend/logging/logger")) as unknown as {
+  const mod = await import("@backend/services/cert-verify-diagnostics");
+  const { logger } = (await import("@backend/logging/logger")) as unknown as {
     logger: LoggerMock;
   };
   logger.debug.mockReset();

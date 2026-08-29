@@ -10,25 +10,25 @@ mocks.useSeekPreview.mockReturnValue({
   handleSeekHover: mocks.handleSeekHover,
 });
 
-vi.mock("@/components/player/hooks/use-seek-preview", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-seek-preview", () => ({
   useSeekPreview: mocks.useSeekPreview,
 }));
-vi.mock("@/components/player/hooks/use-default-quality", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-default-quality", () => ({
   useDefaultQuality: vi.fn(),
 }));
-vi.mock("@/components/player/hooks/use-fullscreen", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-fullscreen", () => ({
   useFullscreen: () => ({ isFullscreen: false, toggleFullscreen: vi.fn() }),
 }));
-vi.mock("@/components/player/hooks/use-picture-in-picture", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-picture-in-picture", () => ({
   usePictureInPicture: () => ({ isPip: false, togglePip: vi.fn() }),
 }));
-vi.mock("@/components/player/hooks/use-player-keyboard", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-player-keyboard", () => ({
   usePlayerKeyboard: vi.fn(),
 }));
-vi.mock("@/components/player/hooks/use-resume-playback", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-resume-playback", () => ({
   useResumePlayback: vi.fn(),
 }));
-vi.mock("@/components/player/hooks/use-volume", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-volume", () => ({
   useVolume: () => ({
     volume: 50,
     isMuted: false,
@@ -38,12 +38,12 @@ vi.mock("@/components/player/hooks/use-volume", () => ({
   }),
 }));
 
-vi.mock("@/components/player/hls-player", async () => {
+vi.mock("@/features/playback/components/player/hls-player", async () => {
   const { forwardRef } = await import("react");
   return { HlsPlayer: forwardRef<HTMLVideoElement>((_props, ref) => <video ref={ref} />) };
 });
 
-vi.mock("@/components/player/player-controls", async () => {
+vi.mock("@/features/playback/components/player/player-controls", async () => {
   const { createElement } = await import("react");
   return {
     PlayerControls: (props: {
@@ -62,7 +62,7 @@ vi.mock("@/components/player/player-controls", async () => {
       ),
   };
 });
-vi.mock("@/components/player/kick/kick-player-controls", async () => {
+vi.mock("@/features/playback/components/player/kick/kick-player-controls", async () => {
   const { createElement } = await import("react");
   return {
     KickPlayerControls: (props: {
@@ -81,7 +81,7 @@ vi.mock("@/components/player/kick/kick-player-controls", async () => {
       ),
   };
 });
-vi.mock("@/components/player/twitch/twitch-player-controls", async () => {
+vi.mock("@/features/playback/components/player/twitch/twitch-player-controls", async () => {
   const { createElement } = await import("react");
   return {
     TwitchPlayerControls: (props: {
@@ -101,9 +101,9 @@ vi.mock("@/components/player/twitch/twitch-player-controls", async () => {
   };
 });
 
-import { KickVideoPlayer } from "@/components/player/kick/kick-video-player";
-import { TwitchVideoPlayer } from "@/components/player/twitch/twitch-video-player";
-import { VideoPlayer } from "@/components/player/video-player";
+import { KickVideoPlayer } from "@/features/playback/components/player/kick/kick-video-player";
+import { TwitchVideoPlayer } from "@/features/playback/components/player/twitch/twitch-video-player";
+import { VideoPlayer } from "@/features/playback/components/player/video-player";
 
 // Guards: clip players must show frames decoded for the hovered second instead of channel avatars/posters
 describe("platform clip seek previews", () => {

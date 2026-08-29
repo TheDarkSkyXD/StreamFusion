@@ -2,11 +2,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { UserPopout } from "@/components/chat/mod/UserPopout/UserPopout";
+import { UserPopout } from "@/features/chat/components/chat/mod/UserPopout/UserPopout";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { createBrowserElectronApi } from "@/dev-relay/browser-electron-api";
 import { applyModerationBrowserFixture } from "@/dev-relay/moderation-browser-fixtures";
-import type { ChatMessage } from "@/shared/chat-types";
+import type { ChatMessage } from "@shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { installElectronAPIMock } from "../test-utils";
 
-import { useResolveTwitchChannel } from "@/hooks/useResolveTwitchChannel";
+import { useResolveTwitchChannel } from "@/features/moderation/data/useResolveTwitchChannel";
 
 function makeWrapper() {
   const client = new QueryClient({

@@ -16,7 +16,7 @@ vi.mock("electron", () => ({
   app: { getPath: () => "/fake/userData" },
 }));
 
-import { markCleanShutdown, markSessionStarted, wasCleanShutdown } from "@/backend/shutdown-marker";
+import { markCleanShutdown, markSessionStarted, wasCleanShutdown } from "@backend/shutdown-marker";
 
 describe("shutdown-marker", () => {
   describe("markCleanShutdown", () => {

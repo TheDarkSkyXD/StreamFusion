@@ -55,7 +55,7 @@ vi.mock("hls.js", () => {
   return { default: FakeHls };
 });
 
-import { HlsPlayer } from "@/components/player/hls-player";
+import { HlsPlayer } from "@/features/playback/components/player/hls-player";
 
 // Guards: mount path — HlsPlayer ALWAYS mounts the <video> element so the layout is reserved before HLS init resolves; the parent's loading overlay sits on top until canplay fires
 // Guards: error recovery contract — onError is invoked with PlayerError shape for NETWORK_ERROR / MEDIA_ERROR / NO_FRAGMENTS / STREAM_OFFLINE. Recovery sequence: nudge → startLoad → recoverMediaError → fatal shouldRefresh. The SUT's recovery logic owns this; tests/components/player/hls-player-stall-watchdog.test.tsx covers the stall-watchdog branch

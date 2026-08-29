@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { app, type BrowserWindow, dialog } from "electron";
 
-import type { ClipDownloadRequest } from "@/shared/download-types";
+import type { ClipDownloadRequest } from "@shared/download-types";
 import { TwitchStreamResolver } from "../api/platforms/twitch/twitch-stream-resolver";
 import { type ClipDownloadService, createClipDownloadService } from "./clip-download-service";
 import { downloadDirectFile } from "./direct-file-download-service";

@@ -9,27 +9,27 @@ import {
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RelatedContent } from "@/components/stream/related-content";
-import type { VideoOrClip } from "@/components/stream/related-content/types";
+import { RelatedContent } from "@/features/playback/components/related-content";
+import type { VideoOrClip } from "@/features/playback/components/related-content/types";
 
-vi.mock("@/components/stream/related-content/VideoCard", () => ({
+vi.mock("@/features/playback/components/related-content/VideoCard", () => ({
   VideoCard: ({ video }: { video: VideoOrClip }) => (
     <div data-testid="intent-video-card">{video.title}</div>
   ),
 }));
 
-vi.mock("@/components/stream/related-content/ClipCard", () => ({
+vi.mock("@/features/playback/components/related-content/ClipCard", () => ({
   ClipCard: ({ clip }: { clip: VideoOrClip }) => (
     <div data-testid="intent-clip-card">{clip.title}</div>
   ),
 }));
 
-vi.mock("@/hooks/queries/persisted-snapshot", () => ({
+vi.mock("@/features/discovery/data/queries/persisted-snapshot", () => ({
   loadPersistedSnapshot: vi.fn(async () => null),
   savePersistedSnapshot: vi.fn(async () => undefined),
 }));
 
-vi.mock("@/hooks/queries/recent-stream-prewarm", () => ({
+vi.mock("@/features/discovery/data/queries/recent-stream-prewarm", () => ({
   rememberRecentStreamImages: vi.fn(async () => undefined),
 }));
 

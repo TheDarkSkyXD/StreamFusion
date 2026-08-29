@@ -2,7 +2,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { computeLogPaths } from "@/backend/logging/log-paths";
+import { computeLogPaths } from "@backend/logging/log-paths";
 
 // computeLogPaths is a pure function — the per-environment branch is the
 // load-bearing decision (writeable install dir on Windows; .app/AppImage are

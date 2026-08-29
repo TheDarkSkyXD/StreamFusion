@@ -14,9 +14,9 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ChatSettingsResult } from "@/backend/api/platforms/twitch/twitch-helix-chat-settings";
-import type { KickChatroomSettings } from "@/backend/api/unified/platform-types";
-import type { ChatConnectionStatus, RoomStatePatchEvent } from "@/shared/chat-types";
+import type { ChatSettingsResult } from "@backend/api/platforms/twitch/twitch-helix-chat-settings";
+import type { KickChatroomSettings } from "@shared/platform-types";
+import type { ChatConnectionStatus, RoomStatePatchEvent } from "@shared/chat-types";
 import { useRoomStateStore } from "@/store/room-state-store";
 import { fixtures, installElectronAPIMock } from "../test-utils";
 
@@ -51,15 +51,15 @@ const { getChatSettingsMock, twitchStub, kickStub } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/backend/api/platforms/twitch/twitch-helix-chat-settings", () => ({
+vi.mock("@backend/api/platforms/twitch/twitch-helix-chat-settings", () => ({
   getChatSettings: (broadcasterId: string, signal?: AbortSignal) =>
     getChatSettingsMock(broadcasterId, signal),
 }));
 
-vi.mock("@/backend/services/chat/twitch-chat", () => ({
+vi.mock("@backend/services/chat/twitch-chat", () => ({
   twitchChatService: twitchStub,
 }));
-vi.mock("@/backend/services/chat/kick-chat", () => ({
+vi.mock("@backend/services/chat/kick-chat", () => ({
   kickChatService: kickStub,
 }));
 
@@ -82,13 +82,13 @@ beforeEach(() => {
 // Imports under test — after vi.mock so the mocks take effect
 // ---------------------------------------------------------------------------
 
-import { chatSettingsToPatch, useChatSettingsSync } from "@/hooks/useChatSettingsSync";
+import { chatSettingsToPatch, useChatSettingsSync } from "@/features/chat/data/useChatSettingsSync";
 import {
   getProvenance,
   isInFlight,
   resetInFlight,
   resetProvenance,
-} from "@/hooks/useChatSettingsSync.test-helpers";
+} from "@/features/chat/data/useChatSettingsSync.test-helpers";
 
 beforeEach(() => {
   useRoomStateStore.setState({ entries: {} });

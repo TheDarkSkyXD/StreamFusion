@@ -17,8 +17,8 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
-import { RecordingGlobalIndicator } from "@/components/recording/recording-global-indicator";
-import type { StreamRecordingLifecycleState } from "@/shared/stream-recording-types";
+import { RecordingGlobalIndicator } from "@/features/media-library/components/recording/recording-global-indicator";
+import type { StreamRecordingLifecycleState } from "@shared/stream-recording-types";
 import { renderWithProviders, userEvent } from "../../test-utils";
 
 const state = vi.hoisted(() => ({
@@ -41,10 +41,10 @@ const commands = vi.hoisted(() => ({
   resume: vi.fn(async () => ({ success: true })),
 }));
 
-vi.mock("@/hooks/use-stream-recording-state", () => ({
+vi.mock("@/features/media-library/data/use-stream-recording-state", () => ({
   useStreamRecordingState: () => state.current,
 }));
-vi.mock("@/hooks/use-stream-recording-actions", () => ({
+vi.mock("@/features/media-library/data/use-stream-recording-actions", () => ({
   useStreamRecordingActions: () => commands,
 }));
 

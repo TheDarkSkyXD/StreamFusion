@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { UnifiedClip } from "@/backend/api/unified/platform-types";
+import type { UnifiedClip } from "@shared/platform-types";
 import {
   filterRankAndDeduplicateClips,
   rankClipMatch,
-} from "@/backend/search/search-match-contract";
+} from "@backend/search/search-match-contract";
 
 function clip(overrides: Partial<UnifiedClip> = {}): UnifiedClip {
   return {

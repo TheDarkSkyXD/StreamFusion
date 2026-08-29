@@ -2,8 +2,8 @@ import { act, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PlayerError } from "@/components/player/types";
-import type { AdBlockStatus } from "@/shared/adblock-types";
+import type { PlayerError } from "@/features/playback/components/player/types";
+import type { AdBlockStatus } from "@shared/adblock-types";
 
 const h = vi.hoisted(() => ({
   kickHlsProps: null as null | { onError?: (error: PlayerError) => void },
@@ -18,7 +18,7 @@ const h = vi.hoisted(() => ({
   recoveryCount: 0,
 }));
 
-vi.mock("@/hooks/useNetworkStatus", () => ({
+vi.mock("@/features/settings/data/useNetworkStatus", () => ({
   useNetworkStatus: () => ({ recoveryCount: h.recoveryCount }),
 }));
 
@@ -31,7 +31,7 @@ vi.mock("@/components/dev/use-render-count", () => ({
   useRenderCount: vi.fn(),
 }));
 
-vi.mock("@/hooks/use-ad-element-observer", () => ({
+vi.mock("@/features/playback/data/use-ad-element-observer", () => ({
   useAdElementObserver: vi.fn(),
 }));
 
@@ -39,27 +39,27 @@ vi.mock("@/store/adblock-store", () => ({
   useAdBlockStore: () => true,
 }));
 
-vi.mock("@/components/player/hooks/use-default-quality", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-default-quality", () => ({
   useDefaultQuality: vi.fn(),
 }));
 
-vi.mock("@/components/player/hooks/use-fullscreen", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-fullscreen", () => ({
   useFullscreen: () => ({ isFullscreen: false, toggleFullscreen: vi.fn() }),
 }));
 
-vi.mock("@/components/player/hooks/use-picture-in-picture", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-picture-in-picture", () => ({
   usePictureInPicture: () => ({ isPip: false, togglePip: vi.fn() }),
 }));
 
-vi.mock("@/components/player/hooks/use-player-keyboard", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-player-keyboard", () => ({
   usePlayerKeyboard: vi.fn(),
 }));
 
-vi.mock("@/components/player/hooks/use-resume-playback", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-resume-playback", () => ({
   useResumePlayback: vi.fn(),
 }));
 
-vi.mock("@/components/player/hooks/use-volume", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-volume", () => ({
   useVolume: () => ({
     volume: 1,
     isMuted: false,
@@ -69,7 +69,7 @@ vi.mock("@/components/player/hooks/use-volume", () => ({
   }),
 }));
 
-vi.mock("@/components/player/hls-player", () => ({
+vi.mock("@/features/playback/components/player/hls-player", () => ({
   HlsPlayer: (props: { onError?: (error: PlayerError) => void }) => {
     h.kickHlsProps = props;
     const [mountId] = useState(() => ++h.kickHlsMounts);
@@ -77,15 +77,15 @@ vi.mock("@/components/player/hls-player", () => ({
   },
 }));
 
-vi.mock("@/components/player/kick/kick-live-player-controls", () => ({
+vi.mock("@/features/playback/components/player/kick/kick-live-player-controls", () => ({
   KickLivePlayerControls: () => <div data-testid="kick-controls" />,
 }));
 
-vi.mock("@/components/player/kick/uptime-readout", () => ({
+vi.mock("@/features/playback/components/player/kick/uptime-readout", () => ({
   UptimeReadout: () => null,
 }));
 
-vi.mock("@/components/player/twitch/twitch-hls-player", () => ({
+vi.mock("@/features/playback/components/player/twitch/twitch-hls-player", () => ({
   TwitchHlsPlayer: (props: {
     onAdBlockRecoveryRefresh?: () => void;
     onAdBlockStatusChange?: (status: AdBlockStatus) => void;
@@ -98,20 +98,20 @@ vi.mock("@/components/player/twitch/twitch-hls-player", () => ({
   },
 }));
 
-vi.mock("@/components/player/twitch/twitch-live-player-controls", () => ({
+vi.mock("@/features/playback/components/player/twitch/twitch-live-player-controls", () => ({
   TwitchLivePlayerControls: () => <div data-testid="twitch-controls" />,
 }));
 
-vi.mock("@/components/player/twitch/ad-block-fallback-overlay", () => ({
+vi.mock("@/features/playback/components/player/twitch/ad-block-fallback-overlay", () => ({
   AdBlockFallbackOverlay: () => null,
 }));
 
-vi.mock("@/components/player/twitch/video-stats-overlay", () => ({
+vi.mock("@/features/playback/components/player/twitch/video-stats-overlay", () => ({
   VideoStatsOverlay: () => null,
 }));
 
-import { KickLivePlayer } from "@/components/player/kick/kick-live-player";
-import { TwitchLivePlayer } from "@/components/player/twitch/twitch-live-player";
+import { KickLivePlayer } from "@/features/playback/components/player/kick/kick-live-player";
+import { TwitchLivePlayer } from "@/features/playback/components/player/twitch/twitch-live-player";
 
 const offlineError: PlayerError = {
   code: "STREAM_OFFLINE",

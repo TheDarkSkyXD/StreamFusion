@@ -1,13 +1,13 @@
 import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DownloadDuplicateConfirmationDialog } from "@/components/download-duplicate-confirmation-dialog";
-import { useDownloadActions } from "@/hooks/use-download-actions";
+import { DownloadDuplicateConfirmationDialog } from "@/features/media-library/components/download-duplicate-confirmation-dialog";
+import { useDownloadActions } from "@/features/media-library/data/use-download-actions";
 import type {
   ClipDownloadRequest,
   DownloadJob,
   VideoDownloadRequest,
-} from "@/shared/download-types";
+} from "@shared/download-types";
 import { installElectronAPIMock, renderWithProviders, userEvent } from "../test-utils";
 
 const clipRequest: ClipDownloadRequest = {

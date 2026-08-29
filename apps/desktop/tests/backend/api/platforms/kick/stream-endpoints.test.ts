@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { logger } from "@/backend/logging/logger";
-import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
+import { logger } from "@backend/logging/logger";
+import type { KickRequestor } from "@backend/api/platforms/kick/kick-requestor";
 
 // Guards: followed Kick stream live status uses the current 100-ID bulk API instead of the deprecated endpoint or fan-out legacy slug checks.
 // Guards: signed-out broadcaster lookups do not call the official requestor or OAuth Worker.
@@ -55,7 +55,7 @@ vi.mock("electron", () => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-network-health", () => ({
+vi.mock("@backend/api/platforms/kick/kick-network-health", () => ({
   acquireKickRequestSlot: vi.fn(async () => () => {}),
 }));
 
@@ -67,7 +67,7 @@ const platformHealthSpies = vi.hoisted(() => ({
   getPlatformHealth: vi.fn((): string => "healthy"),
 }));
 
-vi.mock("@/backend/api/unified/platform-health", () => ({
+vi.mock("@backend/api/unified/platform-health", () => ({
   recordPlatformFailure: platformHealthSpies.recordPlatformFailure,
   recordPlatformSuccess: platformHealthSpies.recordPlatformSuccess,
   recordPlatformLocalNetError: platformHealthSpies.recordPlatformLocalNetError,
@@ -278,7 +278,7 @@ function createLegacyLiveBody({
 }
 
 describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
-  let getPublicStreamBySlug: typeof import("@/backend/api/platforms/kick/endpoints/stream-endpoints").getPublicStreamBySlug;
+  let getPublicStreamBySlug: typeof import("@backend/api/platforms/kick/endpoints/stream-endpoints").getPublicStreamBySlug;
 
   beforeEach(async () => {
     vi.resetModules();
@@ -286,7 +286,7 @@ describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
     mockState.state.responseQueue.length = 0;
     mockState.state.netRequestCalls.length = 0;
     ({ getPublicStreamBySlug } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints"));
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints"));
   });
 
   afterEach(() => {
@@ -332,7 +332,7 @@ describe("getPublicStreamBySlug — fan-out + cache 4-part contract", () => {
   it("seeds the Kick playback cache from the same channel payload", async () => {
     mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });
     const { getCachedKickLivePlayback } =
-      await import("@/backend/api/platforms/kick/kick-playback-cache");
+      await import("@backend/api/platforms/kick/kick-playback-cache");
 
     await getPublicStreamBySlug("ac7ionman");
 
@@ -413,7 +413,7 @@ describe("getStreamsByBroadcasterIds", () => {
     vi.resetModules();
     vi.useRealTimers();
     const { getStreamsByBroadcasterIds } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
     const client = {
       request: vi.fn().mockResolvedValue({
         data: [
@@ -461,7 +461,7 @@ describe("getStreamsByBroadcasterIds", () => {
     mockState.state.netRequestCalls.length = 0;
     mockState.state.responseQueue.push({ kind: "ok", body: createLegacyLiveBody() });
     const { getStreamsByBroadcasterIds } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
     const client = {
       request: vi.fn().mockResolvedValue({ data: [createOfficialUserLivestream()] }),
     };
@@ -480,7 +480,7 @@ describe("getStreamsByBroadcasterIds", () => {
     mockState.state.netRequestCalls.length = 0;
     mockState.state.responseQueue.push({ kind: "ok", body: createLegacyLiveBody() });
     const { getStreamsByBroadcasterIds } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
     const client = {
       request: vi.fn().mockResolvedValue({
         data: [createOfficialUserLivestream({ viewerCount: 42, thumbnail: "" })],
@@ -509,7 +509,7 @@ describe("getStreamsByBroadcasterIds", () => {
 
     try {
       const { getStreamsByBroadcasterIds } =
-        await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+        await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
       const officialStreams = Array.from({ length: 6 }, (_, index) =>
         createOfficialUserLivestream({
           slug: `zero-${index}`,
@@ -550,7 +550,7 @@ describe("getStreamsByBroadcasterIds", () => {
     vi.resetModules();
     vi.useRealTimers();
     const { getStreamsByBroadcasterIds } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
     const client = {
       request: vi.fn().mockResolvedValue({ data: [] }),
     };
@@ -571,7 +571,7 @@ describe("getStreamsByBroadcasterIds", () => {
   it("returns empty without an official request while signed out", async () => {
     vi.resetModules();
     const { getStreamsByBroadcasterIds } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
     const client = requestorFrom(vi.fn(), false);
 
     await expect(getStreamsByBroadcasterIds(client, [123])).resolves.toEqual([]);
@@ -587,7 +587,7 @@ describe("getStreamBySlug live-state authority", () => {
     mockState.state.netRequestCalls.length = 0;
     mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });
     const { getStreamBySlug } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
     const rateLimitError = Object.assign(new Error("Kick API rate limit active; retry after 60s"), {
       name: "KickRateLimitError",
       status: 429,
@@ -613,7 +613,7 @@ describe("getStreamBySlug live-state authority", () => {
     });
     mockState.state.responseQueue.push({ kind: "ok", body: LIVE_BODY });
     const { getPublicStreamBySlug, getStreamBySlug } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
     const unavailableOfficialClient = {
       request: vi.fn().mockRejectedValue(new Error("Official API unavailable")),
     };
@@ -634,7 +634,7 @@ describe("getStreamBySlug live-state authority", () => {
     mockState.state.responseQueue.length = 0;
     mockState.state.netRequestCalls.length = 0;
     const { getStreamBySlug } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
 
     const result = await getStreamBySlug(createDirectStreamClient(42), "tazo");
 
@@ -652,7 +652,7 @@ describe("getStreamBySlug live-state authority", () => {
       body: createLegacyLiveBody(),
     });
     const { getStreamBySlug } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
     const client = createDirectStreamClient();
 
     const result = await getStreamBySlug(asRequestor(client), "tazo");
@@ -680,7 +680,7 @@ describe("getStreamBySlug live-state authority", () => {
       body: createLegacyLiveBody({ slug: "another-channel" }),
     });
     const { getStreamBySlug } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
 
     const result = await getStreamBySlug(createDirectStreamClient(), "tazo");
 
@@ -700,7 +700,7 @@ describe("getStreamBySlug live-state authority", () => {
       }),
     });
     const { getStreamBySlug } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
 
     const result = await getStreamBySlug(createDirectStreamClient(), "tazo");
 
@@ -714,7 +714,7 @@ describe("getStreamBySlug live-state authority", () => {
     mockState.state.netRequestCalls.length = 0;
     mockState.state.responseQueue.push({ kind: "error", message: "Status 403" });
     const { getStreamBySlug } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
 
     const result = await getStreamBySlug(createDirectStreamClient(), "tazo");
 
@@ -731,7 +731,7 @@ describe("getStreamBySlug live-state authority", () => {
       body: JSON.stringify({ slug: "tazo", livestream: null }),
     });
     const { getStreamBySlug } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
 
     const result = await getStreamBySlug(createDirectStreamClient(), "tazo");
 
@@ -748,7 +748,7 @@ describe("getStreamBySlug live-state authority", () => {
       body: createLegacyLiveBody({ viewerCount: 0 }),
     });
     const { getStreamBySlug } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
 
     const result = await getStreamBySlug(createDirectStreamClient(), "tazo");
 
@@ -759,7 +759,7 @@ describe("getStreamBySlug live-state authority", () => {
     vi.resetModules();
     vi.useRealTimers();
     const { getStreamBySlug } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
     const client = {
       request: vi.fn().mockResolvedValue({
         data: [
@@ -792,7 +792,7 @@ describe("getStreamBySlug live-state authority", () => {
 });
 
 describe("getPublicTopStreams", () => {
-  let getPublicTopStreams: typeof import("@/backend/api/platforms/kick/endpoints/stream-endpoints").getPublicTopStreams;
+  let getPublicTopStreams: typeof import("@backend/api/platforms/kick/endpoints/stream-endpoints").getPublicTopStreams;
 
   beforeEach(async () => {
     vi.resetModules();
@@ -800,7 +800,7 @@ describe("getPublicTopStreams", () => {
     mockState.state.responseQueue.length = 0;
     mockState.state.netRequestCalls.length = 0;
     ({ getPublicTopStreams } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints"));
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints"));
   });
 
   it("parses private livestream pages and forwards the real next cursor", async () => {
@@ -859,7 +859,7 @@ describe("getTopStreams official viewer counts", () => {
     mockState.state.responseQueue.length = 0;
     mockState.state.netRequestCalls.length = 0;
     const { getTopStreams } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
     const rateLimit = Object.assign(new Error("Kick API rate limit active"), {
       name: "KickRateLimitError",
     });
@@ -875,7 +875,7 @@ describe("getTopStreams official viewer counts", () => {
     mockState.state.responseQueue.length = 0;
     mockState.state.netRequestCalls.length = 0;
     const { getTopStreamsCached } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
     const rateLimit = Object.assign(new Error("429 Too Many Requests"), {
       name: "KickRateLimitError",
     });
@@ -891,7 +891,7 @@ describe("getTopStreams official viewer counts", () => {
     mockState.state.responseQueue.length = 0;
     mockState.state.netRequestCalls.length = 0;
     const { getTopStreams } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
 
     const result = await getTopStreams(
       createOfficialTopClient([createOfficialTopLivestream({ viewerCount: 42 })]),
@@ -909,7 +909,7 @@ describe("getTopStreams official viewer counts", () => {
     mockState.state.netRequestCalls.length = 0;
     mockState.state.responseQueue.push({ kind: "ok", body: createLegacyLiveBody() });
     const { getTopStreams } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
 
     const result = await getTopStreams(
       createOfficialTopClient([createOfficialTopLivestream({ viewerCount: 42, thumbnail: "" })]),
@@ -927,7 +927,7 @@ describe("getTopStreams official viewer counts", () => {
     mockState.state.netRequestCalls.length = 0;
     mockState.state.responseQueue.push({ kind: "ok", body: createLegacyLiveBody() });
     const { getTopStreams } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
 
     const result = await getTopStreams(createOfficialTopClient(), { limit: 20 });
 
@@ -963,7 +963,7 @@ describe("getTopStreams official viewer counts", () => {
       }),
     });
     const { getStreamsByCategory } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
     const client = createOfficialTopClient();
 
     const result = await getStreamsByCategory(asRequestor(client), "15", { limit: 20 });
@@ -1010,7 +1010,7 @@ describe("getStreamsByCategory web pagination", () => {
       }),
     });
     const { getStreamsByCategory } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
     const client = createOfficialTopClient();
 
     const result = await getStreamsByCategory(asRequestor(client), "15", {
@@ -1038,7 +1038,7 @@ describe("getStreamsByCategory web pagination", () => {
 });
 
 describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)", () => {
-  let getPublicStreamBySlug: typeof import("@/backend/api/platforms/kick/endpoints/stream-endpoints").getPublicStreamBySlug;
+  let getPublicStreamBySlug: typeof import("@backend/api/platforms/kick/endpoints/stream-endpoints").getPublicStreamBySlug;
 
   beforeEach(async () => {
     vi.resetModules();
@@ -1049,7 +1049,7 @@ describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)",
     platformHealthSpies.recordPlatformFailure.mockReset();
     platformHealthSpies.recordPlatformSuccess.mockReset();
     ({ getPublicStreamBySlug } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints"));
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints"));
   });
 
   afterEach(() => {
@@ -1227,7 +1227,7 @@ describe("getPublicStreamBySlug — platform-health instrumentation (slice 01)",
 });
 
 describe("getPublicStreamBySlug — per-slug log suppression (slice 04)", () => {
-  let getPublicStreamBySlug: typeof import("@/backend/api/platforms/kick/endpoints/stream-endpoints").getPublicStreamBySlug;
+  let getPublicStreamBySlug: typeof import("@backend/api/platforms/kick/endpoints/stream-endpoints").getPublicStreamBySlug;
 
   beforeEach(async () => {
     vi.resetModules();
@@ -1241,7 +1241,7 @@ describe("getPublicStreamBySlug — per-slug log suppression (slice 04)", () => 
     vi.mocked(logger.warn).mockClear();
     vi.mocked(logger.debug).mockClear();
     ({ getPublicStreamBySlug } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints"));
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints"));
   });
 
   afterEach(() => {
@@ -1305,7 +1305,7 @@ describe("getPublicStreamBySlug — per-slug log suppression (slice 04)", () => 
     expect(warnCalls1).toHaveLength(1);
 
     const { clearKickStreamFailureCache } =
-      await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
     clearKickStreamFailureCache();
 
     await vi.advanceTimersByTimeAsync(310_000);

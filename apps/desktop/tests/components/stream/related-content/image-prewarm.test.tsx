@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   _resetRelatedContentRequestCache,
   RelatedContent,
-} from "@/components/stream/related-content/index";
+} from "@/features/playback/components/related-content/index";
 
 const mocks = vi.hoisted(() => ({
   activeTab: { current: undefined as "clips" | "videos" | undefined },
@@ -30,19 +30,19 @@ vi.mock("@tanstack/react-router", () => ({
     }),
 }));
 
-vi.mock("@/components/stream/related-content/ClipCard", () => ({
+vi.mock("@/features/playback/components/related-content/ClipCard", () => ({
   ClipCard: ({ clip }: { clip: { title: string } }) => <div>{clip.title}</div>,
 }));
 
-vi.mock("@/components/stream/related-content/VideoCard", () => ({
+vi.mock("@/features/playback/components/related-content/VideoCard", () => ({
   VideoCard: ({ video }: { video: { title: string } }) => <div>{video.title}</div>,
 }));
 
-vi.mock("@/components/stream/related-content/ContentTabs", () => ({
+vi.mock("@/features/playback/components/related-content/ContentTabs", () => ({
   ContentTabs: () => null,
 }));
 
-vi.mock("@/hooks/queries/recent-stream-prewarm", () => ({
+vi.mock("@/features/discovery/data/queries/recent-stream-prewarm", () => ({
   rememberRecentStreamImages: vi.fn(async () => undefined),
 }));
 

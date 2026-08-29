@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchKickWebApiMutationMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/backend/api/platforms/kick/kick-send-window", () => ({
+vi.mock("@backend/api/platforms/kick/kick-send-window", () => ({
   fetchKickWebApiMutation: fetchKickWebApiMutationMock,
 }));
 
 import {
   pinKickMessage,
   unpinKickMessage,
-} from "@/backend/api/platforms/kick/kick-pin-mutations";
+} from "@backend/api/platforms/kick/kick-pin-mutations";
 
 // Guards: Kick pin/unpin v2 wire envelope runs through the main-process Kick web session, not renderer/OAuth fetch, because the legacy `/api/v2/channels/{slug}/pinned-message` route returns 401 to OAuth bearer tokens.
 // Guards: result classification keeps unauthenticated/forbidden/not-found/network stable for the UI toast and retry behavior.

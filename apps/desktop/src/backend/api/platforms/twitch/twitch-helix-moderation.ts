@@ -7,7 +7,7 @@
  */
 
 import { api } from "@/lib/api-client";
-import { logger } from "@/lib/cross-logger";
+import { logger } from "@shared/utils/cross-logger";
 
 const HELIX_BASE = "https://api.twitch.tv/helix";
 const PAGE_CAP = 50;

@@ -40,7 +40,7 @@ describe("primary route chunk preload", () => {
     });
     const loaders = Array.from({ length: 7 }, () => vi.fn(async () => undefined));
 
-    const { createStagedChunkPreloader } = await import("@/pages");
+    const { createStagedChunkPreloader } = await import("@/routes/route-chunk-preload");
     const schedule = createStagedChunkPreloader(loaders, requestFrame, {
       initialFrames: 2,
       batchSize: 3,
@@ -76,7 +76,7 @@ describe("primary route chunk preload", () => {
     const requestAnimationFrame = vi.fn();
     vi.stubGlobal("requestAnimationFrame", requestAnimationFrame);
 
-    const { schedulePrimaryPageChunkPreload } = await import("@/pages");
+    const { schedulePrimaryPageChunkPreload } = await import("@/routes/route-chunk-preload");
 
     schedulePrimaryPageChunkPreload();
     schedulePrimaryPageChunkPreload();
@@ -94,7 +94,7 @@ describe("primary route chunk preload", () => {
         return frames.length;
       })
     );
-    const { scheduleHistoryPageChunkPreload } = await import("@/pages");
+    const { scheduleHistoryPageChunkPreload } = await import("@/routes/route-chunk-preload");
 
     scheduleHistoryPageChunkPreload();
     scheduleHistoryPageChunkPreload();
@@ -118,7 +118,8 @@ describe("primary route chunk preload", () => {
     };
     const Page = () => null;
 
-    const { createPreloadableRoute, createStagedChunkPreloader } = await import("@/pages");
+    const { createPreloadableRoute } = await import("@/routes/preloadable-route");
+    const { createStagedChunkPreloader } = await import("@/routes/route-chunk-preload");
     const route = createPreloadableRoute(async () => ({ default: Page }));
     const schedule = createStagedChunkPreloader([route.preload], requestFrame, {
       initialFrames: 2,
@@ -138,7 +139,7 @@ describe("primary route chunk preload", () => {
   it("lets TanStack preload the matched component before navigation without loading it twice", async () => {
     const Page = () => null;
     const load = vi.fn(async () => ({ default: Page }));
-    const { createPreloadableRoute } = await import("@/pages");
+    const { createPreloadableRoute } = await import("@/routes/preloadable-route");
     const streamPage = createPreloadableRoute(load);
     const rootRoute = createRootRoute();
     const homeRoute = createRoute({
@@ -190,7 +191,7 @@ describe("primary route chunk preload", () => {
     });
     const Page = () => null;
 
-    const { createPreloadableRoute } = await import("@/pages");
+    const { createPreloadableRoute } = await import("@/routes/preloadable-route");
     const route = createPreloadableRoute(() => loadPromise);
 
     let suspendedOn: unknown;
@@ -214,7 +215,7 @@ describe("primary route chunk preload", () => {
         resolveChat = resolve;
       })
     );
-    const { preloadStreamPage } = await import("@/pages");
+    const { preloadStreamPage } = await import("@/features/playback");
 
     const preload = preloadStreamPage("kick");
     await vi.waitFor(() => expect(streamModuleMocks.preloadChatPanel).toHaveBeenCalledTimes(1));

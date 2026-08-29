@@ -22,7 +22,7 @@ import {
   getAdBlockStatus,
   isAdSegment,
   getBlankVideoDataUrl,
-} from '@/components/player/twitch/twitch-adblock-service';
+} from '@/features/playback/components/player/twitch/twitch-adblock-service';
 
 // Master playlist for setup
 const MASTER_PLAYLIST = `#EXTM3U

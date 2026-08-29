@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
 }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
+vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
   twitchClient: {
     getTopCategories: vi.fn(),
     getAllTopCategories: vi.fn(),
@@ -15,7 +15,7 @@ vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
+vi.mock("@backend/api/platforms/kick/kick-client", () => ({
   kickClient: {
     getTopCategories: vi.fn(),
     getAllCategories: vi.fn(),
@@ -24,22 +24,22 @@ vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-gql-client", () => ({
+vi.mock("@backend/api/platforms/twitch/twitch-gql-client", () => ({
   gqlGetGameMetadata: vi.fn(),
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
 }));
 
 import { ipcMain } from "electron";
 
-import { kickClient } from "@/backend/api/platforms/kick/kick-client";
-import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
-import { gqlGetGameMetadata } from "@/backend/api/platforms/twitch/twitch-gql-client";
-import { registerCategoryHandlers } from "@/backend/ipc/handlers/category-handlers";
-import type { UnifiedCategory } from "@/backend/api/unified/platform-types";
-import type { DiscoveryResult } from "@/shared/discovery-types";
+import { kickClient } from "@backend/api/platforms/kick/kick-client";
+import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
+import { gqlGetGameMetadata } from "@backend/api/platforms/twitch/twitch-gql-client";
+import { registerCategoryHandlers } from "@backend/ipc/handlers/category-handlers";
+import type { UnifiedCategory } from "@shared/platform-types";
+import type { DiscoveryResult } from "@shared/discovery-types";
 
 type CategoryTopResult = DiscoveryResult<UnifiedCategory[]>;
 

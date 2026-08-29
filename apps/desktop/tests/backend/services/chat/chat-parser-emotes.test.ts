@@ -14,9 +14,9 @@ import { describe, expect, it } from "vitest";
 import {
   type KickChatMessageEvent,
   parseKickChatMessage,
-} from "@/backend/services/chat/kick-parser";
-import { parseTwitchMessage, type TwitchTags } from "@/backend/services/chat/twitch-parser";
-import type { ContentFragment } from "@/shared/chat-types";
+} from "@backend/services/chat/kick-parser";
+import { parseTwitchMessage, type TwitchTags } from "@backend/services/chat/twitch-parser";
+import type { ContentFragment } from "@shared/chat-types";
 
 function emoteFragments(fragments: ContentFragment[]) {
   return fragments.filter((f): f is Extract<ContentFragment, { type: "emote" }> => f.type === "emote");

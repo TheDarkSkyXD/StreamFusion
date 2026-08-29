@@ -42,7 +42,7 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigate,
 }));
 
-vi.mock("@/hooks/queries/useHistoryQuery", () => ({
+vi.mock("@/features/media-library/data/useHistoryQuery", () => ({
   useHistoryActions: () => ({ clearHistory, removeFromHistory }),
   useHistoryQuery: () => ({ data: mockHistory }),
 }));
@@ -63,7 +63,7 @@ interface DialogChannel {
   followerCount?: number;
 }
 
-vi.mock("@/components/stream/related-content/ClipDialog", () => ({
+vi.mock("@/features/playback/components/related-content/ClipDialog", () => ({
   ClipDialog: ({
     selectedClip,
     channelData,

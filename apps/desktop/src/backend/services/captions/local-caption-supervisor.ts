@@ -2,7 +2,7 @@ import type {
   LocalCaptionPcmChunk,
   LocalCaptionRecognizerState,
   LocalCaptionResult,
-} from "@/shared/local-caption-types";
+} from "@shared/local-caption-types";
 
 export interface CaptionUtilityProcess {
   postMessage(message: unknown): void;

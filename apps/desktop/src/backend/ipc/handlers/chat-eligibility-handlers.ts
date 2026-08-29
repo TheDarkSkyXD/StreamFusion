@@ -1,9 +1,9 @@
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
-import { logger } from "@/backend/logging/logger";
-import { checkSubscriberEligibility } from "@/backend/services/chat/subscriber-eligibility";
-import type { SubscriberEligibilityResult } from "@/shared/chat-types";
-import { IPC_CHANNELS, type IpcPayloads } from "@/shared/ipc-channels";
+import { logger } from "@backend/logging/logger";
+import { checkSubscriberEligibility } from "@backend/services/chat/subscriber-eligibility";
+import type { SubscriberEligibilityResult } from "@shared/chat-types";
+import { IPC_CHANNELS, type IpcPayloads } from "@shared/ipc-channels";
 import { isAllowedSender } from "../sender-origin";
 
 export function registerChatEligibilityHandlers(): void {

@@ -72,6 +72,7 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "storybook:coverage": "node scripts/check-storybook-coverage.mjs",
+    "architecture:features": "node scripts/migrate-source-layout.mjs --check && node scripts/migrate-renderer-features.mjs --check && node scripts/verify-feature-boundaries.mjs",
     "reliability:boundaries": "node scripts/check-reliability-boundaries.mjs",
     "bundle:analyze": "cross-env ANALYZE=true npm run build",
     "perf:soak": "node scripts/performance-soak.mjs"
@@ -170,6 +171,8 @@
     "electron-vite": "^5.0.0",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-import-resolver-alias": "1.1.2",
+    "eslint-plugin-boundaries": "7.2.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-unused-imports": "^4.4.1",

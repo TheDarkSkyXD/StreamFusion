@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/cross-logger", () => ({
+vi.mock("@shared/utils/cross-logger", () => ({
   logger: {
     error: vi.fn(),
     warn: vi.fn(),
@@ -14,19 +14,19 @@ const mockGqlGetPlaybackAccessToken = vi.fn();
 const mockGqlGetVodAccessToken = vi.fn();
 const mockGqlGetClipAccessToken = vi.fn();
 
-vi.mock("@/backend/api/platforms/twitch/twitch-gql-client", () => ({
+vi.mock("@backend/api/platforms/twitch/twitch-gql-client", () => ({
   gqlIsChannelLive: (...args: unknown[]) => mockGqlIsChannelLive(...args),
   gqlGetPlaybackAccessToken: (...args: unknown[]) => mockGqlGetPlaybackAccessToken(...args),
   gqlGetVodAccessToken: (...args: unknown[]) => mockGqlGetVodAccessToken(...args),
   gqlGetClipAccessToken: (...args: unknown[]) => mockGqlGetClipAccessToken(...args),
 }));
 
-import { TwitchStreamResolver } from "@/backend/api/platforms/twitch/twitch-stream-resolver";
+import { TwitchStreamResolver } from "@backend/api/platforms/twitch/twitch-stream-resolver";
 import {
   decodeTwitchClipMediaUrl,
   TWITCH_CLIP_MEDIA_SCHEME,
-} from "@/backend/protocols/twitch-clip-media-url";
-import { logger } from "@/lib/cross-logger";
+} from "@backend/protocols/twitch-clip-media-url";
+import { logger } from "@shared/utils/cross-logger";
 
 // Guards: Twitch live playback must log one-token-request timing without restoring the live-status preflight.
 describe("TwitchStreamResolver", () => {

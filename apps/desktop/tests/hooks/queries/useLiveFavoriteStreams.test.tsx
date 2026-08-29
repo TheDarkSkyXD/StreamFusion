@@ -3,8 +3,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useLiveFavoriteStreams } from "@/hooks/queries/useLiveFavoriteStreams";
-import { type FavoriteStreamRef, useMultiStreamStore } from "@/store/multistream-store";
+import { useLiveFavoriteStreams } from "@/features/discovery/data/queries/useLiveFavoriteStreams";
+import { type FavoriteStreamRef, useMultiStreamStore } from "@/features/multistream/data/multistream-store";
 import { fixtures, installElectronAPIMock } from "../../test-utils";
 
 function makeWrapper() {

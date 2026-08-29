@@ -1,4 +1,4 @@
-import { sleep } from "../../lib/sleep";
+import { sleep } from "@shared/utils/sleep";
 import type { AuthToken } from "../../shared/auth-types";
 import { storageService } from "../services/storage-service";
 import { waitForWebContentsCondition } from "../services/web-contents-ready";

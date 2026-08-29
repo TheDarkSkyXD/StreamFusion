@@ -8,7 +8,7 @@
 // Cross-logger: badge-resolver is reached from the renderer via twitch-chat
 // → TwitchChat.tsx. Importing the backend logger here would drag electron-log
 // into the renderer bundle.
-import { logger } from "@/lib/cross-logger";
+import { logger } from "@shared/utils/cross-logger";
 import type {
   BadgeSet,
   BadgeVersion,

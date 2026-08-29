@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DiagnosticsObservability,
   safeDiagnosticText,
-} from "@/backend/diagnostics/diagnostics-observability";
+} from "@backend/diagnostics/diagnostics-observability";
 
 // Guards: diagnostic observations redact credentials, URL queries, and absolute user paths before retention.
 // Guards: logical I/O, spans, logs, and stable failure groups remain distinct canonical observations.

@@ -25,8 +25,8 @@
  *     `keepalive_timeout_seconds`, force-close and reconnect.
  */
 
-import { logger } from "@/lib/cross-logger";
-import { createCancellableSleep, type CancellableSleep } from "@/lib/sleep";
+import { logger } from "@shared/utils/cross-logger";
+import { createCancellableSleep, type CancellableSleep } from "@shared/utils/sleep";
 import { z } from "zod";
 
 import { attachEventSubHealthBridge } from "./eventsub-health-bridge";

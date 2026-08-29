@@ -6,7 +6,7 @@ import {
   useAppVersionInfo,
   useOpenExternal,
   useWindowControls,
-} from "@/hooks/useElectron";
+} from "@/features/settings/data/useElectron";
 
 beforeEach(() => {
   // @ts-expect-error -- test-only stub

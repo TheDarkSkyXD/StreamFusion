@@ -30,15 +30,15 @@ vi.mock("electron-store", () => {
   };
 });
 
-vi.mock("@/lib/managed-interval", () => ({
+vi.mock("@shared/utils/managed-interval", () => ({
   createManagedInterval: vi.fn(() => ({ stop: vi.fn() })),
 }));
 
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
-import { vaftPatternService } from "@/backend/services/vaft-pattern-service";
-import type { AdPatternUpdate } from "@/shared/adblock-types";
+import { vaftPatternService } from "@backend/services/vaft-pattern-service";
+import type { AdPatternUpdate } from "@shared/adblock-types";
 
 function setPrivate(name: string, value: unknown): void {
   Reflect.set(vaftPatternService, name, value);

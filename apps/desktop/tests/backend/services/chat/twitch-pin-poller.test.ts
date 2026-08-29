@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { twitchChatService } from "@/backend/services/chat/twitch-chat";
-import { __resetTwitchPinPollers, toNormalized } from "@/backend/services/chat/twitch-pin-poller";
+import { twitchChatService } from "@backend/services/chat/twitch-chat";
+import { __resetTwitchPinPollers, toNormalized } from "@backend/services/chat/twitch-pin-poller";
 
 // Guards: Twitch `PinnedChatMessage.id` (the pin record's id) is NOT the same as `pinnedMessage.id` (the chat message's id). The normalized payload's `messageId` must come from `pinnedMessage.id` so the banner can thread back to the right chat row. First test pins fixture ids from production GQL to keep these distinct on every diff.
 // Guards: `PinnedChatMessage` includes Twitch's live pin timing fields (`startsAt`, `endsAt`) so timed pins can render the native duration progress bar.
@@ -46,7 +46,7 @@ describe("transport", () => {
       value: { chat: { getTwitchPinnedMessage } },
     });
 
-    const { startTwitchPinPolling } = await import("@/backend/services/chat/twitch-pin-poller");
+    const { startTwitchPinPolling } = await import("@backend/services/chat/twitch-pin-poller");
     startTwitchPinPolling("FitzBro");
     await vi.waitFor(() => expect(getTwitchPinnedMessage).toHaveBeenCalled());
 
@@ -97,7 +97,7 @@ describe("transport", () => {
     });
     const emitSpy = vi.spyOn(twitchChatService, "emit");
 
-    const { startTwitchPinPolling } = await import("@/backend/services/chat/twitch-pin-poller");
+    const { startTwitchPinPolling } = await import("@backend/services/chat/twitch-pin-poller");
     startTwitchPinPolling("DarkSkyFullOfStars");
 
     await vi.waitFor(() => {
@@ -151,7 +151,7 @@ describe("transport", () => {
     const emitSpy = vi.spyOn(twitchChatService, "emit");
     const pinEvents = () => emitSpy.mock.calls.filter(([event]) => event === "pinnedMessage");
 
-    const { startTwitchPinPolling } = await import("@/backend/services/chat/twitch-pin-poller");
+    const { startTwitchPinPolling } = await import("@backend/services/chat/twitch-pin-poller");
     startTwitchPinPolling("FitzBro");
 
     await vi.waitFor(() => expect(pinEvents()).toHaveLength(1));

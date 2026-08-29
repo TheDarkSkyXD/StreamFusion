@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/cross-logger", () => ({
+vi.mock("@shared/utils/cross-logger", () => ({
   logger: {
     debug: vi.fn(),
     error: vi.fn(),
@@ -9,7 +9,7 @@ vi.mock("@/lib/cross-logger", () => ({
   },
 }));
 
-vi.mock("@/backend/auth/oauth-config", () => ({
+vi.mock("@backend/auth/oauth-config", () => ({
   getOAuthConfig: vi.fn((platform: string) => {
     if (platform === "twitch") {
       return {
@@ -45,8 +45,8 @@ import {
   type TokenExchangeParams,
   TokenRefreshError,
   tokenExchangeService,
-} from "@/backend/auth/token-exchange";
-import { KICK_APP_SCOPES } from "@/shared/auth-types";
+} from "@backend/auth/token-exchange";
+import { KICK_APP_SCOPES } from "@shared/auth-types";
 
 function jsonResponse(body: unknown, ok = true, status = 200): Response {
   return {
@@ -120,7 +120,7 @@ describe("exchangeCodeForToken", () => {
   });
 
   it("omits code_verifier when config does not use PKCE", async () => {
-    const { getOAuthConfig } = await import("@/backend/auth/oauth-config");
+    const { getOAuthConfig } = await import("@backend/auth/oauth-config");
     vi.mocked(getOAuthConfig).mockReturnValueOnce({
       platform: "kick",
       clientId: "kick-id",
@@ -390,7 +390,7 @@ describe("revokeToken", () => {
   });
 
   it("returns false when no revokeEndpoint is configured", async () => {
-    const { getOAuthConfig } = await import("@/backend/auth/oauth-config");
+    const { getOAuthConfig } = await import("@backend/auth/oauth-config");
     vi.mocked(getOAuthConfig).mockReturnValueOnce({
       platform: "kick",
       clientId: "id",

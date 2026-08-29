@@ -1,12 +1,12 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { RecordingPauseResumeControl } from "@/components/recording/recording-session-control";
+import { RecordingPauseResumeControl } from "@/features/media-library/components/recording/recording-session-control";
 import {
   StreamRecordingProvider,
   useStreamRecordingState,
-} from "@/hooks/use-stream-recording-state";
-import type { StreamRecordingSnapshot } from "@/shared/stream-recording-types";
+} from "@/features/media-library/data/use-stream-recording-state";
+import type { StreamRecordingSnapshot } from "@shared/stream-recording-types";
 import { installElectronAPIMock } from "../test-utils";
 
 // Guards: unknown number of recording status consumers share one main-process state listener

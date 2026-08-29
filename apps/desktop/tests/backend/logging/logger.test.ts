@@ -26,7 +26,7 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.unmock("@/backend/logging/logger");
+vi.unmock("@backend/logging/logger");
 
 vi.mock("electron", () => ({
   app: {
@@ -49,11 +49,11 @@ vi.mock("electron", () => ({
 
 // Imported lazily inside helpers so each test can call resetModules() and get
 // a fresh singleton.
-type LoggerModule = typeof import("@/backend/logging/logger");
+type LoggerModule = typeof import("@backend/logging/logger");
 
 async function freshLoggerModule(): Promise<LoggerModule> {
   vi.resetModules();
-  return await import("@/backend/logging/logger");
+  return await import("@backend/logging/logger");
 }
 
 let currentTmpDir = "";
@@ -75,7 +75,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   try {
-    const mod = await import("@/backend/logging/logger");
+    const mod = await import("@backend/logging/logger");
     await mod.shutdownLogger();
   } catch {
     // not initialized — nothing to shut down
@@ -363,7 +363,7 @@ describe("logger.<level>", () => {
         logsDir: currentTmpDir,
         sessionStamp: "2026-06-07T15:51:25.026Z",
       });
-      const { installConsoleIntercept } = await import("@/backend/logging/console-intercept");
+      const { installConsoleIntercept } = await import("@backend/logging/console-intercept");
       uninstall = installConsoleIntercept();
       console.warn("intercepted warning");
 

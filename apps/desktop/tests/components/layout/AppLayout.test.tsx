@@ -15,9 +15,9 @@ vi.mock("@tanstack/react-router", () => ({
   useLocation: () => ({ pathname: layoutState.pathname }),
 }));
 
-vi.mock("@/hooks/useAuth", () => ({ useAuthInitialize: () => true }));
+vi.mock("@/features/auth/data/useAuth", () => ({ useAuthInitialize: () => true }));
 
-vi.mock("@/hooks/useNetworkStatus", () => ({
+vi.mock("@/features/settings/data/useNetworkStatus", () => ({
   useNetworkStatus: mockNetworkStatus,
 }));
 
@@ -32,7 +32,7 @@ vi.mock("@/store/app-store", () => ({
   },
 }));
 
-vi.mock("@/components/TopNavBar", () => ({
+vi.mock("@/features/shell/components/TopNavBar", () => ({
   TopNavBar: ({ showPlatformHealth }: { showPlatformHealth?: boolean }) => (
     <div data-testid="top-nav" data-show-platform-health={showPlatformHealth}>
       topnav
@@ -40,15 +40,15 @@ vi.mock("@/components/TopNavBar", () => ({
   ),
 }));
 
-vi.mock("@/components/layout/SidebarFollows", () => ({
+vi.mock("@/features/shell/components/layout/SidebarFollows", () => ({
   SidebarFollows: () => <div data-testid="sidebar-follows">follows</div>,
 }));
 
-vi.mock("@/components/layout/TitleBar", () => ({
+vi.mock("@/features/shell/components/layout/TitleBar", () => ({
   TitleBar: () => <div data-testid="title-bar">title</div>,
 }));
 
-vi.mock("@/components/player/mini-player", () => ({
+vi.mock("@/features/playback/components/player/mini-player", () => ({
   MiniPlayer: () => <div data-testid="persistent-live-player" />,
 }));
 
@@ -56,7 +56,7 @@ vi.mock("@/store/pip-store", () => ({
   usePipStore: (selector: (state: typeof layoutState) => unknown) => selector(layoutState),
 }));
 
-import { AppLayout } from "@/components/layout/AppLayout";
+import { AppLayout } from "@/features/shell/components/layout/AppLayout";
 
 describe("AppLayout", () => {
   beforeEach(() => {

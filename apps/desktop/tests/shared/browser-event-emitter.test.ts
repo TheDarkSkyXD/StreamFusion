@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { EventEmitter } from "@/shared/browser-event-emitter";
+import { EventEmitter } from "@shared/browser-event-emitter";
 
 describe("BrowserEventEmitter", () => {
   let emitter: InstanceType<typeof EventEmitter>;

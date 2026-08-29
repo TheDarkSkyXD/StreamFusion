@@ -15,11 +15,11 @@ Module.prototype.require = function (id: string) {
   return _origRequire.call(this, id);
 };
 
-vi.mock("@/lib/sleep", () => ({
+vi.mock("@shared/utils/sleep", () => ({
   sleep: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: {
     debug: vi.fn(),
     error: vi.fn(),
@@ -28,12 +28,12 @@ vi.mock("@/backend/logging/logger", () => ({
   },
 }));
 
-import { KickStreamResolver } from "@/backend/api/platforms/kick/kick-stream-resolver";
+import { KickStreamResolver } from "@backend/api/platforms/kick/kick-stream-resolver";
 import {
   __clearKickPlaybackCacheForTests,
   rememberKickLivePlaybackFromChannelPayload,
-} from "@/backend/api/platforms/kick/kick-playback-cache";
-import { logger } from "@/backend/logging/logger";
+} from "@backend/api/platforms/kick/kick-playback-cache";
+import { logger } from "@backend/logging/logger";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

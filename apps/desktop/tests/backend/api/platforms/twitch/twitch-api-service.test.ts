@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createTwitchApiService } from "@/backend/api/platforms/twitch/twitch-api-service";
+import { createTwitchApiService } from "@backend/api/platforms/twitch/twitch-api-service";
 
 // Guards: allowlisted renderer capabilities map to fixed Worker-relative Helix paths.
 // Guards: access-token refresh and retry ownership stays inside TwitchRequestor rather than IPC payloads.

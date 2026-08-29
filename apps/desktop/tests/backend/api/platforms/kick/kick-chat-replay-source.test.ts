@@ -4,7 +4,7 @@ import {
   executeKickReplayBrowserRequest,
   fetchKickChatReplayPage,
   parseKickChatReplayPage,
-} from "@/backend/api/platforms/kick/kick-chat-replay-source";
+} from "@backend/api/platforms/kick/kick-chat-replay-source";
 import observedPage from "./fixtures/chat-replay-page.json";
 
 // Guards: Kick VOD history remains normalized to playback-relative timestamps with provider colors, badges, and emotes

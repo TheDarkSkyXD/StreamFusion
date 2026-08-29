@@ -2,9 +2,9 @@ import { useState } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RecentChattersPanel } from "@/components/chat/RecentChattersPanel";
-import type { ChatBadge, ChatKnownUser, ChatMessage } from "@/shared/chat-types";
-import { DEFAULT_USER_PREFERENCES } from "@/shared/auth-types";
+import { RecentChattersPanel } from "@/features/chat/components/chat/RecentChattersPanel";
+import type { ChatBadge, ChatKnownUser, ChatMessage } from "@shared/chat-types";
+import { DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useChatStore } from "@/store/chat-store";
 

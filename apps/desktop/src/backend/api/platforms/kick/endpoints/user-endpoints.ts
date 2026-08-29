@@ -1,6 +1,6 @@
 import type { BrowserWindow } from "electron";
 import { z } from "zod";
-import { logger } from "@/lib/cross-logger";
+import { logger } from "@shared/utils/cross-logger";
 import type { KickUser } from "../../../../../shared/auth-types";
 import { kickAuthService } from "../../../../auth/kick-auth";
 import { getPlatformHealth } from "../../../unified/platform-health";

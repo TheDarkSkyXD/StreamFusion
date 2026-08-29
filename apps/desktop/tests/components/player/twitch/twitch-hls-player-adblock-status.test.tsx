@@ -2,7 +2,7 @@ import { render } from "@testing-library/react";
 import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AdBlockStatus } from "@/shared/adblock-types";
+import type { AdBlockStatus } from "@shared/adblock-types";
 
 vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -159,11 +159,11 @@ vi.mock("hls.js", () => {
   return { default: FakeHls };
 });
 
-vi.mock("@/components/player/twitch/twitch-adblock-loader", () => ({
+vi.mock("@/features/playback/components/player/twitch/twitch-adblock-loader", () => ({
   getAdBlockHlsConfig: (channelName: string) => mockGetAdBlockHlsConfig(channelName),
 }));
 
-vi.mock("@/components/player/twitch/twitch-adblock-service", () => ({
+vi.mock("@/features/playback/components/player/twitch/twitch-adblock-service", () => ({
   clearStreamInfo: (channelName: string) => mockClearStreamInfo(channelName),
   getAdBlockConfig: () => mockGetAdBlockConfig(),
   getAdBlockStatus: (channelName: string) => mockGetAdBlockStatus(channelName),
@@ -179,7 +179,7 @@ vi.mock("@/components/player/twitch/twitch-adblock-service", () => ({
   updateAdBlockConfig: (updates: unknown) => mockUpdateAdBlockConfig(updates),
 }));
 
-import { TwitchHlsPlayer } from "@/components/player/twitch/twitch-hls-player";
+import { TwitchHlsPlayer } from "@/features/playback/components/player/twitch/twitch-hls-player";
 
 // Guards: Twitch players publish adblock status during startup so controls can render the shield before any ad playlist event arrives.
 // Guards: Twitch live playback uses the stability-first default HLS buffer config so random CDN jitter is less likely to stall playback.

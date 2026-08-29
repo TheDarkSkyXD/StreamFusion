@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getPlatformCrashBackoffDecision } from "@/backend/recovery/platform-crash-backoff-policy";
+import { getPlatformCrashBackoffDecision } from "@backend/recovery/platform-crash-backoff-policy";
 
 // Guards: AudioService utility crashes must not trip Kick/Twitch platform backoff or banner state.
 // Guards: GPU and NetworkService crashes still give both platforms the short recovery backoff.

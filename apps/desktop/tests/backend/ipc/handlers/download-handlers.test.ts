@@ -1,44 +1,44 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
   BrowserWindow: class { webContents = { send: vi.fn() }; isDestroyed = () => false; },
 }));
 
-vi.mock("@/backend/services/download-queue-service", () => ({
+vi.mock("@backend/services/download-queue-service", () => ({
   getDownloadQueueService: vi.fn(),
 }));
 
-vi.mock("@/backend/services/download-file-actions-service", () => ({
+vi.mock("@backend/services/download-file-actions-service", () => ({
   getDefaultDownloadFileActionsService: vi.fn(),
 }));
 
-vi.mock("@/backend/services/clip-download-default-service", () => ({
+vi.mock("@backend/services/clip-download-default-service", () => ({
   getDefaultClipDownloadService: vi.fn(),
 }));
 
-vi.mock("@/backend/services/video-download-default-service", () => ({
+vi.mock("@backend/services/video-download-default-service", () => ({
   getDefaultVideoDownloadService: vi.fn(),
 }));
 
-vi.mock("@/backend/ipc/sender-origin", () => ({
+vi.mock("@backend/ipc/sender-origin", () => ({
   isAllowedSender: vi.fn(() => true),
 }));
 
 import { BrowserWindow, ipcMain } from "electron";
 
-import { registerDownloadHandlers } from "@/backend/ipc/handlers/download-handlers";
-import { isAllowedSender } from "@/backend/ipc/sender-origin";
-import { getDefaultClipDownloadService } from "@/backend/services/clip-download-default-service";
-import { getDefaultDownloadFileActionsService } from "@/backend/services/download-file-actions-service";
-import { getDownloadQueueService } from "@/backend/services/download-queue-service";
-import { getDefaultVideoDownloadService } from "@/backend/services/video-download-default-service";
-import type { DownloadQueueService } from "@/backend/services/download-queue-service";
-import type { ClipDownloadService } from "@/backend/services/clip-download-service";
-import type { VideoDownloadService } from "@/backend/services/video-download-service";
-import type { DownloadFileActionsService } from "@/backend/services/download-file-actions-service";
+import { registerDownloadHandlers } from "@backend/ipc/handlers/download-handlers";
+import { isAllowedSender } from "@backend/ipc/sender-origin";
+import { getDefaultClipDownloadService } from "@backend/services/clip-download-default-service";
+import { getDefaultDownloadFileActionsService } from "@backend/services/download-file-actions-service";
+import { getDownloadQueueService } from "@backend/services/download-queue-service";
+import { getDefaultVideoDownloadService } from "@backend/services/video-download-default-service";
+import type { DownloadQueueService } from "@backend/services/download-queue-service";
+import type { ClipDownloadService } from "@backend/services/clip-download-service";
+import type { VideoDownloadService } from "@backend/services/video-download-service";
+import type { DownloadFileActionsService } from "@backend/services/download-file-actions-service";
 
 type Handler = (event: unknown, payload?: unknown) => unknown;
 

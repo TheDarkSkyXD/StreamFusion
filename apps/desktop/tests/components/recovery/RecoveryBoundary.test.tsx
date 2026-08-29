@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const loggerError = vi.hoisted(() => vi.fn());
 vi.mock("@/renderer/logging/logger", () => ({ logger: { error: loggerError } }));
 
-import { RecoveryBoundary } from "@/components/recovery/RecoveryBoundary";
+import { RecoveryBoundary } from "@/features/shell/components/recovery/RecoveryBoundary";
 
 function Broken({ fail }: { fail: boolean }) {
   if (fail) throw new Error("private failure detail");

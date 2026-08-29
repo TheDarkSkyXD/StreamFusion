@@ -1,13 +1,13 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/hooks/useModLog", () => ({
+vi.mock("@/features/moderation/data/useModLog", () => ({
   useModLog: vi.fn(),
 }));
 
-import { UserModHistory } from "@/components/chat/mod/UserPopout/UserModHistory";
-import { useModLog } from "@/hooks/useModLog";
-import type { ModLogEntry } from "@/shared/mod-log-types";
+import { UserModHistory } from "@/features/chat/components/chat/mod/UserPopout/UserModHistory";
+import { useModLog } from "@/features/moderation/data/useModLog";
+import type { ModLogEntry } from "@shared/mod-log-types";
 
 const mockedUseModLog = vi.mocked(useModLog);
 const retry = vi.fn();

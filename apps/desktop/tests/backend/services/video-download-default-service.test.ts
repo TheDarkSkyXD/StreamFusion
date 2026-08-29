@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { resolveDefaultVideoPlayback } from "@/backend/services/video-download-default-service";
+import { resolveDefaultVideoPlayback } from "@backend/services/video-download-default-service";
 
 // Guards: Twitch VOD downloads always resolve a fresh main-process source and never trust renderer playback URLs.
 describe("default video download playback resolution", () => {

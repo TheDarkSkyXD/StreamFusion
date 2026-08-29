@@ -1,11 +1,11 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RecordingRecoveryDialog } from "@/components/recording/recording-recovery-dialog";
+import { RecordingRecoveryDialog } from "@/features/media-library/components/recording/recording-recovery-dialog";
 import type {
   StreamRecordingLifecycleState,
   StreamRecordingRecoveryActionResult,
-} from "@/shared/stream-recording-types";
+} from "@shared/stream-recording-types";
 import { renderWithProviders, userEvent } from "../../test-utils";
 
 const mocks = vi.hoisted(() => ({
@@ -38,10 +38,10 @@ const mocks = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock("@/hooks/use-stream-recording-state", () => ({
+vi.mock("@/features/media-library/data/use-stream-recording-state", () => ({
   useStreamRecordingState: () => mocks.state,
 }));
-vi.mock("@/hooks/use-stream-recording-actions", () => ({
+vi.mock("@/features/media-library/data/use-stream-recording-actions", () => ({
   useStreamRecordingActions: () => ({
     resumeInterrupted: mocks.resumeInterrupted,
     finalizeInterrupted: mocks.finalizeInterrupted,

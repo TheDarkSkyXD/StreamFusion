@@ -45,15 +45,15 @@ import {
   LiveNotificationService,
   type LiveNotificationSource,
   showLiveDesktopNotification,
-} from "@/backend/services/live-notification-service";
-import { storageService } from "@/backend/services/storage-service";
+} from "@backend/services/live-notification-service";
+import { storageService } from "@backend/services/storage-service";
 import {
   DEFAULT_USER_PREFERENCES,
   type LiveNotificationPayload,
   type LocalFollow,
   type UserPreferences,
-} from "@/shared/auth-types";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+} from "@shared/auth-types";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 function follow(overrides: Partial<LocalFollow> = {}): LocalFollow {
   return {

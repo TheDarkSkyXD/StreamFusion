@@ -1,10 +1,10 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { useIsKickMod } from "@/hooks/useIsKickMod";
+import { useIsKickMod } from "@/features/moderation/data/useIsKickMod";
 import { useAuthStore } from "@/store/auth-store";
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
-import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
+import { useModeratedChannelsStore } from "@/features/moderation/data/moderated-channels-store";
 
 beforeEach(() => {
   act(() => {

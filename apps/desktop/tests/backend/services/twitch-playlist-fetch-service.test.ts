@@ -9,7 +9,7 @@ import { session } from "electron";
 import {
   TwitchPlaylistFetchService,
   twitchPlaylistFetchService,
-} from "@/backend/services/twitch-playlist-fetch-service";
+} from "@backend/services/twitch-playlist-fetch-service";
 
 // Guards: Twitch playlist HTTP failures are returned as data from main so Chromium never emits a renderer XHR error.
 // Guards: Electron session transport is used so configured proxy and session behavior apply to playlist requests.

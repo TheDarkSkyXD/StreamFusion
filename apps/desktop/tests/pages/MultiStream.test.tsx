@@ -2,8 +2,8 @@ import { act } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fireEvent, installElectronAPIMock, renderWithProviders, routerMock, screen } from '../test-utils';
-import { ChatQuickSettingsPopover } from '@/components/chat/ChatQuickSettingsPopover';
-import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_USER_PREFERENCES } from '@/shared/auth-types';
+import { ChatQuickSettingsPopover } from '@/features/chat/components/chat/ChatQuickSettingsPopover';
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_USER_PREFERENCES } from '@shared/auth-types';
 import { useAuthStore } from '@/store/auth-store';
 
 vi.mock('@tanstack/react-router', () => routerMock());
@@ -25,7 +25,7 @@ let mockState = {
 };
 let mockChannelData: unknown = undefined;
 
-vi.mock('@/store/multistream-store', () => ({
+vi.mock('@/features/multistream/data/multistream-store', () => ({
   useMultiStreamStore: () => ({
     ...mockState,
     setLayout,
@@ -33,15 +33,15 @@ vi.mock('@/store/multistream-store', () => ({
   }),
 }));
 
-vi.mock('@/components/multistream/add-stream-dialog', () => ({
+vi.mock('@/features/multistream/components/multistream/add-stream-dialog', () => ({
   AddStreamDialog: () => <button type="button">Add Stream</button>,
 }));
 
-vi.mock('@/components/multistream/grid-layout', () => ({
+vi.mock('@/features/multistream/components/multistream/grid-layout', () => ({
   MultiStreamGrid: () => <div data-testid="multistream-grid">grid</div>,
 }));
 
-vi.mock('@/components/chat', () => ({
+vi.mock('@/features/chat/components/chat', () => ({
   ChatPanel: (props: {
     initialPlatform: string;
     initialChannel: string;
@@ -62,7 +62,7 @@ vi.mock('@/components/chat', () => ({
   ),
 }));
 
-vi.mock('@/hooks/queries/useChannels', () => ({
+vi.mock('@/features/discovery/data/queries/useChannels', () => ({
   useChannelByUsername: () => ({ data: mockChannelData }),
 }));
 

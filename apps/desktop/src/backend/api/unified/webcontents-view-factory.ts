@@ -116,8 +116,8 @@ export function __resetWebContentsViewFactoryForTests(): void {
 /**
  * Resolve the URL the slot WCV should load to host its video player.
  *
- * - Dev (electron-vite serves the renderer): `${ELECTRON_RENDERER_URL}/src/slot-renderer/index.html`
- * - Prod (packaged): file:// URL into the built `out/renderer/src/slot-renderer/index.html`
+ * - Dev: `${ELECTRON_RENDERER_URL}/src/frontend/slot-renderer/index.html`
+ * - Prod: file:// URL into `out/renderer/src/frontend/slot-renderer/index.html`
  *
  * Mirrors the window-manager pattern that loads the main BrowserWindow URL.
  * Pure for testability — main injects `app` and `__dirname`-equivalent at
@@ -125,18 +125,19 @@ export function __resetWebContentsViewFactoryForTests(): void {
  */
 export function getSlotRendererUrl(): string {
   if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
-    return `${process.env.ELECTRON_RENDERER_URL}/src/slot-renderer/index.html`;
+    return `${process.env.ELECTRON_RENDERER_URL}/src/frontend/slot-renderer/index.html`;
   }
   // In packaged builds the main module bundle lives next to the renderer
   // output: app.getAppPath() points at `app.asar/`, and electron-vite's
   // default output layout puts the renderer at `out/renderer/<entry>.html`
   // with multi-input HTMLs preserved at their relative source path. The
-  // slot-renderer's entry maps to `out/renderer/src/slot-renderer/index.html`.
+  // slot-renderer's entry maps to `out/renderer/src/frontend/slot-renderer/index.html`.
   const htmlPath = path.join(
     app.getAppPath(),
     "out",
     "renderer",
     "src",
+    "frontend",
     "slot-renderer",
     "index.html"
   );

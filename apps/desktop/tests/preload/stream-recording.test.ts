@@ -1,11 +1,11 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ElectronAPI } from "@/preload/index";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import type { ElectronAPI } from "@backend/preload/index";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 import type {
   StreamRecordingRequest,
   StreamRecordingSnapshot,
-} from "@/shared/stream-recording-types";
+} from "@shared/stream-recording-types";
 
 type StreamRecordingStateListener = (event: unknown, snapshot: StreamRecordingSnapshot) => void;
 
@@ -27,7 +27,7 @@ const electronMocks = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/preload/ipc-feature-loader", () => ({
+vi.mock("@backend/preload/ipc-feature-loader", () => ({
   createFeatureAwareIpc: (invoke: unknown, send: unknown) => ({
     invoke,
     send,
@@ -52,7 +52,7 @@ function api(): ElectronAPI {
 }
 
 beforeAll(async () => {
-  await import("@/preload/index");
+  await import("@backend/preload/index");
 });
 
 beforeEach(() => {

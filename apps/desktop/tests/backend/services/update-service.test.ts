@@ -83,7 +83,7 @@ async function loadService(opts: {
   h.state.isPackaged = opts.isPackaged ?? true;
   h.state.store = { ...(opts.store ?? {}) };
   vi.resetModules();
-  return import("@/backend/services/update-service");
+  return import("@backend/services/update-service");
 }
 
 beforeEach(() => {

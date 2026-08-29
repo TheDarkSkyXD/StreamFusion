@@ -1,7 +1,7 @@
 import { renderHook, act } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { useStickyDismissedPrediction } from "@/hooks/useStickyDismissedPrediction";
+import { useStickyDismissedPrediction } from "@/features/chat/data/useStickyDismissedPrediction";
 
 describe("useStickyDismissedPrediction", () => {
   it("accepts every prediction id until one is dismissed", () => {

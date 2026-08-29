@@ -1,6 +1,6 @@
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import { dedupeChannelsByIdentity } from "@/lib/id-utils";
 import {
   firstValidKickBroadcasterUserId,
@@ -8,7 +8,7 @@ import {
 } from "@/lib/kick-channel-identity";
 import type { KickUser, Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
-import type { UnifiedChannel } from "../../api/unified/platform-types";
+import type { UnifiedChannel } from "../../../shared/platform-types";
 import { storageService } from "../../services/storage-service";
 import { repairKickFollowSlugs } from "./kick-follow-repair";
 

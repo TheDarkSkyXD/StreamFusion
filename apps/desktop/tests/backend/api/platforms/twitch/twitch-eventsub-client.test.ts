@@ -15,12 +15,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetTwitchEventSubClientsForTesting,
   getTwitchEventSubClient,
-} from "@/backend/api/platforms/twitch/twitch-eventsub-client";
+} from "@backend/api/platforms/twitch/twitch-eventsub-client";
 import type {
   NotificationPayload,
   TwitchEventSubConnectionState,
   TwitchEventSubEventType,
-} from "@/backend/api/platforms/twitch/twitch-eventsub-types";
+} from "@backend/api/platforms/twitch/twitch-eventsub-types";
 
 // ---------------------------------------------------------------------------
 // MockWebSocket

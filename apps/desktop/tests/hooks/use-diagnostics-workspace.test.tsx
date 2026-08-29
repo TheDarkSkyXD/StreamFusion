@@ -6,7 +6,7 @@ import { installElectronAPIMock } from "../test-utils";
 type DiagnosticsApi = ReturnType<typeof installElectronAPIMock>["diagnostics"];
 type OpenLeaseRequest = Parameters<DiagnosticsApi["openLease"]>[0];
 
-vi.mock("@/renderer/diagnostics/renderer-diagnostics-reporter", () => ({
+vi.mock("@/features/settings/data/diagnostics/renderer-diagnostics-reporter", () => ({
   startRendererDiagnosticsReporter: vi.fn(() => () => undefined),
 }));
 
@@ -35,7 +35,7 @@ describe("useDiagnosticsWorkspace", () => {
       onSnapshotChanged: vi.fn(() => () => undefined),
     };
 
-    const { useDiagnosticsWorkspace } = await import("@/hooks/use-diagnostics-workspace");
+    const { useDiagnosticsWorkspace } = await import("@/features/settings/data/use-diagnostics-workspace");
     renderHook(() => useDiagnosticsWorkspace({ tab: "overview", windowMinutes: 15 }), {
       reactStrictMode: true,
     });

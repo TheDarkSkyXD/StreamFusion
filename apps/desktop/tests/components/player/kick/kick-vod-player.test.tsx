@@ -2,9 +2,9 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { KickVodPlayer } from "@/components/player/kick/kick-vod-player";
-import type { QualityLevel } from "@/components/player/types";
-import { createChatReplayPlaybackStore } from "@/hooks/chat-replay-playback-store";
+import { KickVodPlayer } from "@/features/playback/components/player/kick/kick-vod-player";
+import type { QualityLevel } from "@/features/playback/components/player/types";
+import { createChatReplayPlaybackStore } from "@/features/chat/data/chat-replay-playback-store";
 
 const hookMocks = vi.hoisted(() => ({
   useResumePlayback: vi.fn(),
@@ -24,15 +24,15 @@ const hlsBoundary = vi.hoisted(() => ({
   off: vi.fn(),
 }));
 
-vi.mock("@/components/player/hooks/use-seek-preview", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-seek-preview", () => ({
   useSeekPreview: hookMocks.useSeekPreview,
 }));
 
-vi.mock("@/components/player/hooks/use-resume-playback", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-resume-playback", () => ({
   useResumePlayback: hookMocks.useResumePlayback,
 }));
 
-vi.mock("@/components/player/kick/kick-vod-player-controls", () => ({
+vi.mock("@/features/playback/components/player/kick/kick-vod-player-controls", () => ({
   KickVodPlayerControls: ({ onSeek }: { onSeek: (time: number) => void }) => (
     <button type="button" onClick={() => onSeek(72)}>
       Seek to 72 seconds
@@ -40,7 +40,7 @@ vi.mock("@/components/player/kick/kick-vod-player-controls", () => ({
   ),
 }));
 
-vi.mock("@/components/player/hls-player", () => ({
+vi.mock("@/features/playback/components/player/hls-player", () => ({
   HlsPlayer: React.forwardRef<
     HTMLVideoElement,
     React.VideoHTMLAttributes<HTMLVideoElement> & {

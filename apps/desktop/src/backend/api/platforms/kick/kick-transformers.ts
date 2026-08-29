@@ -12,7 +12,7 @@ import type {
   UnifiedFollow,
   UnifiedStream,
   UnifiedUser,
-} from "../../unified/platform-types";
+} from "../../../../shared/platform-types";
 
 import type {
   KickApiCategory,

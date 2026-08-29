@@ -1,18 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/logging/network-request-logger", () => ({
+vi.mock("@backend/logging/network-request-logger", () => ({
   isNetworkStreamRequestUrl: vi.fn(() => true),
   networkRequestUrlFingerprint: vi.fn(() => "fingerprint"),
   recordDevtoolsNetworkRequestHint: vi.fn(),
 }));
 
-vi.mock("@/backend/logging/source-map-resolver", () => ({
+vi.mock("@backend/logging/source-map-resolver", () => ({
   resolveSourceMappedLocation: vi.fn(),
 }));
 
-import { installNetworkDevtoolsRecorder } from "@/backend/logging/network-devtools-recorder";
-import { recordDevtoolsNetworkRequestHint } from "@/backend/logging/network-request-logger";
-import { resolveSourceMappedLocation } from "@/backend/logging/source-map-resolver";
+import { installNetworkDevtoolsRecorder } from "@backend/logging/network-devtools-recorder";
+import { recordDevtoolsNetworkRequestHint } from "@backend/logging/network-request-logger";
+import { resolveSourceMappedLocation } from "@backend/logging/source-map-resolver";
 
 const recordHintMock = vi.mocked(recordDevtoolsNetworkRequestHint);
 const resolveSourceMappedLocationMock = vi.mocked(resolveSourceMappedLocation);

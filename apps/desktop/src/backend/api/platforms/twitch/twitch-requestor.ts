@@ -1,9 +1,9 @@
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import {
   readResponseTextWithinLimit,
   ResponseBodyTooLargeError,
-} from "@/backend/reliability/bounded-response-body";
-import { sleep } from "@/lib/sleep";
+} from "@backend/reliability/bounded-response-body";
+import { sleep } from "@shared/utils/sleep";
 import { net } from "electron";
 import { getOAuthConfig } from "../../../auth/oauth-config";
 import { twitchAuthService } from "../../../auth/twitch-auth";

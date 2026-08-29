@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { debug: vi.fn(), error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
@@ -28,12 +28,12 @@ vi.mock("electron", () => ({
   },
 }));
 
-vi.mock("@/backend/auth/oauth-config", () => ({
+vi.mock("@backend/auth/oauth-config", () => ({
   PROTOCOL_SCHEME: "streamfusion",
   PROTOCOL_PREFIX: "streamfusion://",
 }));
 
-import { protocolHandler } from "@/backend/auth/protocol-handler";
+import { protocolHandler } from "@backend/auth/protocol-handler";
 
 beforeEach(() => {
   protocolHandler.offCallback("twitch");

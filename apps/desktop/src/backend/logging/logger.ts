@@ -16,11 +16,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 // IMPORTANT: this module is MAIN-PROCESS ONLY. If renderer-reachable backend
-// code starts importing `@/backend/logging/logger`, Vite will bundle this
+// code starts importing `@backend/logging/logger`, Vite will bundle this
 // file into the renderer, and the static `import "electron-log/main"` below
 // drags electron-log in too — which crashes the renderer at module load
 // (`__dirname is not defined`). Dual-use files (those imported by both main
-// and renderer) MUST import from `@/lib/cross-logger` instead.
+// and renderer) MUST import from `@shared/utils/cross-logger` instead.
 import electronLog from "electron-log/main";
 
 import { redactObject, redactString } from "./redactor";

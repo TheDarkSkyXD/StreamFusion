@@ -28,30 +28,30 @@ const serviceMock = vi.hoisted(() => ({
   fetchKickUserSubscriptions: vi.fn(),
 }));
 
-vi.mock("@/backend/services/emotes/7tv-emotes-service", () => ({
+vi.mock("@backend/services/emotes/7tv-emotes-service", () => ({
   fetch7TVUserByConnection: serviceMock.fetch7TVUserByConnection,
   fetch7TVGlobalEmoteSet: serviceMock.fetch7TVGlobalEmoteSet,
 }));
-vi.mock("@/backend/services/emotes/bttv-emotes-service", () => ({
+vi.mock("@backend/services/emotes/bttv-emotes-service", () => ({
   fetchBTTVBadges: serviceMock.fetchBTTVBadges,
   fetchBTTVGlobalEmotes: serviceMock.fetchBTTVGlobalEmotes,
   fetchBTTVUserByTwitchId: serviceMock.fetchBTTVUserByTwitchId,
 }));
-vi.mock("@/backend/services/emotes/ffz-emotes-service", () => ({
+vi.mock("@backend/services/emotes/ffz-emotes-service", () => ({
   fetchFFZBadges: serviceMock.fetchFFZBadges,
   fetchFFZGlobalEmotes: serviceMock.fetchFFZGlobalEmotes,
   fetchFFZRoom: serviceMock.fetchFFZRoom,
 }));
-vi.mock("@/backend/services/emotes/kick-channel-emotes-service", () => ({
+vi.mock("@backend/services/emotes/kick-channel-emotes-service", () => ({
   fetchKickChannelEmotes: serviceMock.fetchKickChannelEmotes,
 }));
-vi.mock("@/backend/services/emotes/kick-user-subscriptions-service", () => ({
+vi.mock("@backend/services/emotes/kick-user-subscriptions-service", () => ({
   fetchKickUserSubscriptions: serviceMock.fetchKickUserSubscriptions,
 }));
 
-import { registerEmoteHandlers } from "@/backend/ipc/handlers/emote-handlers";
-import type { TrustedIpcRegistry } from "@/backend/ipc/trusted-ipc-registry";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { registerEmoteHandlers } from "@backend/ipc/handlers/emote-handlers";
+import type { TrustedIpcRegistry } from "@backend/ipc/trusted-ipc-registry";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 function captureHandler(channel: string): (event: unknown, params: unknown) => Promise<unknown> {
   const call = registryMock.handle.mock.calls.find(([route]) => route.channel === channel);

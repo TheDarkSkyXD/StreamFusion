@@ -9,11 +9,11 @@ const mocks = vi.hoisted(() => ({
   request: vi.fn(),
 }));
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: { getToken: mocks.getToken },
 }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
+vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
   twitchClient: {
     isAuthenticated: mocks.isAuthenticated,
     getUsersById: mocks.getUsersById,
@@ -27,7 +27,7 @@ import {
   getTwitchAccountCreated,
   getTwitchFollowRelationship,
   getTwitchPublicIdentity,
-} from "@/backend/api/platforms/twitch/twitch-public-profile-reader";
+} from "@backend/api/platforms/twitch/twitch-public-profile-reader";
 
 // Guards: account creation prefers an exact official Helix timestamp before the validated website fallback.
 // Guards: a signed-in token missing follower scope produces a real reconnect-required field state.

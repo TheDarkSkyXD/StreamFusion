@@ -29,12 +29,12 @@ const firstPaintState = vi.hoisted(() => ({ hasPainted: true }));
 
 vi.mock("@tanstack/react-router", () => routerMock());
 
-vi.mock("@/hooks/queries/useChannels", () => ({
+vi.mock("@/features/discovery/data/queries/useChannels", () => ({
   useFollowedChannels: vi.fn(),
   useChannelByUsername: vi.fn(),
 }));
 
-vi.mock("@/hooks/queries/useStreams", () => ({
+vi.mock("@/features/discovery/data/queries/useStreams", () => ({
   createFollowedStreamSnapshotIdentity: vi.fn(
     (platform, twitchUserId, kickUserId, follows: Array<{ platform: string; id: string }>) => ({
       platform: platform ?? "all",
@@ -48,11 +48,11 @@ vi.mock("@/hooks/queries/useStreams", () => ({
   useStreamByChannel: vi.fn(),
 }));
 
-vi.mock("@/hooks/queries/useCategories", () => ({
+vi.mock("@/features/discovery/data/queries/useCategories", () => ({
   useTopCategories: vi.fn(),
 }));
 
-vi.mock("@/hooks/queries/useFollowedContent", () => ({
+vi.mock("@/features/discovery/data/queries/useFollowedContent", () => ({
   useFollowedVideos: vi.fn(),
   useFollowedClips: vi.fn(),
   useFollowedClipPlayback: vi.fn(),
@@ -97,7 +97,7 @@ vi.mock("@/store/pip-store", () => ({
     selector({ currentStream: storeState.currentStream }),
 }));
 
-vi.mock("@/components/stream/stream-grid", () => ({
+vi.mock("@/features/discovery/components/stream/stream-grid", () => ({
   StreamGrid: ({
     streams,
     isLoading,
@@ -121,7 +121,7 @@ vi.mock("@/components/stream/stream-grid", () => ({
   ),
 }));
 
-vi.mock("@/components/discovery/category-grid", () => ({
+vi.mock("@/features/discovery/components/discovery/category-grid", () => ({
   CategoryGrid: ({
     categories,
     isLoading,
@@ -141,13 +141,13 @@ vi.mock("@/components/ui/platform-avatar", () => ({
   PlatformAvatar: ({ alt }: { alt: string }) => <div data-testid="avatar">{alt}</div>,
 }));
 
-vi.mock("@/components/stream/related-content/VideoCard", () => ({
+vi.mock("@/features/playback/components/related-content/VideoCard", () => ({
   VideoCard: ({ video }: { video: { title: string } }) => (
     <article data-testid="video-card">{video.title}</article>
   ),
 }));
 
-vi.mock("@/components/stream/related-content/ClipCard", () => ({
+vi.mock("@/features/playback/components/related-content/ClipCard", () => ({
   ClipCard: ({ clip, onClick }: { clip: { title: string }; onClick: () => void }) => (
     <button type="button" data-testid="clip-card" onClick={onClick}>
       {clip.title}
@@ -155,7 +155,7 @@ vi.mock("@/components/stream/related-content/ClipCard", () => ({
   ),
 }));
 
-vi.mock("@/components/stream/related-content/ClipDialog", () => ({
+vi.mock("@/features/playback/components/related-content/ClipDialog", () => ({
   ClipDialog: ({ selectedClip }: { selectedClip: { title: string } | null }) =>
     selectedClip ? <div data-testid="clip-dialog">{selectedClip.title}</div> : null,
 }));
@@ -163,18 +163,18 @@ vi.mock("@/components/stream/related-content/ClipDialog", () => ({
 import {
   getCachePerformanceSamples,
   resetCachePerformanceSamples,
-} from "@/hooks/queries/cache-performance";
-import { useTopCategories } from "@/hooks/queries/useCategories";
-import { useChannelByUsername, useFollowedChannels } from "@/hooks/queries/useChannels";
+} from "@/features/discovery/data/queries/cache-performance";
+import { useTopCategories } from "@/features/discovery/data/queries/useCategories";
+import { useChannelByUsername, useFollowedChannels } from "@/features/discovery/data/queries/useChannels";
 import {
   useFollowedClipPlayback,
   useFollowedClips,
   useFollowedVideos,
-} from "@/hooks/queries/useFollowedContent";
+} from "@/features/discovery/data/queries/useFollowedContent";
 import {
   createFollowedStreamSnapshotIdentity,
   useFollowedStreams,
-} from "@/hooks/queries/useStreams";
+} from "@/features/discovery/data/queries/useStreams";
 import { FollowingPage } from "@/pages/Following";
 
 const useTopCategoriesMock = vi.mocked(useTopCategories);

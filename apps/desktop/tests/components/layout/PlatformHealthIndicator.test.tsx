@@ -3,11 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders, screen } from "../../test-utils";
 
 const mockHook = vi.fn();
-vi.mock("@/hooks/usePlatformHealth", () => ({
+vi.mock("@/features/settings/data/usePlatformHealth", () => ({
   usePlatformHealth: () => mockHook(),
 }));
 
-import { PlatformHealthIndicator } from "@/components/layout/PlatformHealthIndicator";
+import { PlatformHealthIndicator } from "@/features/shell/components/layout/PlatformHealthIndicator";
 
 // Guards: long-running Platform degradation stays in compact top-nav chrome instead of reducing every page's content height.
 // Guards: the full provider incident remains available to assistive technology while visible copy stays brief.

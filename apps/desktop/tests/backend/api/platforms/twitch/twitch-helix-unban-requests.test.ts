@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getUnbanRequests,
   resolveUnbanRequest,
-} from "@/backend/api/platforms/twitch/twitch-helix-unban-requests";
+} from "@backend/api/platforms/twitch/twitch-helix-unban-requests";
 
 // Guards: Helix unban-requests CRUD — list (filterable by status), resolve (approve/deny + optional moderator_message). The status filter is a literal-union; resolve mutates exactly one record per call.
 

@@ -1,24 +1,23 @@
-# shared/ — IPC Contract Layer
+# shared/ — Cross-Process Contract Layer
 
 This directory is the single source of truth for the contract between the
 Electron **main process** (backend) and the **renderer process** (React UI).
-Nothing here may import from `backend/` or `renderer/`. Both sides depend on
+Nothing here may import from `backend/` or `frontend/`. Both sides depend on
 this layer; it must remain free of process-specific dependencies.
 
 ---
 
 ## File Inventory
 
-| File | Role |
-|---|---|
-| `ipc-channels.ts` | Central registry of every IPC channel string constant (`IPC_CHANNELS`), payload types (`IpcPayloads`), and response types (`AuthStatus`, `TokenStatusResult`, `UpdateState`, etc.). **The single place to name a new channel.** |
-| `auth-types.ts` | Core auth and preferences domain types: `Platform`, `AuthToken`, `TwitchUser`, `KickUser`, `LocalFollow`, `UserPreferences` and all its sub-groups, `StorageSchema`, default value constants. |
-| `chat-types.ts` | Unified chat domain types used by both the renderer chat components and the backend chat services: `ChatMessage`, `ContentFragment`, `ChatServiceEvents`, `NormalizedPinnedMessage`, `UnifiedPrediction`, `RoomStatePatchEvent`, etc. |
-| `adblock-types.ts` | VAFT ad-block types: `AdBlockConfig`, `StreamInfo`, `AdBlockStatus`, `AdPatternUpdate`, `StoredAdPatterns`, default config constants. |
-| `mod-log-types.ts` | Mod-log IPC shapes: `ModLogEntry`, `ModLogQueryFilters`, `RetentionScope`. Mirrors DB types without importing `better-sqlite3`. |
-| `browser-event-emitter.ts` | Vite-safe `EventEmitter` polyfill (Node's `node:events` is unavailable in the renderer bundle). Used by chat services. Exported as both `BrowserEventEmitter` and `EventEmitter`. |
-| `electron.d.ts` | Global augmentation: `declare global { interface Window { electronAPI: ElectronAPI } }`. The `ElectronAPI` type is sourced from `../preload/index`. |
-| `svg.d.ts` | Ambient module declarations for `*.svg` and `*.svg?react` imports (Vite/SVGR). |
+| File                       | Role                                                                                                                                                                                                                                  |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ipc-channels.ts`          | Central registry of every IPC channel string constant (`IPC_CHANNELS`), payload types (`IpcPayloads`), and response types (`AuthStatus`, `TokenStatusResult`, `UpdateState`, etc.). **The single place to name a new channel.**       |
+| `auth-types.ts`            | Core auth and preferences domain types: `Platform`, `AuthToken`, `TwitchUser`, `KickUser`, `LocalFollow`, `UserPreferences` and all its sub-groups, `StorageSchema`, default value constants.                                         |
+| `chat-types.ts`            | Unified chat domain types used by both the renderer chat components and the backend chat services: `ChatMessage`, `ContentFragment`, `ChatServiceEvents`, `NormalizedPinnedMessage`, `UnifiedPrediction`, `RoomStatePatchEvent`, etc. |
+| `adblock-types.ts`         | VAFT ad-block types: `AdBlockConfig`, `StreamInfo`, `AdBlockStatus`, `AdPatternUpdate`, `StoredAdPatterns`, default config constants.                                                                                                 |
+| `mod-log-types.ts`         | Mod-log IPC shapes: `ModLogEntry`, `ModLogQueryFilters`, `RetentionScope`. Mirrors DB types without importing `better-sqlite3`.                                                                                                       |
+| `browser-event-emitter.ts` | Vite-safe `EventEmitter` polyfill (Node's `node:events` is unavailable in the renderer bundle). Used by chat services. Exported as both `BrowserEventEmitter` and `EventEmitter`.                                                     |
+| `utils/`                   | Runtime-neutral timer and logging helpers consumed by both backend and frontend code.                                                                                                                                                 |
 
 ---
 
@@ -105,15 +104,21 @@ Response types are declared separately (e.g., `AuthStatus`, `ProxyApplyResult`,
 
 ---
 
+Runtime-neutral utilities used by both processes live under `utils/`. They may
+coordinate generic concerns such as timing or logging, but must not contain
+feature policy or import a process-specific dependency.
+
+---
+
 ## Anti-Patterns
 
 - **Do not import from `backend/`** (e.g., `better-sqlite3`, `electron`,
   `node:*` built-ins, service classes). This directory is bundled into the
   renderer by Vite; Node-only imports will break the renderer build.
-- **Do not import from `renderer/`** or any React component. This layer is
+- **Do not import from `frontend/`** or any React component. This layer is
   consumed by both processes; renderer-specific imports create a circular
   dependency in the build graph.
-- **Do not add business logic.** Default constants (e.g.,
+- **Do not add feature business logic.** Default constants (e.g.,
   `DEFAULT_USER_PREFERENCES`) are acceptable because they prevent duplication.
   Validation, transformation, or service logic belongs in the backend or
   renderer layer, not here.
@@ -128,9 +133,8 @@ Response types are declared separately (e.g., `AuthStatus`, `ProxyApplyResult`,
 ## Related Context
 
 - **IPC handlers (main side):** `apps/desktop/src/backend/ipc/handlers/`
-- **Preload bridge:** `apps/desktop/src/preload/index.ts` — wraps every
+- **Preload bridge:** `apps/desktop/src/backend/preload/index.ts` — wraps every
   channel in a typed function and exposes the result as `window.electronAPI`.
 - **Sender-origin guard:** `apps/desktop/src/backend/ipc/sender-origin.ts`
-- **`electron.d.ts` source type:** `ElectronAPI` is the export type of
-  `preload/index.ts`; the global `window.electronAPI` typing flows from there
-  through this file.
+- **Frontend bridge type:** `frontend/electron.d.ts` sources `ElectronAPI` from
+  `backend/preload/index.ts` and exposes it as `window.electronAPI`.

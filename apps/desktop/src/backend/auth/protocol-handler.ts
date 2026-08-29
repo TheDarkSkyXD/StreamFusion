@@ -7,7 +7,7 @@
 
 import { app, BrowserWindow } from "electron";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import type { Platform } from "../../shared/auth-types";
 
 import { PROTOCOL_PREFIX, PROTOCOL_SCHEME } from "./oauth-config";

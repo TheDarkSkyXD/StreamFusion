@@ -7,7 +7,7 @@
 
 import type { BrowserWindow } from "electron";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import { registerLazyIpcFeatureLoader } from "./ipc/lazy-feature-loader";
 import { TrustedIpcRegistry } from "./ipc/trusted-ipc-registry";
 

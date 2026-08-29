@@ -1,8 +1,8 @@
 import {
   fetchKickWebApiGet,
   isKickWebApiReady,
-} from "@/backend/api/platforms/kick/kick-send-window";
-import { logger } from "@/backend/logging/logger";
+} from "@backend/api/platforms/kick/kick-send-window";
+import { logger } from "@backend/logging/logger";
 
 /**
  * Legacy/internal Kick web endpoint.

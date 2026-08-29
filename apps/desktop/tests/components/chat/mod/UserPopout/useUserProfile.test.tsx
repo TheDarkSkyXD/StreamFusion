@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useUserProfile } from "@/components/chat/mod/UserPopout/useUserProfile";
+import { useUserProfile } from "@/features/chat/components/chat/mod/UserPopout/useUserProfile";
 
 import { installElectronAPIMock } from "../../../../test-utils";
 

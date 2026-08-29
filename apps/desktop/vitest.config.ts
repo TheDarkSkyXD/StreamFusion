@@ -46,7 +46,7 @@ export default defineConfig({
       },
     ],
     alias: {
-      '@/': path.resolve(__dirname, './src') + '/',
+      '@/': path.resolve(__dirname, './src/frontend') + '/',
       '@backend/': path.resolve(__dirname, './src/backend') + '/',
       '@frontend/': path.resolve(__dirname, './src/frontend') + '/',
       '@shared/': path.resolve(__dirname, './src/shared') + '/',
@@ -61,15 +61,15 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       include: ['src/**/*.ts', 'src/**/*.tsx'],
       exclude: [
-        'src/main.ts',
-        'src/preload/**',
-        'src/renderer.tsx',
+        'src/backend/main.ts',
+        'src/backend/preload/**',
+        'src/frontend/renderer.tsx',
       ],
     },
   },
   resolve: {
     alias: {
-      '@/': path.resolve(__dirname, './src') + '/',
+      '@/': path.resolve(__dirname, './src/frontend') + '/',
       '@backend/': path.resolve(__dirname, './src/backend') + '/',
       '@frontend/': path.resolve(__dirname, './src/frontend') + '/',
       '@shared/': path.resolve(__dirname, './src/shared') + '/',

@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
   BrowserWindow: class {},
 }));
 
-vi.mock("@/backend/services/network-adblock-service", () => ({
+vi.mock("@backend/services/network-adblock-service", () => ({
   networkAdBlockService: {
     isActive: vi.fn(),
     enable: vi.fn(),
@@ -16,7 +16,7 @@ vi.mock("@/backend/services/network-adblock-service", () => ({
   },
 }));
 
-vi.mock("@/backend/services/cosmetic-injection-service", () => ({
+vi.mock("@backend/services/cosmetic-injection-service", () => ({
   cosmeticInjectionService: {
     isActive: vi.fn(),
     enable: vi.fn(),
@@ -25,7 +25,7 @@ vi.mock("@/backend/services/cosmetic-injection-service", () => ({
   },
 }));
 
-vi.mock("@/backend/services/twitch-manifest-proxy", () => ({
+vi.mock("@backend/services/twitch-manifest-proxy", () => ({
   twitchManifestProxy: {
     isActive: vi.fn(),
     getStats: vi.fn(),
@@ -34,7 +34,7 @@ vi.mock("@/backend/services/twitch-manifest-proxy", () => ({
   },
 }));
 
-vi.mock("@/backend/services/vaft-pattern-service", () => ({
+vi.mock("@backend/services/vaft-pattern-service", () => ({
   vaftPatternService: {
     getCurrentPatterns: vi.fn(),
     forceRefresh: vi.fn(),
@@ -44,18 +44,18 @@ vi.mock("@/backend/services/vaft-pattern-service", () => ({
   },
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
 }));
 
 import { BrowserWindow, ipcMain } from "electron";
 
-import { registerAdBlockHandlers } from "@/backend/ipc/handlers/adblock-handlers";
-import { cosmeticInjectionService } from "@/backend/services/cosmetic-injection-service";
-import { networkAdBlockService } from "@/backend/services/network-adblock-service";
-import { twitchManifestProxy } from "@/backend/services/twitch-manifest-proxy";
-import { vaftPatternService } from "@/backend/services/vaft-pattern-service";
-import type { AdPatternUpdate } from "@/shared/adblock-types";
+import { registerAdBlockHandlers } from "@backend/ipc/handlers/adblock-handlers";
+import { cosmeticInjectionService } from "@backend/services/cosmetic-injection-service";
+import { networkAdBlockService } from "@backend/services/network-adblock-service";
+import { twitchManifestProxy } from "@backend/services/twitch-manifest-proxy";
+import { vaftPatternService } from "@backend/services/vaft-pattern-service";
+import type { AdPatternUpdate } from "@shared/adblock-types";
 
 type Handler = (event: unknown, args?: unknown) => Promise<unknown>;
 

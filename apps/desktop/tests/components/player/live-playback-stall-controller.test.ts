@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   LivePlaybackStallController,
   type LivePlaybackSnapshot,
-} from "@/components/player/live-playback-stall-controller";
+} from "@/features/playback/components/player/live-playback-stall-controller";
 
 const playableSnapshot = (overrides: Partial<LivePlaybackSnapshot> = {}): LivePlaybackSnapshot => ({
   currentTime: 10,

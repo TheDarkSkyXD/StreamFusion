@@ -10,7 +10,7 @@
 import { safeStorage } from "electron";
 import Store from "electron-store";
 
-import { logger } from "@/lib/cross-logger";
+import { logger } from "@shared/utils/cross-logger";
 import {
   type AuthToken,
   type BufferPreferences,

@@ -1,11 +1,11 @@
 import type { BrowserWindow } from "electron";
 
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 import type {
   StreamRecordingRecoveryActionResult,
   StreamRecordingRequest,
-} from "@/shared/stream-recording-types";
+} from "@shared/stream-recording-types";
 import { getDefaultStreamRecordingService } from "../../services/stream-recording-default-service";
 import { getStreamRecordingSessionStore } from "../../services/stream-recording-session-store";
 import { isAllowedSender } from "../sender-origin";

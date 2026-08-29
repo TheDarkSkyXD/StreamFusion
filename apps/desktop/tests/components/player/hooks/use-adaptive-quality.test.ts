@@ -9,7 +9,7 @@ vi.mock("@/hooks/useInterval", () => ({
   useInterval: vi.fn(),
 }));
 
-import { useAdaptiveQuality } from "@/components/player/hooks/use-adaptive-quality";
+import { useAdaptiveQuality } from "@/features/playback/components/player/hooks/use-adaptive-quality";
 import { useInterval } from "@/hooks/useInterval";
 
 const mockUseInterval = vi.mocked(useInterval);

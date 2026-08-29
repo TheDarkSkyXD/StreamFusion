@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   type CaptionUtilityProcess,
   LocalCaptionSupervisor,
-} from "@/backend/services/captions/local-caption-supervisor";
+} from "@backend/services/captions/local-caption-supervisor";
 
 class FakeUtilityProcess implements CaptionUtilityProcess {
   readonly postMessage = vi.fn();

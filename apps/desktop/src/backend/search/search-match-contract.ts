@@ -1,28 +1,28 @@
 import {
   rankChannelMatch,
   rankSearchChannels,
-} from "../../search/channel-search-contract";
-import { normalizeSearchTokens } from "../../search/search-normalization";
+} from "../../frontend/features/discovery/utils/search/channel-search-contract";
+import { normalizeSearchTokens } from "../../frontend/features/discovery/utils/search/search-normalization";
 import {
   normalizeUnifiedChannel,
   normalizeUnifiedClip,
   normalizeUnifiedStream,
   normalizeUnifiedVideo,
-} from "../../search/search-result-validation";
+} from "../../frontend/features/discovery/utils/search/search-result-validation";
 import type {
   UnifiedChannel,
   UnifiedClip,
   UnifiedStream,
   UnifiedVideo,
-} from "../api/unified/platform-types";
+} from "../../shared/platform-types";
 
 export {
   filterRankAndDeduplicateCategories,
   mergeExactCrossPlatformCategories,
   rankCategoryMatch,
-} from "../../search/category-search-contract";
+} from "../../frontend/features/discovery/utils/search/category-search-contract";
 export { rankChannelMatch };
-export { normalizeSearchTokens } from "../../search/search-normalization";
+export { normalizeSearchTokens } from "../../frontend/features/discovery/utils/search/search-normalization";
 export {
   isValidUnifiedCategory,
   isValidUnifiedChannel,
@@ -33,7 +33,7 @@ export {
   normalizeUnifiedClip,
   normalizeUnifiedStream,
   normalizeUnifiedVideo,
-} from "../../search/search-result-validation";
+} from "../../frontend/features/discovery/utils/search/search-result-validation";
 
 export interface SearchMatchRank {
   tier: number;

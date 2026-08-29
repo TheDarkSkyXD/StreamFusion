@@ -1,10 +1,10 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { useHasActualTwitchModAuthority, useIsTwitchMod } from "@/hooks/useIsTwitchMod";
+import { useHasActualTwitchModAuthority, useIsTwitchMod } from "@/features/moderation/data/useIsTwitchMod";
 import { useAuthStore } from "@/store/auth-store";
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
-import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
+import { useModeratedChannelsStore } from "@/features/moderation/data/moderated-channels-store";
 
 beforeEach(() => {
   useAuthStore.setState({ twitchUser: null });

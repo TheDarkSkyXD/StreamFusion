@@ -26,7 +26,7 @@ const moderationState = vi.hoisted(() => ({
       },
 }));
 
-vi.mock("@/hooks/useModerationAuthority", () => ({
+vi.mock("@/features/moderation/data/useModerationAuthority", () => ({
   useModerationAuthority: () => moderationState.value,
 }));
 
@@ -42,7 +42,7 @@ const kickChannelQuery = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/hooks/queries/useChannels", () => ({
+vi.mock("@/features/discovery/data/queries/useChannels", () => ({
   useChannelByUsername: () => kickChannelQuery.value,
 }));
 

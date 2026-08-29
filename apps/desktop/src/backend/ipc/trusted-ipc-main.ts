@@ -8,7 +8,7 @@ import {
   type WebContents,
 } from "electron";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import { isAllowedSender } from "./sender-origin";
 
 const MAX_ARGUMENT_DEPTH = 20;

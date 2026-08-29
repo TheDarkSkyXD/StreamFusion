@@ -3,7 +3,7 @@ import { unlink } from "node:fs/promises";
 
 import { type BrowserWindow, dialog, shell } from "electron";
 
-import type { DownloadJob } from "@/shared/download-types";
+import type { DownloadJob } from "@shared/download-types";
 import type { DownloadQueueService } from "./download-queue-service";
 
 export interface DownloadFileActionResult {

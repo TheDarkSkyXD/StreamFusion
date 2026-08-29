@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS, type UpdateState } from "@/shared/ipc-channels";
+import { IPC_CHANNELS, type UpdateState } from "@shared/ipc-channels";
 
 vi.mock("electron", () => ({
   BrowserWindow: class {},
   ipcMain: { handle: vi.fn() },
 }));
 
-vi.mock("@/backend/services/update-service", () => ({
+vi.mock("@backend/services/update-service", () => ({
   DEFAULT_UPDATE_CHECK_URL: "https://updates.example.com",
   checkForUpdates: vi.fn(),
   downloadUpdate: vi.fn(),
@@ -19,13 +19,13 @@ vi.mock("@/backend/services/update-service", () => ({
   initUpdateService: vi.fn(),
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
 }));
 
 import { BrowserWindow, ipcMain } from "electron";
 
-import { registerUpdateHandlers } from "@/backend/ipc/handlers/update-handlers";
+import { registerUpdateHandlers } from "@backend/ipc/handlers/update-handlers";
 import {
   checkForUpdates,
   downloadUpdate,
@@ -35,7 +35,7 @@ import {
   installUpdate,
   setAllowPrerelease,
   setAutoCheck,
-} from "@/backend/services/update-service";
+} from "@backend/services/update-service";
 
 type Handler = (event: unknown, payload?: unknown) => unknown;
 

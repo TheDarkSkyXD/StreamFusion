@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Emote, EmoteProvider } from "@/backend/services/emotes/emote-types";
+import type { Emote, EmoteProvider } from "@backend/services/emotes/emote-types";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const toastMocks = vi.hoisted(() => ({
@@ -86,7 +86,7 @@ beforeEach(() => {
   Reflect.deleteProperty(window, "electronAPI");
 });
 
-import { EmotePickerPopover } from "@/components/chat/EmotePickerPopover";
+import { EmotePickerPopover } from "@/features/chat/components/chat/EmotePickerPopover";
 
 type IntendedEmotePickerPopoverProps = React.ComponentProps<typeof EmotePickerPopover> & {
   channelLabel?: string | null;

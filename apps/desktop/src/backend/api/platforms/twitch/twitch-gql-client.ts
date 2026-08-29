@@ -43,7 +43,7 @@ import {
   type VideoAccessTokenClipData,
   type VideoMetadataData,
 } from "twitch-gql-queries";
-import { logger } from "@/lib/cross-logger";
+import { logger } from "@shared/utils/cross-logger";
 import type { PlatformFailureClass } from "../../unified/platform-health";
 import { recordPlatformFailure, recordPlatformSuccess } from "../../unified/platform-health";
 
@@ -53,7 +53,7 @@ import type {
   UnifiedClip,
   UnifiedStream,
   UnifiedVideo,
-} from "../../unified/platform-types";
+} from "../../../../shared/platform-types";
 import type { GqlError, PaginatedResult, PaginationOptions } from "./twitch-types";
 
 function classifyGqlErrorForHealth(

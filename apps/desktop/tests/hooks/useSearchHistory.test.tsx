@@ -5,7 +5,7 @@ vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { useSearchHistory } from "@/hooks/useSearchHistory";
+import { useSearchHistory } from "@/features/discovery/data/useSearchHistory";
 
 const STORAGE_KEY = "streamfusion_search_history";
 

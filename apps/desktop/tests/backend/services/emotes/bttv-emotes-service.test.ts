@@ -36,7 +36,7 @@ import {
   fetchBTTVBadges,
   fetchBTTVGlobalEmotes,
   fetchBTTVUserByTwitchId,
-} from "@/backend/services/emotes/bttv-emotes-service";
+} from "@backend/services/emotes/bttv-emotes-service";
 
 describe("fetchBTTVBadges", () => {
   beforeEach(() => {

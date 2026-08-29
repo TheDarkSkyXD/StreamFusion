@@ -7,7 +7,7 @@ import {
   DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
-} from "@/shared/auth-types";
+} from "@shared/auth-types";
 
 import {
   installElectronAPIMock,
@@ -52,7 +52,7 @@ vi.mock("@/hooks", () => ({
   }),
 }));
 
-vi.mock("@/hooks/useAuth", () => ({
+vi.mock("@/features/auth/data/useAuth", () => ({
   useAuthError: () => ({ error: null, clearError: vi.fn() }),
 }));
 
@@ -86,15 +86,15 @@ vi.mock("@/store/adblock-store", () => ({
   },
 }));
 
-vi.mock("@/components/auth", () => ({
+vi.mock("@/features/auth/components/auth", () => ({
   AccountConnect: () => <div data-testid="account-connect">accounts</div>,
 }));
 
-vi.mock("@/components/settings/LogsSection", () => ({
+vi.mock("@/features/settings/components/settings/LogsSection", () => ({
   LogsSection: () => <div data-testid="logs-section">logs-section</div>,
 }));
 
-vi.mock("@/components/settings/BugReportSection", () => ({
+vi.mock("@/features/settings/components/settings/BugReportSection", () => ({
   BugReportSection: () => <div data-testid="bug-report-section">bug-report</div>,
 }));
 

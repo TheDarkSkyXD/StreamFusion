@@ -12,22 +12,22 @@ vi.mock("electron", () => ({
   },
 }));
 
-vi.mock("@/lib/sleep", () => ({
+vi.mock("@shared/utils/sleep", () => ({
   sleep: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("@/backend/services/vaft-pattern-service", () => ({
+vi.mock("@backend/services/vaft-pattern-service", () => ({
   vaftPatternService: {
     getDateRangePatterns: vi.fn(() => ["stitched-ad", "com.twitch.tv/ad", "amazon-ad"]),
     getAdSignifiers: vi.fn(() => ["stitched"]),
   },
 }));
 
-vi.mock("@/backend/services/http-client", () => ({
+vi.mock("@backend/services/http-client", () => ({
   httpClient: {
     fetch: vi.fn(),
   },
@@ -36,8 +36,8 @@ vi.mock("@/backend/services/http-client", () => ({
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
-import { twitchManifestProxy } from "@/backend/services/twitch-manifest-proxy";
-import { logger } from "@/backend/logging/logger";
+import { twitchManifestProxy } from "@backend/services/twitch-manifest-proxy";
+import { logger } from "@backend/logging/logger";
 
 // ========== M3U8 Fixtures ==========
 

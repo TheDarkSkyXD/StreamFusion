@@ -1,12 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { logger } from "@/backend/logging/logger";
-import type { PlatformHealthEvent } from "@/backend/api/unified/platform-health";
+import { logger } from "@backend/logging/logger";
+import type { PlatformHealthEvent } from "@backend/api/unified/platform-health";
 
 const TEST_TELEMETRY_DIR = "/tmp/test-telemetry";
 
-vi.mock("@/backend/logging/log-paths", () => ({
+vi.mock("@backend/logging/log-paths", () => ({
   getTelemetryDir: vi.fn(() => TEST_TELEMETRY_DIR),
 }));
 
@@ -23,7 +23,7 @@ describe("platform-health-telemetry", () => {
     mkdirSyncSpy = vi.spyOn(fs, "mkdirSync").mockImplementation(() => undefined);
 
     subscribedListener = null;
-    vi.doMock("@/backend/api/unified/platform-health", () => ({
+    vi.doMock("@backend/api/unified/platform-health", () => ({
       onPlatformHealthChanged: vi.fn((listener: (event: PlatformHealthEvent) => void) => {
         subscribedListener = listener;
         return () => { subscribedListener = null; };
@@ -38,7 +38,7 @@ describe("platform-health-telemetry", () => {
   });
 
   async function loadModule() {
-    return await import("@/backend/logging/platform-health-telemetry");
+    return await import("@backend/logging/platform-health-telemetry");
   }
 
   it("writes one JSONL line on a degraded transition", async () => {

@@ -3,7 +3,7 @@ import type { BrowserWindow } from "electron";
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { z } from "zod";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import type {
   KickAccountFollowWriteSnapshot,
   KickAccountFollowWriteResult,

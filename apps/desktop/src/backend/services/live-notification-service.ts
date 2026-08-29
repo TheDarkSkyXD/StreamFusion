@@ -1,15 +1,15 @@
 import path from "node:path";
 
 import { type BrowserWindow, Notification } from "electron";
-import { getTwitchEventSubClient } from "@/backend/api/platforms/twitch/twitch-eventsub-client";
+import { getTwitchEventSubClient } from "@backend/api/platforms/twitch/twitch-eventsub-client";
 import {
   getPlatformHealth,
   getPlatformStatusPageDetail,
   onPlatformHealthChanged,
-} from "@/backend/api/unified/platform-health";
-import type { UnifiedStream } from "@/backend/api/unified/platform-types";
-import { logger } from "@/backend/logging/logger";
-import { isChannelEligibleForLiveNotification } from "@/lib/live-notification-preferences";
+} from "@backend/api/unified/platform-health";
+import type { UnifiedStream } from "@shared/platform-types";
+import { logger } from "@backend/logging/logger";
+import { isChannelEligibleForLiveNotification } from "@/features/auth/utils/live-notification-preferences";
 import {
   type DesktopNotificationPermissionStatus,
   type LiveNotificationCoverageIssue,
@@ -20,8 +20,8 @@ import {
   type Platform,
   TWITCH_APP_CLIENT_ID,
   type UserPreferences,
-} from "@/shared/auth-types";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+} from "@shared/auth-types";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 import { KickLiveNotificationSource } from "./kick-live-notification-source";
 import { storageService } from "./storage-service";
 import { TwitchLiveEventSubSource } from "./twitch-live-eventsub-source";

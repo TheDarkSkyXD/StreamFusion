@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createCancellableSleep } from "@/lib/sleep";
+import { createCancellableSleep } from "@shared/utils/sleep";
 
 beforeEach(() => {
   vi.useFakeTimers();

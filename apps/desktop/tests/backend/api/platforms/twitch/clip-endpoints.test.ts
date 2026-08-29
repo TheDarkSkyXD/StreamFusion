@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   getClipsByBroadcaster,
   getClipsByGame,
-} from "@/backend/api/platforms/twitch/endpoints/clip-endpoints";
-import type { TwitchRequestor } from "@/backend/api/platforms/twitch/twitch-requestor";
+} from "@backend/api/platforms/twitch/endpoints/clip-endpoints";
+import type { TwitchRequestor } from "@backend/api/platforms/twitch/twitch-requestor";
 
 function makeClient(response: unknown): TwitchRequestor {
   return {

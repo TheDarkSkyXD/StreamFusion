@@ -2,11 +2,11 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { useEffect, useMemo } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { CaptionOverlay } from "@/components/player/caption-overlay";
-import { useTimedText } from "@/components/player/hooks/use-timed-text";
-import { SettingsMenu } from "@/components/player/settings-menu";
+import { CaptionOverlay } from "@/features/playback/components/player/caption-overlay";
+import { useTimedText } from "@/features/playback/components/player/hooks/use-timed-text";
+import { SettingsMenu } from "@/features/playback/components/player/settings-menu";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { DEFAULT_USER_PREFERENCES, type UserPreferences } from "@/shared/auth-types";
+import { DEFAULT_USER_PREFERENCES, type UserPreferences } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
 const originalUpdatePreferences = useAuthStore.getState().updatePreferences;

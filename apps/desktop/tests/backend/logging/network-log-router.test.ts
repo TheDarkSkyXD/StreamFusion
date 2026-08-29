@@ -10,14 +10,14 @@ type SinkEntry = {
 
 let capturedSink: ((entry: SinkEntry) => void) | null = null;
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   addLogSink: vi.fn((sink: (entry: SinkEntry) => void) => {
     capturedSink = sink;
     return vi.fn();
   }),
 }));
 
-vi.mock("@/backend/logging/network-logger", () => ({
+vi.mock("@backend/logging/network-logger", () => ({
   networkLogger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -26,8 +26,8 @@ vi.mock("@/backend/logging/network-logger", () => ({
   },
 }));
 
-import { installNetworkLogRouter } from "@/backend/logging/network-log-router";
-import { networkLogger } from "@/backend/logging/network-logger";
+import { installNetworkLogRouter } from "@backend/logging/network-log-router";
+import { networkLogger } from "@backend/logging/network-logger";
 
 const networkLoggerMock = vi.mocked(networkLogger);
 

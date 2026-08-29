@@ -1,6 +1,6 @@
 import { session, type Cookie, type Cookies } from "electron";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 
 const KICK_WEB_SESSION_COOKIE_NAMES = new Set(["session_token", "kick_session"]);
 const KICK_WEB_SESSION_DURABLE_TTL_SECONDS = 400 * 24 * 60 * 60;

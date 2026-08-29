@@ -11,7 +11,7 @@ import { createNetworkStatusStore } from "@/hooks/network-status-store";
 
 const useBrowseSnapshotBootstrap = vi.hoisted(() => vi.fn());
 
-vi.mock("@/hooks/queries/browse-snapshot-bootstrap", () => ({
+vi.mock("@/features/discovery/data/queries/browse-snapshot-bootstrap", () => ({
   useBrowseSnapshotBootstrap,
 }));
 

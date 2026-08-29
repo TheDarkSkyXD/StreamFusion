@@ -27,13 +27,13 @@ vi.mock("electron", () => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-network-health", () => ({
+vi.mock("@backend/api/platforms/kick/kick-network-health", () => ({
   acquireKickRequestSlot: (...args: unknown[]) => networkMocks.acquireKickRequestSlot(...args),
 }));
 
-vi.mock("@/backend/logging/logger", () => ({ logger: loggerMocks }));
+vi.mock("@backend/logging/logger", () => ({ logger: loggerMocks }));
 
-import { fetchKickChannelEmotes } from "@/backend/services/emotes/kick-channel-emotes-service";
+import { fetchKickChannelEmotes } from "@backend/services/emotes/kick-channel-emotes-service";
 
 let testNow = Date.now();
 

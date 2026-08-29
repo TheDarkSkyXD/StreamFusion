@@ -15,7 +15,7 @@ describe("useNetworkStatus", () => {
   it("reports offline when the main process confirms physical disconnection", async () => {
     const api = installElectronAPIMock();
     api.connectivity.check = vi.fn(async () => ({ status: "offline" as const }));
-    const { useNetworkStatus } = await import("@/hooks/useNetworkStatus");
+    const { useNetworkStatus } = await import("@/features/settings/data/useNetworkStatus");
 
     const { result } = renderHook(() => useNetworkStatus());
 
@@ -34,7 +34,7 @@ describe("useNetworkStatus", () => {
       .fn()
       .mockResolvedValueOnce({ status: "online" as const })
       .mockRejectedValueOnce(new Error("connectivity handler unavailable"));
-    const { useNetworkStatus } = await import("@/hooks/useNetworkStatus");
+    const { useNetworkStatus } = await import("@/features/settings/data/useNetworkStatus");
 
     const { result } = renderHook(() => useNetworkStatus());
 
@@ -48,7 +48,7 @@ describe("useNetworkStatus", () => {
     const api = installElectronAPIMock();
     api.connectivity.check = vi.fn(async () => ({ status: "online" as const }));
     const { setNetworkStatusOverrideForDebug, useNetworkStatus } =
-      await import("@/hooks/useNetworkStatus");
+      await import("@/features/settings/data/useNetworkStatus");
     const { result } = renderHook(() => useNetworkStatus());
     await waitFor(() => expect(result.current.confirmedStatus).toBe("online"));
 

@@ -2,7 +2,7 @@ import { act, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type React from "react";
 
-import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_CHAT_PREFERENCES } from "@/shared/auth-types";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_CHAT_PREFERENCES } from "@shared/auth-types";
 
 import {
   installElectronAPIMock,
@@ -65,7 +65,7 @@ vi.mock("@/hooks", () => ({
   }),
 }));
 
-vi.mock("@/hooks/useAuth", () => ({
+vi.mock("@/features/auth/data/useAuth", () => ({
   useAuthError: () => ({ error: null, clearError: vi.fn() }),
 }));
 
@@ -100,7 +100,7 @@ vi.mock("@/store/adblock-store", () => ({
   },
 }));
 
-vi.mock("@/components/auth", () => ({
+vi.mock("@/features/auth/components/auth", () => ({
   AccountConnect: () => <div data-testid="account-connect">accounts</div>,
 }));
 

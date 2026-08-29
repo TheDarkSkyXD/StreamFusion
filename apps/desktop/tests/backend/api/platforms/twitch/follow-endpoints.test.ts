@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { writeTwitchAccountFollow } from "@/backend/api/platforms/twitch/endpoints/follow-endpoints";
+import { writeTwitchAccountFollow } from "@backend/api/platforms/twitch/endpoints/follow-endpoints";
 
 // Guards: an authenticated Twitch follow uses the Xtra-compatible persisted mutation and
 // remains unconfirmed until the caller reconciles the authoritative followed-channel list.

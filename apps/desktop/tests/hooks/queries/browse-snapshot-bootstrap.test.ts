@@ -12,14 +12,14 @@ import {
   hydratePersistedFollowingSnapshot,
   hydratePersistedFollowingSnapshots,
   useBrowseSnapshotBootstrap,
-} from "@/hooks/queries/browse-snapshot-bootstrap";
-import { resetPersistedChannelLruForTests } from "@/hooks/queries/persisted-channel-lru";
-import { resetPersistedSearchLruForTests } from "@/hooks/queries/persisted-search-lru";
-import { resetPersistedSearchResultsLruForTests } from "@/hooks/queries/persisted-search-results-lru";
-import { CATEGORY_KEYS } from "@/hooks/queries/useCategories";
-import { CHANNEL_KEYS } from "@/hooks/queries/useChannels";
-import { SEARCH_KEYS } from "@/hooks/queries/useSearch";
-import { createFollowedStreamSnapshotIdentity, STREAM_KEYS } from "@/hooks/queries/useStreams";
+} from "@/features/discovery/data/queries/browse-snapshot-bootstrap";
+import { resetPersistedChannelLruForTests } from "@/features/discovery/data/queries/persisted-channel-lru";
+import { resetPersistedSearchLruForTests } from "@/features/discovery/data/queries/persisted-search-lru";
+import { resetPersistedSearchResultsLruForTests } from "@/features/discovery/data/queries/persisted-search-results-lru";
+import { CATEGORY_KEYS } from "@/features/discovery/data/queries/useCategories";
+import { CHANNEL_KEYS } from "@/features/discovery/data/queries/useChannels";
+import { SEARCH_KEYS } from "@/features/discovery/data/queries/useSearch";
+import { createFollowedStreamSnapshotIdentity, STREAM_KEYS } from "@/features/discovery/data/queries/useStreams";
 import {
   getRetainedViewportImageUrlsForTests,
   resetViewportImagePrewarmForTests,

@@ -9,7 +9,7 @@ import type {
   StreamRecordingSession,
   StreamRecordingSnapshot,
   StreamRecordingStatus,
-} from "@/shared/stream-recording-types";
+} from "@shared/stream-recording-types";
 import { storageService } from "./storage-service";
 import {
   isOwnedRecordingOutput,

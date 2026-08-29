@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { buildDownloadFilename, getAvailableDestinationPath } from "@/backend/services/download-paths";
+import { buildDownloadFilename, getAvailableDestinationPath } from "@backend/services/download-paths";
 
 describe("download path helpers", () => {
   it("builds a safe username-title filename", () => {

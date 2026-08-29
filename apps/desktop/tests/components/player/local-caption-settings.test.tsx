@@ -1,11 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SettingsMenu } from "@/components/player/settings-menu";
-import { LOCAL_LIVE_CAPTION_TRACK } from "@/components/player/types";
+import { SettingsMenu } from "@/features/playback/components/player/settings-menu";
+import { LOCAL_LIVE_CAPTION_TRACK } from "@/features/playback/components/player/types";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { DEFAULT_USER_PREFERENCES } from "@/shared/auth-types";
-import type { LocalCaptionModelState } from "@/shared/local-caption-types";
+import { DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
+import type { LocalCaptionModelState } from "@shared/local-caption-types";
 import { useAuthStore } from "@/store/auth-store";
 
 const originalUpdatePreferences = useAuthStore.getState().updatePreferences;

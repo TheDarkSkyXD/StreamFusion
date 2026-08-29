@@ -1,4 +1,4 @@
-import { createManagedInterval } from "../../lib/managed-interval";
+import { createManagedInterval } from "@shared/utils/managed-interval";
 import { kickClient } from "../api/platforms/kick/kick-client";
 import { logger } from "../logging/logger";
 import { isKickAccountReconciliationActive } from "./kick-account-reconciliation-coordinator";

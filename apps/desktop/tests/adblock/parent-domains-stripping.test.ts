@@ -30,7 +30,7 @@ import {
   processMediaPlaylist,
   getAdBlockStatus,
   clearStreamInfo,
-} from '@/components/player/twitch/twitch-adblock-service';
+} from '@/features/playback/components/player/twitch/twitch-adblock-service';
 
 describe('parent_domains Stripping', () => {
   beforeEach(() => {

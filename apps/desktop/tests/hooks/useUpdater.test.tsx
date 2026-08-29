@@ -5,7 +5,7 @@ vi.mock("@/renderer/logging/logger", () => ({
 }));
 
 import { useUpdateStore } from "@/store/update-store";
-import type { UpdateProgress, UpdateState } from "@/shared/ipc-channels";
+import type { UpdateProgress, UpdateState } from "@shared/ipc-channels";
 import { installElectronAPIMock } from "../test-utils";
 
 // Loosened to `string` so the test can flip status to "available"/"downloaded"/etc

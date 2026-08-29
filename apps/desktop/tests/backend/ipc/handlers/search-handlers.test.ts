@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
 }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
+vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
   twitchClient: {
     searchChannels: vi.fn(),
     searchCategories: vi.fn(),
@@ -15,7 +15,7 @@ vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
+vi.mock("@backend/api/platforms/kick/kick-client", () => ({
   kickClient: {
     searchChannels: vi.fn(),
     search: vi.fn(),
@@ -24,40 +24,40 @@ vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/twitch/endpoints/user-endpoints", () => ({
+vi.mock("@backend/api/platforms/twitch/endpoints/user-endpoints", () => ({
   getFollowerCounts: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
   getChannelsBySlugs: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/user-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/user-endpoints", () => ({
   getUsersById: vi.fn(),
 }));
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: {
     getKickUser: vi.fn(),
     getTwitchUser: vi.fn(),
   },
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
 }));
 
 import { ipcMain } from "electron";
-import { getChannelsBySlugs } from "@/backend/api/platforms/kick/endpoints/channel-endpoints";
-import { getUsersById } from "@/backend/api/platforms/kick/endpoints/user-endpoints";
-import { kickClient } from "@/backend/api/platforms/kick/kick-client";
-import { getFollowerCounts } from "@/backend/api/platforms/twitch/endpoints/user-endpoints";
-import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
-import { registerSearchHandlers } from "@/backend/ipc/handlers/search-handlers";
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
-import { storageService } from "@/backend/services/storage-service";
-import type { SearchResultCollection } from "@/search/search-result-validation";
-import type { DiscoveryResult } from "@/shared/discovery-types";
+import { getChannelsBySlugs } from "@backend/api/platforms/kick/endpoints/channel-endpoints";
+import { getUsersById } from "@backend/api/platforms/kick/endpoints/user-endpoints";
+import { kickClient } from "@backend/api/platforms/kick/kick-client";
+import { getFollowerCounts } from "@backend/api/platforms/twitch/endpoints/user-endpoints";
+import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
+import { registerSearchHandlers } from "@backend/ipc/handlers/search-handlers";
+import type { UnifiedChannel } from "@shared/platform-types";
+import { storageService } from "@backend/services/storage-service";
+import type { SearchResultCollection } from "@/features/discovery/utils/search/search-result-validation";
+import type { DiscoveryResult } from "@shared/discovery-types";
 
 type SearchAllResult = DiscoveryResult<SearchResultCollection>;
 type SearchAllSuccess = Extract<SearchAllResult, { success: true }>;

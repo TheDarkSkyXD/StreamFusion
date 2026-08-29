@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { UnifiedVideo } from "@/backend/api/unified/platform-types";
+import type { UnifiedVideo } from "@shared/platform-types";
 import {
   filterRankAndDeduplicateVideos,
   rankVideoMatch,
-} from "@/backend/search/search-match-contract";
+} from "@backend/search/search-match-contract";
 
 function video(overrides: Partial<UnifiedVideo> = {}): UnifiedVideo {
   return {

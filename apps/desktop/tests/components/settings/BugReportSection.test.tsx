@@ -6,7 +6,7 @@
 // Guards: mounting below the log viewer does not steal focus and scroll Logs & Reports downward.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BugReportSection } from "@/components/settings/BugReportSection";
+import { BugReportSection } from "@/features/settings/components/settings/BugReportSection";
 
 import { fireEvent, renderWithProviders, screen, waitFor } from "../../test-utils";
 

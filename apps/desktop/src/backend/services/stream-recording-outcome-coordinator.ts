@@ -1,7 +1,7 @@
 import type {
   StreamRecordingArtifactIdentity,
   StreamRecordingNotice,
-} from "@/shared/stream-recording-types";
+} from "@shared/stream-recording-types";
 import type { StreamRecordingSessionStore } from "./stream-recording-session-store";
 
 export interface StreamRecordingDeliveryContext {

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { EmoteTooltip } from "@/components/chat/tooltips/EmoteTooltip";
+import { EmoteTooltip } from "@/features/chat/components/chat/tooltips/EmoteTooltip";
 
 const emote = {
   id: "e1",

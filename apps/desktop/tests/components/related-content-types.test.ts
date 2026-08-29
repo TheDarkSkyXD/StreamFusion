@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   parsePlaybackQualities,
   parseVideoOrClips,
-} from "@/components/stream/related-content/types";
+} from "@/features/playback/components/related-content/types";
 
 const validMediaRow = {
   id: "clip-1",

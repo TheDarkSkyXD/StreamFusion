@@ -36,12 +36,12 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => categoryNavigateMock,
 }));
 
-vi.mock("@/hooks/queries/useCategories", () => ({
+vi.mock("@/features/discovery/data/queries/useCategories", () => ({
   useCategoryById: vi.fn(),
   useInfiniteTopCategories: vi.fn(),
 }));
 
-vi.mock("@/hooks/queries/useInfiniteStreams", () => ({
+vi.mock("@/features/discovery/data/queries/useInfiniteStreams", () => ({
   useInfiniteStreamsByCategory: vi.fn(),
 }));
 
@@ -51,7 +51,7 @@ vi.mock("@/hooks/useAfterFirstPaint", () => ({
   useAfterFirstPaint: () => false,
 }));
 
-vi.mock("@/components/stream/stream-grid", () => ({
+vi.mock("@/features/discovery/components/stream/stream-grid", () => ({
   StreamGrid: ({
     streams,
     isLoading,
@@ -80,8 +80,8 @@ vi.mock("@/components/ui/proxied-image", () => ({
 import {
   useCategoryById,
   useInfiniteTopCategories,
-} from "@/hooks/queries/useCategories";
-import { useInfiniteStreamsByCategory } from "@/hooks/queries/useInfiniteStreams";
+} from "@/features/discovery/data/queries/useCategories";
+import { useInfiniteStreamsByCategory } from "@/features/discovery/data/queries/useInfiniteStreams";
 import { CategoryDetailPage } from "@/pages/CategoryDetail";
 
 const useCategoryByIdMock = vi.mocked(useCategoryById);

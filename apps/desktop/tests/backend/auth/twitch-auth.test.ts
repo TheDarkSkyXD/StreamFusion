@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TWITCH_APP_SCOPES } from "@/shared/auth-types";
-import type { AuthToken, TwitchUser } from "@/shared/auth-types";
+import { TWITCH_APP_SCOPES } from "@shared/auth-types";
+import type { AuthToken, TwitchUser } from "@shared/auth-types";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { debug: vi.fn(), error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
@@ -16,7 +16,7 @@ const storageState: {
   twitchUser: Pick<TwitchUser, "id" | "login"> | null;
 } = { token: null, twitchUser: null };
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: {
     getToken: vi.fn(() => storageState.token),
     saveToken: vi.fn((_p: string, t: AuthToken) => {
@@ -39,9 +39,9 @@ const refreshTokenMock = vi.fn();
 const validateTokenMock = vi.fn();
 const revokeTokenMock = vi.fn();
 
-vi.mock("@/backend/auth/token-exchange", async () => {
-  const actual = await vi.importActual<typeof import("@/backend/auth/token-exchange")>(
-    "@/backend/auth/token-exchange"
+vi.mock("@backend/auth/token-exchange", async () => {
+  const actual = await vi.importActual<typeof import("@backend/auth/token-exchange")>(
+    "@backend/auth/token-exchange"
   );
   return {
     ...actual,
@@ -53,7 +53,7 @@ vi.mock("@/backend/auth/token-exchange", async () => {
   };
 });
 
-vi.mock("@/backend/auth/oauth-config", () => ({
+vi.mock("@backend/auth/oauth-config", () => ({
   getOAuthConfig: vi.fn(() => ({
     platform: "twitch",
     clientId: "test-client-id",
@@ -70,8 +70,8 @@ function jsonResponse(body: unknown, ok = true, status = 200): Response {
   return { ok, status, json: async () => body } as unknown as Response;
 }
 
-const { twitchAuthService } = await import("@/backend/auth/twitch-auth");
-const { storageService } = await import("@/backend/services/storage-service");
+const { twitchAuthService } = await import("@backend/auth/twitch-auth");
+const { storageService } = await import("@backend/services/storage-service");
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -423,7 +423,7 @@ describe("fetchCurrentUser", () => {
 
 describe("setAuthLostHandler", () => {
   it("is called when invalidateAuth fires (exercised indirectly via schedule)", async () => {
-    const { TokenRefreshError } = await import("@/backend/auth/token-exchange");
+    const { TokenRefreshError } = await import("@backend/auth/token-exchange");
     const handler = vi.fn();
     twitchAuthService.setAuthLostHandler(handler);
 

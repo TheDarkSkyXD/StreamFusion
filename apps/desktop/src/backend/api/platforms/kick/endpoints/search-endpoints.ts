@@ -1,12 +1,12 @@
-import { logger } from "@/backend/logging/logger";
-import { compactSearchIdentity } from "@/search/search-normalization";
+import { logger } from "@backend/logging/logger";
+import { compactSearchIdentity } from "@/features/discovery/utils/search/search-normalization";
 import type {
   UnifiedCategory,
   UnifiedChannel,
   UnifiedClip,
   UnifiedStream,
   UnifiedVideo,
-} from "../../../unified/platform-types";
+} from "../../../../../shared/platform-types";
 import type { KickRequestor } from "../kick-requestor";
 import { acquireKickRequestSlot } from "../kick-network-health";
 import type { PaginatedResult, PaginationOptions } from "../kick-types";

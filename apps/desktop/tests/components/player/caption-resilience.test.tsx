@@ -1,9 +1,9 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CaptionErrorNotice } from "@/components/player/caption-error-notice";
-import { CaptionOverlay } from "@/components/player/caption-overlay";
-import { useTimedText } from "@/components/player/hooks/use-timed-text";
-import { DEFAULT_USER_PREFERENCES } from "@/shared/auth-types";
+import { CaptionErrorNotice } from "@/features/playback/components/player/caption-error-notice";
+import { CaptionOverlay } from "@/features/playback/components/player/caption-overlay";
+import { useTimedText } from "@/features/playback/components/player/hooks/use-timed-text";
+import { DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
 class FakeHls {

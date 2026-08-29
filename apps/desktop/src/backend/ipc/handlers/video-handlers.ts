@@ -1,6 +1,6 @@
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import type { Platform } from "../../../shared/auth-types";
 import type {
   CategoryClipsRequest,
@@ -11,7 +11,7 @@ import type {
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { KickStreamResolver } from "../../api/platforms/kick/kick-stream-resolver";
 import { TwitchStreamResolver } from "../../api/platforms/twitch/twitch-stream-resolver";
-import type { UnifiedClip } from "../../api/unified/platform-types";
+import type { UnifiedClip } from "../../../shared/platform-types";
 
 type KickClip = Awaited<
   ReturnType<

@@ -15,7 +15,7 @@ const searchState = vi.hoisted(() => ({
   submittedQueries: [] as string[],
 }));
 
-vi.mock("@/hooks/queries/useSearch", () => ({
+vi.mock("@/features/discovery/data/queries/useSearch", () => ({
   useSearchAll: (query: string) => {
     searchState.submittedQueries.push(query);
     return {
@@ -76,7 +76,7 @@ vi.mock("@/hooks/useDebounce", () => ({
   useDebounce: <T,>(value: T) => value,
 }));
 
-vi.mock("@/hooks/useSearchHistory", () => ({
+vi.mock("@/features/discovery/data/useSearchHistory", () => ({
   useSearchHistory: () => ({
     history: [],
     addSearch: vi.fn(),
@@ -89,7 +89,7 @@ vi.mock("@/components/ui/proxied-image", () => ({
   ProxiedImage: ({ alt }: { alt: string }) => <div>{alt}</div>,
 }));
 
-import { SearchBar } from "@/components/TopNavBar/SearchBar";
+import { SearchBar } from "@/features/shell/components/TopNavBar/SearchBar";
 import { SearchPage } from "@/pages/SearchResults";
 
 async function renderSearchFlow() {

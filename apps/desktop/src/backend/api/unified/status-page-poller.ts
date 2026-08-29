@@ -1,4 +1,4 @@
-import { createManagedInterval } from "../../../lib/managed-interval";
+import { createManagedInterval } from "@shared/utils/managed-interval";
 import type { Platform } from "../../../shared/auth-types";
 import { logger } from "../../logging/logger";
 import {

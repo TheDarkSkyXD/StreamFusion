@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   TWITCH_FOLLOW_WRITE_CLIENT_ID,
   TwitchFollowWriteCredentialService,
-} from "@/backend/auth/twitch-follow-write-credential";
+} from "@backend/auth/twitch-follow-write-credential";
 
 const XTRA_SCOPES =
   "channel_read chat:read user_blocks_edit user_blocks_read user_follows_edit user_read";

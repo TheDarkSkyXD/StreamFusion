@@ -11,6 +11,20 @@
 
 StreamFusion uses a **feature-based architecture** with **platform abstraction** to support multiple streaming platforms (Twitch, Kick, and future platforms) without code duplication.
 
+Current desktop source code is split into three runtime roots:
+
+- `src/backend/` owns Electron main, preload, IPC handlers, platform clients,
+  persistence, and privileged services.
+- `src/frontend/` owns the React renderer, route pages, renderer features,
+  shared UI, hooks, stores, and browser-safe utilities.
+- `src/shared/` owns process-neutral contracts and primitives used by both
+  backend and frontend.
+
+Renderer features live under `src/frontend/features/{feature}/` and each
+feature keeps `components/`, `data/`, `routes/`, and `utils/` folders. Route
+pages live under `src/frontend/pages/{PageName}/`, one folder per registered
+page.
+
 ---
 
 ## Directory Structure
@@ -141,7 +155,7 @@ All platform-specific code is isolated in `src/backend/api/platforms/{platform}/
 // Unified interface - platform agnostic
 interface UnifiedStream {
   id: string;
-  platform: 'twitch' | 'kick';
+  platform: "twitch" | "kick";
   title: string;
   viewerCount: number;
   // ... common properties
@@ -156,6 +170,7 @@ interface IPlatformClient {
 ```
 
 **Benefits:**
+
 - UI components only work with unified types
 - Easy to add new platforms (YouTube, Rumble, etc.)
 - Consistent data across the app
@@ -181,12 +196,12 @@ components/
 
 ### 3. Separation of Concerns
 
-| Layer | Location | Responsibility |
-|-------|----------|----------------|
-| **Main Process** | `src/backend/` | Native APIs, auth, storage |
-| **Preload** | `src/preload/` | Secure IPC bridge |
-| **Renderer** | `src/components/`, `src/pages/` | React UI |
-| **Shared** | `src/shared/` | Types, constants |
+| Layer            | Location               | Responsibility                          |
+| ---------------- | ---------------------- | --------------------------------------- |
+| **Main Process** | `src/backend/`         | Native APIs, auth, storage              |
+| **Preload**      | `src/backend/preload/` | Secure IPC bridge                       |
+| **Renderer**     | `src/frontend/`        | React UI, pages, and feature modules    |
+| **Shared**       | `src/shared/`          | Process-neutral contracts and utilities |
 
 ### 4. Data Flow
 
@@ -204,28 +219,28 @@ useQuery()                        Platform API
 
 ### Backend API
 
-| Path | Description |
-|------|-------------|
-| `backend/api/platforms/twitch/twitch-types.ts` | Raw Twitch Helix API types |
-| `backend/api/platforms/twitch/twitch-transformers.ts` | Twitch → Unified transformers |
-| `backend/api/platforms/twitch/twitch-client.ts` | TwitchClient implementing IPlatformClient |
-| `backend/api/platforms/kick/kick-types.ts` | Raw Kick API types |
-| `backend/api/platforms/kick/kick-transformers.ts` | Kick → Unified transformers |
-| `backend/api/platforms/kick/kick-client.ts` | KickClient implementing IPlatformClient |
+| Path                                                  | Description                               |
+| ----------------------------------------------------- | ----------------------------------------- |
+| `backend/api/platforms/twitch/twitch-types.ts`        | Raw Twitch Helix API types                |
+| `backend/api/platforms/twitch/twitch-transformers.ts` | Twitch → Unified transformers             |
+| `backend/api/platforms/twitch/twitch-client.ts`       | TwitchClient implementing IPlatformClient |
+| `backend/api/platforms/kick/kick-types.ts`            | Raw Kick API types                        |
+| `backend/api/platforms/kick/kick-transformers.ts`     | Kick → Unified transformers               |
+| `backend/api/platforms/kick/kick-client.ts`           | KickClient implementing IPlatformClient   |
 
 ### Auth Services
 
-| Path | Description |
-|------|-------------|
+| Path                          | Description                    |
+| ----------------------------- | ------------------------------ |
 | `backend/auth/twitch-auth.ts` | Twitch-specific OAuth handling |
-| `backend/auth/kick-auth.ts` | Kick-specific OAuth handling |
+| `backend/auth/kick-auth.ts`   | Kick-specific OAuth handling   |
 
 ### Frontend Assets
 
-| Path | Description |
-|------|-------------|
-| `assets/platforms/twitch/index.ts` | Twitch brand colors, logos |
-| `assets/platforms/kick/index.ts` | Kick brand colors, logos |
+| Path                                        | Description                |
+| ------------------------------------------- | -------------------------- |
+| `frontend/assets/platforms/twitch/index.ts` | Twitch brand colors, logos |
+| `frontend/assets/platforms/kick/index.ts`   | Kick brand colors, logos   |
 
 ---
 
@@ -234,6 +249,7 @@ useQuery()                        Platform API
 To add a new platform (e.g., YouTube):
 
 1. **Create platform folder:**
+
    ```
    src/backend/api/platforms/youtube/
    ├── youtube-types.ts
@@ -248,11 +264,11 @@ To add a new platform (e.g., YouTube):
 
 4. **Add auth service** at `src/backend/auth/youtube-auth.ts`.
 
-5. **Add branding** at `src/assets/platforms/youtube/`.
+5. **Add branding** at `src/frontend/assets/platforms/youtube/`.
 
 6. **Update shared types:**
    ```typescript
-   export type Platform = 'twitch' | 'kick' | 'youtube';
+   export type Platform = "twitch" | "kick" | "youtube";
    ```
 
 ---
@@ -260,34 +276,37 @@ To add a new platform (e.g., YouTube):
 ## Brand Colors Reference
 
 ### Twitch
+
 - Primary: `#9146FF` (Purple)
 - Background: `#0E0E10`
 - Live: `#EB0400`
 
 ### Kick
+
 - Primary: `#53FC18` (Green)
 - Background: `#0B0E0F`
 - Live: `#FF0000`
 
 Use the helper functions:
-```typescript
-import { getPlatformColor, getPlatformName } from '@/assets/platforms';
 
-const color = getPlatformColor('twitch'); // '#9146FF'
+```typescript
+import { getPlatformColor, getPlatformName } from "@/assets/platforms";
+
+const color = getPlatformColor("twitch"); // '#9146FF'
 ```
 
 ---
 
 ## File Naming Conventions
 
-| Type | Convention | Example |
-|------|------------|---------|
-| React Components | PascalCase | `StreamCard.tsx` |
-| Hooks | camelCase with `use` prefix | `useAuth.ts` |
-| Stores | kebab-case with `-store` suffix | `auth-store.ts` |
-| Types | PascalCase | `TwitchApiStream` |
-| Platform files | kebab-case with platform prefix | `twitch-client.ts` |
-| Transformers | kebab-case with `-transformers` suffix | `twitch-transformers.ts` |
+| Type             | Convention                             | Example                  |
+| ---------------- | -------------------------------------- | ------------------------ |
+| React Components | PascalCase                             | `StreamCard.tsx`         |
+| Hooks            | camelCase with `use` prefix            | `useAuth.ts`             |
+| Stores           | kebab-case with `-store` suffix        | `auth-store.ts`          |
+| Types            | PascalCase                             | `TwitchApiStream`        |
+| Platform files   | kebab-case with platform prefix        | `twitch-client.ts`       |
+| Transformers     | kebab-case with `-transformers` suffix | `twitch-transformers.ts` |
 
 ---
 

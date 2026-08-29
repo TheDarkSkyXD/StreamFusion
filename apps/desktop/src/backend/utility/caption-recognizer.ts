@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import type { LocalCaptionPcmChunk } from "@/shared/local-caption-types";
+import type { LocalCaptionPcmChunk } from "@shared/local-caption-types";
 
 import { LocalCaptionRecognizer } from "../services/captions/local-caption-recognizer";
 

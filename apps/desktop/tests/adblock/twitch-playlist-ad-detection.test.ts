@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   createTwitchPlaylistAdDetector,
   fingerprintTwitchPlaylist,
-} from "@/lib/twitch-playlist-ad-detection";
+} from "@/features/playback/utils/twitch-playlist-ad-detection";
 
 const fixtureDirectory = resolve(__dirname, "fixtures/twitch-playlists");
 

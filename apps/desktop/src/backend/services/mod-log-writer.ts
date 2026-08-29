@@ -30,18 +30,18 @@
 import type {
   ChannelModerateEvent,
   NotificationPayload,
-} from "@/backend/api/platforms/twitch/twitch-eventsub-types";
+} from "@backend/api/platforms/twitch/twitch-eventsub-types";
 // Use the cross-process logger because this module is imported by renderer
 // components (EngagementPolls, EngagementPredictions, ModLogTab). Importing
-// `@/backend/logging/logger` here would drag `electron-log/main` into the
+// `@backend/logging/logger` here would drag `electron-log/main` into the
 // renderer bundle and crash boot with `__dirname is not defined`.
-import { logger } from "@/lib/cross-logger";
-import type { Platform } from "@/shared/auth-types";
+import { logger } from "@shared/utils/cross-logger";
+import type { Platform } from "@shared/auth-types";
 import type {
   ModerationHistoryResult,
   ModLogEntry,
   ModLogInsertResult,
-} from "@/shared/mod-log-types";
+} from "@shared/mod-log-types";
 
 // ---------------------------------------------------------------------------
 // Public types

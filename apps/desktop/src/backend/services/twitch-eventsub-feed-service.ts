@@ -1,12 +1,12 @@
-import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
+import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
 import {
   getTwitchEventSubClient,
   type TwitchEventSubClient,
-} from "@/backend/api/platforms/twitch/twitch-eventsub-client";
-import type { NotificationPayload } from "@/backend/api/platforms/twitch/twitch-eventsub-types";
-import { twitchAuthService } from "@/backend/auth";
-import { TWITCH_OAUTH_CONFIG } from "@/backend/auth/oauth-config";
-import type { TwitchApiResult } from "@/shared/twitch-api-types";
+} from "@backend/api/platforms/twitch/twitch-eventsub-client";
+import type { NotificationPayload } from "@backend/api/platforms/twitch/twitch-eventsub-types";
+import { twitchAuthService } from "@backend/auth";
+import { TWITCH_OAUTH_CONFIG } from "@backend/auth/oauth-config";
+import type { TwitchApiResult } from "@shared/twitch-api-types";
 
 interface EventSubClientPort {
   subscribe<E>(

@@ -3,8 +3,8 @@ import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@/shared/auth-types";
-import type { ChatKnownUser, ChatMessage } from "@/shared/chat-types";
+import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@shared/auth-types";
+import type { ChatKnownUser, ChatMessage } from "@shared/chat-types";
 import { installElectronAPIMock, renderWithProviders } from "../../test-utils";
 
 // U11 — capture ChatMessageList callbacks so tests can simulate toolbar clicks.
@@ -40,7 +40,7 @@ vi.mock("@/store/persisted-chat-history", () => ({
   ) => savePersistedChatHistoryMock(platform, channel, channelId, messages),
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-mod-mutations", () => ({
+vi.mock("@backend/api/platforms/kick/kick-mod-mutations", () => ({
   banKickUser: (...args: unknown[]) => banKickUserMock(...args),
   timeoutKickUser: (...args: unknown[]) => timeoutKickUserMock(...args),
   unbanKickUser: (...args: unknown[]) => unbanKickUserMock(...args),
@@ -53,7 +53,7 @@ vi.mock("sonner", () => ({
   },
 }));
 
-vi.mock("@/backend/services/mod-log-writer", () => ({
+vi.mock("@backend/services/mod-log-writer", () => ({
   modLogWriter: {
     record: (input: unknown) => recordModActionMock(input),
   },
@@ -63,7 +63,7 @@ vi.mock("@/backend/services/mod-log-writer", () => ({
 // mod-action paths). The U7 viewer-path gear test flips it to false so
 // ChatPanelTabs takes its single-tab (no-chrome) branch.
 const mockIsKickMod = { value: true };
-vi.mock("@/hooks/useIsKickMod", () => ({
+vi.mock("@/features/moderation/data/useIsKickMod", () => ({
   useIsKickMod: () => mockIsKickMod.value,
 }));
 
@@ -109,7 +109,7 @@ vi.mock("@/store/auth-store", () => {
 // Capture chat-service event handlers so tests can fire userNotice /
 // pollUpdate / predictionUpdate without a real Pusher connection.
 const mockServiceHandlers: Record<string, ((arg: unknown) => void) | undefined> = {};
-vi.mock("@/backend/services/chat/kick-chat", () => ({
+vi.mock("@backend/services/chat/kick-chat", () => ({
   kickChatService: {
     connect: vi.fn(async () => true),
     disconnect: vi.fn(async () => true),
@@ -139,25 +139,25 @@ vi.mock("@/backend/services/chat/kick-chat", () => ({
 // Predictions service acquires a Pusher channel on mount; stub it so the unit
 // test stays offline. U5's prediction path is driven via the predictionUpdate
 // handler, not the real service.
-vi.mock("@/backend/services/chat/kick-predictions-service", () => ({
+vi.mock("@backend/services/chat/kick-predictions-service", () => ({
   kickPredictionsService: {
     acquire: vi.fn(async () => undefined),
     release: vi.fn(() => undefined),
   },
 }));
 
-vi.mock("@/backend/services/emotes", () => ({
+vi.mock("@backend/services/emotes", () => ({
   initializeTwitchEmotes: vi.fn(),
   initializeKickEmotes: vi.fn(),
 }));
 
 // Stub the prediction banner to a marker so U5's showPredictions gate can be
 // asserted without the real countdown / dismiss internals.
-vi.mock("@/components/chat/PredictionBanner", () => ({
+vi.mock("@/features/chat/components/chat/PredictionBanner", () => ({
   PredictionBanner: () => <div data-testid="prediction-banner">prediction</div>,
 }));
 
-vi.mock("@/components/chat/mod/tabs/ModLogTab", () => ({
+vi.mock("@/features/chat/components/chat/mod/tabs/ModLogTab", () => ({
   ModLogTab: () => <div data-testid="mod-log-tab">modlog</div>,
 }));
 
@@ -214,7 +214,7 @@ vi.mock("@/store/emote-store", () => {
   };
 });
 
-vi.mock("@/components/chat/ChatMessageList", () => ({
+vi.mock("@/features/chat/components/chat/ChatMessageList", () => ({
   ChatMessageList: (props: typeof lastListProps) => {
     lastListProps.channelKey = props.channelKey;
     lastListProps.onBan = props.onBan;
@@ -228,7 +228,7 @@ vi.mock("@/components/chat/ChatMessageList", () => ({
 }));
 
 const chatInputProps: { canSend?: boolean; viewerUserId?: string } = {};
-vi.mock("@/components/chat/ChatInput", () => ({
+vi.mock("@/features/chat/components/chat/ChatInput", () => ({
   ChatInput: (props: { canSend?: boolean; viewerUserId?: string }) => {
     chatInputProps.canSend = props.canSend;
     chatInputProps.viewerUserId = props.viewerUserId;
@@ -243,10 +243,10 @@ vi.mock("@/components/chat/ChatInput", () => ({
   },
 }));
 
-import { kickChatService } from "@/backend/services/chat/kick-chat";
-import { kickPredictionsService } from "@/backend/services/chat/kick-predictions-service";
-import { KickChat } from "@/components/chat/kick/KickChat";
-import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
+import { kickChatService } from "@backend/services/chat/kick-chat";
+import { kickPredictionsService } from "@backend/services/chat/kick-predictions-service";
+import { KickChat } from "@/features/chat/components/chat/kick/KickChat";
+import { useModeratedChannelsStore } from "@/features/moderation/data/moderated-channels-store";
 
 function renderKickChat(ui: ReactElement, queryClient?: QueryClient) {
   return renderWithProviders(ui, { queryClient });

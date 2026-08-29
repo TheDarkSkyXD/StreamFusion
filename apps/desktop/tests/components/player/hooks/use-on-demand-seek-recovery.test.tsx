@@ -11,7 +11,7 @@ vi.mock("@/renderer/logging/logger", () => ({
   },
 }));
 
-import { useOnDemandSeekRecovery } from "@/components/player/hooks/use-on-demand-seek-recovery";
+import { useOnDemandSeekRecovery } from "@/features/playback/components/player/hooks/use-on-demand-seek-recovery";
 import { logger } from "@/renderer/logging/logger";
 
 function createPlayingVideo(): HTMLVideoElement {

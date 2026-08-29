@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
-import type { LocalCaptionModelState } from "@/shared/local-caption-types";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
+import type { LocalCaptionModelState } from "@shared/local-caption-types";
 
 vi.mock("electron", () => ({ ipcMain: { handle: vi.fn() } }));
 
@@ -10,7 +10,7 @@ import { ipcMain } from "electron";
 import {
   type LocalCaptionHandlerDependencies,
   registerLocalCaptionHandlers,
-} from "@/backend/ipc/handlers/local-caption-handlers";
+} from "@backend/ipc/handlers/local-caption-handlers";
 
 type Handler = (event: unknown, payload?: unknown) => unknown;
 const fileSender = { senderFrame: { url: "file:///app/renderer/index.html" } };

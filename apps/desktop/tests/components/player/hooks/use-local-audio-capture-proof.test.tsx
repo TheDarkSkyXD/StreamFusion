@@ -9,7 +9,7 @@ const capture = vi.hoisted(() => ({
   stop: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/components/player/local-audio-capture", () => ({
+vi.mock("@/features/playback/components/player/local-audio-capture", () => ({
   LocalAudioCaptureController: class {
     diagnostic = "worklet-test";
     constructor(options: unknown) {
@@ -26,7 +26,7 @@ vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn() },
 }));
 
-import { useLocalAudioCaptureProof } from "@/components/player/hooks/use-local-audio-capture-proof";
+import { useLocalAudioCaptureProof } from "@/features/playback/components/player/hooks/use-local-audio-capture-proof";
 
 // Guards: a refreshed playback URL for the same channel tears down and rebinds the dev capture tap.
 describe("useLocalAudioCaptureProof", () => {

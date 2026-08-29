@@ -37,7 +37,7 @@ import {
   fetchFFZBadges,
   fetchFFZGlobalEmotes,
   fetchFFZRoom,
-} from "@/backend/services/emotes/ffz-emotes-service";
+} from "@backend/services/emotes/ffz-emotes-service";
 
 describe("fetchFFZBadges", () => {
   beforeEach(() => {

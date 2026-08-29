@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { app, type BrowserWindow, dialog, Notification, session, shell } from "electron";
 
-import type { StreamRecordingRequest } from "@/shared/stream-recording-types";
+import type { StreamRecordingRequest } from "@shared/stream-recording-types";
 import { KickStreamResolver } from "../api/platforms/kick/kick-stream-resolver";
 import { TwitchStreamResolver } from "../api/platforms/twitch/twitch-stream-resolver";
 import { buildDownloadFilename, getAvailableDestinationPath } from "./download-paths";

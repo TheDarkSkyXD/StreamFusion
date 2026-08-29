@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/sleep", () => ({
+vi.mock("@shared/utils/sleep", () => ({
   sleep: vi.fn(() => Promise.resolve()),
 }));
 
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
-import { httpClient } from "@/backend/services/http-client";
+import { httpClient } from "@backend/services/http-client";
 
 function okResponse(body = "ok"): Response {
   return new Response(body, { status: 200 });

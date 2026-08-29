@@ -27,7 +27,7 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigateMock,
 }));
 
-vi.mock("@/hooks/queries/useCategories", () => ({
+vi.mock("@/features/discovery/data/queries/useCategories", () => ({
   useCategoryById: vi.fn((id: string, platform: "twitch" | "kick") => ({
     data: fixtures.category({ id, platform, name: "Just Chatting" }),
     isLoading: false,
@@ -37,7 +37,7 @@ vi.mock("@/hooks/queries/useCategories", () => ({
   useInfiniteTopCategories: vi.fn(() => ({ data: [], isLoading: false })),
 }));
 
-vi.mock("@/hooks/queries/useInfiniteStreams", () => ({
+vi.mock("@/features/discovery/data/queries/useInfiniteStreams", () => ({
   useInfiniteStreamsByCategory: vi.fn(() => ({
     data: { pages: [] },
     isLoading: false,
@@ -49,7 +49,7 @@ vi.mock("@/hooks/queries/useInfiniteStreams", () => ({
   })),
 }));
 
-vi.mock("@/components/stream/stream-grid", () => ({
+vi.mock("@/features/discovery/components/stream/stream-grid", () => ({
   StreamGrid: () => <div data-testid="stream-grid" />,
 }));
 

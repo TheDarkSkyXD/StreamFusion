@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { useTopStreams } from "@/hooks/queries/useStreams";
+import type { useTopStreams } from "@/features/discovery/data/queries/useStreams";
 
 import { fixtures, renderWithProviders, routerMock, screen } from "../test-utils";
 
@@ -16,7 +16,7 @@ const topStreamsMock = vi.hoisted<{
 
 vi.mock("@tanstack/react-router", () => routerMock());
 
-vi.mock("@/hooks/queries/useStreams", () => ({
+vi.mock("@/features/discovery/data/queries/useStreams", () => ({
   useTopStreams: (platform: unknown, limit: number) => {
     topStreamsMock.lastArgs = [platform, limit];
     return topStreamsMock.state;

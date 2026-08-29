@@ -1,9 +1,9 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
-import { UserProfileHeader } from "@/components/chat/mod/UserPopout/UserProfileHeader";
+import { UserProfileHeader } from "@/features/chat/components/chat/mod/UserPopout/UserProfileHeader";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { AccountCreatedFieldState } from "@/shared/user-profile-types";
+import type { AccountCreatedFieldState } from "@shared/user-profile-types";
 
 const identity = {
   state: "known" as const,

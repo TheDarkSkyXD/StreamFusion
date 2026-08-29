@@ -5,7 +5,7 @@ import {
   RaidTargetPicker,
   type RaidTarget,
   recentRaidsKey,
-} from "@/components/chat/mod/RaidTargetPicker";
+} from "@/features/chat/components/chat/mod/RaidTargetPicker";
 import { useFollowStore } from "@/store/follow-store";
 
 const storeApi = {

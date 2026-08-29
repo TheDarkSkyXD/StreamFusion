@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AuthToken, KickUser } from "@/shared/auth-types";
+import type { AuthToken, KickUser } from "@shared/auth-types";
 
-vi.mock("@/lib/cross-logger", () => ({
+vi.mock("@shared/utils/cross-logger", () => ({
   logger: { debug: vi.fn(), error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
@@ -31,7 +31,7 @@ const storageState: {
   kickUser: Pick<KickUser, "id" | "username"> | null;
 } = { token: null, kickUser: null };
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: {
     getToken: vi.fn(() => storageState.token),
     saveToken: vi.fn((_p: string, t: AuthToken) => {
@@ -53,7 +53,7 @@ vi.mock("@/backend/services/storage-service", () => ({
 
 const refreshTokenMock = vi.fn();
 
-vi.mock("@/backend/auth/token-exchange", () => ({
+vi.mock("@backend/auth/token-exchange", () => ({
   TokenRefreshError: class TokenRefreshError extends Error {
     constructor(
       message: string,
@@ -76,8 +76,8 @@ function jsonResponse(body: unknown, ok = true, status = 200): Response {
   return { ok, status, json: async () => body } as unknown as Response;
 }
 
-const { kickAuthService } = await import("@/backend/auth/kick-auth");
-const { storageService } = await import("@/backend/services/storage-service");
+const { kickAuthService } = await import("@backend/auth/kick-auth");
+const { storageService } = await import("@backend/services/storage-service");
 const canonicalScopes = [
   "user:read",
   "channel:read",
@@ -245,7 +245,7 @@ describe("refreshToken", () => {
   it("invalidates only OAuth on permanent rejection and preserves website auth", async () => {
     storageState.token = { accessToken: "old", refreshToken: "rt" };
     storageState.kickUser = { id: 1, username: "u" };
-    const { TokenRefreshError } = await import("@/backend/auth/token-exchange");
+    const { TokenRefreshError } = await import("@backend/auth/token-exchange");
     refreshTokenMock.mockRejectedValueOnce(new TokenRefreshError("rejected", 401, "invalid_grant"));
     const sessionExpired = vi.fn();
     kickAuthService.on("session-expired", sessionExpired);

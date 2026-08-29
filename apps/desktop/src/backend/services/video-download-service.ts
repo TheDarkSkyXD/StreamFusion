@@ -1,4 +1,4 @@
-import type { VideoDownloadRequest } from "@/shared/download-types";
+import type { VideoDownloadRequest } from "@shared/download-types";
 import type { DownloadQueueService } from "./download-queue-service";
 import type { FfmpegProgress } from "./ffmpeg-download-service";
 

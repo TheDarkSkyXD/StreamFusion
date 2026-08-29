@@ -1,7 +1,7 @@
 import { app, type IpcMainInvokeEvent } from "electron";
 
-import { getUserProfileFixture } from "../../../dev-relay/user-profile-fixtures";
-import { userProfileIpcContracts } from "../../../ipc-contracts/user-profile-contracts";
+import { getUserProfileFixture } from "../../../frontend/dev-relay/user-profile-fixtures";
+import { userProfileIpcContracts } from "../../../shared/ipc-contracts/user-profile-contracts";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type {
   KickPublicIdentity,

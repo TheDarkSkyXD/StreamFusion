@@ -2,11 +2,11 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createStreamRecordingOutcomeCoordinator } from "@/backend/services/stream-recording-outcome-coordinator";
-import { createOwnedRecordingSectionPath } from "@/backend/services/stream-recording-paths";
-import { createStreamRecordingService } from "@/backend/services/stream-recording-service";
-import { createStreamRecordingSessionStore } from "@/backend/services/stream-recording-session-store";
-import type { StreamRecordingJournal } from "@/shared/stream-recording-types";
+import { createStreamRecordingOutcomeCoordinator } from "@backend/services/stream-recording-outcome-coordinator";
+import { createOwnedRecordingSectionPath } from "@backend/services/stream-recording-paths";
+import { createStreamRecordingService } from "@backend/services/stream-recording-service";
+import { createStreamRecordingSessionStore } from "@backend/services/stream-recording-session-store";
+import type { StreamRecordingJournal } from "@shared/stream-recording-types";
 
 type StartRecorderInput = Parameters<
   Parameters<typeof createStreamRecordingService>[0]["startRecorder"]

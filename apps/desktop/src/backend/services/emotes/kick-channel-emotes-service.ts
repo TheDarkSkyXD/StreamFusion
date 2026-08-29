@@ -8,8 +8,8 @@
 
 import { session } from "electron";
 
-import { acquireKickRequestSlot } from "@/backend/api/platforms/kick/kick-network-health";
-import { logger } from "@/backend/logging/logger";
+import { acquireKickRequestSlot } from "@backend/api/platforms/kick/kick-network-health";
+import { logger } from "@backend/logging/logger";
 
 const KICK_WEB_BASE = "https://kick.com";
 const KICK_PUBLIC_PARTITION = "persist:kick_public";

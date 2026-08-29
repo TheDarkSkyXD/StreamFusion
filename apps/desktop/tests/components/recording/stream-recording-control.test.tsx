@@ -21,19 +21,19 @@ const recording = vi.hoisted(() => ({
     phase: "idle",
     active: null,
     notice: null,
-  } as import("@/shared/stream-recording-types").StreamRecordingLifecycleState,
+  } as import("@shared/stream-recording-types").StreamRecordingLifecycleState,
   start: vi.fn(),
 }));
 
-vi.mock("@/hooks/use-stream-recording-state", () => ({
+vi.mock("@/features/media-library/data/use-stream-recording-state", () => ({
   useStreamRecordingState: () => recording.state,
 }));
 
-vi.mock("@/hooks/use-stream-recording-actions", () => ({
+vi.mock("@/features/media-library/data/use-stream-recording-actions", () => ({
   useStreamRecordingActions: () => ({ start: recording.start }),
 }));
 
-import { StreamRecordingControl } from "@/components/recording/stream-recording-control";
+import { StreamRecordingControl } from "@/features/media-library/components/recording/stream-recording-control";
 import { renderWithProviders, screen, userEvent } from "../../test-utils";
 
 // Guards: every playable live Stream exposes a watch-page Record action wired to the direct-to-file recording controller

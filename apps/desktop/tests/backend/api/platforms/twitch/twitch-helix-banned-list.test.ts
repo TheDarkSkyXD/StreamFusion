@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   BannedUsersFetchError,
   getBannedUsers,
-} from "@/backend/api/platforms/twitch/twitch-helix-banned-list";
+} from "@backend/api/platforms/twitch/twitch-helix-banned-list";
 
 const BASE_ARGS = {
   accessToken: "tok",

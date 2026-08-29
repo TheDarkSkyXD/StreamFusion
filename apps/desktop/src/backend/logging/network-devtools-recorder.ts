@@ -4,8 +4,8 @@ import {
   isNetworkStreamRequestUrl,
   networkRequestUrlFingerprint,
   recordDevtoolsNetworkRequestHint,
-} from "@/backend/logging/network-request-logger";
-import { resolveSourceMappedLocation } from "@/backend/logging/source-map-resolver";
+} from "@backend/logging/network-request-logger";
+import { resolveSourceMappedLocation } from "@backend/logging/source-map-resolver";
 
 type InitiatorCallFrame = {
   columnNumber?: number;

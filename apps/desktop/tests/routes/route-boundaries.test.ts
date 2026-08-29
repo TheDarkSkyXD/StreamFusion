@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   parsePlatform,
   requirePlatform,
-  validateSearchQuery,
   validateVideoSearch,
-} from "@/routes/route-boundaries";
+} from "@/features/playback/routes/route-boundaries";
+import { validateSearchQuery } from "@/features/discovery/routes";
 
 describe("route boundaries", () => {
   // Guards: URL params and search values are untrusted strings at the router boundary.

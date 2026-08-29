@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { assertAllowedRendererMediaUrl } from "@/backend/services/download-media-source";
+import { assertAllowedRendererMediaUrl } from "@backend/services/download-media-source";
 
 // Guards: renderer-provided media URLs cannot turn privileged download transports into SSRF or local-file readers.
 describe("renderer download media source validation", () => {

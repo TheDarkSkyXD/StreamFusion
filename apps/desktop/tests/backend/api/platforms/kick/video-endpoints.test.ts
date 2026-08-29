@@ -8,7 +8,7 @@ const loggerMock = vi.hoisted(() => ({
   error: vi.fn(),
 }));
 
-vi.mock("@/backend/logging/logger", () => ({ logger: loggerMock }));
+vi.mock("@backend/logging/logger", () => ({ logger: loggerMock }));
 
 /* ------------------------------------------------------------------ *
  * Electron mock: video-endpoints.ts uses `require("electron")` (CJS) *
@@ -37,8 +37,8 @@ function jsonResponse(body: unknown, status = 200): Response {
 // Guards: last-live fallback uses only trustworthy end timestamps from completed Kick VODs.
 // Guards: Kick VOD cards retain channel avatars when legacy responses place them on the channel.
 describe("video-endpoints — getVideosByChannelSlug", () => {
-  let getVideosByChannelSlug: typeof import("@/backend/api/platforms/kick/endpoints/video-endpoints").getVideosByChannelSlug;
-  let getLatestCompletedVideoEndedAtByChannelSlug: typeof import("@/backend/api/platforms/kick/endpoints/video-endpoints").getLatestCompletedVideoEndedAtByChannelSlug;
+  let getVideosByChannelSlug: typeof import("@backend/api/platforms/kick/endpoints/video-endpoints").getVideosByChannelSlug;
+  let getLatestCompletedVideoEndedAtByChannelSlug: typeof import("@backend/api/platforms/kick/endpoints/video-endpoints").getLatestCompletedVideoEndedAtByChannelSlug;
 
   beforeEach(async () => {
     vi.resetModules();
@@ -47,7 +47,7 @@ describe("video-endpoints — getVideosByChannelSlug", () => {
     // Default: return empty array
     mockNetFetch.mockResolvedValue(jsonResponse([]));
     ({ getVideosByChannelSlug, getLatestCompletedVideoEndedAtByChannelSlug } =
-      await import("@/backend/api/platforms/kick/endpoints/video-endpoints"));
+      await import("@backend/api/platforms/kick/endpoints/video-endpoints"));
   });
 
   afterEach(() => {

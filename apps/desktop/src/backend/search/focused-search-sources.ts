@@ -2,14 +2,14 @@ import type {
   UnifiedChannel,
   UnifiedClip,
   UnifiedVideo,
-} from "@/backend/api/unified/platform-types";
-import { kickClient } from "@/backend/api/platforms/kick/kick-client";
-import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
-import type { ClipSearchSource } from "@/backend/search/progressive-clip-search";
-import type { StreamDirectorySource } from "@/backend/search/progressive-stream-search";
-import type { VideoSearchSource } from "@/backend/search/progressive-video-search";
-import { rankSearchChannels } from "@/search/channel-search-contract";
-import type { Platform } from "@/shared/auth-types";
+} from "@shared/platform-types";
+import { kickClient } from "@backend/api/platforms/kick/kick-client";
+import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
+import type { ClipSearchSource } from "@backend/search/progressive-clip-search";
+import type { StreamDirectorySource } from "@backend/search/progressive-stream-search";
+import type { VideoSearchSource } from "@backend/search/progressive-video-search";
+import { rankSearchChannels } from "@/features/discovery/utils/search/channel-search-contract";
+import type { Platform } from "@shared/auth-types";
 
 const MATCHED_LIVE_CHANNEL_LIMIT = 20;
 

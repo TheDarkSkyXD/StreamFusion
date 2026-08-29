@@ -8,7 +8,7 @@ import {
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { ContentTabs } from "@/components/stream/related-content/ContentTabs";
+import { ContentTabs } from "@/features/playback/components/related-content/ContentTabs";
 
 // Guards: Home, Videos, and Clips tab links must stay on the current stream route and use client-side hash navigation.
 describe("ContentTabs stream navigation", () => {

@@ -1,10 +1,10 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PlayerControls, type PlayerControlsProps } from "@/components/player/player-controls";
+import { PlayerControls, type PlayerControlsProps } from "@/features/playback/components/player/player-controls";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-vi.mock("@/components/player/play-pause-button", () => ({
+vi.mock("@/features/playback/components/player/play-pause-button", () => ({
   PlayPauseButton: () => (
     <button type="button" aria-label="Play or pause">
       Play
@@ -12,15 +12,15 @@ vi.mock("@/components/player/play-pause-button", () => ({
   ),
 }));
 
-vi.mock("@/components/player/progress-bar", () => ({
+vi.mock("@/features/playback/components/player/progress-bar", () => ({
   ProgressBar: () => null,
 }));
 
-vi.mock("@/components/player/settings-menu", () => ({
+vi.mock("@/features/playback/components/player/settings-menu", () => ({
   SettingsMenu: () => null,
 }));
 
-vi.mock("@/components/player/volume-control", () => ({
+vi.mock("@/features/playback/components/player/volume-control", () => ({
   VolumeControl: () => null,
 }));
 

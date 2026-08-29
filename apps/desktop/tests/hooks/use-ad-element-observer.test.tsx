@@ -5,7 +5,7 @@ vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { useAdElementObserver } from "@/hooks/use-ad-element-observer";
+import { useAdElementObserver } from "@/features/playback/data/use-ad-element-observer";
 
 let observeSpy: ReturnType<typeof vi.fn>;
 let disconnectSpy: ReturnType<typeof vi.fn>;

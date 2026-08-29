@@ -3,7 +3,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { app } from "electron";
 
-import { logger } from "@/lib/cross-logger";
+import { logger } from "@shared/utils/cross-logger";
 import {
   firstValidKickBroadcasterUserId,
   getKickBroadcasterUserIdFromAvatar,

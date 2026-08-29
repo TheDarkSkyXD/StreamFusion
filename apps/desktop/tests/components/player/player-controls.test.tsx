@@ -1,24 +1,24 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { PlayerControls } from '@/components/player/player-controls';
-import { TwitchPlayerControls } from '@/components/player/twitch/twitch-player-controls';
+import { PlayerControls } from '@/features/playback/components/player/player-controls';
+import { TwitchPlayerControls } from '@/features/playback/components/player/twitch/twitch-player-controls';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type React from 'react';
 
 // Mock dependencies
-vi.mock('@/components/player/play-pause-button', () => ({
+vi.mock('@/features/playback/components/player/play-pause-button', () => ({
     PlayPauseButton: ({ onToggle }: { onToggle: () => void }) => <button onClick={onToggle}>Play/Pause</button>
 }));
 
-vi.mock('@/components/player/volume-control', () => ({
+vi.mock('@/features/playback/components/player/volume-control', () => ({
     VolumeControl: ({ onMuteToggle }: { onMuteToggle: () => void }) => <button onClick={onMuteToggle}>Volume</button>
 }));
 
-vi.mock('@/components/player/settings-menu', () => ({
+vi.mock('@/features/playback/components/player/settings-menu', () => ({
     SettingsMenu: () => <div data-testid="settings-menu">Settings</div>
 }));
 
-vi.mock('@/components/player/progress-bar', () => ({
+vi.mock('@/features/playback/components/player/progress-bar', () => ({
     ProgressBar: ({ onSeek }: { onSeek: (seconds: number) => void }) => <div data-testid="progress-bar" onClick={() => onSeek(10)}>Progress</div>
 }));
 

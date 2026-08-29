@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { UserPopoutFooter } from "@/components/chat/mod/UserPopout/UserPopoutFooter";
+import { UserPopoutFooter } from "@/features/chat/components/chat/mod/UserPopout/UserPopoutFooter";
 import { installElectronAPIMock } from "../../../../test-utils";
 
 beforeEach(() => {

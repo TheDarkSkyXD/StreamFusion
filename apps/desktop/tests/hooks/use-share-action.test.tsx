@@ -8,7 +8,7 @@ vi.mock("sonner", () => ({
   toast: { success: toastSuccess, error: toastError },
 }));
 
-import { useShareAction } from "@/hooks/use-share-action";
+import { useShareAction } from "@/features/playback/data/use-share-action";
 
 // Guards: playable public links copy as plain URLs and visibly confirm success for exactly two seconds
 // Guards: current channel-scoped Kick clip links are accepted as public content links

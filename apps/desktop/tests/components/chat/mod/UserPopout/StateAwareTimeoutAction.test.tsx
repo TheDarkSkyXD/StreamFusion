@@ -6,12 +6,12 @@ type TestWindow = Omit<Window, "electronAPI"> & {
   electronAPI: DeepPartial<Window["electronAPI"]>;
 };
 
-vi.mock("@/components/chat/mod/mod-action-toast", () => ({
+vi.mock("@/features/chat/components/chat/mod/mod-action-toast", () => ({
   showModActionSuccessToast: vi.fn(),
 }));
 
-import { showModActionSuccessToast } from "@/components/chat/mod/mod-action-toast";
-import { StateAwareTimeoutAction } from "@/components/chat/mod/UserPopout/StateAwareTimeoutAction";
+import { showModActionSuccessToast } from "@/features/chat/components/chat/mod/mod-action-toast";
+import { StateAwareTimeoutAction } from "@/features/chat/components/chat/mod/UserPopout/StateAwareTimeoutAction";
 
 const twitchBinding = {
   platform: "twitch" as const,

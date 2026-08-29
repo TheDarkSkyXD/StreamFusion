@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isAllowedSender, isAllowedSenderUrl } from "@/backend/ipc/sender-origin";
+import { isAllowedSender, isAllowedSenderUrl } from "@backend/ipc/sender-origin";
 
 describe("isAllowedSenderUrl", () => {
   it("allows the production file:// renderer bundle", () => {

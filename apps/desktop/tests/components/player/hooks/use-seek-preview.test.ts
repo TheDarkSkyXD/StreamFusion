@@ -60,12 +60,12 @@ vi.mock("@/hooks/useManagedTimeout", () => ({
   },
 }));
 
-vi.mock("@/components/player/kick/kick-clip-loader", () => ({
+vi.mock("@/features/playback/components/player/kick/kick-clip-loader", () => ({
   isKickClipPlaylistUrl: vi.fn(() => false),
   createKickClipPlaylistLoader: vi.fn(),
 }));
 
-import { useSeekPreview } from "@/components/player/hooks/use-seek-preview";
+import { useSeekPreview } from "@/features/playback/components/player/hooks/use-seek-preview";
 
 // Guards: opening a VOD may prefetch its small manifest but must not attach or decode hidden video
 // Guards: hover starts at the requested second without first downloading the beginning of the VOD

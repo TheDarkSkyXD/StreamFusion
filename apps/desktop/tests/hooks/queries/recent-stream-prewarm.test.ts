@@ -10,7 +10,7 @@ import {
   prewarmRecentStreamImages,
   rememberRecentStreamImages,
   resetRecentStreamPrewarmForTests,
-} from "@/hooks/queries/recent-stream-prewarm";
+} from "@/features/discovery/data/queries/recent-stream-prewarm";
 import { installElectronAPIMock } from "../../test-utils";
 
 // Guards: recent Stream poster prewarm persists only four route identities and keeps the newest first.

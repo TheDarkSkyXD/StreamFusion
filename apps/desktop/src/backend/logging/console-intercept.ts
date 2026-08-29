@@ -22,7 +22,7 @@
 
 import { inspect } from "node:util";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 
 export interface InstallConsoleInterceptOpts {
   /** Tag to use for intercepted lines. Default `console`. */

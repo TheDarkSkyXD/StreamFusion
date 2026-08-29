@@ -7,7 +7,7 @@
 // Guards: network-level URL blocking — specific Twitch ad-server domains (edge.ads.twitch.tv etc.) must stay blocked; new ad endpoints get added here when discovered.
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { networkAdBlockService } from "@/backend/services/network-adblock-service";
+import { networkAdBlockService } from "@backend/services/network-adblock-service";
 
 describe("network-adblock-service", () => {
   beforeEach(() => {

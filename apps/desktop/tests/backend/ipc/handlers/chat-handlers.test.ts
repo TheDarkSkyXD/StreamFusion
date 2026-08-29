@@ -1,20 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/chat-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/chat-endpoints", () => ({
   getKickChannelHistory: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/twitch/endpoints/chat-endpoints", () => ({
+vi.mock("@backend/api/platforms/twitch/endpoints/chat-endpoints", () => ({
   getTwitchChannelHistory: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
+vi.mock("@backend/api/platforms/kick/kick-client", () => ({
   kickClient: {
     getUsersById: vi.fn(),
     getPublicChannelUserProfile: vi.fn(),
@@ -22,18 +22,18 @@ vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
+vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
   twitchClient: {
     getUsersByLogin: vi.fn(),
     getChannelByLogin: vi.fn(),
   },
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
 }));
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: {
     getToken: vi.fn(() => null),
     getAppToken: vi.fn(() => null),
@@ -44,9 +44,9 @@ vi.mock("@/backend/services/storage-service", () => ({
 
 import { ipcMain } from "electron";
 
-import { kickClient } from "@/backend/api/platforms/kick/kick-client";
-import { registerChatHandlers } from "@/backend/ipc/handlers/chat-handlers";
-import { badgeResolver } from "@/backend/services/chat/badge-resolver";
+import { kickClient } from "@backend/api/platforms/kick/kick-client";
+import { registerChatHandlers } from "@backend/ipc/handlers/chat-handlers";
+import { badgeResolver } from "@backend/services/chat/badge-resolver";
 
 type MentionResult = { success: boolean; data: Array<{ userId: string; username: string; displayName: string; avatarUrl: string }>; error?: string };
 type Handler<T = unknown> = (event: unknown, params: unknown) => Promise<T>;
@@ -203,7 +203,7 @@ describe("CHAT_GET_TWITCH_BADGE_CATALOG", () => {
 describe("CHAT_GET_KICK_HISTORY", () => {
   it("returns { success: true, data } on success", async () => {
     const { getKickChannelHistory } = await import(
-      "@/backend/api/platforms/kick/endpoints/chat-endpoints"
+      "@backend/api/platforms/kick/endpoints/chat-endpoints"
     );
     const messages = { messages: [], pinnedMessage: null };
     vi.mocked(getKickChannelHistory).mockResolvedValue(messages);
@@ -216,7 +216,7 @@ describe("CHAT_GET_KICK_HISTORY", () => {
 
   it("returns { success: false, error } on thrown error", async () => {
     const { getKickChannelHistory } = await import(
-      "@/backend/api/platforms/kick/endpoints/chat-endpoints"
+      "@backend/api/platforms/kick/endpoints/chat-endpoints"
     );
     vi.mocked(getKickChannelHistory).mockRejectedValue(new Error("network fail"));
 
@@ -230,7 +230,7 @@ describe("CHAT_GET_KICK_HISTORY", () => {
 describe("CHAT_GET_TWITCH_HISTORY", () => {
   it("returns { success: true, data } on success", async () => {
     const { getTwitchChannelHistory } = await import(
-      "@/backend/api/platforms/twitch/endpoints/chat-endpoints"
+      "@backend/api/platforms/twitch/endpoints/chat-endpoints"
     );
     const rawIrc = { rawMessages: ["@badges= :tmi.twitch.tv PRIVMSG #test :hi"] };
     vi.mocked(getTwitchChannelHistory).mockResolvedValue(rawIrc);
@@ -243,7 +243,7 @@ describe("CHAT_GET_TWITCH_HISTORY", () => {
 
   it("returns { success: false, error } on thrown error", async () => {
     const { getTwitchChannelHistory } = await import(
-      "@/backend/api/platforms/twitch/endpoints/chat-endpoints"
+      "@backend/api/platforms/twitch/endpoints/chat-endpoints"
     );
     vi.mocked(getTwitchChannelHistory).mockRejectedValue(new Error("timeout"));
 

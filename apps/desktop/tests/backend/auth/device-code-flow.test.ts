@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { debug: vi.fn(), error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
-vi.mock("@/lib/managed-interval", () => ({
+vi.mock("@shared/utils/managed-interval", () => ({
   createManagedInterval: vi.fn((callback: () => void, ms: number) => {
     const id = setInterval(callback, ms);
     return { stop: () => clearInterval(id) };
   }),
 }));
 
-vi.mock("@/backend/auth/oauth-config", () => ({
+vi.mock("@backend/auth/oauth-config", () => ({
   getOAuthConfig: vi.fn(() => ({
     platform: "twitch",
     clientId: "test-client-id",
@@ -27,8 +27,8 @@ function jsonResponse(body: unknown, ok = true, status = 200): Response {
   return { ok, status, json: async () => body } as unknown as Response;
 }
 
-import { deviceCodeFlowService, runTwitchDeviceCodeLogin } from "@/backend/auth/device-code-flow";
-import { createManagedInterval } from "@/lib/managed-interval";
+import { deviceCodeFlowService, runTwitchDeviceCodeLogin } from "@backend/auth/device-code-flow";
+import { createManagedInterval } from "@shared/utils/managed-interval";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -76,7 +76,7 @@ describe("requestDeviceCode", () => {
   });
 
   it("throws when client ID is not set", async () => {
-    const { getOAuthConfig } = await import("@/backend/auth/oauth-config");
+    const { getOAuthConfig } = await import("@backend/auth/oauth-config");
     vi.mocked(getOAuthConfig).mockReturnValueOnce({
       platform: "twitch",
       clientId: "",

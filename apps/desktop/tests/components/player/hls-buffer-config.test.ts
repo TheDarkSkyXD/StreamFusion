@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   resolveHlsBufferConfig,
   resolveHlsVodBufferConfig,
-} from "@/components/player/hls-buffer-config";
-import { DEFAULT_BUFFER_PREFERENCES } from "@/shared/auth-types";
+} from "@/features/playback/components/player/hls-buffer-config";
+import { DEFAULT_BUFFER_PREFERENCES } from "@shared/auth-types";
 
 // AE9 / U10: the buffer prefs that a player reads at `new Hls({...})` construction
 // must produce the expected HLS config object. We exercise the pure mapper that

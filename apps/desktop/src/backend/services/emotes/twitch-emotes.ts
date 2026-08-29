@@ -6,9 +6,9 @@
  */
 
 // Cross-logger: this module is imported by renderer code via the emotes
-// barrel. Using @/backend/logging/logger would drag electron-log/main into
+// barrel. Using @backend/logging/logger would drag electron-log/main into
 // the renderer bundle and crash with `__dirname is not defined`.
-import { logger } from "@/lib/cross-logger";
+import { logger } from "@shared/utils/cross-logger";
 import type { Emote, EmoteProviderService } from "./emote-types";
 
 /** Twitch API emote response */

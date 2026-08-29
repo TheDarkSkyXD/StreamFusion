@@ -3,10 +3,10 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { installElectronAPIMock, renderWithProviders as render } from "../../../../test-utils";
-import type { ChatMessage } from "@/shared/chat-types";
+import type { ChatMessage } from "@shared/chat-types";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
 
-vi.mock("@/components/chat/mod/UserPopout/useUserProfile", () => ({
+vi.mock("@/features/chat/components/chat/mod/UserPopout/useUserProfile", () => ({
   useUserProfile: vi.fn(() => ({
     profile: null,
     loading: false,
@@ -34,15 +34,15 @@ vi.mock("@/components/chat/mod/UserPopout/useUserProfile", () => ({
     retryChannel: vi.fn(),
   })),
 }));
-vi.mock("@/hooks/useModLog", () => ({
+vi.mock("@/features/moderation/data/useModLog", () => ({
   useModLog: () => ({ entries: [], loading: false }),
 }));
 
 import {
   UserPopoutProvider,
   useOpenUserPopout,
-} from "@/components/chat/mod/UserPopout/UserPopoutProvider";
-import { useUserProfile } from "@/components/chat/mod/UserPopout/useUserProfile";
+} from "@/features/chat/components/chat/mod/UserPopout/UserPopoutProvider";
+import { useUserProfile } from "@/features/chat/components/chat/mod/UserPopout/useUserProfile";
 
 const mockedUseUserProfile = vi.mocked(useUserProfile);
 

@@ -39,13 +39,13 @@ import {
   setMaxSlots,
   setSlotPresence,
   setUseWebContentsViews,
-} from "@/backend/api/unified/slot-controller";
-import type { SlotEvent } from "@/shared/slot-types";
+} from "@backend/api/unified/slot-controller";
+import type { SlotEvent } from "@shared/slot-types";
 import {
   __resetWebContentsViewFactoryForTests,
   setWebContentsViewFactory,
   type SlotView,
-} from "@/backend/api/unified/webcontents-view-factory";
+} from "@backend/api/unified/webcontents-view-factory";
 
 // Guards: the slot-controller is the single source of truth for slot presence on the main process.
 // First created slot is "focused" — multiview always has exactly one focused slot when any slot exists.
@@ -355,7 +355,7 @@ describe("slot-controller WebContentsView feature flag (slice 05 plumbing)", () 
     );
     // SlotView.loadURL was called with the slot-renderer URL (dev variant
     // from the electron mock — `app.isPackaged=false` + no ELECTRON_RENDERER_URL
-    // → file:// path under /test/app/out/renderer/src/slot-renderer/index.html).
+    // → file:// path under /test/app/out/renderer/src/frontend/slot-renderer/index.html).
     expect(fakeView.loadURL).toHaveBeenCalledTimes(1);
     const loadedUrl = (fakeView.loadURL as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
     expect(loadedUrl).toMatch(/slot-renderer/);

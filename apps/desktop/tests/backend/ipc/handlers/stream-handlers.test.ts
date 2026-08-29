@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 import { createIsolatedDatabaseTestLifecycle } from "../../../helpers/database-test-lifecycle";
 
 vi.mock("electron", () => ({
@@ -10,7 +10,7 @@ vi.mock("electron", () => ({
 
 const resolverMocks = vi.hoisted(() => ({ twitch: vi.fn(), kick: vi.fn() }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
+vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
   twitchClient: {
     getTopStreams: vi.fn(),
     getStreamByLogin: vi.fn(),
@@ -20,7 +20,7 @@ vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
+vi.mock("@backend/api/platforms/kick/kick-client", () => ({
   kickClient: {
     getTopStreams: vi.fn(),
     getStreamsByCategory: vi.fn(),
@@ -34,21 +34,21 @@ vi.mock("@/backend/api/platforms/kick/kick-client", () => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-stream-resolver", () => {
+vi.mock("@backend/api/platforms/twitch/twitch-stream-resolver", () => {
   return {
     TwitchStreamResolver: class {
       getStreamPlaybackUrl = resolverMocks.twitch;
     },
   };
 });
-vi.mock("@/backend/api/platforms/kick/kick-stream-resolver", () => {
+vi.mock("@backend/api/platforms/kick/kick-stream-resolver", () => {
   return {
     KickStreamResolver: class {
       getStreamPlaybackUrl = resolverMocks.kick;
     },
   };
 });
-vi.mock("@/backend/api/unified/registry", () => ({
+vi.mock("@backend/api/unified/registry", () => ({
   clients: {
     for: vi.fn(),
     all: vi.fn(),
@@ -56,7 +56,7 @@ vi.mock("@/backend/api/unified/registry", () => ({
   },
 }));
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: {
     getActiveFollowsByPlatform: vi.fn(),
     getLocalFollowsByPlatform: vi.fn(),
@@ -66,27 +66,27 @@ vi.mock("@/backend/services/storage-service", () => ({
   },
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
 }));
 
 import { app, ipcMain } from "electron";
 
-import { logger } from "@/backend/logging/logger";
-import { kickClient } from "@/backend/api/platforms/kick/kick-client";
-import { isKickRateLimitError } from "@/backend/api/platforms/kick/kick-error-classification";
-import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
-import { clients } from "@/backend/api/unified/registry";
+import { logger } from "@backend/logging/logger";
+import { kickClient } from "@backend/api/platforms/kick/kick-client";
+import { isKickRateLimitError } from "@backend/api/platforms/kick/kick-error-classification";
+import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
+import { clients } from "@backend/api/unified/registry";
 import {
   KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS,
   registerStreamHandlers,
   shouldDeferKickStartupFollowedStreamScan,
-} from "@/backend/ipc/handlers/stream-handlers";
-import { dbService } from "@/backend/services/database-service";
-import { storageService } from "@/backend/services/storage-service";
-import type { UnifiedStream } from "@/backend/api/unified/platform-types";
-import type { IPlatformReader } from "@/backend/api/unified/platform-reader";
-import type { LocalFollow } from "@/shared/auth-types";
+} from "@backend/ipc/handlers/stream-handlers";
+import { dbService } from "@backend/services/database-service";
+import { storageService } from "@backend/services/storage-service";
+import type { UnifiedStream } from "@shared/platform-types";
+import type { IPlatformReader } from "@backend/api/unified/platform-reader";
+import type { LocalFollow } from "@shared/auth-types";
 
 type StreamListResult = {
   success: boolean;

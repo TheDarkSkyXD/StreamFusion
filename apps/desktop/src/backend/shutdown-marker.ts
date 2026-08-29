@@ -13,7 +13,7 @@ import * as path from "node:path";
 
 import { app } from "electron";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 
 let cachedPath: string | null = null;
 

@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   qualityLevelToPreference,
   resolvePreferredQualityId,
-} from "@/components/player/quality-preference";
-import type { QualityLevel } from "@/components/player/types";
+} from "@/features/playback/components/player/quality-preference";
+import type { QualityLevel } from "@/features/playback/components/player/types";
 
 function level(overrides: Partial<QualityLevel>): QualityLevel {
   return {

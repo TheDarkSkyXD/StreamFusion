@@ -114,7 +114,7 @@ const emoteStoreState = vi.hoisted(() => ({
   isFavorite: () => false,
 }));
 
-vi.mock("@/backend/services/chat/kick-chat", () => ({
+vi.mock("@backend/services/chat/kick-chat", () => ({
   KickChatSendError: class KickChatSendError extends Error {
     kickSendResult: {
       ok: false;
@@ -134,7 +134,7 @@ vi.mock("@/backend/services/chat/kick-chat", () => ({
     sendAction: vi.fn(async () => true),
   },
 }));
-vi.mock("@/backend/services/chat/twitch-chat", () => ({
+vi.mock("@backend/services/chat/twitch-chat", () => ({
   twitchChatService: {
     sendMessage: vi.fn(async () => true),
     sendAction: vi.fn(async () => true),
@@ -190,7 +190,7 @@ vi.mock("@/store/emote-store", () => {
 
 // Mock InfoBanner — we control its visibility per test via the impl.
 const infoBannerImpl = vi.fn();
-vi.mock("@/components/chat/InfoBanner", () => ({
+vi.mock("@/features/chat/components/chat/InfoBanner", () => ({
   InfoBanner: (props: {
     platform: string;
     channelId: string | null;
@@ -200,7 +200,7 @@ vi.mock("@/components/chat/InfoBanner", () => ({
 
 // Mock EmotePickerPopover so we can assert open/closed state without pulling
 // in the popover's portal positioning / shallow-zustand wiring.
-vi.mock("@/components/chat/EmotePickerPopover", () => ({
+vi.mock("@/features/chat/components/chat/EmotePickerPopover", () => ({
   EmotePickerPopover: ({
     isOpen,
     scope,
@@ -225,7 +225,7 @@ vi.mock("@/components/chat/EmotePickerPopover", () => ({
   },
 }));
 
-vi.mock("@/components/chat/ChatQuickSettingsPopover", () => ({
+vi.mock("@/features/chat/components/chat/ChatQuickSettingsPopover", () => ({
   ChatQuickSettingsPopover: (props: {
     platform?: "kick" | "twitch";
     placement?: "bottom" | "top";
@@ -239,11 +239,11 @@ vi.mock("@/components/chat/ChatQuickSettingsPopover", () => ({
 // Both emote buttons now look up the channel avatar for the picker's
 // channel-tab thumbnail. Stub the hook so we don't need a QueryClientProvider
 // in this shell-focused suite.
-vi.mock("@/hooks/queries/useChannels", () => ({
+vi.mock("@/features/discovery/data/queries/useChannels", () => ({
   useChannelByUsername: () => ({ data: undefined }),
 }));
 
-vi.mock("@/components/chat/MentionAutocomplete", () => {
+vi.mock("@/features/chat/components/chat/MentionAutocomplete", () => {
   return {
     MentionAutocomplete: ({ isActive }: { isActive: boolean }) =>
       isActive ? <div data-testid="mention-autocomplete-anchor" /> : null,
@@ -251,18 +251,18 @@ vi.mock("@/components/chat/MentionAutocomplete", () => {
   };
 });
 
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
+import type { UnifiedChannel } from "@shared/platform-types";
 import {
   loadKickChatModule,
   loadTwitchChatModule,
-} from "@/backend/services/chat/chat-service-loader";
-import { KickChatSendError, kickChatService } from "@/backend/services/chat/kick-chat";
-import { twitchChatService } from "@/backend/services/chat/twitch-chat";
-import type { Emote, EmoteProvider } from "@/backend/services/emotes/emote-types";
-import { ChatInput, type ChatInputHandle } from "@/components/chat/ChatInput";
+} from "@backend/services/chat/chat-service-loader";
+import { KickChatSendError, kickChatService } from "@backend/services/chat/kick-chat";
+import { twitchChatService } from "@backend/services/chat/twitch-chat";
+import type { Emote, EmoteProvider } from "@backend/services/emotes/emote-types";
+import { ChatInput, type ChatInputHandle } from "@/features/chat/components/chat/ChatInput";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_USER_PREFERENCES } from "@/shared/auth-types";
-import type { ChatMessage } from "@/shared/chat-types";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
+import type { ChatMessage } from "@shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
 import { useRoomStateStore } from "@/store/room-state-store";

@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/components/chat/twitch/TwitchChat", () => ({
+vi.mock("@/features/chat/components/chat/twitch/TwitchChat", () => ({
   TwitchChat: ({ channel, showComposer }: { channel: string; showComposer?: boolean }) => (
     <div data-testid="twitch-chat" data-show-composer={String(showComposer)}>
       tw:{channel}
@@ -9,7 +9,7 @@ vi.mock("@/components/chat/twitch/TwitchChat", () => ({
   ),
 }));
 
-vi.mock("@/components/chat/kick/KickChat", () => ({
+vi.mock("@/features/chat/components/chat/kick/KickChat", () => ({
   KickChat: ({ channel, showComposer }: { channel: string; showComposer?: boolean }) => (
     <div data-testid="kick-chat" data-show-composer={String(showComposer)}>
       kk:{channel}
@@ -17,8 +17,8 @@ vi.mock("@/components/chat/kick/KickChat", () => ({
   ),
 }));
 
-import { ChatPanel } from "@/components/chat/ChatPanel";
-import { ChatPanelTabs, type ChatPanelTabId } from "@/components/chat/mod/ChatPanelTabs";
+import { ChatPanel } from "@/features/chat/components/chat/ChatPanel";
+import { ChatPanelTabs, type ChatPanelTabId } from "@/features/chat/components/chat/mod/ChatPanelTabs";
 
 // Guards: ChatPanel must always route to the correct platform-specific chat child — silently mounting the wrong one would render zero messages on a live channel
 // Guards: empty initial channel (no `initialChannel` prop) still mounts the routed child, so the chat tree exists when the parent finishes loading the channel data

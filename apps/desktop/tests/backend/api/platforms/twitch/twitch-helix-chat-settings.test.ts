@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getChatSettings } from "@/backend/api/platforms/twitch/twitch-helix-chat-settings";
+import { getChatSettings } from "@backend/api/platforms/twitch/twitch-helix-chat-settings";
 
 // Guards: Helix `GET /helix/chat/settings` envelope — URL, broadcaster_id query param, Authorization+Client-Id headers, and the body shape that maps onto our shared room-state model.
 

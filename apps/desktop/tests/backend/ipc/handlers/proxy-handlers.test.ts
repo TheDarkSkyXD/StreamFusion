@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS, type ProxyApplyResult } from "@/shared/ipc-channels";
+import { IPC_CHANNELS, type ProxyApplyResult } from "@shared/ipc-channels";
 
 // Capture ipcMain.handle registrations so we can invoke each proxy handler
 // directly with a synthetic event (controlling senderFrame.url).
@@ -11,14 +11,14 @@ vi.mock("electron", () => ({
 const applyProxy = vi.fn();
 const setProxyCredentials = vi.fn();
 const hasStoredCredentials = vi.fn();
-vi.mock("@/backend/services/stream-proxy-service", () => ({
+vi.mock("@backend/services/stream-proxy-service", () => ({
   applyProxy: (...a: unknown[]) => applyProxy(...a),
   setProxyCredentials: (...a: unknown[]) => setProxyCredentials(...a),
   hasStoredCredentials: (...a: unknown[]) => hasStoredCredentials(...a),
 }));
 
 const getPreferences = vi.fn();
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: {
     getPreferences: (...a: unknown[]) => getPreferences(...a),
   },
@@ -29,7 +29,7 @@ import { ipcMain } from "electron";
 import {
   applyPersistedProxyOnStart,
   registerProxyHandlers,
-} from "@/backend/ipc/handlers/proxy-handlers";
+} from "@backend/ipc/handlers/proxy-handlers";
 
 type Handler = (event: unknown, args?: unknown) => unknown;
 

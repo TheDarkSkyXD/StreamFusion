@@ -13,21 +13,21 @@ const downloadQueueSpies = vi.hoisted(() => ({
   updateProgress: vi.fn(),
 }));
 
-vi.mock("@/backend/services/download-queue-service", () => ({
+vi.mock("@backend/services/download-queue-service", () => ({
   getDownloadQueueService: () => {
     downloadQueueSpies.getService();
     return downloadQueueSpies;
   },
 }));
 
-import { createOwnedRecordingSectionPath } from "@/backend/services/stream-recording-paths";
-import { createStreamRecordingService } from "@/backend/services/stream-recording-service";
-import { createStreamRecordingSessionStore } from "@/backend/services/stream-recording-session-store";
+import { createOwnedRecordingSectionPath } from "@backend/services/stream-recording-paths";
+import { createStreamRecordingService } from "@backend/services/stream-recording-service";
+import { createStreamRecordingSessionStore } from "@backend/services/stream-recording-session-store";
 import type {
   StreamRecordingJournal,
   StreamRecordingQuality,
   StreamRecordingSession,
-} from "@/shared/stream-recording-types";
+} from "@shared/stream-recording-types";
 
 type RecorderInput = Parameters<
   Parameters<typeof createStreamRecordingService>[0]["startRecorder"]

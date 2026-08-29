@@ -1,7 +1,7 @@
 // Guards: subscriber-only eligibility preflight blocks only on definite Twitch/Kick signals and treats Kick web-session ambiguity as unknown.
 
-import type { AuthToken, TwitchUser } from "@/shared/auth-types";
-import type { SubscriberEligibilityRequest } from "@/shared/chat-types";
+import type { AuthToken, TwitchUser } from "@shared/auth-types";
+import type { SubscriberEligibilityRequest } from "@shared/chat-types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const storageMock = vi.hoisted(() => ({
@@ -13,17 +13,17 @@ const kickSubscriptionsMock = vi.hoisted(() => ({
   fetchKickUserSubscriptions: vi.fn(),
 }));
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: storageMock,
 }));
 
-vi.mock("@/backend/services/emotes/kick-user-subscriptions-service", () => kickSubscriptionsMock);
+vi.mock("@backend/services/emotes/kick-user-subscriptions-service", () => kickSubscriptionsMock);
 
 import {
   checkKickSubscriberEligibility,
   checkTwitchSubscriberEligibility,
   parseKickSubscriberEligibility,
-} from "@/backend/services/chat/subscriber-eligibility";
+} from "@backend/services/chat/subscriber-eligibility";
 
 const twitchRequest: SubscriberEligibilityRequest = {
   platform: "twitch",

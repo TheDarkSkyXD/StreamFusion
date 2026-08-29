@@ -4,7 +4,7 @@ import {
   compactSearchIdentity,
   normalizeSearchQuery,
   normalizeSearchTokens,
-} from "@/search/search-normalization";
+} from "@/features/discovery/utils/search/search-normalization";
 
 // Guards: renderer cache identities and backend fuzzy matching share one accent- and separator-insensitive canonical query
 describe("search normalization", () => {

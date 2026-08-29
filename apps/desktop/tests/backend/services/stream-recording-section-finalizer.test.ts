@@ -20,7 +20,7 @@ import {
   createStreamRecordingSectionFinalizer,
   type StreamRecordingCommitIntent,
   verifyStreamRecordingArtifactIdentity,
-} from "@/backend/services/stream-recording-section-finalizer";
+} from "@backend/services/stream-recording-section-finalizer";
 
 const temporaryDirectories: string[] = [];
 

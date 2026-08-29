@@ -1,13 +1,13 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CaptionOverlay } from "@/components/player/caption-overlay";
-import { useTimedText } from "@/components/player/hooks/use-timed-text";
-import { KickLivePlayerControls } from "@/components/player/kick/kick-live-player-controls";
-import { KickVodPlayerControls } from "@/components/player/kick/kick-vod-player-controls";
-import { SettingsMenu } from "@/components/player/settings-menu";
+import { CaptionOverlay } from "@/features/playback/components/player/caption-overlay";
+import { useTimedText } from "@/features/playback/components/player/hooks/use-timed-text";
+import { KickLivePlayerControls } from "@/features/playback/components/player/kick/kick-live-player-controls";
+import { KickVodPlayerControls } from "@/features/playback/components/player/kick/kick-vod-player-controls";
+import { SettingsMenu } from "@/features/playback/components/player/settings-menu";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { DEFAULT_USER_PREFERENCES } from "@/shared/auth-types";
+import { DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
 const originalUpdatePreferences = useAuthStore.getState().updatePreferences;

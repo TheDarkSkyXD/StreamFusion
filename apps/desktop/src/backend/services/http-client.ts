@@ -13,8 +13,8 @@
  * connections are opened.
  */
 
-import { logger } from "@/backend/logging/logger";
-import { sleep } from "@/lib/sleep";
+import { logger } from "@backend/logging/logger";
+import { sleep } from "@shared/utils/sleep";
 
 // ============================================================================
 // Types

@@ -10,7 +10,7 @@ let mockState = {
   focusedStreamId: null as string | null,
 };
 
-vi.mock('@/store/multistream-store', () => ({
+vi.mock('@/features/multistream/data/multistream-store', () => ({
   useMultiStreamStore: () => ({
     ...mockState,
     removeStream: vi.fn(),
@@ -20,17 +20,17 @@ vi.mock('@/store/multistream-store', () => ({
   }),
 }));
 
-vi.mock('@/components/multistream/sortable-stream-slot', () => ({
+vi.mock('@/features/multistream/components/multistream/sortable-stream-slot', () => ({
   SortableStreamSlot: ({ channelName }: { channelName: string }) => (
     <div data-testid="sortable-slot">{channelName}</div>
   ),
 }));
 
-vi.mock('@/components/multistream/stream-slot', () => ({
+vi.mock('@/features/multistream/components/multistream/stream-slot', () => ({
   StreamSlot: () => <div data-testid="slot">slot</div>,
 }));
 
-import { MultiStreamGrid } from '@/components/multistream/grid-layout';
+import { MultiStreamGrid } from '@/features/multistream/components/multistream/grid-layout';
 
 // Guards: empty state — no streams in the store → render "no active streams" empty card; otherwise the user lands on multistream with no signal anything's there
 // Guards: per-slot isolation — one SortableStreamSlot renders per stream regardless of any slot's individual HLS state. The grid mounts all slots so one failing slot can't unmount its siblings

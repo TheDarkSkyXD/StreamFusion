@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const runAppShutdownTasks = vi.hoisted(() => vi.fn());
 
-vi.mock("@/hooks/app-shutdown-registry", () => ({ runAppShutdownTasks }));
+vi.mock("@/features/shell/utils/app-shutdown-registry", () => ({ runAppShutdownTasks }));
 
-import { useAppShutdown } from "@/hooks/use-app-shutdown";
+import { useAppShutdown } from "@/features/shell/data/use-app-shutdown";
 import { useChatStore } from "@/store/chat-store";
 
 let onBeforeQuitCallback: (() => void) | null = null;

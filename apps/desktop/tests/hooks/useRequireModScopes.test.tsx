@@ -1,11 +1,11 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useRequireModScopes } from "@/hooks/useRequireModScopes";
+import { useRequireModScopes } from "@/features/auth/data/useRequireModScopes";
 import {
   TWITCH_CHANNEL_MODERATE_EVENTSUB_SCOPES,
   TWITCH_MOD_ACTION_SCOPES,
-} from "@/shared/auth-types";
+} from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 

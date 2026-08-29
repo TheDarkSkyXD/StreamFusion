@@ -1,6 +1,6 @@
 import type { OnBeforeSendHeadersListenerDetails, Session } from "electron";
 
-import { storageService } from "@/backend/services/storage-service";
+import { storageService } from "@backend/services/storage-service";
 
 type BearerListener = (bearer: string) => void;
 

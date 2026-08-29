@@ -8,11 +8,11 @@ vi.mock("pusher-js", () => ({
   default: vi.fn(),
 }));
 
-import { kickChatService, getKickPusher } from "@/backend/services/chat/kick-chat";
-import { kickPredictionsService } from "@/backend/services/chat/kick-predictions-service";
-import * as kickPredictionsApi from "@/backend/api/platforms/kick/kick-predictions";
-import type { KickPredictionPayload } from "@/backend/api/platforms/kick/kick-types";
-import type { UnifiedPrediction } from "@/shared/chat-types";
+import { kickChatService, getKickPusher } from "@backend/services/chat/kick-chat";
+import { kickPredictionsService } from "@backend/services/chat/kick-predictions-service";
+import * as kickPredictionsApi from "@backend/api/platforms/kick/kick-predictions";
+import type { KickPredictionPayload } from "@backend/api/platforms/kick/kick-types";
+import type { UnifiedPrediction } from "@shared/chat-types";
 
 // Guards: U1 acquire/release lifecycle, REST seed emit, Pusher event binding,
 // anonymous-vs-authed subscription posture, channel-id correctness on the

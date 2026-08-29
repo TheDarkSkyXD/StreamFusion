@@ -18,7 +18,7 @@ import {
   waitFor,
 } from "../test-utils";
 
-vi.mock("@/hooks/queries/useCategories", () => ({
+vi.mock("@/features/discovery/data/queries/useCategories", () => ({
   useCategoryById: vi.fn((id: string, platform: "twitch" | "kick") => ({
     data: fixtures.category({
       id,
@@ -31,7 +31,7 @@ vi.mock("@/hooks/queries/useCategories", () => ({
   useInfiniteTopCategories: vi.fn(() => ({ data: [] })),
 }));
 
-vi.mock("@/hooks/queries/useInfiniteStreams", () => ({
+vi.mock("@/features/discovery/data/queries/useInfiniteStreams", () => ({
   useInfiniteStreamsByCategory: vi.fn(() => ({
     data: { pages: [] },
     isLoading: false,
@@ -43,12 +43,12 @@ vi.mock("@/hooks/queries/useInfiniteStreams", () => ({
   })),
 }));
 
-vi.mock("@/components/stream/stream-grid", () => ({
+vi.mock("@/features/discovery/components/stream/stream-grid", () => ({
   StreamGrid: () => <div data-testid="stream-grid" />,
 }));
 
 import { CategoryDetailPage } from "@/pages/CategoryDetail";
-import { validateCategoryDetailSearch } from "@/routes/category-detail-search";
+import { validateCategoryDetailSearch } from "@/features/discovery/routes/category-detail-search";
 
 const nativePushState = window.history.pushState.bind(window.history);
 const nativeReplaceState = window.history.replaceState.bind(window.history);

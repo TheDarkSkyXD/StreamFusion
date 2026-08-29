@@ -4,9 +4,9 @@ import {
   getVideosByGame,
   getVideosByUser,
   getVideoById,
-} from "@/backend/api/platforms/twitch/endpoints/video-endpoints";
+} from "@backend/api/platforms/twitch/endpoints/video-endpoints";
 
-import type { TwitchRequestor } from "@/backend/api/platforms/twitch/twitch-requestor";
+import type { TwitchRequestor } from "@backend/api/platforms/twitch/twitch-requestor";
 
 function makeClient(response: unknown): TwitchRequestor {
   return {

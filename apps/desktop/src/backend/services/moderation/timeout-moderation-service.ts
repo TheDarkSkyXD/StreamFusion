@@ -1,6 +1,6 @@
-import type { Platform } from "@/shared/auth-types";
-import type { TimeoutActionBinding, TimeoutActionPolicy } from "@/shared/timeout-moderation-types";
-import { createCancellableSleep, type CancellableSleep } from "@/lib/sleep";
+import type { Platform } from "@shared/auth-types";
+import type { TimeoutActionBinding, TimeoutActionPolicy } from "@shared/timeout-moderation-types";
+import { createCancellableSleep, type CancellableSleep } from "@shared/utils/sleep";
 
 export type TimeoutBinding = TimeoutActionBinding;
 export type TimeoutPolicy = TimeoutActionPolicy;

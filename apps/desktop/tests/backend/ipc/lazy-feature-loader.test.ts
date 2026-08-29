@@ -4,20 +4,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const registerCategoryHandlers = vi.hoisted(() => vi.fn());
 const registerConnectivityHandlers = vi.hoisted(() => vi.fn());
 
-vi.mock("@/backend/logging/log-paths", () => ({ getBugReportsDir: () => "bug-reports" }));
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/log-paths", () => ({ getBugReportsDir: () => "bug-reports" }));
+vi.mock("@backend/logging/logger", () => ({
   logger: { debug: vi.fn(), error: vi.fn(), info: vi.fn(), warn: vi.fn() },
 }));
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: { getPreferences: () => ({ proxy: { enabled: false } }) },
 }));
-vi.mock("@/backend/ipc/handlers/category-handlers", () => ({ registerCategoryHandlers }));
-vi.mock("@/backend/ipc/handlers/connectivity-handlers", () => ({
+vi.mock("@backend/ipc/handlers/category-handlers", () => ({ registerCategoryHandlers }));
+vi.mock("@backend/ipc/handlers/connectivity-handlers", () => ({
   registerConnectivityHandlers,
 }));
 
-import { isIpcFeature, loadIpcFeature } from "@/backend/ipc/lazy-feature-loader";
-import { IPC_FEATURES } from "@/shared/ipc-channels";
+import { isIpcFeature, loadIpcFeature } from "@backend/ipc/lazy-feature-loader";
+import { IPC_FEATURES } from "@shared/ipc-channels";
 
 const featureContext = {
   mainWindow: {} as BrowserWindow,

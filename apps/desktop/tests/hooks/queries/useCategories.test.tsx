@@ -18,8 +18,8 @@ import {
   useCategoryMetadata,
   useInfiniteTopCategories,
   useTopCategories,
-} from "@/hooks/queries/useCategories";
-import { hydratePersistedBrowseSnapshots } from "@/hooks/queries/browse-snapshot-bootstrap";
+} from "@/features/discovery/data/queries/useCategories";
+import { hydratePersistedBrowseSnapshots } from "@/features/discovery/data/queries/browse-snapshot-bootstrap";
 import { logger } from "@/renderer/logging/logger";
 import { installElectronAPIMock, fixtures } from "../../test-utils";
 

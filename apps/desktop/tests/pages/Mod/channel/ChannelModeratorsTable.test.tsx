@@ -22,7 +22,7 @@ vi.mock("sonner", () => ({
 }));
 
 import { ChannelModeratorsTable } from "@/pages/Mod/channel/ChannelModeratorsTable";
-import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
+import { useModeratedChannelsStore } from "@/features/moderation/data/moderated-channels-store";
 import { toast } from "sonner";
 
 const executeMock = vi.fn();

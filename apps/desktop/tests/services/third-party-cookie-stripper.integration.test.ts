@@ -17,7 +17,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   purgeStoredThirdPartyCookies,
   registerThirdPartyCookieStripper,
-} from "@/backend/services/third-party-cookie-stripper";
+} from "@backend/services/third-party-cookie-stripper";
 
 type HeaderMap = Record<string, string[] | undefined>;
 type HeadersReceivedListener = (

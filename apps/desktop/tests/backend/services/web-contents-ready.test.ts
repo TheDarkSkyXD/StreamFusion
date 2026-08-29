@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 
-import { waitForWebContentsCondition } from "@/backend/services/web-contents-ready";
+import { waitForWebContentsCondition } from "@backend/services/web-contents-ready";
 
 function fakeWebContents(opts: {
   executeJavaScript: (code: string) => Promise<unknown>;

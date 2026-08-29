@@ -1,14 +1,14 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ChatQuickSettingsPopover } from "@/components/chat/ChatQuickSettingsPopover";
-import { useChatDisplay } from "@/components/settings/ChatSettingsSection";
+import { ChatQuickSettingsPopover } from "@/features/chat/components/chat/ChatQuickSettingsPopover";
+import { useChatDisplay } from "@/features/settings/components/settings/ChatSettingsSection";
 import {
   type ChatDisplayPreferences,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
   type UserPreferences,
-} from "@/shared/auth-types";
+} from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { installElectronAPIMock } from "../../test-utils";
 

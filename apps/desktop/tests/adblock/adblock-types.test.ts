@@ -12,7 +12,7 @@
 // Guards: DEFAULT_ADBLOCK_CONFIG pins Twitch's embed-player client ID + backup player types — drift here breaks VAFT (changes look benign in diff but kill ad-blocking).
 
 import { describe, it, expect } from "vitest";
-import { DEFAULT_ADBLOCK_CONFIG } from "@/shared/adblock-types";
+import { DEFAULT_ADBLOCK_CONFIG } from "@shared/adblock-types";
 
 // Guards: aligned ad recovery stays reload-free by default to avoid a black frame or playback interruption.
 describe("adblock-types", () => {

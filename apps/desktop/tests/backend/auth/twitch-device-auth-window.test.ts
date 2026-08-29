@@ -53,7 +53,7 @@ vi.mock("electron", () => ({
   },
 }));
 
-import { twitchDeviceAuthWindow } from "@/backend/auth/twitch-device-auth-window";
+import { twitchDeviceAuthWindow } from "@backend/auth/twitch-device-auth-window";
 
 beforeEach(() => {
   windowHandlers.get("closed")?.();

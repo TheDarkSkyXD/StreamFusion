@@ -36,7 +36,7 @@ vi.mock("@tanstack/react-router", () =>
 const addToHistory = vi.fn();
 const removeFromHistory = vi.fn();
 const repairFollowMetadataFromChannel = vi.fn(async () => false);
-vi.mock("@/hooks/queries/useHistoryQuery", () => ({
+vi.mock("@/features/media-library/data/useHistoryQuery", () => ({
   useHistoryActions: () => ({ addToHistory, removeFromHistory }),
 }));
 
@@ -56,7 +56,7 @@ vi.mock("@/store/follow-store", () => ({
   },
 }));
 
-vi.mock("@/components/player/twitch", () => ({
+vi.mock("@/features/playback/components/player/twitch", () => ({
   TwitchVodPlayer: ({
     streamUrl,
     onReady,
@@ -78,7 +78,7 @@ vi.mock("@/components/player/twitch", () => ({
   ),
 }));
 
-vi.mock("@/components/player/kick", () => ({
+vi.mock("@/features/playback/components/player/kick", () => ({
   KickVodPlayer: () => <div data-testid="kick-vod-player">vod</div>,
 }));
 
@@ -122,15 +122,15 @@ beforeEach(() => {
   electronApi.downloads.downloadVideo = vi.fn(async () => ({ success: true, jobId: "video-job" }));
 });
 
-vi.mock("@/components/stream/related-content/VideoCard", () => ({
+vi.mock("@/features/playback/components/related-content/VideoCard", () => ({
   VideoCard: ({ video }: { video: { title: string } }) => (
     <div data-testid="video-card">{video.title}</div>
   ),
 }));
 
 import { VideoPage } from "@/pages/Video";
-import { CHANNEL_KEYS } from "@/hooks/queries/useChannels";
-import { VOD_LIVE_LINK_KEYS } from "@/hooks/queries/useVodLiveLink";
+import { CHANNEL_KEYS } from "@/features/discovery/data/queries/useChannels";
+import { VOD_LIVE_LINK_KEYS } from "@/features/playback/data/useVodLiveLink";
 
 // Guards: guest VOD playback surfaces expose Share and Download without requiring auth state
 // Guards: VOD sharing copies the public Platform URL while downloading uses the resolved playback source

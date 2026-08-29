@@ -1,4 +1,4 @@
-import type { ClipDownloadRequest, DownloadProgress } from "@/shared/download-types";
+import type { ClipDownloadRequest, DownloadProgress } from "@shared/download-types";
 import {
   decodeTwitchClipMediaUrl,
   TWITCH_CLIP_MEDIA_SCHEME,

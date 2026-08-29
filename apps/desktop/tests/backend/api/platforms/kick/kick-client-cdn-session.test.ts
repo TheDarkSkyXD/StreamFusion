@@ -10,7 +10,7 @@ vi.mock("electron", () => ({
   session: { fromPartition },
 }));
 
-vi.mock("@/backend/services/third-party-cookie-stripper", () => ({
+vi.mock("@backend/services/third-party-cookie-stripper", () => ({
   purgeStoredThirdPartyCookies: vi.fn(async () => {}),
   registerThirdPartyCookieStripper: vi.fn(),
 }));
@@ -27,7 +27,7 @@ describe("Kick CDN session initialization", () => {
   });
 
   it("shares one initialization across concurrent image requests", async () => {
-    const { kickClient } = await import("@/backend/api/platforms/kick/kick-client");
+    const { kickClient } = await import("@backend/api/platforms/kick/kick-client");
     const getCdnSession = (
       kickClient as unknown as {
         getCdnSession: () => Promise<unknown>;
@@ -44,7 +44,7 @@ describe("Kick CDN session initialization", () => {
 
   it("allows a later initialization attempt after setup fails", async () => {
     setProxy.mockRejectedValueOnce(new Error("proxy setup failed"));
-    const { kickClient } = await import("@/backend/api/platforms/kick/kick-client");
+    const { kickClient } = await import("@backend/api/platforms/kick/kick-client");
     const getCdnSession = (
       kickClient as unknown as {
         getCdnSession: () => Promise<unknown>;

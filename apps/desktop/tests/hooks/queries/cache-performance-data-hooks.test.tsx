@@ -6,40 +6,40 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getCachePerformanceSamples,
   resetCachePerformanceSamples,
-} from "@/hooks/queries/cache-performance";
+} from "@/features/discovery/data/queries/cache-performance";
 import {
   CATEGORY_KEYS,
   useCategoryById,
   useCategoryMetadata,
   useTopCategories,
   useUnifiedCategoryLink,
-} from "@/hooks/queries/useCategories";
+} from "@/features/discovery/data/queries/useCategories";
 import {
   CHANNEL_KEYS,
   useChannelByUsername,
   useFollowedChannels,
-} from "@/hooks/queries/useChannels";
+} from "@/features/discovery/data/queries/useChannels";
 import {
   FOLLOWED_CONTENT_KEYS,
   type FollowedContentItem,
   useFollowedClipPlayback,
   useFollowedClips,
   useFollowedVideos,
-} from "@/hooks/queries/useFollowedContent";
-import { useHistoryQuery } from "@/hooks/queries/useHistoryQuery";
-import { useInfiniteStreamsByCategory } from "@/hooks/queries/useInfiniteStreams";
+} from "@/features/discovery/data/queries/useFollowedContent";
+import { useHistoryQuery } from "@/features/media-library/data/useHistoryQuery";
+import { useInfiniteStreamsByCategory } from "@/features/discovery/data/queries/useInfiniteStreams";
 import {
   SEARCH_KEYS,
   useSearchAll,
   useSearchCategories,
   useSearchChannels,
-} from "@/hooks/queries/useSearch";
+} from "@/features/discovery/data/queries/useSearch";
 import {
   STREAM_KEYS,
   useFollowedStreams,
   useStreamByChannel,
   useTopStreams,
-} from "@/hooks/queries/useStreams";
+} from "@/features/discovery/data/queries/useStreams";
 import { normalizeCategoryName } from "@/lib/utils";
 import { useHistoryStore } from "@/store/history-store";
 

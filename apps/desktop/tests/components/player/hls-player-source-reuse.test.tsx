@@ -81,13 +81,13 @@ type FakeHlsInstance = InstanceType<typeof fakeHlsModule.FakeHls>;
 
 vi.mock("hls.js", () => ({ default: fakeHlsModule.FakeHls }));
 
-vi.mock("@/components/player/kick/kick-clip-loader", () => ({
+vi.mock("@/features/playback/components/player/kick/kick-clip-loader", () => ({
   createKickClipPlaylistLoader: () => function TestKickClipPlaylistLoader() {},
   isKickClipPlaylistUrl: (url: string) => url.includes("/clips/"),
 }));
 
-import { HlsPlayer } from "@/components/player/hls-player";
-import { KickHlsPlayer } from "@/components/player/kick/kick-hls-player";
+import { HlsPlayer } from "@/features/playback/components/player/hls-player";
+import { KickHlsPlayer } from "@/features/playback/components/player/kick/kick-hls-player";
 
 beforeEach(() => {
   fakeHlsModule.reset();

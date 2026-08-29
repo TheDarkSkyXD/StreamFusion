@@ -12,7 +12,7 @@ import {
   type UpdateInfo as ElectronUpdateInfo,
   type ProgressInfo,
 } from "electron-updater";
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import type {
   CheckFrequency,
   UpdateInfo,

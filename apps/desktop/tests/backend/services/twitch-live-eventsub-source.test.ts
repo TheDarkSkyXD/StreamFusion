@@ -3,14 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import {
   TwitchLiveEventSubSource,
   type TwitchLiveEventSubSourceDeps,
-} from "@/backend/services/twitch-live-eventsub-source";
-import type { TwitchEventSubClient } from "@/backend/api/platforms/twitch/twitch-eventsub-client";
+} from "@backend/services/twitch-live-eventsub-source";
+import type { TwitchEventSubClient } from "@backend/api/platforms/twitch/twitch-eventsub-client";
 import type {
   NotificationPayload,
   StreamOfflineEvent,
   StreamOnlineEvent,
-} from "@/backend/api/platforms/twitch/twitch-eventsub-types";
-import type { AuthToken, LocalFollow, TwitchUser } from "@/shared/auth-types";
+} from "@backend/api/platforms/twitch/twitch-eventsub-types";
+import type { AuthToken, LocalFollow, TwitchUser } from "@shared/auth-types";
 
 function token(overrides: Partial<AuthToken> = {}): AuthToken {
   return {

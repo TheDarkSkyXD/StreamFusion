@@ -4,7 +4,7 @@ import { installElectronAPIMock } from '../../../test-utils';
 
 // Control the IRC parser so the seed test exercises only U5's gate + cap logic,
 // not the real tag parsing. Each "raw" line maps 1:1 to a PRIVMSG.
-vi.mock('@/backend/services/chat/twitch-irc-parser', () => ({
+vi.mock('@backend/services/chat/twitch-irc-parser', () => ({
   parseRawTwitchIrcLine: (raw: string) => ({
     command: 'PRIVMSG',
     channel: 'ninja',
@@ -13,7 +13,7 @@ vi.mock('@/backend/services/chat/twitch-irc-parser', () => ({
   }),
 }));
 
-vi.mock('@/backend/services/chat/twitch-parser', () => ({
+vi.mock('@backend/services/chat/twitch-parser', () => ({
   parseTwitchMessage: (_channel: string, _tags: unknown, message: string) => ({
     id: `id-${message}`,
     platform: 'twitch',
@@ -33,14 +33,14 @@ vi.mock('@/backend/services/chat/twitch-parser', () => ({
   }),
 }));
 
-import { seedTwitchChatHistory } from '@/components/chat/twitch/twitch-chat-history';
+import { seedTwitchChatHistory } from '@/features/chat/components/chat/twitch/twitch-chat-history';
 import {
   type ChatDisplayPreferences,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
-} from '@/shared/auth-types';
+} from '@shared/auth-types';
 import { useAuthStore } from '@/store/auth-store';
 import { buildChannelKey, useChatStore } from '@/store/chat-store';
-import type { ChatMessage } from '@/shared/chat-types';
+import type { ChatMessage } from '@shared/chat-types';
 
 function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
   useAuthStore.setState((s) => ({

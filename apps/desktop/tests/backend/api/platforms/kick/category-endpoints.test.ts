@@ -11,15 +11,15 @@ Module.prototype.require = function (id: string) {
   return _origRequire.call(this, id);
 };
 
-vi.mock("@/lib/sleep", () => ({
+vi.mock("@shared/utils/sleep", () => ({
   sleep: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/stream-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/stream-endpoints", () => ({
   rememberCategorySlug: vi.fn(),
 }));
 
-import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
+import type { KickRequestor } from "@backend/api/platforms/kick/kick-requestor";
 
 function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor {
   return {
@@ -42,16 +42,16 @@ function jsonResponse(body: unknown, status = 200): Response {
 // Guards: category-by-ID lookup must use the documented ID filter and return the requested category even when the response is not ordered.
 // Guards: an active official API cooldown must not amplify a 429 through the legacy category fallback.
 describe("category-endpoints", () => {
-  let getTopCategories: typeof import("@/backend/api/platforms/kick/endpoints/category-endpoints").getTopCategories;
-  let searchCategories: typeof import("@/backend/api/platforms/kick/endpoints/category-endpoints").searchCategories;
-  let getCategoryById: typeof import("@/backend/api/platforms/kick/endpoints/category-endpoints").getCategoryById;
-  let getAllCategories: typeof import("@/backend/api/platforms/kick/endpoints/category-endpoints").getAllCategories;
+  let getTopCategories: typeof import("@backend/api/platforms/kick/endpoints/category-endpoints").getTopCategories;
+  let searchCategories: typeof import("@backend/api/platforms/kick/endpoints/category-endpoints").searchCategories;
+  let getCategoryById: typeof import("@backend/api/platforms/kick/endpoints/category-endpoints").getCategoryById;
+  let getAllCategories: typeof import("@backend/api/platforms/kick/endpoints/category-endpoints").getAllCategories;
 
   beforeEach(async () => {
     mockFetch.mockReset();
     vi.resetModules();
     ({ getTopCategories, searchCategories, getCategoryById, getAllCategories } =
-      await import("@/backend/api/platforms/kick/endpoints/category-endpoints"));
+      await import("@backend/api/platforms/kick/endpoints/category-endpoints"));
   });
 
   afterEach(() => {

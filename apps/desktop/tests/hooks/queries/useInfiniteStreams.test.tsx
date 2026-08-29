@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useInfiniteStreamsByCategory } from "@/hooks/queries/useInfiniteStreams";
+import { useInfiniteStreamsByCategory } from "@/features/discovery/data/queries/useInfiniteStreams";
 import { installElectronAPIMock, fixtures } from "../../test-utils";
 
 function makeWrapper() {

@@ -9,7 +9,7 @@ vi.mock("@/lib/api-client", () => ({
   },
 }));
 
-import { KickEmoteProvider } from "@/backend/services/emotes/kick-emotes";
+import { KickEmoteProvider } from "@backend/services/emotes/kick-emotes";
 
 function mockJsonOnce(value: unknown) {
   getMock.mockReturnValueOnce({ json: () => Promise.resolve(value) });

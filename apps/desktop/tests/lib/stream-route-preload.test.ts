@@ -4,7 +4,7 @@ const preloadStreamPage = vi.hoisted(() =>
   vi.fn<(platform?: "twitch" | "kick") => Promise<unknown>>()
 );
 
-vi.mock("@/pages", () => ({ preloadStreamPage }));
+vi.mock("@/features/playback/routes/stream-page", () => ({ preloadStreamPage }));
 
 // Guards: concurrent stream-link intent must share one Stream + Chat warmup and remain pending until the chat module is ready.
 // Guards: best-effort chunk failures must not become unhandled rejections or poison later hover retries.
@@ -25,7 +25,7 @@ describe("stream route intent preload", () => {
     });
     const requestIdle = vi.fn();
     vi.stubGlobal("requestIdleCallback", requestIdle);
-    const { scheduleStreamExperienceStartupPrewarm } = await import("@/lib/stream-route-preload");
+    const { scheduleStreamExperienceStartupPrewarm } = await import("@/features/playback/routes/stream-route-preload");
 
     scheduleStreamExperienceStartupPrewarm();
     expect(preloadStreamPage).not.toHaveBeenCalled();
@@ -55,7 +55,7 @@ describe("stream route intent preload", () => {
       return frames.length;
     });
     const { preloadStreamExperience, scheduleStreamExperienceStartupPrewarm } = await import(
-      "@/lib/stream-route-preload"
+      "@/features/playback/routes/stream-route-preload"
     );
 
     scheduleStreamExperienceStartupPrewarm();
@@ -82,7 +82,7 @@ describe("stream route intent preload", () => {
         resolveChat = resolve;
       })
     );
-    const { preloadStreamExperience } = await import("@/lib/stream-route-preload");
+    const { preloadStreamExperience } = await import("@/features/playback/routes/stream-route-preload");
 
     const first = preloadStreamExperience();
     const second = preloadStreamExperience();
@@ -103,7 +103,7 @@ describe("stream route intent preload", () => {
 
   it("warms each platform chat independently", async () => {
     preloadStreamPage.mockResolvedValue(undefined);
-    const { preloadStreamExperience } = await import("@/lib/stream-route-preload");
+    const { preloadStreamExperience } = await import("@/features/playback/routes/stream-route-preload");
 
     await Promise.all([
       preloadStreamExperience("twitch"),
@@ -118,7 +118,7 @@ describe("stream route intent preload", () => {
     preloadStreamPage
       .mockRejectedValueOnce(new Error("chunk unavailable"))
       .mockResolvedValueOnce(undefined);
-    const { preloadStreamExperience } = await import("@/lib/stream-route-preload");
+    const { preloadStreamExperience } = await import("@/features/playback/routes/stream-route-preload");
 
     await expect(preloadStreamExperience()).resolves.toBeUndefined();
     await expect(preloadStreamExperience()).resolves.toBeUndefined();

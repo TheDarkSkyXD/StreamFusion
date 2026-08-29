@@ -7,8 +7,8 @@ vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { useModLog } from "@/hooks/useModLog";
-import type { ModerationHistoryResult, ModLogEntry } from "@/shared/mod-log-types";
+import { useModLog } from "@/features/moderation/data/useModLog";
+import type { ModerationHistoryResult, ModLogEntry } from "@shared/mod-log-types";
 import { installElectronAPIMock } from "../test-utils";
 
 function makeWrapper() {

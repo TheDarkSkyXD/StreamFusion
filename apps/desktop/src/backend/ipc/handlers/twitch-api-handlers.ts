@@ -6,13 +6,13 @@ import { z } from "zod";
 import {
   type TwitchApiService,
   twitchApiService,
-} from "@/backend/api/platforms/twitch/twitch-api-service";
+} from "@backend/api/platforms/twitch/twitch-api-service";
 import {
   type TwitchEventSubFeedService,
   twitchEventSubFeedService,
-} from "@/backend/services/twitch-eventsub-feed-service";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
-import type { TwitchApiCommand, TwitchApiResult } from "@/shared/twitch-api-types";
+} from "@backend/services/twitch-eventsub-feed-service";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
+import type { TwitchApiCommand, TwitchApiResult } from "@shared/twitch-api-types";
 
 import { isAllowedSender } from "../sender-origin";
 

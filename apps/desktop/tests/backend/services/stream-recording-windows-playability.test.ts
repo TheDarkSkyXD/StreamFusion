@@ -8,11 +8,11 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 import {
   resolveFfmpegPath,
   startHlsRecordingWithFfmpeg,
-} from "@/backend/services/ffmpeg-download-service";
-import { createOwnedRecordingSectionPath } from "@/backend/services/stream-recording-paths";
-import { createStreamRecordingService } from "@/backend/services/stream-recording-service";
-import { createStreamRecordingSessionStore } from "@/backend/services/stream-recording-session-store";
-import type { StreamRecordingJournal } from "@/shared/stream-recording-types";
+} from "@backend/services/ffmpeg-download-service";
+import { createOwnedRecordingSectionPath } from "@backend/services/stream-recording-paths";
+import { createStreamRecordingService } from "@backend/services/stream-recording-service";
+import { createStreamRecordingSessionStore } from "@backend/services/stream-recording-session-store";
+import type { StreamRecordingJournal } from "@shared/stream-recording-types";
 
 const temporaryDirectories: string[] = [];
 

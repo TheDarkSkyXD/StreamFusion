@@ -6,7 +6,7 @@ import {
   keepTwitchRenditionResolution,
   rankTwitchRenditionCandidates,
   rankTwitchRenditions,
-} from "@/lib/twitch-rendition-continuity";
+} from "@/features/playback/utils/twitch-rendition-continuity";
 
 // Guards: ad blocking may vary frame rate/bitrate within the active resolution but must never hide a lower-resolution playlist under the selected level.
 describe("Twitch rendition continuity", () => {

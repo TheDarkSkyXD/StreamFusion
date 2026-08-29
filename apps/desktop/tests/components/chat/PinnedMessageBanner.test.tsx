@@ -2,9 +2,9 @@ import { act, fireEvent, render as rtlRender, screen } from "@testing-library/re
 import type React from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { PinnedMessageBanner } from "@/components/chat/PinnedMessageBanner";
+import { PinnedMessageBanner } from "@/features/chat/components/chat/PinnedMessageBanner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { NormalizedPinnedMessage } from "@/shared/chat-types";
+import type { NormalizedPinnedMessage } from "@shared/chat-types";
 
 // Radix's Tooltip needs a TooltipProvider in the React tree. The app mounts
 // one at the root; tests wrap each render here. Override the returned

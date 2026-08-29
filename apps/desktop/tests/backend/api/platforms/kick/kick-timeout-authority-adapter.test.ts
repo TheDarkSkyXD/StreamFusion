@@ -3,7 +3,7 @@ import {
   authorizeKickProductionChannel,
   createKickTimeoutAuthorityAdapter,
   queryKickProductionTargetState,
-} from "@/backend/api/platforms/kick/kick-timeout-authority-adapter";
+} from "@backend/api/platforms/kick/kick-timeout-authority-adapter";
 
 const binding = {
   platform: "kick" as const,

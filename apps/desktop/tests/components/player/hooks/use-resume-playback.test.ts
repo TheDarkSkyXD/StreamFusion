@@ -26,7 +26,7 @@ vi.mock("@/store/playback-position-store", () => ({
   }),
 }));
 
-import { useResumePlayback } from "@/components/player/hooks/use-resume-playback";
+import { useResumePlayback } from "@/features/playback/components/player/hooks/use-resume-playback";
 
 function createMockVideo(
   opts: { currentTime?: number; duration?: number; readyState?: number; paused?: boolean } = {}

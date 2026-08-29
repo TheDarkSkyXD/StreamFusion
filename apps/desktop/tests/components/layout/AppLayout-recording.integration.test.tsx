@@ -1,7 +1,7 @@
 import { waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { StreamRecordingSnapshot } from "@/shared/stream-recording-types";
+import type { StreamRecordingSnapshot } from "@shared/stream-recording-types";
 import { installElectronAPIMock, renderWithProviders, routerMock, screen } from "../../test-utils";
 
 const route = vi.hoisted(() => ({ pathname: "/following" }));
@@ -14,8 +14,8 @@ vi.mock("@tanstack/react-router", () => ({
     select: (state: { location: { pathname: string } }) => unknown;
   }) => select({ location: { pathname: route.pathname } }),
 }));
-vi.mock("@/hooks/useAuth", () => ({ useAuthInitialize: vi.fn() }));
-vi.mock("@/hooks/useNetworkStatus", () => ({
+vi.mock("@/features/auth/data/useAuth", () => ({ useAuthInitialize: vi.fn() }));
+vi.mock("@/features/settings/data/useNetworkStatus", () => ({
   useNetworkStatus: () => ({ isOnline: true, isOffline: false }),
 }));
 vi.mock("@/store/app-store", () => ({
@@ -30,19 +30,19 @@ vi.mock("@/store/pip-store", () => ({
   usePipStore: (selector: (state: unknown) => unknown) =>
     selector({ currentStream: null, isPipActive: false, isOnStreamPage: false }),
 }));
-vi.mock("@/components/TopNavBar/SearchBar", () => ({ SearchBar: () => null }));
-vi.mock("@/components/TopNavBar/NotificationsDropdown", () => ({
+vi.mock("@/features/shell/components/TopNavBar/SearchBar", () => ({ SearchBar: () => null }));
+vi.mock("@/features/shell/components/TopNavBar/NotificationsDropdown", () => ({
   NotificationsDropdown: () => null,
 }));
-vi.mock("@/components/auth", () => ({ ProfileDropdown: () => null }));
-vi.mock("@/components/layout/SidebarFollows", () => ({ SidebarFollows: () => null }));
-vi.mock("@/components/layout/TitleBar", () => ({ TitleBar: () => null }));
-vi.mock("@/components/layout/PlatformHealthIndicator", () => ({
+vi.mock("@/features/auth/components/auth", () => ({ ProfileDropdown: () => null }));
+vi.mock("@/features/shell/components/layout/SidebarFollows", () => ({ SidebarFollows: () => null }));
+vi.mock("@/features/shell/components/layout/TitleBar", () => ({ TitleBar: () => null }));
+vi.mock("@/features/shell/components/layout/PlatformHealthIndicator", () => ({
   PlatformHealthIndicator: () => null,
 }));
-vi.mock("@/components/player/mini-player", () => ({ MiniPlayer: () => null }));
+vi.mock("@/features/playback/components/player/mini-player", () => ({ MiniPlayer: () => null }));
 
-import { AppLayout } from "@/components/layout/AppLayout";
+import { AppLayout } from "@/features/shell/components/layout/AppLayout";
 
 // Guards: the real app shell keeps one provider-backed recording pill across route content changes
 // Guards: the real TopNav indicator does not add a second bridge hydration or state listener

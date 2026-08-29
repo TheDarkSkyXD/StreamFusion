@@ -22,12 +22,12 @@ import {
   clearStreamInfo,
   getAdBlockStatus,
   setAuthHeaders,
-} from '@/components/player/twitch/twitch-adblock-service';
+} from '@/features/playback/components/player/twitch/twitch-adblock-service';
 
 import {
   DEFAULT_ADBLOCK_CONFIG,
   PlayerType,
-} from '@/shared/adblock-types';
+} from '@shared/adblock-types';
 
 // Master playlist for stream setup
 const MASTER_PLAYLIST = `#EXTM3U

@@ -8,7 +8,7 @@ import {
   resolveFfmpegPath,
   type SpawnProcess,
   startHlsRecordingWithFfmpeg,
-} from "@/backend/services/ffmpeg-download-service";
+} from "@backend/services/ffmpeg-download-service";
 
 function createProcess({ code = 0, stderr = "" }: { code?: number; stderr?: string }) {
   const child = new EventEmitter() as EventEmitter & {

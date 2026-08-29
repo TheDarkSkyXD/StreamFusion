@@ -1,10 +1,10 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { KickLivePlayer } from "@/components/player/kick/kick-live-player";
-import { KickVodPlayer } from "@/components/player/kick/kick-vod-player";
-import { TwitchLivePlayer } from "@/components/player/twitch/twitch-live-player";
-import { TwitchVodPlayer } from "@/components/player/twitch/twitch-vod-player";
+import { KickLivePlayer } from "@/features/playback/components/player/kick/kick-live-player";
+import { KickVodPlayer } from "@/features/playback/components/player/kick/kick-vod-player";
+import { TwitchLivePlayer } from "@/features/playback/components/player/twitch/twitch-live-player";
+import { TwitchVodPlayer } from "@/features/playback/components/player/twitch/twitch-vod-player";
 
 const h = vi.hoisted(() => ({
   kickReady: null as null | (() => void),
@@ -20,15 +20,15 @@ vi.mock("@/components/ui/loading-spinner", () => ({
   KickLoadingSpinner: () => null,
   TwitchLoadingSpinner: () => null,
 }));
-vi.mock("@/components/player/hooks/use-default-quality", () => ({ useDefaultQuality: vi.fn() }));
-vi.mock("@/components/player/hooks/use-fullscreen", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-default-quality", () => ({ useDefaultQuality: vi.fn() }));
+vi.mock("@/features/playback/components/player/hooks/use-fullscreen", () => ({
   useFullscreen: () => ({ isFullscreen: false, toggleFullscreen: vi.fn() }),
 }));
-vi.mock("@/components/player/hooks/use-picture-in-picture", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-picture-in-picture", () => ({
   usePictureInPicture: () => ({ isPip: false, togglePip: vi.fn() }),
 }));
-vi.mock("@/components/player/hooks/use-resume-playback", () => ({ useResumePlayback: vi.fn() }));
-vi.mock("@/components/player/hooks/use-volume", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-resume-playback", () => ({ useResumePlayback: vi.fn() }));
+vi.mock("@/features/playback/components/player/hooks/use-volume", () => ({
   useVolume: () => ({
     volume: 50,
     isMuted: false,
@@ -37,29 +37,29 @@ vi.mock("@/components/player/hooks/use-volume", () => ({
     syncFromVideoElement: vi.fn(),
   }),
 }));
-vi.mock("@/hooks/use-ad-element-observer", () => ({ useAdElementObserver: vi.fn() }));
+vi.mock("@/features/playback/data/use-ad-element-observer", () => ({ useAdElementObserver: vi.fn() }));
 vi.mock("@/store/adblock-store", () => ({ useAdBlockStore: () => false }));
-vi.mock("@/components/player/kick/uptime-readout", () => ({ UptimeReadout: () => null }));
-vi.mock("@/components/player/kick/kick-live-player-controls", () => ({
+vi.mock("@/features/playback/components/player/kick/uptime-readout", () => ({ UptimeReadout: () => null }));
+vi.mock("@/features/playback/components/player/kick/kick-live-player-controls", () => ({
   KickLivePlayerControls: (props: Record<string, unknown>) => {
     h.kickControlProps = props;
     return null;
   },
 }));
-vi.mock("@/components/player/twitch/twitch-live-player-controls", () => ({
+vi.mock("@/features/playback/components/player/twitch/twitch-live-player-controls", () => ({
   TwitchLivePlayerControls: (props: Record<string, unknown>) => {
     h.twitchControlProps = props;
     return null;
   },
 }));
-vi.mock("@/components/player/twitch/ad-block-fallback-overlay", () => ({
+vi.mock("@/features/playback/components/player/twitch/ad-block-fallback-overlay", () => ({
   AdBlockFallbackOverlay: () => null,
 }));
-vi.mock("@/components/player/twitch/video-stats-overlay", () => ({
+vi.mock("@/features/playback/components/player/twitch/video-stats-overlay", () => ({
   VideoStatsOverlay: () => null,
 }));
 
-vi.mock("@/components/player/kick/kick-hls-player", async () => {
+vi.mock("@/features/playback/components/player/kick/kick-hls-player", async () => {
   const { forwardRef } = await import("react");
   return {
     KickHlsPlayer: forwardRef<HTMLVideoElement, { onQualityLevels?: (levels: []) => void }>(
@@ -70,7 +70,7 @@ vi.mock("@/components/player/kick/kick-hls-player", async () => {
     ),
   };
 });
-vi.mock("@/components/player/twitch/twitch-hls-player", async () => {
+vi.mock("@/features/playback/components/player/twitch/twitch-hls-player", async () => {
   const { forwardRef } = await import("react");
   return {
     TwitchHlsPlayer: forwardRef<
@@ -83,7 +83,7 @@ vi.mock("@/components/player/twitch/twitch-hls-player", async () => {
     }),
   };
 });
-vi.mock("@/components/player/twitch/twitch-vod-hls-player", async () => {
+vi.mock("@/features/playback/components/player/twitch/twitch-vod-hls-player", async () => {
   const { forwardRef } = await import("react");
   return {
     TwitchVodHlsPlayer: forwardRef<HTMLVideoElement, { onQualityLevels?: (levels: []) => void }>(

@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type React from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { useFollowedClips, useFollowedVideos } from "@/hooks/queries/useFollowedContent";
+import { useFollowedClips, useFollowedVideos } from "@/features/discovery/data/queries/useFollowedContent";
 
 import { fixtures, installElectronAPIMock } from "../../test-utils";
 

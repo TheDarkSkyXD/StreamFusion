@@ -5,7 +5,7 @@ vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { usePictureInPicture } from "@/components/player/hooks/use-picture-in-picture";
+import { usePictureInPicture } from "@/features/playback/components/player/hooks/use-picture-in-picture";
 
 function createMockVideo(): HTMLVideoElement & { _emit: (e: string) => void } {
   const listeners: Record<string, Function[]> = {};

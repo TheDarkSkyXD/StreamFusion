@@ -1,4 +1,4 @@
-import type { Platform } from "@/shared/auth-types";
+import type { Platform } from "@shared/auth-types";
 
 type RendererMediaKind = "clip" | "video";
 

@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
-import { ClipDialog } from "@/components/stream/related-content/ClipDialog";
-import type { VideoOrClip } from "@/components/stream/related-content/types";
-import type { Platform } from "@/shared/auth-types";
+import type { UnifiedChannel } from "@shared/platform-types";
+import { ClipDialog } from "@/features/playback/components/related-content/ClipDialog";
+import type { VideoOrClip } from "@/features/playback/components/related-content/types";
+import type { Platform } from "@shared/auth-types";
 import type React from "react";
 import { installElectronAPIMock } from "../../../test-utils";
 
@@ -27,7 +27,7 @@ vi.mock("@/components/ui/loading-spinner", () => ({
   TwitchLoadingSpinner: () => <div data-testid="twitch-loading-spinner">Twitch Loading</div>,
 }));
 
-vi.mock("@/components/player/twitch", () => ({
+vi.mock("@/features/playback/components/player/twitch", () => ({
   TwitchVodPlayer: ({
     streamUrl,
     onReady,
@@ -49,11 +49,11 @@ vi.mock("@/components/player/twitch", () => ({
   ),
 }));
 
-vi.mock("@/components/player/kick", () => ({
+vi.mock("@/features/playback/components/player/kick", () => ({
   KickVodPlayer: () => <div data-testid="kick-vod-player">Kick Player</div>,
 }));
 
-vi.mock("@/hooks/queries/useHistoryQuery", () => ({
+vi.mock("@/features/media-library/data/useHistoryQuery", () => ({
   useHistoryActions: () => ({ addToHistory }),
 }));
 

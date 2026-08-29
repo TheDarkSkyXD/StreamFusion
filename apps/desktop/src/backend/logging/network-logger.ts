@@ -11,7 +11,7 @@ import path from "node:path";
 
 import electronLog from "electron-log/main";
 
-import { formatLine, type Logger, type LogLevel } from "@/backend/logging/logger";
+import { formatLine, type Logger, type LogLevel } from "@backend/logging/logger";
 
 export interface InitNetworkOpts {
   logsDir: string;

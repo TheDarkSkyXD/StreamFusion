@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: {
     error: vi.fn(),
     warn: vi.fn(),
@@ -13,7 +13,7 @@ vi.mock("electron", () => ({
   net: { fetch: vi.fn() },
 }));
 
-import { getTwitchChannelHistory } from "@/backend/api/platforms/twitch/endpoints/chat-endpoints";
+import { getTwitchChannelHistory } from "@backend/api/platforms/twitch/endpoints/chat-endpoints";
 
 describe("getTwitchChannelHistory", () => {
   beforeEach(() => {

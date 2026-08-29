@@ -1,10 +1,10 @@
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import {
   firstValidKickBroadcasterUserId,
   getKickBroadcasterUserIdFromAvatar,
 } from "@/lib/kick-channel-identity";
 import type { LocalFollow } from "../../shared/auth-types";
-import type { UnifiedChannel } from "../api/unified/platform-types";
+import type { UnifiedChannel } from "../../shared/platform-types";
 import { isKickRateLimitError } from "../api/platforms/kick/kick-error-classification";
 import { dbService } from "./database-service";
 import { storageService } from "./storage-service";

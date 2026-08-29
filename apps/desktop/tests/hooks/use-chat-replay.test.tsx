@@ -1,10 +1,10 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { clearChatReplayWindowCache, useChatReplay } from "@/hooks/use-chat-replay";
+import { clearChatReplayWindowCache, useChatReplay } from "@/features/chat/data/use-chat-replay";
 import type {
   ChatReplayIpcWindowRequest,
   ChatReplayIpcWindowResult,
-} from "@/shared/chat-replay-types";
+} from "@shared/chat-replay-types";
 import { useChatStore } from "@/store/chat-store";
 import { installElectronAPIMock } from "../test-utils";
 

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
+import type { UnifiedChannel } from "@shared/platform-types";
 import {
   isExactChannelSearchMatch,
   rankSearchChannels,
-} from "@/search/channel-search-contract";
+} from "@/features/discovery/utils/search/channel-search-contract";
 
 function channel(
   id: string,

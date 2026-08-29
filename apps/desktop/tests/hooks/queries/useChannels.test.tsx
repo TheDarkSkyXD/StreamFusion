@@ -10,8 +10,8 @@ vi.mock("@/providers/query-provider", () => ({
   queryClient: { invalidateQueries: vi.fn() },
 }));
 
-import { useChannelByUsername, useFollowedChannels } from "@/hooks/queries/useChannels";
-import { resetPersistedChannelLruForTests } from "@/hooks/queries/persisted-channel-lru";
+import { useChannelByUsername, useFollowedChannels } from "@/features/discovery/data/queries/useChannels";
+import { resetPersistedChannelLruForTests } from "@/features/discovery/data/queries/persisted-channel-lru";
 import { useFollowStore } from "@/store/follow-store";
 import { installElectronAPIMock, fixtures } from "../../test-utils";
 

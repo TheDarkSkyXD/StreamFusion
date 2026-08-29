@@ -1,7 +1,7 @@
 import vm from "node:vm";
 import { afterEach, describe, it, expect } from "vitest";
 
-import { HEADER_RENDERED_PREDICATE } from "@/backend/auth/auth-window";
+import { HEADER_RENDERED_PREDICATE } from "@backend/auth/auth-window";
 
 function evaluate(predicate: string): boolean {
   return vm.runInThisContext(predicate) as boolean;

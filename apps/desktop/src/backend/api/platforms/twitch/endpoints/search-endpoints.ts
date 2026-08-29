@@ -1,4 +1,4 @@
-import type { UnifiedCategory, UnifiedChannel } from "../../../unified/platform-types";
+import type { UnifiedCategory, UnifiedChannel } from "../../../../../shared/platform-types";
 import type { TwitchRequestor } from "../twitch-requestor";
 import {
   helixResponseSchema,

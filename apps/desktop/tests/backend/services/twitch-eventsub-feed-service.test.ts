@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createTwitchEventSubFeedService } from "@/backend/services/twitch-eventsub-feed-service";
+import { createTwitchEventSubFeedService } from "@backend/services/twitch-eventsub-feed-service";
 
 describe("Twitch EventSub feed service", () => {
   it("owns the channel.moderate subscription lifecycle and emits safe payloads", async () => {

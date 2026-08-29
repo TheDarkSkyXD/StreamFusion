@@ -1,4 +1,4 @@
-import type { StreamRecordingQuality } from "@/shared/stream-recording-types";
+import type { StreamRecordingQuality } from "@shared/stream-recording-types";
 
 function parseAttributeList(value: string): Record<string, string> {
   const attributes: Record<string, string> = {};

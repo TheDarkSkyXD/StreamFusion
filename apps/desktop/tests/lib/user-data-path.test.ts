@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveUserDataPath } from "@/lib/user-data-path";
+import { resolveUserDataPath } from "@backend/utility/user-data-path";
 
 // Guards: an explicit launch profile must reach SQLite unchanged instead of being redirected to the shared development profile
 describe("resolveUserDataPath", () => {

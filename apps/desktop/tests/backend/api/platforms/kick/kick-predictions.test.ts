@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getLatestPrediction } from "@/backend/api/platforms/kick/kick-predictions";
+import { getLatestPrediction } from "@backend/api/platforms/kick/kick-predictions";
 
 // Guards: Kick predictions/latest read shape — `GET /api/v2/channels/{slug}/predictions/latest`,
 // anonymous-first auth posture (no Authorization header on the first call),

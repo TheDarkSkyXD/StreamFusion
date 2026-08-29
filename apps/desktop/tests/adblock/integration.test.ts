@@ -26,9 +26,9 @@ import {
   setAuthHeaders,
   isAdSegment,
   getBlankVideoDataUrl,
-} from "@/components/player/twitch/twitch-adblock-service";
+} from "@/features/playback/components/player/twitch/twitch-adblock-service";
 
-import { createStreamInfo, DEFAULT_ADBLOCK_CONFIG } from "@/shared/adblock-types";
+import { createStreamInfo, DEFAULT_ADBLOCK_CONFIG } from "@shared/adblock-types";
 
 type StatusCallback = NonNullable<Parameters<typeof setStatusChangeCallback>[0]>;
 type ObservedStatus = Parameters<StatusCallback>[0] & { timestamp: number };

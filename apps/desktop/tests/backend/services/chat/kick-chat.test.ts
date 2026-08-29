@@ -7,7 +7,7 @@ vi.mock("pusher-js", () => ({
   default: vi.fn(),
 }));
 
-vi.mock("@/lib/cross-logger", () => ({
+vi.mock("@shared/utils/cross-logger", () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -34,10 +34,10 @@ vi.stubGlobal("window", {
   },
 } as unknown as Window);
 
-import { KickChatService } from "@/backend/services/chat/kick-chat";
+import { KickChatService } from "@backend/services/chat/kick-chat";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
-import type { ChatMessage } from "@/shared/chat-types";
-import type { KickChatMessageEvent } from "@/backend/services/chat/kick-parser";
+import type { ChatMessage } from "@shared/chat-types";
+import type { KickChatMessageEvent } from "@backend/services/chat/kick-parser";
 import Pusher from "pusher-js";
 
 // Guards: Kick chat sends use the page-context v2 transport with the chatroom id only.

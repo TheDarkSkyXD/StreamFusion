@@ -12,8 +12,8 @@
 import type { BrowserWindow, Session } from "electron";
 import { session } from "electron";
 
-import { logger } from "@/backend/logging/logger";
-import { sleep } from "@/lib/sleep";
+import { logger } from "@backend/logging/logger";
+import { sleep } from "@shared/utils/sleep";
 
 import { acquireBrowserWindowSlot } from "./endpoints/channel-endpoints";
 import {

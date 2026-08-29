@@ -1,4 +1,4 @@
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import { isKickRequestCancellation } from "../kick-error-classification";
 import { normalizeKickDate } from "../kick-transformers";
 import { KICK_LEGACY_API_V2_BASE, type PaginationOptions } from "../kick-types";

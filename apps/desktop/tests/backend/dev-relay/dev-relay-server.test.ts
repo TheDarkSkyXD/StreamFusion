@@ -4,7 +4,7 @@ import { WebSocket } from "ws";
 import {
   authorizeDevRelayUpgrade,
   startDevRelayServer,
-} from "@/backend/dev-relay/dev-relay-server";
+} from "@backend/dev-relay/dev-relay-server";
 
 const ORIGIN = "http://localhost:5173";
 const TOKEN = "per-run-secret";

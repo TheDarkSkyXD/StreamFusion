@@ -10,7 +10,7 @@ vi.mock("@tanstack/react-router", () => ({
   useLocation: () => ({ pathname: routerState.pathname }),
 }));
 
-vi.mock("@/hooks/useStreamPlayback", () => ({
+vi.mock("@/features/playback/data/useStreamPlayback", () => ({
   useStreamPlayback: () => ({
     playback: { url: "https://example.test/live.m3u8", format: "hls" },
     isLoading: false,
@@ -20,19 +20,19 @@ vi.mock("@/hooks/useStreamPlayback", () => ({
   }),
 }));
 
-vi.mock("@/hooks/useNetworkStatus", () => ({
+vi.mock("@/features/settings/data/useNetworkStatus", () => ({
   useNetworkStatus: () => ({ recoveryCount: 0 }),
 }));
 
-vi.mock("@/components/player/kick", () => ({
+vi.mock("@/features/playback/components/player/kick", () => ({
   KickLivePlayer: () => <div data-testid="hls-player" />,
 }));
 
-vi.mock("@/components/player/twitch", () => ({
+vi.mock("@/features/playback/components/player/twitch", () => ({
   TwitchLivePlayer: () => <div data-testid="twitch-hls-player" />,
 }));
 
-vi.mock("@/components/player/hooks/use-volume", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-volume", () => ({
   useVolume: () => ({
     isMuted: false,
     handleToggleMute: vi.fn(),
@@ -42,7 +42,7 @@ vi.mock("@/components/player/hooks/use-volume", () => ({
   }),
 }));
 
-import { MiniPlayer } from "@/components/player/mini-player";
+import { MiniPlayer } from "@/features/playback/components/player/mini-player";
 import { usePipStore } from "@/store/pip-store";
 
 // Guards: mini-player overlay and media buttons retain a pointer affordance without changing main-player controls.

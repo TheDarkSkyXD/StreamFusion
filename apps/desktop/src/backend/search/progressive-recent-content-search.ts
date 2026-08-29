@@ -1,5 +1,5 @@
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
-import type { Platform } from "@/shared/auth-types";
+import type { UnifiedChannel } from "@shared/platform-types";
+import type { Platform } from "@shared/auth-types";
 
 export type RecentContentSearchEndReason = "exhausted" | "safety-limit" | "rate-limited";
 export interface RecentContentSearchProfile {

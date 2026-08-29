@@ -1,6 +1,6 @@
 import { BrowserWindow, type Event } from "electron";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 
 const TWITCH_ACTIVATION_ORIGIN = "https://www.twitch.tv";
 const TWITCH_CALLBACK_ORIGIN = "http://localhost:8765";

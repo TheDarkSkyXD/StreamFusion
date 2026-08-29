@@ -20,7 +20,7 @@ vi.mock("../../../src/backend/services/kick-follow-metadata-repair", () => ({
   repairKickFollowSlugs: vi.fn(),
 }));
 
-vi.mock("../../../src/lib/managed-interval", () => ({
+vi.mock("@shared/utils/managed-interval", () => ({
   createManagedInterval: vi.fn(() => ({ stop: stopInterval })),
 }));
 
@@ -118,7 +118,7 @@ describe("kick follow metadata refresh", () => {
     const { storageService } = await import("../../../src/backend/services/storage-service");
     const { repairKickFollowSlugs } =
       await import("../../../src/backend/services/kick-follow-metadata-repair");
-    const { createManagedInterval } = await import("../../../src/lib/managed-interval");
+    const { createManagedInterval } = await import("@shared/utils/managed-interval");
     const { startKickFollowMetadataRefresh, stopKickFollowMetadataRefresh } =
       await import("../../../src/backend/services/kick-follow-metadata-refresh");
 

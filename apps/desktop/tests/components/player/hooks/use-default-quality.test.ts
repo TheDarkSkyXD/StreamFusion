@@ -15,8 +15,8 @@ vi.mock("@/store/auth-store", () => ({
     }),
 }));
 
-import { useDefaultQuality } from "@/components/player/hooks/use-default-quality";
-import type { QualityLevel } from "@/components/player/types";
+import { useDefaultQuality } from "@/features/playback/components/player/hooks/use-default-quality";
+import type { QualityLevel } from "@/features/playback/components/player/types";
 
 function makeQuality(id: string, height: number, opts?: Partial<QualityLevel>): QualityLevel {
   return {

@@ -13,7 +13,7 @@ import {
   shouldStripSetCookieForUrl,
   stripSetCookieFromHeaders,
   THIRD_PARTY_COOKIE_STRIP_URL_PATTERNS,
-} from "@/backend/services/third-party-cookie-stripper";
+} from "@backend/services/third-party-cookie-stripper";
 
 describe("third-party-cookie-stripper", () => {
   describe("shouldStripSetCookieForUrl", () => {

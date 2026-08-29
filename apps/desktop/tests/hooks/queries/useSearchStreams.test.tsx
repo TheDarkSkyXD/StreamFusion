@@ -3,9 +3,9 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useSearchStreams } from "@/hooks/queries/useSearch";
-import type { Platform } from "@/shared/auth-types";
-import type { SearchStreamsRequest } from "@/shared/search-types";
+import { useSearchStreams } from "@/features/discovery/data/queries/useSearch";
+import type { Platform } from "@shared/auth-types";
+import type { SearchStreamsRequest } from "@shared/search-types";
 import { fixtures, installElectronAPIMock } from "../../test-utils";
 
 type BaseApi = ReturnType<typeof installElectronAPIMock>;

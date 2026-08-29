@@ -4,7 +4,7 @@ import {
   pinChatMessage,
   unpinChatMessage,
   updatePinnedChatMessage,
-} from "@/backend/api/platforms/twitch/twitch-gql-pin-mutations";
+} from "@backend/api/platforms/twitch/twitch-gql-pin-mutations";
 
 // Guards: Twitch Helix chat-pin wire shape - pin/unpin must use the official /chat/pins endpoint with broadcaster_id, moderator_id, message_id, and a client id matching the user token.
 // Guards: updating a pinned message duration must PATCH, not PUT. PUT returns 409 when the message is already pinned.

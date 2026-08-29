@@ -24,7 +24,7 @@ const authMock = vi.hoisted(() => ({
 
 vi.mock("@tanstack/react-router", () => routerMock());
 
-vi.mock("@/hooks/useAuth", () => ({
+vi.mock("@/features/auth/data/useAuth", () => ({
   useUserInfo: authMock.useUserInfo,
 }));
 
@@ -36,7 +36,7 @@ vi.mock("@/components/ui/follow-button", () => ({
   FollowButton: () => <button type="button">Follow</button>,
 }));
 
-import { StreamInfo } from "@/components/stream/stream-info";
+import { StreamInfo } from "@/features/playback/components/stream-info";
 
 // Guards: stream page channel heading renders the verified/partner badge larger than compact list badges.
 // Guards: offline channel metadata shows known follower totals to every viewer instead of stale stream title/category data.

@@ -1,10 +1,10 @@
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import type { Platform } from "../../../shared/auth-types";
 import type { DiscoveryResult } from "../../../shared/discovery-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
-import type { UnifiedCategory } from "../../api/unified/platform-types";
+import type { UnifiedCategory } from "../../../shared/platform-types";
 
 interface CategoryPage {
   data: UnifiedCategory[];

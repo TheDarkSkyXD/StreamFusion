@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import { IPC_CHANNELS, type IpcPayloads } from "@/shared/ipc-channels";
+import { IPC_CHANNELS, type IpcPayloads } from "@shared/ipc-channels";
 
 describe("Stream Recording discard IPC contract", () => {
   it("uses a recording-scoped channel carrying only the authoritative session identity", () => {

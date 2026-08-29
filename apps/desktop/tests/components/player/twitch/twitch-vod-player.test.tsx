@@ -2,8 +2,8 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { TwitchVodPlayer } from "@/components/player/twitch/twitch-vod-player";
-import type { QualityLevel } from "@/components/player/types";
+import { TwitchVodPlayer } from "@/features/playback/components/player/twitch/twitch-vod-player";
+import type { QualityLevel } from "@/features/playback/components/player/types";
 
 const hookMocks = vi.hoisted(() => ({
   useResumePlayback: vi.fn(),
@@ -13,15 +13,15 @@ const hookMocks = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock("@/components/player/hooks/use-seek-preview", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-seek-preview", () => ({
   useSeekPreview: hookMocks.useSeekPreview,
 }));
 
-vi.mock("@/components/player/hooks/use-resume-playback", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-resume-playback", () => ({
   useResumePlayback: hookMocks.useResumePlayback,
 }));
 
-vi.mock("@/components/player/twitch/twitch-vod-player-controls", () => ({
+vi.mock("@/features/playback/components/player/twitch/twitch-vod-player-controls", () => ({
   TwitchVodPlayerControls: ({
     currentTime,
     onSeek,
@@ -38,7 +38,7 @@ vi.mock("@/components/player/twitch/twitch-vod-player-controls", () => ({
   ),
 }));
 
-vi.mock("@/components/player/hls-player", () => ({
+vi.mock("@/features/playback/components/player/hls-player", () => ({
   HlsPlayer: React.forwardRef<
     HTMLVideoElement,
     React.VideoHTMLAttributes<HTMLVideoElement> & {

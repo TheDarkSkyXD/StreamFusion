@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 // Mock electron BEFORE importing the handler so its imports resolve to our
 // fake ipcMain (matching the pattern used by app-handlers.test.ts).
@@ -12,20 +12,20 @@ vi.mock("electron", () => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/stream-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/stream-endpoints", () => ({
   clearKickStreamFailureCache: vi.fn(),
 }));
 
 import { ipcMain } from "electron";
 
-import { clearKickStreamFailureCache } from "@/backend/api/platforms/kick/endpoints/stream-endpoints";
+import { clearKickStreamFailureCache } from "@backend/api/platforms/kick/endpoints/stream-endpoints";
 import {
   __resetPlatformHealthForTests,
   recordPlatformFailure,
   recordPlatformSuccess,
   recordStatusPageSignal,
-} from "@/backend/api/unified/platform-health";
-import { registerPlatformHealthHandlers } from "@/backend/ipc/handlers/platform-health-handlers";
+} from "@backend/api/unified/platform-health";
+import { registerPlatformHealthHandlers } from "@backend/ipc/handlers/platform-health-handlers";
 
 type InvokeHandler = (event: unknown, args?: unknown) => unknown;
 

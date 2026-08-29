@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createChatMessageGate, startChatSession } from "@/components/chat/chat-startup";
+import { createChatMessageGate, startChatSession } from "@/features/chat/components/chat/chat-startup";
 
 // Guards: independent emote and badge decoration work must not delay joining live chat
 describe("chat startup", () => {

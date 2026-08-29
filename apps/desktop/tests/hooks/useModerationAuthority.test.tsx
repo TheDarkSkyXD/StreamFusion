@@ -4,11 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   MODERATION_AUTHORITY_FRESH_MS,
   useModerationAuthority,
-} from "@/hooks/useModerationAuthority";
-import { KICK_APP_SCOPES, TWITCH_APP_SCOPES } from "@/shared/auth-types";
+} from "@/features/moderation/data/useModerationAuthority";
+import { KICK_APP_SCOPES, TWITCH_APP_SCOPES } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
-import { useModeratedChannelsStore } from "@/store/moderated-channels-store";
+import { useModeratedChannelsStore } from "@/features/moderation/data/moderated-channels-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 import { installElectronAPIMock } from "../test-utils";
 

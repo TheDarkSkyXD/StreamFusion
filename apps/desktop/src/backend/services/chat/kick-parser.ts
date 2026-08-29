@@ -5,7 +5,7 @@
  * Handles chat messages, events (subs, gifts, raids), and moderation actions.
  */
 
-import { getBundledBadgeUrl } from "../../../assets/platforms/kick/badges";
+import { getBundledBadgeUrl } from "../../../frontend/assets/platforms/kick/badges";
 import type {
   ChatBadge,
   ChatMessage,
@@ -13,8 +13,11 @@ import type {
   ContentFragment,
   MessageDeletion,
   MessageType,
+  SubscriberBadge,
   UserNotice,
 } from "../../../shared/chat-types";
+
+export type { SubscriberBadge } from "../../../shared/chat-types";
 
 // ========== Kick WebSocket Event Types ==========
 
@@ -254,20 +257,8 @@ function getKickSenderAvatarUrl(sender: KickChatMessageEvent["sender"]): string 
 // ========== Badge Mapping ==========
 
 // Badge URLs are now provided by bundled local assets instead of external CDNs
-// See: src/assets/platforms/kick/badges/index.ts
+// See: src/frontend/assets/platforms/kick/badges/index.ts
 // This eliminates dependency on unreliable third-party CDNs like cdn.kicktalk.app
-
-// ========== Subscriber Badge Type ==========
-
-export interface SubscriberBadge {
-  id: number;
-  channel_id: number;
-  months: number;
-  badge_image: {
-    src: string;
-    srcset: string;
-  };
-}
 
 /**
  * Map Kick badges to our unified ChatBadge format

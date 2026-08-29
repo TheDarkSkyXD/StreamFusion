@@ -2,7 +2,7 @@ import type {
   ChatConnectionStatus,
   ChatPlatform,
   RoomStatePatchEvent,
-} from "@/shared/chat-types";
+} from "@shared/chat-types";
 
 type KickChatModule = typeof import("./kick-chat");
 type TwitchChatModule = typeof import("./twitch-chat");

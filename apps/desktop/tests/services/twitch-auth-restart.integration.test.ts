@@ -4,8 +4,8 @@ import { join } from "node:path";
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type AuthToken, TWITCH_APP_SCOPES, type TwitchUser } from "@/shared/auth-types";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { type AuthToken, TWITCH_APP_SCOPES, type TwitchUser } from "@shared/auth-types";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 const harness = {
   storageDirectory: "",
@@ -91,14 +91,14 @@ const fakeUser: TwitchUser = {
 async function loadBackendProcess(encryptionAvailable: boolean) {
   harness.encryptionAvailable = encryptionAvailable;
   vi.resetModules();
-  const { storageService } = await import("@/backend/services/storage-service");
+  const { storageService } = await import("@backend/services/storage-service");
   storageService.initialize();
   return storageService;
 }
 
 async function loadAuthenticatedBackendProcess(encryptionAvailable: boolean) {
   const storageService = await loadBackendProcess(encryptionAvailable);
-  const { twitchAuthService } = await import("@/backend/auth/twitch-auth");
+  const { twitchAuthService } = await import("@backend/auth/twitch-auth");
   return { storageService, twitchAuthService };
 }
 
@@ -164,9 +164,9 @@ beforeAll(() => {
     },
   }));
 
-  vi.doMock("@/lib/cross-logger", () => ({ logger }));
-  vi.doMock("@/backend/logging/logger", () => ({ logger }));
-  vi.doMock("@/backend/auth/oauth-config", () => ({
+  vi.doMock("@shared/utils/cross-logger", () => ({ logger }));
+  vi.doMock("@backend/logging/logger", () => ({ logger }));
+  vi.doMock("@backend/auth/oauth-config", () => ({
     WORKER_BASE_URL: "https://worker.example.test",
     getOAuthConfig: () => ({
       platform: "twitch",
@@ -179,7 +179,7 @@ beforeAll(() => {
       usesPkce: true,
     }),
   }));
-  vi.doMock("@/backend/services/database-service", () => ({
+  vi.doMock("@backend/services/database-service", () => ({
     dbService: {
       clearFollows: vi.fn(),
       clearKeyValue: vi.fn(),
@@ -207,10 +207,10 @@ afterEach(() => {
 afterAll(() => {
   vi.doUnmock("electron");
   vi.doUnmock("electron-store");
-  vi.doUnmock("@/lib/cross-logger");
-  vi.doUnmock("@/backend/logging/logger");
-  vi.doUnmock("@/backend/auth/oauth-config");
-  vi.doUnmock("@/backend/services/database-service");
+  vi.doUnmock("@shared/utils/cross-logger");
+  vi.doUnmock("@backend/logging/logger");
+  vi.doUnmock("@backend/auth/oauth-config");
+  vi.doUnmock("@backend/services/database-service");
 });
 
 // Guards: a legacy unmarked device-code Twitch session survives a backend restart and is immediately migrated to encryption.
@@ -232,7 +232,7 @@ describe("Twitch auth restart persistence", () => {
     processAStorage.saveTwitchUser(fakeUser);
 
     const processBStorage = await loadBackendProcess(true);
-    const { registerAuthHandlers } = await import("@/backend/ipc/handlers/auth-handlers");
+    const { registerAuthHandlers } = await import("@backend/ipc/handlers/auth-handlers");
     registerAuthHandlers({
       isDestroyed: () => false,
       on: vi.fn(),
@@ -255,7 +255,7 @@ describe("Twitch auth restart persistence", () => {
     const processAEnvelope = readPersistedTwitchTokenEnvelope(storePath);
 
     const processBStorage = await loadBackendProcess(false);
-    const { registerAuthHandlers } = await import("@/backend/ipc/handlers/auth-handlers");
+    const { registerAuthHandlers } = await import("@backend/ipc/handlers/auth-handlers");
     registerAuthHandlers({
       isDestroyed: () => false,
       on: vi.fn(),

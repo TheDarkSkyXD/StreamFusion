@@ -44,9 +44,9 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
-import { isHarmlessChromiumNoise } from "@/backend/logging/chromium-noise-filter";
+import { isHarmlessChromiumNoise } from "@backend/logging/chromium-noise-filter";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -62,8 +62,8 @@ type LoggerMock = {
   error: Mock;
 };
 
-type TailerModule = typeof import("@/backend/logging/chromium-log-tailer");
-type InterceptModule = typeof import("@/backend/logging/native-stderr-intercept");
+type TailerModule = typeof import("@backend/logging/chromium-log-tailer");
+type InterceptModule = typeof import("@backend/logging/native-stderr-intercept");
 
 const POLL_MS = 20;
 const WAIT_MS = 120;
@@ -74,8 +74,8 @@ async function pause(ms: number = WAIT_MS): Promise<void> {
 
 async function freshTailer(): Promise<{ mod: TailerModule; logger: LoggerMock }> {
   vi.resetModules();
-  const mod = await import("@/backend/logging/chromium-log-tailer");
-  const { logger } = (await import("@/backend/logging/logger")) as unknown as {
+  const mod = await import("@backend/logging/chromium-log-tailer");
+  const { logger } = (await import("@backend/logging/logger")) as unknown as {
     logger: LoggerMock;
   };
   logger.debug.mockReset();
@@ -87,8 +87,8 @@ async function freshTailer(): Promise<{ mod: TailerModule; logger: LoggerMock }>
 
 async function freshIntercept(): Promise<{ mod: InterceptModule; logger: LoggerMock }> {
   vi.resetModules();
-  const mod = await import("@/backend/logging/native-stderr-intercept");
-  const { logger } = (await import("@/backend/logging/logger")) as unknown as {
+  const mod = await import("@backend/logging/native-stderr-intercept");
+  const { logger } = (await import("@backend/logging/logger")) as unknown as {
     logger: LoggerMock;
   };
   logger.debug.mockReset();

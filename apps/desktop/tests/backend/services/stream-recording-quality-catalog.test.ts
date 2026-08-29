@@ -4,7 +4,7 @@ import {
   fetchStreamRecordingQualityCatalog,
   parseStreamRecordingQualityCatalog,
   selectStreamRecordingQuality,
-} from "@/backend/services/stream-recording-quality-catalog";
+} from "@backend/services/stream-recording-quality-catalog";
 
 // Guards: recording quality choices come from the HLS master playlist without audio-only renditions.
 // Guards: reconnect fallback is deterministic and continues to target the user's original quality.

@@ -1,14 +1,14 @@
 import type {
   getTwitchEventSubClient,
   TwitchEventSubClient,
-} from "@/backend/api/platforms/twitch/twitch-eventsub-client";
+} from "@backend/api/platforms/twitch/twitch-eventsub-client";
 import type {
   NotificationPayload,
   StreamOfflineEvent,
   StreamOnlineEvent,
   TwitchEventSubConnectionState,
-} from "@/backend/api/platforms/twitch/twitch-eventsub-types";
-import type { AuthToken, LocalFollow, TwitchUser } from "@/shared/auth-types";
+} from "@backend/api/platforms/twitch/twitch-eventsub-types";
+import type { AuthToken, LocalFollow, TwitchUser } from "@shared/auth-types";
 
 import type { LiveNotificationObservation } from "./live-notification-service";
 

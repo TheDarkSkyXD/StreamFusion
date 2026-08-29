@@ -2,7 +2,7 @@ import { act } from "@testing-library/react";
 import { type ReactNode, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PlayerError } from "@/components/player/types";
+import type { PlayerError } from "@/features/playback/components/player/types";
 import {
   fixtures,
   installElectronAPIMock,
@@ -24,11 +24,11 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
 }));
 
-vi.mock("@/hooks/queries/useChannels", () => ({
+vi.mock("@/features/discovery/data/queries/useChannels", () => ({
   useChannelByUsername: vi.fn(),
 }));
 
-vi.mock("@/hooks/queries/useStreams", () => ({
+vi.mock("@/features/discovery/data/queries/useStreams", () => ({
   useStreamByChannel: vi.fn(),
   useFollowedStreams: vi.fn(),
   useTopStreams: vi.fn(),
@@ -66,7 +66,7 @@ const playerMocks = vi.hoisted(() => ({
 }));
 const mockReloadPlayback = vi.fn();
 
-vi.mock("@/hooks/useStreamPlayback", () => ({
+vi.mock("@/features/playback/data/useStreamPlayback", () => ({
   useStreamPlayback: (platform: string, identifier: string) => {
     mockUseStreamPlayback(platform, identifier);
     return {
@@ -108,7 +108,7 @@ vi.mock("@/store/pip-store", () => ({
   }),
 }));
 
-vi.mock("@/components/player/twitch", () => ({
+vi.mock("@/features/playback/components/player/twitch", () => ({
   TwitchLivePlayer: (props: {
     onError?: (error: PlayerError) => boolean | void;
     onCleanPresentedFrame?: () => void;
@@ -126,21 +126,21 @@ vi.mock("@/components/player/twitch", () => ({
   },
 }));
 
-vi.mock("@/components/player/kick", () => ({
+vi.mock("@/features/playback/components/player/kick", () => ({
   KickLivePlayer: (props: { onError?: (error: PlayerError) => void; streamUrl?: string }) => {
     playerMocks.kickLivePlayerProps = props;
     return <div data-testid="kick-live-player">player</div>;
   },
 }));
 
-vi.mock("@/components/chat", () => ({
+vi.mock("@/features/chat/components/chat", () => ({
   ChatPanel: (props: Record<string, unknown>) => {
     playerMocks.chatPanelProps = props;
     return <div data-testid="chat-panel">chat</div>;
   },
 }));
 
-vi.mock("@/components/stream/related-content", () => ({
+vi.mock("@/features/playback/components/related-content", () => ({
   RelatedContent: ({
     channelData,
     streamStartedAt,
@@ -158,7 +158,7 @@ vi.mock("@/components/stream/related-content", () => ({
   ),
 }));
 
-vi.mock("@/components/stream/stream-info", () => ({
+vi.mock("@/features/playback/components/stream-info", () => ({
   StreamInfo: ({
     channel,
     stream,
@@ -182,11 +182,11 @@ vi.mock("@/components/stream/stream-info", () => ({
   ),
 }));
 
-import { useChannelByUsername } from "@/hooks/queries/useChannels";
-import { useStreamByChannel } from "@/hooks/queries/useStreams";
-import { PersistentPlayerShell } from "@/components/player/persistent-player-shell";
+import { useChannelByUsername } from "@/features/discovery/data/queries/useChannels";
+import { useStreamByChannel } from "@/features/discovery/data/queries/useStreams";
+import { PersistentPlayerShell } from "@/features/playback/components/player/persistent-player-shell";
 import { preloadChatPanel, StreamPage } from "@/pages/Stream";
-import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_CHAT_PREFERENCES } from "@/shared/auth-types";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_CHAT_PREFERENCES } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 
 const useChannelMock = vi.mocked(useChannelByUsername);
@@ -229,7 +229,7 @@ function setChatWidthPx(chatWidthPx: 280 | 340 | 420) {
 }
 
 function routeChannel(
-  overrides: Partial<import("@/backend/api/unified/platform-types").UnifiedChannel> = {}
+  overrides: Partial<import("@shared/platform-types").UnifiedChannel> = {}
 ) {
   return fixtures.channel({
     platform: mockRouteParams.params.platform as "twitch" | "kick",

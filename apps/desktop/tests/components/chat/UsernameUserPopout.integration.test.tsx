@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { renderWithProviders as render } from "../../test-utils";
 
-vi.mock("@/components/chat/mod/UserPopout/useUserProfile", () => ({
+vi.mock("@/features/chat/components/chat/mod/UserPopout/useUserProfile", () => ({
   useUserProfile: vi.fn(() => ({
     profile: null,
     loading: false,
@@ -19,12 +19,12 @@ vi.mock("@/components/chat/mod/UserPopout/useUserProfile", () => ({
   })),
 }));
 
-import { ChatMessage } from "@/components/chat/ChatMessage";
-import { UserPopoutProvider } from "@/components/chat/mod/UserPopout/UserPopoutProvider";
-import { useUserProfile } from "@/components/chat/mod/UserPopout/useUserProfile";
-import { Username } from "@/components/chat/Username";
+import { ChatMessage } from "@/features/chat/components/chat/ChatMessage";
+import { UserPopoutProvider } from "@/features/chat/components/chat/mod/UserPopout/UserPopoutProvider";
+import { useUserProfile } from "@/features/chat/components/chat/mod/UserPopout/useUserProfile";
+import { Username } from "@/features/chat/components/chat/Username";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { ChatMessage as ChatMessageType } from "@/shared/chat-types";
+import type { ChatMessage as ChatMessageType } from "@shared/chat-types";
 
 // Guards: chat-known Kick display name and avatar survive the username-click boundary into the dialog.
 describe("Username user-popout wiring", () => {

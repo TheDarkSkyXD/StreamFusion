@@ -5,7 +5,7 @@ import {
   generateAdBlockDeviceId,
   getAdBlockDeviceId,
   randomizeAdBlockDeviceId,
-} from "@/components/player/twitch/twitch-adblock-device-id";
+} from "@/features/playback/components/player/twitch/twitch-adblock-device-id";
 
 describe("twitch-adblock-device-id", () => {
   beforeEach(() => {

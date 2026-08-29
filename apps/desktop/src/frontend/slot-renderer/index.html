@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>StreamFusion slot</title>
+    <!--
+      Slot WebContentsView page (slice 05 of renderer-OOM PRD #51).
+
+      Renders ONLY a <video> element. The slot is per-stream + per-process
+      for crash isolation; this page deliberately has no chat, sidebar, or
+      app chrome — that all lives in the host renderer and is overlaid on
+      top of the WCV's rect from main.
+
+      The slot's narrow preload (src/backend/preload/slot.ts → bundled to
+      preload/slot.js) exposes `window.slotAPI` for IPC.
+    -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+      }
+      video {
+        width: 100%;
+        height: 100%;
+        background: #000;
+        object-fit: contain;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <video id="player" playsinline autoplay muted></video>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -6,11 +6,11 @@ const toast = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({ toast }));
 
 import { FollowButton } from "@/components/ui/follow-button";
-import { CHANNEL_KEYS } from "@/hooks/queries/useChannels";
-import { FOLLOWED_CONTENT_KEYS } from "@/hooks/queries/useFollowedContent";
-import { STREAM_KEYS } from "@/hooks/queries/useStreams";
+import { CHANNEL_KEYS } from "@/features/discovery/data/queries/useChannels";
+import { FOLLOWED_CONTENT_KEYS } from "@/features/discovery/data/queries/useFollowedContent";
+import { STREAM_KEYS } from "@/features/discovery/data/queries/useStreams";
 import { queryClient } from "@/providers/query-provider";
-import type { KickAccountFollowWriteChangedEvent } from "@/shared/auth-types";
+import type { KickAccountFollowWriteChangedEvent } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
 

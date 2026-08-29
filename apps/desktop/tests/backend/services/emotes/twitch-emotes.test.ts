@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const executeMock = vi.fn();
 
-import { twitchEmoteProvider } from "@/backend/services/emotes/twitch-emotes";
+import { twitchEmoteProvider } from "@backend/services/emotes/twitch-emotes";
 
 function mockJsonOnce(value: unknown) {
   executeMock.mockResolvedValueOnce({ ok: true, data: value });

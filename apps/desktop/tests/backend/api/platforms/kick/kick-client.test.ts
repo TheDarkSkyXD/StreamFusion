@@ -27,16 +27,16 @@ Module.prototype.require = function (id: string) {
   return _origRequire.call(this, id);
 };
 
-vi.mock("@/backend/api/platforms/kick/kick-network-health", () => ({
+vi.mock("@backend/api/platforms/kick/kick-network-health", () => ({
   acquireKickRequestSlot: vi.fn(async () => () => {}),
 }));
 
-vi.mock("@/backend/api/unified/platform-health", () => ({
+vi.mock("@backend/api/unified/platform-health", () => ({
   isPlatformHealthy: vi.fn(() => true),
   recordPlatformLocalNetError: vi.fn(),
 }));
 
-vi.mock("@/backend/auth/kick-auth", () => ({
+vi.mock("@backend/auth/kick-auth", () => ({
   kickAuthService: {
     isAuthenticated: vi.fn(() => true),
     ensureValidToken: vi.fn().mockResolvedValue(undefined),
@@ -45,7 +45,7 @@ vi.mock("@/backend/auth/kick-auth", () => ({
   },
 }));
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: {
     getKickApiRateLimitState: vi.fn(() =>
       rateLimitStore.blockedUntil === undefined
@@ -61,27 +61,27 @@ vi.mock("@/backend/services/storage-service", () => ({
   },
 }));
 
-vi.mock("@/lib/sleep", () => ({
+vi.mock("@shared/utils/sleep", () => ({
   sleep: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("@/backend/services/third-party-cookie-stripper", () => ({
+vi.mock("@backend/services/third-party-cookie-stripper", () => ({
   registerThirdPartyCookieStripper: vi.fn(),
   purgeStoredThirdPartyCookies: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/backend/api/unified/registry", () => ({
+vi.mock("@backend/api/unified/registry", () => ({
   clients: { register: vi.fn() },
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/category-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/category-endpoints", () => ({
   getTopCategories: vi.fn(),
   searchCategories: vi.fn(),
   getCategoryById: vi.fn(),
   getAllCategories: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
   getChannel: vi.fn(),
   getChannelsBySlugs: vi.fn(),
   getChannelsByBroadcasterIds: vi.fn(),
@@ -90,24 +90,24 @@ vi.mock("@/backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
   mapKickChatroomToSettings: vi.fn(),
 }));
 
-vi.mock("@/lib/managed-interval", () => ({
+vi.mock("@shared/utils/managed-interval", () => ({
   createManagedInterval: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/clip-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/clip-endpoints", () => ({
   getClipsByChannelSlug: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/follow-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/follow-endpoints", () => ({
   getAllFollowedChannels: vi.fn().mockResolvedValue({ status: "ok", channels: [] }),
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/search-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/search-endpoints", () => ({
   searchChannels: vi.fn(),
   search: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/stream-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/stream-endpoints", () => ({
   getStreamBySlug: vi.fn(),
   getStreamsByBroadcasterIds: vi.fn(),
   getPublicStreamBySlug: vi.fn(),
@@ -118,21 +118,21 @@ vi.mock("@/backend/api/platforms/kick/endpoints/stream-endpoints", () => ({
   rememberCategorySlug: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/user-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/user-endpoints", () => ({
   getUser: vi.fn(),
   getUsersById: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/video-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/video-endpoints", () => ({
   getVideosByChannelSlug: vi.fn(),
 }));
 
 import {
   isPlatformHealthy,
   recordPlatformLocalNetError,
-} from "@/backend/api/unified/platform-health";
-import { kickAuthService } from "@/backend/auth/kick-auth";
-import { logger } from "@/backend/logging/logger";
+} from "@backend/api/unified/platform-health";
+import { kickAuthService } from "@backend/auth/kick-auth";
+import { logger } from "@backend/logging/logger";
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -145,7 +145,7 @@ function jsonResponse(body: unknown, status = 200, headers: Record<string, strin
 // Guards: authentication refresh is attempted only once and updates the retried request.
 // Guards: canceled Electron requests do not create outage signals or error-log noise.
 describe("KickClient", () => {
-  let kickClient: typeof import("@/backend/api/platforms/kick/kick-client").kickClient;
+  let kickClient: typeof import("@backend/api/platforms/kick/kick-client").kickClient;
 
   beforeEach(async () => {
     vi.resetModules();
@@ -158,7 +158,7 @@ describe("KickClient", () => {
     vi.mocked(kickAuthService.ensureValidToken).mockResolvedValue(true);
     vi.mocked(kickAuthService.refreshToken).mockResolvedValue(null);
     vi.mocked(isPlatformHealthy).mockReturnValue(true);
-    ({ kickClient } = await import("@/backend/api/platforms/kick/kick-client"));
+    ({ kickClient } = await import("@backend/api/platforms/kick/kick-client"));
   });
 
   afterEach(() => {
@@ -220,7 +220,7 @@ describe("KickClient", () => {
       await expect(kickClient.request("/first-launch")).rejects.toMatchObject({ status: 429 });
 
       vi.resetModules();
-      const restartedClient = (await import("@/backend/api/platforms/kick/kick-client")).kickClient;
+      const restartedClient = (await import("@backend/api/platforms/kick/kick-client")).kickClient;
 
       await expect(restartedClient.request("/second-launch")).rejects.toMatchObject({
         status: 429,
@@ -469,7 +469,7 @@ describe("KickClient", () => {
 
   describe("delegation methods", () => {
     it("getUser delegates to UserEndpoints", async () => {
-      const { getUser } = await import("@/backend/api/platforms/kick/endpoints/user-endpoints");
+      const { getUser } = await import("@backend/api/platforms/kick/endpoints/user-endpoints");
       vi.mocked(getUser).mockResolvedValueOnce({
         id: 1,
         username: "test",
@@ -492,7 +492,7 @@ describe("KickClient", () => {
 
     it("getChannel delegates to ChannelEndpoints", async () => {
       const { getChannel } =
-        await import("@/backend/api/platforms/kick/endpoints/channel-endpoints");
+        await import("@backend/api/platforms/kick/endpoints/channel-endpoints");
       vi.mocked(getChannel).mockResolvedValueOnce({
         id: "100",
         platform: "kick",
@@ -511,7 +511,7 @@ describe("KickClient", () => {
 
     it("getChannelsByBroadcasterIds delegates to ChannelEndpoints", async () => {
       const { getChannelsByBroadcasterIds } =
-        await import("@/backend/api/platforms/kick/endpoints/channel-endpoints");
+        await import("@backend/api/platforms/kick/endpoints/channel-endpoints");
       vi.mocked(getChannelsByBroadcasterIds).mockResolvedValueOnce([
         {
           id: "123",
@@ -533,7 +533,7 @@ describe("KickClient", () => {
 
     it("getTopStreams delegates to StreamEndpoints and returns PageResult", async () => {
       const { getTopStreams } =
-        await import("@/backend/api/platforms/kick/endpoints/stream-endpoints");
+        await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
       vi.mocked(getTopStreams).mockResolvedValueOnce({
         data: [
           {
@@ -563,7 +563,7 @@ describe("KickClient", () => {
 
     it("getFollowedChannels returns channels from FollowEndpoints", async () => {
       const { getAllFollowedChannels } =
-        await import("@/backend/api/platforms/kick/endpoints/follow-endpoints");
+        await import("@backend/api/platforms/kick/endpoints/follow-endpoints");
       vi.mocked(getAllFollowedChannels).mockResolvedValueOnce({
         status: "ok",
         canPruneAbsent: true,
@@ -588,7 +588,7 @@ describe("KickClient", () => {
 
     it("getFollowedChannels returns empty data on error", async () => {
       const { getAllFollowedChannels } =
-        await import("@/backend/api/platforms/kick/endpoints/follow-endpoints");
+        await import("@backend/api/platforms/kick/endpoints/follow-endpoints");
       vi.mocked(getAllFollowedChannels).mockResolvedValueOnce({
         status: "error",
         reason: "network-error",

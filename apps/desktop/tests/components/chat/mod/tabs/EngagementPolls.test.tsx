@@ -13,7 +13,7 @@ vi.mock("sonner", () => ({
   }),
 }));
 
-vi.mock("@/backend/services/mod-log-writer", () => ({
+vi.mock("@backend/services/mod-log-writer", () => ({
   modLogWriter: {
     record: vi.fn(),
   },
@@ -21,7 +21,7 @@ vi.mock("@/backend/services/mod-log-writer", () => ({
 
 const executeMock = vi.fn();
 
-import { EngagementPolls } from "@/components/chat/mod/tabs/EngagementPolls";
+import { EngagementPolls } from "@/features/chat/components/chat/mod/tabs/EngagementPolls";
 
 const CHANNEL_ID = "111";
 

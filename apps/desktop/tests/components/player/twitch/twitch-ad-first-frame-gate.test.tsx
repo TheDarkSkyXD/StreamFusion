@@ -67,12 +67,12 @@ import {
   initAdBlockService,
   processMasterPlaylist,
   processMediaPlaylist,
-} from "@/components/player/twitch/twitch-adblock-service";
+} from "@/features/playback/components/player/twitch/twitch-adblock-service";
 import {
   createAdBlockFragmentLoader,
   createAdBlockPlaylistLoader,
-} from "@/components/player/twitch/twitch-adblock-loader";
-import { TwitchHlsPlayer } from "@/components/player/twitch/twitch-hls-player";
+} from "@/features/playback/components/player/twitch/twitch-adblock-loader";
+import { TwitchHlsPlayer } from "@/features/playback/components/player/twitch/twitch-hls-player";
 
 const CHANNEL = "firstframechannel";
 const MEDIA_URL = "https://video-weaver.redacted.ttvnw.net/v1/playlist/1080p60.m3u8?token=redacted";

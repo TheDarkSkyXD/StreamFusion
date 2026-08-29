@@ -1,38 +1,38 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
 }));
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: {
     hasToken: vi.fn(),
     getToken: vi.fn(),
   },
 }));
 
-vi.mock("@/backend/auth", () => ({
+vi.mock("@backend/auth", () => ({
   tokenExchangeService: {
     getTokenStatus: vi.fn(),
   },
 }));
 
-vi.mock("@/backend/ipc/sender-origin", () => ({
+vi.mock("@backend/ipc/sender-origin", () => ({
   isAllowedSender: vi.fn(),
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
 }));
 
 import { ipcMain } from "electron";
 
-import { tokenExchangeService } from "@/backend/auth";
-import { registerTokenStatusHandlers } from "@/backend/ipc/handlers/token-status-handlers";
-import { isAllowedSender } from "@/backend/ipc/sender-origin";
-import { storageService } from "@/backend/services/storage-service";
+import { tokenExchangeService } from "@backend/auth";
+import { registerTokenStatusHandlers } from "@backend/ipc/handlers/token-status-handlers";
+import { isAllowedSender } from "@backend/ipc/sender-origin";
+import { storageService } from "@backend/services/storage-service";
 
 type Handler = (event: unknown, args: unknown) => Promise<unknown>;
 

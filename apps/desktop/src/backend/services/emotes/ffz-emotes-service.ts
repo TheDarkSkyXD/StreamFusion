@@ -5,14 +5,14 @@
 
 import { net } from "electron";
 
-import type { FFZBadgeCatalog, FFZRoomResponse } from "@/shared/ipc-channels";
-import { runBoundedJsonRead } from "@/backend/reliability/bounded-json-read";
-import type { FfzRoomRequest } from "@/ipc-contracts/emote-contracts";
+import type { FFZBadgeCatalog, FFZRoomResponse } from "@shared/ipc-channels";
+import { runBoundedJsonRead } from "@backend/reliability/bounded-json-read";
+import type { FfzRoomRequest } from "@shared/ipc-contracts/emote-contracts";
 import {
   ffzBadgeCatalogSchema,
   ffzGlobalSchema,
   ffzRoomSchema,
-} from "@/ipc-contracts/third-party-emote-schemas";
+} from "@shared/ipc-contracts/third-party-emote-schemas";
 
 const FFZ_V1_BASE = "https://api.frankerfacez.com/v1";
 

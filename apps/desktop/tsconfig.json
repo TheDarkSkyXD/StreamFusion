@@ -30,7 +30,7 @@
         "./src/shared/*"
       ],
       "@/*": [
-        "./src/*"
+        "./src/frontend/*"
       ]
     }
   },

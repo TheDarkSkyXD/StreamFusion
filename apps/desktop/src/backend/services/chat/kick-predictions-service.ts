@@ -35,7 +35,7 @@
 import type Pusher from "pusher-js";
 // Cross-logger: imported by KickChat (renderer) — avoids dragging
 // electron-log into the renderer bundle.
-import { logger } from "@/lib/cross-logger";
+import { logger } from "@shared/utils/cross-logger";
 import type { ChatConnectionStatus, UnifiedPrediction } from "../../../shared/chat-types";
 import { getLatestPrediction } from "../../api/platforms/kick/kick-predictions";
 import type { KickPredictionEventPayload } from "../../api/platforms/kick/kick-types";

@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-send-window", () => ({
+vi.mock("@backend/api/platforms/kick/kick-send-window", () => ({
   banKickChatUser: vi.fn(),
   ensureSendWindowReady: vi.fn(),
   getKickChannelViewerRole: vi.fn(),
@@ -34,13 +34,13 @@ import {
   sendKickChatMessage,
   timeoutKickChatUser,
   unbanKickChatUser,
-} from "@/backend/api/platforms/kick/kick-send-window";
+} from "@backend/api/platforms/kick/kick-send-window";
 import type {
   KickChannelViewerRoleResult,
   KickSendResult,
   KickWebApiMutationResult,
-} from "@/backend/api/platforms/kick/kick-send-window";
-import { registerKickChatHandlers } from "@/backend/ipc/handlers/kick-chat-handlers";
+} from "@backend/api/platforms/kick/kick-send-window";
+import { registerKickChatHandlers } from "@backend/ipc/handlers/kick-chat-handlers";
 
 type Handler = (event: unknown, payload?: unknown) => Promise<unknown>;
 

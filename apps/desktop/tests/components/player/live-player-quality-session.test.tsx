@@ -2,12 +2,12 @@ import { act, render, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { KickLivePlayer } from "@/components/player/kick/kick-live-player";
+import { KickLivePlayer } from "@/features/playback/components/player/kick/kick-live-player";
 import {
   PersistentPlayerShell,
   useRegisterDockedPlayerConfig,
-} from "@/components/player/persistent-player-shell";
-import type { QualityLevel } from "@/components/player/types";
+} from "@/features/playback/components/player/persistent-player-shell";
+import type { QualityLevel } from "@/features/playback/components/player/types";
 
 const harness = vi.hoisted(() => ({
   hlsProps: null as null | {
@@ -28,19 +28,19 @@ vi.mock("@/store/auth-store", () => ({
 }));
 vi.mock("@/components/dev/use-render-count", () => ({ useRenderCount: vi.fn() }));
 vi.mock("@/components/ui/loading-spinner", () => ({ KickLoadingSpinner: () => null }));
-vi.mock("@/components/player/caption-overlay", () => ({ CaptionOverlay: () => null }));
-vi.mock("@/components/player/hooks/use-fullscreen", () => ({
+vi.mock("@/features/playback/components/player/caption-overlay", () => ({ CaptionOverlay: () => null }));
+vi.mock("@/features/playback/components/player/hooks/use-fullscreen", () => ({
   useFullscreen: () => ({ isFullscreen: false, toggleFullscreen: vi.fn() }),
 }));
-vi.mock("@/components/player/hooks/use-picture-in-picture", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-picture-in-picture", () => ({
   usePictureInPicture: () => ({ isPip: false, togglePip: vi.fn() }),
 }));
-vi.mock("@/components/player/hooks/use-player-keyboard", () => ({ usePlayerKeyboard: vi.fn() }));
-vi.mock("@/components/player/hooks/use-player-network-recovery", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-player-keyboard", () => ({ usePlayerKeyboard: vi.fn() }));
+vi.mock("@/features/playback/components/player/hooks/use-player-network-recovery", () => ({
   usePlayerNetworkRecovery: vi.fn(),
 }));
-vi.mock("@/components/player/hooks/use-resume-playback", () => ({ useResumePlayback: vi.fn() }));
-vi.mock("@/components/player/hooks/use-timed-text", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-resume-playback", () => ({ useResumePlayback: vi.fn() }));
+vi.mock("@/features/playback/components/player/hooks/use-timed-text", () => ({
   useTimedText: () => ({
     activeCues: [],
     selectedTrackKey: null,
@@ -48,10 +48,10 @@ vi.mock("@/components/player/hooks/use-timed-text", () => ({
     tracks: [],
   }),
 }));
-vi.mock("@/components/player/hooks/use-local-live-captions", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-local-live-captions", () => ({
   useLocalLiveCaptions: () => ({ activeCues: [], selected: false, stop: vi.fn() }),
 }));
-vi.mock("@/components/player/hooks/use-volume", () => ({
+vi.mock("@/features/playback/components/player/hooks/use-volume", () => ({
   useVolume: () => ({
     volume: 50,
     isMuted: false,
@@ -60,14 +60,14 @@ vi.mock("@/components/player/hooks/use-volume", () => ({
     syncFromVideoElement: vi.fn(),
   }),
 }));
-vi.mock("@/components/player/kick/uptime-readout", () => ({ UptimeReadout: () => null }));
-vi.mock("@/components/player/kick/kick-live-player-controls", () => ({
+vi.mock("@/features/playback/components/player/kick/uptime-readout", () => ({ UptimeReadout: () => null }));
+vi.mock("@/features/playback/components/player/kick/kick-live-player-controls", () => ({
   KickLivePlayerControls: (props: typeof harness.controlProps) => {
     harness.controlProps = props;
     return null;
   },
 }));
-vi.mock("@/components/player/kick/kick-hls-player", async () => {
+vi.mock("@/features/playback/components/player/kick/kick-hls-player", async () => {
   const { forwardRef } = await import("react");
   return {
     KickHlsPlayer: forwardRef<HTMLVideoElement, NonNullable<typeof harness.hlsProps>>(

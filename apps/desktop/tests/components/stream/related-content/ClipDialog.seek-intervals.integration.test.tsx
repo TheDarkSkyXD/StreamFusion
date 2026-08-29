@@ -4,14 +4,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import { renderWithProviders, routerMock } from "../../../test-utils";
 
-import { ClipDialog } from "@/components/stream/related-content/ClipDialog";
-import type { VideoOrClip } from "@/components/stream/related-content/types";
+import { ClipDialog } from "@/features/playback/components/related-content/ClipDialog";
+import type { VideoOrClip } from "@/features/playback/components/related-content/types";
 import { useHistoryStore } from "@/store/history-store";
 import { useSeekIntervalStore } from "@/store/seek-interval-store";
 
 vi.mock("@tanstack/react-router", () => routerMock());
 
-vi.mock("@/components/player/hls-player", () => ({
+vi.mock("@/features/playback/components/player/hls-player", () => ({
   HlsPlayer: React.forwardRef<
     HTMLVideoElement,
     React.VideoHTMLAttributes<HTMLVideoElement> & {

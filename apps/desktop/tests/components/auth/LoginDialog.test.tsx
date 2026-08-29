@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 const twitchLogin = vi.fn(async () => undefined);
 const kickLogin = vi.fn(async () => undefined);
 
-vi.mock('@/hooks/useAuth', () => ({
+vi.mock('@/features/auth/data/useAuth', () => ({
   useTwitchAuth: () => ({ login: twitchLogin, loading: false }),
   useKickAuth: () => ({ login: kickLogin, loading: false }),
 }));
@@ -13,7 +13,7 @@ vi.mock('@/assets/platforms', () => ({
   getPlatformColor: (p: string) => (p === 'twitch' ? '#9146FF' : '#53FC18'),
 }));
 
-import { LoginDialog } from '@/components/auth/LoginDialog';
+import { LoginDialog } from '@/features/auth/components/auth/LoginDialog';
 
 // Guards: success state — Twitch login resolves and the dialog closes via onOpenChange(false), so the user doesn't see the dialog hang after a successful round-trip
 // Guards: error state — when twitch.login() rejects (OAuth window closed / token-exchange fail / network down), onOpenChange MUST NOT fire so the dialog stays open and the user can retry without re-opening it

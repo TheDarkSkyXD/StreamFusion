@@ -3,7 +3,7 @@ import { createReadStream } from "node:fs";
 import { mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, normalize, relative, sep } from "node:path";
 
-import type { LocalCaptionModelState } from "@/shared/local-caption-types";
+import type { LocalCaptionModelState } from "@shared/local-caption-types";
 
 import { ENGLISH_ZIPFORMER_20M_MODEL, type LocalCaptionModelPack } from "./caption-model-catalog";
 

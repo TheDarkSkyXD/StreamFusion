@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { KickLiveNotificationSource } from "@/backend/services/kick-live-notification-source";
-import type { UnifiedStream } from "@/backend/api/unified/platform-types";
-import type { LocalFollow } from "@/shared/auth-types";
+import { KickLiveNotificationSource } from "@backend/services/kick-live-notification-source";
+import type { UnifiedStream } from "@shared/platform-types";
+import type { LocalFollow } from "@shared/auth-types";
 
 function follow(overrides: Partial<LocalFollow> = {}): LocalFollow {
   return {

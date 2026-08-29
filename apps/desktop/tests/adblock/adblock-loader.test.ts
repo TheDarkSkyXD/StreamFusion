@@ -31,7 +31,7 @@ vi.mock('hls.js', () => {
 });
 
 // Mock the ad-block service
-vi.mock('@/components/player/twitch/twitch-adblock-service', () => ({
+vi.mock('@/features/playback/components/player/twitch/twitch-adblock-service', () => ({
   processMasterPlaylist: vi.fn().mockResolvedValue('#EXTM3U\n...'),
   processMediaPlaylist: vi.fn().mockResolvedValue('#EXTM3U\n...'),
   isAdSegment: vi.fn().mockReturnValue(false),
@@ -43,7 +43,7 @@ import {
   createAdBlockPlaylistLoader,
   createAdBlockFragmentLoader,
   getAdBlockHlsConfig,
-} from '@/components/player/twitch/twitch-adblock-loader';
+} from '@/features/playback/components/player/twitch/twitch-adblock-loader';
 
 describe('twitch-adblock-loader', () => {
   beforeEach(() => {

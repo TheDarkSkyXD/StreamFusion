@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseWindowsCpuSpeedLimit } from "@/backend/diagnostics/cpu-speed-limit-source";
+import { parseWindowsCpuSpeedLimit } from "@backend/diagnostics/cpu-speed-limit-source";
 
 const POWERCFG_OUTPUT = `
 Power Scheme GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced)

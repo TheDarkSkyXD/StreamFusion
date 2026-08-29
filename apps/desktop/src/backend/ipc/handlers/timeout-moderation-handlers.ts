@@ -3,13 +3,13 @@ import { app, type IpcMainInvokeEvent } from "electron";
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { z } from "zod";
 
-import { createKickTimeoutAuthorityAdapter } from "@/backend/api/platforms/kick/kick-timeout-authority-adapter";
-import { createTwitchTimeoutAuthorityAdapter } from "@/backend/api/platforms/twitch/twitch-timeout-authority-adapter";
-import { logger } from "@/backend/logging/logger";
-import { dbService } from "@/backend/services/database-service";
-import { createTimeoutModerationService } from "@/backend/services/moderation/timeout-moderation-service";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
-import type { TimeoutSnapshotResult, TimeoutSubmitResult } from "@/shared/timeout-moderation-types";
+import { createKickTimeoutAuthorityAdapter } from "@backend/api/platforms/kick/kick-timeout-authority-adapter";
+import { createTwitchTimeoutAuthorityAdapter } from "@backend/api/platforms/twitch/twitch-timeout-authority-adapter";
+import { logger } from "@backend/logging/logger";
+import { dbService } from "@backend/services/database-service";
+import { createTimeoutModerationService } from "@backend/services/moderation/timeout-moderation-service";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
+import type { TimeoutSnapshotResult, TimeoutSubmitResult } from "@shared/timeout-moderation-types";
 
 import { isAllowedSender } from "../sender-origin";
 

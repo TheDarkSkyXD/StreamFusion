@@ -9,7 +9,7 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigate,
 }));
 
-vi.mock('@/components/search/UnifiedSearchInput', () => ({
+vi.mock('@/features/discovery/components/search/UnifiedSearchInput', () => ({
   UnifiedSearchInput: ({
     inputClassName,
     placeholder,
@@ -25,7 +25,7 @@ vi.mock('@/components/search/UnifiedSearchInput', () => ({
   ),
 }));
 
-import { SearchBar } from '@/components/TopNavBar/SearchBar';
+import { SearchBar } from '@/features/shell/components/TopNavBar/SearchBar';
 
 // Guards: submitting the global search field keeps the query while navigating to search results.
 describe('SearchBar', () => {

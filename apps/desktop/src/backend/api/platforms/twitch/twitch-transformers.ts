@@ -12,7 +12,7 @@ import type {
   UnifiedStream,
   UnifiedUser,
   UnifiedVideo,
-} from "../../unified/platform-types";
+} from "../../../../shared/platform-types";
 
 import type {
   TwitchApiChannel,

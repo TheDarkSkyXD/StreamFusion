@@ -26,7 +26,7 @@ import {
   createDefaultWebContentsViewFactory,
   getWebContentsViewFactory,
   setWebContentsViewFactory,
-} from "@/backend/api/unified/webcontents-view-factory";
+} from "@backend/api/unified/webcontents-view-factory";
 
 // Guards: slice 05 of the renderer-OOM PRD (#51, issue #56).
 // The factory MUST be injectable so slot-controller tests never spin up real

@@ -7,7 +7,7 @@
 import type { BrowserWindow } from "electron";
 
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import type { CheckFrequency } from "../../../shared/ipc-channels";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import {

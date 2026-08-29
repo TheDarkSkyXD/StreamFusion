@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ChatMessageList } from "@/components/chat/ChatMessageList";
-import type { ChatMessage } from "@/shared/chat-types";
+import { ChatMessageList } from "@/features/chat/components/chat/ChatMessageList";
+import type { ChatMessage } from "@shared/chat-types";
 import { buildChannelKey, DEFAULT_BATCHING_INTERVAL_MS, useChatStore } from "@/store/chat-store";
 
 vi.mock("react-virtuoso", async () => {
@@ -49,7 +49,7 @@ vi.mock("react-virtuoso", async () => {
   };
 });
 
-vi.mock("@/components/chat/ChatMessage", () => ({
+vi.mock("@/features/chat/components/chat/ChatMessage", () => ({
   ChatMessage: ({ message }: { message: ChatMessage }) => (
     <div data-testid="chat-message">{message.rawContent}</div>
   ),

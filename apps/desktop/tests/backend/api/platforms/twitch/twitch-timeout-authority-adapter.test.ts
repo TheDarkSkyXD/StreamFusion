@@ -3,7 +3,7 @@ import {
   createTwitchTimeoutAuthorityAdapter,
   parseTwitchTimeoutTargetState,
   queryTwitchProductionTargetState,
-} from "@/backend/api/platforms/twitch/twitch-timeout-authority-adapter";
+} from "@backend/api/platforms/twitch/twitch-timeout-authority-adapter";
 
 const binding = {
   platform: "twitch" as const,

@@ -1,14 +1,14 @@
 import type { BrowserWindow } from "electron";
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
-import { isAllowedSender, type SenderFrameLike } from "@/backend/ipc/sender-origin";
-import type { LocalCaptionLease } from "@/backend/services/captions/local-caption-supervisor";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { isAllowedSender, type SenderFrameLike } from "@backend/ipc/sender-origin";
+import type { LocalCaptionLease } from "@backend/services/captions/local-caption-supervisor";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 import type {
   LocalCaptionModelState,
   LocalCaptionPcmChunk,
   LocalCaptionSessionIdentity,
-} from "@/shared/local-caption-types";
+} from "@shared/local-caption-types";
 
 interface LocalCaptionModelStoreBridge {
   getState(): Promise<LocalCaptionModelState>;

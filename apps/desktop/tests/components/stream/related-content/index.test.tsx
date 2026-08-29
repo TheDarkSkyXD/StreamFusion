@@ -1,7 +1,7 @@
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { RelatedContent } from '@/components/stream/related-content/index';
-import type { VideoOrClip } from '@/components/stream/related-content/types';
+import { RelatedContent } from '@/features/playback/components/related-content/index';
+import type { VideoOrClip } from '@/features/playback/components/related-content/types';
 import type React from 'react';
 import { fixtures, installElectronAPIMock } from '../../../test-utils';
 
@@ -19,7 +19,7 @@ vi.mock('@/components/ui/skeleton', () => ({
     Skeleton: () => <div data-testid="skeleton" />
 }));
 
-vi.mock('@/components/stream/related-content/VideoCard', () => ({
+vi.mock('@/features/playback/components/related-content/VideoCard', () => ({
     VideoCard: ({ video, showWatchProgress }: { video: VideoOrClip; showWatchProgress?: boolean }) => (
         <div data-testid="video-card" data-show-watch-progress={String(Boolean(showWatchProgress))}>
             {video.title}
@@ -27,17 +27,17 @@ vi.mock('@/components/stream/related-content/VideoCard', () => ({
     )
 }));
 
-vi.mock('@/components/stream/related-content/ClipCard', () => ({
+vi.mock('@/features/playback/components/related-content/ClipCard', () => ({
     ClipCard: ({ clip, onClick }: { clip: VideoOrClip, onClick: () => void }) => (
         <div data-testid="clip-card" onClick={onClick}>{clip.title}</div>
     )
 }));
 
-vi.mock('@/components/stream/related-content/ContentTabs', () => ({
+vi.mock('@/features/playback/components/related-content/ContentTabs', () => ({
     ContentTabs: ({ activeTab }: { activeTab: string }) => <div data-testid="content-tabs">{activeTab}</div>
 }));
 
-vi.mock('@/components/stream/related-content/ClipDialog', () => ({
+vi.mock('@/features/playback/components/related-content/ClipDialog', () => ({
     ClipDialog: ({ selectedClip }: { selectedClip: VideoOrClip | null }) => selectedClip ? <div data-testid="clip-dialog">{selectedClip.title}</div> : null
 }));
 

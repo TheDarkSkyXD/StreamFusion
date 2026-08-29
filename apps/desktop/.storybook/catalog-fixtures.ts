@@ -2,7 +2,7 @@ import type {
   UnifiedCategory,
   UnifiedChannel,
   UnifiedStream,
-} from "../src/backend/api/unified/platform-types";
+} from "../src/shared/platform-types";
 
 const categoryImages = [
   "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=570&h=760&q=80",

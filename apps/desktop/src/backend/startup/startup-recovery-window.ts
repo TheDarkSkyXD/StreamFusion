@@ -1,6 +1,6 @@
 import { BrowserWindow, dialog } from "electron";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 
 let recoveryWindow: BrowserWindow | null = null;
 

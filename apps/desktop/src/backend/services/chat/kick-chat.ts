@@ -6,10 +6,10 @@
  */
 
 import Pusher from "pusher-js";
-import { createCancellableSleep, type CancellableSleep } from "@/lib/sleep";
+import { createCancellableSleep, type CancellableSleep } from "@shared/utils/sleep";
 // Cross-logger: imported by renderer chat components — avoids dragging
 // electron-log into the renderer bundle.
-import { logger } from "@/lib/cross-logger";
+import { logger } from "@shared/utils/cross-logger";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
 // ... imports
 import type {
@@ -23,7 +23,7 @@ import type {
   NormalizedPinnedMessage,
   ReplyInfo,
 } from "../../../shared/chat-types";
-import { buildChannelKey, useChatStore } from "../../../store/chat-store";
+import { buildChannelKey, useChatStore } from "../../../frontend/store/chat-store";
 // Type-only import: lets us reference the KickSendResult shape without pulling
 // kick-send-window's main-only deps (electron / better-sqlite3 via the
 // storage-service chain) into the renderer bundle. The runtime calls go

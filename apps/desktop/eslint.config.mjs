@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import { builtinModules } from "node:module";
 import prettier from "eslint-config-prettier";
+import boundaries from "eslint-plugin-boundaries";
 import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import unusedImports from "eslint-plugin-unused-imports";
@@ -23,6 +24,25 @@ const nodeRuntimeImportRestrictions = [
   name,
   message: "IPC contracts must not depend on Node.js runtime APIs.",
 }));
+const rendererNodeRuntimeImportRestrictions = [
+  ...new Set(
+    builtinModules.flatMap((name) => [name, name.startsWith("node:") ? name : `node:${name}`])
+  ),
+].map((name) => ({
+  name,
+  message: "Frontend code must use the preload bridge instead of Node.js runtime APIs.",
+}));
+const rendererFeatureDependencies = {
+  auth: ["moderation"],
+  chat: ["auth", "discovery", "moderation", "settings", "shell"],
+  discovery: ["chat", "multistream", "playback"],
+  "media-library": ["discovery", "playback"],
+  moderation: ["discovery", "shell"],
+  multistream: ["chat", "discovery", "playback", "settings"],
+  playback: ["auth", "chat", "discovery", "media-library", "settings"],
+  settings: ["auth", "chat", "discovery", "multistream", "playback"],
+  shell: ["auth", "discovery", "media-library", "multistream", "playback", "settings"],
+};
 
 export default tseslint.config(
   {
@@ -83,7 +103,51 @@ export default tseslint.config(
     },
   },
   {
-    files: ["src/ipc-contracts/**/*.{ts,tsx}"],
+    files: ["src/shared/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            ...nodeRuntimeImportRestrictions,
+            {
+              name: "electron",
+              message: "Shared code must remain independent of Electron runtimes.",
+            },
+            {
+              name: "react",
+              message: "Shared code must remain independent of frontend libraries.",
+            },
+            {
+              name: "react-dom",
+              message: "Shared code must remain independent of frontend libraries.",
+            },
+          ],
+          patterns: [
+            {
+              group: [
+                "@/**",
+                "@backend/**",
+                "@frontend/**",
+                "../backend/**",
+                "../frontend/**",
+                "**/backend/**",
+                "**/frontend/**",
+                "react-*",
+                "@radix-ui/**",
+                "@tanstack/react-*/**",
+                "lucide-react",
+                "sonner",
+              ],
+              message: "Shared code must not depend on a process-specific application layer.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/shared/ipc-contracts/**/*.{ts,tsx}"],
     rules: {
       // IPC contracts must remain process-neutral so main and preload can share their types safely.
       "no-restricted-imports": [
@@ -143,30 +207,89 @@ export default tseslint.config(
     },
   },
   {
-    files: [
-      "src/components/**/*.{ts,tsx}",
-      "src/hooks/**/*.{ts,tsx}",
-      "src/pages/**/*.{ts,tsx}",
-      "src/providers/**/*.{ts,tsx}",
-      "src/renderer/**/*.{ts,tsx}",
-      "src/routes/**/*.{ts,tsx}",
-      "src/slot-renderer/**/*.{ts,tsx}",
-      "src/store/**/*.{ts,tsx}",
-      "src/App.tsx",
-      "src/renderer.tsx",
-    ],
+    files: ["src/frontend/**/*.{ts,tsx}"],
     rules: {
       // Renderer code consumes contracts only through the typed window.electronAPI facade.
       "no-restricted-imports": [
         "error",
         {
+          paths: [
+            ...rendererNodeRuntimeImportRestrictions,
+            {
+              name: "electron",
+              message: "Frontend code must use the preload bridge instead of Electron directly.",
+            },
+          ],
           patterns: [
             {
-              group: ["**/ipc-contracts/**", "@/ipc-contracts/**"],
+              group: ["**/ipc-contracts/**", "@shared/ipc-contracts/**"],
               message:
                 "Renderer code must use window.electronAPI instead of IPC contracts directly.",
             },
           ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/backend/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "react",
+              message: "Backend code must remain independent of frontend libraries.",
+            },
+            {
+              name: "react-dom",
+              message: "Backend code must remain independent of frontend libraries.",
+            },
+          ],
+          patterns: [
+            {
+              group: ["react-*", "@radix-ui/**", "@tanstack/react-*/**", "lucide-react", "sonner"],
+              message: "Backend code must remain independent of frontend libraries.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/frontend/features/**/*.{ts,tsx}"],
+    plugins: {
+      boundaries,
+    },
+    settings: {
+      "import/resolver": {
+        alias: {
+          map: [
+            ["@", "./src/frontend"],
+            ["@backend", "./src/backend"],
+            ["@frontend", "./src/frontend"],
+            ["@shared", "./src/shared"],
+          ],
+          extensions: [".js", ".jsx", ".ts", ".tsx"],
+        },
+      },
+      "boundaries/elements": Object.keys(rendererFeatureDependencies).map((feature) => ({
+        type: feature,
+        pattern: `src/frontend/features/${feature}`,
+        partialMatch: false,
+      })),
+    },
+    rules: {
+      "boundaries/dependencies": [
+        "error",
+        {
+          default: "disallow",
+          policies: Object.entries(rendererFeatureDependencies).map(([from, allowed]) => ({
+            from: { element: { type: from } },
+            allow: { to: { element: { types: { anyOf: allowed } } } },
+            message: `The ${from} feature may only depend on its declared feature collaborators.`,
+          })),
         },
       ],
     },
@@ -184,7 +307,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["src/components/player/local-audio-capture-worklet.js"],
+    files: ["src/frontend/features/playback/components/player/local-audio-capture-worklet.js"],
     languageOptions: {
       globals: {
         AudioWorkletProcessor: "readonly",

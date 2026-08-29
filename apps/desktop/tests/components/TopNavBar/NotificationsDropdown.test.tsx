@@ -6,7 +6,7 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
 }));
 
-import { NotificationsDropdown } from "@/components/TopNavBar/NotificationsDropdown";
+import { NotificationsDropdown } from "@/features/shell/components/TopNavBar/NotificationsDropdown";
 import { useNotificationStore } from "@/store/notification-store";
 
 import { renderWithProviders, screen, userEvent } from "../../test-utils";

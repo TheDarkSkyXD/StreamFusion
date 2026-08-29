@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: {
     error: vi.fn(),
     warn: vi.fn(),
@@ -9,11 +9,11 @@ vi.mock("@/backend/logging/logger", () => ({
   },
 }));
 
-vi.mock("@/lib/sleep", () => ({
+vi.mock("@shared/utils/sleep", () => ({
   sleep: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("@/backend/auth/twitch-auth", () => ({
+vi.mock("@backend/auth/twitch-auth", () => ({
   twitchAuthService: {
     getValidAccessToken: vi.fn(async () => "test-token"),
     isAuthenticated: vi.fn(() => true),
@@ -22,7 +22,7 @@ vi.mock("@/backend/auth/twitch-auth", () => ({
   },
 }));
 
-vi.mock("@/backend/auth/oauth-config", () => ({
+vi.mock("@backend/auth/oauth-config", () => ({
   WORKER_BASE_URL: "https://worker.test",
   getOAuthConfig: () => ({ clientId: "test-client-id" }),
 }));
@@ -53,7 +53,7 @@ const mockGqlGetClipsByChannel = vi.fn();
 const mockGqlIsChannelLive = vi.fn();
 const mockGqlGetFollowerCount = vi.fn();
 
-vi.mock("@/backend/api/platforms/twitch/twitch-gql-client", () => ({
+vi.mock("@backend/api/platforms/twitch/twitch-gql-client", () => ({
   gqlGetStreamsByLogins: (...args: unknown[]) => mockGqlGetStreamsByLogins(...args),
   gqlGetTopStreams: (...args: unknown[]) => mockGqlGetTopStreams(...args),
   gqlGetStreamByLogin: (...args: unknown[]) => mockGqlGetStreamByLogin(...args),
@@ -71,14 +71,14 @@ vi.mock("@/backend/api/platforms/twitch/twitch-gql-client", () => ({
   gqlGetFollowerCount: (...args: unknown[]) => mockGqlGetFollowerCount(...args),
 }));
 
-vi.mock("@/backend/api/platforms/twitch/endpoints/stream-endpoints", () => ({
+vi.mock("@backend/api/platforms/twitch/endpoints/stream-endpoints", () => ({
   getFollowedStreams: vi.fn(async () => ({ data: [] })),
   getStreamsByUserIds: vi.fn(async () => ({ data: [] })),
   getTopStreams: vi.fn(async () => ({ data: [] })),
   getStreamByLogin: vi.fn(async () => null),
 }));
 
-vi.mock("@/backend/api/platforms/twitch/endpoints/user-endpoints", () => ({
+vi.mock("@backend/api/platforms/twitch/endpoints/user-endpoints", () => ({
   getUser: vi.fn(async () => null),
   getUsersById: vi.fn(async () => []),
   getUsersByLogin: vi.fn(async () => []),
@@ -86,39 +86,39 @@ vi.mock("@/backend/api/platforms/twitch/endpoints/user-endpoints", () => ({
   getAllFollowedChannels: vi.fn(async () => []),
 }));
 
-vi.mock("@/backend/api/platforms/twitch/endpoints/category-endpoints", () => ({
+vi.mock("@backend/api/platforms/twitch/endpoints/category-endpoints", () => ({
   getTopCategories: vi.fn(async () => ({ data: [] })),
   getCategoryById: vi.fn(async () => null),
   getCategoriesByIds: vi.fn(async () => []),
   getAllTopCategories: vi.fn(async () => []),
 }));
 
-vi.mock("@/backend/api/platforms/twitch/endpoints/channel-endpoints", () => ({
+vi.mock("@backend/api/platforms/twitch/endpoints/channel-endpoints", () => ({
   getChannelsById: vi.fn(async () => []),
 }));
 
-vi.mock("@/backend/api/platforms/twitch/endpoints/search-endpoints", () => ({
+vi.mock("@backend/api/platforms/twitch/endpoints/search-endpoints", () => ({
   searchChannels: vi.fn(async () => ({ data: [] })),
   searchCategories: vi.fn(async () => ({ data: [] })),
 }));
 
-vi.mock("@/backend/api/platforms/twitch/endpoints/clip-endpoints", () => ({
+vi.mock("@backend/api/platforms/twitch/endpoints/clip-endpoints", () => ({
   getClipsByBroadcaster: vi.fn(async () => ({ data: [] })),
 }));
 
-vi.mock("@/backend/api/platforms/twitch/endpoints/video-endpoints", () => ({
+vi.mock("@backend/api/platforms/twitch/endpoints/video-endpoints", () => ({
   getVideosByUser: vi.fn(async () => ({ data: [] })),
   getVideoById: vi.fn(async () => null),
 }));
 
-vi.mock("@/backend/api/unified/registry", () => ({
+vi.mock("@backend/api/unified/registry", () => ({
   clients: {
     register: vi.fn(),
   },
 }));
 
-import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
-import { twitchAuthService } from "@/backend/auth/twitch-auth";
+import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
+import { twitchAuthService } from "@backend/auth/twitch-auth";
 
 describe("TwitchClient", () => {
   beforeEach(() => {
@@ -164,7 +164,7 @@ describe("TwitchClient", () => {
     it("falls back to Helix on GQL failure", async () => {
       mockGqlGetTopStreams.mockRejectedValueOnce(new Error("GQL down"));
       const { getTopStreams } = await import(
-        "@/backend/api/platforms/twitch/endpoints/stream-endpoints"
+        "@backend/api/platforms/twitch/endpoints/stream-endpoints"
       );
       (getTopStreams as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         data: [{ id: "helix-s1" }],
@@ -209,7 +209,7 @@ describe("TwitchClient", () => {
     it("falls back to Helix on GQL failure", async () => {
       mockGqlGetStreamByLogin.mockRejectedValueOnce(new Error("GQL error"));
       const { getStreamByLogin } = await import(
-        "@/backend/api/platforms/twitch/endpoints/stream-endpoints"
+        "@backend/api/platforms/twitch/endpoints/stream-endpoints"
       );
       (getStreamByLogin as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         id: "helix-s1",
@@ -235,7 +235,7 @@ describe("TwitchClient", () => {
   describe("searchChannels", () => {
     it("uses Helix when authenticated so search results can paginate channels", async () => {
       const { searchChannels } = await import(
-        "@/backend/api/platforms/twitch/endpoints/search-endpoints"
+        "@backend/api/platforms/twitch/endpoints/search-endpoints"
       );
       (searchChannels as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         data: [{ id: "helix-c1" }],
@@ -264,7 +264,7 @@ describe("TwitchClient", () => {
 
     it("falls back to GQL when authenticated Helix search fails", async () => {
       const { searchChannels } = await import(
-        "@/backend/api/platforms/twitch/endpoints/search-endpoints"
+        "@backend/api/platforms/twitch/endpoints/search-endpoints"
       );
       (searchChannels as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Helix error"));
       const channels = { data: [{ id: "gql-c1" }], cursor: "next" };
@@ -277,7 +277,7 @@ describe("TwitchClient", () => {
 
     it("does not retry Helix after both search transports fail", async () => {
       const { searchChannels } = await import(
-        "@/backend/api/platforms/twitch/endpoints/search-endpoints"
+        "@backend/api/platforms/twitch/endpoints/search-endpoints"
       );
       (searchChannels as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Helix error"));
       mockGqlSearchChannels.mockRejectedValueOnce(new Error("GQL error"));
@@ -329,7 +329,7 @@ describe("TwitchClient", () => {
   describe("searchCategories", () => {
     it("uses the documented Helix endpoint when authenticated", async () => {
       const { searchCategories } = await import(
-        "@/backend/api/platforms/twitch/endpoints/search-endpoints"
+        "@backend/api/platforms/twitch/endpoints/search-endpoints"
       );
       (searchCategories as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         data: [{ id: "helix-g1" }],
@@ -354,7 +354,7 @@ describe("TwitchClient", () => {
 
     it("falls back once to GQL when authenticated Helix search fails", async () => {
       const { searchCategories } = await import(
-        "@/backend/api/platforms/twitch/endpoints/search-endpoints"
+        "@backend/api/platforms/twitch/endpoints/search-endpoints"
       );
       (searchCategories as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
         new Error("Helix error")
@@ -452,7 +452,7 @@ describe("TwitchClient", () => {
 
   describe("getStreamsByUserIds", () => {
     it("returns empty data when not authenticated and no GQL fallback", async () => {
-      const { twitchAuthService } = await import("@/backend/auth/twitch-auth");
+      const { twitchAuthService } = await import("@backend/auth/twitch-auth");
       (twitchAuthService.isAuthenticated as ReturnType<typeof vi.fn>).mockReturnValueOnce(false);
 
       const result = await twitchClient.getStreamsByUserIds(["u1"]);

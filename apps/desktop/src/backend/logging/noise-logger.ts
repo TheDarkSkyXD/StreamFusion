@@ -20,7 +20,7 @@ import path from "node:path";
 // IMPORTANT: main-process only. See logger.ts for why — same rule applies.
 import electronLog from "electron-log/main";
 
-import { formatLine, type Logger, type LogLevel } from "@/backend/logging/logger";
+import { formatLine, type Logger, type LogLevel } from "@backend/logging/logger";
 
 export interface InitNoiseOpts {
   logsDir: string;

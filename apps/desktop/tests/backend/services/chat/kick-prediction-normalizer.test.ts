@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeKickPrediction } from "@/backend/services/chat/kick-prediction-normalizer";
-import type { KickPredictionPayload } from "@/backend/api/platforms/kick/kick-types";
+import { normalizeKickPrediction } from "@backend/services/chat/kick-prediction-normalizer";
+import type { KickPredictionPayload } from "@backend/api/platforms/kick/kick-types";
 
 // Guards: Kick prediction wire → UnifiedPrediction mapping — state clamp
 // (ACTIVE / LOCKED / RESOLVED / CANCELED, deleted → CANCELED), outcomes

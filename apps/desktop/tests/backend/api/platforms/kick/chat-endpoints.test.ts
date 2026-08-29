@@ -28,19 +28,19 @@ vi.mock("electron", () => ({
   },
 }));
 
-vi.mock("@/backend/api/unified/platform-health", () => ({
+vi.mock("@backend/api/unified/platform-health", () => ({
   getPlatformHealth: vi.fn(() => "healthy"),
   isPlatformHealthy: vi.fn(() => true),
   recordPlatformFailure: vi.fn(),
   recordPlatformSuccess: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
   acquireBrowserWindowSlot: vi.fn(async () => vi.fn()),
 }));
 
-import { getKickChannelHistory } from "@/backend/api/platforms/kick/endpoints/chat-endpoints";
-import { getPlatformHealth, isPlatformHealthy } from "@/backend/api/unified/platform-health";
+import { getKickChannelHistory } from "@backend/api/platforms/kick/endpoints/chat-endpoints";
+import { getPlatformHealth, isPlatformHealthy } from "@backend/api/unified/platform-health";
 
 // Guards: Kick history uses a direct cookie-bearing session request first, then a normal channel page when Kick rejects the lightweight request.
 // Guards: a non-successful in-page history response must return unavailable instead of being mistaken for empty history.

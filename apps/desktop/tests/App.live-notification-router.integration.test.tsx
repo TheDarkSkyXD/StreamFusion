@@ -2,41 +2,64 @@ import { act, render, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LiveNotificationPayload } from "@/shared/auth-types";
+import type { LiveNotificationPayload } from "@shared/auth-types";
 
-vi.mock("@/components/auth/AuthProvider", () => ({
+vi.mock("@/features/auth/components/auth/AuthProvider", () => ({
   AuthProvider: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("@/components/dev/DeveloperConsole", () => ({ DeveloperConsole: () => null }));
-vi.mock("@/components/download-duplicate-confirmation-dialog", () => ({
+vi.mock("@/features/media-library/components/download-duplicate-confirmation-dialog", () => ({
   DownloadDuplicateConfirmationDialog: () => null,
 }));
-vi.mock("@/components/layout/AppLayout", () => ({
+vi.mock("@/features/shell/components/layout/AppLayout", () => ({
   AppLayout: ({ children }: { children: ReactNode }) => children,
 }));
-vi.mock("@/components/ToastRoot", () => ({ ToastRoot: () => null }));
+vi.mock("@/features/shell/components/ToastRoot", () => ({ ToastRoot: () => null }));
 vi.mock("@/components/ui/tooltip", () => ({
   TooltipProvider: ({ children }: { children: ReactNode }) => children,
 }));
-vi.mock("@/hooks/use-app-shutdown", () => ({ useAppShutdown: () => undefined }));
-vi.mock("@/pages", () => {
+vi.mock("@/features/shell/data/use-app-shutdown", () => ({ useAppShutdown: () => undefined }));
+vi.mock("@/features/discovery", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/features/discovery")>();
   const Page = () => <div>route content</div>;
   return {
+    ...original,
     CategoriesPage: Page,
     CategoryDetailPage: Page,
-    DownloadsPage: Page,
     FollowingPage: Page,
-    HistoryPage: Page,
     HomePage: Page,
+    SearchPage: Page,
+  };
+});
+vi.mock("@/features/media-library", () => {
+  const Page = () => <div>route content</div>;
+  return { DownloadsPage: Page, HistoryPage: Page };
+});
+vi.mock("@/features/moderation", () => {
+  const Page = () => <div>route content</div>;
+  return {
     ModChannelKickPage: Page,
     ModChannelTwitchPage: Page,
     ModPage: Page,
-    MultiStreamPage: Page,
-    SearchPage: Page,
-    SettingsPage: Page,
+  };
+});
+vi.mock("@/features/multistream", () => {
+  const Page = () => <div>route content</div>;
+  return { MultiStreamPage: Page };
+});
+vi.mock("@/features/playback", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/features/playback")>();
+  const Page = () => <div>route content</div>;
+  return {
+    ...original,
     StreamPage: Page,
     VideoPage: Page,
   };
+});
+vi.mock("@/features/settings", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/features/settings")>();
+  const Page = () => <div>route content</div>;
+  return { ...original, SettingsPage: Page };
 });
 vi.mock("@/providers/query-provider", () => ({
   QueryProvider: ({ children }: { children: ReactNode }) => children,

@@ -1,4 +1,4 @@
-import type { DownloadJob, DownloadProgress, DownloadQueueSnapshot } from "@/shared/download-types";
+import type { DownloadJob, DownloadProgress, DownloadQueueSnapshot } from "@shared/download-types";
 import { storageService } from "./storage-service";
 
 export interface DownloadQueueStorage {

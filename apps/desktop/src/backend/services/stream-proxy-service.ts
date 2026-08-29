@@ -31,7 +31,7 @@
 import { app, session as electronSession, safeStorage } from "electron";
 import Store from "electron-store";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import type { ProxyApplyConfig, ProxyApplyResult } from "../../shared/ipc-channels";
 
 // ========== Credential storage (encrypted, dedicated store) ==========

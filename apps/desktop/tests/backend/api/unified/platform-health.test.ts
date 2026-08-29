@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/cross-logger", () => ({
+vi.mock("@shared/utils/cross-logger", () => ({
   logger: {
     debug: vi.fn(),
     error: vi.fn(),
@@ -9,7 +9,7 @@ vi.mock("@/lib/cross-logger", () => ({
   },
 }));
 
-import { logger } from "@/lib/cross-logger";
+import { logger } from "@shared/utils/cross-logger";
 
 // State-machine tests for the per-Platform health tracker (slice 01 of the
 // platform-outage handling feature). Covers trip-to-degraded, the failure
@@ -20,7 +20,7 @@ describe("platform-health (slice 01: trip to degraded)", () => {
   beforeEach(async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
-    const { __resetPlatformHealthForTests } = await import("@/backend/api/unified/platform-health");
+    const { __resetPlatformHealthForTests } = await import("@backend/api/unified/platform-health");
     __resetPlatformHealthForTests();
   });
 
@@ -30,7 +30,7 @@ describe("platform-health (slice 01: trip to degraded)", () => {
 
   it("starts every platform in the healthy state", async () => {
     const { getPlatformHealth, isPlatformHealthy } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     expect(getPlatformHealth("kick")).toBe("healthy");
@@ -41,7 +41,7 @@ describe("platform-health (slice 01: trip to degraded)", () => {
 
   it("flips kick to degraded after 60% failure rate over the minimum sample (≥8)", async () => {
     const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     // 6 timeouts + 4 successes = 60% over 10 samples (≥ DEGRADED_MIN_SAMPLE=8).
@@ -53,7 +53,7 @@ describe("platform-health (slice 01: trip to degraded)", () => {
 
   it("stays healthy under the failure-rate threshold even with many samples", async () => {
     const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     // Interleaved 1-fail / 2-success pattern keeps failure rate at ~33%
@@ -69,7 +69,7 @@ describe("platform-health (slice 01: trip to degraded)", () => {
 
   it("stays healthy below the minimum sample size even at 100% failure rate", async () => {
     const { getPlatformHealth, recordPlatformFailure } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     // 7 consecutive failures, no successes — below the 8-sample minimum.
@@ -80,7 +80,7 @@ describe("platform-health (slice 01: trip to degraded)", () => {
 
   it("counts all three failure classes (timeout, server-5xx, net-error) the same way", async () => {
     const { getPlatformHealth, recordPlatformFailure } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     // Mix of all three classes — 8 total failures at 100% rate trips.
@@ -98,7 +98,7 @@ describe("platform-health (slice 01: trip to degraded)", () => {
 
   it("isolates Kick failures from Twitch state (bulkhead)", async () => {
     const { getPlatformHealth, recordPlatformFailure } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     // Trip Kick hard.
@@ -111,7 +111,7 @@ describe("platform-health (slice 01: trip to degraded)", () => {
 
   it("isolates Twitch failures from Kick state (reverse bulkhead)", async () => {
     const { getPlatformHealth, recordPlatformFailure } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("twitch", "timeout");
@@ -121,7 +121,7 @@ describe("platform-health (slice 01: trip to degraded)", () => {
 
   it("ages outcomes out of the rolling window after 60s", async () => {
     const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     // 4 failures at t=0 (sample size below trip floor, healthy).
@@ -141,7 +141,7 @@ describe("platform-health (slice 01: transition listener)", () => {
   beforeEach(async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
-    const { __resetPlatformHealthForTests } = await import("@/backend/api/unified/platform-health");
+    const { __resetPlatformHealthForTests } = await import("@backend/api/unified/platform-health");
     __resetPlatformHealthForTests();
   });
 
@@ -151,7 +151,7 @@ describe("platform-health (slice 01: transition listener)", () => {
 
   it("fires onPlatformHealthChanged with { platform, status, startedAt } on the healthy→degraded transition", async () => {
     const { onPlatformHealthChanged, recordPlatformFailure } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     const events: Array<{ platform: string; status: string; startedAt: number }> = [];
@@ -171,7 +171,7 @@ describe("platform-health (slice 01: transition listener)", () => {
 
   it("does not fire while the state stays healthy", async () => {
     const { onPlatformHealthChanged, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     const events: unknown[] = [];
@@ -184,7 +184,7 @@ describe("platform-health (slice 01: transition listener)", () => {
 
   it("does not re-fire while already degraded (only fires on transition)", async () => {
     const { onPlatformHealthChanged, recordPlatformFailure } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     const events: unknown[] = [];
@@ -201,7 +201,7 @@ describe("platform-health (slice 01: transition listener)", () => {
 
   it("unsubscribe removes the listener", async () => {
     const { onPlatformHealthChanged, recordPlatformFailure } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     const events: unknown[] = [];
@@ -217,7 +217,7 @@ describe("platform-health (slice 02: degraded → healthy recovery)", () => {
   beforeEach(async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
-    const { __resetPlatformHealthForTests } = await import("@/backend/api/unified/platform-health");
+    const { __resetPlatformHealthForTests } = await import("@backend/api/unified/platform-health");
     __resetPlatformHealthForTests();
   });
 
@@ -227,7 +227,7 @@ describe("platform-health (slice 02: degraded → healthy recovery)", () => {
 
   it("recovers to healthy after 30s of <40% failure rate within the rolling window", async () => {
     const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     // Trip to degraded: 8 timeouts at 100% rate.
@@ -247,7 +247,7 @@ describe("platform-health (slice 02: degraded → healthy recovery)", () => {
 
   it("does NOT recover when sustained failure rate stays at or above 40% (hysteresis)", async () => {
     const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     // Trip to degraded.
@@ -271,7 +271,7 @@ describe("platform-health (slice 02: degraded → healthy recovery)", () => {
 
   it("requires a CONTINUOUS 30s recovery window — 15s good + 15s bad does not recover", async () => {
     const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
@@ -298,7 +298,7 @@ describe("platform-health (slice 02: degraded → healthy recovery)", () => {
 
   it("fires onPlatformHealthChanged with { platform, status: 'healthy', startedAt } on recovery", async () => {
     const { onPlatformHealthChanged, recordPlatformFailure, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     const events: Array<{ platform: string; status: string; startedAt: number }> = [];
@@ -324,7 +324,7 @@ describe("platform-health (slice 02: degraded → healthy recovery)", () => {
 
   it("does not re-emit recovery events while already healthy", async () => {
     const { onPlatformHealthChanged, recordPlatformFailure, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     const events: unknown[] = [];
@@ -345,7 +345,7 @@ describe("platform-health (slice 02: degraded → healthy recovery)", () => {
 
   it("can re-trip from healthy → degraded after a recovery cycle", async () => {
     const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess, ROLLING_WINDOW_MS } =
-      await import("@/backend/api/unified/platform-health");
+      await import("@backend/api/unified/platform-health");
 
     // Trip.
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
@@ -375,7 +375,7 @@ describe("platform-health (slice 04: transition logging)", () => {
     vi.mocked(logger.warn).mockClear();
     vi.mocked(logger.debug).mockClear();
     vi.mocked(logger.info).mockClear();
-    const { __resetPlatformHealthForTests } = await import("@/backend/api/unified/platform-health");
+    const { __resetPlatformHealthForTests } = await import("@backend/api/unified/platform-health");
     __resetPlatformHealthForTests();
   });
 
@@ -385,7 +385,7 @@ describe("platform-health (slice 04: transition logging)", () => {
 
   it("logs one warn on healthy→degraded with failure counts", async () => {
     const { recordPlatformFailure, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     for (let i = 0; i < 6; i++) recordPlatformFailure("kick", "timeout");
@@ -398,7 +398,7 @@ describe("platform-health (slice 04: transition logging)", () => {
 
   it("logs one warn on degraded→healthy with duration", async () => {
     const { recordPlatformFailure, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
@@ -416,7 +416,7 @@ describe("platform-health (slice 04: transition logging)", () => {
   });
 
   it("does NOT log while staying healthy", async () => {
-    const { recordPlatformSuccess } = await import("@/backend/api/unified/platform-health");
+    const { recordPlatformSuccess } = await import("@backend/api/unified/platform-health");
 
     for (let i = 0; i < 20; i++) recordPlatformSuccess("kick");
 
@@ -425,7 +425,7 @@ describe("platform-health (slice 04: transition logging)", () => {
   });
 
   it("does NOT log while staying degraded (only the transition warn)", async () => {
-    const { recordPlatformFailure } = await import("@/backend/api/unified/platform-health");
+    const { recordPlatformFailure } = await import("@backend/api/unified/platform-health");
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
 
@@ -448,7 +448,7 @@ describe("platform-health (slice 05: down state)", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
     vi.mocked(logger.warn).mockClear();
-    const { __resetPlatformHealthForTests } = await import("@/backend/api/unified/platform-health");
+    const { __resetPlatformHealthForTests } = await import("@backend/api/unified/platform-health");
     __resetPlatformHealthForTests();
   });
 
@@ -458,7 +458,7 @@ describe("platform-health (slice 05: down state)", () => {
 
   it("recordPlatformLocalNetError called 3+ times in 2s transitions to down", async () => {
     const { getPlatformHealth, recordPlatformLocalNetError } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     recordPlatformLocalNetError("kick");
@@ -470,7 +470,7 @@ describe("platform-health (slice 05: down state)", () => {
 
   it("state stays down for at least 3s after the last burst error", async () => {
     const { getPlatformHealth, recordPlatformLocalNetError } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     recordPlatformLocalNetError("kick");
@@ -485,7 +485,7 @@ describe("platform-health (slice 05: down state)", () => {
 
   it("down self-clears after 3s when failure rate is low (to healthy)", async () => {
     const { getPlatformHealth, recordPlatformLocalNetError, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     recordPlatformLocalNetError("kick");
@@ -502,7 +502,7 @@ describe("platform-health (slice 05: down state)", () => {
 
   it("down self-clears to degraded when failure rate is still high", async () => {
     const { getPlatformHealth, recordPlatformFailure, recordPlatformLocalNetError } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     // Build up failure-rate signal first (8 failures at 100% = degraded-worthy).
@@ -520,7 +520,7 @@ describe("platform-health (slice 05: down state)", () => {
 
   it("down takes precedence over degraded", async () => {
     const { getPlatformHealth, recordPlatformFailure, recordPlatformLocalNetError } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     // Trip to degraded first.
@@ -536,7 +536,7 @@ describe("platform-health (slice 05: down state)", () => {
 
   it("isPlatformHealthy returns false for down", async () => {
     const { isPlatformHealthy, recordPlatformLocalNetError } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     recordPlatformLocalNetError("kick");
@@ -548,7 +548,7 @@ describe("platform-health (slice 05: down state)", () => {
 
   it("recordPlatformCrash immediately transitions to down", async () => {
     const { getPlatformHealth, recordPlatformCrash } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     recordPlatformCrash("kick");
@@ -556,7 +556,7 @@ describe("platform-health (slice 05: down state)", () => {
   });
 
   it("logs the crash source when recordPlatformCrash transitions to down", async () => {
-    const { recordPlatformCrash } = await import("@/backend/api/unified/platform-health");
+    const { recordPlatformCrash } = await import("@backend/api/unified/platform-health");
 
     recordPlatformCrash("kick", "network-service-gone");
 
@@ -568,7 +568,7 @@ describe("platform-health (slice 05: down state)", () => {
 
   it("does not re-fire event if already down", async () => {
     const { onPlatformHealthChanged, recordPlatformLocalNetError } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     const events: Array<{ platform: string; status: string }> = [];
@@ -589,7 +589,7 @@ describe("platform-health (slice 05: down state)", () => {
 
   it("fires onPlatformHealthChanged with status: 'down' on transition", async () => {
     const { onPlatformHealthChanged, recordPlatformLocalNetError } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     const events: Array<{ platform: string; status: string; startedAt: number }> = [];
@@ -609,7 +609,7 @@ describe("platform-health (slice 05: down state)", () => {
 
   it("ignores non-burst errors (fewer than 3)", async () => {
     const { getPlatformHealth, recordPlatformLocalNetError } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     recordPlatformLocalNetError("kick");
@@ -620,7 +620,7 @@ describe("platform-health (slice 05: down state)", () => {
 
   it("ignores errors spread beyond 2s window", async () => {
     const { getPlatformHealth, recordPlatformLocalNetError } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     recordPlatformLocalNetError("kick");
@@ -634,7 +634,7 @@ describe("platform-health (slice 05: down state)", () => {
   });
 
   it("logs one warn per down transition", async () => {
-    const { recordPlatformLocalNetError } = await import("@/backend/api/unified/platform-health");
+    const { recordPlatformLocalNetError } = await import("@backend/api/unified/platform-health");
 
     recordPlatformLocalNetError("kick");
     recordPlatformLocalNetError("kick");
@@ -647,7 +647,7 @@ describe("platform-health (slice 05: down state)", () => {
 
   it("down extends downUntil on each new error (rolling 3s)", async () => {
     const { getPlatformHealth, recordPlatformLocalNetError } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     recordPlatformLocalNetError("kick");
@@ -673,7 +673,7 @@ describe("platform-health (slice 10: emitted events include sampleSize and failu
   beforeEach(async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
-    const { __resetPlatformHealthForTests } = await import("@/backend/api/unified/platform-health");
+    const { __resetPlatformHealthForTests } = await import("@backend/api/unified/platform-health");
     __resetPlatformHealthForTests();
   });
 
@@ -683,7 +683,7 @@ describe("platform-health (slice 10: emitted events include sampleSize and failu
 
   it("includes sampleSize and failureRate on healthy->degraded event", async () => {
     const { onPlatformHealthChanged, recordPlatformFailure, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     type HealthEvent = Parameters<Parameters<typeof onPlatformHealthChanged>[0]>[0];
@@ -700,7 +700,7 @@ describe("platform-health (slice 10: emitted events include sampleSize and failu
 
   it("includes sampleSize and failureRate on degraded->healthy recovery event", async () => {
     const { onPlatformHealthChanged, recordPlatformFailure, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     type HealthEvent = Parameters<Parameters<typeof onPlatformHealthChanged>[0]>[0];
@@ -726,7 +726,7 @@ describe("platform-health (slice 06: Twitch instrumentation isolation)", () => {
   beforeEach(async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
-    const { __resetPlatformHealthForTests } = await import("@/backend/api/unified/platform-health");
+    const { __resetPlatformHealthForTests } = await import("@backend/api/unified/platform-health");
     __resetPlatformHealthForTests();
   });
 
@@ -736,7 +736,7 @@ describe("platform-health (slice 06: Twitch instrumentation isolation)", () => {
 
   it("Twitch degraded state does not affect Kick state", async () => {
     const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("twitch", "server-5xx");
@@ -750,7 +750,7 @@ describe("platform-health (slice 06: Twitch instrumentation isolation)", () => {
 
   it("Kick degraded state does not affect Twitch state", async () => {
     const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
@@ -764,7 +764,7 @@ describe("platform-health (slice 06: Twitch instrumentation isolation)", () => {
 
   it("both platforms can be degraded independently", async () => {
     const { getPlatformHealth, recordPlatformFailure } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("twitch", "server-5xx");
@@ -776,7 +776,7 @@ describe("platform-health (slice 06: Twitch instrumentation isolation)", () => {
 
   it("one platform can recover while the other stays degraded", async () => {
     const { getPlatformHealth, recordPlatformFailure, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("twitch", "server-5xx");
@@ -798,7 +798,7 @@ describe("platform-health (slice 08: status-page signal nudges recovery cooldown
   beforeEach(async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-07T00:00:00Z"));
-    const { __resetPlatformHealthForTests } = await import("@/backend/api/unified/platform-health");
+    const { __resetPlatformHealthForTests } = await import("@backend/api/unified/platform-health");
     __resetPlatformHealthForTests();
   });
 
@@ -812,7 +812,7 @@ describe("platform-health (slice 08: status-page signal nudges recovery cooldown
       recordPlatformFailure,
       recordPlatformSuccess,
       recordStatusPageSignal,
-    } = await import("@/backend/api/unified/platform-health");
+    } = await import("@backend/api/unified/platform-health");
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
     expect(getPlatformHealth("kick")).toBe("degraded");
@@ -834,7 +834,7 @@ describe("platform-health (slice 08: status-page signal nudges recovery cooldown
       recordPlatformFailure,
       recordPlatformSuccess,
       recordStatusPageSignal,
-    } = await import("@/backend/api/unified/platform-health");
+    } = await import("@backend/api/unified/platform-health");
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
     expect(getPlatformHealth("kick")).toBe("degraded");
@@ -856,7 +856,7 @@ describe("platform-health (slice 08: status-page signal nudges recovery cooldown
       recordPlatformFailure,
       recordPlatformSuccess,
       recordStatusPageSignal,
-    } = await import("@/backend/api/unified/platform-health");
+    } = await import("@backend/api/unified/platform-health");
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
     expect(getPlatformHealth("kick")).toBe("degraded");
@@ -878,7 +878,7 @@ describe("platform-health (slice 08: status-page signal nudges recovery cooldown
       recordPlatformFailure,
       recordPlatformSuccess,
       recordStatusPageSignal,
-    } = await import("@/backend/api/unified/platform-health");
+    } = await import("@backend/api/unified/platform-health");
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
     expect(getPlatformHealth("kick")).toBe("degraded");
@@ -901,7 +901,7 @@ describe("platform-health (slice 08: status-page signal nudges recovery cooldown
       recordPlatformSuccess,
       recordStatusPageSignal,
       ROLLING_WINDOW_MS,
-    } = await import("@/backend/api/unified/platform-health");
+    } = await import("@backend/api/unified/platform-health");
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
     recordStatusPageSignal("kick", "all-clear");
@@ -934,7 +934,7 @@ describe("platform-health (slice 08: status-page signal nudges recovery cooldown
 
   it("confirmed status-page outage causes healthy-to-degraded transition", async () => {
     const { getPlatformHealth, onPlatformHealthChanged, recordStatusPageSignal } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     const events: Array<{ platform: string; status: string; source?: string }> = [];
@@ -959,7 +959,7 @@ describe("platform-health (slice 08: status-page signal nudges recovery cooldown
 
   it("status-page detail updates emit another degraded event", async () => {
     const { onPlatformHealthChanged, recordStatusPageSignal } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     const events: Array<{
@@ -987,7 +987,7 @@ describe("platform-health (slice 08: status-page signal nudges recovery cooldown
 
   it("all-clear recovers a status-page-created degradation", async () => {
     const { getPlatformHealth, onPlatformHealthChanged, recordStatusPageSignal } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     const events: Array<{ platform: string; status: string; source?: string }> = [];
@@ -1009,7 +1009,7 @@ describe("platform-health (slice 08: status-page signal nudges recovery cooldown
       recordPlatformFailure,
       recordPlatformSuccess,
       recordStatusPageSignal,
-    } = await import("@/backend/api/unified/platform-health");
+    } = await import("@backend/api/unified/platform-health");
 
     const events: Array<{ platform: string; status: string; source?: string }> = [];
     onPlatformHealthChanged((e) => events.push(e));
@@ -1030,7 +1030,7 @@ describe("platform-health (slice 08: status-page signal nudges recovery cooldown
 
   it("recovery event includes source: 'internal' when no signal was active", async () => {
     const { onPlatformHealthChanged, recordPlatformFailure, recordPlatformSuccess } = await import(
-      "@/backend/api/unified/platform-health"
+      "@backend/api/unified/platform-health"
     );
 
     const events: Array<{ platform: string; status: string; source?: string }> = [];

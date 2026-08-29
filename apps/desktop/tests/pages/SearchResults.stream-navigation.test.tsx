@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fixtures, renderWithProviders, screen, waitFor } from "../test-utils";
 
-vi.mock("@/hooks/queries/useSearch", () => ({
+vi.mock("@/features/discovery/data/queries/useSearch", () => ({
   useSearchAll: vi.fn(),
   useSearchCategories: vi.fn(() => ({ data: { pages: [] }, isLoading: false })),
   useSearchChannels: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock("@/components/ui/proxied-image", () => ({
   ProxiedImage: ({ alt }: { alt: string }) => <div>{alt}</div>,
 }));
 
-import { useSearchAll, useSearchChannels, useSearchStreams } from "@/hooks/queries/useSearch";
+import { useSearchAll, useSearchChannels, useSearchStreams } from "@/features/discovery/data/queries/useSearch";
 import { SearchPage } from "@/pages/SearchResults";
 
 const useSearchAllMock = vi.mocked(useSearchAll);

@@ -179,7 +179,7 @@ export function installElectronAPIMock(): ElectronAPIMock {
 
 // Minimal fixtures for common payloads.
 export const fixtures = {
-  stream(overrides: Partial<import('@/backend/api/unified/platform-types').UnifiedStream> = {}) {
+  stream(overrides: Partial<import('@shared/platform-types').UnifiedStream> = {}) {
     return {
       id: 'stream-1',
       platform: 'twitch' as const,
@@ -201,7 +201,7 @@ export const fixtures = {
     };
   },
   channel(
-    overrides: Partial<import('@/backend/api/unified/platform-types').UnifiedChannel> = {}
+    overrides: Partial<import('@shared/platform-types').UnifiedChannel> = {}
   ) {
     return {
       id: 'chan-1',
@@ -216,7 +216,7 @@ export const fixtures = {
     };
   },
   category(
-    overrides: Partial<import('@/backend/api/unified/platform-types').UnifiedCategory> = {}
+    overrides: Partial<import('@shared/platform-types').UnifiedCategory> = {}
   ) {
     return {
       id: 'cat-1',

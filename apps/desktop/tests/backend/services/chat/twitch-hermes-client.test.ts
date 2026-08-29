@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   parsePredictionEvent,
   TwitchHermesClient,
-} from "@/backend/services/chat/twitch-hermes-client";
+} from "@backend/services/chat/twitch-hermes-client";
 
 // Guards: Hermes prediction-event parsing — `data.event` shape, ACTIVE/RESOLVED/CANCELED/LOCKED status set, BLUE/PINK color literals, and the top_predictors array under outcomes. Hermes drift on any of these would silently break the prediction banner.
 // Guards: multiview-bus channel-id threading — `parsePredictionEvent(payload, channelId)` must stamp the channelId onto the result so a singleton Hermes connection emitting to N subscribers doesn't bleed channel A's prediction into channel B's banner.

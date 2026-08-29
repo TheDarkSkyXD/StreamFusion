@@ -5,8 +5,8 @@ import {
   KICK_OAUTH_CONFIG,
   TWITCH_OAUTH_CONFIG,
   WORKER_BASE_URL,
-} from "@/backend/auth/oauth-config";
-import { TWITCH_APP_CLIENT_ID, TWITCH_APP_SCOPES } from "@/shared/auth-types";
+} from "@backend/auth/oauth-config";
+import { TWITCH_APP_CLIENT_ID, TWITCH_APP_SCOPES } from "@shared/auth-types";
 
 describe("Twitch public-client configuration", () => {
   it("uses StreamFusion's bundled public client ID without runtime configuration", () => {
@@ -32,7 +32,7 @@ describe("WORKER_BASE_URL", () => {
     vi.resetModules();
     vi.stubEnv("STREAMFUSION_WORKER_BASE_URL", "http://localhost:8787");
 
-    const config = await import("@/backend/auth/oauth-config");
+    const config = await import("@backend/auth/oauth-config");
 
     expect(config.WORKER_BASE_URL).toBe("http://localhost:8787");
     expect(config.TWITCH_OAUTH_CONFIG.tokenEndpoint).toBe("https://id.twitch.tv/oauth2/token");

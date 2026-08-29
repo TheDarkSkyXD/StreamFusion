@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { RecordingPlayerStatus } from "@/components/player/recording-player-status";
-import type { StreamRecordingLifecycleState } from "@/shared/stream-recording-types";
+import { RecordingPlayerStatus } from "@/features/playback/components/player/recording-player-status";
+import type { StreamRecordingLifecycleState } from "@shared/stream-recording-types";
 
 const state = vi.hoisted(() => ({
   current: {
@@ -20,7 +20,7 @@ const state = vi.hoisted(() => ({
   } as StreamRecordingLifecycleState,
 }));
 
-vi.mock("@/hooks/use-stream-recording-state", () => ({
+vi.mock("@/features/media-library/data/use-stream-recording-state", () => ({
   useStreamRecordingState: () => state.current,
 }));
 

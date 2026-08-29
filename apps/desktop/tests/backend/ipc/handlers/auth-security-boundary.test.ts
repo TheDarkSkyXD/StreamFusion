@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 import { BrowserWindow } from "electron";
 
 const mocks = vi.hoisted(() => ({
@@ -36,23 +36,23 @@ vi.mock("electron", () => ({
   },
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { debug: vi.fn(), error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
-vi.mock("@/lib/managed-interval", () => ({
+vi.mock("@shared/utils/managed-interval", () => ({
   createManagedInterval: vi.fn((callback: () => void) => {
     mocks.intervals.push(callback);
     return { stop: vi.fn() };
   }),
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/follow-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/follow-endpoints", () => ({
   getAllFollowedChannels: mocks.getKickFollows,
   writeKickAccountFollow: mocks.writeKickFollow,
 }));
 
-vi.mock("@/backend/auth", () => ({
+vi.mock("@backend/auth", () => ({
   authWindowManager: {
     openAuthWindow: vi.fn(),
     closeAuthWindow: vi.fn(),
@@ -83,15 +83,15 @@ vi.mock("@/backend/auth", () => ({
   validateOAuthConfig: vi.fn(() => []),
 }));
 
-vi.mock("@/backend/auth/device-code-flow", () => ({
+vi.mock("@backend/auth/device-code-flow", () => ({
   runTwitchDeviceCodeLogin: mocks.runTwitchDeviceCodeLogin,
 }));
 
-vi.mock("@/backend/auth/twitch-device-auth-window", () => ({
+vi.mock("@backend/auth/twitch-device-auth-window", () => ({
   twitchDeviceAuthWindow: { open: mocks.openTwitchDeviceAuthWindow },
 }));
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: {
     getToken: mocks.getToken,
     saveToken: mocks.saveToken,
@@ -109,15 +109,15 @@ vi.mock("@/backend/services/storage-service", () => ({
   },
 }));
 
-vi.mock("@/backend/services/live-notification-service", () => ({
+vi.mock("@backend/services/live-notification-service", () => ({
   liveNotificationService: { reconcileSilently: vi.fn() },
 }));
 
-vi.mock("@/backend/api/platforms/kick/kick-send-window", () => ({
+vi.mock("@backend/api/platforms/kick/kick-send-window", () => ({
   disposeSendWindow: mocks.disposeKickSendWindow,
 }));
 
-import { registerAuthHandlers } from "@/backend/ipc/handlers/auth-handlers";
+import { registerAuthHandlers } from "@backend/ipc/handlers/auth-handlers";
 
 const allowedEvent = { senderFrame: { url: "file:///app/index.html" } };
 const rejectedEvent = { senderFrame: { url: "https://evil.example/" } };

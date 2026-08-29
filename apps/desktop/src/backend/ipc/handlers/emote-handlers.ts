@@ -1,21 +1,21 @@
 import {
   fetch7TVGlobalEmoteSet,
   fetch7TVUserByConnection,
-} from "@/backend/services/emotes/7tv-emotes-service";
+} from "@backend/services/emotes/7tv-emotes-service";
 import {
   fetchBTTVBadges,
   fetchBTTVGlobalEmotes,
   fetchBTTVUserByTwitchId,
-} from "@/backend/services/emotes/bttv-emotes-service";
+} from "@backend/services/emotes/bttv-emotes-service";
 import {
   fetchFFZBadges,
   fetchFFZGlobalEmotes,
   fetchFFZRoom,
-} from "@/backend/services/emotes/ffz-emotes-service";
-import { fetchKickChannelEmotes } from "@/backend/services/emotes/kick-channel-emotes-service";
-import { fetchKickUserSubscriptions } from "@/backend/services/emotes/kick-user-subscriptions-service";
-import { emoteIpcContracts } from "@/ipc-contracts/emote-contracts";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+} from "@backend/services/emotes/ffz-emotes-service";
+import { fetchKickChannelEmotes } from "@backend/services/emotes/kick-channel-emotes-service";
+import { fetchKickUserSubscriptions } from "@backend/services/emotes/kick-user-subscriptions-service";
+import { emoteIpcContracts } from "@shared/ipc-contracts/emote-contracts";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 import { readEmoteReply } from "../emote-ipc-reply";
 import type { TrustedIpcRegistry } from "../trusted-ipc-registry";
 

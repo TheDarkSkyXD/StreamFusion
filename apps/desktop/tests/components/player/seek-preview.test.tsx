@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { SeekPreview } from "@/components/player/seek-preview";
+import { SeekPreview } from "@/features/playback/components/player/seek-preview";
 
 // Guards: seek feedback must appear without an entrance animation that exceeds the 50ms budget.
 describe("SeekPreview", () => {

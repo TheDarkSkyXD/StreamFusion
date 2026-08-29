@@ -5,7 +5,7 @@ import {
   resourceHistoryBarHeight,
   resourceWindow,
 } from "@/pages/Settings/diagnostics/diagnostics-resource-history";
-import type { ResourcePoint } from "@/shared/diagnostics-types";
+import type { ResourcePoint } from "@shared/diagnostics-types";
 
 function point(observedAtMs: number, overrides: Partial<ResourcePoint> = {}): ResourcePoint {
   return {

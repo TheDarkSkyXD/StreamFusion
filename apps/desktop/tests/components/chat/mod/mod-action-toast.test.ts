@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { showModActionSuccessToast } from "@/components/chat/mod/mod-action-toast";
+import { showModActionSuccessToast } from "@/features/chat/components/chat/mod/mod-action-toast";
 
 vi.mock("sonner", () => ({
   toast: {

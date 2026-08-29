@@ -16,7 +16,7 @@ vi.mock("@/hooks/useInterval", () => ({
   },
 }));
 
-import { useBackgroundThrottle } from "@/components/player/hooks/use-background-throttle";
+import { useBackgroundThrottle } from "@/features/playback/components/player/hooks/use-background-throttle";
 
 function createMockVideo(paused = false, muted = false): HTMLVideoElement {
   let _muted = muted;

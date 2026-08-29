@@ -1,4 +1,4 @@
-import type { StreamPlayback } from "../../../../components/player/types";
+import type { StreamPlayback } from "../../../../frontend/features/playback/components/player/types";
 
 const KICK_PLAYBACK_CACHE_TTL_MS = 90_000;
 

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
-import { filterRankAndDeduplicateVideos } from "@/backend/search/search-match-contract";
+import type { UnifiedChannel } from "@shared/platform-types";
+import { filterRankAndDeduplicateVideos } from "@backend/search/search-match-contract";
 
 const clients = vi.hoisted(() => ({
   twitch: {
@@ -18,10 +18,10 @@ const clients = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/backend/api/platforms/twitch/twitch-client", () => ({ twitchClient: clients.twitch }));
-vi.mock("@/backend/api/platforms/kick/kick-client", () => ({ kickClient: clients.kick }));
+vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({ twitchClient: clients.twitch }));
+vi.mock("@backend/api/platforms/kick/kick-client", () => ({ kickClient: clients.kick }));
 
-import { focusedRecentContentSources } from "@/backend/search/focused-search-sources";
+import { focusedRecentContentSources } from "@backend/search/focused-search-sources";
 
 function channel(id: string, platform: "twitch" | "kick"): UnifiedChannel {
   return {

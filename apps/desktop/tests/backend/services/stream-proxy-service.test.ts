@@ -86,7 +86,7 @@ import {
   clearProxy,
   hasStoredCredentials,
   setProxyCredentials,
-} from "@/backend/services/stream-proxy-service";
+} from "@backend/services/stream-proxy-service";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -210,7 +210,7 @@ describe("credential storage — safeStorage, encrypted, write-only", () => {
   it("exposes NO function that returns the password to the renderer", async () => {
     // The service surface is the security contract: there must be no getter for
     // the credential values. Assert the module exports don't include one.
-    const mod = await import("@/backend/services/stream-proxy-service");
+    const mod = await import("@backend/services/stream-proxy-service");
     const exported = Object.keys(mod);
     expect(exported).toContain("setProxyCredentials");
     expect(exported).toContain("hasStoredCredentials");

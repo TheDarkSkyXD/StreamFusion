@@ -9,7 +9,7 @@
 // Guards: full-settings preview rows use the same density padding as live chat, without a second parent gap.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { UserPreferences } from "@/shared/auth-types";
+import type { UserPreferences } from "@shared/auth-types";
 
 import { fireEvent, renderWithProviders, screen, waitFor } from "../../test-utils";
 
@@ -23,8 +23,8 @@ vi.mock("@/store/auth-store", () => ({
   ),
 }));
 
-import { ChatSettingsSection } from "@/components/settings/ChatSettingsSection";
-import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_CHAT_PREFERENCES } from "@/shared/auth-types";
+import { ChatSettingsSection } from "@/features/settings/components/settings/ChatSettingsSection";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_CHAT_PREFERENCES } from "@shared/auth-types";
 
 function setStore(preferences: unknown) {
   storeState = { preferences, updatePreferences };

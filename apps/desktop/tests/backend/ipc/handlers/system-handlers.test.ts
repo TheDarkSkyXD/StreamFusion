@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LiveNotificationCoverageStatus } from "@/shared/auth-types";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import type { LiveNotificationCoverageStatus } from "@shared/auth-types";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 const liveNotificationServiceMock = vi.hoisted(() => ({
   getCoverageStatus: vi.fn<() => LiveNotificationCoverageStatus>(() => ({
@@ -58,21 +58,21 @@ vi.mock("electron", () => {
   };
 });
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
 }));
 
-vi.mock("@/backend/services/live-notification-service", () => ({
+vi.mock("@backend/services/live-notification-service", () => ({
   liveNotificationService: liveNotificationServiceMock,
 }));
 
-vi.mock("@/backend/services/storage-service", () => ({
+vi.mock("@backend/services/storage-service", () => ({
   storageService: storageServiceMock,
 }));
 
 import { app, BrowserWindow, ipcMain, nativeTheme, shell } from "electron";
 
-import { registerSystemHandlers } from "@/backend/ipc/handlers/system-handlers";
+import { registerSystemHandlers } from "@backend/ipc/handlers/system-handlers";
 
 type InvokeHandler = (event: unknown, args?: unknown) => unknown;
 type OnHandler = (event: unknown, ...args: unknown[]) => void;

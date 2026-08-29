@@ -34,7 +34,7 @@ const historyMockState = vi.hoisted(() => ({
   clearHistory: vi.fn(),
 }));
 
-vi.mock("@/hooks/queries/useSearch", () => ({
+vi.mock("@/features/discovery/data/queries/useSearch", () => ({
   useSearchChannels: (...args: unknown[]) => {
     searchMockState.useSearchChannels(...args);
     const configuredOverride = searchMockState.channelQueryOverrides[String(args[1] ?? "all")];
@@ -65,7 +65,7 @@ vi.mock("@/hooks/useDebounce", () => ({
   useDebounce: <T,>(v: T) => v,
 }));
 
-vi.mock("@/hooks/useSearchHistory", () => ({
+vi.mock("@/features/discovery/data/useSearchHistory", () => ({
   useSearchHistory: (scope: "channels" | "categories" | "streams" = "channels") => ({
     history: historyMockState.historyByScope[scope],
     historyByScope: historyMockState.historyByScope,
@@ -75,7 +75,7 @@ vi.mock("@/hooks/useSearchHistory", () => ({
   }),
 }));
 
-vi.mock("@/hooks/queries/useCategories", () => ({
+vi.mock("@/features/discovery/data/queries/useCategories", () => ({
   useUnifiedCategoryLink: () => ({
     linkPlatform: "twitch",
     linkCategoryId: "cat-1",
@@ -87,7 +87,7 @@ vi.mock("@/components/ui/proxied-image", () => ({
   ProxiedImage: ({ alt }: { alt: string }) => <div>{alt}</div>,
 }));
 
-import { UnifiedSearchInput } from "@/components/search/UnifiedSearchInput";
+import { UnifiedSearchInput } from "@/features/discovery/components/search/UnifiedSearchInput";
 
 function makeChannels(count: number, prefix = "ch") {
   return Array.from({ length: count }, (_, i) => ({

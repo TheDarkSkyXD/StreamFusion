@@ -19,7 +19,7 @@
 
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import type { Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS, type TokenStatusResult } from "../../../shared/ipc-channels";
 import { tokenExchangeService } from "../../auth";

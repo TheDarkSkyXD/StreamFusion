@@ -28,7 +28,7 @@ import {
   formatWindowStateSnapshot,
   resolveAppIconPath,
   shouldAutoOpenDevTools,
-} from "@/backend/window-manager";
+} from "@backend/window-manager";
 
 // Guards: Windows development launches must use StreamFusion's real ICO instead of Electron's fallback icon
 describe("resolveAppIconPath", () => {

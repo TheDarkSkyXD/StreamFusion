@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { pruneLogs } from "@/backend/logging/rotation";
+import { pruneLogs } from "@backend/logging/rotation";
 
 // Per-test temp directory pattern mirrors apps/desktop/tests/backend/services/database-service.test.ts —
 // each suite gets an isolated logs dir so file lists don't bleed between tests.

@@ -5,7 +5,7 @@
  * authorization codes for access tokens and handling token refresh.
  */
 
-import { logger } from "@/lib/cross-logger";
+import { logger } from "@shared/utils/cross-logger";
 import { type AuthToken, KICK_APP_SCOPES, type Platform } from "../../shared/auth-types";
 import { KICK_API_BASE } from "../api/platforms/kick/kick-types";
 import { hasCanonicalKickScopes } from "./kick-scope-validation";

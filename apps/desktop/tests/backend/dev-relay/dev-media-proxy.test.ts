@@ -5,7 +5,7 @@ import {
   handleDevMediaProxyRequest,
   rewriteDevMediaPlaylist,
   validateDevMediaTarget,
-} from "@/backend/dev-relay/dev-media-proxy";
+} from "@backend/dev-relay/dev-media-proxy";
 
 // Guards: development media relay accepts observed Twitch/Kick CDN URLs without becoming an SSRF proxy
 // Guards: proxied HLS playlists keep every nested playlist, key, map, and segment on the authenticated relay

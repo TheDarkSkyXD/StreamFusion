@@ -1,4 +1,4 @@
-import type { KickAccountFollowWriteChangedEvent, LocalFollow } from "@/shared/auth-types";
+import type { KickAccountFollowWriteChangedEvent, LocalFollow } from "@shared/auth-types";
 import {
   getKickAccountFollowState,
   type KickAccountFollowState,

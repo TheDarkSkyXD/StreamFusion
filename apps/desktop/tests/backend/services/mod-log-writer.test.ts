@@ -22,12 +22,12 @@ import {
   __resetModLogWriterForTesting,
   modLogWriter,
   type ModLogAction,
-} from "@/backend/services/mod-log-writer";
+} from "@backend/services/mod-log-writer";
 import type {
   ChannelModerateEvent,
   NotificationPayload,
-} from "@/backend/api/platforms/twitch/twitch-eventsub-types";
-import type { ModLogEntry, ModLogQueryFilters } from "@/shared/mod-log-types";
+} from "@backend/api/platforms/twitch/twitch-eventsub-types";
+import type { ModLogEntry, ModLogQueryFilters } from "@shared/mod-log-types";
 
 // ---------------------------------------------------------------------------
 // Mock IPC bridge — in-memory store backs query/insert/sweep

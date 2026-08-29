@@ -1,4 +1,4 @@
-import { storageService } from "@/backend/services/storage-service";
+import { storageService } from "@backend/services/storage-service";
 
 const DEFAULT_COOLDOWN_MS = 60_000;
 const MAX_COOLDOWN_MS = 60 * 60_000;

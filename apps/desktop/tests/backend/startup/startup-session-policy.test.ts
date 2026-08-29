@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { beginStartupSession } from "@/backend/startup/startup-session-policy";
+import { beginStartupSession } from "@backend/startup/startup-session-policy";
 
 describe("beginStartupSession", () => {
   it("starts a new marked session without warning after a clean shutdown", () => {

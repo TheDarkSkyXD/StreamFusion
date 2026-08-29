@@ -10,7 +10,7 @@ vi.mock("@/providers/query-provider", () => ({
   queryClient: { invalidateQueries: vi.fn() },
 }));
 
-import { hydratePersistedFollowingSnapshot } from "@/hooks/queries/browse-snapshot-bootstrap";
+import { hydratePersistedFollowingSnapshot } from "@/features/discovery/data/queries/browse-snapshot-bootstrap";
 import {
   STREAM_KEYS,
   type FollowedStreamSnapshotIdentity,
@@ -18,7 +18,7 @@ import {
   useFollowedStreams,
   useStreamByChannel,
   useTopStreams,
-} from "@/hooks/queries/useStreams";
+} from "@/features/discovery/data/queries/useStreams";
 import { fixtures, installElectronAPIMock } from "../../test-utils";
 
 function makeWrapper() {

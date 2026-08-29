@@ -1,4 +1,4 @@
-import type { UnifiedStream } from "../../../unified/platform-types";
+import type { UnifiedStream } from "../../../../../shared/platform-types";
 import type { TwitchRequestor } from "../twitch-requestor";
 import { helixResponseSchema, twitchStreamSchema } from "../twitch-helix-schemas";
 import { transformTwitchStream } from "../twitch-transformers";

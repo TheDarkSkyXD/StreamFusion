@@ -4,9 +4,9 @@ import {
   DiagnosticsRuntime,
   type DiagnosticsRuntimeDependencies,
   type ElectronProcessMetric,
-} from "@/backend/diagnostics/diagnostics-runtime";
-import type { ProcessIoSnapshot } from "@/backend/diagnostics/process-io-sampler";
-import { diagnosticsSnapshotSchema } from "@/ipc-contracts/diagnostics-contracts";
+} from "@backend/diagnostics/diagnostics-runtime";
+import type { ProcessIoSnapshot } from "@backend/diagnostics/process-io-sampler";
+import { diagnosticsSnapshotSchema } from "@shared/ipc-contracts/diagnostics-contracts";
 
 const OVERVIEW = { tab: "overview", windowMinutes: 15 } as const;
 

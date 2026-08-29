@@ -2,7 +2,7 @@ import type {
   ResolvedTwitchChannel,
   TwitchApiCommand,
   TwitchApiResult,
-} from "@/shared/twitch-api-types";
+} from "@shared/twitch-api-types";
 import { z } from "zod";
 
 import { helixResponseSchema } from "./twitch-helix-schemas";

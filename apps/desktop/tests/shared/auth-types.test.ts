@@ -23,7 +23,7 @@ import {
   TWITCH_MOD_ACTION_SCOPES,
   type UserPreferences,
   type VideoQuality,
-} from "@/shared/auth-types";
+} from "@shared/auth-types";
 
 // Guards: Twitch OAuth scope constants are the canonical connect/reconnect list,
 // so duplicates or a mod subset outside the app set would cause repeated consent prompts.

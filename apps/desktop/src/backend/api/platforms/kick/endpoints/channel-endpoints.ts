@@ -1,9 +1,9 @@
 import type { BrowserWindow } from "electron";
-import { logger } from "@/lib/cross-logger";
-import { createManagedInterval } from "@/lib/managed-interval";
-import type { ChannelAccountStatus } from "@/shared/channel-account-status-types";
+import { logger } from "@shared/utils/cross-logger";
+import { createManagedInterval } from "@shared/utils/managed-interval";
+import type { ChannelAccountStatus } from "@shared/channel-account-status-types";
 import { getPlatformHealth } from "../../../unified/platform-health";
-import type { KickChatroomSettings, UnifiedChannel } from "../../../unified/platform-types";
+import type { KickChatroomSettings, UnifiedChannel } from "../../../../../shared/platform-types";
 import type { SubscriberBadge } from "../../../../services/chat/kick-parser";
 import type { KickRequestor } from "../kick-requestor";
 import { createHiddenKickBrowserWindow } from "../kick-hidden-browser-window";

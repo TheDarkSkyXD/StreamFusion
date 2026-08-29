@@ -7,12 +7,12 @@
  * Handles authentication and data fetching for stream discovery.
  */
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import {
   readResponseTextWithinLimit,
   ResponseBodyTooLargeError,
-} from "@/backend/reliability/bounded-response-body";
-import { sleep } from "@/lib/sleep";
+} from "@backend/reliability/bounded-response-body";
+import { sleep } from "@shared/utils/sleep";
 import { session } from "electron";
 import type { KickUser, Platform } from "../../../../shared/auth-types";
 import { kickAuthService } from "../../../auth/kick-auth";
@@ -21,7 +21,7 @@ import {
   registerThirdPartyCookieStripper,
 } from "../../../services/third-party-cookie-stripper";
 import type { IPlatformReader, PageResult, TopStreamsOptions } from "../../unified/platform-reader";
-import type { UnifiedCategory, UnifiedChannel, UnifiedStream } from "../../unified/platform-types";
+import type { UnifiedCategory, UnifiedChannel, UnifiedStream } from "../../../../shared/platform-types";
 import { clients } from "../../unified/registry";
 
 // Re-export common types for compatibility

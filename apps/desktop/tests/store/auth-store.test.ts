@@ -18,10 +18,10 @@ vi.mock("@/store/follow-store", () => ({
   },
 }));
 
-import { CHANNEL_KEYS } from "@/hooks/queries/useChannels";
-import { STREAM_KEYS } from "@/hooks/queries/useStreams";
-import { DEFAULT_USER_PREFERENCES, type KickUser, type TwitchUser } from "@/shared/auth-types";
-import type { AuthStatus } from "@/shared/ipc-channels";
+import { CHANNEL_KEYS } from "@/features/discovery/data/queries/useChannels";
+import { STREAM_KEYS } from "@/features/discovery/data/queries/useStreams";
+import { DEFAULT_USER_PREFERENCES, type KickUser, type TwitchUser } from "@shared/auth-types";
+import type { AuthStatus } from "@shared/ipc-channels";
 import { useAuthStore } from "@/store/auth-store";
 
 const initialAuthState = useAuthStore.getState();

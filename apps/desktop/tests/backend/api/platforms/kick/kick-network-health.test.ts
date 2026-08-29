@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("kick-network-health", () => {
-  let acquireKickRequestSlot: typeof import("@/backend/api/platforms/kick/kick-network-health").acquireKickRequestSlot;
+  let acquireKickRequestSlot: typeof import("@backend/api/platforms/kick/kick-network-health").acquireKickRequestSlot;
 
   beforeEach(async () => {
     vi.resetModules();
     vi.useFakeTimers();
-    const mod = await import("@/backend/api/platforms/kick/kick-network-health");
+    const mod = await import("@backend/api/platforms/kick/kick-network-health");
     acquireKickRequestSlot = mod.acquireKickRequestSlot;
   });
 

@@ -13,7 +13,7 @@
 
 import type { BrowserWindow } from "electron";
 
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import type { KickPinnedMessage } from "../../../../../shared/chat-types";
 import { getPlatformHealth } from "../../../unified/platform-health";
 

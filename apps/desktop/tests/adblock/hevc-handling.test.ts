@@ -18,7 +18,7 @@ import {
   initAdBlockService,
   processMasterPlaylist,
   clearStreamInfo,
-} from '@/components/player/twitch/twitch-adblock-service';
+} from '@/features/playback/components/player/twitch/twitch-adblock-service';
 
 // Master playlist with mixed HEVC and AVC streams
 const HEVC_MIXED_PLAYLIST = `#EXTM3U

@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getModeratedChannels,
   getModeratedChannelsResult,
-} from "@/backend/api/platforms/twitch/twitch-helix-moderation";
+} from "@backend/api/platforms/twitch/twitch-helix-moderation";
 
 let fetchCalls: Array<{ url: string; method: string; headers: Record<string, string> }> = [];
 let nextResponses: Array<{ status: number; body: unknown } | { throw: Error }> = [];

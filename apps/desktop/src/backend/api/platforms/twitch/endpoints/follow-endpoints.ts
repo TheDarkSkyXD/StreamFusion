@@ -1,4 +1,4 @@
-import type { TwitchFollowWriteCredential } from "@/backend/auth/twitch-follow-write-credential";
+import type { TwitchFollowWriteCredential } from "@backend/auth/twitch-follow-write-credential";
 
 const TWITCH_GQL_ENDPOINT = "https://gql.twitch.tv/gql";
 const FOLLOW_WRITE_TIMEOUT_MS = 10_000;

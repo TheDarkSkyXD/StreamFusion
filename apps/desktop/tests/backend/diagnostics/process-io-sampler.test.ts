@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createProcessIoSampler,
   parseTypeperfProcessIoSample,
-} from "@/backend/diagnostics/process-io-sampler";
+} from "@backend/diagnostics/process-io-sampler";
 
 const spawnMock = vi.hoisted(() => vi.fn());
 

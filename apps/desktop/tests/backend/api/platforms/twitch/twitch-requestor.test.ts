@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: {
     error: vi.fn(),
     warn: vi.fn(),
@@ -9,7 +9,7 @@ vi.mock("@/backend/logging/logger", () => ({
   },
 }));
 
-vi.mock("@/lib/sleep", () => ({
+vi.mock("@shared/utils/sleep", () => ({
   sleep: vi.fn(() => Promise.resolve()),
 }));
 
@@ -18,7 +18,7 @@ const mockIsAuthenticated = vi.fn();
 const mockRefreshToken = vi.fn();
 const mockGetAccessToken = vi.fn();
 
-vi.mock("@/backend/auth/twitch-auth", () => ({
+vi.mock("@backend/auth/twitch-auth", () => ({
   twitchAuthService: {
     getValidAccessToken: (...args: unknown[]) => mockGetValidAccessToken(...args),
     isAuthenticated: (...args: unknown[]) => mockIsAuthenticated(...args),
@@ -27,7 +27,7 @@ vi.mock("@/backend/auth/twitch-auth", () => ({
   },
 }));
 
-vi.mock("@/backend/auth/oauth-config", () => ({
+vi.mock("@backend/auth/oauth-config", () => ({
   getOAuthConfig: () => ({ clientId: "test-client-id" }),
 }));
 
@@ -38,12 +38,12 @@ vi.mock("electron", () => ({
 const mockRecordPlatformSuccess = vi.fn();
 const mockRecordPlatformFailure = vi.fn();
 
-vi.mock("@/backend/api/unified/platform-health", () => ({
+vi.mock("@backend/api/unified/platform-health", () => ({
   recordPlatformSuccess: (...args: unknown[]) => mockRecordPlatformSuccess(...args),
   recordPlatformFailure: (...args: unknown[]) => mockRecordPlatformFailure(...args),
 }));
 
-import { TwitchRequestor } from "@/backend/api/platforms/twitch/twitch-requestor";
+import { TwitchRequestor } from "@backend/api/platforms/twitch/twitch-requestor";
 
 type NetRequest = (
   url: string,
@@ -233,7 +233,7 @@ describe("TwitchRequestor", () => {
     });
 
     it("retries on 502/503/504 with exponential backoff", async () => {
-      const { sleep } = await import("@/lib/sleep");
+      const { sleep } = await import("@shared/utils/sleep");
 
       let callCount = 0;
       spyNetRequest(requestor, async () => {
@@ -263,7 +263,7 @@ describe("TwitchRequestor", () => {
     });
 
     it("retries a transient 500 response", async () => {
-      const { sleep } = await import("@/lib/sleep");
+      const { sleep } = await import("@shared/utils/sleep");
       const spy = spyNetRequest(requestor, async () =>
         spy.mock.calls.length === 1
           ? { data: {}, status: 500, headers: {} }
@@ -296,7 +296,7 @@ describe("TwitchRequestor", () => {
     });
 
     it("retries on transient network errors (fetch failed)", async () => {
-      const { sleep } = await import("@/lib/sleep");
+      const { sleep } = await import("@shared/utils/sleep");
       let callCount = 0;
       spyNetRequest(requestor, async () => {
         callCount++;

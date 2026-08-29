@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { BadgeTooltip } from '@/components/chat/tooltips/BadgeTooltip';
+import { BadgeTooltip } from '@/features/chat/components/chat/tooltips/BadgeTooltip';
 
 describe('BadgeTooltip', () => {
   it('renders nothing when show is false', () => {

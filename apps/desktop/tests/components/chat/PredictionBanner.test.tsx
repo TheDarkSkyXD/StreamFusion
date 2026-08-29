@@ -1,9 +1,9 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PredictionBanner } from "@/components/chat/PredictionBanner";
+import { PredictionBanner } from "@/features/chat/components/chat/PredictionBanner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { UnifiedPrediction } from "@/shared/chat-types";
+import type { UnifiedPrediction } from "@shared/chat-types";
 import { useAuthStore } from "@/store/auth-store";
 
 function makePrediction(overrides: Partial<UnifiedPrediction> = {}): UnifiedPrediction {

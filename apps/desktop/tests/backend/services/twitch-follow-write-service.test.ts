@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TwitchFollowWriteError } from "@/backend/api/platforms/twitch/endpoints/follow-endpoints";
-import { createTwitchFollowWriteService } from "@/backend/services/twitch-follow-write-service";
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
-import type { LocalFollow } from "@/shared/auth-types";
+import { TwitchFollowWriteError } from "@backend/api/platforms/twitch/endpoints/follow-endpoints";
+import { createTwitchFollowWriteService } from "@backend/services/twitch-follow-write-service";
+import type { UnifiedChannel } from "@shared/platform-types";
+import type { LocalFollow } from "@shared/auth-types";
 
 const target = {
   platform: "twitch",

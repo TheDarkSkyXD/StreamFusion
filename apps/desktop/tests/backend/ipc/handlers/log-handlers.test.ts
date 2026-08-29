@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 // Capture ipcMain.handle / ipcMain.on registrations so we can invoke each log
 // handler directly with a synthetic event (controlling senderFrame.url).
@@ -18,7 +18,7 @@ vi.mock("electron", () => ({
   shell: { openPath: vi.fn().mockResolvedValue("") },
 }));
 
-vi.mock("@/backend/logging/logger", () => ({
+vi.mock("@backend/logging/logger", () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -28,25 +28,25 @@ vi.mock("@/backend/logging/logger", () => ({
   getCurrentLogPath: vi.fn(),
 }));
 
-vi.mock("@/backend/logging/noise-logger", () => ({
+vi.mock("@backend/logging/noise-logger", () => ({
   getCurrentNoisePath: vi.fn(),
 }));
 
-vi.mock("@/backend/logging/network-logger", () => ({
+vi.mock("@backend/logging/network-logger", () => ({
   getCurrentNetworkPath: vi.fn(),
 }));
 
-vi.mock("@/backend/ipc/sender-origin", () => ({
+vi.mock("@backend/ipc/sender-origin", () => ({
   isAllowedSender: vi.fn(),
 }));
 
 import { ipcMain, shell } from "electron";
 
-import { registerLogHandlers } from "@/backend/ipc/handlers/log-handlers";
-import { isAllowedSender } from "@/backend/ipc/sender-origin";
-import { getCurrentLogPath, logger } from "@/backend/logging/logger";
-import { getCurrentNetworkPath } from "@/backend/logging/network-logger";
-import { getCurrentNoisePath } from "@/backend/logging/noise-logger";
+import { registerLogHandlers } from "@backend/ipc/handlers/log-handlers";
+import { isAllowedSender } from "@backend/ipc/sender-origin";
+import { getCurrentLogPath, logger } from "@backend/logging/logger";
+import { getCurrentNetworkPath } from "@backend/logging/network-logger";
+import { getCurrentNoisePath } from "@backend/logging/noise-logger";
 
 const loggerMock = vi.mocked(logger);
 

@@ -7,7 +7,7 @@ vi.mock("@/renderer/logging/logger", () => ({
 }));
 
 let recoveryCount = 0;
-vi.mock("@/hooks/useNetworkStatus", () => ({
+vi.mock("@/features/settings/data/useNetworkStatus", () => ({
   useNetworkStatus: () => ({ recoveryCount }),
 }));
 
@@ -30,7 +30,7 @@ afterEach(() => {
 describe("useStreamPlayback confirmed network recovery", () => {
   it("retries only the failed playback once when recovery increments", async () => {
     vi.resetModules();
-    const { useStreamPlayback } = await import("@/hooks/useStreamPlayback");
+    const { useStreamPlayback } = await import("@/features/playback/data/useStreamPlayback");
     const failed = renderHook(() => useStreamPlayback("kick", "recovery-retry"));
     const empty = renderHook(() => useStreamPlayback("kick", ""));
 
@@ -82,7 +82,7 @@ describe("useStreamPlayback confirmed network recovery", () => {
         success: true,
         data: { url: "https://example.test/fresh-after-recovery.m3u8", format: "hls" },
       });
-    const { useStreamPlayback } = await import("@/hooks/useStreamPlayback");
+    const { useStreamPlayback } = await import("@/features/playback/data/useStreamPlayback");
     const playback = renderHook(() => useStreamPlayback("kick", "pending-at-recovery"));
     const getPlaybackUrl = vi.mocked(window.electronAPI!.streams.getPlaybackUrl);
 

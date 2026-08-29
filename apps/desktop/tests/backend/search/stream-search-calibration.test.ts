@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import checkedInProfile from "@/backend/search/stream-search-budget-profile.json";
+import checkedInProfile from "@backend/search/stream-search-budget-profile.json";
 import { deriveStreamSearchCalibration } from "../../../scripts/calibrate-stream-search.mjs";
 
 // Guards: checked-in Stream search budgets must be reproducible from real Electron observations, not invented latency/request arrays

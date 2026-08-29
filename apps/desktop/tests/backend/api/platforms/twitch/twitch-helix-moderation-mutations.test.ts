@@ -18,7 +18,7 @@ import {
   unbanUser,
   updateChatSettings,
   warnUser,
-} from "@/backend/api/platforms/twitch/twitch-helix-moderation-mutations";
+} from "@backend/api/platforms/twitch/twitch-helix-moderation-mutations";
 
 // Per-call capture for body / URL / method / headers inspection.
 let lastUrl: string | null = null;

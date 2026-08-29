@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { validateCategoryDetailSearch } from "@/routes/category-detail-search";
+import { validateCategoryDetailSearch } from "@/features/discovery/routes/category-detail-search";
 
 // Guards: copied Category URLs keep every validated content tab, Live Streams filter, and secondary Platform identity
 // Guards: missing or genuinely invalid Category tab values still fall back safely to Live Streams

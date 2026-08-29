@@ -18,7 +18,7 @@ import {
   waitFor,
 } from "../test-utils";
 
-vi.mock("@/hooks/queries/useCategories", () => ({
+vi.mock("@/features/discovery/data/queries/useCategories", () => ({
   useCategoryById: vi.fn((id: string, platform: "twitch" | "kick") => ({
     data: fixtures.category({ id, platform, name: "Just Chatting" }),
     isLoading: false,
@@ -27,7 +27,7 @@ vi.mock("@/hooks/queries/useCategories", () => ({
   useInfiniteTopCategories: vi.fn(() => ({ data: [] })),
 }));
 
-vi.mock("@/hooks/queries/useInfiniteStreams", () => ({
+vi.mock("@/features/discovery/data/queries/useInfiniteStreams", () => ({
   useInfiniteStreamsByCategory: vi.fn(() => ({
     data: { pages: [] },
     isLoading: false,
@@ -39,7 +39,7 @@ vi.mock("@/hooks/queries/useInfiniteStreams", () => ({
   })),
 }));
 
-vi.mock("@/components/stream/stream-grid", () => ({
+vi.mock("@/features/discovery/components/stream/stream-grid", () => ({
   StreamGrid: () => (
     <Link
       to="/stream/$platform/$channel"
@@ -52,7 +52,7 @@ vi.mock("@/components/stream/stream-grid", () => ({
 }));
 
 import { CategoryDetailPage } from "@/pages/CategoryDetail";
-import { validateCategoryDetailSearch } from "@/routes/category-detail-search";
+import { validateCategoryDetailSearch } from "@/features/discovery/routes/category-detail-search";
 
 // Guards: leaving a Category for a Stream cannot be hijacked by Category-only search canonicalization
 it("keeps navigation on the selected Stream when its watch tab is home", async () => {

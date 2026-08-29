@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { usePlayerKeyboard } from "@/components/player/hooks/use-player-keyboard";
+import { usePlayerKeyboard } from "@/features/playback/components/player/hooks/use-player-keyboard";
 
 function fireKey(key: string, target?: HTMLElement) {
   const event = new KeyboardEvent("keydown", {

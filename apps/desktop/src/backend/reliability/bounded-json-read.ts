@@ -1,5 +1,5 @@
-import { logger } from "@/backend/logging/logger";
-import { createCancellableSleep } from "@/lib/sleep";
+import { logger } from "@backend/logging/logger";
+import { createCancellableSleep } from "@shared/utils/sleep";
 import { readResponseTextWithinLimit, ResponseBodyTooLargeError } from "./bounded-response-body";
 
 type ReadFailureCode =

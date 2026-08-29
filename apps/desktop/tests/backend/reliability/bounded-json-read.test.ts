@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { BoundedReadError, runBoundedJsonRead } from "@/backend/reliability/bounded-json-read";
+import { BoundedReadError, runBoundedJsonRead } from "@backend/reliability/bounded-json-read";
 
 // Guards: bounded reads retry transient responses inside one absolute operation budget.
 // Guards: cancellation prevents queued or future attempts and schema failures never retry.

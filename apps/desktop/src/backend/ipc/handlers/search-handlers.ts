@@ -1,25 +1,25 @@
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
-import { logger } from "@/backend/logging/logger";
-import { createProgressiveClipSearch } from "@/backend/search/progressive-clip-search";
+import { logger } from "@backend/logging/logger";
+import { createProgressiveClipSearch } from "@backend/search/progressive-clip-search";
 import {
   focusedRecentContentSources,
   focusedStreamSources,
-} from "@/backend/search/focused-search-sources";
+} from "@backend/search/focused-search-sources";
 import {
   createProgressiveStreamSearch,
   readStreamSearchFailureProgress,
   STREAM_SEARCH_BUDGET_PROFILES,
-} from "@/backend/search/progressive-stream-search";
-import { createProgressiveVideoSearch } from "@/backend/search/progressive-video-search";
+} from "@backend/search/progressive-stream-search";
+import { createProgressiveVideoSearch } from "@backend/search/progressive-video-search";
 import {
   attachSearchSession,
   cancelSearchSession,
   isSearchCancelled,
-} from "@/backend/search/search-session-manager";
-import { rankSearchChannels } from "@/search/channel-search-contract";
-import type { SearchResultCollection } from "@/search/search-result-validation";
-import type { UnifiedChannel } from "../../api/unified/platform-types";
+} from "@backend/search/search-session-manager";
+import { rankSearchChannels } from "@/features/discovery/utils/search/channel-search-contract";
+import type { SearchResultCollection } from "@/features/discovery/utils/search/search-result-validation";
+import type { UnifiedChannel } from "../../../shared/platform-types";
 import type { Platform } from "../../../shared/auth-types";
 import type {
   SearchStreamsRequest,

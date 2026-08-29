@@ -1,15 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/backend/api/unified/platform-health", () => ({
+vi.mock("@backend/api/unified/platform-health", () => ({
   getPlatformHealth: vi.fn(() => "healthy"),
   isPlatformHealthy: vi.fn(() => true),
 }));
 
-vi.mock("@/lib/managed-interval", () => ({
+vi.mock("@shared/utils/managed-interval", () => ({
   createManagedInterval: vi.fn(),
 }));
 
-vi.mock("@/lib/cross-logger", () => ({
+vi.mock("@shared/utils/cross-logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
@@ -18,17 +18,17 @@ const { getUsersByIdMock, getLatestCompletedVideoEndedAtMock } = vi.hoisted(() =
   getLatestCompletedVideoEndedAtMock: vi.fn(),
 }));
 
-vi.mock("@/backend/api/platforms/kick/endpoints/user-endpoints", async () => {
+vi.mock("@backend/api/platforms/kick/endpoints/user-endpoints", async () => {
   const actual = await vi.importActual<
-    typeof import("@/backend/api/platforms/kick/endpoints/user-endpoints")
-  >("@/backend/api/platforms/kick/endpoints/user-endpoints");
+    typeof import("@backend/api/platforms/kick/endpoints/user-endpoints")
+  >("@backend/api/platforms/kick/endpoints/user-endpoints");
   return {
     ...actual,
     getUsersById: getUsersByIdMock,
   };
 });
 
-vi.mock("@/backend/api/platforms/kick/endpoints/video-endpoints", () => ({
+vi.mock("@backend/api/platforms/kick/endpoints/video-endpoints", () => ({
   getLatestCompletedVideoEndedAtByChannelSlug: getLatestCompletedVideoEndedAtMock,
 }));
 
@@ -63,10 +63,10 @@ import {
   getOfficialKickChannelAccountStatus,
   getPublicChannel,
   mapKickChatroomToSettings,
-} from "@/backend/api/platforms/kick/endpoints/channel-endpoints";
-import type { KickRequestor } from "@/backend/api/platforms/kick/kick-requestor";
-import { getPlatformHealth, isPlatformHealthy } from "@/backend/api/unified/platform-health";
-import { logger } from "@/lib/cross-logger";
+} from "@backend/api/platforms/kick/endpoints/channel-endpoints";
+import type { KickRequestor } from "@backend/api/platforms/kick/kick-requestor";
+import { getPlatformHealth, isPlatformHealthy } from "@backend/api/unified/platform-health";
+import { logger } from "@shared/utils/cross-logger";
 
 function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor {
   return {

@@ -8,8 +8,8 @@ vi.mock("electron", () => ({
 
 import { ipcMain } from "electron";
 
-import { registerTwitchApiHandlers } from "@/backend/ipc/handlers/twitch-api-handlers";
-import { IPC_CHANNELS } from "@/shared/ipc-channels";
+import { registerTwitchApiHandlers } from "@backend/ipc/handlers/twitch-api-handlers";
+import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 type Handler = (event: { senderFrame?: { url?: string } }, payload: unknown) => Promise<unknown>;
 

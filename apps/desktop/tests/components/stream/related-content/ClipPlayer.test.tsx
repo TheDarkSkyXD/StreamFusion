@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ClipPlayer } from "@/components/stream/related-content/ClipPlayer";
+import { ClipPlayer } from "@/features/playback/components/related-content/ClipPlayer";
 
 const log = vi.hoisted(() => ({
   debug: vi.fn(),

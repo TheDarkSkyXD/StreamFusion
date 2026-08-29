@@ -4,7 +4,7 @@ import { DiagnosticsWorkspace } from "@/pages/Settings/diagnostics/DiagnosticsWo
 
 import { fireEvent, renderWithProviders, screen } from "../../test-utils";
 
-vi.mock("@/hooks/use-diagnostics-workspace", () => ({
+vi.mock("@/features/settings/data/use-diagnostics-workspace", () => ({
   useDiagnosticsWorkspace: () => ({
     kind: "loading" as const,
     snapshot: null,
@@ -12,11 +12,11 @@ vi.mock("@/hooks/use-diagnostics-workspace", () => ({
   }),
 }));
 
-vi.mock("@/components/settings/LogsSection", () => ({
+vi.mock("@/features/settings/components/settings/LogsSection", () => ({
   LogsSection: () => <div>Logs viewer</div>,
 }));
 
-vi.mock("@/components/settings/BugReportSection", () => ({
+vi.mock("@/features/settings/components/settings/BugReportSection", () => ({
   BugReportSection: () => <div>Report builder</div>,
 }));
 

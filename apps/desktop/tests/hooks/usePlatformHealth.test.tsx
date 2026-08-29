@@ -42,7 +42,7 @@ describe("usePlatformHealth", () => {
       onChange: vi.fn(() => () => {}),
     };
 
-    const { usePlatformHealth } = await import("@/hooks/usePlatformHealth");
+    const { usePlatformHealth } = await import("@/features/settings/data/usePlatformHealth");
     const { result } = renderHook(() => usePlatformHealth());
 
     expect(result.current.kick).toBe("healthy");
@@ -66,7 +66,7 @@ describe("usePlatformHealth", () => {
       onChange: vi.fn(() => () => {}),
     };
 
-    const { usePlatformHealth } = await import("@/hooks/usePlatformHealth");
+    const { usePlatformHealth } = await import("@/features/settings/data/usePlatformHealth");
     const { result } = renderHook(() => usePlatformHealth());
 
     await waitFor(() => expect(result.current.kick).toBe("degraded"));
@@ -88,7 +88,7 @@ describe("usePlatformHealth", () => {
       }),
     };
 
-    const { usePlatformHealth } = await import("@/hooks/usePlatformHealth");
+    const { usePlatformHealth } = await import("@/features/settings/data/usePlatformHealth");
     const { result } = renderHook(() => usePlatformHealth());
 
     await waitFor(() => expect(api.platformHealth.get).toHaveBeenCalled());
@@ -117,7 +117,7 @@ describe("usePlatformHealth", () => {
       }),
     };
 
-    const { usePlatformHealth } = await import("@/hooks/usePlatformHealth");
+    const { usePlatformHealth } = await import("@/features/settings/data/usePlatformHealth");
     const { result } = renderHook(() => usePlatformHealth());
 
     await waitFor(() =>
@@ -154,7 +154,7 @@ describe("usePlatformHealth", () => {
       onChange: vi.fn(() => () => {}),
     };
 
-    const { usePlatformHealth } = await import("@/hooks/usePlatformHealth");
+    const { usePlatformHealth } = await import("@/features/settings/data/usePlatformHealth");
     const { result } = renderHook(() => usePlatformHealth());
 
     await waitFor(() => expect(result.current.anyDegraded).toBe(true));
@@ -173,7 +173,7 @@ describe("usePlatformHealth", () => {
       onChange: vi.fn(() => unsubscribe),
     };
 
-    const { usePlatformHealth } = await import("@/hooks/usePlatformHealth");
+    const { usePlatformHealth } = await import("@/features/settings/data/usePlatformHealth");
     const { unmount } = renderHook(() => usePlatformHealth());
 
     await waitFor(() => expect(api.platformHealth.onChange).toHaveBeenCalled());

@@ -1,13 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { CaptionOverlay } from "@/components/player/caption-overlay";
+import { CaptionOverlay } from "@/features/playback/components/player/caption-overlay";
 import {
   advanceLocalCaptionCue,
   applyLocalCaptionResult,
-} from "@/components/player/local-caption-presentation";
-import type { TimedTextCue } from "@/components/player/types";
-import type { LocalCaptionResult } from "@/shared/local-caption-types";
+} from "@/features/playback/components/player/local-caption-presentation";
+import type { TimedTextCue } from "@/features/playback/components/player/types";
+import type { LocalCaptionResult } from "@shared/local-caption-types";
 
 function result(overrides: Partial<LocalCaptionResult> = {}): LocalCaptionResult {
   return {

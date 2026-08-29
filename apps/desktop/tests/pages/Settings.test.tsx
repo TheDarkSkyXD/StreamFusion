@@ -8,7 +8,7 @@ import {
   DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
-} from "@/shared/auth-types";
+} from "@shared/auth-types";
 import { HOME_CAROUSEL_INTERVAL_DEFAULT_MS, useAppStore } from "@/store/app-store";
 import { useFollowStore } from "@/store/follow-store";
 
@@ -76,7 +76,7 @@ const authErrorMock = vi.hoisted(() => ({
   clearError: vi.fn(),
 }));
 
-vi.mock("@/hooks/useAuth", () => ({
+vi.mock("@/features/auth/data/useAuth", () => ({
   useAuthError: () => ({ error: authErrorMock.error, clearError: authErrorMock.clearError }),
 }));
 
@@ -127,7 +127,7 @@ vi.mock("@/store/adblock-store", () => ({
   },
 }));
 
-vi.mock("@/components/auth", () => ({
+vi.mock("@/features/auth/components/auth", () => ({
   AccountConnect: () => <div data-testid="account-connect">accounts</div>,
 }));
 
@@ -813,7 +813,7 @@ describe("SettingsPage — API / Tokens tab (U14)", () => {
   // returns `{data:[],error:null}`, which is the wrong shape for this panel.
   function installTokenStatusMock(
     byPlatform: Partial<
-      Record<"twitch" | "kick", import("@/shared/ipc-channels").TokenStatusResult>
+      Record<"twitch" | "kick", import("@shared/ipc-channels").TokenStatusResult>
     >
   ) {
     const api = installElectronAPIMock();
@@ -826,7 +826,7 @@ describe("SettingsPage — API / Tokens tab (U14)", () => {
 
   async function openApiTokensTab(
     byPlatform: Partial<
-      Record<"twitch" | "kick", import("@/shared/ipc-channels").TokenStatusResult>
+      Record<"twitch" | "kick", import("@shared/ipc-channels").TokenStatusResult>
     >
   ) {
     const mock = installTokenStatusMock(byPlatform);

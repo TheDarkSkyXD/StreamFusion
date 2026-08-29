@@ -19,7 +19,7 @@ vi.mock("@/store/volume-store", () => ({
   }),
 }));
 
-import { useVolume } from "@/components/player/hooks/use-volume";
+import { useVolume } from "@/features/playback/components/player/hooks/use-volume";
 
 // Helper to create a mock video element
 function createMockVideoElement(initialVolume = 1.0): HTMLVideoElement {

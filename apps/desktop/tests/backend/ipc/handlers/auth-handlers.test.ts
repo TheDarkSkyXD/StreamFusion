@@ -10,8 +10,8 @@ import {
   shouldDeferKickStartupFollowRefresh,
   syncKickFollowsAfterLogin,
   syncTwitchFollowsAfterLogin,
-} from "@/backend/ipc/handlers/auth-handlers";
-import { isKickAccountReconciliationActive } from "@/backend/services/kick-account-reconciliation-coordinator";
+} from "@backend/ipc/handlers/auth-handlers";
+import { isKickAccountReconciliationActive } from "@backend/services/kick-account-reconciliation-coordinator";
 
 it("polls connected account follows every fifteen minutes in the background", () => {
   expect(FOLLOWS_REFRESH_INTERVAL_MS).toBe(15 * 60_000);

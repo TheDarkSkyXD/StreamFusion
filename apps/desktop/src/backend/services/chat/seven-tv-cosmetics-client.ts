@@ -6,7 +6,7 @@ import type {
   SevenTvPaintShadow,
   SevenTvPaintStop,
 } from "@shared/chat-types";
-import { sleep } from "@/lib/sleep";
+import { sleep } from "@shared/utils/sleep";
 
 export type SevenTvCosmeticEvent =
   | { type: "badge.upsert"; badge: ChatCosmeticBadge }

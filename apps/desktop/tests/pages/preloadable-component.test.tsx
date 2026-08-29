@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { Suspense } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { createPreloadableComponent } from "@/pages/preloadable-component";
+import { createPreloadableComponent } from "@/routes/preloadable-component";
 
 describe("preloadable component", () => {
   it("renders synchronously without reloading after an external preload", async () => {

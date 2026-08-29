@@ -2,12 +2,12 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { createRef, type RefObject, StrictMode, useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_USER_PREFERENCES } from "@/shared/auth-types";
+import { DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
 import type {
   LocalCaptionModelState,
   LocalCaptionRecognizerState,
   LocalCaptionResult,
-} from "@/shared/local-caption-types";
+} from "@shared/local-caption-types";
 import { useAuthStore } from "@/store/auth-store";
 
 const capture = vi.hoisted(() => ({
@@ -18,7 +18,7 @@ const capture = vi.hoisted(() => ({
   setPresentation: vi.fn(),
 }));
 
-vi.mock("@/components/player/local-audio-capture", () => ({
+vi.mock("@/features/playback/components/player/local-audio-capture", () => ({
   LocalAudioCaptureController: class {
     constructor(options: { onBatch: (batch: unknown) => void }) {
       capture.onBatch = options.onBatch;
@@ -30,7 +30,7 @@ vi.mock("@/components/player/local-audio-capture", () => ({
   },
 }));
 
-import { useLocalLiveCaptions } from "@/components/player/hooks/use-local-live-captions";
+import { useLocalLiveCaptions } from "@/features/playback/components/player/hooks/use-local-live-captions";
 
 const originalUpdatePreferences = useAuthStore.getState().updatePreferences;
 

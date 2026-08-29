@@ -1,14 +1,14 @@
-import type { UnifiedChannel } from "@/backend/api/unified/platform-types";
+import type { UnifiedChannel } from "@shared/platform-types";
 import {
   TwitchFollowWriteError,
   writeTwitchAccountFollow,
-} from "@/backend/api/platforms/twitch/endpoints/follow-endpoints";
-import { twitchClient } from "@/backend/api/platforms/twitch/twitch-client";
+} from "@backend/api/platforms/twitch/endpoints/follow-endpoints";
+import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
 import {
   twitchFollowWriteCredentialService,
   type TwitchFollowWriteCredential,
-} from "@/backend/auth/twitch-follow-write-credential";
-import type { LocalFollow } from "@/shared/auth-types";
+} from "@backend/auth/twitch-follow-write-credential";
+import type { LocalFollow } from "@shared/auth-types";
 import { storageService } from "./storage-service";
 
 type TwitchFollowInput = Omit<LocalFollow, "id" | "followedAt"> & { platform: "twitch" };

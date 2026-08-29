@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { selectVisibleChatReplayMessages } from "@/hooks/chat-replay-window";
-import type { ChatReplayMessage, VideoPlaybackSnapshot } from "@/shared/chat-replay-types";
+import { selectVisibleChatReplayMessages } from "@/features/chat/routes/chat-replay-window";
+import type { ChatReplayMessage, VideoPlaybackSnapshot } from "@shared/chat-replay-types";
 
 const messages: ChatReplayMessage[] = [5, 10, 30, 50, 90].map((offsetSeconds) => ({
   id: `message-${offsetSeconds}`,

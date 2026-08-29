@@ -14,23 +14,23 @@ const SRC_DIR = path.resolve(__dirname, "../../src");
  */
 const SANCTIONED_FILES = new Set<string>([
   // sanctioned helpers (SP1/SP2/SP3) — these ARE the wrappers
-  "lib/sleep.ts",
-  "lib/managed-interval.ts",
+  "shared/utils/sleep.ts",
+  "shared/utils/managed-interval.ts",
   // scheduler util (requestIdleCallback polyfill + delayed-task scheduler)
-  "lib/idle-scheduler.ts",
-  "hooks/useDebounce.ts",
-  "hooks/useInterval.ts",
-  "hooks/useTimeout.ts",
-  "hooks/useManagedTimeout.ts",
+  "frontend/lib/idle-scheduler.ts",
+  "frontend/hooks/useDebounce.ts",
+  "frontend/hooks/useInterval.ts",
+  "frontend/hooks/useTimeout.ts",
+  "frontend/hooks/useManagedTimeout.ts",
   "backend/services/web-contents-ready.ts",
   // dev-only tooling (out of scope per SP2 O5)
-  "components/dev/PerfTool.tsx",
-  "components/dev/interval-tracker.ts",
+  "frontend/components/dev/PerfTool.tsx",
+  "frontend/components/dev/interval-tracker.ts",
   // DEFERRED until the user's WIP on this file lands; then tag the :380
   // auto-dismiss setTimeout with an inline `// timer-allowlist: <reason>`
   // marker (or migrate it to useTimeout from @/hooks/useTimeout, since
   // SP2's hook is now available) and remove this entry.
-  "pages/Settings/index.tsx",
+  "frontend/pages/Settings/index.tsx",
 ]);
 
 const TIMER_CALL = /\b(setTimeout|setInterval)\s*\(/;
@@ -119,8 +119,8 @@ describe("policy: no raw setTimeout/setInterval outside sanctioned helpers", () 
       ...violations.map((v) => `  src/${v.file}:${v.line}: ${v.source}`),
       "",
       "Fix: route the timer through one of the sanctioned helpers:",
-      "  - @/lib/sleep                 for async backoff (await sleep(ms))",
-      "  - @/lib/managed-interval      for recurring backend intervals",
+      "  - @shared/utils/sleep            for async backoff (await sleep(ms))",
+      "  - @shared/utils/managed-interval for recurring intervals",
       "  - @/hooks/useInterval         for React recurring intervals",
       "  - @/hooks/useTimeout          for React declarative one-shots",
       "  - @/hooks/useManagedTimeout   for React imperative one-shots",

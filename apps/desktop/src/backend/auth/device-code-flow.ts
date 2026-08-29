@@ -14,8 +14,8 @@
  * @see https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#device-code-grant-flow
  */
 
-import { logger } from "@/backend/logging/logger";
-import { createManagedInterval } from "@/lib/managed-interval";
+import { logger } from "@backend/logging/logger";
+import { createManagedInterval } from "@shared/utils/managed-interval";
 import type { AuthToken } from "../../shared/auth-types";
 import { getOAuthConfig } from "./oauth-config";
 import type { TwitchDeviceAuthWindowHandle } from "./twitch-device-auth-window";

@@ -25,8 +25,8 @@
 
 import fs from "node:fs";
 
-import { isHarmlessChromiumNoise } from "@/backend/logging/chromium-noise-filter";
-import { logger } from "@/backend/logging/logger";
+import { isHarmlessChromiumNoise } from "@backend/logging/chromium-noise-filter";
+import { logger } from "@backend/logging/logger";
 
 export interface ChromiumLogTailerOpts {
   /** Absolute path of the file Chromium writes to. */

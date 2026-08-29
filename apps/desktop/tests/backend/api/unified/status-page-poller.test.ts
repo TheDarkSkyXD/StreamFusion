@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vite
 type HealthEvent = { platform: string; status: string; startedAt: number };
 const listeners = new Set<(event: HealthEvent) => void>();
 
-vi.mock("@/backend/api/unified/platform-health", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/backend/api/unified/platform-health")>();
+vi.mock("@backend/api/unified/platform-health", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@backend/api/unified/platform-health")>();
   return {
     ...actual,
     onPlatformHealthChanged: vi.fn((listener: (event: HealthEvent) => void) => {
@@ -42,7 +42,7 @@ function defaultKickStatusResponse(url: string | URL | Request): Response {
 // PagerDuty API routes now return an HTML shell with HTTP 200 and must never drive the banner.
 describe("status-page-poller (slice 08)", () => {
   let originalFetch: typeof globalThis.fetch;
-  let platformHealth: typeof import("@/backend/api/unified/platform-health");
+  let platformHealth: typeof import("@backend/api/unified/platform-health");
   let loggerMock: LoggerMock;
 
   beforeEach(async () => {
@@ -51,9 +51,9 @@ describe("status-page-poller (slice 08)", () => {
     originalFetch = globalThis.fetch;
     globalThis.fetch = vi.fn((url) => Promise.resolve(defaultKickStatusResponse(url)));
     listeners.clear();
-    platformHealth = await import("@/backend/api/unified/platform-health");
+    platformHealth = await import("@backend/api/unified/platform-health");
     vi.mocked(platformHealth.recordStatusPageSignal).mockClear();
-    const loggerModule = (await import("@/backend/logging/logger")) as unknown as {
+    const loggerModule = (await import("@backend/logging/logger")) as unknown as {
       logger: LoggerMock;
     };
     loggerMock = loggerModule.logger;
@@ -62,7 +62,7 @@ describe("status-page-poller (slice 08)", () => {
     loggerMock.warn.mockClear();
     loggerMock.error.mockClear();
     const { __resetStatusPagePollerForTests, initStatusPagePoller } =
-      await import("@/backend/api/unified/status-page-poller");
+      await import("@backend/api/unified/status-page-poller");
     __resetStatusPagePollerForTests();
     initStatusPagePoller();
     await vi.advanceTimersByTimeAsync(1);

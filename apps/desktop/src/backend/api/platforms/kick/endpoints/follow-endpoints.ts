@@ -21,7 +21,7 @@
  */
 
 import { session, type BrowserWindow } from "electron";
-import { logger } from "@/backend/logging/logger";
+import { logger } from "@backend/logging/logger";
 import {
   firstValidKickBroadcasterUserId,
   getKickBroadcasterUserIdFromAvatar,
@@ -29,7 +29,7 @@ import {
 import { hasCanonicalKickScopes } from "../../../../auth/kick-scope-validation";
 import { storageService } from "../../../../services/storage-service";
 import { waitForWebContentsCondition } from "../../../../services/web-contents-ready";
-import type { UnifiedChannel } from "../../../unified/platform-types";
+import type { UnifiedChannel } from "../../../../../shared/platform-types";
 import { createHiddenKickBrowserWindow } from "../kick-hidden-browser-window";
 import { installKickWebBearerCapture, readPersistedKickWebBearer } from "../kick-web-credential";
 import { transformKickFollowedChannelLegacy } from "../kick-transformers";

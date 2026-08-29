@@ -31,7 +31,7 @@ const config: StorybookConfig = {
       ],
       resolve: {
         alias: {
-          "@": fromDesktopRoot("src"),
+          "@": fromDesktopRoot("src/frontend"),
           "@backend": fromDesktopRoot("src/backend"),
           "@frontend": fromDesktopRoot("src/frontend"),
           "@shared": fromDesktopRoot("src/shared"),

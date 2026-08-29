@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   parseSevenTvCosmeticFrame,
   SevenTvCosmeticsClient,
-} from "@/backend/services/chat/seven-tv-cosmetics-client";
+} from "@backend/services/chat/seven-tv-cosmetics-client";
 
 // Guards: 7TV Event API badge definitions retain a stable provider-qualified identity so badges from different providers cannot collide.
 describe("parseSevenTvCosmeticFrame", () => {

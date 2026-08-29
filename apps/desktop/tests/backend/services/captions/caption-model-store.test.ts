@@ -5,8 +5,8 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { LocalCaptionModelPack } from "@/backend/services/captions/caption-model-catalog";
-import { LocalCaptionModelStore } from "@/backend/services/captions/caption-model-store";
+import type { LocalCaptionModelPack } from "@backend/services/captions/caption-model-catalog";
+import { LocalCaptionModelStore } from "@backend/services/captions/caption-model-store";
 
 const roots: string[] = [];
 
