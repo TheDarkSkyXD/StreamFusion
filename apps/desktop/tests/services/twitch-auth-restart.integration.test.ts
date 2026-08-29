@@ -134,6 +134,15 @@ beforeAll(() => {
         return value === undefined ? undefined : cloneJson(value);
       }
 
+      get store(): Record<string, unknown> {
+        return cloneJson(this.data);
+      }
+
+      set store(value: Record<string, unknown>) {
+        this.data = cloneJson(value);
+        this.persist();
+      }
+
       set(key: string, value: unknown): void {
         this.data[key] = cloneJson(value);
         this.persist();
@@ -174,6 +183,7 @@ beforeAll(() => {
     dbService: {
       clearFollows: vi.fn(),
       clearKeyValue: vi.fn(),
+      migrateKeyValues: vi.fn(),
     },
   }));
 });

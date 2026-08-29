@@ -1,6 +1,6 @@
 # MultiStream
 
-MultiStream lets a user open MultiView, inspect an empty layout, choose a layout mode, and add live Twitch or Kick Channels through search or favorites.
+MultiStream lets a user open MultiView, inspect an empty layout, and add live Twitch or Kick Channels through search or favorites. Populated layouts support reordering, slot mute, chat selection, removal, and focused viewing.
 
 ## Sub-features
 
@@ -8,6 +8,7 @@ MultiStream lets a user open MultiView, inspect an empty layout, choose a layout
 - `multistream-empty-controls` disables focus layout and chat when no StreamSlots exist.
 - `multistream-add-dialog` opens the Search and Favorites entry points.
 - `multistream-add-channel` adds a selected live Channel to the grid.
+- `multistream-slot-controls` reorders, mutes, focuses, selects chat for, or removes populated StreamSlots.
 
 ## How to get to it (user POV)
 
@@ -35,5 +36,7 @@ Preconditions:
 - The navigation label is `MultiView`; the page heading is `MultiStream`.
 - `Focus Layout` gets its accessible name from `title`, not button text.
 - Search only returns live Channels. No result may mean the Channel is offline, the provider failed, or the query did not match.
+- The layout button updates the layout preference, but focused rendering also needs a selected StreamSlot. Do not claim focus mode from the toolbar button alone.
+- With populated slots, prove focus through a slot control or `Ctrl+1` through `Ctrl+6`, then verify one stream is focused.
 - Selecting a result mutates the isolated profile. Cleanup removes it. If proving persistence, leave and reopen MultiView before cleanup.
 - A full layout rejects additional Channels at the configured MultiviewCap. The fresh-profile recipe tests the zero-StreamSlot boundary only.

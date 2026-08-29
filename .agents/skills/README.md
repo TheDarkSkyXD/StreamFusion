@@ -57,7 +57,7 @@ graph TD
 | 6 | `/improve-codebase-architecture` | Surface shallow modules and propose deepening refactors. Generates an HTML report with before/after diagrams, then explores alternative interfaces via parallel sub-agents |
 | 7 | `/deslop` | Before committing: strip unnecessary comments, defensive checks, `any` casts, and other AI-generated slop |
 | 8 | `/proof` | Prove the feature works with real observed evidence (screenshots, test output) — not just "it should work" |
-| 9 | `deepsec` | Run a security scan to catch vulnerabilities before shipping (`pnpm deepsec scan && pnpm deepsec process`) |
+| 9 | `deepsec` | Run a security scan to catch vulnerabilities before shipping (`npm exec -- deepsec scan && npm exec -- deepsec process`) |
 
 #### 🐛 Debugging
 
@@ -208,7 +208,7 @@ npx deepsec init
 
 # Install dependencies
 cd .deepsec
-pnpm install
+npm install
 ```
 
 Deepsec creates a `.deepsec/` directory with project-specific configuration. After init, prompt your coding agent to read `.deepsec/node_modules/deepsec/SKILL.md` and bootstrap context.
@@ -219,16 +219,16 @@ Deepsec creates a `.deepsec/` directory with project-specific configuration. Aft
 cd .deepsec
 
 # Step 1: Fast regex scan to find candidate sites (no AI)
-pnpm deepsec scan
+npm exec -- deepsec scan
 
 # Step 2: AI investigates candidates and emits findings
-pnpm deepsec process
+npm exec -- deepsec process
 
 # Step 3: Optional — reduce false positives
-pnpm deepsec revalidate
+npm exec -- deepsec revalidate
 
 # Step 4: Export findings
-pnpm deepsec export --format md-dir --out ./findings
+npm exec -- deepsec export --format md-dir --out ./findings
 ```
 
 ### Why it's not a skill in this collection

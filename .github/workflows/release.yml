@@ -29,7 +29,7 @@ jobs:
       prerelease_label: ${{ steps.release.outputs.prerelease_label }}
     steps:
       - name: Checkout tagged source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           ref: ${{ inputs.tag || github.ref }}
@@ -46,46 +46,46 @@ jobs:
           }
           node scripts/release-policy.mjs "$RELEASE_TAG" "$GITHUB_OUTPUT"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.17.0
-          run_install: false
-
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-          cache: pnpm
+          cache: npm
           cache-dependency-path: |
-            pnpm-lock.yaml
-            apps/desktop/pnpm-lock.yaml
+            package-lock.json
+            apps/desktop/package-lock.json
 
-      - name: Install dependencies
+      - name: Pin npm
+        run: npm install --global npm@11.19.0
+
+      - name: Install dependencies without lifecycle scripts
         run: |
-          pnpm install --frozen-lockfile
-          pnpm --dir apps/desktop install --frozen-lockfile
+          npm ci --ignore-scripts
+          npm --prefix apps/desktop ci --ignore-scripts
 
       - name: Validate dependency sources and lockfile
         run: |
-          pnpm lint:dependencies
-          pnpm lint:lockfile
+          npm run lint:dependencies
+          npm run lint:lockfile
 
-      - name: Audit production dependencies
+      - name: Verify signatures and audit the complete dependency graph
         run: |
-          pnpm audit --prod --audit-level=high
-          pnpm --dir apps/desktop audit --prod --audit-level=high
+          npm run audit:signatures
+          npm run audit:dependencies
+
+      - name: Run approved dependency setup
+        run: npm run rebuild:dependencies
 
       - name: Lint and typecheck
         run: |
-          pnpm --dir apps/desktop lint
-          pnpm typecheck
+          npm --prefix apps/desktop run lint
+          npm run typecheck
 
       - name: Test workspace
-        run: pnpm test
+        run: npm test
 
       - name: Build worker dry run
-        run: pnpm --filter streamfusion-worker exec wrangler deploy --dry-run
+        run: npm run --workspace streamfusion-worker deploy:dry-run
 
   build:
     name: Package ${{ matrix.platform }} ${{ matrix.arch }}
@@ -110,25 +110,26 @@ jobs:
             artifact_name: streamfusion-macos-arm64
     steps:
       - name: Checkout tagged source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.verify.outputs.release_tag }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.17.0
-          run_install: false
-
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-          cache: pnpm
-          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
 
-      - name: Install dependencies
-        run: pnpm --dir apps/desktop install --frozen-lockfile
+      - name: Pin npm
+        run: npm install --global npm@11.19.0
+
+      - name: Install and verify desktop dependencies
+        run: |
+          npm --prefix apps/desktop ci --ignore-scripts
+          npm --prefix apps/desktop audit signatures
+          npm --prefix apps/desktop rebuild --ignore-scripts=false
+          npm --prefix apps/desktop run install:electron
 
       - name: Require signing and notarization credentials
         shell: bash
@@ -148,22 +149,17 @@ jobs:
           fi
 
       - name: Rebuild native dependencies
-        run: pnpm --dir apps/desktop exec electron-builder install-app-deps --arch ${{ matrix.arch }}
+        run: npm --prefix apps/desktop run rebuild-deps:${{ matrix.arch }}
 
       - name: Build desktop
-        run: pnpm --dir apps/desktop build
+        run: npm --prefix apps/desktop run build
 
       - name: Package signed Windows application
         if: matrix.platform == 'windows'
         env:
           CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-        run: >-
-          pnpm --dir apps/desktop exec electron-builder
-          --win
-          --${{ matrix.arch }}
-          --publish never
-          -c.forceCodeSigning=true
+        run: npm --prefix apps/desktop run package:${{ matrix.platform }}:${{ matrix.arch }}:signed
 
       - name: Verify Windows Authenticode signature
         if: matrix.platform == 'windows'
@@ -184,13 +180,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: >-
-          pnpm --dir apps/desktop exec electron-builder
-          --mac
-          --${{ matrix.arch }}
-          --publish never
-          -c.forceCodeSigning=true
-          -c.mac.notarize=true
+        run: npm --prefix apps/desktop run package:${{ matrix.platform }}:${{ matrix.arch }}:signed
 
       - name: Verify macOS signature, Gatekeeper, and notarization ticket
         if: matrix.platform == 'macos'
@@ -203,7 +193,7 @@ jobs:
           xcrun stapler validate "$APP_PATH"
 
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ matrix.artifact_name }}
           path: |
@@ -227,28 +217,27 @@ jobs:
       contents: write
     steps:
       - name: Checkout tagged source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ needs.verify.outputs.release_tag }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.17.0
-          run_install: false
-
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Pin npm
+        run: npm install --global npm@11.19.0
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          npm ci --ignore-scripts
+          npm audit signatures
 
       - name: Download packaged applications
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
 

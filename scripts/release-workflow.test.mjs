@@ -16,6 +16,13 @@ test("the build workflow is CI-only and cannot publish a GitHub release", () => 
   assert.equal(workflow.jobs.release, undefined);
   assert.doesNotMatch(source, /GITHUB_TOKEN|action-gh-release/);
   assert.match(source, /macos-15-intel/);
+  assert.match(source, /npm install --global npm@11\.19\.0/);
+  assert.match(source, /npm run audit:signatures/);
+  assert.match(source, /deploy:dry-run/);
+  assert.match(source, /rebuild-deps:\$\{\{ matrix\.arch \}\}/);
+  assert.match(source, /package:\$\{\{ matrix\.arch \}\}/);
+  assert.doesNotMatch(source, /npm (?:exec|run).* -- --(?:arch|dry-run)/);
+  assert.doesNotMatch(source, /pnpm\/action-setup|\bpnpm\b/);
 });
 
 test("one release workflow handles tagged and manual releases with fail-closed gates", () => {
@@ -27,11 +34,19 @@ test("one release workflow handles tagged and manual releases with fail-closed g
   assert.equal(existsSync(".github/workflows/pre-release.yml"), false);
   assert.match(source, /inputs\.tag \|\| github\.ref/);
   assert.match(source, /scripts\/release-policy\.mjs/);
-  assert.match(source, /pnpm audit --prod --audit-level=high/);
+  assert.match(source, /npm run audit:signatures/);
+  assert.match(source, /npm run audit:dependencies/);
+  assert.match(source, /npm install --global npm@11\.19\.0/);
+  assert.match(source, /deploy:dry-run/);
+  assert.match(source, /rebuild-deps:\$\{\{ matrix\.arch \}\}/);
+  assert.match(
+    source,
+    /package:\$\{\{ matrix\.platform \}\}:\$\{\{ matrix\.arch \}\}:signed/,
+  );
+  assert.doesNotMatch(source, /npm (?:exec|run).* -- --(?:arch|dry-run)/);
+  assert.doesNotMatch(source, /pnpm\/action-setup|\bpnpm\b/);
   assert.match(source, /macos-15-intel/);
   assert.match(source, /macos-15/);
-  assert.match(source, /forceCodeSigning=true/);
-  assert.match(source, /-c\.mac\.notarize=true/);
   assert.match(source, /\.exe\.blockmap/);
   assert.match(source, /if-no-files-found: error/);
   assert.match(source, /gh release create/);
@@ -48,10 +63,30 @@ test("one release workflow handles tagged and manual releases with fail-closed g
 });
 
 test("electron-builder emits deterministic installer names and macOS updater archives", () => {
-  const desktopPackage = JSON.parse(readFileSync("apps/desktop/package.json", "utf8"));
+  const desktopPackage = JSON.parse(
+    readFileSync("apps/desktop/package.json", "utf8"),
+  );
 
-  assert.equal(desktopPackage.build.win.artifactName, "${productName}-${version}-Setup.${ext}");
-  assert.equal(desktopPackage.build.mac.artifactName, "${productName}-${version}-${arch}.${ext}");
+  assert.equal(
+    desktopPackage.build.win.artifactName,
+    "${productName}-${version}-Setup.${ext}",
+  );
+  assert.equal(
+    desktopPackage.build.mac.artifactName,
+    "${productName}-${version}-${arch}.${ext}",
+  );
   assert.deepEqual(desktopPackage.build.mac.target, ["dmg", "zip"]);
   assert.equal(desktopPackage.build.forceCodeSigning, undefined);
+  assert.match(
+    desktopPackage.scripts["package:windows:x64:signed"],
+    /--win --x64 .*forceCodeSigning=true/,
+  );
+  assert.match(
+    desktopPackage.scripts["package:macos:x64:signed"],
+    /--mac --x64 .*forceCodeSigning=true .*mac\.notarize=true/,
+  );
+  assert.match(
+    desktopPackage.scripts["package:macos:arm64:signed"],
+    /--mac --arm64 .*forceCodeSigning=true .*mac\.notarize=true/,
+  );
 });

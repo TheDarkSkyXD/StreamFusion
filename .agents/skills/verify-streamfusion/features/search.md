@@ -7,7 +7,7 @@ Search lets a user submit a query from the top bar and inspect unified Twitch an
 - `search-submit` submits the global textbox with Enter.
 - `search-route` preserves the query in the `/search` route.
 - `search-tabs` exposes the unified result kinds.
-- `search-provider-state` shows results, an empty state, or a named provider failure.
+- `search-provider-state` shows results or one generic empty state after provider work completes.
 
 ## How to get to it (user POV)
 
@@ -34,5 +34,6 @@ Preconditions:
 
 - The textbox is `type="text"`, so its implicit role is `textbox`, not `searchbox`.
 - Search suggestions debounce and depend on live providers. Enter submission and route proof do not require a suggestion.
-- Seeing tabs proves the results page mounted. It does not prove provider results. Name at least one returned result or report the visible empty or error state.
+- Seeing tabs proves the results page mounted. It does not prove provider results. Name at least one returned result or report the generic empty state.
+- The page does not expose per-provider completion or failure details. Do not claim which provider failed from the generic empty state.
 - The clear button is named `Clear search` only after the textbox has a value.

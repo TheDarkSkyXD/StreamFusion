@@ -33,14 +33,14 @@ tests/
 
 ```bash
 # From apps/desktop/
-pnpm test                  # Run the full vitest suite once
-pnpm test:node             # Run main-process tests in the Node environment
-pnpm test:dom              # Run renderer and DOM-dependent tests in jsdom
-pnpm test:watch            # Watch mode
-pnpm test:coverage         # With coverage report
+npm test                  # Run the full vitest suite once
+npm run test:node         # Run main-process tests in the Node environment
+npm run test:dom          # Run renderer and DOM-dependent tests in jsdom
+npm run test:watch        # Watch mode
+npm run test:coverage     # With coverage report
 ```
 
-E2E is **not** part of `pnpm test`. It's interactive — see `tests/e2e/README.md`.
+E2E is **not** part of `npm test`. It's interactive — see `tests/e2e/README.md`.
 
 ---
 
@@ -104,7 +104,7 @@ The same rule covers failure-path `// Guards:` lines (loading / error / empty / 
 
 The suite has to be fast enough to run constantly — both locally and in CI. The wall-clock budget is set per file, not per suite, because parallelism hides offenders inside an OK-looking total.
 
-**Per-file budget: 2 seconds.** A test file that runs longer than 2s when invoked in isolation (`pnpm exec vitest run tests/path/to/file.test.ts`) is over budget. Component-heavy files (heavy RTL setup, large fixtures) get a soft ceiling of 1.5s; backend client files get the full 2s.
+**Per-file budget: 2 seconds.** A test file that runs longer than 2s when invoked in isolation (`npm exec -- vitest run tests/path/to/file.test.ts`) is over budget. Component-heavy files (heavy RTL setup, large fixtures) get a soft ceiling of 1.5s; backend client files get the full 2s.
 
 **Per-test budget: 200ms median, 500ms ceiling.** A single `it(...)` block taking >500ms is a red flag — almost always a real-timer or real-HTTP smell.
 

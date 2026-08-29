@@ -11,7 +11,7 @@ Read [`features/README.md`](features/README.md) before choosing a recipe. Run ev
 
 ## Launch
 
-The controller invokes `apps/desktop/scripts/start-dev.js`, the launcher behind `pnpm dev:mcp`. It selects an unused CDP port, passes an isolated `--user-data-dir`, and sets StreamFusion's development artifact root so logs and Platform health telemetry stay inside the disposable run.
+The controller invokes `apps/desktop/scripts/start-dev.js`, the launcher behind `npm --prefix apps/desktop run dev:mcp`. It selects an unused CDP port, passes an isolated `--user-data-dir`, and sets StreamFusion's development artifact root so logs and Platform health telemetry stay inside the disposable run.
 
 PowerShell:
 
@@ -26,7 +26,7 @@ The launch is ready only when the command returns `ready: true`, `title: "Stream
 
 Do not attach to a developer's existing port 9222 or 9236 instance. Do not use `electron .`, `electron-vite preview`, or a packaged build for normal feature proof.
 
-The controller copies `streamfusion.db` from the normal development profile into the disposable profile before launch. This gives cold-start verification the user's current local follows, history, and other database-backed state without allowing the proof run to modify the live database. Pass `--database <path>` to seed from a different database. A machine with no live database starts with a fresh one.
+The controller creates a WAL-consistent SQLite snapshot of `streamfusion.db` from the normal development profile in the disposable profile before launch. This gives cold-start verification the user's current local follows, history, and other database-backed state without allowing the proof run to modify the live database. Pass `--database <path>` to seed from a different database. A machine with no live database starts with a fresh one.
 
 ## Doctor
 
@@ -37,6 +37,14 @@ node .agents/skills/verify-streamfusion/scripts/control.mjs doctor --run $verify
 ```
 
 Require `healthy: true`. Doctor checks the recorded launcher PID, the process tree that owns the CDP port, the StreamFusion window title and URL, the preload `electronAPI`, rendered body content, package version, launch revision, and uncaught error patterns in the launch log. Authentication is not required for the baseline recipes. A feature that writes account state, follows, chat messages, moderation actions, downloads, or recordings must add its own authenticated precondition.
+
+Inspect the isolated database after doctor succeeds:
+
+```powershell
+node .agents/skills/verify-streamfusion/scripts/control.mjs database --run $verifyRun --output database.json
+```
+
+Require `healthy: true`, `quickCheck: ["ok"]`, and no missing required tables. The report records the live source snapshot path, schema version, and row counts for the database-backed features. This proves the launched app opened and migrated an internally consistent isolated database. It does not prove a specific user record is present unless its row count or UI state establishes that fact.
 
 ## Drive
 

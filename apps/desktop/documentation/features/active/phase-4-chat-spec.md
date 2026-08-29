@@ -104,7 +104,7 @@ Incoming Message
 
 - [ ] **4.1.1** Install IRC library
   ```bash
-  pnpm --dir apps/desktop add tmi.js
+  npm --prefix apps/desktop install tmi.js
   # or implement raw WebSocket IRC
   ```
 

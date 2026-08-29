@@ -2,10 +2,11 @@
 
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { closeSync, existsSync, openSync } from "node:fs";
-import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import process from "node:process";
+import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -14,6 +15,14 @@ const desktopRoot = path.join(repoRoot, "apps", "desktop");
 const verificationRoot = path.join(repoRoot, ".scratch", "verify-streamfusion");
 const runsRoot = path.join(verificationRoot, "runs");
 const evidenceRoot = path.join(verificationRoot, "evidence");
+const requiredDatabaseTables = [
+  "key_value",
+  "local_follows",
+  "mod_log",
+  "mod_log_coverage",
+  "pending_follow_writes",
+  "retention_settings",
+];
 
 function parseArguments(argv) {
   const [command, ...tokens] = argv;
@@ -356,7 +365,12 @@ async function seedLiveDatabase(options, profileDir) {
   if (!existsSync(source)) return null;
 
   const destination = path.join(profileDir, "streamfusion.db");
-  await copyFile(source, destination);
+  const database = new DatabaseSync(source, { readOnly: true });
+  try {
+    database.prepare("VACUUM INTO ?").run(destination);
+  } finally {
+    database.close();
+  }
   return { source, destination };
 }
 
@@ -660,6 +674,66 @@ async function logs(options) {
   process.stdout.write(`${lines.join("\n")}\n`);
 }
 
+async function inspectDatabase(options) {
+  const state = await readState(requireOption(options, "run"));
+  const databasePath = path.join(state.profileDir, "streamfusion.db");
+  if (!existsSync(databasePath)) {
+    throw new Error(`Verification database does not exist: ${databasePath}`);
+  }
+
+  const database = new DatabaseSync(databasePath, { readOnly: true });
+  let quickCheck;
+  let userVersion;
+  let tables;
+  let rowCounts;
+  try {
+    quickCheck = database
+      .prepare("PRAGMA quick_check")
+      .all()
+      .map((row) => row.quick_check);
+    userVersion = database.prepare("PRAGMA user_version").get().user_version;
+    tables = database
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+      )
+      .all()
+      .map((row) => row.name);
+    rowCounts = Object.fromEntries(
+      requiredDatabaseTables
+        .filter((table) => tables.includes(table))
+        .map((table) => [
+          table,
+          database.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get()
+            .count,
+        ]),
+    );
+  } finally {
+    database.close();
+  }
+
+  const missingTables = requiredDatabaseTables.filter(
+    (table) => !tables.includes(table),
+  );
+  const result = {
+    healthy:
+      quickCheck.length === 1 &&
+      quickCheck[0] === "ok" &&
+      missingTables.length === 0,
+    databasePath,
+    seededFrom: state.databaseSeed?.source ?? null,
+    quickCheck,
+    userVersion,
+    requiredTables: requiredDatabaseTables,
+    missingTables,
+    rowCounts,
+  };
+  const output = safeEvidencePath(state, options.output, ".database.json");
+  await mkdir(path.dirname(output), { recursive: true });
+  await writeFile(output, `${JSON.stringify(result, null, 2)}\n`, "utf8");
+  json({ ...result, output });
+  if (!result.healthy) process.exitCode = 1;
+}
+
 async function stopProcessTree(pid) {
   if (!pid || !isProcessAlive(pid)) return;
   if (process.platform === "win32") {
@@ -717,8 +791,9 @@ function usage() {
   return `StreamFusion verification controller
 
 Commands:
-  launch [--id ID] [--port PORT]
+  launch [--id ID] [--port PORT] [--database PATH]
   doctor --run RUN_JSON
+  database --run RUN_JSON [--output RELATIVE_PATH]
   click --run RUN_JSON --role ROLE --name NAME
   fill --run RUN_JSON --role ROLE --name NAME --value VALUE
   press --run RUN_JSON --role ROLE --name NAME --key KEY
@@ -740,6 +815,7 @@ async function main() {
   }
   if (command === "launch") return launch(options);
   if (command === "doctor") return doctor(options);
+  if (command === "database") return inspectDatabase(options);
   if (["click", "fill", "press"].includes(command))
     return interact(command, options);
   if (command === "element") return inspectElement(options);

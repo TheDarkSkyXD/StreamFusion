@@ -80,7 +80,7 @@ This phase implements the authentication system for StreamFusion, enabling users
 
 - [ ] **1.1.1** Install and configure electron-store
   ```bash
-  pnpm add electron-store
+  npm install electron-store
   ```
 
 - [ ] **1.1.2** Create secure storage service

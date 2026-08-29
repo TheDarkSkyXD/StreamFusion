@@ -82,7 +82,7 @@ This phase implements the core stream viewing experience for StreamFusion, inclu
 
 - [ ] **3.1.1** Install video player dependencies
   ```bash
-  pnpm add hls.js
+  npm install hls.js
   ```
 
 - [ ] **3.1.2** Create base VideoPlayer component

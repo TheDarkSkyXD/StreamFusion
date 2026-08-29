@@ -14,54 +14,66 @@ jobs:
     name: Verify workspace
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Review dependency changes
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
         with:
-          version: 11.17.0
-          run_install: false
+          fail-on-severity: high
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-          cache: 'pnpm'
+          cache: 'npm'
           cache-dependency-path: |
-            pnpm-lock.yaml
-            apps/desktop/pnpm-lock.yaml
+            package-lock.json
+            apps/desktop/package-lock.json
 
-      - name: Install dependencies
+      - name: Pin npm
+        run: npm install --global npm@11.19.0
+
+      - name: Install dependencies without lifecycle scripts
         run: |
-          pnpm install --frozen-lockfile
-          pnpm --dir apps/desktop install --frozen-lockfile
+          npm ci --ignore-scripts
+          npm --prefix apps/desktop ci --ignore-scripts
 
       - name: Validate dependency sources
-        run: pnpm lint:dependencies
+        run: npm run lint:dependencies
 
       - name: Validate lockfile
-        run: pnpm lint:lockfile
+        run: npm run lint:lockfile
+
+      - name: Verify registry signatures and attestations
+        run: npm run audit:signatures
+
+      - name: Audit the complete dependency graph
+        run: npm run audit:dependencies
+
+      - name: Run approved dependency setup
+        run: npm run rebuild:dependencies
 
       - name: Lint desktop
-        run: pnpm --dir apps/desktop lint
+        run: npm --prefix apps/desktop run lint
 
       - name: Typecheck desktop
-        run: pnpm --dir apps/desktop typecheck
+        run: npm --prefix apps/desktop run typecheck
 
       - name: Test desktop
-        run: pnpm --dir apps/desktop test
+        run: npm --prefix apps/desktop test
         # E2E playbooks are not run here: they require a live Electron build
-        # started with `pnpm --dir apps/desktop dev:mcp`. See
+        # started with `npm --prefix apps/desktop run dev:mcp`. See
         # apps/desktop/tests/e2e/README.md.
 
       - name: Typecheck worker
-        run: pnpm --filter streamfusion-worker typecheck
+        run: npm run --workspace streamfusion-worker typecheck
 
       - name: Test worker
-        run: pnpm --filter streamfusion-worker test
+        run: npm run --workspace streamfusion-worker test
 
       - name: Build worker dry run
-        run: pnpm --filter streamfusion-worker exec wrangler deploy --dry-run
+        run: npm run --workspace streamfusion-worker deploy:dry-run
 
   build:
     name: Build (${{ matrix.os }})
@@ -79,35 +91,36 @@ jobs:
             arch: x64
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.17.0
-          run_install: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-          cache: 'pnpm'
-          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+          cache: 'npm'
+          cache-dependency-path: apps/desktop/package-lock.json
 
-      - name: Install dependencies
-        run: pnpm --dir apps/desktop install --frozen-lockfile
+      - name: Pin npm
+        run: npm install --global npm@11.19.0
+
+      - name: Install and verify desktop dependencies
+        run: |
+          npm --prefix apps/desktop ci --ignore-scripts
+          npm --prefix apps/desktop audit signatures
+          npm --prefix apps/desktop rebuild --ignore-scripts=false
+          npm --prefix apps/desktop run install:electron
 
       - name: Rebuild native dependencies for package target
-        run: pnpm --dir apps/desktop exec electron-builder install-app-deps --arch ${{ matrix.arch }}
+        run: npm --prefix apps/desktop run rebuild-deps:${{ matrix.arch }}
 
       - name: Build desktop
-        run: pnpm --dir apps/desktop build
+        run: npm --prefix apps/desktop run build
 
       - name: Package desktop
-        run: pnpm --dir apps/desktop exec electron-builder --publish never --${{ matrix.arch }}
+        run: npm --prefix apps/desktop run package:${{ matrix.arch }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: streamfusion-${{ matrix.platform }}
           path: apps/desktop/release/**/*

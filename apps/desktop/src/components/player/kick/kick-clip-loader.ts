@@ -20,6 +20,7 @@ import type {
   LoaderConfiguration,
   LoaderResponse,
   LoaderStats,
+  NullableNetworkDetails,
   PlaylistLoaderContext,
 } from "hls.js";
 import Hls from "hls.js";
@@ -122,7 +123,7 @@ export function createKickClipPlaylistLoader(): PlaylistLoaderConstructor {
         response: LoaderResponse,
         stats: LoaderStats,
         ctx: PlaylistLoaderContext,
-        networkDetails: unknown
+        networkDetails: NullableNetworkDetails
       ) => {
         try {
           if (typeof response.data === "string") {

@@ -132,7 +132,7 @@ To measure the impact of these optimizations:
 
 1. **Bundle Size:**
    ```bash
-   pnpm --dir apps/desktop build
+   npm --prefix apps/desktop run build
    # Compare apps/desktop/out output sizes before/after
    ```
 

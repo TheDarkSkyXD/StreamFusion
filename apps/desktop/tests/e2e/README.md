@@ -1,219 +1,65 @@
-# StreamFusion E2E Test Suite
+# Electron end-to-end verification
 
-End-to-end tests for the desktop app live here. The suite is **MCP-playbook-driven**: Claude (or another MCP client) executes each playbook against a running StreamFusion dev build via the `debug-electron-mcp` server.
+These playbooks exercise the real StreamFusion renderer and preload bridge. Unit tests
+cover isolated components and services. They do not replace an Electron run.
 
-Playbooks are intentionally markdown checklists, not code. They're authored to be read top-to-bottom and to expose every selector, route, and assertion to the eye — so a person can verify what's being checked without running anything, and a regressed playbook can be diffed against the page that broke it.
+## Use the isolated controller
 
-> **Why no Playwright?** A Playwright spec runner used to live alongside the playbooks but was never wired into CI and the build-target path drifted. We removed it in favor of the single MCP-driven path. See `docs/test-audit/2026-05-19-audit-log.md` for the audit-trail context.
+The project verification skill owns normal live proof. Run these commands from the
+repository root:
 
----
+```powershell
+$verifyId = "run-$([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))"
+$launch = node .agents/skills/verify-streamfusion/scripts/control.mjs launch --id $verifyId | ConvertFrom-Json
+$verifyRun = $launch.runFile
 
-## Quick reference
-
-```bash
-# From apps/desktop/
-pnpm dev:mcp              # Dev server with Chrome DevTools Protocol on :9222
-                          #   ↑ start this *before* asking Claude to run playbooks
+node .agents/skills/verify-streamfusion/scripts/control.mjs doctor --run $verifyRun
+node .agents/skills/verify-streamfusion/scripts/control.mjs snapshot --run $verifyRun --output app-launch.json
 ```
 
-The `dev:mcp` script lives in `apps/desktop/package.json`:
+The controller starts a disposable profile on an unused Chrome DevTools Protocol port.
+It seeds SQLite from the development profile without writing to the live database. Read
+`.agents/skills/verify-streamfusion/SKILL.md` for the drive, evidence, and cleanup rules.
 
-```json
-"dev:mcp": "node scripts/start-dev.js -- --remote-debugging-port=9222"
+Always clean the run when the pass ends:
+
+```powershell
+node .agents/skills/verify-streamfusion/scripts/control.mjs cleanup --run $verifyRun
 ```
 
-Once `pnpm dev:mcp` is running, Claude can connect via either MCP server (see below) and drive the app.
+## Start a fixed-port session
 
-Screenshots captured by either Electron MCP server must be written under the repo-root `.scratch/images/` directory. That directory is gitignored, so use explicit paths such as `<repo-root>/.scratch/images/home.png` for `outputPath` (or the equivalent screenshot path argument your MCP server exposes).
+Use a fixed port only when an external Chrome DevTools Protocol client requires it:
 
----
-
-## MCP playbooks
-
-### What is "debug-electron-mcp"?
-
-`debug-electron-mcp` is an MCP server that connects to a running Electron app via the **Chrome DevTools Protocol (CDP)** on a known debug port, and exposes a high-level toolset over MCP. Claude calls these tools and the server translates them to CDP commands inside your dev build.
-
-The tools it provides (visible to Claude as `mcp__debug-electron-mcp__*`):
-
-| Tool | Description |
-|------|-------------|
-| `list_projects` | List registered project paths. |
-| `register_project` | Register a project root + a debug port to monitor. |
-| `unregister_project` | Forget a registered project. |
-| `list_electron_windows` | List BrowserWindows currently exposed via CDP. |
-| `get_electron_window_info` | URL/title for a window. |
-| `send_command_to_electron` | Evaluate arbitrary JS in the renderer (or main, depending on server flags). |
-| `read_electron_logs` | Stream of console + process logs since registration. |
-| `take_screenshot` | Captures the renderer viewport as PNG. |
-
-### Setup — `debug-electron-mcp` (primary)
-
-1. **Install the MCP server** (one-time):
-
-   ```bash
-   pnpm add --global @debugelectron/debug-electron-mcp@latest
-   # OR clone the source and follow its README.
-   ```
-
-2. **Register the MCP server with Claude Code.**
-   Add an entry to your global Claude Code MCP config (location varies by OS — see `claude --help` for the path). Example:
-
-   ```json
-   {
-     "mcpServers": {
-       "debug-electron-mcp": {
-         "command": "debug-electron-mcp",
-         "args": []
-       }
-     }
-   }
-   ```
-
-   Restart Claude Code so it picks up the new server. Once restarted, you should see `mcp__debug-electron-mcp__*` tools in Claude's tool list.
-
-3. **Register this project with the MCP server** (one-time, from inside Claude):
-   Ask Claude to call (substitute your local checkout path for `<absolute-path-to-this-checkout>`):
-
-   ```
-   mcp__debug-electron-mcp__register_project
-     path: "<absolute-path-to-this-checkout>/apps/desktop"
-     port: 9222
-     name: "streamfusion-monorepo"
-   ```
-
-4. **Start the app in dev mode**:
-
-   ```bash
-   pnpm dev:mcp
-   ```
-
-5. **Sanity-check the connection** by running the app-launch playbook:
-
-   > "Run the app-launch playbook (`apps/desktop/tests/e2e/playbooks/00-app-launch.playbook.md`)."
-
-### Running a playbook
-
-Ask Claude:
-
-> "Run the home playbook from `apps/desktop/tests/e2e/playbooks/01-home.playbook.md`."
-
-Claude reads the file, executes each MCP call, and reports pass/fail against the listed criteria. Each playbook is self-contained and lists exact JS payloads to evaluate via `send_command_to_electron`.
-
-For a full app sweep:
-
-> "Run the full-app sweep playbook (`99-full-app-sweep.playbook.md`)."
-
-### Authoring new playbooks
-
-1. Copy `playbooks/01-home.playbook.md` as a template.
-2. Keep the four sections: **Goal / Preconditions / Steps / Pass criteria**.
-3. Steps should use the same MCP-call style (snippets you can paste into `send_command_to_electron`).
-4. Add a row to `playbooks/README.md` index.
-
----
-
-## Fallback: `electron-mcp-server`
-
-If you lose access to `debug-electron-mcp` (or it isn't installed yet on a new machine), the project already depends on **`electron-mcp-server`** (declared in `apps/desktop/package.json` devDependencies). It exposes a similar toolset under a different prefix. Use it as a drop-in fallback for the playbooks — the steps still apply, you'll just substitute tool names:
-
-| `debug-electron-mcp` | `electron-mcp-server` equivalent |
-|----------------------|----------------------------------|
-| `list_electron_windows` | `list_windows` / equivalent (see the server's docs) |
-| `send_command_to_electron` | `execute_js` / `evaluate` (see the server's docs) |
-| `take_screenshot` | `screenshot` |
-| `read_electron_logs` | `get_logs` |
-
-### Setup — `electron-mcp-server` (fallback)
-
-It's already a dev dependency:
-
-```bash
-# From apps/desktop/
-pnpm exec electron-mcp-server --help
+```powershell
+npm --prefix apps/desktop run dev:mcp
 ```
 
-A typical setup:
+This command exposes port 9222 and uses the normal development profile. Do not run it at
+the same time as the isolated controller.
 
-1. Start the app with the same `pnpm dev:mcp` (port 9222).
-2. In a second terminal, run the MCP server pointed at port 9222.
-3. Add it to Claude Code's MCP config:
+## Run a playbook
 
-   ```json
-   {
-     "mcpServers": {
-       "electron-mcp-server": {
-         "command": "pnpm",
-         "args": [
-           "--dir",
-           "<absolute-path-to-this-checkout>/apps/desktop",
-           "exec",
-           "electron-mcp-server"
-         ]
-       }
-     }
-   }
-   ```
+The files under `playbooks/` describe the route, action, and pass criteria for each user
+flow. Prefer accessible roles and names. Capture screenshots under `.scratch/images/`.
 
-4. Restart Claude Code.
+Start with these playbooks:
 
-When using this fallback, the playbooks' **JS payloads remain identical** — only the MCP tool name you invoke changes.
+- `00-app-launch.playbook.md` checks the shell and preload bridge.
+- `00b-sidebar-navigation.playbook.md` checks the top-level routes.
+- `01-home.playbook.md` checks the Home page result or graceful provider failure.
+- `99-full-app-sweep.playbook.md` covers the complete legacy sweep.
 
----
+The project verification skill has the current controller commands and feature map. Use
+the playbooks as scenario references when their selectors still match the source.
 
-## Unit tests vs E2E — boundary
+## Test boundary
 
-| What it tests | Where |
-|---------------|-------|
-| Per-component rendering, branches, callbacks | `apps/desktop/tests/components/**/*.test.tsx` (vitest) |
-| Per-page rendering with mocked hooks/stores | `apps/desktop/tests/pages/*.test.tsx` (vitest) |
-| Real Electron app, real router, real DOM | `apps/desktop/tests/e2e/playbooks/*.playbook.md` (MCP-driven) |
+| Check | Owner |
+| --- | --- |
+| Components, pages, hooks, stores, and main-process services | `npm --prefix apps/desktop test` |
+| Real Electron window, router, preload bridge, and SQLite startup | Project verification controller |
+| Manual fixed-port debugging | `npm --prefix apps/desktop run dev:mcp` |
 
-Unit tests are owned by `pnpm test` (vitest). E2E is owned by Claude executing the playbooks.
-
----
-
-## Troubleshooting
-
-- **MCP says "no windows found"** — confirm the dev server was started with `pnpm dev:mcp` (not `pnpm dev`). The `--remote-debugging-port=9222` flag is what exposes CDP.
-- **Playbook step fails on a selector** — the playbooks rely on stable text strings and roles. If a page changed copy, update the corresponding playbook.
-- **Claude can't see the MCP tools** — restart Claude Code after editing its MCP config. Tool names: look for `mcp__debug-electron-mcp__*` or `mcp__electron-mcp-server__*` in the available tool list.
-
----
-
-## File map
-
-```
-tests/
-├── adblock/               # Pre-existing ad-block unit tests
-├── backend/               # Backend service + API client unit tests (vitest)
-├── components/            # Component unit tests (vitest)
-├── hooks/                 # Hook unit tests (vitest)
-├── lib/                   # Library function tests (vitest)
-├── pages/                 # Per-page unit tests (vitest)
-├── shared/                # Shared type/contract tests (vitest)
-├── store/                 # Zustand store tests (vitest)
-├── helpers/               # Test helpers (e.g. the better-sqlite3 shim)
-├── test-utils.tsx         # Shared render/mocks for vitest
-├── setup.ts               # vitest global setup (matchMedia, ResizeObserver mocks)
-├── AGENTS.md              # Per-test conventions (Keep/Rewrite/Delete + // Guards:)
-└── e2e/
-    ├── README.md          # ← you are here
-    └── playbooks/         # MCP-driven scenario scripts (Claude executes)
-        ├── README.md
-        ├── 00-app-launch.playbook.md
-        ├── 00b-sidebar-navigation.playbook.md
-        ├── 01-home.playbook.md
-        ├── 02-following.playbook.md
-        ├── 03-categories.playbook.md
-        ├── 04-category-detail.playbook.md
-        ├── 05-search-results.playbook.md
-        ├── 06-stream.playbook.md
-        ├── 07-video.playbook.md
-        ├── 08-clip.playbook.md
-        ├── 09-multistream.playbook.md
-        ├── 10-history.playbook.md
-        ├── 11-downloads.playbook.md
-        ├── 12-settings.playbook.md
-        └── 99-full-app-sweep.playbook.md
-```
+If a selector fails, run `doctor` before changing the playbook. A healthy process with a
+stale selector is documentation drift. An unhealthy process needs a clean relaunch.

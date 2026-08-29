@@ -6,8 +6,8 @@ Watch a stream lets a user open a Twitch or Kick Channel, see its player or offl
 
 - `stream-open-card` opens a Channel from a live stream card or search result.
 - `stream-deep-link` opens a shared Stream route.
-- `stream-player-state` shows video, loading, offline, or a named playback error.
-- `stream-chat-state` shows chat chrome and its eligibility or connection state.
+- `stream-player-state` shows video, loading, offline, or user-visible playback fallback copy.
+- `stream-chat-state` shows the chat rail only when chat is enabled and the selected Platform supplied its required identifiers.
 
 ## How to get to it (user POV)
 
@@ -27,7 +27,7 @@ Preconditions:
 - **Open a visible Channel.** Read the snapshot, choose the exact accessible name of a live Channel link, then run `node .agents/skills/verify-streamfusion/scripts/control.mjs click --run $verifyRun --role link --name $channelName`. This click is the preferred proof because it follows the same path as a user.
 - **Deep-link fallback.** When live discovery has no cards, run `node .agents/skills/verify-streamfusion/scripts/control.mjs evaluate --run $verifyRun --expression "location.hash = '#/stream/twitch/ninja'"`. Record that the shared-route entry was tested instead of card selection.
 - **Verify the route.** Run `node .agents/skills/verify-streamfusion/scripts/control.mjs wait --run $verifyRun --hash "/stream/" --timeout 15000`.
-- **Observe player and chat.** Run `node .agents/skills/verify-streamfusion/scripts/control.mjs snapshot --run $verifyRun --output stream-open.json`. Require either a `video`-backed player state, explicit offline copy, or a named playback error, plus chat-related visible text or the `stream-chat-rail` region.
+- **Observe player and chat.** Run `node .agents/skills/verify-streamfusion/scripts/control.mjs snapshot --run $verifyRun --output stream-open.json`. Require either a `video`-backed player state, explicit offline copy, or user-visible playback fallback such as `Unable to check stream status`, `Unable to load stream`, or `Playback interrupted`. Treat a visible `stream-chat-rail` as structural proof only unless chat status or messages also appear.
 - **Capture the result.** Run `node .agents/skills/verify-streamfusion/scripts/control.mjs screenshot --run $verifyRun --output stream-open.png` and `node .agents/skills/verify-streamfusion/scripts/control.mjs logs --run $verifyRun --lines 120`.
 
 ## Gotchas
@@ -35,5 +35,6 @@ Preconditions:
 - Channel availability changes during a run. Record the Platform, Channel slug, and observed live or offline state.
 - An offline message proves the route and fallback UI, not video playback.
 - Autoplay, ads, proxies, and provider tokens can affect playback after the player container mounts.
+- Chat can be hidden by preference or omitted when required provider identifiers are unavailable. Its absence alone is not a playback failure.
 - Do not send a chat message unless the task authorizes an external message and a dedicated test account is active.
 - The direct `location.hash` command is a shared-link entry, not proof that discovery cards work.

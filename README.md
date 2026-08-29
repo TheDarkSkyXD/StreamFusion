@@ -21,7 +21,7 @@
 
 ## 🛠 Tech Stack
 
-StreamFusion is built as a **pnpm workspace**, leveraging a powerful modern stack:
+StreamFusion uses npm for both dependency roots:
 
 - **Core Framework**: [Electron](https://www.electronjs.org/) & [React](https://reactjs.org/)
 - **Build Tooling**: [Vite](https://vitejs.dev/) & [Electron-Vite](https://electron-vite.org/)
@@ -40,10 +40,10 @@ This project is organized as a monorepo:
 ```bash
 StreamFusion/
 ├── apps/
-│   ├── desktop/        # Standalone Electron workspace and local dependencies
+│   ├── desktop/        # Standalone Electron dependency root
+│   │   └── package-lock.json
 │   └── worker/         # Cloudflare Worker in the root tooling workspace
-├── pnpm-workspace.yaml # Root tooling/worker dependency-security policy
-├── pnpm-lock.yaml      # Root tooling and worker lockfile
+├── package-lock.json   # Root tooling and worker lockfile
 └── package.json        # Root scripts and package-manager pin
 ```
 
@@ -54,7 +54,7 @@ StreamFusion/
 Ensure you have the following installed:
 
 - **Node.js** (v22 or later)
-- **Corepack** (included with supported Node.js releases)
+- **npm 11.19.0**
 - **Git**
 
 ### Installation
@@ -67,18 +67,16 @@ Ensure you have the following installed:
 
 2.  **Install dependencies**:
     ```bash
-    corepack enable
-    cd apps/desktop
-    pnpm install
-    cd ../..
+    npm install --global npm@11.19.0
+    npm run install:dependencies
     ```
 
-    pnpm 11.17.0 is pinned by the repository. Use pnpm for dependency changes and keep
-    pnpm-generated lockfiles as the only lockfiles; do not use `npm install`.
-    Use `pnpm add` and `pnpm remove` for package changes. Dependency lifecycle scripts
-    run only when the package is explicitly approved in the workspace `allowBuilds` policy.
-    Running `pnpm install` from `apps/desktop` installs only the desktop package and keeps
-    its dependency artifacts in `apps/desktop/node_modules`; no root install is required.
+    The install command uses both committed lockfiles. It installs with lifecycle scripts
+    disabled, checks the seven-day release-age policy and registry signatures, then runs
+    only the version-pinned scripts in `allowScripts`. Use `npm install <package>` for the
+    root and worker. Use `npm --prefix apps/desktop install <package>` for the desktop app.
+    See the [npm security research](docs/brainstorms/2026-08-29-npm-supply-chain-security-research.md)
+    for the policy and its limits.
 
 ### Running Locally
 
@@ -88,9 +86,9 @@ To start the desktop application in development mode with hot-reloading:
 npm start
 ```
 
-The root `npm start` command is a dependency-free wrapper around the desktop package's
-start picker. From `apps/desktop`, you can also run `npm start` directly. Other project
-commands use pnpm; for example, `pnpm dev` starts the desktop app directly.
+The root `npm start` command runs the desktop checks and opens the start picker. From
+`apps/desktop`, you can also run `npm start` directly. Run
+`npm --prefix apps/desktop run dev` to start the desktop app without the picker.
 
 
 
@@ -108,10 +106,10 @@ Contributions are welcome! Please feel free to check out the [issues](https://gi
 
 The desktop app uses **ESLint** for linting and **Prettier** for formatting.
 
-- Check for errors: `pnpm lint`
-- Auto-fix errors: `pnpm --dir apps/desktop lint:fix`
-- Format code: `pnpm --dir apps/desktop format`
-- Check formatting: `pnpm --dir apps/desktop format:check`
+- Check for errors: `npm run lint`
+- Auto-fix errors: `npm --prefix apps/desktop run lint:fix`
+- Format code: `npm --prefix apps/desktop run format`
+- Check formatting: `npm --prefix apps/desktop run format:check`
 
 ## 📝 License
 

@@ -12,7 +12,7 @@ import {
 // Guards: pressing Enter at the interactive start prompt launches Electron only by default.
 // Guards: piped and automation starts bypass the prompt and launch Electron only.
 // Guards: the picker exposes two human-facing modes while dev:mcp remains a direct automation script.
-// Guards: picker modes launch start-dev.js through Node, avoiding npm.cmd/pnpm.cmd spawn EINVAL on Windows.
+// Guards: picker modes launch start-dev.js through Node, avoiding npm.cmd spawn EINVAL on Windows.
 // Guards: browser mode adds its development flag without mutating the inherited environment.
 // Guards: npm start forwards explicit Electron arguments after a separator so runtime proofs use their isolated profile.
 // Guards: root npm start reaches the desktop picker directly without a root dependency install.
@@ -77,8 +77,8 @@ describe("start picker", () => {
       readFileSync(resolve(__dirname, "../../../../package.json"), "utf8")
     ) as { scripts: Record<string, string> };
 
-    expect(rootPackage.scripts.start).toBe("pnpm --dir apps/desktop start:checked");
-    expect(desktopPackage.scripts.start).toBe("pnpm run start:checked");
+    expect(rootPackage.scripts.start).toBe("npm --prefix apps/desktop run start:checked");
+    expect(desktopPackage.scripts.start).toBe("npm run start:checked");
     expect(desktopPackage.scripts.dev).toBe(
       "cross-env STREAMFUSION_BROWSER_DEV=1 node scripts/start-dev.js"
     );

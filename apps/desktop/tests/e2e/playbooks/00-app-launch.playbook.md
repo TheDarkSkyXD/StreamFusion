@@ -4,7 +4,7 @@
 Confirm the Electron app launches, exposes a main window, reports a sensible title + version, and renders the sidebar shell.
 
 ## Preconditions
-- Dev build running via `pnpm dev:mcp` (exposes Chrome DevTools Protocol on port 9222).
+- Dev build running via `npm --prefix apps/desktop run dev:mcp` (exposes Chrome DevTools Protocol on port 9222).
 - StreamFusion project registered with `debug-electron-mcp` (see [`../README.md`](../README.md)).
 
 ## Steps

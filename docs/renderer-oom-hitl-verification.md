@@ -14,10 +14,10 @@ issues [#56](https://github.com/TheDarkSkyXD/StreamFusion/issues/56) +
 ```sh
 # Windows (PowerShell)
 $env:STREAMFUSION_WEBCONTENTS_VIEW_SLOTS = '1'
-pnpm --dir apps/desktop dev:mcp
+npm --prefix apps/desktop run dev:mcp
 
 # macOS / Linux
-STREAMFUSION_WEBCONTENTS_VIEW_SLOTS=1 pnpm --dir apps/desktop dev:mcp
+STREAMFUSION_WEBCONTENTS_VIEW_SLOTS=1 npm --prefix apps/desktop run dev:mcp
 ```
 
 Verify on startup:

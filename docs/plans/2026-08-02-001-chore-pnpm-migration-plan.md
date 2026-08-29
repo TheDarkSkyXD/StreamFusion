@@ -1,5 +1,7 @@
 # StreamFusion pnpm Migration Plan
 
+> Superseded on 2026-08-29 by the npm migration. This file records the former pnpm design and is not current setup guidance.
+
 **Status:** In progress — local migration and runtime verification complete; GitHub CI and user review pending
 **Created:** 2026-08-02
 **Scope:** Replace npm dependency management with pnpm, preserve `npm start`, reproduce every current dependency before upgrading packages, and harden dependency installation.

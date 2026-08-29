@@ -6,6 +6,8 @@ logs
 /.scratch/images/
 /.scratch/runtime/
 /.scratch/verify-streamfusion/
+/.scratch/npm-cli/
+/.scratch/pnpm-node-modules-backup/
 /.scratch/electron-cdp.mjs
 /.scratch/media-trigger-trace.mjs
 /.scratch/perf-profile-*/
@@ -52,7 +54,6 @@ build/Release
 
 # Dependency directories
 node_modules/
-.pnpm-store/
 jspm_packages/
 
 # TypeScript v1 declaration files

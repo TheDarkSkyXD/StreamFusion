@@ -4,28 +4,62 @@
   "workspaces": [
     "apps/worker"
   ],
-  "packageManager": "pnpm@11.17.0",
+  "packageManager": "npm@11.19.0",
   "engines": {
-    "pnpm": "11.17.0"
+    "node": ">=22.14.0",
+    "npm": "11.19.0"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=22.14.0",
+      "onFail": "error"
+    },
+    "packageManager": {
+      "name": "npm",
+      "version": "11.19.0",
+      "onFail": "error"
+    }
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "fsevents@2.3.3": true,
+    "workerd@1.20260820.1": true
   },
   "scripts": {
-    "preinstall": "node scripts/require-pnpm.mjs",
-    "start": "pnpm --dir apps/desktop start:checked",
-    "desktop": "pnpm --dir apps/desktop start:checked",
-    "build": "pnpm --dir apps/desktop build",
-    "dist": "pnpm --dir apps/desktop dist",
-    "dist:win": "pnpm --dir apps/desktop dist:win",
-    "dist:mac": "pnpm --dir apps/desktop dist:mac",
-    "dist:linux": "pnpm --dir apps/desktop dist:linux",
-    "lint": "pnpm run lint:dependencies && pnpm run lint:lockfile && pnpm --dir apps/desktop lint",
+    "preinstall": "node scripts/require-npm.mjs",
+    "start": "npm --prefix apps/desktop run start:checked",
+    "desktop": "npm --prefix apps/desktop run start:checked",
+    "build": "npm --prefix apps/desktop run build",
+    "dist": "npm --prefix apps/desktop run dist",
+    "dist:win": "npm --prefix apps/desktop run dist:win",
+    "dist:mac": "npm --prefix apps/desktop run dist:mac",
+    "dist:linux": "npm --prefix apps/desktop run dist:linux",
+    "install:dependencies": "npm ci --ignore-scripts && npm --prefix apps/desktop ci --ignore-scripts && npm run lint:dependencies && npm run lint:release-age && npm run audit:signatures && npm run audit:dependencies && npm run rebuild:dependencies",
+    "rebuild:dependencies": "npm rebuild --ignore-scripts=false && npm --prefix apps/desktop rebuild --ignore-scripts=false && npm --prefix apps/desktop run install:electron",
+    "audit:signatures": "npm audit signatures && npm --prefix apps/desktop audit signatures",
+    "audit:dependencies": "npm audit --audit-level=high && npm --prefix apps/desktop audit --audit-level=high",
+    "lint": "npm run lint:dependencies && npm run lint:lockfile && npm --prefix apps/desktop run lint",
     "lint:dependencies": "node scripts/validate-dependency-sources.mjs",
-    "lint:lockfile": "eslint --config eslint.lockfile.config.mjs pnpm-lock.yaml apps/desktop/pnpm-lock.yaml package.json apps/*/package.json && pnpm run lint:release-age",
+    "lint:lockfile": "eslint --config eslint.lockfile.config.mjs package-lock.json apps/desktop/package-lock.json package.json apps/*/package.json && npm run lint:release-age",
     "lint:release-age": "node scripts/validate-lockfile-release-age.mjs",
-    "test": "pnpm --dir apps/desktop test && pnpm --dir apps/worker test",
+    "test": "npm --prefix apps/desktop test && npm run --workspace streamfusion-worker test",
     "test:package-policy": "node --test scripts/package-policy.test.mjs scripts/validate-lockfile-release-age.test.mjs",
     "test:release-policy": "node --test scripts/release-policy.test.mjs scripts/merge-artifacts.test.mjs scripts/release-workflow.test.mjs",
-    "typecheck": "pnpm --dir apps/desktop typecheck && pnpm --dir apps/worker typecheck",
-    "perf:soak": "pnpm --dir apps/desktop perf:soak"
+    "typecheck": "npm --prefix apps/desktop run typecheck && npm run --workspace streamfusion-worker typecheck",
+    "perf:soak": "npm --prefix apps/desktop run perf:soak"
+  },
+  "overrides": {
+    "ajv@8.20.0": {
+      "fast-uri": "3.1.5"
+    },
+    "glob": "^10.4.5",
+    "rimraf": "^5.0.0",
+    "tar": "^7.5.7",
+    "tmp": "^0.2.5",
+    "@npmcli/move-file": "npm:@npmcli/fs@^3.1.0",
+    "cacache": "^18.0.0",
+    "@napi-rs/wasm-runtime": "1.1.6"
   },
   "devDependencies": {
     "eslint": "^9.39.5",

@@ -4,7 +4,7 @@
 Confirm the Home page renders the featured area, Live Now section, and the "Browse All Categories" CTA — or a clean error state if the streams API failed.
 
 ## Preconditions
-- Dev build running via `pnpm dev:mcp` (exposes Chrome DevTools Protocol on port 9222).
+- Dev build running via `npm --prefix apps/desktop run dev:mcp` (exposes Chrome DevTools Protocol on port 9222).
 - StreamFusion project registered with `debug-electron-mcp` (see [`../README.md`](../README.md)).
 
 ## Steps

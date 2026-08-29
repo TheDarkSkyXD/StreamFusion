@@ -16,15 +16,15 @@ export default [
     },
   },
   {
-    files: ["pnpm-lock.yaml", "apps/*/pnpm-lock.yaml"],
+    files: ["package-lock.json", "apps/*/package-lock.json"],
     rules: {
-      "lockfile/binary-conflicts": "off",
-      "lockfile/flavor": ["error", "pnpm"],
+      "lockfile/flavor": ["error", "npm"],
       "lockfile/integrity": "error",
       "lockfile/minimum-release-age": "off",
+      "lockfile/name-matches-resolved": "off",
       "lockfile/non-registry-specifiers": "error",
       "lockfile/registry": ["error", "https://registry.npmjs.org"],
-      "lockfile/version": ["error", { pnpm: "9.0" }],
+      "lockfile/version": ["error", { npm: 3 }],
     },
   },
 ];

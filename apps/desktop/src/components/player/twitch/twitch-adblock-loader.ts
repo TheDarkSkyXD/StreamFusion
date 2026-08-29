@@ -23,6 +23,7 @@ import type {
   LoaderContext,
   LoaderResponse,
   LoaderStats,
+  NullableNetworkDetails,
 } from "hls.js";
 import Hls from "hls.js";
 
@@ -129,7 +130,7 @@ export function createAdBlockPlaylistLoader(channelName?: string): LoaderConstru
           response: LoaderResponse,
           stats: LoaderStats,
           ctx: LoaderContext,
-          networkDetails: unknown
+          networkDetails: NullableNetworkDetails
         ) => {
           try {
             // Only process if we have text data

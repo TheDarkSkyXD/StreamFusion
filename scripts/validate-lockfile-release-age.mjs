@@ -2,7 +2,6 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { load as loadYaml } from "js-yaml";
 import pacote from "pacote";
 
 const EXACT_VERSION =
@@ -56,6 +55,29 @@ export function createPackagePublicationLookup({
   };
 }
 
+function packageNameFromLockPath(packagePath) {
+  const marker = "node_modules/";
+  const markerIndex = packagePath.lastIndexOf(marker);
+  if (markerIndex === -1) return null;
+  const segments = packagePath.slice(markerIndex + marker.length).split("/");
+  if (segments[0].startsWith("@")) {
+    return segments.length >= 2 ? `${segments[0]}/${segments[1]}` : null;
+  }
+  return segments[0] || null;
+}
+
+function registryPackageNameFromResolved(resolved) {
+  try {
+    const url = new URL(resolved);
+    if (url.origin !== DEFAULT_REGISTRY) return null;
+    const separator = url.pathname.indexOf("/-/");
+    if (separator === -1) return null;
+    return decodeURIComponent(url.pathname.slice(1, separator));
+  } catch {
+    return null;
+  }
+}
+
 function packageVersionSeparator(packageKey) {
   if (packageKey.startsWith("@")) {
     const slash = packageKey.indexOf("/");
@@ -64,123 +86,121 @@ function packageVersionSeparator(packageKey) {
   return packageKey.indexOf("@");
 }
 
-function parsePackageKey(packageKey, { allowPeerSuffix = false } = {}) {
+function parseExactPackageKey(packageKey) {
   const separator = packageVersionSeparator(packageKey);
   const name = packageKey.slice(0, separator);
-  const versionAndPeers = packageKey.slice(separator + 1);
-  const peerSuffix = versionAndPeers.indexOf("(");
-  const version =
-    peerSuffix === -1 ? versionAndPeers : versionAndPeers.slice(0, peerSuffix);
-
-  if (
-    separator === -1 ||
-    !name ||
-    !EXACT_VERSION.test(version) ||
-    (!allowPeerSuffix && peerSuffix !== -1) ||
-    (peerSuffix !== -1 && !versionAndPeers.endsWith(")"))
-  ) {
+  const version = packageKey.slice(separator + 1);
+  if (separator === -1 || !name || !EXACT_VERSION.test(version)) {
     throw new Error(`Unsupported registry package key ${packageKey}`);
   }
   return { name, version };
 }
 
+export function readMinimumReleaseAgeMinutes(npmrcSource) {
+  for (const rawLine of npmrcSource.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#") || line.startsWith(";")) continue;
+    const separator = line.indexOf("=");
+    if (separator === -1) continue;
+    if (line.slice(0, separator).trim() !== "min-release-age") continue;
+    const days = Number(line.slice(separator + 1).trim());
+    if (!Number.isInteger(days) || days < 0) {
+      throw new Error(
+        "min-release-age must be a non-negative integer number of days",
+      );
+    }
+    return days * 24 * 60;
+  }
+  throw new Error(".npmrc must define min-release-age in days");
+}
+
 export async function findReleaseAgeViolations({
   lockfile,
-  workspace,
+  minimumReleaseAgeMinutes,
   exceptions,
   now,
   getPackageTimes,
 }) {
-  if (String(lockfile?.lockfileVersion) !== "9.0") {
+  if (Number(lockfile?.lockfileVersion) !== 3) {
     throw new Error(
-      "Release-age validation supports only pnpm lockfile version 9.0",
+      "Release-age validation supports only npm lockfile version 3",
     );
   }
   if (
-    !Number.isInteger(workspace?.minimumReleaseAge) ||
-    workspace.minimumReleaseAge < 0
+    !Number.isInteger(minimumReleaseAgeMinutes) ||
+    minimumReleaseAgeMinutes < 0
   ) {
     throw new Error(
-      "minimumReleaseAge must be a non-negative integer number of minutes",
+      "minimum-release-age must be a non-negative integer number of minutes",
     );
   }
   if (!lockfile.packages || typeof lockfile.packages !== "object") {
-    throw new Error("pnpm-lock.yaml must contain a packages map");
-  }
-
-  const thresholdMs = workspace.minimumReleaseAge * 60_000;
-  const checkedAt = now instanceof Date ? now : new Date(now);
-  if (!Number.isFinite(checkedAt.getTime())) {
-    throw new Error("release-age validation time is invalid");
-  }
-  const packagesByName = new Map();
-  const resolvedPackageKeys = new Set();
-
-  for (const packageKey of Object.keys(lockfile.packages)) {
-    const resolvedPackage = parsePackageKey(packageKey, {
-      allowPeerSuffix: true,
-    });
-    const canonicalPackageKey = `${resolvedPackage.name}@${resolvedPackage.version}`;
-    resolvedPackageKeys.add(canonicalPackageKey);
-    const versions = packagesByName.get(resolvedPackage.name) ?? new Set();
-    versions.add(resolvedPackage.version);
-    packagesByName.set(resolvedPackage.name, versions);
-  }
-
-  const violations = [];
-  const excludedPackages = workspace.minimumReleaseAgeExclude ?? [];
-  const exceptionMetadata = exceptions?.minimumReleaseAge;
-  if (!Array.isArray(excludedPackages)) {
-    throw new Error(
-      "minimumReleaseAgeExclude must be an array of exact package@version entries",
-    );
+    throw new Error("package-lock.json must contain a packages object");
   }
   if (
-    !exceptionMetadata ||
-    typeof exceptionMetadata !== "object" ||
-    Array.isArray(exceptionMetadata)
+    !exceptions?.minimumReleaseAge ||
+    typeof exceptions.minimumReleaseAge !== "object" ||
+    Array.isArray(exceptions.minimumReleaseAge)
   ) {
     throw new Error(
       "dependency policy exceptions must contain a minimumReleaseAge object",
     );
   }
 
-  const excludedPackageSet = new Set();
-  for (const packageKey of excludedPackages) {
+  const checkedAt = now instanceof Date ? now : new Date(now);
+  if (!Number.isFinite(checkedAt.getTime())) {
+    throw new Error("Release-age validation time is invalid");
+  }
+
+  const violations = [];
+  const packagesByName = new Map();
+  const resolvedPackageKeys = new Set();
+  for (const [packagePath, packageEntry] of Object.entries(lockfile.packages)) {
+    if (
+      !packageEntry ||
+      packageEntry.link === true ||
+      typeof packageEntry.version !== "string" ||
+      typeof packageEntry.resolved !== "string"
+    ) {
+      continue;
+    }
+    const name = packageEntry.name ?? packageNameFromLockPath(packagePath);
+    if (!name || !EXACT_VERSION.test(packageEntry.version)) {
+      throw new Error(`Unsupported registry package at ${packagePath}`);
+    }
+    const resolvedName = registryPackageNameFromResolved(packageEntry.resolved);
+    if (resolvedName && resolvedName !== name) {
+      violations.push(
+        `${packagePath}: package ${name} resolves to registry package ${resolvedName}`,
+      );
+    }
+    const packageKey = `${name}@${packageEntry.version}`;
+    resolvedPackageKeys.add(packageKey);
+    const versions = packagesByName.get(name) ?? new Set();
+    versions.add(packageEntry.version);
+    packagesByName.set(name, versions);
+  }
+
+  const exceptionMetadata = exceptions.minimumReleaseAge;
+  const exceptionKeys = new Set();
+  for (const packageKey of Object.keys(exceptionMetadata)) {
     try {
-      parsePackageKey(packageKey);
+      parseExactPackageKey(packageKey);
     } catch {
       violations.push(
-        `${packageKey}: minimumReleaseAgeExclude must use an exact package@version`,
+        `${packageKey}: release-age exception must use an exact package@version`,
       );
       continue;
     }
-    if (excludedPackageSet.has(packageKey)) {
-      violations.push(
-        `${packageKey}: duplicate minimumReleaseAgeExclude entry`,
-      );
-    }
-    excludedPackageSet.add(packageKey);
+    exceptionKeys.add(packageKey);
     if (!resolvedPackageKeys.has(packageKey)) {
       violations.push(
-        `${packageKey}: release-age exception does not resolve in pnpm-lock.yaml`,
-      );
-    }
-    if (!Object.hasOwn(exceptionMetadata, packageKey)) {
-      violations.push(
-        `${packageKey}: release-age exception is missing reason and expiry metadata`,
+        `${packageKey}: release-age exception does not resolve in package-lock.json`,
       );
     }
   }
 
-  for (const packageKey of Object.keys(exceptionMetadata)) {
-    if (!excludedPackageSet.has(packageKey)) {
-      violations.push(
-        `${packageKey}: release-age exception metadata has no matching pnpm exclusion`,
-      );
-    }
-  }
-
+  const thresholdMs = minimumReleaseAgeMinutes * 60_000;
   const packageViolations = await mapWithConcurrency(
     [...packagesByName],
     REGISTRY_CONCURRENCY,
@@ -193,56 +213,50 @@ export async function findReleaseAgeViolations({
       if (cachedMetadataIsMissingVersion) {
         publishedByVersion = await getPackageTimes(name, { refresh: true });
       }
+
       const results = [];
       for (const version of versions) {
+        const packageKey = `${name}@${version}`;
         const publishedAt = new Date(publishedByVersion?.[version]);
         if (!Number.isFinite(publishedAt.getTime())) {
           results.push(
-            `${name}@${version}: registry publication time is missing or invalid`,
+            `${packageKey}: registry publication time is missing or invalid`,
           );
           continue;
         }
         const eligibleAt = new Date(publishedAt.getTime() + thresholdMs);
+        const exception = exceptionMetadata[packageKey];
         if (checkedAt < eligibleAt) {
-          const packageKey = `${name}@${version}`;
-          if (excludedPackageSet.has(packageKey)) {
-            const exception = exceptionMetadata[packageKey];
-            const expiresAt = new Date(exception?.expiresAt);
-            if (
-              typeof exception?.reason !== "string" ||
-              exception.reason.trim().length < 20
-            ) {
-              results.push(
-                `${packageKey}: release-age exception requires a meaningful reason`,
-              );
-              continue;
-            }
-            if (!Number.isFinite(expiresAt.getTime())) {
-              results.push(
-                `${packageKey}: release-age exception expiry is missing or invalid`,
-              );
-              continue;
-            }
-            if (expiresAt > eligibleAt) {
-              results.push(
-                `${packageKey}: release-age exception expires after normal eligibility ${eligibleAt.toISOString()}`,
-              );
-              continue;
-            }
-            if (checkedAt >= expiresAt) {
-              results.push(
-                `${packageKey}: release-age exception expired ${expiresAt.toISOString()}`,
-              );
-              continue;
-            }
+          if (!exception) {
+            results.push(
+              `${packageKey}: published ${publishedAt.toISOString()}, eligible ${eligibleAt.toISOString()}`,
+            );
             continue;
           }
+          const expiresAt = new Date(exception.expiresAt);
+          if (
+            typeof exception.reason !== "string" ||
+            exception.reason.trim().length < 20
+          ) {
+            results.push(
+              `${packageKey}: release-age exception requires a meaningful reason`,
+            );
+          } else if (!Number.isFinite(expiresAt.getTime())) {
+            results.push(
+              `${packageKey}: release-age exception expiry is missing or invalid`,
+            );
+          } else if (expiresAt > eligibleAt) {
+            results.push(
+              `${packageKey}: release-age exception expires after normal eligibility ${eligibleAt.toISOString()}`,
+            );
+          } else if (checkedAt >= expiresAt) {
+            results.push(
+              `${packageKey}: release-age exception expired ${expiresAt.toISOString()}`,
+            );
+          }
+        } else if (exceptionKeys.has(packageKey)) {
           results.push(
-            `${name}@${version}: published ${publishedAt.toISOString()}, eligible ${eligibleAt.toISOString()}`,
-          );
-        } else if (excludedPackageSet.has(`${name}@${version}`)) {
-          results.push(
-            `${name}@${version}: release-age exception is stale and must be removed`,
+            `${packageKey}: release-age exception is stale and must be removed`,
           );
         }
       }
@@ -251,7 +265,6 @@ export async function findReleaseAgeViolations({
   );
 
   violations.push(...packageViolations.flat());
-
   return violations;
 }
 
@@ -268,20 +281,20 @@ export async function validateRepository(
   const policyViolations = await Promise.all(
     POLICY_DIRECTORIES.map(async (relativeDirectory) => {
       const policyDirectory = path.join(rootDirectory, relativeDirectory);
-      const [lockfileSource, workspaceSource] = await Promise.all([
-        readFile(path.join(policyDirectory, "pnpm-lock.yaml"), "utf8"),
-        readFile(path.join(policyDirectory, "pnpm-workspace.yaml"), "utf8"),
+      const [lockfileSource, npmrcSource] = await Promise.all([
+        readFile(path.join(policyDirectory, "package-lock.json"), "utf8"),
+        readFile(path.join(policyDirectory, ".npmrc"), "utf8"),
       ]);
       const violations = await findReleaseAgeViolations({
-        lockfile: loadYaml(lockfileSource),
-        workspace: loadYaml(workspaceSource),
+        lockfile: JSON.parse(lockfileSource),
+        minimumReleaseAgeMinutes: readMinimumReleaseAgeMinutes(npmrcSource),
         exceptions,
         now,
         getPackageTimes,
       });
       const lockfilePath = path.relative(
         rootDirectory,
-        path.join(policyDirectory, "pnpm-lock.yaml"),
+        path.join(policyDirectory, "package-lock.json"),
       );
       return violations.map((violation) => `${lockfilePath}: ${violation}`);
     }),

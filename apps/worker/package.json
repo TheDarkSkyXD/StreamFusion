@@ -3,8 +3,9 @@
     "version": "1.0.0",
     "private": true,
     "scripts": {
-        "preinstall": "node ../../scripts/require-pnpm.mjs",
+        "preinstall": "node ../../scripts/require-npm.mjs",
         "deploy": "wrangler deploy",
+        "deploy:dry-run": "wrangler deploy --dry-run",
         "smoke": "node scripts/smoke.mjs",
         "dev": "wrangler dev",
         "start": "wrangler dev",
