@@ -130,8 +130,10 @@ function DragGrip() {
   );
 }
 
+type DeveloperConsoleToolId = "chat-sim" | "ui";
+
 interface DebugTool {
-  id: string;
+  id: DeveloperConsoleToolId;
   label: string;
   Component: React.ComponentType;
 }
@@ -152,25 +154,75 @@ interface Position {
   y: number;
 }
 
-interface PersistedState {
-  position?: Position;
-  collapsed?: boolean;
-  activeId?: string;
-  hidden?: boolean;
+type DeveloperConsoleVisibility = "expanded" | "collapsed" | "hidden";
+
+interface DeveloperConsoleLayoutState {
+  position: Position;
+  visibility: DeveloperConsoleVisibility;
+  activeId: DeveloperConsoleToolId;
 }
 
-function loadPersisted(): PersistedState {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function parsePosition(value: unknown): Position | null {
+  if (!isRecord(value)) return null;
+  const { x, y } = value;
+  return isFiniteNumber(x) && isFiniteNumber(y) ? { x, y } : null;
+}
+
+function parseVisibility(state: Record<string, unknown>): DeveloperConsoleVisibility {
+  if (
+    state.visibility === "expanded" ||
+    state.visibility === "collapsed" ||
+    state.visibility === "hidden"
+  ) {
+    return state.visibility;
+  }
+  if (state.hidden === true) return "hidden";
+  if (state.collapsed === true) return "collapsed";
+  return "expanded";
+}
+
+function isDeveloperConsoleToolId(value: unknown): value is DeveloperConsoleToolId {
+  return value === "chat-sim" || value === "ui";
+}
+
+function parseActiveId(value: unknown): DeveloperConsoleToolId {
+  return isDeveloperConsoleToolId(value) ? value : TOOLS[0].id;
+}
+
+function loadPersisted(): Partial<DeveloperConsoleLayoutState> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as PersistedState) : {};
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed)) return {};
+    return {
+      activeId: parseActiveId(parsed.activeId),
+      position: parsePosition(parsed.position) ?? undefined,
+      visibility: parseVisibility(parsed),
+    };
   } catch {
     return {};
   }
 }
 
-function savePersisted(state: PersistedState): void {
+function savePersisted(state: DeveloperConsoleLayoutState): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        activeId: state.activeId,
+        position: state.position,
+        visibility: state.visibility,
+      })
+    );
   } catch {
     // localStorage may be unavailable / full; persistence is best-effort.
   }
@@ -197,31 +249,43 @@ export function DeveloperConsole() {
   return <DeveloperConsoleImpl />;
 }
 
+function getWidgetSize(visibility: DeveloperConsoleVisibility): { width: number; height: number } {
+  return visibility === "expanded"
+    ? { width: PANEL_WIDTH_HINT, height: PANEL_HEIGHT_HINT }
+    : { width: CIRCLE_SIZE, height: CIRCLE_SIZE };
+}
+
+function createInitialLayoutState(
+  persisted: Partial<DeveloperConsoleLayoutState>
+): DeveloperConsoleLayoutState {
+  const visibility = persisted.visibility ?? "expanded";
+  const { width, height } = getWidgetSize(visibility);
+  return {
+    activeId: persisted.activeId ?? TOOLS[0].id,
+    position: clampPosition(persisted.position ?? defaultPosition(), width, height),
+    visibility,
+  };
+}
+
 function DeveloperConsoleImpl() {
-  const persisted = useRef<PersistedState>(loadPersisted()).current;
-
-  const [hidden, setHidden] = useState<boolean>(persisted.hidden ?? false);
-  const [collapsed, setCollapsed] = useState<boolean>(persisted.collapsed ?? false);
-  const [activeId, setActiveId] = useState<string>(
-    TOOLS.find((t) => t.id === persisted.activeId)?.id ?? TOOLS[0].id
+  const [layoutState, setLayoutState] = useState<DeveloperConsoleLayoutState>(() =>
+    createInitialLayoutState(loadPersisted())
   );
-  const [position, setPosition] = useState<Position>(() => {
-    const start = persisted.position ?? defaultPosition();
-    const w = persisted.collapsed ? CIRCLE_SIZE : PANEL_WIDTH_HINT;
-    const h = persisted.collapsed ? CIRCLE_SIZE : PANEL_HEIGHT_HINT;
-    return clampPosition(start, w, h);
-  });
 
-  const positionRef = useRef(position);
-  const collapsedRef = useRef(collapsed);
+  const layoutStateRef = useRef(layoutState);
   useLayoutEffect(() => {
-    positionRef.current = position;
-    collapsedRef.current = collapsed;
-  }, [collapsed, position]);
+    layoutStateRef.current = layoutState;
+  }, [layoutState]);
 
-  useEffect(() => {
-    savePersisted({ position, collapsed, activeId, hidden });
-  }, [position, collapsed, activeId, hidden]);
+  const commitLayoutState = useCallback(
+    (update: (current: DeveloperConsoleLayoutState) => DeveloperConsoleLayoutState) => {
+      const next = update(layoutStateRef.current);
+      layoutStateRef.current = next;
+      savePersisted(next);
+      setLayoutState(next);
+    },
+    []
+  );
 
   // Ctrl+Shift+D fully hides/shows the widget. The collapsed↔expanded toggle
   // happens via × (collapse) and clicking the circle (expand).
@@ -229,32 +293,37 @@ function DeveloperConsoleImpl() {
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && (e.key === "D" || e.key === "d")) {
         e.preventDefault();
-        setHidden((h) => !h);
+        commitLayoutState((current) => ({
+          ...current,
+          visibility: current.visibility === "hidden" ? "expanded" : "hidden",
+        }));
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, []);
+  }, [commitLayoutState]);
 
   // Re-clamp on window resize so a previously-valid position doesn't strand
   // the panel off-screen after the user shrinks the window.
   useEffect(() => {
     const onResize = () => {
-      const w = collapsedRef.current ? CIRCLE_SIZE : PANEL_WIDTH_HINT;
-      const h = collapsedRef.current ? CIRCLE_SIZE : PANEL_HEIGHT_HINT;
-      setPosition((p) => clampPosition(p, w, h));
+      commitLayoutState((current) => {
+        const { width, height } = getWidgetSize(current.visibility);
+        return { ...current, position: clampPosition(current.position, width, height) };
+      });
     };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, []);
+  }, [commitLayoutState]);
 
   // Re-clamp when expanding so the bigger panel doesn't overflow if the
   // circle was dragged near the edge.
   useEffect(() => {
-    const w = collapsed ? CIRCLE_SIZE : PANEL_WIDTH_HINT;
-    const h = collapsed ? CIRCLE_SIZE : PANEL_HEIGHT_HINT;
-    setPosition((p) => clampPosition(p, w, h));
-  }, [collapsed]);
+    const { width, height } = getWidgetSize(layoutState.visibility);
+    const clamped = clampPosition(layoutState.position, width, height);
+    if (clamped.x === layoutState.position.x && clamped.y === layoutState.position.y) return;
+    commitLayoutState((current) => ({ ...current, position: clamped }));
+  }, [commitLayoutState, layoutState.position, layoutState.visibility]);
 
   // Click-vs-drag detection.
   const dragRef = useRef<{
@@ -274,9 +343,13 @@ function DeveloperConsoleImpl() {
       const dy = e.clientY - drag.startClientY;
       if (!drag.moved && Math.abs(dx) < MIN_DRAG_PX && Math.abs(dy) < MIN_DRAG_PX) return;
       drag.moved = true;
-      const w = collapsedRef.current ? CIRCLE_SIZE : PANEL_WIDTH_HINT;
-      const h = collapsedRef.current ? CIRCLE_SIZE : PANEL_HEIGHT_HINT;
-      setPosition(clampPosition({ x: drag.originX + dx, y: drag.originY + dy }, w, h));
+      commitLayoutState((current) => {
+        const { width, height } = getWidgetSize(current.visibility);
+        return {
+          ...current,
+          position: clampPosition({ x: drag.originX + dx, y: drag.originY + dy }, width, height),
+        };
+      });
     };
 
     const onMouseUp = () => {
@@ -292,13 +365,13 @@ function DeveloperConsoleImpl() {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
     };
-  }, []);
+  }, [commitLayoutState]);
 
   const startDrag = useCallback((e: React.MouseEvent, onClickIfNoMove: () => void) => {
     if (e.button !== 0) return;
     dragRef.current = {
-      originX: positionRef.current.x,
-      originY: positionRef.current.y,
+      originX: layoutStateRef.current.position.x,
+      originY: layoutStateRef.current.position.y,
       startClientX: e.clientX,
       startClientY: e.clientY,
       moved: false,
@@ -307,22 +380,21 @@ function DeveloperConsoleImpl() {
     e.preventDefault();
   }, []);
 
-  if (hidden) {
+  if (layoutState.visibility === "hidden") {
     return (
       <button
         type="button"
         onMouseDown={(e) =>
           startDrag(e, () => {
-            setHidden(false);
-            setCollapsed(false);
+            commitLayoutState((current) => ({ ...current, visibility: "expanded" }));
           })
         }
         title="Show Developer Console"
         aria-label="Show Developer Console"
         style={{
           position: "fixed",
-          left: position.x,
-          top: position.y,
+          left: layoutState.position.x,
+          top: layoutState.position.y,
           width: CIRCLE_SIZE,
           height: CIRCLE_SIZE,
           borderRadius: "50%",
@@ -347,16 +419,20 @@ function DeveloperConsoleImpl() {
     );
   }
 
-  if (collapsed) {
+  if (layoutState.visibility === "collapsed") {
     return (
       <button
         type="button"
-        onMouseDown={(e) => startDrag(e, () => setCollapsed(false))}
+        onMouseDown={(e) =>
+          startDrag(e, () =>
+            commitLayoutState((current) => ({ ...current, visibility: "expanded" }))
+          )
+        }
         title="Click to expand · drag to move (Ctrl+Shift+D to hide)"
         style={{
           position: "fixed",
-          left: position.x,
-          top: position.y,
+          left: layoutState.position.x,
+          top: layoutState.position.y,
           width: CIRCLE_SIZE,
           height: CIRCLE_SIZE,
           borderRadius: "50%",
@@ -381,15 +457,15 @@ function DeveloperConsoleImpl() {
     );
   }
 
-  const active = TOOLS.find((t) => t.id === activeId) ?? TOOLS[0];
+  const active = TOOLS.find((t) => t.id === layoutState.activeId) ?? TOOLS[0];
   const Active = active.Component;
 
   return (
     <div
       style={{
         position: "fixed",
-        left: position.x,
-        top: position.y,
+        left: layoutState.position.x,
+        top: layoutState.position.y,
         zIndex: 99999,
         background: DEBUG_TOKENS.surface,
         backdropFilter: "blur(12px)",
@@ -523,7 +599,9 @@ function DeveloperConsoleImpl() {
           <button
             type="button"
             onMouseDown={(e) => e.stopPropagation()}
-            onClick={() => setCollapsed(true)}
+            onClick={() =>
+              commitLayoutState((current) => ({ ...current, visibility: "collapsed" }))
+            }
             title="Collapse to circle (Ctrl+Shift+D to fully hide)"
             aria-label="Collapse"
             style={{
@@ -563,14 +641,14 @@ function DeveloperConsoleImpl() {
         }}
       >
         {TOOLS.map((t) => {
-          const isActive = t.id === activeId;
+          const isActive = t.id === layoutState.activeId;
           return (
             <button
               key={t.id}
               type="button"
               role="tab"
               aria-selected={isActive}
-              onClick={() => setActiveId(t.id)}
+              onClick={() => commitLayoutState((current) => ({ ...current, activeId: t.id }))}
               style={{
                 flex: 1,
                 background: isActive ? DEBUG_TOKENS.surfaceRaised : "transparent",
