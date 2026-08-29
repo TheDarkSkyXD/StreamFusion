@@ -544,6 +544,17 @@ describe("storageService download queue persistence", () => {
   });
 });
 
+// Guards: the last selected clip or VOD folder persists through the main-owned storage contract.
+describe("storageService download directory persistence", () => {
+  it("saves and reloads the last selected download directory", () => {
+    expect(storageService.getLastDownloadDirectory()).toBeNull();
+
+    storageService.saveLastDownloadDirectory("D:/Media");
+
+    expect(storageService.getLastDownloadDirectory()).toBe("D:/Media");
+  });
+});
+
 // Guards: Recording startup can hydrate an empty V2 journal and persist later session state.
 describe("storageService Stream Recording journal persistence", () => {
   it("provides the default V2 journal and round-trips an active session", () => {

@@ -89,6 +89,7 @@ const OPERATIONAL_KEYS = {
   kickApiRateLimit: `${OPERATIONAL_PREFIX}kickApiRateLimit`,
   kickFollowedStreamsCache: `${OPERATIONAL_PREFIX}kickFollowedStreamsCache`,
   downloadQueue: `${OPERATIONAL_PREFIX}downloadQueue`,
+  lastDownloadDirectory: `${OPERATIONAL_PREFIX}lastDownloadDirectory`,
   streamRecordingJournal: `${OPERATIONAL_PREFIX}streamRecordingJournal`,
 };
 
@@ -1077,6 +1078,18 @@ export class StorageService {
 
   saveDownloadQueue(snapshot: DownloadQueueSnapshot): void {
     dbService.set(OPERATIONAL_KEYS.downloadQueue, snapshot);
+  }
+
+  getLastDownloadDirectory(): string | null {
+    return (
+      dbService.get(OPERATIONAL_KEYS.lastDownloadDirectory, (value) => {
+        return typeof value === "string" && value.length > 0 ? value : null;
+      }) ?? null
+    );
+  }
+
+  saveLastDownloadDirectory(directory: string): void {
+    dbService.set(OPERATIONAL_KEYS.lastDownloadDirectory, directory);
   }
 
   // ========== Stream Recording Recovery Journal (SQLite) ==========

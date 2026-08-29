@@ -1,14 +1,14 @@
 import { existsSync } from "node:fs";
-import path from "node:path";
 
-import { app, type BrowserWindow, dialog } from "electron";
+import { type BrowserWindow } from "electron";
 
 import type { VideoDownloadRequest } from "@shared/download-types";
 import { KickStreamResolver } from "../api/platforms/kick/kick-stream-resolver";
 import { TwitchStreamResolver } from "../api/platforms/twitch/twitch-stream-resolver";
 import { assertAllowedRendererMediaUrl } from "./download-media-source";
-import { buildDownloadFilename, getAvailableDestinationPath } from "./download-paths";
+import { getAvailableDestinationPath } from "./download-paths";
 import type { DownloadQueueService } from "./download-queue-service";
+import { chooseDefaultDownloadSavePath } from "./download-save-dialog";
 import { downloadHlsWithFfmpeg, resolveFfmpegPath } from "./ffmpeg-download-service";
 import { createVideoDownloadService, type VideoDownloadService } from "./video-download-service";
 
@@ -62,18 +62,13 @@ export function getDefaultVideoDownloadService(
   videoDownloadService = createVideoDownloadService({
     queue,
     resolvePlayback: resolveDefaultVideoPlayback,
-    chooseSavePath: async (request, extension) => {
-      const defaultPath = path.join(
-        app.getPath("downloads"),
-        buildDownloadFilename(request.channelName, request.title, extension)
-      );
-      const result = await dialog.showSaveDialog(mainWindow, {
-        title: "Save video",
-        defaultPath,
-        filters: [{ name: "MP4 Video", extensions: ["mp4"] }],
-      });
-      return result.canceled ? null : (result.filePath ?? null);
-    },
+    chooseSavePath: (request, extension) =>
+      chooseDefaultDownloadSavePath(mainWindow, {
+        dialogTitle: "Save video",
+        channelName: request.channelName,
+        title: request.title,
+        extension,
+      }),
     getAvailablePath: (requestedPath) => getAvailableDestinationPath(requestedPath, existsSync),
     resolveFfmpegPath,
     downloadHls: downloadHlsWithFfmpeg,
