@@ -243,7 +243,7 @@
     "tmi.js": "^1.8.5",
     "twitch-gql-queries": "^0.1.25",
     "update-electron-app": "^3.3.0",
-    "ws": "8.21.1",
+    "ws": "8.21.3",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   }
