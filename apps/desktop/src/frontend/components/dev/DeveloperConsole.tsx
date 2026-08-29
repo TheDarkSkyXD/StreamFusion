@@ -1,14 +1,3 @@
-/**
- * Dev-only developer console. Hosts chat and UI simulators under one
- * toggleable widget. Returns null in production.
- *
- * Interaction model:
- * - Drag the header (expanded) or the whole circle (collapsed) to reposition.
- * - Click × to collapse the panel into a 48px circle. Click the circle to
- *   expand back. Ctrl+Shift+D hides to a restore chip instead of disappearing.
- * - Position, collapsed state, and hidden state persist across reloads.
- */
-
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { DEBUG_TOKENS } from "./tokens";
@@ -102,7 +91,6 @@ function DiagnosticsIcon({ size = 14 }: { size?: number }) {
 }
 
 function DragGrip() {
-  // Three vertical dots — a quiet "this is draggable" affordance.
   const dot: React.CSSProperties = {
     width: 3,
     height: 3,
@@ -197,23 +185,27 @@ function parseActiveId(value: unknown): DeveloperConsoleToolId {
   return isDeveloperConsoleToolId(value) ? value : TOOLS[0].id;
 }
 
-function loadPersisted(): Partial<DeveloperConsoleLayoutState> {
+function parsePersisted(value: unknown): Partial<DeveloperConsoleLayoutState> | null {
+  if (!isRecord(value)) return null;
+  return {
+    activeId: parseActiveId(value.activeId),
+    position: parsePosition(value.position) ?? undefined,
+    visibility: parseVisibility(value),
+  };
+}
+
+function loadLocalPersisted(): Partial<DeveloperConsoleLayoutState> | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
+    if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    if (!isRecord(parsed)) return {};
-    return {
-      activeId: parseActiveId(parsed.activeId),
-      position: parsePosition(parsed.position) ?? undefined,
-      visibility: parseVisibility(parsed),
-    };
+    return parsePersisted(parsed);
   } catch {
-    return {};
+    return null;
   }
 }
 
-function savePersisted(state: DeveloperConsoleLayoutState): void {
+function saveLocalPersisted(state: DeveloperConsoleLayoutState): void {
   try {
     localStorage.setItem(
       STORAGE_KEY,
@@ -268,27 +260,65 @@ function createInitialLayoutState(
 }
 
 function DeveloperConsoleImpl() {
+  const [localPersisted] = useState(loadLocalPersisted);
+  const durableStore = window.electronAPI?.store;
   const [layoutState, setLayoutState] = useState<DeveloperConsoleLayoutState>(() =>
-    createInitialLayoutState(loadPersisted())
+    createInitialLayoutState(localPersisted ?? {})
   );
+  const [hasLoadedDurableState, setHasLoadedDurableState] = useState(!durableStore);
 
   const layoutStateRef = useRef(layoutState);
   useLayoutEffect(() => {
     layoutStateRef.current = layoutState;
   }, [layoutState]);
 
+  const saveDurablePersisted = useCallback((state: DeveloperConsoleLayoutState) => {
+    const store = window.electronAPI?.store;
+    if (!store) return;
+    void store.set(STORAGE_KEY, state).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!durableStore) return;
+    let isCurrent = true;
+
+    void durableStore
+      .get(STORAGE_KEY)
+      .then((stored) => {
+        if (!isCurrent) return;
+        const durablePersisted = parsePersisted(stored);
+        const next = createInitialLayoutState(durablePersisted ?? localPersisted ?? {});
+        layoutStateRef.current = next;
+        saveLocalPersisted(next);
+        setLayoutState(next);
+        setHasLoadedDurableState(true);
+        if (durablePersisted === null && localPersisted !== null) {
+          saveDurablePersisted(next);
+        }
+      })
+      .catch(() => {
+        if (isCurrent) setHasLoadedDurableState(true);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [durableStore, localPersisted, saveDurablePersisted]);
+
   const commitLayoutState = useCallback(
-    (update: (current: DeveloperConsoleLayoutState) => DeveloperConsoleLayoutState) => {
+    (
+      update: (current: DeveloperConsoleLayoutState) => DeveloperConsoleLayoutState,
+      persistDurably = true
+    ) => {
       const next = update(layoutStateRef.current);
       layoutStateRef.current = next;
-      savePersisted(next);
+      saveLocalPersisted(next);
+      if (persistDurably) saveDurablePersisted(next);
       setLayoutState(next);
     },
-    []
+    [saveDurablePersisted]
   );
 
-  // Ctrl+Shift+D fully hides/shows the widget. The collapsed↔expanded toggle
-  // happens via × (collapse) and clicking the circle (expand).
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && (e.key === "D" || e.key === "d")) {
@@ -303,8 +333,6 @@ function DeveloperConsoleImpl() {
     return () => document.removeEventListener("keydown", handler);
   }, [commitLayoutState]);
 
-  // Re-clamp on window resize so a previously-valid position doesn't strand
-  // the panel off-screen after the user shrinks the window.
   useEffect(() => {
     const onResize = () => {
       commitLayoutState((current) => {
@@ -316,8 +344,6 @@ function DeveloperConsoleImpl() {
     return () => window.removeEventListener("resize", onResize);
   }, [commitLayoutState]);
 
-  // Re-clamp when expanding so the bigger panel doesn't overflow if the
-  // circle was dragged near the edge.
   useEffect(() => {
     const { width, height } = getWidgetSize(layoutState.visibility);
     const clamped = clampPosition(layoutState.position, width, height);
@@ -325,7 +351,6 @@ function DeveloperConsoleImpl() {
     commitLayoutState((current) => ({ ...current, position: clamped }));
   }, [commitLayoutState, layoutState.position, layoutState.visibility]);
 
-  // Click-vs-drag detection.
   const dragRef = useRef<{
     originX: number;
     originY: number;
@@ -349,13 +374,14 @@ function DeveloperConsoleImpl() {
           ...current,
           position: clampPosition({ x: drag.originX + dx, y: drag.originY + dy }, width, height),
         };
-      });
+      }, false);
     };
 
     const onMouseUp = () => {
       const drag = dragRef.current;
       if (!drag) return;
-      if (!drag.moved) drag.onClick();
+      if (drag.moved) saveDurablePersisted(layoutStateRef.current);
+      else drag.onClick();
       dragRef.current = null;
     };
 
@@ -365,7 +391,7 @@ function DeveloperConsoleImpl() {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
     };
-  }, [commitLayoutState]);
+  }, [commitLayoutState, saveDurablePersisted]);
 
   const startDrag = useCallback((e: React.MouseEvent, onClickIfNoMove: () => void) => {
     if (e.button !== 0) return;
@@ -379,6 +405,8 @@ function DeveloperConsoleImpl() {
     };
     e.preventDefault();
   }, []);
+
+  if (!hasLoadedDurableState) return null;
 
   if (layoutState.visibility === "hidden") {
     return (
