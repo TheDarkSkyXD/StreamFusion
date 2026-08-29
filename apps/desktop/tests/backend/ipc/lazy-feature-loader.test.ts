@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const registerCategoryHandlers = vi.hoisted(() => vi.fn());
 const registerConnectivityHandlers = vi.hoisted(() => vi.fn());
+const registerDownloadHandlers = vi.hoisted(() => vi.fn());
 
 vi.mock("@backend/logging/log-paths", () => ({ getBugReportsDir: () => "bug-reports" }));
 vi.mock("@backend/logging/logger", () => ({
@@ -15,6 +16,7 @@ vi.mock("@backend/ipc/handlers/category-handlers", () => ({ registerCategoryHand
 vi.mock("@backend/ipc/handlers/connectivity-handlers", () => ({
   registerConnectivityHandlers,
 }));
+vi.mock("@backend/ipc/handlers/download-handlers", () => ({ registerDownloadHandlers }));
 
 import { isIpcFeature, loadIpcFeature } from "@backend/ipc/lazy-feature-loader";
 import { IPC_FEATURES } from "@shared/ipc-channels";
@@ -25,7 +27,8 @@ const featureContext = {
 };
 
 // Guards: main imports and registers a feature handler only after that feature is requested.
-// Guards: repeated requests do not register duplicate handlers, including after a failed load.
+// Guards: repeated successful requests do not register duplicate handlers.
+// Guards: Downloads retries after rollback-safe registration failures instead of remaining poisoned.
 // Guards: unknown feature names fail validation before they can select an implementation import.
 describe("lazy IPC feature loader", () => {
   beforeEach(() => {
@@ -38,7 +41,19 @@ describe("lazy IPC feature loader", () => {
     expect(registerCategoryHandlers).toHaveBeenCalledOnce();
   });
 
-  it("caches a failed load so retry cannot duplicate partial registration", async () => {
+  it("retries Downloads after a failed rollback-safe registration", async () => {
+    registerDownloadHandlers.mockImplementationOnce(() => {
+      throw new Error("registration failed");
+    });
+
+    await expect(loadIpcFeature(IPC_FEATURES.DOWNLOADS, featureContext)).rejects.toThrow(
+      "registration failed"
+    );
+    await expect(loadIpcFeature(IPC_FEATURES.DOWNLOADS, featureContext)).resolves.toBeUndefined();
+    expect(registerDownloadHandlers).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry a failed registration without rollback protection", async () => {
     registerConnectivityHandlers.mockImplementationOnce(() => {
       throw new Error("registration failed");
     });

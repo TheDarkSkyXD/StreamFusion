@@ -126,7 +126,7 @@ function sanitizeHandlerError(channel: string, error: unknown): never {
  * Production calls are restricted to the exact main renderer and bounded
  * structured-clone payloads; thrown implementation details never cross IPC.
  */
-export const trustedIpcMain: Pick<IpcMain, "handle" | "on"> = {
+export const trustedIpcMain: Pick<IpcMain, "handle" | "on" | "removeHandler"> = {
   handle(channel, listener): void {
     electronIpcMain.handle(channel, (event, ...args: unknown[]) => {
       // Isolated handler tests predate the production composition root. They
@@ -173,5 +173,8 @@ export const trustedIpcMain: Pick<IpcMain, "handle" | "on"> = {
       }
     });
     return trustedIpcMain as IpcMain;
+  },
+  removeHandler(channel): void {
+    electronIpcMain.removeHandler(channel);
   },
 };

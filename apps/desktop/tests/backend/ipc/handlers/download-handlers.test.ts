@@ -3,8 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IPC_CHANNELS } from "@shared/ipc-channels";
 
 vi.mock("electron", () => ({
-  ipcMain: { handle: vi.fn() },
-  BrowserWindow: class { webContents = { send: vi.fn() }; isDestroyed = () => false; },
+  ipcMain: { handle: vi.fn(), removeHandler: vi.fn() },
+  BrowserWindow: class {
+    webContents = { send: vi.fn() };
+    isDestroyed = () => false;
+  },
 }));
 
 vi.mock("@backend/services/download-queue-service", () => ({
@@ -51,7 +54,13 @@ function getHandler(channel: string): Handler {
 
 const service = {
   getQueue: vi.fn(),
-  enqueue: vi.fn(), start: vi.fn(), wait: vi.fn(), complete: vi.fn(), fail: vi.fn(), updateTarget: vi.fn(), updateProgress: vi.fn(),
+  enqueue: vi.fn(),
+  start: vi.fn(),
+  wait: vi.fn(),
+  complete: vi.fn(),
+  fail: vi.fn(),
+  updateTarget: vi.fn(),
+  updateProgress: vi.fn(),
   pause: vi.fn(),
   resume: vi.fn(),
   cancel: vi.fn(),
@@ -80,6 +89,8 @@ const fileActions = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(ipcMain.handle).mockReset();
+  vi.mocked(ipcMain.removeHandler).mockReset();
   vi.mocked(getDownloadQueueService).mockReturnValue(service);
   vi.mocked(getDefaultClipDownloadService).mockReturnValue(clipDownloads);
   vi.mocked(getDefaultVideoDownloadService).mockReturnValue(videoDownloads);
@@ -93,6 +104,28 @@ beforeEach(() => {
 // Guards: clip and video download requests must reach their dedicated main-process services without requiring auth
 // Guards: untrusted renderer origins cannot trigger filesystem-writing download operations
 describe("registerDownloadHandlers", () => {
+  it("rolls back partial handler registration before a retry", () => {
+    vi.clearAllMocks();
+    vi.mocked(ipcMain.handle).mockImplementation((channel) => {
+      if (channel === IPC_CHANNELS.DOWNLOADS_DOWNLOAD_VIDEO) {
+        throw new Error("registration failed");
+      }
+    });
+
+    expect(() => registerDownloadHandlers(new BrowserWindow())).toThrow("registration failed");
+    expect(vi.mocked(ipcMain.removeHandler).mock.calls.map(([channel]) => channel)).toEqual([
+      IPC_CHANNELS.DOWNLOADS_GET_QUEUE,
+      IPC_CHANNELS.DOWNLOADS_DOWNLOAD_CLIP,
+    ]);
+    expect(service.subscribe).not.toHaveBeenCalled();
+
+    vi.clearAllMocks();
+    vi.mocked(ipcMain.handle).mockReset();
+    expect(() => registerDownloadHandlers(new BrowserWindow())).not.toThrow();
+    expect(ipcMain.handle).toHaveBeenCalledTimes(11);
+    expect(service.subscribe).toHaveBeenCalledOnce();
+  });
+
   it("registers Downloads queue IPC channels", () => {
     const channels = vi.mocked(ipcMain.handle).mock.calls.map((c) => c[0]);
     expect(channels.every((channel) => typeof channel === "string")).toBe(true);

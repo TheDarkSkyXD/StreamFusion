@@ -48,78 +48,89 @@ export function registerDownloadHandlers(mainWindow: BrowserWindow): void {
   const videoDownloads = getDefaultVideoDownloadService(mainWindow, service);
   const fileActions = getDefaultDownloadFileActionsService(service);
 
-  service.subscribe((snapshot) => {
-    safeSend(mainWindow, IPC_CHANNELS.DOWNLOADS_QUEUE_CHANGED, snapshot);
-  });
+  const registeredChannels: string[] = [];
+  const handle: typeof ipcMain.handle = (channel, listener) => {
+    ipcMain.handle(channel, listener);
+    registeredChannels.push(channel);
+  };
 
-  ipcMain.handle(IPC_CHANNELS.DOWNLOADS_GET_QUEUE, (event) =>
-    isAllowedSender(event) ? service.getQueue() : REJECTED
-  );
+  try {
+    handle(IPC_CHANNELS.DOWNLOADS_GET_QUEUE, (event) =>
+      isAllowedSender(event) ? service.getQueue() : REJECTED
+    );
 
-  ipcMain.handle(IPC_CHANNELS.DOWNLOADS_DOWNLOAD_CLIP, (event, payload: ClipDownloadRequest) => {
-    if (!isAllowedSender(event)) return REJECTED;
-    return clipDownloads.downloadClip(payload);
-  });
+    handle(IPC_CHANNELS.DOWNLOADS_DOWNLOAD_CLIP, (event, payload: ClipDownloadRequest) => {
+      if (!isAllowedSender(event)) return REJECTED;
+      return clipDownloads.downloadClip(payload);
+    });
 
-  ipcMain.handle(IPC_CHANNELS.DOWNLOADS_DOWNLOAD_VIDEO, (event, payload) => {
-    if (!isAllowedSender(event)) return REJECTED;
-    return videoDownloads.downloadVideo(payload);
-  });
+    handle(IPC_CHANNELS.DOWNLOADS_DOWNLOAD_VIDEO, (event, payload) => {
+      if (!isAllowedSender(event)) return REJECTED;
+      return videoDownloads.downloadVideo(payload);
+    });
 
-  ipcMain.handle(IPC_CHANNELS.DOWNLOADS_PAUSE, (event, payload) => {
-    if (!isAllowedSender(event)) return REJECTED;
-    const id = idFromPayload(payload);
-    if (!id) return { success: false, error: "id is required" };
-    return jobResult(service.pause(id));
-  });
+    handle(IPC_CHANNELS.DOWNLOADS_PAUSE, (event, payload) => {
+      if (!isAllowedSender(event)) return REJECTED;
+      const id = idFromPayload(payload);
+      if (!id) return { success: false, error: "id is required" };
+      return jobResult(service.pause(id));
+    });
 
-  ipcMain.handle(IPC_CHANNELS.DOWNLOADS_RESUME, (event, payload) => {
-    if (!isAllowedSender(event)) return REJECTED;
-    const id = idFromPayload(payload);
-    if (!id) return { success: false, error: "id is required" };
-    return jobResult(service.resume(id));
-  });
+    handle(IPC_CHANNELS.DOWNLOADS_RESUME, (event, payload) => {
+      if (!isAllowedSender(event)) return REJECTED;
+      const id = idFromPayload(payload);
+      if (!id) return { success: false, error: "id is required" };
+      return jobResult(service.resume(id));
+    });
 
-  ipcMain.handle(IPC_CHANNELS.DOWNLOADS_CANCEL, (event, payload) => {
-    if (!isAllowedSender(event)) return REJECTED;
-    const id = idFromPayload(payload);
-    if (!id) return { success: false, error: "id is required" };
-    return clipDownloads.cancel(id) || videoDownloads.cancel(id)
-      ? { success: true }
-      : jobResult(service.cancel(id));
-  });
+    handle(IPC_CHANNELS.DOWNLOADS_CANCEL, (event, payload) => {
+      if (!isAllowedSender(event)) return REJECTED;
+      const id = idFromPayload(payload);
+      if (!id) return { success: false, error: "id is required" };
+      return clipDownloads.cancel(id) || videoDownloads.cancel(id)
+        ? { success: true }
+        : jobResult(service.cancel(id));
+    });
 
-  ipcMain.handle(IPC_CHANNELS.DOWNLOADS_RETRY, (event, payload) => {
-    if (!isAllowedSender(event)) return REJECTED;
-    const id = idFromPayload(payload);
-    if (!id) return { success: false, error: "id is required" };
-    const job = service.getQueue().jobs.find((candidate) => candidate.id === id);
-    return job?.kind === "clip" && job.source?.clip
-      ? clipDownloads.retryClip(id)
-      : jobResult(service.retry(id));
-  });
+    handle(IPC_CHANNELS.DOWNLOADS_RETRY, (event, payload) => {
+      if (!isAllowedSender(event)) return REJECTED;
+      const id = idFromPayload(payload);
+      if (!id) return { success: false, error: "id is required" };
+      const job = service.getQueue().jobs.find((candidate) => candidate.id === id);
+      return job?.kind === "clip" && job.source?.clip
+        ? clipDownloads.retryClip(id)
+        : jobResult(service.retry(id));
+    });
 
-  ipcMain.handle(IPC_CHANNELS.DOWNLOADS_REMOVE, (event, payload) => {
-    if (!isAllowedSender(event)) return REJECTED;
-    const id = idFromPayload(payload);
-    return id ? fileActions.removeFromList(id) : { success: false, error: "id is required" };
-  });
+    handle(IPC_CHANNELS.DOWNLOADS_REMOVE, (event, payload) => {
+      if (!isAllowedSender(event)) return REJECTED;
+      const id = idFromPayload(payload);
+      return id ? fileActions.removeFromList(id) : { success: false, error: "id is required" };
+    });
 
-  ipcMain.handle(IPC_CHANNELS.DOWNLOADS_SHOW_IN_FOLDER, (event, payload) => {
-    if (!isAllowedSender(event)) return REJECTED;
-    const id = idFromPayload(payload);
-    return id ? fileActions.showInFolder(id) : { success: false, error: "id is required" };
-  });
+    handle(IPC_CHANNELS.DOWNLOADS_SHOW_IN_FOLDER, (event, payload) => {
+      if (!isAllowedSender(event)) return REJECTED;
+      const id = idFromPayload(payload);
+      return id ? fileActions.showInFolder(id) : { success: false, error: "id is required" };
+    });
 
-  ipcMain.handle(IPC_CHANNELS.DOWNLOADS_OPEN_FILE, (event, payload) => {
-    if (!isAllowedSender(event)) return REJECTED;
-    const id = idFromPayload(payload);
-    return id ? fileActions.openFile(id) : { success: false, error: "id is required" };
-  });
+    handle(IPC_CHANNELS.DOWNLOADS_OPEN_FILE, (event, payload) => {
+      if (!isAllowedSender(event)) return REJECTED;
+      const id = idFromPayload(payload);
+      return id ? fileActions.openFile(id) : { success: false, error: "id is required" };
+    });
 
-  ipcMain.handle(IPC_CHANNELS.DOWNLOADS_DELETE_FILE, (event, payload) => {
-    if (!isAllowedSender(event)) return REJECTED;
-    const id = idFromPayload(payload);
-    return id ? fileActions.deleteFile(id) : { success: false, error: "id is required" };
-  });
+    handle(IPC_CHANNELS.DOWNLOADS_DELETE_FILE, (event, payload) => {
+      if (!isAllowedSender(event)) return REJECTED;
+      const id = idFromPayload(payload);
+      return id ? fileActions.deleteFile(id) : { success: false, error: "id is required" };
+    });
+
+    service.subscribe((snapshot) => {
+      safeSend(mainWindow, IPC_CHANNELS.DOWNLOADS_QUEUE_CHANGED, snapshot);
+    });
+  } catch (error) {
+    for (const channel of registeredChannels) ipcMain.removeHandler(channel);
+    throw error;
+  }
 }

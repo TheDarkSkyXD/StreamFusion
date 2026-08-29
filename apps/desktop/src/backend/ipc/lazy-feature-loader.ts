@@ -242,6 +242,7 @@ const featureLoaders = {
 } satisfies Record<IpcFeature, FeatureLoader>;
 
 const pendingFeatures = new Map<IpcFeature, Promise<void>>();
+const rollbackSafeFeatures = new Set<IpcFeature>([IPC_FEATURES.DOWNLOADS]);
 
 export function isIpcFeature(value: unknown): value is IpcFeature {
   return Object.values(IPC_FEATURES).some((feature) => feature === value);
@@ -254,6 +255,11 @@ export function loadIpcFeature(feature: IpcFeature, context: FeatureContext): Pr
       logger.info("IPC:Lazy", "Feature handlers loaded", { feature });
     });
     pendingFeatures.set(feature, pending);
+    if (rollbackSafeFeatures.has(feature)) {
+      void pending.catch(() => {
+        if (pendingFeatures.get(feature) === pending) pendingFeatures.delete(feature);
+      });
+    }
   }
   return pending;
 }
