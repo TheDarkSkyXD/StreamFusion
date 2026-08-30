@@ -25,17 +25,20 @@
 | IPC handlers | `apps/desktop/src/backend/ipc/AGENTS.md` |
 | Chat backend services | `apps/desktop/src/backend/services/chat/AGENTS.md` |
 | Emote backend services | `apps/desktop/src/backend/services/emotes/AGENTS.md` |
-| Renderer features | `apps/desktop/src/frontend/features/AGENTS.md` |
-| UI components | `apps/desktop/src/frontend/components/AGENTS.md` |
-| Chat UI components | `apps/desktop/src/frontend/features/chat/components/chat/AGENTS.md` |
-| Player components | `apps/desktop/src/frontend/features/playback/components/player/AGENTS.md` |
-| React hooks | `apps/desktop/src/frontend/hooks/AGENTS.md` |
-| Pages | `apps/desktop/src/frontend/pages/AGENTS.md` |
-| Mod dashboard | `apps/desktop/src/frontend/pages/Mod/AGENTS.md` |
-| Preload bridge | `apps/desktop/src/backend/preload/AGENTS.md` |
+| UI components | `apps/desktop/src/components/AGENTS.md` |
+| Chat UI components | `apps/desktop/src/components/chat/AGENTS.md` |
+| Player components | `apps/desktop/src/components/player/AGENTS.md` |
+| Stream browsing components | `apps/desktop/src/components/stream/AGENTS.md` |
+| React hooks | `apps/desktop/src/hooks/AGENTS.md` |
+| Pages | `apps/desktop/src/pages/AGENTS.md` |
+| Mod dashboard pages | `apps/desktop/src/pages/Mod/AGENTS.md` |
+| Preload bridge | `apps/desktop/src/preload/AGENTS.md` |
 | Shared IPC contracts | `apps/desktop/src/shared/AGENTS.md` |
-| Zustand stores | `apps/desktop/src/frontend/store/AGENTS.md` |
+| Zustand stores | `apps/desktop/src/store/AGENTS.md` |
 | Tests | `apps/desktop/tests/AGENTS.md` |
+
+
+Dont open a PR only commit and push to main.
 
 
 
