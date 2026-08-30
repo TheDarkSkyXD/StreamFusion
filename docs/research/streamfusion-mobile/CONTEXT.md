@@ -36,6 +36,26 @@ _Avoid_: User account, device ID, push token.
 The versioned, expiring, signed policy that states whether each Compatibility Integration may run. Android accepts only a valid signature and monotonic version, caches the last valid manifest, and otherwise applies baked safe defaults.
 _Avoid_: Feature flags, remote config, kill-switch response.
 
+**Product Store**:
+The encrypted, device-local source of truth for StreamFusion-owned records and recoverable job state on Android. It excludes remote Platform cache entries and media bytes.
+_Avoid_: App state, local database, cache.
+
+**Cache Store**:
+The disposable, device-local copy of remote Platform results used for bounded offline reading. Its contents may be stale, evicted, or rebuilt without changing StreamFusion-owned records.
+_Avoid_: Product Store, offline database, source of truth.
+
+**Media Job**:
+A user-started Android recording, download, or export whose durable state and checkpoints allow safe pause, recovery, completion, or cancellation across lifecycle interruptions.
+_Avoid_: Background task, transfer, foreground service.
+
+**Activity Item**:
+A durable, device-local record of a channel alert, Media Job event, device-health event, moderation result, update, or account-maintenance event shown in Activity. Stable event identity prevents duplicate records when local and relay state reconcile.
+_Avoid_: Push notification, toast, log entry.
+
+**Live Notification Projection**:
+The versioned Integration Relay copy of device-owned Live Notification preferences used only for delivery. The Product Store remains authoritative and reconciles this projection after launch, foregrounding, or network recovery.
+_Avoid_: Notification settings, cloud sync, relay-owned preference.
+
 **Development Exception**:
 A temporary authorization for an access-controlled development build to miss a parity requirement. A Development Exception never satisfies parity and always blocks public release.
 _Avoid_: Waiver, accepted gap, release exception.
