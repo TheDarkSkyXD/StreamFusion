@@ -24,6 +24,18 @@ _Avoid_: Exception, degradation, missing feature.
 An Android adapter that uses a Platform behavior outside a documented public contract because no official path can deliver a parity-critical outcome. Each Compatibility Integration is isolated, observable, remotely disableable, covered by stronger verification, paired with an explicit fallback, and governed by a removal policy.
 _Avoid_: Unofficial API, workaround, official integration.
 
+**Integration Relay**:
+The trusted hosted boundary for operations an installed Android client cannot safely or reliably perform, including secret-backed public reads, Platform event receipt, Live Notification delivery, foreground Kick chat fan-out, and signed capability policy. It does not own user Platform credentials or device-owned StreamFusion data.
+_Avoid_: Backend, API server, general proxy.
+
+**Installation Identity**:
+The random device-local identity and rotating relay credential that represent one installed Android app instance to the Integration Relay. It is not a StreamFusion account, hardware identifier, or push token.
+_Avoid_: User account, device ID, push token.
+
+**Capability Manifest**:
+The versioned, expiring, signed policy that states whether each Compatibility Integration may run. Android accepts only a valid signature and monotonic version, caches the last valid manifest, and otherwise applies baked safe defaults.
+_Avoid_: Feature flags, remote config, kill-switch response.
+
 **Development Exception**:
 A temporary authorization for an access-controlled development build to miss a parity requirement. A Development Exception never satisfies parity and always blocks public release.
 _Avoid_: Waiver, accepted gap, release exception.
