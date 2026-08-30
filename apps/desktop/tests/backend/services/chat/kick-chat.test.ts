@@ -54,9 +54,15 @@ interface InternalChannelInfo {
 interface ServiceInternals {
   channels: Map<string, InternalChannelInfo>;
   channelUsers: Map<string, number>;
-  senderBadgesCache: Map<
+  senderPresentationCache: Map<
     string,
-    Map<string, Array<{ setId: string; version: string; imageUrl: string; title: string }>>
+    Map<
+      string,
+      {
+        color: string;
+        badges: Array<{ setId: string; version: string; imageUrl: string; title: string }>;
+      }
+    >
   >;
   handleChatMessage(event: KickChatMessageEvent, channel: string): void;
   pusher: {
@@ -346,6 +352,7 @@ describe("KickChatService channel-scoped release eviction", () => {
 
 // Guards: pending Kick sends reserve rolling-window capacity before the IPC transport settles.
 // Guards: failed Kick sends release their reservation, while successful sends consume exactly one slot.
+// Guards: optimistic Kick echoes use learned Pusher presentation or a stable non-white fallback and identify their provenance.
 describe("KickChatService.sendMessage", () => {
   beforeEach(() => {
     kickChatApi.sendMessage.mockResolvedValue({
@@ -521,6 +528,55 @@ describe("KickChatService.sendMessage", () => {
     expect(messages[0].content).toEqual([{ type: "text", content: "hi" }]);
   });
 
+  it("optimistic echo uses a deterministic username color and marks its provenance", async () => {
+    const { service, internals } = makeService();
+    internals.channels.set("ac7ionman", {
+      slug: "ac7ionman",
+      chatroomId: 999_111,
+      broadcasterUserId: 42,
+    });
+    const messages: ChatMessage[] = [];
+    service.on("message", (message) => messages.push(message));
+
+    await service.sendMessage("ac7ionman", "hi", { id: 7, username: "Me", slug: "me" });
+
+    expect(messages[0]).toMatchObject({
+      color: expect.not.stringMatching(/^#fff(?:fff)?$/i),
+      isOptimistic: true,
+    });
+  });
+
+  it("optimistic echo reuses authoritative Pusher color even when the sender has no badges", async () => {
+    const { service, internals } = makeService();
+    internals.channels.set("ac7ionman", {
+      slug: "ac7ionman",
+      chatroomId: 999_111,
+      broadcasterUserId: 42,
+    });
+    const messages: ChatMessage[] = [];
+    service.on("message", (message) => messages.push(message));
+    internals.handleChatMessage(
+      {
+        id: "authoritative-1",
+        chatroom_id: 999_111,
+        content: "first",
+        type: "message",
+        created_at: "2026-08-30T12:00:00Z",
+        sender: {
+          id: 7,
+          username: "Me",
+          slug: "me",
+          identity: { color: "#53FC18", badges: [] },
+        },
+      },
+      "ac7ionman"
+    );
+
+    await service.sendMessage("ac7ionman", "second", { id: 7, username: "Me", slug: "me" });
+
+    expect(messages[1]).toMatchObject({ color: "#53FC18", badges: [], isOptimistic: true });
+  });
+
   it("optimistic echo does not synthesize a moderator badge for the signed-in Kick user", async () => {
     const { service, internals } = makeService();
     internals.channels.set("ac7ionman", {
@@ -554,19 +610,25 @@ describe("KickChatService.sendMessage", () => {
     });
     const messages: ChatMessage[] = [];
     service.on("message", (m) => messages.push(m));
-    const cachedBadges = new Map<
+    const cachedPresentation = new Map<
       string,
-      Array<{ setId: string; version: string; imageUrl: string; title: string }>
+      {
+        color: string;
+        badges: Array<{ setId: string; version: string; imageUrl: string; title: string }>;
+      }
     >([
       [
         "7",
-        [
-          { setId: "subscriber", version: "1", imageUrl: "", title: "Subscriber" },
-          { setId: "moderator", version: "1", imageUrl: "", title: "Moderator" },
-        ],
+        {
+          color: "#53FC18",
+          badges: [
+            { setId: "subscriber", version: "1", imageUrl: "", title: "Subscriber" },
+            { setId: "moderator", version: "1", imageUrl: "", title: "Moderator" },
+          ],
+        },
       ],
     ]);
-    internals.senderBadgesCache.set("ac7ionman", cachedBadges);
+    internals.senderPresentationCache.set("ac7ionman", cachedPresentation);
 
     service.setModeratorState("ac7ionman", true);
     await service.sendMessage("ac7ionman", "cached badge hi", {
@@ -617,7 +679,7 @@ describe("KickChatService.sendMessage", () => {
       "broadcaster",
       "subscriber",
     ]);
-    const cache = internals.senderBadgesCache.get("ac7ionman")?.get("7");
+    const cache = internals.senderPresentationCache.get("ac7ionman")?.get("7")?.badges;
     if (!cache) throw new Error("Expected sender badge cache entry");
     expect(cache.map((badge: { setId: string }) => badge.setId)).toEqual([
       "broadcaster",

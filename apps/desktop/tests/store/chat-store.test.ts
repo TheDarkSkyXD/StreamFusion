@@ -310,6 +310,8 @@ describe('chat-store badge rehydration', () => {
 });
 
 // Guards: a batched duplicate is inspected once so high-volume chat does not repeat the full dedupe pass.
+// Guards: Kick optimistic and Pusher duplicates converge on authoritative sender presentation in either arrival order.
+// Guards: optimistic emote fragments survive reconciliation when the authoritative Pusher copy contains only text.
 describe('chat-store dedup prefers emote-rich duplicates (Kick optimistic-echo race)', () => {
   beforeEach(() => resetStore());
 
@@ -373,6 +375,99 @@ describe('chat-store dedup prefers emote-rich duplicates (Kick optimistic-echo r
     useChatStore.getState().flushBatch(buildChannelKey('kick', 'test'));
 
     expect(contentReads).toBe(2);
+  });
+
+  it.each([
+    ['optimistic first', true],
+    ['Pusher first', false],
+  ])('addMessage reconciles %s to canonical identity and optimistic emotes', (_label, optimisticFirst) => {
+    const id = 'identity-race-direct';
+    const optimistic = Object.assign(makeEmoteMessage(id, 'kick'), {
+      userId: '7',
+      username: 'me',
+      displayName: 'Me',
+      color: '#98D8C8',
+      isOptimistic: true as const,
+    });
+    const canonical = {
+      ...makeMessage(id, 'kick'),
+      userId: '7',
+      username: 'me',
+      displayName: 'ME',
+      color: '#53FC18',
+      badges: [
+        { setId: 'subscriber', version: '3', imageUrl: 'subscriber.png', title: 'Subscriber' },
+      ],
+    };
+
+    const [first, second] = optimisticFirst
+      ? [optimistic, canonical]
+      : [canonical, optimistic];
+    useChatStore.getState().addMessage(first);
+    useChatStore.getState().addMessage(second);
+
+    expect(messagesFor(defaultChannelKey('kick'))).toEqual([
+      expect.objectContaining({
+        displayName: 'ME',
+        color: '#53FC18',
+        badges: canonical.badges,
+        content: optimistic.content,
+      }),
+    ]);
+    expect(messagesFor(defaultChannelKey('kick'))[0]).not.toHaveProperty('isOptimistic');
+    expect(useChatStore.getState().usersByChannel[defaultChannelKey('kick')]?.me).toMatchObject({
+      displayName: 'ME',
+      color: '#53FC18',
+      badges: canonical.badges,
+    });
+  });
+
+  it.each([
+    ['optimistic stored first', true],
+    ['Pusher stored first', false],
+  ])('flushBatch reconciles %s to the same canonical row', (_label, optimisticFirst) => {
+    resetStore({ batching: true, interval: 16 });
+    const id = 'identity-race-batched';
+    const optimistic = Object.assign(makeEmoteMessage(id, 'kick'), {
+      userId: '7',
+      username: 'me',
+      displayName: 'Me',
+      color: '#98D8C8',
+      isOptimistic: true as const,
+    });
+    const canonical = {
+      ...makeMessage(id, 'kick'),
+      userId: '7',
+      username: 'me',
+      displayName: 'ME',
+      color: '#53FC18',
+      badges: [
+        { setId: 'subscriber', version: '3', imageUrl: 'subscriber.png', title: 'Subscriber' },
+      ],
+    };
+    const channelKey = defaultChannelKey('kick');
+    const [stored, queued] = optimisticFirst
+      ? [optimistic, canonical]
+      : [canonical, optimistic];
+
+    useChatStore.getState().addMessage(stored);
+    useChatStore.getState().addMessageBatched(queued, channelKey);
+    useChatStore.getState().flushBatch(channelKey);
+
+    expect(messagesFor(channelKey)).toEqual([
+      expect.objectContaining({
+        displayName: 'ME',
+        color: '#53FC18',
+        badges: canonical.badges,
+        content: optimistic.content,
+      }),
+    ]);
+    expect(messagesFor(channelKey)[0]).not.toHaveProperty('isOptimistic');
+    expect(useChatStore.getState().usersByChannel[channelKey]?.me).toMatchObject({
+      displayName: 'ME',
+      color: '#53FC18',
+      badges: canonical.badges,
+    });
   });
 });
 
