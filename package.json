@@ -44,6 +44,7 @@
     "lint:lockfile": "eslint --config eslint.lockfile.config.mjs package-lock.json apps/desktop/package-lock.json package.json apps/*/package.json && npm run lint:release-age",
     "lint:release-age": "node scripts/validate-lockfile-release-age.mjs",
     "test": "npm --prefix apps/desktop test && npm run --workspace streamfusion-worker test",
+    "test:all": "npm --prefix apps/desktop run test:all && npm run --workspace streamfusion-worker test",
     "test:package-policy": "node --test scripts/package-policy.test.mjs scripts/validate-lockfile-release-age.test.mjs",
     "test:release-policy": "node --test scripts/release-policy.test.mjs scripts/merge-artifacts.test.mjs scripts/release-workflow.test.mjs",
     "typecheck": "npm --prefix apps/desktop run typecheck && npm run --workspace streamfusion-worker typecheck",
