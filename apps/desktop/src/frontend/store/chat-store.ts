@@ -114,6 +114,24 @@ function replaceMessageInBucket(
   return { ...buckets, [channelKey]: next };
 }
 
+function reconcileDuplicateMessage(existing: ChatMessage, incoming: ChatMessage): ChatMessage {
+  const existingHasEmotes = existing.content.some((fragment) => fragment.type === "emote");
+  const incomingHasEmotes = incoming.content.some((fragment) => fragment.type === "emote");
+
+  if (Boolean(existing.isOptimistic) === Boolean(incoming.isOptimistic)) {
+    return incomingHasEmotes && !existingHasEmotes ? incoming : existing;
+  }
+
+  const optimistic = existing.isOptimistic ? existing : incoming;
+  const canonical = existing.isOptimistic ? incoming : existing;
+  const { isOptimistic: _isOptimistic, ...canonicalMessage } = canonical;
+  const optimisticHasEmotes = existing.isOptimistic ? existingHasEmotes : incomingHasEmotes;
+  const canonicalHasEmotes = existing.isOptimistic ? incomingHasEmotes : existingHasEmotes;
+  return optimisticHasEmotes && !canonicalHasEmotes
+    ? { ...canonicalMessage, content: optimistic.content }
+    : canonicalMessage;
+}
+
 const CHATTER_ROLE_PRIORITY: readonly ChatKnownUserRole[] = [
   "broadcaster",
   "moderator",
@@ -209,6 +227,24 @@ function mergeKnownUsersFromMessages(
   return mergeKnownUsers(usersByChannel, channelKey, users);
 }
 
+function mergeReconciledKnownUsers(
+  usersByChannel: Record<string, Record<string, ChatKnownUser>>,
+  channelKey: string,
+  messages: ChatMessage[]
+): Record<string, Record<string, ChatKnownUser>> {
+  const current = usersByChannel[channelKey] ?? {};
+  const users = messages
+    .map(messageToKnownUser)
+    .filter((user): user is ChatKnownUser => Boolean(user))
+    .map((user) => {
+      const existing = current[user.username.toLowerCase()];
+      return existing && existing.lastSeen > user.lastSeen
+        ? { ...user, lastSeen: existing.lastSeen }
+        : user;
+    });
+  return mergeKnownUsers(usersByChannel, channelKey, users);
+}
+
 /**
  * Apply a flushed batch to a single channel's bucket: dedupes against the
  * bucket using the emote-richer rule, appends fresh messages, then trims the
@@ -223,37 +259,24 @@ function applyBatchToBucket(
   const current = buckets[channelKey] ?? [];
   const idIndex = new Map<string, number>();
   current.forEach((m, i) => idIndex.set(m.id, i));
-  const fresh: ChatMessage[] = [];
-  const replacements: { index: number; message: ChatMessage }[] = [];
+  const merged = current.slice();
+  let changed = false;
   for (const m of batch) {
     const existingIdx = idIndex.get(m.id);
     if (existingIdx === undefined) {
-      idIndex.set(m.id, current.length + fresh.length);
-      fresh.push(m);
+      idIndex.set(m.id, merged.length);
+      merged.push(m);
+      changed = true;
       continue;
     }
-    const existing =
-      existingIdx < current.length ? current[existingIdx] : fresh[existingIdx - current.length];
-    const newHasEmotes = m.content.some((f) => f.type === "emote");
-    const existingHasEmotes = existing.content.some((f) => f.type === "emote");
-    if (newHasEmotes && !existingHasEmotes) {
-      if (existingIdx < current.length) {
-        replacements.push({ index: existingIdx, message: m });
-      } else {
-        fresh[existingIdx - current.length] = m;
-      }
+    const existing = merged[existingIdx];
+    const reconciled = reconcileDuplicateMessage(existing, m);
+    if (reconciled !== existing) {
+      merged[existingIdx] = reconciled;
+      changed = true;
     }
   }
-  if (fresh.length === 0 && replacements.length === 0) return buckets;
-
-  let base = current;
-  if (replacements.length > 0) {
-    base = base.slice();
-    for (const { index, message } of replacements) {
-      base[index] = message;
-    }
-  }
-  const merged = [...base, ...fresh];
+  if (!changed) return buckets;
   const trimmed =
     merged.length > maxMessages + TRIM_BUFFER ? merged.slice(-(maxMessages - TRIM_BUFFER)) : merged;
   return { ...buckets, [channelKey]: trimmed };
@@ -419,15 +442,25 @@ export const useChatStore = create<ChatState>()(
           const dupIdx = bucket.findIndex((m) => m.id === message.id);
           if (dupIdx !== -1) {
             const existing = bucket[dupIdx];
-            const newHasEmotes = message.content.some((f) => f.type === "emote");
-            const existingHasEmotes = existing.content.some((f) => f.type === "emote");
-            if (newHasEmotes && !existingHasEmotes) {
+            const reconciled = reconcileDuplicateMessage(existing, message);
+            if (reconciled !== existing) {
+              const reconciledOptimistic =
+                Boolean(existing.isOptimistic) !== Boolean(message.isOptimistic);
               return {
                 messagesByChannel: replaceMessageInBucket(
                   state.messagesByChannel,
                   channelKey,
-                  message
+                  reconciled
                 ),
+                ...(reconciledOptimistic
+                  ? {
+                      usersByChannel: mergeReconciledKnownUsers(
+                        state.usersByChannel,
+                        channelKey,
+                        [reconciled]
+                      ),
+                    }
+                  : {}),
               };
             }
             return state;
@@ -526,9 +559,20 @@ export const useChatStore = create<ChatState>()(
           );
           if (nextBuckets === state.messagesByChannel) return state;
 
+          const storedById = new Map(
+            (nextBuckets[channelKey] ?? []).map((message) => [message.id, message])
+          );
+          const knownUserMessages = queued.map((message) =>
+            message.isOptimistic ? (storedById.get(message.id) ?? message) : message
+          );
+
           return {
             messagesByChannel: nextBuckets,
-            usersByChannel: mergeKnownUsersFromMessages(state.usersByChannel, channelKey, queued),
+            usersByChannel: mergeReconciledKnownUsers(
+              state.usersByChannel,
+              channelKey,
+              knownUserMessages
+            ),
             chatterCountByChannel: (() => {
               const current = state.usersByChannel[channelKey] ?? {};
               const newNames = new Set(

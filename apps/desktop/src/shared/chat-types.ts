@@ -243,6 +243,8 @@ export interface ChatMessage {
   highlightKind?: ChatHighlightKind;
   /** Whether this is a /me action message */
   isAction: boolean;
+  /** True only for a local echo awaiting its authoritative platform delivery. */
+  isOptimistic?: true;
   /** True for messages seeded from the v2 history endpoint on join — rendered dimmer than live chat. */
   isHistorical?: boolean;
   /** When a retained message row is marked deleted, the platform deletion event timestamp. */

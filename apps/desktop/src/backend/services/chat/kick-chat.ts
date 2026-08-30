@@ -40,6 +40,7 @@ import {
   type KickMessageDeletedEvent,
   type KickSubscriptionEvent,
   type KickUserBannedEvent,
+  getDefaultColor,
   parseKickBadges,
   parseKickChatCleared,
   parseKickChatMessage,
@@ -263,14 +264,13 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
   private pendingMessageReservations: Set<symbol> = new Set();
   private isModerator: Map<string, boolean> = new Map(); // channel -> isMod
   private channelBadges: Map<string, SubscriberBadge[]> = new Map(); // channel -> badges
-  // Self-learning badge cache: snapshot of each sender's badges in each
-  // channel, populated whenever a Pusher ChatMessageEvent arrives. Used by
-  // sendMessage's optimistic local echo so the signed-in user's own
-  // outbound message renders with the same non-moderator badge set Kick
-  // stamped on their previous inbound message. Falls back to broadcaster
-  // synthesis from local state when no cached entry exists yet.
+  // Self-learning presentation cache populated from authoritative Pusher
+  // messages. REST identity responses do not include chat color or badges.
   // Outer key: channel slug. Inner key: userId (string).
-  private senderBadgesCache: Map<string, Map<string, ChatBadge[]>> = new Map();
+  private senderPresentationCache: Map<
+    string,
+    Map<string, { color: string; badges: ChatBadge[] }>
+  > = new Map();
 
   // Platform isolation: prevents zombie reconnections when service should be inactive
   // When false, ALL connection attempts and reconnections are blocked
@@ -745,7 +745,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
 
     this.channels.delete(normalizedChannel);
     this.isModerator.delete(normalizedChannel);
-    this.senderBadgesCache.delete(normalizedChannel);
+    this.senderPresentationCache.delete(normalizedChannel);
     this.emitConnectionStatus();
     this.log(`Left channel: ${normalizedChannel}`);
   }
@@ -812,11 +812,11 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
     // ~150-400ms later that carries real color + badges; this echo bridges
     // the latency. Dedup-by-id collapses the duplicate.
     if (sender) {
-      const cachedForChannel = this.senderBadgesCache.get(normalizedChannel);
-      const cachedBadges = cachedForChannel?.get(String(sender.id));
+      const cachedForChannel = this.senderPresentationCache.get(normalizedChannel);
+      const cachedPresentation = cachedForChannel?.get(String(sender.id));
       let echoBadges: ChatBadge[];
-      if (cachedBadges && cachedBadges.length > 0) {
-        echoBadges = removeModeratorBadge(cachedBadges);
+      if (cachedPresentation) {
+        echoBadges = removeModeratorBadge(cachedPresentation.badges);
       } else {
         const synthBadges: KickBadge[] = [];
         if (sender.id === channelInfo.broadcasterUserId) {
@@ -832,7 +832,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         userId: String(sender.id),
         username: sender.slug,
         displayName: sender.username,
-        color: sender.color || "#FFFFFF",
+        color: cachedPresentation?.color || getDefaultColor(sender.username),
         badges: echoBadges,
         content:
           localFragments && localFragments.length > 0
@@ -843,6 +843,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         isDeleted: false,
         isHighlighted: false,
         isAction: false,
+        isOptimistic: true,
         replyTo: localReplyTo,
       });
     }
@@ -1174,19 +1175,12 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
         ? { ...parsedMessage, badges: removeModeratorBadge(parsedMessage.badges) }
         : parsedMessage;
 
-    // Snapshot the sender's badges so sendMessage's optimistic local echo
-    // can stamp the user's own outbound messages with their real badge set
-    // (broadcaster + moderator + subscriber-months + VIP/OG/verified) the
-    // next time they send. We only cache non-empty badge lists — replacing
-    // a previously-good cache with an empty one would mask real badges.
-    if (message.badges.length > 0) {
-      let cacheForChannel = this.senderBadgesCache.get(channelSlug);
-      if (!cacheForChannel) {
-        cacheForChannel = new Map();
-        this.senderBadgesCache.set(channelSlug, cacheForChannel);
-      }
-      cacheForChannel.set(message.userId, message.badges);
+    let cacheForChannel = this.senderPresentationCache.get(channelSlug);
+    if (!cacheForChannel) {
+      cacheForChannel = new Map();
+      this.senderPresentationCache.set(channelSlug, cacheForChannel);
     }
+    cacheForChannel.set(message.userId, { color: message.color, badges: message.badges });
 
     this.emit("message", message);
   }

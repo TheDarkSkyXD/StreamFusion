@@ -232,7 +232,7 @@ const DEFAULT_COLORS = [
 /**
  * Get a consistent color for a user based on their username
  */
-function getDefaultColor(username: string): string {
+export function getDefaultColor(username: string): string {
   let hash = 0;
   for (let i = 0; i < username.length; i++) {
     hash = username.charCodeAt(i) + ((hash << 5) - hash);
