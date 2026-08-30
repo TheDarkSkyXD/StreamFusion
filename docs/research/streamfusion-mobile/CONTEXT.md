@@ -20,6 +20,10 @@ _Avoid_: Status row, parity checkbox.
 An approved Android behavior that preserves Android Outcome Parity through a different interaction, lifecycle, or visible limit. An unavailable outcome is not an Adaptation.
 _Avoid_: Exception, degradation, missing feature.
 
+**Compatibility Integration**:
+An Android adapter that uses a Platform behavior outside a documented public contract because no official path can deliver a parity-critical outcome. Each Compatibility Integration is isolated, observable, remotely disableable, covered by stronger verification, paired with an explicit fallback, and governed by a removal policy.
+_Avoid_: Unofficial API, workaround, official integration.
+
 **Development Exception**:
 A temporary authorization for an access-controlled development build to miss a parity requirement. A Development Exception never satisfies parity and always blocks public release.
 _Avoid_: Waiver, accepted gap, release exception.
