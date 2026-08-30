@@ -1,8 +1,6 @@
-const DEFAULT_DEVELOPMENT_CDP_PORT = 9236;
-
 export type DebuggingPolicy =
   | { readonly kind: "disabled" }
-  | { readonly kind: "cdp"; readonly source: "cli" | "default"; readonly port: number };
+  | { readonly kind: "cdp"; readonly source: "cli"; readonly port: number };
 
 function parseExplicitPort(argv: readonly string[]): number | null {
   const argument = argv.find((value) => value.startsWith("--remote-debugging-port="));
@@ -19,6 +17,6 @@ export function resolveDebuggingPolicy(input: {
 
   const explicitPort = parseExplicitPort(input.argv);
   return explicitPort === null
-    ? { kind: "cdp", source: "default", port: DEFAULT_DEVELOPMENT_CDP_PORT }
+    ? { kind: "disabled" }
     : { kind: "cdp", source: "cli", port: explicitPort };
 }

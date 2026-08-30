@@ -18,6 +18,7 @@ import { useTimedText } from "../hooks/use-timed-text";
 import { useVolume } from "../hooks/use-volume";
 import type { Platform, PlayerError, QualityLevel } from "../types";
 import { CaptionOverlay } from "../caption-overlay";
+import type { VideoPlaybackSnapshot } from "@shared/chat-replay-types";
 
 import { TwitchVodHlsPlayer } from "./twitch-vod-hls-player";
 import { TwitchVodPlayerControls } from "./twitch-vod-player-controls";
@@ -39,6 +40,8 @@ export interface TwitchVodPlayerProps {
   title?: string;
   thumbnail?: string;
   qualities?: { quality: string; url: string }[];
+  onPlaybackStateChange?: (snapshot: VideoPlaybackSnapshot) => void;
+  subscribeToSeek?: (listener: (offsetSeconds: number) => void) => () => void;
 }
 
 export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
@@ -57,11 +60,18 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
     videoId,
     title,
     thumbnail,
+    onPlaybackStateChange,
+    subscribeToSeek,
   } = props;
   const resolvedThumbnail = resolveProxiedImageSrc(thumbnail || poster) ?? undefined;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const playbackSnapshotRef = useRef<VideoPlaybackSnapshot>({
+    currentTime: 0,
+    isPlaying: autoPlay,
+    playbackRate: 1,
+  });
   const [hls, setHls] = useState<Hls | null>(null);
   const rewindSeconds = useSeekIntervalStore((state) => state.rewindSeconds);
   const forwardSeconds = useSeekIntervalStore((state) => state.forwardSeconds);
@@ -145,22 +155,51 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
   // Apply user's default quality preference
   useDefaultQuality(availableQualities, currentQualityId, setCurrentQualityId);
 
+  const publishPlaybackState = useCallback(
+    (next: Partial<VideoPlaybackSnapshot>) => {
+      const snapshot = { ...playbackSnapshotRef.current, ...next };
+      playbackSnapshotRef.current = snapshot;
+      onPlaybackStateChange?.(snapshot);
+    },
+    [onPlaybackStateChange]
+  );
+
   // Setup event listeners
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    const handlePlay = () => setIsPlaying(true);
-    const handlePause = () => setIsPlaying(false);
+    const handlePlay = () => {
+      setIsPlaying(true);
+      publishPlaybackState({
+        currentTime: video.currentTime,
+        isPlaying: true,
+        playbackRate: video.playbackRate,
+      });
+    };
+    const handlePause = () => {
+      setIsPlaying(false);
+      publishPlaybackState({
+        currentTime: video.currentTime,
+        isPlaying: false,
+        playbackRate: video.playbackRate,
+      });
+    };
     const handleVideoVolumeChange = () => {
       syncFromVideoElement();
     };
     const handleWaiting = () => setIsLoading(true);
     const handlePlaying = () => setIsLoading(false);
-    const handleTimeUpdate = () => setCurrentTime(video.currentTime);
+    const handleTimeUpdate = () => {
+      setCurrentTime(video.currentTime);
+      publishPlaybackState({ currentTime: video.currentTime });
+    };
     const handleDurationChange = () => setDuration(video.duration);
     const handleProgress = () => setBuffered(video.buffered);
-    const handleRateChange = () => setPlaybackRate(video.playbackRate);
+    const handleRateChange = () => {
+      setPlaybackRate(video.playbackRate);
+      publishPlaybackState({ playbackRate: video.playbackRate });
+    };
 
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
@@ -183,7 +222,7 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
       video.removeEventListener("progress", handleProgress);
       video.removeEventListener("ratechange", handleRateChange);
     };
-  }, [syncFromVideoElement]);
+  }, [publishPlaybackState, syncFromVideoElement]);
 
   // Volume initialization is handled by useVolume hook
 
@@ -228,6 +267,11 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
     const targetTime = video.currentTime + forwardSeconds;
     handleSeek(Number.isFinite(video.duration) ? Math.min(video.duration, targetTime) : targetTime);
   }, [forwardSeconds, handleSeek]);
+
+  useEffect(() => {
+    if (!subscribeToSeek) return;
+    return subscribeToSeek(handleSeek);
+  }, [handleSeek, subscribeToSeek]);
 
   const handlePlaybackRateChange = useCallback((rate: number) => {
     const video = videoRef.current;

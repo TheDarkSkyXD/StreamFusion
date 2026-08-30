@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import { type AuthToken, TWITCH_APP_SCOPES, type TwitchUser } from "@shared/auth-types";
 import { IPC_CHANNELS } from "@shared/ipc-channels";
+import { createMainRendererPortMock } from "../helpers/main-renderer-port-mock";
 
 const harness = {
   storageDirectory: "",
@@ -233,14 +234,16 @@ describe("Twitch auth restart persistence", () => {
 
     const processBStorage = await loadBackendProcess(true);
     const { registerAuthHandlers } = await import("@backend/ipc/handlers/auth-handlers");
-    registerAuthHandlers({
-      isDestroyed: () => false,
-      on: vi.fn(),
-      webContents: {
+    registerAuthHandlers(
+      createMainRendererPortMock({
         isDestroyed: () => false,
-        send: vi.fn(),
-      },
-    } as never);
+        on: vi.fn(),
+        webContents: {
+          isDestroyed: () => false,
+          send: vi.fn(),
+        },
+      } as never)
+    );
 
     expect(processBStorage.getToken("twitch")).toEqual(legacyToken);
     expect(processBStorage.getTwitchUser()).toEqual(fakeUser);
@@ -256,14 +259,16 @@ describe("Twitch auth restart persistence", () => {
 
     const processBStorage = await loadBackendProcess(false);
     const { registerAuthHandlers } = await import("@backend/ipc/handlers/auth-handlers");
-    registerAuthHandlers({
-      isDestroyed: () => false,
-      on: vi.fn(),
-      webContents: {
+    registerAuthHandlers(
+      createMainRendererPortMock({
         isDestroyed: () => false,
-        send: vi.fn(),
-      },
-    } as never);
+        on: vi.fn(),
+        webContents: {
+          isDestroyed: () => false,
+          send: vi.fn(),
+        },
+      } as never)
+    );
 
     const getStatusHandler = registeredIpcHandlers.get(IPC_CHANNELS.AUTH_GET_STATUS);
     if (!getStatusHandler) throw new Error("AUTH_GET_STATUS handler was not registered");

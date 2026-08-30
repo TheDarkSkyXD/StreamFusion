@@ -145,12 +145,10 @@ describe("TwitchClient", () => {
       expect(mockGqlGetStreamsByLogins).toHaveBeenCalledWith(["user1"]);
     });
 
-    it("returns empty data on GQL failure", async () => {
+    it("preserves GQL failure so callers cannot mistake it for an offline channel", async () => {
       mockGqlGetStreamsByLogins.mockRejectedValueOnce(new Error("GQL failed"));
 
-      const result = await twitchClient.getStreamsByLogins(["user1"]);
-
-      expect(result.data).toEqual([]);
+      await expect(twitchClient.getStreamsByLogins(["user1"])).rejects.toThrow("GQL failed");
     });
   });
 

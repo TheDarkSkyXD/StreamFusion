@@ -18,18 +18,43 @@ const recordHintMock = vi.mocked(recordDevtoolsNetworkRequestHint);
 const resolveSourceMappedLocationMock = vi.mocked(resolveSourceMappedLocation);
 
 function makeWebContents() {
-  let messageHandler:
-    | ((event: unknown, method: string, params?: Record<string, unknown>) => void)
-    | undefined;
+  type MessageHandler = (
+    event: unknown,
+    method: string,
+    params?: Record<string, unknown>
+  ) => void;
+  type DetachHandler = () => void;
+
+  let messageHandler: MessageHandler | undefined;
+  let detachHandler: DetachHandler | undefined;
+  let destroyedHandler: (() => void) | undefined;
 
   const fake = {
     debugger: {
       attach: vi.fn(),
+      detach: vi.fn(),
       isAttached: vi.fn(() => false),
-      on: vi.fn((_event: string, handler: typeof messageHandler) => {
-        messageHandler = handler;
+      on: vi.fn((event: string, handler: MessageHandler | DetachHandler) => {
+        if (event === "message") messageHandler = handler as MessageHandler;
+        if (event === "detach") detachHandler = handler as DetachHandler;
+      }),
+      removeListener: vi.fn((event: string, handler: MessageHandler | DetachHandler) => {
+        if (event === "message" && messageHandler === handler) messageHandler = undefined;
+        if (event === "detach" && detachHandler === handler) detachHandler = undefined;
       }),
       sendCommand: vi.fn().mockResolvedValue(undefined),
+    },
+    once: vi.fn((_event: string, handler: () => void) => {
+      destroyedHandler = handler;
+    }),
+    removeListener: vi.fn((_event: string, handler: () => void) => {
+      if (destroyedHandler === handler) destroyedHandler = undefined;
+    }),
+    emitDestroyed() {
+      destroyedHandler?.();
+    },
+    emitDebuggerDetach() {
+      detachHandler?.();
     },
     emitDebuggerMessage(method: string, params: Record<string, unknown>) {
       messageHandler?.({}, method, params);
@@ -116,5 +141,43 @@ describe("installNetworkDevtoolsRecorder", () => {
     installNetworkDevtoolsRecorder(fake as unknown as Electron.WebContents);
 
     expect(handleRejection).toHaveBeenCalledOnce();
+  });
+
+  it("removes its listener and detaches the debugger when disposed", () => {
+    const fake = makeWebContents();
+
+    const dispose = installNetworkDevtoolsRecorder(fake as unknown as Electron.WebContents);
+    dispose();
+
+    expect(fake.debugger.removeListener).toHaveBeenCalledWith("message", expect.any(Function));
+    expect(fake.debugger.detach).toHaveBeenCalledOnce();
+    fake.emitDebuggerMessage("Network.requestWillBeSent", {
+      request: { url: "https://example.test/stream.m3u8" },
+    });
+    expect(recordHintMock).not.toHaveBeenCalled();
+  });
+
+  it("disposes automatically when WebContents is destroyed", () => {
+    const fake = makeWebContents();
+
+    installNetworkDevtoolsRecorder(fake as unknown as Electron.WebContents);
+    fake.emitDestroyed();
+
+    expect(fake.debugger.removeListener).toHaveBeenCalledWith("message", expect.any(Function));
+    expect(fake.debugger.detach).toHaveBeenCalledOnce();
+  });
+
+  it("releases its listeners when Electron detaches the debugger target", () => {
+    const fake = makeWebContents();
+
+    installNetworkDevtoolsRecorder(fake as unknown as Electron.WebContents);
+    fake.emitDebuggerDetach();
+
+    expect(fake.debugger.removeListener).toHaveBeenCalledWith("message", expect.any(Function));
+    expect(fake.debugger.removeListener).toHaveBeenCalledWith("detach", expect.any(Function));
+    expect(fake.debugger.detach).not.toHaveBeenCalled();
+
+    installNetworkDevtoolsRecorder(fake as unknown as Electron.WebContents);
+    expect(fake.debugger.attach).toHaveBeenCalledTimes(2);
   });
 });

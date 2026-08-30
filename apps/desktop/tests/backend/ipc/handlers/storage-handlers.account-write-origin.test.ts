@@ -43,6 +43,7 @@ import {
   registerStorageHandlers,
 } from "@backend/ipc/handlers/storage-handlers";
 import { storageService } from "@backend/services/storage-service";
+import { createMainRendererPortMock } from "../../../helpers/main-renderer-port-mock";
 
 type Handler = (event: unknown, args?: unknown) => unknown;
 
@@ -221,7 +222,7 @@ describe("storage-handlers Kick account write origin", () => {
       },
       activeFollows: [],
     };
-    registerStorageHandlers(mainWindow);
+    registerStorageHandlers(createMainRendererPortMock(mainWindow));
     attachKickFollowWriteService({
       onAccountWriteChanged,
     } as unknown as Parameters<typeof attachKickFollowWriteService>[0]);
@@ -263,7 +264,7 @@ describe("storage-handlers Kick account write origin", () => {
       reason: "retry-expired",
     };
 
-    registerStorageHandlers(mainWindow);
+    registerStorageHandlers(createMainRendererPortMock(mainWindow));
     attachKickFollowWriteService({
       onAccountWriteChanged,
     } as unknown as Parameters<typeof attachKickFollowWriteService>[0]);

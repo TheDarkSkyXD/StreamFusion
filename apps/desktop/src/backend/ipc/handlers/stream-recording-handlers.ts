@@ -1,5 +1,3 @@
-import type { BrowserWindow } from "electron";
-
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { IPC_CHANNELS } from "@shared/ipc-channels";
 import type {
@@ -9,6 +7,8 @@ import type {
 import { getDefaultStreamRecordingService } from "../../services/stream-recording-default-service";
 import { getStreamRecordingSessionStore } from "../../services/stream-recording-session-store";
 import { isAllowedSender } from "../sender-origin";
+import type { MainRendererPort } from "../main-renderer-port";
+import { registerLoadedFeatureCleanup } from "../../startup/loaded-feature-cleanup";
 
 function sessionId(payload: unknown): string | null {
   if (!payload || typeof payload !== "object") return null;
@@ -36,17 +36,12 @@ function recoveryBridgeError(error: string): StreamRecordingRecoveryActionResult
   return { success: false, code: "bridge-error", error };
 }
 
-export function registerStreamRecordingHandlers(mainWindow: BrowserWindow): void {
-  const service = getDefaultStreamRecordingService(mainWindow);
-  getStreamRecordingSessionStore().subscribe((snapshot) => {
-    try {
-      if (!mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-        mainWindow.webContents.send(IPC_CHANNELS.STREAM_RECORDING_STATE_CHANGED, snapshot);
-      }
-    } catch {
-      // Window may close while a recording state notification is emitted.
-    }
+export function registerStreamRecordingHandlers(renderer: MainRendererPort): void {
+  const service = getDefaultStreamRecordingService(renderer);
+  const unsubscribe = getStreamRecordingSessionStore().subscribe((snapshot) => {
+    renderer.send(IPC_CHANNELS.STREAM_RECORDING_STATE_CHANGED, snapshot);
   });
+  registerLoadedFeatureCleanup("stream-recording:state-events", unsubscribe);
 
   ipcMain.handle(IPC_CHANNELS.STREAM_RECORDING_GET_STATE, (event) =>
     isAllowedSender(event) ? service.getSnapshot() : { active: null, notice: null }

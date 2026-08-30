@@ -40,7 +40,9 @@ type DebuggerEvent = {
   preventDefault?: () => void;
 };
 
-const installed = new WeakSet<WebContents>();
+export type DisposeNetworkDevtoolsRecorder = () => void;
+
+const installed = new WeakMap<WebContents, DisposeNetworkDevtoolsRecorder>();
 
 function basename(rawUrl: string): string {
   try {
@@ -149,21 +151,21 @@ function formatInitiator(initiator: RequestInitiator | undefined): {
   return { display: type, type };
 }
 
-export function installNetworkDevtoolsRecorder(webContents: WebContents): void {
-  if (installed.has(webContents)) return;
-  installed.add(webContents);
+export function installNetworkDevtoolsRecorder(
+  webContents: WebContents
+): DisposeNetworkDevtoolsRecorder {
+  const existing = installed.get(webContents);
+  if (existing) return existing;
 
   const dbg = webContents.debugger;
-  try {
-    if (!dbg.isAttached()) {
-      dbg.attach("1.3");
-    }
-    void dbg.sendCommand("Network.enable").catch(() => undefined);
-  } catch {
-    return;
-  }
+  let disposed = false;
+  let attachedByRecorder = false;
 
-  dbg.on("message", (_event: DebuggerEvent, method: string, params?: RequestWillBeSentParams) => {
+  const onMessage = (
+    _event: DebuggerEvent,
+    method: string,
+    params?: RequestWillBeSentParams
+  ): void => {
     if (method !== "Network.requestWillBeSent") return;
     const url = params?.request?.url;
     if (typeof url !== "string" || !isNetworkStreamRequestUrl(url)) return;
@@ -185,5 +187,37 @@ export function installNetworkDevtoolsRecorder(webContents: WebContents): void {
       timestamp: params?.timestamp ?? Date.now(),
       urlFingerprint: networkRequestUrlFingerprint(url),
     });
-  });
+  };
+
+  const cleanup = (detach: boolean): void => {
+    if (disposed) return;
+    disposed = true;
+    installed.delete(webContents);
+    webContents.removeListener("destroyed", dispose);
+    dbg.removeListener("message", onMessage);
+    dbg.removeListener("detach", onDetach);
+    if (!detach || !attachedByRecorder) return;
+    try {
+      dbg.detach();
+    } catch {
+      return;
+    }
+  };
+
+  const dispose = (): void => cleanup(true);
+  const onDetach = (): void => cleanup(false);
+
+  try {
+    if (dbg.isAttached()) return () => undefined;
+    dbg.attach("1.3");
+    attachedByRecorder = true;
+    dbg.on("message", onMessage);
+    dbg.on("detach", onDetach);
+    webContents.once("destroyed", dispose);
+    installed.set(webContents, dispose);
+    void dbg.sendCommand("Network.enable").catch(dispose);
+  } catch {
+    dispose();
+  }
+  return dispose;
 }

@@ -134,7 +134,7 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
             ? { name: error.name, message: error.message, stack: error.stack }
             : String(error),
       });
-      return { data: [] };
+      throw error;
     }
   }
 

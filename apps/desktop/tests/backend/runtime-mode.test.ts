@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { resolveDebuggingPolicy } from "@backend/runtime-mode";
 
 // Guards: packaged builds never expose Chrome DevTools Protocol, even when a launch argument requests it.
-// Guards: development launches preserve explicit automation ports and otherwise use the registered local default.
+// Guards: development launches expose CDP only when automation explicitly requests a port.
 describe("resolveDebuggingPolicy", () => {
   it("disables debugging for every packaged launch", () => {
     expect(
@@ -23,12 +23,12 @@ describe("resolveDebuggingPolicy", () => {
     ).toEqual({ kind: "cdp", source: "cli", port: 9222 });
   });
 
-  it("uses the registered development port when none is supplied", () => {
+  it("keeps debugging disabled when a development port is not explicitly supplied", () => {
     expect(
       resolveDebuggingPolicy({
         isPackaged: false,
         argv: ["electron", "."],
       })
-    ).toEqual({ kind: "cdp", source: "default", port: 9236 });
+    ).toEqual({ kind: "disabled" });
   });
 });

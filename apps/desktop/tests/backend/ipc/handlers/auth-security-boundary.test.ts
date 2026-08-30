@@ -127,6 +127,7 @@ vi.mock("@backend/api/platforms/kick/kick-send-window", () => ({
 }));
 
 import { registerAuthHandlers } from "@backend/ipc/handlers/auth-handlers";
+import { createMainRendererPortMock } from "../../../helpers/main-renderer-port-mock";
 
 const allowedEvent = { senderFrame: { url: "file:///app/index.html" } };
 const rejectedEvent = { senderFrame: { url: "https://evil.example/" } };
@@ -176,7 +177,7 @@ beforeEach(() => {
       mocks.windowListeners.set(event, listener);
     }),
   });
-  registerAuthHandlers(authWindow);
+  registerAuthHandlers(createMainRendererPortMock(authWindow));
 });
 
 // Guards: generic token storage remains Kick-only and rejects untrusted renderer origins without exposing a credential.

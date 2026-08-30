@@ -4,8 +4,6 @@
  * to the main window. Send guard matches the auth-handlers pattern.
  */
 
-import type { BrowserWindow } from "electron";
-
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { clearKickStreamFailureCache } from "../../api/platforms/kick/endpoints/stream-endpoints";
@@ -18,6 +16,8 @@ import {
   type StatusPageDetail,
 } from "../../api/unified/platform-health";
 import { logger } from "../../logging/logger";
+import type { MainRendererPort } from "../main-renderer-port";
+import { registerLoadedFeatureCleanup } from "../../startup/loaded-feature-cleanup";
 
 export interface PlatformHealthSnapshot {
   kick: PlatformHealth;
@@ -28,7 +28,7 @@ export interface PlatformHealthSnapshot {
   };
 }
 
-export function registerPlatformHealthHandlers(mainWindow: BrowserWindow): void {
+export function registerPlatformHealthHandlers(renderer: MainRendererPort): void {
   ipcMain.handle(IPC_CHANNELS.PLATFORM_HEALTH_GET, (): PlatformHealthSnapshot => {
     const snapshot: PlatformHealthSnapshot = {
       kick: getPlatformHealth("kick"),
@@ -44,29 +44,15 @@ export function registerPlatformHealthHandlers(mainWindow: BrowserWindow): void 
     return snapshot;
   });
 
-  function pushTransitionToRenderer(event: PlatformHealthEvent): void {
-    try {
-      if (mainWindow.isDestroyed()) return;
-      const { webContents } = mainWindow;
-      if (webContents.isDestroyed() || webContents.isCrashed()) return;
-      const { mainFrame } = webContents;
-      if (mainFrame.isDestroyed() || mainFrame.detached) return;
-      mainFrame.send(IPC_CHANNELS.PLATFORM_HEALTH_CHANGED, event);
-    } catch (error) {
-      logger.warn("IPC:PlatformHealth", "Could not push transition", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  onPlatformHealthChanged((event) => {
-    pushTransitionToRenderer(event);
+  const unsubscribe = onPlatformHealthChanged((event: PlatformHealthEvent) => {
+    renderer.send(IPC_CHANNELS.PLATFORM_HEALTH_CHANGED, event);
 
     if (event.status === "healthy" && event.platform === "kick") {
       clearKickStreamFailureCache();
       logger.info("IPC:PlatformHealth", "Kick recovery: flushed negative stream caches");
     }
   });
+  registerLoadedFeatureCleanup("platform-health:events", unsubscribe);
 
   logger.info("IPC:PlatformHealth", "IPC handlers registered");
 }

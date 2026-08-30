@@ -9,9 +9,13 @@ vi.mock("electron", () => ({
 import { ipcMain } from "electron";
 
 import { registerTwitchApiHandlers } from "@backend/ipc/handlers/twitch-api-handlers";
+import type { MainRendererPort } from "@backend/ipc/main-renderer-port";
 import { IPC_CHANNELS } from "@shared/ipc-channels";
 
-type Handler = (event: { senderFrame?: { url?: string } }, payload: unknown) => Promise<unknown>;
+type Handler = (
+  event: { sender?: { id: number }; senderFrame?: { url?: string } },
+  payload: unknown
+) => Promise<unknown>;
 
 function handlerFor(channel: string): Handler {
   const calls = vi.mocked(ipcMain.handle).mock.calls as unknown as Array<[string, Handler]>;
@@ -279,12 +283,17 @@ describe("Twitch API IPC handlers", () => {
     registerTwitchApiHandlers({
       service: { execute: vi.fn() },
       eventSub,
-      mainWindow: { isDestroyed: () => false, webContents: { send } } as never,
+      renderer: {
+        sendToOwner: (_ownerId: number, channel: string, payload: unknown) => {
+          send(channel, payload);
+          return true;
+        },
+      } as unknown as MainRendererPort,
     });
     const payload = { feedId: "feed-1", userId: "200", channelId: "100" };
 
     await handlerFor(IPC_CHANNELS.TWITCH_EVENTSUB_START)(
-      { senderFrame: { url: "file:///app/index.html" } },
+      { sender: { id: 1 }, senderFrame: { url: "file:///app/index.html" } },
       payload
     );
     emitEvent?.({ event: { action: "delete" } });

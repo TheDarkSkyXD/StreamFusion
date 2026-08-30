@@ -1,4 +1,3 @@
-import type { BrowserWindow } from "electron";
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { isAllowedSender, type SenderFrameLike } from "@backend/ipc/sender-origin";
@@ -9,6 +8,8 @@ import type {
   LocalCaptionPcmChunk,
   LocalCaptionSessionIdentity,
 } from "@shared/local-caption-types";
+import type { MainRendererPort } from "../main-renderer-port";
+import { registerLoadedFeatureCleanup } from "../../startup/loaded-feature-cleanup";
 
 interface LocalCaptionModelStoreBridge {
   getState(): Promise<LocalCaptionModelState>;
@@ -47,22 +48,13 @@ function isSessionIdentity(payload: unknown): payload is LocalCaptionSessionIden
 }
 
 export function registerLocalCaptionHandlers(
-  mainWindow: BrowserWindow,
+  renderer: MainRendererPort,
   dependencies: LocalCaptionHandlerDependencies
-): () => void {
-  const safeSend = (channel: string, payload: unknown) => {
-    try {
-      if (!mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-        mainWindow.webContents.send(channel, payload);
-      }
-    } catch {
-      // Window teardown must not corrupt a model download or recognizer session.
-    }
-  };
-
+): void {
   const unsubscribe = dependencies.modelStore.subscribe((state) => {
-    safeSend(IPC_CHANNELS.LOCAL_CAPTIONS_MODEL_STATE, state);
+    renderer.send(IPC_CHANNELS.LOCAL_CAPTIONS_MODEL_STATE, state);
   });
+  registerLoadedFeatureCleanup("local-captions:model-events", unsubscribe);
 
   ipcMain.handle(IPC_CHANNELS.LOCAL_CAPTIONS_MODEL_GET_STATE, (event: SenderFrameLike) => {
     if (!isAllowedSender(event)) return REJECTED;
@@ -131,6 +123,4 @@ export function registerLocalCaptionHandlers(
       return { success: true as const };
     }
   );
-
-  return unsubscribe;
 }

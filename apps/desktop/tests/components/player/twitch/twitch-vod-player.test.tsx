@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TwitchVodPlayer } from "@/features/playback/components/player/twitch/twitch-vod-player";
 import type { QualityLevel } from "@/features/playback/components/player/types";
+import { createChatReplayPlaybackStore } from "@/features/chat/data/chat-replay-playback-store";
 
 const hookMocks = vi.hoisted(() => ({
   useResumePlayback: vi.fn(),
@@ -83,6 +84,7 @@ vi.mock("@/features/playback/components/player/hls-player", () => ({
 // Guards: pausing an active native MP4 seek clears loading without later recovery or failure.
 // Guards: a new stream URL clears terminal seek state and cannot revive the old generation.
 // Guards: Twitch processing placeholders never reach the poster or seek preview while persistence keeps the provider URL.
+// Guards: Twitch VOD playback drives chat replay timing and accepts replay timestamp seeks.
 describe("TwitchVodPlayer", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -161,6 +163,30 @@ describe("TwitchVodPlayer", () => {
 
     expect(screen.getByLabelText("Visible playback position")).toHaveTextContent("61");
     expect(video.currentTime).toBe(61);
+  });
+
+  it("publishes playback snapshots and accepts replay timestamp seeks", () => {
+    const playbackStore = createChatReplayPlaybackStore();
+    render(
+      <TwitchVodPlayer
+        streamUrl="https://usher.ttvnw.net/vod/123.m3u8"
+        onPlaybackStateChange={playbackStore.publish}
+        subscribeToSeek={playbackStore.subscribeToSeek}
+      />
+    );
+    const video = screen.getByTestId<HTMLVideoElement>("twitch-vod-video");
+    Object.defineProperty(video, "currentTime", {
+      configurable: true,
+      value: 42.625,
+      writable: true,
+    });
+
+    fireEvent.timeUpdate(video);
+    fireEvent.play(video);
+    act(() => playbackStore.requestSeek(12.75));
+
+    expect(playbackStore.getSnapshot()).toMatchObject({ currentTime: 42.625, isPlaying: true });
+    expect(video.currentTime).toBe(12.75);
   });
 
   it("recovers a native MP4 seek with bounded reseeks and no load or autoplay", () => {

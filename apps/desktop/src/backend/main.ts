@@ -25,8 +25,8 @@ import {
 } from "electron";
 import { configureAppIdentity } from "./app-identity";
 import { protocolHandler } from "./auth/protocol-handler";
-import { registerIpcHandlers } from "./ipc-handlers";
-import { startChromiumLogTailer } from "./logging/chromium-log-tailer";
+import { createDesktopIpcRuntime } from "./ipc-handlers";
+import { startChromiumLogTailer, type StopChromiumLogTailer } from "./logging/chromium-log-tailer";
 import { installConsoleIntercept } from "./logging/console-intercept";
 import { installCrashHooks } from "./logging/crash-hooks";
 import { computeLogPaths, setBugReportsDir, setTelemetryDir } from "./logging/log-paths";
@@ -66,7 +66,6 @@ import { attachCertVerifyDiagToAllSessions } from "./services/cert-verify-diagno
 import { dbService } from "./services/database-service";
 import { storageService } from "./services/storage-service";
 import { markCleanShutdown, markSessionStarted, wasCleanShutdown } from "./shutdown-marker";
-import { runLoadedFeatureCleanups } from "./startup/loaded-feature-cleanup";
 import { startPrimaryInstance } from "./startup/start-primary-instance";
 import { openStartupRecoveryWindow } from "./startup/startup-recovery-window";
 import { beginStartupSession } from "./startup/startup-session-policy";
@@ -80,8 +79,25 @@ import { resolveUserDataPath } from "./utility/user-data-path";
 import { resolveDebuggingPolicy } from "./runtime-mode";
 import { IPC_CHANNELS } from "../shared/ipc-channels";
 
-// Enable Chrome DevTools Protocol for Playwright/Electron MCP connectivity (development only)
-// In production builds (electron-forge package/make), NODE_ENV is typically "production"
+const ipcRuntime = createDesktopIpcRuntime();
+
+function bindMainWindow(mainWindow: BrowserWindow): void {
+  ipcRuntime.bindWindow(mainWindow);
+  installRendererCrashRecovery({ webContents: mainWindow.webContents });
+
+  mainWindow.on("close", () => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window === mainWindow || window.isDestroyed()) continue;
+      try {
+        window.destroy();
+      } catch {
+        continue;
+      }
+    }
+  });
+}
+
+// Remote debugging is available only when an unpackaged launch requests a CDP port.
 const isProduction = process.env.NODE_ENV === "production" || app.isPackaged;
 
 // Keep Windows taskbar grouping/identity aligned with electron-builder's appId.
@@ -121,7 +137,7 @@ if (process.env.STREAMFUSION_NETLOG) {
 
 const debuggingPolicy = resolveDebuggingPolicy({ isPackaged: app.isPackaged, argv: process.argv });
 
-if (debuggingPolicy.kind === "cdp") {
+if (!isProduction) {
   // Suppress the (Disabled webSecurity) + (allowRunningInsecureContent) dev
   // warnings the renderer prints on every launch. The posture is intentional
   // (window-manager.ts:132 — needed for cross-origin video stream playback)
@@ -132,25 +148,10 @@ if (debuggingPolicy.kind === "cdp") {
 
   // Use a separate user data directory for development unless the launch explicitly supplies one.
   console.debug(`📂 Development mode: User data path set to ${userDataPath}`);
+}
 
-  // NOTE: if productName ever changes again, a migration shim is needed to copy
-  // old userData files and rename localStorage keys before services initialize
-  // — see git history for the migrateUserData/renameOldFiles pattern removed
-  // in the StreamFusion rebrand.
-
-  // Default to 9236 — the port this project is registered under in the
-  // debug-electron MCP as `streamfusion-monorepo`, so `npm start` is
-  // discoverable out of the box. Skip the override if the CLI already
-  // passed `--remote-debugging-port` (e.g. `dev:mcp` forces 9222 for
-  // Playwright tooling) — appendSwitch would otherwise clobber it.
-  if (debuggingPolicy.source === "default") {
-    app.commandLine.appendSwitch("remote-debugging-port", String(debuggingPolicy.port));
-    console.debug(
-      `🔌 CDP remote debugging enabled on port ${debuggingPolicy.port} for debug-electron MCP`
-    );
-  } else {
-    console.debug("🔌 CDP remote debugging using port from CLI args");
-  }
+if (debuggingPolicy.kind === "cdp") {
+  console.debug(`CDP remote debugging enabled by CLI on port ${debuggingPolicy.port}`);
 } else {
   app.commandLine.removeSwitch("remote-debugging-port");
 }
@@ -170,6 +171,7 @@ if (debuggingPolicy.kind === "cdp") {
 // is apps/desktop/, and the repo root is two levels up. We pass it
 // unconditionally; computeLogPaths only consumes it in dev.
 let logsDir: string;
+let stopChromiumLogTailer: StopChromiumLogTailer | null = null;
 
 // Verification launches redirect mutable dev artifacts into their disposable run.
 const configuredDevelopmentArtifactRoot = process.env.STREAMFUSION_DEV_ARTIFACT_ROOT?.trim();
@@ -270,7 +272,7 @@ function initializeBeforeReady(): void {
   // since they go straight to the OS file descriptor. The flags configured
   // above route those lines to chromiumLogPath; this watcher forwards each
   // append into `logger` under the "Chromium" tag.
-  startChromiumLogTailer({ filePath: chromiumLogPath });
+  stopChromiumLogTailer = startChromiumLogTailer({ filePath: chromiumLogPath });
 
   protocolHandler.registerProtocol({ resolveMainWindow: () => windowManager.getMainWindow() });
   logger.info("Main", "Logging initialized", {
@@ -506,28 +508,9 @@ async function initializeReady(): Promise<void> {
   registerTwitchClipMediaProtocol();
 
   const mainWindow = windowManager.createMainWindow();
-  installRendererCrashRecovery({ webContents: mainWindow.webContents });
+  bindMainWindow(mainWindow);
 
-  // Tear down every other BrowserWindow when the main window starts to close.
-  // Any hidden helper window (Kick send-window, OAuth popup, future scraper)
-  // counts toward `window-all-closed`; if even one is alive after the user
-  // clicks X, the event never fires, `app.quit()` is never called, and the
-  // Electron process (plus all its child processes — GPU, network service,
-  // utility) lingers in the background. Destroy hidden windows first so the
-  // process can exit, then reset the send-window module's cached refs.
-  mainWindow.on("close", () => {
-    for (const win of BrowserWindow.getAllWindows()) {
-      if (win !== mainWindow && !win.isDestroyed()) {
-        try {
-          win.destroy();
-        } catch {
-          // Already gone — ignore.
-        }
-      }
-    }
-  });
-
-  registerIpcHandlers(mainWindow);
+  ipcRuntime.start();
 
   // Global force-quit shortcut: runs in main process, so it works even when
   // the renderer is at 100% CPU and can't dispatch its own X-button click.
@@ -556,8 +539,7 @@ app.on("activate", () => {
       return;
     }
     const mainWindow = windowManager.createMainWindow();
-    installRendererCrashRecovery({ webContents: mainWindow.webContents });
-    registerIpcHandlers(mainWindow);
+    bindMainWindow(mainWindow);
   }
 });
 
@@ -577,7 +559,10 @@ app.on("before-quit", (event) => {
     stopDiagnosticsRuntime();
     stopDiagnosticsRuntime = null;
   }
-  const featureCleanup = runLoadedFeatureCleanups();
+  if (stopChromiumLogTailer) {
+    stopChromiumLogTailer();
+    stopChromiumLogTailer = null;
+  }
   // `use-resume-playback.ts` saves position every 30s and on pause; chat is
   // ephemeral; window state saves synchronously in mainWindow.on('close').
   // Worst-case loss from this path is the last 30s of playback position.
@@ -586,29 +571,34 @@ app.on("before-quit", (event) => {
   // Flush the loggers before the process exits. electron-log 5.x writes
   // synchronously, so the awaits are short-lived; we still gate `app.exit`
   // on them so the trailing "Debug closed" header makes it to disk.
-  const finalize = async (): Promise<void> => {
-    await featureCleanup;
-    try {
-      await devRelayServer?.close();
-      devRelayServer = null;
-    } catch {
-      // Best-effort — a closing development relay must never block app exit.
-    }
-    try {
-      await shutdownLogger();
-    } catch {
-      // Best-effort — never block exit on logger teardown.
-    }
-    try {
-      await shutdownNoiseLogger();
-    } catch {
-      // Best-effort.
-    }
-    try {
-      await shutdownNetworkLogger();
-    } catch {
-      // Best-effort.
-    }
+  let finalizePromise: Promise<void> | null = null;
+  const finalize = (): Promise<void> => {
+    if (finalizePromise) return finalizePromise;
+    finalizePromise = (async () => {
+      await ipcRuntime.dispose();
+      try {
+        await devRelayServer?.close();
+        devRelayServer = null;
+      } catch {
+        // Best-effort — a closing development relay must never block app exit.
+      }
+      try {
+        await shutdownLogger();
+      } catch {
+        // Best-effort — never block exit on logger teardown.
+      }
+      try {
+        await shutdownNoiseLogger();
+      } catch {
+        // Best-effort.
+      }
+      try {
+        await shutdownNetworkLogger();
+      } catch {
+        // Best-effort.
+      }
+    })();
+    return finalizePromise;
   };
 
   const win = windowManager.getMainWindow();
@@ -650,7 +640,7 @@ app.on("will-quit", () => {
 
 // Security: Prevent new window creation from renderer
 app.on("web-contents-created", (_event, contents) => {
-  installNetworkDevtoolsRecorder(contents);
+  if (debuggingPolicy.kind === "cdp") installNetworkDevtoolsRecorder(contents);
   contents.setWindowOpenHandler(() => {
     return { action: "deny" };
   });

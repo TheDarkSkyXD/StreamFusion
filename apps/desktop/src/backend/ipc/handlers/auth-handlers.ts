@@ -1,5 +1,3 @@
-import type { BrowserWindow } from "electron";
-
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { z } from "zod";
 
@@ -34,6 +32,8 @@ import { twitchDeviceAuthWindow } from "../../auth/twitch-device-auth-window";
 import { kickFollowWriteService } from "../../services/kick-follow-write-service";
 import { beginKickAccountReconciliation } from "../../services/kick-account-reconciliation-coordinator";
 import { liveNotificationService } from "../../services/live-notification-service";
+import type { MainRendererPort } from "../main-renderer-port";
+import { registerLoadedFeatureCleanup } from "../../startup/loaded-feature-cleanup";
 import { storageService } from "../../services/storage-service";
 import { isAllowedSender } from "../sender-origin";
 
@@ -465,25 +465,12 @@ export async function performTwitchDeviceCodeLogin(
   return user;
 }
 
-export function registerAuthHandlers(mainWindow: BrowserWindow): void {
+export function registerAuthHandlers(renderer: MainRendererPort): void {
   const authHandlersStartedAt = Date.now();
   let twitchLoginInFlight: Promise<{ success: boolean; error?: string }> | null = null;
 
-  /**
-   * Helper to safely send IPC messages to the renderer.
-   * Prevents "Render frame was disposed" errors when the window is closing.
-   */
   function safeSend(channel: string, ...args: unknown[]): void {
-    try {
-      if (
-        mainWindow &&
-        !mainWindow.isDestroyed() &&
-        mainWindow.webContents &&
-        !mainWindow.webContents.isDestroyed()
-      ) {
-        mainWindow.webContents.send(channel, ...args);
-      }
-    } catch {
+    if (!renderer.send(channel as (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS], ...args)) {
       logger.warn("IPC:Auth", "Could not send: window disposed", { channel });
     }
   }
@@ -659,22 +646,36 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     })().catch(() => {});
   }
 
-  createManagedInterval(() => maybeRefreshFollows("kick", "interval"), FOLLOWS_REFRESH_INTERVAL_MS);
-  createManagedInterval(
+  const kickRefreshInterval = createManagedInterval(
+    () => maybeRefreshFollows("kick", "interval"),
+    FOLLOWS_REFRESH_INTERVAL_MS
+  );
+  const twitchRefreshInterval = createManagedInterval(
     () => maybeRefreshFollows("twitch", "interval"),
     FOLLOWS_REFRESH_INTERVAL_MS
   );
-  mainWindow.on("focus", () => {
+  const onFocus = () => {
     maybeRefreshFollows("kick", "focus");
     maybeRefreshFollows("twitch", "focus");
+  };
+  const stopFocusBinding = renderer.useWindow("auth:focus-refresh", (window) => {
+    window.on("focus", onFocus);
+    return () => window.removeListener("focus", onFocus);
   });
 
   // ========== Kick OAuth Expiry (push event) ==========
   // OAuth and Kick's website chat session are independent. Notify the renderer
   // without closing a still-valid hidden chat sender.
-  kickAuthService.on("session-expired", () => {
+  const onKickSessionExpired = () => {
     safeSend(IPC_CHANNELS.AUTH_KICK_SESSION_EXPIRED);
     liveNotificationService.reconcileSilently();
+  };
+  kickAuthService.on("session-expired", onKickSessionExpired);
+  registerLoadedFeatureCleanup("auth:handler-runtime", () => {
+    kickRefreshInterval.stop();
+    twitchRefreshInterval.stop();
+    stopFocusBinding();
+    kickAuthService.removeListener("session-expired", onKickSessionExpired);
   });
 
   // ========== Auth - Token Management ==========

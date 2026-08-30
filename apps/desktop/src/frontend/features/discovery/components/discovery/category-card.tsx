@@ -42,7 +42,7 @@ export const CategoryCard = React.memo(
               platform: category.platform,
               limit: 20,
             });
-            if (response.error) throw new Error(response.error as string);
+            if (!response.success) throw new Error(response.error);
             return response.data;
           },
         });

@@ -5,7 +5,6 @@
  */
 
 import { IPC_CHANNELS } from "@shared/ipc-channels";
-import type { BrowserWindow } from "electron";
 
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
@@ -15,7 +14,7 @@ import { networkAdBlockService } from "../../services/network-adblock-service";
 import { twitchManifestProxy } from "../../services/twitch-manifest-proxy";
 import { vaftPatternService } from "../../services/vaft-pattern-service";
 
-export function registerAdBlockHandlers(_mainWindow: BrowserWindow): void {
+export function registerAdBlockHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.ADBLOCK_GET_STATUS, async () => {
     return {
       networkBlockingEnabled: networkAdBlockService.isActive(),

@@ -1,5 +1,3 @@
-import type { BrowserWindow } from "electron";
-
 import { getBugReportsDir } from "@backend/logging/log-paths";
 import { logger } from "@backend/logging/logger";
 import { storageService } from "@backend/services/storage-service";
@@ -7,9 +5,11 @@ import { registerLoadedFeatureCleanup } from "@backend/startup/loaded-feature-cl
 import { featureLoaderIpcContract } from "@shared/ipc-contracts/feature-loader-contracts";
 import { IPC_CHANNELS, IPC_FEATURES, type IpcFeature } from "@shared/ipc-channels";
 import type { TrustedIpcRegistry } from "./trusted-ipc-registry";
+import type { MainRendererPort } from "./main-renderer-port";
+import { runFeatureRegistrationTransaction } from "./feature-registration-transaction";
 
 interface FeatureContext {
-  mainWindow: BrowserWindow;
+  renderer: MainRendererPort;
   registry: TrustedIpcRegistry;
 }
 
@@ -21,25 +21,29 @@ async function ensureConfiguredProxy(context: FeatureContext): Promise<void> {
   }
 }
 
-async function ensurePlaybackFeature(mainWindow: BrowserWindow): Promise<void> {
+async function initializePlaybackFeature(renderer: MainRendererPort): Promise<void> {
   const { ensurePlaybackRuntime } = await import("../startup/playback-runtime");
-  await ensurePlaybackRuntime(mainWindow);
+  await ensurePlaybackRuntime(renderer);
+}
+
+async function ensurePlaybackFeature(context: FeatureContext): Promise<void> {
+  await loadIpcFeature(IPC_FEATURES.PLAYBACK, context);
 }
 
 const featureLoaders = {
-  [IPC_FEATURES.ADBLOCK]: async ({ mainWindow }) => {
+  [IPC_FEATURES.ADBLOCK]: async (context) => {
     const [{ registerAdBlockHandlers }] = await Promise.all([
       import("./handlers/adblock-handlers"),
-      ensurePlaybackFeature(mainWindow),
+      ensurePlaybackFeature(context),
     ]);
-    registerAdBlockHandlers(mainWindow);
+    registerAdBlockHandlers();
   },
   [IPC_FEATURES.APP]: async () => {
     const { registerAppHandlers } = await import("./handlers/app-handlers");
     registerAppHandlers();
   },
   [IPC_FEATURES.AUTH]: async (context) => {
-    const { mainWindow } = context;
+    const { renderer } = context;
     const [
       { powerMonitor },
       { registerAuthHandlers },
@@ -58,7 +62,7 @@ const featureLoaders = {
       import("./handlers/storage-handlers"),
       ensureConfiguredProxy(context),
     ]);
-    attachKickFollowWriteService(kickFollowWriteService);
+    attachKickFollowWriteService(kickFollowWriteService, renderer);
     kickFollowWriteService.resumePendingWrites();
     twitchAuthService.scheduleProactiveRefresh();
     kickAuthService.scheduleProactiveRefresh();
@@ -71,7 +75,7 @@ const featureLoaders = {
     registerLoadedFeatureCleanup("auth-resume-listener", () => {
       powerMonitor.removeListener("resume", handleSystemResume);
     });
-    registerAuthHandlers(mainWindow);
+    registerAuthHandlers(renderer);
   },
   [IPC_FEATURES.BUG_REPORTS]: async () => {
     const { registerBugReportHandlers } = await import("./handlers/bug-report-handlers");
@@ -106,13 +110,13 @@ const featureLoaders = {
     const { registerConnectivityHandlers } = await import("./handlers/connectivity-handlers");
     registerConnectivityHandlers();
   },
-  [IPC_FEATURES.DIAGNOSTICS]: async ({ mainWindow, registry }) => {
+  [IPC_FEATURES.DIAGNOSTICS]: async ({ renderer, registry }) => {
     const { registerDiagnosticsHandlers } = await import("./handlers/diagnostics-handlers");
-    registerDiagnosticsHandlers(mainWindow, registry);
+    registerDiagnosticsHandlers(renderer, registry);
   },
-  [IPC_FEATURES.DOWNLOADS]: async ({ mainWindow }) => {
+  [IPC_FEATURES.DOWNLOADS]: async ({ renderer }) => {
     const { registerDownloadHandlers } = await import("./handlers/download-handlers");
-    registerDownloadHandlers(mainWindow);
+    registerDownloadHandlers(renderer);
   },
   [IPC_FEATURES.EMOTES]: async (context) => {
     await ensureConfiguredProxy(context);
@@ -128,12 +132,17 @@ const featureLoaders = {
     registerKickChatHandlers();
     registerLoadedFeatureCleanup("kick-send-window", disposeSendWindow);
   },
-  [IPC_FEATURES.LOCAL_CAPTIONS]: async ({ mainWindow }) => {
-    const [{ registerLocalCaptionHandlers }, { getLocalCaptionRuntime }] = await Promise.all([
+  [IPC_FEATURES.LOCAL_CAPTIONS]: async ({ renderer }) => {
+    const [
+      { registerLocalCaptionHandlers },
+      { disposeLocalCaptionRuntime, getLocalCaptionRuntime },
+    ] = await Promise.all([
       import("./handlers/local-caption-handlers"),
       import("../services/captions/local-caption-runtime"),
     ]);
-    registerLocalCaptionHandlers(mainWindow, getLocalCaptionRuntime(mainWindow));
+    const runtime = getLocalCaptionRuntime(renderer);
+    registerLoadedFeatureCleanup("local-captions:runtime", disposeLocalCaptionRuntime);
+    registerLocalCaptionHandlers(renderer, runtime);
   },
   [IPC_FEATURES.LOGS]: async () => {
     const { registerLogHandlers } = await import("./handlers/log-handlers");
@@ -143,21 +152,21 @@ const featureLoaders = {
     const { registerModLogHandlers } = await import("./handlers/modlog-handlers");
     registerModLogHandlers();
   },
-  [IPC_FEATURES.NOTIFICATIONS]: async ({ mainWindow }) => {
+  [IPC_FEATURES.NOTIFICATIONS]: async ({ renderer }) => {
     const { liveNotificationService } = await import("../services/live-notification-service");
-    liveNotificationService.start(mainWindow);
+    liveNotificationService.start(renderer);
     registerLoadedFeatureCleanup("live-notifications", () => liveNotificationService.stop());
   },
-  [IPC_FEATURES.PLAYBACK]: async ({ mainWindow }) => {
-    await ensurePlaybackFeature(mainWindow);
+  [IPC_FEATURES.PLAYBACK]: async ({ renderer }) => {
+    await initializePlaybackFeature(renderer);
   },
-  [IPC_FEATURES.PLATFORM_HEALTH]: async ({ mainWindow }) => {
+  [IPC_FEATURES.PLATFORM_HEALTH]: async ({ renderer }) => {
     const [{ registerPlatformHealthHandlers }, { initStatusPagePoller }] = await Promise.all([
       import("./handlers/platform-health-handlers"),
       import("../api/unified/status-page-poller"),
       import("../logging/platform-health-telemetry"),
     ]);
-    registerPlatformHealthHandlers(mainWindow);
+    registerPlatformHealthHandlers(renderer);
     initStatusPagePoller();
   },
   [IPC_FEATURES.PROXY]: async () => {
@@ -171,24 +180,24 @@ const featureLoaders = {
     const { registerSearchHandlers } = await import("./handlers/search-handlers");
     registerSearchHandlers();
   },
-  [IPC_FEATURES.SLOTS]: async ({ mainWindow }) => {
+  [IPC_FEATURES.SLOTS]: async (context) => {
+    const { renderer } = context;
     const [{ registerSlotControllerHandlers }, { setUseWebContentsViews }] = await Promise.all([
       import("./handlers/slot-controller-handlers"),
       import("../api/unified/slot-controller"),
-      ensurePlaybackFeature(mainWindow),
+      ensurePlaybackFeature(context),
     ]);
     if (process.env.STREAMFUSION_WEBCONTENTS_VIEW_SLOTS === "1") {
       setUseWebContentsViews(true);
     }
-    registerSlotControllerHandlers(mainWindow);
+    registerSlotControllerHandlers(renderer);
   },
-  [IPC_FEATURES.STREAM_RECORDING]: async ({ mainWindow }) => {
+  [IPC_FEATURES.STREAM_RECORDING]: async ({ renderer }) => {
     const { registerStreamRecordingHandlers } =
       await import("./handlers/stream-recording-handlers");
-    registerStreamRecordingHandlers(mainWindow);
+    registerStreamRecordingHandlers(renderer);
   },
   [IPC_FEATURES.STREAMS]: async (context) => {
-    const { mainWindow } = context;
     await ensureConfiguredProxy(context);
     const [
       { registerStreamHandlers },
@@ -201,13 +210,13 @@ const featureLoaders = {
     registerLoadedFeatureCleanup("kick-follow-metadata", stopKickFollowMetadataRefresh);
     registerStreamHandlers();
   },
-  [IPC_FEATURES.STORAGE]: async ({ mainWindow }) => {
+  [IPC_FEATURES.STORAGE]: async ({ renderer }) => {
     const { registerStorageHandlers } = await import("./handlers/storage-handlers");
-    registerStorageHandlers(mainWindow);
+    registerStorageHandlers(renderer);
   },
-  [IPC_FEATURES.SYSTEM]: async ({ mainWindow }) => {
+  [IPC_FEATURES.SYSTEM]: async ({ renderer }) => {
     const { registerSystemHandlers } = await import("./handlers/system-handlers");
-    registerSystemHandlers(mainWindow);
+    registerSystemHandlers(renderer);
   },
   [IPC_FEATURES.TIMEOUT_MODERATION]: async () => {
     const { registerTimeoutModerationHandlers } =
@@ -219,14 +228,13 @@ const featureLoaders = {
     registerTokenStatusHandlers();
   },
   [IPC_FEATURES.TWITCH_API]: async (context) => {
-    const { mainWindow } = context;
     await ensureConfiguredProxy(context);
     const { registerTwitchApiHandlers } = await import("./handlers/twitch-api-handlers");
-    registerTwitchApiHandlers({ mainWindow });
+    registerTwitchApiHandlers({ renderer: context.renderer });
   },
-  [IPC_FEATURES.UPDATES]: async ({ mainWindow }) => {
+  [IPC_FEATURES.UPDATES]: async ({ renderer }) => {
     const { registerUpdateHandlers } = await import("./handlers/update-handlers");
-    registerUpdateHandlers(mainWindow);
+    registerUpdateHandlers(renderer);
   },
   [IPC_FEATURES.USER_PROFILE]: async (context) => {
     await ensureConfiguredProxy(context);
@@ -234,7 +242,6 @@ const featureLoaders = {
     registerUserProfileHandlers(context.registry);
   },
   [IPC_FEATURES.VIDEOS]: async (context) => {
-    const { mainWindow } = context;
     await ensureConfiguredProxy(context);
     const { registerVideoHandlers } = await import("./handlers/video-handlers");
     registerVideoHandlers();
@@ -242,7 +249,6 @@ const featureLoaders = {
 } satisfies Record<IpcFeature, FeatureLoader>;
 
 const pendingFeatures = new Map<IpcFeature, Promise<void>>();
-const rollbackSafeFeatures = new Set<IpcFeature>([IPC_FEATURES.DOWNLOADS]);
 
 export function isIpcFeature(value: unknown): value is IpcFeature {
   return Object.values(IPC_FEATURES).some((feature) => feature === value);
@@ -251,21 +257,21 @@ export function isIpcFeature(value: unknown): value is IpcFeature {
 export function loadIpcFeature(feature: IpcFeature, context: FeatureContext): Promise<void> {
   let pending = pendingFeatures.get(feature);
   if (!pending) {
-    pending = featureLoaders[feature](context).then(() => {
-      logger.info("IPC:Lazy", "Feature handlers loaded", { feature });
-    });
-    pendingFeatures.set(feature, pending);
-    if (rollbackSafeFeatures.has(feature)) {
-      void pending.catch(() => {
+    pending = runFeatureRegistrationTransaction(() => featureLoaders[feature](context))
+      .then(() => {
+        logger.info("IPC:Lazy", "Feature handlers loaded", { feature });
+      })
+      .catch((error: unknown) => {
         if (pendingFeatures.get(feature) === pending) pendingFeatures.delete(feature);
+        throw error;
       });
-    }
+    pendingFeatures.set(feature, pending);
   }
   return pending;
 }
 
 export function registerLazyIpcFeatureLoader(
-  mainWindow: BrowserWindow,
+  renderer: MainRendererPort,
   registry: TrustedIpcRegistry
 ): void {
   registry.handle({
@@ -274,7 +280,7 @@ export function registerLazyIpcFeatureLoader(
     failureResponse: registry.internalError(),
     createFailureResponse: () => registry.internalError(),
     execute: async (_event, requestedFeature) => {
-      await loadIpcFeature(requestedFeature, { mainWindow, registry });
+      await loadIpcFeature(requestedFeature, { renderer, registry });
       return { kind: "ok", value: null } as const;
     },
   });

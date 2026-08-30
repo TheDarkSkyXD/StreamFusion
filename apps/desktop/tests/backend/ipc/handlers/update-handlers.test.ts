@@ -3,7 +3,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IPC_CHANNELS, type UpdateState } from "@shared/ipc-channels";
 
 vi.mock("electron", () => ({
-  BrowserWindow: class {},
+  BrowserWindow: class {
+    readonly webContents = {
+      id: 1,
+      isDestroyed: () => false,
+      isCrashed: () => false,
+      mainFrame: { isDestroyed: () => false, detached: false },
+      once: vi.fn(),
+      removeListener: vi.fn(),
+      send: vi.fn(),
+    };
+    readonly isDestroyed = () => false;
+    readonly once = vi.fn();
+    readonly removeListener = vi.fn();
+  },
   ipcMain: { handle: vi.fn() },
 }));
 
@@ -26,6 +39,7 @@ vi.mock("@backend/logging/logger", () => ({
 import { BrowserWindow, ipcMain } from "electron";
 
 import { registerUpdateHandlers } from "@backend/ipc/handlers/update-handlers";
+import { createMainRendererPortMock } from "../../../helpers/main-renderer-port-mock";
 import {
   checkForUpdates,
   downloadUpdate,
@@ -47,6 +61,7 @@ function getHandler(channel: string): Handler {
 }
 
 const fakeMainWindow = new BrowserWindow();
+const renderer = createMainRendererPortMock(fakeMainWindow);
 
 function updateState(overrides: Partial<UpdateState> = {}): UpdateState {
   return {
@@ -69,7 +84,7 @@ function resultRecord(value: unknown): Record<string, unknown> {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  registerUpdateHandlers(fakeMainWindow);
+  registerUpdateHandlers(renderer);
 });
 
 describe("registerUpdateHandlers", () => {
@@ -85,7 +100,7 @@ describe("registerUpdateHandlers", () => {
   });
 
   it("initializes the update service after registering handlers", () => {
-    expect(initUpdateService).toHaveBeenCalledWith(fakeMainWindow);
+    expect(initUpdateService).toHaveBeenCalledWith(renderer);
   });
 
   it("does not crash if initUpdateService throws", () => {
@@ -93,7 +108,7 @@ describe("registerUpdateHandlers", () => {
     vi.mocked(initUpdateService).mockImplementation(() => {
       throw new Error("dev mode");
     });
-    expect(() => registerUpdateHandlers(fakeMainWindow)).not.toThrow();
+    expect(() => registerUpdateHandlers(renderer)).not.toThrow();
   });
 });
 

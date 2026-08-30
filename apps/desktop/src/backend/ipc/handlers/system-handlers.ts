@@ -1,35 +1,18 @@
 import path from "node:path";
 
-import { app, type BrowserWindow, Notification, nativeTheme, shell } from "electron";
+import { app, Notification, nativeTheme, shell } from "electron";
 
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@backend/logging/logger";
 import { storageService } from "@backend/services/storage-service";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
+import type { MainRendererPort } from "../main-renderer-port";
+import { registerLoadedFeatureCleanup } from "../../startup/loaded-feature-cleanup";
 
 const appIconPath = path.join(__dirname, "../../assets/icons/icon.png");
 
-export function registerSystemHandlers(mainWindow: BrowserWindow): void {
-  /**
-   * Helper to safely send IPC messages to the renderer.
-   * Prevents "Render frame was disposed" errors when the window is closing.
-   */
-  function safeSend(channel: string, ...args: unknown[]): void {
-    try {
-      if (
-        mainWindow &&
-        !mainWindow.isDestroyed() &&
-        mainWindow.webContents &&
-        !mainWindow.webContents.isDestroyed()
-      ) {
-        mainWindow.webContents.send(channel, ...args);
-      }
-    } catch {
-      logger.warn("IPC:System", "Could not send to channel: Window disposed", { channel });
-    }
-  }
-
+export function registerSystemHandlers(renderer: MainRendererPort): void {
   // ========== App Info ==========
   ipcMain.handle(IPC_CHANNELS.APP_GET_VERSION, () => {
     return app.getVersion();
@@ -71,16 +54,20 @@ export function registerSystemHandlers(mainWindow: BrowserWindow): void {
   });
 
   // ========== Window Management ==========
-  // Operate on the registered mainWindow rather than `getFocusedWindow()`:
+  // Operate on the current main renderer rather than `getFocusedWindow()`:
   // the title bar these IPCs back is part of the main window, so the target
   // is unambiguous. `getFocusedWindow()` returns null if a hidden helper
   // window steals focus or the call arrives during a focus transition,
   // silently dropping the user's click.
   ipcMain.on(IPC_CHANNELS.WINDOW_MINIMIZE, () => {
+    const mainWindow = renderer.current();
+    if (!mainWindow) return;
     if (!mainWindow.isDestroyed()) mainWindow.minimize();
   });
 
   ipcMain.on(IPC_CHANNELS.WINDOW_MAXIMIZE, () => {
+    const mainWindow = renderer.current();
+    if (!mainWindow) return;
     if (mainWindow.isDestroyed()) return;
     if (mainWindow.isMaximized()) {
       mainWindow.unmaximize();
@@ -90,10 +77,13 @@ export function registerSystemHandlers(mainWindow: BrowserWindow): void {
   });
 
   ipcMain.on(IPC_CHANNELS.WINDOW_CLOSE, () => {
+    const mainWindow = renderer.current();
+    if (!mainWindow) return;
     if (!mainWindow.isDestroyed()) mainWindow.close();
   });
 
   ipcMain.handle(IPC_CHANNELS.WINDOW_IS_MAXIMIZED, () => {
+    const mainWindow = renderer.current();
     return mainWindow?.isMaximized() ?? false;
   });
 
@@ -101,19 +91,22 @@ export function registerSystemHandlers(mainWindow: BrowserWindow): void {
   // renderer can't pop DevTools in a packaged build.
   ipcMain.on(IPC_CHANNELS.WINDOW_TOGGLE_DEV_TOOLS, () => {
     if (app.isPackaged) return;
-    const wc = mainWindow?.webContents;
+    const wc = renderer.trustedSender();
     if (!wc || wc.isDestroyed()) return;
     wc.toggleDevTools();
   });
 
-  // Send maximize change events to renderer
-  mainWindow?.on("maximize", () => {
-    safeSend(IPC_CHANNELS.WINDOW_ON_MAXIMIZE_CHANGE, true);
+  const stopMaximizeEvents = renderer.useWindow("system:maximize-events", (mainWindow) => {
+    const onMaximize = () => renderer.send(IPC_CHANNELS.WINDOW_ON_MAXIMIZE_CHANGE, true);
+    const onUnmaximize = () => renderer.send(IPC_CHANNELS.WINDOW_ON_MAXIMIZE_CHANGE, false);
+    mainWindow.on("maximize", onMaximize);
+    mainWindow.on("unmaximize", onUnmaximize);
+    return () => {
+      mainWindow.removeListener("maximize", onMaximize);
+      mainWindow.removeListener("unmaximize", onUnmaximize);
+    };
   });
-
-  mainWindow?.on("unmaximize", () => {
-    safeSend(IPC_CHANNELS.WINDOW_ON_MAXIMIZE_CHANGE, false);
-  });
+  registerLoadedFeatureCleanup("system:maximize-events", stopMaximizeEvents);
 
   // ========== Theme ==========
   ipcMain.handle(IPC_CHANNELS.THEME_GET_SYSTEM, () => {

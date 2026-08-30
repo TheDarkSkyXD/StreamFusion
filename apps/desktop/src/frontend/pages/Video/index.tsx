@@ -1,5 +1,5 @@
 import { Link, useParams, useSearch } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LuCheck, LuCircleAlert, LuDownload, LuLock, LuShare2 } from "react-icons/lu";
 import { KickVodPlayer } from "@/features/playback/components/player/kick";
 import { TwitchVodPlayer } from "@/features/playback/components/player/twitch";
@@ -19,6 +19,8 @@ import { useShareAction } from "@/features/playback/data/use-share-action";
 import { logger } from "@/renderer/logging/logger";
 import { requirePlatform } from "@/features/playback/routes/route-boundaries";
 import { useFollowStore } from "@/store/follow-store";
+import { ChatReplaySession } from "@/features/chat/components/chat-replay/chat-replay-session";
+import { createChatReplayPlaybackStore } from "@/features/chat/data/chat-replay-playback-store";
 
 interface VideoMetadata {
   id: string;
@@ -124,6 +126,11 @@ export function VideoPage() {
 
   const [relatedVideos, setRelatedVideos] = useState<VideoOrClip[]>([]);
   const [isRelatedLoading, setIsRelatedLoading] = useState(false);
+  const chatReplaySessionId = `${routePlatform}:${videoId}`;
+  const chatReplayPlaybackStore = useMemo(
+    () => createChatReplayPlaybackStore(chatReplaySessionId),
+    [chatReplaySessionId]
+  );
   const canUseDirectSourceUrl = platform === "kick" && Boolean(directSourceUrl);
   const renderedRequestGeneration = requestGenerationRef.current;
 
@@ -534,8 +541,9 @@ export function VideoPage() {
     }
   }, [channelData, upgradeFollowIfNeeded]);
 
-  // Fetch related videos based on channelName
   useEffect(() => {
+    let active = true;
+
     const fetchRelated = async () => {
       if (!hasResolvedChannelName) return;
 
@@ -547,7 +555,7 @@ export function VideoPage() {
           limit: 100,
         });
 
-        if (result.success && Array.isArray(result.data)) {
+        if (active && result.success && Array.isArray(result.data)) {
           setRelatedVideos(result.data.filter(isVideoOrClip));
         }
       } catch (err) {
@@ -558,11 +566,14 @@ export function VideoPage() {
               : String(err),
         });
       } finally {
-        setIsRelatedLoading(false);
+        if (active) setIsRelatedLoading(false);
       }
     };
 
-    if (hasResolvedChannelName) fetchRelated();
+    if (hasResolvedChannelName) void fetchRelated();
+    return () => {
+      active = false;
+    };
   }, [routePlatform, channelName, hasResolvedChannelName]);
 
   const channelAvatarFallback = visibleChannelName.slice(0, 1).toUpperCase() || "?";
@@ -614,6 +625,8 @@ export function VideoPage() {
                 thumbnail={videoMetadata?.thumbnailUrl || passedChannelAvatar || undefined}
                 onReady={() => handlePlaybackReady(streamUrl, renderedRequestGeneration)}
                 onError={() => handlePlaybackError(streamUrl, renderedRequestGeneration)}
+                onPlaybackStateChange={chatReplayPlaybackStore.publish}
+                subscribeToSeek={chatReplayPlaybackStore.subscribeToSeek}
               />
             ) : (
               <TwitchVodPlayer
@@ -625,6 +638,8 @@ export function VideoPage() {
                 thumbnail={videoMetadata?.thumbnailUrl || passedChannelAvatar || undefined}
                 onReady={() => handlePlaybackReady(streamUrl, renderedRequestGeneration)}
                 onError={() => handlePlaybackError(streamUrl, renderedRequestGeneration)}
+                onPlaybackStateChange={chatReplayPlaybackStore.publish}
+                subscribeToSeek={chatReplayPlaybackStore.subscribeToSeek}
               />
             )
           ) : error ? (
@@ -858,17 +873,11 @@ export function VideoPage() {
         </div>
       </div>
 
-      {/* Chat Replay Panel (Placeholder) */}
-      <div className="w-80 border-l border-[var(--color-border)] bg-[var(--color-background-secondary)] flex flex-col shrink-0 hidden lg:flex">
-        <div className="p-3 border-b border-[var(--color-border)]">
-          <h2 className="font-semibold text-[var(--color-foreground)]">Chat Replay</h2>
-        </div>
-        <div className="flex-1 p-3 flex items-center justify-center">
-          <p className="text-[var(--color-foreground-muted)] text-sm text-center">
-            Chat replay not available for this video
-          </p>
-        </div>
-      </div>
+      <ChatReplaySession
+        platform={routePlatform}
+        videoId={videoId}
+        playbackStore={chatReplayPlaybackStore}
+      />
     </div>
   );
 }

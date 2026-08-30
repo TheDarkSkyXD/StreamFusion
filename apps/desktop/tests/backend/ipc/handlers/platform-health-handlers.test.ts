@@ -25,7 +25,8 @@ import {
   recordPlatformSuccess,
   recordStatusPageSignal,
 } from "@backend/api/unified/platform-health";
-import { registerPlatformHealthHandlers } from "@backend/ipc/handlers/platform-health-handlers";
+import { registerPlatformHealthHandlers as registerWithRenderer } from "@backend/ipc/handlers/platform-health-handlers";
+import { createMainRendererPortMock } from "../../../helpers/main-renderer-port-mock";
 
 type InvokeHandler = (event: unknown, args?: unknown) => unknown;
 
@@ -62,6 +63,10 @@ function makeFakeMainWindow() {
     send,
     webContentsSend,
   };
+}
+
+function registerPlatformHealthHandlers(window: Electron.BrowserWindow): void {
+  registerWithRenderer(createMainRendererPortMock(window));
 }
 
 beforeEach(() => {
@@ -125,19 +130,19 @@ describe("registerPlatformHealthHandlers", () => {
     });
   });
 
-  it("pushes PLATFORM_HEALTH_CHANGED through the captured live main frame", () => {
+  it("pushes PLATFORM_HEALTH_CHANGED through the active renderer port", () => {
     const { window, getMainFrame, send, webContentsSend } = makeFakeMainWindow();
     registerPlatformHealthHandlers(window as unknown as Electron.BrowserWindow);
 
     for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
 
-    expect(send).toHaveBeenCalledTimes(1);
-    const [channel, payload] = send.mock.calls[0];
+    expect(webContentsSend).toHaveBeenCalledTimes(1);
+    const [channel, payload] = webContentsSend.mock.calls[0];
     expect(channel).toBe(IPC_CHANNELS.PLATFORM_HEALTH_CHANGED);
     expect(payload).toMatchObject({ platform: "kick", status: "degraded" });
     expect(typeof (payload as { startedAt: number }).startedAt).toBe("number");
     expect(getMainFrame).toHaveBeenCalledTimes(1);
-    expect(webContentsSend).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
   });
 
   it("does not push to a destroyed window", () => {
@@ -188,8 +193,8 @@ describe("registerPlatformHealthHandlers", () => {
   });
 
   it("contains a main-frame send failure", () => {
-    const { window, send } = makeFakeMainWindow();
-    send.mockImplementation(() => {
+    const { window, webContentsSend } = makeFakeMainWindow();
+    webContentsSend.mockImplementation(() => {
       throw new Error("Render frame was disposed before WebFrameMain could be accessed");
     });
 
@@ -198,7 +203,7 @@ describe("registerPlatformHealthHandlers", () => {
     expect(() => {
       for (let i = 0; i < 8; i++) recordPlatformFailure("kick", "timeout");
     }).not.toThrow();
-    expect(send).toHaveBeenCalledTimes(1);
+    expect(webContentsSend).toHaveBeenCalledTimes(1);
   });
 });
 

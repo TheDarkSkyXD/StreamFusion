@@ -12,12 +12,13 @@ vi.mock("@backend/services/stream-recording-session-store", () => ({
 
 import type { BrowserWindow } from "electron";
 import { ipcMain } from "electron";
-import { registerStreamRecordingHandlers } from "@backend/ipc/handlers/stream-recording-handlers";
+import { registerStreamRecordingHandlers as registerWithRenderer } from "@backend/ipc/handlers/stream-recording-handlers";
 import { getDefaultStreamRecordingService } from "@backend/services/stream-recording-default-service";
 import type { StreamRecordingService } from "@backend/services/stream-recording-service";
 import type { StreamRecordingSessionStore } from "@backend/services/stream-recording-session-store";
 import { getStreamRecordingSessionStore } from "@backend/services/stream-recording-session-store";
 import type { StreamRecordingSnapshot } from "@shared/stream-recording-types";
+import { createMainRendererPortMock } from "../../../helpers/main-renderer-port-mock";
 
 type Handler = (event: unknown, payload?: unknown) => unknown;
 
@@ -74,6 +75,10 @@ function createMainWindow(send = vi.fn()): BrowserWindow {
     isDestroyed: () => false,
     webContents: { isDestroyed: () => false, send },
   });
+}
+
+function registerStreamRecordingHandlers(window: BrowserWindow): void {
+  registerWithRenderer(createMainRendererPortMock(window));
 }
 
 // Guards: malformed recording requests stop at the IPC boundary before reaching the service

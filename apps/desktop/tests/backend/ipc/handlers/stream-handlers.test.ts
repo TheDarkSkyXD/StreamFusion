@@ -77,11 +77,7 @@ import { kickClient } from "@backend/api/platforms/kick/kick-client";
 import { isKickRateLimitError } from "@backend/api/platforms/kick/kick-error-classification";
 import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
 import { clients } from "@backend/api/unified/registry";
-import {
-  KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS,
-  registerStreamHandlers,
-  shouldDeferKickStartupFollowedStreamScan,
-} from "@backend/ipc/handlers/stream-handlers";
+import { registerStreamHandlers } from "@backend/ipc/handlers/stream-handlers";
 import { dbService } from "@backend/services/database-service";
 import { storageService } from "@backend/services/storage-service";
 import type { UnifiedStream } from "@shared/platform-types";
@@ -306,15 +302,18 @@ describe("STREAMS_GET_BY_CATEGORY", () => {
     expect(twitchClient.getTopStreams).not.toHaveBeenCalled();
   });
 
-  it("returns consistent shape when single-platform fetch fails", async () => {
+  it("reports a failed provider when a single-platform fetch fails", async () => {
     vi.mocked(twitchClient.getTopStreams).mockRejectedValue(new Error("fail"));
 
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_BY_CATEGORY);
     const result = await handler({}, { categoryId: "123", platform: "twitch" });
 
-    expect(result.success).toBe(true);
-    expect(result.data).toEqual([]);
-    expect(result.platform).toBe("twitch");
+    expect(result).toEqual({
+      success: false,
+      error: "twitch category streams are unavailable",
+      platform: "twitch",
+      providers: { twitch: "failed" },
+    });
   });
 });
 
@@ -406,7 +405,12 @@ describe("STREAMS_GET_FOLLOWED", () => {
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_FOLLOWED);
     const result = await handler({}, { platform: "kick" });
 
-    expect(result).toEqual({ success: true, platform: "kick", data: [] });
+    expect(result).toEqual({
+      success: false,
+      error: "kick followed streams are rate limited",
+      platform: "kick",
+      providers: { kick: "failed" },
+    });
     expect(kickClient.getPublicStreamBySlug).not.toHaveBeenCalled();
   });
 
@@ -427,19 +431,6 @@ describe("STREAMS_GET_FOLLOWED", () => {
     expect(kickClient.getFollowedStreams).not.toHaveBeenCalled();
     expect(kickClient.getStreamsByBroadcasterIds).not.toHaveBeenCalled();
     expect(kickClient.getPublicStreamBySlug).not.toHaveBeenCalled();
-  });
-
-  it("keeps startup Kick followed-stream scans enabled", () => {
-    expect(shouldDeferKickStartupFollowedStreamScan(undefined, 1000, 0)).toBe(false);
-    expect(shouldDeferKickStartupFollowedStreamScan("kick", 1000, 0)).toBe(false);
-    expect(shouldDeferKickStartupFollowedStreamScan("twitch", 1000, 0)).toBe(false);
-    expect(
-      shouldDeferKickStartupFollowedStreamScan(
-        "kick",
-        KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS + 1,
-        0
-      )
-    ).toBe(false);
   });
 
   it("scans all local Kick follows so requested result limits do not hide live channels", async () => {
@@ -602,7 +593,7 @@ describe("STREAMS_GET_FOLLOWED", () => {
     expect(result.data[1].viewerCount).toBe(50);
   });
 
-  it("returns empty array with success:true on outer catch", async () => {
+  it("reports provider failure on an outer followed-stream error", async () => {
     vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation(() => {
       throw new Error("db corrupt");
     });
@@ -610,8 +601,12 @@ describe("STREAMS_GET_FOLLOWED", () => {
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_FOLLOWED);
     const result = await handler({}, { platform: "twitch" });
 
-    expect(result.success).toBe(true);
-    expect(result.data).toEqual([]);
+    expect(result).toEqual({
+      success: false,
+      error: "db corrupt",
+      platform: "twitch",
+      providers: { twitch: "failed" },
+    });
   });
 
   it("deduplicates streams by id between remote and local", async () => {

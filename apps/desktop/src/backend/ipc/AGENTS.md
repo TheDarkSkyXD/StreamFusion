@@ -42,10 +42,10 @@ This directory is the IPC bridge layer. Every `ipcMain.handle` (and the few `ipc
 
 ### Registration signature
 
-Every handler file exports one named function. Handlers that need to push events back to the renderer receive `mainWindow: BrowserWindow`; stateless ones take no arguments.
+Every handler file exports one named function. Handlers that need the active renderer receive `MainRendererPort`; stateless ones take no arguments.
 
 ```typescript
-export function registerXxxHandlers(mainWindow?: BrowserWindow): void {
+export function registerXxxHandlers(renderer?: MainRendererPort): void {
   ipcMain.handle(IPC_CHANNELS.XXX_SOMETHING, async (_event, payload: PayloadType) => {
     // ...
   });
@@ -70,23 +70,10 @@ Handlers that can fail return a discriminated object:
 
 ### Push events (main → renderer)
 
-Handlers that need to push events to the renderer use a local `safeSend` helper that guards against "Render frame was disposed" errors:
+Handlers push through `MainRendererPort`, which resolves the current window at send time and suppresses sends to destroyed, crashed, or detached frames:
 
 ```typescript
-function safeSend(channel: string, ...args: unknown[]): void {
-  try {
-    if (
-      mainWindow &&
-      !mainWindow.isDestroyed() &&
-      mainWindow.webContents &&
-      !mainWindow.webContents.isDestroyed()
-    ) {
-      mainWindow.webContents.send(channel, ...args);
-    }
-  } catch {
-    /* window is closing */
-  }
-}
+renderer.send(IPC_CHANNELS.XXX_CHANGED, payload);
 ```
 
 Push channels in use: `AUTH_ON_CALLBACK`, `AUTH_FOLLOWS_SYNCED`, `AUTH_KICK_SESSION_EXPIRED`, `AUTH_TWITCH_AUTH_LOST`, `AUTH_DCF_STATUS`, `WINDOW_ON_MAXIMIZE_CHANGE`.
@@ -134,6 +121,7 @@ API clients (`twitchClient`, `kickClient`) are imported lazily inside handler ca
 - **Raw string channels** — always use `IPC_CHANNELS.*`.
 - **`ipcMain.on` for request-response** — use `ipcMain.handle` (invoke pattern) so the renderer can await the result. `ipcMain.on` is only appropriate for fire-and-forget signals (window minimize/maximize/close).
 - **Importing main-only modules in the renderer** — the reason `kick-chat-handlers.ts` exists: `kick-send-window` pulls in `better-sqlite3` transitively. Never import main-only modules directly from renderer code; always proxy through IPC.
-- **Direct `mainWindow.webContents.send` without the `safeSend` guard** — the window may be destroyed mid-call.
+- **Capturing a `BrowserWindow` in a process-lifetime handler** — use `MainRendererPort` so macOS window recreation cannot leave stale send targets.
+- **Direct `webContents.send` for main-renderer events** — route through `MainRendererPort`; use an explicitly owned `WebContents` only for slot/view-specific events.
 - **Skipping the sender-origin check on new privileged channels** — `webSecurity: false` is required for cross-origin video; any content the renderer loads could call unguarded channels.
 - **Business logic in handlers** — handlers are thin. Extract non-trivial logic into services or API clients and unit-test it there (see `syncKickFollowsAfterLogin` in `auth-handlers.ts` as the model).

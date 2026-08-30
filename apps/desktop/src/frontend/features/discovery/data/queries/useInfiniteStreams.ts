@@ -1,44 +1,10 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 
-import type { UnifiedStream } from "../../../../../shared/platform-types";
 import type { Platform } from "../../../../../shared/auth-types";
 
 import { useQueryCachePerformance } from "./cache-performance";
 import { getQueryCacheOptions } from "./cache-policy";
 import { STREAM_KEYS } from "./useStreams";
-
-function useInfiniteTopStreams(platform?: Platform, limit: number = 20) {
-  const queryKey = [...STREAM_KEYS.top(platform, limit), "infinite"] as const;
-  const query = useInfiniteQuery({
-    queryKey,
-    initialPageParam: undefined as string | undefined,
-    queryFn: async ({ pageParam }) => {
-      const response = await window.electronAPI.streams.getTop({
-        platform,
-        limit,
-        cursor: pageParam,
-      });
-
-      if (response.error) {
-        throw new Error(response.error as unknown as string);
-      }
-
-      return {
-        data: response.data as UnifiedStream[],
-        nextCursor: response.cursor,
-      };
-    },
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
-    ...getQueryCacheOptions("streamList"),
-  });
-  useQueryCachePerformance({
-    data: query.data,
-    fetchStatus: query.fetchStatus,
-    queryKey,
-    surface: "stream-list",
-  });
-  return query;
-}
 
 export function useInfiniteStreamsByCategory(
   categoryId: string,
@@ -69,18 +35,14 @@ export function useInfiniteStreamsByCategory(
         language,
       });
 
-      if (response.error) {
-        throw new Error(response.error as unknown as string);
-      }
+      if (!response.success) throw new Error(response.error);
 
       return {
-        data: response.data as UnifiedStream[],
+        data: response.data,
         nextCursor: response.cursor,
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
-    // categoryName lets the Kick path slug-guess when the numeric id is unknown,
-    // so enable the query when either a real id OR a name is available.
     enabled,
     ...getQueryCacheOptions("streamList"),
   });
@@ -90,39 +52,6 @@ export function useInfiniteStreamsByCategory(
     fetchStatus: query.fetchStatus,
     queryKey,
     surface: "category-detail",
-  });
-  return query;
-}
-
-function useInfiniteFollowedStreams(platform?: Platform, limit: number = 20) {
-  const queryKey = [...STREAM_KEYS.followed(platform), "infinite"] as const;
-  const query = useInfiniteQuery({
-    queryKey,
-    initialPageParam: undefined as string | undefined,
-    queryFn: async ({ pageParam }) => {
-      const response = await window.electronAPI.streams.getFollowed({
-        platform,
-        limit,
-        cursor: pageParam,
-      });
-
-      if (response.error) {
-        throw new Error(response.error as unknown as string);
-      }
-
-      return {
-        data: response.data as UnifiedStream[],
-        nextCursor: response.cursor,
-      };
-    },
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
-    ...getQueryCacheOptions("followedStreamStatus"),
-  });
-  useQueryCachePerformance({
-    data: query.data,
-    fetchStatus: query.fetchStatus,
-    queryKey,
-    surface: "following",
   });
   return query;
 }

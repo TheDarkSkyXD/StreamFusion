@@ -72,7 +72,8 @@ vi.mock("@backend/services/storage-service", () => ({
 
 import { app, BrowserWindow, ipcMain, nativeTheme, shell } from "electron";
 
-import { registerSystemHandlers } from "@backend/ipc/handlers/system-handlers";
+import { registerSystemHandlers as registerWithRenderer } from "@backend/ipc/handlers/system-handlers";
+import { createMainRendererPortMock } from "../../../helpers/main-renderer-port-mock";
 
 type InvokeHandler = (event: unknown, args?: unknown) => unknown;
 type OnHandler = (event: unknown, ...args: unknown[]) => void;
@@ -106,6 +107,10 @@ function makeFakeMainWindow() {
       toggleDevTools: vi.fn(),
     },
   });
+}
+
+function registerSystemHandlers(window: Electron.BrowserWindow): void {
+  registerWithRenderer(createMainRendererPortMock(window));
 }
 
 let mainWindow: ReturnType<typeof makeFakeMainWindow>;

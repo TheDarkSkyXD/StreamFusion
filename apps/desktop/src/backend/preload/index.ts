@@ -582,7 +582,7 @@ const electronAPI = {
       language?: string;
       limit?: number;
       cursor?: string;
-    }): Promise<PaginatedIpcResult<UnifiedStream[]>> =>
+    }): Promise<DiscoveryResult<UnifiedStream[]>> =>
       invokeIpc(IPC_CHANNELS.STREAMS_GET_TOP, params || {}),
 
     getByCategory: (params: {
@@ -592,14 +592,14 @@ const electronAPI = {
       cursor?: string;
       categoryName?: string;
       language?: string;
-    }): Promise<PaginatedIpcResult<UnifiedStream[]>> =>
+    }): Promise<DiscoveryResult<UnifiedStream[]>> =>
       invokeIpc(IPC_CHANNELS.STREAMS_GET_BY_CATEGORY, params),
 
     getFollowed: (params?: {
       platform?: Platform;
       limit?: number;
       cursor?: string;
-    }): Promise<PaginatedIpcResult<UnifiedStream[]>> =>
+    }): Promise<DiscoveryResult<UnifiedStream[]>> =>
       invokeIpc(IPC_CHANNELS.STREAMS_GET_FOLLOWED, params || {}),
 
     getByChannel: (params: {

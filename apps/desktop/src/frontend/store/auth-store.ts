@@ -12,6 +12,7 @@ import {
   removePlatformAccountCaches,
 } from "@/features/discovery/data/queries/cache-invalidation";
 import { logger } from "@/renderer/logging/logger";
+import { hasCompleteDiscoveryCoverage } from "../../shared/discovery-types";
 import { STREAM_KEYS } from "../features/discovery/data/queries/useStreams";
 import { queryClient } from "../providers/query-provider";
 import type {
@@ -384,13 +385,16 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           queryKey: STREAM_KEYS.followed(),
           queryFn: async () => {
             const response = await window.electronAPI.streams.getFollowed({});
-            if (response.error) {
+            if (!response.success) {
               logger.warn("Store:Auth", "prefetch of followed streams failed (non-fatal)", {
                 error: response.error,
               });
-              return [];
+              throw new Error(response.error);
             }
-            return response.data ?? [];
+            if (!hasCompleteDiscoveryCoverage(response.providers)) {
+              throw new Error("Followed stream prefetch did not complete for every provider");
+            }
+            return response.data;
           },
         });
       }

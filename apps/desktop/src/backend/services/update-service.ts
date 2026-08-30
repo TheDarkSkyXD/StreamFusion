@@ -5,7 +5,7 @@
  * Supports both stable and pre-release channels.
  */
 
-import { app, type BrowserWindow } from "electron";
+import { app } from "electron";
 import Store from "electron-store";
 import {
   autoUpdater,
@@ -20,6 +20,8 @@ import type {
   UpdateSettings,
   UpdateState,
 } from "../../shared/ipc-channels";
+import { IPC_CHANNELS } from "../../shared/ipc-channels";
+import type { MainRendererPort } from "@backend/ipc/main-renderer-port";
 
 /**
  * Persisted shape of the existing `update-settings` store. `allowPrerelease`
@@ -88,8 +90,7 @@ let currentState: UpdateState = {
   updateCheckUrl: updateStore.get("updateCheckUrl", DEFAULT_UPDATE_CHECK_URL),
 };
 
-// Reference to main window for sending updates
-let mainWindowRef: BrowserWindow | null = null;
+let rendererRef: MainRendererPort | null = null;
 
 // Flag to track if the service was initialized successfully
 let isInitialized = false;
@@ -135,9 +136,7 @@ function transformProgress(info: ProgressInfo): UpdateProgress {
  * Notify renderer of state changes
  */
 function notifyStatusChange(): void {
-  if (mainWindowRef && !mainWindowRef.isDestroyed()) {
-    mainWindowRef.webContents.send("update:on-status-change", currentState);
-  }
+  rendererRef?.send(IPC_CHANNELS.UPDATE_ON_STATUS_CHANGE, currentState);
 }
 
 /**
@@ -151,8 +150,8 @@ function updateState(partial: Partial<UpdateState>): void {
 /**
  * Initialize the update service
  */
-export function initUpdateService(mainWindow: BrowserWindow): void {
-  mainWindowRef = mainWindow;
+export function initUpdateService(renderer: MainRendererPort): void {
+  rendererRef = renderer;
 
   // Configure auto-updater
   autoUpdater.autoDownload = false; // Manual download control
@@ -196,9 +195,7 @@ export function initUpdateService(mainWindow: BrowserWindow): void {
     });
 
     // Also send dedicated progress event
-    if (mainWindowRef && !mainWindowRef.isDestroyed()) {
-      mainWindowRef.webContents.send("update:on-progress", transformProgress(progress));
-    }
+    rendererRef?.send(IPC_CHANNELS.UPDATE_ON_PROGRESS, transformProgress(progress));
   });
 
   autoUpdater.on("update-downloaded", (info: ElectronUpdateInfo) => {

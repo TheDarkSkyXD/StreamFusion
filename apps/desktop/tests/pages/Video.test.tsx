@@ -62,10 +62,16 @@ vi.mock("@/features/playback/components/player/twitch", () => ({
     streamUrl,
     onReady,
     onError,
+    onPlaybackStateChange,
   }: {
     streamUrl: string;
     onReady?: () => void;
     onError?: () => void;
+    onPlaybackStateChange?: (snapshot: {
+      currentTime: number;
+      isPlaying: boolean;
+      playbackRate: number;
+    }) => void;
   }) => (
     <div data-testid="twitch-vod-player" data-stream-url={streamUrl}>
       vod
@@ -74,6 +80,14 @@ vi.mock("@/features/playback/components/player/twitch", () => ({
       </button>
       <button type="button" onClick={onError}>
         Fail playback
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          onPlaybackStateChange?.({ currentTime: 120, isPlaying: true, playbackRate: 1 })
+        }
+      >
+        Advance playback
       </button>
     </div>
   ),
@@ -99,6 +113,13 @@ beforeEach(() => {
     success: true,
     data: [],
   }));
+  electronApi.videos.getChatReplayWindow = vi.fn<typeof electronApi.videos.getChatReplayWindow>(
+    async ({ platform, videoId }) => ({
+      success: true,
+      data: { capability: "unsupported", platform, videoId },
+    })
+  );
+  electronApi.videos.cancelChatReplayWindow = vi.fn(async () => ({ cancelled: true }));
   electronApi.streams.getByChannel = vi.fn<typeof electronApi.streams.getByChannel>(async () => ({
     success: true,
     data: null,
@@ -144,6 +165,8 @@ import { VOD_LIVE_LINK_KEYS } from "@/features/playback/data/useVodLiveLink";
 // Guards: a VOD category links back to that platform category instead of rendering as inert text
 // Guards: invalid Kick VOD routes fail closed without fabricated channel metadata, follow actions, or history writes
 // Guards: VOD follow writes stay unavailable until the platform returns a canonical non-empty channel identity
+// Guards: the VOD route requests provider chat replay instead of rendering a hard-coded placeholder.
+// Guards: same-route VOD navigation starts the next chat replay at the beginning, not the prior VOD offset.
 describe("VideoPage", () => {
   beforeEach(() => {
     Object.assign(routeState.params, { platform: "twitch", videoId: "vod-1" });
@@ -163,6 +186,38 @@ describe("VideoPage", () => {
     addToHistory.mockReset();
     removeFromHistory.mockReset();
     repairFollowMetadataFromChannel.mockClear();
+  });
+
+  it("loads chat replay for the routed video", async () => {
+    renderWithProviders(<VideoPage />);
+
+    await waitFor(() =>
+      expect(electronApi.videos.getChatReplayWindow).toHaveBeenCalledWith(
+        expect.objectContaining({ platform: "twitch", videoId: "vod-1", offsetSeconds: 0 })
+      )
+    );
+    expect(screen.queryByText("Chat replay not available for this video")).not.toBeInTheDocument();
+  });
+
+  it("resets chat replay playback when the routed video changes", async () => {
+    const { rerender } = renderWithProviders(<VideoPage />);
+    await screen.findByTestId("twitch-vod-player");
+    fireEvent.click(screen.getByRole("button", { name: "Advance playback" }));
+    await waitFor(() =>
+      expect(electronApi.videos.getChatReplayWindow).toHaveBeenCalledWith(
+        expect.objectContaining({ videoId: "vod-1", offsetSeconds: 120 })
+      )
+    );
+
+    Object.assign(routeState.params, { videoId: "vod-2" });
+    Object.assign(routeState.search, { title: "Second VOD" });
+    rerender(<VideoPage />);
+
+    await waitFor(() =>
+      expect(electronApi.videos.getChatReplayWindow).toHaveBeenCalledWith(
+        expect.objectContaining({ videoId: "vod-2", offsetSeconds: 0 })
+      )
+    );
   });
 
   it("renders the VOD title passed via search params", async () => {

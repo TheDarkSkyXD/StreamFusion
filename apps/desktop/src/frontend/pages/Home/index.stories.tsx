@@ -17,10 +17,26 @@ function installHomeMocks(state: HomeQueryState): () => void {
   const channels = Object.create(previousBridge.channels) as typeof previousBridge.channels;
 
   streams.getTop = async () => {
-    if (state === "populated") return { success: true, data: homeStreamFixtures };
-    if (state === "empty") return { success: true, data: [] };
+    if (state === "populated") {
+      return {
+        success: true,
+        data: homeStreamFixtures,
+        providers: { twitch: "complete", kick: "complete" },
+      } as const;
+    }
+    if (state === "empty") {
+      return {
+        success: true,
+        data: [],
+        providers: { twitch: "complete", kick: "complete" },
+      } as const;
+    }
     if (state === "error") {
-      return { success: false, error: "Stream catalog is temporarily unavailable." };
+      return {
+        success: false,
+        error: "Stream catalog is temporarily unavailable.",
+        providers: { twitch: "failed", kick: "failed" },
+      } as const;
     }
 
     return new Promise(() => undefined);

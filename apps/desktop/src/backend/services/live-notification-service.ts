@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { type BrowserWindow, Notification } from "electron";
+import { Notification } from "electron";
 import { getTwitchEventSubClient } from "@backend/api/platforms/twitch/twitch-eventsub-client";
 import {
   getPlatformHealth,
@@ -24,6 +24,7 @@ import {
 import { IPC_CHANNELS } from "@shared/ipc-channels";
 import { KickLiveNotificationSource } from "./kick-live-notification-source";
 import { storageService } from "./storage-service";
+import type { MainRendererPort } from "@backend/ipc/main-renderer-port";
 import { TwitchLiveEventSubSource } from "./twitch-live-eventsub-source";
 
 export type LiveNotificationSource = (follows: LocalFollow[]) => Promise<UnifiedStream[]>;
@@ -324,23 +325,8 @@ export class LiveNotificationService {
 const LIVE_NOTIFICATION_POLL_INTERVAL_MS = 60_000;
 const appIconPath = path.join(__dirname, "../../assets/icons/icon.png");
 
-function safeSend(mainWindow: BrowserWindow | null, channel: string, ...args: unknown[]): void {
-  try {
-    if (
-      mainWindow &&
-      !mainWindow.isDestroyed() &&
-      mainWindow.webContents &&
-      !mainWindow.webContents.isDestroyed()
-    ) {
-      mainWindow.webContents.send(channel, ...args);
-    }
-  } catch {
-    // Window disposal during shutdown is expected; notification delivery is best-effort.
-  }
-}
-
 export function showLiveDesktopNotification(
-  mainWindow: BrowserWindow | null,
+  renderer: MainRendererPort,
   notification: LiveNotificationPayload,
   options: { silent: boolean }
 ): void {
@@ -351,6 +337,7 @@ export function showLiveDesktopNotification(
     silent: options.silent,
   });
   desktopNotification.on("click", () => {
+    const mainWindow = renderer.current();
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) {
         mainWindow.restore();
@@ -358,7 +345,7 @@ export function showLiveDesktopNotification(
       mainWindow.show();
       mainWindow.focus();
     }
-    safeSend(mainWindow, IPC_CHANNELS.NOTIFICATION_OPEN_STREAM, notification);
+    renderer.send(IPC_CHANNELS.NOTIFICATION_OPEN_STREAM, notification);
   });
   desktopNotification.show();
 }
@@ -399,10 +386,10 @@ class AppLiveNotificationService {
   private kickLiveSource: KickLiveNotificationSource | null = null;
   private twitchEventSubSource: TwitchLiveEventSubSource | null = null;
   private platformHealthCleanup: (() => void) | null = null;
-  private mainWindow: BrowserWindow | null = null;
+  private renderer: MainRendererPort | null = null;
 
-  start(mainWindow: BrowserWindow): void {
-    this.mainWindow = mainWindow;
+  start(renderer: MainRendererPort): void {
+    this.renderer = renderer;
     if (!this.service) {
       this.service = new LiveNotificationService({
         getFollows: getLiveNotificationFollows,
@@ -412,10 +399,10 @@ class AppLiveNotificationService {
           kick: (follows) => this.getKickLiveSource().poll(follows),
         },
         emitInApp: (notification) => {
-          safeSend(this.mainWindow, IPC_CHANNELS.NOTIFICATION_LIVE_RECEIVED, notification);
+          this.renderer?.send(IPC_CHANNELS.NOTIFICATION_LIVE_RECEIVED, notification);
         },
         showDesktop: (notification, options) => {
-          showLiveDesktopNotification(this.mainWindow, notification, options);
+          if (this.renderer) showLiveDesktopNotification(this.renderer, notification, options);
         },
         desktopNotificationsSupported: () => Notification.isSupported(),
         now: () => Date.now(),
@@ -467,7 +454,7 @@ class AppLiveNotificationService {
     this.twitchEventSubSource = null;
     this.platformHealthCleanup?.();
     this.platformHealthCleanup = null;
-    this.mainWindow = null;
+    this.renderer = null;
   }
 
   reconcileSilently(): void {

@@ -3,6 +3,7 @@ import { logger } from "../logging/logger";
 import type { IpcChannel } from "../../shared/ipc-channels";
 import type { StructuralSchema } from "../../shared/feature-loader-contract";
 import { isAllowedSender } from "./sender-origin";
+import { registerFeatureRollback } from "./feature-registration-transaction";
 
 export type IpcBoundaryFailure =
   "untrusted-sender" | "invalid-request" | "invalid-response" | "handler-error";
@@ -16,15 +17,23 @@ export interface TrustedIpcSender {
   readonly mainFrame: { readonly url: string };
 }
 
-interface RegisterTrustedIpcHandlerOptions<Request, Response> {
+interface RegisterTrustedIpcHandlerBase<Request, Response> {
   channel: IpcChannel;
   contract: IpcContract<Request, Response>;
-  trustedSender: TrustedIpcSender;
   trustedDocumentUrl: string;
   handle: (event: IpcMainInvokeEvent, request: Request) => Promise<Response> | Response;
   failureResponse: Response;
   createFailureResponse?: () => Response;
 }
+
+type RegisterTrustedIpcHandlerOptions<Request, Response> = RegisterTrustedIpcHandlerBase<
+  Request,
+  Response
+> &
+  (
+    | { trustedSender: TrustedIpcSender; getTrustedSender?: never }
+    | { trustedSender?: never; getTrustedSender: () => TrustedIpcSender | null }
+  );
 
 function reportBoundaryFailure(
   channel: IpcChannel,
@@ -67,6 +76,7 @@ export function registerTrustedIpcHandler<Request, Response>({
   channel,
   contract,
   trustedSender,
+  getTrustedSender,
   trustedDocumentUrl,
   handle,
   failureResponse,
@@ -86,8 +96,10 @@ export function registerTrustedIpcHandler<Request, Response>({
   };
 
   ipcMain.handle(channel, async (event, rawRequest: unknown): Promise<Response> => {
+    const expectedSender = getTrustedSender ? getTrustedSender() : trustedSender;
     if (
-      event.sender !== trustedSender ||
+      !expectedSender ||
+      event.sender !== expectedSender ||
       event.senderFrame !== event.sender.mainFrame ||
       !isAllowedSender(event) ||
       !isExpectedRendererDocument(event.senderFrame?.url, trustedDocumentUrl)
@@ -109,4 +121,5 @@ export function registerTrustedIpcHandler<Request, Response>({
     if (!response.success) return reject("invalid-response", response.error);
     return response.data;
   });
+  registerFeatureRollback(() => ipcMain.removeHandler(channel));
 }

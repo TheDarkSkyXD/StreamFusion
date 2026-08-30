@@ -1,11 +1,18 @@
 import { logger } from "@backend/logging/logger";
+import { registerFeatureRollback } from "@backend/ipc/feature-registration-transaction";
 
 export type LoadedFeatureCleanup = () => void | Promise<void>;
 
 const cleanups = new Map<string, LoadedFeatureCleanup>();
 
 export function registerLoadedFeatureCleanup(key: string, cleanup: LoadedFeatureCleanup): void {
+  const previous = cleanups.get(key);
   cleanups.set(key, cleanup);
+  registerFeatureRollback(async () => {
+    if (previous) cleanups.set(key, previous);
+    else cleanups.delete(key);
+    await cleanup();
+  });
 }
 
 export async function runLoadedFeatureCleanups(): Promise<void> {

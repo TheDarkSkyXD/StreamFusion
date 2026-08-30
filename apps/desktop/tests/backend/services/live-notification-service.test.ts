@@ -54,6 +54,7 @@ import {
   type UserPreferences,
 } from "@shared/auth-types";
 import { IPC_CHANNELS } from "@shared/ipc-channels";
+import { createMainRendererPortMock } from "../../helpers/main-renderer-port-mock";
 
 function follow(overrides: Partial<LocalFollow> = {}): LocalFollow {
   return {
@@ -912,7 +913,7 @@ describe("LiveNotificationService", () => {
     vi.mocked(mainWindow.webContents.send).mockImplementation(send);
     const payload = notification({ platform: "kick", channelId: "200", channelName: "xqc" });
 
-    showLiveDesktopNotification(mainWindow, payload, { silent: true });
+    showLiveDesktopNotification(createMainRendererPortMock(mainWindow), payload, { silent: true });
     electronNotification.instances[0]?.listeners.click?.();
 
     expect(mainWindow.restore).toHaveBeenCalledTimes(1);

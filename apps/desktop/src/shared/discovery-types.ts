@@ -1,6 +1,6 @@
 import type { Platform } from "./auth-types";
 
-export type DiscoveryProviderStatus = "complete" | "failed";
+export type DiscoveryProviderStatus = "complete" | "partial" | "stale" | "failed";
 
 /**
  * Explicit provider outcome for an exhaustive discovery request. Missing
@@ -22,3 +22,12 @@ export type DiscoveryResult<T> =
       platform?: Platform;
       providers: DiscoveryProviderCompletion;
     };
+
+export function hasCompleteDiscoveryCoverage(
+  providers: DiscoveryProviderCompletion,
+  platform?: Platform
+): boolean {
+  return platform
+    ? providers[platform] === "complete"
+    : providers.twitch === "complete" && providers.kick === "complete";
+}

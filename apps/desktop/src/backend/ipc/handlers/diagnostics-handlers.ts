@@ -1,5 +1,3 @@
-import type { BrowserWindow } from "electron";
-
 import {
   diagnosticsIpcContracts,
   diagnosticsSnapshotChangedSchema,
@@ -8,12 +6,13 @@ import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { diagnosticsObservability } from "../../diagnostics/diagnostics-observability";
 import { diagnosticsRuntime } from "../../diagnostics/diagnostics-runtime-singleton";
 import type { TrustedIpcRegistry } from "../trusted-ipc-registry";
+import type { MainRendererPort } from "../main-renderer-port";
+import { registerLoadedFeatureCleanup } from "../../startup/loaded-feature-cleanup";
 
 export function registerDiagnosticsHandlers(
-  mainWindow: BrowserWindow,
+  renderer: MainRendererPort,
   registry: TrustedIpcRegistry
 ): void {
-  const ownerId = mainWindow.webContents.id;
   const internalError = () => registry.internalError();
 
   registry.handle({
@@ -21,20 +20,24 @@ export function registerDiagnosticsHandlers(
     contract: diagnosticsIpcContracts[IPC_CHANNELS.DIAGNOSTICS_OPEN_LEASE],
     failureResponse: internalError(),
     createFailureResponse: internalError,
-    execute: async (_event, request) =>
+    execute: async (event, request) =>
       diagnosticsObservability.runSpan("diagnostics.openLease", async () => {
+        const ownerId = event.sender.id;
         const value = await diagnosticsRuntime.openLease({
           ownerId,
           documentInstanceId: request.documentInstanceId,
           view: request.view,
           publish: (leaseId, snapshot) => {
-            if (mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return;
             const payload = diagnosticsSnapshotChangedSchema.safeParse({
               leaseId,
               snapshot,
             });
             if (payload.success) {
-              mainWindow.webContents.send(IPC_CHANNELS.DIAGNOSTICS_SNAPSHOT_CHANGED, payload.data);
+              renderer.sendToOwner(
+                ownerId,
+                IPC_CHANNELS.DIAGNOSTICS_SNAPSHOT_CHANGED,
+                payload.data
+              );
             }
           },
         });
@@ -47,7 +50,8 @@ export function registerDiagnosticsHandlers(
     contract: diagnosticsIpcContracts[IPC_CHANNELS.DIAGNOSTICS_CONFIGURE_LEASE],
     failureResponse: internalError(),
     createFailureResponse: internalError,
-    execute: (_event, request) => {
+    execute: (event, request) => {
+      const ownerId = event.sender.id;
       const snapshot = diagnosticsRuntime.configureLease(ownerId, request.leaseId, request.view);
       return snapshot ? ({ kind: "ok", value: snapshot } as const) : internalError();
     },
@@ -58,7 +62,8 @@ export function registerDiagnosticsHandlers(
     contract: diagnosticsIpcContracts[IPC_CHANNELS.DIAGNOSTICS_CLOSE_LEASE],
     failureResponse: internalError(),
     createFailureResponse: internalError,
-    execute: (_event, request) => {
+    execute: (event, request) => {
+      const ownerId = event.sender.id;
       diagnosticsRuntime.closeLease(ownerId, request.leaseId);
       return { kind: "ok", value: null } as const;
     },
@@ -69,8 +74,9 @@ export function registerDiagnosticsHandlers(
     contract: diagnosticsIpcContracts[IPC_CHANNELS.DIAGNOSTICS_REFRESH],
     failureResponse: internalError(),
     createFailureResponse: internalError,
-    execute: async (_event, request) =>
+    execute: async (event, request) =>
       diagnosticsObservability.runSpan("diagnostics.refresh", async () => {
+        const ownerId = event.sender.id;
         const snapshot = await diagnosticsRuntime.refresh(ownerId, request.leaseId);
         return snapshot ? ({ kind: "ok", value: snapshot } as const) : internalError();
       }),
@@ -81,11 +87,16 @@ export function registerDiagnosticsHandlers(
     contract: diagnosticsIpcContracts[IPC_CHANNELS.DIAGNOSTICS_REPORT_RENDERER],
     failureResponse: internalError(),
     createFailureResponse: internalError,
-    execute: (_event, request) => {
+    execute: (event, request) => {
+      const ownerId = event.sender.id;
       diagnosticsRuntime.reportRendererPerformance(ownerId, request);
       return { kind: "ok", value: null } as const;
     },
   });
 
-  mainWindow.webContents.once("destroyed", () => diagnosticsRuntime.closeOwner(ownerId));
+  const stopOwnerBinding = renderer.useWindow("diagnostics:owner", (window) => {
+    const ownerId = window.webContents.id;
+    return () => diagnosticsRuntime.closeOwner(ownerId);
+  });
+  registerLoadedFeatureCleanup("diagnostics:owner", stopOwnerBinding);
 }

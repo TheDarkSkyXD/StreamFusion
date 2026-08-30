@@ -1,5 +1,3 @@
-import type { BrowserWindow } from "electron";
-
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { z } from "zod";
 
@@ -16,6 +14,8 @@ import type { KickFollowWriteService } from "../../services/kick-follow-write-se
 import { refreshKickFollowMetadataNow } from "../../services/kick-follow-metadata-refresh";
 import { storageService } from "../../services/storage-service";
 import { isAllowedSender } from "../sender-origin";
+import type { MainRendererPort } from "../main-renderer-port";
+import { registerLoadedFeatureCleanup } from "../../startup/loaded-feature-cleanup";
 
 const REJECTED_ACCOUNT_FOLLOW_WRITE: KickAccountFollowWriteResult = {
   status: "rejected",
@@ -57,28 +57,37 @@ const accountFollowWriteRequestSchema = z.union([
   createAccountFollowWriteRequestSchema("twitch"),
 ]);
 
-let followsMainWindow: BrowserWindow | undefined;
+let followsRenderer: MainRendererPort | undefined;
 let removeAccountWriteListener: (() => void) | undefined;
+let accountWriteCleanupRegistered = false;
 
-export function attachKickFollowWriteService(service: KickFollowWriteService): void {
-  if (!followsMainWindow) return;
+export function attachKickFollowWriteService(
+  service: KickFollowWriteService,
+  renderer = followsRenderer
+): void {
+  if (!renderer) return;
+  followsRenderer = renderer;
 
   removeAccountWriteListener?.();
 
   removeAccountWriteListener = service.onAccountWriteChanged((event) => {
-    try {
-      const mainWindow = followsMainWindow;
-      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-        mainWindow.webContents.send(IPC_CHANNELS.FOLLOWS_ACCOUNT_WRITE_CHANGED, event);
-      }
-    } catch {
+    if (!renderer.send(IPC_CHANNELS.FOLLOWS_ACCOUNT_WRITE_CHANGED, event)) {
       logger.warn("IPC:Follows", "Could not forward account-write transition to renderer");
     }
   });
+  if (!accountWriteCleanupRegistered) {
+    accountWriteCleanupRegistered = true;
+    registerLoadedFeatureCleanup("storage:account-write-events", () => {
+      removeAccountWriteListener?.();
+      removeAccountWriteListener = undefined;
+      followsRenderer = undefined;
+      accountWriteCleanupRegistered = false;
+    });
+  }
 }
 
-export function registerStorageHandlers(mainWindow?: BrowserWindow): void {
-  followsMainWindow = mainWindow;
+export function registerStorageHandlers(renderer?: MainRendererPort): void {
+  followsRenderer = renderer;
 
   // ========== Generic Storage (backward compatibility) ==========
   ipcMain.handle(IPC_CHANNELS.STORE_GET, (_event, { key }: { key: string }) => {

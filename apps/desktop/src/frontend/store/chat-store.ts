@@ -505,11 +505,10 @@ export const useChatStore = create<ChatState>()(
         // empty queue — harmless but wasteful.
         if (batch.timer) {
           clearTimeout(batch.timer);
-          batch.timer = null;
         }
 
         const queued = batch.queue;
-        batch.queue = [];
+        delete messageBatches[channelKey];
         if (queued.length === 0) return;
 
         set((state) => {
@@ -656,9 +655,17 @@ export const useChatStore = create<ChatState>()(
         });
       },
 
-      dropChannel: (channelKey) =>
+      dropChannel: (channelKey) => {
+        const batch = messageBatches[channelKey];
+        if (batch?.timer) clearTimeout(batch.timer);
+        delete messageBatches[channelKey];
+
         set((state) => {
-          if (!state.messagesByChannel[channelKey] && !state.pausedChannels.has(channelKey)) {
+          if (
+            !state.messagesByChannel[channelKey] &&
+            !state.usersByChannel[channelKey] &&
+            !state.pausedChannels.has(channelKey)
+          ) {
             return state;
           }
 
@@ -678,7 +685,8 @@ export const useChatStore = create<ChatState>()(
             chatterCountByChannel,
             pausedChannels,
           };
-        }),
+        });
+      },
 
       deleteMessage: (channelKey, messageId, metadata) => {
         __debug.deleteMessage++;

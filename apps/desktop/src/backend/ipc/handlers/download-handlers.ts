@@ -1,5 +1,3 @@
-import type { BrowserWindow } from "electron";
-
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import type { ClipDownloadRequest } from "@shared/download-types";
@@ -9,25 +7,13 @@ import { getDefaultDownloadFileActionsService } from "../../services/download-fi
 import { getDownloadQueueService } from "../../services/download-queue-service";
 import { getDefaultVideoDownloadService } from "../../services/video-download-default-service";
 import { isAllowedSender } from "../sender-origin";
+import type { MainRendererPort } from "../main-renderer-port";
+import { registerLoadedFeatureCleanup } from "../../startup/loaded-feature-cleanup";
 
 const REJECTED = {
   success: false as const,
   error: "Rejected: caller is not the application renderer.",
 };
-
-function safeSend(mainWindow: BrowserWindow, channel: string, payload: unknown): void {
-  try {
-    if (
-      !mainWindow.isDestroyed() &&
-      mainWindow.webContents &&
-      !mainWindow.webContents.isDestroyed()
-    ) {
-      mainWindow.webContents.send(channel, payload);
-    }
-  } catch {
-    // The window may be closing while a queue update is emitted.
-  }
-}
 
 function idFromPayload(payload: unknown): string | null {
   if (!payload || typeof payload !== "object") return null;
@@ -42,10 +28,10 @@ function jobResult<T>(
   return { success: true, job };
 }
 
-export function registerDownloadHandlers(mainWindow: BrowserWindow): void {
+export function registerDownloadHandlers(renderer: MainRendererPort): void {
   const service = getDownloadQueueService();
-  const clipDownloads = getDefaultClipDownloadService(mainWindow, service);
-  const videoDownloads = getDefaultVideoDownloadService(mainWindow, service);
+  const clipDownloads = getDefaultClipDownloadService(renderer, service);
+  const videoDownloads = getDefaultVideoDownloadService(renderer, service);
   const fileActions = getDefaultDownloadFileActionsService(service);
 
   const registeredChannels: string[] = [];
@@ -126,9 +112,10 @@ export function registerDownloadHandlers(mainWindow: BrowserWindow): void {
       return id ? fileActions.deleteFile(id) : { success: false, error: "id is required" };
     });
 
-    service.subscribe((snapshot) => {
-      safeSend(mainWindow, IPC_CHANNELS.DOWNLOADS_QUEUE_CHANGED, snapshot);
+    const unsubscribe = service.subscribe((snapshot) => {
+      renderer.send(IPC_CHANNELS.DOWNLOADS_QUEUE_CHANGED, snapshot);
     });
+    registerLoadedFeatureCleanup("downloads:queue-events", unsubscribe);
   } catch (error) {
     for (const channel of registeredChannels) ipcMain.removeHandler(channel);
     throw error;

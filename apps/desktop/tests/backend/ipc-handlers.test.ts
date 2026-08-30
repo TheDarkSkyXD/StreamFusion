@@ -1,4 +1,3 @@
-import type { BrowserWindow } from "electron";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const registrars = vi.hoisted(() => ({
@@ -34,37 +33,45 @@ vi.mock("@backend/ipc/lazy-feature-loader", () => ({
   registerLazyIpcFeatureLoader: registrars.lazyFeatures,
 }));
 
-import { registerIpcHandlers } from "@backend/ipc-handlers";
+import { createDesktopIpcRuntime } from "@backend/ipc-handlers";
+import { MainRendererPortController } from "@backend/ipc/main-renderer-port";
 import { TrustedIpcRegistry } from "@backend/ipc/trusted-ipc-registry";
 
 // Guards: startup registers only the feature-loader transport, leaving every handler implementation unloaded.
 // Guards: lazy feature handlers receive the trusted registry that validates renderer requests.
 // Guards: a broken feature-loader registrar is reported without crashing bootstrap.
-describe("registerIpcHandlers", () => {
+describe("desktop IPC runtime", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("registers only the lazy feature entry point", () => {
-    const mainWindow = {} as BrowserWindow;
-    registerIpcHandlers(mainWindow);
+    const runtime = createDesktopIpcRuntime();
+    runtime.start();
+    runtime.start();
 
     expect(registrars.system).not.toHaveBeenCalled();
     expect(registrars.app).not.toHaveBeenCalled();
     expect(registrars.storage).not.toHaveBeenCalled();
     expect(registrars.logs).not.toHaveBeenCalled();
     expect(registrars.lazyFeatures).toHaveBeenCalledWith(
-      mainWindow,
+      expect.any(MainRendererPortController),
       expect.any(TrustedIpcRegistry)
     );
+    expect(registrars.lazyFeatures).toHaveBeenCalledOnce();
   });
 
-  it("logs a feature-loader registrar failure", () => {
-    registrars.lazyFeatures.mockImplementation(() => {
-      throw new Error("feature loader unavailable");
-    });
+  it("logs a feature-loader registrar failure and allows a retry", () => {
+    registrars.lazyFeatures
+      .mockImplementationOnce(() => {
+        throw new Error("feature loader unavailable");
+      })
+      .mockImplementationOnce(() => undefined);
 
-    expect(() => registerIpcHandlers({} as BrowserWindow)).not.toThrow();
+    const runtime = createDesktopIpcRuntime();
+    expect(() => runtime.start()).not.toThrow();
+    expect(() => runtime.start()).not.toThrow();
+    expect(registrars.lazyFeatures).toHaveBeenCalledTimes(2);
     expect(loggerMock.error).toHaveBeenCalledWith(
       "IPC:Bootstrap",
       "Failed to register IPC handler group",
@@ -73,5 +80,12 @@ describe("registerIpcHandlers", () => {
         error: expect.objectContaining({ message: "feature loader unavailable" }),
       })
     );
+  });
+
+  it("cannot restart after disposal", async () => {
+    const runtime = createDesktopIpcRuntime();
+    await runtime.dispose();
+
+    expect(() => runtime.start()).toThrow("Cannot start a disposed IPC runtime");
   });
 });

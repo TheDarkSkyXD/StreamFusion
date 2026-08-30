@@ -1,7 +1,5 @@
 import { existsSync } from "node:fs";
 
-import { type BrowserWindow } from "electron";
-
 import type { VideoDownloadRequest } from "@shared/download-types";
 import { KickStreamResolver } from "../api/platforms/kick/kick-stream-resolver";
 import { TwitchStreamResolver } from "../api/platforms/twitch/twitch-stream-resolver";
@@ -11,6 +9,7 @@ import type { DownloadQueueService } from "./download-queue-service";
 import { chooseDefaultDownloadSavePath } from "./download-save-dialog";
 import { downloadHlsWithFfmpeg, resolveFfmpegPath } from "./ffmpeg-download-service";
 import { createVideoDownloadService, type VideoDownloadService } from "./video-download-service";
+import type { MainRendererPort } from "@backend/ipc/main-renderer-port";
 
 const twitchResolver = new TwitchStreamResolver();
 const kickResolver = new KickStreamResolver();
@@ -54,7 +53,7 @@ export async function resolveDefaultVideoPlayback(
 }
 
 export function getDefaultVideoDownloadService(
-  mainWindow: BrowserWindow,
+  renderer: MainRendererPort,
   queue: DownloadQueueService
 ): VideoDownloadService {
   if (videoDownloadService) return videoDownloadService;
@@ -62,13 +61,16 @@ export function getDefaultVideoDownloadService(
   videoDownloadService = createVideoDownloadService({
     queue,
     resolvePlayback: resolveDefaultVideoPlayback,
-    chooseSavePath: (request, extension) =>
-      chooseDefaultDownloadSavePath(mainWindow, {
+    chooseSavePath: (request, extension) => {
+      const mainWindow = renderer.current();
+      if (!mainWindow) return Promise.resolve(null);
+      return chooseDefaultDownloadSavePath(mainWindow, {
         dialogTitle: "Save video",
         channelName: request.channelName,
         title: request.title,
         extension,
-      }),
+      });
+    },
     getAvailablePath: (requestedPath) => getAvailableDestinationPath(requestedPath, existsSync),
     resolveFfmpegPath,
     downloadHls: downloadHlsWithFfmpeg,

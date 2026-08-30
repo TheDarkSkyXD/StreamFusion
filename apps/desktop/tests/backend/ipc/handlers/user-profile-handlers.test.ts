@@ -1,4 +1,3 @@
-import type { BrowserWindow } from "electron";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { IPC_CHANNELS } from "@shared/ipc-channels";
@@ -47,8 +46,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   electronMocks.app.isPackaged = false;
   trustedMainFrame.url = "http://localhost:5173/?userProfileFixture=loaded";
-  const mainWindow = { webContents: trustedSender } as unknown as BrowserWindow;
-  registerUserProfileHandlers(new TrustedIpcRegistry(mainWindow, trustedDocumentUrl));
+  registerUserProfileHandlers(
+    new TrustedIpcRegistry({ trustedSender: () => trustedSender as never }, trustedDocumentUrl)
+  );
 });
 
 // Guards: normal Electron development profile reads pass through typed IPC to the real readers.

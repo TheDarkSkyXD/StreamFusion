@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const electronMocks = vi.hoisted(() => ({ handle: vi.fn(), on: vi.fn() }));
+const electronMocks = vi.hoisted(() => ({
+  handle: vi.fn(),
+  on: vi.fn(),
+  removeHandler: vi.fn(),
+  removeListener: vi.fn(),
+}));
 const loggerMocks = vi.hoisted(() => ({ warn: vi.fn(), error: vi.fn() }));
 
 vi.mock("electron", () => ({ ipcMain: electronMocks }));
@@ -13,7 +18,10 @@ async function loadConfiguredGate() {
   const mod = await import("@backend/ipc/trusted-ipc-main");
   const frame = { url: "http://localhost:5173/index.html#/home" };
   const sender = { mainFrame: frame };
-  mod.configureTrustedIpcMain(sender as Electron.WebContents, "http://localhost:5173/index.html");
+  mod.configureTrustedIpcMain(
+    () => sender as Electron.WebContents,
+    "http://localhost:5173/index.html"
+  );
   return { mod, frame, sender };
 }
 
@@ -21,9 +29,9 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-// Guards: every legacy IPC route rejects non-main renderers and oversized payloads before executing
+// Guards: every trusted IPC route rejects non-main renderers and oversized payloads before executing
 // Guards: thrown handler details stay in main-process logs and never cross the renderer boundary
-describe("trusted legacy IPC gate", () => {
+describe("trusted IPC gate", () => {
   it("executes a bounded request from the exact main renderer", async () => {
     const { mod, frame, sender } = await loadConfiguredGate();
     const listener = vi.fn(async () => "ok");
@@ -100,5 +108,22 @@ describe("trusted legacy IPC gate", () => {
     expect(String(rejection)).toContain("IPC request failed");
     expect(String(rejection)).not.toContain("secret token detail");
     expect(JSON.stringify(loggerMocks.error.mock.calls)).not.toContain("secret token detail");
+  });
+
+  it("removes invoke and event handlers when feature registration fails", async () => {
+    const { mod } = await loadConfiguredGate();
+    const { runFeatureRegistrationTransaction } =
+      await import("@backend/ipc/feature-registration-transaction");
+
+    await expect(
+      runFeatureRegistrationTransaction(async () => {
+        mod.trustedIpcMain.handle("test:invoke", vi.fn());
+        mod.trustedIpcMain.on("test:event", vi.fn());
+        throw new Error("registration failed");
+      })
+    ).rejects.toThrow("registration failed");
+
+    expect(electronMocks.removeHandler).toHaveBeenCalledWith("test:invoke");
+    expect(electronMocks.removeListener).toHaveBeenCalledWith("test:event", expect.any(Function));
   });
 });

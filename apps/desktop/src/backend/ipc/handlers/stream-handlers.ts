@@ -7,22 +7,22 @@ import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { isKickRateLimitError } from "../../api/platforms/kick/kick-error-classification";
 import type { IPlatformReader } from "../../api/unified/platform-reader";
 import type { UnifiedStream } from "../../../shared/platform-types";
+import type { DiscoveryResult } from "../../../shared/discovery-types";
 import { clients } from "../../api/unified/registry";
+import { getPlatformHealth } from "../../api/unified/platform-health";
 import { storageService } from "../../services/storage-service";
 import {
   getKickFollowScanSlugs,
   parseKickBroadcasterUserId,
   resolveKickFollowPlaybackSlug,
 } from "./kick-follow-repair";
+import { settleStreamProviders, type StreamProviderOutcome } from "./stream-discovery-results";
 
-export const KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS = 0;
 const FOLLOWED_STREAM_REQUEST_TTL_MS = 5_000;
 const KICK_FOLLOWED_RESTART_CACHE_TTL_MS = 60_000;
 const KICK_FOLLOWED_RATE_LIMIT_STALE_TTL_MS = 15 * 60_000;
 
-type FollowedStreamResponse =
-  | { success: true; data: UnifiedStream[]; platform?: Platform; cursor?: string; error?: string }
-  | { success: false; data?: UnifiedStream[]; error: string };
+type FollowedStreamResponse = DiscoveryResult<UnifiedStream[]>;
 
 const followedStreamResponses = new Map<
   string,
@@ -70,7 +70,7 @@ function collapseFollowedStreamRequest(
 
   const request = load()
     .then((response) => {
-      if (response.success && !response.error) {
+      if (response.success) {
         followedStreamResponses.set(key, {
           expiresAt: Date.now() + FOLLOWED_STREAM_REQUEST_TTL_MS,
           response,
@@ -83,19 +83,9 @@ function collapseFollowedStreamRequest(
   return request;
 }
 
-export function shouldDeferKickStartupFollowedStreamScan(
-  platform: Platform | undefined,
-  now: number,
-  handlersStartedAt: number
-): boolean {
-  if (platform !== undefined && platform !== "kick") return false;
-  return now - handlersStartedAt < KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS;
-}
-
 export function registerStreamHandlers(): void {
   followedStreamResponses.clear();
   followedStreamRequests.clear();
-  const streamHandlersStartedAt = Date.now();
   /**
    * Get top streams from one or both platforms.
    *
@@ -113,14 +103,14 @@ export function registerStreamHandlers(): void {
         cursor?: string;
       } = {}
     ) => {
-      // Touch the adapter modules so their `clients.register(...)` side effect runs.
-      await import("../../api/platforms/twitch/twitch-client");
-      await import("../../api/platforms/kick/kick-client");
+      // Loading both adapters registers them with the shared platform registry.
+      await Promise.all([
+        import("../../api/platforms/twitch/twitch-client"),
+        import("../../api/platforms/kick/kick-client"),
+      ]);
 
       try {
-        const fetchOne = async (
-          reader: IPlatformReader
-        ): Promise<{ platform: Platform; data: UnifiedStream[]; cursor?: string }> => {
+        const fetchOne = async (reader: IPlatformReader): Promise<StreamProviderOutcome> => {
           try {
             const result = await reader.getTopStreams({
               limit: params.limit || 20,
@@ -128,7 +118,12 @@ export function registerStreamHandlers(): void {
               categoryId: params.categoryId,
               language: params.language,
             });
-            return { platform: reader.platform, data: result.data, cursor: result.cursor };
+            return {
+              platform: reader.platform,
+              status: "complete",
+              data: result.data,
+              cursor: result.cursor,
+            };
           } catch (err) {
             logger.warn("IPC:Stream", "Failed to fetch top streams", {
               platform: reader.platform,
@@ -137,21 +132,22 @@ export function registerStreamHandlers(): void {
                   ? { name: err.name, message: err.message, stack: err.stack }
                   : String(err),
             });
-            return { platform: reader.platform, data: [] };
+            return {
+              platform: reader.platform,
+              status: "failed",
+              data: [],
+              error: `${reader.platform} streams are unavailable`,
+            };
           }
         };
 
         const targets = params.platform ? [clients.for(params.platform)] : clients.all();
         const results = await Promise.all(targets.map((reader) => fetchOne(reader)));
-
-        // Merge and sort by viewer count if fetching from both platforms
-        if (!params.platform) {
-          const allStreams = results.flatMap((r) => r.data);
-          allStreams.sort((a, b) => b.viewerCount - a.viewerCount);
-          return { success: true, data: allStreams.slice(0, params.limit || 20) };
-        }
-
-        return { success: true, ...results[0] };
+        return settleStreamProviders(
+          targets.map((reader) => reader.platform),
+          results,
+          params.limit || 20
+        );
       } catch (error) {
         logger.error("IPC:Stream", "Failed to get top streams", {
           error:
@@ -162,6 +158,13 @@ export function registerStreamHandlers(): void {
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to fetch streams",
+          ...(params.platform ? { platform: params.platform } : {}),
+          providers: Object.fromEntries(
+            (params.platform ? [params.platform] : ["twitch", "kick"]).map((platform) => [
+              platform,
+              "failed",
+            ])
+          ),
         };
       }
     }
@@ -187,11 +190,13 @@ export function registerStreamHandlers(): void {
         language?: string;
       }
     ) => {
-      const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-      const { kickClient } = await import("../../api/platforms/kick/kick-client");
+      const [{ twitchClient }, { kickClient }] = await Promise.all([
+        import("../../api/platforms/twitch/twitch-client"),
+        import("../../api/platforms/kick/kick-client"),
+      ]);
 
       try {
-        const results: { platform: Platform; data: UnifiedStream[]; cursor?: string }[] = [];
+        const results: StreamProviderOutcome[] = [];
 
         const fetchTwitch = async () => {
           try {
@@ -201,13 +206,24 @@ export function registerStreamHandlers(): void {
               gameId: params.categoryId,
               language: params.language,
             });
-            results.push({ platform: "twitch", data: result.data, cursor: result.cursor });
+            results.push({
+              platform: "twitch",
+              status: "complete",
+              data: result.data,
+              cursor: result.cursor,
+            });
           } catch (err) {
             logger.warn("IPC:Stream", "Failed to fetch Twitch streams by category", {
               error:
                 err instanceof Error
                   ? { name: err.name, message: err.message, stack: err.stack }
                   : String(err),
+            });
+            results.push({
+              platform: "twitch",
+              status: "failed",
+              data: [],
+              error: "twitch category streams are unavailable",
             });
           }
         };
@@ -222,6 +238,7 @@ export function registerStreamHandlers(): void {
             });
             results.push({
               platform: "kick",
+              status: "complete",
               data: result.data,
               cursor: result.cursor ?? result.nextPage?.toString(),
             });
@@ -231,6 +248,12 @@ export function registerStreamHandlers(): void {
                 err instanceof Error
                   ? { name: err.name, message: err.message, stack: err.stack }
                   : String(err),
+            });
+            results.push({
+              platform: "kick",
+              status: "failed",
+              data: [],
+              error: "kick category streams are unavailable",
             });
           }
         };
@@ -243,22 +266,10 @@ export function registerStreamHandlers(): void {
           await fetchKick();
         }
 
-        if (!params.platform) {
-          const allStreams = results.flatMap((r) => r.data);
-          allStreams.sort((a, b) => b.viewerCount - a.viewerCount);
-          return { success: true, data: allStreams };
-        }
-
-        // Single-platform request: always return a consistent shape even when
-        // the platform fetch failed (results is empty). Avoid `...results[0]`
-        // collapsing to `{success: true}` with no `data` field.
-        const first = results[0];
-        return {
-          success: true,
-          platform: first?.platform ?? params.platform,
-          data: first?.data ?? [],
-          cursor: first?.cursor,
-        };
+        const requestedPlatforms: Platform[] = params.platform
+          ? [params.platform]
+          : ["twitch", "kick"];
+        return settleStreamProviders(requestedPlatforms, results, params.limit);
       } catch (error) {
         logger.error("IPC:Stream", "Failed to get streams by category", {
           error:
@@ -268,8 +279,13 @@ export function registerStreamHandlers(): void {
         });
         return {
           success: false,
-          data: [],
           error: error instanceof Error ? error.message : "Failed to fetch streams",
+          providers: Object.fromEntries(
+            (params.platform ? [params.platform] : ["twitch", "kick"]).map((platform) => [
+              platform,
+              "failed",
+            ])
+          ),
         };
       }
     }
@@ -288,20 +304,26 @@ export function registerStreamHandlers(): void {
         cursor?: string;
       } = {}
     ) => {
-      const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-      const { kickClient } = await import("../../api/platforms/kick/kick-client");
+      const [{ twitchClient }, { kickClient }] = await Promise.all([
+        import("../../api/platforms/twitch/twitch-client"),
+        import("../../api/platforms/kick/kick-client"),
+      ]);
 
       return collapseFollowedStreamRequest(params, async () => {
         try {
-          const results: { platform: Platform; data: UnifiedStream[]; cursor?: string }[] = [];
+          const results: StreamProviderOutcome[] = [];
 
           const fetchTwitchFollowed = async () => {
             const localTwitch = storageService.getActiveFollowsByPlatform("twitch");
             const twitchStreams: UnifiedStream[] = [];
             const seenIds = new Set<string>();
+            let attemptedSources = 0;
+            let completedSources = 0;
+            let cursor: string | undefined;
 
             // 1. Remote (User Authenticated)
             if (twitchClient.isAuthenticated()) {
+              attemptedSources += 1;
               try {
                 const result = await twitchClient.getFollowedStreams({
                   first: params.limit || 100,
@@ -313,7 +335,8 @@ export function registerStreamHandlers(): void {
                     seenIds.add(s.id);
                   }
                 });
-                results.push({ platform: "twitch", data: twitchStreams, cursor: result.cursor });
+                cursor = result.cursor;
+                completedSources += 1;
               } catch (err) {
                 logger.warn("IPC:Stream", "Failed to fetch Twitch remote followed streams", {
                   error:
@@ -326,6 +349,7 @@ export function registerStreamHandlers(): void {
 
             // 2. Local Follows (GQL - no auth needed, works for guests)
             if (localTwitch.length > 0) {
+              attemptedSources += 1;
               try {
                 // Use channel logins (not IDs) so GQL can handle this without auth
                 const loginsToFetch = [...new Set(localTwitch.map((f) => f.channelName))];
@@ -339,6 +363,7 @@ export function registerStreamHandlers(): void {
                         seenIds.add(s.id);
                       }
                     });
+                    completedSources += 1;
                   } catch (e) {
                     logger.warn("IPC:Stream", "Failed to fetch local twitch streams via GQL", {
                       error:
@@ -346,13 +371,6 @@ export function registerStreamHandlers(): void {
                           ? { name: e.name, message: e.message, stack: e.stack }
                           : String(e),
                     });
-                  }
-
-                  const existingTwitch = results.find((r) => r.platform === "twitch");
-                  if (existingTwitch) {
-                    existingTwitch.data = twitchStreams;
-                  } else if (twitchStreams.length > 0) {
-                    results.push({ platform: "twitch", data: twitchStreams });
                   }
                 }
               } catch (err) {
@@ -364,6 +382,20 @@ export function registerStreamHandlers(): void {
                 });
               }
             }
+
+            const status =
+              attemptedSources === 0 || completedSources === attemptedSources
+                ? "complete"
+                : completedSources > 0
+                  ? "partial"
+                  : "failed";
+            results.push({
+              platform: "twitch",
+              status,
+              data: twitchStreams,
+              cursor,
+              ...(status === "failed" ? { error: "twitch followed streams are unavailable" } : {}),
+            });
           };
 
           const fetchKickFollowed = async () => {
@@ -371,7 +403,7 @@ export function registerStreamHandlers(): void {
               KICK_FOLLOWED_RESTART_CACHE_TTL_MS
             );
             if (restartSnapshot) {
-              results.push({ platform: "kick", data: restartSnapshot });
+              results.push({ platform: "kick", status: "stale", data: restartSnapshot });
               logger.debug("IPC:Stream", "Reused Kick followed-stream snapshot after restart", {
                 liveCount: restartSnapshot.length,
               });
@@ -379,21 +411,25 @@ export function registerStreamHandlers(): void {
             }
 
             const preserveSnapshotDuringCooldown = () => {
-              const snapshot =
-                readKickFollowedStreamsCache(KICK_FOLLOWED_RATE_LIMIT_STALE_TTL_MS) ?? [];
-              results.push({ platform: "kick", data: snapshot });
+              const snapshot = readKickFollowedStreamsCache(KICK_FOLLOWED_RATE_LIMIT_STALE_TTL_MS);
+              results.push(
+                snapshot
+                  ? { platform: "kick", status: "stale", data: snapshot }
+                  : {
+                      platform: "kick",
+                      status: "failed",
+                      data: [],
+                      error: "kick followed streams are rate limited",
+                    }
+              );
               logger.info("IPC:Stream", "Kick rate limit active; reused followed-stream snapshot", {
-                liveCount: snapshot.length,
+                liveCount: snapshot?.length ?? 0,
               });
             };
-            const deferLocalFollowScan = shouldDeferKickStartupFollowedStreamScan(
-              params.platform,
-              Date.now(),
-              streamHandlersStartedAt
-            );
             const localKick = storageService.getActiveFollowsByPlatform("kick");
             const kickStreams: UnifiedStream[] = [];
             const seenIds = new Set<string>();
+            let hadFailure = false;
 
             // 1. Remote (User Authenticated)
             if (kickClient.isAuthenticated()) {
@@ -412,6 +448,7 @@ export function registerStreamHandlers(): void {
                   preserveSnapshotDuringCooldown();
                   return;
                 }
+                hadFailure = true;
                 logger.warn("IPC:Stream", "Failed to fetch Kick remote followed streams", {
                   error:
                     err instanceof Error
@@ -422,12 +459,7 @@ export function registerStreamHandlers(): void {
             }
 
             // 2. Local Follows (Guest/Public)
-            if (localKick.length > 0 && deferLocalFollowScan) {
-              logger.info("IPC:Stream", "Deferred Kick followed-stream scan during startup", {
-                followCount: localKick.length,
-                graceMs: KICK_STARTUP_FOLLOWED_STREAM_SCAN_GRACE_MS,
-              });
-            } else if (localKick.length > 0) {
+            if (localKick.length > 0) {
               const scanStartedAt = Date.now();
               const uniqueSlugs = await getKickFollowScanSlugs(kickClient, localKick);
               const stableBroadcasterIds = [
@@ -455,6 +487,7 @@ export function registerStreamHandlers(): void {
                     preserveSnapshotDuringCooldown();
                     return;
                   }
+                  hadFailure = true;
                   logger.warn(
                     "IPC:Stream",
                     "Failed to fetch Kick live status via official livestreams API; falling back to slug scan",
@@ -502,6 +535,7 @@ export function registerStreamHandlers(): void {
                     seenIds.add(result.value.id);
                   }
                 } else if ((result.reason as Error)?.message !== "AbortError") {
+                  hadFailure = true;
                   logger.warn("IPC:Stream", "Failed to fetch Kick stream", {
                     error:
                       result.reason instanceof Error
@@ -525,11 +559,25 @@ export function registerStreamHandlers(): void {
             }
 
             const dedupedKickStreams = dedupeStreamsByChannelIdentity(kickStreams);
-            storageService.saveKickFollowedStreamsCache({
-              cachedAt: Date.now(),
-              streams: dedupedKickStreams,
+            const unhealthy = getPlatformHealth("kick") !== "healthy";
+            const status =
+              hadFailure || unhealthy
+                ? dedupedKickStreams.length > 0
+                  ? "partial"
+                  : "failed"
+                : "complete";
+            if (status === "complete") {
+              storageService.saveKickFollowedStreamsCache({
+                cachedAt: Date.now(),
+                streams: dedupedKickStreams,
+              });
+            }
+            results.push({
+              platform: "kick",
+              status,
+              data: dedupedKickStreams,
+              ...(status === "failed" ? { error: "kick followed streams are unavailable" } : {}),
             });
-            results.push({ platform: "kick", data: dedupedKickStreams });
           };
 
           if (!params.platform) {
@@ -540,24 +588,29 @@ export function registerStreamHandlers(): void {
             await fetchKickFollowed();
           }
 
-          if (!params.platform) {
-            const allStreams = dedupeStreamsByChannelIdentity(results.flatMap((r) => r.data));
-            allStreams.sort((a, b) => b.viewerCount - a.viewerCount);
-            return { success: true, data: allStreams };
-          }
-
-          const result = results[0];
-          return {
-            success: true,
-            ...(result || {}),
-            data: dedupeStreamsByChannelIdentity(result?.data || []),
-          };
+          const requestedPlatforms: Platform[] = params.platform
+            ? [params.platform]
+            : ["twitch", "kick"];
+          const settled = settleStreamProviders(requestedPlatforms, results, params.limit);
+          return settled.success
+            ? { ...settled, data: dedupeStreamsByChannelIdentity(settled.data) }
+            : settled;
         } catch (error) {
           if (isKickRateLimitError(error)) {
-            return {
-              success: true,
-              data: readKickFollowedStreamsCache(KICK_FOLLOWED_RATE_LIMIT_STALE_TTL_MS) ?? [],
-            };
+            const snapshot = readKickFollowedStreamsCache(KICK_FOLLOWED_RATE_LIMIT_STALE_TTL_MS);
+            return snapshot
+              ? {
+                  success: true,
+                  data: snapshot,
+                  platform: "kick",
+                  providers: { kick: "stale" },
+                }
+              : {
+                  success: false,
+                  error: "kick followed streams are rate limited",
+                  platform: "kick",
+                  providers: { kick: "failed" },
+                };
           }
           logger.error("IPC:Stream", "Failed to get followed streams", {
             error:
@@ -566,9 +619,15 @@ export function registerStreamHandlers(): void {
                 : String(error),
           });
           return {
-            success: true,
-            data: [],
+            success: false,
             error: error instanceof Error ? error.message : "Unknown error",
+            ...(params.platform ? { platform: params.platform } : {}),
+            providers: Object.fromEntries(
+              (params.platform ? [params.platform] : ["twitch", "kick"]).map((platform) => [
+                platform,
+                "failed",
+              ])
+            ),
           };
         }
       });

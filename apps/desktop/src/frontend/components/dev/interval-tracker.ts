@@ -8,7 +8,7 @@ const liveIntervals = new Set<unknown>();
 let installed = false;
 
 export function installIntervalTracker(): void {
-  if (installed) return;
+  if (!import.meta.env.DEV || installed) return;
   installed = true;
 
   const origSet = window.setInterval.bind(window);

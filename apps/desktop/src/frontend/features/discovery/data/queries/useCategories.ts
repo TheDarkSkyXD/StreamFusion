@@ -210,7 +210,7 @@ async function loadProgressiveCategoryData(
     : completion?.twitch === "complete" && completion.kick === "complete";
   const fullCatalog = mergeCategories(
     rawCategories,
-    (streamsResponse.data as StreamSummary[] | undefined) || []
+    streamsResponse.success ? (streamsResponse.data as StreamSummary[]) : []
   );
   const accepted =
     categoriesResponse.success !== false && refreshComplete && fullCatalog.length > 0;

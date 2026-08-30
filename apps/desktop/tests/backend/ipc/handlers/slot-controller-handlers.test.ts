@@ -42,7 +42,8 @@ import {
   __resetWebContentsViewFactoryForTests,
   setWebContentsViewFactory,
 } from "@backend/api/unified/webcontents-view-factory";
-import { registerSlotControllerHandlers } from "@backend/ipc/handlers/slot-controller-handlers";
+import { registerSlotControllerHandlers as registerWithRenderer } from "@backend/ipc/handlers/slot-controller-handlers";
+import { createMainRendererPortMock } from "../../../helpers/main-renderer-port-mock";
 
 type InvokeHandler = (event: unknown, args?: unknown) => unknown;
 
@@ -65,6 +66,10 @@ function makeFakeMainWindow() {
     },
     send,
   };
+}
+
+function registerSlotControllerHandlers(window: Electron.BrowserWindow): void {
+  registerWithRenderer(createMainRendererPortMock(window));
 }
 
 beforeEach(() => {

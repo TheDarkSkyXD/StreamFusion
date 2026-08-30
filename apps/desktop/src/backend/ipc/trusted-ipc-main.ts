@@ -10,6 +10,7 @@ import {
 
 import { logger } from "@backend/logging/logger";
 import { isAllowedSender } from "./sender-origin";
+import { registerFeatureRollback } from "./feature-registration-transaction";
 
 const MAX_ARGUMENT_DEPTH = 20;
 // Browse snapshots legitimately contain thousands of streams/categories.
@@ -20,7 +21,7 @@ const MAX_STRING_LENGTH = 8 * 1024 * 1024;
 const MAX_BINARY_BYTES = 16 * 1024 * 1024;
 
 interface TrustedRendererBinding {
-  sender: WebContents;
+  getSender: () => WebContents | null;
   documentUrl: string;
 }
 
@@ -90,15 +91,20 @@ function hasSafePayloadBudget(values: unknown[]): boolean {
   return true;
 }
 
-export function configureTrustedIpcMain(sender: WebContents, documentUrl: string): void {
-  binding = { sender, documentUrl };
+export function configureTrustedIpcMain(
+  getSender: () => WebContents | null,
+  documentUrl: string
+): void {
+  binding = { getSender, documentUrl };
 }
 
 function isTrustedEvent(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
   if (process.env.NODE_ENV === "test" && binding === null) return true;
+  const trustedSender = binding?.getSender() ?? null;
   return (
     binding !== null &&
-    event.sender === binding.sender &&
+    trustedSender !== null &&
+    event.sender === trustedSender &&
     event.senderFrame === event.sender.mainFrame &&
     isAllowedSender(event) &&
     isExpectedDocument(event.senderFrame?.url, binding.documentUrl)
@@ -107,13 +113,17 @@ function isTrustedEvent(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
 
 function reportRejected(channel: string, reason: "sender" | "payload-budget"): string {
   const diagnosticId = randomUUID();
-  logger.warn("IPC:Boundary", "Rejected legacy IPC call", { channel, reason, diagnosticId });
+  logger.warn("IPC:Boundary", "Rejected trusted IPC call", {
+    channel,
+    reason,
+    diagnosticId,
+  });
   return diagnosticId;
 }
 
 function sanitizeHandlerError(channel: string, error: unknown): never {
   const diagnosticId = randomUUID();
-  logger.error("IPC:Boundary", "Legacy IPC handler failed", {
+  logger.error("IPC:Boundary", "Trusted IPC handler failed", {
     channel,
     diagnosticId,
     error: error instanceof Error ? { name: error.name } : undefined,
@@ -121,11 +131,7 @@ function sanitizeHandlerError(channel: string, error: unknown): never {
   throw new Error(`IPC request failed (${diagnosticId})`);
 }
 
-/**
- * Compatibility gate for handlers still awaiting route-specific Zod contracts.
- * Production calls are restricted to the exact main renderer and bounded
- * structured-clone payloads; thrown implementation details never cross IPC.
- */
+/** Restricts IPC calls to the active renderer and bounded structured-clone payloads. */
 export const trustedIpcMain: Pick<IpcMain, "handle" | "on" | "removeHandler"> = {
   handle(channel, listener): void {
     electronIpcMain.handle(channel, (event, ...args: unknown[]) => {
@@ -154,9 +160,10 @@ export const trustedIpcMain: Pick<IpcMain, "handle" | "on" | "removeHandler"> = 
         return sanitizeHandlerError(channel, error);
       }
     });
+    registerFeatureRollback(() => electronIpcMain.removeHandler(channel));
   },
   on(channel, listener): IpcMain {
-    electronIpcMain.on(channel, (event, ...args: unknown[]) => {
+    const guardedListener = (event: IpcMainEvent, ...args: unknown[]): void => {
       const trusted = isTrustedEvent(event);
       if (!trusted || !hasSafePayloadBudget(args)) {
         reportRejected(channel, trusted ? "payload-budget" : "sender");
@@ -165,12 +172,16 @@ export const trustedIpcMain: Pick<IpcMain, "handle" | "on" | "removeHandler"> = 
       try {
         listener(event, ...args);
       } catch (error) {
-        logger.error("IPC:Boundary", "Legacy IPC event handler failed", {
+        logger.error("IPC:Boundary", "Trusted IPC event handler failed", {
           channel,
           diagnosticId: randomUUID(),
           error: error instanceof Error ? { name: error.name } : undefined,
         });
       }
+    };
+    electronIpcMain.on(channel, guardedListener);
+    registerFeatureRollback(() => {
+      electronIpcMain.removeListener(channel, guardedListener);
     });
     return trustedIpcMain as IpcMain;
   },

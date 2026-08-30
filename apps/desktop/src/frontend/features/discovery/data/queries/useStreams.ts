@@ -6,6 +6,7 @@ import { logger } from "@/renderer/logging/logger";
 
 import type { UnifiedChannel, UnifiedStream } from "../../../../../shared/platform-types";
 import type { Platform } from "../../../../../shared/auth-types";
+import { hasCompleteDiscoveryCoverage } from "../../../../../shared/discovery-types";
 
 import { useQueryCachePerformance } from "./cache-performance";
 import { getQueryCacheOptions } from "./cache-policy";
@@ -79,16 +80,22 @@ export function useTopStreams(platform?: Platform, limit: number = 20) {
     queryFn: async () => {
       const response = await window.electronAPI.streams.getTop({ platform, limit });
       if (!response.success) throw new Error(response.error);
-      const persistence =
-        response.data.length > 0
-          ? savePersistedSnapshot(snapshotSlot, snapshotIdentity, response.data)
-          : deletePersistedSnapshot(snapshotSlot);
-      void persistence.catch((error: unknown) => {
-        logger.warn("Hook:Queries:Streams", "failed to persist top streams", {
-          error: error instanceof Error ? error.message : String(error),
-          platform: platform ?? "all",
+      const complete = hasCompleteDiscoveryCoverage(response.providers, platform);
+      if (!complete && response.data.length === 0) {
+        throw new Error("Stream providers are temporarily unavailable");
+      }
+      if (complete) {
+        const persistence =
+          response.data.length > 0
+            ? savePersistedSnapshot(snapshotSlot, snapshotIdentity, response.data)
+            : deletePersistedSnapshot(snapshotSlot);
+        void persistence.catch((error: unknown) => {
+          logger.warn("Hook:Queries:Streams", "failed to persist top streams", {
+            error: error instanceof Error ? error.message : String(error),
+            platform: platform ?? "all",
+          });
         });
-      });
+      }
       return response.data;
     },
     ...getQueryCacheOptions("streamList"),
@@ -98,32 +105,6 @@ export function useTopStreams(platform?: Platform, limit: number = 20) {
     fetchStatus: query.fetchStatus,
     queryKey,
     surface: "stream-list",
-  });
-  return query;
-}
-
-function useStreamsByCategory(categoryId: string, platform?: Platform, limit: number = 20) {
-  const queryKey = STREAM_KEYS.byCategory(categoryId, platform);
-  const query = useQuery({
-    queryKey,
-    queryFn: async () => {
-      const response = await window.electronAPI.streams.getByCategory({
-        categoryId,
-        platform,
-        limit,
-      });
-      if (!response.success) throw new Error(response.error);
-      return response.data;
-    },
-    enabled: !!categoryId,
-    ...getQueryCacheOptions("streamList"),
-  });
-  useQueryCachePerformance({
-    data: query.data,
-    enabled: !!categoryId,
-    fetchStatus: query.fetchStatus,
-    queryKey,
-    surface: "category-detail",
   });
   return query;
 }
@@ -153,17 +134,18 @@ export function useFollowedStreams(
       const sourceIdentityKey = snapshotIdentityKey;
       const response = await window.electronAPI.streams.getFollowed({ platform, limit });
       signal.throwIfAborted();
-      if (response.error) {
+      if (!response.success) {
         logger.warn("Hook:Queries:Streams", "failed to fetch followed streams", {
           error: response.error,
         });
         throw new Error(response.error);
       }
+      const complete = hasCompleteDiscoveryCoverage(response.providers, platform);
+      if (!complete && response.data.length === 0) {
+        throw new Error("Followed stream providers are temporarily unavailable");
+      }
       const streams = dedupeStreamsByChannelIdentity(response.data as UnifiedStream[]);
-      successfulResultRef.current = {
-        data: streams,
-        sourceIdentityKey,
-      };
+      successfulResultRef.current = complete ? { data: streams, sourceIdentityKey } : undefined;
       return streams;
     },
     enabled: isEnabled,

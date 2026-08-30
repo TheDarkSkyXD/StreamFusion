@@ -1,5 +1,3 @@
-import type { BrowserWindow } from "electron";
-
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { z } from "zod";
 
@@ -15,6 +13,7 @@ import { IPC_CHANNELS } from "@shared/ipc-channels";
 import type { TwitchApiCommand, TwitchApiResult } from "@shared/twitch-api-types";
 
 import { isAllowedSender } from "../sender-origin";
+import type { MainRendererPort } from "../main-renderer-port";
 
 // Twitch pagination cursors are opaque and have no documented size limit.
 // Keep a finite IPC boundary without coupling validation to one observed cursor.
@@ -267,11 +266,11 @@ const commandSchema = z.discriminatedUnion("operation", [
 export function registerTwitchApiHandlers({
   service = twitchApiService,
   eventSub = twitchEventSubFeedService,
-  mainWindow,
+  renderer,
 }: {
   service?: TwitchApiService;
   eventSub?: TwitchEventSubFeedService;
-  mainWindow?: BrowserWindow;
+  renderer?: MainRendererPort;
 } = {}): void {
   ipcMain.handle(
     IPC_CHANNELS.TWITCH_API_EXECUTE,
@@ -310,29 +309,26 @@ export function registerTwitchApiHandlers({
       } satisfies TwitchApiResult;
     }
     const parsed = startSchema.safeParse(payload);
-    if (!parsed.success || !mainWindow) {
+    if (!parsed.success || !renderer) {
       return {
         ok: false,
         error: { code: "invalid-input", message: "The EventSub request is invalid." },
       } satisfies TwitchApiResult;
     }
     const { feedId, userId, channelId } = parsed.data;
+    const ownerId = event.sender.id;
     return eventSub.start({
       feedId,
       userId,
       channelId,
       onEvent: (eventPayload) => {
-        if (!mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(IPC_CHANNELS.TWITCH_EVENTSUB_EVENT, {
-            feedId,
-            payload: eventPayload,
-          });
-        }
+        renderer.sendToOwner(ownerId, IPC_CHANNELS.TWITCH_EVENTSUB_EVENT, {
+          feedId,
+          payload: eventPayload,
+        });
       },
       onState: (state) => {
-        if (!mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(IPC_CHANNELS.TWITCH_EVENTSUB_STATE, { feedId, state });
-        }
+        renderer.sendToOwner(ownerId, IPC_CHANNELS.TWITCH_EVENTSUB_STATE, { feedId, state });
       },
     });
   });

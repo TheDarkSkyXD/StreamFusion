@@ -35,6 +35,7 @@ describe("useInfiniteStreamsByCategory", () => {
     const stream = fixtures.stream({ categoryId: "cat-1" });
     api.streams.getByCategory = vi.fn<typeof api.streams.getByCategory>(async () => ({
       success: true,
+      providers: { twitch: "complete", kick: "complete" },
       data: [stream],
       cursor: "next-page",
     }));
@@ -51,6 +52,7 @@ describe("useInfiniteStreamsByCategory", () => {
   it("reports hasNextPage=false when no cursor is returned", async () => {
     api.streams.getByCategory = vi.fn<typeof api.streams.getByCategory>(async () => ({
       success: true,
+      providers: { twitch: "complete", kick: "complete" },
       data: [fixtures.stream()],
       cursor: undefined,
     }));
@@ -73,6 +75,7 @@ describe("useInfiniteStreamsByCategory", () => {
   it("is enabled when categoryId is empty but categoryName is set", async () => {
     api.streams.getByCategory = vi.fn<typeof api.streams.getByCategory>(async () => ({
       success: true,
+      providers: { twitch: "complete", kick: "complete" },
       data: [fixtures.stream()],
       cursor: undefined,
     }));
@@ -86,6 +89,7 @@ describe("useInfiniteStreamsByCategory", () => {
   it("passes language filter to the IPC call", async () => {
     api.streams.getByCategory = vi.fn<typeof api.streams.getByCategory>(async () => ({
       success: true,
+      providers: { twitch: "complete", kick: "complete" },
       data: [],
       cursor: undefined,
     }));

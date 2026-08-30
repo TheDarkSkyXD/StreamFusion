@@ -8,6 +8,7 @@ const INITIAL_PLAYBACK: VideoPlaybackSnapshot = {
 };
 
 export interface ChatReplayPlaybackStore {
+  readonly sessionId: string | null;
   getSnapshot(): VideoPlaybackSnapshot;
   publish(snapshot: VideoPlaybackSnapshot): void;
   requestSeek(offsetSeconds: number): void;
@@ -15,12 +16,15 @@ export interface ChatReplayPlaybackStore {
   subscribe(listener: () => void): () => void;
 }
 
-export function createChatReplayPlaybackStore(): ChatReplayPlaybackStore {
+export function createChatReplayPlaybackStore(
+  sessionId: string | null = null
+): ChatReplayPlaybackStore {
   let snapshot = INITIAL_PLAYBACK;
   const listeners = new Set<() => void>();
   const seekListeners = new Set<(offsetSeconds: number) => void>();
 
   return {
+    sessionId,
     getSnapshot: () => snapshot,
     publish: (nextSnapshot) => {
       if (

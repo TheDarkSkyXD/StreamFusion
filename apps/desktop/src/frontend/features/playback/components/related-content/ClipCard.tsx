@@ -19,7 +19,6 @@ interface ClipCardProps {
   channelData: UnifiedChannel | null | undefined;
 }
 
-// Memoized to prevent re-renders when parent list updates
 export const ClipCard = memo(function ClipCard({
   clip,
   onClick,
@@ -30,11 +29,12 @@ export const ClipCard = memo(function ClipCard({
   const categoryName = clip.category || clip.gameName;
 
   return (
-    <Card className="overflow-hidden border border-transparent bg-[var(--color-background-secondary)] hover:border-[var(--color-border)] transition-colors h-full group flex flex-col cursor-pointer">
-      {/* Thumbnail Section */}
-      <div
+    <Card className="overflow-hidden border border-transparent bg-[var(--color-background-secondary)] hover:border-[var(--color-border)] transition-colors h-full group flex flex-col">
+      <button
+        type="button"
         onClick={onClick}
-        className="block relative aspect-video bg-[var(--color-background-tertiary)] overflow-hidden"
+        aria-label={`Play clip ${clip.title}`}
+        className="block relative aspect-video w-full cursor-pointer overflow-hidden bg-[var(--color-background-tertiary)] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
       >
         {clip.thumbnailUrl && (
           <ProxiedImage
@@ -44,31 +44,26 @@ export const ClipCard = memo(function ClipCard({
           />
         )}
 
-        {/* Duration: Top Left */}
         <div className="absolute top-2 left-2 bg-black/80 px-1.5 py-0.5 rounded text-xs text-white font-medium">
           {clip.duration}
         </div>
 
-        {/* Views: Bottom Left */}
         <div className="absolute bottom-2 left-2 bg-black/80 px-1.5 py-0.5 rounded text-xs text-white font-medium">
           {formatViews(clip.views)} views
         </div>
 
-        {/* Date: Bottom Right */}
         <div className="absolute bottom-2 right-2 bg-black/80 px-1.5 py-0.5 rounded text-xs text-white font-medium">
           {formatTimeAgo(clip.created_at || clip.date)}
         </div>
 
-        {/* Hover overlay */}
         <div className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-          <div className="flex h-12 w-12 scale-90 items-center justify-center rounded-full border border-white/35 bg-black/70 text-white backdrop-blur-sm transition-all group-hover:scale-100 group-hover:bg-white group-hover:text-black">
+          <div className="flex h-12 w-12 scale-90 items-center justify-center rounded-full border border-white/35 bg-black/70 text-white backdrop-blur-sm transition-[transform,background-color,color] group-hover:scale-100 group-hover:bg-white group-hover:text-black">
             <LuPlay className="h-5 w-5 fill-current" />
           </div>
         </div>
-      </div>
+      </button>
 
       <CardContent className="pt-3 flex gap-3 relative">
-        {/* Avatar */}
         <div className="shrink-0 mt-0.5">
           <PlatformAvatar
             src={clip.channelAvatar || channelData?.avatarUrl}
@@ -79,13 +74,17 @@ export const ClipCard = memo(function ClipCard({
         </div>
 
         <div className="flex-1 min-w-0">
-          <div onClick={onClick}>
+          <button
+            type="button"
+            onClick={onClick}
+            aria-label={`Open clip ${clip.title}`}
+            className="block w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
             <h3 className="font-medium text-sm line-clamp-2 group-hover:text-[var(--color-primary)] transition-colors text-white">
               {clip.title}
             </h3>
-          </div>
+          </button>
 
-          {/* Category Link */}
           {categoryName && (
             <Link
               to="/categories/$platform/$categoryId"

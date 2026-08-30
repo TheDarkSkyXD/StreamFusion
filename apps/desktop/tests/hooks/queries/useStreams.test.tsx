@@ -59,6 +59,7 @@ describe("useTopStreams", () => {
     const stream = fixtures.stream();
     api.streams.getTop = vi.fn(async () => ({
       success: true as const,
+      providers: { twitch: "complete" as const, kick: "complete" as const },
       data: [stream],
       cursor: undefined,
     }));
@@ -72,6 +73,7 @@ describe("useTopStreams", () => {
   it("passes platform and limit to the IPC call", async () => {
     api.streams.getTop = vi.fn(async () => ({
       success: true as const,
+      providers: { twitch: "complete" as const, kick: "complete" as const },
       data: [],
       cursor: undefined,
     }));
@@ -85,6 +87,7 @@ describe("useTopStreams", () => {
     const stream = fixtures.stream({ id: "restart-home" });
     api.streams.getTop = vi.fn(async () => ({
       success: true as const,
+      providers: { twitch: "complete" as const, kick: "complete" as const },
       data: [stream],
       cursor: undefined,
     }));
@@ -112,6 +115,7 @@ describe("useFollowedStreams", () => {
     vi.useFakeTimers();
     api.streams.getFollowed = vi.fn(async () => ({
       success: true as const,
+      providers: { twitch: "complete" as const, kick: "complete" as const },
       data: [],
       cursor: undefined,
     }));
@@ -137,6 +141,7 @@ describe("useFollowedStreams", () => {
     vi.useFakeTimers();
     api.streams.getFollowed = vi.fn(async () => ({
       success: true as const,
+      providers: { twitch: "complete" as const, kick: "complete" as const },
       data: [],
       cursor: undefined,
     }));
@@ -162,6 +167,7 @@ describe("useFollowedStreams", () => {
     const stream = fixtures.stream();
     api.streams.getFollowed = vi.fn(async () => ({
       success: true as const,
+      providers: { twitch: "complete" as const, kick: "complete" as const },
       data: [stream],
       cursor: undefined,
     }));
@@ -174,7 +180,11 @@ describe("useFollowedStreams", () => {
   });
 
   it("returns an error when the followed-stream IPC request fails", async () => {
-    api.streams.getFollowed = vi.fn(async () => ({ success: false as const, error: "auth" }));
+    api.streams.getFollowed = vi.fn(async () => ({
+      success: false as const,
+      error: "auth",
+      providers: { twitch: "failed" as const, kick: "failed" as const },
+    }));
     const identity = {
       platform: "all",
       twitchUserId: "viewer-1",
@@ -210,6 +220,7 @@ describe("useFollowedStreams", () => {
     };
     api.streams.getFollowed = vi.fn(async () => ({
       success: true as const,
+      providers: { twitch: "complete" as const, kick: "complete" as const },
       data: [],
       cursor: undefined,
     }));
@@ -241,8 +252,18 @@ describe("useFollowedStreams", () => {
     const fresh = fixtures.stream({ id: "fresh-followed" });
     api.streams.getFollowed = vi
       .fn()
-      .mockResolvedValueOnce({ success: true as const, data: [warm], cursor: undefined })
-      .mockResolvedValueOnce({ success: true as const, data: [fresh], cursor: undefined });
+      .mockResolvedValueOnce({
+        success: true as const,
+        providers: { twitch: "complete" as const, kick: "complete" as const },
+        data: [warm],
+        cursor: undefined,
+      })
+      .mockResolvedValueOnce({
+        success: true as const,
+        providers: { twitch: "complete" as const, kick: "complete" as const },
+        data: [fresh],
+        cursor: undefined,
+      });
 
     const { result, rerender } = renderHook(
       ({ enabled, snapshotIdentity }) =>
@@ -276,8 +297,18 @@ describe("useFollowedStreams", () => {
     const fresh = fixtures.stream({ id: "fresh-default-enabled" });
     api.streams.getFollowed = vi
       .fn()
-      .mockResolvedValueOnce({ success: true as const, data: [warm], cursor: undefined })
-      .mockResolvedValueOnce({ success: true as const, data: [fresh], cursor: undefined });
+      .mockResolvedValueOnce({
+        success: true as const,
+        providers: { twitch: "complete" as const, kick: "complete" as const },
+        data: [warm],
+        cursor: undefined,
+      })
+      .mockResolvedValueOnce({
+        success: true as const,
+        providers: { twitch: "complete" as const, kick: "complete" as const },
+        data: [fresh],
+        cursor: undefined,
+      });
 
     const { result, rerender } = renderHook(
       ({ snapshotIdentity }) => useFollowedStreams(undefined, 20, { snapshotIdentity }),
@@ -294,6 +325,7 @@ describe("useFollowedStreams", () => {
   it("deduplicates followed streams by platform and broadcaster slug", async () => {
     api.streams.getFollowed = vi.fn(async () => ({
       success: true as const,
+      providers: { twitch: "complete" as const, kick: "complete" as const },
       data: [
         fixtures.stream({
           id: "remote-live",
@@ -323,6 +355,7 @@ describe("useFollowedStreams", () => {
     const stream = fixtures.stream({ id: "restart-live" });
     api.streams.getFollowed = vi.fn(async () => ({
       success: true as const,
+      providers: { twitch: "complete" as const, kick: "complete" as const },
       data: [stream],
       cursor: undefined,
     }));
@@ -353,6 +386,7 @@ describe("useFollowedStreams", () => {
     const stream = fixtures.stream({ id: "startup-live" });
     api.streams.getFollowed = vi.fn(async () => ({
       success: true as const,
+      providers: { twitch: "complete" as const, kick: "complete" as const },
       data: [stream],
       cursor: undefined,
     }));
@@ -410,6 +444,7 @@ describe("useFollowedStreams", () => {
     });
     api.streams.getFollowed = vi.fn(async () => ({
       success: true as const,
+      providers: { twitch: "complete" as const, kick: "complete" as const },
       data: [],
       cursor: undefined,
     }));
@@ -433,6 +468,7 @@ describe("useStreamByChannel", () => {
     vi.useFakeTimers();
     api.streams.getByChannel = vi.fn(async () => ({
       success: true as const,
+      providers: { twitch: "complete" as const, kick: "complete" as const },
       data: null,
       cursor: undefined,
     }));
@@ -458,6 +494,7 @@ describe("useStreamByChannel", () => {
     const stream = fixtures.stream({ channelName: "xqc" });
     api.streams.getByChannel = vi.fn(async () => ({
       success: true as const,
+      providers: { twitch: "complete" as const, kick: "complete" as const },
       data: stream,
       cursor: undefined,
     }));

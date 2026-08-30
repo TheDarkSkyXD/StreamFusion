@@ -783,9 +783,11 @@ export const KickChat: React.FC<KickChatProps> = ({
         unloadChannelEmotes(emoteChannelId);
         setActiveChannel(null);
       }
-      // Drop any queued message batches + their timers. Today batching is off
-      // by default so this is a no-op, but it plugs the leak if it's enabled later.
-      useChatStore.getState().cleanupBatching();
+      if (currentChannelRef.current) {
+        useChatStore
+          .getState()
+          .flushBatch(buildChannelKey("kick", currentChannelRef.current.channel));
+      }
       currentChannelRef.current = null;
     };
   }, [
@@ -873,13 +875,10 @@ export const KickChat: React.FC<KickChatProps> = ({
     };
   }, [isAuthenticated, channel, chatroomId, channelId]);
 
-  // Reset pin + prediction + poll banner state on channel change. Without
-  // this, switching from a channel-with-{pin,prediction,poll} to one without
-  // leaves the previous banner stuck on screen — no "nothing here" signal
-  // fires for the new channel to overwrite the stale React state. Local
-  // state is keyed only to the React tree, not the channel.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `channel` is the trigger that fires this reset; it isn't read in the body by design
+  const bannerChannelRef = useRef(channel);
   useEffect(() => {
+    if (bannerChannelRef.current === channel) return;
+    bannerChannelRef.current = channel;
     setPinnedMessage(null);
     setShowPinned(true);
     setIsPinExpanded(false);
@@ -1809,7 +1808,7 @@ const KickPollWidget: React.FC<KickPollWidgetProps> = ({
                 </div>
                 <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-300 ${isWinner ? "bg-[#53FC18]" : "bg-[var(--color-primary,#53FC18)]"}`}
+                    className={`h-full rounded-full transition-[width,background-color] duration-300 ${isWinner ? "bg-[#53FC18]" : "bg-[var(--color-primary,#53FC18)]"}`}
                     style={{ width: `${pct}%` }}
                   />
                 </div>
@@ -1819,7 +1818,7 @@ const KickPollWidget: React.FC<KickPollWidgetProps> = ({
           {!isPollEnded && poll.duration > 0 && (
             <div className="h-0.5 rounded-full bg-white/10 overflow-hidden mt-2">
               <div
-                className="h-full bg-blue-500 rounded-full transition-all duration-1000"
+                className="h-full bg-blue-500 rounded-full transition-[width] duration-1000"
                 style={{ width: `${Math.min((poll.remaining / poll.duration) * 100, 100)}%` }}
               />
             </div>

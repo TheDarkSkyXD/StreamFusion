@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { MainRendererPort } from "@backend/ipc/main-renderer-port";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 // update-service instantiates its electron-store at import time and reads
@@ -68,9 +69,8 @@ const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 
 const fakeWindow = {
-  isDestroyed: () => false,
-  webContents: { send: vi.fn() },
-} as unknown as import("electron").BrowserWindow;
+  send: vi.fn(() => true),
+} as unknown as MainRendererPort;
 
 /**
  * Seed the persisted store, flip `isPackaged`, then import a fresh copy of the

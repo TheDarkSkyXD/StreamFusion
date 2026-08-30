@@ -201,10 +201,12 @@ export default defineConfig(({ command, mode }) => {
                     },
                     output: {
                         manualChunks: {
-                            'vendor-core': ['react', 'react-dom', 'zustand'],
-                            'vendor-tanstack': ['@tanstack/react-router', '@tanstack/react-query'],
-                            'vendor-player': ['hls.js'],
-                            'vendor-ui': [
+                            'vendor-core': [
+                                'react',
+                                'react-dom',
+                                'react-dom/client',
+                                'scheduler',
+                                'zustand',
                                 '@radix-ui/react-dialog',
                                 '@radix-ui/react-tooltip',
                                 '@radix-ui/react-select',
@@ -212,13 +214,15 @@ export default defineConfig(({ command, mode }) => {
                                 '@radix-ui/react-scroll-area',
                                 '@radix-ui/react-progress',
                                 '@radix-ui/react-slot',
+                                '@tanstack/react-router',
+                                '@tanstack/react-query',
                             ],
+                            'vendor-player': ['hls.js'],
                             'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
                             // Pulled out so they don't bleed into eagerly-loaded chunks.
                             'vendor-virtuoso': ['react-virtuoso'],
                             'vendor-chat-twitch': ['tmi.js'],
                             'vendor-chat-kick': ['pusher-js'],
-                            'vendor-dayjs': ['dayjs'],
                             'vendor-ky': ['ky'],
                         },
                         chunkFileNames: isProduction ? 'assets/[name]-[hash].js' : 'assets/[name].js',
@@ -230,7 +234,9 @@ export default defineConfig(({ command, mode }) => {
                 minify: 'esbuild',
                 cssCodeSplit: true,
                 assetsInlineLimit: 4096,
-                chunkSizeWarningLimit: 500,
+                // hls.js is a single 591 kB minified dependency; keep the budget
+                // just above that floor so growth elsewhere still fails visibly.
+                chunkSizeWarningLimit: 600,
             },
             optimizeDeps: {
                 include: [

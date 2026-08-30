@@ -69,11 +69,22 @@ function installFollowingMocks(state: FollowingState): () => void {
     getFollowed: async () => {
       if (state === "loading") return neverResolves();
       if (state === "error") {
-        return { success: false, error: "Live status is temporarily unavailable." };
+        return {
+          success: false,
+          error: "Live status is temporarily unavailable.",
+          providers: { twitch: "failed", kick: "failed" },
+        } as const;
       }
-      return { success: true, data: state === "populated" ? followedStreams : [] };
+      return {
+        success: true,
+        data: state === "populated" ? followedStreams : [],
+        providers: { twitch: "complete", kick: "complete" },
+      } as const;
     },
-    getTop: async () => noContent,
+    getTop: async () => ({
+      ...noContent,
+      providers: { twitch: "complete", kick: "complete" },
+    }),
   });
   fixture.videos = withBridgeMethods(bridge.videos, {
     getByChannel: async () => noContent,

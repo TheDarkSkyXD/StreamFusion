@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 
-import { type BrowserWindow, dialog } from "electron";
+import { dialog } from "electron";
 
 import type { ClipDownloadRequest } from "@shared/download-types";
 import { TwitchStreamResolver } from "../api/platforms/twitch/twitch-stream-resolver";
@@ -11,6 +11,7 @@ import { getAvailableDestinationPath } from "./download-paths";
 import type { DownloadQueueService } from "./download-queue-service";
 import { chooseDefaultDownloadSavePath } from "./download-save-dialog";
 import { downloadHlsWithFfmpeg, resolveFfmpegPath } from "./ffmpeg-download-service";
+import type { MainRendererPort } from "@backend/ipc/main-renderer-port";
 
 const twitchResolver = new TwitchStreamResolver();
 let clipDownloadService: ClipDownloadService | null = null;
@@ -48,7 +49,7 @@ export async function resolveDefaultClipPlayback(
 }
 
 export function getDefaultClipDownloadService(
-  mainWindow: BrowserWindow,
+  renderer: MainRendererPort,
   queue: DownloadQueueService
 ): ClipDownloadService {
   if (clipDownloadService) return clipDownloadService;
@@ -57,6 +58,8 @@ export function getDefaultClipDownloadService(
     queue,
     resolvePlayback: resolveDefaultClipPlayback,
     chooseQuality: async (qualities) => {
+      const mainWindow = renderer.current();
+      if (!mainWindow) return null;
       const result = await dialog.showMessageBox(mainWindow, {
         type: "question",
         title: "Choose clip quality",
@@ -67,13 +70,16 @@ export function getDefaultClipDownloadService(
       });
       return result.response >= qualities.length ? null : qualities[result.response];
     },
-    chooseSavePath: (request, extension) =>
-      chooseDefaultDownloadSavePath(mainWindow, {
+    chooseSavePath: (request, extension) => {
+      const mainWindow = renderer.current();
+      if (!mainWindow) return Promise.resolve(null);
+      return chooseDefaultDownloadSavePath(mainWindow, {
         dialogTitle: "Save clip",
         channelName: request.channelName,
         title: request.title,
         extension,
-      }),
+      });
+    },
     getAvailablePath: (requestedPath) => getAvailableDestinationPath(requestedPath, existsSync),
     downloadFile: downloadDirectFile,
     resolveFfmpegPath,

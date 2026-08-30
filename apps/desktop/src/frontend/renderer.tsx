@@ -5,7 +5,6 @@
  */
 
 import { applyModerationBrowserFixture } from "@/dev-relay/moderation-browser-fixtures";
-import { installIntervalTracker } from "@/components/dev/interval-tracker";
 import { installConsoleIntercept } from "@/renderer/logging/console-intercept";
 import { installNetworkMonitor } from "@/renderer/logging/network-monitor";
 import { installRendererErrorHooks } from "@/renderer/logging/renderer-error-hooks";
@@ -17,9 +16,10 @@ if (performanceHarnessRequested) performance.mark("streamfusion:renderer-module-
 installConsoleIntercept();
 installRendererErrorHooks();
 installNetworkMonitor();
-installIntervalTracker();
-
 if (import.meta.env.DEV) {
+  void import("@/components/dev/interval-tracker").then(({ installIntervalTracker }) => {
+    installIntervalTracker();
+  });
   applyModerationBrowserFixture(window.location.search);
 }
 

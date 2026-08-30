@@ -3,13 +3,16 @@ import { z } from "zod";
 
 import { IPC_CHANNELS } from "@shared/ipc-channels";
 
-const electronMocks = vi.hoisted(() => ({ handle: vi.fn() }));
+const electronMocks = vi.hoisted(() => ({ handle: vi.fn(), removeHandler: vi.fn() }));
 const loggerMocks = vi.hoisted(() => ({ warn: vi.fn() }));
 
-vi.mock("electron", () => ({ ipcMain: { handle: electronMocks.handle } }));
+vi.mock("electron", () => ({
+  ipcMain: { handle: electronMocks.handle, removeHandler: electronMocks.removeHandler },
+}));
 vi.mock("@backend/logging/logger", () => ({ logger: { warn: loggerMocks.warn } }));
 
 import { registerTrustedIpcHandler } from "@backend/ipc/register-trusted-ipc-handler";
+import { runFeatureRegistrationTransaction } from "@backend/ipc/feature-registration-transaction";
 
 type Handler = (event: unknown, request: unknown) => Promise<unknown>;
 
@@ -162,5 +165,64 @@ describe("registerTrustedIpcHandler", () => {
         },
       })
     ).toThrow(`Invalid fallback response for IPC channel ${IPC_CHANNELS.STORE_GET}`);
+  });
+
+  it("resolves the trusted sender when each request arrives", async () => {
+    const firstFrame = { url: trustedDocumentUrl };
+    const secondFrame = { url: trustedDocumentUrl };
+    const firstSender = { mainFrame: firstFrame };
+    const secondSender = { mainFrame: secondFrame };
+    let currentSender = firstSender;
+    const handle = vi.fn(() => ({ success: true, value: "ok" }) as const);
+
+    registerTrustedIpcHandler({
+      channel: IPC_CHANNELS.STORE_GET,
+      contract: {
+        request: z.object({ value: z.string() }).strict(),
+        response: z.union([
+          z.object({ success: z.literal(true), value: z.string() }).strict(),
+          z.object({ success: z.literal(false), error: z.string() }).strict(),
+        ]),
+      },
+      getTrustedSender: () => currentSender,
+      trustedDocumentUrl,
+      handle,
+      failureResponse: failure,
+    });
+
+    const invoke = registeredHandler();
+    await expect(
+      invoke({ sender: firstSender, senderFrame: firstFrame }, { value: "first" })
+    ).resolves.toEqual({ success: true, value: "ok" });
+
+    currentSender = secondSender;
+    await expect(
+      invoke({ sender: firstSender, senderFrame: firstFrame }, { value: "stale" })
+    ).resolves.toEqual(failure);
+    await expect(
+      invoke({ sender: secondSender, senderFrame: secondFrame }, { value: "second" })
+    ).resolves.toEqual({ success: true, value: "ok" });
+    expect(handle).toHaveBeenCalledTimes(2);
+  });
+
+  it("removes a registered handler when its feature transaction fails", async () => {
+    await expect(
+      runFeatureRegistrationTransaction(async () => {
+        registerTrustedIpcHandler({
+          channel: IPC_CHANNELS.STORE_GET,
+          contract: {
+            request: z.object({ value: z.string() }).strict(),
+            response: z.object({ success: z.literal(false), error: z.string() }).strict(),
+          },
+          trustedSender,
+          trustedDocumentUrl,
+          handle: () => failure,
+          failureResponse: failure,
+        });
+        throw new Error("registration failed");
+      })
+    ).rejects.toThrow("registration failed");
+
+    expect(electronMocks.removeHandler).toHaveBeenCalledWith(IPC_CHANNELS.STORE_GET);
   });
 });

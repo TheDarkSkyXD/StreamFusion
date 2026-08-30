@@ -195,11 +195,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
   const [badgeCatalogStatus, setBadgeCatalogStatus] = useState<"loading" | "ready" | "failed">(
     "loading"
   );
-  const [badgeCatalogRevision, setBadgeCatalogRevision] = useState(0);
+  const [badgeCatalogRequest, setBadgeCatalogRequest] = useState(0);
   const retryBadgeCatalog = useCallback(() => {
-    setBadgeCatalogRevision((revision) => revision + 1);
+    setBadgeCatalogRequest((request) => request + 1);
   }, []);
-
   // Emote store — actions only; no render-time data needed here.
   const loadGlobalEmotes = useEmoteStore((state) => state.loadGlobalEmotes);
   const loadChannelEmotes = useEmoteStore((state) => state.loadChannelEmotes);
@@ -649,7 +648,6 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
   }, [channel, channelId, enableFfzBadges]);
 
   // Initial Connection & Channel Joining
-  // biome-ignore lint/correctness/useExhaustiveDependencies: loadGlobalEmotes, setActiveChannel, and applyProviderPrefs are intentionally excluded — they would re-trigger the connect effect; applyProviderPrefs is called with an imperative getState() read inside the body to avoid making it reactive.
   useEffect(() => {
     // Use AbortController pattern for cleanup with React Strict Mode
     let isMounted = true;
@@ -791,9 +789,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
         }
         setActiveChannel(null);
       }
-      // Drop any queued message batches + their timers. Today batching is off
-      // by default so this is a no-op, but it plugs the leak if it's enabled later.
-      useChatStore.getState().cleanupBatching();
+      if (currentChannelRef.current) {
+        useChatStore.getState().flushBatch(buildChannelKey("twitch", currentChannelRef.current));
+      }
       currentChannelRef.current = null;
     };
   }, [
@@ -828,9 +826,6 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
     }
   }, [channel, channelId, channelKey]);
 
-  // Channel IDs can arrive after chat has already mounted. Loading badges here
-  // avoids a reconnect while still fixing retained and future badge resolution.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: revision is the explicit user Retry signal.
   useEffect(() => {
     if (!channel || !channelId) {
       setBadgeCatalogStatus("loading");
@@ -849,7 +844,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
     return () => {
       active = false;
     };
-  }, [badgeCatalogRevision, channel, channelId, isTwitchConnected, refreshBadgeCatalog]);
+  }, [badgeCatalogRequest, channel, channelId, isTwitchConnected, refreshBadgeCatalog]);
 
   const refreshBadgeCatalogOnInterval = useCallback(() => {
     void refreshBadgeCatalog();

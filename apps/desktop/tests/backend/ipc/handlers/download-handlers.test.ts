@@ -5,7 +5,7 @@ import { IPC_CHANNELS } from "@shared/ipc-channels";
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn(), removeHandler: vi.fn() },
   BrowserWindow: class {
-    webContents = { send: vi.fn() };
+    webContents = { send: vi.fn(), isDestroyed: () => false };
     isDestroyed = () => false;
   },
 }));
@@ -32,7 +32,7 @@ vi.mock("@backend/ipc/sender-origin", () => ({
 
 import { BrowserWindow, ipcMain } from "electron";
 
-import { registerDownloadHandlers } from "@backend/ipc/handlers/download-handlers";
+import { registerDownloadHandlers as registerWithRenderer } from "@backend/ipc/handlers/download-handlers";
 import { isAllowedSender } from "@backend/ipc/sender-origin";
 import { getDefaultClipDownloadService } from "@backend/services/clip-download-default-service";
 import { getDefaultDownloadFileActionsService } from "@backend/services/download-file-actions-service";
@@ -42,6 +42,11 @@ import type { DownloadQueueService } from "@backend/services/download-queue-serv
 import type { ClipDownloadService } from "@backend/services/clip-download-service";
 import type { VideoDownloadService } from "@backend/services/video-download-service";
 import type { DownloadFileActionsService } from "@backend/services/download-file-actions-service";
+import { createMainRendererPortMock } from "../../../helpers/main-renderer-port-mock";
+
+function registerDownloadHandlers(window: BrowserWindow): void {
+  registerWithRenderer(createMainRendererPortMock(window));
+}
 
 type Handler = (event: unknown, payload?: unknown) => unknown;
 

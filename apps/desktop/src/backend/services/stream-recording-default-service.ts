@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-import { app, type BrowserWindow, dialog, Notification, session, shell } from "electron";
+import { app, dialog, Notification, session, shell } from "electron";
 
 import type { StreamRecordingRequest } from "@shared/stream-recording-types";
 import { KickStreamResolver } from "../api/platforms/kick/kick-stream-resolver";
@@ -17,13 +17,14 @@ import {
   type StreamRecordingService,
 } from "./stream-recording-service";
 import { getStreamRecordingSessionStore } from "./stream-recording-session-store";
+import type { MainRendererPort } from "@backend/ipc/main-renderer-port";
 
 const twitchResolver = new TwitchStreamResolver();
 const kickResolver = new KickStreamResolver();
 let streamRecordingService: StreamRecordingService | null = null;
 
 export function getDefaultStreamRecordingService(
-  mainWindow: BrowserWindow
+  renderer: MainRendererPort
 ): StreamRecordingService {
   if (streamRecordingService) return streamRecordingService;
 
@@ -36,11 +37,12 @@ export function getDefaultStreamRecordingService(
   const outcomeCoordinator = createStreamRecordingOutcomeCoordinator({
     sessionStore,
     getDeliveryContext: () => {
+      const mainWindow = renderer.current();
       const notifications = storageService.getPreferences().notifications;
       return {
-        visible: mainWindow.isVisible(),
-        focused: mainWindow.isFocused(),
-        minimized: mainWindow.isMinimized(),
+        visible: mainWindow?.isVisible() ?? false,
+        focused: mainWindow?.isFocused() ?? false,
+        minimized: mainWindow?.isMinimized() ?? false,
         notificationsEnabled: notifications.enabled,
         soundEnabled: notifications.sound,
         nativeSupported: Notification.isSupported(),
@@ -52,6 +54,8 @@ export function getDefaultStreamRecordingService(
       notification.show();
     },
     focusWindow: () => {
+      const mainWindow = renderer.current();
+      if (!mainWindow) return;
       if (mainWindow.isDestroyed()) return;
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
@@ -84,6 +88,8 @@ export function getDefaultStreamRecordingService(
         fetchPlaylist: (url, init) => session.defaultSession.fetch(url, init),
       }),
     chooseQuality: async (qualities) => {
+      const mainWindow = renderer.current();
+      if (!mainWindow) return null;
       const result = await dialog.showMessageBox(mainWindow, {
         type: "question",
         title: "Choose stream quality",
@@ -95,6 +101,8 @@ export function getDefaultStreamRecordingService(
       return result.response >= qualities.length ? null : qualities[result.response];
     },
     chooseSavePath: async (request, extension) => {
+      const mainWindow = renderer.current();
+      if (!mainWindow) return null;
       const defaultPath = path.join(
         app.getPath("downloads"),
         buildDownloadFilename(request.channelName, request.title, extension)

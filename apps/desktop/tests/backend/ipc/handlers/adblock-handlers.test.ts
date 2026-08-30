@@ -48,7 +48,7 @@ vi.mock("@backend/logging/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn(), info: vi.fn() },
 }));
 
-import { BrowserWindow, ipcMain } from "electron";
+import { ipcMain } from "electron";
 
 import { registerAdBlockHandlers } from "@backend/ipc/handlers/adblock-handlers";
 import { cosmeticInjectionService } from "@backend/services/cosmetic-injection-service";
@@ -70,11 +70,9 @@ function patterns(version: number): AdPatternUpdate {
   return { version, adSignifiers: ["stitched"], dateRangePatterns: ["ad"], backupPlayerTypes: ["embed"], fallbackPlayerType: "embed", clientId: "client", lastUpdated: "2026-01-01T00:00:00.000Z", source: "test" };
 }
 
-const fakeMainWindow = new BrowserWindow();
-
 beforeEach(() => {
   vi.clearAllMocks();
-  registerAdBlockHandlers(fakeMainWindow);
+  registerAdBlockHandlers();
 });
 
 describe("registerAdBlockHandlers", () => {

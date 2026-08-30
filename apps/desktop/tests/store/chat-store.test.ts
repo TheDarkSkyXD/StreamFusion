@@ -709,6 +709,10 @@ describe('chat-store buildChannelKey', () => {
 
 describe('chat-store dropChannel', () => {
   beforeEach(() => resetStore());
+  afterEach(() => {
+    useChatStore.getState().cleanupBatching();
+    vi.useRealTimers();
+  });
 
   it("removes the bucket and pausedChannels entry without touching other channels", () => {
     const keyA = buildChannelKey('twitch', 'xqc');
@@ -733,6 +737,27 @@ describe('chat-store dropChannel', () => {
     useChatStore.getState().dropChannel(buildChannelKey('kick', 'never-seen'));
     const after = useChatStore.getState();
     expect(after.messagesByChannel).toEqual(before.messagesByChannel);
+  });
+
+  it('cancels queued work for only the dropped channel', () => {
+    vi.useFakeTimers();
+    useChatStore.setState({ batchingEnabled: true, batchingInterval: 50 });
+    const keyA = buildChannelKey('twitch', 'xqc');
+    const keyB = buildChannelKey('kick', 'adin');
+    useChatStore
+      .getState()
+      .addMessageBatched({ ...makeMessage('a1', 'twitch'), channel: 'xqc' }, keyA);
+    useChatStore
+      .getState()
+      .addMessageBatched({ ...makeMessage('b1', 'kick'), channel: 'adin' }, keyB);
+
+    useChatStore.getState().dropChannel(keyA);
+    vi.advanceTimersByTime(50);
+
+    expect(useChatStore.getState().messagesByChannel[keyA]).toBeUndefined();
+    expect(useChatStore.getState().messagesByChannel[keyB]?.map((message) => message.id)).toEqual([
+      'b1',
+    ]);
   });
 });
 

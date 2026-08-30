@@ -9,8 +9,9 @@ import type { BrowserWindow } from "electron";
 import { ipcMain } from "electron";
 import {
   type LocalCaptionHandlerDependencies,
-  registerLocalCaptionHandlers,
+  registerLocalCaptionHandlers as registerWithRenderer,
 } from "@backend/ipc/handlers/local-caption-handlers";
+import { createMainRendererPortMock } from "../../../helpers/main-renderer-port-mock";
 
 type Handler = (event: unknown, payload?: unknown) => unknown;
 const fileSender = { senderFrame: { url: "file:///app/renderer/index.html" } };
@@ -26,6 +27,13 @@ function mainWindow(send = vi.fn()): BrowserWindow {
     isDestroyed: () => false,
     webContents: { isDestroyed: () => false, send },
   });
+}
+
+function registerLocalCaptionHandlers(
+  window: BrowserWindow,
+  dependencies: LocalCaptionHandlerDependencies
+): void {
+  registerWithRenderer(createMainRendererPortMock(window), dependencies);
 }
 
 const notInstalled: LocalCaptionModelState = {

@@ -4,8 +4,6 @@
  * Handles IPC communication for app auto-update functionality.
  */
 
-import type { BrowserWindow } from "electron";
-
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { logger } from "@backend/logging/logger";
 import type { CheckFrequency } from "../../../shared/ipc-channels";
@@ -21,6 +19,7 @@ import {
   setAutoCheck,
   DEFAULT_UPDATE_CHECK_URL,
 } from "../../services/update-service";
+import type { MainRendererPort } from "../main-renderer-port";
 
 const VALID_FREQUENCIES: readonly CheckFrequency[] = ["hourly", "daily", "weekly"];
 
@@ -33,7 +32,7 @@ function serializeError(error: unknown): Record<string, unknown> {
   };
 }
 
-export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
+export function registerUpdateHandlers(renderer: MainRendererPort): void {
   // IMPORTANT: Register IPC handlers FIRST, before initializing the service
   // This ensures handlers are available even if the update service fails to initialize
   // (which happens in development mode when electron-updater can't find app-update.yml)
@@ -206,7 +205,7 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
   // NOW initialize the update service (after handlers are registered)
   // Wrap in try-catch to prevent initialization errors from breaking the app
   try {
-    initUpdateService(mainWindow);
+    initUpdateService(renderer);
     logger.info("IPC:Update", "Update service initialized");
   } catch (error) {
     logger.warn(

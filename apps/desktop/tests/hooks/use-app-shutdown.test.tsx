@@ -7,33 +7,35 @@ vi.mock("@/features/shell/utils/app-shutdown-registry", () => ({ runAppShutdownT
 
 import { useAppShutdown } from "@/features/shell/data/use-app-shutdown";
 import { useChatStore } from "@/store/chat-store";
+import { installElectronAPIMock } from "../test-utils";
 
 let onBeforeQuitCallback: (() => void) | null = null;
+let previousElectronApiDescriptor: PropertyDescriptor | undefined;
 
 beforeEach(() => {
   onBeforeQuitCallback = null;
-  // @ts-expect-error -- test-only stub
-  window.electronAPI = {
-    closeWindow: vi.fn(),
-    onBeforeQuit: vi.fn((cb: () => void) => {
-      onBeforeQuitCallback = cb;
-      return vi.fn();
-    }),
-  };
+  previousElectronApiDescriptor = Object.getOwnPropertyDescriptor(window, "electronAPI");
+  const electronApi = installElectronAPIMock();
+  electronApi.closeWindow = vi.fn();
+  electronApi.onBeforeQuit = vi.fn((cb: () => void) => {
+    onBeforeQuitCallback = cb;
+    return vi.fn();
+  });
   runAppShutdownTasks.mockReset();
 });
 
 afterEach(() => {
-  // @ts-expect-error -- clean up
-  delete window.electronAPI;
+  if (previousElectronApiDescriptor) {
+    Object.defineProperty(window, "electronAPI", previousElectronApiDescriptor);
+  } else {
+    Reflect.deleteProperty(window, "electronAPI");
+  }
 });
 
 // Guards: the eager app root runs only cleanup registered by features that were actually loaded.
-// Guards: renderer shutdown still clears batched chat work without a static chat-store import.
 describe("useAppShutdown", () => {
   it("does nothing when the Electron bridge is unavailable", () => {
-    // @ts-expect-error -- test-only missing bridge
-    delete window.electronAPI;
+    Reflect.deleteProperty(window, "electronAPI");
 
     expect(() => renderHook(() => useAppShutdown())).not.toThrow();
     expect(runAppShutdownTasks).not.toHaveBeenCalled();
@@ -57,11 +59,11 @@ describe("useAppShutdown", () => {
     expect(Reflect.get(window, "__shuttingDown")).toBe(true);
   });
 
-  it("loads the chat store only when shutdown begins and clears batching", async () => {
+  it("clears chat batching when shutdown begins", () => {
     const cleanupSpy = vi.spyOn(useChatStore.getState(), "cleanupBatching");
     renderHook(() => useAppShutdown());
     onBeforeQuitCallback!();
-    await vi.waitFor(() => expect(cleanupSpy).toHaveBeenCalledTimes(1));
+    expect(cleanupSpy).toHaveBeenCalledTimes(1);
     cleanupSpy.mockRestore();
   });
 
@@ -80,6 +82,19 @@ describe("useAppShutdown", () => {
     onBeforeQuitCallback!();
 
     await vi.waitFor(() => expect(window.electronAPI!.closeWindow).toHaveBeenCalledTimes(1));
+  });
+
+  it("still acknowledges shutdown when chat cleanup throws", () => {
+    const cleanupSpy = vi
+      .spyOn(useChatStore.getState(), "cleanupBatching")
+      .mockImplementationOnce(() => {
+        throw new Error("chat cleanup failed");
+      });
+    renderHook(() => useAppShutdown());
+
+    expect(() => onBeforeQuitCallback!()).not.toThrow();
+    expect(window.electronAPI!.closeWindow).toHaveBeenCalledTimes(1);
+    cleanupSpy.mockRestore();
   });
 
   it("returns the cleanup function from onBeforeQuit", () => {

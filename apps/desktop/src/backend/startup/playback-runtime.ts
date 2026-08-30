@@ -1,4 +1,4 @@
-import { app, type BrowserWindow, type Session, session } from "electron";
+import { app, type Session, session } from "electron";
 
 import { installNetworkRequestLogger } from "@backend/logging/network-request-logger";
 import { logger } from "@backend/logging/logger";
@@ -11,9 +11,11 @@ import {
 import { twitchManifestProxy } from "@backend/services/twitch-manifest-proxy";
 import { vaftPatternService } from "@backend/services/vaft-pattern-service";
 import { registerLoadedFeatureCleanup } from "./loaded-feature-cleanup";
+import type { MainRendererPort } from "@backend/ipc/main-renderer-port";
 
 const networkBlockedSessions = new WeakSet<Session>();
 let initialization: Promise<void> | undefined;
+let windowBindingRegistered = false;
 
 function installNetworkRequestBlocker(
   targetSession: Session,
@@ -110,8 +112,16 @@ async function initializePlaybackRuntime(): Promise<void> {
   }
 }
 
-export async function ensurePlaybackRuntime(mainWindow: BrowserWindow): Promise<void> {
+export async function ensurePlaybackRuntime(renderer: MainRendererPort): Promise<void> {
   initialization ??= initializePlaybackRuntime();
   await initialization;
-  await cosmeticInjectionService.injectIntoWindow(mainWindow);
+  if (windowBindingRegistered) return;
+  const removeWindowBinding = renderer.useWindow("playback:cosmetic-injection", (window) => {
+    void cosmeticInjectionService.injectIntoWindow(window);
+  });
+  windowBindingRegistered = true;
+  registerLoadedFeatureCleanup("playback-window", () => {
+    windowBindingRegistered = false;
+    removeWindowBinding();
+  });
 }

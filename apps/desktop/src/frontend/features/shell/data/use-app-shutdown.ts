@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 
+import { logger } from "@/renderer/logging/logger";
+import { useChatStore } from "../../../store/chat-store";
 import { runAppShutdownTasks } from "../utils/app-shutdown-registry";
 
 /**
@@ -17,14 +19,20 @@ export function useAppShutdown(): void {
       (window as unknown as { __shuttingDown?: boolean }).__shuttingDown = true;
       try {
         runAppShutdownTasks();
-      } catch {
-        // One feature cleanup must not prevent the renderer from acknowledging
-        // shutdown and leaving the user staring at a stuck window.
+      } catch (error) {
+        logger.warn("Hook:AppShutdown", "Feature cleanup failed during shutdown", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
-      void import("../../../store/chat-store")
-        .then(({ useChatStore }) => useChatStore.getState().cleanupBatching())
-        .catch(() => undefined)
-        .finally(() => window.electronAPI?.closeWindow?.());
+      try {
+        useChatStore.getState().cleanupBatching();
+      } catch (error) {
+        logger.warn("Hook:AppShutdown", "Chat cleanup failed during shutdown", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        window.electronAPI?.closeWindow?.();
+      }
     });
     return cleanup;
   }, []);

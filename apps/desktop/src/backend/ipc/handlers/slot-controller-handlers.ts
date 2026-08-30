@@ -8,8 +8,6 @@
  * window / destroyed webContents.
  */
 
-import type { BrowserWindow } from "electron";
-
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { LoadStreamPayload, SlotEvent, SlotQualityMode } from "../../../shared/slot-types";
@@ -27,6 +25,8 @@ import {
   setSlotPresence,
 } from "../../api/unified/slot-controller";
 import { logger } from "../../logging/logger";
+import type { MainRendererPort } from "../main-renderer-port";
+import { registerLoadedFeatureCleanup } from "../../startup/loaded-feature-cleanup";
 
 function sendToWebContents(
   webContents: Electron.WebContents | undefined,
@@ -45,12 +45,6 @@ function sendToWebContents(
     });
   }
   return false;
-}
-
-function sendToWindow(mainWindow: BrowserWindow, channel: string, payload: unknown): void {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    sendToWebContents(mainWindow.webContents, channel, payload);
-  }
 }
 
 /**
@@ -91,7 +85,7 @@ function eventToChannel(event: SlotEvent): string {
   }
 }
 
-export function registerSlotControllerHandlers(mainWindow: BrowserWindow): void {
+export function registerSlotControllerHandlers(renderer: MainRendererPort): void {
   ipcMain.handle(IPC_CHANNELS.SLOT_REQUEST_FOCUS, (_event, { slotId }: { slotId: string }) => {
     setSlotPresence(slotId, "focused");
   });
@@ -176,7 +170,7 @@ export function registerSlotControllerHandlers(mainWindow: BrowserWindow): void 
     }
   );
 
-  onSlotEvent((event) => {
+  const unsubscribe = onSlotEvent((event) => {
     const channel = eventToChannel(event);
     if (isDispatchEvent(event)) {
       // Prefer the slot's own WebContentsView when present (slice 05+ path).
@@ -187,8 +181,9 @@ export function registerSlotControllerHandlers(mainWindow: BrowserWindow): void 
         return;
       }
     }
-    sendToWindow(mainWindow, channel, event);
+    renderer.send(channel as (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS], event);
   });
+  registerLoadedFeatureCleanup("slots:events", unsubscribe);
 
   // Slot → main inbound events. Slice 04 wired the channels; slice 06 will
   // consume `slot:crashed` to drive crash retries, slice 02 already feeds

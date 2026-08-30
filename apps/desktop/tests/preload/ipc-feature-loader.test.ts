@@ -124,4 +124,18 @@ describe("IPC feature loading", () => {
       "00000000-0000-4000-8000-000000000000"
     );
   });
+
+  it("retries a feature after a rejected load instead of caching the rejection", async () => {
+    const invoke = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("feature load interrupted"))
+      .mockResolvedValueOnce({ kind: "ok", value: null });
+    const featureIpc = createFeatureAwareIpc(invoke, vi.fn());
+
+    await expect(featureIpc.loadFeature(IPC_FEATURES.STREAMS)).rejects.toThrow(
+      "feature load interrupted"
+    );
+    await expect(featureIpc.loadFeature(IPC_FEATURES.STREAMS)).resolves.toBeUndefined();
+    expect(invoke).toHaveBeenCalledTimes(2);
+  });
 });
