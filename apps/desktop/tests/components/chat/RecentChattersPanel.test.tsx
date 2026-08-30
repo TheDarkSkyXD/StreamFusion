@@ -133,6 +133,7 @@ describe("RecentChattersPanel", () => {
   });
 
   it("renders the exact Kick provider badge image and version observed on the message", () => {
+    const sourceUrl = "https://files.kick.com/channel/subscriber-badges/24-month.webp";
     useChatStore.setState({
       usersByChannel: {
         "kick:alpha": {
@@ -140,7 +141,7 @@ describe("RecentChattersPanel", () => {
             {
               setId: "subscriber",
               version: "24",
-              imageUrl: "https://files.kick.com/channel/subscriber-badges/24-month.webp",
+              imageUrl: sourceUrl,
               title: "24-Month Subscriber",
             },
           ]),
@@ -152,10 +153,12 @@ describe("RecentChattersPanel", () => {
       <RecentChattersPanel id="recent-chatters-test" channelKey="kick:alpha" onClose={vi.fn()} />
     );
 
-    expect(screen.getByRole("img", { name: "24-Month Subscriber" })).toHaveAttribute(
-      "src",
-      "https://files.kick.com/channel/subscriber-badges/24-month.webp"
-    );
+    const src = screen
+      .getByRole("img", { name: "24-Month Subscriber" })
+      .getAttribute("src");
+    expect(src).toMatch(/^kick-image:\/\/image\?u=/);
+    const encodedSource = new URL(src ?? "").searchParams.get("u") ?? "";
+    expect(atob(encodedSource.replace(/-/g, "+").replace(/_/g, "/"))).toBe(sourceUrl);
   });
 
   it("renders no badge or generated initial when the provider badge is unresolved", () => {

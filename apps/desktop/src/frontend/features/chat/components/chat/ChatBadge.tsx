@@ -1,5 +1,6 @@
 import type React from "react";
 import { memo, useCallback, useMemo, useState } from "react";
+import { resolveProxiedImageSrc } from "@/lib/proxied-image-url";
 import { BadgeTooltip } from "./tooltips/BadgeTooltip";
 
 interface ChatBadgeProps {
@@ -41,26 +42,28 @@ export const ChatBadge: React.FC<ChatBadgeProps> = memo(({ badge, platform = "ki
     setShowTooltip(false);
   }, []);
 
-  // Memoize badge info for tooltip
-  const badgeInfo = useMemo(
-    () => ({
-      src: badge.imageUrl || "",
-      title: badge.title || "Badge",
-      platform: platform === "twitch" ? ("Twitch" as const) : ("Kick" as const),
-    }),
-    [badge.imageUrl, badge.title, platform]
-  );
+  // Keep the inline badge and tooltip on the same renderer-safe URL.
+  const badgeInfo = useMemo(() => {
+    const src = resolveProxiedImageSrc(badge.imageUrl) ?? badge.imageUrl;
+    return src
+      ? {
+          src,
+          title: badge.title || "Badge",
+          platform: platform === "twitch" ? ("Twitch" as const) : ("Kick" as const),
+        }
+      : null;
+  }, [badge.imageUrl, badge.title, platform]);
 
-  if (!badge.imageUrl) return null;
+  if (!badgeInfo) return null;
 
   return (
     <>
       <img
-        src={badge.imageUrl}
-        alt={badge.title || "Badge"}
-        loading="lazy"
+        src={badgeInfo.src}
+        alt={badgeInfo.title}
+        loading="eager"
         decoding="async"
-        fetchPriority="low"
+        fetchPriority="auto"
         className={badgeClassName}
         style={{ backgroundColor }}
         onMouseEnter={handleMouseEnter}

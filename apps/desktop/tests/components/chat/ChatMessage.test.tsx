@@ -961,9 +961,9 @@ describe("ChatMessage chatDisplay appearance (U2)", () => {
     );
 
     const img = screen.getByAltText("Badge") as HTMLImageElement;
-    expect(img.getAttribute("loading")).toBe("lazy");
+    expect(img.getAttribute("loading")).toBe("eager");
     expect(img.getAttribute("decoding")).toBe("async");
-    expect(img.getAttribute("fetchpriority")).toBe("low");
+    expect(img.getAttribute("fetchpriority")).toBe("auto");
     expect(img.className).toContain("w-4");
     expect(img.className).toContain("h-4");
   });
