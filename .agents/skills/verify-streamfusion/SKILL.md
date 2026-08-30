@@ -26,7 +26,7 @@ The launch is ready only when the command returns `ready: true`, `title: "Stream
 
 Do not attach to a developer's existing port 9222 or 9236 instance. Do not use `electron .`, `electron-vite preview`, or a packaged build for normal feature proof.
 
-The controller creates a WAL-consistent SQLite snapshot of `streamfusion.db` from the normal development profile in the disposable profile before launch. This gives cold-start verification the user's current local follows, history, and other database-backed state without allowing the proof run to modify the live database. Pass `--database <path>` to seed from a different database. A machine with no live database starts with a fresh one.
+The controller creates a WAL-consistent SQLite snapshot of `streamfusion.db` and copies the account-bearing Electron profile state into the disposable profile before launch. The account snapshot includes `streamfusion-storage.json`, Chromium's `Local State` encryption key, and a consistent `Network/Cookies` snapshot. This gives verification the user's current local follows, history, preferences, authenticated Twitch and Kick accounts, and Kick website session without allowing local writes to modify the live profile. Pass `--database <path>` or `--storage <path>` to seed from another profile. `--storage` also selects the source profile for encryption state and cookies. A missing artifact starts fresh.
 
 ## Doctor
 
@@ -36,7 +36,7 @@ Run doctor before driving the app and whenever a selector, route, or screenshot 
 node .agents/skills/verify-streamfusion/scripts/control.mjs doctor --run $verifyRun
 ```
 
-Require `healthy: true`. Doctor checks the recorded launcher PID, the process tree that owns the CDP port, the StreamFusion window title and URL, the preload `electronAPI`, rendered body content, package version, launch revision, and uncaught error patterns in the launch log. Authentication is not required for the baseline recipes. A feature that writes account state, follows, chat messages, moderation actions, downloads, or recordings must add its own authenticated precondition.
+Require `healthy: true`. Doctor checks the recorded launcher PID, the process tree that owns the CDP port, the StreamFusion window title and URL, the preload `electronAPI`, rendered body content, package version, launch revision, uncaught error patterns, and account-token decryption failures in the launch log. Doctor also reports which authenticated Platform entries were present in the copied account store. Authentication is not required for the baseline recipes. A feature that writes account state, follows, chat messages, moderation actions, downloads, or recordings must add its own authenticated precondition.
 
 Inspect the isolated database after doctor succeeds:
 
@@ -90,7 +90,7 @@ Cleanup terminates the recorded launcher process tree by PID, waits for its CDP 
 
 ## Isolation
 
-Each launch gets its own CDP port, Electron `userData` directory, and scratch project root. The launch reads the live development database once to seed an isolated copy, then all database writes stay inside the disposable profile. StreamFusion's development compiler still writes shared build output under `apps/desktop/out`, so the controller refuses a second verification run and the common developer CDP ports 9222 and 9236. Close other dev instances before launching. Never reuse a run ID. Account-backed and provider mutation recipes should still use a dedicated test account because OAuth and remote Platform state live outside the local profile.
+Each launch gets its own CDP port, Electron `userData` directory, and scratch project root. The launch reads the live development database, account store, encryption state, and cookie database once to seed isolated copies. Local database, preference, cookie, and token-refresh writes stay inside the disposable profile. StreamFusion's development compiler still writes shared build output under `apps/desktop/out`, so the controller refuses a second verification run and the common developer CDP ports 9222 and 9236. Close other dev instances before launching. Never reuse a run ID. Account-backed and provider mutation recipes should still use a dedicated test account because OAuth credentials and website cookies can authorize writes to remote Platform state.
 
 ## Helpers
 

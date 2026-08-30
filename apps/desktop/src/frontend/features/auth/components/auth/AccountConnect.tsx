@@ -1,4 +1,4 @@
-import { LuExternalLink, LuPower, LuRefreshCw } from "react-icons/lu";
+import { LuExternalLink, LuPower } from "react-icons/lu";
 
 import { getPlatformColor } from "@/assets/platforms";
 import { KickIcon, TwitchIcon } from "@/components/icons";
@@ -57,8 +57,6 @@ export function AccountConnect() {
         loading={kick.loading}
         onConnect={kick.login}
         onDisconnect={kick.logout}
-        onRepair={kick.login}
-        repairLabel="Repair Kick chat"
       />
     </div>
   );
@@ -72,8 +70,6 @@ interface PlatformCardProps {
   loadingLabel?: string;
   onConnect: () => void;
   onDisconnect: () => void;
-  onRepair?: () => void;
-  repairLabel?: string;
   disabled?: boolean;
   message?: string;
 }
@@ -86,8 +82,6 @@ function PlatformCard({
   loadingLabel,
   onConnect,
   onDisconnect,
-  onRepair,
-  repairLabel,
   disabled,
   message,
 }: PlatformCardProps) {
@@ -171,19 +165,7 @@ function PlatformCard({
 
       <CardFooter className="bg-secondary/50 px-6 py-4">
         {connected ? (
-          <div className="grid w-full gap-2">
-            {onRepair && repairLabel ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onRepair}
-                disabled={loading}
-                className="w-full gap-2"
-              >
-                <LuRefreshCw className="h-4 w-4" />
-                {loading ? "Repairing..." : repairLabel}
-              </Button>
-            ) : null}
+          <div className="w-full">
             <Button
               variant="destructive"
               size="sm"

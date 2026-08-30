@@ -21,6 +21,7 @@ beforeEach(() => {
 
 // Guards: a connected account must visibly say it is disconnecting while logout cleanup is pending.
 // Guards: device login must describe its current phase instead of looking frozen on a generic Connecting label.
+// Guards: a connected Kick account exposes only disconnect and does not suggest unnecessary chat repair.
 describe("AccountConnect", () => {
   it("renders an honest pending label and disables repeated Twitch disconnects", () => {
     renderWithProviders(<AccountConnect />);
@@ -45,7 +46,7 @@ describe("AccountConnect", () => {
     expect(screen.queryByRole("button", { name: "Connecting..." })).not.toBeInTheDocument();
   });
 
-  it("offers Kick website-session repair without requiring logout", () => {
+  it("does not offer a redundant Kick chat repair action", () => {
     useAuthStore.setState({
       twitchLoading: false,
       kickUser: { id: 42, username: "viewer", slug: "viewer" } as never,
@@ -55,7 +56,7 @@ describe("AccountConnect", () => {
 
     renderWithProviders(<AccountConnect />);
 
-    expect(screen.getByRole("button", { name: "Repair Kick chat" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Repair Kick chat" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Disconnect" })).toHaveLength(2);
   });
 });

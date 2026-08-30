@@ -335,12 +335,12 @@ function getGitRevision() {
 }
 
 function defaultLiveDatabasePath() {
+  return path.join(defaultLiveProfilePath(), "streamfusion.db");
+}
+
+function defaultLiveProfilePath() {
   if (process.platform === "win32" && process.env.APPDATA) {
-    return path.join(
-      process.env.APPDATA,
-      "StreamFusion (Dev)",
-      "streamfusion.db",
-    );
+    return path.join(process.env.APPDATA, "StreamFusion (Dev)");
   }
   if (process.platform === "darwin") {
     return path.join(
@@ -348,12 +348,11 @@ function defaultLiveDatabasePath() {
       "Library",
       "Application Support",
       "StreamFusion (Dev)",
-      "streamfusion.db",
     );
   }
   const configRoot =
     process.env.XDG_CONFIG_HOME || path.join(process.env.HOME ?? "", ".config");
-  return path.join(configRoot, "StreamFusion (Dev)", "streamfusion.db");
+  return path.join(configRoot, "StreamFusion (Dev)");
 }
 
 async function seedLiveDatabase(options, profileDir) {
@@ -372,6 +371,58 @@ async function seedLiveDatabase(options, profileDir) {
     database.close();
   }
   return { source, destination };
+}
+
+async function copyIfPresent(source, destination) {
+  if (!existsSync(source)) return null;
+  await mkdir(path.dirname(destination), { recursive: true });
+  await writeFile(destination, await readFile(source));
+  return { source, destination };
+}
+
+async function snapshotSqliteIfPresent(source, destination) {
+  if (!existsSync(source)) return null;
+  await mkdir(path.dirname(destination), { recursive: true });
+  const database = new DatabaseSync(source, { readOnly: true });
+  try {
+    database.prepare("VACUUM INTO ?").run(destination);
+  } finally {
+    database.close();
+  }
+  return { source, destination };
+}
+
+async function seedLiveAccountStorage(options, profileDir) {
+  const source = path.resolve(
+    typeof options.storage === "string"
+      ? options.storage
+      : path.join(defaultLiveProfilePath(), "streamfusion-storage.json"),
+  );
+  if (!existsSync(source)) return null;
+
+  const serialized = await readFile(source, "utf8");
+  const stored = JSON.parse(serialized);
+  const authTokens =
+    stored && typeof stored === "object" && !Array.isArray(stored)
+      ? stored.authTokens
+      : null;
+  const authenticatedPlatforms =
+    authTokens && typeof authTokens === "object" && !Array.isArray(authTokens)
+      ? ["twitch", "kick"].filter((platform) => platform in authTokens)
+      : [];
+
+  const destination = path.join(profileDir, "streamfusion-storage.json");
+  await writeFile(destination, serialized, "utf8");
+  const sourceProfile = path.dirname(source);
+  const encryptionState = await copyIfPresent(
+    path.join(sourceProfile, "Local State"),
+    path.join(profileDir, "Local State"),
+  );
+  const cookies = await snapshotSqliteIfPresent(
+    path.join(sourceProfile, "Network", "Cookies"),
+    path.join(profileDir, "Network", "Cookies"),
+  );
+  return { source, destination, encryptionState, cookies, authenticatedPlatforms };
 }
 
 async function launch(options) {
@@ -400,6 +451,7 @@ async function launch(options) {
   await mkdir(artifactRoot, { recursive: true });
   await mkdir(evidenceDir, { recursive: true });
   const databaseSeed = await seedLiveDatabase(options, profileDir);
+  const accountStorageSeed = await seedLiveAccountStorage(options, profileDir);
 
   const outputFd = openSync(logFile, "a");
   const child = spawn(
@@ -435,6 +487,7 @@ async function launch(options) {
     evidenceDir,
     logFile,
     databaseSeed,
+    accountStorageSeed,
     packageVersion: packageJson.version,
     gitRevision: getGitRevision(),
     launchedAt: new Date().toISOString(),
@@ -527,6 +580,10 @@ async function doctor(options) {
       /Uncaught|UnhandledPromiseRejection|TypeError:/i.test(line),
     )
     .slice(-20);
+  const accountStorageErrors = logText
+    .split(/\r?\n/)
+    .filter((line) => /Failed to decrypt token/i.test(line))
+    .slice(-20);
   const result = {
     healthy:
       isProcessAlive(state.pid) &&
@@ -534,6 +591,7 @@ async function doctor(options) {
       page.title === "StreamFusion" &&
       page.bridgeAvailable &&
       page.bodyReady &&
+      accountStorageErrors.length === 0 &&
       currentVersion === state.packageVersion,
     launcherPid: state.pid,
     port: state.port,
@@ -544,7 +602,10 @@ async function doctor(options) {
     launchedVersion: state.packageVersion,
     gitRevision: state.gitRevision,
     authentication:
-      "Not required for shell, search, playback, MultiStream, history, downloads, or settings smoke checks",
+      !state.accountStorageSeed
+        ? "No development account store was available; this run started signed out"
+        : `Seeded development account state for: ${state.accountStorageSeed.authenticatedPlatforms.join(", ") || "no authenticated platforms"}`,
+    accountStorageErrors,
     uncaughtErrors,
     evidenceDir: state.evidenceDir,
   };
@@ -791,7 +852,7 @@ function usage() {
   return `StreamFusion verification controller
 
 Commands:
-  launch [--id ID] [--port PORT] [--database PATH]
+  launch [--id ID] [--port PORT] [--database PATH] [--storage PATH]
   doctor --run RUN_JSON
   database --run RUN_JSON [--output RELATIVE_PATH]
   click --run RUN_JSON --role ROLE --name NAME

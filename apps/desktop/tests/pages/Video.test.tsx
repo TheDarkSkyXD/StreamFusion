@@ -21,6 +21,7 @@ const routeState = vi.hoisted(() => ({
     date: new Date().toISOString(),
     duration: "1:23:45",
     category: "Just Chatting",
+    categoryId: "509658",
     language: "Portuguese",
     shareUrl: "https://www.twitch.tv/videos/vod-1",
   },
@@ -141,6 +142,7 @@ import { VOD_LIVE_LINK_KEYS } from "@/features/playback/data/useVodLiveLink";
 // Guards: offline VOD channels do not offer a link to a nonexistent live stream
 // Guards: cached channel metadata cannot keep Watch Live visible after the stream ends
 // Guards: Watch Live waits for fresh stream-status authority and hides on route switches, lookup errors, and ended streams
+// Guards: a VOD category links back to that platform category instead of rendering as inert text
 describe("VideoPage", () => {
   beforeEach(() => {
     Object.assign(routeState.params, { platform: "twitch", videoId: "vod-1" });
@@ -153,6 +155,7 @@ describe("VideoPage", () => {
       date: new Date().toISOString(),
       duration: "1:23:45",
       category: "Just Chatting",
+      categoryId: "509658",
       language: "Portuguese",
       shareUrl: "https://www.twitch.tv/videos/vod-1",
     });
@@ -166,6 +169,15 @@ describe("VideoPage", () => {
     expect(screen.getByText(/yesterday stream vod/i)).toBeInTheDocument();
     expect(screen.getByText("Portuguese")).toBeInTheDocument();
     await screen.findByTestId("twitch-vod-player");
+  });
+
+  it("links the displayed category to its category page", async () => {
+    renderWithProviders(<VideoPage />);
+
+    expect(await screen.findByRole("link", { name: "Just Chatting" })).toHaveAttribute(
+      "data-params",
+      JSON.stringify({ platform: "twitch", categoryId: "509658" })
+    );
   });
 
   it("hides Watch Live when the VOD channel is offline", async () => {

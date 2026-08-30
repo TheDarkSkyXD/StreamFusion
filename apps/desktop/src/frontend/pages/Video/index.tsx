@@ -90,6 +90,7 @@ export function VideoPage() {
     views: passedViews,
     date: passedDate,
     category: passedCategory,
+    categoryId: passedCategoryId,
     duration: passedDuration,
     isSubOnly: passedIsSubOnly,
     tags: passedTags,
@@ -501,6 +502,7 @@ export function VideoPage() {
       ? formatRelativeDate(passedDate)
       : "—";
   const category = videoMetadata?.category || passedCategory;
+  const categoryId = passedCategoryId || category;
   const isPlaybackReady = Boolean(
     streamUrl && readyPlaybackUrl === streamUrl && !error && !isSubOnly && !playbackFailed
   );
@@ -688,7 +690,17 @@ export function VideoPage() {
                 {category && (
                   <>
                     <span>•</span>
-                    <span className="text-[#adadad]">{category}</span>
+                    {categoryId ? (
+                      <Link
+                        to="/categories/$platform/$categoryId"
+                        params={{ platform: routePlatform, categoryId }}
+                        className={`font-semibold hover:underline ${platform === "twitch" ? "text-[#a970ff] hover:text-[#a970ff]/80" : "text-[#53FC18] hover:text-[#53FC18]/80"}`}
+                      >
+                        {category}
+                      </Link>
+                    ) : (
+                      <span className="text-[#adadad]">{category}</span>
+                    )}
                   </>
                 )}
                 <span>•</span>

@@ -142,6 +142,7 @@ function installCategoryFixtures() {
 
 // Guards: a deep-linked Clips tab lazily requests both native Category feeds, hides Live Streams, and renders mixed-Platform Clip cards with accumulated View Counts
 // Guards: a deep-linked Videos tab requests 60 items from both native Category feeds, hides Live Streams, and routes each Video card using the item's Platform while showing accumulated View Counts
+// Guards: Kick Category Video cards preserve the list-provided playback source in Video route state.
 // Guards: Category media tabs keep the shared Language, Tag, and View-sort filters visible and forward their values to both Platform requests
 // Guards: Kick media still loads from category slug/name when a cross-Platform otherId cannot be resolved
 // Guards: Category cards preserve numeric game IDs and non-empty channel avatars from the backend payload
@@ -287,6 +288,8 @@ describe("CategoryDetailPage media tabs", () => {
                 thumbnailUrl: "https://example.com/kick-video.jpg",
                 duration: "0:45:00",
                 views: "1100",
+                source: "https://example.com/kick-category-video.m3u8",
+                isLive: false,
                 url: "https://kick.com/kick_archive/videos/kick-category-video",
                 gameId: "15",
                 gameName: "Just Chatting",
@@ -323,6 +326,10 @@ describe("CategoryDetailPage media tabs", () => {
     expect(kickVideoTitle.closest("a")).toHaveAttribute(
       "data-params",
       JSON.stringify({ platform: "kick", videoId: "kick-category-video" })
+    );
+    expect(kickVideoTitle.closest("a")).toHaveAttribute(
+      "data-search",
+      expect.stringContaining('"src":"https://example.com/kick-category-video.m3u8"')
     );
     expect(screen.getByText("Kick Archive")).toHaveAttribute(
       "data-avatar-src",

@@ -69,6 +69,7 @@ export const VideoCard = memo(function VideoCard({
           views: video.views,
           date: video.created_at || video.date,
           category: video.category || video.gameName || undefined,
+          categoryId: video.gameId || video.category || video.gameName || undefined,
           duration: video.duration,
           isSubOnly: video.isSubOnly || undefined,
           tags: video.tags || undefined,

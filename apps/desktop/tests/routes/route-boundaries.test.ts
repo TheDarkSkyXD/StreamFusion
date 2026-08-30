@@ -28,9 +28,11 @@ describe("route boundaries", () => {
         tags: ["gaming", 7],
         isMature: "true",
         channelName: "streamer",
+        categoryId: "509658",
       })
     ).toEqual({
       channelName: "streamer",
+      categoryId: "509658",
       isMature: true,
     });
   });

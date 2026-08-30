@@ -43,6 +43,9 @@ export interface CategoryMediaItem {
   embedUrl?: string;
   url?: string;
   shareUrl?: string;
+  source?: string;
+  isLive?: boolean;
+  isSubOnly?: boolean;
   language?: string;
   vodId?: string;
 }

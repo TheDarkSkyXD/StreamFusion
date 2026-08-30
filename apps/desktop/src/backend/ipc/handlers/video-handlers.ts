@@ -800,7 +800,9 @@ export function registerVideoHandlers(): void {
           const canonicalName = request.categoryName?.trim().toLowerCase();
           const matchingVideos = videos.filter(
             (video) =>
-              Boolean(canonicalName) && video.category.trim().toLowerCase() === canonicalName
+              !(video.isLive === true && video.duration === "0:00") &&
+              Boolean(canonicalName) &&
+              video.category.trim().toLowerCase() === canonicalName
           );
           const uniqueVideos = [
             ...new Map(matchingVideos.map((video) => [video.id, video])).values(),

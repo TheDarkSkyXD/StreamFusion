@@ -10,6 +10,7 @@ export interface VideoSearch {
   views?: string;
   date?: string;
   category?: string;
+  categoryId?: string;
   duration?: string;
   isSubOnly?: boolean;
   tags?: string[];
@@ -53,6 +54,7 @@ export function validateVideoSearch(search: Record<string, unknown>): VideoSearc
       views: optionalString(search.views),
       date: optionalString(search.date),
       category: optionalString(search.category),
+      categoryId: optionalString(search.categoryId),
       duration: optionalString(search.duration),
       isSubOnly: optionalBoolean(search.isSubOnly),
       tags,

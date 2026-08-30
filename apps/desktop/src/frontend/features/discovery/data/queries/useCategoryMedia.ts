@@ -34,6 +34,9 @@ export interface CategoryMediaItem {
   embedUrl?: string;
   url?: string;
   shareUrl?: string;
+  source?: string;
+  isLive?: boolean;
+  isSubOnly?: boolean;
 }
 
 interface CategoryMediaSource {
@@ -101,6 +104,9 @@ function normalizeMediaItem(item: RawCategoryMediaItem): CategoryMediaItem {
     embedUrl: "embedUrl" in item ? item.embedUrl : undefined,
     url: "clipUrl" in item ? item.clipUrl : item.url,
     shareUrl: item.shareUrl,
+    source: "source" in item ? item.source : undefined,
+    isLive: "isLive" in item ? item.isLive : undefined,
+    isSubOnly: "isSubOnly" in item ? item.isSubOnly : undefined,
   };
 }
 

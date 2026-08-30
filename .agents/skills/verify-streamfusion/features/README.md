@@ -7,7 +7,7 @@ This directory is the maintained source for proving StreamFusion's desktop behav
 - Run commands from the repository root with Node 22 or later and installed desktop dependencies.
 - Launch a new disposable instance through `verify-streamfusion` and keep `$verifyRun` set to its `run.json` path.
 - Run `doctor --run $verifyRun` and require `healthy: true`.
-- Run `database --run $verifyRun --output database.json` and require `healthy: true`. The launch uses a WAL-consistent snapshot when a live development database exists.
+- Run `database --run $verifyRun --output database.json` and require `healthy: true`. The launch uses a WAL-consistent database snapshot and copies the Electron Store account state when those live development artifacts exist.
 - Never drive an existing developer instance or a run created by another agent.
 - Start from the Home route unless a feature recipe says otherwise.
 - Treat Twitch and Kick responses as external state. Record whether the app shows data, an empty state, or a provider error.

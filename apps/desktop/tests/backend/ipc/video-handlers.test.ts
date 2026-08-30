@@ -1465,6 +1465,7 @@ describe("IPC handlers - CLIPS_GET_BY_CATEGORY", () => {
 
 // Guards: Kick Category Videos aggregate the current category channels with bounded provider calls.
 // Guards: limited Category Video results represent distinct channels before repeating a channel.
+// Guards: active Kick recordings with zero duration never appear as playable past Videos.
 // Guards: an empty native Twitch game-video feed falls back to bounded live-channel VOD aggregation.
 describe("IPC handlers - VIDEOS_GET_BY_CATEGORY", () => {
   beforeEach(() => {
@@ -1505,6 +1506,7 @@ describe("IPC handlers - VIDEOS_GET_BY_CATEGORY", () => {
     });
     getVideosMock.mockResolvedValue({
       data: [
+        kickVideo({ id: "active", duration: "0:00", isLive: true, views: "500" }),
         kickVideo({ id: "popular", views: "100" }),
         kickVideo({ id: "quiet", views: "1" }),
         kickVideo({ id: "wrong-category", views: "999", category: "Gaming" }),
@@ -1541,6 +1543,7 @@ describe("IPC handlers - VIDEOS_GET_BY_CATEGORY", () => {
           channelId: "channel-1",
           channelDisplayName: "Streamer",
           gameId: "15",
+          source: "https://example.com/vod.m3u8",
         }),
         expect.objectContaining({ id: "popular" }),
       ],
