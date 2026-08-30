@@ -16,8 +16,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getQueryCacheOptions } from "@/features/discovery/data/queries/cache-policy";
-import { useCategoryById, useInfiniteTopCategories } from "@/features/discovery/data/queries/useCategories";
+import {
+  useCategoryById,
+  useInfiniteTopCategories,
+} from "@/features/discovery/data/queries/useCategories";
 import { useInfiniteStreamsByCategory } from "@/features/discovery/data/queries/useInfiniteStreams";
+import {
+  parseCategoryLanguage,
+  useCategoryLanguagePreferenceStore,
+} from "@/features/discovery/data/category-language-preference-store";
 import { useDebounce } from "@/hooks/useDebounce";
 import { getStreamElementKey } from "@/lib/id-utils";
 import { formatViewerCount, getEquivalentCategoryName, normalizeCategoryName } from "@/lib/utils";
@@ -95,6 +102,9 @@ export function CategoryDetailPage() {
   const routeSearch = useSearch({ from: "/_app/categories/$platform/$categoryId" });
   const location = useLocation();
   const navigate = useNavigate();
+  const setPreferredLanguage = useCategoryLanguagePreferenceStore(
+    (state) => state.setPreferredLanguage
+  );
   const [clipSort, setClipSort] = useState<"views" | "recent">("views");
   const [videoSort, setVideoSort] = useState<"views" | "recent">("recent");
   const [clipTimeRange, setClipTimeRange] = useState(getSavedClipTimeRange);
@@ -103,7 +113,9 @@ export function CategoryDetailPage() {
 
   const tab = routeSearch.tab ?? "live";
   const platformScope = routeSearch.platform ?? "all";
-  const language = routeSearch.language ?? "";
+  const language = useCategoryLanguagePreferenceStore(
+    (state) => routeSearch.language ?? state.preferredLanguage
+  );
   const rawTagQuery = routeSearch.tag ?? "";
   const sortOrder = routeSearch.sort ?? "desc";
   const otherId = routeSearch.otherId;
@@ -125,9 +137,21 @@ export function CategoryDetailPage() {
   );
 
   useEffect(() => {
+    if (routeSearch.language !== undefined) {
+      setPreferredLanguage(routeSearch.language);
+    }
+  }, [routeSearch.language, setPreferredLanguage]);
+
+  useEffect(() => {
     if (location.pathname !== routePath) return;
+    if (window.location.hash.slice(1) !== location.href) return;
     const rawSearch = location.search as Record<string, unknown>;
-    const canonicalSearch = validateCategoryDetailSearch(rawSearch);
+    const canonicalSearch = {
+      ...validateCategoryDetailSearch(rawSearch),
+      language:
+        parseCategoryLanguage(rawSearch.language) ??
+        useCategoryLanguagePreferenceStore.getState().preferredLanguage,
+    } satisfies CategoryDetailSearch;
     if (!needsCanonicalSearch(rawSearch, canonicalSearch)) return;
     void navigate({
       to: CATEGORY_ROUTE,
@@ -135,7 +159,15 @@ export function CategoryDetailPage() {
       search: canonicalSearch,
       replace: true,
     });
-  }, [categoryId, currentPlatform, location.pathname, location.search, navigate, routePath]);
+  }, [
+    categoryId,
+    currentPlatform,
+    location.href,
+    location.pathname,
+    location.search,
+    navigate,
+    routePath,
+  ]);
 
   const { data: category, isLoading: isCategoryLoading } = useCategoryById(
     categoryId,
@@ -548,7 +580,10 @@ export function CategoryDetailPage() {
         {tab === "live" && (
           <CategoryFilterBar
             language={language}
-            onLanguageChange={(value) => updateSearch({ language: value })}
+            onLanguageChange={(value) => {
+              const nextLanguage = parseCategoryLanguage(value);
+              if (nextLanguage !== undefined) updateSearch({ language: nextLanguage });
+            }}
             tagQuery={rawTagQuery}
             onTagQueryChange={(value) => updateSearch({ tag: value })}
             sortOrder={sortOrder}
@@ -564,7 +599,10 @@ export function CategoryDetailPage() {
             <div role="group" aria-label="Category text filters">
               <CategoryFilterBar
                 language={language}
-                onLanguageChange={(value) => updateSearch({ language: value })}
+                onLanguageChange={(value) => {
+                  const nextLanguage = parseCategoryLanguage(value);
+                  if (nextLanguage !== undefined) updateSearch({ language: nextLanguage });
+                }}
                 tagQuery={rawTagQuery}
                 onTagQueryChange={(value) => updateSearch({ tag: value })}
                 sortOrder={sortOrder}

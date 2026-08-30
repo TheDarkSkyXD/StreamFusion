@@ -69,11 +69,16 @@
         "platform-endpoint:twitch:category-endpoints",
         "platform-endpoint:kick:category-endpoints"
       ],
-      "state": [],
-      "persistence": [],
+      "state": [
+        "state-store:features/discovery/data/category-language-preference-store"
+      ],
+      "persistence": [
+        "apps/desktop/src/frontend/features/discovery/data/category-language-preference-store.ts"
+      ],
       "verification": [
         "apps/desktop/tests/pages/Categories.test.tsx",
-        "apps/desktop/tests/pages/CategoryDetail.test.tsx"
+        "apps/desktop/tests/pages/CategoryDetail.test.tsx",
+        "apps/desktop/tests/store/category-language-preference-store.test.ts"
       ]
     },
     {

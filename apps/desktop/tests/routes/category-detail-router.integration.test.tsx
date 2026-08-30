@@ -8,7 +8,7 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import { act } from "@testing-library/react";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   fixtures,
@@ -48,6 +48,10 @@ vi.mock("@/features/discovery/components/stream/stream-grid", () => ({
 }));
 
 import { CategoryDetailPage } from "@/pages/CategoryDetail";
+import {
+  DEFAULT_CATEGORY_LANGUAGE,
+  useCategoryLanguagePreferenceStore,
+} from "@/features/discovery/data/category-language-preference-store";
 import { validateCategoryDetailSearch } from "@/features/discovery/routes/category-detail-search";
 
 const nativePushState = window.history.pushState.bind(window.history);
@@ -74,11 +78,19 @@ function createCategoryRouter(history = createHashHistory()) {
 }
 
 // Guards: Category hash URLs serialize every Live filter and native links preserve both Platform identities
+// Guards: Category language URLs override the saved preference, while omitted language restores it without adding history
 // Guards: valid media tabs survive URL validation while genuinely invalid tabs canonicalize to rendered Live content
 describe("Category detail hash-history routing", () => {
   beforeAll(() => {
     vi.spyOn(window.history, "pushState").mockImplementation(nativePushState);
     vi.spyOn(window.history, "replaceState").mockImplementation(nativeReplaceState);
+  });
+
+  beforeEach(() => {
+    localStorage.clear();
+    useCategoryLanguagePreferenceStore.setState({
+      preferredLanguage: DEFAULT_CATEGORY_LANGUAGE,
+    });
   });
 
   afterAll(() => {
@@ -93,6 +105,9 @@ describe("Category detail hash-history routing", () => {
     ["sort", "invalid", "desc"],
   ] as const)("replace-canonicalizes invalid raw %s search state", async (field, invalidValue, expectedValue) => {
     installElectronAPIMock();
+    if (field === "language") {
+      useCategoryLanguagePreferenceStore.getState().setPreferredLanguage("es");
+    }
     const rawSearch = new URLSearchParams({
       tab: "live",
       platform: "twitch",
@@ -111,7 +126,7 @@ describe("Category detail hash-history routing", () => {
 
     await waitFor(() => {
       expect(new URLSearchParams(window.location.hash.split("?")[1]).get(field)).toBe(
-        expectedValue
+        field === "language" ? "es" : expectedValue
       );
     });
 
@@ -123,7 +138,8 @@ describe("Category detail hash-history routing", () => {
     } else if (field === "platform") {
       expect(screen.getByRole("link", { name: "All" })).toHaveAttribute("aria-current", "page");
     } else if (field === "language") {
-      expect(screen.getByRole("combobox", { name: "Language" })).toHaveTextContent("All languages");
+      expect(screen.getByRole("combobox", { name: "Language" })).toHaveTextContent("Spanish");
+      expect(useCategoryLanguagePreferenceStore.getState().preferredLanguage).toBe("es");
     } else if (field === "tag") {
       expect(screen.getByRole("textbox", { name: "Tag" })).toHaveValue("");
     } else {
@@ -136,11 +152,31 @@ describe("Category detail hash-history routing", () => {
     history.destroy();
   });
 
+  it("uses a saved language for an omitted query and replaces the URL", async () => {
+    installElectronAPIMock();
+    useCategoryLanguagePreferenceStore.getState().setPreferredLanguage("es");
+    window.location.hash = "#/categories/twitch/509658?tab=live&platform=all&tag=&sort=desc";
+    const { history, router } = createCategoryRouter();
+    await act(async () => {
+      await router.load();
+    });
+    const view = renderWithProviders(<RouterProvider router={router} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("combobox", { name: "Language" })).toHaveTextContent("Spanish");
+      expect(new URLSearchParams(window.location.hash.split("?")[1]).get("language")).toBe("es");
+    });
+
+    view.unmount();
+    history.destroy();
+  });
+
   it.each([
     "clips",
     "videos",
   ] as const)("preserves a valid %s deep link as the active Category tab", async (tab) => {
     installElectronAPIMock();
+    useCategoryLanguagePreferenceStore.getState().setPreferredLanguage("es");
     window.location.hash = `#/categories/twitch/509658?tab=${tab}&platform=all&language=&tag=&sort=desc&otherId=15`;
     const { history, router } = createCategoryRouter();
     await act(async () => {
@@ -152,6 +188,9 @@ describe("Category detail hash-history routing", () => {
       screen.getByRole("link", { name: tab === "clips" ? "Clips" : "Videos" })
     ).toHaveAttribute("aria-current", "page");
     expect(new URLSearchParams(window.location.hash.split("?")[1]).get("tab")).toBe(tab);
+    await waitFor(() => {
+      expect(useCategoryLanguagePreferenceStore.getState().preferredLanguage).toBe("");
+    });
 
     view.unmount();
     history.destroy();
@@ -233,6 +272,10 @@ describe("Category detail hash-history routing", () => {
       await first.router.load();
     });
     const firstView = renderWithProviders(<RouterProvider router={first.router} />);
+
+    await waitFor(() => {
+      expect(useCategoryLanguagePreferenceStore.getState().preferredLanguage).toBe("en");
+    });
 
     const refreshHash = window.location.hash;
     firstView.unmount();

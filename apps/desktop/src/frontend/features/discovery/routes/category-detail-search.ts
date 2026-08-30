@@ -1,4 +1,7 @@
-import { BROADCAST_LANGUAGES } from "@/lib/languages";
+import {
+  parseCategoryLanguage,
+  type CategoryLanguage,
+} from "@/features/discovery/data/category-language-preference-store";
 
 export type CategoryContentTab = "live" | "clips" | "videos";
 export type CategoryPlatformScope = "all" | "twitch" | "kick";
@@ -7,13 +10,11 @@ export type CategoryViewerSort = "desc" | "asc";
 export interface CategoryDetailSearch {
   tab?: CategoryContentTab;
   platform?: CategoryPlatformScope;
-  language?: string;
+  language?: CategoryLanguage;
   tag?: string;
   sort?: CategoryViewerSort;
   otherId?: string;
 }
-
-const LANGUAGE_CODES = new Set<string>(BROADCAST_LANGUAGES);
 
 export function validateCategoryDetailSearch(
   search: Record<string, unknown>
@@ -30,10 +31,7 @@ export function validateCategoryDetailSearch(
         ? search.tab
         : "live",
     platform: search.platform === "twitch" || search.platform === "kick" ? search.platform : "all",
-    language:
-      typeof search.language === "string" && LANGUAGE_CODES.has(search.language)
-        ? search.language
-        : "",
+    language: parseCategoryLanguage(search.language),
     tag: typeof search.tag === "string" ? search.tag : "",
     sort: search.sort === "asc" ? "asc" : "desc",
     otherId,

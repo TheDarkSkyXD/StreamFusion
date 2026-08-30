@@ -30,6 +30,7 @@ const categoryNavigateMock = vi.hoisted(() => vi.fn());
 vi.mock("@tanstack/react-router", () => ({
   ...routerMock({ params: categoryRouteState, search: categorySearchState }),
   useLocation: () => ({
+    href: window.location.hash.slice(1),
     pathname: categoryLocationState.pathname,
     search: categoryRawSearchState,
   }),
