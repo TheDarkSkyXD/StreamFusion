@@ -20,12 +20,12 @@ async function main() {
   const preflightResponse = await fetch(tokenUrl, { method: "OPTIONS" });
 
   assert(
-    preflightResponse.status === 200,
-    `/auth/kick/token preflight returned ${preflightResponse.status}; expected 200`
+    preflightResponse.status === 404,
+    `/auth/kick/token preflight returned ${preflightResponse.status}; expected 404`
   );
   assert(
-    preflightResponse.headers.get("Access-Control-Allow-Methods") === "POST, OPTIONS",
-    "/auth/kick/token preflight did not return the auth-only method contract"
+    preflightResponse.headers.get("Access-Control-Allow-Origin") === null,
+    "/auth/kick/token preflight unexpectedly returned Access-Control-Allow-Origin"
   );
 
   const invalidResponse = await fetch(tokenUrl, {

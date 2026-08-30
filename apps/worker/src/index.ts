@@ -5,93 +5,111 @@ export interface Env {
     KICK_AUTH_SUBJECT_RATE_LIMITER: RateLimit;
 }
 
-interface KickTokenExchangeBody {
+type KickAuthorizationCodeGrant = {
+    kind: "authorization_code";
     code: string;
-    redirect_uri: string;
-    code_verifier: string;
-}
+    redirectUri: string;
+    codeVerifier: string;
+};
 
-interface KickTokenRefreshBody {
-    refresh_token: string;
-}
+type KickRefreshGrant = {
+    kind: "refresh_token";
+    refreshToken: string;
+};
 
-type CorsHeaders = Record<string, string>;
+type KickGrant = KickAuthorizationCodeGrant | KickRefreshGrant;
 
-function errorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : "Unknown error";
-}
+type KickTokenSuccess = Record<string, unknown> & {
+    access_token: string;
+    token_type: string;
+    refresh_token?: string;
+    expires_in?: number;
+    scope?: string | string[];
+};
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+type KickOAuthError =
+    | "access_denied"
+    | "invalid_client"
+    | "invalid_grant"
+    | "invalid_request"
+    | "invalid_scope"
+    | "server_error"
+    | "temporarily_unavailable"
+    | "unauthorized_client"
+    | "unsupported_grant_type";
+
+type KickUpstreamOutcome =
+    | { kind: "token_success"; status: number; token: KickTokenSuccess }
+    | { kind: "oauth_failure"; status: number; error: KickOAuthError }
+    | { kind: "invalid_response" }
+    | { kind: "timeout" }
+    | { kind: "transport_failure" };
+
+const AUTH_PATHS = new Set(["/auth/kick/token", "/auth/kick/refresh"]);
+const KICK_TOKEN_URL = "https://id.kick.com/oauth/token";
+const KICK_TOKEN_TIMEOUT_MS = 10_000;
+const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
+const ALLOWED_KICK_OAUTH_ERRORS: readonly KickOAuthError[] = [
+    "access_denied",
+    "invalid_client",
+    "invalid_grant",
+    "invalid_request",
+    "invalid_scope",
+    "server_error",
+    "temporarily_unavailable",
+    "unauthorized_client",
+    "unsupported_grant_type"
+];
 
 export default {
     async fetch(request: Request, env: Env): Promise<Response> {
-        const url = new URL(request.url);
-        const path = url.pathname;
-
-        const corsHeaders = {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
-        };
-
-        const isKickAuthPath = path === "/auth/kick/token" || path === "/auth/kick/refresh";
-        if (isKickAuthPath && request.method === "OPTIONS") {
-            return new Response(null, { headers: corsHeaders });
-        }
+        const path = new URL(request.url).pathname;
 
         if (path === "/auth/kick/token" && request.method === "POST") {
-            const limited = await enforceKickAuthIpLimit(request, env, corsHeaders);
+            const limited = await enforceKickAuthIpLimit(request, env);
             if (limited) return limited;
-            const body = await readKickTokenExchangeBody(request);
-            if (!body) return invalidRequest(corsHeaders);
-            const subjectLimited = await enforceKickAuthSubjectLimit(body.code, env, corsHeaders);
+
+            const grant = await readKickAuthorizationCodeGrant(request);
+            if (!grant) return invalidRequest();
+
+            const subjectLimited = await enforceKickAuthSubjectLimit(grant.code, env);
             if (subjectLimited) return subjectLimited;
-            return handleKickTokenExchange(body, env, corsHeaders);
+
+            return exchangeKickGrant(grant, env);
         }
 
         if (path === "/auth/kick/refresh" && request.method === "POST") {
-            const limited = await enforceKickAuthIpLimit(request, env, corsHeaders);
+            const limited = await enforceKickAuthIpLimit(request, env);
             if (limited) return limited;
-            const body = await readKickTokenRefreshBody(request);
-            if (!body) return invalidRequest(corsHeaders);
-            const subjectLimited = await enforceKickAuthSubjectLimit(
-                body.refresh_token,
-                env,
-                corsHeaders
-            );
+
+            const grant = await readKickRefreshGrant(request);
+            if (!grant) return invalidRequest();
+
+            const subjectLimited = await enforceKickAuthSubjectLimit(grant.refreshToken, env);
             if (subjectLimited) return subjectLimited;
-            return handleKickTokenRefresh(body, env, corsHeaders);
+
+            return exchangeKickGrant(grant, env);
         }
 
-        return new Response("Not Found", { status: 404, headers: corsHeaders });
-    },
+        if (AUTH_PATHS.has(path)) return authNotFound();
+
+        return new Response("Not Found", { status: 404 });
+    }
 };
 
-async function enforceKickAuthIpLimit(
-    request: Request,
-    env: Env,
-    corsHeaders: CorsHeaders
-): Promise<Response | null> {
+async function enforceKickAuthIpLimit(request: Request, env: Env): Promise<Response | null> {
     const ip = request.headers.get("CF-Connecting-IP") || "missing";
-    return enforceLimit(env.KICK_AUTH_IP_RATE_LIMITER, `kick-auth:ip:${ip}`, corsHeaders);
+    return enforceLimit(env.KICK_AUTH_IP_RATE_LIMITER, `kick-auth:ip:${ip}`);
 }
 
-async function enforceKickAuthSubjectLimit(
-    subject: string,
-    env: Env,
-    corsHeaders: CorsHeaders
-): Promise<Response | null> {
+async function enforceKickAuthSubjectLimit(subject: string, env: Env): Promise<Response | null> {
     const digest = await sha256Hex(subject);
-    return enforceLimit(
-        env.KICK_AUTH_SUBJECT_RATE_LIMITER,
-        `kick-auth:subject:${digest}`,
-        corsHeaders
-    );
+    return enforceLimit(env.KICK_AUTH_SUBJECT_RATE_LIMITER, `kick-auth:subject:${digest}`);
 }
 
 async function readJsonObject(request: Request): Promise<Record<string, unknown> | null> {
+    if (!hasJsonContentType(request)) return null;
+
     try {
         const body: unknown = await request.json();
         return isRecord(body) ? body : null;
@@ -100,44 +118,55 @@ async function readJsonObject(request: Request): Promise<Record<string, unknown>
     }
 }
 
-async function readKickTokenExchangeBody(request: Request): Promise<KickTokenExchangeBody | null> {
+async function readKickAuthorizationCodeGrant(
+    request: Request
+): Promise<KickAuthorizationCodeGrant | null> {
     const body = await readJsonObject(request);
     if (!body) return null;
 
     const { code, redirect_uri, code_verifier } = body;
-    if (typeof code !== "string" || code.length === 0 || code.length > 4096) return null;
+    if (!isBoundedString(code, 4096)) return null;
     if (!isAllowedKickRedirect(redirect_uri)) return null;
     if (!isValidCodeVerifier(code_verifier)) return null;
 
-    return { code, redirect_uri, code_verifier };
+    return {
+        kind: "authorization_code",
+        code,
+        redirectUri: redirect_uri,
+        codeVerifier: code_verifier
+    };
 }
 
-async function readKickTokenRefreshBody(request: Request): Promise<KickTokenRefreshBody | null> {
+async function readKickRefreshGrant(request: Request): Promise<KickRefreshGrant | null> {
     const body = await readJsonObject(request);
-    if (!body) return null;
+    if (!body || !isBoundedString(body.refresh_token, 8192)) return null;
 
-    const { refresh_token } = body;
-    if (typeof refresh_token !== "string" || refresh_token.length === 0 || refresh_token.length > 8192) {
-        return null;
-    }
-
-    return { refresh_token };
+    return { kind: "refresh_token", refreshToken: body.refresh_token };
 }
 
-async function enforceLimit(
-    limiter: RateLimit | undefined,
-    key: string,
-    corsHeaders: CorsHeaders
-): Promise<Response | null> {
+async function enforceLimit(limiter: RateLimit | undefined, key: string): Promise<Response | null> {
     try {
         const outcome = await limiter?.limit({ key });
-        if (!outcome) return rateLimitUnavailable(corsHeaders);
+        if (!outcome) return rateLimitUnavailable();
         if (outcome.success) return null;
     } catch {
-        return rateLimitUnavailable(corsHeaders);
+        return rateLimitUnavailable();
     }
 
-    return rateLimitDenied(corsHeaders);
+    return rateLimitDenied();
+}
+
+function hasJsonContentType(request: Request): boolean {
+    const contentType = request.headers.get("Content-Type");
+    return contentType?.split(";", 1)[0].trim().toLowerCase() === "application/json";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isBoundedString(value: unknown, maximumLength: number): value is string {
+    return typeof value === "string" && value.length > 0 && value.length <= maximumLength;
 }
 
 function isAllowedKickRedirect(value: unknown): value is string {
@@ -172,100 +201,158 @@ async function sha256Hex(value: string): Promise<string> {
     return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function rateLimitDenied(corsHeaders: CorsHeaders): Response {
+async function exchangeKickGrant(grant: KickGrant, env: Env): Promise<Response> {
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), KICK_TOKEN_TIMEOUT_MS);
+
+    try {
+        let response: Response;
+        try {
+            response = await fetch(KICK_TOKEN_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: createKickTokenForm(grant, env),
+                signal: controller.signal
+            });
+        } catch {
+            return mapKickUpstreamOutcome(
+                controller.signal.aborted ? { kind: "timeout" } : { kind: "transport_failure" }
+            );
+        }
+
+        let data: unknown;
+        try {
+            data = await response.json();
+        } catch {
+            return mapKickUpstreamOutcome(
+                controller.signal.aborted ? { kind: "timeout" } : { kind: "invalid_response" }
+            );
+        }
+
+        return mapKickUpstreamOutcome(parseKickUpstreamOutcome(response, data));
+    } finally {
+        clearTimeout(deadline);
+    }
+}
+
+function createKickTokenForm(grant: KickGrant, env: Env): URLSearchParams {
+    switch (grant.kind) {
+        case "authorization_code":
+            return new URLSearchParams({
+                client_id: env.KICK_CLIENT_ID,
+                client_secret: env.KICK_CLIENT_SECRET,
+                code: grant.code,
+                grant_type: "authorization_code",
+                redirect_uri: grant.redirectUri,
+                code_verifier: grant.codeVerifier
+            });
+        case "refresh_token":
+            return new URLSearchParams({
+                client_id: env.KICK_CLIENT_ID,
+                client_secret: env.KICK_CLIENT_SECRET,
+                refresh_token: grant.refreshToken,
+                grant_type: "refresh_token"
+            });
+    }
+
+    const exhaustiveGrant: never = grant;
+    return exhaustiveGrant;
+}
+
+function parseKickUpstreamOutcome(response: Response, data: unknown): KickUpstreamOutcome {
+    if (response.ok) {
+        return isKickTokenSuccess(data)
+            ? { kind: "token_success", status: response.status, token: data }
+            : { kind: "invalid_response" };
+    }
+
+    if (isRecord(data) && isAllowedKickOAuthError(data.error)) {
+        return { kind: "oauth_failure", status: response.status, error: data.error };
+    }
+
+    return { kind: "invalid_response" };
+}
+
+function isKickTokenSuccess(value: unknown): value is KickTokenSuccess {
+    if (!isRecord(value)) return false;
+
+    const { access_token, token_type, refresh_token, expires_in, scope } = value;
+    if (!isBoundedString(access_token, 8192) || !isBoundedString(token_type, 256)) return false;
+    if (refresh_token !== undefined && !isBoundedString(refresh_token, 8192)) return false;
+    if (
+        expires_in !== undefined &&
+        (typeof expires_in !== "number" || !Number.isFinite(expires_in) || expires_in < 0)
+    ) {
+        return false;
+    }
+    if (scope !== undefined && !isKickScope(scope)) return false;
+
+    return true;
+}
+
+function isKickScope(value: unknown): value is string | string[] {
+    return (
+        (typeof value === "string" && value.length <= 4096) ||
+        (Array.isArray(value) &&
+            value.length <= 100 &&
+            value.every((scope) => typeof scope === "string" && scope.length <= 256))
+    );
+}
+
+function isAllowedKickOAuthError(value: unknown): value is KickOAuthError {
+    return typeof value === "string" && ALLOWED_KICK_OAUTH_ERRORS.some((error) => error === value);
+}
+
+function mapKickUpstreamOutcome(outcome: KickUpstreamOutcome): Response {
+    switch (outcome.kind) {
+        case "token_success":
+            return authJson(outcome.token, outcome.status);
+        case "oauth_failure":
+            return authJson({ error: outcome.error }, outcome.status);
+        case "invalid_response":
+            return upstreamFailure("upstream_invalid_response", 502);
+        case "timeout":
+            return upstreamFailure("upstream_timeout", 504);
+        case "transport_failure":
+            return upstreamFailure("upstream_unavailable", 502);
+    }
+
+    const exhaustiveOutcome: never = outcome;
+    return exhaustiveOutcome;
+}
+
+function authJson(body: object, status: number): Response {
+    return Response.json(body, { status, headers: NO_STORE_HEADERS });
+}
+
+function invalidRequest(): Response {
+    return authJson({ error: "invalid_request" }, 400);
+}
+
+function rateLimitDenied(): Response {
     return Response.json(
         { error: "rate_limited" },
         {
             status: 429,
             headers: {
-                ...corsHeaders,
-                "Retry-After": "60",
-                "Cache-Control": "no-store",
-            },
+                ...NO_STORE_HEADERS,
+                "Retry-After": "60"
+            }
         }
     );
 }
 
-function rateLimitUnavailable(corsHeaders: CorsHeaders): Response {
-    return Response.json(
-        { error: "rate_limit_unavailable" },
-        {
-            status: 503,
-            headers: {
-                ...corsHeaders,
-                "Cache-Control": "no-store",
-            },
-        }
-    );
+function rateLimitUnavailable(): Response {
+    return authJson({ error: "rate_limit_unavailable" }, 503);
 }
 
-function invalidRequest(corsHeaders: CorsHeaders): Response {
-    return Response.json(
-        { error: "invalid_request" },
-        {
-            status: 400,
-            headers: {
-                ...corsHeaders,
-                "Cache-Control": "no-store",
-            },
-        }
-    );
+function upstreamFailure(
+    error: "upstream_invalid_response" | "upstream_timeout" | "upstream_unavailable",
+    status: number
+): Response {
+    return authJson({ error }, status);
 }
 
-async function handleKickTokenExchange(
-    body: KickTokenExchangeBody,
-    env: Env,
-    corsHeaders: CorsHeaders
-) {
-    try {
-        const { code, redirect_uri, code_verifier } = body;
-
-        const params = new URLSearchParams({
-            client_id: env.KICK_CLIENT_ID,
-            client_secret: env.KICK_CLIENT_SECRET,
-            code,
-            grant_type: "authorization_code",
-            redirect_uri,
-            code_verifier // Kick uses PKCE
-        });
-
-        const response = await fetch("https://id.kick.com/oauth/token", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: params
-        });
-
-        const data = await response.json();
-        return Response.json(data, { status: response.status, headers: corsHeaders });
-    } catch (err: unknown) {
-        return Response.json({ error: errorMessage(err) }, { status: 500, headers: corsHeaders });
-    }
-}
-
-async function handleKickTokenRefresh(
-    body: KickTokenRefreshBody,
-    env: Env,
-    corsHeaders: CorsHeaders
-) {
-    try {
-        const { refresh_token } = body;
-
-        const params = new URLSearchParams({
-            client_id: env.KICK_CLIENT_ID,
-            client_secret: env.KICK_CLIENT_SECRET,
-            refresh_token,
-            grant_type: "refresh_token"
-        });
-
-        const response = await fetch("https://id.kick.com/oauth/token", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: params
-        });
-
-        const data = await response.json();
-        return Response.json(data, { status: response.status, headers: corsHeaders });
-    } catch (err: unknown) {
-        return Response.json({ error: errorMessage(err) }, { status: 500, headers: corsHeaders });
-    }
+function authNotFound(): Response {
+    return new Response("Not Found", { status: 404, headers: NO_STORE_HEADERS });
 }
