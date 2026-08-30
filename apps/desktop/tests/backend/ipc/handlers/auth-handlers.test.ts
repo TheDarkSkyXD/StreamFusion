@@ -557,6 +557,77 @@ describe("syncKickFollowsAfterLogin — A1 error-bail contract", () => {
     expect(upsertSyncedFollows).toHaveBeenCalledWith("kick", [], { pruneAbsent: false });
   });
 
+  it("skips relationship verification when an uncertain snapshot matches SQLite membership", async () => {
+    const prior = {
+      id: "kick:123",
+      platform: "kick" as const,
+      channelId: "123",
+      channelName: "same-channel",
+      displayName: "Same Channel",
+      profileImage: "https://example.com/same.png",
+      followedAt: "2026-01-01T00:00:00Z",
+      source: "kick" as const,
+    };
+    const upsertSyncedFollows = vi.fn(() => ({
+      accountCount: 1,
+      pendingCount: 0,
+      addedCount: 0,
+      removedCount: 0,
+    }));
+    const verifyMissingFollow = vi.fn().mockResolvedValue("followed");
+    const verifyFollowBatch = vi.fn().mockResolvedValue(new Map([["same-channel", "followed"]]));
+
+    const outcome = await syncKickFollowsAfterLogin(
+      vi.fn().mockResolvedValue({
+        status: "ok",
+        canPruneAbsent: false,
+        channels: [
+          {
+            id: "123",
+            kickUserId: "123",
+            platform: "kick",
+            username: "same-channel",
+            displayName: "Same Channel",
+            avatarUrl: "https://example.com/same.png",
+            isLive: false,
+            isVerified: false,
+            isPartner: false,
+          },
+        ],
+      }),
+      {
+        upsertSyncedFollows,
+        getLocalFollowsByPlatform: vi.fn(() => [prior]),
+        getKickUser: vi.fn(() => ({
+          id: 456,
+          username: "viewer",
+          slug: "viewer",
+          profilePic: "",
+          verified: false,
+        })),
+        areKickAccountFollowsVerified: vi.fn(() => true),
+      },
+      undefined,
+      verifyMissingFollow,
+      verifyFollowBatch
+    );
+
+    expect(outcome).toEqual({
+      status: "ok",
+      count: 1,
+      pendingCount: 0,
+      addedCount: 0,
+      removedCount: 0,
+    });
+    expect(verifyMissingFollow).not.toHaveBeenCalled();
+    expect(verifyFollowBatch).not.toHaveBeenCalled();
+    expect(upsertSyncedFollows).toHaveBeenCalledWith(
+      "kick",
+      [expect.objectContaining({ channelId: "123", channelName: "same-channel" })],
+      { pruneAbsent: false }
+    );
+  });
+
   it("recovers a confirmed external follow retained in the write journal", async () => {
     const upsertSyncedFollows = vi
       .fn()

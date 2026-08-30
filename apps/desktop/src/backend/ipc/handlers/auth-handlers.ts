@@ -146,6 +146,28 @@ type KickFollowBatchVerifier = (
   channelSlugs: string[]
 ) => Promise<Map<string, "followed" | "not-followed" | "unavailable">>;
 
+function kickFollowRowsMatch(candidate: KickFollowInput, prior: LocalFollow): boolean {
+  const candidateId = candidate.channelId.trim();
+  const priorId = prior.channelId.trim();
+  return (
+    (candidateId.length > 0 && priorId.length > 0 && candidateId === priorId) ||
+    candidate.channelName.trim().toLowerCase() === prior.channelName.trim().toLowerCase()
+  );
+}
+
+function hasSameKickFollowMembership(fetched: KickFollowInput[], prior: LocalFollow[]): boolean {
+  const unmatchedPrior = prior.filter((follow) => follow.source === "kick");
+  if (fetched.length !== unmatchedPrior.length) return false;
+
+  for (const candidate of fetched) {
+    const matchIndex = unmatchedPrior.findIndex((follow) => kickFollowRowsMatch(candidate, follow));
+    if (matchIndex === -1) return false;
+    unmatchedPrior.splice(matchIndex, 1);
+  }
+
+  return unmatchedPrior.length === 0;
+}
+
 export async function reconcileKickMissingFollowRows(
   fetched: KickFollowInput[],
   prior: LocalFollow[],
@@ -204,10 +226,7 @@ export async function reconcileKickMissingFollowRows(
     }
     if (state === "unavailable" && options.preserveUnavailablePrior !== false) {
       const existing = prior.find(
-        (row) =>
-          row.source === "kick" &&
-          (row.channelId === candidate.channelId ||
-            row.channelName.toLowerCase() === candidate.channelName.toLowerCase())
+        (row) => row.source === "kick" && kickFollowRowsMatch(candidate, row)
       );
       if (existing) {
         reconciled.push({
@@ -222,11 +241,7 @@ export async function reconcileKickMissingFollowRows(
     }
   });
   const matchesFetched = (row: LocalFollow): boolean =>
-    fetched.some(
-      (candidate) =>
-        candidate.channelId === row.channelId ||
-        candidate.channelName.toLowerCase() === row.channelName.toLowerCase()
-    );
+    fetched.some((candidate) => kickFollowRowsMatch(candidate, row));
 
   await verifyBounded(prior, async (row) => {
     if (row.source !== "kick" || matchesFetched(row)) return;
@@ -305,17 +320,19 @@ export async function syncKickFollowsAfterLogin(
       const viewer = initialViewer;
       if (viewer) {
         const prior = storage.getLocalFollowsByPlatform("kick");
-        kickFollows = await reconcileKickMissingFollowRows(
-          kickFollows,
-          prior,
-          { id: viewer.id, username: viewer.slug || viewer.username },
-          verifyMissingFollow,
-          verifyFollowBatch,
-          {
-            preserveUnavailablePrior: storage.areKickAccountFollowsVerified?.() === true,
-          }
-        );
-        pruneAbsent = true;
+        if (!hasSameKickFollowMembership(kickFollows, prior)) {
+          kickFollows = await reconcileKickMissingFollowRows(
+            kickFollows,
+            prior,
+            { id: viewer.id, username: viewer.slug || viewer.username },
+            verifyMissingFollow,
+            verifyFollowBatch,
+            {
+              preserveUnavailablePrior: storage.areKickAccountFollowsVerified?.() === true,
+            }
+          );
+          pruneAbsent = true;
+        }
       }
     }
     if (storage.getKickUser) {
