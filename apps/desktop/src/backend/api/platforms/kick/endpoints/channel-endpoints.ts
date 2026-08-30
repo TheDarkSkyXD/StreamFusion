@@ -337,7 +337,10 @@ export async function getChannel(
           !enrichedChannel.chatroomId
         ) {
           try {
-            const publicChannel = await getPublicChannel(slug, { priority: "high" });
+            const publicChannel = await readPublicChannel(slug, {
+              priority: "high",
+              settingsMode: options.freshChatroomSettings ? "refresh" : "embedded",
+            });
             if (publicChannel?.username.toLowerCase() === normalizedSlug) {
               enrichedChannel = {
                 ...enrichedChannel,
@@ -397,7 +400,10 @@ export async function getChannel(
   }
 
   try {
-    const publicChannel = await getPublicChannel(slug, { priority: "high" });
+    const publicChannel = await readPublicChannel(slug, {
+      priority: "high",
+      settingsMode: options.freshChatroomSettings ? "refresh" : "embedded",
+    });
     if (publicChannel) {
       let enrichedChannel = await enrichChannelWithKickUser(
         client,
@@ -645,9 +651,11 @@ function isKickServerError(error: unknown): boolean {
 // + sidebar refetch + channel page open can all race for the same slug. Without
 // this every caller spins up its own BrowserWindow.
 type BrowserWindowPriority = "high" | "normal";
+type PublicChannelSettingsMode = "embedded" | "refresh";
 type PublicChannelInFlight = {
   promise: Promise<UnifiedChannel | null>;
   priority: BrowserWindowPriority;
+  settingsMode: PublicChannelSettingsMode;
 };
 const _publicChannelInFlight = new Map<string, PublicChannelInFlight>();
 
@@ -754,8 +762,21 @@ export async function getPublicChannel(
   slug: string,
   options: { priority?: BrowserWindowPriority } = {}
 ): Promise<UnifiedChannel | null> {
+  return readPublicChannel(slug, {
+    priority: options.priority ?? "normal",
+    settingsMode: "refresh",
+  });
+}
+
+async function readPublicChannel(
+  slug: string,
+  options: {
+    priority: BrowserWindowPriority;
+    settingsMode: PublicChannelSettingsMode;
+  }
+): Promise<UnifiedChannel | null> {
   const key = slug.toLowerCase().trim();
-  const priority = options.priority ?? "normal";
+  const { priority, settingsMode } = options;
 
   const failExpiry = _publicChannelFailureCache.get(key);
   if (failExpiry !== undefined) {
@@ -764,12 +785,14 @@ export async function getPublicChannel(
   }
 
   const inFlight = _publicChannelInFlight.get(key);
-  if (inFlight && (priority === "normal" || inFlight.priority === "high")) {
+  const priorityCompatible = priority === "normal" || inFlight?.priority === "high";
+  const settingsCompatible = settingsMode === "embedded" || inFlight?.settingsMode === "refresh";
+  if (inFlight && priorityCompatible && settingsCompatible) {
     return inFlight.promise;
   }
 
-  const promise = _doFetchPublicChannel(slug, key, priority);
-  if (!inFlight) _publicChannelInFlight.set(key, { promise, priority });
+  const promise = _doFetchPublicChannel(slug, key, priority, settingsMode);
+  if (!inFlight) _publicChannelInFlight.set(key, { promise, priority, settingsMode });
   try {
     return await promise;
   } finally {
@@ -782,7 +805,8 @@ export async function getPublicChannel(
 async function _doFetchPublicChannel(
   slug: string,
   key: string,
-  priority: BrowserWindowPriority
+  priority: BrowserWindowPriority,
+  settingsMode: PublicChannelSettingsMode
 ): Promise<UnifiedChannel | null> {
   const startedAt = Date.now();
   let queueWaitMs = 0;
@@ -944,9 +968,13 @@ async function _doFetchPublicChannel(
 
     // Extract chatroom ID for Pusher WebSocket subscription
     const chatroomId = data.chatroom?.id;
-    const chatroomSettings = win
-      ? await fetchKickChatroomSettings(win, slug)
-      : ((await fetchKickChatroomSettingsDirect(slug)) ?? mapKickChatroomToSettings(data.chatroom));
+    const embeddedChatroomSettings = mapKickChatroomToSettings(data.chatroom);
+    const chatroomSettings =
+      settingsMode === "embedded"
+        ? embeddedChatroomSettings
+        : win
+          ? await fetchKickChatroomSettings(win, slug)
+          : ((await fetchKickChatroomSettingsDirect(slug)) ?? embeddedChatroomSettings);
 
     const totalMs = Date.now() - startedAt;
     if (totalMs >= 2000 || queueWaitMs >= 500) {
@@ -956,6 +984,7 @@ async function _doFetchPublicChannel(
         queueWaitMs,
         loadMs,
         extractMs,
+        settingsMode,
         hasChatroom: !!data.chatroom,
         isLive: data.livestream !== null,
       });

@@ -80,6 +80,8 @@ function createMockClient(overrides: Partial<KickRequestor> = {}): KickRequestor
 // Guards: normal Kick channel lookup keeps official identity while preserving richer offline profile metadata from the legacy response.
 // Guards: official offline channel detail preserves the public profile avatar when user enrichment is unavailable.
 // Guards: only an explicit official Kick 404 or Not found response authorizes account removal.
+// Guards: initial Kick channel hydration does not wait for a second chatroom-settings request.
+// Guards: authoritative chatroom refreshes never join an embedded-only in-flight lookup.
 describe("channel-endpoints", () => {
   beforeEach(() => {
     mockLoadURL.mockReset().mockResolvedValue(undefined);
@@ -1138,6 +1140,99 @@ describe("channel-endpoints", () => {
       expect(mockLoadURL).toHaveBeenCalled();
     });
 
+    it("uses embedded chatroom settings without a second request on initial hydration", async () => {
+      mockSessionFetch
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              id: 7005,
+              user_id: 905,
+              slug: "cold-path-chatroom",
+              user: { username: "ColdPathChatroom" },
+              livestream: { session_title: "Live now" },
+              chatroom: {
+                id: 9905,
+                followers_mode: false,
+                subscribers_mode: false,
+                emotes_mode: true,
+                slow_mode: false,
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          )
+        )
+        .mockRejectedValueOnce(new Error("optional chatroom snapshot should not run"));
+      const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
+
+      const result = await getChannel(client, "cold-path-chatroom");
+
+      expect(result).toMatchObject({
+        kickChannelId: "7005",
+        chatroomId: 9905,
+        chatroomSettings: {
+          emoteOnlyMode: { enabled: true },
+        },
+      });
+      expect(mockSessionFetch).toHaveBeenCalledTimes(1);
+      expect(mockLoadURL).not.toHaveBeenCalled();
+    });
+
+    it("keeps a refresh request separate from an embedded-only in-flight lookup", async () => {
+      let resolveEmbeddedRequest: ((response: Response) => void) | undefined;
+      const embeddedResponse = new Promise<Response>((resolve) => {
+        resolveEmbeddedRequest = resolve;
+      });
+      const channelPayload = {
+        id: 7006,
+        user_id: 906,
+        slug: "settings-mode-dedupe",
+        user: { username: "SettingsModeDedupe" },
+        livestream: { session_title: "Live now" },
+        chatroom: { id: 9906, emotes_mode: true },
+      };
+      mockSessionFetch
+        .mockImplementationOnce(() => embeddedResponse)
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify(channelPayload), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          })
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              slow_mode: { enabled: false, message_interval: 0 },
+              followers_mode: { enabled: false, min_duration: 0 },
+              subscribers_mode: { enabled: false },
+              emotes_mode: { enabled: false },
+              account_age: { enabled: false, min_duration: 0 },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          )
+        );
+      const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
+
+      const embedded = getChannel(client, "settings-mode-dedupe");
+      await vi.waitFor(() => expect(mockSessionFetch).toHaveBeenCalledTimes(1));
+
+      const refreshed = getPublicChannel("settings-mode-dedupe", { priority: "high" });
+      await vi.waitFor(() => expect(mockSessionFetch).toHaveBeenCalledTimes(3));
+      await expect(refreshed).resolves.toMatchObject({
+        chatroomSettings: { emoteOnlyMode: { enabled: false } },
+      });
+
+      resolveEmbeddedRequest?.(
+        new Response(JSON.stringify(channelPayload), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      );
+      await expect(embedded).resolves.toMatchObject({
+        chatroomSettings: { emoteOnlyMode: { enabled: true } },
+      });
+      expect(mockSessionFetch).toHaveBeenCalledTimes(3);
+    });
+
     it("preserves the public avatar without official user enrichment for an anonymous degraded session", async () => {
       vi.mocked(getPlatformHealth).mockReturnValue("degraded");
       mockExecuteJavaScript.mockResolvedValueOnce(
@@ -1497,16 +1592,7 @@ describe("channel-endpoints", () => {
             user_id: 2,
             slug: "fresh-settings",
             user: { username: "fresh-settings" },
-            chatroom: { id: 3 },
-          })
-        )
-        .mockResolvedValueOnce(
-          JSON.stringify({
-            slow_mode: { enabled: false, message_interval: 0 },
-            followers_mode: { enabled: false, min_duration: 0 },
-            subscribers_mode: { enabled: false },
-            emotes_mode: { enabled: true },
-            account_age: { enabled: false, min_duration: 0 },
+            chatroom: { id: 3, emotes_mode: true },
           })
         )
         .mockResolvedValueOnce(
@@ -1515,7 +1601,7 @@ describe("channel-endpoints", () => {
             user_id: 2,
             slug: "fresh-settings",
             user: { username: "fresh-settings" },
-            chatroom: { id: 3 },
+            chatroom: { id: 3, emotes_mode: true },
           })
         )
         .mockResolvedValueOnce(
@@ -1536,7 +1622,8 @@ describe("channel-endpoints", () => {
 
       expect(first?.chatroomSettings?.emoteOnlyMode.enabled).toBe(true);
       expect(refreshed?.chatroomSettings?.emoteOnlyMode.enabled).toBe(false);
-      expect(mockExecuteJavaScript).toHaveBeenCalledTimes(4);
+      expect(mockExecuteJavaScript).toHaveBeenCalledTimes(3);
+      expect(mockExecuteJavaScript.mock.calls[2]?.[0]).toContain("/chatroom");
     });
   });
 });
