@@ -2172,6 +2172,20 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       },
       [replaceSelection]
     );
+    const quickSettingsBelongsToEmoteRow = viewerIsAuthenticated && chatDisplay.quickEmotes;
+    const quickSettingsOverlay = showChatSettings ? (
+      <div
+        data-testid="chat-quick-settings-overlay-anchor"
+        className="absolute inset-x-0 top-0 z-50 h-0 max-w-full"
+      >
+        <ChatQuickSettingsPopover
+          platform={platform}
+          placement="top"
+          triggerRef={settingsButtonRef}
+          onClose={() => setShowChatSettings(false)}
+        />
+      </div>
+    ) : null;
 
     return (
       <div ref={containerRef} className={`relative flex flex-col ${className}`}>
@@ -2184,9 +2198,31 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           />
         )}
 
-        {showContextualEmoteRow ? (
-          chatDisplay.quickEmotes ? (
-            <div className="mb-1 h-8 min-h-8" data-testid="chat-emote-action-row">
+        <div className="relative" data-testid="chat-emote-settings-anchor">
+          {showContextualEmoteRow ? (
+            chatDisplay.quickEmotes ? (
+              <div className="mb-1 h-8 min-h-8" data-testid="chat-emote-action-row">
+                <ContextualEmoteRow
+                  inputValue={message}
+                  cursorPosition={cursorPosition}
+                  platform={platform}
+                  channelId={channelId}
+                  viewerIsSubscribed={viewerIsSubscribed}
+                  keyboardActive={isEditorFocused}
+                  onResultCountChange={setContextualEmoteResultCount}
+                  onSelect={handleEmoteSelect}
+                  onClose={emoteAutocomplete.deactivate}
+                  fallback={
+                    <QuickEmoteActionBar
+                      platform={platform}
+                      viewerUserId={viewerUserId}
+                      onSelect={handleQuickEmoteSend}
+                      disabled={disabled || isSending}
+                    />
+                  }
+                />
+              </div>
+            ) : (
               <ContextualEmoteRow
                 inputValue={message}
                 cursorPosition={cursorPosition}
@@ -2197,41 +2233,22 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 onResultCountChange={setContextualEmoteResultCount}
                 onSelect={handleEmoteSelect}
                 onClose={emoteAutocomplete.deactivate}
-                fallback={
-                  <QuickEmoteActionBar
-                    platform={platform}
-                    viewerUserId={viewerUserId}
-                    onSelect={handleQuickEmoteSend}
-                    disabled={disabled || isSending}
-                  />
-                }
               />
-            </div>
+            )
           ) : (
-            <ContextualEmoteRow
-              inputValue={message}
-              cursorPosition={cursorPosition}
-              platform={platform}
-              channelId={channelId}
-              viewerIsSubscribed={viewerIsSubscribed}
-              keyboardActive={isEditorFocused}
-              onResultCountChange={setContextualEmoteResultCount}
-              onSelect={handleEmoteSelect}
-              onClose={emoteAutocomplete.deactivate}
-            />
-          )
-        ) : (
-          chatDisplay.quickEmotes && (
-            <div className="mb-1 h-8 min-h-8" data-testid="chat-emote-action-row">
-              <QuickEmoteActionBar
-                platform={platform}
-                viewerUserId={viewerUserId}
-                onSelect={handleQuickEmoteSend}
-                disabled={disabled || isSending}
-              />
-            </div>
-          )
-        )}
+            chatDisplay.quickEmotes && (
+              <div className="mb-1 h-8 min-h-8" data-testid="chat-emote-action-row">
+                <QuickEmoteActionBar
+                  platform={platform}
+                  viewerUserId={viewerUserId}
+                  onSelect={handleQuickEmoteSend}
+                  disabled={disabled || isSending}
+                />
+              </div>
+            )
+          )}
+          {quickSettingsBelongsToEmoteRow ? quickSettingsOverlay : null}
+        </div>
 
         {/* InfoBanner — renders null when no chat-room modes are active. */}
         {!viewerIsBanned && (
@@ -2335,7 +2352,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         )}
 
         {/* Main Input Area */}
-        <div className={`relative flex flex-col gap-2 ${reply ? "rounded-b-md" : ""}`}>
+        <div
+          className={`relative flex flex-col gap-2 ${reply ? "rounded-b-md" : ""}`}
+          data-testid="chat-input-main-area"
+        >
+          {!quickSettingsBelongsToEmoteRow ? quickSettingsOverlay : null}
           <div
             data-testid="chat-input-text-row"
             className="relative flex items-end gap-2 overflow-hidden rounded-md border-2 bg-[#191919] px-3 py-2 transition-colors duration-150"
@@ -2555,20 +2576,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             </div>
           </div>
         </div>
-
-        {showChatSettings && (
-          <div
-            data-testid="chat-quick-settings-overlay-anchor"
-            className="absolute inset-x-0 bottom-full z-50 mb-12 h-0 max-w-full"
-          >
-            <ChatQuickSettingsPopover
-              platform={platform}
-              placement="top"
-              triggerRef={settingsButtonRef}
-              onClose={() => setShowChatSettings(false)}
-            />
-          </div>
-        )}
 
         {/* Error Message */}
         {error && <div className="absolute -bottom-6 left-0 text-xs text-red-500">{error}</div>}

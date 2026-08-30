@@ -1737,7 +1737,7 @@ describe("ChatInput — footer actions", () => {
   });
 
   it.each(["twitch", "kick"] as const)(
-    "opens authenticated %s quick settings beside the quick-emote strip",
+    "opens authenticated %s quick settings above the quick-emote strip",
     (platform) => {
       infoBannerImpl.mockReturnValue(null);
       const quickEmote = makeQuickEmote({ id: "25", name: "Quick", provider: platform });
