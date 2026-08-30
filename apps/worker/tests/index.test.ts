@@ -53,7 +53,6 @@ function validKickToken(): Record<string, unknown> {
     refresh_token: "kick-refresh-token",
     expires_in: 14_400,
     scope: ["user:read", "channel:read"],
-    provider_extension: { retained: true },
   };
 }
 
@@ -75,7 +74,12 @@ afterEach(() => {
 
 describe("Kick Worker OAuth boundary", () => {
   it("builds the authorization-code form and preserves a validated success response", async () => {
-    const upstreamFetch = vi.fn().mockResolvedValue(Response.json(validKickToken(), { status: 201 }));
+    const upstreamFetch = vi.fn().mockResolvedValue(
+      Response.json(
+        { ...validKickToken(), provider_extension: { stripped: true } },
+        { status: 201 }
+      )
+    );
     vi.stubGlobal("fetch", upstreamFetch);
 
     const response = await dispatch(tokenRequest(validTokenBody()), createEnv());

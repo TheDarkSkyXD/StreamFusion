@@ -19,7 +19,7 @@ type KickRefreshGrant = {
 
 type KickGrant = KickAuthorizationCodeGrant | KickRefreshGrant;
 
-type KickTokenSuccess = Record<string, unknown> & {
+type KickTokenSuccess = {
     access_token: string;
     token_type: string;
     refresh_token?: string;
@@ -27,16 +27,19 @@ type KickTokenSuccess = Record<string, unknown> & {
     scope?: string | string[];
 };
 
-type KickOAuthError =
-    | "access_denied"
-    | "invalid_client"
-    | "invalid_grant"
-    | "invalid_request"
-    | "invalid_scope"
-    | "server_error"
-    | "temporarily_unavailable"
-    | "unauthorized_client"
-    | "unsupported_grant_type";
+const ALLOWED_KICK_OAUTH_ERRORS = {
+    access_denied: true,
+    invalid_client: true,
+    invalid_grant: true,
+    invalid_request: true,
+    invalid_scope: true,
+    server_error: true,
+    temporarily_unavailable: true,
+    unauthorized_client: true,
+    unsupported_grant_type: true
+} satisfies Record<string, true>;
+
+type KickOAuthError = keyof typeof ALLOWED_KICK_OAUTH_ERRORS;
 
 type KickUpstreamOutcome =
     | { kind: "token_success"; status: number; token: KickTokenSuccess }
@@ -49,17 +52,6 @@ const AUTH_PATHS = new Set(["/auth/kick/token", "/auth/kick/refresh"]);
 const KICK_TOKEN_URL = "https://id.kick.com/oauth/token";
 const KICK_TOKEN_TIMEOUT_MS = 10_000;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
-const ALLOWED_KICK_OAUTH_ERRORS: readonly KickOAuthError[] = [
-    "access_denied",
-    "invalid_client",
-    "invalid_grant",
-    "invalid_request",
-    "invalid_scope",
-    "server_error",
-    "temporarily_unavailable",
-    "unauthorized_client",
-    "unsupported_grant_type"
-];
 
 export default {
     async fetch(request: Request, env: Env): Promise<Response> {
@@ -261,8 +253,9 @@ function createKickTokenForm(grant: KickGrant, env: Env): URLSearchParams {
 
 function parseKickUpstreamOutcome(response: Response, data: unknown): KickUpstreamOutcome {
     if (response.ok) {
-        return isKickTokenSuccess(data)
-            ? { kind: "token_success", status: response.status, token: data }
+        const token = parseKickTokenSuccess(data);
+        return token
+            ? { kind: "token_success", status: response.status, token }
             : { kind: "invalid_response" };
     }
 
@@ -273,21 +266,27 @@ function parseKickUpstreamOutcome(response: Response, data: unknown): KickUpstre
     return { kind: "invalid_response" };
 }
 
-function isKickTokenSuccess(value: unknown): value is KickTokenSuccess {
-    if (!isRecord(value)) return false;
+function parseKickTokenSuccess(value: unknown): KickTokenSuccess | null {
+    if (!isRecord(value)) return null;
 
     const { access_token, token_type, refresh_token, expires_in, scope } = value;
-    if (!isBoundedString(access_token, 8192) || !isBoundedString(token_type, 256)) return false;
-    if (refresh_token !== undefined && !isBoundedString(refresh_token, 8192)) return false;
+    if (!isBoundedString(access_token, 8192) || !isBoundedString(token_type, 256)) return null;
+    if (refresh_token !== undefined && !isBoundedString(refresh_token, 8192)) return null;
     if (
         expires_in !== undefined &&
         (typeof expires_in !== "number" || !Number.isFinite(expires_in) || expires_in < 0)
     ) {
-        return false;
+        return null;
     }
-    if (scope !== undefined && !isKickScope(scope)) return false;
+    if (scope !== undefined && !isKickScope(scope)) return null;
 
-    return true;
+    return {
+        access_token,
+        token_type,
+        ...(refresh_token === undefined ? {} : { refresh_token }),
+        ...(expires_in === undefined ? {} : { expires_in }),
+        ...(scope === undefined ? {} : { scope })
+    };
 }
 
 function isKickScope(value: unknown): value is string | string[] {
@@ -300,7 +299,7 @@ function isKickScope(value: unknown): value is string | string[] {
 }
 
 function isAllowedKickOAuthError(value: unknown): value is KickOAuthError {
-    return typeof value === "string" && ALLOWED_KICK_OAUTH_ERRORS.some((error) => error === value);
+    return typeof value === "string" && Object.hasOwn(ALLOWED_KICK_OAUTH_ERRORS, value);
 }
 
 function mapKickUpstreamOutcome(outcome: KickUpstreamOutcome): Response {
@@ -310,11 +309,11 @@ function mapKickUpstreamOutcome(outcome: KickUpstreamOutcome): Response {
         case "oauth_failure":
             return authJson({ error: outcome.error }, outcome.status);
         case "invalid_response":
-            return upstreamFailure("upstream_invalid_response", 502);
+            return authJson({ error: "upstream_invalid_response" }, 502);
         case "timeout":
-            return upstreamFailure("upstream_timeout", 504);
+            return authJson({ error: "upstream_timeout" }, 504);
         case "transport_failure":
-            return upstreamFailure("upstream_unavailable", 502);
+            return authJson({ error: "upstream_unavailable" }, 502);
     }
 
     const exhaustiveOutcome: never = outcome;
@@ -344,13 +343,6 @@ function rateLimitDenied(): Response {
 
 function rateLimitUnavailable(): Response {
     return authJson({ error: "rate_limit_unavailable" }, 503);
-}
-
-function upstreamFailure(
-    error: "upstream_invalid_response" | "upstream_timeout" | "upstream_unavailable",
-    status: number
-): Response {
-    return authJson({ error }, status);
 }
 
 function authNotFound(): Response {
