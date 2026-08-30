@@ -731,24 +731,30 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       const failed: Platform[] = [];
       const failureReasons: Partial<Record<Platform, string>> = {};
 
-      for (const platform of platforms) {
-        try {
-          const result = await window.electronAPI.auth.syncFollows(platform);
-          if (result.success) {
-            synced.push(platform);
-          } else {
-            failed.push(platform);
-            failureReasons[platform] = result.error;
+      const outcomes = await Promise.all(
+        platforms.map(async (platform) => {
+          try {
+            const result = await window.electronAPI.auth.syncFollows(platform);
+            return { platform, result };
+          } catch (error) {
+            logger.warn("Store:Auth", "manual follow sync failed", {
+              platform,
+              error:
+                error instanceof Error
+                  ? { name: error.name, message: error.message, stack: error.stack }
+                  : String(error),
+            });
+            return { platform };
           }
-        } catch (error) {
-          failed.push(platform);
-          logger.warn("Store:Auth", "manual follow sync failed", {
-            platform,
-            error:
-              error instanceof Error
-                ? { name: error.name, message: error.message, stack: error.stack }
-                : String(error),
-          });
+        })
+      );
+
+      for (const outcome of outcomes) {
+        if (outcome.result?.success) {
+          synced.push(outcome.platform);
+        } else {
+          failed.push(outcome.platform);
+          if (outcome.result) failureReasons[outcome.platform] = outcome.result.error;
         }
       }
 

@@ -99,8 +99,10 @@ describe("follow-store isFollowing", () => {
   });
 });
 
+// Guards: Follow membership stays in memory until SQLite hydration and never creates a localStorage payload.
+// Guards: failed SQLite hydration still publishes completion so renderer startup cannot hang.
 describe("follow-store hydration", () => {
-  it("restores cached follows and their account source before the IPC refresh finishes", async () => {
+  it("does not persist optimistic follows or their source to localStorage", () => {
     const channel = makeChannel({
       id: "421500",
       displayName: "ChickenAndy",
@@ -111,16 +113,10 @@ describe("follow-store hydration", () => {
       sourceByKey: new Map([["kick:421500", "kick"]]),
       isHydrated: true,
     });
-    const cached = localStorage.getItem("streamfusion-follow-cache");
-    expect(cached).not.toBeNull();
-
-    useFollowStore.setState({ localFollows: [], sourceByKey: new Map(), isHydrated: false });
-    localStorage.setItem("streamfusion-follow-cache", cached!);
-    await useFollowStore.persist.rehydrate();
 
     expect(useFollowStore.getState().localFollows).toEqual([channel]);
     expect(useFollowStore.getState().getFollowSource(channel)).toBe("kick");
-    expect(useFollowStore.getState().isHydrated).toBe(false);
+    expect(localStorage.getItem("streamfusion-follow-cache")).toBeNull();
   });
 
   it("publishes hydration completion even when the local follow read fails", async () => {

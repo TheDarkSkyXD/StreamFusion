@@ -785,9 +785,20 @@ describe("auth-store account-follow startup sync", () => {
   });
 });
 
+// Guards: connected Twitch and Kick Follow syncs start concurrently, retain provider order, and hydrate SQLite once.
+// Guards: one provider failure cannot cancel the other provider's Follow sync.
+// Guards: duplicate manual sync callers join the same in-flight operation.
 describe("auth-store manual account-follow sync", () => {
-  it("syncs both connected platforms", async () => {
-    const syncFollows = vi.fn(async () => ({ success: true }));
+  it("starts both connected platforms concurrently and hydrates once after both settle", async () => {
+    let resolveTwitch!: (value: { success: true }) => void;
+    let resolveKick!: (value: { success: true }) => void;
+    const syncFollows = vi.fn(
+      (platform: "twitch" | "kick") =>
+        new Promise<{ success: true }>((resolve) => {
+          if (platform === "twitch") resolveTwitch = resolve;
+          else resolveKick = resolve;
+        })
+    );
     Object.defineProperty(window, "electronAPI", {
       configurable: true,
       writable: true,
@@ -799,11 +810,21 @@ describe("auth-store manual account-follow sync", () => {
       kickConnected: true,
     });
 
-    const result = await useAuthStore.getState().syncConnectedFollows();
+    const sync = useAuthStore.getState().syncConnectedFollows();
 
     expect(syncFollows).toHaveBeenCalledWith("twitch");
     expect(syncFollows).toHaveBeenCalledWith("kick");
+    expect(followStoreHydrateSpy).not.toHaveBeenCalled();
+
+    resolveKick({ success: true });
+    await Promise.resolve();
+    expect(followStoreHydrateSpy).not.toHaveBeenCalled();
+
+    resolveTwitch({ success: true });
+    const result = await sync;
+
     expect(result).toEqual({ synced: ["twitch", "kick"], failed: [], failureReasons: {} });
+    expect(followStoreHydrateSpy).toHaveBeenCalledOnce();
   });
 
   it("syncs only the connected platform", async () => {
@@ -826,10 +847,11 @@ describe("auth-store manual account-follow sync", () => {
     expect(result).toEqual({ synced: ["twitch"], failed: [], failureReasons: {} });
   });
 
-  it("returns partial failures and timestamps only successful platforms", async () => {
-    const syncFollows = vi.fn(async (platform: "twitch" | "kick") => ({
-      success: platform === "twitch",
-    }));
+  it("isolates a rejected provider and timestamps only the successful platform", async () => {
+    const syncFollows = vi.fn(async (platform: "twitch" | "kick") => {
+      if (platform === "kick") throw new Error("kick unavailable");
+      return { success: true };
+    });
     Object.defineProperty(window, "electronAPI", {
       configurable: true,
       writable: true,
@@ -847,7 +869,7 @@ describe("auth-store manual account-follow sync", () => {
     expect(result).toEqual({
       synced: ["twitch"],
       failed: ["kick"],
-      failureReasons: { kick: undefined },
+      failureReasons: {},
     });
     expect(useAuthStore.getState().followSyncLastSyncedAt.twitch).toEqual(expect.any(String));
     expect(useAuthStore.getState().followSyncLastSyncedAt.kick).toBeUndefined();

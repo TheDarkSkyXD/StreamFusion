@@ -22,18 +22,15 @@ vi.mock("@backend/services/storage-service", () => ({
   },
 }));
 
-vi.mock("@backend/api/platforms/kick/kick-client", () => ({
-  kickClient: {
-    getChannelsByBroadcasterIds: vi.fn(),
-    getPublicChannel: vi.fn(),
-  },
+vi.mock("@backend/services/kick-follow-metadata-refresh", () => ({
+  refreshKickFollowMetadataNow: vi.fn(),
 }));
 
 import { app, ipcMain } from "electron";
 
-import { kickClient } from "@backend/api/platforms/kick/kick-client";
 import { registerStorageHandlers } from "@backend/ipc/handlers/storage-handlers";
 import { dbService } from "@backend/services/database-service";
+import { refreshKickFollowMetadataNow } from "@backend/services/kick-follow-metadata-refresh";
 import { storageService } from "@backend/services/storage-service";
 
 type AddArgs = { follow: Omit<LocalFollow, "id" | "followedAt"> };
@@ -144,9 +141,9 @@ describe("storage-handlers FOLLOWS_ADD — per-platform source routing", () => {
   });
 });
 
-// Guards: renderer follow hydration must repair renamed Kick slugs before Following renders offline channel links.
-describe("storage-handlers FOLLOWS_GET_ALL — Kick rename repair", () => {
-  it("returns re-read Kick follows after repairing stale slugs by broadcaster id", async () => {
+// Guards: renderer hydration routes Kick metadata repair through the throttled coordinator before re-reading SQLite.
+describe("storage-handlers FOLLOWS_GET_ALL — Kick metadata refresh", () => {
+  it("returns re-read Kick follows after the coordinated metadata refresh", async () => {
     const staleKickFollow = {
       id: "kick-row-1",
       platform: "kick",
@@ -181,39 +178,12 @@ describe("storage-handlers FOLLOWS_GET_ALL — Kick rename repair", () => {
         .mock.calls.filter(([calledPlatform]) => calledPlatform === "kick").length;
       return callCount <= 1 ? [staleKickFollow] : [repairedKickFollow];
     });
-    vi.mocked(kickClient.getChannelsByBroadcasterIds).mockResolvedValue([
-      {
-        id: "123",
-        platform: "kick",
-        username: "new-slug",
-        displayName: "New Slug",
-        avatarUrl: "https://example.com/new.jpg",
-        isLive: false,
-        isVerified: false,
-        isPartner: false,
-      },
-    ]);
-    vi.mocked(kickClient.getPublicChannel).mockResolvedValue({
-      id: "123",
-      platform: "kick",
-      username: "new-slug",
-      displayName: "New Slug",
-      avatarUrl: "https://example.com/new.jpg",
-      kickUserId: "123",
-      isLive: false,
-      isVerified: false,
-      isPartner: false,
-    });
+    vi.mocked(refreshKickFollowMetadataNow).mockResolvedValue();
     registerStorageHandlers();
 
     const result = (await getHandler(IPC_CHANNELS.FOLLOWS_GET_ALL)({})) as LocalFollow[];
 
-    expect(kickClient.getChannelsByBroadcasterIds).toHaveBeenCalledWith([123]);
-    expect(storageService.updateLocalFollow).toHaveBeenCalledWith("kick-row-1", {
-      channelName: "new-slug",
-      displayName: "New Slug",
-      profileImage: "https://example.com/new.jpg",
-    });
+    expect(refreshKickFollowMetadataNow).toHaveBeenCalledWith("follow-read");
     expect(result.map((follow) => follow.channelName)).toEqual(["twitchy", "new-slug"]);
   });
 
@@ -252,39 +222,12 @@ describe("storage-handlers FOLLOWS_GET_ALL — Kick rename repair", () => {
       activeSlugOnlyFollow,
       hiddenGuestFollowWithStableId,
     ]);
-    vi.mocked(kickClient.getChannelsByBroadcasterIds).mockResolvedValue([
-      {
-        id: "123",
-        platform: "kick",
-        username: "new-slug",
-        displayName: "New Slug",
-        avatarUrl: "",
-        isLive: false,
-        isVerified: false,
-        isPartner: false,
-      },
-    ]);
-    vi.mocked(kickClient.getPublicChannel).mockResolvedValue({
-      id: "123",
-      platform: "kick",
-      username: "new-slug",
-      displayName: "New Slug",
-      avatarUrl: "",
-      kickUserId: "123",
-      isLive: false,
-      isVerified: false,
-      isPartner: false,
-    });
+    vi.mocked(refreshKickFollowMetadataNow).mockResolvedValue();
     registerStorageHandlers();
 
     const result = (await getHandler(IPC_CHANNELS.FOLLOWS_GET_ALL)({})) as LocalFollow[];
 
-    expect(kickClient.getChannelsByBroadcasterIds).toHaveBeenCalledWith([123]);
-    expect(storageService.updateLocalFollow).toHaveBeenCalledWith("kick-account-old-slug", {
-      channelId: "123",
-      channelName: "new-slug",
-      displayName: "New Slug",
-    });
+    expect(refreshKickFollowMetadataNow).toHaveBeenCalledWith("follow-read");
     expect(
       result.map((follow) => `${follow.source}:${follow.channelId}:${follow.channelName}`)
     ).toEqual(["kick:123:new-slug"]);

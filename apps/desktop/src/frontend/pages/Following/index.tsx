@@ -11,11 +11,7 @@ import {
   LuTag,
   LuUsers,
 } from "react-icons/lu";
-import type {
-  UnifiedCategory,
-  UnifiedChannel,
-  UnifiedStream,
-} from "@shared/platform-types";
+import type { UnifiedCategory, UnifiedChannel, UnifiedStream } from "@shared/platform-types";
 import { CategoryGrid } from "@/features/discovery/components/discovery/category-grid";
 import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
 import { ClipCard } from "@/features/playback/components/related-content/ClipCard";
@@ -34,7 +30,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { measureCacheInvalidationDispatch } from "@/features/discovery/data/queries/cache-performance";
 import { useTopCategories } from "@/features/discovery/data/queries/useCategories";
-import { useChannelByUsername, useFollowedChannels } from "@/features/discovery/data/queries/useChannels";
+import { useChannelByUsername } from "@/features/discovery/data/queries/useChannels";
 import {
   type FollowedClipTimeRange,
   type FollowedContentItem,
@@ -252,26 +248,7 @@ export function FollowingPage() {
     twitchUser?.id,
   ]);
 
-  // 2. Remote follows
-  // Only fetch if connected to respective platform
-  const {
-    data: twitchFollows,
-    isLoading: isLoadingTwitch,
-    error: twitchFollowsError,
-    refetch: refetchTwitchFollows,
-  } = useFollowedChannels("twitch", {
-    enabled: twitchConnected,
-  });
-  const {
-    data: kickFollows,
-    isLoading: isLoadingKick,
-    error: kickFollowsError,
-    refetch: refetchKickFollows,
-  } = useFollowedChannels("kick", {
-    enabled: kickConnected,
-  });
-
-  // 3. Live streams (All platforms)
+  // 2. Live streams (All platforms)
   // Backend now handles fetching streams for local follows even if disconnected
   const {
     data: liveStreams,
@@ -288,30 +265,8 @@ export function FollowingPage() {
 
   const allChannels = useMemo(() => {
     if (shouldUsePrepaintLiveData) return EMPTY_FOLLOWED_CHANNELS;
-
-    // Collect all channels from local and remote sources
-    // Key by platform-channelId to deduplicate while preventing cross-platform collisions
-    // Uses centralized key generation from id-utils
-    const channelMap = new Map<string, UnifiedChannel>();
-
-    // Add local follows
-    localFollows.forEach((channel) => {
-      // LocalFollows store now returns UnifiedChannel[] (hydrated from backend)
-      channelMap.set(getChannelKey(channel), channel);
-    });
-
-    // Add remote follows (Twitch) - overwrites local if exists (fresh data)
-    if (twitchFollows) {
-      twitchFollows.forEach((c) => channelMap.set(getChannelKey(c), c));
-    }
-
-    // Add remote follows (Kick)
-    if (kickFollows) {
-      kickFollows.forEach((c) => channelMap.set(getChannelKey(c), c));
-    }
-
-    return dedupeChannelsByIdentity(Array.from(channelMap.values()));
-  }, [kickFollows, localFollows, shouldUsePrepaintLiveData, twitchFollows]);
+    return dedupeChannelsByIdentity(localFollows);
+  }, [localFollows, shouldUsePrepaintLiveData]);
 
   const { streamByIdMap, streamByNameMap } = useMemo(() => {
     if (shouldUsePrepaintLiveData) return EMPTY_STREAM_LOOKUPS;
@@ -335,23 +290,16 @@ export function FollowingPage() {
   }, [liveStreams, shouldUsePrepaintLiveData]);
 
   const { liveChannels, hasVisibleFollowedChannels, isLoading } = useMemo(() => {
-    const loadingTwitch = twitchConnected && isLoadingTwitch && !twitchFollows;
-    const loadingKick = kickConnected && isLoadingKick && !kickFollows;
-
     if (shouldUsePrepaintLiveData) {
       const live = dedupeStreamsByChannelIdentity(liveStreams ?? []).sort(
         (a, b) => b.viewerCount - a.viewerCount
       );
-      const hasFollowedChannels =
-        localFollows.length > 0 ||
-        Boolean(twitchFollows?.length) ||
-        Boolean(kickFollows?.length) ||
-        live.length > 0;
+      const hasFollowedChannels = localFollows.length > 0 || live.length > 0;
 
       return {
         liveChannels: live,
         hasVisibleFollowedChannels: hasFollowedChannels,
-        isLoading: !hasFollowedChannels && (isLoadingStreams || loadingTwitch || loadingKick),
+        isLoading: !hasFollowedChannels && isLoadingStreams,
       };
     }
 
@@ -416,24 +364,16 @@ export function FollowingPage() {
     return {
       liveChannels: live,
       hasVisibleFollowedChannels: visibleChannelCount > 0,
-      isLoading:
-        (isLoadingStreams && liveStreams === undefined) ||
-        (allChannels.length === 0 && (loadingTwitch || loadingKick)),
+      isLoading: isLoadingStreams && liveStreams === undefined,
     };
   }, [
     allChannels,
     shouldUsePrepaintLiveData,
-    twitchFollows,
-    kickFollows,
     liveStreams,
     localFollows.length,
     filter,
     searchQuery,
     isLoadingStreams,
-    isLoadingTwitch,
-    isLoadingKick,
-    twitchConnected,
-    kickConnected,
     streamByIdMap,
     streamByNameMap,
   ]);
@@ -562,43 +502,39 @@ export function FollowingPage() {
     setManualRefreshPending(true);
     setManualRefreshFailed(false);
     try {
-      let syncFailed = false;
-      try {
-        const syncResult = await syncConnectedFollows();
-        syncFailed = syncResult.failed.length > 0;
-      } catch {
-        syncFailed = true;
+      const syncPromise = syncConnectedFollows();
+      const refreshes: Array<Promise<unknown>> = [];
+      if (activeTab === "live") {
+        refreshes.push(refetchFollowedStreams());
+      } else if (activeTab === "categories") {
+        refreshes.push(refetchFollowedStreams(), refetchTopCategories());
+      } else if (activeTab === "videos") {
+        refreshes.push(refetchFollowedVideos());
+      } else if (activeTab === "clips") {
+        refreshes.push(refetchFollowedClips());
       }
 
-      const refreshes: Array<Promise<unknown>> = [refetchFollowedStreams()];
-      if (twitchConnected && filter !== "kick") refreshes.push(refetchTwitchFollows());
-      if (kickConnected && filter !== "twitch") refreshes.push(refetchKickFollows());
-      if (activeTab === "categories") {
-        refreshes.push(refetchTopCategories());
-      }
-      if (activeTab === "videos") refreshes.push(refetchFollowedVideos());
-      if (activeTab === "clips") refreshes.push(refetchFollowedClips());
-
-      const results = await measureCacheInvalidationDispatch("manual-refresh:following", () =>
-        Promise.allSettled(refreshes)
-      );
-      setManualRefreshFailed(syncFailed || results.some(manualRefreshResultFailed));
+      const [syncResult, refreshResults] = await Promise.all([
+        syncPromise.then(
+          (result) => result.failed.length > 0,
+          () => true
+        ),
+        measureCacheInvalidationDispatch("manual-refresh:following", () =>
+          Promise.allSettled(refreshes)
+        ),
+      ]);
+      setManualRefreshFailed(syncResult || refreshResults.some(manualRefreshResultFailed));
     } finally {
       setManualRefreshPending(false);
     }
   }, [
     activeTab,
-    filter,
-    kickConnected,
     manualRefreshPending,
     refetchFollowedClips,
     refetchFollowedStreams,
     refetchFollowedVideos,
-    refetchKickFollows,
     refetchTopCategories,
-    refetchTwitchFollows,
     syncConnectedFollows,
-    twitchConnected,
   ]);
   const manualSyncPending = manualRefreshPending || followSyncInProgress;
 
@@ -886,9 +822,7 @@ export function FollowingPage() {
 
   const hasNoFollowedChannels = !hasVisibleFollowedChannels;
   const hasInitialLiveError =
-    activeTab === "live" &&
-    liveChannels.length === 0 &&
-    Boolean(twitchFollowsError || kickFollowsError || liveStreamsError);
+    activeTab === "live" && liveChannels.length === 0 && Boolean(liveStreamsError);
   const noMatchMessage = searchQuery
     ? `No matches for "${searchQuery}"`
     : "Follow channels to see them here!";

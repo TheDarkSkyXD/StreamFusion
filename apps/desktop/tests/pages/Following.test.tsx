@@ -30,7 +30,6 @@ const firstPaintState = vi.hoisted(() => ({ hasPainted: true }));
 vi.mock("@tanstack/react-router", () => routerMock());
 
 vi.mock("@/features/discovery/data/queries/useChannels", () => ({
-  useFollowedChannels: vi.fn(),
   useChannelByUsername: vi.fn(),
 }));
 
@@ -165,7 +164,7 @@ import {
   resetCachePerformanceSamples,
 } from "@/features/discovery/data/queries/cache-performance";
 import { useTopCategories } from "@/features/discovery/data/queries/useCategories";
-import { useChannelByUsername, useFollowedChannels } from "@/features/discovery/data/queries/useChannels";
+import { useChannelByUsername } from "@/features/discovery/data/queries/useChannels";
 import {
   useFollowedClipPlayback,
   useFollowedClips,
@@ -178,7 +177,6 @@ import {
 import { FollowingPage } from "@/pages/Following";
 
 const useTopCategoriesMock = vi.mocked(useTopCategories);
-const useFollowedChannelsMock = vi.mocked(useFollowedChannels);
 const useChannelByUsernameMock = vi.mocked(useChannelByUsername);
 const useFollowedVideosMock = vi.mocked(useFollowedVideos);
 const useFollowedClipsMock = vi.mocked(useFollowedClips);
@@ -271,7 +269,7 @@ function createDeferredRefresh() {
 // Guards: loading state — render skeleton cards (StreamGrid skeleton + offline-pills skeleton) while Helix and Kick fan-outs are pending, never blank-on-loading
 // Guards: error state — a failed Following request presents a retryable error alert, never the empty state.
 // Guards: empty state — a successfully settled zero-result request presents the explicit no-followed-channels state.
-// Guards: signed-in Kick account state - SQLite follows remain visible while remote follows enrich matching rows and add live/offline rows
+// Guards: Following membership comes only from the SQLite-hydrated Follow store.
 // Guards: partnered/verified followed channels keep their platform badge on Following page cards, and live cards receive badge metadata before rendering through StreamGrid
 // Guards: mini-player continuity - the currently watched PiP stream identity is forwarded into the live grid so followed live cards can render selected while playback stays in the mini player
 // Guards: Videos and Clips tabs aggregate recent content from followed channels instead of rendering unavailable placeholders
@@ -283,12 +281,12 @@ function createDeferredRefresh() {
 // Guards: delayed startup keeps live refresh active but defers exact snapshot identity work until auth, follows, and the first paint are ready
 // Guards: first useful paint derives the deduped cached live count without mounting cards, skeletons, or a false empty state
 // Guards: Live-tab startup does not prepare the full followed-channel collection for disabled Videos and Clips queries
-// Guards: one manual Live refresh dispatches exactly one current streams/channels refresh without account-sync or unrelated-tab fan-out
+// Guards: manual refresh overlaps account sync with only the active tab's content request.
+// Guards: Channels manual refresh starts no remote content request.
 describe("FollowingPage", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
     useTopCategoriesMock.mockReset();
-    useFollowedChannelsMock.mockReset();
     useChannelByUsernameMock.mockReset();
     useFollowedVideosMock.mockReset();
     useFollowedClipsMock.mockReset();
@@ -310,11 +308,6 @@ describe("FollowingPage", () => {
     storeState.followSyncLastSyncedAt = {};
     firstPaintState.hasPainted = true;
     resetCachePerformanceSamples();
-    useFollowedChannelsMock.mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useFollowedChannels>);
     useChannelByUsernameMock.mockReturnValue({ data: undefined, isLoading: false } as ReturnType<
       typeof useChannelByUsername
     >);
@@ -511,7 +504,7 @@ describe("FollowingPage", () => {
     expect(screen.queryByText(/refreshing cache|refreshing data/i)).not.toBeInTheDocument();
   });
 
-  it("manual Live refresh syncs connected accounts before requesting current data", async () => {
+  it("manual Live refresh starts account sync and stream refetch before either settles", async () => {
     storeState.twitchConnected = true;
     storeState.kickConnected = true;
     let resolveSync!: (result: { synced: string[]; failed: string[] }) => void;
@@ -519,9 +512,8 @@ describe("FollowingPage", () => {
       resolveSync = resolve;
     });
     storeState.syncConnectedFollows.mockReturnValue(syncPromise);
-    const refetchFollowedStreams = vi.fn().mockResolvedValue({ isError: false, status: "success" });
-    const refetchTwitchFollows = vi.fn().mockResolvedValue({ isError: false, status: "success" });
-    const refetchKickFollows = vi.fn().mockResolvedValue({ isError: false, status: "success" });
+    const streamRefresh = createDeferredRefresh();
+    const refetchFollowedStreams = vi.fn(() => streamRefresh.promise);
     const refetchCategories = vi.fn().mockResolvedValue({ isError: false, status: "success" });
     const refetchVideos = vi.fn().mockResolvedValue({ isError: false, status: "success" });
     const refetchClips = vi.fn().mockResolvedValue({ isError: false, status: "success" });
@@ -530,14 +522,6 @@ describe("FollowingPage", () => {
       isLoading: false,
       refetch: refetchFollowedStreams,
     } as unknown as ReturnType<typeof useFollowedStreams>);
-    useFollowedChannelsMock.mockImplementation(
-      (platform) =>
-        ({
-          data: [],
-          isLoading: false,
-          refetch: platform === "twitch" ? refetchTwitchFollows : refetchKickFollows,
-        }) as unknown as ReturnType<typeof useFollowedChannels>
-    );
     useTopCategoriesMock.mockReturnValue({
       data: [],
       isLoading: false,
@@ -559,18 +543,17 @@ describe("FollowingPage", () => {
 
     await waitFor(() => {
       expect(storeState.syncConnectedFollows).toHaveBeenCalledTimes(1);
+      expect(refetchFollowedStreams).toHaveBeenCalledTimes(1);
     });
-    expect(refetchFollowedStreams).not.toHaveBeenCalled();
-    expect(refetchTwitchFollows).not.toHaveBeenCalled();
-    expect(refetchKickFollows).not.toHaveBeenCalled();
-
-    resolveSync({ synced: ["twitch", "kick"], failed: [] });
-    await waitFor(() => expect(refetchFollowedStreams).toHaveBeenCalledTimes(1));
-    expect(refetchTwitchFollows).toHaveBeenCalledTimes(1);
-    expect(refetchKickFollows).toHaveBeenCalledTimes(1);
     expect(refetchCategories).not.toHaveBeenCalled();
     expect(refetchVideos).not.toHaveBeenCalled();
     expect(refetchClips).not.toHaveBeenCalled();
+
+    await act(async () => {
+      streamRefresh.resolve({ isError: false, status: "success" });
+      resolveSync({ synced: ["twitch", "kick"], failed: [] });
+      await Promise.all([streamRefresh.promise, syncPromise]);
+    });
   });
 
   it("manual Live refresh reports a partial sync failure after refetching current data", async () => {
@@ -581,21 +564,11 @@ describe("FollowingPage", () => {
       failed: ["kick"],
     });
     const refetchFollowedStreams = vi.fn().mockResolvedValue({ isError: false, status: "success" });
-    const refetchTwitchFollows = vi.fn().mockResolvedValue({ isError: false, status: "success" });
-    const refetchKickFollows = vi.fn().mockResolvedValue({ isError: false, status: "success" });
     useFollowedStreamsMock.mockReturnValue({
       data: [],
       isLoading: false,
       refetch: refetchFollowedStreams,
     } as unknown as ReturnType<typeof useFollowedStreams>);
-    useFollowedChannelsMock.mockImplementation(
-      (platform) =>
-        ({
-          data: [],
-          isLoading: false,
-          refetch: platform === "twitch" ? refetchTwitchFollows : refetchKickFollows,
-        }) as unknown as ReturnType<typeof useFollowedChannels>
-    );
 
     renderWithProviders(<FollowingPage />);
     fireEvent.click(screen.getByRole("button", { name: /refresh following data/i }));
@@ -604,8 +577,49 @@ describe("FollowingPage", () => {
       await screen.findByRole("button", { name: "Retry refreshing following data" })
     ).toBeInTheDocument();
     expect(refetchFollowedStreams).toHaveBeenCalledOnce();
-    expect(refetchTwitchFollows).toHaveBeenCalledOnce();
-    expect(refetchKickFollows).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["categories", { streams: 1, categories: 1, videos: 0, clips: 0 }],
+    ["videos", { streams: 0, categories: 0, videos: 1, clips: 0 }],
+    ["clips", { streams: 0, categories: 0, videos: 0, clips: 1 }],
+    ["channels", { streams: 0, categories: 0, videos: 0, clips: 0 }],
+  ] as const)("manual %s refresh requests only that tab's content", async (tab, expected) => {
+    const successfulRefresh = { isError: false, status: "success" } as const;
+    const refetchStreams = vi.fn().mockResolvedValue(successfulRefresh);
+    const refetchCategories = vi.fn().mockResolvedValue(successfulRefresh);
+    const refetchVideos = vi.fn().mockResolvedValue(successfulRefresh);
+    const refetchClips = vi.fn().mockResolvedValue(successfulRefresh);
+    useFollowedStreamsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      refetch: refetchStreams,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+    useTopCategoriesMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      refetch: refetchCategories,
+    } as unknown as ReturnType<typeof useTopCategories>);
+    useFollowedVideosMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      refetch: refetchVideos,
+    } as unknown as ReturnType<typeof useFollowedVideos>);
+    useFollowedClipsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      refetch: refetchClips,
+    } as unknown as ReturnType<typeof useFollowedClips>);
+
+    renderWithProviders(<FollowingPage />);
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${tab}$`, "i") }));
+    fireEvent.click(screen.getByRole("button", { name: /refresh following data/i }));
+
+    await waitFor(() => expect(storeState.syncConnectedFollows).toHaveBeenCalledOnce());
+    expect(refetchStreams).toHaveBeenCalledTimes(expected.streams);
+    expect(refetchCategories).toHaveBeenCalledTimes(expected.categories);
+    expect(refetchVideos).toHaveBeenCalledTimes(expected.videos);
+    expect(refetchClips).toHaveBeenCalledTimes(expected.clips);
   });
 
   it("manual Live refresh preserves cached cards, publishes success, and resets pending", async () => {
@@ -886,7 +900,7 @@ describe("FollowingPage", () => {
     expect(screen.queryByText(/no live followed channels found/i)).not.toBeInTheDocument();
   });
 
-  it("shows connected Kick SQLite follows while remote follows and live status refresh", () => {
+  it("shows connected Kick SQLite follows while live status refreshes", () => {
     storeState.kickConnected = true;
     storeState.localFollows = [
       fixtures.channel({
@@ -896,14 +910,6 @@ describe("FollowingPage", () => {
         displayName: "LocalPending",
       }),
     ];
-    useFollowedChannelsMock.mockImplementation(
-      (platform) =>
-        ({
-          data: platform === "kick" ? undefined : [],
-          isLoading: platform === "kick",
-          refetch: vi.fn(),
-        }) as unknown as ReturnType<typeof useFollowedChannels>
-    );
     useFollowedStreamsMock.mockReturnValue({
       data: undefined,
       isLoading: true,
@@ -914,7 +920,6 @@ describe("FollowingPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /^channels$/i }));
 
     expect(screen.getAllByText("LocalPending").length).toBeGreaterThan(0);
-    expect(useFollowedChannelsMock).toHaveBeenCalledWith("kick", { enabled: true });
   });
 
   it("error: keeps an initial query failure distinct from the empty state and retries", async () => {
@@ -961,7 +966,7 @@ describe("FollowingPage", () => {
     expect(screen.queryByText(/no followed channels found/i)).not.toBeInTheDocument();
   });
 
-  it("keeps connected Kick SQLite follows when the remote refresh resolves empty", () => {
+  it("keeps connected Kick SQLite follows when live streams resolve empty", () => {
     storeState.kickConnected = true;
     storeState.localFollows = [
       fixtures.channel({
@@ -971,11 +976,6 @@ describe("FollowingPage", () => {
         displayName: "LocalResolved",
       }),
     ];
-    useFollowedChannelsMock.mockReturnValue({
-      data: [],
-      isLoading: false,
-      refetch: vi.fn(),
-    } as unknown as ReturnType<typeof useFollowedChannels>);
     useFollowedStreamsMock.mockReturnValue({
       data: [],
       isLoading: false,
@@ -989,16 +989,11 @@ describe("FollowingPage", () => {
     expect(screen.queryByText(/no followed channels found/i)).not.toBeInTheDocument();
   });
 
-  it("error: Helix/Kick fan-out failure renders retry instead of the empty state", () => {
-    useFollowedChannelsMock.mockReturnValue({
-      data: undefined,
-      isLoading: false,
-      error: new Error("helix 503"),
-    } as unknown as ReturnType<typeof useFollowedChannels>);
+  it("error: live-stream failure renders retry instead of the empty state", () => {
     useFollowedStreamsMock.mockReturnValue({
       data: undefined,
       isLoading: false,
-      error: new Error("helix 503"),
+      error: new Error("stream request failed"),
     } as unknown as ReturnType<typeof useFollowedStreams>);
     renderWithProviders(<FollowingPage />);
     expect(screen.getByRole("alert")).toHaveTextContent(/couldn't load followed channels/i);
@@ -1007,7 +1002,7 @@ describe("FollowingPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("signed-in Kick: merges SQLite follows with verified account follows", () => {
+  it("ignores live streams for channels absent from the SQLite Follow list", () => {
     storeState.kickConnected = true;
     storeState.localFollows = [
       fixtures.channel({
@@ -1017,25 +1012,6 @@ describe("FollowingPage", () => {
         displayName: "LocalOnly",
       }),
     ];
-    const liveKickFollow = fixtures.channel({
-      id: "live-kick",
-      platform: "kick",
-      username: "livekick",
-      displayName: "LiveKick",
-    });
-    const offlineKickFollow = fixtures.channel({
-      id: "offline-kick",
-      platform: "kick",
-      username: "offlinekick",
-      displayName: "OfflineKick",
-    });
-    useFollowedChannelsMock.mockImplementation(
-      (platform) =>
-        ({
-          data: platform === "kick" ? [liveKickFollow, offlineKickFollow] : [],
-          isLoading: false,
-        }) as unknown as ReturnType<typeof useFollowedChannels>
-    );
     useFollowedStreamsMock.mockReturnValue({
       data: [
         fixtures.stream({
@@ -1052,12 +1028,11 @@ describe("FollowingPage", () => {
 
     renderWithProviders(<FollowingPage />);
 
-    expect(screen.getByText(/live now/i)).toBeInTheDocument();
-    expect(screen.getByTestId("stream-grid")).toHaveTextContent("1 streams");
+    expect(screen.getByText(/no live followed channels found/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /^channels$/i }));
     expect(screen.getByRole("heading", { name: /channels/i })).toBeInTheDocument();
-    expect(screen.getAllByText("OfflineKick").length).toBeGreaterThan(0);
     expect(screen.getAllByText("LocalOnly").length).toBeGreaterThan(0);
+    expect(screen.queryByText("LiveKick")).not.toBeInTheDocument();
   });
 
   it("shows the full live count before first paint without mounting the stream grid", () => {

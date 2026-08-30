@@ -13,6 +13,7 @@ import type {
 } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { KickFollowWriteService } from "../../services/kick-follow-write-service";
+import { refreshKickFollowMetadataNow } from "../../services/kick-follow-metadata-refresh";
 import { storageService } from "../../services/storage-service";
 import { isAllowedSender } from "../sender-origin";
 
@@ -107,11 +108,7 @@ export function registerStorageHandlers(mainWindow?: BrowserWindow): void {
       return follows;
     }
 
-    const [{ kickClient }, { repairKickFollowSlugs }] = await Promise.all([
-      import("../../api/platforms/kick/kick-client"),
-      import("./kick-follow-repair"),
-    ]);
-    await repairKickFollowSlugs(kickClient, follows);
+    await refreshKickFollowMetadataNow("follow-read");
 
     return storageService.getActiveFollowsByPlatform("kick");
   };
