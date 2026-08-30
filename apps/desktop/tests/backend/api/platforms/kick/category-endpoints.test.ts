@@ -41,6 +41,8 @@ function jsonResponse(body: unknown, status = 200): Response {
 // Guards: bounded category discovery returns its first Kick page without crawling the full catalog.
 // Guards: catalog growth beyond 50 pages remains complete instead of discarding every Kick category.
 // Guards: an exact category search stops once its live match is found.
+// Guards: concurrent uncached catalog readers share one crawl instead of multiplying Kick requests.
+// Guards: a terminal inactive page may echo its cursor without discarding the completed catalog.
 describe("category-endpoints", () => {
   let getTopCategories: typeof import("@backend/api/platforms/kick/endpoints/category-endpoints").getTopCategories;
   let searchCategories: typeof import("@backend/api/platforms/kick/endpoints/category-endpoints").searchCategories;
@@ -284,6 +286,72 @@ describe("category-endpoints", () => {
 
       expect(retry.data.map((category) => category.name)).toEqual(["Complete"]);
       expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it("accepts an echoed cursor after the catalog reaches inactive categories", async () => {
+      const client = createMockClient();
+      mockFetch
+        .mockResolvedValueOnce(
+          jsonResponse({
+            data: {
+              categories: [
+                {
+                  name: "Active",
+                  viewers_count: 200,
+                  image_url: "https://files.kick.com/images/subcategories/1/banner/img.webp",
+                },
+              ],
+              next_cursor: "page-2",
+            },
+          })
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({
+            data: {
+              categories: [
+                {
+                  name: "Inactive",
+                  viewers_count: 0,
+                  image_url: "https://files.kick.com/images/subcategories/2/banner/img.webp",
+                },
+              ],
+              next_cursor: "page-2",
+            },
+          })
+        );
+
+      await expect(getTopCategories(client)).resolves.toEqual({
+        data: [expect.objectContaining({ id: "1", name: "Active" })],
+      });
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("shares one uncached catalog crawl across top-list and category-by-ID readers", async () => {
+      const client = createMockClient();
+      mockFetch.mockImplementation(async () =>
+        jsonResponse({
+          data: {
+            categories: [
+              {
+                name: "IRL",
+                slug: "irl",
+                viewers_count: 4321,
+                image_url: "https://files.kick.com/images/subcategories/8549/banner/img.webp",
+              },
+            ],
+            next_cursor: null,
+          },
+        })
+      );
+
+      const [top, byId] = await Promise.all([
+        getTopCategories(client),
+        getCategoryById(client, "8549"),
+      ]);
+
+      expect(top.data).toEqual([expect.objectContaining({ id: "8549", name: "IRL" })]);
+      expect(byId).toEqual(expect.objectContaining({ id: "8549", name: "IRL" }));
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
     it("propagates caller cancellation", async () => {

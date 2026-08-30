@@ -66,6 +66,7 @@ function emptyInfinite() {
 // Guards: error state — useCategoryById returns data=undefined → category name "Unknown Category" surfaces; the streams grid still mounts so users can see live streams while the category metadata recovers
 // Guards: empty state — useInfiniteStreamsByCategory returns pages=[] for both primary + secondary → streams grid shows 0 streams; distinct from loading via the absent .animate-pulse
 // Guards: the watching-live total adds newly loaded secondary-platform viewers before the merged catalog finishes.
+// Guards: duplicate stream rows across pages do not inflate the watching-live total.
 describe("CategoryDetailPage", () => {
   beforeEach(() => {
     installElectronAPIMock();
@@ -172,6 +173,48 @@ describe("CategoryDetailPage", () => {
 
     expect(screen.getByText("131")).toBeInTheDocument();
     expect(screen.queryByText("111")).not.toBeInTheDocument();
+  });
+
+  it("does not count a repeated secondary-platform stream twice", () => {
+    useCategoryByIdMock.mockReturnValue({
+      data: fixtures.category({ name: "IRL", viewerCount: 111 }),
+      isLoading: false,
+    } as ReturnType<typeof useCategoryById>);
+    useInfiniteStreamsByCategoryMock.mockReturnValueOnce({
+      data: {
+        pages: [
+          {
+            data: [fixtures.stream({ id: "twitch-stream", platform: "twitch", viewerCount: 50 })],
+          },
+        ],
+      },
+      isLoading: false,
+      isFetchingNextPage: false,
+      hasNextPage: false,
+      fetchNextPage: vi.fn(),
+    } as unknown as ReturnType<typeof useInfiniteStreamsByCategory>);
+    useInfiniteStreamsByCategoryMock.mockReturnValueOnce({
+      data: {
+        pages: [
+          {
+            data: [fixtures.stream({ id: "kick-stream", platform: "kick", viewerCount: 20 })],
+          },
+          {
+            data: [fixtures.stream({ id: "kick-stream", platform: "kick", viewerCount: 20 })],
+          },
+        ],
+      },
+      isLoading: false,
+      isFetchingNextPage: false,
+      hasNextPage: false,
+      fetchNextPage: vi.fn(),
+    } as unknown as ReturnType<typeof useInfiniteStreamsByCategory>);
+
+    renderWithProviders(<CategoryDetailPage />);
+
+    expect(screen.getByTestId("stream-grid")).toHaveTextContent("2 streams");
+    expect(screen.getByText("131")).toBeInTheDocument();
+    expect(screen.queryByText("151")).not.toBeInTheDocument();
   });
 
   it("error: useCategoryById returns data=undefined (Helix 5xx) → streams grid still mounts so users can browse live streams while metadata recovers", () => {
