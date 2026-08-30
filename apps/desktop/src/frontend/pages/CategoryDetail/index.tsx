@@ -329,15 +329,28 @@ export function CategoryDetailPage() {
         : (left.viewerCount ?? 0) - (right.viewerCount ?? 0)
     );
     return {
-      primaryStreamViewers: primary.reduce((sum, stream) => sum + (stream?.viewerCount ?? 0), 0),
+      primaryStreamViewers: mergedList.reduce(
+        (sum, stream) =>
+          stream.platform === currentPlatform ? sum + (stream.viewerCount ?? 0) : sum,
+        0
+      ),
       scopedMerged: scoped,
-      secondaryStreamViewers: secondary.reduce(
-        (sum, stream) => sum + (stream?.viewerCount ?? 0),
+      secondaryStreamViewers: mergedList.reduce(
+        (sum, stream) =>
+          stream.platform === otherPlatform ? sum + (stream.viewerCount ?? 0) : sum,
         0
       ),
       streams: sorted,
     };
-  }, [effectivePlatformScope, primaryQuery.data, secondaryQuery.data, sortOrder, tagQuery]);
+  }, [
+    currentPlatform,
+    effectivePlatformScope,
+    otherPlatform,
+    primaryQuery.data,
+    secondaryQuery.data,
+    sortOrder,
+    tagQuery,
+  ]);
 
   const mergedCategory = category?.name
     ? mergedCategoryCatalog?.find(

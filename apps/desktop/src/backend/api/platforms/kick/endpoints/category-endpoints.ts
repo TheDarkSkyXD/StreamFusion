@@ -16,6 +16,7 @@ const _publicCategoryListCache: {
   data: UnifiedCategory[];
   timestamp: number;
 } = { data: [], timestamp: 0 };
+let _publicCategoryListRequest: Promise<UnifiedCategory[]> | null = null;
 const PUBLIC_CATEGORY_LIST_TTL_MS = 15 * 60 * 1000;
 const PUBLIC_CATEGORY_LIST_MAX_PAGES = 250;
 
@@ -111,14 +112,15 @@ async function fetchPublicCategoryPage(
     typeof data.data.next_cursor === "string" && data.data.next_cursor.length > 0
       ? data.data.next_cursor
       : undefined;
-  if (nextCursor !== undefined && nextCursor === cursor) {
+  const reachedEnd = reachedInactive || nextCursor === undefined;
+  if (!reachedEnd && nextCursor === cursor) {
     throw new Error("Kick category catalog repeated its pagination cursor");
   }
 
   return {
     categories,
     cursor: nextCursor,
-    reachedEnd: reachedInactive || nextCursor === undefined,
+    reachedEnd,
   };
 }
 
@@ -187,16 +189,7 @@ async function searchPublicCategoryList(
  * The official `/public/v2/categories` response does not expose live viewer
  * totals, so this internal endpoint is required for the live discovery catalog.
  */
-async function getPublicCategoryList(signal?: AbortSignal): Promise<UnifiedCategory[]> {
-  signal?.throwIfAborted();
-  const now = Date.now();
-  if (
-    _publicCategoryListCache.data.length > 0 &&
-    now - _publicCategoryListCache.timestamp < PUBLIC_CATEGORY_LIST_TTL_MS
-  ) {
-    return _publicCategoryListCache.data;
-  }
-
+async function refreshPublicCategoryList(signal?: AbortSignal): Promise<UnifiedCategory[]> {
   const staleCategories = _publicCategoryListCache.data;
   const list: UnifiedCategory[] = [];
   const seen = new Set<string>();
@@ -236,8 +229,29 @@ async function getPublicCategoryList(signal?: AbortSignal): Promise<UnifiedCateg
   }
 
   _publicCategoryListCache.data = list;
-  _publicCategoryListCache.timestamp = now;
+  _publicCategoryListCache.timestamp = Date.now();
   return list;
+}
+
+async function getPublicCategoryList(signal?: AbortSignal): Promise<UnifiedCategory[]> {
+  signal?.throwIfAborted();
+  if (
+    _publicCategoryListCache.data.length > 0 &&
+    Date.now() - _publicCategoryListCache.timestamp < PUBLIC_CATEGORY_LIST_TTL_MS
+  ) {
+    return _publicCategoryListCache.data;
+  }
+
+  if (signal) return refreshPublicCategoryList(signal);
+  if (_publicCategoryListRequest) return _publicCategoryListRequest;
+
+  const request = refreshPublicCategoryList();
+  _publicCategoryListRequest = request;
+  const clearRequest = () => {
+    if (_publicCategoryListRequest === request) _publicCategoryListRequest = null;
+  };
+  void request.then(clearRequest, clearRequest);
+  return request;
 }
 
 interface PrivateCategoryRecord {
