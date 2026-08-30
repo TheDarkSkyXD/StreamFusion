@@ -1,7 +1,6 @@
 import { Link, useParams, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { LuCheck, LuCircleAlert, LuDownload, LuLock, LuShare2 } from "react-icons/lu";
-import type { UnifiedChannel } from "@shared/platform-types";
 import { KickVodPlayer } from "@/features/playback/components/player/kick";
 import { TwitchVodPlayer } from "@/features/playback/components/player/twitch";
 import {
@@ -526,31 +525,8 @@ export function VideoPage() {
     });
   };
 
-  // Fetch the canonical channel so FollowButton stores the platform-numeric id
-  // (not the slug) — keeps follow keys consistent with the Stream page. Skip
-  // the fetch while channelName is still in placeholder state so we don't fire
-  // a real request for an unrelated channel.
-  // Render the real FollowButton immediately by falling back to a channel
-  // synthesized from route + search params. Once useChannelByUsername resolves
-  // we swap to channelData so writes carry the canonical id. channelsMatch
-  // bridges the two via slug, so follow-state reads stay correct across both.
-  const channelForFollow: UnifiedChannel | null = hasResolvedChannelName
-    ? (channelData ?? {
-        id: "",
-        platform: routePlatform,
-        username: channelName,
-        displayName: channelDisplayName || channelName,
-        avatarUrl: channelAvatar || "",
-        isLive: false,
-        isVerified: false,
-        isPartner: false,
-      })
-    : null;
+  const channelForFollow = channelData?.id.trim() ? channelData : null;
 
-  // When the canonical channel resolves, migrate any in-memory follow row
-  // that was written with channelId: "" (the synthesized-fallback case where
-  // the user clicked Follow before useChannelByUsername returned). Idempotent
-  // — no-ops when no stale row exists.
   const upgradeFollowIfNeeded = useFollowStore((s) => s.upgradeFollowIfNeeded);
   useEffect(() => {
     if (channelData?.id) {

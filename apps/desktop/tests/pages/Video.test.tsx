@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { act, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -143,6 +143,7 @@ import { VOD_LIVE_LINK_KEYS } from "@/features/playback/data/useVodLiveLink";
 // Guards: Watch Live waits for fresh stream-status authority and hides on route switches, lookup errors, and ended streams
 // Guards: a VOD category links back to that platform category instead of rendering as inert text
 // Guards: invalid Kick VOD routes fail closed without fabricated channel metadata, follow actions, or history writes
+// Guards: VOD follow writes stay unavailable until the platform returns a canonical non-empty channel identity
 describe("VideoPage", () => {
   beforeEach(() => {
     Object.assign(routeState.params, { platform: "twitch", videoId: "vod-1" });
@@ -185,6 +186,40 @@ describe("VideoPage", () => {
 
     await waitFor(() => expect(electronApi.channels.getByUsername).toHaveBeenCalled());
     expect(screen.queryByRole("link", { name: "Watch Live" })).not.toBeInTheDocument();
+  });
+
+  it("waits for canonical channel identity before enabling Follow", async () => {
+    type ChannelResult = Awaited<ReturnType<typeof electronApi.channels.getByUsername>>;
+    let resolveChannel!: (result: ChannelResult) => void;
+    electronApi.channels.getByUsername = vi.fn(
+      () =>
+        new Promise<ChannelResult>((resolve) => {
+          resolveChannel = resolve;
+        })
+    );
+
+    renderWithProviders(<VideoPage />);
+
+    await screen.findByTestId("twitch-vod-player");
+    expect(screen.queryByRole("button", { name: /follow/i })).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveChannel({
+        success: true,
+        data: {
+          id: "channel-ninja",
+          platform: "twitch",
+          username: "ninja",
+          displayName: "Ninja",
+          avatarUrl: "https://cdn.example.test/ninja-avatar.png",
+          isLive: false,
+          isVerified: true,
+          isPartner: true,
+        },
+      });
+    });
+
+    expect(await screen.findByRole("button", { name: /follow/i })).toBeInTheDocument();
   });
 
   it("ignores stale cached channel live state when the current stream is offline", async () => {

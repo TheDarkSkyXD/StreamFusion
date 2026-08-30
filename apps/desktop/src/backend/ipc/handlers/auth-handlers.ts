@@ -614,10 +614,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   //      my browser/Xbox/mobile, then switched back to StreamFusion."
   //
   // Per-platform cooldown state so Kick focus events don't gate Twitch
-  // refreshes and vice versa. Both platforms register unconditionally;
-  // the auth-validity guard lives inside maybeRefreshFollows so the
-  // interval ticks harmlessly when the user isn't signed in.
-  //
+  // refreshes and vice versa. Both platforms register unconditionally.
   // The single-flight Promise inside each platform's getAllFollowedChannels
   // collapses concurrent triggers, so over-firing is cheap. We still
   // cooldown the on-focus path to avoid hammering on Alt-Tab.
