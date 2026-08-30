@@ -24,7 +24,7 @@ Every compact screen uses the same shell:
 
 - The top app bar shows the current context and an account shortcut into **More**.
 - The bottom navigation bar shows **Search**, **Following**, **Watch**, **Activity**, and **More** in that order.
-- Only **Search** has the bottom-anchored global query field. It sits directly above the navigation bar and moves above the Android keyboard while results remain scrollable. Categories, category detail, Following, and managed-channel lists may use top-of-content fields that filter only their current list.
+- Search fields use one compact presentation: a floating bottom field directly above the navigation bar. **Search** owns the cross-Platform query. Categories, category detail, Following, managed channels, and Settings reuse the same component for local filtering, with a screen-specific placeholder and result scope. The field moves above the Android keyboard while results remain scrollable.
 - Each destination owns its nested navigation history.
 - No persistent mini-player strip appears at the bottom of other destinations. If video continues after the user leaves **Watch**, it becomes a movable, dismissible in-app mini-player. The user may drag it between safe corners without covering primary navigation or the bottom Search field. Tapping it returns to **Watch**.
 - When StreamFusion moves to the background during playback, Android Picture-in-Picture carries the video outside the app. The lifecycle decision owns entry, permission, restoration, and fallback behavior.
@@ -50,7 +50,7 @@ Deep links may open a nested screen such as a stream, a moderation room, a downl
 - Provider and language filters.
 - Direct entry into single-stream playback or a Multistream slot.
 
-On compact windows, the global query field stays at the bottom directly above primary navigation. It is not repeated at the top of the Search feed or on other destinations. Local list-filter fields on Categories, category detail, Following, and managed channels remain at the top of their owning content. When the Android input method opens, window resizing keeps the active field visible and preserves a scrollable result area.
+On compact windows, the global query field stays at the bottom directly above primary navigation and is not repeated at the top of the Search feed. Screens with local filtering use the same floating bottom component, but the query remains owned by the current screen and never becomes a global search. The field hovers above scrolling items, and content receives enough bottom inset to remain reachable. When the Android input method opens, window resizing keeps the active field visible and preserves a scrollable result area.
 
 Results use horizontally scrollable **All**, **Channels**, **Streams**, **Videos**, **Clips**, and **Categories** tabs. Platform filters cover all Platforms, Twitch, and Kick, with a separate live-only filter where it applies. Device-local Search History retains up to ten recent unique Channel, Stream, and Category queries per search type. The user may repeat, remove, or clear those entries.
 
@@ -102,10 +102,10 @@ Activity does not replace Android system notifications. Android notifications de
 - **Home** contains the combined Twitch and Kick recommendation feed.
 - **Categories** contains locally searchable category discovery and category detail entry. Category detail also searches its content and preserves the **Live Streams**, **Clips**, and **Videos** tabs plus Platform, language, tag, and sort filters.
 - **Multistream** opens **Watch** directly in Multistream mode. It is an entry inside **More**, not a sixth top-level destination.
-- **History** opens watched-content history directly.
+- **History** opens watched-content history directly. Every row carries an explicit **Stream**, **Video**, or **Clip** badge in addition to its thumbnail and duration or live metadata.
 - **Media library** contains downloads, recordings, and exports.
 - **Moderation** contains eligible managed channels and Platform-specific actions.
-- **Settings** contains playback, chat, appearance, account, notification, storage, and privacy controls.
+- **Settings** exposes an Android screen for Appearance and every packaged Desktop settings panel: Playback, Notifications, Player controls, Buffer, Multiview, Chat, Ad blocking, Proxy, Predictions, Integrations, API tokens, Updates, Diagnostics, Logs, Report a bug, and About. Diagnostics also preserves its Overview, Resources, I/O, Traces, Logs and reports, and Developer tools tabs as distinct states.
 - **Diagnostics** contains the Capability Profile, active Runtime Degradation reasons, app health, redacted reports, and recovery actions.
 - **Accounts and maintenance** contains Platform connections, update state, local-data controls, and destructive actions with confirmation.
 
@@ -115,26 +115,26 @@ The top app-bar account shortcut opens the account section inside **More**. Acco
 
 Every registered Desktop route has an Android entry or nested screen:
 
-| Desktop UI                                                | Android placement                                                                                                                                                                                             |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Home `/`                                                  | **More → Home**                                                                                                                                                                                               |
-| Following `/following`                                    | **Following**                                                                                                                                                                                                 |
-| Categories `/categories`                                  | **More → Categories**                                                                                                                                                                                         |
-| Category detail `/categories/$platform/$categoryId`       | Nested Category detail from **Categories** or **Search**                                                                                                                                                      |
-| Search `/search` and top search overlay                   | **Search**, including history, content tabs, Platform filters, live-only filtering, and typed result imagery                                                                                                  |
-| Live Channel `/stream/$platform/$channel`                 | Channel detail and live **Watch** mode                                                                                                                                                                        |
-| Video or Clip `/video/$platform/$videoId`                 | Recorded **Watch** mode with seeking and related content                                                                                                                                                      |
-| Settings `/settings`                                      | **More → Settings**, including accounts, general behavior, appearance, playback, chat, captions, notifications, proxy, ad blocking, storage, updates, logs, diagnostics, bug reports, and local-data controls |
-| Multistream `/multistream`                                | **More → Multistream**, which opens Multistream mode inside **Watch**                                                                                                                                         |
-| History `/history`                                        | **More → History**                                                                                                                                                                                            |
-| Downloads `/downloads`                                    | **More → Media library**                                                                                                                                                                                      |
-| Moderation `/mod`                                         | **More → Moderation** managed-channel list                                                                                                                                                                    |
-| Twitch or Kick moderation room `/mod/{platform}/$channel` | Nested Platform-labeled moderation room                                                                                                                                                                       |
-| Desktop notification dropdown                             | **Activity** plus Android system notifications                                                                                                                                                                |
+| Desktop UI                                                | Android placement                                                                                                                         |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Home `/`                                                  | **More → Home**                                                                                                                           |
+| Following `/following`                                    | **Following**                                                                                                                             |
+| Categories `/categories`                                  | **More → Categories**                                                                                                                     |
+| Category detail `/categories/$platform/$categoryId`       | Nested Category detail from **Categories** or **Search**                                                                                  |
+| Search `/search` and top search overlay                   | **Search**, including history, content tabs, Platform filters, live-only filtering, and typed result imagery                              |
+| Live Channel `/stream/$platform/$channel`                 | Channel detail and live **Watch** mode                                                                                                    |
+| Video or Clip `/video/$platform/$videoId`                 | Recorded **Watch** mode with seeking and related content                                                                                  |
+| Settings `/settings`                                      | **More → Settings**, with a reviewable Android panel for every packaged Desktop settings tab plus Appearance and every Diagnostics subtab |
+| Multistream `/multistream`                                | **More → Multistream**, which opens Multistream mode inside **Watch**                                                                     |
+| History `/history`                                        | **More → History**                                                                                                                        |
+| Downloads `/downloads`                                    | **More → Media library**                                                                                                                  |
+| Moderation `/mod`                                         | **More → Moderation** managed-channel list                                                                                                |
+| Twitch or Kick moderation room `/mod/{platform}/$channel` | Nested Platform-labeled moderation room                                                                                                   |
+| Desktop notification dropdown                             | **Activity** plus Android system notifications                                                                                            |
 
 Dialogs, sheets, menus, loading states, empty states, errors, and destructive confirmations remain states of their owning screen rather than new destinations.
 
-The prototype exposes each route-level surface as a reviewable scenario: Search, Home, Categories, Category detail, Following, Channel detail, Live stream viewer, Video and Clip viewer, Multistream, History, Media library and jobs, Activity, Managed channels, Platform moderation room, Settings, Accounts, Diagnostics, and More. This list is the UI coverage checklist for implementation; a Desktop route cannot disappear merely because its Android entry is nested.
+The prototype exposes each route-level surface as a reviewable scenario: Search, Home, Categories, Category detail, Following, Channel detail, Live stream viewer, Video and Clip viewer, Multistream, History, Media library and jobs, Activity, Managed channels, Platform moderation room, Settings, Accounts, Diagnostics, and More. Every individual tab is also a direct review shortcut with distinct content: Search, Following, Category detail, Channel detail, Watch, Video, Activity, Moderation, and Diagnostics. Every Settings panel has its own shortcut. This is the UI coverage checklist for implementation; a Desktop route or tab cannot disappear merely because its Android entry is nested.
 
 ## Background jobs and recovery
 
