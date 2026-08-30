@@ -1681,7 +1681,8 @@ describe("ChatInput — slow-mode cooldown", () => {
 // Guards: footer Chat submit uses the same send path as Enter, so button-send and keyboard-send stay in sync.
 // Guards: settings gear and Chat submit stay below the editor in a second row without moving emote pickers down.
 // Guards: only the editor/emote row is outlined; footer actions stay outside the input box outline.
-// Guards: quick settings uses a root-owned overlay anchor above the whole composer, leaving room for the floating scroll-to-live control.
+// Guards: authenticated quick settings opens directly above the quick-emote strip instead of floating over chat.
+// Guards: guest quick settings opens directly above the login input when no account is connected.
 describe("ChatInput — footer actions", () => {
   it("renders the old white settings gear next to a neutral Chat button", () => {
     infoBannerImpl.mockReturnValue(null);
@@ -1736,10 +1737,13 @@ describe("ChatInput — footer actions", () => {
   });
 
   it.each(["twitch", "kick"] as const)(
-    "opens %s quick settings above the composer without covering footer controls",
+    "opens authenticated %s quick settings beside the quick-emote strip",
     (platform) => {
       infoBannerImpl.mockReturnValue(null);
-      renderInput({ platform });
+      const quickEmote = makeQuickEmote({ id: "25", name: "Quick", provider: platform });
+      emoteStoreState.getEmotesByProvider = () =>
+        new Map<EmoteProvider, Emote[]>([[platform, [quickEmote]]]);
+      renderInput({ platform, isAuthenticated: true });
       const settingsButton = screen.getByRole("button", { name: /chat settings/i });
       fireEvent.click(settingsButton);
       const popover = screen.getByTestId("chat-quick-settings-popover");
@@ -1748,14 +1752,17 @@ describe("ChatInput — footer actions", () => {
       expect(actionRow).not.toContainElement(popover);
       const overlayAnchor = screen.getByTestId("chat-quick-settings-overlay-anchor");
       expect(overlayAnchor).toContainElement(popover);
-      expect(overlayAnchor.parentElement).toHaveClass("relative", "flex", "flex-col");
+      expect(overlayAnchor.parentElement).toHaveAttribute(
+        "data-testid",
+        "chat-emote-settings-anchor"
+      );
       expect(overlayAnchor).toHaveClass(
         "absolute",
         "inset-x-0",
-        "bottom-full",
-        "mb-12",
+        "top-0",
         "max-w-full"
       );
+      expect(overlayAnchor).not.toHaveClass("mb-12");
       expect(quickSettingsPopoverCalls.at(-1)?.placement).toBe("top");
       expect(quickSettingsPopoverCalls.at(-1)?.platform).toBe(platform);
       expect(quickSettingsPopoverCalls.at(-1)?.triggerRef?.current).toBe(settingsButton);
@@ -1771,7 +1778,11 @@ describe("ChatInput — footer actions", () => {
     fireEvent.click(screen.getByRole("button", { name: /chat settings/i }));
 
     expect(screen.getByTestId("chat-input-action-row")).toHaveClass("z-20");
-    expect(screen.getByTestId("chat-quick-settings-popover")).toBeInTheDocument();
+    const overlayAnchor = screen.getByTestId("chat-quick-settings-overlay-anchor");
+    expect(overlayAnchor).toContainElement(screen.getByTestId("chat-quick-settings-popover"));
+    expect(overlayAnchor.parentElement).toHaveAttribute("data-testid", "chat-input-main-area");
+    expect(overlayAnchor).toHaveClass("absolute", "inset-x-0", "top-0", "max-w-full");
+    expect(overlayAnchor).not.toHaveClass("mb-12");
   });
 
   it("clicking Chat sends the message on Twitch", async () => {
