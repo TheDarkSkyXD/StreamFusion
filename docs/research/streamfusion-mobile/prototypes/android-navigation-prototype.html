@@ -2053,7 +2053,7 @@
           name: "A · Outcome dock",
           thesis: "Five stable destinations",
           description:
-            "A familiar bottom dock keeps discovery, playback, Multistream, the media library, and More one tap away. Moderation and system tools live in More.",
+            "A familiar bottom dock keeps discovery, playback, Multistream, History, and More one tap away. Moderation and system tools live in More.",
           notes: [
             "Best one-handed reach and clearest first-run model.",
             "Five destinations leave little room for future top-level additions.",
@@ -2224,7 +2224,6 @@
         { id: "video", label: "Video + clip viewer", icon: "movie" },
         { id: "multi", label: "Multistream", icon: "grid_view" },
         { id: "history", label: "History", icon: "history" },
-        { id: "library", label: "Library + jobs", icon: "download" },
         { id: "activity", label: "Activity", icon: "notifications" },
         { id: "moderation-home", label: "Managed channels", icon: "shield" },
         { id: "moderation", label: "Moderation room", icon: "gavel" },
@@ -2382,9 +2381,6 @@
         audioOwner: "NebulaNine",
         thermal: "warm",
         degradation: "Non-focused slots paused to live thumbnails",
-        downloadState: "downloading",
-        downloadProgress: 64,
-        recordingState: "recording · 03:18:42 remaining",
         diagnosticsRun: 4,
         compactDensity: true,
         playbackActive: true,
@@ -2439,7 +2435,6 @@
           video: "Video",
           multi: "Multistream",
           history: "History",
-          library: state.variant === "B" ? "Your media" : "Library",
           activity: "Activity",
           "moderation-home": "Managed channels",
           moderation: "Mod room",
@@ -2765,26 +2760,6 @@
           </div>`;
       }
 
-      function libraryScreen() {
-        return `
-          <div class="screen-content">
-            <div class="screen-title-row"><div><h2>Media library</h2><p>Jobs survive app restarts</p></div><button class="text-button" type="button">Storage</button></div>
-            <div class="notice warning">${icon("schedule")}<div><strong>Recording window ends in 42 minutes</strong><p>StreamFusion will finalize the current segment safely. Return to the app to continue.</p></div></div>
-            <div class="job-list">
-              <article class="job-card">
-                <div class="job-media"><img class="job-thumbnail" src="${streamImages.nebula}" alt="" /><div class="job-top"><div><strong>NebulaNine · live recording</strong><span>3 segments · 8.4 GB app-private</span></div></div><span class="job-state">${state.recordingState.split(" · ")[0]}</span></div>
-                <div class="progress-track"><div class="progress-value" style="width:78%"></div></div>
-                <div class="job-actions"><button type="button" data-action="finalize-recording">Finalize safely</button><button type="button">Open segments</button></div>
-              </article>
-              <article class="job-card">
-                <div class="job-media"><img class="job-thumbnail" src="${streamImages.forge}" alt="" /><div class="job-top"><div><strong>Final round highlights</strong><span>2.1 GB of 3.3 GB · Wi-Fi</span></div></div><span class="job-state">${state.downloadState}</span></div>
-                <div class="progress-track"><div class="progress-value" style="width:${state.downloadProgress}%"></div></div>
-                <div class="job-actions"><button type="button" data-action="toggle-download">${state.downloadState === "paused" ? "Resume" : "Pause"}</button><button type="button">Cancel</button><button type="button">Export</button></div>
-              </article>
-            </div>
-          </div>`;
-      }
-
       function historyScreen() {
         return `
           <div class="screen-content">
@@ -2799,7 +2774,7 @@
 
       function activityScreen() {
         const channelItems = `<button type="button" class="system-card activity-link" data-screen="watch"><span class="activity-content"><img class="activity-visual round" src="${avatarImages.NebulaNine}" alt="" /><span class="activity-copy"><strong>NebulaNine is live</strong><span>2 minutes ago · Twitch Follow</span></span><span class="platform-badge twitch">Twitch</span></span></button><button type="button" class="system-card activity-link" data-screen="moderation"><span class="activity-content"><img class="activity-visual round" src="${avatarImages.NebulaNine}" alt="" /><span class="activity-copy"><strong>Moderation session needs attention</strong><span>NebulaNine · one held message</span></span>${icon("shield")}</span></button>`;
-        const jobItems = `<button type="button" class="system-card activity-link" data-screen="library"><span class="activity-content"><img class="activity-visual" src="${streamImages.nebula}" alt="" /><span class="activity-copy"><strong>Recording window ends soon</strong><span>42 minutes remain · finalization ready</span></span>${icon("schedule")}</span></button><button type="button" class="system-card activity-link" data-screen="multi"><span class="activity-content"><img class="activity-visual" src="${streamImages.orbit}" alt="" /><span class="activity-copy"><strong>Multistream reduced to 2 active Videos</strong><span>Device is warm · layout preserved</span></span>${icon("device_thermostat")}</span></button>`;
+        const jobItems = `<button type="button" class="system-card activity-link" data-screen="watch"><span class="activity-content"><img class="activity-visual" src="${streamImages.nebula}" alt="" /><span class="activity-copy"><strong>Recording window ends soon</strong><span>42 minutes remain · return to the Stream</span></span>${icon("schedule")}</span></button><button type="button" class="system-card activity-link" data-screen="video"><span class="activity-content"><img class="activity-visual" src="${streamImages.forge}" alt="" /><span class="activity-copy"><strong>Video download completed</strong><span>Final round highlights · ready to watch</span></span>${icon("download_done")}</span></button>`;
         const systemItem = `<button type="button" class="system-card activity-link" data-screen="system"><span class="system-top"><span><strong>Device profile checked</strong><span>Yesterday · parity-qualified</span></span>${icon("check_circle")}</span></button>`;
         return `
           <div class="screen-content">
@@ -3035,13 +3010,12 @@
       function moreScreen() {
         return `
           <div class="screen-content">
-            <div class="screen-title-row"><div><h2>More</h2><p>Browse, media, creator, and system tools</p></div></div>
+            <div class="screen-title-row"><div><h2>More</h2><p>Browse, history, creator, and system tools</p></div></div>
             <div class="more-grid">
               <button class="more-card" type="button" data-screen="home">${icon("home")}<strong>Home</strong><span>Combined recommendations and live streams</span></button>
               <button class="more-card" type="button" data-screen="categories">${icon("category")}<strong>Categories</strong><span>Browse games and topics across platforms</span></button>
               <button class="more-card" type="button" data-screen="multi">${icon("grid_view")}<strong>Multistream</strong><span>Open Watch with the Multistream room</span></button>
               <button class="more-card" type="button" data-screen="history">${icon("history")}<strong>History</strong><span>Resume content watched on this device</span></button>
-              <button class="more-card" type="button" data-screen="library">${icon("video_library")}<strong>Media library</strong><span>Downloads, recordings, and exports</span></button>
               <button class="more-card" type="button" data-screen="moderation-home">${icon("shield")}<strong>Moderation</strong><span>Manage channels and room actions</span></button>
               <button class="more-card" type="button" data-screen="accounts">${icon("manage_accounts")}<strong>Accounts</strong><span>Twitch, Kick, Guest Follows, and alerts</span></button>
               <button class="more-card" type="button" data-screen="settings">${icon("tune")}<strong>Settings</strong><span>Playback, chat, appearance, privacy, storage</span></button>
@@ -3070,8 +3044,6 @@
             return videoScreen();
           case "multi":
             return multistreamScreen();
-          case "library":
-            return libraryScreen();
           case "history":
             return historyScreen();
           case "activity":
@@ -3109,7 +3081,6 @@
               "categories",
               "category-detail",
               "history",
-              "library",
               "moderation-home",
               "moderation",
               "settings",
@@ -3127,7 +3098,7 @@
         if (state.variant === "B") {
           return `<nav class="bottom-nav" style="--nav-count:5" aria-label="Primary navigation">${navButton("search", "Search", "search")}${navButton("following", "Following", "favorite")}${navButton("watch", "Watch", "live_tv")}${navButton("activity", "Activity", "notifications", "3")}${navButton("more", "More", "more_horiz")}</nav>`;
         }
-        return `<nav class="bottom-nav" style="--nav-count:5" aria-label="Primary navigation">${navButton("search", "Home", "home")}${navButton("watch", "Watch", "live_tv")}${navButton("multi", "Multi", "grid_view")}${navButton("library", "Library", "video_library")}${navButton("more", "More", "more_horiz")}</nav>`;
+        return `<nav class="bottom-nav" style="--nav-count:5" aria-label="Primary navigation">${navButton("search", "Home", "home")}${navButton("watch", "Watch", "live_tv")}${navButton("multi", "Multi", "grid_view")}${navButton("history", "History", "history")}${navButton("more", "More", "more_horiz")}</nav>`;
       }
 
       function sideRail() {
@@ -3366,11 +3337,6 @@
           state.degradation = "Recovery eligible after hysteresis window";
         }
         if (action === "audio-owner") state.audioOwner = data.channel;
-        if (action === "toggle-download")
-          state.downloadState =
-            state.downloadState === "paused" ? "downloading" : "paused";
-        if (action === "finalize-recording")
-          state.recordingState = "finalized · 3 recoverable segments";
         if (action === "run-check") state.diagnosticsRun += 1;
         if (action === "toggle-density")
           state.compactDensity = !state.compactDensity;

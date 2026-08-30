@@ -12,9 +12,9 @@ StreamFusion Mobile uses five top-level destinations on compact Android windows:
 2. **Following** contains live and offline followed channels, including StreamFusion Guest Follows.
 3. **Watch** owns the active single-stream or Multistream session.
 4. **Activity** contains in-app notifications from channels, media jobs, moderation, device health, and updates.
-5. **More** contains Home, Categories, History, Multistream entry, the media library, moderation, settings, diagnostics, accounts, and maintenance actions.
+5. **More** contains Home, Categories, History, Multistream entry, moderation, settings, diagnostics, accounts, and maintenance actions.
 
-The compact navigation bar does not contain **Media**, **Multistream**, or **You**. Multistream remains a mode inside **Watch**. The media library remains inside **More**.
+The compact navigation bar does not contain **Media**, **Downloads**, **Multistream**, or **You**. Multistream remains a mode inside **Watch**. Mobile has no separate Media library or Downloads destination.
 
 The five destinations keep frequent viewing and notification tasks one tap away. Secondary tools remain complete without competing for their own permanent destination.
 
@@ -28,7 +28,7 @@ Every compact screen uses the same shell:
 - Each destination owns its nested navigation history.
 - No persistent mini-player strip appears at the bottom of other destinations. If video continues after the user leaves **Watch**, it becomes a movable, dismissible in-app mini-player. The user may drag it between safe corners without covering primary navigation or the bottom Search field. Tapping it returns to **Watch**.
 - When StreamFusion moves to the background during playback, Android Picture-in-Picture carries the video outside the app. The lifecycle decision owns entry, permission, restoration, and fallback behavior.
-- Recording and download jobs report progress in **Activity**, their detail screens, and Android notifications instead of a global bottom strip.
+- Recording and download jobs report progress in **Activity**, the Watch or Video screen that started them, and Android notifications instead of a global bottom strip.
 - Android notifications remain the source of background controls after StreamFusion leaves the foreground.
 
 Selecting the active destination returns to that destination's root after the first repeat selection. A second repeat selection scrolls the root to the top. Switching destinations preserves the other destination histories for the current app session.
@@ -89,7 +89,7 @@ Local captions stay attached to the focused single stream or focused Multistream
 
 Unread state appears as a count on the **Activity** destination. Filters separate all activity, channel activity, and job activity. Each item shows its source, time, read state, and the action or artifact it opens.
 
-Selecting an item opens the exact destination and nested detail. A live alert opens **Watch**. A job alert opens the media-library job. A degradation alert opens the affected **Watch** session or **Diagnostics** when no session remains.
+Selecting an item opens the exact destination and nested detail. A live alert opens **Watch**. Recording alerts return to the affected Stream, and download alerts open the affected Video or Clip. A degradation alert opens the affected **Watch** session or **Diagnostics** when no session remains.
 
 Activity stays device-local. The lifecycle decision owns retention, deduplication, read-state persistence, and reconciliation after process death.
 
@@ -103,7 +103,6 @@ Activity does not replace Android system notifications. Android notifications de
 - **Categories** contains locally searchable category discovery and category detail entry. Category detail also searches its content and preserves the **Live Streams**, **Clips**, and **Videos** tabs plus Platform, language, tag, and sort filters.
 - **Multistream** opens **Watch** directly in Multistream mode. It is an entry inside **More**, not a sixth top-level destination.
 - **History** opens watched-content history directly. Every row carries an explicit **Stream**, **Video**, or **Clip** badge in addition to its thumbnail and duration or live metadata.
-- **Media library** contains downloads, recordings, and exports.
 - **Moderation** contains eligible managed channels and Platform-specific actions.
 - **Settings** exposes an Android screen for Appearance and every packaged Desktop settings panel: Playback, Notifications, Player controls, Buffer, Multiview, Chat, Ad blocking, Proxy, Predictions, Integrations, API tokens, Updates, Diagnostics, Logs, Report a bug, and About. Diagnostics also preserves its Overview, Resources, I/O, Traces, Logs and reports, and Developer tools tabs as distinct states.
 - **Diagnostics** contains the Capability Profile, active Runtime Degradation reasons, app health, redacted reports, and recovery actions.
@@ -115,35 +114,35 @@ The top app-bar account shortcut opens the account section inside **More**. Acco
 
 Every registered Desktop route has an Android entry or nested screen:
 
-| Desktop UI                                                | Android placement                                                                                                                         |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Home `/`                                                  | **More → Home**                                                                                                                           |
-| Following `/following`                                    | **Following**                                                                                                                             |
-| Categories `/categories`                                  | **More → Categories**                                                                                                                     |
-| Category detail `/categories/$platform/$categoryId`       | Nested Category detail from **Categories** or **Search**                                                                                  |
-| Search `/search` and top search overlay                   | **Search**, including history, content tabs, Platform filters, live-only filtering, and typed result imagery                              |
-| Live Channel `/stream/$platform/$channel`                 | Channel detail and live **Watch** mode                                                                                                    |
-| Video or Clip `/video/$platform/$videoId`                 | Recorded **Watch** mode with seeking and related content                                                                                  |
-| Settings `/settings`                                      | **More → Settings**, with a reviewable Android panel for every packaged Desktop settings tab plus Appearance and every Diagnostics subtab |
-| Multistream `/multistream`                                | **More → Multistream**, which opens Multistream mode inside **Watch**                                                                     |
-| History `/history`                                        | **More → History**                                                                                                                        |
-| Downloads `/downloads`                                    | **More → Media library**                                                                                                                  |
-| Moderation `/mod`                                         | **More → Moderation** managed-channel list                                                                                                |
-| Twitch or Kick moderation room `/mod/{platform}/$channel` | Nested Platform-labeled moderation room                                                                                                   |
-| Desktop notification dropdown                             | **Activity** plus Android system notifications                                                                                            |
+| Desktop UI                                                | Android placement                                                                                                                                     |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Home `/`                                                  | **More → Home**                                                                                                                                       |
+| Following `/following`                                    | **Following**                                                                                                                                         |
+| Categories `/categories`                                  | **More → Categories**                                                                                                                                 |
+| Category detail `/categories/$platform/$categoryId`       | Nested Category detail from **Categories** or **Search**                                                                                              |
+| Search `/search` and top search overlay                   | **Search**, including history, content tabs, Platform filters, live-only filtering, and typed result imagery                                          |
+| Live Channel `/stream/$platform/$channel`                 | Channel detail and live **Watch** mode                                                                                                                |
+| Video or Clip `/video/$platform/$videoId`                 | Recorded **Watch** mode with seeking and related content                                                                                              |
+| Settings `/settings`                                      | **More → Settings**, with a reviewable Android panel for every packaged Desktop settings tab plus Appearance and every Diagnostics subtab             |
+| Multistream `/multistream`                                | **More → Multistream**, which opens Multistream mode inside **Watch**                                                                                 |
+| History `/history`                                        | **More → History**                                                                                                                                    |
+| Downloads `/downloads`                                    | No standalone mobile screen. Eligible actions live on Video, Clip, or Watch; progress and completion appear in **Activity** and Android notifications |
+| Moderation `/mod`                                         | **More → Moderation** managed-channel list                                                                                                            |
+| Twitch or Kick moderation room `/mod/{platform}/$channel` | Nested Platform-labeled moderation room                                                                                                               |
+| Desktop notification dropdown                             | **Activity** plus Android system notifications                                                                                                        |
 
 Dialogs, sheets, menus, loading states, empty states, errors, and destructive confirmations remain states of their owning screen rather than new destinations.
 
-The prototype exposes each route-level surface as a reviewable scenario: Search, Home, Categories, Category detail, Following, Channel detail, Live stream viewer, Video and Clip viewer, Multistream, History, Media library and jobs, Activity, Managed channels, Platform moderation room, Settings, Accounts, Diagnostics, and More. Every individual tab is also a direct review shortcut with distinct content: Search, Following, Category detail, Channel detail, Watch, Video, Activity, Moderation, and Diagnostics. Every Settings panel has its own shortcut. This is the UI coverage checklist for implementation; a Desktop route or tab cannot disappear merely because its Android entry is nested.
+The prototype exposes each route-level surface as a reviewable scenario: Search, Home, Categories, Category detail, Following, Channel detail, Live stream viewer, Video and Clip viewer, Multistream, History, Activity, Managed channels, Platform moderation room, Settings, Accounts, Diagnostics, and More. Every individual tab is also a direct review shortcut with distinct content: Search, Following, Category detail, Channel detail, Watch, Video, Activity, Moderation, and Diagnostics. Every Settings panel has its own shortcut. This is the UI coverage checklist for implementation; a Desktop outcome cannot disappear merely because Android does not copy its Desktop route.
 
 ## Background jobs and recovery
 
 Recording and download interactions follow one presentation model:
 
-- The foreground screen shows the current state, progress, storage impact, and available controls.
+- The originating Watch, Video, or Clip screen shows the current state, progress, storage impact, and available controls.
 - Each meaningful state change creates or updates one item in **Activity**.
 - The Android notification exposes valid background controls.
-- Returning through a notification or deep link opens the exact job detail.
+- Returning through a notification or deep link opens the affected Stream, Video, or Clip and its job controls.
 - A recovered, paused, failed, finalized, or timed-out job states what happened and preserves each recoverable artifact.
 
 The interface warns before the four-hour certified recording window ends. Safe finalization remains an explicit visible state, not a generic failure.
@@ -191,7 +190,7 @@ The Android client keeps the StreamFusion design system:
 
 ## Rejected prototype directions
 
-- The original five-item Outcome dock gave the media library and Multistream permanent navigation instead of **Following** and **Activity**.
+- The original five-item Outcome dock gave Downloads and Multistream permanent navigation instead of **Following** and **Activity**.
 - The six-workspace Command rail exposed every tool but consumed too much compact width.
 - The original Watch deck grouped media and account tools under **You**. The approved revision gives **Following**, **Activity**, and **More** explicit destinations.
 
