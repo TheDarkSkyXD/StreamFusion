@@ -1,5 +1,6 @@
 import type React from "react";
 import { memo, useCallback, useMemo, useState } from "react";
+import { ProxiedImage } from "@/components/ui/proxied-image";
 import { resolveProxiedImageSrc } from "@/lib/proxied-image-url";
 import { BadgeTooltip } from "./tooltips/BadgeTooltip";
 
@@ -30,6 +31,8 @@ export const ChatBadge: React.FC<ChatBadgeProps> = memo(({ badge, platform = "ki
   const backgroundColor = /^#[\da-f]{6}$/i.test(badge.backgroundColor ?? "")
     ? badge.backgroundColor
     : undefined;
+  const isSubscriptionBadge = badge.setId?.toLowerCase() === "subscriber";
+  const canUseProxiedImage = /^(https?:|data:)/i.test(badge.imageUrl ?? "");
 
   // Capture position once on hover-enter — tooltip is anchored, doesn't follow the cursor.
   // Previously onMouseMove fired ~60 Hz allocating a fresh {x,y} object per frame.
@@ -56,19 +59,25 @@ export const ChatBadge: React.FC<ChatBadgeProps> = memo(({ badge, platform = "ki
 
   if (!badgeInfo) return null;
 
+  const loading = isSubscriptionBadge ? "eager" : "lazy";
+  const fetchPriority = isSubscriptionBadge ? "auto" : "low";
+  const imageProps = {
+    alt: badgeInfo.title,
+    loading,
+    fetchPriority,
+    className: badgeClassName,
+    style: { backgroundColor },
+    onMouseEnter: handleMouseEnter,
+    onMouseLeave: handleMouseLeave,
+  } satisfies React.ImgHTMLAttributes<HTMLImageElement>;
+
   return (
     <>
-      <img
-        src={badgeInfo.src}
-        alt={badgeInfo.title}
-        loading="eager"
-        decoding="async"
-        fetchPriority="auto"
-        className={badgeClassName}
-        style={{ backgroundColor }}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-      />
+      {canUseProxiedImage ? (
+        <ProxiedImage src={badge.imageUrl} {...imageProps} />
+      ) : (
+        <img src={badgeInfo.src} decoding="async" {...imageProps} />
+      )}
 
       <BadgeTooltip show={showTooltip} mousePos={mousePos} badgeInfo={badgeInfo} />
     </>

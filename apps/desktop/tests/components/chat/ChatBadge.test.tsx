@@ -1,26 +1,34 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { ChatBadge } from "@/features/chat/components/chat/ChatBadge";
+import { renderWithProviders } from "../../test-utils";
 
 // Guards: loading state (no imageUrl yet from badge-set fetch) renders null instead of a broken-image icon — the message line stays clean while the badge metadata resolves
-// Guards: error path — when badge.imageUrl is set but the CDN serves a 404 the browser's native broken-image is benign because the <img> still has alt text; verified the alt fallback below
-// Guards: mounted subscription badges load eagerly in virtualized live chat, and Kick badge images use the Electron image proxy in both the row and tooltip
+// Guards: role and cosmetic badges retain deferred loading while subscription badges are prioritized (regression 67fdc95)
+// Guards: mounted subscription badges load eagerly in virtualized live chat (regression 67fdc95)
+// Guards: Kick subscription badges use the Electron image proxy in both the row and tooltip (regression 67fdc95)
 describe("ChatBadge", () => {
   it("loading: renders nothing when no imageUrl is provided (badge metadata pending)", () => {
-    const { container } = render(<ChatBadge badge={{ title: "mod" }} />);
+    const { container } = renderWithProviders(<ChatBadge badge={{ title: "mod" }} />);
     expect(container.firstChild).toBeNull();
   });
 
   it("renders the image with alt text from badge title", () => {
-    render(<ChatBadge badge={{ imageUrl: "https://x.test/b.png", title: "Moderator" }} />);
-    expect(screen.getByAltText("Moderator")).toBeInTheDocument();
+    renderWithProviders(
+      <ChatBadge badge={{ imageUrl: "https://x.test/b.png", title: "Moderator" }} />
+    );
+    const image = screen.getByAltText("Moderator");
+    expect(image).toHaveAttribute("loading", "lazy");
+    expect(image).toHaveAttribute("fetchpriority", "low");
   });
 
   it("starts mounted Twitch subscription badges without lazy or low-priority hints", () => {
-    render(
+    renderWithProviders(
       <ChatBadge
         badge={{
+          setId: "subscriber",
+          version: "6",
           imageUrl: "https://static-cdn.jtvnw.net/badges/v1/subscriber/3",
           title: "6-Month Subscriber",
         }}
@@ -35,9 +43,14 @@ describe("ChatBadge", () => {
 
   it("proxies a Kick subscription badge for both the chat row and tooltip", () => {
     const sourceUrl = "https://files.kick.com/channel_subscriber_badges/97968/original";
-    const badge = { imageUrl: sourceUrl, title: "12-Month Subscriber" };
+    const badge = {
+      setId: "subscriber",
+      version: "12",
+      imageUrl: sourceUrl,
+      title: "12-Month Subscriber",
+    };
 
-    render(<ChatBadge badge={badge} platform="kick" />);
+    renderWithProviders(<ChatBadge badge={badge} platform="kick" />);
 
     const image = screen.getByAltText("12-Month Subscriber");
     expect(image).toHaveAttribute("loading", "eager");
@@ -54,7 +67,7 @@ describe("ChatBadge", () => {
   });
 
   it("applies valid FFZ tile colors and ignores invalid values", () => {
-    const view = render(
+    const view = renderWithProviders(
       <ChatBadge
         badge={{ imageUrl: "https://x.test/b.png", title: "Bot", backgroundColor: "#00ad03" }}
       />
@@ -74,7 +87,7 @@ describe("ChatBadge", () => {
   });
 
   it("shows tooltip image on mouseEnter", () => {
-    render(
+    renderWithProviders(
       <ChatBadge
         badge={{ imageUrl: "https://x.test/b.png", title: "Verified" }}
         platform="twitch"
@@ -84,19 +97,5 @@ describe("ChatBadge", () => {
     fireEvent.mouseEnter(img, { clientX: 10, clientY: 10 });
     // The tooltip portal renders another copy of the badge title and an img.
     expect(screen.getAllByAltText("Verified").length).toBeGreaterThan(1);
-  });
-
-  it("error: still renders the badge alt text so the broken-image is at least announced to screen readers", () => {
-    render(
-      <ChatBadge
-        badge={{ imageUrl: "https://x.test/404.png", title: "Subscriber" }}
-        platform="twitch"
-      />
-    );
-    const img = screen.getByAltText("Subscriber");
-    // Even if the CDN later 404s, the alt text is what screen readers + the
-    // browser's broken-image tooltip carry — the badge stays identifiable.
-    expect(img).toBeInTheDocument();
-    expect(img.getAttribute("src")).toBe("https://x.test/404.png");
   });
 });

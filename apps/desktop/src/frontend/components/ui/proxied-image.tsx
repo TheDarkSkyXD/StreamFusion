@@ -97,6 +97,9 @@ interface ProxiedImageProps {
   src: string | undefined | null;
   alt: string;
   className?: string;
+  style?: React.CSSProperties;
+  onMouseEnter?: React.MouseEventHandler<HTMLImageElement>;
+  onMouseLeave?: React.MouseEventHandler<HTMLImageElement>;
   fallback?: React.ReactNode;
   fallbackClassName?: string;
   /** Kept for backward compatibility; placeholder is now drawn on the <img>. */
@@ -127,6 +130,9 @@ export function ProxiedImage({
   src,
   alt,
   className = "",
+  style,
+  onMouseEnter,
+  onMouseLeave,
   fallback,
   fallbackClassName = "",
   loading = "lazy",
@@ -255,6 +261,7 @@ export function ProxiedImage({
       src={requestSrc ?? undefined}
       alt={alt}
       className={cn(!isLoaded && "animate-pulse bg-[var(--color-background-elevated)]", className)}
+      style={style}
       loading={loading}
       fetchPriority={fetchPriority}
       decoding="async"
@@ -270,6 +277,8 @@ export function ProxiedImage({
       onError={() => {
         handleFailure();
       }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     />
   );
 }

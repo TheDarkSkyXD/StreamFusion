@@ -47,7 +47,8 @@ function message(username: string, timestamp: Date, badges: ChatBadge[] = []): C
 
 // Guards: Recent Chatters renders one exclusive role section per known channel user.
 // Guards: The overlay reads only the requested platform/channel bucket.
-// Guards: Twitch and Kick rows render exact resolved provider badge images, never generated substitutes.
+// Guards: Twitch rows render exact resolved provider badge images, never generated substitutes.
+// Guards: Kick rows preserve the provider badge version while using Electron's image proxy (regression 67fdc95)
 // Guards: The visible list and count update as live chat messages arrive.
 // Guards: The seen-in-chat total keeps updating beyond the 500-row recent-roster cap.
 // Guards: Chatter names use the same preference-resolved color and provider fallback as chat messages.
@@ -153,9 +154,7 @@ describe("RecentChattersPanel", () => {
       <RecentChattersPanel id="recent-chatters-test" channelKey="kick:alpha" onClose={vi.fn()} />
     );
 
-    const src = screen
-      .getByRole("img", { name: "24-Month Subscriber" })
-      .getAttribute("src");
+    const src = screen.getByRole("img", { name: "24-Month Subscriber" }).getAttribute("src");
     expect(src).toMatch(/^kick-image:\/\/image\?u=/);
     const encodedSource = new URL(src ?? "").searchParams.get("u") ?? "";
     expect(atob(encodedSource.replace(/-/g, "+").replace(/_/g, "/"))).toBe(sourceUrl);
