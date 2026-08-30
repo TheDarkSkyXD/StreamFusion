@@ -20,12 +20,9 @@ import type { Emote } from "../../../../../../backend/services/emotes/emote-type
 import { useChannelByUsername } from "../../../../discovery/data/queries/useChannels";
 import type { ChatPlatform } from "../../../../../../shared/chat-types";
 import { useEmoteStore } from "../../../../../store/emote-store";
-import { TwitchIcon } from "../../../../../components/icons/PlatformIcons";
+import { KickEmoteIcon, TwitchIcon } from "../../../../../components/icons/PlatformIcons";
 import { EmotePickerPopover } from "../EmotePickerPopover";
 
-/** KickTalk's hardcoded fallback Kick emote ID (used when no provider emotes
- *  are loaded yet). Surfaces a recognizable green-blob KEKW on first paint. */
-const KICK_FALLBACK_EMOTE_ID = "1730762";
 const kickEmoteUrl = (id: string) => `https://files.kick.com/emotes/${id}/fullsize`;
 const EMPTY_KICK_EMOTE_POOL: Emote[] = [];
 
@@ -90,9 +87,7 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
   const kickPoolKey = `${platform}:${channelId ?? channel}`;
   const [hoverEmote, setHoverEmote] = useState<{ key: string; id: string } | null>(null);
   const displayKickEmoteId =
-    hoverEmote?.key === kickPoolKey
-      ? hoverEmote.id
-      : (kickEmotePool[0]?.id ?? KICK_FALLBACK_EMOTE_ID);
+    hoverEmote?.key === kickPoolKey ? hoverEmote.id : (kickEmotePool[0]?.id ?? null);
 
   const rerollKickEmote = useCallback(() => {
     if (platform !== "kick" || kickEmotePool.length === 0) return;
@@ -122,7 +117,7 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
             isOpen ? "opacity-100" : "opacity-50 group-hover:opacity-100"
           }`}
         >
-          {platform === "kick" ? (
+          {platform === "kick" && displayKickEmoteId ? (
             <img
               src={kickEmoteUrl(displayKickEmoteId)}
               alt=""
@@ -132,6 +127,8 @@ export const NativeEmoteButton: React.FC<NativeEmoteButtonProps> = ({
               decoding="async"
               className="block transition-transform duration-150 ease-out group-hover:scale-110"
             />
+          ) : platform === "kick" ? (
+            <KickEmoteIcon size={24} />
           ) : (
             <TwitchIcon size={24} />
           )}

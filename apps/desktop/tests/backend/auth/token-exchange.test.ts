@@ -48,6 +48,8 @@ import {
 } from "@backend/auth/token-exchange";
 import { KICK_APP_SCOPES } from "@shared/auth-types";
 
+const { logger } = await import("@shared/utils/cross-logger");
+
 function jsonResponse(body: unknown, ok = true, status = 200): Response {
   return {
     ok,
@@ -59,6 +61,10 @@ function jsonResponse(body: unknown, ok = true, status = 200): Response {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-06-01T00:00:00.000Z"));
+  vi.mocked(logger.debug).mockClear();
+  vi.mocked(logger.error).mockClear();
+  vi.mocked(logger.warn).mockClear();
+  vi.mocked(logger.info).mockClear();
 });
 
 afterEach(() => {
@@ -334,6 +340,7 @@ describe("refreshToken", () => {
       expect(tErr.code).toBe("invalid_grant");
       expect(tErr.message).toBe("Revoked");
     }
+    expect(logger.error).not.toHaveBeenCalled();
   });
 
   it("re-throws network errors from fetch", async () => {

@@ -209,11 +209,6 @@ class TokenExchangeService {
           errorData.message ||
           errorData.error ||
           "Token refresh failed";
-        logger.error("Auth:TokenExchange", "Token refresh failed", {
-          platform: params.platform,
-          status: response.status,
-          errorMessage,
-        });
         throw new TokenRefreshError(errorMessage, response.status, errorData.error ?? null);
       }
 
@@ -224,6 +219,9 @@ class TokenExchangeService {
       logger.debug("Auth:TokenExchange", "Token refreshed", { platform: params.platform });
       return token;
     } catch (error) {
+      if (error instanceof TokenRefreshError) {
+        throw error;
+      }
       logger.error("Auth:TokenExchange", "Token refresh error", {
         platform: params.platform,
         error:

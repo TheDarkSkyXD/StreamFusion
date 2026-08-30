@@ -151,18 +151,21 @@ class TwitchAuthService {
 
       return newToken;
     } catch (error) {
-      const isTokenRefreshError = error instanceof TokenRefreshError;
-      const permanent = isTokenRefreshError && error.isPermanent();
+      const refreshError = error instanceof TokenRefreshError ? error : null;
+      const permanent = refreshError?.isPermanent() === true;
 
-      if (permanent) {
-        logger.error(
+      if (refreshError && permanent) {
+        logger.warn(
           "Auth:Twitch",
-          "Twitch refresh token rejected by Twitch (permanent failure) — clearing stored credentials and prompting re-login",
+          "Twitch refresh token rejected by Twitch; clearing stored credentials and prompting re-login",
           {
-            error:
-              error instanceof Error
-                ? { name: error.name, message: error.message, stack: error.stack }
-                : String(error),
+            error: {
+              name: refreshError.name,
+              message: refreshError.message,
+              status: refreshError.status,
+              code: refreshError.code,
+              stack: refreshError.stack,
+            },
           }
         );
         this.invalidateAuth();

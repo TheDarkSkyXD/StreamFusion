@@ -5,7 +5,12 @@ import { TWITCH_APP_SCOPES, type AuthToken } from "@shared/auth-types";
 
 const storageMocks = vi.hoisted(() => ({
   state: { token: null as AuthToken | null },
-  getToken: vi.fn(), saveToken: vi.fn(), clearToken: vi.fn(), clearTwitchUser: vi.fn(), saveTwitchUser: vi.fn(), getTwitchUser: vi.fn(),
+  getToken: vi.fn(),
+  saveToken: vi.fn(),
+  clearToken: vi.fn(),
+  clearTwitchUser: vi.fn(),
+  saveTwitchUser: vi.fn(),
+  getTwitchUser: vi.fn(),
 }));
 
 // Guards: Twitch token-refresh flow — 401 → refresh → retry, refresh-failure → clearToken + signed-out state, expired-token detection. Module-level mocks for storageService and tokenExchangeService keep the refresh-decision logic isolated from disk/network so the chain can be driven deterministically. Drift on the singleton's lookup-then-decide ordering (e.g. caching a stale token in memory across a refresh) surfaces here.
@@ -17,9 +22,11 @@ vi.mock("@backend/services/storage-service", () => {
   return {
     storageService: {
       getToken: storageMocks.getToken.mockImplementation(() => storageMocks.state.token),
-      saveToken: storageMocks.saveToken.mockImplementation((_platform: string, token: AuthToken) => {
-        storageMocks.state.token = token;
-      }),
+      saveToken: storageMocks.saveToken.mockImplementation(
+        (_platform: string, token: AuthToken) => {
+          storageMocks.state.token = token;
+        }
+      ),
       clearToken: storageMocks.clearToken.mockImplementation(() => {
         storageMocks.state.token = null;
       }),
@@ -32,7 +39,7 @@ vi.mock("@backend/services/storage-service", () => {
 
 vi.mock("@backend/auth/token-exchange", async () => {
   const actual = await vi.importActual<typeof import("@backend/auth/token-exchange")>(
-    "@backend/auth/token-exchange",
+    "@backend/auth/token-exchange"
   );
   return {
     ...actual,
@@ -46,6 +53,7 @@ vi.mock("@backend/auth/token-exchange", async () => {
 });
 
 const storageModule = await import("@backend/services/storage-service");
+const { logger } = await import("@backend/logging/logger");
 const { tokenExchangeService } = await import("@backend/auth/token-exchange");
 const refreshTokenMock = vi.mocked(tokenExchangeService.refreshToken);
 const { twitchAuthService } = await import("@backend/auth/twitch-auth");
@@ -69,6 +77,10 @@ beforeEach(() => {
   twitchAuthService.cancelProactiveRefresh();
   twitchAuthService.setAuthLostHandler(() => undefined);
   refreshTokenMock.mockReset();
+  vi.mocked(logger.debug).mockClear();
+  vi.mocked(logger.error).mockClear();
+  vi.mocked(logger.warn).mockClear();
+  vi.mocked(logger.info).mockClear();
   storageMocks.clearToken.mockClear();
   storageMocks.clearTwitchUser.mockClear();
   storageMocks.saveToken.mockClear();
@@ -164,7 +176,7 @@ describe("twitchAuthService refresh chain", () => {
     expect(refreshTokenMock).toHaveBeenCalledTimes(1);
     expect(storageModule.storageService.saveToken).toHaveBeenCalledWith(
       "twitch",
-      expect.objectContaining({ accessToken: "new-access" }),
+      expect.objectContaining({ accessToken: "new-access" })
     );
     // saveToken updated the state — the chained scheduleProactiveRefresh
     // should have queued another refresh against the new expiry. Cancel so
@@ -202,7 +214,7 @@ describe("twitchAuthService refresh chain", () => {
 
     setStoredToken(60 * 60);
     refreshTokenMock.mockRejectedValueOnce(
-      new TokenRefreshError("Invalid refresh token", 400, "invalid_grant"),
+      new TokenRefreshError("Invalid refresh token", 400, "invalid_grant")
     );
 
     twitchAuthService.scheduleProactiveRefresh();
@@ -215,6 +227,19 @@ describe("twitchAuthService refresh chain", () => {
     // "<displayName> — Reconnect required" instead of scrubbing identity.
     expect(storageModule.storageService.clearTwitchUser).not.toHaveBeenCalled();
     expect(authLost).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      "Auth:Twitch",
+      "Twitch refresh token rejected by Twitch; clearing stored credentials and prompting re-login",
+      expect.objectContaining({
+        error: expect.objectContaining({
+          name: "TokenRefreshError",
+          message: "Invalid refresh token",
+          status: 400,
+          code: "invalid_grant",
+        }),
+      })
+    );
+    expect(logger.error).not.toHaveBeenCalled();
   });
 
   it("never invalidates auth from transient failures alone — caps backoff at 1h and retries forever", async () => {

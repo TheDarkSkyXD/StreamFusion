@@ -103,22 +103,21 @@ beforeEach(() => {
     success: true,
     data: null,
   }));
-  electronApi.channels.getByUsername = vi.fn<typeof electronApi.channels.getByUsername>(async ({
-    username,
-    platform,
-  }) => ({
-    success: true,
-    data: {
-      id: `channel-${username}`,
-      platform,
-      username,
-      displayName: username === "ninja" ? "Ninja" : username,
-      avatarUrl: `https://cdn.example.test/${username}-avatar.png`,
-      isLive: false,
-      isVerified: true,
-      isPartner: true,
-    },
-  }));
+  electronApi.channels.getByUsername = vi.fn<typeof electronApi.channels.getByUsername>(
+    async ({ username, platform }) => ({
+      success: true,
+      data: {
+        id: `channel-${username}`,
+        platform,
+        username,
+        displayName: username === "ninja" ? "Ninja" : username,
+        avatarUrl: `https://cdn.example.test/${username}-avatar.png`,
+        isLive: false,
+        isVerified: true,
+        isPartner: true,
+      },
+    })
+  );
   electronApi.downloads.getQueue = vi.fn(async () => ({ jobs: [] }));
   electronApi.downloads.downloadVideo = vi.fn(async () => ({ success: true, jobId: "video-job" }));
 });
@@ -143,6 +142,7 @@ import { VOD_LIVE_LINK_KEYS } from "@/features/playback/data/useVodLiveLink";
 // Guards: cached channel metadata cannot keep Watch Live visible after the stream ends
 // Guards: Watch Live waits for fresh stream-status authority and hides on route switches, lookup errors, and ended streams
 // Guards: a VOD category links back to that platform category instead of rendering as inert text
+// Guards: invalid Kick VOD routes fail closed without fabricated channel metadata, follow actions, or history writes
 describe("VideoPage", () => {
   beforeEach(() => {
     Object.assign(routeState.params, { platform: "twitch", videoId: "vod-1" });
@@ -716,5 +716,51 @@ describe("VideoPage", () => {
 
     await waitFor(() => expect(electronApi.videos.getPlaybackUrl).toHaveBeenCalledTimes(2));
     expect(await screen.findByTestId("twitch-vod-player")).toBeInTheDocument();
+  });
+
+  it("fails closed for an invalid Kick VOD route without showing fabricated metadata", async () => {
+    Object.assign(routeState.params, { platform: "kick", videoId: "definitely-not-a-real-vod-id" });
+    Object.assign(routeState.search, {
+      title: undefined,
+      channelName: undefined,
+      channelDisplayName: undefined,
+      channelAvatar: undefined,
+      views: undefined,
+      date: undefined,
+      duration: undefined,
+      category: undefined,
+      categoryId: undefined,
+      language: undefined,
+      shareUrl: undefined,
+    });
+    electronApi.videos.getPlaybackUrl = vi.fn<typeof electronApi.videos.getPlaybackUrl>(
+      async () => ({
+        success: false,
+        error: "Could not resolve VOD playback URL",
+      })
+    );
+    electronApi.videos.getMetadata = vi.fn<typeof electronApi.videos.getMetadata>(async () => ({
+      success: false,
+      error: "Video metadata unavailable",
+    }));
+    electronApi.logs.write = vi.fn();
+
+    renderWithProviders(<VideoPage />);
+
+    expect(await screen.findByText("Could not resolve VOD playback URL")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Video unavailable" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Follow" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Kick VOD")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kick Channel")).not.toBeInTheDocument();
+    expect(screen.queryByText(/More from/i)).not.toBeInTheDocument();
+    expect(electronApi.channels.getByUsername).not.toHaveBeenCalled();
+    expect(electronApi.videos.getByChannel).not.toHaveBeenCalled();
+    expect(addToHistory).not.toHaveBeenCalled();
+    expect(electronApi.logs.write).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: "error",
+        tag: "Page:Video",
+      })
+    );
   });
 });

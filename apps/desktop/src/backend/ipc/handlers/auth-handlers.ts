@@ -615,8 +615,8 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
   //
   // Per-platform cooldown state so Kick focus events don't gate Twitch
   // refreshes and vice versa. Both platforms register unconditionally;
-  // the no-token guard lives inside maybeRefreshFollows so the interval
-  // ticks harmlessly when the user isn't signed in.
+  // the auth-validity guard lives inside maybeRefreshFollows so the
+  // interval ticks harmlessly when the user isn't signed in.
   //
   // The single-flight Promise inside each platform's getAllFollowedChannels
   // collapses concurrent triggers, so over-firing is cheap. We still
@@ -627,8 +627,13 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     ["twitch", 0],
   ]);
 
+  async function canRefreshFollows(platform: Platform): Promise<boolean> {
+    return platform === "kick"
+      ? await kickAuthService.ensureValidToken()
+      : await twitchAuthService.ensureValidToken();
+  }
+
   function maybeRefreshFollows(platform: Platform, trigger: "interval" | "focus"): void {
-    if (!storageService.hasToken(platform)) return;
     const now = Date.now();
     if (shouldDeferKickStartupFollowRefresh(platform, trigger, now, authHandlersStartedAt)) {
       logger.debug("IPC:Auth", "deferred Kick follow refresh during startup", {
@@ -643,8 +648,18 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
       if (now - last < FOCUS_REFRESH_COOLDOWN_MS) return;
     }
     lastRefreshAt.set(platform, now);
-    logger.debug("IPC:Auth", "follow refresh", { platform, trigger });
-    syncFollowsOnLogin(platform, getRoutineFollowSyncOptions(platform)).catch(() => {});
+    void (async () => {
+      const isAuthenticated = await canRefreshFollows(platform);
+      if (!isAuthenticated) {
+        logger.debug("IPC:Auth", "follow refresh skipped; platform not authenticated", {
+          platform,
+          trigger,
+        });
+        return;
+      }
+      logger.debug("IPC:Auth", "follow refresh", { platform, trigger });
+      await syncFollowsOnLogin(platform, getRoutineFollowSyncOptions(platform));
+    })().catch(() => {});
   }
 
   createManagedInterval(() => maybeRefreshFollows("kick", "interval"), FOLLOWS_REFRESH_INTERVAL_MS);
@@ -786,7 +801,7 @@ export function registerAuthHandlers(mainWindow: BrowserWindow): void {
     const isAuthenticated =
       platform === "kick"
         ? await kickAuthService.ensureValidToken()
-        : storageService.hasToken(platform) && !storageService.isTokenExpired(platform);
+        : await twitchAuthService.ensureValidToken();
     if (!isAuthenticated) {
       return { success: false, error: "not-authenticated" };
     }

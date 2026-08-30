@@ -71,6 +71,7 @@ import { ipcMain } from "electron";
 
 import { kickClient } from "@backend/api/platforms/kick/kick-client";
 import { KickStreamResolver } from "@backend/api/platforms/kick/kick-stream-resolver";
+import { logger } from "@backend/logging/logger";
 import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
 import { TwitchStreamResolver } from "@backend/api/platforms/twitch/twitch-stream-resolver";
 import {
@@ -1833,6 +1834,10 @@ describe("IPC handlers - VIDEOS_GET_PLAYBACK_URL", () => {
   beforeEach(() => {
     vi.useRealTimers();
     vi.mocked(ipcMain.handle).mockReset();
+    vi.mocked(logger.debug).mockReset();
+    vi.mocked(logger.error).mockReset();
+    vi.mocked(logger.info).mockReset();
+    vi.mocked(logger.warn).mockReset();
     twitchResolverProto.getVodPlaybackUrl.mockReset();
     kickResolverProto.getVodPlaybackUrl.mockReset();
     registerVideoHandlers();
@@ -1880,6 +1885,21 @@ describe("IPC handlers - VIDEOS_GET_PLAYBACK_URL", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toBe("not found");
+  });
+
+  it("returns handled Kick VOD unavailability without logging an IPC error", async () => {
+    kickResolverProto.getVodPlaybackUrl.mockRejectedValue(
+      new Error(
+        'Could not resolve VOD playback URL for "bad-id". Original error: Kick API error: 400'
+      )
+    );
+
+    const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_PLAYBACK_URL);
+    const result = await handler({}, { platform: "kick", videoId: "bad-id" });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Could not resolve VOD playback URL");
+    expect(logger.error).not.toHaveBeenCalled();
   });
 });
 
@@ -1936,6 +1956,16 @@ describe("IPC handlers - VIDEOS_GET_METADATA", () => {
 
     expectSuccessful(result);
     expect(result.data).toBe(metadata);
+  });
+
+  it("returns an explicit error when Kick metadata is unavailable", async () => {
+    kickResolverProto.getVideoMetadata.mockResolvedValue(null);
+
+    const handler = getHandler(IPC_CHANNELS.VIDEOS_GET_METADATA);
+    const result = await handler({}, { platform: "kick", videoId: "missing-kick-vod" });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe("Video metadata unavailable");
   });
 
   it("returns error for unsupported platform", async () => {

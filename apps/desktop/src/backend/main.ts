@@ -18,6 +18,7 @@ import {
   dialog,
   globalShortcut,
   Menu,
+  type MenuItemConstructorOptions,
   protocol,
   session,
   shell,
@@ -76,6 +77,7 @@ import {
   resolveChromiumDiskCachePath,
 } from "./utility/chromium-cache-path";
 import { resolveUserDataPath } from "./utility/user-data-path";
+import { resolveDebuggingPolicy } from "./runtime-mode";
 import { IPC_CHANNELS } from "../shared/ipc-channels";
 
 // Enable Chrome DevTools Protocol for Playwright/Electron MCP connectivity (development only)
@@ -117,7 +119,9 @@ if (process.env.STREAMFUSION_NETLOG) {
   console.log(`📊 [netlog] Capture enabled → ${netlogPath}`);
 }
 
-if (!isProduction) {
+const debuggingPolicy = resolveDebuggingPolicy({ isPackaged: app.isPackaged, argv: process.argv });
+
+if (debuggingPolicy.kind === "cdp") {
   // Suppress the (Disabled webSecurity) + (allowRunningInsecureContent) dev
   // warnings the renderer prints on every launch. The posture is intentional
   // (window-manager.ts:132 — needed for cross-origin video stream playback)
@@ -139,16 +143,16 @@ if (!isProduction) {
   // discoverable out of the box. Skip the override if the CLI already
   // passed `--remote-debugging-port` (e.g. `dev:mcp` forces 9222 for
   // Playwright tooling) — appendSwitch would otherwise clobber it.
-  const hasCliPort = process.argv.some((a) => a.startsWith("--remote-debugging-port"));
-  if (!hasCliPort) {
-    app.commandLine.appendSwitch("remote-debugging-port", "9236");
-    console.debug("🔌 CDP remote debugging enabled on port 9236 for debug-electron MCP");
+  if (debuggingPolicy.source === "default") {
+    app.commandLine.appendSwitch("remote-debugging-port", String(debuggingPolicy.port));
+    console.debug(
+      `🔌 CDP remote debugging enabled on port ${debuggingPolicy.port} for debug-electron MCP`
+    );
   } else {
     console.debug("🔌 CDP remote debugging using port from CLI args");
   }
 } else {
-  app.commandLine.appendSwitch("remote-debugging-port", "9005");
-  console.debug("🔌 CDP remote debugging enabled on port 9005 for Production");
+  app.commandLine.removeSwitch("remote-debugging-port");
 }
 
 // Initialize the logging system as early as possible — must run AFTER the
@@ -378,10 +382,22 @@ async function initializeReady(): Promise<void> {
   // minimal application menu so OS-standard shortcuts (Copy/Paste, Reload,
   // DevTools, Quit) keep working and the Help menu's log-folder/log-path
   // affordances are reachable from the OS menu bar (macOS) / Alt menu (Win).
+  const viewMenu: MenuItemConstructorOptions = app.isPackaged
+    ? {
+        label: "View",
+        submenu: [
+          { role: "resetZoom" },
+          { role: "zoomIn" },
+          { role: "zoomOut" },
+          { type: "separator" },
+          { role: "togglefullscreen" },
+        ],
+      }
+    : { role: "viewMenu" };
   const menu = Menu.buildFromTemplate([
     { role: "fileMenu" },
     { role: "editMenu" },
-    { role: "viewMenu" },
+    viewMenu,
     { role: "windowMenu" },
     {
       role: "help",

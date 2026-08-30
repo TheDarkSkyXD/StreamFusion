@@ -56,6 +56,10 @@ describe("KickStreamResolver", () => {
     resolver = new KickStreamResolver();
     mockFetch.mockReset();
     __clearKickPlaybackCacheForTests();
+    vi.mocked(logger.debug).mockClear();
+    vi.mocked(logger.error).mockClear();
+    vi.mocked(logger.info).mockClear();
+    vi.mocked(logger.warn).mockClear();
   });
 
   afterEach(() => {
@@ -230,14 +234,12 @@ describe("KickStreamResolver", () => {
     });
 
     it("retries transient errors up to maxRetries", async () => {
-      mockFetch
-        .mockRejectedValueOnce(new Error("net::ERR_FAILED"))
-        .mockResolvedValueOnce(
-          jsonResponse({
-            livestream: { is_live: true },
-            playback_url: "https://example.com/stream.m3u8",
-          })
-        );
+      mockFetch.mockRejectedValueOnce(new Error("net::ERR_FAILED")).mockResolvedValueOnce(
+        jsonResponse({
+          livestream: { is_live: true },
+          playback_url: "https://example.com/stream.m3u8",
+        })
+      );
 
       const result = await resolver.getStreamPlaybackUrl("flaky-channel");
 
@@ -254,7 +256,6 @@ describe("KickStreamResolver", () => {
         "net::ERR_FAILED"
       );
     });
-
   });
 
   describe("getVodPlaybackUrl", () => {
@@ -295,10 +296,22 @@ describe("KickStreamResolver", () => {
       await expect(resolver.getVodPlaybackUrl("unknown-uuid")).rejects.toThrow(
         /Could not resolve VOD/
       );
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Kick:StreamResolver",
+        "Kick VOD unavailable",
+        expect.objectContaining({
+          videoIdOrUuid: "unknown-uuid",
+          reason: expect.stringContaining("Could not resolve VOD playback URL"),
+        })
+      );
+      expect(logger.error).not.toHaveBeenCalled();
     });
   });
 
   describe("getVideoMetadata", () => {
+    // Guards: Kick VOD metadata lookup must fail closed when the upstream
+    // route cannot resolve a real video, rather than inventing placeholder
+    // titles or channel identities.
     it("returns full metadata from a valid API response", async () => {
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
@@ -318,6 +331,8 @@ describe("KickStreamResolver", () => {
       );
 
       const meta = await resolver.getVideoMetadata("some-uuid");
+      expect(meta).not.toBeNull();
+      if (!meta) throw new Error("Expected metadata");
 
       expect(meta.id).toBe("123");
       expect(meta.title).toBe("Epic Stream");
@@ -332,23 +347,20 @@ describe("KickStreamResolver", () => {
       expect(meta.platform).toBe("kick");
     });
 
-    it("returns default metadata when API call fails", async () => {
+    it("returns null when the API call fails", async () => {
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
       const meta = await resolver.getVideoMetadata("bad-uuid");
 
-      expect(meta.id).toBe("bad-uuid");
-      expect(meta.title).toBe("Kick VOD");
-      expect(meta.channelId).toBe("");
-      expect(meta.views).toBe(0);
-      expect(meta.duration).toBe("0:00");
-      expect(meta.platform).toBe("kick");
+      expect(meta).toBeNull();
     });
 
     it("formats duration correctly for sub-hour videos", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ id: 1, duration: 150000, channel: {} }));
 
       const meta = await resolver.getVideoMetadata("short-vod");
+      expect(meta).not.toBeNull();
+      if (!meta) throw new Error("Expected metadata");
 
       expect(meta.duration).toBe("2:30");
     });
@@ -357,6 +369,8 @@ describe("KickStreamResolver", () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ id: 1, duration: 0, channel: {} }));
 
       const meta = await resolver.getVideoMetadata("zero-vod");
+      expect(meta).not.toBeNull();
+      if (!meta) throw new Error("Expected metadata");
 
       expect(meta.duration).toBe("0:00");
     });
@@ -377,6 +391,8 @@ describe("KickStreamResolver", () => {
       );
 
       const meta = await resolver.getVideoMetadata("nested-uuid");
+      expect(meta).not.toBeNull();
+      if (!meta) throw new Error("Expected metadata");
 
       expect(meta.channelId).toBe("321");
       expect(meta.channelName).toBe("nested-streamer");

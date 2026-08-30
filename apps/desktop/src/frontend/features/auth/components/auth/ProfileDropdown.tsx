@@ -269,6 +269,9 @@ export function ProfileDropdown() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-1 py-1 rounded-full hover:bg-[var(--color-background-secondary)] transition-colors outline-none"
+        type="button"
+        aria-label="Open profile menu"
+        aria-expanded={isOpen}
       >
         {renderAvatarButton()}
       </button>

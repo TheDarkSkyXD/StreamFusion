@@ -25,8 +25,14 @@ interface KickChannelPlayback {
 
 function isKickChannelPlayback(value: unknown): value is KickChannelPlayback {
   if (typeof value !== "object" || value === null) return false;
-  if ("playback_url" in value && value.playback_url !== undefined && typeof value.playback_url !== "string") return false;
-  if (!("livestream" in value) || value.livestream === undefined || value.livestream === null) return true;
+  if (
+    "playback_url" in value &&
+    value.playback_url !== undefined &&
+    typeof value.playback_url !== "string"
+  )
+    return false;
+  if (!("livestream" in value) || value.livestream === undefined || value.livestream === null)
+    return true;
   return typeof value.livestream === "object";
 }
 
@@ -35,8 +41,19 @@ interface KickVideoPayload {
   source?: string;
   session_title?: string;
   title?: string;
-  channel?: { id?: string | number; slug?: string; user?: { username?: string; profile_pic?: string } };
-  livestream?: { channel?: { id?: string | number; slug?: string; user?: { username?: string; profile_pic?: string } }; categories?: Array<{ name?: string }> };
+  channel?: {
+    id?: string | number;
+    slug?: string;
+    user?: { username?: string; profile_pic?: string };
+  };
+  livestream?: {
+    channel?: {
+      id?: string | number;
+      slug?: string;
+      user?: { username?: string; profile_pic?: string };
+    };
+    categories?: Array<{ name?: string }>;
+  };
   views?: number;
   view_count?: number;
   duration?: number;
@@ -49,9 +66,21 @@ interface KickVideoPayload {
 
 function isKickVideoPayload(value: unknown): value is KickVideoPayload {
   if (typeof value !== "object" || value === null) return false;
-  if ("source" in value && value.source !== undefined && typeof value.source !== "string") return false;
-  if ("duration" in value && value.duration !== undefined && typeof value.duration !== "number") return false;
+  if ("source" in value && value.source !== undefined && typeof value.source !== "string")
+    return false;
+  if ("duration" in value && value.duration !== undefined && typeof value.duration !== "number")
+    return false;
   return true;
+}
+
+function isHandledKickVodUnavailableError(error: Error): boolean {
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("could not resolve vod playback url") ||
+    message.includes("kick api error: 400") ||
+    message.includes("channel not found") ||
+    message.includes("not found")
+  );
 }
 
 export class KickStreamResolver {
@@ -109,9 +138,7 @@ export class KickStreamResolver {
     const normalizedSlug = channelSlug.toLowerCase();
     const startedAt = Date.now();
 
-    const cachedPlayback = options.forceRefresh
-      ? null
-      : getCachedKickLivePlayback(normalizedSlug);
+    const cachedPlayback = options.forceRefresh ? null : getCachedKickLivePlayback(normalizedSlug);
     if (cachedPlayback) {
       logger.info("Kick:StreamResolver", "resolved live playback URL", {
         channelSlug: normalizedSlug,
@@ -284,28 +311,42 @@ export class KickStreamResolver {
       }
 
       // If all attempts failed, throw the last error with helpful message
+      const identifierHint =
+        /^\d+$/.test(videoIdOrUuid) || /^\d+-/.test(videoIdOrUuid)
+          ? "The Kick API requires a video UUID, but this appears to be a numeric ID. "
+          : "Kick could not resolve this video identifier through its public VOD endpoint. ";
       throw new Error(
         `Could not resolve VOD playback URL for "${videoIdOrUuid}". ` +
-          `The Kick API requires a video UUID, but this appears to be a numeric ID. ` +
+          identifierHint +
           `To play Kick VODs, use the source URL directly from the video list. ` +
           `Original error: ${lastError?.message || "Unknown error"}`
       );
     } catch (error) {
-      logger.error("Kick:StreamResolver", "Failed to resolve Kick VOD URL", {
-        videoIdOrUuid,
-        error:
-          error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : String(error),
-      });
-      throw error;
+      const resolvedError = error instanceof Error ? error : new Error(String(error));
+      if (isHandledKickVodUnavailableError(resolvedError)) {
+        logger.warn("Kick:StreamResolver", "Kick VOD unavailable", {
+          videoIdOrUuid,
+          reason: resolvedError.message,
+        });
+      } else {
+        logger.error("Kick:StreamResolver", "Failed to resolve Kick VOD URL", {
+          videoIdOrUuid,
+          error: {
+            name: resolvedError.name,
+            message: resolvedError.message,
+            stack: resolvedError.stack,
+          },
+        });
+      }
+      throw resolvedError;
     }
   }
 
   /**
    * Get video metadata for a Kick VOD
    * Note: The api/v1/video/{video} endpoint expects a UUID, not a numeric ID.
-   * If the lookup fails, we return partial metadata with the ID.
+   * If the lookup fails, return null so callers can surface an explicit
+   * unavailable state instead of fabricating presentation data.
    */
   async getVideoMetadata(videoId: string): Promise<{
     id: string;
@@ -320,7 +361,7 @@ export class KickStreamResolver {
     thumbnailUrl: string;
     platform: string;
     category?: string;
-  }> {
+  } | null> {
     // Format duration from milliseconds to readable format
     const formatDuration = (ms: number): string => {
       const seconds = Math.floor(ms / 1000);
@@ -335,26 +376,10 @@ export class KickStreamResolver {
       return `${m}:${formattedSecs}`;
     };
 
-    // Default metadata when lookup fails
-    const defaultMetadata = {
-      id: videoId,
-      title: "Kick VOD",
-      channelId: "",
-      channelName: "",
-      channelDisplayName: "Kick Channel",
-      channelAvatar: null,
-      views: 0,
-      duration: "0:00",
-      createdAt: new Date().toISOString(),
-      thumbnailUrl: "",
-      platform: "kick",
-      category: undefined,
-    };
-
     try {
       // Try to fetch metadata - this may fail for numeric IDs
       const data = await this.netRequest(`${KICK_LEGACY_API_V1_BASE}/video/${videoId}`);
-      if (!isKickVideoPayload(data)) return defaultMetadata;
+      if (!isKickVideoPayload(data)) return null;
 
       return {
         id: data.id?.toString() || videoId,
@@ -380,16 +405,10 @@ export class KickStreamResolver {
           undefined,
       };
     } catch (_error) {
-      logger.warn(
-        "Kick:StreamResolver",
-        "Could not fetch Kick video metadata; returning defaults",
-        {
-          videoId,
-        }
-      );
-      // Return default metadata instead of throwing
-      // The video can still play even without full metadata
-      return defaultMetadata;
+      logger.warn("Kick:StreamResolver", "Could not fetch Kick video metadata", {
+        videoId,
+      });
+      return null;
     }
   }
 }

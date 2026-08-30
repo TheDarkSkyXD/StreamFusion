@@ -10,7 +10,7 @@ import {
 
 // Lazy load ReactQueryDevtools only in development to avoid bundling in production
 // This can save ~200KB+ in production bundle size
-const isDev = process.env.NODE_ENV !== "production";
+const isDev = import.meta.env.DEV;
 const ReactQueryDevtools = isDev
   ? lazy(() =>
       import("@tanstack/react-query-devtools").then((mod) => ({

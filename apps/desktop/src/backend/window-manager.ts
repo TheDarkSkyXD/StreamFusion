@@ -111,7 +111,7 @@ const WINDOW_STATE_DEBOUNCE_MS = 500;
 
 class WindowManager {
   private mainWindow: BrowserWindow | null = null;
-  private isDev = process.env.NODE_ENV !== "production";
+  private isDev = !app.isPackaged;
   /** Tracks the auto-quit timer started by the `unresponsive` listener. */
   private unresponsiveTimer: NodeJS.Timeout | null = null;
   /** Tracks the debounced window-state save timer. */

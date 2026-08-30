@@ -100,7 +100,7 @@ export function registerSystemHandlers(mainWindow: BrowserWindow): void {
   // Renderer-triggered DevTools toggle. Dev-only — guarded so a tampered
   // renderer can't pop DevTools in a packaged build.
   ipcMain.on(IPC_CHANNELS.WINDOW_TOGGLE_DEV_TOOLS, () => {
-    if (process.env.NODE_ENV === "production") return;
+    if (app.isPackaged) return;
     const wc = mainWindow?.webContents;
     if (!wc || wc.isDestroyed()) return;
     wc.toggleDevTools();
@@ -153,8 +153,7 @@ export function registerSystemHandlers(mainWindow: BrowserWindow): void {
   );
 
   ipcMain.handle(IPC_CHANNELS.NOTIFICATION_COVERAGE_GET, async () => {
-    const { liveNotificationService } =
-      await import("@backend/services/live-notification-service");
+    const { liveNotificationService } = await import("@backend/services/live-notification-service");
     return liveNotificationService.getCoverageStatus();
   });
 

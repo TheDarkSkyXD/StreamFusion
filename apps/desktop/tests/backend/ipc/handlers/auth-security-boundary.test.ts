@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   saveTwitchUser: vi.fn(),
   saveKickUser: vi.fn(),
   ensureKickToken: vi.fn(),
+  ensureTwitchToken: vi.fn(),
   disposeKickSendWindow: vi.fn(),
   kickLogout: vi.fn(),
   twitchLogout: vi.fn(),
@@ -21,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   runTwitchDeviceCodeLogin: vi.fn(),
   openTwitchDeviceAuthWindow: vi.fn(),
   getKickFollows: vi.fn(),
+  getTwitchFollows: vi.fn(),
   writeKickFollow: vi.fn(),
   upsertSyncedFollows: vi.fn(),
   intervals: [] as Array<() => void>,
@@ -52,6 +54,12 @@ vi.mock("@backend/api/platforms/kick/endpoints/follow-endpoints", () => ({
   writeKickAccountFollow: mocks.writeKickFollow,
 }));
 
+vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
+  twitchClient: {
+    getAllFollowedChannels: mocks.getTwitchFollows,
+  },
+}));
+
 vi.mock("@backend/auth", () => ({
   authWindowManager: {
     openAuthWindow: vi.fn(),
@@ -75,6 +83,7 @@ vi.mock("@backend/auth", () => ({
   twitchAuthService: {
     setAuthLostHandler: vi.fn(),
     scheduleProactiveRefresh: vi.fn(),
+    ensureValidToken: mocks.ensureTwitchToken,
     logout: mocks.twitchLogout,
     refreshToken: mocks.refreshTwitchToken,
     getValidAccessToken: mocks.getValidTwitchToken,
@@ -138,6 +147,7 @@ beforeEach(() => {
   mocks.saveTwitchUser.mockReset();
   mocks.saveKickUser.mockReset();
   mocks.ensureKickToken.mockReset();
+  mocks.ensureTwitchToken.mockReset().mockResolvedValue(false);
   mocks.disposeKickSendWindow.mockReset();
   mocks.kickLogout.mockReset();
   mocks.twitchLogout.mockReset();
@@ -150,6 +160,7 @@ beforeEach(() => {
     channels: [],
     canPruneAbsent: true,
   });
+  mocks.getTwitchFollows.mockReset().mockResolvedValue([]);
   mocks.upsertSyncedFollows.mockReset().mockReturnValue({
     accountCount: 0,
     pendingCount: 0,
@@ -170,6 +181,7 @@ beforeEach(() => {
 
 // Guards: generic token storage remains Kick-only and rejects untrusted renderer origins without exposing a credential.
 // Guards: manual, interval, and post-startup focus Kick syncs can use the authenticated browser session fallback.
+// Guards: Twitch follow sync validates auth before touching Helix so stale refresh tokens degrade to signed-out state without endpoint-error cascades.
 describe("auth IPC credential boundary", () => {
   it("runs manual Kick sync without granting permission to open a repair window", async () => {
     mocks.ensureKickToken.mockResolvedValue(true);
@@ -181,7 +193,7 @@ describe("auth IPC credential boundary", () => {
   });
 
   it("runs the periodic Kick refresh through the authenticated browser fallback", async () => {
-    mocks.hasToken.mockImplementation((platform: string) => platform === "kick");
+    mocks.ensureKickToken.mockResolvedValue(true);
 
     mocks.intervals[0]?.();
 
@@ -191,7 +203,7 @@ describe("auth IPC credential boundary", () => {
   });
 
   it("runs a post-startup Kick focus refresh through the authenticated browser fallback", async () => {
-    mocks.hasToken.mockImplementation((platform: string) => platform === "kick");
+    mocks.ensureKickToken.mockResolvedValue(true);
     const now = Date.now();
     const dateNow = vi.spyOn(Date, "now").mockReturnValue(now + 61_000);
 
@@ -202,6 +214,32 @@ describe("auth IPC credential boundary", () => {
     });
     dateNow.mockRestore();
   });
+
+  it("rejects manual Twitch follow sync when auth validation fails", async () => {
+    mocks.ensureTwitchToken.mockResolvedValue(false);
+    const syncFollows = handler(IPC_CHANNELS.AUTH_SYNC_FOLLOWS);
+
+    await expect(syncFollows(allowedEvent, { platform: "twitch" })).resolves.toEqual({
+      success: false,
+      error: "not-authenticated",
+    });
+    expect(mocks.getTwitchFollows).not.toHaveBeenCalled();
+  });
+
+  it("skips Twitch focus refresh when auth validation fails", async () => {
+    mocks.ensureTwitchToken.mockResolvedValue(false);
+    const now = Date.now();
+    const dateNow = vi.spyOn(Date, "now").mockReturnValue(now + 61_000);
+
+    mocks.windowListeners.get("focus")?.();
+
+    await vi.waitFor(() => {
+      expect(mocks.ensureTwitchToken).toHaveBeenCalled();
+    });
+    expect(mocks.getTwitchFollows).not.toHaveBeenCalled();
+    dateNow.mockRestore();
+  });
+
   it("collapses concurrent Twitch login requests into one device flow", async () => {
     let resolveLogin: (() => void) | undefined;
     mocks.runTwitchDeviceCodeLogin.mockImplementation(

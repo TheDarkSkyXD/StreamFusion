@@ -51,6 +51,7 @@ beforeEach(() => {
   navigateMock.mockClear();
 });
 
+// Guards: profile dropdown trigger must expose an accessible name so keyboard, screen-reader, and runtime automation users can open the account menu
 // Guards: profile dropdown channel actions must navigate inside StreamFusion to the authenticated account's real platform channel instead of opening an external browser URL or using a stale display name
 describe("ProfileDropdown", () => {
   it("navigates to connected Twitch and Kick account channels inside the app", async () => {
@@ -64,7 +65,11 @@ describe("ProfileDropdown", () => {
 
     renderWithProviders(<ProfileDropdown />);
 
-    await userEvent.click(screen.getAllByRole("button")[0]);
+    const trigger = screen.getByRole("button", { name: "Open profile menu" });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
     await userEvent.click(screen.getByRole("button", { name: "Twitch Channel" }));
     expect(navigateMock).toHaveBeenCalledWith({
       to: "/stream/$platform/$channel",
@@ -72,7 +77,7 @@ describe("ProfileDropdown", () => {
       search: { tab: "home" },
     });
 
-    await userEvent.click(screen.getAllByRole("button")[0]);
+    await userEvent.click(trigger);
     await userEvent.click(screen.getByRole("button", { name: "Kick Channel" }));
     expect(navigateMock).toHaveBeenCalledWith({
       to: "/stream/$platform/$channel",

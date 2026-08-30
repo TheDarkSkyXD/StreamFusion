@@ -77,6 +77,16 @@ function formatSeconds(seconds: number): string {
   return `${mins}:${formattedSecs}`;
 }
 
+function isHandledKickVodPlaybackError(platform: Platform, error: unknown): boolean {
+  if (platform !== "kick" || !(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("could not resolve vod playback url") ||
+    message.includes("kick api error: 400") ||
+    message.includes("not found")
+  );
+}
+
 /**
  * Get the livestream ID from a Kick video object, trying multiple field names
  * This centralizes the logic for matching clips to VODs
@@ -788,8 +798,7 @@ export function registerVideoHandlers(): void {
                   channelAvatar:
                     (typeof video.channelAvatar === "string" ? video.channelAvatar : "") ||
                     channel.channelAvatar,
-                  thumbnailUrl:
-                    typeof video.thumbnailUrl === "string" ? video.thumbnailUrl : "",
+                  thumbnailUrl: typeof video.thumbnailUrl === "string" ? video.thumbnailUrl : "",
                   gameId: request.categoryId,
                   gameName: video.category || request.categoryName || "",
                 });
@@ -1007,12 +1016,14 @@ export function registerVideoHandlers(): void {
         }
         throw new Error(`Unsupported platform: ${params.platform}`);
       } catch (error) {
-        logger.error("IPC:Video", "Failed to get VOD playback URL", {
-          error:
-            error instanceof Error
-              ? { name: error.name, message: error.message, stack: error.stack }
-              : String(error),
-        });
+        if (!isHandledKickVodPlaybackError(params.platform, error)) {
+          logger.error("IPC:Video", "Failed to get VOD playback URL", {
+            error:
+              error instanceof Error
+                ? { name: error.name, message: error.message, stack: error.stack }
+                : String(error),
+          });
+        }
         return {
           success: false,
           error: error instanceof Error ? error.message : "Failed to resolve VOD URL",
@@ -1063,6 +1074,12 @@ export function registerVideoHandlers(): void {
           };
         } else if (params.platform === "kick") {
           const metadata = await kickResolver.getVideoMetadata(params.videoId);
+          if (!metadata) {
+            return {
+              success: false,
+              error: "Video metadata unavailable",
+            };
+          }
           return {
             success: true,
             data: metadata,

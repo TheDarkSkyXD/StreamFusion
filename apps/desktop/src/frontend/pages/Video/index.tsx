@@ -316,7 +316,6 @@ export function VideoPage() {
               };
               setStreamUrl(playbackResult.data.url);
             } else {
-              logger.error("Page:Video", "vod fetch error", { error: playbackResult.error });
               setError(playbackResult.error || "Failed to resolve VOD URL");
             }
           })
@@ -407,14 +406,14 @@ export function VideoPage() {
   }, [routePlatform, streamUrl, videoId]);
 
   // Use fetched data or passed data or fallbacks
-  const videoTitle = videoMetadata?.title || passedTitle || "Loading...";
-  // Track placeholder state separately so guards don't compare against a magic
-  // string — a real Kick user named "channel" would otherwise be trapped in
-  // placeholder-forever state with useChannelByUsername never firing.
-  const hasResolvedChannelName = !!videoMetadata?.channelName || !!passedChannelName;
-  const channelName = videoMetadata?.channelName || passedChannelName || "channel";
+  const hasResolvedVideoTitle = Boolean(videoMetadata?.title || passedTitle);
+  const videoTitle =
+    videoMetadata?.title || passedTitle || (error ? "Video unavailable" : "Loading...");
+  const channelName = videoMetadata?.channelName || passedChannelName || "";
+  const hasResolvedChannelName = channelName.trim().length > 0;
   const channelDisplayName =
-    videoMetadata?.channelDisplayName || passedChannelDisplayName || passedChannelName || "Channel";
+    videoMetadata?.channelDisplayName || passedChannelDisplayName || passedChannelName || "";
+  const visibleChannelName = channelDisplayName || "Channel unavailable";
 
   // Resolve the canonical channel for follow identity and as a metadata
   // fallback when a VOD route does not include the channel avatar.
@@ -422,13 +421,11 @@ export function VideoPage() {
     hasResolvedChannelName ? channelName : "",
     routePlatform
   );
-  const liveLinkState = useVodLiveLink(
-    hasResolvedChannelName ? channelName : "",
-    routePlatform
-  );
+  const liveLinkState = useVodLiveLink(hasResolvedChannelName ? channelName : "", routePlatform);
   const canWatchLive = liveLinkState.kind === "available";
   const channelAvatar =
     videoMetadata?.channelAvatar || passedChannelAvatar || channelData?.avatarUrl;
+  const canOpenChannel = hasResolvedChannelName;
   const shareUrl =
     videoMetadata?.shareUrl ||
     passedShareUrl ||
@@ -462,7 +459,7 @@ export function VideoPage() {
   };
 
   useEffect(() => {
-    if (videoId && videoTitle !== "Loading...") {
+    if (videoId && hasResolvedVideoTitle) {
       addToHistory({
         id: historyItemId,
         originalId: videoId,
@@ -487,20 +484,23 @@ export function VideoPage() {
     historyPlaybackUrl,
     passedThumbnail,
     videoMetadata,
+    hasResolvedVideoTitle,
     addToHistory,
     historyItemId,
     shareUrl,
   ]);
+  const hasViews = videoMetadata ? true : Boolean(passedViews);
   const views = videoMetadata
     ? formatViews(videoMetadata.views)
     : passedViews
       ? formatViews(passedViews)
-      : "—";
+      : null;
+  const hasDate = videoMetadata ? true : Boolean(passedDate);
   const date = videoMetadata
     ? formatRelativeDate(videoMetadata.createdAt)
     : passedDate
       ? formatRelativeDate(passedDate)
-      : "—";
+      : null;
   const category = videoMetadata?.category || passedCategory;
   const categoryId = passedCategoryId || category;
   const isPlaybackReady = Boolean(
@@ -534,16 +534,18 @@ export function VideoPage() {
   // synthesized from route + search params. Once useChannelByUsername resolves
   // we swap to channelData so writes carry the canonical id. channelsMatch
   // bridges the two via slug, so follow-state reads stay correct across both.
-  const channelForFollow: UnifiedChannel = channelData ?? {
-    id: "",
-    platform: routePlatform,
-    username: channelName,
-    displayName: channelDisplayName,
-    avatarUrl: channelAvatar || "",
-    isLive: false,
-    isVerified: false,
-    isPartner: false,
-  };
+  const channelForFollow: UnifiedChannel | null = hasResolvedChannelName
+    ? (channelData ?? {
+        id: "",
+        platform: routePlatform,
+        username: channelName,
+        displayName: channelDisplayName || channelName,
+        avatarUrl: channelAvatar || "",
+        isLive: false,
+        isVerified: false,
+        isPartner: false,
+      })
+    : null;
 
   // When the canonical channel resolves, migrate any in-memory follow row
   // that was written with channelId: "" (the synthesized-fallback case where
@@ -586,6 +588,20 @@ export function VideoPage() {
 
     if (hasResolvedChannelName) fetchRelated();
   }, [routePlatform, channelName, hasResolvedChannelName]);
+
+  const channelAvatarFallback = visibleChannelName.slice(0, 1).toUpperCase() || "?";
+  const channelIdentity = canOpenChannel ? (
+    <Link
+      to="/stream/$platform/$channel"
+      params={{ platform: platform || "twitch", channel: channelName }}
+      search={{ tab: "home" }}
+      className={`font-bold text-white hover:underline ${platform === "twitch" ? "decoration-[#9146FF]" : "decoration-[#53FC18]"} decoration-2 underline-offset-4`}
+    >
+      {visibleChannelName}
+    </Link>
+  ) : (
+    <span className="font-bold text-white">{visibleChannelName}</span>
+  );
 
   return (
     <div className="h-full flex overflow-hidden">
@@ -653,16 +669,34 @@ export function VideoPage() {
 
         <div className="p-6 space-y-6">
           <div className="flex justify-between items-start gap-4">
-            <Link
-              to="/stream/$platform/$channel"
-              params={{ platform: platform || "twitch", channel: channelName }}
-              search={{ tab: "home" }}
-              className="shrink-0"
-            >
-              {channelAvatar ? (
+            <div className="shrink-0">
+              {canOpenChannel ? (
+                <Link
+                  to="/stream/$platform/$channel"
+                  params={{ platform: platform || "twitch", channel: channelName }}
+                  search={{ tab: "home" }}
+                >
+                  {channelAvatar ? (
+                    <PlatformAvatar
+                      src={channelAvatar}
+                      alt={visibleChannelName}
+                      platform={routePlatform}
+                      size="w-14 h-14"
+                      className={`shadow-lg ring-2 ring-offset-2 ring-offset-[var(--color-background)] ${platform === "twitch" ? "ring-[#9146FF] hover:ring-[#9146FF]/80" : "ring-[#53FC18] hover:ring-[#53FC18]/80"} transition-all`}
+                      disablePlatformBorder
+                    />
+                  ) : (
+                    <div
+                      className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold text-white shadow-lg ${platform === "twitch" ? "bg-[#9146FF]" : "bg-[#53FC18] text-black"} ring-2 ring-offset-2 ring-offset-[var(--color-background)] ${platform === "twitch" ? "ring-[#9146FF] hover:ring-[#9146FF]/80" : "ring-[#53FC18] hover:ring-[#53FC18]/80"} transition-all`}
+                    >
+                      {channelAvatarFallback}
+                    </div>
+                  )}
+                </Link>
+              ) : channelAvatar ? (
                 <PlatformAvatar
                   src={channelAvatar}
-                  alt={channelDisplayName}
+                  alt={visibleChannelName}
                   platform={routePlatform}
                   size="w-14 h-14"
                   className={`shadow-lg ring-2 ring-offset-2 ring-offset-[var(--color-background)] ${platform === "twitch" ? "ring-[#9146FF] hover:ring-[#9146FF]/80" : "ring-[#53FC18] hover:ring-[#53FC18]/80"} transition-all`}
@@ -672,21 +706,14 @@ export function VideoPage() {
                 <div
                   className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold text-white shadow-lg ${platform === "twitch" ? "bg-[#9146FF]" : "bg-[#53FC18] text-black"} ring-2 ring-offset-2 ring-offset-[var(--color-background)] ${platform === "twitch" ? "ring-[#9146FF] hover:ring-[#9146FF]/80" : "ring-[#53FC18] hover:ring-[#53FC18]/80"} transition-all`}
                 >
-                  {channelDisplayName.slice(0, 1).toUpperCase()}
+                  {channelAvatarFallback}
                 </div>
               )}
-            </Link>
+            </div>
             <div className="flex-1">
               <h1 className="text-2xl font-bold text-white mb-1">{videoTitle}</h1>
               <div className="flex items-center gap-3 text-[var(--color-foreground-secondary)] text-sm flex-wrap">
-                <Link
-                  to="/stream/$platform/$channel"
-                  params={{ platform: platform || "twitch", channel: channelName }}
-                  search={{ tab: "home" }}
-                  className={`font-bold text-white hover:underline ${platform === "twitch" ? "decoration-[#9146FF]" : "decoration-[#53FC18]"} decoration-2 underline-offset-4`}
-                >
-                  {channelDisplayName}
-                </Link>
+                {channelIdentity}
                 {category && (
                   <>
                     <span>•</span>
@@ -703,10 +730,18 @@ export function VideoPage() {
                     )}
                   </>
                 )}
-                <span>•</span>
-                <span>{views} views</span>
-                <span>•</span>
-                <span>{date}</span>
+                {hasViews && views ? (
+                  <>
+                    <span>•</span>
+                    <span>{views} views</span>
+                  </>
+                ) : null}
+                {hasDate && date ? (
+                  <>
+                    <span>•</span>
+                    <span>{date}</span>
+                  </>
+                ) : null}
               </div>
               {metadataFailed && (
                 <Button type="button" variant="ghost" size="sm" onClick={handleMetadataRetry}>
@@ -753,7 +788,7 @@ export function VideoPage() {
               })()}
             </div>
             <div className="flex gap-4">
-              <FollowButton channel={channelForFollow} size="sm" />
+              {channelForFollow ? <FollowButton channel={channelForFollow} size="sm" /> : null}
               <Button
                 className="rounded-full font-bold bg-neutral-800 hover:bg-neutral-700 text-white border-transparent gap-2"
                 size="sm"
@@ -782,7 +817,7 @@ export function VideoPage() {
                 <LuDownload aria-hidden="true" />
                 Download
               </Button>
-              {canWatchLive && (
+              {canOpenChannel && canWatchLive && (
                 <Link
                   to="/stream/$platform/$channel"
                   params={{ platform: platform || "twitch", channel: channelName }}
@@ -800,48 +835,50 @@ export function VideoPage() {
           </div>
 
           {/* Related Videos */}
-          <div>
-            <h2 className="text-lg font-bold text-white mb-4">More from {channelDisplayName}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {isRelatedLoading ? (
-                Array.from({ length: 12 }).map((_, i) => (
-                  <div key={i} className="space-y-3">
-                    <div className="aspect-video bg-[var(--color-background-tertiary)] rounded-xl animate-pulse" />
-                    <div className="space-y-2">
-                      <div className="h-4 bg-[var(--color-background-tertiary)] rounded w-3/4 animate-pulse" />
-                      <div className="h-3 bg-[var(--color-background-tertiary)] rounded w-1/2 animate-pulse" />
-                    </div>
-                  </div>
-                ))
-              ) : relatedVideos.length > 0 ? (
-                relatedVideos
-                  .filter((v) => v.id !== videoId)
-                  .map((video) => (
-                    <div key={video.id} className="h-full">
-                      <VideoCard
-                        video={video}
-                        platform={routePlatform}
-                        channelName={channelName}
-                        channelData={{
-                          id: "",
-                          platform: routePlatform,
-                          username: channelName,
-                          displayName: channelDisplayName,
-                          avatarUrl: channelAvatar || "",
-                          isLive: false,
-                          isVerified: false,
-                          isPartner: false,
-                        }}
-                      />
+          {hasResolvedChannelName ? (
+            <div>
+              <h2 className="text-lg font-bold text-white mb-4">More from {visibleChannelName}</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {isRelatedLoading ? (
+                  Array.from({ length: 12 }).map((_, i) => (
+                    <div key={i} className="space-y-3">
+                      <div className="aspect-video bg-[var(--color-background-tertiary)] rounded-xl animate-pulse" />
+                      <div className="space-y-2">
+                        <div className="h-4 bg-[var(--color-background-tertiary)] rounded w-3/4 animate-pulse" />
+                        <div className="h-3 bg-[var(--color-background-tertiary)] rounded w-1/2 animate-pulse" />
+                      </div>
                     </div>
                   ))
-              ) : (
-                <p className="text-[var(--color-foreground-muted)] col-span-full">
-                  No other videos found.
-                </p>
-              )}
+                ) : relatedVideos.length > 0 ? (
+                  relatedVideos
+                    .filter((v) => v.id !== videoId)
+                    .map((video) => (
+                      <div key={video.id} className="h-full">
+                        <VideoCard
+                          video={video}
+                          platform={routePlatform}
+                          channelName={channelName}
+                          channelData={{
+                            id: "",
+                            platform: routePlatform,
+                            username: channelName,
+                            displayName: channelDisplayName || channelName,
+                            avatarUrl: channelAvatar || "",
+                            isLive: false,
+                            isVerified: false,
+                            isPartner: false,
+                          }}
+                        />
+                      </div>
+                    ))
+                ) : (
+                  <p className="text-[var(--color-foreground-muted)] col-span-full">
+                    No other videos found.
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </div>
 
