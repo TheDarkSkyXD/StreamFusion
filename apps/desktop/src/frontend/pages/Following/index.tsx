@@ -63,6 +63,10 @@ import { useFollowStore } from "@/store/follow-store";
 import { usePipStore } from "@/store/pip-store";
 
 type FollowingTab = "live" | "videos" | "clips" | "categories" | "channels";
+type FollowSyncStamp = Readonly<{
+  platform: Extract<Platform, "twitch" | "kick">;
+  syncedAt: string;
+}>;
 
 const CONTENT_PAGE_SIZE = 24;
 const ClipDialog = lazy(() =>
@@ -89,6 +93,26 @@ const FOLLOWING_TABS: Array<{
   { id: "categories", label: "Categories", icon: LuTag },
   { id: "channels", label: "Channels", icon: LuUsers },
 ];
+
+const FOLLOW_SYNC_PRESENTATION = {
+  twitch: {
+    label: "Twitch",
+    Icon: TwitchIcon,
+    iconClassName: "text-[#9146FF]",
+  },
+  kick: {
+    label: "Kick",
+    Icon: KickIcon,
+    iconClassName: "text-[#53FC18]",
+  },
+} satisfies Record<
+  FollowSyncStamp["platform"],
+  {
+    label: string;
+    Icon: typeof TwitchIcon;
+    iconClassName: string;
+  }
+>;
 
 type FollowedChannelCard = {
   channel: UnifiedChannel;
@@ -135,6 +159,37 @@ function formatFollowSyncFreshness(syncedAt: string): string {
   }).format(new Date(syncedAt));
 }
 
+function FollowingSyncStatus({ stamps }: { stamps: readonly FollowSyncStamp[] }) {
+  if (stamps.length === 0) return null;
+
+  return (
+    <dl
+      aria-label="Follow synchronization status"
+      className="flex max-w-full shrink-0 items-center divide-x divide-[var(--color-border)] self-start rounded-full border border-[var(--color-border)] bg-[var(--color-background-tertiary)] px-2.5 py-1.5 text-[11px] font-medium leading-none sm:ml-auto"
+    >
+      {stamps.map(({ platform, syncedAt }) => {
+        const { Icon, iconClassName, label } = FOLLOW_SYNC_PRESENTATION[platform];
+
+        return (
+          <div
+            key={platform}
+            className="inline-flex min-w-0 items-center gap-1.5 px-2 first:pl-0 last:pr-0"
+          >
+            <Icon aria-hidden="true" className={cn("h-3 w-3 shrink-0", iconClassName)} size={12} />
+            <dt className="whitespace-nowrap text-[var(--color-foreground-secondary)]">
+              <span aria-hidden="true">{label}</span>
+              <span className="sr-only">{label} synced</span>
+            </dt>
+            <dd className="whitespace-nowrap tabular-nums text-[var(--color-foreground)]">
+              <time dateTime={syncedAt}>{formatFollowSyncFreshness(syncedAt)}</time>
+            </dd>
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
+
 export function FollowingPage() {
   const canRenderContent = useAfterFirstPaint();
   const [activeTab, setActiveTab] = useState<FollowingTab>("live");
@@ -164,6 +219,19 @@ export function FollowingPage() {
     kickUser,
     initialized: authInitialized,
   } = useAuthStore();
+  const visibleFollowSyncStamps: FollowSyncStamp[] = [];
+  if (twitchConnected && followSyncLastSyncedAt.twitch) {
+    visibleFollowSyncStamps.push({
+      platform: "twitch",
+      syncedAt: followSyncLastSyncedAt.twitch,
+    });
+  }
+  if (kickConnected && followSyncLastSyncedAt.kick) {
+    visibleFollowSyncStamps.push({
+      platform: "kick",
+      syncedAt: followSyncLastSyncedAt.kick,
+    });
+  }
 
   // 1. Local follows
   const { localFollows, isHydrated: followsHydrated } = useFollowStore();
@@ -945,35 +1013,30 @@ export function FollowingPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-6 overflow-x-auto no-scrollbar border-t border-[var(--color-border)] pt-3">
-          <div className="flex shrink-0 items-center gap-3 text-xs font-medium text-[var(--color-foreground-muted)]">
-            {twitchConnected && followSyncLastSyncedAt.twitch && (
-              <span>Twitch synced {formatFollowSyncFreshness(followSyncLastSyncedAt.twitch)}</span>
-            )}
-            {kickConnected && followSyncLastSyncedAt.kick && (
-              <span>Kick synced {formatFollowSyncFreshness(followSyncLastSyncedAt.kick)}</span>
-            )}
-          </div>
-          {FOLLOWING_TABS.map((tab) => {
-            const Icon = tab.icon;
+        <div className="flex flex-col gap-2 border-t border-[var(--color-border)] pt-3 sm:flex-row sm:items-end sm:gap-4">
+          <div className="flex w-full min-w-0 items-center gap-6 overflow-x-auto no-scrollbar sm:flex-1">
+            {FOLLOWING_TABS.map((tab) => {
+              const Icon = tab.icon;
 
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "relative inline-flex items-center gap-2 pb-2 text-sm font-medium transition-colors whitespace-nowrap",
-                  activeTab === tab.id
-                    ? "text-white after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:rounded-full after:bg-white"
-                    : "text-[var(--color-foreground-secondary)] hover:text-white"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            );
-          })}
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    "relative inline-flex items-center gap-2 pb-2 text-sm font-medium transition-colors whitespace-nowrap",
+                    activeTab === tab.id
+                      ? "text-white after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:rounded-full after:bg-white"
+                      : "text-[var(--color-foreground-secondary)] hover:text-white"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+          <FollowingSyncStatus stamps={visibleFollowSyncStamps} />
         </div>
       </div>
 

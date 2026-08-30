@@ -118,7 +118,10 @@ function installFollowingStores(): () => void {
       verified: false,
     },
     followSyncInProgress: false,
-    followSyncLastSyncedAt: {},
+    followSyncLastSyncedAt: {
+      twitch: "2026-08-29T20:23:00.000-05:00",
+      kick: "2026-08-29T20:23:00.000-05:00",
+    },
     initialized: true,
   });
   useFollowStore.setState({
@@ -231,6 +234,9 @@ export const Populated: Story = {
   play: async ({ canvasElement }) => {
     await expect(await within(canvasElement).findByText("Live Now")).toBeInTheDocument();
     await expect(within(canvasElement).getByText("Lumen Lab")).toBeInTheDocument();
+    await expect(
+      within(canvasElement).getByLabelText("Follow synchronization status")
+    ).toBeInTheDocument();
   },
 };
 
