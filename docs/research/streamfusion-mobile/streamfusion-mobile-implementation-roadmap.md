@@ -1,22 +1,22 @@
-# StreamFusion Mobile implementation roadmap prototype
+# StreamFusion Mobile implementation roadmap
 
-Status: Awaiting approval in [Approve the StreamFusion Mobile implementation milestone and ticket graph](https://github.com/TheDarkSkyXD/StreamFusion/issues/121)
+Status: Approved in [Approve the StreamFusion Mobile implementation milestone and ticket graph](https://github.com/TheDarkSkyXD/StreamFusion/issues/121)
 
 Source specification: commit `b9d1255`
 
-Machine-readable graph: [implementation-ticket-graph.prototype.json](./implementation-ticket-graph.prototype.json)
+Machine-readable graph: [implementation-ticket-graph.json](./implementation-ticket-graph.json)
 
-## What this prototype decides
+## What this roadmap defines
 
-This prototype proposes eight GitHub milestones and 59 implementation tickets. It does not create those tickets. The graph becomes the publication source only after the user approves its granularity and blocker edges.
+This approved roadmap defines eight GitHub milestones and 59 implementation tickets. The graph is the publication source for their granularity and blocker edges.
 
 The first 15 tickets are controlled repository and shared-core migration work. The remaining tickets are Android tracer bullets, verification work, or Publisher tasks. A tracer bullet must end in behavior that can be exercised through the real application and indexed in the evidence catalog.
 
 Draft IDs such as `F01` and `W03` are graph identifiers, not GitHub issue numbers.
 
-## Publication model after approval
+## Publication model
 
-Approval will create:
+Publication creates:
 
 - one implementation epic outside the planning-only Wayfinder map;
 - eight GitHub milestones matching this document;
@@ -229,12 +229,6 @@ Every implementation issue must satisfy these rules in addition to its own accep
 6. Define failure containment and the safe retry, fallback, disablement, rollback, or forward-fix path.
 7. Leave no untracked architecture exception, quarantined required test, or Development Exception.
 
-## Review questions
+## Approved decision
 
-Before these become real GitHub implementation issues, the user must decide:
-
-1. Is 59 tickets the right granularity for work that must fit one fresh agent context each?
-2. Are the blocker edges strict enough without serializing work that can safely run in parallel?
-3. Should any named tickets be merged, split, or moved to another milestone?
-
-Approval publishes the graph. It does not start implementation, assign agents, or publish an APK.
+The user approved this roadmap on 2026-08-30. Publication uses all 59 tickets and 123 native blocker edges without merge, split, or milestone changes. Approval authorizes issue creation. It does not start implementation, assign tickets, or publish an APK.

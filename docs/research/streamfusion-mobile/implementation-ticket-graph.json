@@ -1,6 +1,10 @@
 {
   "schemaVersion": 1,
-  "status": "prototype-awaiting-approval",
+  "status": "approved",
+  "approval": {
+    "issue": 121,
+    "date": "2026-08-30"
+  },
   "sourceSpecification": {
     "commit": "b9d1255",
     "path": "docs/research/streamfusion-mobile/streamfusion-mobile-implementation-specification.md"
