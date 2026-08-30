@@ -72,6 +72,18 @@ _Avoid_: Stable release when referring to all public APKs.
 The single publish decision that combines Android Outcome Parity, current evidence, policy approval, and final signed APK checks. Every condition must pass.
 _Avoid_: Release checklist, parity score.
 
+**Publisher Identity**:
+The verified full-distribution Android Developer Console identity that owns StreamFusion Mobile's package name and authorizes its public distribution. It is distinct from an Expo account, GitHub account, or Installation Identity.
+_Avoid_: Publisher account, Google account, app owner.
+
+**Production Signing Identity**:
+The stable Android signing-certificate lineage assigned exclusively to StreamFusion Mobile public APKs. It determines which APKs Android accepts as updates to an existing public installation.
+_Avoid_: Keystore, build credential, upload key.
+
+**Android Release Set**:
+The immutable group of matched artifacts published for one Public Android Release: its signed APK, update metadata, checksums, build record, release notes, and any required software bill of materials.
+_Avoid_: GitHub release, APK upload, release files.
+
 **Parity-Qualified Device**:
 An installable Android device that passes the lowest approved runtime profile and therefore belongs to StreamFusion Mobile's public support contract.
 _Avoid_: Supported model, compatible device, high-end device.
