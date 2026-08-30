@@ -1,0 +1,1102 @@
+{
+  "schemaVersion": 1,
+  "status": "prototype-awaiting-approval",
+  "sourceSpecification": {
+    "commit": "b9d1255",
+    "path": "docs/research/streamfusion-mobile/streamfusion-mobile-implementation-specification.md"
+  },
+  "coverage": {
+    "settingsPanels": [
+      "Appearance",
+      "Playback",
+      "Notifications",
+      "Player controls",
+      "Buffer",
+      "Multiview",
+      "Chat",
+      "Ad blocking",
+      "Proxy",
+      "Predictions",
+      "Integrations",
+      "API tokens",
+      "Updates",
+      "Diagnostics",
+      "Logs",
+      "Report a bug",
+      "About"
+    ],
+    "tabStates": {
+      "Search": ["All", "Channels", "Streams", "Videos", "Clips", "Categories"],
+      "Following": ["Live", "Videos", "Clips", "Categories", "Channels"],
+      "Category Detail": ["Live Streams", "Clips", "Videos"],
+      "Channel Detail": ["Home", "Videos", "Clips"],
+      "Watch": ["Chat", "Info", "Related"],
+      "Video or Clip": ["Details", "Comments", "Related"],
+      "Activity": ["All", "Channels", "Jobs"],
+      "Moderation": [
+        "Chat",
+        "Retention",
+        "Mod log",
+        "Banned",
+        "Engagement",
+        "Unban",
+        "Moderators",
+        "VIPs"
+      ],
+      "Diagnostics": [
+        "Overview",
+        "Resources",
+        "I/O",
+        "Traces",
+        "Logs and reports",
+        "Developer tools"
+      ]
+    }
+  },
+  "milestones": [
+    { "id": "M0", "name": "Repository and build foundation" },
+    { "id": "M1", "name": "Shared-core extraction" },
+    { "id": "M2", "name": "Android device foundation" },
+    { "id": "M3", "name": "Identity and discovery" },
+    { "id": "M4", "name": "Watch and engagement" },
+    { "id": "M5", "name": "Media, settings, and diagnostics" },
+    { "id": "M6", "name": "Notifications and release path" },
+    { "id": "M7", "name": "Parity closure and publication" }
+  ],
+  "tickets": [
+    {
+      "id": "F01",
+      "milestone": "M0",
+      "title": "Unify the repository workspace and lockfile",
+      "kind": "wide-refactor",
+      "blockedBy": [],
+      "owners": ["repository", "desktop", "worker"],
+      "capabilities": [],
+      "evidence": [
+        "change-gate",
+        "desktop-build",
+        "desktop-package",
+        "worker-tests"
+      ],
+      "delivers": "One root npm installation graph and lockfile for Desktop and Worker without changing product behavior."
+    },
+    {
+      "id": "F02",
+      "milestone": "M0",
+      "title": "Create the shared-core public boundary",
+      "kind": "prefactor",
+      "blockedBy": ["F01"],
+      "owners": ["core", "repository"],
+      "capabilities": [],
+      "evidence": ["change-gate", "architecture-import-proof"],
+      "delivers": "The explicit core subpaths, project references, exports, adapter contracts, and enforced import policy before production behavior moves."
+    },
+    {
+      "id": "F03",
+      "milestone": "M0",
+      "title": "Create the Android Expo development-client build path",
+      "kind": "foundation",
+      "blockedBy": ["F01"],
+      "owners": ["mobile", "repository"],
+      "capabilities": [],
+      "evidence": ["change-gate", "api30-install", "development-apk"],
+      "delivers": "An Android-only Expo project, separate development identity, custom development client, and local or EAS build commands with no product feature code."
+    },
+    {
+      "id": "F04",
+      "milestone": "M0",
+      "title": "Create the evidence catalog and verifier foundation",
+      "kind": "foundation",
+      "blockedBy": ["F01"],
+      "owners": ["verification", "repository"],
+      "capabilities": [],
+      "evidence": [
+        "change-gate",
+        "catalog-schema",
+        "resume-proof",
+        "redaction-proof"
+      ],
+      "delivers": "A versioned capability-keyed evidence schema and one resumable local or CI verifier command that every later ticket can extend."
+    },
+    {
+      "id": "F05",
+      "milestone": "M0",
+      "title": "Create the Integration Relay build and environment boundary",
+      "kind": "foundation",
+      "blockedBy": ["F02"],
+      "owners": ["relay", "repository", "core"],
+      "capabilities": [],
+      "evidence": [
+        "change-gate",
+        "relay-dry-run",
+        "environment-isolation",
+        "secret-scan",
+        "architecture-import-proof"
+      ],
+      "delivers": "A separate Integration Relay workspace and Cloudflare deployment boundary with shared relay envelopes, development and production configuration isolation, and no product endpoints yet."
+    },
+
+    {
+      "id": "C01",
+      "milestone": "M1",
+      "title": "Extract Platform identity and reliability foundations",
+      "kind": "expand-contract",
+      "blockedBy": ["F02"],
+      "owners": ["core", "desktop"],
+      "capabilities": [],
+      "evidence": ["change-gate", "desktop-contract-tests"],
+      "delivers": "Core Platform, ChannelRef, stable identifiers, portable results, errors, retry decisions, fixtures, and temporary narrow Desktop re-exports."
+    },
+    {
+      "id": "C02",
+      "milestone": "M1",
+      "title": "Extract normalized content and chat contracts",
+      "kind": "expand-contract",
+      "blockedBy": ["C01"],
+      "owners": ["core", "desktop"],
+      "capabilities": [],
+      "evidence": [
+        "change-gate",
+        "serialization-contract-tests",
+        "desktop-tests"
+      ],
+      "delivers": "Provider-neutral Stream, Channel, Category, Video, Clip, and chat contracts with serialized timestamps and no provider or IPC leakage."
+    },
+    {
+      "id": "C03",
+      "milestone": "M1",
+      "title": "Extract discovery rules and use cases",
+      "kind": "expand-contract",
+      "blockedBy": ["C02"],
+      "owners": ["core", "desktop"],
+      "capabilities": ["home-live-discovery", "category-discovery", "search"],
+      "evidence": ["change-gate", "core-unit-tests", "desktop-parity"],
+      "delivers": "Portable identity matching, search validation, ranking, deduplication, pagination, and progressive discovery behavior while Desktop remains unchanged."
+    },
+    {
+      "id": "C04",
+      "milestone": "M1",
+      "title": "Migrate top-stream discovery through IPlatformReader",
+      "kind": "tracer",
+      "blockedBy": ["C03"],
+      "owners": ["core", "desktop"],
+      "capabilities": ["home-live-discovery"],
+      "evidence": ["change-gate", "adapter-contract-tests", "desktop-journey"],
+      "delivers": "Desktop Home reaches Twitch and Kick top streams through the core reader port and explicit composition instead of provider self-registration."
+    },
+    {
+      "id": "C05",
+      "milestone": "M1",
+      "title": "Migrate Search, Channels, and Categories through core ports",
+      "kind": "tracer",
+      "blockedBy": ["C04"],
+      "owners": ["core", "desktop"],
+      "capabilities": ["home-live-discovery", "category-discovery", "search"],
+      "evidence": ["change-gate", "adapter-contract-tests", "desktop-journeys"],
+      "delivers": "Desktop Search, Channel, Categories, and Category Detail use normalized core contracts and explicitly composed Platform adapters."
+    },
+    {
+      "id": "C06",
+      "milestone": "M1",
+      "title": "Migrate Videos and Clips through core ports",
+      "kind": "tracer",
+      "blockedBy": ["C04"],
+      "owners": ["core", "desktop"],
+      "capabilities": ["vod-and-clip-playback", "search", "category-discovery"],
+      "evidence": ["change-gate", "adapter-contract-tests", "desktop-journeys"],
+      "delivers": "Desktop video and clip discovery uses normalized core ports without moving playback, Electron, or provider transports into core."
+    },
+    {
+      "id": "C07",
+      "milestone": "M1",
+      "title": "Migrate follows and Guest Follow policy through core",
+      "kind": "tracer",
+      "blockedBy": ["C05"],
+      "owners": ["core", "desktop"],
+      "capabilities": ["followed-streams-and-sync"],
+      "evidence": [
+        "change-gate",
+        "core-policy-tests",
+        "desktop-follow-journey"
+      ],
+      "delivers": "Desktop Following and Guest Follows use portable follow policy and narrow Platform reader capabilities while provider writes stay in Desktop adapters."
+    },
+    {
+      "id": "C08",
+      "milestone": "M1",
+      "title": "Extract OAuth2Session semantics and migrate Desktop auth",
+      "kind": "tracer",
+      "blockedBy": ["C02"],
+      "owners": ["core", "desktop", "worker"],
+      "capabilities": ["platform-account-auth"],
+      "evidence": [
+        "change-gate",
+        "auth-contract-tests",
+        "desktop-auth-journeys",
+        "worker-tests"
+      ],
+      "delivers": "Portable session state, single-flight refresh, auth-lost behavior, and capability ports with credentials, schedules, endpoints, and Worker calls retained in adapters."
+    },
+    {
+      "id": "C09",
+      "milestone": "M1",
+      "title": "Extract chat and Live Notification policy",
+      "kind": "tracer",
+      "blockedBy": ["C07", "C08"],
+      "owners": ["core", "desktop"],
+      "capabilities": ["live-chat", "emotes-and-cosmetics", "notifications"],
+      "evidence": [
+        "change-gate",
+        "chat-contract-tests",
+        "notification-policy-tests",
+        "desktop-journeys"
+      ],
+      "delivers": "Core ChatConnection, normalized events, send eligibility, follow-alert policy, and notification decisions while sockets and presentation remain Desktop-owned."
+    },
+    {
+      "id": "C10",
+      "milestone": "M1",
+      "title": "Close the Desktop migration and open Android feature work",
+      "kind": "contract",
+      "blockedBy": ["C06", "C09"],
+      "owners": ["core", "desktop", "repository"],
+      "capabilities": [],
+      "evidence": [
+        "full-change-gate",
+        "desktop-parity",
+        "desktop-build",
+        "desktop-package",
+        "zero-boundary-exceptions"
+      ],
+      "delivers": "All portable callers use core public exports, compatibility re-exports and migration exceptions are gone, and the extraction-complete predicate passes."
+    },
+
+    {
+      "id": "B01",
+      "milestone": "M2",
+      "title": "Compose the Mobile runtime and enforce its layers",
+      "kind": "foundation",
+      "blockedBy": ["C10", "F03"],
+      "owners": ["mobile", "core", "repository"],
+      "capabilities": [],
+      "evidence": ["change-gate", "architecture-import-proof", "api30-launch"],
+      "delivers": "Mobile UI, controllers, transport, adapters, persistence, native bridges, and the sole composition root with executable import boundaries."
+    },
+    {
+      "id": "B02",
+      "milestone": "M2",
+      "title": "Deliver the adaptive five-destination Android shell",
+      "kind": "tracer",
+      "blockedBy": ["B01"],
+      "owners": ["mobile"],
+      "capabilities": ["app-shell-and-navigation"],
+      "evidence": [
+        "change-gate",
+        "api30-emulator",
+        "tablet-emulator",
+        "foldable-emulator",
+        "accessibility"
+      ],
+      "delivers": "Search, Following, Watch, Activity, and More use static Android navigation, independent histories, adaptive rail behavior, Dark Theater tokens, and stable review selectors."
+    },
+    {
+      "id": "B03",
+      "milestone": "M2",
+      "title": "Deliver encrypted Product and Cache Stores",
+      "kind": "tracer",
+      "blockedBy": ["B01"],
+      "owners": ["mobile", "core"],
+      "capabilities": [],
+      "evidence": [
+        "change-gate",
+        "api30-storage",
+        "migration-recovery",
+        "backup-exclusion",
+        "offline-proof"
+      ],
+      "delivers": "SQLCipher Product and Cache Stores, SecureStore secrets, transactional migrations, quarantine and recovery, bounded cache eviction, and backup exclusions."
+    },
+    {
+      "id": "B04",
+      "milestone": "M2",
+      "title": "Deliver Activity, deep links, and lifecycle restoration",
+      "kind": "tracer",
+      "blockedBy": ["B02", "B03"],
+      "owners": ["mobile", "core"],
+      "capabilities": ["notifications", "app-shell-and-navigation"],
+      "evidence": [
+        "change-gate",
+        "api30-emulator",
+        "process-death",
+        "reboot",
+        "offline-proof"
+      ],
+      "delivers": "Durable Activity Items, read state, event deduplication, nested destination links, destination restoration, and explicit process-death behavior without remote push."
+    },
+    {
+      "id": "B05",
+      "milestone": "M2",
+      "title": "Create the typed Android capability-module boundary",
+      "kind": "foundation",
+      "blockedBy": ["B01"],
+      "owners": ["mobile-native", "mobile"],
+      "capabilities": [],
+      "evidence": ["change-gate", "native-contract-tests", "api30-device"],
+      "delivers": "Small Expo module contracts for playback, Media Jobs, captions, diagnostics, and maintenance with stable typed errors and no all-purpose bridge."
+    },
+    {
+      "id": "B06",
+      "milestone": "M2",
+      "title": "Measure Capability Profile and apply Runtime Degradation",
+      "kind": "tracer",
+      "blockedBy": ["B03", "B05", "F04"],
+      "owners": ["mobile", "mobile-native", "verification"],
+      "capabilities": ["diagnostics-logs-and-bug-reports", "multistream"],
+      "evidence": [
+        "change-gate",
+        "lowest-device",
+        "constrained-device",
+        "thermal-proof",
+        "degradation-order"
+      ],
+      "delivers": "Install qualification, measured device capacity, visible ordered degradation with hysteresis, and diagnostic evidence that preserves the focused task and artifacts."
+    },
+
+    {
+      "id": "D01",
+      "milestone": "M3",
+      "title": "Deliver Installation Identity and signed capability policy",
+      "kind": "tracer",
+      "blockedBy": ["B03", "F04", "F05"],
+      "owners": ["relay", "mobile", "core"],
+      "capabilities": [],
+      "evidence": [
+        "change-gate",
+        "relay-contract-tests",
+        "api30-emulator",
+        "environment-isolation",
+        "signature-failure"
+      ],
+      "delivers": "Rotating installation credentials, relay authorization and abuse controls, and a monotonic signed Capability Manifest with safe expiry behavior across the prepared Mobile and Relay boundaries."
+    },
+    {
+      "id": "D02",
+      "milestone": "M3",
+      "title": "Connect and maintain a Twitch account",
+      "kind": "tracer",
+      "blockedBy": ["B02", "B03"],
+      "owners": ["mobile", "core"],
+      "capabilities": ["platform-account-auth"],
+      "evidence": [
+        "change-gate",
+        "api30-emulator",
+        "physical-device",
+        "live-twitch",
+        "refresh-rotation",
+        "offline-proof"
+      ],
+      "delivers": "Accessible Twitch Device Code login, validation, atomic one-time refresh rotation, scope status, disconnect, and Accounts presentation."
+    },
+    {
+      "id": "D03",
+      "milestone": "M3",
+      "title": "Connect and maintain a Kick account",
+      "kind": "tracer",
+      "blockedBy": ["B02", "B03"],
+      "owners": ["mobile", "core", "worker"],
+      "capabilities": ["platform-account-auth"],
+      "evidence": [
+        "change-gate",
+        "api30-emulator",
+        "physical-device",
+        "live-kick",
+        "app-link",
+        "worker-tests"
+      ],
+      "delivers": "System-browser S256 PKCE, state validation, verified App Link, exact Worker callback allowlist, token refresh, scope status, disconnect, and Accounts presentation."
+    },
+    {
+      "id": "D04",
+      "milestone": "M3",
+      "title": "Deliver direct signed-in and relay signed-out Platform reads",
+      "kind": "tracer",
+      "blockedBy": ["D01"],
+      "owners": ["mobile", "relay", "core"],
+      "capabilities": [
+        "home-live-discovery",
+        "category-discovery",
+        "search",
+        "followed-streams-and-sync"
+      ],
+      "evidence": [
+        "change-gate",
+        "adapter-contract-tests",
+        "relay-contract-tests",
+        "live-platforms",
+        "offline-cache"
+      ],
+      "delivers": "Normalized Twitch and Kick reader adapters, narrow secret-backed signed-out relay endpoints, TanStack Query ownership, bounded cache projections, and isolated Platform failure."
+    },
+    {
+      "id": "D05",
+      "milestone": "M3",
+      "title": "Deliver Home and Channel Detail",
+      "kind": "tracer",
+      "blockedBy": ["B02", "D04"],
+      "owners": ["mobile", "core"],
+      "capabilities": ["home-live-discovery"],
+      "evidence": [
+        "change-gate",
+        "api30-journey",
+        "tablet-layout",
+        "live-platforms",
+        "offline-cache",
+        "accessibility"
+      ],
+      "delivers": "Home recommendations and Channel Detail Home, Videos, and Clips tabs with avatars, thumbnails, Platform state, refresh age, and failure containment."
+    },
+    {
+      "id": "D06",
+      "milestone": "M3",
+      "title": "Deliver unified Search and local history",
+      "kind": "tracer",
+      "blockedBy": ["B02", "D04"],
+      "owners": ["mobile", "core"],
+      "capabilities": ["search"],
+      "evidence": [
+        "change-gate",
+        "api30-journey",
+        "live-platforms",
+        "offline-history",
+        "keyboard-insets",
+        "accessibility"
+      ],
+      "delivers": "Bottom floating search, ten-entry typed history, filters, imagery, and the All, Channels, Streams, Videos, Clips, and Categories result states."
+    },
+    {
+      "id": "D07",
+      "milestone": "M3",
+      "title": "Deliver Categories and Category Detail",
+      "kind": "tracer",
+      "blockedBy": ["B02", "D04"],
+      "owners": ["mobile", "core"],
+      "capabilities": ["category-discovery"],
+      "evidence": [
+        "change-gate",
+        "api30-journey",
+        "tablet-layout",
+        "live-platforms",
+        "local-search",
+        "accessibility"
+      ],
+      "delivers": "Searchable category art opens the selected Category Detail with Live Streams, Clips, and Videos states plus Platform, language, tag, and sort filters."
+    },
+    {
+      "id": "D08",
+      "milestone": "M3",
+      "title": "Deliver Following and Guest Follows",
+      "kind": "tracer",
+      "blockedBy": ["D02", "D03", "D04"],
+      "owners": ["mobile", "core", "relay"],
+      "capabilities": ["followed-streams-and-sync", "notifications"],
+      "evidence": [
+        "change-gate",
+        "api30-journey",
+        "live-platforms",
+        "offline-proof",
+        "projection-contract",
+        "accessibility"
+      ],
+      "delivers": "Live-first Following, Guest Follows, supported account imports, provider-page actions, local search, notification preferences, and Live Notification Projection commands across five tab states."
+    },
+
+    {
+      "id": "W01",
+      "milestone": "M4",
+      "title": "Resolve and watch one live Stream",
+      "kind": "tracer",
+      "blockedBy": ["B06", "D05"],
+      "owners": ["mobile", "mobile-native", "core"],
+      "capabilities": ["live-playback"],
+      "evidence": [
+        "change-gate",
+        "api30-device",
+        "live-platforms",
+        "compatibility-canary",
+        "kill-switch",
+        "accessibility"
+      ],
+      "delivers": "A focused native HLS Watch session for Twitch and Kick with playback-source compatibility adapters, policy state, visible fallback, Info, and Related content."
+    },
+    {
+      "id": "W02",
+      "milestone": "M4",
+      "title": "Deliver player controls, movable mini-player, and Android PiP",
+      "kind": "tracer",
+      "blockedBy": ["B04", "W01"],
+      "owners": ["mobile", "mobile-native"],
+      "capabilities": ["player-controls-and-pip"],
+      "evidence": [
+        "change-gate",
+        "api30-device",
+        "background-pip",
+        "process-death",
+        "gesture-accessibility"
+      ],
+      "delivers": "Transport and quality controls, fullscreen and orientation, safe-region draggable mini-player, one focused Android PiP session, and deterministic restoration."
+    },
+    {
+      "id": "W03",
+      "milestone": "M4",
+      "title": "Watch Videos and Clips",
+      "kind": "tracer",
+      "blockedBy": ["D06", "D07", "W01"],
+      "owners": ["mobile", "mobile-native", "core"],
+      "capabilities": ["vod-and-clip-playback"],
+      "evidence": [
+        "change-gate",
+        "api30-device",
+        "live-platforms",
+        "compatibility-canary",
+        "seeking",
+        "accessibility"
+      ],
+      "delivers": "Video and Clip Watch routes with seeking, progress, Details, Comments placeholder ownership, Related content, compatibility state, and deep-link entry."
+    },
+    {
+      "id": "W04",
+      "milestone": "M4",
+      "title": "Deliver typed Watch History",
+      "kind": "tracer",
+      "blockedBy": ["W03"],
+      "owners": ["mobile", "core"],
+      "capabilities": ["watch-history"],
+      "evidence": [
+        "change-gate",
+        "api30-journey",
+        "process-death",
+        "offline-proof",
+        "migration-proof"
+      ],
+      "delivers": "Durable Stream, Video, and Clip history with thumbnails, avatars, timestamps, progress, resume, replay, local search, and offline reading."
+    },
+    {
+      "id": "W05",
+      "milestone": "M4",
+      "title": "Deliver Twitch foreground chat",
+      "kind": "tracer",
+      "blockedBy": ["D02", "W01"],
+      "owners": ["mobile", "core"],
+      "capabilities": ["live-chat"],
+      "evidence": [
+        "change-gate",
+        "api30-device",
+        "live-twitch",
+        "reconnect-gap",
+        "send-eligibility",
+        "accessibility"
+      ],
+      "delivers": "Visible-only Twitch EventSub chat receive, direct Helix send, scope and eligibility states, reconnection, deduplication, and explicit gaps in Watch Chat."
+    },
+    {
+      "id": "W06",
+      "milestone": "M4",
+      "title": "Deliver Kick foreground chat through the relay",
+      "kind": "tracer",
+      "blockedBy": ["D03", "W01"],
+      "owners": ["mobile", "relay", "core"],
+      "capabilities": ["live-chat"],
+      "evidence": [
+        "change-gate",
+        "api30-device",
+        "live-kick",
+        "webhook-signature",
+        "fanout-dedup",
+        "send-eligibility"
+      ],
+      "delivers": "Verified Kick webhook receipt, channel-sharded foreground fanout without history, direct official chat send, reconnection, deduplication, and explicit gaps."
+    },
+    {
+      "id": "W07",
+      "milestone": "M4",
+      "title": "Deliver chat cosmetics and replay",
+      "kind": "tracer",
+      "blockedBy": ["W03", "W05", "W06"],
+      "owners": ["mobile", "core"],
+      "capabilities": ["emotes-and-cosmetics", "chat-replay"],
+      "evidence": [
+        "change-gate",
+        "api30-device",
+        "live-platforms",
+        "compatibility-canary",
+        "cache-budget",
+        "sync-proof"
+      ],
+      "delivers": "Platform and approved third-party emotes, badges, paints, bounded caches, and synchronized Video or Clip comments and replay with visible source gaps."
+    },
+    {
+      "id": "W08",
+      "milestone": "M4",
+      "title": "Deliver managed-channel moderation",
+      "kind": "tracer",
+      "blockedBy": ["W05", "W06"],
+      "owners": ["mobile", "core"],
+      "capabilities": ["moderation"],
+      "evidence": [
+        "change-gate",
+        "api30-device",
+        "live-platforms",
+        "scope-authority",
+        "compatibility-canary",
+        "accessibility"
+      ],
+      "delivers": "Searchable managed channels, contextual chat actions, and Chat, Retention, Mod log, Banned, Engagement, Unban, Moderators, and VIPs states with explicit Platform support."
+    },
+    {
+      "id": "W09",
+      "milestone": "M4",
+      "title": "Deliver capability-aware Multistream",
+      "kind": "tracer",
+      "blockedBy": ["W02"],
+      "owners": ["mobile", "mobile-native", "core"],
+      "capabilities": ["multistream"],
+      "evidence": [
+        "change-gate",
+        "lowest-device",
+        "constrained-device",
+        "tablet-foldable",
+        "thermal-proof",
+        "pip-handoff"
+      ],
+      "delivers": "Up to six retained StreamSlots, measured active-video limits, one audio owner, focused chat and captions, visible ordered degradation, and layout restoration."
+    },
+    {
+      "id": "W10",
+      "milestone": "M4",
+      "title": "Deliver playback filtering as an isolated compatibility capability",
+      "kind": "tracer",
+      "blockedBy": ["W01"],
+      "owners": ["mobile", "mobile-native", "core"],
+      "capabilities": ["ad-blocking"],
+      "evidence": [
+        "change-gate",
+        "api30-device",
+        "compatibility-canary",
+        "kill-switch",
+        "failure-containment",
+        "diagnostics"
+      ],
+      "delivers": "Playback filtering behind a narrow adapter with signed policy, canary, independent disablement, diagnostics, disclosure, and a player-only failure boundary."
+    },
+    {
+      "id": "W11",
+      "milestone": "M4",
+      "title": "Deliver proxy and connectivity behavior",
+      "kind": "tracer",
+      "blockedBy": ["B06", "D04"],
+      "owners": ["mobile", "core"],
+      "capabilities": ["proxy-and-connectivity"],
+      "evidence": [
+        "change-gate",
+        "api30-device",
+        "network-matrix",
+        "offline-proof",
+        "failure-containment",
+        "diagnostics"
+      ],
+      "delivers": "Supported proxy configuration, connectivity observation, request cancellation, bounded retry, Platform isolation, stale-cache state, and actionable diagnostics."
+    },
+
+    {
+      "id": "M01",
+      "milestone": "M5",
+      "title": "Deliver the recoverable Media Job engine",
+      "kind": "foundation",
+      "blockedBy": ["B04", "B05"],
+      "owners": ["mobile", "mobile-native", "core"],
+      "capabilities": ["downloads", "stream-recording"],
+      "evidence": [
+        "change-gate",
+        "api30-device",
+        "process-death",
+        "reboot",
+        "storage-pressure",
+        "activity-reconciliation"
+      ],
+      "delivers": "Durable job intent, idempotent commands, native generation, checkpoints, visible service ownership, journal and file reconciliation, and Activity updates."
+    },
+    {
+      "id": "M02",
+      "milestone": "M5",
+      "title": "Download and explicitly export Videos and Clips",
+      "kind": "tracer",
+      "blockedBy": ["M01", "W03"],
+      "owners": ["mobile", "mobile-native", "core"],
+      "capabilities": ["downloads"],
+      "evidence": [
+        "change-gate",
+        "api30-device",
+        "range-resume",
+        "network-loss",
+        "storage-pressure",
+        "export-integrity"
+      ],
+      "delivers": "Contextual download, progress, pause, resume, retry, cancel, delete, app-private completion, and explicit Android export with no standalone media screen."
+    },
+    {
+      "id": "M03",
+      "milestone": "M5",
+      "title": "Record and recover a live Stream",
+      "kind": "tracer",
+      "blockedBy": ["M01", "W01"],
+      "owners": ["mobile", "mobile-native", "core"],
+      "capabilities": ["stream-recording"],
+      "evidence": [
+        "change-gate",
+        "lowest-device",
+        "four-hour-soak",
+        "process-death",
+        "reboot",
+        "storage-pressure",
+        "partial-artifact"
+      ],
+      "delivers": "User-started segmented recording, visible foreground service, Stop control, checkpoints, four-hour warning, safe cutoff, and playable partial-artifact recovery."
+    },
+    {
+      "id": "M04",
+      "milestone": "M5",
+      "title": "Caption the focused Stream locally",
+      "kind": "tracer",
+      "blockedBy": ["W01"],
+      "owners": ["mobile", "mobile-native", "core"],
+      "capabilities": ["local-captions"],
+      "evidence": [
+        "change-gate",
+        "lowest-device",
+        "model-integrity",
+        "one-session-limit",
+        "no-upload",
+        "degradation-proof"
+      ],
+      "delivers": "A visible 43.11 MiB English model lifecycle and one real-time caption session on the focused Stream with local-only audio processing."
+    },
+    {
+      "id": "M05",
+      "milestone": "M5",
+      "title": "Deliver appearance and player Settings",
+      "kind": "tracer",
+      "blockedBy": ["W09"],
+      "owners": ["mobile", "core"],
+      "capabilities": [
+        "general-chat-and-theme-preferences",
+        "player-controls-and-pip",
+        "multistream"
+      ],
+      "evidence": [
+        "change-gate",
+        "api30-journey",
+        "local-search",
+        "process-death",
+        "font-scale",
+        "accessibility"
+      ],
+      "delivers": "Searchable Appearance, Playback, Player controls, Buffer, and Multiview panels whose durable choices apply to live behavior."
+    },
+    {
+      "id": "M06",
+      "milestone": "M5",
+      "title": "Deliver chat and integration Settings",
+      "kind": "tracer",
+      "blockedBy": ["W07", "W08"],
+      "owners": ["mobile", "core"],
+      "capabilities": [
+        "general-chat-and-theme-preferences",
+        "emotes-and-cosmetics",
+        "moderation"
+      ],
+      "evidence": [
+        "change-gate",
+        "api30-journey",
+        "local-search",
+        "secure-data",
+        "font-scale",
+        "accessibility"
+      ],
+      "delivers": "Searchable Chat, Predictions, Integrations, and API tokens panels with secure values and direct links to the behavior they configure."
+    },
+    {
+      "id": "M07",
+      "milestone": "M5",
+      "title": "Deliver notification and network Settings",
+      "kind": "tracer",
+      "blockedBy": ["D08", "W10", "W11"],
+      "owners": ["mobile", "core"],
+      "capabilities": [
+        "notifications",
+        "ad-blocking",
+        "proxy-and-connectivity"
+      ],
+      "evidence": [
+        "change-gate",
+        "api30-journey",
+        "local-search",
+        "offline-proof",
+        "permission-denial",
+        "accessibility"
+      ],
+      "delivers": "Searchable Notifications, Ad blocking, and Proxy panels with Product Store authority, safe defaults, denial recovery, and active integration status."
+    },
+    {
+      "id": "M08",
+      "milestone": "M5",
+      "title": "Deliver update, support, and maintenance Settings",
+      "kind": "tracer",
+      "blockedBy": ["M01"],
+      "owners": ["mobile", "core"],
+      "capabilities": [
+        "app-updates",
+        "diagnostics-logs-and-bug-reports",
+        "general-chat-and-theme-preferences"
+      ],
+      "evidence": [
+        "change-gate",
+        "api30-journey",
+        "local-search",
+        "destructive-confirmation",
+        "data-boundary",
+        "accessibility"
+      ],
+      "delivers": "Searchable Updates, Diagnostics, Logs, Report a bug, and About panels plus account and local-data maintenance actions with scoped confirmation."
+    },
+    {
+      "id": "M09",
+      "milestone": "M5",
+      "title": "Deliver Android Diagnostics and sanitized reports",
+      "kind": "tracer",
+      "blockedBy": ["M08", "W10", "W11"],
+      "owners": ["mobile", "mobile-native", "core"],
+      "capabilities": ["diagnostics-logs-and-bug-reports"],
+      "evidence": [
+        "change-gate",
+        "api30-device",
+        "physical-device",
+        "redaction-proof",
+        "recovery-actions",
+        "accessibility"
+      ],
+      "delivers": "Overview, Resources, I/O, Traces, Logs and reports, and Developer tools states with Capability Profile, degradation causes, redacted exports, and safe recovery."
+    },
+
+    {
+      "id": "N01",
+      "milestone": "M6",
+      "title": "Register native FCM delivery and present notifications",
+      "kind": "tracer",
+      "blockedBy": ["B04", "M07"],
+      "owners": ["mobile", "core", "relay"],
+      "capabilities": ["notifications"],
+      "evidence": [
+        "change-gate",
+        "api30-device",
+        "native-token-rotation",
+        "permission-denial",
+        "foreground-background",
+        "notification-entry"
+      ],
+      "delivers": "In-context permission, native FCM token registration, Live, Media, and Account or Device channels, safe payload handling, Activity reconciliation, and current-data routing."
+    },
+    {
+      "id": "N02",
+      "milestone": "M6",
+      "title": "Deliver scalable topic and direct-token fanout",
+      "kind": "tracer",
+      "blockedBy": ["N01"],
+      "owners": ["relay", "mobile", "core"],
+      "capabilities": ["notifications"],
+      "evidence": [
+        "change-gate",
+        "relay-contract-tests",
+        "topic-delivery",
+        "direct-delivery",
+        "topic-overflow",
+        "deduplication"
+      ],
+      "delivers": "Versioned preference projection reconciliation, stable channel topics, one-mode event delivery, private direct tokens, 2,000-topic overflow, retries, and invalid-token retirement."
+    },
+    {
+      "id": "N03",
+      "milestone": "M6",
+      "title": "Prove notification scale and lifecycle recovery",
+      "kind": "hardening",
+      "blockedBy": ["N02"],
+      "owners": ["verification", "relay", "mobile"],
+      "capabilities": ["notifications"],
+      "evidence": [
+        "100k-dispatch",
+        "simultaneous-events",
+        "rate-limit-recovery",
+        "credential-rotation",
+        "reinstall",
+        "force-stop",
+        "ended-stream"
+      ],
+      "delivers": "A repeatable 100,000-recipient dispatch proof within 30 seconds plus simultaneous event, retry, mismatch, reinstall, ended Stream, offline, and force-stop evidence."
+    },
+    {
+      "id": "R01",
+      "milestone": "M6",
+      "title": "Establish production identity, EAS build authority, and signing recovery",
+      "kind": "publisher-task",
+      "blockedBy": ["F03", "F04"],
+      "owners": ["publisher", "release", "mobile"],
+      "capabilities": ["app-updates"],
+      "evidence": [
+        "production-app-id",
+        "environment-isolation",
+        "signer-fingerprint",
+        "two-backups",
+        "recovery-drill",
+        "committed-version"
+      ],
+      "delivers": "Registered com.thedarkskyxd.streamfusion identity, separate development identity, StreamFusion Expo ownership, committed versions, controlled EAS build start, and recovered production signer proof."
+    },
+    {
+      "id": "R02",
+      "milestone": "M6",
+      "title": "Deliver the signed GitHub APK updater",
+      "kind": "tracer",
+      "blockedBy": ["M08", "R01"],
+      "owners": ["mobile", "mobile-native", "release"],
+      "capabilities": ["app-updates"],
+      "evidence": [
+        "change-gate",
+        "api30-device",
+        "metadata-validation",
+        "digest-signer-check",
+        "interrupted-download",
+        "package-installer"
+      ],
+      "delivers": "Manual or daily stable-release checks, validated metadata, resumable private APK download, digest and signer verification, explicit PackageInstaller handoff, and cleanup."
+    },
+    {
+      "id": "R03",
+      "milestone": "M6",
+      "title": "Automate the four Android verification gates",
+      "kind": "verification",
+      "blockedBy": ["B02", "F04"],
+      "owners": ["verification", "repository", "mobile"],
+      "capabilities": [],
+      "evidence": [
+        "change-gate",
+        "main-gate",
+        "candidate-gate",
+        "public-release-gate",
+        "diagnostic-retry",
+        "quarantine-block"
+      ],
+      "delivers": "Change, Main, Candidate, and Public Release automation with API 30 and current emulator journeys, physical roles, live canaries, accessibility, performance, security, and fail-closed evidence freshness."
+    },
+    {
+      "id": "R04",
+      "milestone": "M6",
+      "title": "Promote one exact APK into an immutable Android Release Set",
+      "kind": "release",
+      "blockedBy": ["R02", "R03"],
+      "owners": ["publisher", "release", "verification"],
+      "capabilities": ["app-updates"],
+      "evidence": [
+        "exact-apk-identity",
+        "eas-provenance",
+        "signed-manifest",
+        "sbom",
+        "immutable-release",
+        "rollback-rehearsal"
+      ],
+      "delivers": "Protected second-approval promotion of one EAS build ID into a matched immutable Release Set, plus metadata withdrawal and same-key forward-fix rehearsal."
+    },
+
+    {
+      "id": "P01",
+      "milestone": "M7",
+      "title": "Close every Android parity record",
+      "kind": "verification",
+      "blockedBy": [
+        "D02",
+        "D03",
+        "D05",
+        "D06",
+        "D07",
+        "D08",
+        "M02",
+        "M03",
+        "M04",
+        "M05",
+        "M06",
+        "M07",
+        "M08",
+        "M09",
+        "N03",
+        "R02",
+        "W01",
+        "W02",
+        "W03",
+        "W04",
+        "W05",
+        "W06",
+        "W07",
+        "W08",
+        "W09",
+        "W10",
+        "W11"
+      ],
+      "owners": ["verification", "capability-owners"],
+      "capabilities": ["*"],
+      "evidence": [
+        "desktop-baseline",
+        "24-capability-records",
+        "17-settings-panels",
+        "40-tab-states",
+        "no-exceptions",
+        "no-quarantines"
+      ],
+      "delivers": "Every capability on the current generated Desktop ledger has an allowed Android outcome, owner, current evidence, no blocker, and complete route, panel, and tab coverage."
+    },
+    {
+      "id": "P02",
+      "milestone": "M7",
+      "title": "Pass the complete Candidate Gate twice",
+      "kind": "verification",
+      "blockedBy": ["P01", "R04"],
+      "owners": ["verification", "capability-owners"],
+      "capabilities": ["*"],
+      "evidence": [
+        "two-clean-runs",
+        "five-physical-roles",
+        "live-canaries",
+        "accessibility",
+        "performance",
+        "security",
+        "install-upgrade"
+      ],
+      "delivers": "Two consecutive clean runs for the same candidate across the full emulator, physical, live-provider, lifecycle, accessibility, performance, security, installation, and recovery matrices."
+    },
+    {
+      "id": "P03",
+      "milestone": "M7",
+      "title": "Publish the first Public Android Release",
+      "kind": "publisher-task",
+      "blockedBy": ["P02"],
+      "owners": ["publisher", "verification-reviewer", "capability-owners"],
+      "capabilities": ["*"],
+      "evidence": [
+        "independent-review",
+        "capability-approvals",
+        "publisher-approval",
+        "current-recovery",
+        "immutable-release-set",
+        "matching-apk-digest"
+      ],
+      "delivers": "The exact approved APK and matched immutable Android Release Set become the first public GitHub release only after the complete fail-closed predicate passes."
+    }
+  ]
+}
