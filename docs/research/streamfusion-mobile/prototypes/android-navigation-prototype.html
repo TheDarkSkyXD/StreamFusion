@@ -2358,6 +2358,53 @@
           "https://images.unsplash.com/photo-1493711662062-fa541adb3fc8?auto=format&fit=crop&w=800&q=80",
       };
 
+      const categoryCatalog = {
+        "Apex Legends": {
+          image: streamImages.nebula,
+          secondaryImage: streamImages.circuit,
+          summary: "31.2K viewers · 126 live",
+          primaryChannel: "NebulaNine",
+          secondaryChannel: "CircuitMara",
+          primaryTitle: "Ranked, no resets",
+          secondaryTitle: "Solo queue challenge",
+          primaryPlatform: "Twitch",
+          secondaryPlatform: "Kick",
+        },
+        "Just Chatting": {
+          image: streamImages.orbit,
+          secondaryImage: streamImages.nebula,
+          summary: "42.8K viewers · 314 live",
+          primaryChannel: "OrbitActual",
+          secondaryChannel: "NebulaNine",
+          primaryTitle: "Night shift with chat",
+          secondaryTitle: "Late lobby stories",
+          primaryPlatform: "Kick",
+          secondaryPlatform: "Twitch",
+        },
+        "Counter-Strike 2": {
+          image: streamImages.forge,
+          secondaryImage: streamImages.circuit,
+          summary: "28.6K viewers · 98 live",
+          primaryChannel: "ForgeLine",
+          secondaryChannel: "CircuitMara",
+          primaryTitle: "Road to the final",
+          secondaryTitle: "Faceit night session",
+          primaryPlatform: "Twitch",
+          secondaryPlatform: "Kick",
+        },
+        Music: {
+          image: streamImages.circuit,
+          secondaryImage: streamImages.orbit,
+          summary: "12.1K viewers · 76 live",
+          primaryChannel: "CircuitMara",
+          secondaryChannel: "OrbitActual",
+          primaryTitle: "Live looping after dark",
+          secondaryTitle: "Requests and remixes",
+          primaryPlatform: "Kick",
+          secondaryPlatform: "Twitch",
+        },
+      };
+
       const avatarImages = {
         NebulaNine:
           "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&crop=face&w=160&h=160&q=85",
@@ -2389,6 +2436,7 @@
         searchLiveOnly: false,
         searchQuery: "Apex Legends",
         searchHistory: ["Apex Legends", "NebulaNine", "Speedruns"],
+        activeCategory: initialParams.get("category") || "Apex Legends",
         followingTab: initialParams.get("followingTab") || "live",
         categoryTab: initialParams.get("categoryTab") || "live",
         channelTab: initialParams.get("channelTab") || "home",
@@ -2404,6 +2452,8 @@
       if (!variants[state.variant]) state.variant = "A";
       if (!screens.some((screen) => screen.id === state.screen))
         state.screen = "search";
+      if (!categoryCatalog[state.activeCategory])
+        state.activeCategory = "Apex Legends";
       tabReviewGroups.forEach(({ stateKey, tabs }) => {
         if (!tabs.includes(state[stateKey])) state[stateKey] = tabs[0];
       });
@@ -2428,7 +2478,7 @@
           search: state.variant === "B" ? "Search" : "StreamFusion",
           home: "Home",
           categories: "Categories",
-          "category-detail": "Apex Legends",
+          "category-detail": state.activeCategory,
           following: "Following",
           channel: "Channel",
           watch: state.variant === "B" ? "Watch deck" : "Now watching",
@@ -2482,7 +2532,7 @@
       }
 
       function categoryCard(name, image, detail) {
-        return `<button class="category-card" type="button" data-screen="category-detail"><img src="${image}" alt="${name} category art" /><div><strong>${name}</strong><span>${detail}</span></div></button>`;
+        return `<button class="category-card" type="button" data-action="open-category" data-category="${name}" aria-label="Open ${name} category"><img src="${image}" alt="${name} category art" /><div><strong>${name}</strong><span>${detail}</span></div></button>`;
       }
 
       function recordedCard(title, channel, image, kind = "Video") {
@@ -2598,15 +2648,16 @@
       }
 
       function categoryDetailScreen() {
+        const category = categoryCatalog[state.activeCategory];
         const content =
           state.categoryTab === "clips"
-            ? `<div class="history-list">${recordedCard("Final ring comeback", "NebulaNine", streamImages.nebula, "Clip · 00:42")}${recordedCard("Impossible recovery", "CircuitMara", streamImages.circuit, "Clip · 00:31")}</div>`
+            ? `<div class="history-list">${recordedCard(`Best of ${state.activeCategory}`, category.primaryChannel, category.image, "Clip · 00:42")}${recordedCard("Moment of the night", category.secondaryChannel, category.secondaryImage, "Clip · 00:31")}</div>`
             : state.categoryTab === "videos"
-              ? `<div class="history-list">${recordedCard("Movement guide", "ForgeLine", streamImages.forge, "Video · 18:04")}${recordedCard("Solo queue challenge", "CircuitMara", streamImages.circuit, "Video · 02:14:09")}</div>`
-              : `<div class="stream-feed">${streamCard({ image: streamImages.nebula, title: "Ranked, no resets", channel: "NebulaNine", game: "Apex Legends", viewers: "18.4K", platform: "Twitch" })}${streamCard({ image: streamImages.circuit, title: "Solo queue challenge", channel: "CircuitMara", game: "Apex Legends", viewers: "5.8K", platform: "Kick" })}</div>`;
+              ? `<div class="history-list">${recordedCard(`${state.activeCategory} weekly recap`, category.primaryChannel, category.image, "Video · 18:04")}${recordedCard("Full session", category.secondaryChannel, category.secondaryImage, "Video · 02:14:09")}</div>`
+              : `<div class="stream-feed">${streamCard({ image: category.image, title: category.primaryTitle, channel: category.primaryChannel, game: state.activeCategory, viewers: "18.4K", platform: category.primaryPlatform })}${streamCard({ image: category.secondaryImage, title: category.secondaryTitle, channel: category.secondaryChannel, game: state.activeCategory, viewers: "5.8K", platform: category.secondaryPlatform })}</div>`;
         return `
           <div class="screen-content">
-            <div class="channel-hero"><img class="activity-visual" src="${streamImages.nebula}" alt="Apex Legends category art" /><span class="channel-hero-copy"><strong>Apex Legends</strong><span>31.2K viewers · 126 live across Twitch + Kick</span></span><button class="text-button" type="button">Follow</button></div>
+            <div class="channel-hero"><img class="activity-visual" src="${category.image}" alt="${state.activeCategory} category art" /><span class="channel-hero-copy"><strong>${state.activeCategory}</strong><span>${category.summary} across Twitch + Kick</span></span><button class="text-button" type="button">Follow</button></div>
             <div class="search-tabs" role="tablist" aria-label="Category content types">${[
               ["live", "Live Streams"],
               ["clips", "Clips"],
@@ -2618,7 +2669,7 @@
               )
               .join("")}</div>
             <div class="search-filters"><button class="filter-chip active" type="button">All platforms</button><button class="filter-chip" type="button">Twitch</button><button class="filter-chip" type="button">Kick</button><button class="filter-chip" type="button">Language</button><button class="filter-chip" type="button">Tags</button><button class="filter-chip" type="button">Sort</button></div>
-            <div class="section-label"><span>${state.categoryTab === "live" ? "Live in Apex Legends" : state.categoryTab}</span><span>Recommended</span></div>
+            <div class="section-label"><span>${state.categoryTab === "live" ? `Live in ${state.activeCategory}` : state.categoryTab}</span><span>Recommended</span></div>
             ${content}
           </div>`;
       }
@@ -3132,8 +3183,8 @@
             value: "",
           },
           "category-detail": {
-            placeholder: "Search streams in Apex Legends",
-            label: "Search within Apex Legends",
+            placeholder: `Search streams in ${state.activeCategory}`,
+            label: `Search within ${state.activeCategory}`,
             value: "",
           },
           following: {
@@ -3195,6 +3246,7 @@
         const params = new URLSearchParams(location.search);
         params.set("variant", state.variant);
         params.set("screen", state.screen);
+        params.set("category", state.activeCategory);
         tabReviewGroups.forEach(({ stateKey }) =>
           params.set(stateKey, state[stateKey]),
         );
@@ -3337,6 +3389,11 @@
           state.degradation = "Recovery eligible after hysteresis window";
         }
         if (action === "audio-owner") state.audioOwner = data.channel;
+        if (action === "open-category") {
+          state.activeCategory = data.category;
+          state.categoryTab = "live";
+          state.screen = "category-detail";
+        }
         if (action === "run-check") state.diagnosticsRun += 1;
         if (action === "toggle-density")
           state.compactDensity = !state.compactDensity;

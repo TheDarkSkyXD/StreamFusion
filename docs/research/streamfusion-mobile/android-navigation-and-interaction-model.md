@@ -100,7 +100,7 @@ Activity does not replace Android system notifications. Android notifications de
 **More** groups secondary tools behind one bottom-navigation destination:
 
 - **Home** contains the combined Twitch and Kick recommendation feed.
-- **Categories** contains locally searchable category discovery and category detail entry. Category detail also searches its content and preserves the **Live Streams**, **Clips**, and **Videos** tabs plus Platform, language, tag, and sort filters.
+- **Categories** contains locally searchable category discovery. Tapping a category card opens that selected category's detail screen with its art, viewer summary, and matching content. Category detail also searches its content and preserves the **Live Streams**, **Clips**, and **Videos** tabs plus Platform, language, tag, and sort filters.
 - **Multistream** opens **Watch** directly in Multistream mode. It is an entry inside **More**, not a sixth top-level destination.
 - **History** opens watched-content history directly. Every row carries an explicit **Stream**, **Video**, or **Clip** badge in addition to its thumbnail and duration or live metadata.
 - **Moderation** contains eligible managed channels and Platform-specific actions.
