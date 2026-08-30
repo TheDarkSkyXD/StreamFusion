@@ -2,13 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import { resolveUserDataPath } from "@backend/utility/user-data-path";
 
-// Guards: an explicit launch profile must reach SQLite unchanged instead of being redirected to the shared development profile
+// Guards: explicit launch profiles override the automatic development and packaged locations
+// Guards: packaged launches keep Electron's production user-data directory
+// Guards: development launches use the project-local user-data directory
 describe("resolveUserDataPath", () => {
   it("uses an explicit user-data directory in development", () => {
     expect(
       resolveUserDataPath({
         argv: ["electron.exe", ".", "--user-data-dir=C:\\proof-profile"],
         defaultPath: "C:\\StreamFusion",
+        developmentPath: "C:\\repo\\.streamfusion-dev-user-data",
         isProduction: false,
       })
     ).toBe("C:\\proof-profile");
@@ -19,18 +22,31 @@ describe("resolveUserDataPath", () => {
       resolveUserDataPath({
         argv: ["StreamFusion.exe", "--user-data-dir", "C:\\packaged-proof"],
         defaultPath: "C:\\StreamFusion",
+        developmentPath: "C:\\repo\\.streamfusion-dev-user-data",
         isProduction: true,
       })
     ).toBe("C:\\packaged-proof");
   });
 
-  it("keeps the automatic development suffix when no override is supplied", () => {
+  it("keeps Electron's default user-data directory in production", () => {
+    expect(
+      resolveUserDataPath({
+        argv: ["StreamFusion.exe"],
+        defaultPath: "C:\\StreamFusion",
+        developmentPath: "C:\\repo\\.streamfusion-dev-user-data",
+        isProduction: true,
+      })
+    ).toBe("C:\\StreamFusion");
+  });
+
+  it("uses the project-local user-data directory in development", () => {
     expect(
       resolveUserDataPath({
         argv: ["electron.exe", "."],
         defaultPath: "C:\\StreamFusion",
+        developmentPath: "C:\\repo\\.streamfusion-dev-user-data",
         isProduction: false,
       })
-    ).toBe("C:\\StreamFusion (Dev)");
+    ).toBe("C:\\repo\\.streamfusion-dev-user-data");
   });
 });

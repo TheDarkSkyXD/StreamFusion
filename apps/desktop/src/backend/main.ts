@@ -9,6 +9,7 @@
 import "dotenv/config";
 
 import { randomUUID } from "node:crypto";
+import { mkdirSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -99,6 +100,7 @@ function bindMainWindow(mainWindow: BrowserWindow): void {
 
 // Remote debugging is available only when an unpackaged launch requests a CDP port.
 const isProduction = process.env.NODE_ENV === "production" || app.isPackaged;
+const projectRoot = path.resolve(process.cwd(), "..", "..");
 
 // Keep Windows taskbar grouping/identity aligned with electron-builder's appId.
 // This must run before the first BrowserWindow is created.
@@ -108,8 +110,10 @@ const defaultUserDataPath = app.getPath("userData");
 const userDataPath = resolveUserDataPath({
   argv: process.argv,
   defaultPath: defaultUserDataPath,
+  developmentPath: path.join(projectRoot, ".streamfusion-dev-user-data"),
   isProduction,
 });
+mkdirSync(userDataPath, { recursive: true });
 app.setPath("userData", userDataPath);
 
 // Chromium's blockfile cache is disposable, unlike the auth, settings, cookie,
@@ -177,7 +181,7 @@ let stopChromiumLogTailer: StopChromiumLogTailer | null = null;
 const configuredDevelopmentArtifactRoot = process.env.STREAMFUSION_DEV_ARTIFACT_ROOT?.trim();
 const developmentArtifactRoot = configuredDevelopmentArtifactRoot
   ? path.resolve(configuredDevelopmentArtifactRoot)
-  : path.resolve(process.cwd(), "..", "..");
+  : projectRoot;
 
 function initializeBeforeReady(): void {
   const sessionStamp = new Date().toISOString();
