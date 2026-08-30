@@ -1946,7 +1946,7 @@ describe("IPC handlers - VIDEOS_GET_METADATA", () => {
       duration: "1:00",
       createdAt: "2026-01-01T00:00:00Z",
       thumbnailUrl: "https://example.com/vod.jpg",
-      platform: "kick",
+      platform: "kick" as const,
       category: "Just Chatting",
     };
     kickResolverProto.getVideoMetadata.mockResolvedValue(metadata);

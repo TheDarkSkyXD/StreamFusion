@@ -64,13 +64,99 @@ interface KickVideoPayload {
   category?: { name?: string };
 }
 
-function isKickVideoPayload(value: unknown): value is KickVideoPayload {
+function isKickVideoSourcePayload(value: unknown): value is KickVideoPayload {
   if (typeof value !== "object" || value === null) return false;
   if ("source" in value && value.source !== undefined && typeof value.source !== "string")
     return false;
-  if ("duration" in value && value.duration !== undefined && typeof value.duration !== "number")
-    return false;
   return true;
+}
+
+interface KickVideoMetadata {
+  id: string;
+  title: string;
+  channelId: string;
+  channelName: string;
+  channelDisplayName: string;
+  channelAvatar: string | null;
+  views: number;
+  duration: string;
+  createdAt: string;
+  thumbnailUrl: string;
+  platform: "kick";
+  category?: string;
+}
+
+interface CanonicalKickVideoPayload extends Omit<KickVideoMetadata, "duration" | "platform"> {
+  durationMs: number;
+}
+
+function parseCanonicalKickVideoPayload(value: unknown): CanonicalKickVideoPayload | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const data = value as KickVideoPayload;
+  const channel = data.channel || data.livestream?.channel;
+  const id =
+    typeof data.id === "string" || typeof data.id === "number" ? String(data.id).trim() : "";
+  const title = (data.session_title || data.title || "").trim();
+  const channelId =
+    typeof channel?.id === "string" || typeof channel?.id === "number"
+      ? String(channel.id).trim()
+      : "";
+  const channelName = typeof channel?.slug === "string" ? channel.slug.trim() : "";
+  const views = data.views ?? data.view_count;
+  const durationMs = data.duration;
+  const createdAt = typeof data.created_at === "string" ? data.created_at.trim() : "";
+
+  if (
+    !id ||
+    !title ||
+    !channelId ||
+    !channelName ||
+    typeof views !== "number" ||
+    !Number.isFinite(views) ||
+    views < 0 ||
+    typeof durationMs !== "number" ||
+    !Number.isFinite(durationMs) ||
+    durationMs < 0 ||
+    !createdAt ||
+    !Number.isFinite(Date.parse(createdAt))
+  ) {
+    return null;
+  }
+
+  const displayName =
+    typeof channel?.user?.username === "string" && channel.user.username.trim()
+      ? channel.user.username.trim()
+      : channelName;
+  const avatar =
+    typeof channel?.user?.profile_pic === "string" && channel.user.profile_pic.trim()
+      ? channel.user.profile_pic.trim()
+      : null;
+  const thumbnailUrl =
+    (typeof data.thumbnail?.src === "string" && data.thumbnail.src.trim()) ||
+    (typeof data.thumbnail?.url === "string" && data.thumbnail.url.trim()) ||
+    (typeof data.thumbnail_url === "string" && data.thumbnail_url.trim()) ||
+    "";
+  const category =
+    (typeof data.categories?.[0]?.name === "string" && data.categories[0].name.trim()) ||
+    (typeof data.category?.name === "string" && data.category.name.trim()) ||
+    (typeof data.livestream?.categories?.[0]?.name === "string" &&
+      data.livestream.categories[0].name.trim()) ||
+    undefined;
+
+  return {
+    id,
+    title,
+    channelId,
+    channelName,
+    channelDisplayName: displayName,
+    channelAvatar: avatar,
+    views,
+    durationMs,
+    createdAt,
+    thumbnailUrl,
+    category,
+  };
 }
 
 function isHandledKickVodUnavailableError(error: Error): boolean {
@@ -276,7 +362,7 @@ export class KickStreamResolver {
       // Try 1: Direct video lookup by ID/UUID (works if it's a proper UUID)
       try {
         data = await this.netRequest(`${KICK_LEGACY_API_V1_BASE}/video/${videoIdOrUuid}`);
-        if (isKickVideoPayload(data) && data.source) {
+        if (isKickVideoSourcePayload(data) && data.source) {
           return {
             url: data.source,
             format: "hls",
@@ -298,7 +384,7 @@ export class KickStreamResolver {
         // Note: This may still fail as the API expects UUID
         try {
           data = await this.netRequest(`${KICK_LEGACY_API_V1_BASE}/video/${numericId}`);
-          if (isKickVideoPayload(data) && data.source) {
+          if (isKickVideoSourcePayload(data) && data.source) {
             return {
               url: data.source,
               format: "hls",
@@ -348,20 +434,7 @@ export class KickStreamResolver {
    * If the lookup fails, return null so callers can surface an explicit
    * unavailable state instead of fabricating presentation data.
    */
-  async getVideoMetadata(videoId: string): Promise<{
-    id: string;
-    title: string;
-    channelId: string;
-    channelName: string;
-    channelDisplayName: string;
-    channelAvatar: string | null;
-    views: number;
-    duration: string;
-    createdAt: string;
-    thumbnailUrl: string;
-    platform: string;
-    category?: string;
-  } | null> {
+  async getVideoMetadata(videoId: string): Promise<KickVideoMetadata | null> {
     // Format duration from milliseconds to readable format
     const formatDuration = (ms: number): string => {
       const seconds = Math.floor(ms / 1000);
@@ -379,30 +452,22 @@ export class KickStreamResolver {
     try {
       // Try to fetch metadata - this may fail for numeric IDs
       const data = await this.netRequest(`${KICK_LEGACY_API_V1_BASE}/video/${videoId}`);
-      if (!isKickVideoPayload(data)) return null;
+      const metadata = parseCanonicalKickVideoPayload(data);
+      if (!metadata) return null;
 
       return {
-        id: data.id?.toString() || videoId,
-        title: data.session_title || data.title || `Stream VOD`,
-        channelId: data.channel?.id?.toString() || data.livestream?.channel?.id?.toString() || "",
-        channelName: data.channel?.slug || data.livestream?.channel?.slug || "",
-        channelDisplayName:
-          data.channel?.user?.username ||
-          data.livestream?.channel?.user?.username ||
-          data.channel?.slug ||
-          "",
-        channelAvatar:
-          data.channel?.user?.profile_pic || data.livestream?.channel?.user?.profile_pic || null,
-        views: data.views || data.view_count || 0,
-        duration: formatDuration(data.duration || 0),
-        createdAt: data.created_at || new Date().toISOString(),
-        thumbnailUrl: data.thumbnail?.src || data.thumbnail?.url || data.thumbnail_url || "",
+        id: metadata.id,
+        title: metadata.title,
+        channelId: metadata.channelId,
+        channelName: metadata.channelName,
+        channelDisplayName: metadata.channelDisplayName,
+        channelAvatar: metadata.channelAvatar,
+        views: metadata.views,
+        duration: formatDuration(metadata.durationMs),
+        createdAt: metadata.createdAt,
+        thumbnailUrl: metadata.thumbnailUrl,
         platform: "kick",
-        category:
-          data.categories?.[0]?.name ||
-          data.category?.name ||
-          data.livestream?.categories?.[0]?.name ||
-          undefined,
+        category: metadata.category,
       };
     } catch (_error) {
       logger.warn("Kick:StreamResolver", "Could not fetch Kick video metadata", {

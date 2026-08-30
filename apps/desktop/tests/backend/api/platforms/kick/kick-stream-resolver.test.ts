@@ -309,9 +309,8 @@ describe("KickStreamResolver", () => {
   });
 
   describe("getVideoMetadata", () => {
-    // Guards: Kick VOD metadata lookup must fail closed when the upstream
-    // route cannot resolve a real video, rather than inventing placeholder
-    // titles or channel identities.
+    // Guards: Kick VOD metadata lookup must fail closed when the upstream route fails or returns
+    // an incomplete success payload, rather than inventing placeholder metadata.
     it("returns full metadata from a valid API response", async () => {
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
@@ -355,8 +354,28 @@ describe("KickStreamResolver", () => {
       expect(meta).toBeNull();
     });
 
+    it.each([{}, { message: "Video unavailable" }])(
+      "returns null for a successful response without canonical metadata",
+      async (payload) => {
+        mockFetch.mockResolvedValueOnce(jsonResponse(payload));
+
+        const meta = await resolver.getVideoMetadata("bad-payload");
+
+        expect(meta).toBeNull();
+      }
+    );
+
     it("formats duration correctly for sub-hour videos", async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({ id: 1, duration: 150000, channel: {} }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          id: 1,
+          session_title: "Short VOD",
+          channel: { id: 2, slug: "streamer" },
+          views: 10,
+          duration: 150000,
+          created_at: "2026-01-15T12:00:00Z",
+        })
+      );
 
       const meta = await resolver.getVideoMetadata("short-vod");
       expect(meta).not.toBeNull();
@@ -366,7 +385,16 @@ describe("KickStreamResolver", () => {
     });
 
     it("formats duration correctly for zero-length videos", async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({ id: 1, duration: 0, channel: {} }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          id: 1,
+          session_title: "Zero-length VOD",
+          channel: { id: 2, slug: "streamer" },
+          views: 0,
+          duration: 0,
+          created_at: "2026-01-15T12:00:00Z",
+        })
+      );
 
       const meta = await resolver.getVideoMetadata("zero-vod");
       expect(meta).not.toBeNull();
@@ -379,6 +407,7 @@ describe("KickStreamResolver", () => {
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
           id: 789,
+          session_title: "Nested VOD",
           livestream: {
             channel: {
               id: 321,
@@ -387,6 +416,9 @@ describe("KickStreamResolver", () => {
             },
             categories: [{ id: 2, name: "Gaming" }],
           },
+          views: 100,
+          duration: 60000,
+          created_at: "2026-01-15T12:00:00Z",
         })
       );
 
