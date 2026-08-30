@@ -43,11 +43,7 @@ export interface TwitchChannelMember {
 }
 
 export type TwitchUnbanRequestStatus =
-  | "pending"
-  | "approved"
-  | "denied"
-  | "acknowledged"
-  | "canceled";
+  "pending" | "approved" | "denied" | "acknowledged" | "canceled";
 
 export interface TwitchUnbanRequest {
   id: string;

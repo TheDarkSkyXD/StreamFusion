@@ -3,13 +3,7 @@ import type { Platform } from "./auth-types";
 export type DownloadJobKind = "clip" | "video";
 
 export type DownloadJobStatus =
-  | "queued"
-  | "downloading"
-  | "paused"
-  | "failed"
-  | "waiting"
-  | "completed"
-  | "cancelled";
+  "queued" | "downloading" | "paused" | "failed" | "waiting" | "completed" | "cancelled";
 
 export interface DownloadProgress {
   percent: number | null;

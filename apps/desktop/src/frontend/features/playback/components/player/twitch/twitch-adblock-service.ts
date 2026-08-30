@@ -724,9 +724,7 @@ export async function processMediaPlaylist(
     // Try to get backup stream
     let backupResult: string | null = null;
     if (currentResolution) {
-      const switchState = getRenditionSwitchState(
-        getRenditionScope(streamInfo, currentResolution)
-      );
+      const switchState = getRenditionSwitchState(getRenditionScope(streamInfo, currentResolution));
       switchState.consecutiveOriginalCleanPolls = 0;
       switchState.originalCleanSince = null;
       backupResult =
@@ -762,11 +760,7 @@ export async function processMediaPlaylist(
       ? getRenditionSwitchState(getRenditionScope(streamInfo, currentResolution))
       : null;
     const restoredFromBackup = Boolean(switchState?.servedBackup);
-    if (
-      switchState?.servedBackup &&
-      detection.verdict === "clean" &&
-      !hasExplicitCueInRecovery
-    ) {
+    if (switchState?.servedBackup && detection.verdict === "clean" && !hasExplicitCueInRecovery) {
       const now = Date.now();
       switchState.originalCleanSince ??= now;
       switchState.consecutiveOriginalCleanPolls += 1;
@@ -845,18 +839,14 @@ export async function processMediaPlaylist(
   } else if (streamInfo.isShowingAd) {
     const currentResolution = findResolutionInfoForMediaUrl(streamInfo, url);
     if (currentResolution) {
-      const switchState = getRenditionSwitchState(
-        getRenditionScope(streamInfo, currentResolution)
-      );
+      const switchState = getRenditionSwitchState(getRenditionScope(streamInfo, currentResolution));
       switchState.consecutiveOriginalCleanPolls = 0;
       switchState.originalCleanSince = null;
     }
   } else if (detection.verdict === "clean") {
     const currentResolution = findResolutionInfoForMediaUrl(streamInfo, url);
     if (currentResolution) {
-      const switchState = getRenditionSwitchState(
-        getRenditionScope(streamInfo, currentResolution)
-      );
+      const switchState = getRenditionSwitchState(getRenditionScope(streamInfo, currentResolution));
       if (switchState.readyRefresh) {
         switchState.servedBackup = switchState.readyRefresh;
         switchState.readyRefresh = null;
@@ -1071,9 +1061,7 @@ async function prepareCleanBackup(
     }
   };
 
-  const firstCleanCandidate = (
-    tier: typeof candidates
-  ): Promise<PreparedBackup | null> =>
+  const firstCleanCandidate = (tier: typeof candidates): Promise<PreparedBackup | null> =>
     new Promise((resolve) => {
       if (tier.length === 0) {
         resolve(null);
@@ -1103,14 +1091,10 @@ async function prepareCleanBackup(
   const exactCandidates = candidates.filter(
     (candidate) => candidate.rendition.resolution === currentResolution.resolution
   );
-  const floorCandidates = candidates.filter(
-    (candidate) => {
-      const height = Number.parseInt(candidate.rendition.resolution.split("x")[1] ?? "", 10);
-      return (
-        candidate.rendition.resolution !== currentResolution.resolution && height >= 480
-      );
-    }
-  );
+  const floorCandidates = candidates.filter((candidate) => {
+    const height = Number.parseInt(candidate.rendition.resolution.split("x")[1] ?? "", 10);
+    return candidate.rendition.resolution !== currentResolution.resolution && height >= 480;
+  });
   const emergencyCandidates = candidates.filter((candidate) => {
     const height = Number.parseInt(candidate.rendition.resolution.split("x")[1] ?? "", 10);
     return height >= 360 && height < 480;
@@ -1127,10 +1111,7 @@ function invalidateServedBackup(
   state: RenditionSwitchState,
   served: PreparedBackup
 ): void {
-  if (
-    streamInfos.get(streamInfo.channelName) !== streamInfo ||
-    state.servedBackup !== served
-  ) {
+  if (streamInfos.get(streamInfo.channelName) !== streamInfo || state.servedBackup !== served) {
     return;
   }
 
@@ -1151,10 +1132,7 @@ function recordBackupRefreshFailure(
   served: PreparedBackup,
   details: Record<string, unknown>
 ): void {
-  if (
-    streamInfos.get(streamInfo.channelName) !== streamInfo ||
-    state.servedBackup !== served
-  ) {
+  if (streamInfos.get(streamInfo.channelName) !== streamInfo || state.servedBackup !== served) {
     return;
   }
 
@@ -1170,10 +1148,7 @@ function recordBackupRefreshFailure(
   }
 }
 
-function scheduleServedBackupRefresh(
-  streamInfo: StreamInfo,
-  state: RenditionSwitchState
-): void {
+function scheduleServedBackupRefresh(streamInfo: StreamInfo, state: RenditionSwitchState): void {
   const served = state.servedBackup;
   if (!served || state.refreshPromise) return;
 
@@ -1203,10 +1178,7 @@ function scheduleServedBackupRefresh(
         return;
       }
 
-      if (
-        streamInfos.get(streamInfo.channelName) !== streamInfo ||
-        state.servedBackup !== served
-      ) {
+      if (streamInfos.get(streamInfo.channelName) !== streamInfo || state.servedBackup !== served) {
         return;
       }
       state.readyRefresh = { ...served, playlist };

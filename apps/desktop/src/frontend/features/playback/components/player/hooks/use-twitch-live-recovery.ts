@@ -152,8 +152,5 @@ export function useTwitchLiveRecovery({
     handleErrorRef.current = handleError;
   }, [handleError]);
 
-  return useMemo(
-    () => ({ handleError, markPlaybackHealthy }),
-    [handleError, markPlaybackHealthy]
-  );
+  return useMemo(() => ({ handleError, markPlaybackHealthy }), [handleError, markPlaybackHealthy]);
 }

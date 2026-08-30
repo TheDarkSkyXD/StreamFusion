@@ -26,11 +26,7 @@ const KICK_API_BASE = "https://kick.com/api/v2";
 const REQUEST_TIMEOUT_MS = 10_000;
 
 export type KickPredictionsErrorKind =
-  | "unauthenticated"
-  | "forbidden"
-  | "not-found"
-  | "network"
-  | "unknown";
+  "unauthenticated" | "forbidden" | "not-found" | "network" | "unknown";
 
 export type KickPredictionsResult =
   | { ok: true; payload: KickPredictionPayload | null }

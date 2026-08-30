@@ -11,11 +11,7 @@ interface AppIdentityTarget {
 
 interface WindowIdentityTarget {
   setIcon(icon: string): void;
-  setAppDetails(options: {
-    appId: string;
-    appIconPath: string;
-    appIconIndex: number;
-  }): void;
+  setAppDetails(options: { appId: string; appIconPath: string; appIconIndex: number }): void;
 }
 
 /** Keep the development executable and packaged executable under one identity on Windows. */

@@ -16,6 +16,7 @@ downloads, settings.
 - `/mod/kick/$channel` → `ModChannelKickPage` → `ModChannelPage(platform="kick")`
 
 Key files under `channel/`:
+
 - `ModChannelPage.tsx` — shared shell; owns channel-id resolution and section layout
 - `ChannelList.tsx` — grid of channel cards (Twitch: all moderated; Kick: own only)
 - `ChannelModLogFeed.tsx` — paginated, filterable mod log (SQLite via IPC)
@@ -58,15 +59,15 @@ Key files under `channel/`:
 
 ## Platform Coverage
 
-| Feature              | Twitch | Kick          |
-|----------------------|--------|---------------|
-| Channel list         | All moderated channels | Own channel only |
-| Mod log              | Yes    | Yes           |
-| Retention settings   | Yes    | Yes           |
-| Banned user list     | Yes    | No (note shown) |
-| Unban requests       | Yes    | No            |
-| Mod/VIP management   | Yes (broadcaster only) | No |
-| Engagement (polls/predictions) | Yes | No    |
+| Feature                        | Twitch                 | Kick             |
+| ------------------------------ | ---------------------- | ---------------- |
+| Channel list                   | All moderated channels | Own channel only |
+| Mod log                        | Yes                    | Yes              |
+| Retention settings             | Yes                    | Yes              |
+| Banned user list               | Yes                    | No (note shown)  |
+| Unban requests                 | Yes                    | No               |
+| Mod/VIP management             | Yes (broadcaster only) | No               |
+| Engagement (polls/predictions) | Yes                    | No               |
 
 ## Related Context
 

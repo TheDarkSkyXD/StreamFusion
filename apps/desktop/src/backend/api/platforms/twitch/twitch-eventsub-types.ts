@@ -23,11 +23,7 @@ export type TwitchEventSubEventType = "channel.moderate" | "stream.online" | "st
 // ---------------------------------------------------------------------------
 
 export type TwitchEventSubConnectionState =
-  | "idle"
-  | "connecting"
-  | "connected"
-  | "reconnecting"
-  | "error";
+  "idle" | "connecting" | "connected" | "reconnecting" | "error";
 
 // ---------------------------------------------------------------------------
 // Wire envelope — every message Twitch sends has the same outer shape.

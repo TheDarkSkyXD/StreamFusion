@@ -4,9 +4,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 export const CACHE_PERFORMANCE_BUDGET_MS = 50;
 
 export type CachePerformanceEventType =
-  | "cache-hit-paint"
-  | "route-refresh-start"
-  | "cache-invalidation";
+  "cache-hit-paint" | "route-refresh-start" | "cache-invalidation";
 
 export interface CachePerformanceSampleInput {
   type: CachePerformanceEventType;

@@ -325,12 +325,14 @@ export function useChatSettingsSync({
     if (loadedService) {
       attachServiceListeners(loadedService);
     } else {
-      void loadChatRoomStateEventSource(platform).then(attachServiceListeners).catch((error: unknown) => {
-        if (mountController.signal.aborted) return;
-        logger.warn("Hook:ChatSettings", "chat event source failed to load", {
-          error: error instanceof Error ? error.message : String(error),
+      void loadChatRoomStateEventSource(platform)
+        .then(attachServiceListeners)
+        .catch((error: unknown) => {
+          if (mountController.signal.aborted) return;
+          logger.warn("Hook:ChatSettings", "chat event source failed to load", {
+            error: error instanceof Error ? error.message : String(error),
+          });
         });
-      });
     }
 
     return () => {

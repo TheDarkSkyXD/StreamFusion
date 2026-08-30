@@ -78,9 +78,7 @@ export const twitchVideoSchema = z.object({
   language: z.string(),
   type: z.enum(["archive", "highlight", "upload"]),
   duration: z.string(),
-  muted_segments: z
-    .array(z.object({ duration: z.number(), offset: z.number() }))
-    .nullable(),
+  muted_segments: z.array(z.object({ duration: z.number(), offset: z.number() })).nullable(),
   game_id: z.string().optional(),
   game_name: z.string().optional(),
 });

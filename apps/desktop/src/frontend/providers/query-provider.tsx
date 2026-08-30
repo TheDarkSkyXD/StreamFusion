@@ -3,10 +3,7 @@ import type React from "react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 
 import { useBrowseSnapshotBootstrap } from "@/features/discovery/data/queries/browse-snapshot-bootstrap";
-import {
-  networkStatusStore,
-  type NetworkStatusStore,
-} from "@/hooks/network-status-store";
+import { networkStatusStore, type NetworkStatusStore } from "@/hooks/network-status-store";
 
 // Lazy load ReactQueryDevtools only in development to avoid bundling in production
 // This can save ~200KB+ in production bundle size

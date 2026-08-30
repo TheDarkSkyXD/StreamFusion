@@ -1,8 +1,4 @@
-import type {
-  UnifiedChannel,
-  UnifiedClip,
-  UnifiedVideo,
-} from "@shared/platform-types";
+import type { UnifiedChannel, UnifiedClip, UnifiedVideo } from "@shared/platform-types";
 import { kickClient } from "@backend/api/platforms/kick/kick-client";
 import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
 import type { ClipSearchSource } from "@backend/search/progressive-clip-search";

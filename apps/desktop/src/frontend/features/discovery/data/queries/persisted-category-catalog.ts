@@ -73,7 +73,8 @@ export function sanitizePersistedCategoryCatalog(
   value: unknown,
   platform?: Platform
 ): UnifiedCategory[] | undefined {
-  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_CATEGORIES) return undefined;
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_CATEGORIES)
+    return undefined;
   const categories = value.map(publicCategory);
   if (categories.some((category) => category === null)) return undefined;
   const sanitized = categories as UnifiedCategory[];

@@ -1,4 +1,9 @@
-import { type InfiniteData, useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type {
@@ -9,10 +14,7 @@ import type {
   UnifiedVideo,
 } from "../../../../../shared/platform-types";
 import type { Platform } from "../../../../../shared/auth-types";
-import type {
-  SearchPlatformError,
-  SearchPlatformStatus,
-} from "../../../../../shared/search-types";
+import type { SearchPlatformError, SearchPlatformStatus } from "../../../../../shared/search-types";
 import { sleep } from "@shared/utils/sleep";
 import { normalizeSearchQuery } from "../../utils/search/search-normalization";
 import { rankSearchChannels } from "../../utils/search/channel-search-contract";
@@ -649,12 +651,7 @@ export function useSearchAll(
   const queryKey = SEARCH_KEYS.everything(normalizedQuery, platform, limit);
   const quickLimit = normalizedQuery.length === 1 ? 50 : 25;
   const active = enabled && normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH;
-  const persistedData = usePersistedSearchResult(
-    normalizedQuery,
-    platform,
-    limit,
-    active
-  );
+  const persistedData = usePersistedSearchResult(normalizedQuery, platform, limit, active);
   const traceKey = `${normalizedQuery}\u0000${platform ?? "all"}\u0000${limit}`;
   const requestTrace = useMemo<SearchRequestTrace | undefined>(
     () =>
@@ -784,12 +781,7 @@ export function useSearchAll(
   const { isStale: isSearchStale, refetch: refetchSearch } = result;
   const warmRefreshStartedRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (
-      !active ||
-      !persistedData ||
-      !isSearchStale ||
-      warmRefreshStartedRef.current === traceKey
-    ) {
+    if (!active || !persistedData || !isSearchStale || warmRefreshStartedRef.current === traceKey) {
       return;
     }
     // timer-allowlist: cancelable next-task scheduling collapses StrictMode effect replay into one warm refresh
@@ -862,7 +854,15 @@ export function useSearchAll(
       count: usefulResultCount,
       elapsedMs: searchElapsedMs(trace.startedAt),
     });
-  }, [hasUsefulData, normalizedQuery, persistedData, platform, requestTrace, traceKey, usefulResultCount]);
+  }, [
+    hasUsefulData,
+    normalizedQuery,
+    persistedData,
+    platform,
+    requestTrace,
+    traceKey,
+    usefulResultCount,
+  ]);
 
   useEffect(() => {
     const trace = requestTrace;
@@ -883,7 +883,15 @@ export function useSearchAll(
       count: usefulResultCount,
       elapsedMs: searchElapsedMs(trace.startedAt),
     });
-  }, [hasUsefulData, normalizedQuery, persistedData, platform, requestTrace, traceKey, usefulResultCount]);
+  }, [
+    hasUsefulData,
+    normalizedQuery,
+    persistedData,
+    platform,
+    requestTrace,
+    traceKey,
+    usefulResultCount,
+  ]);
 
   return {
     ...result,

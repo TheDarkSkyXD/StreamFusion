@@ -3,9 +3,11 @@
 **Read this file before modifying code in this directory.**
 
 ## Purpose
+
 Owns all HTTP/GQL communication with Twitch and Kick. Platform-specific clients, requestors, endpoint definitions, and response transformers. Does NOT own: chat WebSocket connections (see `../../services/chat/AGENTS.md`), UI components, or state management.
 
 ## OVERVIEW
+
 Twitch and Kick API implementations with unified type transformers.
 
 ## STRUCTURE
@@ -35,23 +37,26 @@ platforms/
 
 ## WHERE TO LOOK
 
-| Task | Location |
-|------|----------|
-| Add Kick endpoint | `kick/endpoints/*.ts` |
-| Add Twitch endpoint | `twitch/endpoints/*.ts` |
-| Transform response | `*-transformers.ts` |
-| Unified types | `../unified/platform-types.ts` |
+| Task                | Location                       |
+| ------------------- | ------------------------------ |
+| Add Kick endpoint   | `kick/endpoints/*.ts`          |
+| Add Twitch endpoint | `twitch/endpoints/*.ts`        |
+| Transform response  | `*-transformers.ts`            |
+| Unified types       | `../unified/platform-types.ts` |
 
 ## CONVENTIONS
 
 ### Adapter Pattern
+
 Each client transforms raw API → Unified types via `*-transformers.ts`.
 
 ### Requestor Pattern
+
 - Twitch: Standard `fetch`, OAuth2 app token
 - Kick: `electron.net` (IPv6 issues), signed-in user token for official API calls
 
 ### Method Naming
+
 ```
 getStreamBySlug (Kick)  ↔  getStreamByLogin (Twitch)
 getTopStreams           ↔  getTopStreams

@@ -3,9 +3,11 @@
 **Read this file before modifying code in this directory.**
 
 ## Purpose
+
 Owns all Zustand global state stores: auth, chat, emotes, follows, volume, multistream, history, room state, etc. Does NOT own: React Query caches, IPC handler logic, or backend services.
 
 ## OVERVIEW
+
 Client state management with IPC backend sync and localStorage persistence.
 
 ## STRUCTURE
@@ -24,17 +26,18 @@ store/
 
 ## WHERE TO LOOK
 
-| Task | Store |
-|------|-------|
-| Auth status | `auth-store.ts` |
-| Follow/unfollow | `follow-store.ts` |
-| Volume control | `volume-store.ts` |
+| Task            | Store                        |
+| --------------- | ---------------------------- |
+| Auth status     | `auth-store.ts`              |
+| Follow/unfollow | `follow-store.ts`            |
+| Volume control  | `volume-store.ts`            |
 | Resume playback | `playback-position-store.ts` |
-| Sidebar state | `app-store.ts` |
+| Sidebar state   | `app-store.ts`               |
 
 ## CONVENTIONS
 
 ### Store Pattern
+
 ```typescript
 interface XxxState {
   // state
@@ -49,17 +52,19 @@ export const useXxxStore = create<XxxState>()(
       items: [],
       addItem: (item) => set({ items: [...get().items, item] }),
     }),
-    { name: 'xxx-storage' }
+    { name: "xxx-storage" }
   )
 );
 ```
 
 ### Naming
+
 - File: `xxx-store.ts`
 - Hook: `useXxxStore`
 - Interface: `XxxState`
 
 ### Selectors (avoid re-renders)
+
 ```typescript
 // Good - primitive
 const volume = useVolumeStore((s) => s.volume);
@@ -69,6 +74,7 @@ const user = useAuthStore((s) => ({ name: s.name, id: s.id }));
 ```
 
 ### Backend Sync
+
 Stores bridge to main process via `window.electronAPI.*` calls.
 Some require `hydrate()` on app start (e.g., follow-store).
 

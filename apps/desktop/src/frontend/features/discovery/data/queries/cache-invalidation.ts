@@ -86,9 +86,8 @@ export function applyAuthoritativeFollowCaches(
   authoritativeChannels: readonly UnifiedChannel[]
 ): void {
   client.setQueryData(CHANNEL_KEYS.followed(platform), authoritativeChannels);
-  client.setQueriesData(
-    { queryKey: [...STREAM_KEYS.all, "followed"] },
-    (cached) => filterFollowedStreamCache(cached, platform, authoritativeChannels)
+  client.setQueriesData({ queryKey: [...STREAM_KEYS.all, "followed"] }, (cached) =>
+    filterFollowedStreamCache(cached, platform, authoritativeChannels)
   );
   invalidateFollowCachesAfterMutation(client, platform);
 }

@@ -677,7 +677,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         error:
           err instanceof Error
             ? { name: err.name, message: err.message, stack: err.stack }
-          : String(err),
+            : String(err),
       });
     } finally {
       entry.revokedSubscriptionIds.clear();

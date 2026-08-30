@@ -49,9 +49,7 @@ export function rememberRecentStreamImages(
     .catch(() => undefined)
     .then(async () => {
       try {
-        const stored = validIndex(
-          await window.electronAPI.store.get(RECENT_STREAM_PREWARM_KEY)
-        );
+        const stored = validIndex(await window.electronAPI.store.get(RECENT_STREAM_PREWARM_KEY));
         const entry: RecentStreamPrewarmEntry = {
           platform,
           channelName: normalizedChannel,
@@ -75,9 +73,7 @@ export function rememberRecentStreamImages(
 }
 
 export async function prewarmRecentStreamImages(): Promise<void> {
-  const stored = validIndex(
-    await window.electronAPI.store.get(RECENT_STREAM_PREWARM_KEY)
-  );
+  const stored = validIndex(await window.electronAPI.store.get(RECENT_STREAM_PREWARM_KEY));
   await prewarmViewportImages(stored.entries.flatMap((entry) => entry.imageUrls));
 }
 

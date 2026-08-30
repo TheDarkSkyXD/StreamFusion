@@ -373,10 +373,10 @@ function toSnapshot(
   const session = journal.session;
   const hasFinalizationCheckpoint = Boolean(
     session &&
-      (session.recoveryExhaustion?.state === "commit-intent" ||
-        session.recoveryExhaustion?.state === "pending-probe" ||
-        session.committedOutputPath ||
-        session.committedArtifactIdentity)
+    (session.recoveryExhaustion?.state === "commit-intent" ||
+      session.recoveryExhaustion?.state === "pending-probe" ||
+      session.committedOutputPath ||
+      session.committedArtifactIdentity)
   );
   const recoveryResumeUnavailable = Boolean(
     session?.status === "interrupted" && (!session.streamId || hasFinalizationCheckpoint)

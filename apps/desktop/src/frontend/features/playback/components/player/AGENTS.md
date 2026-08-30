@@ -3,9 +3,11 @@
 **Read this file before modifying code in this directory.**
 
 ## Purpose
+
 Owns the HLS.js video player stack: platform-specific player wrappers (Kick/Twitch), playback controls, quality selection, PiP, and theater mode. Does NOT own: chat UI, stream metadata, or backend video URL resolution.
 
 ## OVERVIEW
+
 Video playback system: HLS.js core, platform wrappers, performance optimizations.
 
 ## STRUCTURE
@@ -43,26 +45,29 @@ player/
 
 ## WHERE TO LOOK
 
-| Task | Location |
-|------|----------|
-| HLS config tuning | `hls-player.tsx` lines 128-168 |
-| Add keyboard shortcut | `hooks/use-player-keyboard.ts` |
-| Memory leaks | `hooks/use-video-lifecycle.ts` |
-| Quality switching | `hooks/use-adaptive-quality.ts` |
-| New platform player | Create `[platform]/` subdir |
+| Task                  | Location                        |
+| --------------------- | ------------------------------- |
+| HLS config tuning     | `hls-player.tsx` lines 128-168  |
+| Add keyboard shortcut | `hooks/use-player-keyboard.ts`  |
+| Memory leaks          | `hooks/use-video-lifecycle.ts`  |
+| Quality switching     | `hooks/use-adaptive-quality.ts` |
+| New platform player   | Create `[platform]/` subdir     |
 
 ## CONVENTIONS
 
 ### Architecture Layers
+
 1. **Engine**: `HlsPlayer` - raw HLS.js + video element
 2. **Orchestrator**: `video-player.tsx` - state coordination
 3. **Platform**: `kick/*.tsx`, `twitch/*.tsx` - branded controls
 4. **Optimization**: `PerformanceEnhancedPlayer` - HOC wrapper
 
 ### Ref-First Pattern
+
 Use `useRef` for video element access; avoid state for high-frequency updates.
 
 ### forwardRef + useImperativeHandle
+
 `HlsPlayer` exposes video element ref to parents.
 
 ## ANTI-PATTERNS

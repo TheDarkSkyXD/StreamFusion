@@ -16,8 +16,7 @@ export interface ChatReplayBadge {
 }
 
 export type ChatReplayFragment =
-  | { type: "text"; text: string }
-  | { type: "emote"; text: string; emoteId: string; url?: string };
+  { type: "text"; text: string } | { type: "emote"; text: string; emoteId: string; url?: string };
 
 export interface ChatReplayMessage {
   id: string;
@@ -70,5 +69,4 @@ export type ChatReplayWindowResult =
   | { capability: "transient-failure"; platform: Platform; videoId: string; reason: string };
 
 export type ChatReplayIpcWindowResult =
-  | { success: true; data: ChatReplayWindowResult }
-  | { success: false; error: string };
+  { success: true; data: ChatReplayWindowResult } | { success: false; error: string };

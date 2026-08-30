@@ -9,7 +9,4 @@ export const VideoPage = lazy(() =>
   import("../../../pages/Video").then((module) => ({ default: module.VideoPage }))
 );
 
-export const playbackPageChunkLoaders = [
-  preloadStreamPage,
-  () => import("../../../pages/Video"),
-];
+export const playbackPageChunkLoaders = [preloadStreamPage, () => import("../../../pages/Video")];

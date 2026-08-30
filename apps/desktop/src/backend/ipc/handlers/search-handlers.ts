@@ -27,10 +27,7 @@ import type {
   SearchVideosRequest,
   SearchVideosResponse,
 } from "../../../shared/search-types";
-import type {
-  DiscoveryProviderCompletion,
-  DiscoveryResult,
-} from "../../../shared/discovery-types";
+import type { DiscoveryProviderCompletion, DiscoveryResult } from "../../../shared/discovery-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { storageService } from "../../services/storage-service";
 
@@ -42,7 +39,9 @@ function failedProviders(platform?: Platform): DiscoveryProviderCompletion {
  * Helper to validate a channel object has the required fields
  * Filters out deleted/invalid channels from search results
  */
-function isValidChannel(channel: UnifiedChannel & { is_banned?: boolean; is_deleted?: boolean }): boolean {
+function isValidChannel(
+  channel: UnifiedChannel & { is_banned?: boolean; is_deleted?: boolean }
+): boolean {
   // Must have basic identifying info
   if (!channel.id || !channel.username) {
     return false;
@@ -66,13 +65,18 @@ type TwitchChannelCacheData = {
   broadcasterType: string;
   followerCount?: number;
 };
-const twitchChannelDataCache = new Map<string, { data: TwitchChannelCacheData | null; timestamp: number }>();
+const twitchChannelDataCache = new Map<
+  string,
+  { data: TwitchChannelCacheData | null; timestamp: number }
+>();
 
 /**
  * Verify Twitch channels exist and fetch their fresh avatar URLs and follower counts
  * Returns a Map of username -> enriched channel data with fresh avatars and follower counts
  */
-async function verifyAndEnrichTwitchChannels(channels: UnifiedChannel[]): Promise<Map<string, UnifiedChannel>> {
+async function verifyAndEnrichTwitchChannels(
+  channels: UnifiedChannel[]
+): Promise<Map<string, UnifiedChannel>> {
   const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
   const { getFollowerCounts } = await import("../../api/platforms/twitch/endpoints/user-endpoints");
 
@@ -213,7 +217,9 @@ function hasCasedKickDisplayName(channel: UnifiedChannel): boolean {
  * worst case. The frontend lazy-loads avatars on hover/mount, so deferring here
  * only costs us avatars+follower counts in the initial dropdown for logged-out users.
  */
-async function verifyAndEnrichKickChannels(channels: UnifiedChannel[]): Promise<Map<string, UnifiedChannel>> {
+async function verifyAndEnrichKickChannels(
+  channels: UnifiedChannel[]
+): Promise<Map<string, UnifiedChannel>> {
   const { kickClient } = await import("../../api/platforms/kick/kick-client");
   const { getChannelsBySlugs } =
     await import("../../api/platforms/kick/endpoints/channel-endpoints");
@@ -458,7 +464,10 @@ export function registerSearchHandlers(): void {
           retryable: !cancelled,
           error: cancelled
             ? null
-            : { platform: params.platform, message: error instanceof Error ? error.message : String(error) },
+            : {
+                platform: params.platform,
+                message: error instanceof Error ? error.message : String(error),
+              },
           scannedPages: progress?.scannedPages ?? 0,
           requestCount: progress?.requestCount ?? 0,
         };
@@ -470,39 +479,57 @@ export function registerSearchHandlers(): void {
 
   const registerRecentContentHandler = <T>(
     channel: string,
-    searches: Record<Platform, { next(request: SearchVideosRequest & { signal: AbortSignal }): Promise<{ data: T[]; cursor?: string; endReason?: "exhausted" | "safety-limit" | "rate-limited"; retryAfterMs?: number; requestCount: number; matchedChannelCount: number }> }>
-  ) => {
-    ipcMain.handle(channel, async (_event, params: SearchVideosRequest): Promise<SearchVideosResponse<T>> => {
-      const session = attachSearchSession(params.sessionId);
-      try {
-        const page = await searches[params.platform].next({ ...params, signal: session.signal });
-        return {
-          success: true,
-          sessionId: params.sessionId,
-          platform: params.platform,
-          retryable: page.endReason === "rate-limited",
-          error: null,
-          ...page,
-        };
-      } catch (error) {
-        const cancelled = isSearchCancelled(error);
-        return {
-          success: false,
-          sessionId: params.sessionId,
-          platform: params.platform,
-          data: [],
-          endReason: cancelled ? "cancelled" : undefined,
-          retryable: !cancelled,
-          error: cancelled
-            ? null
-            : { platform: params.platform, message: error instanceof Error ? error.message : String(error) },
-          requestCount: 0,
-          matchedChannelCount: 0,
-        };
-      } finally {
-        session.release();
+    searches: Record<
+      Platform,
+      {
+        next(request: SearchVideosRequest & { signal: AbortSignal }): Promise<{
+          data: T[];
+          cursor?: string;
+          endReason?: "exhausted" | "safety-limit" | "rate-limited";
+          retryAfterMs?: number;
+          requestCount: number;
+          matchedChannelCount: number;
+        }>;
       }
-    });
+    >
+  ) => {
+    ipcMain.handle(
+      channel,
+      async (_event, params: SearchVideosRequest): Promise<SearchVideosResponse<T>> => {
+        const session = attachSearchSession(params.sessionId);
+        try {
+          const page = await searches[params.platform].next({ ...params, signal: session.signal });
+          return {
+            success: true,
+            sessionId: params.sessionId,
+            platform: params.platform,
+            retryable: page.endReason === "rate-limited",
+            error: null,
+            ...page,
+          };
+        } catch (error) {
+          const cancelled = isSearchCancelled(error);
+          return {
+            success: false,
+            sessionId: params.sessionId,
+            platform: params.platform,
+            data: [],
+            endReason: cancelled ? "cancelled" : undefined,
+            retryable: !cancelled,
+            error: cancelled
+              ? null
+              : {
+                  platform: params.platform,
+                  message: error instanceof Error ? error.message : String(error),
+                },
+            requestCount: 0,
+            matchedChannelCount: 0,
+          };
+        } finally {
+          session.release();
+        }
+      }
+    );
   };
 
   registerRecentContentHandler(IPC_CHANNELS.SEARCH_VIDEOS, videoSearches);
@@ -545,7 +572,11 @@ export function registerSearchHandlers(): void {
         const shouldEnrich = true;
 
         // Create search promises for parallel execution
-        const searchPromises: Promise<{ platform: Platform; data: UnifiedChannel[]; cursor?: string }>[] = [];
+        const searchPromises: Promise<{
+          platform: Platform;
+          data: UnifiedChannel[];
+          cursor?: string;
+        }>[] = [];
 
         // Twitch search
         if (!params.platform || params.platform === "twitch") {

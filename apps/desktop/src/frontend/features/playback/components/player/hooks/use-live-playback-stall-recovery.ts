@@ -205,27 +205,15 @@ export function useLivePlaybackStallRecovery({
       if (action) {
         const now = Date.now();
         const currentTimeDelta = video.currentTime - lastEvaluatedCurrentTimeRef.current;
-        applyRecoveryAction(
-          action,
-          video,
-          hlsRef,
-          onErrorRef,
-          onHlsInstanceRef,
-          controller,
-          {
-            generation: generationRef.current,
-            frameAgeMs:
-              lastPresentedFrameAtRef.current === null
-                ? null
-                : now - lastPresentedFrameAtRef.current,
-            currentTimeDelta,
-            bufferedAheadSeconds: bufferedAheadSeconds(video),
-            fragmentAgeMs:
-              lastFragmentLoadedAtRef.current === null
-                ? null
-                : now - lastFragmentLoadedAtRef.current,
-          }
-        );
+        applyRecoveryAction(action, video, hlsRef, onErrorRef, onHlsInstanceRef, controller, {
+          generation: generationRef.current,
+          frameAgeMs:
+            lastPresentedFrameAtRef.current === null ? null : now - lastPresentedFrameAtRef.current,
+          currentTimeDelta,
+          bufferedAheadSeconds: bufferedAheadSeconds(video),
+          fragmentAgeMs:
+            lastFragmentLoadedAtRef.current === null ? null : now - lastFragmentLoadedAtRef.current,
+        });
       }
       lastEvaluatedCurrentTimeRef.current = video.currentTime;
     },

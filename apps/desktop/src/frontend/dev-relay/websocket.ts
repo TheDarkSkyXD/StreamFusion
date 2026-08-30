@@ -37,11 +37,7 @@ function waitForSocket(socket: RelayWebSocket): Promise<RelayWebSocket> {
 
 export async function waitForRelaySocket<TSocket extends RelayWebSocket>(
   createSocket: () => TSocket,
-  {
-    maxAttempts = 60,
-    retryDelayMs = 100,
-    wait = sleep,
-  }: RelayConnectionOptions = {}
+  { maxAttempts = 60, retryDelayMs = 100, wait = sleep }: RelayConnectionOptions = {}
 ): Promise<TSocket> {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const socket = createSocket();

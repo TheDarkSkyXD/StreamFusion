@@ -82,9 +82,8 @@ async function readWithDevelopmentFixture<T>(
   if (!app.isPackaged) {
     try {
       const search = new URL(event.senderFrame?.url ?? "").search;
-      const { getModerationBrowserFixture } = await import(
-        "@/dev-relay/moderation-browser-fixture-contract"
-      );
+      const { getModerationBrowserFixture } =
+        await import("@/dev-relay/moderation-browser-fixture-contract");
       const fixture = getModerationBrowserFixture(path, args, search);
       if (fixture.matched) return (await fixture.value) as T;
     } catch {

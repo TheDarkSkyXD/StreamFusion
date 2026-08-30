@@ -24,7 +24,10 @@ import { MOD_LOG_QUERY_KEYS } from "../../../../moderation/data/mod-log-query-ke
 import { useChatRoomState } from "../../../data/useChatRoomState";
 import { useChatSettingsSync } from "../../../data/useChatSettingsSync";
 import { useInterval } from "../../../../../hooks/useInterval";
-import { useHasActualTwitchModAuthority, useIsTwitchMod } from "../../../../moderation/data/useIsTwitchMod";
+import {
+  useHasActualTwitchModAuthority,
+  useIsTwitchMod,
+} from "../../../../moderation/data/useIsTwitchMod";
 import { useManagedTimeout } from "../../../../../hooks/useManagedTimeout";
 import { useRequireModScopes } from "../../../../auth/data/useRequireModScopes";
 import type {

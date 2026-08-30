@@ -86,9 +86,9 @@ export function SettingsMenu({
   const updatePreferences = useAuthStore((s) => s.updatePreferences);
 
   const [isOpen, setIsOpen] = useState(false);
-  const [activeSubMenu, setActiveSubMenu] = useState<
-    "main" | "quality" | "speed" | "captions"
-  >("main");
+  const [activeSubMenu, setActiveSubMenu] = useState<"main" | "quality" | "speed" | "captions">(
+    "main"
+  );
   const captionOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   // Notify parent of open state changes
@@ -130,7 +130,9 @@ export function SettingsMenu({
       : "Off";
 
   const persistCaptionAppearance = (
-    updates: Partial<Pick<typeof captionPreferences, "textSizePercent" | "backgroundOpacityPercent">>
+    updates: Partial<
+      Pick<typeof captionPreferences, "textSizePercent" | "backgroundOpacityPercent">
+    >
   ) => {
     const current = useAuthStore.getState().preferences?.captions ?? DEFAULT_CAPTION_PREFERENCES;
     void updatePreferences({ captions: { ...current, ...updates } });
@@ -385,9 +387,8 @@ export function SettingsMenu({
                   <div className="border-t border-[#ffffff1a] px-4 py-3 text-[13px] text-[#d4d4d4]">
                     <p>
                       {localCaptionModel.languageLabel} only. Download size:{" "}
-                      {localCaptionModel.downloadBytes.toLocaleString("en-US")} bytes ({
-                        localCaptionModel.displaySize
-                      }).
+                      {localCaptionModel.downloadBytes.toLocaleString("en-US")} bytes (
+                      {localCaptionModel.displaySize}).
                     </p>
                     <p>
                       License: {localCaptionModel.license}. Source:{" "}
@@ -401,16 +402,15 @@ export function SettingsMenu({
                       </a>
                     </p>
 
-                    {localCaptionModel.phase === "not-installed" &&
-                      onLocalCaptionModelDownload && (
-                        <button
-                          type="button"
-                          className="mt-3 rounded-md bg-white px-3 py-2 font-semibold text-[#0f0f0f] hover:bg-white/90"
-                          onClick={() => void onLocalCaptionModelDownload()}
-                        >
-                          Download local caption model
-                        </button>
-                      )}
+                    {localCaptionModel.phase === "not-installed" && onLocalCaptionModelDownload && (
+                      <button
+                        type="button"
+                        className="mt-3 rounded-md bg-white px-3 py-2 font-semibold text-[#0f0f0f] hover:bg-white/90"
+                        onClick={() => void onLocalCaptionModelDownload()}
+                      >
+                        Download local caption model
+                      </button>
+                    )}
 
                     {localCaptionModel.phase === "downloading" && (
                       <div className="mt-3">

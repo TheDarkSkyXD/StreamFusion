@@ -3,6 +3,7 @@
 **Read this file before modifying Twitch API code.**
 
 ## Purpose
+
 Owns Twitch-specific API knowledge for `twitch-client.ts`, `twitch-requestor.ts`, `twitch-types.ts`, `twitch-gql-client.ts`, `twitch-eventsub-client.ts`, and `endpoints/`. Keep official Helix calls separate from Twitch web GraphQL fallbacks.
 
 ## Official Sources
@@ -26,15 +27,15 @@ Owns Twitch-specific API knowledge for `twitch-client.ts`, `twitch-requestor.ts`
 
 ## StreamFusion Route Map
 
-| Need | Preferred local surface |
-| --- | --- |
-| Public browse/search/channel/video/clip reads without login | `twitch-gql-client.ts` via `twitch-client.ts` |
-| Authenticated user/follows/streams/channels/games/videos/clips | `endpoints/*.ts` through `TwitchRequestor.request()` |
-| Moderation, bans, VIPs, moderators, raids, commercials, chat settings | Dedicated `twitch-helix-*.ts` helpers |
-| Polls and predictions | `twitch-helix-polls.ts`, `twitch-helix-predictions.ts` |
-| EventSub over WebSocket | `twitch-eventsub-client.ts`, `twitch-eventsub-types.ts` |
-| Playback access tokens / HLS URLs | `twitch-gql-client.ts`, `twitch-stream-resolver.ts` |
-| Pin/unpin chat messages | Prefer official Helix `/chat/pins`; existing GQL mutations are legacy supplement code. |
+| Need                                                                  | Preferred local surface                                                                |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Public browse/search/channel/video/clip reads without login           | `twitch-gql-client.ts` via `twitch-client.ts`                                          |
+| Authenticated user/follows/streams/channels/games/videos/clips        | `endpoints/*.ts` through `TwitchRequestor.request()`                                   |
+| Moderation, bans, VIPs, moderators, raids, commercials, chat settings | Dedicated `twitch-helix-*.ts` helpers                                                  |
+| Polls and predictions                                                 | `twitch-helix-polls.ts`, `twitch-helix-predictions.ts`                                 |
+| EventSub over WebSocket                                               | `twitch-eventsub-client.ts`, `twitch-eventsub-types.ts`                                |
+| Playback access tokens / HLS URLs                                     | `twitch-gql-client.ts`, `twitch-stream-resolver.ts`                                    |
+| Pin/unpin chat messages                                               | Prefer official Helix `/chat/pins`; existing GQL mutations are legacy supplement code. |
 
 ## Official Helix Endpoint Inventory
 
@@ -75,12 +76,12 @@ Last checked from `https://dev.twitch.tv/docs/api/reference/` on 2026-06-09. Thi
 
 These are hosted on `https://id.twitch.tv/oauth2`, not the Helix API host.
 
-| Method | Path | Use |
-| --- | --- | --- |
-| `GET` | `/authorize` | User authorization code flow. |
-| `POST` | `/token` | Exchange code, refresh token, or client credentials. |
-| `GET` | `/validate` | Validate access token and inspect scopes. |
-| `POST` | `/revoke` | Revoke access token. |
+| Method | Path         | Use                                                  |
+| ------ | ------------ | ---------------------------------------------------- |
+| `GET`  | `/authorize` | User authorization code flow.                        |
+| `POST` | `/token`     | Exchange code, refresh token, or client credentials. |
+| `GET`  | `/validate`  | Validate access token and inspect scopes.            |
+| `POST` | `/revoke`    | Revoke access token.                                 |
 
 ## GQL And Non-Helix Supplements
 

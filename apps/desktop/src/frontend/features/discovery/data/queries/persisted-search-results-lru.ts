@@ -156,9 +156,7 @@ function collection<T>(
   return value.map(project);
 }
 
-export function sanitizePersistedSearchResult(
-  value: unknown
-): SearchResultCollection | undefined {
+export function sanitizePersistedSearchResult(value: unknown): SearchResultCollection | undefined {
   if (!value || typeof value !== "object") return undefined;
   const data = value as Partial<Record<keyof SearchResultCollection, unknown>>;
   const channels = collection(data.channels, isValidUnifiedChannel, publicChannel);

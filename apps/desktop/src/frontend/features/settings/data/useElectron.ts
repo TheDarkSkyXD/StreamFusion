@@ -127,7 +127,11 @@ function useNotification() {
 /**
  * Storage hook for persisting data via main process
  */
-function useElectronStore<T>(key: string, defaultValue: T, isValue: (value: unknown) => value is T) {
+function useElectronStore<T>(
+  key: string,
+  defaultValue: T,
+  isValue: (value: unknown) => value is T
+) {
   const [value, setValue] = useState<T>(defaultValue);
   // Initialize isLoading based on electronAPI availability to avoid sync setState in effect
   const [isLoading, setIsLoading] = useState(() => !!window.electronAPI);

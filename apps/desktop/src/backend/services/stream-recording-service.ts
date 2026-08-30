@@ -1106,11 +1106,11 @@ export function createStreamRecordingService({
         };
       }
       reservation = request;
-        let session: StreamRecordingSession | null = null;
-        try {
-          const playback = await resolvePlayback(request);
-          const stableStreamId = playback.streamId?.trim() || request.streamId?.trim();
-          if (!stableStreamId) throw new Error("Stable Stream identity is unavailable");
+      let session: StreamRecordingSession | null = null;
+      try {
+        const playback = await resolvePlayback(request);
+        const stableStreamId = playback.streamId?.trim() || request.streamId?.trim();
+        if (!stableStreamId) throw new Error("Stable Stream identity is unavailable");
         if (playback.format !== "hls") throw new Error("Only HLS stream recording is supported");
         const variants = await qualityCatalog(playback);
         const selectedQuality =
@@ -1133,9 +1133,9 @@ export function createStreamRecordingService({
         const destinationPath = getAvailablePath(normalizeMp4DestinationPath(chosenPath));
         const firstSectionPath = createSectionPath(destinationPath, 1, id);
         session = {
-            id,
-            ...request,
-            streamId: stableStreamId,
+          id,
+          ...request,
+          streamId: stableStreamId,
           status: "preparing",
           destinationPath,
           qualityLabel: selectedQuality?.quality ?? null,
@@ -1287,12 +1287,7 @@ export function createStreamRecordingService({
         return { success: false, error: "Recording cannot be discarded in its current state" };
       }
       const ownedPaths = session.sections.flatMap((section, index) =>
-        isOwnedRecordingSection(
-          session.destinationPath,
-          session.id,
-          index + 1,
-          section
-        )
+        isOwnedRecordingSection(session.destinationPath, session.id, index + 1, section)
           ? [section.path]
           : []
       );

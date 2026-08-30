@@ -2,11 +2,7 @@ import { Link, useSearch } from "@tanstack/react-router";
 import React from "react";
 import { LuClapperboard, LuPlay } from "react-icons/lu";
 
-import type {
-  UnifiedChannel,
-  UnifiedClip,
-  UnifiedVideo,
-} from "@shared/platform-types";
+import type { UnifiedChannel, UnifiedClip, UnifiedVideo } from "@shared/platform-types";
 import { CategoryGrid } from "@/features/discovery/components/discovery/category-grid";
 import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
 import type { VideoOrClip } from "@/features/playback/components/related-content/types";
@@ -24,7 +20,10 @@ import {
   useSearchVideos,
 } from "@/features/discovery/data/queries/useSearch";
 import { cn, formatDuration } from "@/lib/utils";
-import { isExactChannelSearchMatch, rankSearchChannels } from "@/features/discovery/utils/search/channel-search-contract";
+import {
+  isExactChannelSearchMatch,
+  rankSearchChannels,
+} from "@/features/discovery/utils/search/channel-search-contract";
 
 /* CATEGORIES SECTION */
 type SearchTab = "all" | "channels" | "streams" | "videos" | "clips" | "categories";
@@ -423,7 +422,9 @@ export function SearchPage() {
       ? otherMatches.slice(0, Math.max(0, SEARCH_ALL_CHANNEL_LIMIT - visibleTopMatches.length))
       : otherMatches;
   const visibleCategories =
-    activeTab === "all" ? filteredCategories.slice(0, SEARCH_ALL_CATEGORY_LIMIT) : filteredCategories;
+    activeTab === "all"
+      ? filteredCategories.slice(0, SEARCH_ALL_CATEGORY_LIMIT)
+      : filteredCategories;
   const visibleStreams =
     activeTab === "all" ? filteredStreams.slice(0, SEARCH_ALL_STREAM_LIMIT) : filteredStreams;
   const visibleVideos =
@@ -480,8 +481,7 @@ export function SearchPage() {
               : categoriesQuery.isLoading;
   const showCategories =
     (activeTab === "all" || activeTab === "categories") && visibleCategories.length > 0;
-  const showStreams =
-    (activeTab === "all" || activeTab === "streams") && visibleStreams.length > 0;
+  const showStreams = (activeTab === "all" || activeTab === "streams") && visibleStreams.length > 0;
   const showVideos = (activeTab === "all" || activeTab === "videos") && visibleVideos.length > 0;
   const showClips = (activeTab === "all" || activeTab === "clips") && visibleClips.length > 0;
 

@@ -1,4 +1,7 @@
-import type { ChatReplayMessage, VideoPlaybackSnapshot } from "../../../../shared/chat-replay-types";
+import type {
+  ChatReplayMessage,
+  VideoPlaybackSnapshot,
+} from "../../../../shared/chat-replay-types";
 
 const VISIBLE_REPLAY_LOOKBACK_SECONDS = 30;
 

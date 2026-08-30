@@ -10,7 +10,11 @@ import type {
 import { useAuthStore } from "../../../../store/auth-store";
 import { buildChannelKey, useChatStore } from "../../../../store/chat-store";
 import { useEmoteStore } from "../../../../store/emote-store";
-import { DEFAULT_ROOM_STATE, roomStateKey, useRoomStateStore } from "../../../../store/room-state-store";
+import {
+  DEFAULT_ROOM_STATE,
+  roomStateKey,
+  useRoomStateStore,
+} from "../../../../store/room-state-store";
 
 export const TWITCH_CHANNEL = "novaarcade";
 export const KICK_CHANNEL = "pixelnomad";

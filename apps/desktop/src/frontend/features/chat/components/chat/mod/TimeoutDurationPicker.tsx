@@ -84,7 +84,14 @@ export function TimeoutDurationPicker({
     setCustomError(null);
     onChange(nextDefault);
     onValidationChange?.(true);
-  }, [onChange, onValidationChange, policy.durationUnit, policy.maxDuration, policy.minDuration, preferred]);
+  }, [
+    onChange,
+    onValidationChange,
+    policy.durationUnit,
+    policy.maxDuration,
+    policy.minDuration,
+    preferred,
+  ]);
 
   const selectPreset = (value: number) => {
     setSelected(value);

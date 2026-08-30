@@ -56,30 +56,30 @@ Every `on` registration returns a cleanup function (`() => ipcRenderer.removeLis
 
 ## Namespace Map
 
-| Namespace | Covers |
-|-----------|--------|
-| *(top-level)* | `getVersion`, `getVersionInfo`, `getName`, window controls, `openExternal`, `showNotification`, `onBeforeQuit` |
-| `store` | Generic key-value store (deprecated — prefer typed namespaces) |
-| `auth` | OAuth flows, device-code flow, token management, user data, push events |
-| `follows` | Local follow CRUD |
-| `preferences` | User preferences get/update/reset |
-| `proxy` | Outbound proxy apply + credentials (write-only) |
-| `streams` | Top/followed/by-category/by-channel/playback-url |
-| `categories` | Top/by-id/search/metadata |
-| `search` | Channel and unified search |
-| `channels` | By-id/by-username/followed |
-| `videos` | VOD listing, playback URLs, metadata, by-livestream-id |
-| `clips` | Clip listing and playback URLs |
-| `chat` | Kick and Twitch chat history snapshots |
-| `kickChat` | Kick send-window IPC (ensure-ready / send / dispose) |
-| `emotes` | 7TV / BTTV / FFZ REST bridges and Kick user subscriptions |
-| `adblock` | Status, toggle, stats, cosmetic injection, VAFT patterns |
-| `updater` | Check/download/install, settings, push progress events |
-| `env` | Runtime-environment snapshot (`isDev`, platform, app/electron/node versions) |
-| `bugReports` | Bug-report capture (write / open-folder / get-dir / list) |
-| `logs` | Renderer→main log write + log-folder open / current-path / noise-path / network-path / tail |
-| `modLog` | Mod-log insert/query/sweep |
-| `retention` | Retention-scope get/set |
+| Namespace     | Covers                                                                                                         |
+| ------------- | -------------------------------------------------------------------------------------------------------------- |
+| _(top-level)_ | `getVersion`, `getVersionInfo`, `getName`, window controls, `openExternal`, `showNotification`, `onBeforeQuit` |
+| `store`       | Generic key-value store (deprecated — prefer typed namespaces)                                                 |
+| `auth`        | OAuth flows, device-code flow, token management, user data, push events                                        |
+| `follows`     | Local follow CRUD                                                                                              |
+| `preferences` | User preferences get/update/reset                                                                              |
+| `proxy`       | Outbound proxy apply + credentials (write-only)                                                                |
+| `streams`     | Top/followed/by-category/by-channel/playback-url                                                               |
+| `categories`  | Top/by-id/search/metadata                                                                                      |
+| `search`      | Channel and unified search                                                                                     |
+| `channels`    | By-id/by-username/followed                                                                                     |
+| `videos`      | VOD listing, playback URLs, metadata, by-livestream-id                                                         |
+| `clips`       | Clip listing and playback URLs                                                                                 |
+| `chat`        | Kick and Twitch chat history snapshots                                                                         |
+| `kickChat`    | Kick send-window IPC (ensure-ready / send / dispose)                                                           |
+| `emotes`      | 7TV / BTTV / FFZ REST bridges and Kick user subscriptions                                                      |
+| `adblock`     | Status, toggle, stats, cosmetic injection, VAFT patterns                                                       |
+| `updater`     | Check/download/install, settings, push progress events                                                         |
+| `env`         | Runtime-environment snapshot (`isDev`, platform, app/electron/node versions)                                   |
+| `bugReports`  | Bug-report capture (write / open-folder / get-dir / list)                                                      |
+| `logs`        | Renderer→main log write + log-folder open / current-path / noise-path / network-path / tail                    |
+| `modLog`      | Mod-log insert/query/sweep                                                                                     |
+| `retention`   | Retention-scope get/set                                                                                        |
 
 ## Adding a New IPC Bridge Method
 
@@ -117,11 +117,11 @@ Every `on` registration returns a cleanup function (`() => ipcRenderer.removeLis
 
 ## Related Files
 
-| File | Role |
-|------|------|
-| `apps/desktop/src/shared/ipc-channels.ts` | All `IPC_CHANNELS` constants + shared payload types (`AuthStatus`, `TokenStatusResult`, `ProxyApplyConfig`, `VersionInfo`, `CheckFrequency`, …) |
-| `apps/desktop/src/frontend/electron.d.ts` | Global `window.electronAPI: ElectronAPI` declaration consumed by the renderer |
-| `apps/desktop/src/shared/auth-types.ts` | Domain types used in bridge signatures (`AuthToken`, `KickUser`, `TwitchUser`, `Platform`, `UserPreferences`, `LocalFollow`) |
-| `apps/desktop/src/shared/mod-log-types.ts` | `ModLogEntry`, `ModLogQueryFilters`, `RetentionScope` |
-| `apps/desktop/src/backend/ipc/handlers/` | One handler file per domain area — the main-process side of every channel exposed here |
-| `apps/desktop/src/backend/ipc/sender-origin.ts` | Origin validation helper used by handlers to reject IPC from unexpected senders |
+| File                                            | Role                                                                                                                                            |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/desktop/src/shared/ipc-channels.ts`       | All `IPC_CHANNELS` constants + shared payload types (`AuthStatus`, `TokenStatusResult`, `ProxyApplyConfig`, `VersionInfo`, `CheckFrequency`, …) |
+| `apps/desktop/src/frontend/electron.d.ts`       | Global `window.electronAPI: ElectronAPI` declaration consumed by the renderer                                                                   |
+| `apps/desktop/src/shared/auth-types.ts`         | Domain types used in bridge signatures (`AuthToken`, `KickUser`, `TwitchUser`, `Platform`, `UserPreferences`, `LocalFollow`)                    |
+| `apps/desktop/src/shared/mod-log-types.ts`      | `ModLogEntry`, `ModLogQueryFilters`, `RetentionScope`                                                                                           |
+| `apps/desktop/src/backend/ipc/handlers/`        | One handler file per domain area — the main-process side of every channel exposed here                                                          |
+| `apps/desktop/src/backend/ipc/sender-origin.ts` | Origin validation helper used by handlers to reject IPC from unexpected senders                                                                 |

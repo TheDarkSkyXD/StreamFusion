@@ -1,6 +1,7 @@
 # Chat Backend Services
 
 ## Purpose
+
 Owns everything between the wire and the renderer for chat: WebSocket/IRC connection lifecycle,
 message parsing, badge resolution, room-state tracking, prediction normalization, third-party
 emote substitution, and pinned-message delivery for both Twitch and Kick. Does NOT own: UI
@@ -9,21 +10,21 @@ rendering, chat store, IPC handler registration, auth token acquisition, emote-s
 
 ## Entry Points / File Inventory
 
-| File | Role |
-|---|---|
-| `twitch-chat.ts` | `TwitchChatService` — tmi.js IRC, send, rate-limit, reconnect |
-| `kick-chat.ts` | `KickChatService` — Pusher WebSocket, send via IPC, reconnect |
-| `twitch-parser.ts` | tmi.js tags + message → `ChatMessage` |
-| `kick-parser.ts` | Kick Pusher payloads → `ChatMessage` / `UserNotice` / `ClearChat` |
-| `twitch-irc-parser.ts` | Raw IRCv3 wire-line parser for recent-messages history |
-| `badge-resolver.ts` | Twitch global/channel badge fetch + LRU cache (20 channels, 5 000 entries) |
-| `twitch-roomstate.ts` | Pure function: raw Twitch event → `RoomStatePatchEvent` |
-| `kick-roomstate.ts` | Pure function: raw Kick event → `RoomStatePatchEvent` |
-| `kick-predictions-service.ts` | Pusher predictions subscription + REST seed |
-| `kick-prediction-normalizer.ts` | `KickPredictionPayload` → `UnifiedPrediction` |
-| `twitch-hermes-client.ts` | WebSocket to `wss://hermes.twitch.tv/v1` for Twitch predictions |
-| `twitch-pin-poller.ts` | GQL polling every 10 s for pinned messages |
-| `third-party-emote-enrich.ts` | Walks `ContentFragment[]`, substitutes 7TV/BTTV/FFZ emotes |
+| File                            | Role                                                                       |
+| ------------------------------- | -------------------------------------------------------------------------- |
+| `twitch-chat.ts`                | `TwitchChatService` — tmi.js IRC, send, rate-limit, reconnect              |
+| `kick-chat.ts`                  | `KickChatService` — Pusher WebSocket, send via IPC, reconnect              |
+| `twitch-parser.ts`              | tmi.js tags + message → `ChatMessage`                                      |
+| `kick-parser.ts`                | Kick Pusher payloads → `ChatMessage` / `UserNotice` / `ClearChat`          |
+| `twitch-irc-parser.ts`          | Raw IRCv3 wire-line parser for recent-messages history                     |
+| `badge-resolver.ts`             | Twitch global/channel badge fetch + LRU cache (20 channels, 5 000 entries) |
+| `twitch-roomstate.ts`           | Pure function: raw Twitch event → `RoomStatePatchEvent`                    |
+| `kick-roomstate.ts`             | Pure function: raw Kick event → `RoomStatePatchEvent`                      |
+| `kick-predictions-service.ts`   | Pusher predictions subscription + REST seed                                |
+| `kick-prediction-normalizer.ts` | `KickPredictionPayload` → `UnifiedPrediction`                              |
+| `twitch-hermes-client.ts`       | WebSocket to `wss://hermes.twitch.tv/v1` for Twitch predictions            |
+| `twitch-pin-poller.ts`          | GQL polling every 10 s for pinned messages                                 |
+| `third-party-emote-enrich.ts`   | Walks `ContentFragment[]`, substitutes 7TV/BTTV/FFZ emotes                 |
 
 ## Contracts & Invariants
 

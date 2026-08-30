@@ -36,8 +36,7 @@ export function ChatMessageReplyPreview({ reply }: { reply: ReplyInfo }) {
     typeof reply.parentDisplayName === "string" && reply.parentDisplayName
       ? reply.parentDisplayName
       : reply.parentUsername;
-  const body =
-    typeof reply.parentMessageBody === "string" ? reply.parentMessageBody.trim() : "";
+  const body = typeof reply.parentMessageBody === "string" ? reply.parentMessageBody.trim() : "";
 
   return (
     <div

@@ -1,7 +1,14 @@
 import type React from "react";
 import { memo } from "react";
-import type { DeletedMessageDisplayMode, ModerationHighlightStyle } from "../../../../../shared/auth-types";
-import type { ChatMessage, ChatPlatform, ChatUserPresentation } from "../../../../../shared/chat-types";
+import type {
+  DeletedMessageDisplayMode,
+  ModerationHighlightStyle,
+} from "../../../../../shared/auth-types";
+import type {
+  ChatMessage,
+  ChatPlatform,
+  ChatUserPresentation,
+} from "../../../../../shared/chat-types";
 import { ChatBadge } from "./ChatBadge";
 import { DeletedMessageHighlightCompact } from "./DeletedMessageHighlightCompact";
 import { DeletedMessageHighlightCozy } from "./DeletedMessageHighlightCozy";

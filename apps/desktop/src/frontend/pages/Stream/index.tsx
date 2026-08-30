@@ -20,7 +20,10 @@ import { StreamInfo } from "@/features/playback/components/stream-info";
 import { useChatDisplay } from "@/features/settings/components/settings/ChatSettingsSection";
 import { KickLoadingSpinner, TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { useChannelByUsername } from "@/features/discovery/data/queries/useChannels";
-import { removeFollowedStreamFromCache, useStreamByChannel } from "@/features/discovery/data/queries/useStreams";
+import {
+  removeFollowedStreamFromCache,
+  useStreamByChannel,
+} from "@/features/discovery/data/queries/useStreams";
 import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 import { useStreamPlayback } from "@/features/playback/data/useStreamPlayback";
 import { logger } from "@/renderer/logging/logger";
@@ -33,8 +36,7 @@ import { usePipStore } from "@/store/pip-store";
 let chatPanelModulePromise: Promise<typeof import("@/features/chat/components/chat")> | undefined;
 const loadChatPanelModule = () =>
   (chatPanelModulePromise ??= import("@/features/chat/components/chat"));
-const loadChatPanel = () =>
-  loadChatPanelModule().then((module) => ({ default: module.ChatPanel }));
+const loadChatPanel = () => loadChatPanelModule().then((module) => ({ default: module.ChatPanel }));
 
 export const preloadChatPanel = (platform?: ChatPlatform): Promise<unknown> =>
   loadChatPanelModule().then((module) =>
@@ -43,10 +45,14 @@ export const preloadChatPanel = (platform?: ChatPlatform): Promise<unknown> =>
 
 const ChatPanel = lazy(loadChatPanel);
 const KickLivePlayer = lazy(() =>
-  import("@/features/playback/components/player/kick").then((module) => ({ default: module.KickLivePlayer }))
+  import("@/features/playback/components/player/kick").then((module) => ({
+    default: module.KickLivePlayer,
+  }))
 );
 const TwitchLivePlayer = lazy(() =>
-  import("@/features/playback/components/player/twitch").then((module) => ({ default: module.TwitchLivePlayer }))
+  import("@/features/playback/components/player/twitch").then((module) => ({
+    default: module.TwitchLivePlayer,
+  }))
 );
 const RelatedContent = lazy(() =>
   import("@/features/playback/components/related-content").then((module) => ({
@@ -211,9 +217,9 @@ export function StreamPage() {
     routePlatform === "kick"
       ? Boolean(
           channelDataMatchesRoute &&
-            channelData?.id &&
-            channelData?.kickChannelId &&
-            channelData?.chatroomId
+          channelData?.id &&
+          channelData?.kickChannelId &&
+          channelData?.chatroomId
         )
       : Boolean(channelDataMatchesRoute && channelData?.id);
 
@@ -937,9 +943,7 @@ export function StreamPage() {
                 initialPlatform={routePlatform as "twitch" | "kick"}
                 initialChannel={channelName}
                 channelId={channelData?.id}
-                kickChannelId={
-                  routePlatform === "kick" ? channelData?.kickChannelId : undefined
-                }
+                kickChannelId={routePlatform === "kick" ? channelData?.kickChannelId : undefined}
                 chatroomId={routePlatform === "kick" ? channelData?.chatroomId : undefined}
                 kickUserId={routePlatform === "kick" ? channelData?.kickUserId : undefined}
                 subscriberBadges={memoizedSubscriberBadges}

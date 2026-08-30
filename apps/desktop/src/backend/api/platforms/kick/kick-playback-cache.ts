@@ -32,11 +32,23 @@ interface KickPlaybackChannelPayload {
 
 function isKickPlaybackChannelPayload(value: unknown): value is KickPlaybackChannelPayload {
   if (typeof value !== "object" || value === null) return false;
-  if ("playback_url" in value && value.playback_url !== undefined && typeof value.playback_url !== "string") return false;
-  if (!("livestream" in value) || value.livestream === null || value.livestream === undefined) return true;
+  if (
+    "playback_url" in value &&
+    value.playback_url !== undefined &&
+    typeof value.playback_url !== "string"
+  )
+    return false;
+  if (!("livestream" in value) || value.livestream === null || value.livestream === undefined)
+    return true;
   if (typeof value.livestream !== "object") return false;
-  return (!('source' in value.livestream) || value.livestream.source === undefined || typeof value.livestream.source === "string") &&
-    (!('is_live' in value.livestream) || value.livestream.is_live === undefined || typeof value.livestream.is_live === "boolean");
+  return (
+    (!("source" in value.livestream) ||
+      value.livestream.source === undefined ||
+      typeof value.livestream.source === "string") &&
+    (!("is_live" in value.livestream) ||
+      value.livestream.is_live === undefined ||
+      typeof value.livestream.is_live === "boolean")
+  );
 }
 
 export function rememberKickLivePlaybackFromChannelPayload(slug: string, data: unknown): boolean {

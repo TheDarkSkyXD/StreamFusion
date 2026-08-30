@@ -9,12 +9,7 @@ import {
 } from "../on-demand-seek-recovery-controller";
 
 export type OnDemandMediaKind = "hls-vod" | "native-clip";
-export type OnDemandSeekCancelReason =
-  | "pause"
-  | "hidden"
-  | "offline"
-  | "ended"
-  | "ineligible";
+export type OnDemandSeekCancelReason = "pause" | "hidden" | "offline" | "ended" | "ineligible";
 
 export interface OnDemandSeekHlsLike {
   startLoad(startPosition?: number): void;
@@ -52,9 +47,7 @@ interface ActiveFrameRequest {
   sourceKey: string;
 }
 
-function getIneligibilityReason(
-  video: HTMLVideoElement | null
-): OnDemandSeekCancelReason | null {
+function getIneligibilityReason(video: HTMLVideoElement | null): OnDemandSeekCancelReason | null {
   if (document.visibilityState === "hidden") return "hidden";
   if (navigator.onLine === false) return "offline";
   if (video === null) return "ineligible";
@@ -173,38 +166,38 @@ export function useOnDemandSeekRecovery(
       })
   );
 
-  const cancelActiveSeek = useCallback((reason?: OnDemandSeekCancelReason): void => {
-    const timing = activeSeekTimingRef.current;
-    const cancellation =
-      reason !== undefined &&
-      timing !== null &&
-      timing.generation === activeGenerationRef.current &&
-      activeSourceKeyRef.current === optionsRef.current.sourceKey
-        ? { reason, timing }
-        : null;
-    cancelActiveFrameRequest();
-    activeGenerationRef.current = null;
-    activeSourceKeyRef.current = null;
-    fallbackSeekedGenerationRef.current = null;
-    activeSeekTimingRef.current = null;
-    controller.cancel();
+  const cancelActiveSeek = useCallback(
+    (reason?: OnDemandSeekCancelReason): void => {
+      const timing = activeSeekTimingRef.current;
+      const cancellation =
+        reason !== undefined &&
+        timing !== null &&
+        timing.generation === activeGenerationRef.current &&
+        activeSourceKeyRef.current === optionsRef.current.sourceKey
+          ? { reason, timing }
+          : null;
+      cancelActiveFrameRequest();
+      activeGenerationRef.current = null;
+      activeSourceKeyRef.current = null;
+      fallbackSeekedGenerationRef.current = null;
+      activeSeekTimingRef.current = null;
+      controller.cancel();
 
-    if (cancellation === null) return;
-    logger.debug(LOG_TAG, "seek-cancelled", {
-      generation: cancellation.timing.generation,
-      targetSeconds: cancellation.timing.targetSeconds,
-      mediaKind: cancellation.timing.mediaKind,
-      reason: cancellation.reason,
-      elapsedMs: Math.round(performance.now() - cancellation.timing.committedAt),
-    });
-    optionsRef.current.onCancel?.(cancellation.reason);
-  }, [cancelActiveFrameRequest, controller]);
+      if (cancellation === null) return;
+      logger.debug(LOG_TAG, "seek-cancelled", {
+        generation: cancellation.timing.generation,
+        targetSeconds: cancellation.timing.targetSeconds,
+        mediaKind: cancellation.timing.mediaKind,
+        reason: cancellation.reason,
+        elapsedMs: Math.round(performance.now() - cancellation.timing.committedAt),
+      });
+      optionsRef.current.onCancel?.(cancellation.reason);
+    },
+    [cancelActiveFrameRequest, controller]
+  );
 
   useLayoutEffect(() => {
-    if (
-      activeSourceKeyRef.current !== null &&
-      activeSourceKeyRef.current !== options.sourceKey
-    ) {
+    if (activeSourceKeyRef.current !== null && activeSourceKeyRef.current !== options.sourceKey) {
       cancelActiveSeek();
     }
   }, [cancelActiveSeek, options.sourceKey]);
@@ -240,10 +233,7 @@ export function useOnDemandSeekRecovery(
       logTiming("seek-seeking");
     };
     const noteSeeked = (): void => {
-      if (
-        activeSourceKeyRef.current !== sourceKey ||
-        optionsRef.current.sourceKey !== sourceKey
-      ) {
+      if (activeSourceKeyRef.current !== sourceKey || optionsRef.current.sourceKey !== sourceKey) {
         return;
       }
       fallbackSeekedGenerationRef.current = activeGenerationRef.current;
@@ -313,33 +303,12 @@ export function useOnDemandSeekRecovery(
     };
   }, [cancelActiveSeek, controller, options.sourceKey, options.videoRef]);
 
-  const observePresentedFrames = useCallback(function observe(
-    generation: number,
-    sourceKey: string
-  ): void {
-    const video = optionsRef.current.videoRef.current;
-    if (
-      !video ||
-      typeof video.requestVideoFrameCallback !== "function" ||
-      activeGenerationRef.current !== generation ||
-      activeSourceKeyRef.current !== sourceKey ||
-      optionsRef.current.sourceKey !== sourceKey
-    ) {
-      return;
-    }
-
-    const id = video.requestVideoFrameCallback((_now, metadata) => {
-      const request = activeFrameRequestRef.current;
+  const observePresentedFrames = useCallback(
+    function observe(generation: number, sourceKey: string): void {
+      const video = optionsRef.current.videoRef.current;
       if (
-        request?.video !== video ||
-        request.id !== id ||
-        request.generation !== generation ||
-        request.sourceKey !== sourceKey
-      ) {
-        return;
-      }
-      activeFrameRequestRef.current = null;
-      if (
+        !video ||
+        typeof video.requestVideoFrameCallback !== "function" ||
         activeGenerationRef.current !== generation ||
         activeSourceKeyRef.current !== sourceKey ||
         optionsRef.current.sourceKey !== sourceKey
@@ -347,16 +316,37 @@ export function useOnDemandSeekRecovery(
         return;
       }
 
-      controller.notePresentedFrame(generation, metadata.mediaTime);
-      if (
-        activeGenerationRef.current === generation &&
-        activeSourceKeyRef.current === sourceKey
-      ) {
-        observe(generation, sourceKey);
-      }
-    });
-    activeFrameRequestRef.current = { video, id, generation, sourceKey };
-  }, [controller]);
+      const id = video.requestVideoFrameCallback((_now, metadata) => {
+        const request = activeFrameRequestRef.current;
+        if (
+          request?.video !== video ||
+          request.id !== id ||
+          request.generation !== generation ||
+          request.sourceKey !== sourceKey
+        ) {
+          return;
+        }
+        activeFrameRequestRef.current = null;
+        if (
+          activeGenerationRef.current !== generation ||
+          activeSourceKeyRef.current !== sourceKey ||
+          optionsRef.current.sourceKey !== sourceKey
+        ) {
+          return;
+        }
+
+        controller.notePresentedFrame(generation, metadata.mediaTime);
+        if (
+          activeGenerationRef.current === generation &&
+          activeSourceKeyRef.current === sourceKey
+        ) {
+          observe(generation, sourceKey);
+        }
+      });
+      activeFrameRequestRef.current = { video, id, generation, sourceKey };
+    },
+    [controller]
+  );
 
   const commitSeek = useCallback(
     (targetSeconds: number): number => {

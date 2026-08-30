@@ -142,11 +142,7 @@ function hasValidGqlEnvelope(value: unknown): value is ValidGqlEnvelope {
     return false;
   }
   if (!("errors" in value) || value.errors === undefined) return hasData;
-  return (
-    Array.isArray(value.errors) &&
-    value.errors.length > 0 &&
-    value.errors.every(isGqlError)
-  );
+  return Array.isArray(value.errors) && value.errors.length > 0 && value.errors.every(isGqlError);
 }
 
 /**
@@ -1053,9 +1049,7 @@ export async function gqlGetCategoryViewerCountsByIds(
     ${fields}
   }`;
 
-  const [response] = await gqlRequest([
-    getRawQuery<Record<string, unknown>>({ query, variables }),
-  ]);
+  const [response] = await gqlRequest([getRawQuery<Record<string, unknown>>({ query, variables })]);
   if (response.errors) {
     logger.warn("Twitch:GQL", "GetCategoryViewerCounts query errors", {
       messages: response.errors.map((error) => error.message).join(", "),

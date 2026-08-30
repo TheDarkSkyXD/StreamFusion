@@ -435,10 +435,14 @@ class TwitchManifestProxyService {
     } else if (detection.verdict === "clean" && streamInfo.isInAdBreak) {
       const servedBackup = streamInfo.servedBackups.get(detectionScope);
       if (servedBackup && !findTwitchPlaylistAlignment(servedBackup.playlist, text)) {
-        logger.debug("Service:TwitchManifest", "Clean original requires refreshed playback handoff", {
-          outcome: "refresh-unaligned",
-          ...detection.diagnostic,
-        });
+        logger.debug(
+          "Service:TwitchManifest",
+          "Clean original requires refreshed playback handoff",
+          {
+            outcome: "refresh-unaligned",
+            ...detection.diagnostic,
+          }
+        );
       }
       streamInfo.servedBackups.delete(detectionScope);
       streamInfo.candidateStates.delete(detectionScope);

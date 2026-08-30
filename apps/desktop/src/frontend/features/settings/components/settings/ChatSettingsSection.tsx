@@ -121,10 +121,7 @@ function publishOptimisticChatDisplay<K extends keyof ChatDisplayPreferences>(
   const preferences = useAuthStore.getState().preferences;
   const revision = ++nextChatDisplayRevision;
   pendingChatDisplayChanges[field] = { revision, value };
-  if (
-    !preferences ||
-    Object.prototype.hasOwnProperty.call(optimisticChatDisplaySnapshot, field)
-  ) {
+  if (!preferences || Object.prototype.hasOwnProperty.call(optimisticChatDisplaySnapshot, field)) {
     optimisticChatDisplaySnapshot = { ...optimisticChatDisplaySnapshot, [field]: value };
     emitOptimisticChatDisplay();
   }

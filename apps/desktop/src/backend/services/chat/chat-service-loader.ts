@@ -1,23 +1,13 @@
-import type {
-  ChatConnectionStatus,
-  ChatPlatform,
-  RoomStatePatchEvent,
-} from "@shared/chat-types";
+import type { ChatConnectionStatus, ChatPlatform, RoomStatePatchEvent } from "@shared/chat-types";
 
 type KickChatModule = typeof import("./kick-chat");
 type TwitchChatModule = typeof import("./twitch-chat");
 
 export interface ChatRoomStateEventSource {
   on(event: "roomState", listener: (event: RoomStatePatchEvent) => void): void;
-  on(
-    event: "connectionStateChange",
-    listener: (status: ChatConnectionStatus) => void
-  ): void;
+  on(event: "connectionStateChange", listener: (status: ChatConnectionStatus) => void): void;
   off(event: "roomState", listener: (event: RoomStatePatchEvent) => void): void;
-  off(
-    event: "connectionStateChange",
-    listener: (status: ChatConnectionStatus) => void
-  ): void;
+  off(event: "connectionStateChange", listener: (status: ChatConnectionStatus) => void): void;
   getConnectionStatus?(): ChatConnectionStatus;
 }
 
@@ -64,8 +54,7 @@ export async function loadChatRoomStateEventSource(
 }
 
 export function preloadChatService(platform: ChatPlatform): Promise<void> {
-  const modulePromise =
-    platform === "kick" ? loadKickChatModule() : loadTwitchChatModule();
+  const modulePromise = platform === "kick" ? loadKickChatModule() : loadTwitchChatModule();
   return modulePromise.then(() => undefined);
 }
 

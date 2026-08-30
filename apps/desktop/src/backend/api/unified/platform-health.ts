@@ -15,9 +15,7 @@ export type PlatformHealth = "healthy" | "degraded" | "down";
 
 export type PlatformFailureClass = "timeout" | "server-5xx" | "net-error";
 export type PlatformCrashReason =
-  | "chromium-process-gone"
-  | "gpu-process-gone"
-  | "network-service-gone";
+  "chromium-process-gone" | "gpu-process-gone" | "network-service-gone";
 
 /** Failure-rate threshold to trip `healthy → degraded`. */
 export const DEGRADED_FAILURE_RATE = 0.6;

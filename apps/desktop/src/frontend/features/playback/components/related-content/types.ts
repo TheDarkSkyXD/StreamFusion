@@ -93,8 +93,7 @@ export function isVideoOrClip(value: unknown): value is VideoOrClip {
       typeof legacyViewCount === "number") &&
     (avatar === undefined || avatar === null || typeof avatar === "string") &&
     (followerCount === undefined || typeof followerCount === "number") &&
-    (tags === undefined ||
-      (Array.isArray(tags) && tags.every((tag) => typeof tag === "string"))) &&
+    (tags === undefined || (Array.isArray(tags) && tags.every((tag) => typeof tag === "string"))) &&
     (platform === undefined || platform === "twitch" || platform === "kick")
   );
 }

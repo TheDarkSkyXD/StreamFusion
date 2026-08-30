@@ -12,7 +12,10 @@ import {
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { useManagedTimeout } from "../../../../hooks/useManagedTimeout";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../../../shared/auth-types";
-import type { ChatMessage as ChatMessageType, ChatPlatform } from "../../../../../shared/chat-types";
+import type {
+  ChatMessage as ChatMessageType,
+  ChatPlatform,
+} from "../../../../../shared/chat-types";
 import { useChatStore } from "../../../../store/chat-store";
 import { useRenderCount } from "../../../../components/dev/use-render-count";
 import { useChatDisplay } from "../../../settings/components/settings/ChatSettingsSection";
@@ -47,10 +50,7 @@ interface ChatScrollerListeners {
   onWheelScroll: EventListener;
 }
 
-function addChatScrollerListeners(
-  scroller: HTMLElement,
-  listeners: ChatScrollerListeners
-): void {
+function addChatScrollerListeners(scroller: HTMLElement, listeners: ChatScrollerListeners): void {
   scroller.addEventListener("wheel", listeners.onWheelScroll, { passive: true });
   scroller.addEventListener("pointerdown", listeners.onPointerDown, { passive: true });
   scroller.addEventListener("pointerup", listeners.clearPointerScrollIntent, { passive: true });
@@ -157,9 +157,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
     const messages = useChatStore((state) => state.messagesByChannel[channelKey] ?? EMPTY_MESSAGES);
     const isPaused = useChatStore((state) => state.pausedChannels.has(channelKey));
     const setPaused = useChatStore((state) => state.setPaused);
-    const trimChannelToMessageLimit = useChatStore(
-      (state) => state.trimChannelToMessageLimit
-    );
+    const trimChannelToMessageLimit = useChatStore((state) => state.trimChannelToMessageLimit);
     const { cd: chatDisplay } = useChatDisplay();
     const pauseMode = chatDisplay.pauseMode ?? DEFAULT_CHAT_DISPLAY_PREFERENCES.pauseMode;
     const pauseOnMouseover = pauseMode === "mouseover" || pauseMode === "mouseover-alt";
@@ -294,9 +292,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
       : !wasPausedRef.current
         ? previousMessageLengthRef.current
         : pausedBaselineLengthRef.current;
-    const pausedCount = isPaused
-      ? Math.max(0, messages.length - pausedBaselineLength)
-      : 0;
+    const pausedCount = isPaused ? Math.max(0, messages.length - pausedBaselineLength) : 0;
     const pausedMessageCountLabel =
       pausedCount >= 20
         ? "20+ new messages"
@@ -426,27 +422,30 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
       keyboardScrollIntentRef.current = false;
     }, []);
 
-    const onScrollerScroll = useCallback((event: Event) => {
-      const scroller = event.currentTarget;
-      if (!(scroller instanceof HTMLElement)) return;
+    const onScrollerScroll = useCallback(
+      (event: Event) => {
+        const scroller = event.currentTarget;
+        if (!(scroller instanceof HTMLElement)) return;
 
-      const previousScrollTop = previousScrollerScrollTopRef.current;
-      const currentScrollTop = scroller.scrollTop;
-      previousScrollerScrollTopRef.current = currentScrollTop;
+        const previousScrollTop = previousScrollerScrollTopRef.current;
+        const currentScrollTop = scroller.scrollTop;
+        previousScrollerScrollTopRef.current = currentScrollTop;
 
-      const bottomGap = scroller.scrollHeight - currentScrollTop - scroller.clientHeight;
-      const hasExplicitScrollIntent =
-        pointerScrollIntentRef.current || keyboardScrollIntentRef.current;
-      if (
-        hasExplicitScrollIntent &&
-        currentScrollTop < previousScrollTop &&
-        bottomGap >= CHAT_AT_BOTTOM_THRESHOLD_PX
-      ) {
-        returningToLiveRef.current = false;
-        userScrolledUpRef.current = true;
-        scheduleScrollPause();
-      }
-    }, [scheduleScrollPause]);
+        const bottomGap = scroller.scrollHeight - currentScrollTop - scroller.clientHeight;
+        const hasExplicitScrollIntent =
+          pointerScrollIntentRef.current || keyboardScrollIntentRef.current;
+        if (
+          hasExplicitScrollIntent &&
+          currentScrollTop < previousScrollTop &&
+          bottomGap >= CHAT_AT_BOTTOM_THRESHOLD_PX
+        ) {
+          returningToLiveRef.current = false;
+          userScrolledUpRef.current = true;
+          scheduleScrollPause();
+        }
+      },
+      [scheduleScrollPause]
+    );
 
     const scrollerCallbackRef = useCallback(
       (el: HTMLElement | Window | null) => {
@@ -508,9 +507,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
         !pointerScrollIntentRef.current &&
         !keyboardScrollIntentRef.current &&
         (returningToLiveRef.current ||
-          (!isPausedRef.current &&
-            !userScrolledUpRef.current &&
-            !pendingPauseRef.current))
+          (!isPausedRef.current && !userScrolledUpRef.current && !pendingPauseRef.current))
       );
     }, [hasActiveInputPause]);
 
@@ -543,11 +540,14 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
 
     // Height notifications are the sole passive bottom-follow authority. Letting
     // Virtuoso follow too makes it seek to its estimate before this exact commit.
-    const handleTotalListHeightChanged = useCallback((totalListHeight: number) => {
-      if (!shouldAutoFollowBottom()) return;
+    const handleTotalListHeightChanged = useCallback(
+      (totalListHeight: number) => {
+        if (!shouldAutoFollowBottom()) return;
 
-      scheduleBottomCommit(totalListHeight);
-    }, [scheduleBottomCommit, shouldAutoFollowBottom]);
+        scheduleBottomCommit(totalListHeight);
+      },
+      [scheduleBottomCommit, shouldAutoFollowBottom]
+    );
 
     const itemContent = useCallback(
       (_index: number, message: ChatMessageType) => (

@@ -195,9 +195,7 @@ async function getFollowerCount(
   } catch (error: unknown) {
     // Check for auth failures - return null to distinguish from 0 followers
     const status =
-      typeof error === "object" && error !== null && "status" in error
-        ? error.status
-        : undefined;
+      typeof error === "object" && error !== null && "status" in error ? error.status : undefined;
     const responseStatus =
       typeof error === "object" &&
       error !== null &&
@@ -207,12 +205,7 @@ async function getFollowerCount(
       "status" in error.response
         ? error.response.status
         : undefined;
-    if (
-      status === 401 ||
-      status === 403 ||
-      responseStatus === 401 ||
-      responseStatus === 403
-    ) {
+    if (status === 401 || status === 403 || responseStatus === 401 || responseStatus === 403) {
       logger.debug("Twitch:Endpoints:User", "getFollowerCount auth failure", {
         broadcasterId,
       });

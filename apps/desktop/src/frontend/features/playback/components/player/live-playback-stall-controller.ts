@@ -225,15 +225,9 @@ export class LivePlaybackStallController {
     const elapsedMs = now - this.incidentStartedAt;
     const deferPendingStartupRead =
       this.startupIncident && reason === "input-starved" && !this.networkError;
-    const softRecoveryMs = deferPendingStartupRead
-      ? STARTUP_SOFT_RECOVERY_MS
-      : SOFT_RECOVERY_MS;
-    const hardRecoveryMs = deferPendingStartupRead
-      ? STARTUP_HARD_RECOVERY_MS
-      : HARD_RECOVERY_MS;
-    const fatalRecoveryMs = deferPendingStartupRead
-      ? STARTUP_FATAL_RECOVERY_MS
-      : FATAL_RECOVERY_MS;
+    const softRecoveryMs = deferPendingStartupRead ? STARTUP_SOFT_RECOVERY_MS : SOFT_RECOVERY_MS;
+    const hardRecoveryMs = deferPendingStartupRead ? STARTUP_HARD_RECOVERY_MS : HARD_RECOVERY_MS;
+    const fatalRecoveryMs = deferPendingStartupRead ? STARTUP_FATAL_RECOVERY_MS : FATAL_RECOVERY_MS;
     if (elapsedMs >= fatalRecoveryMs) {
       this.transitionTo("exhausted", reason, elapsedMs);
       return { type: "fatal", stage: "exhausted", reason };

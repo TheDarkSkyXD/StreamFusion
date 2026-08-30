@@ -59,11 +59,13 @@ export function transformKickChannel(channel: KickApiChannel): UnifiedChannel {
     displayName: channel.slug,
     avatarUrl: "", // Not provided in official API
     bannerUrl:
-      (typeof channel.offline_banner_image === "object" ? channel.offline_banner_image.src : undefined) ||
-      (typeof channel.offline_banner_image === "object" ? channel.offline_banner_image.url : undefined) ||
-      (typeof channel.offline_banner_image === "string"
-        ? channel.offline_banner_image
-        : undefined),
+      (typeof channel.offline_banner_image === "object"
+        ? channel.offline_banner_image.src
+        : undefined) ||
+      (typeof channel.offline_banner_image === "object"
+        ? channel.offline_banner_image.url
+        : undefined) ||
+      (typeof channel.offline_banner_image === "string" ? channel.offline_banner_image : undefined),
     bio: channel.channel_description || undefined,
     isLive: channel.stream?.is_live || false,
     isVerified: false, // Not provided in official API

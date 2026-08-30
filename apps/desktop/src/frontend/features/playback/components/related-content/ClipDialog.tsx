@@ -82,14 +82,8 @@ export function ClipDialog({
   const [readyPlaybackKey, setReadyPlaybackKey] = useState<string | null>(null);
   const [failedPlaybackKey, setFailedPlaybackKey] = useState<string | null>(null);
   const clipPlatform = selectedClip?.platform ?? platform;
-  const channelSlug = (
-    selectedClip?.channelSlug ||
-    channelData?.username ||
-    channelName
-  ).trim();
-  const channelDestination = channelSlug
-    ? { platform: clipPlatform, channel: channelSlug }
-    : null;
+  const channelSlug = (selectedClip?.channelSlug || channelData?.username || channelName).trim();
+  const channelDestination = channelSlug ? { platform: clipPlatform, channel: channelSlug } : null;
   const channelDisplayName = channelData?.displayName || selectedClip?.channelName || channelName;
   const channelAvatar = channelData?.avatarUrl || selectedClip?.channelAvatar || "";
   const followerCount = channelData?.followerCount ?? selectedClip?.channelFollowerCount;
@@ -122,11 +116,11 @@ export function ClipDialog({
   const playbackFailed = playbackKey !== null && failedPlaybackKey === playbackKey;
   const isPlaybackReady = Boolean(
     selectedClip &&
-      clipPlaybackUrl &&
-      readyPlaybackKey === playbackKey &&
-      !clipLoading &&
-      !clipError &&
-      !playbackFailed
+    clipPlaybackUrl &&
+    readyPlaybackKey === playbackKey &&
+    !clipLoading &&
+    !clipError &&
+    !playbackFailed
   );
 
   useEffect(() => {

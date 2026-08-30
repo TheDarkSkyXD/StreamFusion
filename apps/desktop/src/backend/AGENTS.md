@@ -3,9 +3,11 @@
 **Read this file before modifying code in this directory.**
 
 ## Purpose
+
 Owns the Electron main process: IPC handler registration, OAuth flows, token management, window lifecycle, and service orchestration. Does NOT own: renderer components, React hooks, Zustand stores, or page routing.
 
 ## OVERVIEW
+
 Electron main process: IPC handlers, platform APIs, auth, persistence.
 
 ## STRUCTURE
@@ -35,16 +37,17 @@ backend/
 
 ## WHERE TO LOOK
 
-| Task | File | Notes |
-|------|------|-------|
-| New IPC operation | `ipc/handlers/*.ts` | Group by domain |
-| Token storage | `services/storage-service.ts` | Uses `safeStorage` encryption |
-| Local follows | `services/database-service.ts` | SQLite schema |
-| Window settings | `window-manager.ts` | frame:false, contextIsolation |
+| Task              | File                           | Notes                         |
+| ----------------- | ------------------------------ | ----------------------------- |
+| New IPC operation | `ipc/handlers/*.ts`            | Group by domain               |
+| Token storage     | `services/storage-service.ts`  | Uses `safeStorage` encryption |
+| Local follows     | `services/database-service.ts` | SQLite schema                 |
+| Window settings   | `window-manager.ts`            | frame:false, contextIsolation |
 
 ## CONVENTIONS
 
 ### Handler Registration
+
 ```typescript
 export function registerXxxHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle(IPC_CHANNELS.XXX, async (_event, payload) => {
@@ -54,9 +57,11 @@ export function registerXxxHandlers(mainWindow: BrowserWindow): void {
 ```
 
 ### Platform Branching
+
 Handlers use `if (platform === 'twitch') {} else {}` pattern. Consider refactoring to strategy pattern.
 
 ### Error Handling
+
 Return `{ success: false, error: { code, message } }` for failures.
 
 ## ANTI-PATTERNS

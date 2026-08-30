@@ -6,11 +6,20 @@ import type { UnifiedCategory, UnifiedChannel } from "@shared/platform-types";
 import { StreamVerifiedBadge } from "@/features/discovery/components/stream/stream-verified-badge";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useUnifiedCategoryLink } from "@/features/discovery/data/queries/useCategories";
-import { useSearchCategories, useSearchChannels } from "@/features/discovery/data/queries/useSearch";
+import {
+  useSearchCategories,
+  useSearchChannels,
+} from "@/features/discovery/data/queries/useSearch";
 import { useDebounce } from "@/hooks/useDebounce";
-import { type SearchHistoryScope, useSearchHistory } from "@/features/discovery/data/useSearchHistory";
+import {
+  type SearchHistoryScope,
+  useSearchHistory,
+} from "@/features/discovery/data/useSearchHistory";
 import { cn, normalizeCategoryName, pickWinner } from "@/lib/utils";
-import { isExactChannelSearchMatch, rankSearchChannels } from "@/features/discovery/utils/search/channel-search-contract";
+import {
+  isExactChannelSearchMatch,
+  rankSearchChannels,
+} from "@/features/discovery/utils/search/channel-search-contract";
 import type { Platform } from "@shared/auth-types";
 
 interface UnifiedSearchInputProps {

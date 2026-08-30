@@ -8,13 +8,7 @@ export type { CheckFrequency };
  * Update status types
  */
 export type UpdateStatus =
-  | "idle"
-  | "checking"
-  | "available"
-  | "not-available"
-  | "downloading"
-  | "downloaded"
-  | "error";
+  "idle" | "checking" | "available" | "not-available" | "downloading" | "downloaded" | "error";
 
 // Valid status values for runtime validation
 const UPDATE_STATUSES: UpdateStatus[] = [

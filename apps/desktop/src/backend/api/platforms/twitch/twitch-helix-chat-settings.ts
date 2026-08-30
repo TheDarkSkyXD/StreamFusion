@@ -21,12 +21,7 @@ const HELIX_CHAT_SETTINGS_URL = "https://api.twitch.tv/helix/chat/settings";
 const REQUEST_TIMEOUT_MS = 10_000;
 
 export type ChatSettingsErrorKind =
-  | "unauthorized"
-  | "forbidden"
-  | "not-found"
-  | "rate-limited"
-  | "network"
-  | "timeout";
+  "unauthorized" | "forbidden" | "not-found" | "rate-limited" | "network" | "timeout";
 
 export type ChatSettingsResult =
   | { ok: true; payload: ChatSettingsPayload }

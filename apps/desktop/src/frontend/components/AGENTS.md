@@ -1,6 +1,7 @@
 # UI Components
 
 ## Purpose
+
 Shared React UI for the desktop app. This directory owns visual rendering only — feature behavior lives in `src/frontend/features/`, cross-cutting hooks and stores live in `src/frontend/hooks/` and `src/frontend/store/`, and privileged work lives in `src/backend/`.
 
 ## Subsystem Map
@@ -10,21 +11,21 @@ Shared React UI for the desktop app. This directory owns visual rendering only �
 
 ## Other Areas
 
-| Directory | Purpose |
-|-----------|---------|
-| `auth/` | Auth lifecycle: `AuthProvider` (initializes auth + follows + moderated-channels on mount), `LoginDialog`, `ProfileDropdown`, `AccountConnect`, `GuestMode`, and `ReconnectForModDialog` (prompts moderators to re-auth with mod scope). |
-| `channel/` | Placeholder — channel card/list components are stubbed out, nothing exported yet. |
-| `dev/` | Development-only tooling: `DeveloperConsole` (draggable overlay, hidden in production via `import.meta.env.DEV`), `ChatSimTool`, `UiDebugTool`, `useRenderCount` hook, and `interval-tracker`. Never import in production code paths. |
-| `discovery/` | Browse/discover UI: `CategoryGrid` (responsive grid with skeleton loading), `VirtualizedCategoryGrid`, `CategoryCard`, `CategoryCardSkeleton`, and `CategoryFilterBar`. Consumes `UnifiedCategory` from the backend API. |
-| `icons/` | SVG icon components: `TwitchIcon`, `KickIcon`, `SevenTVIcon`, `KickEmoteIcon`. Thin wrappers; no logic. |
-| `layout/` | App shell: `AppLayout` (title bar + top nav + collapsible sidebar + main content area + persistent `MiniPlayer`), `TitleBar` (Electron window controls), `SidebarFollows` (live followed channels list). |
-| `multistream/` | Multi-stream view: `MultiStreamGrid` (dnd-kit drag-to-reorder grid and focus mode), `SortableStreamSlot`, `StreamSlot`, and `AddStreamDialog`. Reads from `multistream-store`. |
-| `search/` | `UnifiedSearchInput` — cross-platform search input that queries both Twitch and Kick. |
-| `settings/` | `ChatSettingsSection` — settings UI for chat display preferences (appearance, emotes, events, behavior). Exports `SettingRow`, `SwitchRow`, `RangeRow` primitives and `useChatDisplay` hook for reuse by the in-chat quick-settings gear. |
-| `stream/` | Stream cards and info: `StreamCard`, `StreamCardSkeleton`, `StreamGrid`, `StreamInfo`, `FeaturedStream`, `RelatedContent` (clips/videos tabs). Platform-specific subdirs (`twitch/`, `kick/`) and `related-content/` for clip dialog. |
-| `TopNavBar/` | App-wide top bar: brand link, sidebar toggle, `SearchBar`, `NotificationsDropdown`, mod nav link (gated on `moderatedChannelsStore`), and `ProfileDropdown`. |
-| `ui/` | Design primitives: `Button`, `Card`, `Dialog`, `ScrollArea`, `Select`, `Switch`, `Tooltip`, `Skeleton`, `LoadingSpinner`, `Progress`, `FollowButton`, `PlatformAvatar`, `ProxiedImage` (handles `kick-image://` and `twitch-image://` custom protocols for CDN header spoofing and 403 swallowing), `VisuallyHidden`. |
-| `ToastRoot.tsx` | Mounts the global Sonner toast container. Drop it once in the app root; do not instantiate per-page. |
+| Directory       | Purpose                                                                                                                                                                                                                                                                                                               |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth/`         | Auth lifecycle: `AuthProvider` (initializes auth + follows + moderated-channels on mount), `LoginDialog`, `ProfileDropdown`, `AccountConnect`, `GuestMode`, and `ReconnectForModDialog` (prompts moderators to re-auth with mod scope).                                                                               |
+| `channel/`      | Placeholder — channel card/list components are stubbed out, nothing exported yet.                                                                                                                                                                                                                                     |
+| `dev/`          | Development-only tooling: `DeveloperConsole` (draggable overlay, hidden in production via `import.meta.env.DEV`), `ChatSimTool`, `UiDebugTool`, `useRenderCount` hook, and `interval-tracker`. Never import in production code paths.                                                                                 |
+| `discovery/`    | Browse/discover UI: `CategoryGrid` (responsive grid with skeleton loading), `VirtualizedCategoryGrid`, `CategoryCard`, `CategoryCardSkeleton`, and `CategoryFilterBar`. Consumes `UnifiedCategory` from the backend API.                                                                                              |
+| `icons/`        | SVG icon components: `TwitchIcon`, `KickIcon`, `SevenTVIcon`, `KickEmoteIcon`. Thin wrappers; no logic.                                                                                                                                                                                                               |
+| `layout/`       | App shell: `AppLayout` (title bar + top nav + collapsible sidebar + main content area + persistent `MiniPlayer`), `TitleBar` (Electron window controls), `SidebarFollows` (live followed channels list).                                                                                                              |
+| `multistream/`  | Multi-stream view: `MultiStreamGrid` (dnd-kit drag-to-reorder grid and focus mode), `SortableStreamSlot`, `StreamSlot`, and `AddStreamDialog`. Reads from `multistream-store`.                                                                                                                                        |
+| `search/`       | `UnifiedSearchInput` — cross-platform search input that queries both Twitch and Kick.                                                                                                                                                                                                                                 |
+| `settings/`     | `ChatSettingsSection` — settings UI for chat display preferences (appearance, emotes, events, behavior). Exports `SettingRow`, `SwitchRow`, `RangeRow` primitives and `useChatDisplay` hook for reuse by the in-chat quick-settings gear.                                                                             |
+| `stream/`       | Stream cards and info: `StreamCard`, `StreamCardSkeleton`, `StreamGrid`, `StreamInfo`, `FeaturedStream`, `RelatedContent` (clips/videos tabs). Platform-specific subdirs (`twitch/`, `kick/`) and `related-content/` for clip dialog.                                                                                 |
+| `TopNavBar/`    | App-wide top bar: brand link, sidebar toggle, `SearchBar`, `NotificationsDropdown`, mod nav link (gated on `moderatedChannelsStore`), and `ProfileDropdown`.                                                                                                                                                          |
+| `ui/`           | Design primitives: `Button`, `Card`, `Dialog`, `ScrollArea`, `Select`, `Switch`, `Tooltip`, `Skeleton`, `LoadingSpinner`, `Progress`, `FollowButton`, `PlatformAvatar`, `ProxiedImage` (handles `kick-image://` and `twitch-image://` custom protocols for CDN header spoofing and 403 swallowing), `VisuallyHidden`. |
+| `ToastRoot.tsx` | Mounts the global Sonner toast container. Drop it once in the app root; do not instantiate per-page.                                                                                                                                                                                                                  |
 
 ## Contracts & Invariants
 

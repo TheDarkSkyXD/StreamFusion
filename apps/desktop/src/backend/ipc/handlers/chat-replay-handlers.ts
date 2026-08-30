@@ -77,9 +77,7 @@ export function createChatReplayIpcHandlers(service: ChatReplayService) {
   };
 }
 
-export function registerChatReplayHandlers(
-  service: ChatReplayService = chatReplayService
-): void {
+export function registerChatReplayHandlers(service: ChatReplayService = chatReplayService): void {
   const handlers = createChatReplayIpcHandlers(service);
   ipcMain.handle(IPC_CHANNELS.VIDEOS_GET_CHAT_REPLAY_WINDOW, (_event, params: unknown) =>
     handlers.getWindow(params)

@@ -19,9 +19,11 @@ const DeveloperConsole = import.meta.env.DEV
   : null;
 
 const DownloadDuplicateConfirmationDialog = lazy(() =>
-  import("@/features/media-library/components/download-duplicate-confirmation-dialog").then((module) => ({
-    default: module.DownloadDuplicateConfirmationDialog,
-  }))
+  import("@/features/media-library/components/download-duplicate-confirmation-dialog").then(
+    (module) => ({
+      default: module.DownloadDuplicateConfirmationDialog,
+    })
+  )
 );
 
 function App() {

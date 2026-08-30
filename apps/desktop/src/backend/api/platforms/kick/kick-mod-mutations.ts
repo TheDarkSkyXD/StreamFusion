@@ -14,12 +14,7 @@ const KICK_OFFICIAL_API_BASE = "https://api.kick.com/public/v1";
 const REQUEST_TIMEOUT_MS = 10_000;
 
 export type KickModErrorKind =
-  | "unauthenticated"
-  | "forbidden"
-  | "not-found"
-  | "rate-limited"
-  | "network"
-  | "unknown";
+  "unauthenticated" | "forbidden" | "not-found" | "rate-limited" | "network" | "unknown";
 
 export type KickModResult =
   | { ok: true }

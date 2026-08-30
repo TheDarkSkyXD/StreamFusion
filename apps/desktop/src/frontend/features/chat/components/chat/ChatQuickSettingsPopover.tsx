@@ -172,12 +172,7 @@ export function ChatQuickSettingsPopover({
           onChange={(v) => set("pauseMode", v)}
         />
       ) : (
-        <AppearanceView
-          cd={cd}
-          platform={platform}
-          previewUsername={previewUsername}
-          set={set}
-        />
+        <AppearanceView cd={cd} platform={platform} previewUsername={previewUsername} set={set} />
       )}
     </div>
   );

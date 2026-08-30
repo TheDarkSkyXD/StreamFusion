@@ -80,7 +80,10 @@ export async function seedKickChatHistory(
       : DEFAULT_CHAT_DISPLAY_PREFERENCES.recentMessagesLimit;
 
   try {
-    const result = await window.electronAPI.chat.getKickHistory({ channelId, channelSlug: channel });
+    const result = await window.electronAPI.chat.getKickHistory({
+      channelId,
+      channelSlug: channel,
+    });
     if (!isMounted()) return "cancelled";
     if (!result.success || !result.data) return "unavailable";
 

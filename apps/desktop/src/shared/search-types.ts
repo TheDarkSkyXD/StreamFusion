@@ -20,12 +20,7 @@ export interface SearchAllRequest extends SearchIntent {
 }
 
 export type StreamSearchEndReason =
-  | "exhausted"
-  | "repeated-cursor"
-  | "empty-page"
-  | "safety-limit"
-  | "rate-limited"
-  | "cancelled";
+  "exhausted" | "repeated-cursor" | "empty-page" | "safety-limit" | "rate-limited" | "cancelled";
 
 export interface SearchStreamsRequest {
   sessionId: string;
@@ -95,12 +90,7 @@ export interface SearchStreamsResponse<TStream = unknown> {
 }
 
 export type SearchPlatformStatus =
-  | "loading"
-  | "retrying"
-  | "exhausted"
-  | "limited"
-  | "failed"
-  | "cancelled";
+  "loading" | "retrying" | "exhausted" | "limited" | "failed" | "cancelled";
 
 export interface SearchPlatformError {
   platform: Platform;

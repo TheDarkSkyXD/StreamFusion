@@ -133,13 +133,9 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
   // Fetch data
   const twitchFollowsQuery = useFollowedChannels("twitch", { enabled: twitchConnected });
   const kickFollowsQuery = useFollowedChannels("kick", { enabled: kickConnected });
-  const twitchStreamsQuery = useFollowedStreams(
-    "twitch",
-    100,
-    {
-      enabled: twitchConnected || hasLocalTwitchFollows,
-    }
-  );
+  const twitchStreamsQuery = useFollowedStreams("twitch", 100, {
+    enabled: twitchConnected || hasLocalTwitchFollows,
+  });
   const kickStreamsQuery = useFollowedStreams("kick", 100, {
     enabled: kickConnected || hasLocalKickFollows,
   });

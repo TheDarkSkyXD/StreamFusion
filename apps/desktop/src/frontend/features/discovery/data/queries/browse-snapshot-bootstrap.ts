@@ -1,10 +1,7 @@
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-import type {
-  UnifiedChannel,
-  UnifiedStream,
-} from "@shared/platform-types";
+import type { UnifiedChannel, UnifiedStream } from "@shared/platform-types";
 import { prewarmViewportImages } from "@/lib/viewport-image-prewarm";
 import { logger } from "@/renderer/logging/logger";
 import { isValidUnifiedStream } from "@/features/discovery/utils/search/search-result-validation";
@@ -71,9 +68,7 @@ function isFresh(snapshot: StoredSnapshot<unknown> | null, maxAgeMs: number): bo
 
 function isValidPastSnapshot(snapshot: StoredSnapshot<unknown> | null): boolean {
   return (
-    snapshot?.version === 1 &&
-    Number.isFinite(snapshot.savedAt) &&
-    snapshot.savedAt <= Date.now()
+    snapshot?.version === 1 && Number.isFinite(snapshot.savedAt) && snapshot.savedAt <= Date.now()
   );
 }
 
@@ -171,9 +166,7 @@ export async function hydratePersistedFollowingSnapshot(
     identity,
     maxAgeMs: ONE_DAY,
     isUsable: (data: unknown): data is UnifiedStream[] =>
-      Array.isArray(data) &&
-      data.length > 0 &&
-      data.every(isValidUnifiedStream),
+      Array.isArray(data) && data.length > 0 && data.every(isValidUnifiedStream),
   });
   if (!streams || options.signal?.aborted) return;
   setIfAbsent(client, STREAM_KEYS.followed(platform), streams, 0);
@@ -237,36 +230,34 @@ export async function hydratePersistedBrowseSnapshots(client: QueryClient): Prom
           setIfAbsent(client, CATEGORY_KEYS.top(platform), categories, 0);
           void prewarmViewportImages(categories.map((category) => category.boxArtUrl));
         }),
-        readSlot(`category-streams:${suffix}`, isInfiniteStreamData).then(
-          (snapshot) => {
-            const identity = decodeIdentity(snapshot?.identity ?? "") as {
-              categoryId?: string;
-              platform?: string;
-              limit?: number;
-              categoryName?: string;
-              language?: string;
-            } | null;
-            const streams = snapshot?.data.pages.flatMap((page) => page.data) ?? [];
-            // Category rows are a stale-while-revalidate fallback. Ten minutes was
-            // too short for a cold app start: the snapshot still existed, but the
-            // first category click discarded it and blocked on both platform APIs.
-            if (!isFresh(snapshot, ONE_DAY) || streams.length === 0) return;
-            if (
-              identity?.platform !== suffix ||
-              !identity.categoryId ||
-              !Number.isFinite(identity.limit)
-            )
-              return;
-            const key = [
-              ...STREAM_KEYS.byCategory(identity.categoryId, platform),
-              "infinite",
-              identity.categoryName || undefined,
-              identity.language || undefined,
-            ] as const;
-            setIfAbsent(client, key, snapshot?.data, snapshot?.savedAt);
-            void prewarmViewportImages(streamImages(streams));
-          }
-        ),
+        readSlot(`category-streams:${suffix}`, isInfiniteStreamData).then((snapshot) => {
+          const identity = decodeIdentity(snapshot?.identity ?? "") as {
+            categoryId?: string;
+            platform?: string;
+            limit?: number;
+            categoryName?: string;
+            language?: string;
+          } | null;
+          const streams = snapshot?.data.pages.flatMap((page) => page.data) ?? [];
+          // Category rows are a stale-while-revalidate fallback. Ten minutes was
+          // too short for a cold app start: the snapshot still existed, but the
+          // first category click discarded it and blocked on both platform APIs.
+          if (!isFresh(snapshot, ONE_DAY) || streams.length === 0) return;
+          if (
+            identity?.platform !== suffix ||
+            !identity.categoryId ||
+            !Number.isFinite(identity.limit)
+          )
+            return;
+          const key = [
+            ...STREAM_KEYS.byCategory(identity.categoryId, platform),
+            "infinite",
+            identity.categoryName || undefined,
+            identity.language || undefined,
+          ] as const;
+          setIfAbsent(client, key, snapshot?.data, snapshot?.savedAt);
+          void prewarmViewportImages(streamImages(streams));
+        }),
       ];
     })
   );

@@ -917,11 +917,13 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       if (loadedModule) {
         attachListener(loadedModule);
       } else {
-        void loadTwitchChatModule().then(attachListener).catch((error: unknown) => {
-          logger.warn("UI:Chat:Input", "twitch chat events failed to load", {
-            error: error instanceof Error ? error.message : String(error),
+        void loadTwitchChatModule()
+          .then(attachListener)
+          .catch((error: unknown) => {
+            logger.warn("UI:Chat:Input", "twitch chat events failed to load", {
+              error: error instanceof Error ? error.message : String(error),
+            });
           });
-        });
       }
       return () => {
         cancelled = true;
@@ -1581,8 +1583,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               replyPayload.fragments
             );
           } else {
-            const { kickChatService } =
-              getLoadedKickChatModule() ?? (await loadKickChatModule());
+            const { kickChatService } = getLoadedKickChatModule() ?? (await loadKickChatModule());
             const localReplyTo: ReplyInfo = {
               parentMessageId: reply.messageId,
               parentUserId: reply.userId,
@@ -1606,8 +1607,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             getLoadedTwitchChatModule() ?? (await loadTwitchChatModule());
           await twitchChatService.sendMessage(channel, trimmedMessage, localFragments);
         } else {
-          const { kickChatService } =
-            getLoadedKickChatModule() ?? (await loadKickChatModule());
+          const { kickChatService } = getLoadedKickChatModule() ?? (await loadKickChatModule());
           await kickChatService.sendMessage(
             channel,
             trimmedMessage,
@@ -1909,8 +1909,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               // serialized wire string's args, so no fragments to pass.
               await twitchChatService.sendAction(channel, actionMessage);
             } else {
-              const { kickChatService } =
-                getLoadedKickChatModule() ?? (await loadKickChatModule());
+              const { kickChatService } = getLoadedKickChatModule() ?? (await loadKickChatModule());
               // /me strips emote slot context (actionMessage rebuilt from args
               // of the serialized wire string), so no fragments to pass — the
               // echo falls back to single text, matching prior behavior.
@@ -1926,8 +1925,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 getLoadedTwitchChatModule() ?? (await loadTwitchChatModule());
               await twitchChatService.sendMessage(channel, trimmedMessage, localFragments);
             } else {
-              const { kickChatService } =
-                getLoadedKickChatModule() ?? (await loadKickChatModule());
+              const { kickChatService } = getLoadedKickChatModule() ?? (await loadKickChatModule());
               await kickChatService.sendMessage(
                 channel,
                 trimmedMessage,

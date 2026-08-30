@@ -470,8 +470,7 @@ export type IpcFeature = (typeof IPC_FEATURES)[keyof typeof IPC_FEATURES];
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
 
 export type KickSendWindowComposerRetentionChange =
-  | { kind: "retain"; leaseId: string }
-  | { kind: "release"; leaseId: string };
+  { kind: "retain"; leaseId: string } | { kind: "release"; leaseId: string };
 
 // ========== Payload Types for IPC Calls ==========
 

@@ -24,9 +24,7 @@ type ChannelAuthorization =
   | { state: "unauthorized" | "unverifiable" };
 
 export type KickTimeoutTargetState =
-  | { state: "clear"; targetIsModerator: boolean }
-  | { state: "invalid" }
-  | { state: "unverifiable" };
+  { state: "clear"; targetIsModerator: boolean } | { state: "invalid" } | { state: "unverifiable" };
 
 export interface KickTimeoutAdapterDependencies {
   getCredential(): Promise<KickTimeoutCredential | null>;

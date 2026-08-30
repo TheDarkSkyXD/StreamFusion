@@ -25,7 +25,10 @@ import { useLiveFavoriteStreams } from "@/features/discovery/data/queries/useLiv
 import { STREAM_KEYS } from "@/features/discovery/data/queries/useStreams";
 import { cn } from "@/lib/utils";
 import type { Platform } from "@shared/auth-types";
-import { type FavoriteStreamRef, useMultiStreamStore } from "@/features/multistream/data/multistream-store";
+import {
+  type FavoriteStreamRef,
+  useMultiStreamStore,
+} from "@/features/multistream/data/multistream-store";
 
 type DialogTab = "search" | "favorites";
 

@@ -286,8 +286,7 @@ class ModLogWriter {
         // The shape of event.unban is unverified — fall back to a generic
         // `{ user_id, user_login }` read on the raw event payload.
         const sub = (event as Record<string, unknown>).unban as
-          | { user_id?: string; user_login?: string; user_name?: string }
-          | undefined;
+          { user_id?: string; user_login?: string; user_name?: string } | undefined;
         if (!sub?.user_id || !sub?.user_login) {
           return this.warnUnknown("unban-missing-payload");
         }

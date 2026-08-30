@@ -54,9 +54,7 @@ type ChannelAuthorization =
   | { state: "unauthorized" | "unverifiable" };
 
 export type TwitchTimeoutTargetState =
-  | { state: "clear"; targetIsModerator: boolean }
-  | { state: "invalid" }
-  | { state: "unverifiable" };
+  { state: "clear"; targetIsModerator: boolean } | { state: "invalid" } | { state: "unverifiable" };
 
 export interface TwitchTimeoutAdapterDependencies {
   getCredential(): Promise<TwitchTimeoutCredential | null>;

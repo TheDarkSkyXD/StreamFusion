@@ -113,8 +113,7 @@ const DEFAULT_TWITCH_PIN_DURATION_SECONDS = 30 * 60;
 const CUSTOM_TWITCH_PIN_DURATION = "custom";
 
 type TwitchPinDurationSelection =
-  | (typeof TWITCH_PIN_DURATION_OPTIONS)[number]["value"]
-  | typeof CUSTOM_TWITCH_PIN_DURATION;
+  (typeof TWITCH_PIN_DURATION_OPTIONS)[number]["value"] | typeof CUSTOM_TWITCH_PIN_DURATION;
 type TwitchPinDurationUnit = "seconds" | "minutes";
 
 interface TwitchPinProgressState {

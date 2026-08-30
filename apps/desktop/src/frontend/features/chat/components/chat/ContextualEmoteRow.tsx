@@ -173,13 +173,7 @@ export const ContextualEmoteRow: React.FC<ContextualEmoteRowProps> = ({
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [
-    keyboardActive,
-    match,
-    onClose,
-    suggestionIdentityKey,
-    suggestions,
-  ]);
+  }, [keyboardActive, match, onClose, suggestionIdentityKey, suggestions]);
 
   if (!match) return null;
   if (!match.explicit && !isLoading && suggestions.length === 0) return fallback;

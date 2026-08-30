@@ -30,10 +30,7 @@ export interface TwitchChatReplayRequest {
 }
 
 export type TwitchChatReplayFailureKind =
-  | "authentication"
-  | "rate-limit"
-  | "transient"
-  | "permanent";
+  "authentication" | "rate-limit" | "transient" | "permanent";
 
 export class TwitchChatReplaySourceError extends Error {
   constructor(

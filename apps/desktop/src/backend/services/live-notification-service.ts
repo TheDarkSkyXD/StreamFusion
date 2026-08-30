@@ -389,9 +389,8 @@ async function fetchPublicKickStreamBySlug(
   staggerOffsetMs?: number,
   signal?: AbortSignal
 ): Promise<UnifiedStream | null> {
-  const { getPublicStreamBySlug } = await import(
-    "../api/platforms/kick/endpoints/stream-endpoints"
-  );
+  const { getPublicStreamBySlug } =
+    await import("../api/platforms/kick/endpoints/stream-endpoints");
   return getPublicStreamBySlug(slug, staggerOffsetMs, signal);
 }
 

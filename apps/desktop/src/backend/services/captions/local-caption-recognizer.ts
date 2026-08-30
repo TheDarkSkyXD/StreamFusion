@@ -22,8 +22,7 @@ export interface SherpaOnlineRecognizer {
 }
 
 type RecognizerOutput =
-  | LocalCaptionResult
-  | { type: "ack"; sessionId: string; generation: number; sequence: number };
+  LocalCaptionResult | { type: "ack"; sessionId: string; generation: number; sequence: number };
 
 interface ActiveSession {
   sessionId: string;

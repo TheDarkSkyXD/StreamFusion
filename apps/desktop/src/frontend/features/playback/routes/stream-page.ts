@@ -2,8 +2,7 @@ import { createPreloadableRoute } from "@/routes/preloadable-route";
 import type { ChatPlatform } from "@shared/chat-types";
 
 let streamPageModulePromise: Promise<typeof import("../../../pages/Stream")> | undefined;
-const loadStreamPageModule = () =>
-  (streamPageModulePromise ??= import("../../../pages/Stream"));
+const loadStreamPageModule = () => (streamPageModulePromise ??= import("../../../pages/Stream"));
 const streamPageRoute = createPreloadableRoute(() =>
   loadStreamPageModule().then((module) => ({ default: module.StreamPage }))
 );

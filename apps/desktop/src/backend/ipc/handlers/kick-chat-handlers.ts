@@ -43,9 +43,7 @@ import { isAllowedSender } from "../sender-origin";
 const composerLeaseCleanupInstalled = new WeakSet<WebContents>();
 const MAX_COMPOSER_LEASE_ID_LENGTH = 128;
 
-function isComposerRetentionChange(
-  value: unknown
-): value is KickSendWindowComposerRetentionChange {
+function isComposerRetentionChange(value: unknown): value is KickSendWindowComposerRetentionChange {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as { kind?: unknown; leaseId?: unknown };
   return (

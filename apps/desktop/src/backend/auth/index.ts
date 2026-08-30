@@ -12,10 +12,7 @@ export {
   type OpenAuthWindowResult,
 } from "./auth-window";
 // Device Code Flow (for Twitch - no redirect URI needed)
-export {
-  type DeviceCodeResult,
-  deviceCodeFlowService,
-} from "./device-code-flow";
+export { type DeviceCodeResult, deviceCodeFlowService } from "./device-code-flow";
 // Kick Auth Service
 export { kickAuthService } from "./kick-auth";
 // OAuth Callback Server (localhost HTTP server for OAuth callbacks)
@@ -42,11 +39,7 @@ export {
   validateOAuthConfig,
 } from "./oauth-config";
 // Protocol Handler (for custom protocol - fallback)
-export {
-  type OAuthCallback,
-  type OAuthCallbackHandler,
-  protocolHandler,
-} from "./protocol-handler";
+export { type OAuthCallback, type OAuthCallbackHandler, protocolHandler } from "./protocol-handler";
 // Token Exchange
 export {
   type TokenExchangeParams,
@@ -55,7 +48,4 @@ export {
   tokenExchangeService,
 } from "./token-exchange";
 // Twitch Auth Service
-export {
-  type TwitchAuthSession,
-  twitchAuthService,
-} from "./twitch-auth";
+export { type TwitchAuthSession, twitchAuthService } from "./twitch-auth";

@@ -2,7 +2,10 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense, useState, type ReactNode } from "react";
 import { LuHistory as HistoryIcon, LuPlay, LuTrash2 } from "react-icons/lu";
 
-import { parseVideoOrClips, type VideoOrClip } from "@/features/playback/components/related-content/types";
+import {
+  parseVideoOrClips,
+  type VideoOrClip,
+} from "@/features/playback/components/related-content/types";
 import { VodProgressBar } from "@/features/playback/components/vod-progress-bar";
 import { Button } from "@/components/ui/button";
 import { useChannelByUsername } from "@/features/discovery/data/queries/useChannels";

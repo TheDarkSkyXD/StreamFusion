@@ -52,9 +52,7 @@ export function keepTwitchBackupRenditions<T extends TwitchRenditionTarget>(
 ): T[] {
   const targetHeight = resolutionHeight(target.resolution);
   const exact =
-    targetHeight >= minimumFallbackHeight
-      ? keepTwitchRenditionResolution(candidates, target)
-      : [];
+    targetHeight >= minimumFallbackHeight ? keepTwitchRenditionResolution(candidates, target) : [];
   const fallbackPool = candidates.filter(
     (candidate) =>
       resolutionHeight(candidate.resolution) >= minimumFallbackHeight &&

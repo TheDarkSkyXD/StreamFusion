@@ -1,12 +1,7 @@
 import type { Platform } from "./auth-types";
 
 export type StreamRecordingStatus =
-  | "preparing"
-  | "recording"
-  | "paused"
-  | "reconnecting"
-  | "finalizing"
-  | "interrupted";
+  "preparing" | "recording" | "paused" | "reconnecting" | "finalizing" | "interrupted";
 
 export interface StreamRecordingGap {
   startedAt: string;

@@ -16,15 +16,10 @@
 import { fetchKickWebApiMutation } from "./kick-send-window";
 
 export type KickPinMutationErrorKind =
-  | "unauthenticated"
-  | "forbidden"
-  | "not-found"
-  | "network"
-  | "unknown";
+  "unauthenticated" | "forbidden" | "not-found" | "network" | "unknown";
 
 export type KickPinMutationResult =
-  | { ok: true }
-  | { ok: false; kind: KickPinMutationErrorKind; message: string };
+  { ok: true } | { ok: false; kind: KickPinMutationErrorKind; message: string };
 
 function classify(status: number, body: unknown): KickPinMutationErrorKind {
   if (status === 401 || status === 419) return "unauthenticated";

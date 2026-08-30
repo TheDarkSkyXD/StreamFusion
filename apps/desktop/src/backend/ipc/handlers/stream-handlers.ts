@@ -650,9 +650,8 @@ export function registerStreamHandlers(): void {
     ) => {
       try {
         if (params.platform === "twitch") {
-          const { TwitchStreamResolver } = await import(
-            "../../api/platforms/twitch/twitch-stream-resolver"
-          );
+          const { TwitchStreamResolver } =
+            await import("../../api/platforms/twitch/twitch-stream-resolver");
           const twitchResolver = new TwitchStreamResolver();
           const result = await twitchResolver.getStreamPlaybackUrl(params.channelSlug);
           return { success: true, data: result };

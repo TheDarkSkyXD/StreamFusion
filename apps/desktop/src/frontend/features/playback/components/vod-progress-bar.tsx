@@ -25,10 +25,7 @@ export function VodProgressBar({ platform, videoId }: VodProgressBarProps) {
       aria-valuenow={Math.round(percent)}
       className="absolute inset-x-0 bottom-0 z-10 h-1 bg-black/60"
     >
-      <div
-        className="h-full bg-[var(--color-primary)]"
-        style={{ width: `${percent}%` }}
-      />
+      <div className="h-full bg-[var(--color-primary)]" style={{ width: `${percent}%` }} />
     </div>
   );
 }

@@ -3,7 +3,10 @@ import { useCallback, useMemo } from "react";
 
 import { type HistoryItem, useHistoryStore } from "@/store/history-store";
 
-import { measureCacheInvalidationDispatch, useQueryCachePerformance } from "../../discovery/data/queries/cache-performance";
+import {
+  measureCacheInvalidationDispatch,
+  useQueryCachePerformance,
+} from "../../discovery/data/queries/cache-performance";
 import { getQueryCacheOptions } from "../../discovery/data/queries/cache-policy";
 
 export const HISTORY_QUERY_KEYS = {

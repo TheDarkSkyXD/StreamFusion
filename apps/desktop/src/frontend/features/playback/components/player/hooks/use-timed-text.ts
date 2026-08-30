@@ -225,11 +225,7 @@ export function useTimedText(
       source: captionPreferences.source,
       preferredLanguage: captionPreferences.preferredLanguage,
     };
-  }, [
-    captionPreferences.enabled,
-    captionPreferences.preferredLanguage,
-    captionPreferences.source,
-  ]);
+  }, [captionPreferences.enabled, captionPreferences.preferredLanguage, captionPreferences.source]);
   const failedTrackKeyRef = useRef<string | null>(null);
   const nativeTrackRef = useRef<NativeTrackState | null>(null);
   const isPipRef = useRef(false);

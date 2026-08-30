@@ -16,25 +16,25 @@ This directory is the IPC bridge layer. Every `ipcMain.handle` (and the few `ipc
 
 ## File Inventory
 
-| File | Channels handled | Key dependencies |
-|------|-----------------|-----------------|
-| `adblock-handlers.ts` | `ADBLOCK_*`, `ADBLOCK_PATTERNS_*` | `networkAdBlockService`, `cosmeticInjectionService`, `twitchManifestProxy`, `vaftPatternService` |
-| `auth-handlers.ts` | `AUTH_*`, `AUTH_DCF_*` | `storageService`, `kickAuthService`, `twitchAuthService`, `deviceCodeFlowService`, `tokenExchangeService`, `authWindowManager` |
-| `category-handlers.ts` | `CATEGORIES_GET_TOP`, `CATEGORIES_GET_BY_ID`, `CATEGORIES_GET_METADATA`, `CATEGORIES_SEARCH` | `twitchClient`, `kickClient`, `gqlGetGameMetadata` |
-| `channel-handlers.ts` | `CHANNELS_GET_BY_ID`, `CHANNELS_GET_BY_USERNAME`, `CHANNELS_GET_FOLLOWED` | `twitchClient`, `kickClient` |
-| `chat-handlers.ts` | `CHAT_GET_KICK_HISTORY`, `CHAT_GET_TWITCH_HISTORY` | `getKickChannelHistory`, `getTwitchChannelHistory` |
-| `connectivity-handlers.ts` | `CONNECTIVITY_CHECK` | `connectivity-service`, Electron `net.fetch` |
-| `emote-handlers.ts` | `EMOTES_*` | third-party emote services, Kick user-subscriptions service |
-| `kick-chat-handlers.ts` | `KICK_CHAT_ENSURE_SEND_WINDOW_READY`, `KICK_CHAT_SEND_MESSAGE`, `KICK_CHAT_DISPOSE_SEND_WINDOW` | `kick-send-window` (main-only module) |
-| `modlog-handlers.ts` | `MODLOG_INSERT`, `MODLOG_QUERY`, `MODLOG_SWEEP_RETENTION`, `RETENTION_GET`, `RETENTION_SET` | `dbService` (SQLite) |
-| `proxy-handlers.ts` | `PROXY_APPLY`, `PROXY_SET_CREDENTIALS`, `PROXY_HAS_CREDENTIALS` | `stream-proxy-service`, `storageService`, `isAllowedSender` |
-| `search-handlers.ts` | `SEARCH_CHANNELS`, `SEARCH_ALL` | `twitchClient`, `kickClient`, `storageService`; in-file channel enrichment/verification cache |
-| `storage-handlers.ts` | `STORE_GET/SET/DELETE`, `FOLLOWS_*`, `PREFERENCES_*` | `storageService` |
-| `stream-handlers.ts` | `STREAMS_GET_TOP`, `STREAMS_GET_BY_CATEGORY`, `STREAMS_GET_FOLLOWED`, `STREAMS_GET_BY_CHANNEL`, `STREAMS_GET_PLAYBACK_URL` | `twitchClient`, `kickClient`, `TwitchStreamResolver`, `KickStreamResolver`, `storageService` |
-| `system-handlers.ts` | `APP_GET_VERSION*`, `APP_GET_NAME`, `WINDOW_*`, `THEME_GET_SYSTEM`, `SHELL_OPEN_EXTERNAL`, `NOTIFICATION_SHOW` | `electron` (`app`, `shell`, `Notification`, `nativeTheme`) |
-| `token-status-handlers.ts` | `AUTH_TOKEN_STATUS` | `tokenExchangeService`, `storageService`, `isAllowedSender` |
-| `update-handlers.ts` | `UPDATE_CHECK`, `UPDATE_DOWNLOAD`, `UPDATE_INSTALL`, `UPDATE_GET_STATUS`, `UPDATE_SET_ALLOW_PRERELEASE`, `UPDATE_SET_AUTO_CHECK`, `UPDATE_GET_SETTINGS` | `update-service`, also calls `initUpdateService` |
-| `video-handlers.ts` | `VIDEOS_GET_PLAYBACK_URL`, `VIDEOS_GET_METADATA`, `VIDEOS_GET_BY_CHANNEL`, `CLIPS_GET_BY_CHANNEL`, `CLIPS_GET_PLAYBACK_URL`, `VIDEOS_GET_BY_LIVESTREAM_ID` | `twitchClient`, `kickClient`, `TwitchStreamResolver`, `KickStreamResolver` |
+| File                       | Channels handled                                                                                                                                           | Key dependencies                                                                                                               |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `adblock-handlers.ts`      | `ADBLOCK_*`, `ADBLOCK_PATTERNS_*`                                                                                                                          | `networkAdBlockService`, `cosmeticInjectionService`, `twitchManifestProxy`, `vaftPatternService`                               |
+| `auth-handlers.ts`         | `AUTH_*`, `AUTH_DCF_*`                                                                                                                                     | `storageService`, `kickAuthService`, `twitchAuthService`, `deviceCodeFlowService`, `tokenExchangeService`, `authWindowManager` |
+| `category-handlers.ts`     | `CATEGORIES_GET_TOP`, `CATEGORIES_GET_BY_ID`, `CATEGORIES_GET_METADATA`, `CATEGORIES_SEARCH`                                                               | `twitchClient`, `kickClient`, `gqlGetGameMetadata`                                                                             |
+| `channel-handlers.ts`      | `CHANNELS_GET_BY_ID`, `CHANNELS_GET_BY_USERNAME`, `CHANNELS_GET_FOLLOWED`                                                                                  | `twitchClient`, `kickClient`                                                                                                   |
+| `chat-handlers.ts`         | `CHAT_GET_KICK_HISTORY`, `CHAT_GET_TWITCH_HISTORY`                                                                                                         | `getKickChannelHistory`, `getTwitchChannelHistory`                                                                             |
+| `connectivity-handlers.ts` | `CONNECTIVITY_CHECK`                                                                                                                                       | `connectivity-service`, Electron `net.fetch`                                                                                   |
+| `emote-handlers.ts`        | `EMOTES_*`                                                                                                                                                 | third-party emote services, Kick user-subscriptions service                                                                    |
+| `kick-chat-handlers.ts`    | `KICK_CHAT_ENSURE_SEND_WINDOW_READY`, `KICK_CHAT_SEND_MESSAGE`, `KICK_CHAT_DISPOSE_SEND_WINDOW`                                                            | `kick-send-window` (main-only module)                                                                                          |
+| `modlog-handlers.ts`       | `MODLOG_INSERT`, `MODLOG_QUERY`, `MODLOG_SWEEP_RETENTION`, `RETENTION_GET`, `RETENTION_SET`                                                                | `dbService` (SQLite)                                                                                                           |
+| `proxy-handlers.ts`        | `PROXY_APPLY`, `PROXY_SET_CREDENTIALS`, `PROXY_HAS_CREDENTIALS`                                                                                            | `stream-proxy-service`, `storageService`, `isAllowedSender`                                                                    |
+| `search-handlers.ts`       | `SEARCH_CHANNELS`, `SEARCH_ALL`                                                                                                                            | `twitchClient`, `kickClient`, `storageService`; in-file channel enrichment/verification cache                                  |
+| `storage-handlers.ts`      | `STORE_GET/SET/DELETE`, `FOLLOWS_*`, `PREFERENCES_*`                                                                                                       | `storageService`                                                                                                               |
+| `stream-handlers.ts`       | `STREAMS_GET_TOP`, `STREAMS_GET_BY_CATEGORY`, `STREAMS_GET_FOLLOWED`, `STREAMS_GET_BY_CHANNEL`, `STREAMS_GET_PLAYBACK_URL`                                 | `twitchClient`, `kickClient`, `TwitchStreamResolver`, `KickStreamResolver`, `storageService`                                   |
+| `system-handlers.ts`       | `APP_GET_VERSION*`, `APP_GET_NAME`, `WINDOW_*`, `THEME_GET_SYSTEM`, `SHELL_OPEN_EXTERNAL`, `NOTIFICATION_SHOW`                                             | `electron` (`app`, `shell`, `Notification`, `nativeTheme`)                                                                     |
+| `token-status-handlers.ts` | `AUTH_TOKEN_STATUS`                                                                                                                                        | `tokenExchangeService`, `storageService`, `isAllowedSender`                                                                    |
+| `update-handlers.ts`       | `UPDATE_CHECK`, `UPDATE_DOWNLOAD`, `UPDATE_INSTALL`, `UPDATE_GET_STATUS`, `UPDATE_SET_ALLOW_PRERELEASE`, `UPDATE_SET_AUTO_CHECK`, `UPDATE_GET_SETTINGS`    | `update-service`, also calls `initUpdateService`                                                                               |
+| `video-handlers.ts`        | `VIDEOS_GET_PLAYBACK_URL`, `VIDEOS_GET_METADATA`, `VIDEOS_GET_BY_CHANNEL`, `CLIPS_GET_BY_CHANNEL`, `CLIPS_GET_PLAYBACK_URL`, `VIDEOS_GET_BY_LIVESTREAM_ID` | `twitchClient`, `kickClient`, `TwitchStreamResolver`, `KickStreamResolver`                                                     |
 
 ---
 
@@ -75,11 +75,17 @@ Handlers that need to push events to the renderer use a local `safeSend` helper 
 ```typescript
 function safeSend(channel: string, ...args: unknown[]): void {
   try {
-    if (mainWindow && !mainWindow.isDestroyed() &&
-        mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+    if (
+      mainWindow &&
+      !mainWindow.isDestroyed() &&
+      mainWindow.webContents &&
+      !mainWindow.webContents.isDestroyed()
+    ) {
       mainWindow.webContents.send(channel, ...args);
     }
-  } catch { /* window is closing */ }
+  } catch {
+    /* window is closing */
+  }
 }
 ```
 

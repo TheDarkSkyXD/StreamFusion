@@ -17,10 +17,7 @@ function compareText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-export function isExactChannelSearchMatch(
-  channel: ChannelSearchIdentity,
-  query: string
-): boolean {
+export function isExactChannelSearchMatch(channel: ChannelSearchIdentity, query: string): boolean {
   const queryIdentity = compactSearchIdentity(query);
   return (
     queryIdentity.length > 0 &&

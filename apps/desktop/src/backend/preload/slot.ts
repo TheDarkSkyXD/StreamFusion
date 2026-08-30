@@ -15,7 +15,11 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 import { IPC_CHANNELS } from "../../shared/ipc-channels";
-import type { LoadStreamPayload, SlotBufferConfig, SlotQualityConfig } from "../../shared/slot-types";
+import type {
+  LoadStreamPayload,
+  SlotBufferConfig,
+  SlotQualityConfig,
+} from "../../shared/slot-types";
 
 /** Payload emitted by the slot back to main on a fatal-shape crash. */
 export interface SlotCrashedPayload {

@@ -30,11 +30,7 @@ export function HomePage() {
   return (
     <div className="p-6 space-y-8 max-w-[1800px] mx-auto">
       <section>
-        <FeaturedStage
-          stream={featuredStream}
-          streams={featuredStreams}
-          isLoading={isLoading}
-        />
+        <FeaturedStage stream={featuredStream} streams={featuredStreams} isLoading={isLoading} />
       </section>
 
       {/* Live Channels Section */}

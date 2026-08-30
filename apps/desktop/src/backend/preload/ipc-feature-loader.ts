@@ -80,9 +80,7 @@ export function isFeatureLoaderReply(value: unknown): value is FeatureLoaderRepl
     return value.value === null && hasOnlyKeys(value, ["kind", "value"]);
   }
   return (
-    value.kind === "error" &&
-    isSafeAppError(value.error) &&
-    hasOnlyKeys(value, ["kind", "error"])
+    value.kind === "error" && isSafeAppError(value.error) && hasOnlyKeys(value, ["kind", "error"])
   );
 }
 

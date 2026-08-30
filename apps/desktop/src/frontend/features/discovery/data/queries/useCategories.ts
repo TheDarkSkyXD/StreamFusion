@@ -441,10 +441,7 @@ function useInfiniteProviderCategories(platform: Platform) {
               count + (knownCategoryKeys.has(normalizeCategoryName(category.name)) ? 0 : 1),
             0
           );
-          if (
-            addedCount >= CATEGORY_SCROLL_PAGE_LIMIT ||
-            (batch.length === 0 && !cursorAdvanced)
-          ) {
+          if (addedCount >= CATEGORY_SCROLL_PAGE_LIMIT || (batch.length === 0 && !cursorAdvanced)) {
             break;
           }
         } catch (error) {

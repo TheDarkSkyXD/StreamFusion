@@ -1,5 +1,8 @@
 import type { UnifiedChannel, UnifiedStream } from "@shared/platform-types";
-import type { FavoriteStreamRef, MultiStreamConfig } from "@/features/multistream/data/multistream-store";
+import type {
+  FavoriteStreamRef,
+  MultiStreamConfig,
+} from "@/features/multistream/data/multistream-store";
 import { useMultiStreamStore } from "@/features/multistream/data/multistream-store";
 
 export const multistreamFixtures: MultiStreamConfig[] = [

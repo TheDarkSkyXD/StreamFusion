@@ -152,9 +152,8 @@ export function registerChatHandlers(): void {
     IPC_CHANNELS.CHAT_GET_KICK_HISTORY,
     async (_event, params: { channelId: string; channelSlug: string }) => {
       try {
-        const { getKickChannelHistory } = await import(
-          "../../api/platforms/kick/endpoints/chat-endpoints"
-        );
+        const { getKickChannelHistory } =
+          await import("../../api/platforms/kick/endpoints/chat-endpoints");
         const history = await getKickChannelHistory(params.channelId, params.channelSlug);
         return { success: true, data: history };
       } catch (error) {
@@ -181,9 +180,8 @@ export function registerChatHandlers(): void {
     IPC_CHANNELS.CHAT_GET_TWITCH_HISTORY,
     async (_event, params: { channel: string }) => {
       try {
-        const { getTwitchChannelHistory } = await import(
-          "../../api/platforms/twitch/endpoints/chat-endpoints"
-        );
+        const { getTwitchChannelHistory } =
+          await import("../../api/platforms/twitch/endpoints/chat-endpoints");
         const history = await getTwitchChannelHistory(params.channel);
         return { success: true, data: history };
       } catch (error) {

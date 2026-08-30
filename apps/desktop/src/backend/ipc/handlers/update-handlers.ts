@@ -148,8 +148,12 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
   // (the service clamps the effective interval regardless).
   ipcMain.handle(
     IPC_CHANNELS.UPDATE_SET_AUTO_CHECK,
-    (_event, payload: { enabled?: boolean; frequency?: CheckFrequency; updateCheckUrl?: string } = {}) => {
-      const settings: { enabled?: boolean; frequency?: CheckFrequency; updateCheckUrl?: string } = {};
+    (
+      _event,
+      payload: { enabled?: boolean; frequency?: CheckFrequency; updateCheckUrl?: string } = {}
+    ) => {
+      const settings: { enabled?: boolean; frequency?: CheckFrequency; updateCheckUrl?: string } =
+        {};
       if (typeof payload.enabled === "boolean") {
         settings.enabled = payload.enabled;
       }
@@ -159,7 +163,8 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
       if (typeof payload.updateCheckUrl === "string") {
         try {
           const url = new URL(payload.updateCheckUrl.trim());
-          if (url.protocol === "https:") settings.updateCheckUrl = url.toString().replace(/\/$/, "");
+          if (url.protocol === "https:")
+            settings.updateCheckUrl = url.toString().replace(/\/$/, "");
         } catch {
           // Invalid renderer input is ignored at the IPC boundary.
         }
@@ -187,7 +192,12 @@ export function registerUpdateHandlers(mainWindow: BrowserWindow): void {
       return getUpdateSettings();
     } catch (error) {
       logger.error("IPC:Update", "Get settings failed", serializeError(error));
-      return { allowPrerelease: false, autoCheckEnabled: false, checkFrequency: "weekly", updateCheckUrl: DEFAULT_UPDATE_CHECK_URL };
+      return {
+        allowPrerelease: false,
+        autoCheckEnabled: false,
+        checkFrequency: "weekly",
+        updateCheckUrl: DEFAULT_UPDATE_CHECK_URL,
+      };
     }
   });
 

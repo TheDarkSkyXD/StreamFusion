@@ -64,14 +64,7 @@ interface EmotePickerPopoverProps {
  */
 type UserEmoteSubSection = `user:${string}`;
 type SubSection =
-  | "recent"
-  | "channel"
-  | "global"
-  | "emoji"
-  | "7tv"
-  | "bttv"
-  | "ffz"
-  | UserEmoteSubSection;
+  "recent" | "channel" | "global" | "emoji" | "7tv" | "bttv" | "ffz" | UserEmoteSubSection;
 
 interface SubSectionConfig {
   id: SubSection;
@@ -768,7 +761,13 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
   const emotesByProvider = useMemo(
     () => getEmotesByProvider(),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- revisions intentionally invalidate a stable Zustand getter result.
-    [activeChannelId, getEmotesByProvider, loadedChannels, loadedGlobalPlatforms.size, emoteRevision]
+    [
+      activeChannelId,
+      getEmotesByProvider,
+      loadedChannels,
+      loadedGlobalPlatforms.size,
+      emoteRevision,
+    ]
   );
 
   const refreshTwitchUserEmoteScopeStatus =

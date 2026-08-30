@@ -1,10 +1,7 @@
 import { TWITCH_OAUTH_CONFIG } from "@backend/auth/oauth-config";
 import { fetchKickUserSubscriptions } from "@backend/services/emotes/kick-user-subscriptions-service";
 import { storageService } from "@backend/services/storage-service";
-import type {
-  SubscriberEligibilityRequest,
-  SubscriberEligibilityResult,
-} from "@shared/chat-types";
+import type { SubscriberEligibilityRequest, SubscriberEligibilityResult } from "@shared/chat-types";
 
 const SUBSCRIPTION_SCOPE = "user:read:subscriptions";
 const TWITCH_SUBSCRIPTION_URL = "https://api.twitch.tv/helix/subscriptions/user";

@@ -27,7 +27,9 @@ import { SidebarFollows } from "./SidebarFollows";
 import { TitleBar } from "./TitleBar";
 
 const MiniPlayer = lazy(() =>
-  import("@/features/playback/components/player/mini-player").then((module) => ({ default: module.MiniPlayer }))
+  import("@/features/playback/components/player/mini-player").then((module) => ({
+    default: module.MiniPlayer,
+  }))
 );
 
 interface AppLayoutProps {

@@ -17,9 +17,7 @@ export class TwitchStreamResolver {
    * stale/offline manifests, and an extra live-status preflight directly slows
    * every successful stream open.
    */
-  async getStreamPlaybackUrl(
-    channelLogin: string
-  ): Promise<{
+  async getStreamPlaybackUrl(channelLogin: string): Promise<{
     url: string;
     format: string;
     qualities?: Array<{ quality: string; url: string; frameRate?: number }>;
@@ -90,9 +88,7 @@ export class TwitchStreamResolver {
   /**
    * Get playback URL for a clip using GQL API
    */
-  async getClipPlaybackUrl(
-    clipSlug: string
-  ): Promise<{
+  async getClipPlaybackUrl(clipSlug: string): Promise<{
     url: string;
     format: string;
     qualities?: Array<{ quality: string; url: string; frameRate?: number }>;

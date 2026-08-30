@@ -1,8 +1,4 @@
-import type {
-  UnifiedCategory,
-  UnifiedChannel,
-  UnifiedStream,
-} from "@shared/platform-types";
+import type { UnifiedCategory, UnifiedChannel, UnifiedStream } from "@shared/platform-types";
 
 function image(label: string, color: string, width: number, height: number): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="${color}"/><text x="50%" y="52%" fill="#ffffff" font-family="sans-serif" font-size="28" font-weight="700" text-anchor="middle">${label}</text></svg>`;

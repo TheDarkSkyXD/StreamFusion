@@ -216,10 +216,7 @@ export interface PaginationOptions {
  *   in-renderer source.
  */
 export type PaginationEndReason =
-  | "exhausted"
-  | "cursor-no-advance"
-  | "integrity-rejected"
-  | "empty-page";
+  "exhausted" | "cursor-no-advance" | "integrity-rejected" | "empty-page";
 
 export interface PaginatedResult<T> {
   data: T[];

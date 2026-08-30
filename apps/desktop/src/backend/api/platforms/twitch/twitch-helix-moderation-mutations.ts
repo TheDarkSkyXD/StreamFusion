@@ -23,12 +23,7 @@ const REQUEST_TIMEOUT_MS = 10_000;
 // ---------------------------------------------------------------------------
 
 export type HelixModErrorKind =
-  | "missing-scopes"
-  | "unauthorized"
-  | "forbidden"
-  | "not-found"
-  | "rate-limited"
-  | "network";
+  "missing-scopes" | "unauthorized" | "forbidden" | "not-found" | "rate-limited" | "network";
 
 export type HelixModResult<TPayload = void> =
   | { ok: true; payload: TPayload }
