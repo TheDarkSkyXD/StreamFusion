@@ -30,7 +30,7 @@ export interface PlayerError {
   shouldRefresh?: boolean;
 }
 
-export type Platform = "twitch" | "kick";
+export type { Platform } from "@streamfusion/core/platform";
 
 export interface StreamPlayback {
   url: string;
