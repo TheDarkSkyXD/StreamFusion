@@ -77,7 +77,7 @@ test("the root workspace owns npm policy and application startup", () => {
   assert.equal(mobilePackage.scripts.android, "expo run:android");
   assert.equal(
     rootPackage.scripts["verify:evidence"],
-    "node scripts/verify-evidence.mjs",
+    "node scripts/verify-evidence.mjs --resume",
   );
   assert.equal(
     rootPackage.scripts["test:evidence"],
