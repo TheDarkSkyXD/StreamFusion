@@ -11,7 +11,7 @@
   "scripts": {
     "preinstall": "node ../../scripts/require-npm.mjs",
     "start": "expo start --dev-client",
-    "android": "expo run:android",
+    "android": "node scripts/run-android.mjs",
     "prebuild:android": "expo prebuild --platform android --no-install",
     "bundle:android": "expo export --platform android --output-dir dist",
     "build:android:development": "node scripts/build-android-development.mjs",
