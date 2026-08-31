@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "retentionDays": {
+    "development": 14,
+    "main": 30,
+    "release": null
+  },
+  "maximumAge": {
+    "exactArtifactHours": 24,
+    "liveProviderHours": 24,
+    "emulatorHours": 72,
+    "physicalDeviceDays": 7,
+    "accessibilityDays": 7,
+    "humanReviewDays": 30,
+    "signerRecoveryMonths": 6
+  },
+  "publication": {
+    "allowedLinkProtocols": ["https:"],
+    "stripLinkQuery": true,
+    "omitLocalArtifactPaths": true,
+    "omitEnvironmentNames": true,
+    "omitDeviceProfiles": true
+  }
+}
