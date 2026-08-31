@@ -51,7 +51,7 @@
     "build": "tsc --project tsconfig.json",
     "lint": "eslint src/ tests/*.mjs scripts/ eslint.config.mjs --max-warnings=0 && prettier --check . --ignore-path ../../.gitignore",
     "test": "node --test tests/*.test.mjs && npm run test:architecture",
-    "test:architecture": "node scripts/verify-architecture.mjs",
+    "test:architecture": "node scripts/verify-architecture.mjs && node ../../scripts/verify-core-import-policy.mjs",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "devDependencies": {

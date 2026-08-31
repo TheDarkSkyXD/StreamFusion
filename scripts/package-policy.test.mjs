@@ -85,6 +85,7 @@ test("the root workspace owns npm policy and desktop startup", () => {
     rootPackage.scripts.lint,
     /npm run --workspace @streamfusion\/core lint/,
   );
+  assert.match(rootPackage.scripts.lint, /npm run lint:core-imports/);
   assert.match(
     rootPackage.scripts.typecheck,
     /^npm run --workspace @streamfusion\/core typecheck/,

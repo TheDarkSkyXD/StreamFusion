@@ -74,6 +74,7 @@ jobs:
       - name: Lint and typecheck
         run: |
           npm run --workspace @streamfusion/core lint
+          npm run lint:core-imports
           npm --prefix apps/desktop run lint
           npm run typecheck
 
