@@ -160,7 +160,6 @@ function resetHistoryMock() {
 
 // Guards: loading state — debounced fetch in flight (useDebounce stub returns the value immediately here) lets the dropdown still mount on focus while the next page resolves
 // Guards: error/empty state — useSearchChannels / useSearchCategories returning empty pages leaves the dropdown without items; "See all results" CTA still renders so users have a way forward
-// Guards: 100-cap pagination class — when combined results hit the cap AND more remain, footer flips to "Show more"; the auto-fetch on near-bottom scroll halts (otherwise the dropdown would re-fetch indefinitely)
 // Guards: dedup absorption — when a page arrives with zero net new IDs (Twitch re-serves under a fresh cursor), the dropdown must not auto-fetch the next page. Without this the dropdown loops forever
 // Guards: an optional favorite action is a separate accessible control that never selects the channel or collapses the picker
 // Guards: channel-only pickers disable category IPC so hidden categories cannot consume platform-search capacity.
@@ -250,8 +249,9 @@ describe("UnifiedSearchInput", () => {
     expect(
       searchMockState.useSearchCategories.mock.calls.slice(-3).every((call) => call[3] === true)
     ).toBe(true);
-    expect(searchMockState.useSearchChannels.mock.calls.slice(-3).every((call) => call[0] === ""))
-      .toBe(true);
+    expect(
+      searchMockState.useSearchChannels.mock.calls.slice(-3).every((call) => call[0] === "")
+    ).toBe(true);
   });
 
   it("filters channel-only picker suggestions to live channels when requested", () => {
@@ -291,7 +291,9 @@ describe("UnifiedSearchInput", () => {
   });
 
   it("requests live-only channel candidates for a stream picker", () => {
-    renderWithProviders(<UnifiedSearchInput initialValue="creator" showCategories={false} liveOnlyChannels />);
+    renderWithProviders(
+      <UnifiedSearchInput initialValue="creator" showCategories={false} liveOnlyChannels />
+    );
 
     expect(searchMockState.useSearchChannels).toHaveBeenCalledTimes(3);
     expect(searchMockState.useSearchChannels.mock.calls.every((call) => call[3] === true)).toBe(
@@ -595,7 +597,7 @@ describe("UnifiedSearchInput", () => {
   });
 });
 
-describe("UnifiedSearchInput — dropdown 100-cap and Show more CTA", () => {
+describe("UnifiedSearchInput — unbounded dropdown pagination", () => {
   beforeEach(() => {
     resetSearchMock();
     resetHistoryMock();
@@ -608,12 +610,11 @@ describe("UnifiedSearchInput — dropdown 100-cap and Show more CTA", () => {
     return { input, onSearch };
   }
 
-  it('renders "See all results for X" when result count is below the 100-cap', () => {
+  it('renders the "See all results" shortcut while more dropdown pages remain', () => {
     searchMockState.channelsData = { pages: [{ data: makeChannels(30) }] };
     searchMockState.channelsHasNextPage = true;
     openDropdown("ninja");
     expect(screen.getByText('See all results for "ninja"')).toBeInTheDocument();
-    expect(screen.queryByText('Show more results for "ninja"')).not.toBeInTheDocument();
   });
 
   it("renders channel suggestions and the results CTA for a one-letter query", () => {
@@ -623,34 +624,11 @@ describe("UnifiedSearchInput — dropdown 100-cap and Show more CTA", () => {
     expect(screen.getByText('See all results for "A"')).toBeInTheDocument();
   });
 
-  it('flips footer to "Show more results for X" when combined results hit the cap AND more remain', () => {
+  it("keeps pagination available after more than 100 results", () => {
     searchMockState.channelsData = { pages: [{ data: makeChannels(100) }] };
     searchMockState.channelsHasNextPage = true;
-    openDropdown("ninja");
-    expect(screen.getByText('Show more results for "ninja"')).toBeInTheDocument();
-    expect(screen.queryByText('See all results for "ninja"')).not.toBeInTheDocument();
-  });
-
-  it('keeps the "See all results" copy when cap is reached BUT no more results remain', () => {
-    searchMockState.channelsData = { pages: [{ data: makeChannels(100) }] };
-    searchMockState.channelsHasNextPage = false;
     openDropdown("ninja");
     expect(screen.getByText('See all results for "ninja"')).toBeInTheDocument();
-    expect(screen.queryByText('Show more results for "ninja"')).not.toBeInTheDocument();
-  });
-
-  it("routes the footer click through onSearch — same destination whether capped or not", () => {
-    searchMockState.channelsData = { pages: [{ data: makeChannels(100) }] };
-    searchMockState.channelsHasNextPage = true;
-    const { onSearch } = openDropdown("ninja");
-    fireEvent.click(screen.getByText('Show more results for "ninja"'));
-    expect(onSearch).toHaveBeenCalledWith("ninja");
-  });
-
-  it("does NOT trigger fetchNextPage on near-bottom scroll when cap is reached", () => {
-    searchMockState.channelsData = { pages: [{ data: makeChannels(100) }] };
-    searchMockState.channelsHasNextPage = true;
-    openDropdown("ninja");
 
     const scrollable = document.querySelector("div.overflow-y-auto") as HTMLElement | null;
     expect(scrollable).not.toBeNull();
@@ -661,11 +639,18 @@ describe("UnifiedSearchInput — dropdown 100-cap and Show more CTA", () => {
     Object.defineProperty(scrollable, "scrollTop", { value: 1700, configurable: true });
     fireEvent.scroll(scrollable);
 
-    expect(searchMockState.channelsFetchNextPage).not.toHaveBeenCalled();
+    expect(searchMockState.channelsFetchNextPage).toHaveBeenCalledTimes(2);
     expect(searchMockState.categoriesFetchNextPage).not.toHaveBeenCalled();
   });
 
-  it("DOES trigger fetchNextPage on near-bottom scroll when below the cap and more pages exist", () => {
+  it("routes the footer shortcut through onSearch", () => {
+    searchMockState.channelsData = { pages: [{ data: makeChannels(100) }] };
+    const { onSearch } = openDropdown("ninja");
+    fireEvent.click(screen.getByText('See all results for "ninja"'));
+    expect(onSearch).toHaveBeenCalledWith("ninja");
+  });
+
+  it("triggers fetchNextPage on near-bottom scroll when more pages exist", () => {
     searchMockState.channelsData = { pages: [{ data: makeChannels(30) }] };
     searchMockState.channelsHasNextPage = true;
     openDropdown("ninja");

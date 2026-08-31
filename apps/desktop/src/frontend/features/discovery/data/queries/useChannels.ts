@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 
 import { dedupeChannelsByIdentity } from "@/lib/id-utils";
 import { logger } from "@/renderer/logging/logger";
@@ -47,10 +47,9 @@ export function useFollowedChannels(platform: Platform, options: { enabled?: boo
   return query;
 }
 
-export function useChannelByUsername(username: string, platform: Platform) {
-  const queryKey = CHANNEL_KEYS.byUsername(username, platform);
-  const query = useQuery({
-    queryKey,
+export function channelByUsernameQueryOptions(username: string, platform: Platform) {
+  return queryOptions({
+    queryKey: CHANNEL_KEYS.byUsername(username, platform),
     queryFn: async () => {
       const response = await window.electronAPI.channels.getByUsername({ username, platform });
       if (response.error) {
@@ -69,6 +68,11 @@ export function useChannelByUsername(username: string, platform: Platform) {
     enabled: !!username && !!platform,
     ...getQueryCacheOptions("followedChannelList"),
   });
+}
+
+export function useChannelByUsername(username: string, platform: Platform) {
+  const queryKey = CHANNEL_KEYS.byUsername(username, platform);
+  const query = useQuery(channelByUsernameQueryOptions(username, platform));
   useQueryCachePerformance({
     data: query.data,
     enabled: !!username && !!platform,

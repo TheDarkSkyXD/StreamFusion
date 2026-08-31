@@ -7,6 +7,7 @@ import { MOD_LOG_QUERY_KEYS } from "@/features/moderation/data/mod-log-query-key
 import { useInterval } from "@/hooks/useInterval";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { useStickyDismissedPrediction } from "@/features/chat/data/useStickyDismissedPrediction";
+import { registerChatMessageRoute } from "@/features/chat/data/chat-message-router";
 import { logger } from "@/renderer/logging/logger";
 import { router } from "@/routes/router";
 import type { UnifiedPrediction } from "@shared/chat-types";
@@ -923,27 +924,12 @@ export const KickChat: React.FC<KickChatProps> = ({
   useEffect(() => {
     const handleMessage = (message: ChatMessage) => {
       if (message.platform === "kick") {
+        if (buildChannelKey("kick", message.channel) !== channelKey) return;
         const isModerator = readOwnKickModeratorState(message, channel, kickUser?.id);
         if (isModerator !== null) {
           setKickChannelModState(channel, isModerator);
           kickChatService.setModeratorState(channel, isModerator);
         }
-
-        // Substitute third-party (7TV / BTTV / FFZ) emote NAMES inside the
-        // text fragments with emote fragments. Kick's chat server only knows
-        // its native emote set, so 7TV-style emotes arrive as plain text
-        // tokens; without this they'd render as literal names. Walks every
-        // message (not just text-only ones) — a message can mix a native
-        // emote fragment with a 7TV name in a sibling text fragment. The
-        // helper is a cheap no-op (returns the same array ref) when nothing
-        // matches.
-        const map = useEmoteStore.getState().getEmoteNameMap();
-        const enrichedContent = substituteThirdPartyEmotes(message.content, map);
-        const enriched =
-          enrichedContent === message.content ? message : { ...message, content: enrichedContent };
-        const gate = liveMessageGateRef.current;
-        if (gate) gate.accept(enriched);
-        else addMessageBatched(enriched, channelKey);
       }
     };
 
@@ -1143,7 +1129,10 @@ export const KickChat: React.FC<KickChatProps> = ({
     };
 
     const handlePinnedMessage = (msg: NormalizedPinnedMessage) => {
-      const map = useEmoteStore.getState().getEmoteNameMap();
+      if (msg.channel && buildChannelKey("kick", msg.channel) !== channelKey) return;
+      const map = useEmoteStore
+        .getState()
+        .getEmoteNameMap(chatroomId ? String(chatroomId) : channel);
       const enrichedContent = substituteThirdPartyEmotes(msg.content, map);
       const enriched = enrichedContent === msg.content ? msg : { ...msg, content: enrichedContent };
       setPinnedMessage(enriched);
@@ -1151,11 +1140,13 @@ export const KickChat: React.FC<KickChatProps> = ({
       setIsPinExpanded(false);
     };
 
-    const handlePinnedMessageCleared = () => {
+    const handlePinnedMessageCleared = (eventChannel?: string) => {
+      if (eventChannel && buildChannelKey("kick", eventChannel) !== channelKey) return;
       setPinnedMessage(null);
     };
 
     const handlePollUpdate = (poll: KickPoll) => {
+      if (poll.channel && buildChannelKey("kick", poll.channel) !== channelKey) return;
       setActivePoll(poll);
       setShowPoll(true);
       if (poll.remaining <= 0) {
@@ -1191,6 +1182,11 @@ export const KickChat: React.FC<KickChatProps> = ({
       setActivePrediction(prediction);
     };
 
+    const unregisterMessageRoute = registerChatMessageRoute({
+      platform: "kick",
+      channel,
+      emoteChannelId: chatroomId ? String(chatroomId) : channel,
+    });
     kickChatService.on("message", handleMessage);
     kickChatService.on("userNotice", handleUserNotice);
     kickChatService.on("connectionStateChange", handleConnectionStatus);
@@ -1203,6 +1199,7 @@ export const KickChat: React.FC<KickChatProps> = ({
     kickChatService.on("predictionUpdate", handlePredictionUpdate);
 
     return () => {
+      unregisterMessageRoute();
       kickChatService.off("message", handleMessage);
       kickChatService.off("userNotice", handleUserNotice);
       kickChatService.off("connectionStateChange", handleConnectionStatus);
@@ -1224,6 +1221,7 @@ export const KickChat: React.FC<KickChatProps> = ({
     channelKey,
     channel,
     channelId,
+    chatroomId,
     isMod,
     kickRoomKey,
     kickUser?.id,

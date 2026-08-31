@@ -16,8 +16,16 @@ import { getChannel } from "./channel-endpoints";
 import { getPublicTopStreams, getStreamBySlug } from "./stream-endpoints";
 
 const PUBLIC_SEARCH_TOTAL_BUDGET_MS = 3000;
+const PUBLIC_SEARCH_CACHE_TTL_MS = 15_000;
 const LIVE_SEARCH_PAGE_SIZE = 100;
 const LIVE_SEARCH_MAX_PAGES_PER_REQUEST = 5;
+
+interface PublicSearchCacheEntry {
+  expiresAt: number;
+  result: Promise<unknown | null>;
+}
+
+const publicSearchCache = new Map<string, PublicSearchCacheEntry>();
 
 export type ChannelSearchOptions = PaginationOptions & {
   after?: string;
@@ -74,7 +82,7 @@ function booleanField(record: PublicSearchRecord, ...keys: string[]): boolean {
   return keys.some((key) => record[key] === true);
 }
 
-async function fetchPublicSearchPayload(searchQuery: string): Promise<unknown | null> {
+async function fetchPublicSearchPayloadFromNetwork(searchQuery: string): Promise<unknown | null> {
   const deadline = Date.now() + PUBLIC_SEARCH_TOTAL_BUDGET_MS;
   const searchEndpoints =
     searchQuery.length < 3
@@ -140,6 +148,39 @@ async function fetchPublicSearchPayload(searchQuery: string): Promise<unknown | 
   }
 
   return null;
+}
+
+function fetchPublicSearchPayload(searchQuery: string): Promise<unknown | null> {
+  const now = Date.now();
+  for (const [key, entry] of publicSearchCache) {
+    if (entry.expiresAt <= now) publicSearchCache.delete(key);
+  }
+
+  const cacheKey = searchQuery.trim().toLocaleLowerCase();
+  const cached = publicSearchCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) return cached.result;
+
+  const result = fetchPublicSearchPayloadFromNetwork(searchQuery).then(
+    (payload) => {
+      if (payload === null && publicSearchCache.get(cacheKey)?.result === result) {
+        publicSearchCache.delete(cacheKey);
+      }
+      return payload;
+    },
+    (error: unknown) => {
+      if (publicSearchCache.get(cacheKey)?.result === result) publicSearchCache.delete(cacheKey);
+      throw error;
+    }
+  );
+  publicSearchCache.set(cacheKey, {
+    expiresAt: now + PUBLIC_SEARCH_CACHE_TTL_MS,
+    result,
+  });
+  return result;
+}
+
+export function resetPublicSearchCacheForTests(): void {
+  publicSearchCache.clear();
 }
 
 function publicSearchChannels(payload: unknown): PublicSearchRecord[] {

@@ -73,7 +73,7 @@ function resolveMessageLimit(): number {
  * never assemble inline so a typo can't silently fork a bucket.
  */
 export function buildChannelKey(platform: ChatPlatform, channel: string): string {
-  return `${platform}:${channel}`;
+  return `${platform}:${channel.trim().replace(/^#/, "").toLowerCase()}`;
 }
 
 /**

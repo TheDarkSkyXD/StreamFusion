@@ -28,9 +28,9 @@ const virtuosoTotalListHeightChangedCallbacks = vi.hoisted<
 const virtuosoAtBottomStateChangeCallbacks = vi.hoisted<
   Array<((isAtBottom: boolean) => void) | undefined>
 >(() => []);
-const virtuosoFollowOutputCallbacks = vi.hoisted<
-  Array<(isAtBottom: boolean) => "auto" | boolean>
->(() => []);
+const virtuosoFollowOutputCallbacks = vi.hoisted<Array<(isAtBottom: boolean) => "auto" | boolean>>(
+  () => []
+);
 const virtuosoScrollToIndexCalls = vi.hoisted<
   Array<{
     index: number | "LAST";
@@ -135,10 +135,7 @@ vi.mock("react-virtuoso", async () => {
         Object.defineProperty(scroller, "scrollTop", {
           get: () => scrollTop,
           set: (value) => {
-            scrollTop = Math.min(
-              Number(value),
-              Math.max(0, virtuosoScrollerHeight.current - 300)
-            );
+            scrollTop = Math.min(Number(value), Math.max(0, virtuosoScrollerHeight.current - 300));
             virtuosoScrollerScrollTopWrites.push(scrollTop);
           },
           configurable: true,
@@ -534,7 +531,7 @@ describe("ChatMessageList", () => {
 
     render(<ChatMessageList channelKey={channelA} />);
     const initialTopMostItemIndex = virtuosoInitialIndexes.at(-1);
-    expect(initialTopMostItemIndex).toBeTypeOf("number");
+    expect(initialTopMostItemIndex).toEqual({ index: "LAST", align: "end" });
 
     act(() => {
       useChatStore.getState().addMessage(message("a", "alpha", "Alpha"));
@@ -560,9 +557,7 @@ describe("ChatMessageList", () => {
     });
 
     expect(useChatStore.getState().messagesByChannel[channelA]).toHaveLength(11);
-    expect.soft(virtuosoFirstItemIndexes.at(-1)).toBe(
-      (firstItemIndexBeforeTrim ?? 0) + 20
-    );
+    expect.soft(virtuosoFirstItemIndexes.at(-1)).toBe((firstItemIndexBeforeTrim ?? 0) + 20);
 
     const scroller = virtuosoScrollers.at(-1);
     expect(scroller).toBeDefined();
@@ -587,9 +582,9 @@ describe("ChatMessageList", () => {
 
     expect.soft(virtuosoScrollerScrollTopWrites).toEqual([972]);
     expect.soft(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
-    expect.soft(
-      queryByRole("button", { name: /chat paused due to scroll/i })
-    ).not.toBeInTheDocument();
+    expect
+      .soft(queryByRole("button", { name: /chat paused due to scroll/i }))
+      .not.toBeInTheDocument();
   });
 
   it("realigns when the visible newest row grows after measurement without a child mutation", async () => {
@@ -690,14 +685,14 @@ describe("ChatMessageList", () => {
 
   it("settles passive hydration at newest, then never yanks after the viewer scrolls up", async () => {
     vi.useFakeTimers();
-    const { getByRole, getByText, queryByRole } = render(
-      <ChatMessageList channelKey={channelA} />
-    );
+    const { getByRole, getByText, queryByRole } = render(<ChatMessageList channelKey={channelA} />);
 
     act(() => {
-      useChatStore.getState().prependMessages(channelA, [
-        message("hydrated-history", "alpha", "Hydrated history", { isHistorical: true }),
-      ]);
+      useChatStore
+        .getState()
+        .prependMessages(channelA, [
+          message("hydrated-history", "alpha", "Hydrated history", { isHistorical: true }),
+        ]);
       useChatStore.getState().addMessage(message("first-live", "alpha", "First live"));
     });
     expect(getByText("Hydrated history")).toBeInTheDocument();
@@ -712,9 +707,7 @@ describe("ChatMessageList", () => {
     });
 
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
-    expect(
-      queryByRole("button", { name: /chat paused due to scroll/i })
-    ).not.toBeInTheDocument();
+    expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
     expect(virtuosoFollowOutputCallbacks.at(-1)?.(false)).toBe(false);
     expect(virtuosoScrollToIndexCalls).toEqual([]);
     expect(virtuosoScrollerScrollTopWrites).toEqual([]);
@@ -755,9 +748,7 @@ describe("ChatMessageList", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(20);
     });
-    expect(virtuosoScrollToIndexCalls).toEqual([
-      { index: "LAST", align: "end", behavior: "auto" },
-    ]);
+    expect(virtuosoScrollToIndexCalls).toEqual([{ index: "LAST", align: "end", behavior: "auto" }]);
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(true);
     expect(scrollToBottomControl).toBeVisible();
 
@@ -766,9 +757,7 @@ describe("ChatMessageList", () => {
     });
 
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
-    expect(
-      queryByRole("button", { name: /chat paused due to scroll/i })
-    ).not.toBeInTheDocument();
+    expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
     expect(virtuosoFollowOutputCallbacks.at(-1)?.(true)).toBe(false);
   });
 
@@ -813,23 +802,17 @@ describe("ChatMessageList", () => {
         <ChatMessageList channelKey={channelKey} />
       );
 
-      expect(
-        queryByRole("button", { name: /chat paused due to scroll/i })
-      ).not.toBeInTheDocument();
+      expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
 
       fireEvent.click(getByText("hydrate away from bottom"));
-      expect(
-        queryByRole("button", { name: /chat paused due to scroll/i })
-      ).not.toBeInTheDocument();
+      expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
 
       fireEvent.click(getByText(upwardControl));
       await act(async () => {
         await vi.advanceTimersByTimeAsync(250);
       });
 
-      expect(
-        getByRole("button", { name: /chat paused due to scroll/i })
-      ).toBeVisible();
+      expect(getByRole("button", { name: /chat paused due to scroll/i })).toBeVisible();
     }
   );
 
@@ -845,9 +828,7 @@ describe("ChatMessageList", () => {
       );
 
       expect(queryByTestId("chat-message")).not.toBeInTheDocument();
-      expect(
-        queryByRole("button", { name: /chat paused due to scroll/i })
-      ).not.toBeInTheDocument();
+      expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
 
       act(() => {
         useChatStore.getState().prependMessages(channelKey, [
@@ -860,18 +841,14 @@ describe("ChatMessageList", () => {
       expect(getByText("Hydrated history")).toBeInTheDocument();
 
       fireEvent.click(getByText("hydrate away from bottom"));
-      expect(
-        queryByRole("button", { name: /chat paused due to scroll/i })
-      ).not.toBeInTheDocument();
+      expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
 
       fireEvent.click(getByText(upwardControl));
       await act(async () => {
         await vi.advanceTimersByTimeAsync(250);
       });
 
-      expect(
-        getByRole("button", { name: /chat paused due to scroll/i })
-      ).toBeVisible();
+      expect(getByRole("button", { name: /chat paused due to scroll/i })).toBeVisible();
     }
   );
 
@@ -918,9 +895,7 @@ describe("ChatMessageList", () => {
 
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(true);
     expect(useChatStore.getState().pausedChannels.has(kickChannel)).toBe(false);
-    expect(
-      queryByRole("button", { name: /chat paused due to scroll/i })
-    ).not.toBeInTheDocument();
+    expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
 
     act(() => {
       useChatStore.getState().prependMessages(kickChannel, [
@@ -929,9 +904,11 @@ describe("ChatMessageList", () => {
           isHistorical: true,
         }),
       ]);
-      useChatStore.getState().addMessage(
-        message("kick-remount-live", "alpha", "Kick remount live", { platform: "kick" })
-      );
+      useChatStore
+        .getState()
+        .addMessage(
+          message("kick-remount-live", "alpha", "Kick remount live", { platform: "kick" })
+        );
     });
     expect(getByText("Kick remount history")).toBeInTheDocument();
     expect(getByText("Kick remount live")).toBeInTheDocument();
@@ -955,9 +932,7 @@ describe("ChatMessageList", () => {
     expect(virtuosoFollowOutputCallbacks.at(-1)?.(false)).toBe(false);
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(true);
     expect(useChatStore.getState().pausedChannels.has(kickChannel)).toBe(false);
-    expect(
-      queryByRole("button", { name: /chat paused due to scroll/i })
-    ).not.toBeInTheDocument();
+    expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
 
     fireEvent.click(getByText("drag scrollbar up"));
     await act(async () => {
@@ -979,9 +954,7 @@ describe("ChatMessageList", () => {
     });
 
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
-    expect(
-      queryByRole("button", { name: /chat paused due to scroll/i })
-    ).not.toBeInTheDocument();
+    expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
 
     fireEvent.click(getByText("scroll up to 20px gap"));
     await act(async () => {
@@ -989,16 +962,12 @@ describe("ChatMessageList", () => {
     });
 
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(true);
-    expect(
-      queryByRole("button", { name: /chat paused due to scroll/i })
-    ).toBeVisible();
+    expect(queryByRole("button", { name: /chat paused due to scroll/i })).toBeVisible();
   });
 
   it("keeps the scroll-to-bottom control paused until the list confirms bottom", async () => {
     vi.useFakeTimers();
-    const { getByRole, getByText, queryByRole } = render(
-      <ChatMessageList channelKey={channelA} />
-    );
+    const { getByRole, getByText, queryByRole } = render(<ChatMessageList channelKey={channelA} />);
 
     fireEvent.click(getByText("leave bottom"));
     await act(async () => {
@@ -1027,17 +996,13 @@ describe("ChatMessageList", () => {
     });
 
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
-    expect(
-      queryByRole("button", { name: /chat paused due to scroll/i })
-    ).not.toBeInTheDocument();
+    expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
     expect(virtuosoFollowOutputCallbacks.at(-1)?.(true)).toBe(false);
   });
 
   it("settles a residual bottom gap after the return-to-live trim commits", async () => {
     vi.useFakeTimers();
-    const { getByRole, getByText, queryByRole } = render(
-      <ChatMessageList channelKey={channelA} />
-    );
+    const { getByRole, getByText, queryByRole } = render(<ChatMessageList channelKey={channelA} />);
 
     fireEvent.click(getByText("leave bottom"));
     await act(async () => {
@@ -1053,9 +1018,7 @@ describe("ChatMessageList", () => {
       await vi.advanceTimersByTimeAsync(20);
     });
 
-    expect(virtuosoScrollToIndexCalls).toEqual([
-      { index: "LAST", align: "end", behavior: "auto" },
-    ]);
+    expect(virtuosoScrollToIndexCalls).toEqual([{ index: "LAST", align: "end", behavior: "auto" }]);
     expect(virtuosoScrollerScrollTopWrites).toEqual([930]);
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(true);
     expect(scrollToBottomControl).toBeVisible();
@@ -1065,9 +1028,7 @@ describe("ChatMessageList", () => {
     });
 
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
-    expect(
-      queryByRole("button", { name: /scroll to live/i })
-    ).not.toBeInTheDocument();
+    expect(queryByRole("button", { name: /scroll to live/i })).not.toBeInTheDocument();
   });
 
   it("trims a paused backlog before the deferred return-to-live scroll", async () => {
@@ -1103,16 +1064,12 @@ describe("ChatMessageList", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
-    expect(virtuosoScrollToIndexCalls).toEqual([
-      { index: "LAST", align: "end", behavior: "auto" },
-    ]);
+    expect(virtuosoScrollToIndexCalls).toEqual([{ index: "LAST", align: "end", behavior: "auto" }]);
   });
 
   it("keeps settling live growth after return-to-live is clicked but before bottom confirms", async () => {
     vi.useFakeTimers();
-    const { getByRole, getByText, queryByRole } = render(
-      <ChatMessageList channelKey={channelA} />
-    );
+    const { getByRole, getByText, queryByRole } = render(<ChatMessageList channelKey={channelA} />);
 
     fireEvent.click(getByText("leave bottom"));
     await act(async () => {
@@ -1153,9 +1110,7 @@ describe("ChatMessageList", () => {
     });
 
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
-    expect(
-      queryByRole("button", { name: /scroll to live/i })
-    ).not.toBeInTheDocument();
+    expect(queryByRole("button", { name: /scroll to live/i })).not.toBeInTheDocument();
     expect(virtuosoFollowOutputCallbacks.at(-1)?.(true)).toBe(false);
   });
 

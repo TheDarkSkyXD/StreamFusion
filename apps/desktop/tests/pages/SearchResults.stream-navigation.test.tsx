@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fixtures, renderWithProviders, screen, waitFor } from "../test-utils";
 
 vi.mock("@/features/discovery/data/queries/useSearch", () => ({
-  useSearchAll: vi.fn(),
+  useProviderIsolatedSearchAll: vi.fn(),
   useSearchCategories: vi.fn(() => ({ data: { pages: [] }, isLoading: false })),
   useSearchChannels: vi.fn(),
   useSearchClips: vi.fn(() => ({ data: [], isLoading: false })),
@@ -24,10 +24,15 @@ vi.mock("@/components/ui/proxied-image", () => ({
   ProxiedImage: ({ alt }: { alt: string }) => <div>{alt}</div>,
 }));
 
-import { useSearchAll, useSearchChannels, useSearchStreams } from "@/features/discovery/data/queries/useSearch";
+import {
+  useProviderIsolatedSearchAll,
+  useProviderIsolatedSearchAll as useSearchAll,
+  useSearchChannels,
+  useSearchStreams,
+} from "@/features/discovery/data/queries/useSearch";
 import { SearchPage } from "@/pages/SearchResults";
 
-const useSearchAllMock = vi.mocked(useSearchAll);
+const useSearchAllMock = vi.mocked(useProviderIsolatedSearchAll);
 const useSearchChannelsMock = vi.mocked(useSearchChannels);
 const useSearchStreamsMock = vi.mocked(useSearchStreams);
 

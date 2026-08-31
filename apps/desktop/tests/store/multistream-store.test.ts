@@ -130,6 +130,15 @@ describe("multistream-store addStream", () => {
     expect(useMultiStreamStore.getState().streams).toHaveLength(1);
   });
 
+  it("does not duplicate streams whose channel names differ only by casing or whitespace", () => {
+    useMultiStreamStore.getState().addStream("kick", "  XqC ");
+    useMultiStreamStore.getState().addStream("kick", "xqc");
+
+    expect(useMultiStreamStore.getState().streams).toEqual([
+      expect.objectContaining({ id: "kick-xqc", channelName: "XqC" }),
+    ]);
+  });
+
   // Guards: layout membership remains unbounded while playback concurrency is budgeted separately.
   it("keeps every distinct stream beyond the default playback budget", () => {
     for (let i = 0; i < 8; i++) {
@@ -169,8 +178,8 @@ describe("multistream-store BackgroundQuality default", () => {
 });
 
 describe("multistream-store schema migration", () => {
-  it("uses persisted schema version 3", () => {
-    expect(MULTISTREAM_STORE_VERSION).toBe(3);
+  it("uses persisted schema version 5", () => {
+    expect(MULTISTREAM_STORE_VERSION).toBe(5);
   });
 
   it("migrates a version 1 payload with no favorites to an empty favorites list", () => {
@@ -220,6 +229,62 @@ describe("multistream-store schema migration", () => {
     const migrated = migrateMultiStreamState(current, MULTISTREAM_STORE_VERSION);
     expect(migrated.playbackBudget).toBe(6);
     expect(migrated.backgroundQuality).toBe("match-source");
+    expect(migrated.multiChatView).toBe("merged");
+  });
+
+  it("preserves the selected multi-chat presentation", () => {
+    expect(migrateMultiStreamState({ multiChatView: "tabs" }, 4).multiChatView).toBe("tabs");
+    expect(migrateMultiStreamState({ multiChatView: "invalid" }, 4).multiChatView).toBe("merged");
+  });
+
+  it("repairs a tabs view whose selected stream was not persisted", () => {
+    const migrated = migrateMultiStreamState(
+      {
+        streams: [
+          {
+            id: "twitch-cinna",
+            platform: "twitch",
+            channelName: "cinna",
+            isMuted: false,
+            volume: 0.5,
+          },
+        ],
+        multiChatView: "tabs",
+      },
+      5
+    );
+
+    expect(migrated.chatStreamId).toBe("twitch-cinna");
+  });
+
+  it("canonicalizes and deduplicates persisted stream identities", () => {
+    const migrated = migrateMultiStreamState(
+      {
+        streams: [
+          {
+            id: "kick-XqC",
+            platform: "kick",
+            channelName: " XqC ",
+            isMuted: false,
+            volume: 0.5,
+          },
+          {
+            id: "kick-xqc",
+            platform: "kick",
+            channelName: "xqc",
+            isMuted: true,
+            volume: 0.7,
+          },
+        ],
+        chatStreamId: "kick-XqC",
+      },
+      3
+    );
+
+    expect(migrated.streams).toEqual([
+      { id: "kick-xqc", platform: "kick", channelName: "XqC", isMuted: false, volume: 0.5 },
+    ]);
+    expect(migrated.chatStreamId).toBe("kick-xqc");
   });
 
   it("migrates the legacy cap into an uncapped playback budget", () => {
@@ -242,8 +307,20 @@ describe("multistream-store schema migration", () => {
       {
         streams: [
           { id: "kick-valid", platform: "kick", channelName: "valid", isMuted: false, volume: 0.5 },
-          { id: "bad-platform", platform: "youtube", channelName: "bad", isMuted: false, volume: 0.5 },
-          { id: "bad-volume", platform: "twitch", channelName: "bad", isMuted: false, volume: "loud" },
+          {
+            id: "bad-platform",
+            platform: "youtube",
+            channelName: "bad",
+            isMuted: false,
+            volume: 0.5,
+          },
+          {
+            id: "bad-volume",
+            platform: "twitch",
+            channelName: "bad",
+            isMuted: false,
+            volume: "loud",
+          },
         ],
         favoriteStreams: [
           { platform: "twitch", channelId: "1", channelName: "valid", displayName: "Valid" },
@@ -371,6 +448,15 @@ describe("multistream-store chat", () => {
 
   it("setChatStream sets the active chat stream", () => {
     useMultiStreamStore.getState().setChatStream("kick-a");
+    expect(useMultiStreamStore.getState().chatStreamId).toBe("kick-a");
+  });
+
+  it("selects the first stream when tabs mode has no valid selection", () => {
+    useMultiStreamStore.getState().addStream("kick", "a");
+    useMultiStreamStore.setState({ chatStreamId: null });
+
+    useMultiStreamStore.getState().setMultiChatView("tabs");
+
     expect(useMultiStreamStore.getState().chatStreamId).toBe("kick-a");
   });
 });

@@ -90,8 +90,20 @@ _Avoid_: ChatService, ChatClient, IRCConnection (Twitch-only flavour).
 Whether the authenticated viewer is allowed to send a message in the current Channel right now, after Platform auth, follow, subscription, verification, and chat-mode rules are considered. Distinct from draft editing: a viewer can type a draft even when they are not currently eligible to send it.
 _Avoid_: canSend (implementation flag), input disabled state.
 
+**ChatWorkspace**:
+The set of Channel chats retained for one MultiView layout. Its channel sessions remain active independently from the visible chat presentation, so changing tabs does not leave and rejoin channels.
+_Avoid_: ChatPanel list, hidden chats, socket group.
+
+**Merged Chat Feed**:
+One chronological, source-labeled view of the messages retained by a ChatWorkspace. It references the canonical per-channel message buckets and does not create duplicate chat sessions or hidden message lists.
+_Avoid_: combined chat store, copied messages, all-chat panel.
+
+**Channel Chat Tab**:
+The interactive single-Channel presentation inside a ChatWorkspace. Selecting a Channel Chat Tab changes which composer and moderation surface is visible without changing workspace membership.
+_Avoid_: separate connection, chat instance, channel window.
+
 **channelKey**:
-The canonical bucket identifier used by the chat store and message batcher: a composite string `${platform}:${channelId}` (e.g. `"kick:12345"`, `"twitch:71092938"`). Built only via `buildChannelKey(platform, channelId)` in `store/chat-store.ts` — never assembled inline. Keys `state.messagesByChannel` and `state.pausedChannels`, and scopes the `addMessageBatched` flush timer so each channel batches independently. Distinct from `ChannelRef`, which is a lookup reference (slug or id) and is not stable enough to use as a map key.
+The canonical bucket identifier used by the chat store and message batcher: a composite string `${platform}:${normalizedChannelSlug}` (e.g. `"kick:xqc"`, `"twitch:xqc"`). Built only via `buildChannelKey(platform, channelSlug)` in `store/chat-store.ts` — never assembled inline. The helper trims whitespace, removes a leading IRC `#`, and lowercases the slug. Keys `state.messagesByChannel` and `state.pausedChannels`, and scopes the `addMessageBatched` flush timer so each channel batches independently. Distinct from `ChannelRef`, which may use a provider ID and represents a lookup rather than a chat bucket.
 _Avoid_: chatroomKey, roomKey, bare platform string.
 
 **PlatformHealth**:

@@ -20,6 +20,7 @@ export interface FavoriteStreamRef {
 }
 
 export type LayoutMode = "grid" | "focus";
+export type MultiChatView = "merged" | "tabs";
 
 /**
  * BackgroundQuality controls how non-focused StreamSlots render in multiview.
@@ -36,20 +37,17 @@ export const MULTIVIEW_PLAYBACK_BUDGET_MIN = 1;
 export const DEFAULT_MULTIVIEW_PLAYBACK_BUDGET = 4;
 export const DEFAULT_BACKGROUND_QUALITY: BackgroundQuality = "auto-low";
 
-/**
- * Persisted schema version for the multistream-store. Version 1 introduced
- * `MultiviewCap` + `BackgroundQuality`; version 2 added MultiView favorites;
- * version 3 migrates the old cap into a decoder playback budget.
- * Migrations preserve prior user preferences.
- */
-export const MULTISTREAM_STORE_VERSION = 3;
+export const MULTISTREAM_STORE_VERSION = 5;
 
 interface MultiStreamState {
   // Streams
   streams: MultiStreamConfig[];
   addStream: (platform: Platform, channelName: string) => void;
   removeStream: (streamId: string) => void;
-  updateStream: (streamId: string, updates: Partial<MultiStreamConfig>) => void;
+  updateStream: (
+    streamId: string,
+    updates: Partial<Pick<MultiStreamConfig, "isMuted" | "volume">>
+  ) => void;
   reorderStreams: (startIndex: number, endIndex: number) => void;
   clearStreams: () => void;
 
@@ -67,8 +65,10 @@ interface MultiStreamState {
   // Chat
   isChatOpen: boolean;
   chatStreamId: string | null;
+  multiChatView: MultiChatView;
   toggleChat: () => void;
   setChatStream: (streamId: string | null) => void;
+  setMultiChatView: (view: MultiChatView) => void;
 
   // Audio
   toggleMute: (streamId: string) => void;
@@ -120,6 +120,36 @@ function isMultiStreamConfig(value: unknown): value is MultiStreamConfig {
   );
 }
 
+function normalizeChannelName(channelName: string): string {
+  return channelName.trim();
+}
+
+function buildStreamId(platform: Platform, channelName: string): string {
+  return `${platform}-${normalizeChannelName(channelName).toLowerCase()}`;
+}
+
+function normalizePersistedStreams(values: unknown[]): {
+  streams: MultiStreamConfig[];
+  idsByPersistedId: Map<string, string>;
+} {
+  const streams: MultiStreamConfig[] = [];
+  const idsByPersistedId = new Map<string, string>();
+  const seen = new Set<string>();
+
+  for (const value of values) {
+    if (!isMultiStreamConfig(value)) continue;
+    const channelName = normalizeChannelName(value.channelName);
+    if (!channelName) continue;
+    const id = buildStreamId(value.platform, channelName);
+    idsByPersistedId.set(value.id, id);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    streams.push({ ...value, id, channelName });
+  }
+
+  return { streams, idsByPersistedId };
+}
+
 function isFavoriteStreamRef(value: unknown): value is FavoriteStreamRef {
   return (
     isRecord(value) &&
@@ -143,18 +173,6 @@ function favoriteStreamsMatch(left: FavoriteStreamRef, right: FavoriteStreamRef)
   return Boolean(leftChannelName && rightChannelName && leftChannelName === rightChannelName);
 }
 
-/**
- * Migrate a persisted multistream-store payload to the current schema.
- * Pure function; exported so the persist middleware AND the migration test
- * call it through the same seam.
- *
- * v0 -> v1: introduce MultiviewCap (default 4) and BackgroundQuality
- * ('auto-low'). All other prior preferences are preserved as-is. Out-of-range
- * values found in a partially-corrupt payload are clamped, not discarded.
- * v1 -> v2: introduce persistent MultiView favorites (default empty).
- * v2 -> v3: preserve the old cap value as the playback budget while removing
- * the limit on layout membership.
- */
 export function migrateMultiStreamState(
   persisted: unknown,
   _version: number
@@ -165,18 +183,25 @@ export function migrateMultiStreamState(
   | "layout"
   | "isChatOpen"
   | "chatStreamId"
+  | "multiChatView"
   | "playbackBudget"
   | "backgroundQuality"
 > {
   const p = isRecord(persisted) ? persisted : {};
 
-  const streams = Array.isArray(p.streams) ? p.streams.filter(isMultiStreamConfig) : [];
+  const { streams, idsByPersistedId } = normalizePersistedStreams(
+    Array.isArray(p.streams) ? p.streams : []
+  );
   const favoriteStreams = Array.isArray(p.favoriteStreams)
     ? p.favoriteStreams.filter(isFavoriteStreamRef)
     : [];
   const layout: LayoutMode = p.layout === "focus" ? "focus" : "grid";
   const isChatOpen = typeof p.isChatOpen === "boolean" ? p.isChatOpen : true;
-  const chatStreamId = typeof p.chatStreamId === "string" ? p.chatStreamId : null;
+  const chatStreamId =
+    (typeof p.chatStreamId === "string" ? idsByPersistedId.get(p.chatStreamId) : undefined) ??
+    streams[0]?.id ??
+    null;
+  const multiChatView: MultiChatView = p.multiChatView === "tabs" ? "tabs" : "merged";
 
   const rawPlaybackBudget = p.playbackBudget ?? p.multiviewCap;
   const playbackBudget =
@@ -194,6 +219,7 @@ export function migrateMultiStreamState(
     layout,
     isChatOpen,
     chatStreamId,
+    multiChatView,
     playbackBudget,
     backgroundQuality,
   };
@@ -208,18 +234,21 @@ export const useMultiStreamStore = create<MultiStreamState>()(
       focusedStreamId: null,
       isChatOpen: true,
       chatStreamId: null,
+      multiChatView: "merged",
       playbackBudget: DEFAULT_MULTIVIEW_PLAYBACK_BUDGET,
       backgroundQuality: DEFAULT_BACKGROUND_QUALITY,
 
       addStream: (platform, channelName) =>
         set((state) => {
-          const id = `${platform}-${channelName}`;
+          const normalizedChannelName = normalizeChannelName(channelName);
+          if (!normalizedChannelName) return state;
+          const id = buildStreamId(platform, normalizedChannelName);
           if (state.streams.some((s) => s.id === id)) return state; // No duplicates
 
           const newStream: MultiStreamConfig = {
             id,
             platform,
-            channelName,
+            channelName: normalizedChannelName,
             isMuted: state.streams.length > 0, // Auto-mute subsequent streams
             volume: 0.5,
           };
@@ -280,6 +309,14 @@ export const useMultiStreamStore = create<MultiStreamState>()(
 
       toggleChat: () => set((state) => ({ isChatOpen: !state.isChatOpen })),
       setChatStream: (chatStreamId) => set({ chatStreamId }),
+      setMultiChatView: (multiChatView) =>
+        set((state) => ({
+          multiChatView,
+          chatStreamId:
+            multiChatView === "tabs" && !state.streams.some(({ id }) => id === state.chatStreamId)
+              ? (state.streams[0]?.id ?? null)
+              : state.chatStreamId,
+        })),
 
       toggleMute: (streamId) =>
         set((state) => ({
@@ -307,6 +344,8 @@ export const useMultiStreamStore = create<MultiStreamState>()(
         favoriteStreams: state.favoriteStreams,
         layout: "grid",
         isChatOpen: state.isChatOpen,
+        chatStreamId: state.chatStreamId,
+        multiChatView: state.multiChatView,
         playbackBudget: state.playbackBudget,
         backgroundQuality: state.backgroundQuality,
       }),

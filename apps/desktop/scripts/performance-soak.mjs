@@ -4,7 +4,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const MEBIBYTE = 1024 * 1024;
 const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const DEFAULT_ROUTES = ["#/", "#/categories", "#/following", "#/settings?tab=diagnostics"];
+const DEFAULT_ROUTES = [
+  "#/",
+  "#/categories",
+  "#/following",
+  "#/multistream",
+  "#/search?q=xqc",
+  "#/settings?tab=diagnostics",
+];
 
 export const DEFAULT_SOAK_OPTIONS = Object.freeze({
   cdpEndpoint: "http://127.0.0.1:9236",
@@ -142,7 +149,10 @@ function percentile(values, fraction) {
 }
 
 function median(values) {
-  return percentile(values, 0.5);
+  if (values.length === 0) return null;
+  const sorted = values.toSorted((left, right) => left - right);
+  const midpoint = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[midpoint - 1] + sorted[midpoint]) / 2 : sorted[midpoint];
 }
 
 function stableWindowGrowth(samples, select) {
@@ -154,7 +164,9 @@ function stableWindowGrowth(samples, select) {
 }
 
 export function analyzeSoakSamples({ samples, events, options, startedAt, endedAt }) {
-  const stableSamples = samples.filter((sample) => sample.observedAtMs - startedAt >= options.warmupMs);
+  const stableSamples = samples.filter(
+    (sample) => sample.observedAtMs - startedAt >= options.warmupMs
+  );
   if (stableSamples.length < 2) {
     throw new Error("Soak did not collect at least two post-warmup samples");
   }
@@ -295,7 +307,9 @@ async function evaluate(client, expression) {
     returnByValue: true,
   });
   if (response.exceptionDetails) {
-    throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text);
+    throw new Error(
+      response.exceptionDetails.exception?.description ?? response.exceptionDetails.text
+    );
   }
   return response.result.value;
 }
@@ -381,7 +395,8 @@ export async function runPerformanceSoak(options) {
       events.push({
         kind: "renderer-exception",
         observedAtMs: Date.now(),
-        description: message.params?.exceptionDetails?.exception?.description ?? "Renderer exception",
+        description:
+          message.params?.exceptionDetails?.exception?.description ?? "Renderer exception",
       });
     }
     if (message.method === "Network.responseReceived" && message.params?.response?.status === 429) {
@@ -452,7 +467,9 @@ export async function runPerformanceSoak(options) {
 async function main() {
   const options = parseSoakArguments(process.argv.slice(2));
   const result = await runPerformanceSoak(options);
-  process.stdout.write(`${JSON.stringify({ verdict: result.verdict, ...result.summary }, null, 2)}\n`);
+  process.stdout.write(
+    `${JSON.stringify({ verdict: result.verdict, ...result.summary }, null, 2)}\n`
+  );
   if (result.verdict === "fail") process.exitCode = 1;
 }
 

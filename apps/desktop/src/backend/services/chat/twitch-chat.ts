@@ -567,19 +567,20 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
 
     try {
       await this.client.part(normalizedChannel);
-      this.channels.delete(normalizedChannel);
-      this.broadcasterId.delete(normalizedChannel);
-      this.isModerator.delete(normalizedChannel);
-      this.emitConnectionStatus();
       this.log(`Left channel: ${normalizedChannel}`);
     } catch (error) {
-      logger.error("Chat:Twitch", "Failed to leave channel", {
+      logger.warn("Chat:Twitch", "Twitch did not acknowledge channel leave", {
         channel: normalizedChannel,
         error:
           error instanceof Error
             ? { name: error.name, message: error.message, stack: error.stack }
             : String(error),
       });
+    } finally {
+      this.channels.delete(normalizedChannel);
+      this.broadcasterId.delete(normalizedChannel);
+      this.isModerator.delete(normalizedChannel);
+      this.emitConnectionStatus();
     }
   }
 

@@ -4,6 +4,13 @@ import { LuRefreshCw, LuSearch, LuTriangleAlert } from "react-icons/lu";
 
 import { VirtualizedCategoryGrid } from "@/features/discovery/components/discovery/virtualized-category-grid";
 import { useInfiniteTopCategories } from "@/features/discovery/data/queries/useCategories";
+import { useSearchCategories } from "@/features/discovery/data/queries/useSearch";
+import {
+  filterRankAndDeduplicateCategories,
+  mergeExactCrossPlatformCategories,
+} from "@/features/discovery/utils/search/category-search-contract";
+
+const MIN_REMOTE_CATEGORY_SEARCH_LENGTH = 2;
 
 export function CategoriesPage() {
   // Accumulate cursor pages while the virtualized grid keeps rendering only
@@ -18,12 +25,46 @@ export function CategoriesPage() {
     isFetchingNextPage,
   } = useInfiniteTopCategories();
   const [searchQuery, setSearchQuery] = useState("");
+  const normalizedSearchQuery = searchQuery.trim();
+  const shouldSearchRemotely = normalizedSearchQuery.length >= MIN_REMOTE_CATEGORY_SEARCH_LENGTH;
+  const remoteSearch = useSearchCategories(
+    normalizedSearchQuery,
+    undefined,
+    20,
+    shouldSearchRemotely
+  );
 
-  const filteredCategories = useMemo(() => {
-    if (!searchQuery.trim()) return categories || [];
+  const localCategories = useMemo(() => {
+    if (!normalizedSearchQuery) return categories || [];
     const query = searchQuery.toLowerCase();
     return categories?.filter((category) => category.name.toLowerCase().includes(query)) || [];
-  }, [categories, searchQuery]);
+  }, [categories, normalizedSearchQuery, searchQuery]);
+  const remoteCategories = useMemo(
+    () =>
+      mergeExactCrossPlatformCategories(
+        filterRankAndDeduplicateCategories(
+          remoteSearch.data?.pages.flatMap((page) => page.data) ?? [],
+          normalizedSearchQuery
+        )
+      ),
+    [normalizedSearchQuery, remoteSearch.data]
+  );
+  const filteredCategories = shouldSearchRemotely
+    ? remoteSearch.data
+      ? remoteCategories
+      : localCategories
+    : localCategories;
+  const searchIsLoading =
+    shouldSearchRemotely && remoteSearch.isLoading && localCategories.length === 0;
+  const searchIsError =
+    shouldSearchRemotely && remoteSearch.isError && localCategories.length === 0;
+  const searchHasNextPage = shouldSearchRemotely ? remoteSearch.hasNextPage : hasNextPage;
+  const searchIsFetchingNextPage = shouldSearchRemotely
+    ? remoteSearch.isFetchingNextPage
+    : isFetchingNextPage;
+  const loadMore = shouldSearchRemotely
+    ? () => void remoteSearch.fetchNextPage()
+    : () => void fetchNextPage();
 
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -58,19 +99,21 @@ export function CategoriesPage() {
       </div>
 
       <div className="mt-2 flex-1 min-h-0">
-        {isError && filteredCategories.length === 0 ? (
+        {(isError || searchIsError) && filteredCategories.length === 0 && !searchIsLoading ? (
           <div
             role="alert"
             className="mx-auto mt-12 flex max-w-md flex-col items-center rounded-xl border border-amber-400/30 bg-amber-400/10 px-6 py-8 text-center"
           >
             <LuTriangleAlert className="mb-3 h-8 w-8 text-amber-300" aria-hidden="true" />
-            <h2 className="text-lg font-semibold text-white">Couldn’t load categories</h2>
+            <h2 className="text-lg font-semibold text-white">
+              {searchIsError ? "Couldn’t search categories" : "Couldn’t load categories"}
+            </h2>
             <p className="mt-2 text-sm text-[var(--color-foreground-secondary)]">
               Twitch or Kick may be temporarily unavailable. Your saved browse data was not changed.
             </p>
             <button
               type="button"
-              onClick={() => void refetch()}
+              onClick={() => void (searchIsError ? remoteSearch.refetch() : refetch())}
               className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-[var(--color-primary-foreground)] transition-opacity hover:opacity-90"
             >
               <LuRefreshCw className="h-4 w-4" aria-hidden="true" />
@@ -80,10 +123,10 @@ export function CategoriesPage() {
         ) : (
           <VirtualizedCategoryGrid
             categories={filteredCategories}
-            isLoading={isLoading}
-            isFetchingNextPage={isFetchingNextPage}
-            hasNextPage={hasNextPage}
-            onLoadMore={() => void fetchNextPage()}
+            isLoading={isLoading || searchIsLoading}
+            isFetchingNextPage={searchIsFetchingNextPage}
+            hasNextPage={searchHasNextPage}
+            onLoadMore={loadMore}
             skeletonCount={12}
             scrollKey="categories-page"
             datasetKey={searchQuery.trim().toLowerCase() || "all"}

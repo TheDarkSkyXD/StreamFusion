@@ -12,7 +12,7 @@ import {
   SortableContext,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useMultiStreamStore } from "@/features/multistream/data/multistream-store";
 
@@ -20,16 +20,15 @@ import { SortableStreamSlot } from "./sortable-stream-slot";
 import { StreamSlot } from "./stream-slot";
 
 export function MultiStreamGrid() {
-  const {
-    streams,
-    removeStream,
-    layout,
-    focusedStreamId,
-    setFocusedStream,
-    toggleMute,
-    reorderStreams,
-    playbackBudget,
-  } = useMultiStreamStore();
+  const streams = useMultiStreamStore((state) => state.streams);
+  const removeStream = useMultiStreamStore((state) => state.removeStream);
+  const layout = useMultiStreamStore((state) => state.layout);
+  const focusedStreamId = useMultiStreamStore((state) => state.focusedStreamId);
+  const setFocusedStream = useMultiStreamStore((state) => state.setFocusedStream);
+  const toggleMute = useMultiStreamStore((state) => state.toggleMute);
+  const reorderStreams = useMultiStreamStore((state) => state.reorderStreams);
+  const playbackBudget = useMultiStreamStore((state) => state.playbackBudget);
+  const [wcvEnabled, setWcvEnabled] = useState<boolean | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -74,6 +73,26 @@ export function MultiStreamGrid() {
     window.electronAPI?.slot?.rebindExistingSlots?.().catch(() => {
       /* main may not have any slots yet; safe to ignore */
     });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const slot = window.electronAPI?.slot;
+    if (!slot?.isWcvEnabled) {
+      setWcvEnabled(false);
+      return;
+    }
+    slot
+      .isWcvEnabled()
+      .then((enabled) => {
+        if (!cancelled) setWcvEnabled(enabled);
+      })
+      .catch(() => {
+        if (!cancelled) setWcvEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function handleDragEnd(event: DragEndEvent) {
@@ -134,7 +153,7 @@ export function MultiStreamGrid() {
                   onFocus={() => {}}
                   isFocused={true}
                   playbackActive
-                  slotIndex={0}
+                  wcvEnabled={wcvEnabled}
                 />
               ))}
           </div>
@@ -154,8 +173,7 @@ export function MultiStreamGrid() {
                     isFocused={false}
                     playbackActive={sideRailIndex < Math.max(0, playbackBudget - 1)}
                     onActivate={() => focusSlot(stream.id)}
-                    // +1 so the side-rail slots stagger after the focused slot
-                    slotIndex={sideRailIndex + 1}
+                    wcvEnabled={wcvEnabled}
                     // Side rail scrolls horizontally — defer mount of off-screen
                     // slots until they scroll into view.
                     lazyMount
@@ -187,7 +205,7 @@ export function MultiStreamGrid() {
                 isFocused={focusedStreamId === stream.id && false}
                 playbackActive={index < playbackBudget}
                 onActivate={() => reorderStreams(index, 0)}
-                slotIndex={index}
+                wcvEnabled={wcvEnabled}
               />
             ))}
           </SortableContext>

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   SEARCH_KEYS,
   type SearchAllResponse,
+  useProviderIsolatedSearchAll,
   useSearchAll,
   useSearchCategories,
   useSearchChannels,
@@ -146,6 +147,26 @@ describe("useSearchChannels", () => {
     expect(api.search.channels).toHaveBeenCalledTimes(1);
   });
 
+  it("shares the cache across case and punctuation variants", async () => {
+    const wrapper = makeWrapper();
+    const ch = fixtures.channel({ username: "xqc" });
+    api.search.channels = mockSearchChannels(async () => ({
+      success: true,
+      data: [ch],
+      cursor: undefined,
+    }));
+
+    const first = renderHook(() => useSearchChannels("XQC!"), { wrapper });
+    await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
+    first.unmount();
+
+    const second = renderHook(() => useSearchChannels("xqc"), { wrapper });
+    await waitFor(() => expect(second.result.current.isSuccess).toBe(true));
+
+    expect(api.search.channels).toHaveBeenCalledTimes(1);
+    expect(second.result.current.data?.pages[0].data).toEqual([ch]);
+  });
+
   it("clears prior suggestions while a different query is pending", async () => {
     const ch = fixtures.channel({ username: "first" });
     let resolveSecond!: (value: { success: true; data: (typeof ch)[]; cursor: undefined }) => void;
@@ -230,6 +251,47 @@ describe("useSearchCategories", () => {
 // Guards: a superseded submitted search cannot persist after entering a delayed cache-hydration queue
 // Guards: a broad response rejected by durable cache admission cannot be reported as full hydration.
 describe("useSearchAll", () => {
+  it("publishes Twitch broad results without waiting for a slow Kick channel search", async () => {
+    const twitchChannel = fixtures.channel({ platform: "twitch", username: "xqc" });
+    const twitchCategory = fixtures.category({
+      id: "twitch-category",
+      platform: "twitch",
+      name: "Just Chatting",
+    });
+    const never = new Promise<never>(() => undefined);
+    api.search.channels = mockSearchChannels(({ platform }) =>
+      platform === "twitch"
+        ? Promise.resolve({ success: true, data: [twitchChannel], cursor: undefined })
+        : never
+    );
+    api.search.all = mockSearchAll((params) =>
+      params?.platform === "twitch"
+        ? Promise.resolve({
+            success: true,
+            data: {
+              channels: [twitchChannel],
+              categories: [twitchCategory],
+              streams: [],
+              videos: [],
+              clips: [],
+            },
+            providers: { twitch: "complete" },
+          })
+        : never
+    );
+
+    const { result } = renderHook(() => useProviderIsolatedSearchAll("xqc", undefined, 20), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.data?.categories).toEqual([twitchCategory]));
+    expect(result.current.data?.channels).toEqual([twitchChannel]);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isHydrating).toBe(true);
+    expect(api.search.all).toHaveBeenCalledWith(expect.objectContaining({ platform: "twitch" }));
+    expect(api.search.all).not.toHaveBeenCalledWith(expect.objectContaining({ platform: "kick" }));
+  });
+
   it("publishes an exact persisted result immediately after restart while refresh remains pending", async () => {
     const cachedChannel = fixtures.channel({
       id: "restart-search",
@@ -545,6 +607,13 @@ describe("useSearchAll", () => {
     const { result } = renderHook(() => useSearchAll("xqc"), { wrapper: makeWrapper() });
 
     await waitFor(() => expect(result.current.data?.channels).toEqual([twitchChannel]));
+    await waitFor(() => expect(api.search.all).toHaveBeenCalledTimes(1));
+    expect(api.search.all).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelSeeds: [twitchChannel],
+        channelSeedPlatforms: ["twitch"],
+      })
+    );
     expect(result.current.isLoading).toBe(false);
     expect(result.current.isHydrating).toBe(true);
   });

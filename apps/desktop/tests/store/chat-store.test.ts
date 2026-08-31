@@ -337,7 +337,9 @@ describe('chat-store dedup prefers emote-rich duplicates (Kick optimistic-echo r
     resetStore({ batching: true, interval: 16 });
     const id = 'race-3';
     useChatStore.getState().addMessage(makeMessage(id, 'kick'));
-    useChatStore.getState().addMessageBatched(makeEmoteMessage(id, 'kick'), defaultChannelKey('kick'));
+    useChatStore
+      .getState()
+      .addMessageBatched(makeEmoteMessage(id, 'kick'), defaultChannelKey('kick'));
     // makeMessage fixture sets channel: 'test', so derived key is 'kick:test'.
     useChatStore.getState().flushBatch(buildChannelKey('kick', 'test'));
     const msgs = messagesFor(defaultChannelKey('kick'));
@@ -380,47 +382,48 @@ describe('chat-store dedup prefers emote-rich duplicates (Kick optimistic-echo r
   it.each([
     ['optimistic first', true],
     ['Pusher first', false],
-  ])('addMessage reconciles %s to canonical identity and optimistic emotes', (_label, optimisticFirst) => {
-    const id = 'identity-race-direct';
-    const optimistic = Object.assign(makeEmoteMessage(id, 'kick'), {
-      userId: '7',
-      username: 'me',
-      displayName: 'Me',
-      color: '#98D8C8',
-      isOptimistic: true as const,
-    });
-    const canonical = {
-      ...makeMessage(id, 'kick'),
-      userId: '7',
-      username: 'me',
-      displayName: 'ME',
-      color: '#53FC18',
-      badges: [
-        { setId: 'subscriber', version: '3', imageUrl: 'subscriber.png', title: 'Subscriber' },
-      ],
-    };
+  ])(
+    'addMessage reconciles %s to canonical identity and optimistic emotes',
+    (_label, optimisticFirst) => {
+      const id = 'identity-race-direct';
+      const optimistic = Object.assign(makeEmoteMessage(id, 'kick'), {
+        userId: '7',
+        username: 'me',
+        displayName: 'Me',
+        color: '#98D8C8',
+        isOptimistic: true as const,
+      });
+      const canonical = {
+        ...makeMessage(id, 'kick'),
+        userId: '7',
+        username: 'me',
+        displayName: 'ME',
+        color: '#53FC18',
+        badges: [
+          { setId: 'subscriber', version: '3', imageUrl: 'subscriber.png', title: 'Subscriber' },
+        ],
+      };
 
-    const [first, second] = optimisticFirst
-      ? [optimistic, canonical]
-      : [canonical, optimistic];
-    useChatStore.getState().addMessage(first);
-    useChatStore.getState().addMessage(second);
+      const [first, second] = optimisticFirst ? [optimistic, canonical] : [canonical, optimistic];
+      useChatStore.getState().addMessage(first);
+      useChatStore.getState().addMessage(second);
 
-    expect(messagesFor(defaultChannelKey('kick'))).toEqual([
-      expect.objectContaining({
+      expect(messagesFor(defaultChannelKey('kick'))).toEqual([
+        expect.objectContaining({
+          displayName: 'ME',
+          color: '#53FC18',
+          badges: canonical.badges,
+          content: optimistic.content,
+        }),
+      ]);
+      expect(messagesFor(defaultChannelKey('kick'))[0]).not.toHaveProperty('isOptimistic');
+      expect(useChatStore.getState().usersByChannel[defaultChannelKey('kick')]?.me).toMatchObject({
         displayName: 'ME',
         color: '#53FC18',
         badges: canonical.badges,
-        content: optimistic.content,
-      }),
-    ]);
-    expect(messagesFor(defaultChannelKey('kick'))[0]).not.toHaveProperty('isOptimistic');
-    expect(useChatStore.getState().usersByChannel[defaultChannelKey('kick')]?.me).toMatchObject({
-      displayName: 'ME',
-      color: '#53FC18',
-      badges: canonical.badges,
-    });
-  });
+      });
+    }
+  );
 
   it.each([
     ['optimistic stored first', true],
@@ -446,9 +449,7 @@ describe('chat-store dedup prefers emote-rich duplicates (Kick optimistic-echo r
       ],
     };
     const channelKey = defaultChannelKey('kick');
-    const [stored, queued] = optimisticFirst
-      ? [optimistic, canonical]
-      : [canonical, optimistic];
+    const [stored, queued] = optimisticFirst ? [optimistic, canonical] : [canonical, optimistic];
 
     useChatStore.getState().addMessage(stored);
     useChatStore.getState().addMessageBatched(queued, channelKey);
@@ -577,29 +578,28 @@ describe('chat-store addMessageBatched', () => {
       imageUrl: 'https://static-cdn.jtvnw.net/badges/v1/moderator/2',
       title: 'Moderator',
     };
-    useChatStore.getState().addMessageBatched(
-      { ...makeMessage('live-mod'), badges: [badge] },
-      defaultChannelKey()
-    );
+    useChatStore
+      .getState()
+      .addMessageBatched({ ...makeMessage('live-mod'), badges: [badge] }, defaultChannelKey());
     expect(useChatStore.getState().usersByChannel[defaultChannelKey()]).toBeUndefined();
 
     vi.advanceTimersByTime(DEFAULT_BATCHING_INTERVAL_MS);
 
-    expect(useChatStore.getState().usersByChannel[defaultChannelKey()]?.['live-mod']).toMatchObject({
-      role: 'moderator',
-      badges: [badge],
-    });
+    expect(useChatStore.getState().usersByChannel[defaultChannelKey()]?.['live-mod']).toMatchObject(
+      {
+        role: 'moderator',
+        badges: [badge],
+      }
+    );
   });
 
   it('publishes a coalesced live burst within one 60 Hz frame budget', () => {
     const channelKey = defaultChannelKey();
     setMessageLimitPref(20);
-    useChatStore
-      .getState()
-      .prependMessages(
-        channelKey,
-        Array.from({ length: 20 }, (_, index) => makeMessage(`seed-${index}`))
-      );
+    useChatStore.getState().prependMessages(
+      channelKey,
+      Array.from({ length: 20 }, (_, index) => makeMessage(`seed-${index}`))
+    );
 
     const publishedIds: string[][] = [];
     const unsubscribe = useChatStore.subscribe(
@@ -618,9 +618,7 @@ describe('chat-store addMessageBatched', () => {
 
       vi.advanceTimersByTime(1000 / 60);
 
-      expect(publishedIds).toEqual([
-        Array.from({ length: 10 }, (_, index) => `live-${index + 1}`),
-      ]);
+      expect(publishedIds).toEqual([Array.from({ length: 10 }, (_, index) => `live-${index + 1}`)]);
     } finally {
       unsubscribe();
     }
@@ -783,9 +781,9 @@ describe('chat-store configurable message limit (U4)', () => {
     const len = useChatStore.getState().messagesByChannel[defaultChannelKey()].length;
     expect(len).toBeLessThanOrEqual(N + TRIM_BUFFER);
     // The newest message survives the trim.
-    expect(useChatStore.getState().messagesByChannel[defaultChannelKey()].map((m) => m.id)).toContain(
-      'live-1'
-    );
+    expect(
+      useChatStore.getState().messagesByChannel[defaultChannelKey()].map((m) => m.id)
+    ).toContain('live-1');
   });
 });
 
@@ -800,6 +798,11 @@ describe('chat-store buildChannelKey', () => {
     // prefix is what keeps their buckets separate.
     expect(buildChannelKey('twitch', 'xqc')).not.toBe(buildChannelKey('kick', 'xqc'));
   });
+
+  it('normalizes channel casing, whitespace, and IRC prefixes', () => {
+    expect(buildChannelKey('twitch', '  #XqC ')).toBe('twitch:xqc');
+    expect(buildChannelKey('kick', ' XQC ')).toBe('kick:xqc');
+  });
 });
 
 describe('chat-store dropChannel', () => {
@@ -809,7 +812,7 @@ describe('chat-store dropChannel', () => {
     vi.useRealTimers();
   });
 
-  it("removes the bucket and pausedChannels entry without touching other channels", () => {
+  it('removes the bucket and pausedChannels entry without touching other channels', () => {
     const keyA = buildChannelKey('twitch', 'xqc');
     const keyB = buildChannelKey('kick', 'adin');
     useChatStore.getState().addMessage({ ...makeMessage('a1', 'twitch'), channel: 'xqc' });
@@ -1052,7 +1055,9 @@ describe('chat-store addMessageBatched per-channel flush timer', () => {
     const msg = { ...makeMessage('b1', 'twitch'), channel: 'xqc' };
     useChatStore.getState().addMessageBatched(msg, buildChannelKey('twitch', 'xqc'));
     // Pending in batch — not yet in store
-    expect(useChatStore.getState().messagesByChannel[buildChannelKey('twitch', 'xqc')]).toBeUndefined();
+    expect(
+      useChatStore.getState().messagesByChannel[buildChannelKey('twitch', 'xqc')]
+    ).toBeUndefined();
     // Advance past the batch interval to fire the flush timer
     vi.advanceTimersByTime(60);
     const state = useChatStore.getState();
@@ -1099,9 +1104,9 @@ describe('chat-store addMessageBatched per-channel flush timer', () => {
       useChatStore.getState().messagesByChannel[buildChannelKey('twitch', 'xqc')]?.map((m) => m.id)
     ).toEqual(['xqc-1']);
     expect(
-      useChatStore.getState().messagesByChannel[buildChannelKey('twitch', 'forsen')]?.map(
-        (m) => m.id
-      )
+      useChatStore
+        .getState()
+        .messagesByChannel[buildChannelKey('twitch', 'forsen')]?.map((m) => m.id)
     ).toEqual(['forsen-1']);
   });
 });
@@ -1230,8 +1235,8 @@ describe('chat-store per-channel fields initial state', () => {
   });
 
   it('does not expose the deleted flat compatibility fields', () => {
-    expect(Reflect.get(useChatStore.getState(), "messages")).toBeUndefined();
-    expect(Reflect.get(useChatStore.getState(), "isPaused")).toBeUndefined();
+    expect(Reflect.get(useChatStore.getState(), 'messages')).toBeUndefined();
+    expect(Reflect.get(useChatStore.getState(), 'isPaused')).toBeUndefined();
   });
 
   it('setPaused(channelKey, paused) updates only that channel', () => {

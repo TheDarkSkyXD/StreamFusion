@@ -1,47 +1,60 @@
-import { act } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fireEvent, installElectronAPIMock, renderWithProviders, routerMock, screen } from '../test-utils';
-import { ChatQuickSettingsPopover } from '@/features/chat/components/chat/ChatQuickSettingsPopover';
-import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_USER_PREFERENCES } from '@shared/auth-types';
-import { useAuthStore } from '@/store/auth-store';
+import {
+  fireEvent,
+  installElectronAPIMock,
+  renderWithProviders,
+  routerMock,
+  screen,
+} from "../test-utils";
+import { ChatQuickSettingsPopover } from "@/features/chat/components/chat/ChatQuickSettingsPopover";
+import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
+import { useAuthStore } from "@/store/auth-store";
 
-vi.mock('@tanstack/react-router', () => routerMock());
+vi.mock("@tanstack/react-router", () => routerMock());
 
 const setLayout = vi.fn();
 const toggleChat = vi.fn();
+const setChatStream = vi.fn();
+const setMultiChatView = vi.fn();
 const destroySlot = vi.fn();
 let mockState = {
   streams: [] as Array<{
     id: string;
-    platform: 'twitch' | 'kick';
+    platform: "twitch" | "kick";
     channelName: string;
     isMuted: boolean;
     volume: number;
   }>,
-  layout: 'grid' as 'grid' | 'focus',
+  layout: "grid" as "grid" | "focus",
   isChatOpen: false,
   chatStreamId: null as string | null,
+  multiChatView: "tabs" as "merged" | "tabs",
+  playbackBudget: 4,
 };
 let mockChannelData: unknown = undefined;
 
-vi.mock('@/features/multistream/data/multistream-store', () => ({
-  useMultiStreamStore: () => ({
-    ...mockState,
-    setLayout,
-    toggleChat,
-  }),
+vi.mock("@/features/multistream/data/multistream-store", () => ({
+  useMultiStreamStore: (selector: (state: unknown) => unknown) =>
+    selector({
+      ...mockState,
+      setLayout,
+      toggleChat,
+      setChatStream,
+      setMultiChatView,
+    }),
 }));
 
-vi.mock('@/features/multistream/components/multistream/add-stream-dialog', () => ({
+vi.mock("@/features/multistream/components/multistream/add-stream-dialog", () => ({
   AddStreamDialog: () => <button type="button">Add Stream</button>,
 }));
 
-vi.mock('@/features/multistream/components/multistream/grid-layout', () => ({
+vi.mock("@/features/multistream/components/multistream/grid-layout", () => ({
   MultiStreamGrid: () => <div data-testid="multistream-grid">grid</div>,
 }));
 
-vi.mock('@/features/chat/components/chat/ChatPanel', () => ({
+vi.mock("@/features/chat/components/chat/ChatPanel", () => ({
   ChatPanel: (props: {
     initialPlatform: string;
     initialChannel: string;
@@ -62,11 +75,21 @@ vi.mock('@/features/chat/components/chat/ChatPanel', () => ({
   ),
 }));
 
-vi.mock('@/features/discovery/data/queries/useChannels', () => ({
+vi.mock("@/features/chat/data/use-multi-chat-sessions", () => ({
+  useMultiChatSessions: () => ({ isLoading: false, failedChannels: [] }),
+}));
+
+vi.mock("@/features/chat/components/chat/MergedChatFeed", () => ({
+  MergedChatFeed: ({ channels }: { channels: Array<{ key: string }> }) => (
+    <div data-testid="merged-chat-feed" data-channels={channels.map(({ key }) => key).join(",")} />
+  ),
+}));
+
+vi.mock("@/features/discovery/data/queries/useChannels", () => ({
   useChannelByUsername: () => ({ data: mockChannelData }),
 }));
 
-import { MultiStreamPage } from '@/pages/MultiStream';
+import { MultiStreamPage } from "@/pages/MultiStream";
 
 function setChatWidthPx(chatWidthPx: 280 | 340 | 420) {
   act(() => {
@@ -89,15 +112,24 @@ function setChatWidthPx(chatWidthPx: 280 | 340 | 420) {
 // Guards: error/isolation contract — when streams contains 2 slots and slot 1 errors mid-watch, slot 2 must stay live. The grid renders all slots regardless of any single slot's error state (per-slot isolation lives in the SlotSlot component; page mounts both)
 // Guards: focus-button disabled when no streams — prevents users from clicking into focus mode that would have nothing to show
 // Guards: chat rail follows the authoritative appearance width at 280px, 340px, and 420px while retaining its 1px border
-describe('MultiStreamPage', () => {
+describe("MultiStreamPage", () => {
   beforeEach(() => {
     setLayout.mockReset();
     toggleChat.mockReset();
+    setChatStream.mockReset();
+    setMultiChatView.mockReset();
     destroySlot.mockReset();
-    mockState = { streams: [], layout: 'grid', isChatOpen: false, chatStreamId: null };
+    mockState = {
+      streams: [],
+      layout: "grid",
+      isChatOpen: false,
+      chatStreamId: null,
+      multiChatView: "tabs",
+      playbackBudget: 4,
+    };
     mockChannelData = undefined;
     setChatWidthPx(340);
-    Object.defineProperty(window, 'electronAPI', {
+    Object.defineProperty(window, "electronAPI", {
       configurable: true,
       writable: true,
       value: {
@@ -112,101 +144,126 @@ describe('MultiStreamPage', () => {
     setChatWidthPx(340);
   });
 
-  it('renders the toolbar with layout buttons and add-stream dialog', () => {
+  it("renders the toolbar with layout buttons and add-stream dialog", () => {
     renderWithProviders(<MultiStreamPage />);
     expect(screen.getByText(/multistream/i)).toBeInTheDocument();
     expect(screen.getByText(/add stream/i)).toBeInTheDocument();
-    expect(screen.getByTestId('multistream-grid')).toBeInTheDocument();
+    expect(screen.getByTestId("multistream-grid")).toBeInTheDocument();
   });
 
-  it('switches layout when grid/focus buttons are clicked', () => {
+  it("switches layout when grid/focus buttons are clicked", () => {
     mockState.streams = [
-      { id: 's1', platform: 'twitch', channelName: 'ninja', isMuted: false, volume: 0.5 },
+      { id: "s1", platform: "twitch", channelName: "ninja", isMuted: false, volume: 0.5 },
     ];
     renderWithProviders(<MultiStreamPage />);
     const focusBtn = screen.getByTitle(/focus layout/i);
     fireEvent.click(focusBtn);
-    expect(setLayout).toHaveBeenCalledWith('focus');
+    expect(setLayout).toHaveBeenCalledWith("focus");
 
     const gridBtn = screen.getByTitle(/grid layout/i);
     fireEvent.click(gridBtn);
-    expect(setLayout).toHaveBeenCalledWith('grid');
+    expect(setLayout).toHaveBeenCalledWith("grid");
   });
 
-  it('disables the focus button when there are no streams', () => {
+  it("disables the focus button when there are no streams", () => {
     renderWithProviders(<MultiStreamPage />);
     expect(screen.getByTitle(/focus layout/i)).toBeDisabled();
   });
 
-  it('empty: with no streams, the page still mounts the multistream grid (its own empty state lives downstream)', () => {
+  it("empty: with no streams, the page still mounts the multistream grid (its own empty state lives downstream)", () => {
     mockState.streams = [];
     renderWithProviders(<MultiStreamPage />);
     // Toolbar + grid still mount even at zero streams.
     expect(screen.getByText(/multistream/i)).toBeInTheDocument();
-    expect(screen.getByTestId('multistream-grid')).toBeInTheDocument();
+    expect(screen.getByTestId("multistream-grid")).toBeInTheDocument();
   });
 
-  it('cross-slot isolation contract: with two streams configured, the page mounts the grid regardless of any individual slot\'s HLS state', () => {
+  it("cross-slot isolation contract: with two streams configured, the page mounts the grid regardless of any individual slot's HLS state", () => {
     // Per-slot HLS error isolation is enforced by StreamSlot (covered in
     // stream-slot.test.tsx) — the page's job is only to render the grid with
     // every slot present. Failing one slot mustn't unmount the others, which
     // would happen only if the page-level error boundary was wider than per-slot.
     mockState.streams = [
-      { id: 's1', platform: 'twitch', channelName: 'ninja', isMuted: false, volume: 0.5 },
-      { id: 's2', platform: 'kick', channelName: 'xqc', isMuted: true, volume: 0.5 },
+      { id: "s1", platform: "twitch", channelName: "ninja", isMuted: false, volume: 0.5 },
+      { id: "s2", platform: "kick", channelName: "xqc", isMuted: true, volume: 0.5 },
     ];
     renderWithProviders(<MultiStreamPage />);
-    expect(screen.getByTestId('multistream-grid')).toBeInTheDocument();
+    expect(screen.getByTestId("multistream-grid")).toBeInTheDocument();
     // Focus button enabled with >0 streams.
     expect(screen.getByTitle(/focus layout/i)).not.toBeDisabled();
   });
 
-  it('renders the real chat panel for the selected multistream channel', () => {
+  it("renders the real chat panel for the selected multistream channel", () => {
     mockState.streams = [
-      { id: 's1', platform: 'kick', channelName: 'xqc', isMuted: false, volume: 0.5 },
+      { id: "s1", platform: "kick", channelName: "xqc", isMuted: false, volume: 0.5 },
     ];
     mockState.isChatOpen = true;
-    mockState.chatStreamId = 's1';
+    mockState.chatStreamId = "s1";
     mockChannelData = {
-      id: 'kick-channel-id',
+      id: "kick-channel-id",
       chatroomId: 123,
-      kickUserId: 'kick-user-id',
-      subscriberBadges: [{ id: 'badge-1' }],
+      kickUserId: "kick-user-id",
+      subscriberBadges: [{ id: "badge-1" }],
     };
 
     renderWithProviders(<MultiStreamPage />);
 
-    const chatPanel = screen.getByTestId('chat-panel');
-    expect(chatPanel).toHaveAttribute('data-platform', 'kick');
-    expect(chatPanel).toHaveAttribute('data-channel', 'xqc');
-    expect(chatPanel).toHaveAttribute('data-channel-id', 'kick-channel-id');
-    expect(chatPanel).toHaveAttribute('data-chatroom-id', '123');
-    expect(chatPanel).toHaveAttribute('data-kick-user-id', 'kick-user-id');
-    expect(chatPanel).toHaveAttribute('data-badges', '1');
+    const chatPanel = screen.getByTestId("chat-panel");
+    expect(chatPanel).toHaveAttribute("data-platform", "kick");
+    expect(chatPanel).toHaveAttribute("data-channel", "xqc");
+    expect(chatPanel).toHaveAttribute("data-channel-id", "kick-channel-id");
+    expect(chatPanel).toHaveAttribute("data-chatroom-id", "123");
+    expect(chatPanel).toHaveAttribute("data-kick-user-id", "kick-user-id");
+    expect(chatPanel).toHaveAttribute("data-badges", "1");
     expect(screen.queryByText(/chat for xqc/i)).not.toBeInTheDocument();
   });
 
-  it('keeps the outer chat rail at the selected appearance width without a resize handle', () => {
+  it("offers one merged feed and separate channel tabs without hidden chat panels", () => {
     mockState.streams = [
-      { id: 's1', platform: 'twitch', channelName: 'ninja', isMuted: false, volume: 0.5 },
+      { id: "twitch-xqc", platform: "twitch", channelName: "xQc", isMuted: false, volume: 0.5 },
+      { id: "kick-cinna", platform: "kick", channelName: "Cinna", isMuted: true, volume: 0.5 },
     ];
     mockState.isChatOpen = true;
-    mockState.chatStreamId = 's1';
+    mockState.chatStreamId = "twitch-xqc";
+    mockState.multiChatView = "merged";
+
+    renderWithProviders(<MultiStreamPage />);
+
+    expect(screen.getByTestId("merged-chat-feed")).toHaveAttribute(
+      "data-channels",
+      "twitch:xqc,kick:cinna"
+    );
+    expect(screen.queryByTestId("chat-panel")).not.toBeInTheDocument();
+    const mergedTab = screen.getByRole("tab", { name: "Merged" });
+    expect(mergedTab).toHaveAttribute("aria-selected", "true");
+    expect(mergedTab).toHaveClass("text-[var(--color-primary-foreground)]");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Cinna" }));
+    expect(setChatStream).toHaveBeenCalledWith("kick-cinna");
+    expect(setMultiChatView).toHaveBeenCalledWith("tabs");
+  });
+
+  it("keeps the outer chat rail at the selected appearance width without a resize handle", () => {
+    mockState.streams = [
+      { id: "s1", platform: "twitch", channelName: "ninja", isMuted: false, volume: 0.5 },
+    ];
+    mockState.isChatOpen = true;
+    mockState.chatStreamId = "s1";
 
     const { container } = renderWithProviders(<MultiStreamPage />);
-    const chatRail = screen.getByTestId('multistream-chat-rail');
+    const chatRail = screen.getByTestId("multistream-chat-rail");
 
     const expectOuterWidth = (width: 280 | 340 | 420) => {
       expect(chatRail).toHaveStyle({
         width: `${width}px`,
         minWidth: `${width}px`,
         maxWidth: `${width}px`,
-        boxSizing: 'border-box',
+        boxSizing: "border-box",
       });
     };
 
     expectOuterWidth(340);
-    expect(container.querySelector('.cursor-ew-resize')).toBeNull();
+    expect(container.querySelector(".cursor-ew-resize")).toBeNull();
 
     for (const width of [280, 340, 420] as const) {
       setChatWidthPx(width);
@@ -214,12 +271,12 @@ describe('MultiStreamPage', () => {
     }
   });
 
-  it('uses the optimistic chat appearance width while preference hydration is stalled', async () => {
+  it("uses the optimistic chat appearance width while preference hydration is stalled", async () => {
     mockState.streams = [
-      { id: 's1', platform: 'twitch', channelName: 'ninja', isMuted: false, volume: 0.5 },
+      { id: "s1", platform: "twitch", channelName: "ninja", isMuted: false, volume: 0.5 },
     ];
     mockState.isChatOpen = true;
-    mockState.chatStreamId = 's1';
+    mockState.chatStreamId = "s1";
     act(() => {
       useAuthStore.setState({ initialized: false, preferences: null });
     });
@@ -242,15 +299,15 @@ describe('MultiStreamPage', () => {
         </>
       );
 
-      fireEvent.click(screen.getByRole('button', { name: /chat appearance/i }));
-      fireEvent.click(screen.getByRole('radio', { name: '280px' }));
+      fireEvent.click(screen.getByRole("button", { name: /chat appearance/i }));
+      fireEvent.click(screen.getByRole("radio", { name: "280px" }));
 
       expect(useAuthStore.getState().preferences).toBeNull();
-      expect(screen.getByTestId('multistream-chat-rail')).toHaveStyle({
-        width: '280px',
-        minWidth: '280px',
-        maxWidth: '280px',
-        boxSizing: 'border-box',
+      expect(screen.getByTestId("multistream-chat-rail")).toHaveStyle({
+        width: "280px",
+        minWidth: "280px",
+        maxWidth: "280px",
+        boxSizing: "border-box",
       });
     } finally {
       await act(async () => {
@@ -262,18 +319,24 @@ describe('MultiStreamPage', () => {
     }
   });
 
-  it('destroys every multiview slot when leaving the page without clearing the saved layout', () => {
+  it("destroys every multiview slot when leaving the page without clearing the saved layout", () => {
     mockState.streams = [
-      { id: 'twitch-xqc', platform: 'twitch', channelName: 'xqc', isMuted: false, volume: 0.5 },
-      { id: 'twitch-ludwig', platform: 'twitch', channelName: 'ludwig', isMuted: true, volume: 0.5 },
+      { id: "twitch-xqc", platform: "twitch", channelName: "xqc", isMuted: false, volume: 0.5 },
+      {
+        id: "twitch-ludwig",
+        platform: "twitch",
+        channelName: "ludwig",
+        isMuted: true,
+        volume: 0.5,
+      },
     ];
 
     const { unmount } = renderWithProviders(<MultiStreamPage />);
 
     unmount();
 
-    expect(destroySlot).toHaveBeenCalledWith('twitch-xqc');
-    expect(destroySlot).toHaveBeenCalledWith('twitch-ludwig');
+    expect(destroySlot).toHaveBeenCalledWith("twitch-xqc");
+    expect(destroySlot).toHaveBeenCalledWith("twitch-ludwig");
     expect(mockState.streams).toHaveLength(2);
   });
 });

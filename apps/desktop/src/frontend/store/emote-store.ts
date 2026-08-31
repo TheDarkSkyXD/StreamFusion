@@ -21,11 +21,13 @@ import type { ChatDisplayPreferences, Platform } from "../../shared/auth-types";
  * suppressed by the other's shared `isLoading` flag.
  */
 const inFlightGlobalLoads = new Map<Platform | "legacy", Promise<void>>();
-let emoteNameMapCache: {
-  activeChannelId: string | null;
-  emoteRevision: number;
-  map: Map<string, Emote>;
-} | null = null;
+const emoteNameMapCache = new Map<
+  string,
+  {
+    emoteRevision: number;
+    map: Map<string, Emote>;
+  }
+>();
 
 export interface EmoteViewerScope {
   platform: Platform;
@@ -106,7 +108,7 @@ interface EmoteState {
   getEmotesByProvider: () => Map<EmoteProvider, Emote[]>;
   getEmotesByProviderForChannel: (channelId: string) => Map<EmoteProvider, Emote[]>;
   getAllEmotes: () => Emote[];
-  getEmoteNameMap: () => Map<string, Emote>;
+  getEmoteNameMap: (channelId?: string) => Map<string, Emote>;
 }
 
 interface PersistedEmoteState {
@@ -395,26 +397,23 @@ export const useEmoteStore = create<EmoteState>()(
         return emoteManager.getAllEmotes(state.activeChannelId || undefined);
       },
 
-      getEmoteNameMap: () => {
+      getEmoteNameMap: (channelId) => {
         const state = get();
-        if (
-          emoteNameMapCache &&
-          emoteNameMapCache.activeChannelId === state.activeChannelId &&
-          emoteNameMapCache.emoteRevision === state.emoteRevision
-        ) {
-          return emoteNameMapCache.map;
+        const resolvedChannelId = channelId ?? state.activeChannelId ?? "";
+        const cached = emoteNameMapCache.get(resolvedChannelId);
+        if (cached?.emoteRevision === state.emoteRevision) {
+          return cached.map;
         }
 
         const map = new Map(
           emoteManager
-            .getAllEmotes(state.activeChannelId || undefined)
+            .getAllEmotes(resolvedChannelId || undefined)
             .map((emote) => [emote.name, emote])
         );
-        emoteNameMapCache = {
-          activeChannelId: state.activeChannelId,
+        emoteNameMapCache.set(resolvedChannelId, {
           emoteRevision: state.emoteRevision,
           map,
-        };
+        });
         return map;
       },
     }),

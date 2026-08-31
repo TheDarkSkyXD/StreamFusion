@@ -13,6 +13,12 @@ import {
 // Guards: sustained memory growth and quota violations fail with machine-readable reason codes.
 // Guards: a throttled renderer cannot hang the unattended runner and fails with an explicit frame-sample timeout.
 describe("performance soak gate", () => {
+  it("cycles the discovery and MultiView performance surfaces by default", () => {
+    expect(DEFAULT_SOAK_OPTIONS.routes).toEqual(
+      expect.arrayContaining(["#/categories", "#/multistream", "#/search?q=xqc"])
+    );
+  });
+
   it("parses an explicit multi-day run without weakening default thresholds", () => {
     const options = parseSoakArguments([
       "--",
@@ -82,6 +88,39 @@ describe("performance soak gate", () => {
     expect(result.verdict).toBe("pass");
     expect(result.failures).toEqual([]);
     expect(result.summary.stableSampleCount).toBe(4);
+  });
+
+  it("uses the center of even sample windows for memory growth", () => {
+    const startedAt = Date.parse("2026-08-25T18:00:00.000Z");
+    const memoryMb = [800, 900, 1_000, 1_100, 1_200, 1_300, 1_000, 1_100];
+    const result = analyzeSoakSamples({
+      startedAt,
+      endedAt: startedAt + 80_000,
+      options: {
+        ...DEFAULT_SOAK_OPTIONS,
+        durationMs: 80_000,
+        warmupMs: 0,
+        maxResidentGrowthBytes: 200 * 1024 * 1024,
+      },
+      events: [],
+      samples: memoryMb.map((residentMemoryMb, index) => ({
+        observedAtMs: startedAt + index * 10_000,
+        route: "#/",
+        cpuPercent: 1,
+        residentMemoryBytes: residentMemoryMb * 1024 * 1024,
+        processCount: 5,
+        rendererHeapBytes: 60 * 1024 * 1024,
+        frameP95Ms: 16.8,
+        frameMaxMs: 17,
+        frameSampleTimedOut: false,
+        videoCount: 1,
+        playingVideoCount: 1,
+        domNodeCount: 1200,
+      })),
+    });
+
+    expect(result.summary.residentMemory.growthBytes).toBe(200 * 1024 * 1024);
+    expect(result.failures).toEqual([]);
   });
 
   it("fails sustained memory growth, exceptions, and rate limiting", () => {

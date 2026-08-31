@@ -44,14 +44,6 @@ export const FocusedKick: Story = {
   },
 };
 
-export const StaggeredLoading: Story = {
-  args: {
-    streamId: "twitch-riftrunner",
-    channelName: "riftrunner",
-    slotIndex: 3,
-  },
-};
-
 export const WithDragHandle: Story = {
   args: {
     dragHandleProps: {

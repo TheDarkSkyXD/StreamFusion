@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { SevenTvCosmeticsClient } from "@backend/services/chat/seven-tv-cosmetics-client";
 import { TwitchHermesClient } from "@backend/services/chat/twitch-hermes-client";
 import { useStickyDismissedPrediction } from "@/features/chat/data/useStickyDismissedPrediction";
+import { registerChatMessageRoute } from "@/features/chat/data/chat-message-router";
 import { logger } from "@/renderer/logging/logger";
 import { unwrapIpcReply } from "@/lib/ipc-reply";
 import { router } from "@/routes/router";
@@ -374,7 +375,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
   useEffect(() => {
     if (!channelId || !twitchUser?.id || !hasActualModAuthority || modScopesLoading) return;
     if (!hasChannelModerateEventSubScopes) {
-      const promptKey = `${channelId}:${[...missingChannelModerateEventSubScopes].sort().join(",")}`;
+      const promptKey = `${channelId}:${missingChannelModerateEventSubScopes.toSorted().join(",")}`;
       if (eventSubScopePromptKeyRef.current !== promptKey) {
         eventSubScopePromptKeyRef.current = promptKey;
         promptReconnect({ missingScopes: missingChannelModerateEventSubScopes });
@@ -967,31 +968,6 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
 
   // Event Listeners
   useEffect(() => {
-    const handleMessage = (message: ChatMessage) => {
-      if (message.platform === "twitch") {
-        if (message.channel.toLowerCase() !== channel.toLowerCase()) return;
-
-        // Substitute emote NAMES inside text fragments with emote fragments.
-        // `includeNative: true` because tmi.js's synthetic self-echo arrives
-        // without IRC emote tags (we run with `skipUpdatingEmotesets: true`)
-        // — even native Twitch emotes like `Kappa` need to be resolved by
-        // name in that case. For inbound messages from other users IRC has
-        // already stamped the native emotes into proper fragments, so the
-        // emote text isn't present in any text fragment for the helper to
-        // double-render. Third-party 7TV / BTTV / FFZ always ride along as
-        // plain text either way and are resolved here too.
-        const map = useEmoteStore.getState().getEmoteNameMap();
-        const enrichedContent = substituteThirdPartyEmotes(message.content, map, {
-          includeNative: true,
-        });
-        const enriched =
-          enrichedContent === message.content ? message : { ...message, content: enrichedContent };
-        const gate = liveMessageGateRef.current;
-        if (gate) gate.accept(enriched);
-        else addMessageBatched(enriched, channelKey);
-      }
-    };
-
     const handleUserNotice = (notice: UserNotice) => {
       if (notice.platform !== "twitch") return;
       // U5 — viewer can hide sub / resub / raid / user-notice lines. Read
@@ -1157,7 +1133,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
 
     const handlePinnedMessage = (pin: NormalizedPinnedMessage) => {
       if (pin.platform !== "twitch") return;
-      const map = useEmoteStore.getState().getEmoteNameMap();
+      if (pin.channel && buildChannelKey("twitch", pin.channel) !== channelKey) return;
+      const map = useEmoteStore.getState().getEmoteNameMap(channelId);
       const enrichedContent = substituteThirdPartyEmotes(pin.content, map, {
         includeNative: true,
       });
@@ -1167,11 +1144,13 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
       setIsPinExpanded(false);
     };
 
-    const handlePinnedMessageCleared = () => {
+    const handlePinnedMessageCleared = (eventChannel?: string) => {
+      if (eventChannel && buildChannelKey("twitch", eventChannel) !== channelKey) return;
       setPinnedMessage(null);
     };
 
     const handlePollUpdate = (poll: KickPoll) => {
+      if (poll.channel && buildChannelKey("twitch", poll.channel) !== channelKey) return;
       setActivePoll(poll);
       setShowPoll(true);
       if (poll.remaining <= 0) {
@@ -1199,7 +1178,11 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
       setTwitchChannelModState(event.channelId, event.isModerator);
     };
 
-    twitchChatService.on("message", handleMessage);
+    const unregisterMessageRoute = registerChatMessageRoute({
+      platform: "twitch",
+      channel,
+      emoteChannelId: channelId,
+    });
     twitchChatService.on("userNotice", handleUserNotice);
     twitchChatService.on("connectionStateChange", handleConnectionStatus);
     twitchChatService.on("clearChat", handleClearChat);
@@ -1212,7 +1195,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
     twitchChatService.on("moderatorState", handleModeratorState);
 
     return () => {
-      twitchChatService.off("message", handleMessage);
+      unregisterMessageRoute();
       twitchChatService.off("userNotice", handleUserNotice);
       twitchChatService.off("connectionStateChange", handleConnectionStatus);
       twitchChatService.off("clearChat", handleClearChat);

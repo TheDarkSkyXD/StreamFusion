@@ -46,7 +46,11 @@ import {
   getChannel,
   getPublicChannel,
 } from "@backend/api/platforms/kick/endpoints/channel-endpoints";
-import { search, searchChannels } from "@backend/api/platforms/kick/endpoints/search-endpoints";
+import {
+  resetPublicSearchCacheForTests,
+  search,
+  searchChannels,
+} from "@backend/api/platforms/kick/endpoints/search-endpoints";
 import {
   getPublicTopStreams,
   getStreamBySlug,
@@ -85,13 +89,16 @@ function deferred<T>() {
 // Guards: a positively resolved Kick search account is classified active independently from live/offline state.
 describe("search-endpoints", () => {
   beforeEach(() => {
+    resetPublicSearchCacheForTests();
     mockFetch.mockReset();
     vi.mocked(getPublicChannel).mockReset().mockResolvedValue(null);
     vi.mocked(getChannel).mockReset().mockResolvedValue(null);
     vi.mocked(getPublicTopStreams).mockReset().mockResolvedValue({ data: [] });
     vi.mocked(getStreamBySlug).mockReset().mockResolvedValue(null);
     vi.mocked(searchCategories).mockReset().mockResolvedValue({ data: [] });
-    vi.mocked(acquireKickRequestSlot).mockReset().mockImplementation(async () => () => {});
+    vi.mocked(acquireKickRequestSlot)
+      .mockReset()
+      .mockImplementation(async () => () => {});
   });
 
   afterEach(() => {
@@ -99,6 +106,54 @@ describe("search-endpoints", () => {
   });
 
   describe("searchChannels", () => {
+    it("shares an in-flight public search across duplicate Kick lookups", async () => {
+      const response = deferred<Response>();
+      mockFetch.mockReturnValue(response.promise);
+      const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
+
+      const first = searchChannels(client, "streamer");
+      const second = searchChannels(client, "streamer");
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      response.resolve(
+        jsonResponse({
+          channels: [{ id: 100, slug: "streamer", username: "Streamer" }],
+        })
+      );
+      await expect(Promise.all([first, second])).resolves.toEqual([
+        expect.objectContaining({ data: [expect.objectContaining({ username: "streamer" })] }),
+        expect.objectContaining({ data: [expect.objectContaining({ username: "streamer" })] }),
+      ]);
+    });
+
+    it("shares the public-search cache across query casing", async () => {
+      mockFetch.mockResolvedValue(
+        jsonResponse({ channels: [{ id: 100, slug: "streamer", username: "Streamer" }] })
+      );
+      const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
+
+      await searchChannels(client, "Streamer");
+      await searchChannels(client, "streamer");
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not retain a failed public-search payload in the cache", async () => {
+      mockFetch.mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+      const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
+
+      await searchChannels(client, "streamer");
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({ channels: [{ id: 100, slug: "streamer", username: "Streamer" }] })
+      );
+      await searchChannels(client, "streamer");
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
     it("does not use the BrowserWindow public channel path for live search suggestions", async () => {
       mockFetch.mockResolvedValueOnce(
         jsonResponse({
@@ -152,10 +207,7 @@ describe("search-endpoints", () => {
       vi.mocked(acquireKickRequestSlot).mockResolvedValueOnce(releaseSlot);
       mockFetch.mockResolvedValueOnce(jsonResponse({ channels: [] }));
 
-      await searchChannels(
-        createMockClient({ isAuthenticated: vi.fn(() => false) }),
-        "search"
-      );
+      await searchChannels(createMockClient({ isAuthenticated: vi.fn(() => false) }), "search");
 
       expect(acquireKickRequestSlot).toHaveBeenCalledTimes(1);
       expect(releaseSlot).toHaveBeenCalledTimes(1);
@@ -203,13 +255,11 @@ describe("search-endpoints", () => {
     });
 
     it("keeps compact first-page results when the original public request fails", async () => {
-      mockFetch
-        .mockRejectedValueOnce(new Error("original failed"))
-        .mockResolvedValueOnce(
-          jsonResponse({
-            channels: [{ id: 2, slug: "iceposeidon", username: "IcePoseidon" }],
-          })
-        );
+      mockFetch.mockRejectedValueOnce(new Error("original failed")).mockResolvedValueOnce(
+        jsonResponse({
+          channels: [{ id: 2, slug: "iceposeidon", username: "IcePoseidon" }],
+        })
+      );
 
       const result = await searchChannels(
         createMockClient({ isAuthenticated: vi.fn(() => false) }),
@@ -256,10 +306,7 @@ describe("search-endpoints", () => {
     it("does not add a compact retry when the compact identity is too short", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ channels: [] }));
 
-      await searchChannels(
-        createMockClient({ isAuthenticated: vi.fn(() => false) }),
-        "a b"
-      );
+      await searchChannels(createMockClient({ isAuthenticated: vi.fn(() => false) }), "a b");
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockFetch).toHaveBeenCalledWith(
@@ -313,8 +360,8 @@ describe("search-endpoints", () => {
             thumbnailUrl: "",
             isLive: true,
             startedAt: "",
-          language: "en",
-          tags: [],
+            language: "en",
+            tags: [],
           },
         ],
       });
@@ -353,8 +400,8 @@ describe("search-endpoints", () => {
             thumbnailUrl: "",
             isLive: true,
             startedAt: "",
-          language: "en",
-          tags: [],
+            language: "en",
+            tags: [],
           },
         ],
       });
@@ -389,15 +436,19 @@ describe("search-endpoints", () => {
             thumbnailUrl: "",
             isLive: true,
             startedAt: "",
-          language: "en",
-          tags: [],
+            language: "en",
+            tags: [],
           },
         ],
       });
 
-      const result = await searchChannels(createMockClient({ isAuthenticated: vi.fn(() => false) }), "creator", {
-        liveOnly: true,
-      });
+      const result = await searchChannels(
+        createMockClient({ isAuthenticated: vi.fn(() => false) }),
+        "creator",
+        {
+          liveOnly: true,
+        }
+      );
 
       expect(getPublicTopStreams).toHaveBeenCalledTimes(1);
       expect(result.data.find((channel) => channel.username === "creator")?.isLive).toBe(true);
@@ -430,8 +481,8 @@ describe("search-endpoints", () => {
             thumbnailUrl: "",
             isLive: true,
             startedAt: "",
-          language: "en",
-          tags: [],
+            language: "en",
+            tags: [],
           },
         ],
       });
@@ -460,8 +511,8 @@ describe("search-endpoints", () => {
             thumbnailUrl: "",
             isLive: true,
             startedAt: "",
-          language: "en",
-          tags: [],
+            language: "en",
+            tags: [],
           },
         ],
       });
@@ -495,8 +546,8 @@ describe("search-endpoints", () => {
             thumbnailUrl: "",
             isLive: true,
             startedAt: "",
-          language: "en",
-          tags: [],
+            language: "en",
+            tags: [],
           },
         ],
       });
@@ -526,8 +577,8 @@ describe("search-endpoints", () => {
               thumbnailUrl: "",
               isLive: true,
               startedAt: "",
-            language: "en",
-            tags: [],
+              language: "en",
+              tags: [],
             },
             {
               id: "s2",
@@ -541,8 +592,8 @@ describe("search-endpoints", () => {
               thumbnailUrl: "",
               isLive: true,
               startedAt: "",
-            language: "en",
-            tags: [],
+              language: "en",
+              tags: [],
             },
           ],
           cursor: "100",
@@ -561,8 +612,8 @@ describe("search-endpoints", () => {
               thumbnailUrl: "",
               isLive: true,
               startedAt: "",
-            language: "en",
-            tags: [],
+              language: "en",
+              tags: [],
             },
           ],
           cursor: "200",
@@ -749,8 +800,26 @@ describe("search-endpoints", () => {
       const firstStream = deferred<UnifiedStream | null>();
       vi.mocked(getStreamBySlug).mockImplementationOnce(() => firstStream.promise);
       const seeds: UnifiedChannel[] = [
-        { id: "1", platform: "kick", username: "one", displayName: "One", avatarUrl: "", isLive: true, isVerified: false, isPartner: false },
-        { id: "2", platform: "kick", username: "two", displayName: "Two", avatarUrl: "", isLive: true, isVerified: false, isPartner: false },
+        {
+          id: "1",
+          platform: "kick",
+          username: "one",
+          displayName: "One",
+          avatarUrl: "",
+          isLive: true,
+          isVerified: false,
+          isPartner: false,
+        },
+        {
+          id: "2",
+          platform: "kick",
+          username: "two",
+          displayName: "Two",
+          avatarUrl: "",
+          isLive: true,
+          isVerified: false,
+          isPartner: false,
+        },
       ];
 
       const pending = search(createMockClient(), "live", {

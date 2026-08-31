@@ -418,6 +418,8 @@ export interface KickPinnedMessage {
  */
 export interface NormalizedPinnedMessage {
   platform: ChatPlatform;
+  /** Normalized source channel. Present on live provider events. */
+  channel?: string;
   /** Underlying chat-message id (used for optimistic reconciliation and
    *  message-level operations like Reply). */
   messageId: string;
@@ -463,6 +465,8 @@ export interface KickPollOption {
 }
 
 export interface KickPoll {
+  /** Normalized source channel. Present on live provider events. */
+  channel?: string;
   title: string;
   options: KickPollOption[];
   remaining: number;
@@ -649,7 +653,7 @@ export interface ChatServiceEvents {
   connectionStateChange: (status: ChatConnectionStatus) => void;
   error: (error: Error) => void;
   pinnedMessage: (msg: NormalizedPinnedMessage) => void;
-  pinnedMessageCleared: () => void;
+  pinnedMessageCleared: (channel?: string) => void;
   pollUpdate: (poll: KickPoll) => void;
   predictionUpdate: (prediction: UnifiedPrediction) => void;
   roomState: (event: RoomStatePatchEvent) => void;

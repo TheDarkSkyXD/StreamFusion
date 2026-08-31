@@ -96,6 +96,21 @@ describe("useStreamPlayback", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false), WAIT_OPTS);
   });
 
+  it("applies one shared stagger to distinct cold playback requests", async () => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    const { useStreamPlayback } = await import("@/features/playback/data/useStreamPlayback");
+
+    renderHook(() => useStreamPlayback("kick", "first"));
+    renderHook(() => useStreamPlayback("kick", "second"));
+
+    expect(window.electronAPI!.streams.getPlaybackUrl).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(149));
+    expect(window.electronAPI!.streams.getPlaybackUrl).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(window.electronAPI!.streams.getPlaybackUrl).toHaveBeenCalledTimes(2);
+  });
+
   it("reuses playback immediately across subscribers and logs reuse timing", async () => {
     vi.resetModules();
     vi.useFakeTimers();

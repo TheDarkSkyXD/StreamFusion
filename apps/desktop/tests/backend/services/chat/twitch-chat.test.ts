@@ -336,6 +336,23 @@ describe("TwitchChatService connect() single-flight", () => {
     expect(service.getActiveUserCount()).toBe(0);
   });
 
+  it("clears local channel state when Twitch does not acknowledge PART", async () => {
+    const service = new TwitchChatService();
+    const internals = service as unknown as ServiceInternals;
+    const client = Object.assign(new EventEmitter(), {
+      part: vi.fn(() => Promise.reject(new Error("No response from Twitch."))),
+    });
+    (service as unknown as { client: typeof client }).client = client;
+    internals.channels.add("xqc");
+    internals.broadcasterId.set("xqc", "123");
+
+    await service.leaveChannel("xqc");
+
+    expect(client.part).toHaveBeenCalledWith("xqc");
+    expect(internals.channels.has("xqc")).toBe(false);
+    expect(internals.broadcasterId.has("xqc")).toBe(false);
+  });
+
   it("waits for a final-release shutdown before connecting the next panel", async () => {
     let finishDisconnect!: () => void;
     fakeClient.disconnect.mockImplementation(

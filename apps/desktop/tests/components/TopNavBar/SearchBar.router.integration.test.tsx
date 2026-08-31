@@ -16,7 +16,7 @@ const searchState = vi.hoisted(() => ({
 }));
 
 vi.mock("@/features/discovery/data/queries/useSearch", () => ({
-  useSearchAll: (query: string) => {
+  useProviderIsolatedSearchAll: (query: string) => {
     searchState.submittedQueries.push(query);
     return {
       data: {

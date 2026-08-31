@@ -5,7 +5,7 @@ import {
   type FetchNextPageOptions,
   type QueryClient,
 } from "@tanstack/react-query";
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import type { UnifiedCategory } from "../../../../../shared/platform-types";
 import {
@@ -475,18 +475,28 @@ function useInfiniteProviderCategories(platform: Platform) {
 
 /** Cursor-driven category catalog used by the Categories page. */
 export function useInfiniteTopCategories() {
+  const persistedCatalogueQuery = useQuery({
+    queryKey: CATEGORY_KEYS.top(undefined),
+    queryFn: async (): Promise<UnifiedCategory[]> => [],
+    enabled: false,
+  });
   const twitchQuery = useInfiniteProviderCategories("twitch");
   const kickQuery = useInfiniteProviderCategories("kick");
-  const providerQueries = [twitchQuery, kickQuery] as const;
-  const providerCategories: UnifiedCategory[] = [];
-  for (const query of providerQueries) {
-    for (const page of query.data?.pages ?? []) providerCategories.push(...page.categories);
-  }
-  const data = mergeCategories(providerCategories);
+  const providerCategories = useMemo(
+    () =>
+      [twitchQuery.data, kickQuery.data].flatMap(
+        (result) => result?.pages.flatMap((page) => page.categories) ?? []
+      ),
+    [kickQuery.data, twitchQuery.data]
+  );
+  const data = useMemo(
+    () => mergeCategories([...(persistedCatalogueQuery.data ?? []), ...providerCategories]),
+    [persistedCatalogueQuery.data, providerCategories]
+  );
   const hasData = data.length > 0;
-  const isLoading = !hasData && providerQueries.some((query) => query.isLoading);
-  const isError = !hasData && !isLoading && providerQueries.every((query) => query.isError);
-  const isSuccess = hasData || (!isLoading && providerQueries.some((query) => query.isSuccess));
+  const isLoading = !hasData && (twitchQuery.isLoading || kickQuery.isLoading);
+  const isError = !hasData && !isLoading && twitchQuery.isError && kickQuery.isError;
+  const isSuccess = hasData || (!isLoading && (twitchQuery.isSuccess || kickQuery.isSuccess));
   const {
     fetchNextPage: fetchNextTwitchPage,
     hasNextPage: twitchHasNextPage,
@@ -538,15 +548,16 @@ export function useInfiniteTopCategories() {
     data,
     error: isError ? new Error("Couldn’t load categories from Twitch or Kick") : null,
     fetchNextPage,
-    fetchStatus: providerQueries.some((query) => query.fetchStatus === "fetching")
-      ? ("fetching" as const)
-      : providerQueries.some((query) => query.fetchStatus === "paused")
-        ? ("paused" as const)
-        : ("idle" as const),
-    hasNextPage: providerQueries.some((query) => query.hasNextPage),
+    fetchStatus:
+      twitchQuery.fetchStatus === "fetching" || kickQuery.fetchStatus === "fetching"
+        ? ("fetching" as const)
+        : twitchQuery.fetchStatus === "paused" || kickQuery.fetchStatus === "paused"
+          ? ("paused" as const)
+          : ("idle" as const),
+    hasNextPage: twitchQuery.hasNextPage || kickQuery.hasNextPage,
     isError,
-    isFetching: providerQueries.some((query) => query.isFetching),
-    isFetchingNextPage: providerQueries.some((query) => query.isFetchingNextPage),
+    isFetching: twitchQuery.isFetching || kickQuery.isFetching,
+    isFetchingNextPage: twitchQuery.isFetchingNextPage || kickQuery.isFetchingNextPage,
     isLoading,
     isSuccess,
     refetch,

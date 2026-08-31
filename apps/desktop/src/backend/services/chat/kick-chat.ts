@@ -1111,13 +1111,13 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       this.log(`Pinned message created in ${channelSlug}`);
       const pin = data as KickPinnedMessage;
       if (pin?.message) {
-        this.emit("pinnedMessage", kickPinToNormalized(pin));
+        this.emit("pinnedMessage", { ...kickPinToNormalized(pin), channel: channelSlug });
       }
     });
 
     pusherChannel.bind("App\\Events\\PinnedMessageDeletedEvent", (_data: unknown) => {
       this.log(`Pinned message deleted in ${channelSlug}`);
-      this.emit("pinnedMessageCleared");
+      this.emit("pinnedMessageCleared", channelSlug);
     });
 
     // Poll update event
@@ -1125,7 +1125,7 @@ export class KickChatService extends EventEmitter implements TypedEventEmitter {
       this.log(`Poll updated in ${channelSlug}`);
       const poll = data as KickPoll;
       if (poll?.title) {
-        this.emit("pollUpdate", poll);
+        this.emit("pollUpdate", { ...poll, channel: channelSlug });
       }
     });
 

@@ -9,7 +9,7 @@ let intersectionCallbacks: IntersectionObserverCallback[] = [];
 vi.mock("@tanstack/react-router", () => routerMock({ search: routeMockState.search }));
 
 vi.mock("@/features/discovery/data/queries/useSearch", () => ({
-  useSearchAll: vi.fn(),
+  useProviderIsolatedSearchAll: vi.fn(),
   useSearchCategories: vi.fn(),
   useSearchChannels: vi.fn(),
   useSearchClips: vi.fn(),
@@ -50,7 +50,8 @@ vi.mock("@/components/ui/proxied-image", () => ({
 }));
 
 import {
-  useSearchAll,
+  useProviderIsolatedSearchAll,
+  useProviderIsolatedSearchAll as useSearchAll,
   useSearchCategories,
   useSearchChannels,
   useSearchClips,
@@ -59,7 +60,7 @@ import {
 } from "@/features/discovery/data/queries/useSearch";
 import { SearchPage } from "@/pages/SearchResults";
 
-const useSearchAllMock = vi.mocked(useSearchAll);
+const useSearchAllMock = vi.mocked(useProviderIsolatedSearchAll);
 const useSearchCategoriesMock = vi.mocked(useSearchCategories);
 const useSearchChannelsMock = vi.mocked(useSearchChannels);
 const useSearchClipsMock = vi.mocked(useSearchClips);
@@ -508,9 +509,10 @@ describe("SearchPage", () => {
   });
 
   it("uses a solid white background for the selected All platform filter", () => {
-    useSearchAllMock.mockReturnValue({ data: emptyResults(), isLoading: false } as unknown as ReturnType<
-      typeof useSearchAll
-    >);
+    useSearchAllMock.mockReturnValue({
+      data: emptyResults(),
+      isLoading: false,
+    } as unknown as ReturnType<typeof useSearchAll>);
 
     renderWithProviders(<SearchPage />);
 

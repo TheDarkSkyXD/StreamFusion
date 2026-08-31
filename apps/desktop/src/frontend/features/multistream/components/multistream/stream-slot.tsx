@@ -10,17 +10,11 @@ import { Button } from "@/components/ui/button";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useChannelByUsername } from "@/features/discovery/data/queries/useChannels";
 import { useStreamPlayback } from "@/features/playback/data/useStreamPlayback";
-import { useTimeout } from "@/hooks/useTimeout";
 import { cn } from "@/lib/utils";
 import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@shared/auth-types";
 import { useMultiStreamStore } from "@/features/multistream/data/multistream-store";
 
-// Stagger initial HLS.js mount per slot so 6 concurrent decoder allocations
-// don't all hit the GPU at once (the same load profile that previously crashed
-// the GPU process with exit_code=34). Each slot waits slotIndex * delay before
-// starting its first fetch.
-const STAGGER_DELAY_MS = 350;
 const VISIBILITY_THRESHOLD = 0.25;
 
 interface StreamSlotProps {
@@ -34,11 +28,7 @@ interface StreamSlotProps {
   playbackActive?: boolean;
   onActivate?: () => void;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
-  /**
-   * Initial position in the multistream grid. Captured on first mount only —
-   * reorders don't re-stagger an already-mounted slot.
-   */
-  slotIndex?: number;
+  wcvEnabled?: boolean | null;
   /**
    * Defer first mount until the slot is at least 25% on-screen. Used for
    * focus-mode side-rail slots which may scroll horizontally off-screen. Once
@@ -59,25 +49,18 @@ export function StreamSlot({
   playbackActive = true,
   onActivate,
   dragHandleProps,
-  slotIndex = 0,
+  wcvEnabled = false,
   lazyMount = false,
 }: StreamSlotProps) {
-  const { toggleMute, setChatStream, chatStreamId } = useMultiStreamStore();
+  const toggleMute = useMultiStreamStore((state) => state.toggleMute);
+  const setChatStream = useMultiStreamStore((state) => state.setChatStream);
+  const setMultiChatView = useMultiStreamStore((state) => state.setMultiChatView);
+  const isChatActive = useMultiStreamStore(
+    (state) => state.multiChatView === "tabs" && state.chatStreamId === streamId
+  );
 
-  // Capture initial slotIndex so reorders don't re-trigger the stagger for an
-  // already-mounted slot — the value is read once and never tracks prop updates.
-  const initialSlotIndexRef = useRef(slotIndex);
-  const [isStaggerReady, setIsStaggerReady] = useState(() => slotIndex === 0);
   const [isVisible, setIsVisible] = useState(() => !lazyMount);
   const slotRootRef = useRef<HTMLDivElement | null>(null);
-
-  // Declarative one-shot: fires once after slotIndex * STAGGER_DELAY_MS,
-  // then becomes a no-op (null) because setIsStaggerReady flips the state
-  // that gates the delay.
-  useTimeout(
-    () => setIsStaggerReady(true),
-    isStaggerReady ? null : initialSlotIndexRef.current * STAGGER_DELAY_MS
-  );
 
   useEffect(() => {
     if (!lazyMount || isVisible) return;
@@ -96,7 +79,7 @@ export function StreamSlot({
     return () => observer.disconnect();
   }, [lazyMount, isVisible]);
 
-  const isMountReady = playbackActive && isStaggerReady && isVisible;
+  const isMountReady = playbackActive && isVisible;
   // Passing an empty identifier short-circuits the playback fetch — both the
   // IPC round-trip and HLS.js init are deferred until the slot is ready.
   const effectiveChannelName = isMountReady ? channelName : "";
@@ -128,8 +111,6 @@ export function StreamSlot({
   // Fetch channel data to get offline banner, avatar, and display name
   const { data: channelData } = useChannelByUsername(playbackActive ? channelName : "", platform);
 
-  const isChatActive = chatStreamId === streamId;
-
   // ===== Slice 06: WCV-per-slot path (gated by env flag during dogfood) =====
   // When the controller has its WCV path enabled, this slot:
   //   - tells main to create/destroy its per-slot WCV on mount/unmount
@@ -141,33 +122,8 @@ export function StreamSlot({
   //     second crash in the 5-min window (slice 06 retry policy)
   // Renders a placeholder div (the WCV draws on top) instead of mounting
   // the in-process KickLivePlayer / TwitchLivePlayer.
-  const [wcvEnabled, setWcvEnabled] = useState<boolean | null>(null);
   const [retryAffordance, setRetryAffordance] = useState(false);
   const placeholderRef = useRef<HTMLDivElement | null>(null);
-
-  // Probe the WCV flag on mount. Unknown (null) until the IPC resolves so we
-  // don't briefly render the legacy player while waiting.
-  useEffect(() => {
-    let cancelled = false;
-    const slot = window.electronAPI?.slot;
-    if (!slot?.isWcvEnabled) {
-      // Older preload (test harness, packaged build with stale electronAPI):
-      // assume the legacy path is the safe default.
-      setWcvEnabled(false);
-      return;
-    }
-    slot
-      .isWcvEnabled()
-      .then((enabled) => {
-        if (!cancelled) setWcvEnabled(enabled);
-      })
-      .catch(() => {
-        if (!cancelled) setWcvEnabled(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Slot lifecycle on the main side: create on mount, destroy on unmount.
   // Only fires when the WCV path is active so the legacy renderer stays
@@ -292,11 +248,12 @@ export function StreamSlot({
           className={cn(
             "h-8 w-8",
             isChatActive &&
-              "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary)]/90"
+              "bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:bg-[var(--color-primary)]/90"
           )}
           onClick={(e) => {
             e.stopPropagation();
             setChatStream(streamId);
+            setMultiChatView("tabs");
           }}
           title="Show Chat"
         >
@@ -349,6 +306,10 @@ export function StreamSlot({
               Activate stream
             </Button>
           </div>
+        ) : wcvEnabled === null ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-black text-sm text-white/60">
+            Loading stream...
+          </div>
         ) : wcvEnabled ? (
           // Slice 06: the WCV draws the video on top of this placeholder.
           // The host renders only chrome + overlays. ResizeObserver pushes
@@ -378,8 +339,6 @@ export function StreamSlot({
             )}
           </div>
         ) : !isMountReady ? (
-          // Stagger placeholder — skeleton with channel label so the wait is
-          // clearly a loading state, not a broken/blank slot.
           <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-zinc-900 to-black">
             <div className="absolute inset-0 animate-pulse bg-[var(--color-background-elevated)]/20" />
             <div className="relative z-10 flex flex-col items-center text-center px-4">

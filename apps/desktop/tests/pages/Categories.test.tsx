@@ -15,6 +15,10 @@ vi.mock("@/features/discovery/data/queries/useCategories", () => ({
   useCategoryById: vi.fn(),
 }));
 
+vi.mock("@/features/discovery/data/queries/useSearch", () => ({
+  useSearchCategories: vi.fn(),
+}));
+
 vi.mock("@/features/discovery/components/discovery/virtualized-category-grid", () => ({
   VirtualizedCategoryGrid: ({
     categories,
@@ -45,9 +49,11 @@ vi.mock("@/features/discovery/components/discovery/virtualized-category-grid", (
 }));
 
 import { useInfiniteTopCategories } from "@/features/discovery/data/queries/useCategories";
+import { useSearchCategories } from "@/features/discovery/data/queries/useSearch";
 import { CategoriesPage } from "@/pages/Categories";
 
 const useInfiniteTopCategoriesMock = vi.mocked(useInfiniteTopCategories);
+const useSearchCategoriesMock = vi.mocked(useSearchCategories);
 
 // Guards: loading state — the infinite category query's loading state is forwarded to VirtualizedCategoryGrid so the grid shows skeleton placeholders instead of "no categories"
 // Guards: error state — an undefined infinite-query result renders the retryable error rather than throwing on .length
@@ -59,6 +65,7 @@ describe("CategoriesPage", () => {
   beforeEach(() => {
     firstPaintState.hasPainted = true;
     useInfiniteTopCategoriesMock.mockReset();
+    useSearchCategoriesMock.mockReturnValue({} as ReturnType<typeof useSearchCategories>);
   });
 
   it("loading: forwards isLoading=true and 12 placeholders to the grid", () => {
@@ -124,6 +131,29 @@ describe("CategoriesPage", () => {
       target: { value: "nothing-matches" },
     });
     expect(screen.getByText(/no categories matching "nothing-matches"/i)).toBeInTheDocument();
+  });
+
+  it("uses remote category search instead of claiming a final empty result before later pages load", () => {
+    const remoteCategory = fixtures.category({ id: "later", name: "Later Match" });
+    useInfiniteTopCategoriesMock.mockReturnValue({
+      data: [fixtures.category({ id: "c1", name: "Just Chatting" })],
+      isLoading: false,
+    } as ReturnType<typeof useInfiniteTopCategories>);
+    useSearchCategoriesMock.mockReturnValue({
+      data: { pages: [{ data: [remoteCategory] }], pageParams: [] },
+      hasNextPage: true,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+    } as unknown as ReturnType<typeof useSearchCategories>);
+
+    renderWithProviders(<CategoriesPage />);
+    fireEvent.change(screen.getByPlaceholderText(/filter categories/i), {
+      target: { value: "later" },
+    });
+
+    expect(screen.getByText("Later Match")).toBeInTheDocument();
+    expect(screen.queryByText(/no categories matching/i)).not.toBeInTheDocument();
+    expect(useSearchCategoriesMock).toHaveBeenLastCalledWith("later", undefined, 20, true);
   });
 
   it("error: shows a retryable failure instead of the generic empty copy", () => {

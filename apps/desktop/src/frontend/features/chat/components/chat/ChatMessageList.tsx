@@ -34,6 +34,7 @@ const CHAT_LIST_INCREASE_VIEWPORT_BY = { top: 120, bottom: 240 };
 const CHAT_AT_BOTTOM_THRESHOLD_PX = 20;
 const BOTTOM_FOLLOW_RESIDUAL_GAP_PX = 4;
 const VIRTUOSO_FIRST_ITEM_INDEX_BASE = 1_000_000;
+const CHAT_INITIAL_LOCATION = { index: "LAST", align: "end" } as const;
 const NEW_MESSAGES_DIVIDER_COLOR: Record<ChatPlatform, string> = {
   twitch: "#a970ff",
   kick: "#53fc18",
@@ -283,9 +284,6 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
     const pausedBaselineLengthRef = useRef(messages.length);
     const previousMessageLengthRef = useRef(messages.length);
     const wasPausedRef = useRef(isPaused);
-    const initialTopMostItemIndexRef = useRef(
-      messages.length > 0 ? firstItemIndex + messages.length - 1 : firstItemIndex
-    );
 
     const pausedBaselineLength = !isPaused
       ? messages.length
@@ -645,7 +643,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
           computeItemKey={computeItemKey}
           firstItemIndex={firstItemIndex}
           followOutput={followOutput}
-          initialTopMostItemIndex={initialTopMostItemIndexRef.current}
+          initialTopMostItemIndex={CHAT_INITIAL_LOCATION}
           atBottomThreshold={CHAT_AT_BOTTOM_THRESHOLD_PX}
           overscan={CHAT_LIST_OVERSCAN_PX}
           increaseViewportBy={CHAT_LIST_INCREASE_VIEWPORT_BY}

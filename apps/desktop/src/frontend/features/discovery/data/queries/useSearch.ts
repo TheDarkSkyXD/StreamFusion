@@ -525,7 +525,8 @@ export function useSearchChannels(
   liveOnly: boolean = false,
   enabled: boolean = true
 ) {
-  const normalizedQuery = query.trim();
+  const searchQuery = query.trim();
+  const normalizedQuery = normalizeSearchQuery(searchQuery);
   const queryKey = SEARCH_KEYS.channels(normalizedQuery, platform, limit, liveOnly);
 
   const result = useInfiniteQuery({
@@ -533,7 +534,7 @@ export function useSearchChannels(
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam, signal }) => {
       const response = await window.electronAPI.search.channels({
-        query: normalizedQuery,
+        query: searchQuery,
         platform,
         limit,
         after: pageParam,
@@ -549,7 +550,7 @@ export function useSearchChannels(
     // Treat an empty page as end-of-list regardless of cursor.
     getNextPageParam: (lastPage) =>
       lastPage.data.length === 0 ? undefined : (lastPage.cursor ?? undefined),
-    enabled: enabled && normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    enabled: enabled && searchQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
     ...getQueryCacheOptions("searchResults"),
     // Typeahead must never show the previous term's rows while the next term
     // is pending. The general search cache intentionally keeps prior data for
@@ -558,7 +559,7 @@ export function useSearchChannels(
   });
   useQueryCachePerformance({
     data: result.data,
-    enabled: enabled && normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    enabled: enabled && searchQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
     fetchStatus: result.fetchStatus,
     queryKey,
     surface: "search",
@@ -572,7 +573,8 @@ export function useSearchCategories(
   limit: number = 20,
   enabled: boolean = true
 ) {
-  const normalizedQuery = query.trim();
+  const searchQuery = query.trim();
+  const normalizedQuery = normalizeSearchQuery(searchQuery);
   const queryKey = SEARCH_KEYS.categories(normalizedQuery, platform, limit);
 
   const result = useInfiniteQuery({
@@ -580,7 +582,7 @@ export function useSearchCategories(
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam, signal }) => {
       const response = await window.electronAPI.categories.search({
-        query: normalizedQuery,
+        query: searchQuery,
         platform,
         limit,
         after: pageParam,
@@ -596,13 +598,13 @@ export function useSearchCategories(
     // can't see the post-filter emptiness.
     getNextPageParam: (lastPage) =>
       lastPage.data.length === 0 ? undefined : (lastPage.cursor ?? undefined),
-    enabled: enabled && normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    enabled: enabled && searchQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
     ...getQueryCacheOptions("searchResults"),
     placeholderData: undefined,
   });
   useQueryCachePerformance({
     data: result.data,
-    enabled: enabled && normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
+    enabled: enabled && searchQuery.length >= MIN_REMOTE_SEARCH_LENGTH,
     fetchStatus: result.fetchStatus,
     queryKey,
     surface: "search",
@@ -696,6 +698,8 @@ export function useSearchAll(
     ({ result: queryResult }) => queryResult.data?.pages.flatMap((page) => page.data) ?? []
   );
   const quickSearchSettled = selectedQuickQueries.every(({ result }) => !result.isPending);
+  const hasQuickProviderResult = selectedQuickQueries.some(({ result }) => !result.isPending);
+  const canHydrateBroadResults = active && (hasQuickProviderResult || persistedData !== undefined);
   const successfulQuickPlatforms = selectedQuickQueries
     .filter(({ result }) => result.isSuccess)
     .map(({ platform: quickPlatform }) => quickPlatform);
@@ -722,17 +726,12 @@ export function useSearchAll(
       signal.addEventListener("abort", cancel, { once: true });
 
       try {
-        // Persisted channels are for immediate publication, not evidence that
-        // either provider has been searched during this request. A warm broad
-        // refresh starts before quick search settles and must discover current
-        // channels itself instead of accepting stale rows as provider seeds.
-        const channelSeeds = quickSearchSettled ? quickChannels : [];
         const response = await window.electronAPI.search.all({
           query: normalizedQuery,
           platform,
           limit,
-          channelSeeds,
-          channelSeedPlatforms: quickSearchSettled ? successfulQuickPlatforms : [],
+          channelSeeds: quickChannels,
+          channelSeedPlatforms: successfulQuickPlatforms,
           requestId,
         });
         signal.throwIfAborted();
@@ -773,7 +772,7 @@ export function useSearchAll(
         signal.removeEventListener("abort", cancel);
       }
     },
-    enabled: active && (quickSearchSettled || persistedData !== undefined),
+    enabled: canHydrateBroadResults,
     ...getQueryCacheOptions("searchResults"),
     placeholderData: undefined,
     refetchOnMount: false,
@@ -904,5 +903,90 @@ export function useSearchAll(
       active &&
       result.data === undefined &&
       (!quickSearchSettled || result.fetchStatus === "fetching"),
+  };
+}
+
+function mergeSearchResultCollections(
+  collections: readonly SearchAllResponse[]
+): SearchAllResponse | undefined {
+  if (collections.length === 0) return undefined;
+
+  const unique = <T extends { id: string; platform: Platform }>(
+    select: (collection: SearchAllResponse) => readonly T[]
+  ): T[] => {
+    const items = new Map<string, T>();
+    for (const collection of collections) {
+      for (const item of select(collection)) items.set(`${item.platform}:${item.id}`, item);
+    }
+    return [...items.values()];
+  };
+
+  return {
+    channels: unique((collection) => collection.channels),
+    categories: unique((collection) => collection.categories),
+    streams: unique((collection) => collection.streams),
+    videos: unique((collection) => collection.videos),
+    clips: unique((collection) => collection.clips),
+  };
+}
+
+function providerSearchResult(
+  platform: Platform,
+  current: SearchAllResponse | undefined,
+  persisted: SearchAllResponse | undefined,
+  isHydrating: boolean
+): SearchAllResponse | undefined {
+  const fallback = persisted
+    ? {
+        channels: persisted.channels.filter((item) => item.platform === platform),
+        categories: persisted.categories.filter((item) => item.platform === platform),
+        streams: persisted.streams.filter((item) => item.platform === platform),
+        videos: persisted.videos.filter((item) => item.platform === platform),
+        clips: persisted.clips.filter((item) => item.platform === platform),
+      }
+    : undefined;
+  if (!current) return fallback;
+  if (!fallback || !isHydrating) return current;
+
+  return {
+    channels: current.channels.length > 0 ? current.channels : fallback.channels,
+    categories: current.categories.length > 0 ? current.categories : fallback.categories,
+    streams: current.streams.length > 0 ? current.streams : fallback.streams,
+    videos: current.videos.length > 0 ? current.videos : fallback.videos,
+    clips: current.clips.length > 0 ? current.clips : fallback.clips,
+  };
+}
+
+export function useProviderIsolatedSearchAll(
+  query: string,
+  platform?: Platform,
+  limit: number = 5,
+  enabled: boolean = true
+) {
+  const normalizedQuery = normalizeSearchQuery(query);
+  const active = enabled && normalizedQuery.length >= MIN_REMOTE_SEARCH_LENGTH;
+  const persisted = usePersistedSearchResult(normalizedQuery, platform, limit, active);
+  const twitch = useSearchAll(query, "twitch", limit, active && platform !== "kick");
+  const kick = useSearchAll(query, "kick", limit, active && platform !== "twitch");
+  const selected = platform === "twitch" ? [twitch] : platform === "kick" ? [kick] : [twitch, kick];
+  const collections = [
+    ...(platform !== "kick"
+      ? [providerSearchResult("twitch", twitch.data, persisted, twitch.isHydrating)]
+      : []),
+    ...(platform !== "twitch"
+      ? [providerSearchResult("kick", kick.data, persisted, kick.isHydrating)]
+      : []),
+  ].filter((collection): collection is SearchAllResponse => collection !== undefined);
+  const data = mergeSearchResultCollections(collections);
+
+  return {
+    data: data
+      ? { ...data, channels: rankSearchChannels(data.channels, normalizedQuery) }
+      : undefined,
+    isLoading: active && data === undefined && selected.every((result) => result.isLoading),
+    isHydrating: active && selected.some((result) => result.isHydrating),
+    isError: selected.every((result) => result.isError),
+    error: selected.find((result) => result.error)?.error ?? null,
+    refetch: () => Promise.all(selected.map((result) => result.refetch())),
   };
 }

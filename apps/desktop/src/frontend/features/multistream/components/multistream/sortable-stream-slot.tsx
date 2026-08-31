@@ -15,7 +15,7 @@ interface SortableStreamSlotProps {
   isFocused: boolean;
   playbackActive?: boolean;
   onActivate?: () => void;
-  slotIndex?: number;
+  wcvEnabled?: boolean | null;
 }
 
 export function SortableStreamSlot({
@@ -28,7 +28,7 @@ export function SortableStreamSlot({
   isFocused,
   playbackActive,
   onActivate,
-  slotIndex,
+  wcvEnabled,
 }: SortableStreamSlotProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
@@ -53,7 +53,7 @@ export function SortableStreamSlot({
         isFocused={isFocused}
         playbackActive={playbackActive}
         onActivate={onActivate}
-        slotIndex={slotIndex}
+        wcvEnabled={wcvEnabled}
         dragHandleProps={{ ...attributes, ...listeners }}
       />
     </div>

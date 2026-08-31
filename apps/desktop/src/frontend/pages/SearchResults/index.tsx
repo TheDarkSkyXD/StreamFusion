@@ -12,7 +12,7 @@ import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  useSearchAll,
+  useProviderIsolatedSearchAll,
   useSearchCategories,
   useSearchChannels,
   useSearchClips,
@@ -107,7 +107,7 @@ function SearchVideoCard({ video }: { video: UnifiedVideo }) {
         duration: formatDuration(video.duration),
         shareUrl: video.shareUrl,
       }}
-      className="group block rounded-xl overflow-hidden bg-[var(--color-background-secondary)] transition-all hover:-translate-y-1 hover:shadow-lg hover:shadow-[var(--color-storm-primary)]/10"
+      className="group block overflow-hidden rounded-xl bg-[var(--color-background-secondary)] transition-[transform,box-shadow] hover:-translate-y-1 hover:shadow-lg hover:shadow-[var(--color-storm-primary)]/10"
     >
       <div className="relative aspect-video">
         <ProxiedImage
@@ -162,7 +162,7 @@ export function SearchPage() {
   const channelSearchKey = `${q.trim().toLowerCase()}|${channelSearchPlatform ?? "all"}|${liveOnly}`;
 
   // Pass platform filter to the query. Pass undefined if 'all'.
-  const { data: allResults, isLoading: allLoading } = useSearchAll(
+  const { data: allResults, isLoading: allLoading } = useProviderIsolatedSearchAll(
     q,
     channelSearchPlatform,
     20,
@@ -364,6 +364,7 @@ export function SearchPage() {
       return;
     }
 
+    let cancelled = false;
     const fetchClipPlayback = async () => {
       setClipLoading(true);
       setClipError(null);
@@ -376,6 +377,7 @@ export function SearchPage() {
           thumbnailUrl: selectedClip.thumbnailUrl,
         });
 
+        if (cancelled) return;
         if (result?.success && result?.data?.url) {
           setClipPlaybackUrl(result.data.url);
         } else if (selectedClip.platform === "twitch") {
@@ -384,17 +386,21 @@ export function SearchPage() {
           setClipError(result?.error || "Failed to load clip");
         }
       } catch (_error) {
+        if (cancelled) return;
         if (selectedClip.platform === "twitch") {
           setClipPlaybackUrl(null);
         } else {
           setClipError("Failed to load clip");
         }
       } finally {
-        setClipLoading(false);
+        if (!cancelled) setClipLoading(false);
       }
     };
 
     void fetchClipPlayback();
+    return () => {
+      cancelled = true;
+    };
   }, [selectedClip]);
 
   // Identify Best Matches from Filtered Results
@@ -532,7 +538,7 @@ export function SearchPage() {
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className={cn(
-                    "px-3 py-1.5 text-sm font-medium transition-all rounded-lg whitespace-nowrap",
+                    "px-3 py-1.5 text-sm font-medium transition-colors rounded-lg whitespace-nowrap",
                     activeTab === tab
                       ? "bg-[var(--color-storm-primary)] text-black font-bold shadow-lg shadow-[var(--color-storm-primary)]/20"
                       : "text-[var(--color-foreground-secondary)] hover:bg-white/5 hover:text-white"
@@ -553,7 +559,7 @@ export function SearchPage() {
               <button
                 onClick={() => setPlatformFilter("all")}
                 className={cn(
-                  "px-3 py-1 text-xs font-bold rounded-md transition-all",
+                  "px-3 py-1 text-xs font-bold rounded-md transition-colors",
                   platformFilter === "all"
                     ? "bg-white text-black"
                     : "text-[var(--color-foreground-muted)] hover:text-white"
@@ -564,7 +570,7 @@ export function SearchPage() {
               <button
                 onClick={() => setPlatformFilter("twitch")}
                 className={cn(
-                  "px-3 py-1 text-xs font-bold rounded-md transition-all",
+                  "px-3 py-1 text-xs font-bold rounded-md transition-colors",
                   platformFilter === "twitch"
                     ? "bg-[#9146FF] text-white"
                     : "text-[var(--color-foreground-muted)] hover:text-[#9146FF]"
@@ -575,7 +581,7 @@ export function SearchPage() {
               <button
                 onClick={() => setPlatformFilter("kick")}
                 className={cn(
-                  "px-3 py-1 text-xs font-bold rounded-md transition-all",
+                  "px-3 py-1 text-xs font-bold rounded-md transition-colors",
                   platformFilter === "kick"
                     ? "bg-[#53FC18] text-black"
                     : "text-[var(--color-foreground-muted)] hover:text-[#53FC18]"
@@ -589,7 +595,7 @@ export function SearchPage() {
             <button
               onClick={() => setLiveOnly(!liveOnly)}
               className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all",
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-colors",
                 liveOnly
                   ? "bg-red-500/10 border-red-500 text-red-500"
                   : "bg-transparent border-[var(--color-border)] text-[var(--color-foreground-muted)] hover:border-red-500/50 hover:text-red-500/80"
@@ -632,7 +638,7 @@ export function SearchPage() {
                 to="/stream/$platform/$channel"
                 params={{ platform: channel.platform, channel: channel.username }}
                 search={{ tab: "home" }}
-                className="flex flex-col items-center text-center p-4 rounded-xl transition-all group"
+                className="group flex flex-col items-center rounded-xl p-4 text-center"
               >
                 <div className="relative mb-3">
                   <PlatformAvatar
@@ -681,7 +687,7 @@ export function SearchPage() {
                 to="/stream/$platform/$channel"
                 params={{ platform: channel.platform, channel: channel.username }}
                 search={{ tab: "home" }}
-                className="flex flex-col items-center text-center p-4 rounded-xl transition-all group"
+                className="group flex flex-col items-center rounded-xl p-4 text-center"
               >
                 <div className="relative mb-3">
                   <PlatformAvatar
@@ -689,7 +695,7 @@ export function SearchPage() {
                     alt={channel.displayName}
                     platform={channel.platform}
                     size="w-20 h-20"
-                    className="ring-2 ring-transparent group-hover:ring-[var(--color-primary)] transition-all"
+                    className="ring-2 ring-transparent transition-shadow group-hover:ring-[var(--color-primary)]"
                   />
                   <div
                     className={cn(
@@ -791,10 +797,11 @@ export function SearchPage() {
           </h2>
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
             {visibleClips.map((clip: UnifiedClip) => (
-              <div
+              <button
+                type="button"
                 onClick={() => setSelectedClip(clip)}
                 key={`${clip.platform}-${clip.id}`}
-                className="group cursor-pointer rounded-xl overflow-hidden bg-[var(--color-background-secondary)] transition-all hover:-translate-y-1 hover:shadow-lg hover:shadow-[var(--color-storm-primary)]/10"
+                className="group w-full cursor-pointer overflow-hidden rounded-xl bg-[var(--color-background-secondary)] text-left transition-[transform,box-shadow] hover:-translate-y-1 hover:shadow-lg hover:shadow-[var(--color-storm-primary)]/10"
               >
                 <div className="relative aspect-video">
                   <ProxiedImage
@@ -803,7 +810,7 @@ export function SearchPage() {
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                    <div className="flex h-12 w-12 scale-90 items-center justify-center rounded-full border border-white/35 bg-black/70 text-white backdrop-blur-sm transition-all group-hover:scale-100 group-hover:bg-white group-hover:text-black">
+                    <div className="flex h-12 w-12 scale-90 items-center justify-center rounded-full border border-white/35 bg-black/70 text-white backdrop-blur-sm transition-[transform,background-color,color] group-hover:scale-100 group-hover:bg-white group-hover:text-black">
                       <LuPlay className="h-5 w-5 fill-current" />
                     </div>
                   </div>
@@ -833,7 +840,7 @@ export function SearchPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </section>

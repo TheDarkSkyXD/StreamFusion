@@ -190,7 +190,8 @@ vi.mock("@/store/chat-store", () => {
   };
   useChatStore.getState = () => storeState;
   return {
-    buildChannelKey: (platform: string, channel: string) => `${platform}:${channel}`,
+    buildChannelKey: (platform: string, channel: string) =>
+      `${platform}:${channel.trim().replace(/^#/, "").toLowerCase()}`,
     useChatStore,
   };
 });
@@ -430,6 +431,38 @@ describe("KickChat", () => {
 
     expect(useModeratedChannelsStore.getState().kickModeratedChannelSlugs.has("xqc")).toBe(false);
     expect(kickChatService.setModeratorState).toHaveBeenLastCalledWith("xqc", false);
+  });
+
+  it("ignores messages emitted for another Kick channel", async () => {
+    renderKickChat(<KickChat channel="xqc" channelId="411439" chatroomId={12345} />);
+    await waitFor(() => expect(mockServiceHandlers.message).toBeTypeOf("function"));
+
+    const otherChannelMessage: ChatMessage = {
+      id: "other-channel-message",
+      platform: "kick",
+      type: "message",
+      channel: "another-channel",
+      userId: "7",
+      username: "viewer",
+      displayName: "Viewer",
+      color: "#ffffff",
+      badges: [],
+      content: [{ type: "text", content: "wrong room" }],
+      rawContent: "wrong room",
+      timestamp: new Date("2026-08-31T00:00:00Z"),
+      isDeleted: false,
+      isHighlighted: false,
+      isAction: false,
+    };
+
+    act(() => {
+      mockServiceHandlers.message?.(otherChannelMessage);
+    });
+
+    expect(storeState.addMessageBatched).not.toHaveBeenCalledWith(
+      expect.objectContaining({ id: "other-channel-message" }),
+      expect.anything()
+    );
   });
 
   it("seeds Kick moderator state immediately when the signed-in user is the broadcaster", async () => {

@@ -81,9 +81,6 @@ interface UnifiedSearchInputProps {
   /**
    * Ref for the input element.
    */
-  /**
-   * Ref for the input element.
-   */
   inputRef?: React.RefObject<HTMLInputElement>;
   /**
    * Auto focus the input on mount.
@@ -99,10 +96,6 @@ const SEARCH_TABS: { id: SearchTab; label: string }[] = [
   { id: "streams", label: "Streams" },
 ];
 
-// Hard cap on how many combined channel + category rows the dropdown will
-// auto-fetch via infinite scroll. Past this, the bottom CTA routes to the
-// full Search Results page so the dropdown stays a quick-glance affordance.
-const DROPDOWN_RESULT_CAP = 100;
 const ONE_LETTER_CHANNEL_TARGET = 5;
 
 function formatFollowerCount(count: number | undefined): string | null {
@@ -133,22 +126,11 @@ function CategoryItem({
     category.id,
     category.name
   );
-  const Wrapper = onSelectCategory ? "div" : Link;
-  const linkProps = onSelectCategory
-    ? {}
-    : {
-        to: "/categories/$platform/$categoryId",
-        params: { platform: linkPlatform, categoryId: linkCategoryId },
-        search: otherId ? { otherId } : {},
-      };
-
-  return (
-    // @ts-expect-error - Link props vs div props complexity
-    <Wrapper
-      {...linkProps}
-      onClick={(e: React.MouseEvent) => onClick(category, e)}
-      className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--color-background-secondary)] transition-colors group cursor-pointer"
-    >
+  const className =
+    "group flex w-full cursor-pointer items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-[var(--color-background-secondary)]";
+  const style = { contentVisibility: "auto", containIntrinsicSize: "48px" } as const;
+  const content = (
+    <>
       {category.boxArtUrl ? (
         <img
           src={category.boxArtUrl}
@@ -165,7 +147,33 @@ function CategoryItem({
           {category.name}
         </p>
       </div>
-    </Wrapper>
+    </>
+  );
+
+  if (onSelectCategory) {
+    return (
+      <button
+        type="button"
+        onClick={(event) => onClick(category, event)}
+        className={className}
+        style={style}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      to="/categories/$platform/$categoryId"
+      params={{ platform: linkPlatform, categoryId: linkCategoryId }}
+      search={otherId ? { otherId } : {}}
+      onClick={(event) => onClick(category, event)}
+      className={className}
+      style={style}
+    >
+      {content}
+    </Link>
   );
 }
 
@@ -184,15 +192,6 @@ function ChannelItem({
   onToggleFavorite?: (channel: UnifiedChannel) => void;
   platform?: Platform;
 }) {
-  const Wrapper = onSelectChannel ? "button" : Link;
-  const linkProps = onSelectChannel
-    ? { type: "button" as const }
-    : {
-        to: "/stream/$platform/$channel",
-        params: { platform: channel.platform, channel: channel.username },
-        search: { tab: "home" },
-      };
-
   const avatarFallback = (
     <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center">
       <span className="text-xs font-bold text-white uppercase">
@@ -203,44 +202,65 @@ function ChannelItem({
 
   const followerText = formatFollowerCount(channel.followerCount);
   const showPartnerBadge = channel.isPartner || channel.isVerified;
+  const channelContent = (
+    <>
+      <div className="relative">
+        {channel.avatarUrl ? (
+          <ProxiedImage
+            src={channel.avatarUrl}
+            alt={channel.displayName}
+            className="w-8 h-8 rounded-full object-cover"
+            fallback={avatarFallback}
+          />
+        ) : (
+          avatarFallback
+        )}
+        {channel.isLive && (
+          <div className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#0F0F12]" />
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p className="min-w-0 truncate font-bold text-sm text-[var(--color-foreground)] group-hover:text-[var(--color-storm-primary)]">
+            {channel.displayName}
+          </p>
+          {showPartnerBadge && <StreamVerifiedBadge platform={channel.platform} />}
+        </div>
+        <div className="flex items-center gap-2 text-xs text-zinc-400">
+          {!platform && <span className="capitalize">{channel.platform}</span>}
+          {followerText && <span>{followerText}</span>}
+          {channel.isLive && <span className="text-red-500 font-bold">• LIVE</span>}
+        </div>
+      </div>
+    </>
+  );
+  const interactiveClassName =
+    "group flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-4 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-ring)]";
 
   return (
-    <div className="flex items-stretch rounded-lg transition-colors hover:bg-[var(--color-background-secondary)]">
-      {/* @ts-expect-error - Link props vs button props complexity */}
-      <Wrapper
-        {...linkProps}
-        onClick={(e: React.MouseEvent) => onClick(channel, e)}
-        className="group flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-4 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-ring)]"
-      >
-        <div className="relative">
-          {channel.avatarUrl ? (
-            <ProxiedImage
-              src={channel.avatarUrl}
-              alt={channel.displayName}
-              className="w-8 h-8 rounded-full object-cover"
-              fallback={avatarFallback}
-            />
-          ) : (
-            avatarFallback
-          )}
-          {channel.isLive && (
-            <div className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#0F0F12]" />
-          )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <p className="min-w-0 truncate font-bold text-sm text-[var(--color-foreground)] group-hover:text-[var(--color-storm-primary)]">
-              {channel.displayName}
-            </p>
-            {showPartnerBadge && <StreamVerifiedBadge platform={channel.platform} />}
-          </div>
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
-            {!platform && <span className="capitalize">{channel.platform}</span>}
-            {followerText && <span>{followerText}</span>}
-            {channel.isLive && <span className="text-red-500 font-bold">• LIVE</span>}
-          </div>
-        </div>
-      </Wrapper>
+    <div
+      className="flex items-stretch rounded-lg transition-colors hover:bg-[var(--color-background-secondary)]"
+      style={{ contentVisibility: "auto", containIntrinsicSize: "48px" }}
+    >
+      {onSelectChannel ? (
+        <button
+          type="button"
+          onClick={(event) => onClick(channel, event)}
+          className={interactiveClassName}
+        >
+          {channelContent}
+        </button>
+      ) : (
+        <Link
+          to="/stream/$platform/$channel"
+          params={{ platform: channel.platform, channel: channel.username }}
+          search={{ tab: "home" }}
+          onClick={(event) => onClick(channel, event)}
+          className={interactiveClassName}
+        >
+          {channelContent}
+        </Link>
+      )}
       {onToggleFavorite && (
         <button
           type="button"
@@ -400,51 +420,31 @@ export function UnifiedSearchInput({
     [categoryQueries]
   );
 
-  // Dedup-absorption detector. Twitch can re-serve the same channels under
-  // a fresh cursor on every LoadMore call, which the GQL-layer
-  // cursor-no-advance guard cannot catch (returned cursor != input cursor).
-  // When a fetched page adds zero net new unique IDs at the UI layer, the
-  // dedup absorbed every row — treat that as end-of-list and stop calling
-  // fetchNextPage. Cross-render state, reset when the query changes.
   const queryStateRef = React.useRef<{
     query: string;
     seenIds: Set<string>;
     lastRawCount: number;
-    absorbed: boolean;
+    paginationExhaustedByDuplicatePage: boolean;
   }>({
     query: "",
     seenIds: new Set(),
     lastRawCount: 0,
-    absorbed: false,
+    paginationExhaustedByDuplicatePage: false,
   });
 
-  // useLayoutEffect (not useEffect) — must run before the absorption-
-  // detection layout effect below in declaration order so the reset
-  // clears state before the same render's data is processed.
   React.useLayoutEffect(() => {
     if (queryStateRef.current.query !== debouncedQuery) {
       queryStateRef.current = {
         query: debouncedQuery,
         seenIds: new Set(),
         lastRawCount: 0,
-        absorbed: false,
+        paginationExhaustedByDuplicatePage: false,
       };
-      // Also reset the in-flight scroll-handler latch. Otherwise an orphan
-      // fetch from the old query (still pending) keeps the latch true and
-      // silently blocks the first scroll-driven fetchNextPage on the new
-      // query until the orphan's .finally fires.
       fetchInFlightRef.current.channels = false;
       fetchInFlightRef.current.categories = false;
     }
   }, [debouncedQuery]);
 
-  // useLayoutEffect (not useEffect) is load-bearing here. A regular
-  // useEffect runs AFTER paint, leaving a window between commit-finishes
-  // and effect-runs during which the scroll handler can already fire and
-  // read a stale `absorbed=false` for a page that should have been
-  // detected as absorbed. useLayoutEffect runs synchronously after DOM
-  // mutations but before paint and before any browser-queued scroll event
-  // for this commit, closing the lag window.
   React.useLayoutEffect(() => {
     const state = queryStateRef.current;
     if (state.query !== debouncedQuery) return;
@@ -471,7 +471,7 @@ export function UnifiedSearchInput({
     // rawCount > 0 with newCount === rawCount (everything new), so this
     // correctly doesn't fire on first data arrival.
     if (rawCount > state.lastRawCount && newCount === 0) {
-      state.absorbed = true;
+      state.paginationExhaustedByDuplicatePage = true;
     }
     state.lastRawCount = rawCount;
   }, [channels, categories, debouncedQuery]);
@@ -535,8 +535,7 @@ export function UnifiedSearchInput({
       channelsLoading ||
       channelsFetchingNextPage ||
       !channelsHasNextPage ||
-      channels.length >= DROPDOWN_RESULT_CAP ||
-      queryState.absorbed ||
+      queryState.paginationExhaustedByDuplicatePage ||
       fetchInFlightRef.current.channels
     ) {
       return;
@@ -634,19 +633,6 @@ export function UnifiedSearchInput({
     isFocused &&
     (showHistory || searchQuery.length > 0 || (showSearchTabs && visibleSearchTabs.length > 1));
 
-  // capReached uses the raw pre-filter row count (channels.length +
-  // categories.length), not the post-filter visible count. Flipping the
-  // platform or live-only filter can drop the visible row count below 100,
-  // but the cap stays in force — otherwise auto-fetch would resume past
-  // the intended ceiling on every filter change. Infinite-query data only
-  // grows within a single query, so the current render's raw count is also
-  // the peak.
-  const rawRowCount = showChannelResults ? channels.length : dedupedCategories.length;
-  const capReached = rawRowCount >= DROPDOWN_RESULT_CAP;
-  const hasMoreResults =
-    (showChannelResults && channelsHasNextPage) || (showCategoryResults && categoriesHasNextPage);
-  const capReachedWithMore = capReached && hasMoreResults;
-
   return (
     <div ref={containerRef} className={cn("relative w-full z-50", className)}>
       <div className="relative">
@@ -663,7 +649,7 @@ export function UnifiedSearchInput({
           type="text"
           placeholder={placeholder}
           className={cn(
-            "w-full h-9 pl-10 pr-9 rounded-full bg-neutral-800 border border-neutral-700 text-sm font-bold text-white placeholder:text-neutral-300 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white transition-all",
+            "w-full h-9 pl-10 pr-9 rounded-full bg-neutral-800 border border-neutral-700 text-sm font-bold text-white placeholder:text-neutral-300 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white transition-[border-color,box-shadow]",
             inputClassName
           )}
           value={searchQuery}
@@ -700,13 +686,7 @@ export function UnifiedSearchInput({
         <div
           ref={dropdownRef}
           onScroll={(e) => {
-            // Stop auto-fetching once the dropdown has rendered the cap, OR
-            // once we've detected dedup-absorption (Twitch re-serving the
-            // same channels under a fresh cursor). `absorbed` is set inside
-            // a useEffect, so we read it from the ref at event time — a
-            // closure capture would see the pre-effect value from the
-            // render that built this handler.
-            if (capReached || queryStateRef.current.absorbed) return;
+            if (queryStateRef.current.paginationExhaustedByDuplicatePage) return;
             const el = e.currentTarget;
             const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
             if (!nearBottom) return;
@@ -786,20 +766,20 @@ export function UnifiedSearchInput({
               {filteredHistory.map((term) => (
                 <div
                   key={term}
-                  className="group flex h-14 cursor-pointer items-center justify-between gap-4 px-4 py-2 text-left transition-colors hover:bg-[var(--color-background-secondary)] lg:px-6"
-                  onClick={() => executeSearch(term)}
+                  className="group flex h-14 items-center justify-between gap-1 px-2 py-2 transition-colors hover:bg-[var(--color-background-secondary)] lg:px-4"
                 >
-                  <div className="flex min-w-0 flex-1 items-center gap-4 text-white/70 transition-colors group-hover:text-white">
+                  <button
+                    type="button"
+                    onClick={() => executeSearch(term)}
+                    className="flex h-full min-w-0 flex-1 items-center gap-4 rounded px-2 text-left text-white/70 transition-colors group-hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
+                  >
                     <LuHistory size={20} strokeWidth={2.5} className="shrink-0" />
                     <span className="truncate text-base font-semibold text-white group-hover:text-white">
                       {term}
                     </span>
-                  </div>
+                  </button>
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeSearch(term);
-                    }}
+                    onClick={() => removeSearch(term)}
                     className="flex size-8 shrink-0 items-center justify-center rounded text-white/70 transition-colors hover:bg-[var(--color-background-tertiary)] hover:text-white"
                     title="Remove from history"
                     aria-label={`Remove "${term}" from history`}
@@ -926,9 +906,7 @@ export function UnifiedSearchInput({
                 className="w-full py-2 text-sm font-bold text-[var(--color-storm-primary)] hover:underline flex items-center justify-center gap-1"
               >
                 <LuSearch size={14} />
-                {capReachedWithMore
-                  ? `Show more results for "${searchQuery}"`
-                  : `See all results for "${searchQuery}"`}
+                {`See all results for "${searchQuery}"`}
               </button>
             </div>
           )}

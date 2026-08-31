@@ -229,7 +229,7 @@ async function poll(login: string): Promise<void> {
   state.lastPinSignature = currentPinSignature;
 
   if (!pin) {
-    twitchChatService.emit("pinnedMessageCleared");
+    twitchChatService.emit("pinnedMessageCleared", login);
     return;
   }
 
@@ -433,6 +433,7 @@ export function toNormalized(
 
   return {
     platform: "twitch",
+    ...(channelLogin ? { channel: channelLogin } : {}),
     // The chat message id (inner) is the right messageId for unpin targeting
     // and optimistic reconciliation. Fall back to the pin record id only if
     // the nested message is somehow absent.
