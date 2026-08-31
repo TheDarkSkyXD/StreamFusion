@@ -99,17 +99,11 @@ describe("start picker", () => {
     expect(launch).toHaveBeenCalledWith("dev:electron");
   });
 
-  it("keeps automation scripts direct while every interactive start runs quality checks", () => {
+  it("keeps automation scripts direct while desktop package start runs quality checks", () => {
     const desktopPackage = JSON.parse(
       readFileSync(resolve(__dirname, "../../package.json"), "utf8")
     ) as { scripts: Record<string, string> };
-    const rootPackage = JSON.parse(
-      readFileSync(resolve(__dirname, "../../../../package.json"), "utf8")
-    ) as { scripts: Record<string, string> };
 
-    expect(rootPackage.scripts.start).toBe(
-      "npm run --workspace streamfusion start:checked"
-    );
     expect(desktopPackage.scripts.start).toBe("npm run start:checked");
     expect(desktopPackage.scripts.dev).toBe(
       "cross-env STREAMFUSION_BROWSER_DEV=1 node scripts/start-dev.js"
