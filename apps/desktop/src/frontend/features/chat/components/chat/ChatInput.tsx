@@ -53,7 +53,7 @@ import type {
 import { useAuthStore } from "../../../../store/auth-store";
 import { useEmoteStore } from "../../../../store/emote-store";
 import { useFollowStore } from "../../../../store/follow-store";
-import { useChatDisplay } from "../../../settings/components/settings/ChatSettingsSection";
+import { useChatDisplay } from "../../../settings/data/use-chat-display";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 import {
   TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS,
@@ -61,17 +61,16 @@ import {
 } from "./ChatMessageActionStyles";
 import { ChatQuickSettingsPopover } from "./ChatQuickSettingsPopover";
 import { ChatComposerReplyPreview } from "./ChatReply";
-import {
-  ContextualEmoteRow,
-  getContextualEmoteMatch,
-  useContextualEmoteMode,
-} from "./ContextualEmoteRow";
+import { ContextualEmoteRow } from "./ContextualEmoteRow";
+import { getContextualEmoteMatch, useContextualEmoteMode } from "./contextual-emote-mode";
 import { type ChatSendEligibility, resolveChatSendEligibility } from "./chat-send-eligibility";
+import type { ViewerRequirementState } from "./chat-send-eligibility";
 import { InfoBanner } from "./InfoBanner";
 import { NativeEmoteButton } from "./input/NativeEmoteButton";
 import { QuickEmoteActionBar } from "./input/QuickEmoteActionBar";
 import { ThirdPartyEmoteButton } from "./input/ThirdPartyEmoteButton";
-import { MentionAutocomplete, useMentionAutocomplete } from "./MentionAutocomplete";
+import { MentionAutocomplete } from "./MentionAutocomplete";
+import { useMentionAutocomplete } from "./use-mention-autocomplete";
 
 // ========== Types ==========
 
@@ -105,6 +104,8 @@ export interface ChatInputProps {
   onAuthRequired?: (platform: ChatPlatform) => void | Promise<void>;
   /** True when known app state says this viewer can bypass room-mode restrictions. */
   viewerCanBypassRoomModes?: boolean;
+  /** Viewer-specific result for Kick's room-wide account-age policy. */
+  viewerAccountAgeRequirement?: ViewerRequirementState;
   /** Opens the platform-owned channel page for restriction actions. */
   onOpenChannelPage?: (platform: ChatPlatform, channel: string) => void | Promise<void>;
   /** Checks subscriber-only eligibility. Unknown/missing checker must not false-block sends. */
@@ -745,6 +746,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       viewerUserId,
       onAuthRequired,
       viewerCanBypassRoomModes = false,
+      viewerAccountAgeRequirement = "unknown",
       onOpenChannelPage,
       checkSubscriberEligibility,
       showModViewLink = false,
@@ -869,7 +871,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     }, [activeRoomBlocker, roomState.subscribersOnly, viewerChatContext]);
     useEffect(() => {
       if (platform !== "twitch") return;
-      let detachListener: (() => void) | undefined;
+      let attachedService:
+        Awaited<ReturnType<typeof loadTwitchChatModule>>["twitchChatService"] | undefined;
       let cancelled = false;
 
       const handleViewerSendRestriction = (event: ViewerChatSendRestrictionEvent) => {
@@ -908,10 +911,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         twitchChatService,
       }: Awaited<ReturnType<typeof loadTwitchChatModule>>) => {
         if (cancelled) return;
+        attachedService = twitchChatService;
         twitchChatService.on("viewerSendRestriction", handleViewerSendRestriction);
-        detachListener = () => {
-          twitchChatService.off("viewerSendRestriction", handleViewerSendRestriction);
-        };
       };
       const loadedModule = getLoadedTwitchChatModule();
       if (loadedModule) {
@@ -927,7 +928,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       }
       return () => {
         cancelled = true;
-        detachListener?.();
+        attachedService?.off("viewerSendRestriction", handleViewerSendRestriction);
       };
     }, [channel, channelId, platform, viewerChatContext]);
     const viewerFollowsChannel = useMemo(() => {
@@ -2254,6 +2255,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             platform={platform}
             channelId={channelId}
             viewerSatisfiesFollowerOnly={viewerFollowsChannel}
+            viewerAccountAgeRequirement={viewerAccountAgeRequirement}
           />
         )}
 

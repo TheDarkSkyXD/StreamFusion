@@ -2,7 +2,7 @@ import { getBugReportsDir } from "@backend/logging/log-paths";
 import { logger } from "@backend/logging/logger";
 import { storageService } from "@backend/services/storage-service";
 import { registerLoadedFeatureCleanup } from "@backend/startup/loaded-feature-cleanup";
-import { featureLoaderIpcContract } from "@shared/ipc-contracts/feature-loader-contracts";
+import { featureLoaderIpcContract } from "@shared/feature-loader-contract";
 import { IPC_CHANNELS, IPC_FEATURES, type IpcFeature } from "@shared/ipc-channels";
 import type { TrustedIpcRegistry } from "./trusted-ipc-registry";
 import type { MainRendererPort } from "./main-renderer-port";
@@ -263,6 +263,10 @@ export function loadIpcFeature(feature: IpcFeature, context: FeatureContext): Pr
       })
       .catch((error: unknown) => {
         if (pendingFeatures.get(feature) === pending) pendingFeatures.delete(feature);
+        logger.error("IPC:Lazy", "Feature handler registration failed", {
+          feature,
+          error: error instanceof Error ? error.message : String(error),
+        });
         throw error;
       });
     pendingFeatures.set(feature, pending);

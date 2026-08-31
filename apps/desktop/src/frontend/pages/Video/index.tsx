@@ -1,8 +1,8 @@
 import { Link, useParams, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LuCheck, LuCircleAlert, LuDownload, LuLock, LuShare2 } from "react-icons/lu";
-import { KickVodPlayer } from "@/features/playback/components/player/kick";
-import { TwitchVodPlayer } from "@/features/playback/components/player/twitch";
+import { KickVodPlayer } from "@/features/playback/components/player/kick/kick-vod-player";
+import { TwitchVodPlayer } from "@/features/playback/components/player/twitch/twitch-vod-player";
 import {
   isVideoOrClip,
   type VideoOrClip,

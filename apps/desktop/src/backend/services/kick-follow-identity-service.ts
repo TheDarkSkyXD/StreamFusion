@@ -9,7 +9,7 @@ import { isKickRateLimitError } from "../api/platforms/kick/kick-error-classific
 import { dbService } from "./database-service";
 import { storageService } from "./storage-service";
 
-type KickFollowRepairClient = {
+export type KickFollowMetadataClient = {
   getChannelsByBroadcasterIds(broadcasterUserIds: number[]): Promise<UnifiedChannel[]>;
   getChannelsBySlugs?(slugs: string[]): Promise<UnifiedChannel[]>;
   getPublicChannel(slug: string): Promise<UnifiedChannel | null>;
@@ -153,7 +153,7 @@ export function parseKickBroadcasterUserId(channelId: string | undefined): numbe
   return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
-function getKickRepairBroadcasterUserId(
+function getKickResolutionBroadcasterUserId(
   follow: LocalFollow,
   allKickFollows: LocalFollow[]
 ): string | null {
@@ -221,21 +221,21 @@ function areEquivalentKickProfileImages(current: string, stored: string): boolea
   return currentIdentity !== null && currentIdentity === getKickProfileAssetIdentity(stored);
 }
 
-export async function repairKickFollowSlugs(
-  kickClient: KickFollowRepairClient,
+export async function resolveKickFollowMetadata(
+  kickClient: KickFollowMetadataClient,
   follows: LocalFollow[]
 ): Promise<Map<string, UnifiedChannel>> {
   const allKickFollows = storageService.getLocalFollowsByPlatform("kick");
   const storedFollowsById = new Map(allKickFollows.map((follow) => [follow.id, follow]));
-  const repairIds = uniqueByLowercase(
+  const resolutionIds = uniqueByLowercase(
     follows
-      .map((follow) => getKickRepairBroadcasterUserId(follow, allKickFollows) ?? "")
+      .map((follow) => getKickResolutionBroadcasterUserId(follow, allKickFollows) ?? "")
       .filter(Boolean)
   );
-  const ids = repairIds.map(Number);
+  const ids = resolutionIds.map(Number);
   const unresolvedSlugs = uniqueByLowercase(
     follows
-      .filter((follow) => !getKickRepairBroadcasterUserId(follow, allKickFollows))
+      .filter((follow) => !getKickResolutionBroadcasterUserId(follow, allKickFollows))
       .map((follow) => follow.channelName)
   );
 
@@ -245,7 +245,7 @@ export async function repairKickFollowSlugs(
       channels = await kickClient.getChannelsByBroadcasterIds(ids);
     } catch (error) {
       const log = isKickRateLimitError(error) ? logger.debug : logger.warn;
-      log("IPC:KickFollowRepair", "Failed to resolve Kick follow slugs by broadcaster ID", {
+      log("Service:KickFollowIdentity", "Failed to resolve Kick follow slugs by broadcaster ID", {
         error:
           error instanceof Error
             ? { name: error.name, message: error.message, stack: error.stack }
@@ -260,7 +260,7 @@ export async function repairKickFollowSlugs(
       slugChannels = await kickClient.getChannelsBySlugs(unresolvedSlugs);
     } catch (error) {
       const log = isKickRateLimitError(error) ? logger.debug : logger.warn;
-      log("IPC:KickFollowRepair", "Failed to resolve legacy Kick follows by slug", {
+      log("Service:KickFollowIdentity", "Failed to resolve legacy Kick follows by slug", {
         error:
           error instanceof Error
             ? { name: error.name, message: error.message, stack: error.stack }
@@ -278,62 +278,63 @@ export async function repairKickFollowSlugs(
   const verificationByBroadcasterId = new Map<string, boolean>();
   const candidates = new Set<string>();
 
-  for (const repairId of repairIds) {
-    const current = channelsById.get(repairId);
+  for (const broadcasterUserId of resolutionIds) {
+    const current = channelsById.get(broadcasterUserId);
     if (!current?.username) continue;
 
-    const cached = cache.entries[repairId];
+    const cached = cache.entries[broadcasterUserId];
     if (isFreshVerification(cached, now)) {
-      verificationByBroadcasterId.set(repairId, cached.isVerified);
+      verificationByBroadcasterId.set(broadcasterUserId, cached.isVerified);
     } else {
-      candidates.add(repairId);
+      candidates.add(broadcasterUserId);
     }
   }
 
-  const prioritizedIds = repairIds.filter((repairId) => {
-    if (!candidates.has(repairId)) return false;
+  const prioritizedIds = resolutionIds.filter((broadcasterUserId) => {
+    if (!candidates.has(broadcasterUserId)) return false;
 
-    const current = channelsById.get(repairId);
+    const current = channelsById.get(broadcasterUserId);
     return follows.some(
       (follow) =>
-        getKickRepairBroadcasterUserId(follow, allKickFollows) === repairId &&
+        getKickResolutionBroadcasterUserId(follow, allKickFollows) === broadcasterUserId &&
         current?.username.toLowerCase() !== follow.channelName.toLowerCase()
     );
   });
   const selectedIds = prioritizedIds.slice(0, KICK_FOLLOW_VERIFICATION_BATCH_SIZE);
   const selectedIdSet = new Set(selectedIds);
-  const rotationStart = repairIds.length > 0 ? cache.nextBackfillIndex % repairIds.length : 0;
+  const rotationStart =
+    resolutionIds.length > 0 ? cache.nextBackfillIndex % resolutionIds.length : 0;
 
   for (
     let offset = 0;
-    offset < repairIds.length && selectedIds.length < KICK_FOLLOW_VERIFICATION_BATCH_SIZE;
+    offset < resolutionIds.length && selectedIds.length < KICK_FOLLOW_VERIFICATION_BATCH_SIZE;
     offset += 1
   ) {
-    const repairId = repairIds[(rotationStart + offset) % repairIds.length];
-    if (!candidates.has(repairId) || selectedIdSet.has(repairId)) continue;
+    const broadcasterUserId = resolutionIds[(rotationStart + offset) % resolutionIds.length];
+    if (!candidates.has(broadcasterUserId) || selectedIdSet.has(broadcasterUserId)) continue;
 
-    selectedIds.push(repairId);
-    selectedIdSet.add(repairId);
+    selectedIds.push(broadcasterUserId);
+    selectedIdSet.add(broadcasterUserId);
   }
 
   const cacheUpdates = new Map<string, KickFollowVerificationEntry>();
-  for (const repairId of selectedIds) {
-    const current = channelsById.get(repairId);
+  for (const broadcasterUserId of selectedIds) {
+    const current = channelsById.get(broadcasterUserId);
     if (!current?.username) continue;
 
     try {
       const publicChannel = await kickClient.getPublicChannel(current.username);
-      if (publicChannel?.kickUserId !== repairId) continue;
+      if (publicChannel?.kickUserId !== broadcasterUserId) continue;
 
       const entry = {
         isVerified: publicChannel.isVerified,
         verifiedAt: Date.now(),
       };
-      cacheUpdates.set(repairId, entry);
-      verificationByBroadcasterId.set(repairId, entry.isVerified);
+      cacheUpdates.set(broadcasterUserId, entry);
+      verificationByBroadcasterId.set(broadcasterUserId, entry.isVerified);
     } catch (error) {
-      logger.warn("IPC:KickFollowRepair", "Failed to verify Kick follow metadata", {
-        broadcasterUserId: repairId,
+      logger.warn("Service:KickFollowIdentity", "Failed to verify Kick follow metadata", {
+        broadcasterUserId,
         slug: current.username,
         error:
           error instanceof Error
@@ -343,7 +344,7 @@ export async function repairKickFollowSlugs(
     }
   }
 
-  await commitVerificationCache(cacheUpdates, selectedIds.length, repairIds.length);
+  await commitVerificationCache(cacheUpdates, selectedIds.length, resolutionIds.length);
 
   const channelsByFollowId = new Map<string, UnifiedChannel>();
   let updatedFollowCount = 0;
@@ -356,14 +357,16 @@ export async function repairKickFollowSlugs(
 
   for (const follow of follows) {
     const storedFollow = storedFollowsById.get(follow.id) ?? follow;
-    const repairId = getKickRepairBroadcasterUserId(follow, allKickFollows);
-    const resolved = repairId
-      ? channelsById.get(repairId)
+    const broadcasterUserId = getKickResolutionBroadcasterUserId(follow, allKickFollows);
+    const resolved = broadcasterUserId
+      ? channelsById.get(broadcasterUserId)
       : channelsBySlug.get(follow.channelName.toLowerCase());
     const current = resolved ? preserveStoredDisplayName(resolved, storedFollow) : undefined;
     if (!current?.username) continue;
 
-    const isVerified = repairId ? verificationByBroadcasterId.get(repairId) : undefined;
+    const isVerified = broadcasterUserId
+      ? verificationByBroadcasterId.get(broadcasterUserId)
+      : undefined;
     channelsByFollowId.set(
       follow.id,
       isVerified === undefined ? current : { ...current, isVerified }
@@ -398,7 +401,7 @@ export async function repairKickFollowSlugs(
   }
 
   if (updatedFollowCount > 0) {
-    logger.info("IPC:KickFollowRepair", "Kick follow metadata repair completed", {
+    logger.info("Service:KickFollowIdentity", "Kick follow metadata refresh completed", {
       requestedCount: follows.length,
       resolvedCount: channelsByFollowId.size,
       updatedCount: updatedFollowCount,
@@ -409,19 +412,83 @@ export async function repairKickFollowSlugs(
   return channelsByFollowId;
 }
 
-export async function getKickFollowScanSlugs(
-  kickClient: KickFollowRepairClient,
-  follows: LocalFollow[]
-): Promise<string[]> {
-  const repairedChannels = await repairKickFollowSlugs(kickClient, follows);
+export async function buildKickFollowedChannelSnapshot(
+  kickClient: KickFollowMetadataClient,
+  follows: readonly LocalFollow[]
+): Promise<UnifiedChannel[]> {
+  const resolvedChannels = await resolveKickFollowMetadata(kickClient, [...follows]);
 
-  return uniqueByLowercase(
-    follows.map((follow) => repairedChannels.get(follow.id)?.username ?? follow.channelName)
-  );
+  return follows.map((follow) => {
+    const current = resolvedChannels.get(follow.id);
+    const broadcasterUserId = firstValidKickBroadcasterUserId(
+      current?.kickUserId,
+      getKickBroadcasterUserIdFromAvatar(current?.avatarUrl || follow.profileImage),
+      follow.channelId
+    );
+
+    return {
+      id: follow.channelId,
+      platform: "kick",
+      username: current?.username || follow.channelName,
+      displayName: current?.displayName || follow.displayName || follow.channelName,
+      avatarUrl: current?.avatarUrl || follow.profileImage || "",
+      isLive: current?.isLive || false,
+      isVerified: current?.isVerified || false,
+      isPartner: current?.isPartner || false,
+      kickUserId: broadcasterUserId ?? undefined,
+      accountStatus: current ? "active" : "unavailable",
+    } satisfies UnifiedChannel;
+  });
+}
+
+export interface KickFollowStatusTargets {
+  broadcasterUserIds: number[];
+  fallbackSlugs: string[];
+  allSlugs: string[];
+}
+
+/**
+ * Separate verified broadcaster identities from legacy numeric-looking ids.
+ * A stored Kick follow id is only safe for the official livestream endpoint
+ * after the channel endpoint resolves it. Unresolved rows retain their slug as
+ * a public status fallback instead of being silently classified as offline.
+ */
+export async function getKickFollowStatusTargets(
+  kickClient: KickFollowMetadataClient,
+  follows: LocalFollow[]
+): Promise<KickFollowStatusTargets> {
+  const resolvedChannels = await resolveKickFollowMetadata(kickClient, follows);
+  const broadcasterUserIds: number[] = [];
+  const fallbackSlugs: string[] = [];
+  const allSlugs: string[] = [];
+
+  for (const follow of follows) {
+    const current = resolvedChannels.get(follow.id);
+    const slug = current?.username || follow.channelName;
+    allSlugs.push(slug);
+
+    const resolvedBroadcasterUserId = current
+      ? firstValidKickBroadcasterUserId(
+          current.kickUserId,
+          getKickBroadcasterUserIdFromAvatar(current.avatarUrl),
+          current.id
+        )
+      : null;
+    const parsedId = parseKickBroadcasterUserId(resolvedBroadcasterUserId ?? undefined);
+
+    if (parsedId === null) fallbackSlugs.push(slug);
+    else broadcasterUserIds.push(parsedId);
+  }
+
+  return {
+    broadcasterUserIds: [...new Set(broadcasterUserIds)],
+    fallbackSlugs: uniqueByLowercase(fallbackSlugs),
+    allSlugs: uniqueByLowercase(allSlugs),
+  };
 }
 
 export async function resolveKickFollowPlaybackSlug(
-  kickClient: KickFollowRepairClient,
+  kickClient: KickFollowMetadataClient,
   requestedSlug: string
 ): Promise<string | null> {
   const follows = storageService.getActiveFollowsByPlatform("kick");
@@ -439,6 +506,6 @@ export async function resolveKickFollowPlaybackSlug(
     return null;
   }
 
-  const repairedChannels = await repairKickFollowSlugs(kickClient, [follow]);
-  return repairedChannels.get(follow.id)?.username ?? null;
+  const resolvedChannels = await resolveKickFollowMetadata(kickClient, [follow]);
+  return resolvedChannels.get(follow.id)?.username ?? null;
 }

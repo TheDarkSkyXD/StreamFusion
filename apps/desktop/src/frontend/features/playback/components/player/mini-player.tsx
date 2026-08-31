@@ -8,12 +8,12 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import { LuMaximize2, LuPause, LuPlay, LuVolume2, LuVolumeX, LuX } from "react-icons/lu";
 
-import { KickLivePlayer } from "@/features/playback/components/player/kick";
+import { KickLivePlayer } from "@/features/playback/components/player/kick/kick-live-player";
 import { usePlayerNetworkRecovery } from "@/features/playback/components/player/hooks/use-player-network-recovery";
 import { useTwitchLiveRecovery } from "@/features/playback/components/player/hooks/use-twitch-live-recovery";
 import { OfflineOverlay } from "@/features/playback/components/player/offline-overlay";
 import { useDockedPlayerConfig } from "@/features/playback/components/player/persistent-player-shell";
-import { TwitchLivePlayer } from "@/features/playback/components/player/twitch";
+import { TwitchLivePlayer } from "@/features/playback/components/player/twitch/twitch-live-player";
 import type { PlayerError } from "@/features/playback/components/player/types";
 import { Button } from "@/components/ui/button";
 import { ProxiedImage } from "@/components/ui/proxied-image";
@@ -96,6 +96,8 @@ export function MiniPlayer() {
   // Determine if this is a Twitch stream that needs ad-blocking
   const isTwitchStream = currentStream?.platform === "twitch";
   const isViewingStreamRoute = location.pathname.startsWith("/stream/");
+  const isExclusiveMediaRoute =
+    location.pathname.startsWith("/video/") || location.pathname === "/multistream";
   // Stream-to-stream navigation updates the route before the new stream has
   // finished replacing the active player snapshot. Treat every stream route
   // as docked so that brief identity mismatch cannot flash mini mode.
@@ -566,7 +568,7 @@ export function MiniPlayer() {
   const miniPlayerButtonClass = "cursor-pointer disabled:cursor-not-allowed";
 
   // Don't render if not active or no stream
-  if (!currentStream || (!streamUrl && !isConfirmedOffline)) {
+  if (!currentStream || isExclusiveMediaRoute || (!streamUrl && !isConfirmedOffline)) {
     return null;
   }
 

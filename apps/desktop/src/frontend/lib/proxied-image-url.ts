@@ -9,8 +9,6 @@ const KICK_EXACT_PROXY_DOMAINS = new Set(["ext.cdn.kick.com"]);
 const TWITCH_IMAGE_DOMAINS = ["static-cdn.jtvnw.net"];
 const KICK_PROXY_PATTERNS = [/^https?:\/\/(www\.)?kick\.com\/img\//i];
 const TWITCH_PROXY_PATTERNS = [/^https:\/\/static-cdn\.jtvnw\.net\/jtv_user_pictures\//i];
-export const TWITCH_PREVIEW_PATTERN =
-  /^https:\/\/static-cdn\.jtvnw\.net\/previews-ttv\/live_user_[^/?#]+-\d+x\d+\.jpg(?:[?#]|$)/i;
 const TWITCH_PROCESSING_PLACEHOLDER_HOST = "vod-secure.twitch.tv";
 const TWITCH_PROCESSING_PLACEHOLDER_PATH = /^\/_404\/404_processing_\d+x\d+\.png$/;
 

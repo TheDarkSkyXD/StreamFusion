@@ -10,10 +10,11 @@ import type { KickRequestor } from "@backend/api/platforms/kick/kick-requestor";
 // Guards: stagger fires AFTER cache check — a cache-hit path returns synchronously with `staggerOffsetMs > 0`. Otherwise back-to-back same-slug callers eat a delay they don't need.
 // Guards: AbortController is scoped per dispatch — an aborted staggerDelay rejects with an "AbortError" before reaching the network; orphan stagger timers from a stale dispatch don't fire into the network.
 // Guards: a transient timeout serves the last-known-good stream instead of returning null, so followed Kick streams do not disappear during a flaky refresh.
-// Guards: official Kick hidden-count zero is replaced only by a positive legacy count from the same channel and live session.
+// Guards: official Kick top-stream viewer count zero is preserved because V2 uses zero when a creator hides the count.
 // Guards: followed Kick streams recover thumbnails omitted by the official bulk response only from the same channel and live session.
 // Guards: an active official top-stream cooldown does not fan out into the anonymous fallback and amplify a 429.
 // Guards: cross-platform category browsing can fetch Kick streams by category name before its numeric ID resolves.
+// Guards: top-stream pagination uses Kick's V2 opaque cursor contract; V1 never supported the fabricated offset cursor.
 
 // Guards: an official Kick channel response with no active stream returns route-matched offline evidence instead of ambiguous null, so stale player and channel caches cannot keep a finished stream live.
 
@@ -133,36 +134,6 @@ function createOfficialUserLivestream({
   };
 }
 
-function createOfficialTopLivestream({
-  slug = "tazo",
-  userId = 230051,
-  viewerCount = 0,
-  startedAt = TAZO_STARTED_AT,
-  thumbnail = `https://example.com/${slug}.webp`,
-}: {
-  slug?: string;
-  userId?: number;
-  viewerCount?: number;
-  startedAt?: string;
-  thumbnail?: string;
-} = {}) {
-  return {
-    broadcaster_user_id: userId,
-    channel_id: 227842,
-    slug,
-    broadcaster_display_name: slug === "tazo" ? "Tazo" : slug,
-    stream_title: "Back in Japan",
-    language: "en",
-    has_mature_content: false,
-    viewer_count: viewerCount,
-    thumbnail,
-    profile_picture: `https://example.com/${slug}-avatar.webp`,
-    started_at: startedAt,
-    custom_tags: [],
-    category: { id: 15, name: "Just Chatting", thumbnail: "" },
-  };
-}
-
 type TestKickRequestor = KickRequestor & { requestSpy: ReturnType<typeof vi.fn> };
 
 function requestorFrom(
@@ -191,18 +162,11 @@ function asRequestor(client: {
   return requestor;
 }
 
-function createOfficialTopClient(streams = [createOfficialTopLivestream()]): TestKickRequestor {
+function createOfficialTopClient(streams = [createOfficialUserLivestream()]): TestKickRequestor {
   return requestorFrom(
     vi.fn(async (path: string) => {
-      if (path.startsWith("/livestreams?")) return { data: streams };
-      if (path.startsWith("/users?")) {
-        return {
-          data: streams.map((stream) => ({
-            user_id: stream.broadcaster_user_id,
-            name: stream.broadcaster_display_name,
-            profile_picture: stream.profile_picture,
-          })),
-        };
+      if (path.startsWith("https://api.kick.com/public/v2/livestreams?")) {
+        return { data: streams, pagination: { next_cursor: null } };
       }
       throw new Error(`Unexpected path: ${path}`);
     }),
@@ -854,6 +818,40 @@ describe("getPublicTopStreams", () => {
 });
 
 describe("getTopStreams official viewer counts", () => {
+  it("uses the official V2 cursor and returns the server's next cursor", async () => {
+    vi.resetModules();
+    vi.useRealTimers();
+    mockState.state.responseQueue.length = 0;
+    mockState.state.netRequestCalls.length = 0;
+    const { getTopStreams } =
+      await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
+    const client = requestorFrom(
+      vi.fn(async (path: string) => {
+        if (path.startsWith("https://api.kick.com/public/v2/livestreams?")) {
+          return {
+            data: [createOfficialUserLivestream({ viewerCount: 42 })],
+            pagination: { next_cursor: "server-next" },
+          };
+        }
+        throw Object.assign(new Error(`Unexpected path: ${path}`), {
+          name: "KickRateLimitError",
+        });
+      }),
+      true
+    );
+
+    const result = await getTopStreams(client, { limit: 12, cursor: "server-previous" });
+
+    expect(client.requestSpy).toHaveBeenCalledWith(
+      "https://api.kick.com/public/v2/livestreams?limit=12&cursor=server-previous",
+      undefined
+    );
+    expect(result.data).toEqual([
+      expect.objectContaining({ channelName: "tazo", viewerCount: 42 }),
+    ]);
+    expect(result.cursor).toBe("server-next");
+  });
+
   it("does not amplify an official API cooldown through the public top-stream fallback", async () => {
     vi.resetModules();
     vi.useRealTimers();
@@ -901,7 +899,7 @@ describe("getTopStreams official viewer counts", () => {
       await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
 
     const result = await getTopStreams(
-      createOfficialTopClient([createOfficialTopLivestream({ viewerCount: 42 })]),
+      createOfficialTopClient([createOfficialUserLivestream({ viewerCount: 42 })]),
       { limit: 20 }
     );
 
@@ -919,7 +917,7 @@ describe("getTopStreams official viewer counts", () => {
       await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
 
     const result = await getTopStreams(
-      createOfficialTopClient([createOfficialTopLivestream({ viewerCount: 42, thumbnail: "" })]),
+      createOfficialTopClient([createOfficialUserLivestream({ viewerCount: 42, thumbnail: "" })]),
       { limit: 20 }
     );
 
@@ -927,20 +925,20 @@ describe("getTopStreams official viewer counts", () => {
     expect(mockState.state.netRequestCalls).toHaveLength(0);
   });
 
-  it("returns the positive public count when an official top stream reports zero", async () => {
+  it("preserves an official hidden viewer count without legacy recovery", async () => {
     vi.resetModules();
     vi.useRealTimers();
     mockState.state.responseQueue.length = 0;
     mockState.state.netRequestCalls.length = 0;
-    mockState.state.responseQueue.push({ kind: "ok", body: createLegacyLiveBody() });
     const { getTopStreams } =
       await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
 
     const result = await getTopStreams(createOfficialTopClient(), { limit: 20 });
 
     expect(result.data).toEqual([
-      expect.objectContaining({ channelName: "tazo", isLive: true, viewerCount: 512 }),
+      expect.objectContaining({ channelName: "tazo", isLive: true, viewerCount: 0 }),
     ]);
+    expect(mockState.state.netRequestCalls).toHaveLength(0);
   });
 
   it("returns the web count through the authenticated category surface", async () => {

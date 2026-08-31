@@ -1,7 +1,7 @@
 import { LuExternalLink, LuPower } from "react-icons/lu";
 
 import { getPlatformColor } from "@/assets/platforms";
-import { KickIcon, TwitchIcon } from "@/components/icons";
+import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
 import { Button } from "@/components/ui/button";
 import {
   Card,

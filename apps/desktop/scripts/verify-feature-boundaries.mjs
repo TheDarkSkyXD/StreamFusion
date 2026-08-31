@@ -1,10 +1,12 @@
 import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const run = promisify(execFile);
+const require = createRequire(import.meta.url);
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const allowedFixture = path.join(
   desktopRoot,
@@ -14,7 +16,8 @@ const forbiddenFixture = path.join(
   desktopRoot,
   "src/frontend/features/auth/feature-boundary-forbidden.ts"
 );
-const eslintBin = path.join(desktopRoot, "node_modules/eslint/bin/eslint.js");
+const eslintPackageRoot = path.dirname(require.resolve("eslint/package.json"));
+const eslintBin = path.join(eslintPackageRoot, "bin/eslint.js");
 
 async function lint(file) {
   return run(process.execPath, [eslintBin, file, "--no-warn-ignored"], {
@@ -23,8 +26,8 @@ async function lint(file) {
 }
 
 try {
-  await fs.writeFile(allowedFixture, 'import "@/features/moderation";\n');
-  await fs.writeFile(forbiddenFixture, 'import "@/features/playback";\n');
+  await fs.writeFile(allowedFixture, 'import "@/features/moderation/routes";\n');
+  await fs.writeFile(forbiddenFixture, 'import "@/features/playback/routes";\n');
 
   await lint(allowedFixture);
 

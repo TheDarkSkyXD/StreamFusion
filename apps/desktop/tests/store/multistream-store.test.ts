@@ -2,10 +2,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   DEFAULT_BACKGROUND_QUALITY,
-  DEFAULT_MULTIVIEW_CAP,
+  DEFAULT_MULTIVIEW_PLAYBACK_BUDGET,
   MULTISTREAM_STORE_VERSION,
-  MULTIVIEW_CAP_MAX,
-  MULTIVIEW_CAP_MIN,
+  MULTIVIEW_PLAYBACK_BUDGET_MIN,
   migrateMultiStreamState,
   useMultiStreamStore,
 } from "@/features/multistream/data/multistream-store";
@@ -18,7 +17,7 @@ function resetStore() {
     focusedStreamId: null,
     isChatOpen: true,
     chatStreamId: null,
-    multiviewCap: DEFAULT_MULTIVIEW_CAP,
+    playbackBudget: DEFAULT_MULTIVIEW_PLAYBACK_BUDGET,
     backgroundQuality: DEFAULT_BACKGROUND_QUALITY,
   });
 }
@@ -131,60 +130,34 @@ describe("multistream-store addStream", () => {
     expect(useMultiStreamStore.getState().streams).toHaveLength(1);
   });
 
-  it("caps stream count at MultiviewCap (default 4)", () => {
+  // Guards: layout membership remains unbounded while playback concurrency is budgeted separately.
+  it("keeps every distinct stream beyond the default playback budget", () => {
     for (let i = 0; i < 8; i++) {
       useMultiStreamStore.getState().addStream("twitch", `channel${i}`);
     }
-    expect(useMultiStreamStore.getState().streams).toHaveLength(DEFAULT_MULTIVIEW_CAP);
-    expect(DEFAULT_MULTIVIEW_CAP).toBe(4);
-  });
-
-  it("honors a user-raised MultiviewCap when adding streams", () => {
-    useMultiStreamStore.getState().setMultiviewCap(6);
-    for (let i = 0; i < 8; i++) {
-      useMultiStreamStore.getState().addStream("twitch", `channel${i}`);
-    }
-    expect(useMultiStreamStore.getState().streams).toHaveLength(6);
-  });
-
-  it("does not silently truncate when a request would exceed the cap", () => {
-    useMultiStreamStore.getState().setMultiviewCap(2);
-    useMultiStreamStore.getState().addStream("twitch", "a");
-    useMultiStreamStore.getState().addStream("twitch", "b");
-    const before = useMultiStreamStore.getState().streams.length;
-    useMultiStreamStore.getState().addStream("twitch", "c");
-    const after = useMultiStreamStore.getState().streams.length;
-    // No silent truncation: the count stays at the cap, no slot was dropped or replaced.
-    expect(before).toBe(2);
-    expect(after).toBe(2);
-    expect(useMultiStreamStore.getState().streams.map((s) => s.channelName)).toEqual(["a", "b"]);
+    expect(useMultiStreamStore.getState().streams).toHaveLength(8);
+    expect(useMultiStreamStore.getState().playbackBudget).toBe(4);
   });
 });
 
-describe("multistream-store MultiviewCap", () => {
+describe("multistream-store playback budget", () => {
   it("defaults to 4 on a fresh store", () => {
-    expect(useMultiStreamStore.getState().multiviewCap).toBe(DEFAULT_MULTIVIEW_CAP);
-    expect(DEFAULT_MULTIVIEW_CAP).toBe(4);
+    expect(useMultiStreamStore.getState().playbackBudget).toBe(DEFAULT_MULTIVIEW_PLAYBACK_BUDGET);
+    expect(DEFAULT_MULTIVIEW_PLAYBACK_BUDGET).toBe(4);
   });
 
-  it("exposes MULTIVIEW_CAP_MIN=1 and MULTIVIEW_CAP_MAX=6", () => {
-    expect(MULTIVIEW_CAP_MIN).toBe(1);
-    expect(MULTIVIEW_CAP_MAX).toBe(6);
+  it("has a minimum of one decoder", () => {
+    expect(MULTIVIEW_PLAYBACK_BUDGET_MIN).toBe(1);
   });
 
-  it("setMultiviewCap clamps below the min", () => {
-    useMultiStreamStore.getState().setMultiviewCap(0);
-    expect(useMultiStreamStore.getState().multiviewCap).toBe(MULTIVIEW_CAP_MIN);
+  it("clamps below the minimum", () => {
+    useMultiStreamStore.getState().setPlaybackBudget(0);
+    expect(useMultiStreamStore.getState().playbackBudget).toBe(MULTIVIEW_PLAYBACK_BUDGET_MIN);
   });
 
-  it("setMultiviewCap clamps above the max", () => {
-    useMultiStreamStore.getState().setMultiviewCap(99);
-    expect(useMultiStreamStore.getState().multiviewCap).toBe(MULTIVIEW_CAP_MAX);
-  });
-
-  it("setMultiviewCap accepts in-range values", () => {
-    useMultiStreamStore.getState().setMultiviewCap(3);
-    expect(useMultiStreamStore.getState().multiviewCap).toBe(3);
+  it("accepts a user-selected budget without a hard maximum", () => {
+    useMultiStreamStore.getState().setPlaybackBudget(99);
+    expect(useMultiStreamStore.getState().playbackBudget).toBe(99);
   });
 });
 
@@ -196,8 +169,8 @@ describe("multistream-store BackgroundQuality default", () => {
 });
 
 describe("multistream-store schema migration", () => {
-  it("uses persisted schema version 2", () => {
-    expect(MULTISTREAM_STORE_VERSION).toBe(2);
+  it("uses persisted schema version 3", () => {
+    expect(MULTISTREAM_STORE_VERSION).toBe(3);
   });
 
   it("migrates a version 1 payload with no favorites to an empty favorites list", () => {
@@ -228,7 +201,7 @@ describe("multistream-store schema migration", () => {
 
     const migrated = migrateMultiStreamState(v0, 0);
 
-    expect(migrated.multiviewCap).toBe(DEFAULT_MULTIVIEW_CAP);
+    expect(migrated.playbackBudget).toBe(DEFAULT_MULTIVIEW_PLAYBACK_BUDGET);
     expect(migrated.backgroundQuality).toBe(DEFAULT_BACKGROUND_QUALITY);
     expect(migrated.streams).toEqual(v0.streams);
     expect(migrated.isChatOpen).toBe(false);
@@ -241,15 +214,15 @@ describe("multistream-store schema migration", () => {
       layout: "grid",
       isChatOpen: true,
       chatStreamId: null,
-      multiviewCap: 6,
+      playbackBudget: 6,
       backgroundQuality: "match-source" as const,
     };
     const migrated = migrateMultiStreamState(current, MULTISTREAM_STORE_VERSION);
-    expect(migrated.multiviewCap).toBe(6);
+    expect(migrated.playbackBudget).toBe(6);
     expect(migrated.backgroundQuality).toBe("match-source");
   });
 
-  it("migration clamps a corrupt out-of-range MultiviewCap to the valid range", () => {
+  it("migrates the legacy cap into an uncapped playback budget", () => {
     const corrupt = {
       streams: [],
       layout: "grid",
@@ -259,7 +232,7 @@ describe("multistream-store schema migration", () => {
       backgroundQuality: "auto-low" as const,
     };
     const migrated = migrateMultiStreamState(corrupt, MULTISTREAM_STORE_VERSION);
-    expect(migrated.multiviewCap).toBe(MULTIVIEW_CAP_MAX);
+    expect(migrated.playbackBudget).toBe(42);
   });
 
   // Guards: persisted state is an untrusted boundary. Invalid nested entries

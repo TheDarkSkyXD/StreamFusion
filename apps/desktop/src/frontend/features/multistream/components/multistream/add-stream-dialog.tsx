@@ -71,7 +71,6 @@ export function AddStreamDialog() {
 
   const addStream = useMultiStreamStore((state) => state.addStream);
   const streams = useMultiStreamStore((state) => state.streams);
-  const multiviewCap = useMultiStreamStore((state) => state.multiviewCap);
   const favoriteStreams = useMultiStreamStore((state) => state.favoriteStreams);
   const toggleFavorite = useMultiStreamStore((state) => state.toggleFavorite);
   const isFavorite = useMultiStreamStore((state) => state.isFavorite);
@@ -88,14 +87,6 @@ export function AddStreamDialog() {
   const tryAddStream = (nextPlatform: Platform, channelName: string, refocusSearch = false) => {
     const normalizedName = channelName.trim();
     if (!normalizedName) return;
-
-    if (streams.length >= multiviewCap) {
-      setStatus(
-        `Layout is full. Remove a stream before adding another (${streams.length}/${multiviewCap}).`
-      );
-      if (refocusSearch) queueMicrotask(() => searchInputRef.current?.focus());
-      return;
-    }
 
     const streamId = `${nextPlatform}-${normalizedName}`;
     if (streams.some((stream) => stream.id === streamId)) {
@@ -327,7 +318,7 @@ export function AddStreamDialog() {
 
         <footer className="flex items-center justify-between border-t border-[var(--color-border)] px-6 py-3 text-xs text-[var(--color-foreground-muted)]">
           <span>
-            {streams.length} / {multiviewCap} streams
+            {streams.length} {streams.length === 1 ? "stream" : "streams"}
           </span>
           <span
             role="status"

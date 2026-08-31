@@ -364,6 +364,7 @@ describe("HlsPlayer source reuse (slice 09)", () => {
     expect(hls.constructorConfig).toEqual(
       expect.objectContaining({
         enableWorker: false,
+        capLevelToPlayerSize: true,
         lowLatencyMode: false,
         liveSyncDurationCount: 4,
         backBufferLength: 5,

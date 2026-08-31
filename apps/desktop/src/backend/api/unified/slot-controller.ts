@@ -1,6 +1,6 @@
 /**
  * StreamSlot lifecycle + presence state machine (main process). Single source
- * of truth for "which slots exist, who's focused, how many can we have". Pure
+ * of truth for "which playback slots exist and which one is focused". Pure
  * in-memory state — mirrors the platform-health.ts shape (module-level state,
  * listener Set, __resetForTests hook).
  *
@@ -56,13 +56,11 @@ let useWebContentsViews = false;
 let userBackgroundQuality: SlotQualityMode = "auto-low";
 
 /**
- * Hard upper bound on concurrent slots. The renderer's MultiviewCap (settings
- * slider, default 4) is pushed in via setMaxSlots() at boot and on change.
- * Default of 6 here matches MULTIVIEW_CAP_MAX so an un-initialized controller
- * never silently rejects creates — the renderer's own cap check is the source
- * of truth from the user's perspective; this is the main-side backstop.
+ * Concurrent decoder budget. The renderer pushes the setting at boot and on
+ * change. Infinity prevents startup ordering from dropping a requested slot;
+ * the renderer only asks main to create slots that are inside the active budget.
  */
-let maxSlots = 6;
+let playbackBudget = Number.POSITIVE_INFINITY;
 
 function emit(event: SlotEvent): void {
   for (const listener of listeners) {
@@ -88,7 +86,7 @@ function attachCrashListener(slot: SlotRecord, view: SlotView): void {
 
 export function createSlot(id: string): void {
   if (slots.has(id)) return;
-  if (slots.size >= maxSlots) return;
+  if (slots.size >= playbackBudget) return;
   const presence: SlotPresence = slots.size === 0 ? "focused" : "background";
   const record: SlotRecord = {
     id,
@@ -163,13 +161,11 @@ export function isWcvEnabled(): boolean {
 }
 
 /**
- * Update the slot cap from the renderer-side MultiviewCap. Caps below the
- * current slot count are accepted: existing slots are NOT retroactively
- * evicted — only future createSlot calls are blocked until the count drops
- * back under the cap. Matches the multistream-store policy from slice 03.
+ * Update the concurrent decoder budget. Existing slots are never evicted;
+ * callers suspend overflow slots before requesting new playback ownership.
  */
-export function setMaxSlots(n: number): void {
-  maxSlots = n;
+export function setPlaybackBudget(n: number): void {
+  playbackBudget = Number.isFinite(n) ? Math.max(1, Math.round(n)) : Number.POSITIVE_INFINITY;
 }
 
 export function getSlotPresence(id: string): SlotPresence | undefined {
@@ -406,7 +402,7 @@ export function __resetSlotControllerForTests(): void {
   }
   slots.clear();
   listeners.clear();
-  maxSlots = 6;
+  playbackBudget = Number.POSITIVE_INFINITY;
   useWebContentsViews = false;
   userBackgroundQuality = "auto-low";
 }

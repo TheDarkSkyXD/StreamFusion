@@ -24,11 +24,11 @@ vi.mock("@/features/settings/data/useNetworkStatus", () => ({
   useNetworkStatus: () => ({ recoveryCount: 0 }),
 }));
 
-vi.mock("@/features/playback/components/player/kick", () => ({
+vi.mock("@/features/playback/components/player/kick/kick-live-player", () => ({
   KickLivePlayer: () => <div data-testid="hls-player" />,
 }));
 
-vi.mock("@/features/playback/components/player/twitch", () => ({
+vi.mock("@/features/playback/components/player/twitch/twitch-live-player", () => ({
   TwitchLivePlayer: () => <div data-testid="twitch-hls-player" />,
 }));
 

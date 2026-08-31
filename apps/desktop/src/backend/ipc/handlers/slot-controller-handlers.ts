@@ -1,5 +1,5 @@
 /**
- * Slot-controller IPC bridge. Routes host→main commands (focus, cap,
+ * Slot-controller IPC bridge. Routes host→main commands (focus, playback budget,
  * background-quality, rebind) into the slot-controller state machine, and
  * fans out the controller's emitter to the host renderer over
  * webContents.send. Slice 04 of the renderer-OOM PRD (#51).
@@ -21,7 +21,7 @@ import {
   rebindExistingSlots,
   requestSlotRetry,
   setBackgroundQuality,
-  setMaxSlots,
+  setPlaybackBudget,
   setSlotPresence,
 } from "../../api/unified/slot-controller";
 import { logger } from "../../logging/logger";
@@ -90,9 +90,12 @@ export function registerSlotControllerHandlers(renderer: MainRendererPort): void
     setSlotPresence(slotId, "focused");
   });
 
-  ipcMain.handle(IPC_CHANNELS.SLOT_SET_MULTIVIEW_CAP, (_event, { cap }: { cap: number }) => {
-    setMaxSlots(cap);
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.SLOT_SET_PLAYBACK_BUDGET,
+    (_event, { budget }: { budget: number }) => {
+      setPlaybackBudget(budget);
+    }
+  );
 
   ipcMain.handle(
     IPC_CHANNELS.SLOT_SET_BACKGROUND_QUALITY,

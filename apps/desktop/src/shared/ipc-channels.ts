@@ -348,7 +348,7 @@ export const IPC_CHANNELS = {
   // the main-process slot-controller. `slot:rebind-existing-slots` is fired by
   // the host after its own crash-recovery reload so main can resync state.
   SLOT_REQUEST_FOCUS: "slot:request-focus",
-  SLOT_SET_MULTIVIEW_CAP: "slot:set-multiview-cap",
+  SLOT_SET_PLAYBACK_BUDGET: "slot:set-playback-budget",
   SLOT_SET_BACKGROUND_QUALITY: "slot:set-background-quality",
   SLOT_REBIND_EXISTING_SLOTS: "slot:rebind-existing-slots",
   // Main → slot: dispatched via webContents.send. Slice 04 consumer is the
@@ -472,6 +472,18 @@ export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];
 export type KickSendWindowComposerRetentionChange =
   { kind: "retain"; leaseId: string } | { kind: "release"; leaseId: string };
 
+export type StreamPlaybackRequestIntent = "play" | "recover";
+
+export interface StreamPlaybackRequest {
+  platform: Platform;
+  channelSlug: string;
+  intent: StreamPlaybackRequestIntent;
+}
+
+export interface FollowedStreamsRequest {
+  platform?: Platform;
+}
+
 // ========== Payload Types for IPC Calls ==========
 
 export interface IpcPayloads {
@@ -529,6 +541,9 @@ export interface IpcPayloads {
   // Credentials are write-only: a null clears the stored pair; a value stores
   // it encrypted. The password is never returned by any channel.
   [IPC_CHANNELS.PROXY_SET_CREDENTIALS]: { credentials: ProxyCredentialsInput | null };
+
+  [IPC_CHANNELS.STREAMS_GET_PLAYBACK_URL]: StreamPlaybackRequest;
+  [IPC_CHANNELS.STREAMS_GET_FOLLOWED]: FollowedStreamsRequest;
 
   // External links
   [IPC_CHANNELS.SHELL_OPEN_EXTERNAL]: { url: string };
@@ -670,7 +685,7 @@ export interface IpcPayloads {
 
   // Slot-controller IPC payloads (slice 04 of #51).
   [IPC_CHANNELS.SLOT_REQUEST_FOCUS]: { slotId: string };
-  [IPC_CHANNELS.SLOT_SET_MULTIVIEW_CAP]: { cap: number };
+  [IPC_CHANNELS.SLOT_SET_PLAYBACK_BUDGET]: { budget: number };
   [IPC_CHANNELS.SLOT_SET_BACKGROUND_QUALITY]: { mode: SlotQualityMode };
   [IPC_CHANNELS.SLOT_REQUEST_RETRY]: { slotId: string };
   [IPC_CHANNELS.SLOT_SET_BOUNDS]: {

@@ -1,29 +1,53 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { useTopStreams } from "@/features/discovery/data/queries/useStreams";
+import type { useInfiniteTopStreams } from "@/features/discovery/data/queries/useInfiniteStreams";
 
 import { fixtures, renderWithProviders, routerMock, screen } from "../test-utils";
 
-type TopStreamsState = Pick<ReturnType<typeof useTopStreams>, "data" | "isLoading" | "error">;
+type TopStreamsState = Pick<
+  ReturnType<typeof useInfiniteTopStreams>,
+  | "data"
+  | "isLoading"
+  | "error"
+  | "hasNextPage"
+  | "isFetchingNextPage"
+  | "loadMoreError"
+  | "unavailablePlatforms"
+  | "fetchNextPage"
+  | "refetch"
+>;
 
 const topStreamsMock = vi.hoisted<{
   state: TopStreamsState;
-  lastArgs: [platform: unknown, limit: number] | undefined;
+  callCount: number;
 }>(() => ({
-  state: { data: undefined, isLoading: false, error: null },
-  lastArgs: undefined,
+  state: {
+    data: [],
+    isLoading: false,
+    error: null,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    loadMoreError: false,
+    unavailablePlatforms: [],
+    fetchNextPage: vi.fn(async () => undefined),
+    refetch: vi.fn(async () => undefined),
+  },
+  callCount: 0,
 }));
 
 vi.mock("@tanstack/react-router", () => routerMock());
 
 vi.mock("@/features/discovery/data/queries/useStreams", () => ({
-  useTopStreams: (platform: unknown, limit: number) => {
-    topStreamsMock.lastArgs = [platform, limit];
-    return topStreamsMock.state;
-  },
   useStreamsByCategory: vi.fn(),
   useFollowedStreams: vi.fn(),
   useStreamByChannel: vi.fn(),
+}));
+
+vi.mock("@/features/discovery/data/queries/useInfiniteStreams", () => ({
+  useInfiniteTopStreams: () => {
+    topStreamsMock.callCount += 1;
+    return topStreamsMock.state;
+  },
 }));
 
 vi.mock("@/pages/Home/components/featured-stage", () => ({
@@ -55,17 +79,27 @@ import { HomePage } from "@/pages/Home";
 // Guards: the featured stream is removed exactly once from the live-now list.
 describe("HomePage", () => {
   beforeEach(() => {
-    topStreamsMock.state = { data: undefined, isLoading: false, error: null };
-    topStreamsMock.lastArgs = undefined;
+    topStreamsMock.state = {
+      data: [],
+      isLoading: false,
+      error: null,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      loadMoreError: false,
+      unavailablePlatforms: [],
+      fetchNextPage: vi.fn(async () => undefined),
+      refetch: vi.fn(async () => undefined),
+    };
+    topStreamsMock.callCount = 0;
   });
 
-  it("requests only the curated home-page stream budget", () => {
+  it("uses the progressive top-stream feed instead of a terminal stream budget", () => {
     renderWithProviders(<HomePage />);
-    expect(topStreamsMock.lastArgs).toEqual([undefined, 13]);
+    expect(topStreamsMock.callCount).toBe(1);
   });
 
   it("shows loading state passed to featured + live-now while fetching", () => {
-    topStreamsMock.state = { data: undefined, isLoading: true, error: null };
+    topStreamsMock.state = { ...topStreamsMock.state, data: [], isLoading: true };
     renderWithProviders(<HomePage />);
     expect(screen.getByTestId("featured-stage")).toHaveTextContent("loading-featured");
     expect(screen.getByTestId("live-now")).toHaveTextContent("streams: 0");
@@ -77,7 +111,7 @@ describe("HomePage", () => {
       fixtures.stream({ id: "s2", title: "Second" }),
       fixtures.stream({ id: "s3", title: "Third" }),
     ];
-    topStreamsMock.state = { data: streams, isLoading: false, error: null };
+    topStreamsMock.state = { ...topStreamsMock.state, data: streams };
     renderWithProviders(<HomePage />);
     expect(screen.getByTestId("featured-stage")).toHaveTextContent("Featured!");
     expect(screen.getByTestId("featured-stage-count")).toHaveTextContent("3");
@@ -86,8 +120,7 @@ describe("HomePage", () => {
 
   it("shows error state with retry button on query failure", () => {
     topStreamsMock.state = {
-      data: undefined,
-      isLoading: false,
+      ...topStreamsMock.state,
       error: new Error("boom"),
     };
     renderWithProviders(<HomePage />);
@@ -97,7 +130,7 @@ describe("HomePage", () => {
   });
 
   it("renders the Browse All Categories link", () => {
-    topStreamsMock.state = { data: [], isLoading: false, error: null };
+    topStreamsMock.state = { ...topStreamsMock.state, data: [] };
     renderWithProviders(<HomePage />);
     expect(screen.getByText(/browse all categories/i)).toBeInTheDocument();
   });

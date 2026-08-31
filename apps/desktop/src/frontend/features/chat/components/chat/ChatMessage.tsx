@@ -18,7 +18,7 @@ import type {
 } from "../../../../../shared/chat-types";
 import { useAuthStore } from "../../../../store/auth-store";
 import { useChatCosmeticsStore } from "../../../../store/chat-cosmetics-store";
-import { useChatDisplay } from "../../../settings/components/settings/ChatSettingsSection";
+import { useChatDisplay } from "../../../settings/data/use-chat-display";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 import { BitsHighlight } from "./BitsHighlight";
 import { ChatBadge } from "./ChatBadge";
@@ -1094,6 +1094,12 @@ const MessageFragment: React.FC<{
           id={fragment.id}
           name={fragment.name}
           url={fragment.url}
+          provider={fragment.provider}
+          width={fragment.width}
+          height={fragment.height}
+          url1x={fragment.url1x}
+          url2x={fragment.url2x}
+          url4x={fragment.url4x}
           platform={platform}
           isAnimated={fragment.isAnimated}
           isZeroWidth={fragment.isZeroWidth}

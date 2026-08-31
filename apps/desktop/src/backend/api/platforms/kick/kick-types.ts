@@ -70,30 +70,8 @@ export interface KickApiChannelStream {
 }
 
 // ========== Official API: Livestreams ==========
-// Endpoint: GET /public/v1/livestreams
-// Scope: channel:read
-
+// Endpoints: GET /public/v2/livestreams and GET /public/v1/users/livestreams
 export interface KickApiLivestream {
-  broadcaster_user_id: number;
-  channel_id: number;
-  slug: string;
-  broadcaster_display_name?: string; // Properly capitalized username (e.g., "NickLee")
-  stream_title: string;
-  language: string;
-  has_mature_content: boolean;
-  viewer_count: number;
-  thumbnail: string | null;
-  profile_picture: string | null; // Channel avatar URL (kick.com/img/...)
-  started_at: string;
-  custom_tags: string[];
-  tags?: string[];
-  category: KickApiChannelCategory;
-  verified?: boolean;
-  is_verified?: boolean;
-}
-
-// Endpoint: GET /public/v1/users/livestreams
-export interface KickApiUserLivestream {
   broadcaster_user: {
     id: number;
     username: string;
@@ -111,6 +89,14 @@ export interface KickApiUserLivestream {
   thumbnail: string;
   title: string;
   viewer_count: number;
+}
+
+export interface KickApiPaginatedResponse<T> {
+  data: T[];
+  message?: string;
+  pagination: {
+    next_cursor?: string | null;
+  };
 }
 
 // Endpoint: GET /public/v1/livestreams/stats
@@ -235,6 +221,7 @@ export type KickApiScope = (typeof KICK_API_SCOPES)[keyof typeof KICK_API_SCOPES
 // Official Kick Dev API: https://docs.kick.com/
 
 export const KICK_API_BASE = "https://api.kick.com/public/v1";
+export const KICK_API_V2_BASE = "https://api.kick.com/public/v2";
 
 // ========== Official API Endpoints Reference ==========
 /**

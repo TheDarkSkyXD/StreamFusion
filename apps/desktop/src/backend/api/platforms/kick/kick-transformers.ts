@@ -19,7 +19,6 @@ import type {
   KickApiChannel,
   KickApiLivestream,
   KickApiUser,
-  KickApiUserLivestream,
   KickLegacyApiClip,
   KickLegacyApiFollowedChannel,
 } from "./kick-types";
@@ -95,39 +94,10 @@ export function normalizeKickDate(dateStr: string | null | undefined): string | 
 }
 
 /**
- * Transform official Kick API livestream to unified stream
- * Endpoint: GET /public/v1/livestreams
+ * Transform the current Kick livestream response into a unified stream.
+ * Used by GET /public/v2/livestreams and GET /public/v1/users/livestreams.
  */
 export function transformKickLivestream(livestream: KickApiLivestream): UnifiedStream {
-  return {
-    id: livestream.channel_id.toString(),
-    platform: "kick",
-    channelId: livestream.broadcaster_user_id.toString(),
-    channelName: livestream.slug,
-    channelDisplayName: livestream.broadcaster_display_name || livestream.slug,
-    channelAvatar: livestream.profile_picture || "", // Use official API profile_picture
-    channelIsVerified: Boolean(livestream.verified || livestream.is_verified),
-    title: livestream.stream_title,
-    viewerCount: livestream.viewer_count,
-    thumbnailUrl: livestream.thumbnail || "",
-    isLive: true,
-    startedAt: normalizeKickDate(livestream.started_at),
-    language: livestream.language,
-    tags:
-      livestream.custom_tags && livestream.custom_tags.length > 0
-        ? livestream.custom_tags
-        : livestream.tags || [],
-    isMature: livestream.has_mature_content,
-    categoryId: livestream.category.id.toString(),
-    categoryName: livestream.category.name,
-  };
-}
-
-/**
- * Transform the current bulk user-livestream response into a unified stream.
- * Endpoint: GET /public/v1/users/livestreams
- */
-export function transformKickUserLivestream(livestream: KickApiUserLivestream): UnifiedStream {
   return {
     id: livestream.id,
     platform: "kick",

@@ -156,6 +156,7 @@ function queryResult<T>(data: T) {
 // Guards: mini-player continuity - followed rows matching the active PiP stream keep the same selected state when the user navigates away from the stream page
 // Guards: one Kick broadcaster renders once when guest follows and live lookups use different internal ids for the same slug
 // Guards: passive sidebar lifecycle (mount, follow refresh, focus, and offline events) never resolves Kick playback URLs without user intent
+// Guards: loading placeholders use the same expanded and collapsed geometry as loaded sidebar rows, avoiding a narrow layout jump
 describe("SidebarFollows", () => {
   beforeEach(() => {
     useFollowedChannelsMock.mockReset();
@@ -294,9 +295,34 @@ describe("SidebarFollows", () => {
       typeof useFollowedStreams
     >);
     const { container } = renderWithProviders(<SidebarFollows collapsed={false} />);
-    // 5 skeleton rows render with rounded-full avatar placeholders.
+    const loadingSidebar = screen.getByRole("status", { name: "Loading followed channels" });
+    expect(loadingSidebar).toHaveClass("w-56", "pl-2", "pr-4");
+    expect(screen.getAllByTestId("sidebar-follow-skeleton-row")).toHaveLength(5);
+    expect(screen.getAllByTestId("sidebar-follow-skeleton-row")[0]).toHaveClass(
+      "h-11",
+      "w-full",
+      "gap-3",
+      "p-1.5"
+    );
     const placeholders = container.querySelectorAll(".rounded-full");
     expect(placeholders.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it("loading: fills the collapsed sidebar width without rendering text placeholders", () => {
+    useFollowedChannelsMock.mockReturnValue({ data: undefined, isLoading: true } as ReturnType<
+      typeof useFollowedChannels
+    >);
+    useFollowedStreamsMock.mockReturnValue({ data: undefined, isLoading: true } as ReturnType<
+      typeof useFollowedStreams
+    >);
+
+    renderWithProviders(<SidebarFollows collapsed={true} />);
+
+    const loadingSidebar = screen.getByRole("status", { name: "Loading followed channels" });
+    expect(loadingSidebar).toHaveClass("w-16", "px-2");
+    expect(screen.getAllByTestId("sidebar-follow-skeleton-row")).toHaveLength(5);
+    expect(loadingSidebar.querySelectorAll(".rounded-full")).toHaveLength(5);
+    expect(loadingSidebar.querySelectorAll(".h-3\\.5, .h-2\\.5")).toHaveLength(0);
   });
 
   it("startup cache: renders cached Kick follows while followed streams are still loading", () => {
@@ -488,11 +514,10 @@ describe("SidebarFollows", () => {
 
     renderWithProviders(<SidebarFollows collapsed={false} />);
 
-    expect(useFollowedStreamsMock).toHaveBeenCalledWith("twitch", 100, { enabled: true });
-    expect(useFollowedStreamsMock).toHaveBeenCalledWith("kick", 100, { enabled: true });
+    expect(useFollowedStreamsMock).toHaveBeenCalledWith("twitch", { enabled: true });
+    expect(useFollowedStreamsMock).toHaveBeenCalledWith("kick", { enabled: true });
     expect(useFollowedStreamsMock).not.toHaveBeenCalledWith(
       undefined,
-      expect.anything(),
       expect.anything()
     );
   });

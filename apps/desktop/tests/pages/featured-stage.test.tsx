@@ -46,7 +46,7 @@ vi.mock("@/features/discovery/components/stream/featured-stream", () => ({
   ),
 }));
 
-vi.mock("@/features/chat/components/chat", () => ({
+vi.mock("@/features/chat/components/chat/ChatPanel", () => ({
   ChatPanel: (props: {
     initialPlatform: string;
     initialChannel: string;

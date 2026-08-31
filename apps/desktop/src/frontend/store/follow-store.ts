@@ -51,6 +51,20 @@ function accountFollowWriteRequest(
     : { action, follow: { ...follow, platform: "twitch" } };
 }
 
+function notifyConfirmedFollowAction(
+  action: "follow" | "unfollow",
+  channel: Pick<UnifiedChannel, "platform" | "id" | "username" | "displayName">
+): void {
+  const displayName = channel.displayName || channel.username;
+  toast(action === "follow" ? `Following ${displayName}` : `Unfollowed ${displayName}`, {
+    id: `follow-action:${action}:${channel.platform}:${channel.username.toLowerCase()}`,
+    description:
+      action === "follow"
+        ? `Added to your ${channel.platform === "kick" ? "Kick" : "Twitch"} follows.`
+        : `Removed from your ${channel.platform === "kick" ? "Kick" : "Twitch"} follows.`,
+  });
+}
+
 function channelFromFollow(follow: LocalFollow): UnifiedChannel {
   return {
     id: follow.channelId,
@@ -132,6 +146,7 @@ function applyAccountWriteChanged(event: KickAccountFollowWriteChangedEvent): vo
   if (event.status !== "confirmed") return;
 
   applyAuthoritativeAccountState("kick", event.activeFollows);
+  notifyConfirmedFollowAction(event.action, targetChannel);
   useFollowStore.setState((state) => ({
     pendingAccountActions: state.pendingAccountActions.filter(
       (pending) => pending.action !== event.action || !channelsMatch(pending.channel, targetChannel)
@@ -147,23 +162,6 @@ function ensureAccountWriteSubscription(): void {
   subscribedFollowsApi = followsApi;
   const cleanup = followsApi.onAccountWriteChanged?.(applyAccountWriteChanged);
   unsubscribeAccountWriteChanged = typeof cleanup === "function" ? cleanup : undefined;
-}
-
-function kickAvatarMatchesUserId(avatarUrl: string | undefined, kickUserId: string | undefined) {
-  return Boolean(kickUserId && avatarUrl?.includes(`/images/user/${kickUserId}/`));
-}
-
-function sameResolvedChannel(candidate: UnifiedChannel, resolved: UnifiedChannel): boolean {
-  if (candidate.platform !== resolved.platform) return false;
-  const resolvedIds = new Set(
-    [resolved.id, resolved.platform === "kick" ? resolved.kickUserId : undefined].filter(Boolean)
-  );
-
-  return (
-    resolvedIds.has(candidate.id) ||
-    (resolved.platform === "kick" &&
-      kickAvatarMatchesUserId(candidate.avatarUrl, resolved.kickUserId))
-  );
 }
 
 interface FollowState {
@@ -188,7 +186,6 @@ interface FollowState {
   /** Returns null when the channel isn't followed (anywhere). */
   getFollowSource: (channel: UnifiedChannel) => FollowSource | null;
   getPendingAccountAction: (channel: UnifiedChannel) => "follow" | "unfollow" | null;
-  repairFollowMetadataFromChannel: (channel: UnifiedChannel) => Promise<boolean>;
   toggleFollow: (
     channel: UnifiedChannel,
     options?: { accountPlatform?: Platform }
@@ -244,6 +241,7 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
           });
         }
         invalidateFollowCachesAfterMutation(queryClient, channel.platform);
+        notifyConfirmedFollowAction("follow", channel);
       } catch (err) {
         logger.error("Store:Follow", "failed to save follow to backend", {
           error:
@@ -297,6 +295,7 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
       }
 
       applyAuthoritativeAccountState(channel.platform, result.activeFollows);
+      notifyConfirmedFollowAction("follow", channel);
     } catch (err) {
       logger.error("Store:Follow", "failed to follow account channel", {
         platform: channel.platform,
@@ -381,6 +380,7 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
             }
 
             applyAuthoritativeAccountState(followToRemove.platform, result.activeFollows);
+            notifyConfirmedFollowAction("unfollow", followToRemove);
           } finally {
             if (!keepPending) {
               set((state) => ({
@@ -416,6 +416,7 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
           await window.electronAPI.follows.remove(m.id);
         }
         invalidateFollowCachesAfterMutation(queryClient, followToRemove.platform);
+        notifyConfirmedFollowAction("unfollow", followToRemove);
       } catch (err) {
         logger.error("Store:Follow", "failed to remove follow from backend", {
           error:
@@ -460,59 +461,6 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
   getPendingAccountAction: (channel) =>
     get().pendingAccountActions.find((pending) => channelsMatch(pending.channel, channel))
       ?.action ?? null,
-  repairFollowMetadataFromChannel: async (channel) => {
-    if (!channel.id || !channel.username) return false;
-
-    const currentFollows = get().localFollows;
-    const existing = currentFollows.find((follow) => sameResolvedChannel(follow, channel));
-    const canonicalChannelId = canonicalFollowChannelId(channel);
-
-    if (
-      !existing ||
-      (existing.id === canonicalChannelId &&
-        existing.username.toLowerCase() === channel.username.toLowerCase())
-    ) {
-      return false;
-    }
-
-    const key = followKey(channel);
-    if (inFlight.has(key)) return false;
-    inFlight.add(key);
-
-    try {
-      const backendFollows = await window.electronAPI.follows.getAll();
-      const row = backendFollows.find(
-        (follow) =>
-          follow.platform === channel.platform &&
-          (follow.channelId === channel.id ||
-            follow.channelId === canonicalChannelId ||
-            kickAvatarMatchesUserId(follow.profileImage, channel.kickUserId))
-      );
-      if (!row) return false;
-
-      await window.electronAPI.follows.update(row.id, {
-        channelId: canonicalChannelId,
-        channelName: channel.username,
-        displayName: channel.displayName,
-        profileImage: channel.avatarUrl,
-      });
-      await get().hydrate();
-      return true;
-    } catch (err) {
-      logger.error("Store:Follow", "failed to repair stale follow metadata", {
-        channelId: channel.id,
-        platform: channel.platform,
-        username: channel.username,
-        error:
-          err instanceof Error
-            ? { name: err.name, message: err.message, stack: err.stack }
-            : String(err),
-      });
-      return false;
-    } finally {
-      inFlight.delete(key);
-    }
-  },
   toggleFollow: (channel, options) => {
     const { isFollowing, followAccountChannel, followChannel, unfollowChannel } = get();
     if (isFollowing(channel)) {

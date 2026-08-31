@@ -9,7 +9,7 @@ import {
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RelatedContent } from "@/features/playback/components/related-content";
+import { RelatedContent } from "@/features/playback/components/related-content/index";
 import type { VideoOrClip } from "@/features/playback/components/related-content/types";
 
 vi.mock("@/features/playback/components/related-content/VideoCard", () => ({
@@ -27,10 +27,6 @@ vi.mock("@/features/playback/components/related-content/ClipCard", () => ({
 vi.mock("@/features/discovery/data/queries/persisted-snapshot", () => ({
   loadPersistedSnapshot: vi.fn(async () => null),
   savePersistedSnapshot: vi.fn(async () => undefined),
-}));
-
-vi.mock("@/features/discovery/data/queries/recent-stream-prewarm", () => ({
-  rememberRecentStreamImages: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/lib/viewport-image-prewarm", () => ({

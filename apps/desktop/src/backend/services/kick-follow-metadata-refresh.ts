@@ -2,7 +2,7 @@ import { createManagedInterval } from "@shared/utils/managed-interval";
 import { kickClient } from "../api/platforms/kick/kick-client";
 import { logger } from "../logging/logger";
 import { isKickAccountReconciliationActive } from "./kick-account-reconciliation-coordinator";
-import { repairKickFollowSlugs } from "./kick-follow-metadata-repair";
+import { resolveKickFollowMetadata } from "@backend/services/kick-follow-identity-service";
 import { storageService } from "./storage-service";
 
 const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
@@ -47,11 +47,11 @@ export async function refreshKickFollowMetadataNow(
       return;
     }
 
-    const repairedChannels = await repairKickFollowSlugs(kickClient, follows);
+    const resolvedChannels = await resolveKickFollowMetadata(kickClient, follows);
     logger.info("Service:KickFollowMetadata", "Kick follow metadata refresh completed", {
       reason,
       followCount: follows.length,
-      resolvedCount: repairedChannels.size,
+      resolvedCount: resolvedChannels.size,
     });
   })();
 

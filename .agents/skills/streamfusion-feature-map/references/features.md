@@ -59,7 +59,7 @@ Users can authenticate independently with Twitch and Kick, follow channels, reta
 - Feature: `apps/desktop/src/frontend/features/auth/`
 - IPC: `auth-handlers.ts`, `storage-handlers.ts`, `token-status-handlers.ts`, `twitch-api-handlers.ts`
 - Auth core: `apps/desktop/src/backend/auth/`
-- Follow services: Twitch and Kick follow write services plus Kick reconciliation and metadata repair
+- Follow services: Twitch and Kick follow write services, Kick follow identity resolution, and metadata refresh
 - Notifications: `live-notification-service.ts`, provider notification sources, `use-live-notification-bridge.ts`
 - State: `auth-store.ts`, `follow-store.ts`, `notification-store.ts`
 - Worker: `apps/worker/src/index.ts` handles Kick token exchange, refresh, and rate limits only
@@ -67,7 +67,7 @@ Users can authenticate independently with Twitch and Kick, follow channels, reta
 
 ## Multistream
 
-Multistream lets users load, reorder, focus, mute, and remove up to the configured MultiviewCap of StreamSlots.
+Multistream lets users load, reorder, focus, mute, and remove any number of StreamSlots. A separate PlaybackBudget limits concurrent decoders; overflow slots stay visible but suspended until activated.
 
 - Route: `/multistream`
 - Feature: `apps/desktop/src/frontend/features/multistream/`

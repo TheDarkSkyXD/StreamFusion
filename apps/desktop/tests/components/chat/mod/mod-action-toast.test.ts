@@ -8,20 +8,14 @@ vi.mock("sonner", () => ({
   },
 }));
 
-// Guards: production builds suppress debug-only success toasts for completed ban, timeout, and delete moderation actions.
+// Guards: packaged builds show the same completed-action feedback as development.
 describe("showModActionSuccessToast", () => {
   beforeEach(() => {
     vi.mocked(toast.success).mockReset();
   });
 
-  it("does not show a success toast in production", () => {
-    showModActionSuccessToast("Deleted message", false);
-
-    expect(toast.success).not.toHaveBeenCalled();
-  });
-
-  it("shows a success toast in development", () => {
-    showModActionSuccessToast("Deleted message", true);
+  it("shows a success toast for a completed moderation action", () => {
+    showModActionSuccessToast("Deleted message");
 
     expect(toast.success).toHaveBeenCalledWith("Deleted message");
   });

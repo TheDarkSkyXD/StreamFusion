@@ -11,10 +11,41 @@ interface ChatEmoteProps {
   name: string;
   url: string;
   platform: "twitch" | "kick";
+  provider?: Emote["provider"];
   isAnimated?: boolean;
+  /** Provider logical 1x geometry. */
+  width?: number;
+  height?: number;
+  url1x?: string;
+  url2x?: string;
+  url4x?: string;
   /** Zero-width / overlay emote — stacks on the preceding emote when the
    *  viewer's `overlayEmotes` pref is on (mirrors EmoteImage's overlay styling). */
   isZeroWidth?: boolean;
+}
+
+const LOGICAL_EMOTE_BASE_PX = 28;
+const DECODED_GEOMETRY_CACHE_LIMIT = 500;
+const decodedGeometryCache = new Map<string, { width: number; height: number }>();
+
+function validGeometry(width?: number, height?: number) {
+  return width !== undefined &&
+    height !== undefined &&
+    Number.isFinite(width) &&
+    Number.isFinite(height) &&
+    width > 0 &&
+    height > 0
+    ? { width, height }
+    : undefined;
+}
+
+function rememberDecodedGeometry(url: string, width: number, height: number): void {
+  const geometry = validGeometry(width, height);
+  if (!geometry) return;
+  decodedGeometryCache.set(url, geometry);
+  if (decodedGeometryCache.size <= DECODED_GEOMETRY_CACHE_LIMIT) return;
+  const oldestUrl = decodedGeometryCache.keys().next().value;
+  if (typeof oldestUrl === "string") decodedGeometryCache.delete(oldestUrl);
 }
 
 /**
@@ -55,7 +86,20 @@ function freezeEmoteUrl(url: string): string | null {
  * Memoized to prevent re-renders when props haven't changed.
  */
 export const ChatEmote: React.FC<ChatEmoteProps> = memo(
-  ({ id, name, url, platform, isAnimated, isZeroWidth }) => {
+  ({
+    id,
+    name,
+    url,
+    platform,
+    provider: suppliedProvider,
+    isAnimated,
+    isZeroWidth,
+    width,
+    height,
+    url1x,
+    url2x,
+    url4x,
+  }) => {
     const cd = useAuthStore((s) => s.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
     const emoteSizePx = cd.emoteSizePx;
     const [showTooltip, setShowTooltip] = useState(false);
@@ -116,6 +160,14 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
       return freezeEmoteUrl(url) ?? url;
     }, [url, isAnimated, cd.animatedEmotes]);
     const imageSource = useOfficialEmoteImageSource(renderUrl);
+    const [decodedGeometry, setDecodedGeometry] = useState<{
+      url: string;
+      width: number;
+      height: number;
+    } | null>(() => {
+      const cached = decodedGeometryCache.get(renderUrl);
+      return cached ? { url: renderUrl, ...cached } : null;
+    });
 
     // Treat as an overlay only when the emote is zero-width AND the viewer has
     // overlays enabled. With overlays off, zero-width emotes render inline.
@@ -124,10 +176,10 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
     // Memoized emote object for tooltip
     const emoteObj = useMemo<Emote>(() => {
       // Infer provider from URL
-      let provider: Emote["provider"] = platform;
-      if (url.includes("7tv.app")) provider = "7tv";
-      else if (url.includes("betterttv")) provider = "bttv";
-      else if (url.includes("frankerfacez")) provider = "ffz";
+      let provider: Emote["provider"] = suppliedProvider ?? platform;
+      if (!suppliedProvider && url.includes("7tv.app")) provider = "7tv";
+      else if (!suppliedProvider && url.includes("betterttv")) provider = "bttv";
+      else if (!suppliedProvider && url.includes("frankerfacez")) provider = "ffz";
 
       return {
         id,
@@ -142,26 +194,63 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
           url4x: url,
         },
       };
-    }, [id, name, url, platform, isAnimated, isZeroWidth]);
+    }, [id, name, url, platform, suppliedProvider, isAnimated, isZeroWidth]);
 
     // Zero-width overlay positioning mirrors EmoteImage.tsx: pull the emote back
     // over the preceding one with a negative margin equal to the emote width and
     // take it out of flow so it doesn't consume horizontal space.
+    const providerGeometry = validGeometry(width, height);
+    const cachedGeometry =
+      decodedGeometry?.url === renderUrl ? decodedGeometry : decodedGeometryCache.get(renderUrl);
+    const geometry = providerGeometry ?? cachedGeometry;
+    const scale = emoteSizePx / LOGICAL_EMOTE_BASE_PX;
+    const renderedWidth = geometry ? geometry.width * scale : emoteSizePx;
+    const renderedHeight = geometry ? geometry.height * scale : emoteSizePx;
     const triggerStyle: React.CSSProperties = renderAsOverlay
       ? {
-          height: emoteSizePx,
-          width: emoteSizePx,
+          height: renderedHeight,
+          width: renderedWidth,
           maxWidth: "100%",
           position: "absolute",
-          marginLeft: `-${emoteSizePx}px`,
+          transform: "translateX(-100%)",
         }
-      : { height: emoteSizePx, width: emoteSizePx, maxWidth: "100%" };
+      : { height: renderedHeight, width: renderedWidth, maxWidth: "100%" };
     const imageStyle: React.CSSProperties = {
-      height: emoteSizePx,
-      width: emoteSizePx,
+      height: renderedHeight,
+      width: renderedWidth,
       maxWidth: "100%",
       objectFit: "contain",
     };
+    const canUseDensitySources =
+      renderUrl === url &&
+      imageSource.sourceUrl === url &&
+      (suppliedProvider === "7tv" || suppliedProvider === "ffz");
+    const densitySourceSet = (
+      canUseDensitySources
+        ? [url1x ? `${url1x} 1x` : null, url2x ? `${url2x} 2x` : null, url4x ? `${url4x} 4x` : null]
+        : []
+    )
+      .filter(Boolean)
+      .join(", ");
+    const handleImageLoad = useCallback(
+      (event: React.SyntheticEvent<HTMLImageElement>) => {
+        imageSource.handleLoad(event);
+        if (
+          providerGeometry ||
+          (suppliedProvider !== "7tv" && suppliedProvider !== "bttv" && suppliedProvider !== "ffz")
+        ) {
+          return;
+        }
+        const image = event.currentTarget;
+        const density =
+          renderUrl === url2x ? 2 : renderUrl === url4x ? (suppliedProvider === "bttv" ? 3 : 4) : 1;
+        const geometry = validGeometry(image.naturalWidth / density, image.naturalHeight / density);
+        if (!geometry) return;
+        rememberDecodedGeometry(renderUrl, geometry.width, geometry.height);
+        setDecodedGeometry({ url: renderUrl, ...geometry });
+      },
+      [imageSource, providerGeometry, renderUrl, suppliedProvider, url2x, url4x]
+    );
 
     return (
       <>
@@ -183,11 +272,12 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
           ) : (
             <img
               src={imageSource.sourceUrl}
+              srcSet={densitySourceSet || undefined}
               alt={name}
               loading="lazy"
               decoding="async"
               fetchPriority="low"
-              onLoad={imageSource.handleLoad}
+              onLoad={handleImageLoad}
               onError={imageSource.handleError}
               style={imageStyle}
               className="block"

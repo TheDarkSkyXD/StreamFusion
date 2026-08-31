@@ -2,6 +2,7 @@ import { act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HOME_CAROUSEL_INTERVAL_DEFAULT_MS, useAppStore } from "@/store/app-store";
+import { usePipStore } from "@/store/pip-store";
 import { useVolumeStore } from "@/store/volume-store";
 
 import { fireEvent, fixtures, renderWithProviders, routerMock, screen } from "../../test-utils";
@@ -94,6 +95,7 @@ import { FeaturedStream } from "@/features/discovery/components/stream/featured-
 // Guards: success state renders title, channel, viewer badge, and watch CTA in the hero panel.
 // Guards: carousel state switches the active stream without refetching or remounting the home page.
 // Guards: exactly one muted preview starts automatically so Home feels live without audible autoplay.
+// Guards: an active persistent player suppresses Home preview playback so route navigation never starts a duplicate decoder.
 // Guards: Home preview playback is capped at 360p to keep long-running renderer and GPU memory bounded.
 // Guards: an offline featured channel advances once to the next candidate instead of leaving a dead hero or retry-looping every failed candidate.
 // Guards: preview audio can be user-unmuted without navigating away from the carousel.
@@ -104,8 +106,9 @@ describe("FeaturedStream", () => {
   beforeEach(() => {
     localStorage.clear();
     useAppStore.setState({ homeCarouselIntervalMs: HOME_CAROUSEL_INTERVAL_DEFAULT_MS });
+    usePipStore.setState({ currentStream: null, isPipActive: false, isOnStreamPage: false });
     useVolumeStore.setState({ volume: 100, isMuted: false });
-    mocks.useStreamPlayback.mockReturnValue({
+    mocks.useStreamPlayback.mockReset().mockReturnValue({
       playback: { url: "https://example.com/live.m3u8", format: "hls" },
       isLoading: false,
       error: null,
@@ -185,6 +188,27 @@ describe("FeaturedStream", () => {
     fireEvent.click(screen.getByRole("button", { name: /unmute preview/i }));
     expect(screen.getByTestId("featured-preview-player")).toHaveAttribute("data-muted", "false");
     expect(screen.getByRole("button", { name: /mute preview/i })).toBeInTheDocument();
+  });
+
+  it("keeps the featured thumbnail passive while the persistent player is active", () => {
+    usePipStore.setState({
+      currentStream: {
+        platform: "kick",
+        channelName: "selected-channel",
+        channelDisplayName: "Selected Channel",
+        streamUrl: "https://example.com/selected.m3u8",
+      },
+      isPipActive: true,
+      isOnStreamPage: false,
+    });
+
+    renderWithProviders(
+      <FeaturedStream stream={fixtures.stream({ platform: "twitch", channelName: "featured" })} />
+    );
+
+    expect(screen.queryByTestId("featured-twitch-preview-player")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /unmute preview/i })).not.toBeInTheDocument();
+    expect(mocks.useStreamPlayback).not.toHaveBeenCalled();
   });
 
   it("uses the Twitch ad-blocking player for Twitch previews", () => {

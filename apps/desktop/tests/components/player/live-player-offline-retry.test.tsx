@@ -16,7 +16,15 @@ const h = vi.hoisted(() => ({
   kickHlsMounts: 0,
   twitchHlsMounts: 0,
   recoveryCount: 0,
+  logger: {
+    debug: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  },
 }));
+
+vi.mock("@/renderer/logging/logger", () => ({ logger: h.logger }));
 
 vi.mock("@/features/settings/data/useNetworkStatus", () => ({
   useNetworkStatus: () => ({ recoveryCount: h.recoveryCount }),
@@ -120,6 +128,7 @@ const offlineError: PlayerError = {
 };
 
 // Guards: live-player wrappers must surface confirmed STREAM_OFFLINE errors to the page instead of refreshing forever on fresh-but-dead playback URLs.
+// Guards: recoverable Kick source interruptions stay in a loading state and are not recorded as app errors while the page obtains a fresh signed URL.
 // Guards: Twitch ad holds recover inside HLS and cannot request a page-owned remount that pauses playback.
 describe("live player offline retry handling", () => {
   beforeEach(() => {
@@ -128,6 +137,7 @@ describe("live player offline retry handling", () => {
     h.kickHlsMounts = 0;
     h.twitchHlsMounts = 0;
     h.recoveryCount = 0;
+    vi.clearAllMocks();
   });
 
   it("Kick STREAM_OFFLINE calls onError without auto-refreshing", () => {
@@ -168,6 +178,14 @@ describe("live player offline retry handling", () => {
 
     expect(onRefresh).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledWith(refreshableError);
+    expect(screen.getByTestId("kick-controls")).toBeInTheDocument();
+    expect(screen.getByTestId("kick-loading")).toBeInTheDocument();
+    expect(h.logger.error).not.toHaveBeenCalled();
+    expect(h.logger.warn).toHaveBeenCalledWith(
+      "Player:Kick:Live",
+      "playback interrupted; refreshing source",
+      { code: "NO_FRAGMENTS" }
+    );
   });
 
   it("Twitch STREAM_OFFLINE receives a bounded playback refresh", async () => {

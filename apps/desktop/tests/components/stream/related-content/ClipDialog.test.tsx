@@ -27,7 +27,7 @@ vi.mock("@/components/ui/loading-spinner", () => ({
   TwitchLoadingSpinner: () => <div data-testid="twitch-loading-spinner">Twitch Loading</div>,
 }));
 
-vi.mock("@/features/playback/components/player/twitch", () => ({
+vi.mock("@/features/playback/components/player/twitch/twitch-vod-player", () => ({
   TwitchVodPlayer: ({
     streamUrl,
     onReady,
@@ -49,7 +49,7 @@ vi.mock("@/features/playback/components/player/twitch", () => ({
   ),
 }));
 
-vi.mock("@/features/playback/components/player/kick", () => ({
+vi.mock("@/features/playback/components/player/kick/kick-vod-player", () => ({
   KickVodPlayer: () => <div data-testid="kick-vod-player">Kick Player</div>,
 }));
 

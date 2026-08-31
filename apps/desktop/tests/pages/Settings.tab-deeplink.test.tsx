@@ -100,7 +100,7 @@ vi.mock("@/store/adblock-store", () => ({
   },
 }));
 
-vi.mock("@/features/auth/components/auth", () => ({
+vi.mock("@/features/auth/components/auth/AccountConnect", () => ({
   AccountConnect: () => <div data-testid="account-connect">accounts</div>,
 }));
 

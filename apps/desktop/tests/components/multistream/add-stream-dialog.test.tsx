@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
   refetchQueries: vi.fn(async () => undefined),
   store: {
     streams: [] as Array<{ id: string }>,
-    multiviewCap: 4,
     favoriteStreams: [] as Array<{
       platform: "twitch" | "kick";
       channelId: string;
@@ -140,7 +139,7 @@ function openFavorites() {
 // Guards: Search and Favorites retain WAI-ARIA tab semantics and keyboard navigation.
 // Guards: Search is unified across Twitch and Kick with platform-identified rows and no platform selector.
 // Guards: search rows add while their star action only toggles the saved favorite.
-// Guards: duplicate/capacity rejection stays in the dialog and is announced politely.
+// Guards: duplicate rejection stays in the dialog while layout membership remains unbounded.
 // Guards: favorite loading, error/retry, empty, and live-result states remain distinct.
 describe("AddStreamDialog", () => {
   beforeEach(() => {
@@ -148,7 +147,6 @@ describe("AddStreamDialog", () => {
     mocks.toggleFavorite.mockClear();
     mocks.refetchQueries.mockClear();
     mocks.store.streams = [];
-    mocks.store.multiviewCap = 4;
     mocks.store.favoriteStreams = [];
     mocks.liveFavorites.streams = [];
     mocks.liveFavorites.isLoading = false;
@@ -238,17 +236,15 @@ describe("AddStreamDialog", () => {
     await waitFor(() => expect(screen.getByTestId("mock-search")).toHaveFocus());
   });
 
-  it("keeps an at-capacity add open with a quiet capacity status", async () => {
+  it("adds beyond the playback budget without rejecting layout membership", () => {
     mocks.store.streams = [{ id: "twitch-one" }, { id: "kick-two" }];
-    mocks.store.multiviewCap = 2;
     renderWithProviders(<AddStreamDialog />);
     openDialog();
-    expect(screen.getByText("2 / 2 streams")).toBeInTheDocument();
+    expect(screen.getByText("2 streams")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "pick-ninja" }));
 
-    expect(mocks.addStream).not.toHaveBeenCalled();
-    expect(screen.getByRole("status")).toHaveTextContent("Layout is full");
-    await waitFor(() => expect(screen.getByTestId("mock-search")).toHaveFocus());
+    expect(mocks.addStream).toHaveBeenCalledWith("twitch", "ninja");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("shows a Favorites loading state", () => {

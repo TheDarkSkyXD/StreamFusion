@@ -28,6 +28,7 @@ export function MultiStreamGrid() {
     setFocusedStream,
     toggleMute,
     reorderStreams,
+    playbackBudget,
   } = useMultiStreamStore();
 
   const sensors = useSensors(
@@ -109,7 +110,8 @@ export function MultiStreamGrid() {
     if (count === 1) gridClass += " grid-cols-1 grid-rows-1";
     else if (count === 2) gridClass += " grid-cols-2 grid-rows-1";
     else if (count <= 4) gridClass += " grid-cols-2 grid-rows-2";
-    else gridClass += " grid-cols-3 grid-rows-2";
+    else if (count <= 6) gridClass += " grid-cols-3 grid-rows-2";
+    else gridClass += " grid-cols-3 auto-rows-[minmax(180px,1fr)] overflow-y-auto";
   }
 
   return (
@@ -131,6 +133,7 @@ export function MultiStreamGrid() {
                   onRemove={() => removeStream(stream.id)}
                   onFocus={() => {}}
                   isFocused={true}
+                  playbackActive
                   slotIndex={0}
                 />
               ))}
@@ -149,6 +152,8 @@ export function MultiStreamGrid() {
                     onRemove={() => removeStream(stream.id)}
                     onFocus={() => focusSlot(stream.id)}
                     isFocused={false}
+                    playbackActive={sideRailIndex < Math.max(0, playbackBudget - 1)}
+                    onActivate={() => focusSlot(stream.id)}
                     // +1 so the side-rail slots stagger after the focused slot
                     slotIndex={sideRailIndex + 1}
                     // Side rail scrolls horizontally — defer mount of off-screen
@@ -180,6 +185,8 @@ export function MultiStreamGrid() {
                   }
                 }}
                 isFocused={focusedStreamId === stream.id && false}
+                playbackActive={index < playbackBudget}
+                onActivate={() => reorderStreams(index, 0)}
                 slotIndex={index}
               />
             ))}

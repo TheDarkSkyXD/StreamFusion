@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatQuickSettingsPopover } from "@/features/chat/components/chat/ChatQuickSettingsPopover";
-import { useChatDisplay } from "@/features/settings/components/settings/ChatSettingsSection";
+import { useChatDisplay } from "@/features/settings/data/use-chat-display";
 import {
   type ChatDisplayPreferences,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,

@@ -1,16 +1,16 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { LuLayoutGrid, LuMaximize, LuMessageSquare } from "react-icons/lu";
 
-import { ChatPanel } from "@/features/chat/components/chat";
+import { ChatPanel } from "@/features/chat/components/chat/ChatPanel";
 import { AddStreamDialog } from "@/features/multistream/components/multistream/add-stream-dialog";
 import { MultiStreamGrid } from "@/features/multistream/components/multistream/grid-layout";
-import { useChatDisplay } from "@/features/settings/components/settings/ChatSettingsSection";
+import { useChatDisplay } from "@/features/settings/data/use-chat-display";
 import { Button } from "@/components/ui/button";
 import { useChannelByUsername } from "@/features/discovery/data/queries/useChannels";
 import { useMultiStreamStore } from "@/features/multistream/data/multistream-store";
 
 export function MultiStreamPage() {
-  const { streams, layout, setLayout, isChatOpen, toggleChat, chatStreamId } =
+  const { streams, layout, setLayout, isChatOpen, toggleChat, chatStreamId, playbackBudget } =
     useMultiStreamStore();
   const { cd: chatDisplay } = useChatDisplay();
   const chatRailWidthPx = chatDisplay.chatWidthPx;
@@ -18,6 +18,10 @@ export function MultiStreamPage() {
   useLayoutEffect(() => {
     streamsRef.current = streams;
   }, [streams]);
+
+  useEffect(() => {
+    void window.electronAPI?.slot?.setPlaybackBudget?.(playbackBudget);
+  }, [playbackBudget]);
 
   useEffect(() => {
     return () => {

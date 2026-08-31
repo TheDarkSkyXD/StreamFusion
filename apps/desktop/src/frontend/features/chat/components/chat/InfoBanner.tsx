@@ -20,6 +20,7 @@ import type React from "react";
 import { useChatRoomState } from "../../data/useChatRoomState";
 import type { ChatPlatform } from "../../../../../shared/chat-types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
+import type { ViewerRequirementState } from "./chat-send-eligibility";
 
 /**
  * Convert a seconds count to a compact human-readable interval.
@@ -59,12 +60,14 @@ export interface InfoBannerProps {
   platform: ChatPlatform;
   channelId: string | null;
   viewerSatisfiesFollowerOnly?: boolean;
+  viewerAccountAgeRequirement?: ViewerRequirementState;
 }
 
 export const InfoBanner: React.FC<InfoBannerProps> = ({
   platform,
   channelId,
   viewerSatisfiesFollowerOnly = false,
+  viewerAccountAgeRequirement = "unknown",
 }) => {
   const state = useChatRoomState(platform, channelId);
 
@@ -90,7 +93,12 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({
     });
   }
 
-  if (platform === "kick" && state.accountAge !== null && state.accountAge > 0) {
+  if (
+    platform === "kick" &&
+    viewerAccountAgeRequirement === "restricted" &&
+    state.accountAge !== null &&
+    state.accountAge > 0
+  ) {
     const n = state.accountAge;
     active.push({
       key: "accountAge",

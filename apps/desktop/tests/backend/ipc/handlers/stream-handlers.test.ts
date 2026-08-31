@@ -197,8 +197,23 @@ describe("registerStreamHandlers", () => {
   });
 });
 
-// Guards: a cross-platform limit caps the merged result, not each provider independently.
+// Guards: raw top-stream payloads are validated before platform adapters are selected.
+// Guards: a cross-platform page size applies after merging, not independently to each provider.
 describe("STREAMS_GET_TOP", () => {
+  it("rejects invalid payloads before selecting a platform client", async () => {
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_TOP);
+
+    const result = await handler({}, { platform: "youtube", limit: 0, unexpected: true });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Invalid top-stream request",
+      providers: { twitch: "failed", kick: "failed" },
+    });
+    expect(clients.for).not.toHaveBeenCalled();
+    expect(clients.all).not.toHaveBeenCalled();
+  });
+
   it("returns single platform result when platform is specified", async () => {
     const twitchReader = reader("twitch", [stream("1", "twitch", 100)]);
     vi.mocked(twitchReader.getTopStreams).mockResolvedValue({
@@ -257,6 +272,20 @@ describe("STREAMS_GET_TOP", () => {
 });
 
 describe("STREAMS_GET_BY_CATEGORY", () => {
+  it("rejects a category request with neither an id nor a fallback name", async () => {
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_BY_CATEGORY);
+
+    const result = await handler({}, { categoryId: "   ", limit: 20 });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Invalid category-stream request",
+      providers: { twitch: "failed", kick: "failed" },
+    });
+    expect(twitchClient.getTopStreams).not.toHaveBeenCalled();
+    expect(kickClient.getStreamsByCategory).not.toHaveBeenCalled();
+  });
+
   it("fetches from both platforms when no platform specified", async () => {
     vi.mocked(twitchClient.getTopStreams).mockResolvedValue({
       data: [stream("t1", "twitch", 50)],
@@ -318,6 +347,16 @@ describe("STREAMS_GET_BY_CATEGORY", () => {
 });
 
 describe("STREAMS_GET_BY_CHANNEL", () => {
+  it("rejects blank channel identities before loading a provider", async () => {
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_BY_CHANNEL);
+
+    const result = await handler({}, { platform: "kick", username: "   " });
+
+    expect(result).toEqual({ success: false, error: "Invalid stream-channel request" });
+    expect(kickClient.getStreamBySlug).not.toHaveBeenCalled();
+    expect(twitchClient.getStreamByLogin).not.toHaveBeenCalled();
+  });
+
   it("fetches Twitch stream by login", async () => {
     const streamResult = stream("s1", "twitch", 1);
     vi.mocked(twitchClient.getStreamByLogin).mockResolvedValue(streamResult);
@@ -376,11 +415,28 @@ describe("STREAMS_GET_BY_CHANNEL", () => {
 });
 
 // Guards: overlapping followed-status consumers share one scan and a short-lived result without changing response data.
+// Guards: a restart snapshot is fallback evidence, never proof that the currently followed channels are still offline.
+// Guards: numeric Kick follow ids that the official channel API cannot resolve fall back to slug status checks.
+// Guards: authenticated Twitch followed-live pagination is exhausted so the returned collection has no arbitrary cap.
+// Guards: obsolete limit/cursor fields are rejected so result caps cannot silently return through IPC.
 describe("STREAMS_GET_FOLLOWED", () => {
   it("classifies Kick rate-limit failures without matching unrelated errors", () => {
     expect(isKickRateLimitError(new Error("Request failed with status 429"))).toBe(true);
     expect(isKickRateLimitError(new Error("Kick rate limit exceeded"))).toBe(true);
     expect(isKickRateLimitError(new Error("Request failed with status 500"))).toBe(false);
+  });
+
+  it("rejects obsolete followed-stream caps at the IPC boundary", async () => {
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_FOLLOWED);
+
+    const result = await handler({}, { platform: "kick", limit: 20 });
+
+    expect(result).toEqual({
+      success: false,
+      error: "Invalid followed-stream request",
+      providers: { twitch: "failed", kick: "failed" },
+    });
+    expect(kickClient.getFollowedStreams).not.toHaveBeenCalled();
   });
 
   it("does not fan a rate-limited bulk status request out across every followed slug", async () => {
@@ -414,26 +470,52 @@ describe("STREAMS_GET_FOLLOWED", () => {
     expect(kickClient.getPublicStreamBySlug).not.toHaveBeenCalled();
   });
 
-  it("reuses a recent persisted Kick snapshot without making restart network calls", async () => {
+  it("refreshes live status instead of treating a recent restart snapshot as current", async () => {
     const cachedStream = stream("cached-kick", "kick", 42);
+    const currentStream = stream("current-kick", "kick", 84);
     vi.mocked(storageService.getKickFollowedStreamsCache).mockReturnValue({
       cachedAt: Date.now(),
       streams: [cachedStream],
     });
     vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) =>
-      platform === "kick" ? [follow("cached-kick")] : []
+      platform === "kick" ? [follow("current-kick")] : []
     );
+    vi.mocked(kickClient.getPublicStreamBySlug).mockResolvedValue(currentStream);
 
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_FOLLOWED);
     const result = await handler({}, { platform: "kick" });
 
-    expect(result.data).toEqual([cachedStream]);
-    expect(kickClient.getFollowedStreams).not.toHaveBeenCalled();
-    expect(kickClient.getStreamsByBroadcasterIds).not.toHaveBeenCalled();
-    expect(kickClient.getPublicStreamBySlug).not.toHaveBeenCalled();
+    expect(result.data).toEqual([currentStream]);
+    expect(kickClient.getPublicStreamBySlug).toHaveBeenCalledWith(
+      "current-kick",
+      0,
+      expect.any(AbortSignal)
+    );
   });
 
-  it("scans all local Kick follows so requested result limits do not hide live channels", async () => {
+  it("falls back to a slug status check when a numeric follow id cannot be resolved", async () => {
+    const currentStream = stream("currently-live", "kick", 84);
+    vi.mocked(kickClient.isAuthenticated).mockReturnValue(true);
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) =>
+      platform === "kick" ? [follow("currently-live", "999")] : []
+    );
+    vi.mocked(kickClient.getChannelsByBroadcasterIds).mockResolvedValue([]);
+    vi.mocked(kickClient.getStreamsByBroadcasterIds).mockResolvedValue([]);
+    vi.mocked(kickClient.getPublicStreamBySlug).mockResolvedValue(currentStream);
+
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_FOLLOWED);
+    const result = await handler({}, { platform: "kick" });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual([currentStream]);
+    expect(kickClient.getPublicStreamBySlug).toHaveBeenCalledWith(
+      "currently-live",
+      0,
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("scans all local Kick follows", async () => {
     vi.mocked(twitchClient.isAuthenticated).mockReturnValue(false);
     vi.mocked(kickClient.isAuthenticated).mockReturnValue(false);
     vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) =>
@@ -442,7 +524,7 @@ describe("STREAMS_GET_FOLLOWED", () => {
     vi.mocked(kickClient.getPublicStreamBySlug).mockResolvedValue(null);
 
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_FOLLOWED);
-    const result = await handler({}, { platform: "kick", limit: 2 });
+    const result = await handler({}, { platform: "kick" });
 
     expect(result.success).toBe(true);
     expect(result.data).toEqual([]);
@@ -593,6 +675,33 @@ describe("STREAMS_GET_FOLLOWED", () => {
     expect(result.data[1].viewerCount).toBe(50);
   });
 
+  it("returns every authenticated Twitch followed stream across API pages", async () => {
+    vi.mocked(twitchClient.isAuthenticated).mockReturnValue(true);
+    vi.mocked(twitchClient.getFollowedStreams)
+      .mockResolvedValueOnce({
+        data: [stream("twitch-page-one", "twitch", 50)],
+        cursor: "next-page",
+      })
+      .mockResolvedValueOnce({
+        data: [stream("twitch-page-two", "twitch", 25)],
+      });
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([]);
+
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_FOLLOWED);
+    const result = await handler({}, { platform: "twitch" });
+
+    expect(result.success).toBe(true);
+    expect(result.data.map((item) => item.id)).toEqual(["twitch-page-one", "twitch-page-two"]);
+    expect(twitchClient.getFollowedStreams).toHaveBeenNthCalledWith(1, {
+      first: 100,
+      after: undefined,
+    });
+    expect(twitchClient.getFollowedStreams).toHaveBeenNthCalledWith(2, {
+      first: 100,
+      after: "next-page",
+    });
+  });
+
   it("reports provider failure on an outer followed-stream error", async () => {
     vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation(() => {
       throw new Error("db corrupt");
@@ -642,7 +751,10 @@ describe("STREAMS_GET_FOLLOWED", () => {
     vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) =>
       platform === "kick" ? [follow("xqc", "12345")] : []
     );
-    vi.mocked(kickClient.getChannelsByBroadcasterIds).mockResolvedValue([]);
+    vi.mocked(kickClient.getChannelsByBroadcasterIds).mockResolvedValue([
+      channel("12345", "xqc"),
+    ]);
+    vi.mocked(kickClient.getPublicChannel).mockResolvedValue(null);
     vi.mocked(kickClient.getStreamsByBroadcasterIds).mockResolvedValue([
       {
         ...stream("public-live-id", "kick", 6300),
@@ -659,6 +771,9 @@ describe("STREAMS_GET_FOLLOWED", () => {
   });
 });
 
+// Guards: an explicit Kick playback recovery bypasses the main-process URL cache.
+// Guards: ordinary playback and Twitch recovery preserve their existing resolver behavior.
+// Guards: malformed playback requests are rejected before either resolver runs.
 describe("STREAMS_GET_PLAYBACK_URL", () => {
   it("resolves Twitch playback URL", async () => {
     resolverMocks.twitch.mockResolvedValue({
@@ -666,10 +781,26 @@ describe("STREAMS_GET_PLAYBACK_URL", () => {
     });
 
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_PLAYBACK_URL);
-    const result = await handler({}, { platform: "twitch", channelSlug: "test" });
+    const result = await handler({}, { platform: "twitch", channelSlug: "test", intent: "play" });
 
     expect(result.success).toBe(true);
     expect(result.data.url).toBe("https://twitch.tv/stream.m3u8");
+    expect(resolverMocks.twitch).toHaveBeenCalledWith("test");
+  });
+
+  it("keeps Twitch recovery on the existing resolver contract", async () => {
+    resolverMocks.twitch.mockResolvedValue({
+      url: "https://twitch.tv/refreshed.m3u8",
+    });
+
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_PLAYBACK_URL);
+    const result = await handler(
+      {},
+      { platform: "twitch", channelSlug: "test", intent: "recover" }
+    );
+
+    expect(result.success).toBe(true);
+    expect(resolverMocks.twitch).toHaveBeenCalledWith("test");
   });
 
   it("resolves Kick playback URL", async () => {
@@ -678,10 +809,23 @@ describe("STREAMS_GET_PLAYBACK_URL", () => {
     });
 
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_PLAYBACK_URL);
-    const result = await handler({}, { platform: "kick", channelSlug: "test" });
+    const result = await handler({}, { platform: "kick", channelSlug: "test", intent: "play" });
 
     expect(result.success).toBe(true);
     expect(result.data.url).toBe("https://kick.com/stream.m3u8");
+    expect(resolverMocks.kick).toHaveBeenCalledWith("test");
+  });
+
+  it("forces a fresh Kick URL for an explicit playback recovery", async () => {
+    resolverMocks.kick.mockResolvedValue({
+      url: "https://kick.com/refreshed.m3u8",
+    });
+
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_PLAYBACK_URL);
+    const result = await handler({}, { platform: "kick", channelSlug: "test", intent: "recover" });
+
+    expect(result.success).toBe(true);
+    expect(resolverMocks.kick).toHaveBeenCalledWith("test", { forceRefresh: true });
   });
 
   it("repairs a renamed Kick follow slug and retries playback once", async () => {
@@ -707,7 +851,7 @@ describe("STREAMS_GET_PLAYBACK_URL", () => {
     ]);
 
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_PLAYBACK_URL);
-    const result = await handler({}, { platform: "kick", channelSlug: "old-slug" });
+    const result = await handler({}, { platform: "kick", channelSlug: "old-slug", intent: "play" });
 
     expect(result.success).toBe(true);
     expect(result.data.url).toBe("https://kick.com/repaired.m3u8");
@@ -719,9 +863,54 @@ describe("STREAMS_GET_PLAYBACK_URL", () => {
     });
   });
 
+  it("keeps forced refresh enabled while repairing a renamed Kick slug", async () => {
+    resolverMocks.kick
+      .mockRejectedValueOnce(new Error("Channel not found for old-slug - renamed"))
+      .mockResolvedValueOnce({ url: "https://kick.com/repaired-fresh.m3u8" });
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
+      follow("old-slug", "123"),
+    ]);
+    vi.mocked(kickClient.getChannelsByBroadcasterIds).mockResolvedValue([
+      { ...channel("123", "new-slug"), displayName: "New Slug" },
+    ]);
+
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_PLAYBACK_URL);
+    const result = await handler(
+      {},
+      { platform: "kick", channelSlug: "old-slug", intent: "recover" }
+    );
+
+    expect(result.success).toBe(true);
+    expect(resolverMocks.kick).toHaveBeenNthCalledWith(1, "old-slug", {
+      forceRefresh: true,
+    });
+    expect(resolverMocks.kick).toHaveBeenNthCalledWith(2, "new-slug", {
+      forceRefresh: true,
+    });
+  });
+
+  it.each([
+    ["missing payload", undefined],
+    ["missing intent", { platform: "kick", channelSlug: "test" }],
+    ["unknown intent", { platform: "kick", channelSlug: "test", intent: "retry" }],
+    ["blank slug", { platform: "kick", channelSlug: "   ", intent: "play" }],
+    ["oversized slug", { platform: "kick", channelSlug: "x".repeat(129), intent: "play" }],
+    [
+      "unexpected field",
+      { platform: "kick", channelSlug: "test", intent: "play", forceRefresh: true },
+    ],
+  ])("rejects %s before resolving playback", async (_label, payload) => {
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_PLAYBACK_URL);
+    const result = await handler({}, payload);
+
+    expect(result).toEqual({ success: false, error: "Invalid Stream playback request" });
+    expect(resolverMocks.kick).not.toHaveBeenCalled();
+    expect(resolverMocks.twitch).not.toHaveBeenCalled();
+  });
+
   it("returns error envelope on unsupported platform", async () => {
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_PLAYBACK_URL);
-    const result = await handler({}, { platform: "youtube", channelSlug: "test" });
+    const result = await handler({}, { platform: "youtube", channelSlug: "test", intent: "play" });
 
     expect(result.success).toBe(false);
   });

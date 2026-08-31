@@ -26,7 +26,7 @@ vi.mock("@/features/shell/components/layout/PlatformHealthIndicator", () => ({
   PlatformHealthIndicator: () => null,
 }));
 
-vi.mock("@/features/auth/components/auth", () => ({
+vi.mock("@/features/auth/components/auth/ProfileDropdown", () => ({
   ProfileDropdown: () => <div data-testid="profile">profile</div>,
 }));
 

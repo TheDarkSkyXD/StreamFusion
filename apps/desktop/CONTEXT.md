@@ -37,12 +37,12 @@ A short, user-curated excerpt from a Stream or Video.
 _Avoid_: Highlight, snippet.
 
 **StreamSlot**:
-One of N (up to the MultiviewCap) addressable render containers in the multiview grid. Owns a single Stream's player instance, its SlotPresence, and (after the per-stream isolation work) its own renderer process. Distinct from the Stream itself — a Stream can be loaded into any slot; a slot can hold any Stream or be empty.
+One of N addressable render containers in the multiview layout. A StreamSlot retains a Stream's layout membership even while playback is suspended. When active, it owns that Stream's player instance, SlotPresence, and (after the per-stream isolation work) renderer process. Distinct from the Stream itself — a Stream can be loaded into any slot; a slot can hold any Stream or be empty.
 _Avoid_: Tile, pane, view, window.
 
-**MultiviewCap**:
-The user-configurable upper bound on simultaneous StreamSlots (range 1–6, default 4). Replaces the previous hard-coded 6. Sets the maximum number of slot processes the app will spawn; settings UI exposes the slider with copy explaining the memory trade-off. Persists in the same store as other multistream preferences.
-_Avoid_: maxStreams, streamLimit, multistreamLimit.
+**PlaybackBudget**:
+The user-configurable number of StreamSlots allowed to play concurrently (minimum 1, default 4, no hard maximum). It limits decoder and slot-process cost without limiting how many channels the user may keep in the layout. Overflow slots remain visible and suspended until activated. Persists with the other multistream preferences.
+_Avoid_: MultiviewCap, maxStreams, streamLimit, multistreamLimit.
 
 **SlotPresence**:
 The user-attention state of a StreamSlot: `"focused" | "background" | "hidden"`. `focused` is the slot the user is actively watching (full quality, full buffer, audio). `background` is on-screen but unfocused in multiview (degraded quality, trimmed buffer, muted). `hidden` is not rendered right now (collapsed tab, off-screen) — the HLS instance is torn down entirely. The slot state machine drives quality, buffer config, and process lifecycle from this single attribute.

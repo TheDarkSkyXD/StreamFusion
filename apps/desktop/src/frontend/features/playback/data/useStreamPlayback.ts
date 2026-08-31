@@ -5,6 +5,7 @@ import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { useNetworkStatus } from "@/features/settings/data/useNetworkStatus";
 import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@shared/auth-types";
+import type { StreamPlaybackRequestIntent } from "@shared/ipc-channels";
 
 // Maximum reload attempts before giving up (prevents infinite loops)
 const MAX_RELOAD_ATTEMPTS = 3;
@@ -36,6 +37,9 @@ const activeInstances = new Map<string, number>();
 //   - 90 s TTL is well under Kick/Twitch JWT lifetimes (~30-90 min), so the
 //     cached URL doesn't outlive its own token in practice.
 type CacheEntry = {
+  readonly generationId: number;
+  readonly intent: StreamPlaybackRequestIntent;
+  superseded: boolean;
   playback: StreamPlayback | null;
   inFlightFetch: Promise<StreamPlayback> | null;
   refCount: number;
@@ -49,6 +53,20 @@ const PLAYBACK_CACHE_TTL_MS = 90_000;
 const PREFETCH_FAILURE_TTL_MS = 30_000;
 const EVICTION_DEFERRAL_MS = 100;
 let playbackRequestCounter = 0;
+let playbackGenerationCounter = 0;
+
+function createCacheEntry(intent: StreamPlaybackRequestIntent): CacheEntry {
+  return {
+    generationId: ++playbackGenerationCounter,
+    intent,
+    superseded: false,
+    playback: null,
+    inFlightFetch: null,
+    refCount: 0,
+    expiresAt: 0,
+    evictionTimer: null,
+  };
+}
 
 function getPlaybackCacheKey(platform: Platform, identifier: string): string {
   return `${platform}:${identifier.toLowerCase()}`;
@@ -60,7 +78,12 @@ function hasReusablePlayback(platform: Platform, identifier: string): boolean {
 }
 
 function requestSharedPlaybackReload(key: string): void {
-  playbackCache.delete(key);
+  const previous = playbackCache.get(key);
+  if (previous) {
+    previous.superseded = true;
+    if (previous.evictionTimer) clearTimeout(previous.evictionTimer);
+  }
+  playbackCache.set(key, createCacheEntry("recover"));
   playbackReloadListeners.get(key)?.forEach((listener) => listener());
 }
 
@@ -78,7 +101,8 @@ function summarizePlaybackUrl(url: string): { urlHost: string | null; formatHint
 
 async function fetchPlaybackUrlFromBackend(
   platform: Platform,
-  identifier: string
+  identifier: string,
+  intent: StreamPlaybackRequestIntent
 ): Promise<StreamPlayback> {
   if (!window.electronAPI) {
     throw new Error("Electron API not available");
@@ -86,6 +110,7 @@ async function fetchPlaybackUrlFromBackend(
   const result = await window.electronAPI.streams.getPlaybackUrl({
     platform,
     channelSlug: identifier,
+    intent,
   });
   if (!result.success || !result.data) {
     throw new Error(result.error || "Failed to get stream playback URL");
@@ -111,16 +136,18 @@ function startPlaybackFetch(
   const fetchStartedAt = Date.now();
   entry.inFlightFetch = (async () => {
     try {
-      const playback = await fetchPlaybackUrlFromBackend(platform, identifier);
+      const playback = await fetchPlaybackUrlFromBackend(platform, identifier, entry.intent);
       const cur = playbackCache.get(key);
-      if (cur) {
-        cur.playback = playback;
-        cur.expiresAt = Date.now() + PLAYBACK_CACHE_TTL_MS;
-        cur.inFlightFetch = null;
+      if (cur === entry) {
+        entry.playback = playback;
+        entry.expiresAt = Date.now() + PLAYBACK_CACHE_TTL_MS;
+        entry.inFlightFetch = null;
+        playbackPrefetchFailures.delete(key);
       }
-      playbackPrefetchFailures.delete(key);
       logger.info("Hook:StreamPlayback", "playback URL ready", {
         traceId,
+        generationId: entry.generationId,
+        committed: cur === entry,
         platform,
         identifier,
         cacheSource,
@@ -130,13 +157,15 @@ function startPlaybackFetch(
       return playback;
     } catch (err) {
       const cur = playbackCache.get(key);
-      if (cur) cur.inFlightFetch = null;
+      if (cur === entry) entry.inFlightFetch = null;
       // Failure isn't cached for active playback — next subscriber retries
       // fresh so a transient network blip doesn't lock playback out for the
       // full TTL. Prefetch callers keep their own short failure backoff below.
-      playbackCache.delete(key);
+      if (cur === entry) playbackCache.delete(key);
       logger.info("Hook:StreamPlayback", "playback URL failed", {
         traceId,
+        generationId: entry.generationId,
+        committed: cur === entry,
         platform,
         identifier,
         cacheSource,
@@ -165,13 +194,7 @@ export function prefetchStreamPlayback(
 
   let entry = playbackCache.get(key);
   if (!entry) {
-    entry = {
-      playback: null,
-      inFlightFetch: null,
-      refCount: 0,
-      expiresAt: 0,
-      evictionTimer: null,
-    };
+    entry = createCacheEntry("play");
     playbackCache.set(key, entry);
   }
 
@@ -217,19 +240,13 @@ export function prefetchStreamPlayback(
 function subscribePlayback(
   platform: Platform,
   identifier: string
-): { promise: Promise<StreamPlayback>; release: () => void } {
+): { promise: Promise<StreamPlayback>; canPublish: () => boolean; release: () => void } {
   const key = getPlaybackCacheKey(platform, identifier);
   const traceId = `playback-${++playbackRequestCounter}`;
   const subscribedAt = Date.now();
   let entry = playbackCache.get(key);
   if (!entry) {
-    entry = {
-      playback: null,
-      inFlightFetch: null,
-      refCount: 0,
-      expiresAt: 0,
-      evictionTimer: null,
-    };
+    entry = createCacheEntry("play");
     playbackCache.set(key, entry);
   }
   // A new subscriber arrived before the deferred eviction fired — cancel it
@@ -241,6 +258,7 @@ function subscribePlayback(
   entry.refCount++;
   logger.debug("Hook:StreamPlayback", "subscribed to playback cache", {
     traceId,
+    generationId: entry.generationId,
     platform,
     identifier,
     refCount: entry.refCount,
@@ -293,6 +311,7 @@ function subscribePlayback(
     promise = entry.inFlightFetch;
   }
   const subscribedEntry = entry;
+  const canPublish = () => !subscribedEntry.superseded;
 
   const release = () => {
     const cur = playbackCache.get(key);
@@ -311,7 +330,7 @@ function subscribePlayback(
       // timer-allowlist: TTL eviction in subscribePlayback (module-level, non-React; SP2 out-of-scope)
       cur.evictionTimer = setTimeout(() => {
         const c = playbackCache.get(key);
-        if (c && c.refCount <= 0) {
+        if (c === subscribedEntry && c.refCount <= 0) {
           logger.debug("Hook:StreamPlayback", "evicted idle playback cache entry", {
             traceId,
             platform,
@@ -323,7 +342,7 @@ function subscribePlayback(
     }
   };
 
-  return { promise, release };
+  return { promise, canPublish, release };
 }
 
 interface UseStreamPlaybackResult {
@@ -462,12 +481,14 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
     setError(null);
 
     const fetchUrl = async () => {
+      let isCurrentRequest = () => false;
       try {
         const sub = subscribePlayback(platform, identifier);
         release = sub.release;
+        isCurrentRequest = sub.canPublish;
         const newPlayback = await sub.promise;
 
-        if (isMounted) {
+        if (isMounted && isCurrentRequest()) {
           setPlayback(newPlayback);
           setPlaybackRevision((prev) => prev + 1);
 
@@ -487,7 +508,7 @@ export function useStreamPlayback(platform: Platform, identifier: string): UseSt
           setReloadAttempts(0); // Reset on successful load
         }
       } catch (err) {
-        if (isMounted) {
+        if (isMounted && isCurrentRequest()) {
           const error = err instanceof Error ? err : new Error(String(err));
           // "Channel is offline" and "not found" are expected behaviors, not errors - don't log them
           const errorMessageLower = error.message.toLowerCase();

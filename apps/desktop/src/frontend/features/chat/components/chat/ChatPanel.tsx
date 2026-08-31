@@ -1,49 +1,15 @@
 import type React from "react";
 import { lazy, memo, Suspense, useEffect } from "react";
 
-import {
-  preloadChatService,
-  shutdownLoadedChatServices,
-} from "../../../../../backend/services/chat/chat-service-loader";
 import { ensureEmoteProvidersInitialized } from "../../../../../backend/services/emotes";
-import { registerAppShutdownTask } from "../../../shell/utils/app-shutdown-registry";
 import type { ChatPlatform } from "../../../../../shared/chat-types";
 import { useRenderCount } from "../../../../components/dev/use-render-count";
+import { loadKickChatComponent, loadTwitchChatComponent } from "./platform-chat-loader";
 
 import type { SubscriberBadge } from "@backend/services/chat/kick-parser";
 
-let kickChatComponentPromise:
-  | Promise<{
-      default: typeof import("./kick/KickChat").KickChat;
-    }>
-  | undefined;
-let twitchChatComponentPromise:
-  | Promise<{
-      default: typeof import("./twitch/TwitchChat").TwitchChat;
-    }>
-  | undefined;
-
-const loadKickChatComponent = () =>
-  (kickChatComponentPromise ??= Promise.all([
-    import("./kick/KickChat"),
-    preloadChatService("kick"),
-  ]).then(([module]) => ({ default: module.KickChat })));
-const loadTwitchChatComponent = () =>
-  (twitchChatComponentPromise ??= Promise.all([
-    import("./twitch/TwitchChat"),
-    preloadChatService("twitch"),
-  ]).then(([module]) => ({ default: module.TwitchChat })));
-
 const LazyKickChat = lazy(loadKickChatComponent);
 const LazyTwitchChat = lazy(loadTwitchChatComponent);
-
-export function preloadPlatformChat(platform: ChatPlatform): Promise<void> {
-  const componentPromise =
-    platform === "kick" ? loadKickChatComponent() : loadTwitchChatComponent();
-  return Promise.all([componentPromise, preloadChatService(platform)]).then(() => undefined);
-}
-
-registerAppShutdownTask("chat-services", shutdownLoadedChatServices);
 
 export interface ChatPanelProps {
   /** Initial platform to display/send to */
@@ -82,6 +48,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
   showComposer = true,
 }) {
   useRenderCount("ChatPanel");
+  // Kick's official moderation APIs are keyed by broadcaster user_id. The
+  // legacy channel/db id is only valid for web chat endpoints.
+  const canonicalKickChannelId = kickUserId ?? channelId;
   // Register emote providers lazily — chat is the only consumer, so pages
   // without chat (Home, Categories, …) don't pay the cost at app boot.
   useEffect(() => {
@@ -96,7 +65,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
       <Suspense fallback={<ChatPanelLoading />}>
         <LazyKickChat
           channel={initialChannel}
-          channelId={channelId}
+          channelId={canonicalKickChannelId}
           kickChannelId={kickChannelId}
           chatroomId={chatroomId}
           kickUserId={kickUserId}

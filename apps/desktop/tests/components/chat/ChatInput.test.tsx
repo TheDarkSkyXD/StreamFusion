@@ -247,9 +247,12 @@ vi.mock("@/features/chat/components/chat/MentionAutocomplete", () => {
   return {
     MentionAutocomplete: ({ isActive }: { isActive: boolean }) =>
       isActive ? <div data-testid="mention-autocomplete-anchor" /> : null,
-    useMentionAutocomplete: () => mentionAutocompleteCtl,
   };
 });
+
+vi.mock("@/features/chat/components/chat/use-mention-autocomplete", () => ({
+  useMentionAutocomplete: () => mentionAutocompleteCtl,
+}));
 
 import type { UnifiedChannel } from "@shared/platform-types";
 import {

@@ -162,11 +162,15 @@ describe("HlsPlayer", () => {
     expect(h.instances[0].destroy).not.toHaveBeenCalled();
   });
 
-  it("live: reports offline after the fragment watchdog grace expires", () => {
+  it("live Kick source: requests a fresh playback URL after the fragment watchdog expires", () => {
     vi.useFakeTimers();
     const onError = vi.fn();
     const { container } = render(
-      <HlsPlayer src="https://x.test/playlist.m3u8" isLive onError={onError} />
+      <HlsPlayer
+        src="https://fa723fc1b171.us-west-2.playback.live-video.net/api/video/v1/us-west-2/live.m3u8"
+        isLive
+        onError={onError}
+      />
     );
     const video = container.querySelector("video");
     expect(video).not.toBeNull();
@@ -192,6 +196,7 @@ describe("HlsPlayer", () => {
       expect.objectContaining({
         code: "STREAM_OFFLINE",
         fatal: true,
+        shouldRefresh: true,
       })
     );
     expect(h.instances[0].destroy).toHaveBeenCalled();

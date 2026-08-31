@@ -1,12 +1,33 @@
 import type { UnifiedStream } from "@shared/platform-types";
+import type { Platform } from "@shared/auth-types";
+import { Button } from "@/components/ui/button";
 import { StreamGrid } from "@/features/discovery/components/stream/stream-grid";
 
 interface LiveNowSectionProps {
   streams?: UnifiedStream[];
   isLoading: boolean;
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  loadMoreError?: boolean;
+  unavailablePlatforms?: Platform[];
+  onLoadMore?: () => void;
+  onRetryUnavailable?: () => void;
 }
 
-export function LiveNowSection({ streams, isLoading }: LiveNowSectionProps) {
+export function LiveNowSection({
+  streams,
+  isLoading,
+  hasNextPage = false,
+  isFetchingNextPage = false,
+  loadMoreError = false,
+  unavailablePlatforms = [],
+  onLoadMore,
+  onRetryUnavailable,
+}: LiveNowSectionProps) {
+  const unavailableNames = unavailablePlatforms.map((platform) =>
+    platform === "twitch" ? "Twitch" : "Kick"
+  );
+
   return (
     <section className="space-y-6">
       <div className="flex items-center justify-between">
@@ -17,6 +38,29 @@ export function LiveNowSection({ streams, isLoading }: LiveNowSectionProps) {
       </div>
 
       <StreamGrid streams={streams} isLoading={isLoading} skeletons={8} />
+
+      {unavailableNames.length > 0 && (
+        <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-[var(--color-foreground-secondary)]">
+          <span>{unavailableNames.join(" and ")} live channels are temporarily unavailable.</span>
+          {onRetryUnavailable && (
+            <Button variant="ghost" size="sm" onClick={onRetryUnavailable}>
+              Retry
+            </Button>
+          )}
+        </div>
+      )}
+
+      {hasNextPage && onLoadMore && (
+        <div className="flex justify-center">
+          <Button variant="outline" onClick={onLoadMore} disabled={isFetchingNextPage}>
+            {isFetchingNextPage
+              ? "Loading…"
+              : loadMoreError
+                ? "Retry loading live channels"
+                : "Load more live channels"}
+          </Button>
+        </div>
+      )}
     </section>
   );
 }

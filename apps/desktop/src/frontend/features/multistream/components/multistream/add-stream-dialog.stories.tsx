@@ -24,7 +24,7 @@ export const Trigger: Story = {
     resetMultistreamStore({
       streams: multistreamFixtures.slice(0, 2),
       favoriteStreams: multistreamFavoriteFixtures.slice(0, 1),
-      multiviewCap: 4,
+      playbackBudget: 4,
     });
     return <AddStreamDialog />;
   },
@@ -36,7 +36,7 @@ export const UnifiedSearchWithFavoriteActions: Story = {
     resetMultistreamStore({
       streams: multistreamFixtures.slice(0, 2),
       favoriteStreams: multistreamFavoriteFixtures.slice(0, 1),
-      multiviewCap: 4,
+      playbackBudget: 4,
     });
     return <AddStreamDialog />;
   },
@@ -53,7 +53,7 @@ export const LiveFavorites: Story = {
     resetMultistreamStore({
       streams: multistreamFixtures.slice(0, 1),
       favoriteStreams: multistreamFavoriteFixtures,
-      multiviewCap: 4,
+      playbackBudget: 4,
     });
     return <AddStreamDialog />;
   },
@@ -67,7 +67,7 @@ export const LiveFavorites: Story = {
 export const AtCapacity: Story = {
   render: () => {
     installMultistreamMocks();
-    resetMultistreamStore({ streams: multistreamFixtures.slice(0, 2), multiviewCap: 2 });
+    resetMultistreamStore({ streams: multistreamFixtures.slice(0, 2), playbackBudget: 2 });
     return <AddStreamDialog />;
   },
   play: async ({ canvasElement }) => {

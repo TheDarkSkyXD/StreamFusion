@@ -26,7 +26,8 @@ type SevenTVUserConnection = SevenTvUser;
 
 /** 7TV emote flags */
 const SevenTVEmoteFlags = {
-  ZERO_WIDTH: 1 << 8, // 256
+  ZERO_WIDTH_ACTIVE: 1 << 0,
+  ZERO_WIDTH_RECOMMENDED: 1 << 8,
   PRIVATE: 1 << 0, // 1
   AUTHENTIC: 1 << 1, // 2
 };
@@ -207,7 +208,21 @@ class SevenTVEmoteProvider implements EmoteProviderService {
 
   private transformEmote(emote: SevenTVEmote, isGlobal: boolean, channelId?: string): Emote {
     const data = emote.data;
-    const isZeroWidth = (data.flags & SevenTVEmoteFlags.ZERO_WIDTH) !== 0;
+    // The active-set entry owns layout. Base-emote bit 8 is only a recommendation
+    // and must not override an explicit active-set flag value.
+    const isZeroWidth =
+      typeof emote.flags === "number"
+        ? (emote.flags & SevenTVEmoteFlags.ZERO_WIDTH_ACTIVE) !== 0
+        : (data.flags & SevenTVEmoteFlags.ZERO_WIDTH_RECOMMENDED) !== 0;
+    const logicalFile = data.host?.files
+      .filter(
+        (file) =>
+          Number.isFinite(file.width) &&
+          file.width > 0 &&
+          Number.isFinite(file.height) &&
+          file.height > 0
+      )
+      .toSorted((left, right) => left.width * left.height - right.width * right.height)[0];
 
     return {
       id: emote.id,
@@ -216,6 +231,8 @@ class SevenTVEmoteProvider implements EmoteProviderService {
       isGlobal,
       isAnimated: data.animated,
       isZeroWidth,
+      width: logicalFile?.width,
+      height: logicalFile?.height,
       channelId,
       urls: {
         url1x: SevenTVEmoteProvider.buildEmoteUrl(data.id, "1x", this.format),

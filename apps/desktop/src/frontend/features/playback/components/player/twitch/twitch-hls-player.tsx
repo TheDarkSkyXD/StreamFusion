@@ -721,6 +721,9 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         hls = new Hls({
           // Keep long-lived segment buffers out of the worker transfer boundary.
           enableWorker: false,
+          // Bound automatic quality by the rendered viewport. Users can still
+          // explicitly select Source when they prefer it.
+          capLevelToPlayerSize: true,
           lowLatencyMode: bufferConfig.lowLatencyMode,
           startFragPrefetch: true,
 

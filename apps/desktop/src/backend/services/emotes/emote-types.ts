@@ -29,6 +29,9 @@ export interface Emote {
   isAnimated: boolean;
   /** Whether this is a zero-width emote (overlays previous emote) */
   isZeroWidth: boolean;
+  /** Provider logical 1x geometry. Density variants must not change layout size. */
+  width?: number;
+  height?: number;
   /** Channel ID this emote belongs to (if channel-specific) */
   channelId?: string;
   /** URL templates for different sizes */

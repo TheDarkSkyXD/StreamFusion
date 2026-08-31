@@ -183,6 +183,8 @@ class FFZEmoteProvider implements EmoteProviderService {
       isGlobal,
       isAnimated: !!hasAnimated,
       isZeroWidth: emote.modifier || false,
+      width: emote.width,
+      height: emote.height,
       channelId,
       urls: {
         url1x: urls["1"] || FFZEmoteProvider.buildEmoteUrl(id, "1"),

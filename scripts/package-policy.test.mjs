@@ -67,15 +67,15 @@ test("the root workspace owns npm policy and application startup", () => {
   assert.equal(rootPackage.scripts.start, "node scripts/start-picker.mjs");
   assert.equal(
     rootPackage.scripts.desktop,
-    "npm run --workspace streamfusion dev:electron",
+    "npm run --workspace streamfusion dev:electron --",
   );
   assert.equal(
     rootPackage.scripts.browser,
-    "npm run --workspace streamfusion dev",
+    "npm run --workspace streamfusion dev --",
   );
   assert.equal(
     rootPackage.scripts.mobile,
-    "npm run --workspace @streamfusion/mobile android",
+    "npm run --workspace @streamfusion/mobile android --",
   );
   assert.equal(mobilePackage.scripts.android, "node scripts/run-android.mjs");
   assert.equal(

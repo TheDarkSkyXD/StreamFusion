@@ -13,5 +13,3 @@ export function validateSettingsSearch(search: Record<string, unknown>): {
 export const SettingsPage = lazy(() =>
   import("../../../pages/Settings").then((module) => ({ default: module.SettingsPage }))
 );
-
-export const settingsPageChunkLoaders = [() => import("../../../pages/Settings")];

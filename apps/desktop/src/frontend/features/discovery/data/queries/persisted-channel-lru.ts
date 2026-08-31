@@ -1,5 +1,3 @@
-import { useEffect, useSyncExternalStore } from "react";
-
 import type { UnifiedChannel } from "@shared/platform-types";
 import type { Platform } from "@shared/auth-types";
 
@@ -30,7 +28,6 @@ let entries = new Map<string, PersistedChannelEntry>();
 let hydrationPromise: Promise<void> | undefined;
 let hydrated = false;
 let persistQueue = Promise.resolve();
-const listeners = new Set<() => void>();
 
 export function normalizePersistedChannelUsername(username: string): string {
   return username.trim().toLowerCase();
@@ -112,7 +109,6 @@ function boundedEntries(values: PersistedChannelEntry[]): PersistedChannelEntry[
 
 function publish(nextEntries: PersistedChannelEntry[]): void {
   entries = new Map(nextEntries.map((entry) => [entryKey(entry.platform, entry.username), entry]));
-  for (const listener of listeners) listener();
 }
 
 export function hydratePersistedChannelLru(): Promise<void> {
@@ -152,30 +148,6 @@ export function getPersistedChannelMetadata(
   return entries.get(entryKey(platform, username))?.data;
 }
 
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-export function usePersistedChannelMetadata(
-  username: string,
-  platform: Platform,
-  enabled: boolean
-): UnifiedChannel | undefined {
-  const normalizedUsername = normalizePersistedChannelUsername(username);
-  const snapshot = useSyncExternalStore(
-    subscribe,
-    () => getPersistedChannelMetadata(normalizedUsername, platform),
-    () => undefined
-  );
-
-  useEffect(() => {
-    if (enabled && normalizedUsername) void hydratePersistedChannelLru();
-  }, [enabled, normalizedUsername]);
-
-  return snapshot;
-}
-
 export function savePersistedChannelMetadata(channel: UnifiedChannel): Promise<void> {
   const normalizedUsername = normalizePersistedChannelUsername(channel.username);
   if (!normalizedUsername || !isUsableChannel(channel, channel.platform, normalizedUsername)) {
@@ -211,5 +183,4 @@ export function resetPersistedChannelLruForTests(): void {
   hydrationPromise = undefined;
   hydrated = false;
   persistQueue = Promise.resolve();
-  listeners.clear();
 }

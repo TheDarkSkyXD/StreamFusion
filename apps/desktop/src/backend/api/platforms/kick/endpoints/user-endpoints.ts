@@ -21,6 +21,7 @@ export interface KickPublicChannelUserProfile {
   username: string;
   displayName: string;
   avatarUrl: string;
+  createdAt?: string;
   followingSince?: string | null;
 }
 
@@ -28,6 +29,8 @@ export interface KickChannelUserState {
   userId: string;
   login: string;
   displayName: string;
+  createdAt: string;
+  followingSince: string | null;
   isModerator: boolean;
   isChannelOwner: boolean;
   isStaff: boolean;
@@ -39,6 +42,7 @@ const kickPublicChannelUserProfileSchema = z.looseObject({
   slug: z.string().trim().min(1),
   username: z.string().trim().min(1),
   profile_pic: z.string().nullable().optional(),
+  created_at: z.string().optional(),
   following_since: z.string().nullable().optional(),
 });
 
@@ -54,11 +58,18 @@ function mapKickPublicChannelUserProfile(rawData: unknown): KickPublicChannelUse
           Number.isFinite(Date.parse(data.following_since))
         ? data.following_since
         : undefined;
+  const createdAt =
+    data.created_at &&
+    ISO_TIMESTAMP_PATTERN.test(data.created_at) &&
+    Number.isFinite(Date.parse(data.created_at))
+      ? data.created_at
+      : undefined;
   return {
     userId: String(data.id),
     username: data.slug,
     displayName: data.username,
     avatarUrl: data.profile_pic ?? "",
+    createdAt,
     followingSince,
   };
 }
@@ -394,6 +405,8 @@ export async function getChannelUserState(
     userId: String(parsed.data.id),
     login: parsed.data.slug,
     displayName: parsed.data.username,
+    createdAt: parsed.data.created_at,
+    followingSince: parsed.data.following_since,
     isModerator: parsed.data.is_moderator,
     isChannelOwner: parsed.data.is_channel_owner,
     isStaff: parsed.data.is_staff,

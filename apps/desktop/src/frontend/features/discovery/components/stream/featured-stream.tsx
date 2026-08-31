@@ -13,6 +13,7 @@ import { useStreamPlayback } from "@/features/playback/data/useStreamPlayback";
 import { cn, formatLanguageLabel, formatViewerCount, uniqueTagLabels } from "@/lib/utils";
 import { useAdBlockStore } from "@/store/adblock-store";
 import { useAppStore } from "@/store/app-store";
+import { usePipStore } from "@/store/pip-store";
 import { useVolumeStore } from "@/store/volume-store";
 
 interface FeaturedStreamProps {
@@ -47,6 +48,7 @@ export function FeaturedStream({
   const activeStream = carouselStreams[activeIndex] ?? carouselStreams[0];
   const hasMultipleSlides = carouselStreams.length > 1;
   const homeCarouselIntervalMs = useAppStore((state) => state.homeCarouselIntervalMs);
+  const isPersistentPlayerActive = usePipStore((state) => state.isPipActive);
   const volume = useVolumeStore((state) => state.volume);
   const setVolume = useVolumeStore((state) => state.setVolume);
   const previewVolume = Math.max(0, Math.min(1, volume / 100));
@@ -158,12 +160,14 @@ export function FeaturedStream({
           width={1920}
           height={1080}
         />
-        <FeaturedStreamPreview
-          stream={activeStream}
-          muted={previewMuted}
-          volume={previewVolume > 0 ? previewVolume : 0.5}
-          onUnavailable={skipUnavailablePreview}
-        />
+        {!isPersistentPlayerActive && (
+          <FeaturedStreamPreview
+            stream={activeStream}
+            muted={previewMuted}
+            volume={previewVolume > 0 ? previewVolume : 0.5}
+            onUnavailable={skipUnavailablePreview}
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/15" />
       </Link>
 
@@ -172,15 +176,17 @@ export function FeaturedStream({
         {formatViewerCount(activeStream.viewerCount)}
       </div>
 
-      <button
-        type="button"
-        className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded bg-black/65 text-white transition-colors hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-        aria-label={previewMuted ? "Unmute preview" : "Mute preview"}
-        title={previewMuted ? "Unmute preview" : "Mute preview"}
-        onClick={togglePreviewAudio}
-      >
-        {previewMuted ? <LuVolumeX className="h-5 w-5" /> : <LuVolume2 className="h-5 w-5" />}
-      </button>
+      {!isPersistentPlayerActive && (
+        <button
+          type="button"
+          className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded bg-black/65 text-white transition-colors hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          aria-label={previewMuted ? "Unmute preview" : "Mute preview"}
+          title={previewMuted ? "Unmute preview" : "Mute preview"}
+          onClick={togglePreviewAudio}
+        >
+          {previewMuted ? <LuVolumeX className="h-5 w-5" /> : <LuVolume2 className="h-5 w-5" />}
+        </button>
+      )}
 
       <div className="absolute inset-x-4 bottom-4 rounded-lg border border-white/10 bg-black/65 p-4 text-white backdrop-blur-md">
         <div className="flex min-w-0 items-center gap-3">

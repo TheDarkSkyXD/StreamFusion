@@ -94,6 +94,12 @@ export function substituteThirdPartyEmotes(
         id: emote.id,
         name: emote.name,
         url: emote.urls.url2x ?? emote.urls.url1x,
+        provider: emote.provider,
+        width: emote.width,
+        height: emote.height,
+        url1x: emote.urls.url1x,
+        url2x: emote.urls.url2x,
+        url4x: emote.urls.url4x,
         isAnimated: emote.isAnimated,
         isZeroWidth: emote.isZeroWidth,
       });

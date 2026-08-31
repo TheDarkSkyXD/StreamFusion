@@ -1,7 +1,7 @@
 /**
  * Kick API Client
  *
- * Client for interacting with the official Kick Public API v1.
+ * Client for interacting with the official Kick Public API.
  * API Documentation: https://docs.kick.com/
  *
  * Handles authentication and data fetching for stream discovery.
@@ -27,9 +27,6 @@ import type {
   UnifiedStream,
 } from "../../../../shared/platform-types";
 import { clients } from "../../unified/registry";
-
-// Re-export common types for compatibility
-export type { PaginatedResult, PaginationOptions } from "./kick-types";
 
 import { isPlatformHealthy, recordPlatformLocalNetError } from "../../unified/platform-health";
 // Import endpoints
@@ -685,7 +682,7 @@ class KickClient implements KickRequestor, IPlatformReader {
 
   /**
    * Get top/featured live streams
-   * https://docs.kick.com/apis/livestreams - GET /public/v1/livestreams
+   * https://docs.kick.com/apis/livestreams - GET /public/v2/livestreams
    */
   async getTopStreams(options: TopStreamsOptions = {}): Promise<PageResult<UnifiedStream>> {
     const result = await StreamEndpoints.getTopStreams(this, options);

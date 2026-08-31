@@ -107,6 +107,20 @@ describe("substituteThirdPartyEmotes", () => {
     expect(out[0]).toMatchObject({ type: "emote", isAnimated: true, isZeroWidth: true });
   });
 
+  it("preserves provider geometry and density sources for layout-stable rendering", () => {
+    const fragments: ContentFragment[] = [{ type: "text", content: "Wide" }];
+    const map = buildMap(emote("Wide", "7tv", { width: 112, height: 28 }));
+    const out = substituteThirdPartyEmotes(fragments, map);
+    expect(out[0]).toMatchObject({
+      type: "emote",
+      width: 112,
+      height: 28,
+      url1x: "https://example.test/Wide/1x",
+      url2x: "https://example.test/Wide/2x",
+      url4x: "https://example.test/Wide/4x",
+    });
+  });
+
   it("uses url2x for chat emotes to avoid heavy 4x CDN requests", () => {
     const fragments: ContentFragment[] = [{ type: "text", content: "Clap" }];
     const out = substituteThirdPartyEmotes(fragments, buildMap(emote("Clap", "7tv")));

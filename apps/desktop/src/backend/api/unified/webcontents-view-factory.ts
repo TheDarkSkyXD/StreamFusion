@@ -9,7 +9,7 @@
  */
 
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 import { app, WebContentsView } from "electron";
 
 /**
@@ -155,4 +155,3 @@ export function getSlotPreloadPath(): string {
 
 // Re-export for tests to spy at the call site if they need to. Kept here so
 // the factory + URL helpers share one ESM module surface.
-export const __testInternals = { fileURLToPath };

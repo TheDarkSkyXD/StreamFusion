@@ -4,6 +4,10 @@ import type { UnifiedChannel } from "@shared/platform-types";
 import type { FollowSource, LocalFollow } from "@shared/auth-types";
 import { useFollowStore } from "@/store/follow-store";
 
+const toastMock = vi.hoisted(() => vi.fn());
+
+vi.mock("sonner", () => ({ toast: toastMock }));
+
 function makeChannel(overrides: Partial<UnifiedChannel> = {}): UnifiedChannel {
   return {
     id: "411439",
@@ -35,7 +39,6 @@ const mockApi = {
   getAll: vi.fn(),
   add: vi.fn(),
   remove: vi.fn(),
-  update: vi.fn(),
 };
 
 beforeEach(() => {
@@ -43,7 +46,7 @@ beforeEach(() => {
   mockApi.getAll.mockReset();
   mockApi.add.mockReset();
   mockApi.remove.mockReset();
-  mockApi.update.mockReset();
+  toastMock.mockReset();
   // @ts-expect-error — test-only stub of window.electronAPI surface
   globalThis.window.electronAPI = { follows: mockApi };
   useFollowStore.setState({ localFollows: [], sourceByKey: new Map(), isHydrated: false });
@@ -159,6 +162,10 @@ describe("follow-store followChannel", () => {
       profileImage: "https://example/avatar.webp",
     });
     expect(useFollowStore.getState().localFollows).toEqual([channel]);
+    expect(toastMock).toHaveBeenCalledWith("Following ChickenAndy", {
+      id: "follow-action:follow:kick:chickenandy",
+      description: "Added to your Kick follows.",
+    });
   });
 
   it("rolls back the optimistic add when the backend rejects (seeds a pre-existing row so rollback is observable)", async () => {
@@ -253,6 +260,10 @@ describe("follow-store unfollowChannel", () => {
     expect(mockApi.remove).toHaveBeenCalledTimes(1);
     expect(mockApi.remove).toHaveBeenCalledWith("kick-guest-421500-x");
     expect(useFollowStore.getState().localFollows).toEqual([]);
+    expect(toastMock).toHaveBeenCalledWith("Unfollowed ChickenAndy", {
+      id: "follow-action:unfollow:kick:chickenandy",
+      description: "Removed from your Kick follows.",
+    });
   });
 
   it("removes every matching backend row, not just the first (dual-row case)", async () => {
@@ -283,126 +294,6 @@ describe("follow-store unfollowChannel", () => {
     expect(mockApi.getAll).not.toHaveBeenCalled();
     expect(mockApi.remove).not.toHaveBeenCalled();
     warn.mockRestore();
-  });
-});
-
-describe("follow-store repairFollowMetadataFromChannel", () => {
-  it("updates a stale Kick follow row when a resolved channel has the same stable id and a new slug", async () => {
-    useFollowStore.setState({
-      localFollows: [
-        makeChannel({
-          id: "21103818",
-          username: "hennythingz1",
-          displayName: "hennythingz1",
-        }),
-      ],
-    });
-    mockApi.getAll
-      .mockResolvedValueOnce([
-        makeRow({
-          id: "kick-row-henny",
-          channelId: "21103818",
-          channelName: "hennythingz1",
-          displayName: "hennythingz1",
-        }),
-      ])
-      .mockResolvedValueOnce([
-        makeRow({
-          id: "kick-row-henny",
-          channelId: "21103818",
-          channelName: "hennytingzz",
-          displayName: "Hennytingzz",
-          profileImage: "https://files.kick.com/images/user/21103818/profile_image/fullsize.webp",
-        }),
-      ]);
-
-    const repaired = await useFollowStore.getState().repairFollowMetadataFromChannel(
-      makeChannel({
-        id: "21103818",
-        username: "hennytingzz",
-        displayName: "Hennytingzz",
-        avatarUrl: "https://files.kick.com/images/user/21103818/profile_image/fullsize.webp",
-      })
-    );
-
-    expect(repaired).toBe(true);
-    expect(mockApi.update).toHaveBeenCalledWith("kick-row-henny", {
-      channelId: "21103818",
-      channelName: "hennytingzz",
-      displayName: "Hennytingzz",
-      profileImage: "https://files.kick.com/images/user/21103818/profile_image/fullsize.webp",
-    });
-    expect(useFollowStore.getState().localFollows).toEqual([
-      expect.objectContaining({
-        id: "21103818",
-        username: "hennytingzz",
-        displayName: "Hennytingzz",
-      }),
-    ]);
-  });
-
-  it("repairs a stale Kick slug row when the resolved legacy channel id differs from the stable user id", async () => {
-    useFollowStore.setState({
-      localFollows: [
-        makeChannel({
-          id: "hennythingz1",
-          username: "hennythingz1",
-          displayName: "hennythingz1",
-          avatarUrl:
-            "https://files.kick.com/images/user/21103818/profile_image/conversion/old-thumb.webp",
-        }),
-      ],
-    });
-    mockApi.getAll
-      .mockResolvedValueOnce([
-        makeRow({
-          id: "kick-row-henny",
-          channelId: "hennythingz1",
-          channelName: "hennythingz1",
-          displayName: "hennythingz1",
-          profileImage:
-            "https://files.kick.com/images/user/21103818/profile_image/conversion/old-thumb.webp",
-          source: "kick",
-        }),
-      ])
-      .mockResolvedValueOnce([
-        makeRow({
-          id: "kick-row-henny",
-          channelId: "21103818",
-          channelName: "hennytingzz",
-          displayName: "Hennytingzz",
-          profileImage:
-            "https://files.kick.com/images/user/21103818/profile_image/conversion/new-fullsize.webp",
-          source: "kick",
-        }),
-      ]);
-
-    const repaired = await useFollowStore.getState().repairFollowMetadataFromChannel(
-      makeChannel({
-        id: "20120336",
-        kickUserId: "21103818",
-        username: "hennytingzz",
-        displayName: "Hennytingzz",
-        avatarUrl:
-          "https://files.kick.com/images/user/21103818/profile_image/conversion/new-fullsize.webp",
-      })
-    );
-
-    expect(repaired).toBe(true);
-    expect(mockApi.update).toHaveBeenCalledWith("kick-row-henny", {
-      channelId: "21103818",
-      channelName: "hennytingzz",
-      displayName: "Hennytingzz",
-      profileImage:
-        "https://files.kick.com/images/user/21103818/profile_image/conversion/new-fullsize.webp",
-    });
-    expect(useFollowStore.getState().localFollows).toEqual([
-      expect.objectContaining({
-        id: "21103818",
-        username: "hennytingzz",
-        displayName: "Hennytingzz",
-      }),
-    ]);
   });
 });
 

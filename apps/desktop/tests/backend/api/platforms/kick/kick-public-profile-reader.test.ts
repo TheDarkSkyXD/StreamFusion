@@ -147,17 +147,19 @@ describe("Kick public profile reader", () => {
     });
   });
 
-  it("keeps unsupported account and missing follow dates explicitly unavailable", async () => {
+  it("returns an identity-matched account creation timestamp and keeps a missing follow date unavailable", async () => {
     mocks.getPublicChannelUserProfile.mockResolvedValue({
       userId: "123",
       username: "alice",
       displayName: "Alice",
       avatarUrl: "",
+      createdAt: "2013-06-01T12:30:00Z",
     });
 
     await expect(getKickAccountCreated("123", "alice", "streamer")).resolves.toEqual({
-      state: "unavailable",
-      message: "Unavailable",
+      state: "known",
+      source: "first-party-fallback",
+      value: "2013-06-01T12:30:00Z",
     });
     await expect(getKickFollowRelationship("123", "alice", "streamer")).resolves.toEqual({
       state: "unavailable",

@@ -34,7 +34,7 @@ vi.mock("@/features/shell/components/TopNavBar/SearchBar", () => ({ SearchBar: (
 vi.mock("@/features/shell/components/TopNavBar/NotificationsDropdown", () => ({
   NotificationsDropdown: () => null,
 }));
-vi.mock("@/features/auth/components/auth", () => ({ ProfileDropdown: () => null }));
+vi.mock("@/features/auth/components/auth/ProfileDropdown", () => ({ ProfileDropdown: () => null }));
 vi.mock("@/features/shell/components/layout/SidebarFollows", () => ({ SidebarFollows: () => null }));
 vi.mock("@/features/shell/components/layout/TitleBar", () => ({ TitleBar: () => null }));
 vi.mock("@/features/shell/components/layout/PlatformHealthIndicator", () => ({

@@ -126,6 +126,18 @@ describe("isHarmlessChromiumNoise — SharedImageManager mailbox miss", () => {
       "[54552:0608/192841.367:ERROR:shared_image_manager.cc(401)] SharedImageManager::ProduceSkia: Trying to Produce a Skia representation from a non-existent mailbox.";
     expect(isHarmlessChromiumNoise(line)).toBe(true);
   });
+
+  // Guards: transient Windows video-overlay mailbox cleanup is kept out of the actionable error stream.
+  it("matches the exact SharedImageManager ProduceOverlay ERROR line", () => {
+    const line =
+      "[22116:0830/182910.978:ERROR:gpu\\command_buffer\\service\\shared_image\\shared_image_manager.cc:370] SharedImageManager::ProduceOverlay: Trying to Produce a Overlay representation from a non-existent mailbox.";
+    expect(isHarmlessChromiumNoise(line)).toBe(true);
+  });
+
+  it("does not hide a GPU process crash that follows a mailbox miss", () => {
+    const line = "GPU process crashed! Exit code: 5.";
+    expect(isHarmlessChromiumNoise(line)).toBe(false);
+  });
 });
 
 describe("isHarmlessChromiumNoise — Chromium cache metadata repair", () => {

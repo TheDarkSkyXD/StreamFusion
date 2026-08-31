@@ -18,7 +18,7 @@ import type {
 } from "../../../../../shared/chat-types";
 import { useChatStore } from "../../../../store/chat-store";
 import { useRenderCount } from "../../../../components/dev/use-render-count";
-import { useChatDisplay } from "../../../settings/components/settings/ChatSettingsSection";
+import { useChatDisplay } from "../../../settings/data/use-chat-display";
 import { ChatMessage } from "./ChatMessage";
 import type { UsernameChannelContext } from "./Username";
 

@@ -56,10 +56,13 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
     platform === "kick" &&
     (resolvedKick.isError || (!resolvedKick.isPending && !resolvedKick.data));
 
-  // Pick the channel-id used for mod_log queries + retention scope.
+  // Pick the canonical broadcaster identity used for mod-log queries.
   // Twitch: numeric broadcaster_id (waits for resolution).
-  // Kick: canonical broadcaster user id resolved from the route slug.
-  const channelId = platform === "twitch" ? resolvedTwitch?.id : resolvedKick.data?.id;
+  // Kick: broadcaster user_id, never the legacy channel/db id.
+  const channelId =
+    platform === "twitch"
+      ? resolvedTwitch?.id
+      : (resolvedKick.data?.kickUserId ?? resolvedKick.data?.id);
   const moderationAuthority = useModerationAuthority(platform, channelId ?? "", channel);
 
   const retentionScope: RetentionScope | null =
@@ -68,7 +71,7 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
         ? (`channel:${resolvedTwitch.id}` as RetentionScope)
         : null
       : channelId
-        ? (`channel:kick:${channelId}` as RetentionScope)
+        ? (`channel:kick:${channel.trim().toLowerCase()}` as RetentionScope)
         : null;
 
   const displayName = platform === "twitch" ? (resolvedTwitch?.displayName ?? channel) : channel;

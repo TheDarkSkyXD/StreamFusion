@@ -37,6 +37,7 @@ vi.mock("@backend/ipc/handlers/local-caption-handlers", () => ({
 
 import { isIpcFeature, loadIpcFeature } from "@backend/ipc/lazy-feature-loader";
 import { registerFeatureRollback } from "@backend/ipc/feature-registration-transaction";
+import { logger } from "@backend/logging/logger";
 import { runLoadedFeatureCleanups } from "@backend/startup/loaded-feature-cleanup";
 import { IPC_FEATURES } from "@shared/ipc-channels";
 import { createMainRendererPortMock } from "../../helpers/main-renderer-port-mock";
@@ -64,6 +65,7 @@ function createWindow(): BrowserWindow {
 // Guards: main imports and registers a feature handler only after that feature is requested.
 // Guards: repeated successful requests do not register duplicate handlers.
 // Guards: every feature retries after a transient registration failure instead of remaining poisoned.
+// Guards: registration failures identify the feature and root error in the durable log.
 // Guards: unknown feature names fail validation before they can select an implementation import.
 describe("lazy IPC feature loader", () => {
   beforeEach(() => {
@@ -88,6 +90,10 @@ describe("lazy IPC feature loader", () => {
     await expect(loadIpcFeature(IPC_FEATURES.DOWNLOADS, featureContext)).rejects.toThrow(
       "registration failed"
     );
+    expect(logger.error).toHaveBeenCalledWith("IPC:Lazy", "Feature handler registration failed", {
+      feature: IPC_FEATURES.DOWNLOADS,
+      error: "registration failed",
+    });
     await expect(loadIpcFeature(IPC_FEATURES.DOWNLOADS, featureContext)).resolves.toBeUndefined();
     expect(registerDownloadHandlers).toHaveBeenCalledTimes(2);
   });

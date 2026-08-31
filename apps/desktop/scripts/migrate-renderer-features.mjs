@@ -87,11 +87,6 @@ const moves = [
   ["playback", "pages/Video", "features/playback/components/VideoPage"],
   ["playback", "components/player", "features/playback/components/player"],
   ["playback", "components/stream/related-content", "features/playback/components/related-content"],
-  [
-    "playback",
-    "components/stream/related-content.tsx",
-    "features/playback/components/related-content.tsx",
-  ],
   ["playback", "components/stream/stream-info.tsx", "features/playback/components/stream-info.tsx"],
   [
     "playback",
@@ -126,7 +121,6 @@ const moves = [
   ["playback", "hooks/use-share-action.ts", "features/playback/data/use-share-action.ts"],
   ["playback", "hooks/useStreamPlayback.ts", "features/playback/data/useStreamPlayback.ts"],
   ["playback", "hooks/queries/useVodLiveLink.ts", "features/playback/data/useVodLiveLink.ts"],
-  ["playback", "lib/duration.ts", "features/playback/utils/duration.ts"],
   ["playback", "lib/managed-interval.ts", "features/playback/utils/managed-interval.ts"],
   ["playback", "lib/stream-route-preload.ts", "features/playback/routes/stream-route-preload.ts"],
   [
@@ -187,11 +181,6 @@ const moves = [
     "features/auth/data/use-live-notification-bridge.ts",
   ],
   ["auth", "hooks/useRequireModScopes.ts", "features/auth/data/useRequireModScopes.ts"],
-  [
-    "auth",
-    "lib/live-notification-identity.ts",
-    "features/auth/utils/live-notification-identity.ts",
-  ],
   [
     "auth",
     "lib/live-notification-preferences.ts",

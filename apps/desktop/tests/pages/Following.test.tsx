@@ -19,7 +19,6 @@ const storeState = vi.hoisted(() => ({
   kickUserId: "guest",
   localFollows: [] as unknown[],
   currentStream: null as { platform: string; channelName: string } | null,
-  repairFollowMetadataFromChannel: vi.fn(),
   syncConnectedFollows: vi.fn(async () => ({ synced: [] as string[], failed: [] as string[] })),
   followSyncInProgress: false,
   followSyncLastSyncedAt: {} as Partial<Record<"twitch" | "kick", string>>,
@@ -79,13 +78,11 @@ vi.mock("@/store/follow-store", () => ({
     selector?: (state: {
       localFollows: unknown[];
       isHydrated: boolean;
-      repairFollowMetadataFromChannel: typeof storeState.repairFollowMetadataFromChannel;
     }) => T
   ) => {
     const state = {
       localFollows: storeState.localFollows,
       isHydrated: storeState.followsHydrated,
-      repairFollowMetadataFromChannel: storeState.repairFollowMetadataFromChannel,
     };
     return selector ? selector(state) : state;
   },
@@ -301,7 +298,6 @@ describe("FollowingPage", () => {
     storeState.kickUserId = "guest";
     storeState.localFollows = [];
     storeState.currentStream = null;
-    storeState.repairFollowMetadataFromChannel.mockReset();
     storeState.syncConnectedFollows.mockReset();
     storeState.syncConnectedFollows.mockResolvedValue({ synced: [], failed: [] });
     storeState.followSyncInProgress = false;
@@ -385,7 +381,6 @@ describe("FollowingPage", () => {
 
     expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(
       undefined,
-      20,
       expect.objectContaining({ enabled: true })
     );
 
@@ -393,7 +388,6 @@ describe("FollowingPage", () => {
 
     expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(
       undefined,
-      20,
       expect.objectContaining({ enabled: false })
     );
   });
@@ -404,7 +398,7 @@ describe("FollowingPage", () => {
 
     renderWithProviders(<FollowingPage />);
 
-    expect(useFollowedStreamsMock).toHaveBeenCalledWith(undefined, 20, {
+    expect(useFollowedStreamsMock).toHaveBeenCalledWith(undefined, {
       enabled: true,
       snapshotIdentity: {
         platform: "all",
@@ -423,7 +417,7 @@ describe("FollowingPage", () => {
     const view = renderWithProviders(<FollowingPage />);
 
     expect(createFollowedStreamSnapshotIdentityMock).not.toHaveBeenCalled();
-    expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(undefined, 20, {
+    expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(undefined, {
       enabled: true,
       snapshotIdentity: undefined,
     });
@@ -437,7 +431,7 @@ describe("FollowingPage", () => {
       "guest",
       storeState.localFollows
     );
-    expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(undefined, 20, {
+    expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(undefined, {
       enabled: true,
       snapshotIdentity: {
         platform: "all",
@@ -454,7 +448,7 @@ describe("FollowingPage", () => {
 
     const view = renderWithProviders(<FollowingPage />);
 
-    expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(undefined, 20, {
+    expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(undefined, {
       enabled: true,
       snapshotIdentity: undefined,
     });
@@ -463,14 +457,14 @@ describe("FollowingPage", () => {
     storeState.twitchUserId = "viewer-after-startup";
     storeState.localFollows = [fixtures.channel({ id: "hydrated-follow", platform: "twitch" })];
     view.rerender(<FollowingPage />);
-    expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(undefined, 20, {
+    expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(undefined, {
       enabled: true,
       snapshotIdentity: undefined,
     });
 
     storeState.followsHydrated = true;
     view.rerender(<FollowingPage />);
-    expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(undefined, 20, {
+    expect(useFollowedStreamsMock).toHaveBeenLastCalledWith(undefined, {
       enabled: true,
       snapshotIdentity: {
         platform: "all",

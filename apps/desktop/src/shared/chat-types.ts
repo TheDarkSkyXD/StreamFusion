@@ -185,6 +185,13 @@ export type ContentFragment =
       id: string;
       name: string;
       url: string;
+      provider?: "twitch" | "kick" | "bttv" | "ffz" | "7tv";
+      /** Provider logical 1x geometry and density sources, when known. */
+      width?: number;
+      height?: number;
+      url1x?: string;
+      url2x?: string;
+      url4x?: string;
       isAnimated?: boolean;
       /** Zero-width / overlay emote — stacks on the preceding emote when the
        *  viewer's `overlayEmotes` pref is on. Populated from the matched `Emote`

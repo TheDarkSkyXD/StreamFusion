@@ -225,15 +225,14 @@ export function registerCategoryHandlers(): void {
         categoryId: string;
       }
     ) => {
-      const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-      const { kickClient } = await import("../../api/platforms/kick/kick-client");
-
       try {
         let category = null;
 
         if (params.platform === "twitch") {
+          const { twitchClient } = await loadTwitchClient();
           category = await twitchClient.getCategoryById(params.categoryId);
         } else if (params.platform === "kick") {
+          const { kickClient } = await loadKickClient();
           category = await kickClient.getCategoryById(params.categoryId);
         }
 
@@ -312,10 +311,15 @@ export function registerCategoryHandlers(): void {
         after?: string;
       }
     ) => {
-      const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-      const { kickClient } = await import("../../api/platforms/kick/kick-client");
-
       try {
+        const [twitchModule, kickModule] = await Promise.all([
+          !params.platform || params.platform === "twitch"
+            ? loadTwitchClient()
+            : Promise.resolve(null),
+          (!params.platform || params.platform === "kick") && !params.after
+            ? loadKickClient()
+            : Promise.resolve(null),
+        ]);
         const searchPromises: Promise<{
           platform: Platform;
           data: UnifiedCategory[];
@@ -323,7 +327,8 @@ export function registerCategoryHandlers(): void {
           status: "complete" | "failed";
         }>[] = [];
 
-        if (!params.platform || params.platform === "twitch") {
+        if (twitchModule) {
+          const { twitchClient } = twitchModule;
           searchPromises.push(
             twitchClient
               .searchCategories(params.query, {
@@ -349,7 +354,8 @@ export function registerCategoryHandlers(): void {
         }
 
         // Kick categories don't support cursor pagination — only fetch on first page
-        if ((!params.platform || params.platform === "kick") && !params.after) {
+        if (kickModule) {
+          const { kickClient } = kickModule;
           searchPromises.push(
             kickClient
               .searchCategories(params.query)

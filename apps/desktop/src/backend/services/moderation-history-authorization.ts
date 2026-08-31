@@ -89,8 +89,14 @@ async function authorizeKick(
   if (!hasEveryScope(liveCredential.scopes, KICK_APP_SCOPES)) {
     return { state: "denied", reason: "missing-scopes" };
   }
+  const normalizedSlug = input.channelSlug.trim().toLowerCase();
+  const isAuthenticatedBroadcaster =
+    String(user.id) === input.channelId &&
+    (user.slug.toLowerCase() === normalizedSlug || user.username.toLowerCase() === normalizedSlug);
+  if (isAuthenticatedBroadcaster) {
+    return { state: "authorized", role: "broadcaster" };
+  }
   try {
-    const normalizedSlug = input.channelSlug.trim().toLowerCase();
     const canonicalChannel = (await kickClient.getChannelsBySlugs([normalizedSlug])).find(
       (channel) => channel.username.trim().toLowerCase() === normalizedSlug
     );
@@ -100,7 +106,10 @@ async function authorizeKick(
   } catch {
     return { state: "denied", reason: "unverified" };
   }
-  if (user.slug.toLowerCase() === input.channelSlug.toLowerCase()) {
+  if (
+    user.slug.toLowerCase() === normalizedSlug ||
+    user.username.toLowerCase() === normalizedSlug
+  ) {
     return { state: "authorized", role: "broadcaster" };
   }
 

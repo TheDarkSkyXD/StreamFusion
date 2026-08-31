@@ -10,7 +10,7 @@ import type { KickUser, Platform } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { UnifiedChannel } from "../../../shared/platform-types";
 import { storageService } from "../../services/storage-service";
-import { repairKickFollowSlugs } from "./kick-follow-repair";
+import { buildKickFollowedChannelSnapshot } from "../../services/kick-follow-identity-service";
 
 function enrichOwnKickChannel(
   channel: UnifiedChannel | null,
@@ -42,6 +42,52 @@ function enrichOwnKickChannel(
   };
 }
 
+function refreshStoredFollowFromResolvedChannel(
+  channel: UnifiedChannel,
+  requestedUsername: string
+): void {
+  const requested = requestedUsername.trim().toLowerCase();
+  const canonicalChannelId =
+    channel.platform === "kick"
+      ? (firstValidKickBroadcasterUserId(channel.kickUserId, channel.id) ?? channel.id)
+      : channel.id;
+  const identityIds = new Set([channel.id, canonicalChannelId, channel.kickUserId].filter(Boolean));
+  const follow = storageService.getActiveFollowsByPlatform(channel.platform).find((candidate) => {
+    if (candidate.channelName.trim().toLowerCase() === requested) return true;
+    if (identityIds.has(candidate.channelId)) return true;
+    if (channel.platform !== "kick") return false;
+    const avatarUserId = getKickBroadcasterUserIdFromAvatar(candidate.profileImage);
+    return avatarUserId !== null && identityIds.has(avatarUserId);
+  });
+  if (!follow) return;
+
+  const updates: Partial<
+    Pick<typeof follow, "channelId" | "channelName" | "displayName" | "profileImage">
+  > = {};
+  if (follow.channelId !== canonicalChannelId) updates.channelId = canonicalChannelId;
+  if (follow.channelName !== channel.username) updates.channelName = channel.username;
+  if (follow.displayName !== channel.displayName) updates.displayName = channel.displayName;
+  if (follow.profileImage !== channel.avatarUrl) updates.profileImage = channel.avatarUrl;
+  if (Object.keys(updates).length === 0) return;
+
+  storageService.updateLocalFollow(follow.id, updates);
+  if (channel.platform === "kick" && follow.source === "kick") {
+    storageService.upsertSyncedFollows(
+      "kick",
+      [
+        {
+          platform: "kick",
+          channelId: canonicalChannelId,
+          channelName: channel.username,
+          displayName: channel.displayName,
+          profileImage: channel.avatarUrl,
+        },
+      ],
+      { pruneAbsent: false }
+    );
+  }
+}
+
 export function registerChannelHandlers(): void {
   /**
    * Get channel by ID
@@ -55,16 +101,15 @@ export function registerChannelHandlers(): void {
         channelId: string;
       }
     ) => {
-      const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-      const { kickClient } = await import("../../api/platforms/kick/kick-client");
-
       try {
         let channel: UnifiedChannel | null = null;
 
         if (params.platform === "twitch") {
+          const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
           const channels = await twitchClient.getChannelsById([params.channelId]);
           channel = channels[0] || null;
         } else if (params.platform === "kick") {
+          const { kickClient } = await import("../../api/platforms/kick/kick-client");
           // Kick uses slug, but we can try to fetch by ID
           channel = await kickClient.getChannel(params.channelId);
         }
@@ -98,14 +143,12 @@ export function registerChannelHandlers(): void {
         freshChatroomSettings?: boolean;
       }
     ) => {
-      const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-      const { kickClient } = await import("../../api/platforms/kick/kick-client");
-
       try {
         let channel: UnifiedChannel | null = null;
         const requestedUsername = params.username.trim().toLowerCase();
 
         if (params.platform === "twitch") {
+          const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
           // Use GQL (no auth needed) for channel lookup by login
           channel = await twitchClient.getChannelByLogin(params.username);
           if (!channel) {
@@ -118,16 +161,10 @@ export function registerChannelHandlers(): void {
               );
             if (staleFollow) {
               channel = (await twitchClient.getChannelsById([staleFollow.channelId]))[0] || null;
-              if (channel && channel.username.toLowerCase() !== requestedUsername) {
-                storageService.updateLocalFollow(staleFollow.id, {
-                  channelName: channel.username,
-                  displayName: channel.displayName,
-                  profileImage: channel.avatarUrl,
-                });
-              }
             }
           }
         } else if (params.platform === "kick") {
+          const { kickClient } = await import("../../api/platforms/kick/kick-client");
           let authoritativeNotFoundFollowId: string | undefined;
           const staleFollow = storageService
             .getActiveFollowsByPlatform("kick")
@@ -170,26 +207,6 @@ export function registerChannelHandlers(): void {
               channel =
                 (await kickClient.getChannelsByBroadcasterIds([Number(broadcasterUserId)]))[0] ||
                 null;
-              if (channel && channel.username.toLowerCase() !== requestedUsername) {
-                storageService.updateLocalFollow(staleFollow.id, {
-                  channelName: channel.username,
-                  displayName: channel.displayName,
-                  profileImage: channel.avatarUrl,
-                });
-                storageService.upsertSyncedFollows(
-                  "kick",
-                  [
-                    {
-                      platform: "kick",
-                      channelId: channel.kickUserId ?? channel.id,
-                      channelName: channel.username,
-                      displayName: channel.displayName,
-                      profileImage: channel.avatarUrl,
-                    },
-                  ],
-                  { pruneAbsent: false }
-                );
-              }
             }
             if (!channel) {
               const accountStatus = await kickClient.getOfficialChannelAccountStatus(
@@ -250,6 +267,8 @@ export function registerChannelHandlers(): void {
           channel = enrichOwnKickChannel(channel, params.username, storageService.getKickUser());
         }
 
+        if (channel) refreshStoredFollowFromResolvedChannel(channel, params.username);
+
         return { success: true, data: channel };
       } catch (error) {
         logger.error("IPC:Channel", "Failed to get channel by username", {
@@ -277,94 +296,19 @@ export function registerChannelHandlers(): void {
         platform: Platform;
       }
     ) => {
-      const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-      const { kickClient } = await import("../../api/platforms/kick/kick-client");
-
       try {
         let channels: UnifiedChannel[] = [];
 
         if (params.platform === "twitch") {
+          const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
           if (twitchClient.isAuthenticated()) {
             // Get all followed channels
             channels = await twitchClient.getAllFollowedChannels();
           }
         } else if (params.platform === "kick") {
+          const { kickClient } = await import("../../api/platforms/kick/kick-client");
           const follows = storageService.getActiveFollowsByPlatform("kick");
-          const repairedChannels = await repairKickFollowSlugs(kickClient, follows);
-
-          channels = (
-            await Promise.all(
-              follows.map(async (follow): Promise<UnifiedChannel | null> => {
-                const current = repairedChannels.get(follow.id);
-                let suspendedChannel: UnifiedChannel | undefined;
-
-                try {
-                  const statusSearch = await kickClient.searchChannels(follow.channelName, {
-                    limit: 10,
-                  });
-                  suspendedChannel = statusSearch?.data?.find(
-                    (candidate) =>
-                      candidate.username.toLowerCase() === follow.channelName.toLowerCase() &&
-                      candidate.accountStatus === "suspended"
-                  );
-                } catch (error) {
-                  logger.debug(
-                    "IPC:Channel",
-                    "Kick followed-channel status lookup was unavailable",
-                    {
-                      username: follow.channelName,
-                      error: error instanceof Error ? error.message : String(error),
-                    }
-                  );
-                }
-
-                const providerChannel = suspendedChannel || current;
-                const broadcasterUserId = firstValidKickBroadcasterUserId(
-                  providerChannel?.kickUserId,
-                  getKickBroadcasterUserIdFromAvatar(
-                    providerChannel?.avatarUrl || follow.profileImage
-                  ),
-                  follow.channelId
-                );
-
-                if (!providerChannel) {
-                  let officialStatus;
-                  try {
-                    officialStatus = await kickClient.getOfficialChannelAccountStatus(
-                      follow.channelName
-                    );
-                  } catch (error) {
-                    logger.debug("IPC:Channel", "Official Kick account lookup was unavailable", {
-                      username: follow.channelName,
-                      error: error instanceof Error ? error.message : String(error),
-                    });
-                  }
-                  if (officialStatus === "not_found" && !broadcasterUserId) {
-                    storageService.removeLocalFollow(follow.id);
-                    return null;
-                  }
-                }
-
-                return {
-                  id: follow.channelId,
-                  platform: "kick",
-                  username: providerChannel?.username || follow.channelName,
-                  displayName:
-                    providerChannel?.displayName || follow.displayName || follow.channelName,
-                  avatarUrl: providerChannel?.avatarUrl || follow.profileImage || "",
-                  isLive: suspendedChannel ? false : current?.isLive || false,
-                  isVerified: providerChannel?.isVerified || false,
-                  isPartner: providerChannel?.isPartner || false,
-                  kickUserId: broadcasterUserId ?? undefined,
-                  accountStatus: suspendedChannel
-                    ? "suspended"
-                    : current
-                      ? "active"
-                      : "unavailable",
-                };
-              })
-            )
-          ).filter((channel): channel is UnifiedChannel => channel !== null);
+          channels = await buildKickFollowedChannelSnapshot(kickClient, follows);
         }
 
         return { success: true, data: dedupeChannelsByIdentity(channels) };

@@ -3,6 +3,28 @@ export type ChatSendEligibility = { state: "eligible" } | { state: "ineligible";
 export const CHAT_RECONNECTING_REASON = "Chat is reconnecting";
 export const CHAT_DISABLED_REASON = "Chat is unavailable";
 
+export type ViewerRequirementState = "satisfied" | "restricted" | "unknown";
+
+export function resolveAccountAgeRequirement({
+  accountCreatedAt,
+  requiredMinutes,
+  nowMs,
+}: {
+  accountCreatedAt?: string;
+  requiredMinutes: number | null;
+  nowMs: number;
+}): ViewerRequirementState {
+  if (requiredMinutes === null || !Number.isFinite(requiredMinutes) || requiredMinutes <= 0) {
+    return "satisfied";
+  }
+  if (!accountCreatedAt) return "unknown";
+
+  const accountCreatedAtMs = Date.parse(accountCreatedAt);
+  if (!Number.isFinite(accountCreatedAtMs) || !Number.isFinite(nowMs)) return "unknown";
+
+  return nowMs - accountCreatedAtMs >= requiredMinutes * 60_000 ? "satisfied" : "restricted";
+}
+
 export function resolveChatSendEligibility({
   isAuthenticated,
   canSend,

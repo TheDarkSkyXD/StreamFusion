@@ -46,6 +46,7 @@ import { app, ipcMain } from "electron";
 
 import { kickClient } from "@backend/api/platforms/kick/kick-client";
 import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
+import type { LocalFollow } from "@shared/auth-types";
 import type { UnifiedChannel } from "@shared/platform-types";
 import { registerChannelHandlers } from "@backend/ipc/handlers/channel-handlers";
 import { dbService } from "@backend/services/database-service";
@@ -149,7 +150,8 @@ describe("CHANNELS_GET_BY_ID", () => {
 
 // Guards: stale Twitch and Kick follow logins resolve through stable channel IDs and persist canonical profile metadata.
 // Guards: slug-keyed Kick follows recover renamed channels through the exact broadcaster ID embedded in the canonical avatar URL.
-// Guards: exact-identity Kick rename repair consolidates duplicate platform-source rows into the canonical current channel.
+// Guards: every resolved Kick channel refreshes matching stored follow identity in the main process, including direct lookups.
+// Guards: exact-identity Kick rename refresh consolidates duplicate platform-source rows into the canonical current channel.
 // Guards: direct Kick lookup uncertainty preserves cached identity as unavailable instead of returning null/deleting it.
 // Guards: direct positive Kick resolution exposes active account state separately from offline stream state.
 // Guards: direct Kick lookup preserves stable identity while exposing explicit search is_banned evidence as suspended.
@@ -256,6 +258,45 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
     });
     expect(kickClient.getChannel).toHaveBeenCalledWith("kickuser");
     expect(storageService.upsertSyncedFollows).not.toHaveBeenCalled();
+  });
+
+  it("refreshes stale follow identity after a direct authoritative Kick lookup", async () => {
+    const channel = {
+      id: "20120336",
+      platform: "kick",
+      username: "hennytingzz",
+      displayName: "Hennytingzz",
+      avatarUrl: "https://files.kick.com/images/user/21103818/profile_image/fullsize.webp",
+      kickUserId: "21103818",
+      isLive: false,
+      isVerified: false,
+      isPartner: false,
+    } satisfies UnifiedChannel;
+    vi.mocked(kickClient.getChannel).mockResolvedValue(channel);
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
+      {
+        id: "kick-row-henny",
+        platform: "kick",
+        channelId: "hennythingz1",
+        channelName: "hennythingz1",
+        displayName: "hennythingz1",
+        profileImage:
+          "https://files.kick.com/images/user/21103818/profile_image/conversion/old.webp",
+        followedAt: "2026-01-01T00:00:00.000Z",
+        source: "kick",
+      },
+    ]);
+
+    const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_BY_USERNAME);
+    const result = await handler({}, { platform: "kick", username: "hennythingz1" });
+
+    expect(result.success).toBe(true);
+    expect(storageService.updateLocalFollow).toHaveBeenCalledWith("kick-row-henny", {
+      channelId: "21103818",
+      channelName: "hennytingzz",
+      displayName: "Hennytingzz",
+      profileImage: "https://files.kick.com/images/user/21103818/profile_image/fullsize.webp",
+    });
   });
 
   it("classifies a positively resolved offline Kick channel as active", async () => {
@@ -562,6 +603,7 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
   });
 });
 
+// Guards: a large Kick followed-channel read preserves every durable follow when bounded metadata repair fails, without per-follow searches, status probes, or deletion.
 describe("CHANNELS_GET_FOLLOWED", () => {
   it("returns followed channels when Twitch is authenticated", async () => {
     const channels: UnifiedChannel[] = [
@@ -605,6 +647,45 @@ describe("CHANNELS_GET_FOLLOWED", () => {
     expect(twitchClient.getAllFollowedChannels).not.toHaveBeenCalled();
   });
 
+  it("keeps 179 Kick follows without per-follow requests after bulk repair is rate limited", async () => {
+    const follows = Array.from({ length: 179 }, (_, index): LocalFollow => ({
+      id: `row-${index}`,
+      platform: "kick",
+      channelId: String(100_000 + index),
+      channelName: `channel-${index}`,
+      displayName: `Channel ${index}`,
+      profileImage: "",
+      followedAt: "2026-01-01T00:00:00.000Z",
+      source: "kick",
+    }));
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue(follows);
+    vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue(follows);
+    vi.mocked(kickClient.getChannelsByBroadcasterIds).mockRejectedValue(
+      Object.assign(new Error("Kick API rate limit active; retry after 60s"), {
+        status: 429,
+        retryAfterMs: 60_000,
+      })
+    );
+
+    const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_FOLLOWED);
+    const result = await handler({}, { platform: "kick" });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toHaveLength(179);
+    expect(result.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "100000",
+          username: "channel-0",
+          accountStatus: "unavailable",
+        }),
+      ])
+    );
+    expect(kickClient.searchChannels).toHaveBeenCalledTimes(0);
+    expect(kickClient.getOfficialChannelAccountStatus).toHaveBeenCalledTimes(0);
+    expect(storageService.removeLocalFollow).toHaveBeenCalledTimes(0);
+  });
+
   it("preserves an unresolved Kick follow with unavailable account state", async () => {
     vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
       {
@@ -637,75 +718,7 @@ describe("CHANNELS_GET_FOLLOWED", () => {
     });
   });
 
-  it("keeps an explicitly suspended Kick account visible in Following", async () => {
-    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
-      {
-        id: "row-suspended",
-        platform: "kick",
-        channelId: "suspended-slug",
-        channelName: "suspended-slug",
-        displayName: "SuspendedSlug",
-        profileImage: "https://example.com/cached-suspended.webp",
-        followedAt: "2026-01-01T00:00:00.000Z",
-        source: "kick",
-      },
-    ]);
-    vi.mocked(kickClient.searchChannels).mockResolvedValue({
-      data: [
-        {
-          id: "provider-suspended-row",
-          platform: "kick",
-          username: "suspended-slug",
-          displayName: "SuspendedSlug",
-          avatarUrl: "https://example.com/provider-suspended.webp",
-          isLive: false,
-          isVerified: false,
-          isPartner: false,
-          accountStatus: "suspended",
-        },
-      ],
-    });
-
-    const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_FOLLOWED);
-    const result = await handler({}, { platform: "kick" });
-
-    expect(result).toEqual({
-      success: true,
-      data: [
-        expect.objectContaining({
-          id: "suspended-slug",
-          username: "suspended-slug",
-          displayName: "SuspendedSlug",
-          avatarUrl: "https://example.com/provider-suspended.webp",
-          accountStatus: "suspended",
-        }),
-      ],
-    });
-  });
-
-  it("removes and excludes a slug-only Kick follow after authoritative not_found", async () => {
-    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
-      {
-        id: "row-deleted",
-        platform: "kick",
-        channelId: "deleted-slug",
-        channelName: "deleted-slug",
-        displayName: "DeletedSlug",
-        profileImage: "",
-        followedAt: "2026-01-01T00:00:00.000Z",
-        source: "kick",
-      },
-    ]);
-    vi.mocked(kickClient.getOfficialChannelAccountStatus).mockResolvedValue("not_found");
-
-    const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_FOLLOWED);
-    const result = await handler({}, { platform: "kick" });
-
-    expect(result).toEqual({ success: true, data: [] });
-    expect(storageService.removeLocalFollow).toHaveBeenCalledWith("row-deleted");
-  });
-
-  it("preserves a stable-ID Kick follow when only its stale slug is not_found", async () => {
+  it("preserves a stable-ID Kick follow when bulk repair finds no provider row", async () => {
     vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
       {
         id: "row-renamed",
@@ -719,7 +732,6 @@ describe("CHANNELS_GET_FOLLOWED", () => {
       },
     ]);
     vi.mocked(kickClient.getChannelsByBroadcasterIds).mockResolvedValue([]);
-    vi.mocked(kickClient.getOfficialChannelAccountStatus).mockResolvedValue("not_found");
 
     const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_FOLLOWED);
     const result = await handler({}, { platform: "kick" });

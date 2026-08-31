@@ -122,7 +122,7 @@ function cacheHitCases(): CacheHitCase[] {
       name: "followed stream status",
       surface: "following",
       seed: (client) => seedQuery(client, STREAM_KEYS.followed("twitch"), [stream]),
-      useHook: () => useFollowedStreams("twitch", 20, { enabled: true }),
+      useHook: () => useFollowedStreams("twitch", { enabled: true }),
     },
     {
       name: "stream by channel",
@@ -220,18 +220,20 @@ function cacheHitCases(): CacheHitCase[] {
       name: "followed videos",
       surface: "following",
       seed: (client) =>
-        seedQuery(client, FOLLOWED_CONTENT_KEYS.videos(followedChannels, 4, "recent"), [
-          followedContentItem,
-        ]),
+        seedQuery(client, FOLLOWED_CONTENT_KEYS.videos(followedChannels, "recent"), {
+          pages: [{ items: [followedContentItem] }],
+          pageParams: [undefined],
+        }),
       useHook: () => useFollowedVideos(followedChannels),
     },
     {
       name: "followed clips",
       surface: "following",
       seed: (client) =>
-        seedQuery(client, FOLLOWED_CONTENT_KEYS.clips(followedChannels, 4, "recent", "all"), [
-          followedContentItem,
-        ]),
+        seedQuery(client, FOLLOWED_CONTENT_KEYS.clips(followedChannels, "recent", "all"), {
+          pages: [{ items: [followedContentItem] }],
+          pageParams: [undefined],
+        }),
       useHook: () => useFollowedClips(followedChannels),
     },
     {

@@ -28,7 +28,8 @@ const channel = fixtures.channel({
 });
 
 // Guards: authenticated Twitch clicks use the account-write bridge, publish only
-// confirmed Twitch rows, and keep Twitch's authoritative display metadata.
+// confirmed Twitch rows, keep Twitch's authoritative display metadata, and notify
+// only after Twitch confirms the action.
 describe("FollowButton authenticated Twitch account write", () => {
   beforeEach(() => {
     toast.mockReset();
@@ -97,7 +98,10 @@ describe("FollowButton authenticated Twitch account write", () => {
       ]);
       expect(useFollowStore.getState().getFollowSource(channel)).toBe("twitch");
     });
-    expect(toast).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith("Following Example Channel", {
+      id: "follow-action:follow:twitch:example_channel",
+      description: "Added to your Twitch follows.",
+    });
   });
 
   it("unfollows through Twitch and removes state only after confirmation", async () => {
@@ -130,7 +134,10 @@ describe("FollowButton authenticated Twitch account write", () => {
       expect(screen.getByRole("button", { name: "Follow" })).toBeInTheDocument();
     });
     expect(api.follows.remove).not.toHaveBeenCalled();
-    expect(toast).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith("Unfollowed Example Channel", {
+      id: "follow-action:unfollow:twitch:example_channel",
+      description: "Removed from your Twitch follows.",
+    });
   });
 
   it("keeps confirmed state unchanged and explains a transient Twitch failure", async () => {

@@ -8,6 +8,7 @@ let mockState = {
   streams: [] as Array<{ id: string; platform: string; channelName: string }>,
   layout: 'grid' as 'grid' | 'focus',
   focusedStreamId: null as string | null,
+  playbackBudget: 4,
 };
 
 vi.mock('@/features/multistream/data/multistream-store', () => ({
@@ -21,8 +22,8 @@ vi.mock('@/features/multistream/data/multistream-store', () => ({
 }));
 
 vi.mock('@/features/multistream/components/multistream/sortable-stream-slot', () => ({
-  SortableStreamSlot: ({ channelName }: { channelName: string }) => (
-    <div data-testid="sortable-slot">{channelName}</div>
+  SortableStreamSlot: ({ channelName, playbackActive }: { channelName: string; playbackActive?: boolean }) => (
+    <div data-testid="sortable-slot" data-playback-active={String(playbackActive)}>{channelName}</div>
   ),
 }));
 
@@ -37,7 +38,7 @@ import { MultiStreamGrid } from '@/features/multistream/components/multistream/g
 // Guards: partial loading — with N streams, all N sortable slots mount; a slot that's still mounting renders alongside an already-live slot (no blocking)
 describe('MultiStreamGrid', () => {
   it('empty: no streams renders the empty-card', () => {
-    mockState = { streams: [], layout: 'grid', focusedStreamId: null };
+    mockState = { streams: [], layout: 'grid', focusedStreamId: null, playbackBudget: 4 };
     renderWithProviders(<MultiStreamGrid />);
     expect(screen.getByText(/no active streams/i)).toBeInTheDocument();
   });
@@ -50,6 +51,7 @@ describe('MultiStreamGrid', () => {
       ],
       layout: 'grid',
       focusedStreamId: null,
+      playbackBudget: 4,
     };
     renderWithProviders(<MultiStreamGrid />);
     expect(screen.getAllByTestId('sortable-slot')).toHaveLength(2);
@@ -68,8 +70,14 @@ describe('MultiStreamGrid', () => {
       ],
       layout: 'grid',
       focusedStreamId: null,
+      playbackBudget: 2,
     };
     renderWithProviders(<MultiStreamGrid />);
     expect(screen.getAllByTestId('sortable-slot')).toHaveLength(3);
+    expect(screen.getAllByTestId('sortable-slot').map((slot) => slot.dataset.playbackActive)).toEqual([
+      'true',
+      'true',
+      'false',
+    ]);
   });
 });

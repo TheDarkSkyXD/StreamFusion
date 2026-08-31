@@ -1,9 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useInfiniteStreamsByCategory } from "@/features/discovery/data/queries/useInfiniteStreams";
+import {
+  useInfiniteStreamsByCategory,
+  useInfiniteTopStreams,
+} from "@/features/discovery/data/queries/useInfiniteStreams";
 import { installElectronAPIMock, fixtures } from "../../test-utils";
 
 function makeWrapper() {
@@ -101,5 +104,131 @@ describe("useInfiniteStreamsByCategory", () => {
         expect.objectContaining({ language: "en", categoryName: "Just Chatting" })
       )
     );
+  });
+});
+
+// Guards: Home pages Twitch and Kick independently so one provider cursor is never sent to the other.
+// Guards: every fetched stream remains visible after merge; provider-page results are never sliced away.
+// Guards: one provider can fail without hiding usable streams from the other provider.
+describe("useInfiniteTopStreams", () => {
+  it("loads and merges every row from both provider pages without slicing", async () => {
+    const twitchStreams = Array.from({ length: 12 }, (_, index) =>
+      fixtures.stream({
+        id: `twitch-${index}`,
+        platform: "twitch",
+        channelId: `twitch-channel-${index}`,
+        channelName: `twitch-channel-${index}`,
+        viewerCount: 100 - index,
+      })
+    );
+    const kickStreams = Array.from({ length: 12 }, (_, index) =>
+      fixtures.stream({
+        id: `kick-${index}`,
+        platform: "kick",
+        channelId: `kick-channel-${index}`,
+        channelName: `kick-channel-${index}`,
+        viewerCount: 200 - index,
+      })
+    );
+    api.streams.getTop = vi.fn<typeof api.streams.getTop>(async (request = {}) => {
+      const { platform } = request;
+      return platform === "twitch"
+        ? {
+            success: true,
+            platform,
+            providers: { twitch: "complete" },
+            data: twitchStreams,
+          }
+        : {
+            success: true,
+            platform,
+            providers: { kick: "complete" },
+            data: kickStreams,
+          };
+    });
+
+    const { result } = renderHook(() => useInfiniteTopStreams(), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.data).toHaveLength(24));
+    expect(api.streams.getTop).toHaveBeenCalledTimes(2);
+    expect(api.streams.getTop).toHaveBeenCalledWith({ platform: "twitch", limit: 12 });
+    expect(api.streams.getTop).toHaveBeenCalledWith({ platform: "kick", limit: 12 });
+    expect(result.current.data[0].viewerCount).toBe(200);
+  });
+
+  it("advances only the provider that returned a next cursor and deduplicates repeated channels", async () => {
+    const first = fixtures.stream({
+      id: "first",
+      platform: "twitch",
+      channelId: "channel-1",
+      channelName: "channel-one",
+      viewerCount: 10,
+    });
+    const second = fixtures.stream({
+      id: "second",
+      platform: "twitch",
+      channelId: "channel-2",
+      channelName: "channel-two",
+      viewerCount: 20,
+    });
+    api.streams.getTop = vi.fn<typeof api.streams.getTop>(async (request = {}) => {
+      const { platform, cursor } = request;
+      if (platform === "kick") {
+        return { success: true, platform, providers: { kick: "complete" }, data: [] };
+      }
+      return cursor === "twitch-next"
+        ? {
+            success: true,
+            platform,
+            providers: { twitch: "complete" },
+            data: [first, second],
+          }
+        : {
+            success: true,
+            platform,
+            providers: { twitch: "complete" },
+            data: [first],
+            cursor: "twitch-next",
+          };
+    });
+
+    const { result } = renderHook(() => useInfiniteTopStreams(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+
+    await waitFor(() => expect(result.current.data).toHaveLength(2));
+    expect(api.streams.getTop).toHaveBeenCalledWith({
+      platform: "twitch",
+      limit: 12,
+      cursor: "twitch-next",
+    });
+    expect(
+      vi.mocked(api.streams.getTop).mock.calls.filter(([request]) => request?.platform === "kick")
+    ).toHaveLength(1);
+  });
+
+  it("keeps usable provider data when the other provider fails", async () => {
+    const stream = fixtures.stream({ platform: "twitch", viewerCount: 42 });
+    api.streams.getTop = vi.fn<typeof api.streams.getTop>(async (request = {}) => {
+      const { platform } = request;
+      if (platform === "kick") {
+        return { success: false, platform, providers: { kick: "failed" }, error: "Kick down" };
+      }
+      return {
+        success: true,
+        platform,
+        providers: { twitch: "complete" },
+        data: [stream],
+      };
+    });
+
+    const { result } = renderHook(() => useInfiniteTopStreams(), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.data).toEqual([stream]));
+    expect(result.current.error).toBeNull();
+    expect(result.current.unavailablePlatforms).toEqual(["kick"]);
   });
 });

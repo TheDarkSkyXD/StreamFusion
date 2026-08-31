@@ -1,10 +1,3 @@
-class SearchCancelledError extends Error {
-  constructor() {
-    super("Search session cancelled");
-    this.name = "AbortError";
-  }
-}
-
 interface SearchSession {
   controller: AbortController;
   leases: number;
@@ -40,10 +33,6 @@ export function cancelSearchSession(sessionId: string): boolean {
   if (!session) return false;
   session.controller.abort();
   return true;
-}
-
-export function assertSearchSessionActive(signal: AbortSignal): void {
-  if (signal.aborted) throw new SearchCancelledError();
 }
 
 export function isSearchCancelled(error: unknown): boolean {

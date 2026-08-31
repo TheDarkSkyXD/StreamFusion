@@ -176,6 +176,7 @@ describe("browser Electron API relay", () => {
     const result = await api.streams.getPlaybackUrl({
       platform: "twitch",
       channelSlug: "ninja",
+      intent: "play",
     });
 
     expect(result.data?.url).toMatch(/^\/__streamfusion-dev\/media\?/);

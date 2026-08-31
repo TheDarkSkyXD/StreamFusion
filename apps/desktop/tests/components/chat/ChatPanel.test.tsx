@@ -10,8 +10,23 @@ vi.mock("@/features/chat/components/chat/twitch/TwitchChat", () => ({
 }));
 
 vi.mock("@/features/chat/components/chat/kick/KickChat", () => ({
-  KickChat: ({ channel, showComposer }: { channel: string; showComposer?: boolean }) => (
-    <div data-testid="kick-chat" data-show-composer={String(showComposer)}>
+  KickChat: ({
+    channel,
+    channelId,
+    kickChannelId,
+    showComposer,
+  }: {
+    channel: string;
+    channelId?: string;
+    kickChannelId?: string;
+    showComposer?: boolean;
+  }) => (
+    <div
+      data-testid="kick-chat"
+      data-channel-id={channelId}
+      data-kick-channel-id={kickChannelId}
+      data-show-composer={String(showComposer)}
+    >
       kk:{channel}
     </div>
   ),
@@ -31,6 +46,22 @@ describe("ChatPanel", () => {
   it("renders KickChat for kick platform", async () => {
     render(<ChatPanel initialPlatform="kick" initialChannel="xqc" chatroomId={123} />);
     expect(await screen.findByTestId("kick-chat")).toHaveTextContent("kk:xqc");
+  });
+
+  // Guards: Kick moderation receives broadcaster user_id while legacy web-chat endpoints retain channel.id.
+  it("keeps Kick broadcaster and legacy channel identities separate", async () => {
+    render(
+      <ChatPanel
+        initialPlatform="kick"
+        initialChannel="xqc"
+        channelId="legacy-channel-id"
+        kickChannelId="legacy-channel-id"
+        kickUserId="broadcaster-user-id"
+      />
+    );
+    const chat = await screen.findByTestId("kick-chat");
+    expect(chat).toHaveAttribute("data-channel-id", "broadcaster-user-id");
+    expect(chat).toHaveAttribute("data-kick-channel-id", "legacy-channel-id");
   });
 
   it("defaults to twitch when no platform passed", async () => {

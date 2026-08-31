@@ -2,8 +2,8 @@ import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { LuGripVertical, LuMessageSquare, LuVolume2, LuVolumeX, LuX } from "react-icons/lu";
 
-import { KickLivePlayer } from "@/features/playback/components/player/kick";
-import { TwitchLivePlayer } from "@/features/playback/components/player/twitch";
+import { KickLivePlayer } from "@/features/playback/components/player/kick/kick-live-player";
+import { TwitchLivePlayer } from "@/features/playback/components/player/twitch/twitch-live-player";
 import { useTwitchLiveRecovery } from "@/features/playback/components/player/hooks/use-twitch-live-recovery";
 import type { PlayerError } from "@/features/playback/components/player/types";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,8 @@ interface StreamSlotProps {
   onRemove: () => void;
   onFocus: () => void;
   isFocused: boolean;
+  playbackActive?: boolean;
+  onActivate?: () => void;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
   /**
    * Initial position in the multistream grid. Captured on first mount only —
@@ -54,6 +56,8 @@ export function StreamSlot({
   onRemove,
   onFocus,
   isFocused,
+  playbackActive = true,
+  onActivate,
   dragHandleProps,
   slotIndex = 0,
   lazyMount = false,
@@ -92,7 +96,7 @@ export function StreamSlot({
     return () => observer.disconnect();
   }, [lazyMount, isVisible]);
 
-  const isMountReady = isStaggerReady && isVisible;
+  const isMountReady = playbackActive && isStaggerReady && isVisible;
   // Passing an empty identifier short-circuits the playback fetch — both the
   // IPC round-trip and HLS.js init are deferred until the slot is ready.
   const effectiveChannelName = isMountReady ? channelName : "";
@@ -122,7 +126,7 @@ export function StreamSlot({
   };
 
   // Fetch channel data to get offline banner, avatar, and display name
-  const { data: channelData } = useChannelByUsername(channelName, platform);
+  const { data: channelData } = useChannelByUsername(playbackActive ? channelName : "", platform);
 
   const isChatActive = chatStreamId === streamId;
 
@@ -169,7 +173,7 @@ export function StreamSlot({
   // Only fires when the WCV path is active so the legacy renderer stays
   // hands-off when the flag is off.
   useEffect(() => {
-    if (!wcvEnabled) return;
+    if (!wcvEnabled || !playbackActive) return;
     const slot = window.electronAPI?.slot;
     if (!slot) return;
     slot.createSlot(streamId).catch(() => {
@@ -180,18 +184,18 @@ export function StreamSlot({
         /* ignore — main may already be tearing down */
       });
     };
-  }, [wcvEnabled, streamId]);
+  }, [playbackActive, wcvEnabled, streamId]);
 
   // Push the resolved playback URL into the WCV when it changes.
   useEffect(() => {
-    if (!wcvEnabled) return;
+    if (!wcvEnabled || !playbackActive) return;
     if (!playback?.url) return;
     const slot = window.electronAPI?.slot;
     if (!slot) return;
     slot.loadStream(streamId, { platform, channelName, playbackUrl: playback.url }).catch(() => {
       /* surfaced via the slot's own console + log-forwarder */
     });
-  }, [wcvEnabled, streamId, platform, channelName, playback?.url]);
+  }, [playbackActive, wcvEnabled, streamId, platform, channelName, playback?.url]);
 
   // ResizeObserver: push the placeholder's screen rect to main so the WCV
   // stays pinned underneath it as the grid resizes.
@@ -328,7 +332,24 @@ export function StreamSlot({
 
       {/* Video Player - Only render when we have a valid playback URL */}
       <div className="w-full h-full">
-        {wcvEnabled ? (
+        {!playbackActive ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-b from-zinc-900 to-black px-4 text-center">
+            <p className="text-sm font-semibold text-white">Playback suspended</p>
+            <p className="text-xs text-white/60">
+              Activate this slot to swap it into the playback budget.
+            </p>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={(event) => {
+                event.stopPropagation();
+                onActivate?.();
+              }}
+            >
+              Activate stream
+            </Button>
+          </div>
+        ) : wcvEnabled ? (
           // Slice 06: the WCV draws the video on top of this placeholder.
           // The host renders only chrome + overlays. ResizeObserver pushes
           // the rect to main so the WCV stays pinned underneath.

@@ -266,7 +266,7 @@ function installSettingsStores(state: SettingsState): () => void {
             volume: 0.5,
           }))
         : [],
-    multiviewCap: state === "multiview-limit" ? 6 : 4,
+    playbackBudget: state === "multiview-limit" ? 6 : 4,
     backgroundQuality: state === "multiview-limit" ? "off" : "auto-low",
   });
   useSeekIntervalStore.setState({ rewindSeconds: 10, forwardSeconds: 10 });

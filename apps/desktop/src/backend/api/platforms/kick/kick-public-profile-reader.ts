@@ -94,12 +94,28 @@ export async function getKickPublicIdentity(
 }
 
 export async function getKickAccountCreated(
-  _userId: string,
-  _username: string,
-  _channelSlug: string
+  userId: string,
+  username: string,
+  channelSlug: string
 ): Promise<AccountCreatedFieldState> {
-  // Neither the documented Kick user/event contracts nor the validated
-  // fallback currently provide an account-creation timestamp.
+  try {
+    const fallback = await readFallback(channelSlug, username, { viewerId: userId });
+    if (
+      fallback?.userId === userId &&
+      fallback.username.toLowerCase() === username.toLowerCase() &&
+      fallback.createdAt &&
+      ISO_TIMESTAMP_PATTERN.test(fallback.createdAt) &&
+      Number.isFinite(Date.parse(fallback.createdAt))
+    ) {
+      return {
+        state: "known",
+        source: "first-party-fallback",
+        value: fallback.createdAt,
+      };
+    }
+  } catch {
+    return { state: "failed", message: "Couldn’t verify" };
+  }
   return { state: "unavailable", message: "Unavailable" };
 }
 

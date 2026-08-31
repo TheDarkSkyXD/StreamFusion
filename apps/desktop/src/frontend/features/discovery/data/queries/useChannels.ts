@@ -1,9 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
 
 import { dedupeChannelsByIdentity } from "@/lib/id-utils";
 import { logger } from "@/renderer/logging/logger";
-import { useFollowStore } from "@/store/follow-store";
 
 import type { UnifiedChannel } from "../../../../../shared/platform-types";
 import type { Platform } from "../../../../../shared/auth-types";
@@ -50,9 +48,6 @@ export function useFollowedChannels(platform: Platform, options: { enabled?: boo
 }
 
 export function useChannelByUsername(username: string, platform: Platform) {
-  const repairFollowMetadataFromChannel = useFollowStore(
-    (state) => state.repairFollowMetadataFromChannel
-  );
   const queryKey = CHANNEL_KEYS.byUsername(username, platform);
   const query = useQuery({
     queryKey,
@@ -81,9 +76,5 @@ export function useChannelByUsername(username: string, platform: Platform) {
     queryKey,
     surface: "stream-detail",
   });
-  useEffect(() => {
-    if (!query.data || query.isPlaceholderData) return;
-    void repairFollowMetadataFromChannel(query.data);
-  }, [query.data, query.isPlaceholderData, repairFollowMetadataFromChannel]);
   return query;
 }

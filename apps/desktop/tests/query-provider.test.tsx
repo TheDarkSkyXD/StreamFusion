@@ -15,11 +15,8 @@ vi.mock("@/features/discovery/data/queries/browse-snapshot-bootstrap", () => ({
   useBrowseSnapshotBootstrap,
 }));
 
-import {
-  configureConfirmedConnectivity,
-  QueryProvider,
-  queryClient,
-} from "@/providers/query-provider";
+import { QueryProvider, queryClient } from "@/providers/query-provider";
+import { configureConfirmedConnectivity } from "@/providers/query-connectivity";
 
 // Guards: the app-level query provider starts persisted Following hydration before routes render.
 describe("QueryProvider", () => {

@@ -10,7 +10,7 @@ import {
   LuX,
 } from "react-icons/lu";
 
-import { useChatDisplay } from "@/features/settings/components/settings/ChatSettingsSection";
+import { useChatDisplay } from "@/features/settings/data/use-chat-display";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Switch } from "@/components/ui/switch";
 import { getChatDensityPresentation } from "@/features/chat/utils/chat-density-presentation";
@@ -144,7 +144,7 @@ export function ChatQuickSettingsPopover({
       aria-label="Quick chat settings"
       // Right-aligned inside the caller's positioned anchor; Kick-sized, but
       // capped to the chat column so it cannot spill past narrow panels.
-      className={`absolute right-0 z-50 w-[320px] max-w-full min-w-0 rounded-xl border border-neutral-700 bg-neutral-800 shadow-xl animate-in fade-in duration-200 ${
+      className={`absolute right-0 z-50 w-[320px] max-w-full min-w-0 rounded-t-xl rounded-b-none border border-neutral-700 bg-neutral-800 shadow-xl animate-in fade-in duration-200 ${
         placement === "top"
           ? "bottom-full mb-2 slide-in-from-bottom-2"
           : "top-full mt-2 slide-in-from-top-2"
@@ -389,7 +389,7 @@ function AppearanceView({
   return (
     <div
       data-testid="chat-appearance-content"
-      className="max-h-[calc(100vh-6rem)] overflow-y-auto overscroll-contain"
+      className="max-h-[min(360px,calc(100vh-6rem))] overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
     >
       <ChatAppearancePreview
         density={density}

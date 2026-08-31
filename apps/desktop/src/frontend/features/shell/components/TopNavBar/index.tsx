@@ -3,7 +3,7 @@ import { memo } from "react";
 import { LuMenu } from "react-icons/lu";
 
 import streamFusionLogo from "@/assets/brand/streamfusion-logo.png";
-import { ProfileDropdown } from "@/features/auth/components/auth";
+import { ProfileDropdown } from "@/features/auth/components/auth/ProfileDropdown";
 import { PlatformHealthIndicator } from "@/features/shell/components/layout/PlatformHealthIndicator";
 import { RecordingGlobalIndicator } from "@/features/media-library/components/recording/recording-global-indicator";
 import { cn } from "@/lib/utils";

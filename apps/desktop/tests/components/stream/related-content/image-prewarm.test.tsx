@@ -42,10 +42,6 @@ vi.mock("@/features/playback/components/related-content/ContentTabs", () => ({
   ContentTabs: () => null,
 }));
 
-vi.mock("@/features/discovery/data/queries/recent-stream-prewarm", () => ({
-  rememberRecentStreamImages: vi.fn(async () => undefined),
-}));
-
 vi.mock("@/lib/viewport-image-prewarm", () => ({
   prewarmViewportImages: mocks.prewarmViewportImages,
 }));

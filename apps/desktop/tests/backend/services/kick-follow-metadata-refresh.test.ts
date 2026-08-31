@@ -16,8 +16,8 @@ vi.mock("../../../src/backend/api/platforms/kick/kick-client", () => ({
   },
 }));
 
-vi.mock("../../../src/backend/services/kick-follow-metadata-repair", () => ({
-  repairKickFollowSlugs: vi.fn(),
+vi.mock("@backend/services/kick-follow-identity-service", () => ({
+  resolveKickFollowMetadata: vi.fn(),
 }));
 
 vi.mock("@shared/utils/managed-interval", () => ({
@@ -54,25 +54,25 @@ describe("kick follow metadata refresh", () => {
     ] as LocalFollow[];
     const { storageService } = await import("../../../src/backend/services/storage-service");
     const { kickClient } = await import("../../../src/backend/api/platforms/kick/kick-client");
-    const { repairKickFollowSlugs } =
-      await import("../../../src/backend/services/kick-follow-metadata-repair");
+    const { resolveKickFollowMetadata } =
+      await import("@backend/services/kick-follow-identity-service");
     const { refreshKickFollowMetadataNow } =
       await import("../../../src/backend/services/kick-follow-metadata-refresh");
 
     vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue(follows);
-    vi.mocked(repairKickFollowSlugs).mockResolvedValue(new Map());
+    vi.mocked(resolveKickFollowMetadata).mockResolvedValue(new Map());
 
     await refreshKickFollowMetadataNow("test", { force: true });
 
     expect(storageService.getLocalFollowsByPlatform).toHaveBeenCalledWith("kick");
-    expect(repairKickFollowSlugs).toHaveBeenCalledWith(kickClient, follows);
+    expect(resolveKickFollowMetadata).toHaveBeenCalledWith(kickClient, follows);
   });
 
   it("throttles repeated manual refreshes", async () => {
     vi.useFakeTimers();
     const { storageService } = await import("../../../src/backend/services/storage-service");
-    const { repairKickFollowSlugs } =
-      await import("../../../src/backend/services/kick-follow-metadata-repair");
+    const { resolveKickFollowMetadata } =
+      await import("@backend/services/kick-follow-identity-service");
     const { refreshKickFollowMetadataNow } =
       await import("../../../src/backend/services/kick-follow-metadata-refresh");
 
@@ -88,17 +88,17 @@ describe("kick follow metadata refresh", () => {
         source: "kick",
       },
     ] as LocalFollow[]);
-    vi.mocked(repairKickFollowSlugs).mockResolvedValue(new Map());
+    vi.mocked(resolveKickFollowMetadata).mockResolvedValue(new Map());
 
     await refreshKickFollowMetadataNow("first", { force: true });
     await refreshKickFollowMetadataNow("second");
 
-    expect(repairKickFollowSlugs).toHaveBeenCalledTimes(1);
+    expect(resolveKickFollowMetadata).toHaveBeenCalledTimes(1);
   });
 
   it("defers nonessential metadata work while account reconciliation is active", async () => {
-    const { repairKickFollowSlugs } =
-      await import("../../../src/backend/services/kick-follow-metadata-repair");
+    const { resolveKickFollowMetadata } =
+      await import("@backend/services/kick-follow-identity-service");
     const { beginKickAccountReconciliation } =
       await import("../../../src/backend/services/kick-account-reconciliation-coordinator");
     const { refreshKickFollowMetadataNow } =
@@ -110,20 +110,20 @@ describe("kick follow metadata refresh", () => {
       release();
     }
 
-    expect(repairKickFollowSlugs).not.toHaveBeenCalled();
+    expect(resolveKickFollowMetadata).not.toHaveBeenCalled();
   });
 
   it("defers the nonessential full follow sweep until the interval and stops it cleanly", async () => {
     vi.useFakeTimers();
     const { storageService } = await import("../../../src/backend/services/storage-service");
-    const { repairKickFollowSlugs } =
-      await import("../../../src/backend/services/kick-follow-metadata-repair");
+    const { resolveKickFollowMetadata } =
+      await import("@backend/services/kick-follow-identity-service");
     const { createManagedInterval } = await import("@shared/utils/managed-interval");
     const { startKickFollowMetadataRefresh, stopKickFollowMetadataRefresh } =
       await import("../../../src/backend/services/kick-follow-metadata-refresh");
 
     vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([]);
-    vi.mocked(repairKickFollowSlugs).mockResolvedValue(new Map());
+    vi.mocked(resolveKickFollowMetadata).mockResolvedValue(new Map());
 
     startKickFollowMetadataRefresh();
 

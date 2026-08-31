@@ -38,7 +38,7 @@ const playerMocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/features/playback/components/player/twitch', () => ({
+vi.mock('@/features/playback/components/player/twitch/twitch-live-player', () => ({
   TwitchLivePlayer: (props: {
     className?: string;
     onError?: (error: PlayerError) => boolean | void;
@@ -50,7 +50,7 @@ vi.mock('@/features/playback/components/player/twitch', () => ({
   },
 }));
 
-vi.mock('@/features/playback/components/player/kick', () => ({
+vi.mock('@/features/playback/components/player/kick/kick-live-player', () => ({
   KickLivePlayer: () => <div data-testid="kick-live-player">player</div>,
 }));
 
@@ -100,6 +100,29 @@ describe('StreamSlot', () => {
       />
     );
     expect(screen.getByTestId('kick-live-player')).toBeInTheDocument();
+  });
+
+  // Guards: slots beyond the playback budget keep controls but do not mount a decoder until activated.
+  it('suspends playback beyond the budget and activates on demand', () => {
+    const onActivate = vi.fn();
+    renderWithProviders(
+      <StreamSlot
+        streamId="s7"
+        platform="twitch"
+        channelName="ninja"
+        isMuted
+        onRemove={vi.fn()}
+        onFocus={vi.fn()}
+        isFocused={false}
+        playbackActive={false}
+        onActivate={onActivate}
+      />
+    );
+
+    expect(screen.queryByTestId('tw-live-player')).not.toBeInTheDocument();
+    expect(screen.getByText('Playback suspended')).toBeInTheDocument();
+    screen.getByRole('button', { name: 'Activate stream' }).click();
+    expect(onActivate).toHaveBeenCalledTimes(1);
   });
 
   // Guards: one multistream slot stops after two failed Twitch source refreshes instead of spinning or refreshing forever in isolation.

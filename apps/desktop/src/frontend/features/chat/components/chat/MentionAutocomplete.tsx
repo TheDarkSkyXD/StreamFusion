@@ -444,45 +444,4 @@ const MentionAutocompleteItem: React.FC<MentionAutocompleteItemProps> = ({
   );
 };
 
-/**
- * Hook to manage mention autocomplete state
- */
-export function useMentionAutocomplete() {
-  const [isActive, setIsActive] = useState(false);
-
-  const activate = useCallback(() => setIsActive(true), []);
-  const deactivate = useCallback(() => setIsActive(false), []);
-
-  /**
-   * Check if input should trigger autocomplete
-   */
-  const checkTrigger = useCallback((value: string, cursorPos: number) => {
-    // Look backwards from cursor for @ char
-    for (let i = cursorPos - 1; i >= 0; i--) {
-      const char = value[i];
-
-      // Stop at whitespace
-      if (/\s/.test(char)) {
-        setIsActive(false);
-        return;
-      }
-
-      // Found trigger
-      if (char === "@") {
-        setIsActive(true);
-        return;
-      }
-    }
-
-    setIsActive(false);
-  }, []);
-
-  return {
-    isActive,
-    activate,
-    deactivate,
-    checkTrigger,
-  };
-}
-
 export default MentionAutocomplete;

@@ -108,7 +108,7 @@ vi.mock("@/store/pip-store", () => ({
   }),
 }));
 
-vi.mock("@/features/playback/components/player/twitch", () => ({
+vi.mock("@/features/playback/components/player/twitch/twitch-live-player", () => ({
   TwitchLivePlayer: (props: {
     onError?: (error: PlayerError) => boolean | void;
     onCleanPresentedFrame?: () => void;
@@ -126,21 +126,21 @@ vi.mock("@/features/playback/components/player/twitch", () => ({
   },
 }));
 
-vi.mock("@/features/playback/components/player/kick", () => ({
+vi.mock("@/features/playback/components/player/kick/kick-live-player", () => ({
   KickLivePlayer: (props: { onError?: (error: PlayerError) => void; streamUrl?: string }) => {
     playerMocks.kickLivePlayerProps = props;
     return <div data-testid="kick-live-player">player</div>;
   },
 }));
 
-vi.mock("@/features/chat/components/chat", () => ({
+vi.mock("@/features/chat/components/chat/ChatPanel", () => ({
   ChatPanel: (props: Record<string, unknown>) => {
     playerMocks.chatPanelProps = props;
     return <div data-testid="chat-panel">chat</div>;
   },
 }));
 
-vi.mock("@/features/playback/components/related-content", () => ({
+vi.mock("@/features/playback/components/related-content/index", () => ({
   RelatedContent: ({
     channelData,
     streamStartedAt,
@@ -185,7 +185,8 @@ vi.mock("@/features/playback/components/stream-info", () => ({
 import { useChannelByUsername } from "@/features/discovery/data/queries/useChannels";
 import { useStreamByChannel } from "@/features/discovery/data/queries/useStreams";
 import { PersistentPlayerShell } from "@/features/playback/components/player/persistent-player-shell";
-import { preloadChatPanel, StreamPage } from "@/pages/Stream";
+import { StreamPage } from "@/pages/Stream";
+import { preloadChatPanel } from "@/pages/Stream/preload-chat-panel";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_CHAT_PREFERENCES } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 

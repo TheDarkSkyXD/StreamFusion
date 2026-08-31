@@ -13,9 +13,3 @@ export const ModChannelKickPage = lazy(() =>
     default: module.ModChannelKickPage,
   }))
 );
-
-export const moderationPageChunkLoaders = [
-  () => import("../../../pages/Mod"),
-  () => import("../../../pages/Mod/channel/ModChannelTwitchPage"),
-  () => import("../../../pages/Mod/channel/ModChannelKickPage"),
-];

@@ -17,17 +17,17 @@ import {
   SearchPage,
   validateCategoryDetailSearch,
   validateSearchQuery,
-} from "@/features/discovery";
-import { DownloadsPage, HistoryPage } from "@/features/media-library";
-import { ModChannelKickPage, ModChannelTwitchPage, ModPage } from "@/features/moderation";
-import { MultiStreamPage } from "@/features/multistream";
+} from "@/features/discovery/routes";
+import { DownloadsPage, HistoryPage } from "@/features/media-library/routes";
+import { ModChannelKickPage, ModChannelTwitchPage, ModPage } from "@/features/moderation/routes";
+import { MultiStreamPage } from "@/features/multistream/routes";
 import {
   StreamPage,
   VideoPage,
   validateStreamSearch,
   validateVideoSearch,
-} from "@/features/playback";
-import { SettingsPage, validateSettingsSearch } from "@/features/settings";
+} from "@/features/playback/routes";
+import { SettingsPage, validateSettingsSearch } from "@/features/settings/routes";
 import { APP_SHELL_ROUTE_ID, AppLayout, RecoveryBoundary } from "@/features/shell";
 
 const PageLoader = () => (

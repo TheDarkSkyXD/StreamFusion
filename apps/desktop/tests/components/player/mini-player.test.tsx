@@ -52,7 +52,7 @@ vi.mock("@/features/settings/data/useNetworkStatus", () => ({
   useNetworkStatus: () => ({ recoveryCount: networkStatusMock.recoveryCount }),
 }));
 
-vi.mock("@/features/playback/components/player/kick", () => ({
+vi.mock("@/features/playback/components/player/kick/kick-live-player", () => ({
   KickLivePlayer: (props: {
     compact?: boolean;
     onError?: (error: PlayerError) => void;
@@ -70,7 +70,7 @@ vi.mock("@/features/playback/components/player/kick", () => ({
   },
 }));
 
-vi.mock("@/features/playback/components/player/twitch", () => ({
+vi.mock("@/features/playback/components/player/twitch/twitch-live-player", () => ({
   TwitchLivePlayer: (props: {
     compact?: boolean;
     onError?: (error: PlayerError) => void;
@@ -140,6 +140,7 @@ function primePipStore() {
 // Guards: mini-player must not mount HLS from the persisted stream snapshot while a fresh playback URL is still resolving; stale Kick live-video tokens 403 when Following activates PiP.
 // Guards: confirmed offline playback keeps the mini-player frame open while replacing obsolete playback with the shared offline state.
 // Guards: Twitch poster continuity follows the persistent player from its stream-page dock into mini-player mode.
+// Guards: VOD and MultiView routes own media playback exclusively and cannot leave the persistent live decoder running behind them.
 describe("MiniPlayer playback routing", () => {
   beforeEach(() => {
     networkStatusMock.recoveryCount = 0;
@@ -200,6 +201,28 @@ describe("MiniPlayer playback routing", () => {
     expect(player).toHaveAttribute("data-controls", "full");
     dock.remove();
   });
+
+  it.each(["/video/twitch/vod-1", "/multistream"])(
+    "unmounts persistent live playback on exclusive route %s and restores it after leaving",
+    (exclusiveRoute) => {
+      routerState.pathname = exclusiveRoute;
+      primePipStore();
+      streamPlaybackMock.useStreamPlayback.mockReturnValue({
+        playback: { url: "https://fresh.example.test/live.m3u8", format: "hls" },
+        isLoading: false,
+        error: null,
+        reload: vi.fn(),
+        reloadAttempts: 0,
+      });
+
+      const { rerender } = renderWithProviders(<MiniPlayer />);
+      expect(screen.queryByTestId("hls-player")).not.toBeInTheDocument();
+
+      routerState.pathname = "/history";
+      rerender(<MiniPlayer />);
+      expect(screen.getByTestId("hls-player")).toBeInTheDocument();
+    }
+  );
 
   it("keeps the player docked while switching directly to a different stream route", () => {
     routerState.pathname = "/stream/kick/xqc";

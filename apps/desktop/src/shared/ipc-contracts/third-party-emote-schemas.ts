@@ -32,6 +32,22 @@ const sevenTvEmoteSchema = z
         id: z.string(),
         flags: z.number(),
         animated: z.boolean(),
+        host: z
+          .object({
+            files: z.array(
+              z
+                .object({
+                  name: z.string(),
+                  static_name: z.string().optional(),
+                  width: z.number(),
+                  height: z.number(),
+                  format: z.string().optional(),
+                })
+                .passthrough()
+            ),
+          })
+          .passthrough()
+          .optional(),
         owner: z
           .object({
             id: z.string(),

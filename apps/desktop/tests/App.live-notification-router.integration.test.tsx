@@ -19,8 +19,8 @@ vi.mock("@/components/ui/tooltip", () => ({
   TooltipProvider: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("@/features/shell/data/use-app-shutdown", () => ({ useAppShutdown: () => undefined }));
-vi.mock("@/features/discovery", async (importOriginal) => {
-  const original = await importOriginal<typeof import("@/features/discovery")>();
+vi.mock("@/features/discovery/routes", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/features/discovery/routes")>();
   const Page = () => <div>route content</div>;
   return {
     ...original,
@@ -35,7 +35,7 @@ vi.mock("@/features/media-library", () => {
   const Page = () => <div>route content</div>;
   return { DownloadsPage: Page, HistoryPage: Page };
 });
-vi.mock("@/features/moderation", () => {
+vi.mock("@/features/moderation/routes", () => {
   const Page = () => <div>route content</div>;
   return {
     ModChannelKickPage: Page,
@@ -43,12 +43,12 @@ vi.mock("@/features/moderation", () => {
     ModPage: Page,
   };
 });
-vi.mock("@/features/multistream", () => {
+vi.mock("@/features/multistream/routes", () => {
   const Page = () => <div>route content</div>;
   return { MultiStreamPage: Page };
 });
-vi.mock("@/features/playback", async (importOriginal) => {
-  const original = await importOriginal<typeof import("@/features/playback")>();
+vi.mock("@/features/playback/routes", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/features/playback/routes")>();
   const Page = () => <div>route content</div>;
   return {
     ...original,
@@ -56,8 +56,8 @@ vi.mock("@/features/playback", async (importOriginal) => {
     VideoPage: Page,
   };
 });
-vi.mock("@/features/settings", async (importOriginal) => {
-  const original = await importOriginal<typeof import("@/features/settings")>();
+vi.mock("@/features/settings/routes", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/features/settings/routes")>();
   const Page = () => <div>route content</div>;
   return { ...original, SettingsPage: Page };
 });

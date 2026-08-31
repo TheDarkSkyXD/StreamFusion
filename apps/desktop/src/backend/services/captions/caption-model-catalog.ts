@@ -65,5 +65,3 @@ export const ENGLISH_ZIPFORMER_20M_MODEL: LocalCaptionModelPack = Object.freeze(
     }),
   ]),
 });
-
-export const LOCAL_CAPTION_MODELS = Object.freeze([ENGLISH_ZIPFORMER_20M_MODEL]);

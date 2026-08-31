@@ -4,45 +4,13 @@ import type { Emote, EmoteProvider } from "../../../../../backend/services/emote
 import type { ChatPlatform } from "../../../../../shared/chat-types";
 import { useEmoteStore } from "../../../../store/emote-store";
 import { EmoteImage } from "./EmoteImage";
+import { getContextualEmoteMatch } from "./contextual-emote-mode";
 
 const MAX_RESULTS = 9;
 const PROVIDERS_BY_PLATFORM: Record<ChatPlatform, ReadonlySet<EmoteProvider>> = {
   twitch: new Set(["twitch", "7tv", "bttv", "ffz"]),
   kick: new Set(["kick", "7tv"]),
 };
-
-export interface ContextualEmoteMatch {
-  query: string;
-  startPos: number;
-  endPos: number;
-  explicit: boolean;
-}
-
-export function getContextualEmoteMatch(
-  inputValue: string,
-  cursorPosition: number
-): ContextualEmoteMatch | null {
-  if (cursorPosition <= 0) return null;
-  if (/\s/.test(inputValue[cursorPosition - 1])) return null;
-  let startPos = cursorPosition - 1;
-  while (startPos > 0 && !/\s/.test(inputValue[startPos - 1])) {
-    startPos--;
-  }
-  const token = inputValue.slice(startPos, cursorPosition);
-  const explicit = token.startsWith(":");
-  const query = explicit ? token.slice(1) : token;
-  if (query.length < 1) return null;
-  return { query, startPos, endPos: cursorPosition, explicit };
-}
-
-export function useContextualEmoteMode() {
-  const [isActive, setIsActive] = useState(false);
-  const deactivate = useCallback(() => setIsActive(false), []);
-  const checkTrigger = useCallback((value: string, cursorPosition: number, _triggerChar = ":") => {
-    setIsActive(getContextualEmoteMatch(value, cursorPosition) !== null);
-  }, []);
-  return { isActive, deactivate, checkTrigger };
-}
 
 function isUsableCandidate(emote: Emote, viewerIsSubscribed: boolean | undefined): boolean {
   if (!emote.subscribersOnly || emote.availability === "user") return true;

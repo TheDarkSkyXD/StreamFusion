@@ -34,6 +34,7 @@ const kickChannelQuery = vi.hoisted(() => ({
   value: {
     data: {
       id: "987654",
+      kickUserId: "123456",
       username: "xqc",
       displayName: "Xqc",
     },
@@ -118,6 +119,7 @@ describe("ModChannelPage", () => {
     kickChannelQuery.value = {
       data: {
         id: "987654",
+        kickUserId: "123456",
         username: "xqc",
         displayName: "Xqc",
       },
@@ -167,13 +169,13 @@ describe("ModChannelPage", () => {
     expect(screen.queryByTestId("channel-engagement-stub")).not.toBeInTheDocument();
   });
 
-  // Guards: the dashboard uses the same canonical numeric Kick key as dialog reads and writers.
+  // Guards: the dashboard uses Kick broadcaster user_id for moderation and the stable slug for retention.
   it("Kick page resolves the slug and queries history with the canonical broadcaster id", async () => {
     renderWithProviders(<ModChannelPage platform="kick" channel="Xqc" />);
     // No resolving state.
     expect(screen.queryByTestId("mod-channel-resolving")).not.toBeInTheDocument();
-    expect(screen.getByTestId("retention-stub-channel:kick:987654")).toBeInTheDocument();
-    expect(screen.getByTestId("channel-mod-log-feed-stub").textContent).toBe("987654");
+    expect(screen.getByTestId("retention-stub-channel:kick:xqc")).toBeInTheDocument();
+    expect(screen.getByTestId("channel-mod-log-feed-stub").textContent).toBe("123456");
     expect(screen.getByTestId("channel-mod-log-feed-stub")).toHaveAttribute(
       "data-channel-slug",
       "Xqc"

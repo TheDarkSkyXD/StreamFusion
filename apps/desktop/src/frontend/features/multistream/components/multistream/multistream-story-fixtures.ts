@@ -156,7 +156,7 @@ export function resetMultistreamStore({
   focusedStreamId = null,
   chatStreamId = streams[0]?.id ?? null,
   isChatOpen = true,
-  multiviewCap = 6,
+  playbackBudget = 6,
   favoriteStreams = [],
 }: {
   streams?: MultiStreamConfig[];
@@ -164,7 +164,7 @@ export function resetMultistreamStore({
   focusedStreamId?: string | null;
   chatStreamId?: string | null;
   isChatOpen?: boolean;
-  multiviewCap?: number;
+  playbackBudget?: number;
   favoriteStreams?: FavoriteStreamRef[];
 } = {}) {
   useMultiStreamStore.setState({
@@ -173,7 +173,7 @@ export function resetMultistreamStore({
     focusedStreamId,
     chatStreamId,
     isChatOpen,
-    multiviewCap,
+    playbackBudget,
     favoriteStreams,
     backgroundQuality: "auto-low",
   });

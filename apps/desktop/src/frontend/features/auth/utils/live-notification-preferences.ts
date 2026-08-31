@@ -64,7 +64,3 @@ export function setPerChannelNotificationPreference(
     },
   };
 }
-
-export function platformNotificationField(platform: Platform): "twitch" | "kick" {
-  return platform === "twitch" ? "twitch" : "kick";
-}

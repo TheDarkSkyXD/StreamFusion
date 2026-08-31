@@ -255,7 +255,7 @@ export function FollowingPage() {
     isLoading: isLoadingStreams,
     error: liveStreamsError,
     refetch: refetchFollowedStreams,
-  } = useFollowedStreams(undefined, 20, {
+  } = useFollowedStreams(undefined, {
     enabled: activeTab === "live",
     snapshotIdentity: followedStreamSnapshotIdentity,
   });
@@ -425,13 +425,13 @@ export function FollowingPage() {
     return followedChannels.map(({ channel }) => channel);
   }, [activeTab, followedChannels]);
 
-  const shouldRepairKickSearchSlug =
+  const shouldResolveKickSearchSlug =
     filter !== "twitch" &&
     activeTab === "channels" &&
     debouncedSearchQuery.length >= 3 &&
     followedChannels.length === 0 &&
     !isLoading;
-  useChannelByUsername(shouldRepairKickSearchSlug ? debouncedSearchQuery : "", "kick");
+  useChannelByUsername(shouldResolveKickSearchSlug ? debouncedSearchQuery : "", "kick");
 
   const shouldLoadFollowedCategories =
     canRenderContent &&
@@ -459,6 +459,9 @@ export function FollowingPage() {
   const {
     data: followedVideos = [],
     isLoading: isLoadingVideos,
+    hasNextPage: hasMoreVideoPages,
+    isFetchingNextPage: isFetchingMoreVideos,
+    fetchNextPage: fetchNextVideoPage,
     refetch: refetchFollowedVideos,
   } = useFollowedVideos(followedChannelList, {
     enabled: activeTab === "videos",
@@ -467,6 +470,9 @@ export function FollowingPage() {
   const {
     data: followedClips = [],
     isLoading: isLoadingClips,
+    hasNextPage: hasMoreClipPages,
+    isFetchingNextPage: isFetchingMoreClips,
+    fetchNextPage: fetchNextClipPage,
     refetch: refetchFollowedClips,
   } = useFollowedClips(followedChannelList, {
     enabled: activeTab === "clips",
@@ -489,12 +495,42 @@ export function FollowingPage() {
   } = useFollowedClipPlayback(selectedClip);
 
   const revealMoreVideos = useCallback(() => {
-    setVisibleVideoCount((count) => Math.min(count + CONTENT_PAGE_SIZE, followedVideos.length));
-  }, [followedVideos.length]);
+    if (visibleVideos.hasMore) {
+      setVisibleVideoCount((count) => Math.min(count + CONTENT_PAGE_SIZE, followedVideos.length));
+      return;
+    }
+    if (!hasMoreVideoPages || isFetchingMoreVideos) return;
+
+    void fetchNextVideoPage().then((result) => {
+      const loadedCount = result.data?.length ?? followedVideos.length;
+      setVisibleVideoCount((count) => Math.min(count + CONTENT_PAGE_SIZE, loadedCount));
+    });
+  }, [
+    fetchNextVideoPage,
+    followedVideos.length,
+    hasMoreVideoPages,
+    isFetchingMoreVideos,
+    visibleVideos.hasMore,
+  ]);
 
   const revealMoreClips = useCallback(() => {
-    setVisibleClipCount((count) => Math.min(count + CONTENT_PAGE_SIZE, followedClips.length));
-  }, [followedClips.length]);
+    if (visibleClips.hasMore) {
+      setVisibleClipCount((count) => Math.min(count + CONTENT_PAGE_SIZE, followedClips.length));
+      return;
+    }
+    if (!hasMoreClipPages || isFetchingMoreClips) return;
+
+    void fetchNextClipPage().then((result) => {
+      const loadedCount = result.data?.length ?? followedClips.length;
+      setVisibleClipCount((count) => Math.min(count + CONTENT_PAGE_SIZE, loadedCount));
+    });
+  }, [
+    fetchNextClipPage,
+    followedClips.length,
+    hasMoreClipPages,
+    isFetchingMoreClips,
+    visibleClips.hasMore,
+  ]);
 
   const refreshFollowingData = useCallback(async () => {
     if (manualRefreshPending) return;
@@ -541,7 +577,7 @@ export function FollowingPage() {
   useEffect(() => {
     if (
       activeTab !== "videos" ||
-      !visibleVideos.hasMore ||
+      (!visibleVideos.hasMore && !hasMoreVideoPages) ||
       typeof IntersectionObserver === "undefined"
     ) {
       return;
@@ -561,12 +597,12 @@ export function FollowingPage() {
     observer.observe(target);
 
     return () => observer.disconnect();
-  }, [activeTab, revealMoreVideos, visibleVideos.hasMore]);
+  }, [activeTab, hasMoreVideoPages, revealMoreVideos, visibleVideos.hasMore]);
 
   useEffect(() => {
     if (
       activeTab !== "clips" ||
-      !visibleClips.hasMore ||
+      (!visibleClips.hasMore && !hasMoreClipPages) ||
       typeof IntersectionObserver === "undefined"
     ) {
       return;
@@ -586,7 +622,7 @@ export function FollowingPage() {
     observer.observe(target);
 
     return () => observer.disconnect();
-  }, [activeTab, revealMoreClips, visibleClips.hasMore]);
+  }, [activeTab, hasMoreClipPages, revealMoreClips, visibleClips.hasMore]);
 
   const followedCategories = useMemo(() => {
     if (!canRenderContent) return [];
@@ -746,9 +782,11 @@ export function FollowingPage() {
   const renderInfiniteScrollSentinel = (
     content: ReturnType<typeof getVisibleContent<FollowedContentItem>>,
     sentinelRef: RefObject<HTMLDivElement | null>,
-    label: string
+    label: string,
+    hasMorePages = false,
+    isFetchingMore = false
   ) => {
-    if (content.total <= CONTENT_PAGE_SIZE) return null;
+    if (content.total <= CONTENT_PAGE_SIZE && !hasMorePages) return null;
 
     return (
       <div
@@ -757,7 +795,11 @@ export function FollowingPage() {
         data-testid={`${label}-infinite-sentinel`}
       >
         <span className="whitespace-nowrap">
-          Showing {content.endIndex} of {content.total} {label}
+          {isFetchingMore
+            ? `Loading more ${label}…`
+            : hasMorePages
+              ? `Showing ${content.endIndex} loaded ${label}`
+              : `Showing ${content.endIndex} of ${content.total} ${label}`}
         </span>
       </div>
     );
@@ -1101,7 +1143,13 @@ export function FollowingPage() {
                         );
                       })}
                     </div>
-                    {renderInfiniteScrollSentinel(visibleVideos, videoLoadMoreRef, "videos")}
+                    {renderInfiniteScrollSentinel(
+                      visibleVideos,
+                      videoLoadMoreRef,
+                      "videos",
+                      hasMoreVideoPages,
+                      isFetchingMoreVideos
+                    )}
                   </>
                 ) : (
                   renderEmptyState(
@@ -1150,7 +1198,13 @@ export function FollowingPage() {
                         );
                       })}
                     </div>
-                    {renderInfiniteScrollSentinel(visibleClips, clipLoadMoreRef, "clips")}
+                    {renderInfiniteScrollSentinel(
+                      visibleClips,
+                      clipLoadMoreRef,
+                      "clips",
+                      hasMoreClipPages,
+                      isFetchingMoreClips
+                    )}
                   </>
                 ) : (
                   renderEmptyState(

@@ -106,6 +106,7 @@ type FocusedSearchIpcResponse<T> = {
   matchedChannelCount?: number;
 };
 import {
+  type FollowedStreamsRequest,
   type AppEnvironment,
   type AuthStatus,
   type AuthSyncFollowsResult,
@@ -120,6 +121,7 @@ import {
   type ProxyApplyConfig,
   type ProxyApplyResult,
   type ProxyCredentialsInput,
+  type StreamPlaybackRequest,
   type TokenStatusResult,
   type UpdateProgress,
   type UpdateState,
@@ -595,11 +597,7 @@ const electronAPI = {
     }): Promise<DiscoveryResult<UnifiedStream[]>> =>
       invokeIpc(IPC_CHANNELS.STREAMS_GET_BY_CATEGORY, params),
 
-    getFollowed: (params?: {
-      platform?: Platform;
-      limit?: number;
-      cursor?: string;
-    }): Promise<DiscoveryResult<UnifiedStream[]>> =>
+    getFollowed: (params?: FollowedStreamsRequest): Promise<DiscoveryResult<UnifiedStream[]>> =>
       invokeIpc(IPC_CHANNELS.STREAMS_GET_FOLLOWED, params || {}),
 
     getByChannel: (params: {
@@ -608,10 +606,9 @@ const electronAPI = {
     }): Promise<IpcResult<UnifiedStream | null>> =>
       invokeIpc(IPC_CHANNELS.STREAMS_GET_BY_CHANNEL, params),
 
-    getPlaybackUrl: (params: {
-      platform: Platform;
-      channelSlug: string;
-    }): Promise<IpcResult<{ url: string; format: string }>> =>
+    getPlaybackUrl: (
+      params: StreamPlaybackRequest
+    ): Promise<IpcResult<{ url: string; format: string }>> =>
       invokeIpc(IPC_CHANNELS.STREAMS_GET_PLAYBACK_URL, params),
   },
 
@@ -1380,8 +1377,8 @@ const electronAPI = {
   slot: {
     requestFocus: (slotId: string): Promise<void> =>
       invokeIpc(IPC_CHANNELS.SLOT_REQUEST_FOCUS, { slotId }),
-    setMultiviewCap: (cap: number): Promise<void> =>
-      invokeIpc(IPC_CHANNELS.SLOT_SET_MULTIVIEW_CAP, { cap }),
+    setPlaybackBudget: (budget: number): Promise<void> =>
+      invokeIpc(IPC_CHANNELS.SLOT_SET_PLAYBACK_BUDGET, { budget }),
     setBackgroundQuality: (mode: SlotQualityMode): Promise<void> =>
       invokeIpc(IPC_CHANNELS.SLOT_SET_BACKGROUND_QUALITY, { mode }),
     rebindExistingSlots: (): Promise<void> => invokeIpc(IPC_CHANNELS.SLOT_REBIND_EXISTING_SLOTS),

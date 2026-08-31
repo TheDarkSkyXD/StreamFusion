@@ -17,7 +17,7 @@ import { useRegisterDockedPlayerConfig } from "@/features/playback/components/pl
 import { OfflineOverlay } from "@/features/playback/components/player/offline-overlay";
 import { StreamRecordingControl } from "@/features/media-library/components/recording/stream-recording-control";
 import { StreamInfo } from "@/features/playback/components/stream-info";
-import { useChatDisplay } from "@/features/settings/components/settings/ChatSettingsSection";
+import { useChatDisplay } from "@/features/settings/data/use-chat-display";
 import { KickLoadingSpinner, TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { useChannelByUsername } from "@/features/discovery/data/queries/useChannels";
 import {
@@ -28,34 +28,29 @@ import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 import { useStreamPlayback } from "@/features/playback/data/useStreamPlayback";
 import { logger } from "@/renderer/logging/logger";
 import { requirePlatform } from "@/features/playback/routes/route-boundaries";
-import type { ChatPlatform } from "@shared/chat-types";
 import { useAppStore } from "@/store/app-store";
 import { useAuthStore } from "@/store/auth-store";
 import { usePipStore } from "@/store/pip-store";
 
-let chatPanelModulePromise: Promise<typeof import("@/features/chat/components/chat")> | undefined;
+let chatPanelModulePromise:
+  Promise<typeof import("@/features/chat/components/chat/ChatPanel")> | undefined;
 const loadChatPanelModule = () =>
-  (chatPanelModulePromise ??= import("@/features/chat/components/chat"));
+  (chatPanelModulePromise ??= import("@/features/chat/components/chat/ChatPanel"));
 const loadChatPanel = () => loadChatPanelModule().then((module) => ({ default: module.ChatPanel }));
-
-export const preloadChatPanel = (platform?: ChatPlatform): Promise<unknown> =>
-  loadChatPanelModule().then((module) =>
-    platform ? module.preloadPlatformChat(platform) : undefined
-  );
 
 const ChatPanel = lazy(loadChatPanel);
 const KickLivePlayer = lazy(() =>
-  import("@/features/playback/components/player/kick").then((module) => ({
+  import("@/features/playback/components/player/kick/kick-live-player").then((module) => ({
     default: module.KickLivePlayer,
   }))
 );
 const TwitchLivePlayer = lazy(() =>
-  import("@/features/playback/components/player/twitch").then((module) => ({
+  import("@/features/playback/components/player/twitch/twitch-live-player").then((module) => ({
     default: module.TwitchLivePlayer,
   }))
 );
 const RelatedContent = lazy(() =>
-  import("@/features/playback/components/related-content").then((module) => ({
+  import("@/features/playback/components/related-content/index").then((module) => ({
     default: module.RelatedContent,
   }))
 );

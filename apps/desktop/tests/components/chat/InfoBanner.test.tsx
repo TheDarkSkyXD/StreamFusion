@@ -113,10 +113,27 @@ describe("InfoBanner", () => {
     expect(tooltipRow("emoteOnly")).toBeInTheDocument();
   });
 
-  it("renders Account Age Mode [3m] on Kick when accountAge: 3", () => {
+  it("renders Account Age Mode [3m] only when the Kick viewer is known to be too new", () => {
     mockRoomState({ accountAge: 3 });
-    render(<InfoBanner platform="kick" channelId="42" />);
+    render(
+      <InfoBanner platform="kick" channelId="42" viewerAccountAgeRequirement="restricted" />
+    );
     expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Account Age Mode [3m]");
+  });
+
+  it("does not present a room-wide account-age policy as a viewer restriction", () => {
+    mockRoomState({ accountAge: 60 });
+    const { container, rerender } = render(
+      <InfoBanner platform="kick" channelId="42" viewerAccountAgeRequirement="satisfied" />
+    );
+    expect(container.firstChild).toBeNull();
+
+    rerender(
+      <TooltipProvider>
+        <InfoBanner platform="kick" channelId="42" />
+      </TooltipProvider>
+    );
+    expect(container.firstChild).toBeNull();
   });
 
   it("ignores accountAge on Twitch even when set (defensive platform asymmetry)", () => {
@@ -188,7 +205,9 @@ describe("InfoBanner", () => {
       emoteOnly: true,
       slowMode: 30,
     });
-    const { rerender } = render(<InfoBanner platform="kick" channelId="42" />);
+    const { rerender } = render(
+      <InfoBanner platform="kick" channelId="42" viewerAccountAgeRequirement="restricted" />
+    );
     expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Followers Only Mode [5m]");
 
     // Drop followers — subscribers wins.
@@ -200,7 +219,7 @@ describe("InfoBanner", () => {
     });
     rerender(
       <TooltipProvider>
-        <InfoBanner platform="kick" channelId="42" />
+        <InfoBanner platform="kick" channelId="42" viewerAccountAgeRequirement="restricted" />
       </TooltipProvider>
     );
     expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Subscribers Only Mode");
@@ -209,7 +228,7 @@ describe("InfoBanner", () => {
     mockRoomState({ accountAge: 3, emoteOnly: true, slowMode: 30 });
     rerender(
       <TooltipProvider>
-        <InfoBanner platform="kick" channelId="42" />
+        <InfoBanner platform="kick" channelId="42" viewerAccountAgeRequirement="restricted" />
       </TooltipProvider>
     );
     expect(screen.getByTestId("info-banner-primary")).toHaveTextContent("Account Age Mode [3m]");

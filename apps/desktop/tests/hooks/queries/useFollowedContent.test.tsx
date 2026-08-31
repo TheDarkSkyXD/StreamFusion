@@ -22,7 +22,7 @@ function makeWrapper() {
 let api: ReturnType<typeof installElectronAPIMock>;
 
 // Guards: followed videos only include past VODs, never currently-live or zero-duration stream placeholders
-// Guards: followed videos and clips are not capped at 60 after merging followed-channel results
+// Guards: every followed channel contributes videos and clips; large lists are processed with bounded concurrency.
 describe("useFollowedContent", () => {
   beforeEach(() => {
     api = installElectronAPIMock();
@@ -98,8 +98,8 @@ describe("useFollowedContent", () => {
     expect(result.current.data?.map((video) => video.id)).toEqual(["past-vod"]);
   });
 
-  it("does not cap merged followed videos or clips at 60 items", async () => {
-    const channels = Array.from({ length: 16 }, (_, index) =>
+  it("does not cap merged followed videos or clips by followed-channel count", async () => {
+    const channels = Array.from({ length: 35 }, (_, index) =>
       fixtures.channel({
         id: `channel-${index}`,
         username: `followedchannel${index}`,
@@ -107,18 +107,26 @@ describe("useFollowedContent", () => {
       })
     );
 
-    api.videos.getByChannel = async ({ channelName }: { channelName: string }) => ({
-      success: true,
-      data: Array.from({ length: 4 }, (_, index) => ({
-        id: `video-${channelName}-${index}`,
-        title: `Video ${channelName} ${index}`,
-        duration: "00:10:00",
-        views: `${index}`,
-        date: new Date(Date.UTC(2026, 5, 19, 12, index)).toISOString(),
-        created_at: new Date(Date.UTC(2026, 5, 19, 12, index)).toISOString(),
-        thumbnailUrl: `https://example.com/${channelName}-${index}.jpg`,
-      })),
-    });
+    let activeVideoRequests = 0;
+    let peakVideoRequests = 0;
+    api.videos.getByChannel = async ({ channelName }: { channelName: string }) => {
+      activeVideoRequests += 1;
+      peakVideoRequests = Math.max(peakVideoRequests, activeVideoRequests);
+      await Promise.resolve();
+      activeVideoRequests -= 1;
+      return {
+        success: true,
+        data: Array.from({ length: 4 }, (_, index) => ({
+          id: `video-${channelName}-${index}`,
+          title: `Video ${channelName} ${index}`,
+          duration: "00:10:00",
+          views: `${index}`,
+          date: new Date(Date.UTC(2026, 5, 19, 12, index)).toISOString(),
+          created_at: new Date(Date.UTC(2026, 5, 19, 12, index)).toISOString(),
+          thumbnailUrl: `https://example.com/${channelName}-${index}.jpg`,
+        })),
+      };
+    };
 
     api.clips.getByChannel = async ({ channelName }: { channelName: string }) => ({
       success: true,
@@ -140,7 +148,61 @@ describe("useFollowedContent", () => {
     await waitFor(() => expect(videos.result.current.isSuccess).toBe(true));
     await waitFor(() => expect(clips.result.current.isSuccess).toBe(true));
 
-    expect(videos.result.current.data).toHaveLength(64);
-    expect(clips.result.current.data).toHaveLength(64);
+    await videos.result.current.fetchNextPage();
+    await waitFor(() => expect(videos.result.current.data).toHaveLength(96));
+    await videos.result.current.fetchNextPage();
+    await waitFor(() => expect(videos.result.current.data).toHaveLength(140));
+    await clips.result.current.fetchNextPage();
+    await waitFor(() => expect(clips.result.current.data).toHaveLength(96));
+    await clips.result.current.fetchNextPage();
+    await waitFor(() => expect(clips.result.current.data).toHaveLength(140));
+
+    expect(videos.result.current.data).toHaveLength(140);
+    expect(clips.result.current.data).toHaveLength(140);
+    expect(peakVideoRequests).toBeLessThanOrEqual(6);
+  });
+
+  it("continues followed videos from each channel cursor instead of stopping at one page", async () => {
+    const requestedCursors: Array<string | undefined> = [];
+    api.videos.getByChannel = async ({ cursor }: { cursor?: string }) => {
+      requestedCursors.push(cursor);
+      const page = cursor === undefined ? 0 : cursor === "page-2" ? 1 : 2;
+      return {
+        success: true,
+        data: Array.from({ length: page === 2 ? 2 : 4 }, (_, index) => ({
+          id: `video-${page * 4 + index}`,
+          title: `Video ${page * 4 + index}`,
+          duration: "00:10:00",
+          views: `${page * 4 + index}`,
+          date: new Date(Date.UTC(2026, 5, 19, 12, page, index)).toISOString(),
+          created_at: new Date(Date.UTC(2026, 5, 19, 12, page, index)).toISOString(),
+          thumbnailUrl: `https://example.com/video-${page * 4 + index}.jpg`,
+        })),
+        cursor: page === 0 ? "page-2" : page === 1 ? "page-3" : undefined,
+      };
+    };
+
+    const { result } = renderHook(
+      () =>
+        useFollowedVideos([
+          fixtures.channel({
+            id: "channel-1",
+            username: "followedchannel",
+            displayName: "FollowedChannel",
+          }),
+        ]),
+      { wrapper: makeWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.data).toHaveLength(4));
+    expect(result.current.hasNextPage).toBe(true);
+
+    await result.current.fetchNextPage();
+    await waitFor(() => expect(result.current.data).toHaveLength(8));
+    await result.current.fetchNextPage();
+    await waitFor(() => expect(result.current.data).toHaveLength(10));
+
+    expect(result.current.hasNextPage).toBe(false);
+    expect(requestedCursors).toEqual([undefined, "page-2", "page-3"]);
   });
 });

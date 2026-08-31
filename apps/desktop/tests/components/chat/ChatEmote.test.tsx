@@ -202,6 +202,54 @@ describe("ChatEmote emote size (U2/U3)", () => {
     const img = screen.getByAltText("Kappa") as HTMLImageElement;
     expect(img.style.height).toBe("32px");
   });
+
+  it("preserves provider geometry for wide and large emotes", () => {
+    setChatDisplay({ emoteSizePx: 28 });
+    render(
+      <ChatEmote
+        id="wide"
+        name="Wide"
+        url="https://cdn.7tv.app/emote/wide/2x.webp"
+        url1x="https://cdn.7tv.app/emote/wide/1x.webp"
+        url2x="https://cdn.7tv.app/emote/wide/2x.webp"
+        url4x="https://cdn.7tv.app/emote/wide/4x.webp"
+        width={112}
+        height={56}
+        platform="twitch"
+        provider="7tv"
+      />
+    );
+    const img = screen.getByAltText("Wide") as HTMLImageElement;
+    expect(img.style.width).toBe("112px");
+    expect(img.style.height).toBe("56px");
+    expect(img.getAttribute("srcset")).toContain("1x");
+    expect(img.getAttribute("srcset")).toContain("4x");
+  });
+
+  it("learns BTTV logical geometry from a decoded 2x image without another request", () => {
+    setChatDisplay({ emoteSizePx: 28 });
+    render(
+      <ChatEmote
+        id="bttv-wide"
+        name="BttvWide"
+        url="https://cdn.betterttv.net/emote/bttv-wide/2x.webp"
+        url1x="https://cdn.betterttv.net/emote/bttv-wide/1x.webp"
+        url2x="https://cdn.betterttv.net/emote/bttv-wide/2x.webp"
+        platform="twitch"
+        provider="bttv"
+      />
+    );
+    const img = screen.getByAltText("BttvWide") as HTMLImageElement;
+    Object.defineProperties(img, {
+      naturalWidth: { configurable: true, value: 224 },
+      naturalHeight: { configurable: true, value: 56 },
+    });
+    fireEvent.load(img);
+
+    expect(img.style.width).toBe("112px");
+    expect(img.style.height).toBe("28px");
+    expect(img.getAttribute("srcset")).toBeNull();
+  });
 });
 
 describe("ChatEmote overlay / zero-width (U3)", () => {
@@ -221,7 +269,7 @@ describe("ChatEmote overlay / zero-width (U3)", () => {
     // Overlay: absolutely positioned and pulled back over the previous emote.
     expect(trigger.dataset.zeroWidth).toBe("true");
     expect(trigger.style.position).toBe("absolute");
-    expect(trigger.style.marginLeft).toBe("-28px");
+    expect(trigger.style.transform).toBe("translateX(-100%)");
   });
 
   it("renders a zero-width emote inline (no overlay) when overlayEmotes is false", () => {

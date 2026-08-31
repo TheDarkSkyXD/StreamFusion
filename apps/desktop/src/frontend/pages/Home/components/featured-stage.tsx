@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 
 import type { UnifiedChannel, UnifiedStream } from "@shared/platform-types";
-import { ChatPanel, type ChatPanelProps } from "@/features/chat/components/chat";
+import { ChatPanel, type ChatPanelProps } from "@/features/chat/components/chat/ChatPanel";
 import { FeaturedStream } from "@/features/discovery/components/stream/featured-stream";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";

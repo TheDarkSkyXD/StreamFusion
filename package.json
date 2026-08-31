@@ -37,9 +37,9 @@
   "scripts": {
     "preinstall": "node scripts/require-npm.mjs",
     "start": "node scripts/start-picker.mjs",
-    "desktop": "npm run --workspace streamfusion dev:electron",
-    "browser": "npm run --workspace streamfusion dev",
-    "mobile": "npm run --workspace @streamfusion/mobile android",
+    "desktop": "npm run --workspace streamfusion dev:electron --",
+    "browser": "npm run --workspace streamfusion dev --",
+    "mobile": "npm run --workspace @streamfusion/mobile android --",
     "relay": "npm run --workspace @streamfusion/integration-relay dev",
     "build:mobile:development": "npm run --workspace @streamfusion/mobile build:android:development",
     "build:relay": "npm run --workspace @streamfusion/integration-relay build",

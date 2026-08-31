@@ -36,7 +36,7 @@ import {
   rebindExistingSlots,
   requestSlotRetry,
   setBackgroundQuality,
-  setMaxSlots,
+  setPlaybackBudget,
   setSlotPresence,
   setUseWebContentsViews,
 } from "@backend/api/unified/slot-controller";
@@ -169,9 +169,9 @@ describe("slot-controller destroySlot", () => {
   });
 });
 
-describe("slot-controller setMaxSlots (MultiviewCap enforcement)", () => {
-  it("rejects createSlot when at the cap — hard stop, no eviction", () => {
-    setMaxSlots(2);
+describe("slot-controller concurrent playback budget", () => {
+  it("rejects decoder ownership beyond the budget without eviction", () => {
+    setPlaybackBudget(2);
     createSlot("slot-1");
     createSlot("slot-2");
     createSlot("slot-3");
@@ -180,26 +180,26 @@ describe("slot-controller setMaxSlots (MultiviewCap enforcement)", () => {
     expect(getSlotPresence("slot-3")).toBeUndefined();
   });
 
-  it("raising the cap unblocks new creates", () => {
-    setMaxSlots(1);
+  it("raising the budget unblocks new playback slots", () => {
+    setPlaybackBudget(1);
     createSlot("slot-1");
     createSlot("slot-2");
     expect(getSlotPresence("slot-2")).toBeUndefined();
-    setMaxSlots(3);
+    setPlaybackBudget(3);
     createSlot("slot-2");
     expect(getSlotPresence("slot-2")).toBe("background");
   });
 
-  it("lowering the cap does not evict existing slots", () => {
-    setMaxSlots(4);
+  it("lowering the budget does not evict existing playback slots", () => {
+    setPlaybackBudget(4);
     createSlot("slot-1");
     createSlot("slot-2");
     createSlot("slot-3");
-    setMaxSlots(2);
+    setPlaybackBudget(2);
     expect(getSlotPresence("slot-1")).toBe("focused");
     expect(getSlotPresence("slot-2")).toBe("background");
     expect(getSlotPresence("slot-3")).toBe("background");
-    // But further creates are blocked until count is back under cap.
+    // Further decoder ownership is blocked until count is back under budget.
     createSlot("slot-4");
     expect(getSlotPresence("slot-4")).toBeUndefined();
   });
@@ -223,7 +223,11 @@ describe("slot-controller event fan-out (slice 04 dispatch seam)", () => {
     const unsubscribe = onSlotEvent((e) => events.push(e));
     dispatchSetMute("slot-1", true);
     dispatchSetQuality("slot-1", { mode: "auto-low" });
-    dispatchSetBufferConfig("slot-1", { maxBufferLengthSec: 10, maxMaxBufferLengthSec: 30, liveSyncDurationCount: 3 });
+    dispatchSetBufferConfig("slot-1", {
+      maxBufferLengthSec: 10,
+      maxMaxBufferLengthSec: 30,
+      liveSyncDurationCount: 3,
+    });
     dispatchUnload("slot-1");
     unsubscribe();
     expect(events.map((e) => (e as { type: string }).type)).toEqual([
@@ -242,7 +246,9 @@ describe("slot-controller event fan-out (slice 04 dispatch seam)", () => {
     setSlotPresence("slot-2", "focused");
     unsubscribe();
     // Exactly one promotion + one demotion (focus singleton).
-    const presenceEvents = events.filter((e) => (e as { type: string }).type === "presence-changed");
+    const presenceEvents = events.filter(
+      (e) => (e as { type: string }).type === "presence-changed"
+    );
     expect(presenceEvents).toHaveLength(2);
     expect(presenceEvents).toContainEqual(
       expect.objectContaining({ slotId: "slot-1", presence: "background" })
@@ -406,9 +412,7 @@ describe("slot-controller crash recovery (slice 06)", () => {
     );
 
     // No affordance was emitted on the first crash.
-    const affordances = events.filter(
-      (e) => (e as { type: string }).type === "retry-affordance"
-    );
+    const affordances = events.filter((e) => (e as { type: string }).type === "retry-affordance");
     expect(affordances).toHaveLength(0);
 
     unsubscribe();
@@ -562,17 +566,13 @@ describe("slot-controller SlotPresence behavior matrix (slice 07)", () => {
     const unsubscribe = onSlotEvent((e) => events.push(e));
     setSlotPresence("slot-2", "focused");
 
-    const slot2Mutes = events.filter(
-      (e) => e.type === "set-mute" && e.slotId === "slot-2"
-    );
+    const slot2Mutes = events.filter((e) => e.type === "set-mute" && e.slotId === "slot-2");
     expect(slot2Mutes).toContainEqual(
       expect.objectContaining({ type: "set-mute", slotId: "slot-2", muted: false })
     );
     // Slot-1 was demoted to background, so it got muted via the cascading
     // emitConfigForSlot call.
-    const slot1Mutes = events.filter(
-      (e) => e.type === "set-mute" && e.slotId === "slot-1"
-    );
+    const slot1Mutes = events.filter((e) => e.type === "set-mute" && e.slotId === "slot-1");
     expect(slot1Mutes).toContainEqual(
       expect.objectContaining({ type: "set-mute", slotId: "slot-1", muted: true })
     );
@@ -627,8 +627,7 @@ describe("slot-controller SlotPresence behavior matrix (slice 07)", () => {
 
     // Hidden slots get no quality / buffer dispatch (there's no player).
     const slot2Configs = events.filter(
-      (e) =>
-        e.slotId === "slot-2" && (e.type === "set-quality" || e.type === "set-buffer-config")
+      (e) => e.slotId === "slot-2" && (e.type === "set-quality" || e.type === "set-buffer-config")
     );
     expect(slot2Configs).toHaveLength(0);
 

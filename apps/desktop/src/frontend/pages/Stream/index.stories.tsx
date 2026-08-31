@@ -12,9 +12,9 @@ import { useEffect, useState } from "react";
 import { expect, mocked, within } from "storybook/test";
 
 import type { UnifiedChannel, UnifiedStream } from "@shared/platform-types";
-import { KickLivePlayer } from "@/features/playback/components/player/kick";
+import { KickLivePlayer } from "@/features/playback/components/player/kick/kick-live-player";
 import { PersistentPlayerShell } from "@/features/playback/components/player/persistent-player-shell";
-import { TwitchLivePlayer } from "@/features/playback/components/player/twitch";
+import { TwitchLivePlayer } from "@/features/playback/components/player/twitch/twitch-live-player";
 import { DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
 import { useAppStore } from "@/store/app-store";
 import { useAuthStore } from "@/store/auth-store";

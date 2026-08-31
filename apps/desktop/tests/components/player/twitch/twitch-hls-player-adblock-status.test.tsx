@@ -1011,6 +1011,7 @@ describe("TwitchHlsPlayer adblock status", () => {
     expect(hlsConstructorConfigs[0]).toEqual(
       expect.objectContaining({
         enableWorker: false,
+        capLevelToPlayerSize: true,
         lowLatencyMode: false,
         liveSyncDurationCount: 4,
         backBufferLength: 5,

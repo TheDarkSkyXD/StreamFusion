@@ -6,7 +6,3 @@ export class SearchRequestBudgetExceededError extends Error {
     this.name = "SearchRequestBudgetExceededError";
   }
 }
-
-export function isSearchRequestBudgetExceeded(error: unknown): boolean {
-  return error instanceof SearchRequestBudgetExceededError;
-}

@@ -127,6 +127,8 @@ describe("ChatQuickSettingsPopover", () => {
 
     expect(dialog).toHaveClass("bg-neutral-800");
     expect(dialog).toHaveClass("w-[320px]", "max-w-full", "min-w-0");
+    expect(dialog).toHaveClass("rounded-t-xl", "rounded-b-none");
+    expect(dialog).not.toHaveClass("rounded-xl");
     expect(appearanceButton).toHaveClass("hover:bg-neutral-700");
     expect(title).toHaveClass("text-base", "leading-6");
     expect(closeButton).toHaveClass("text-white");
@@ -273,9 +275,10 @@ describe("ChatQuickSettingsPopover", () => {
     expect(screen.getByText("Message spacing")).toBeInTheDocument();
     expect(screen.getByText("Timestamps")).toBeInTheDocument();
     expect(screen.getByTestId("chat-appearance-content")).toHaveClass(
-      "max-h-[calc(100vh-6rem)]",
+      "max-h-[min(360px,calc(100vh-6rem))]",
       "overflow-y-auto",
-      "overscroll-contain"
+      "overscroll-contain",
+      "[scrollbar-gutter:stable]"
     );
   });
 

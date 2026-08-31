@@ -1,7 +1,5 @@
 import { lazy } from "react";
 
-import { preloadSearchPage } from "./search-page";
-
 export { validateCategoryDetailSearch } from "./category-detail-search";
 export { SearchPage, preloadSearchPage } from "./search-page";
 
@@ -23,10 +21,3 @@ export const CategoryDetailPage = lazy(() =>
     default: module.CategoryDetailPage,
   }))
 );
-export const discoveryPageChunkLoaders = [
-  () => import("../../../pages/Home"),
-  () => import("../../../pages/Following"),
-  () => import("../../../pages/Categories"),
-  () => import("../../../pages/CategoryDetail"),
-  preloadSearchPage,
-];

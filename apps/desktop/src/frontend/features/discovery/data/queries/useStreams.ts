@@ -16,6 +16,8 @@ export const STREAM_KEYS = {
   all: ["streams"] as const,
   top: (platform?: Platform, limit?: number) =>
     [...STREAM_KEYS.all, "top", platform, limit] as const,
+  topInfinite: (platform: Platform, limit: number) =>
+    [...STREAM_KEYS.all, "top", "infinite", platform, limit] as const,
   byCategory: (categoryId: string, platform?: Platform) =>
     [...STREAM_KEYS.all, "category", categoryId, platform] as const,
   followed: (platform?: Platform) => [...STREAM_KEYS.all, "followed", platform] as const,
@@ -111,7 +113,6 @@ export function useTopStreams(platform?: Platform, limit: number = 20) {
 
 export function useFollowedStreams(
   platform?: Platform,
-  limit: number = 20,
   options: { enabled?: boolean; snapshotIdentity?: FollowedStreamSnapshotIdentity } = {}
 ) {
   const queryKey = STREAM_KEYS.followed(platform);
@@ -132,7 +133,7 @@ export function useFollowedStreams(
     queryKey,
     queryFn: async ({ signal }) => {
       const sourceIdentityKey = snapshotIdentityKey;
-      const response = await window.electronAPI.streams.getFollowed({ platform, limit });
+      const response = await window.electronAPI.streams.getFollowed({ platform });
       signal.throwIfAborted();
       if (!response.success) {
         logger.warn("Hook:Queries:Streams", "failed to fetch followed streams", {

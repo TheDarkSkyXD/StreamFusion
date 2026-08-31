@@ -5,7 +5,8 @@
  * logger pipeline can demote them to debug. They are not actionable: the GPU
  * probe always misses on hardware without that DirectComposition revision,
  * DevTools' Autofill domain isn't implemented in Electron's Chromium, and
- * transient SharedImageManager mailbox misses are compositor cleanup races,
+ * transient standalone SharedImageManager mailbox misses are compositor cleanup races
+ * (GPU crash and device-loss lines remain actionable),
  * disk-cache size mismatches and invalid-entry cleanup self-heal when Chromium
  * rebuilds cache metadata,
  * hostless SSL net_error -101 lines are connection resets from remote peers
@@ -17,7 +18,7 @@
 const IDCOMPOSITION_PROBE = /QueryInterface to IDComposition(Device|Visual)\d+ failed/;
 const AUTOFILL_NOT_FOUND = /Request Autofill\.\w+ failed\. \{"code":-32601/;
 const SHARED_IMAGE_MAILBOX_MISS =
-  /SharedImageManager::ProduceSkia: Trying to Produce a Skia representation from a non-existent mailbox\./;
+  /SharedImageManager::Produce(Skia|Overlay): Trying to Produce a \1 representation from a non-existent mailbox\./;
 const DISK_CACHE_INVALID_CURRENT_SIZE =
   /backend_impl\.cc(?::|\()\d+\)?.*Invalid cache \(current\) size/;
 const DISK_CACHE_DESTROYING_INVALID_ENTRY =

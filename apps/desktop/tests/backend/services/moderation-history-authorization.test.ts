@@ -227,10 +227,13 @@ describe("authorizeModerationHistory", () => {
       verified: false,
     });
 
-    await expect(authorizeModerationHistory(kickInput)).resolves.toEqual({
+    await expect(
+      authorizeModerationHistory({ ...kickInput, channelId: "42" })
+    ).resolves.toEqual({
       state: "authorized",
       role: "broadcaster",
     });
+    expect(kickClient.getChannelsBySlugs).not.toHaveBeenCalled();
   });
 
   // Guards: a trusted slug can never authorize a different caller-supplied channel ID.

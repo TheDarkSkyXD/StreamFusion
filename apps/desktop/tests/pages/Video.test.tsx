@@ -36,7 +36,6 @@ vi.mock("@tanstack/react-router", () =>
 
 const addToHistory = vi.fn();
 const removeFromHistory = vi.fn();
-const repairFollowMetadataFromChannel = vi.fn(async () => false);
 vi.mock("@/features/media-library/data/useHistoryQuery", () => ({
   useHistoryActions: () => ({ addToHistory, removeFromHistory }),
 }));
@@ -51,13 +50,12 @@ vi.mock("@/store/follow-store", () => ({
       toggleFollow: vi.fn(),
       getFollowSource: () => null,
       upgradeFollowIfNeeded: vi.fn(),
-      repairFollowMetadataFromChannel,
     };
     return selector ? selector(state) : state;
   },
 }));
 
-vi.mock("@/features/playback/components/player/twitch", () => ({
+vi.mock("@/features/playback/components/player/twitch/twitch-vod-player", () => ({
   TwitchVodPlayer: ({
     streamUrl,
     onReady,
@@ -93,7 +91,7 @@ vi.mock("@/features/playback/components/player/twitch", () => ({
   ),
 }));
 
-vi.mock("@/features/playback/components/player/kick", () => ({
+vi.mock("@/features/playback/components/player/kick/kick-vod-player", () => ({
   KickVodPlayer: () => <div data-testid="kick-vod-player">vod</div>,
 }));
 
@@ -185,7 +183,6 @@ describe("VideoPage", () => {
     });
     addToHistory.mockReset();
     removeFromHistory.mockReset();
-    repairFollowMetadataFromChannel.mockClear();
   });
 
   it("loads chat replay for the routed video", async () => {

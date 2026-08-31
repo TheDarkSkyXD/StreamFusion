@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import type { UnifiedChannel } from "@shared/platform-types";
 import { formatDuration } from "@/lib/utils";
@@ -8,8 +8,9 @@ import type { Platform } from "@shared/auth-types";
 import { useQueryCachePerformance } from "./cache-performance";
 import { getQueryCacheOptions } from "./cache-policy";
 
-const FOLLOWED_CONTENT_CHANNEL_LIMIT = 30;
-const FOLLOWED_CONTENT_PER_CHANNEL = 4;
+const FOLLOWED_CONTENT_PAGE_SIZE_PER_CHANNEL = 4;
+const FOLLOWED_CHANNEL_PAGE_SIZE = 12;
+const FOLLOWED_CONTENT_REQUEST_CONCURRENCY = 6;
 
 type RawContentItem = Record<string, unknown>;
 export type FollowedContentSort = "recent" | "views";
@@ -42,31 +43,41 @@ export interface FollowedContentItem {
 
 interface FollowedContentOptions {
   enabled?: boolean;
-  limitPerChannel?: number;
   sort?: FollowedContentSort;
   timeRange?: FollowedClipTimeRange;
 }
 
+type FollowedContentCursorByChannel = Record<string, string>;
+
+interface FollowedContentPageState {
+  nextChannelIndex: number;
+  pendingCursors: FollowedContentCursorByChannel;
+}
+
+interface FollowedContentPage {
+  items: FollowedContentItem[];
+  nextState?: FollowedContentPageState;
+}
+
 export const FOLLOWED_CONTENT_KEYS = {
   all: ["followed-content"] as const,
-  videos: (channels: UnifiedChannel[], limitPerChannel: number, sort: FollowedContentSort) =>
+  videos: (channels: UnifiedChannel[], sort: FollowedContentSort) =>
     [
       ...FOLLOWED_CONTENT_KEYS.all,
       "videos",
-      limitPerChannel,
+      "progressive-v1",
       sort,
       channels.map((channel) => `${channel.platform}:${channel.id}:${channel.username}`).sort(),
     ] as const,
   clips: (
     channels: UnifiedChannel[],
-    limitPerChannel: number,
     sort: FollowedContentSort,
     timeRange: FollowedClipTimeRange
   ) =>
     [
       ...FOLLOWED_CONTENT_KEYS.all,
       "clips",
-      limitPerChannel,
+      "progressive-v1",
       sort,
       timeRange,
       channels.map((channel) => `${channel.platform}:${channel.id}:${channel.username}`).sort(),
@@ -181,17 +192,56 @@ function dedupeAndSort(
   );
 }
 
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  load: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    async (): Promise<void> => {
+      while (nextIndex < items.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        results[index] = await load(items[index]);
+      }
+    }
+  );
+
+  await Promise.all(workers);
+  return results;
+}
+
 async function fetchFollowedContent(
   channels: UnifiedChannel[],
   kind: "video" | "clip",
-  limitPerChannel: number,
   sort: FollowedContentSort,
-  timeRange: FollowedClipTimeRange = "all"
-): Promise<FollowedContentItem[]> {
-  const channelsToFetch = channels.slice(0, FOLLOWED_CONTENT_CHANNEL_LIMIT);
-
-  const contentByChannel = await Promise.all(
-    channelsToFetch.map(async (channel) => {
+  timeRange: FollowedClipTimeRange = "all",
+  pageState?: FollowedContentPageState
+): Promise<FollowedContentPage> {
+  const nextChannelIndex = pageState?.nextChannelIndex ?? 0;
+  const pendingCursors = { ...(pageState?.pendingCursors ?? {}) };
+  const isLoadingNewChannels = nextChannelIndex < channels.length;
+  const channelByKey = new Map<string, UnifiedChannel>(
+    channels.map((channel) => [`${channel.platform}:${channel.id}`, channel] as const)
+  );
+  const pendingChannelKeys = Object.keys(pendingCursors).slice(0, FOLLOWED_CHANNEL_PAGE_SIZE);
+  const channelsToLoad = isLoadingNewChannels
+    ? channels.slice(nextChannelIndex, nextChannelIndex + FOLLOWED_CHANNEL_PAGE_SIZE)
+    : pendingChannelKeys.flatMap((channelKey) => {
+        const channel = channelByKey.get(channelKey);
+        if (!channel) delete pendingCursors[channelKey];
+        return channel ? [channel] : [];
+      });
+  const contentByChannel = await mapWithConcurrency(
+    channelsToLoad,
+    FOLLOWED_CONTENT_REQUEST_CONCURRENCY,
+    async (channel) => {
+      const channelKey = `${channel.platform}:${channel.id}`;
+      const cursor = isLoadingNewChannels ? undefined : pendingCursors[channelKey];
       try {
         const response =
           kind === "video"
@@ -199,14 +249,16 @@ async function fetchFollowedContent(
                 platform: channel.platform,
                 channelName: channel.username,
                 channelId: channel.id,
-                limit: limitPerChannel,
+                limit: FOLLOWED_CONTENT_PAGE_SIZE_PER_CHANNEL,
+                cursor,
                 sort: sort === "views" ? "views" : "date",
               })
             : await window.electronAPI.clips.getByChannel({
                 platform: channel.platform,
                 channelName: channel.username,
                 channelId: channel.id,
-                limit: limitPerChannel,
+                limit: FOLLOWED_CONTENT_PAGE_SIZE_PER_CHANNEL,
+                cursor,
                 sort: sort === "views" ? "views" : "date",
                 timeRange,
               });
@@ -218,14 +270,18 @@ async function fetchFollowedContent(
             kind,
             error: response.error,
           });
-          return [];
+          return { items: [], channelKey };
         }
 
         const normalized = ((response.data as RawContentItem[] | undefined) ?? [])
           .map((item) => normalizeContentItem(item, channel, kind))
           .filter((item): item is FollowedContentItem => item !== null);
 
-        return kind === "video" ? normalized.filter(isPastVideo) : normalized;
+        return {
+          items: kind === "video" ? normalized.filter(isPastVideo) : normalized,
+          channelKey,
+          nextCursor: response.cursor && response.cursor !== cursor ? response.cursor : undefined,
+        };
       } catch (error) {
         logger.warn("Hook:Queries:FollowedContent", "followed content request threw", {
           platform: channel.platform,
@@ -233,26 +289,51 @@ async function fetchFollowedContent(
           kind,
           error: error instanceof Error ? error.message : String(error),
         });
-        return [];
+        return { items: [], channelKey };
       }
-    })
+    }
   );
 
-  return dedupeAndSort(contentByChannel.flat(), sort);
+  for (const result of contentByChannel) {
+    delete pendingCursors[result.channelKey];
+    if (result.nextCursor) pendingCursors[result.channelKey] = result.nextCursor;
+  }
+
+  const followingChannelIndex = isLoadingNewChannels
+    ? Math.min(nextChannelIndex + channelsToLoad.length, channels.length)
+    : nextChannelIndex;
+  const hasMoreWork =
+    followingChannelIndex < channels.length || Object.keys(pendingCursors).length > 0;
+
+  return {
+    items: dedupeAndSort(
+      contentByChannel.flatMap((result) => result.items),
+      sort
+    ),
+    nextState: hasMoreWork
+      ? { nextChannelIndex: followingChannelIndex, pendingCursors }
+      : undefined,
+  };
 }
 
 export function useFollowedVideos(
   channels: UnifiedChannel[],
   options: FollowedContentOptions = {}
 ) {
-  const limitPerChannel = options.limitPerChannel ?? FOLLOWED_CONTENT_PER_CHANNEL;
   const sort = options.sort ?? "recent";
-  const queryKey = FOLLOWED_CONTENT_KEYS.videos(channels, limitPerChannel, sort);
+  const queryKey = FOLLOWED_CONTENT_KEYS.videos(channels, sort);
   const enabled = (options.enabled ?? true) && channels.length > 0;
 
-  const query = useQuery({
+  const query = useInfiniteQuery({
     queryKey,
-    queryFn: () => fetchFollowedContent(channels, "video", limitPerChannel, sort),
+    queryFn: ({ pageParam }) => fetchFollowedContent(channels, "video", sort, "all", pageParam),
+    initialPageParam: undefined as FollowedContentPageState | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextState,
+    select: (data) =>
+      dedupeAndSort(
+        data.pages.flatMap((page) => page.items),
+        sort
+      ),
     enabled,
     ...getQueryCacheOptions("followedContent"),
   });
@@ -267,15 +348,21 @@ export function useFollowedVideos(
 }
 
 export function useFollowedClips(channels: UnifiedChannel[], options: FollowedContentOptions = {}) {
-  const limitPerChannel = options.limitPerChannel ?? FOLLOWED_CONTENT_PER_CHANNEL;
   const sort = options.sort ?? "recent";
   const timeRange = options.timeRange ?? "all";
-  const queryKey = FOLLOWED_CONTENT_KEYS.clips(channels, limitPerChannel, sort, timeRange);
+  const queryKey = FOLLOWED_CONTENT_KEYS.clips(channels, sort, timeRange);
   const enabled = (options.enabled ?? true) && channels.length > 0;
 
-  const query = useQuery({
+  const query = useInfiniteQuery({
     queryKey,
-    queryFn: () => fetchFollowedContent(channels, "clip", limitPerChannel, sort, timeRange),
+    queryFn: ({ pageParam }) => fetchFollowedContent(channels, "clip", sort, timeRange, pageParam),
+    initialPageParam: undefined as FollowedContentPageState | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextState,
+    select: (data) =>
+      dedupeAndSort(
+        data.pages.flatMap((page) => page.items),
+        sort
+      ),
     enabled,
     ...getQueryCacheOptions("followedContent"),
   });

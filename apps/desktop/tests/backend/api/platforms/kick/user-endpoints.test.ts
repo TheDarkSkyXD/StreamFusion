@@ -475,6 +475,8 @@ describe("user-endpoints", () => {
         userId: "123",
         login: "alice",
         displayName: "Alice",
+        createdAt: "2013-06-01T12:30:00Z",
+        followingSince: "2020-01-01T00:00:00Z",
         isModerator: true,
         isChannelOwner: false,
         isStaff: false,

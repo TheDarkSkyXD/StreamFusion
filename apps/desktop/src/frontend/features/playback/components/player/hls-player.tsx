@@ -265,6 +265,10 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           code: "STREAM_OFFLINE",
           message: "Stream ended or became unavailable",
           fatal: true,
+          // A fragment drought proves that this source stopped advancing, not
+          // that the broadcaster ended. Kick live URLs are signed and can age
+          // out during a long watch, so require a fresh resolver generation.
+          shouldRefresh: isKickLiveCdnUrl(src),
           originalError: null,
         });
         return;
@@ -609,6 +613,9 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
             // Long-lived live playback avoids cross-thread segment transfers; short-lived
             // VOD/clip playback keeps worker demuxing for UI responsiveness.
             enableWorker: !isLive,
+            // Auto quality should not decode more pixels than the mounted player can show.
+            // Explicit user-selected levels remain available.
+            capLevelToPlayerSize: isLive,
             lowLatencyMode: bufferConfig.lowLatencyMode,
             startFragPrefetch: true, // Start fetching fragment immediately for faster start
 

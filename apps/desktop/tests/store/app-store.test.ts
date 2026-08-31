@@ -13,7 +13,6 @@ function resetStore() {
     sidebarCollapsed: false,
     userPrefersSidebarCollapsed: false,
     isTheaterModeActive: false,
-    activeStreams: [],
     showDebugOverlay: false,
     homeCarouselIntervalMs: HOME_CAROUSEL_INTERVAL_DEFAULT_MS,
   });
@@ -63,39 +62,6 @@ describe("app-store theater mode", () => {
     useAppStore.getState().setTheaterModeActive(true);
     useAppStore.getState().setTheaterModeActive(false);
     expect(useAppStore.getState().sidebarCollapsed).toBe(true);
-  });
-});
-
-describe("app-store multi-stream", () => {
-  it("addStream appends a stream id", () => {
-    useAppStore.getState().addStream("s1");
-    expect(useAppStore.getState().activeStreams).toEqual(["s1"]);
-  });
-
-  it("addStream does not duplicate existing ids", () => {
-    useAppStore.getState().addStream("s1");
-    useAppStore.getState().addStream("s1");
-    expect(useAppStore.getState().activeStreams).toEqual(["s1"]);
-  });
-
-  it("addStream caps at 6", () => {
-    for (let i = 0; i < 8; i++) {
-      useAppStore.getState().addStream(`s${i}`);
-    }
-    expect(useAppStore.getState().activeStreams).toHaveLength(6);
-  });
-
-  it("removeStream filters out the given id", () => {
-    useAppStore.getState().addStream("s1");
-    useAppStore.getState().addStream("s2");
-    useAppStore.getState().removeStream("s1");
-    expect(useAppStore.getState().activeStreams).toEqual(["s2"]);
-  });
-
-  it("clearStreams empties the array", () => {
-    useAppStore.getState().addStream("s1");
-    useAppStore.getState().clearStreams();
-    expect(useAppStore.getState().activeStreams).toEqual([]);
   });
 });
 

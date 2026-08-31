@@ -138,13 +138,3 @@ export function mergeExactCrossPlatformCategories(
   }
   return merged;
 }
-
-export function rankAndMergeSearchCategories(
-  values: readonly unknown[],
-  query: string,
-  mergePlatforms: boolean
-): UnifiedCategory[] {
-  const ranked = filterRankAndDeduplicateCategories(values, query);
-  if (!mergePlatforms) return ranked;
-  return mergeExactCrossPlatformCategories(ranked);
-}

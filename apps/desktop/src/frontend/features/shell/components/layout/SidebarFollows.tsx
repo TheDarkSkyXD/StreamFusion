@@ -133,10 +133,10 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
   // Fetch data
   const twitchFollowsQuery = useFollowedChannels("twitch", { enabled: twitchConnected });
   const kickFollowsQuery = useFollowedChannels("kick", { enabled: kickConnected });
-  const twitchStreamsQuery = useFollowedStreams("twitch", 100, {
+  const twitchStreamsQuery = useFollowedStreams("twitch", {
     enabled: twitchConnected || hasLocalTwitchFollows,
   });
-  const kickStreamsQuery = useFollowedStreams("kick", 100, {
+  const kickStreamsQuery = useFollowedStreams("kick", {
     enabled: kickConnected || hasLocalKickFollows,
   });
   const { data: twitchFollows } = twitchFollowsQuery;
@@ -296,19 +296,39 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
 
   if (isLoading && allItems.length === 0) {
     return (
-      <div className="flex flex-col gap-2 p-2">
-        {!collapsed && <Skeleton className="h-4 w-20 mb-2" />}
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <Skeleton className="w-8 h-8 rounded-full shrink-0" />
-            {!collapsed && (
-              <div className="flex flex-col gap-1 overflow-hidden w-full">
-                <Skeleton className="h-3 w-20" />
-                <Skeleton className="h-2 w-12" />
-              </div>
-            )}
+      <div
+        role="status"
+        aria-label="Loading followed channels"
+        data-testid="sidebar-follows"
+        data-loading="true"
+        className={cn(
+          "box-border flex max-w-full flex-col overflow-hidden pb-2",
+          collapsed ? "w-16 px-2" : "w-56 pl-2 pr-4"
+        )}
+      >
+        {!collapsed && (
+          <div className="flex h-10 items-center justify-between px-1">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-5 w-8 rounded" />
           </div>
-        ))}
+        )}
+        <div className="space-y-1">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              data-testid="sidebar-follow-skeleton-row"
+              className="flex h-11 w-full items-center gap-3 rounded-md border-l-2 border-l-transparent p-1.5"
+            >
+              <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+              {!collapsed && (
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5 overflow-hidden">
+                  <Skeleton className="h-3.5 w-3/4" />
+                  <Skeleton className="h-2.5 w-1/2" />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

@@ -18,9 +18,9 @@ const WAIT_OPTS = { timeout: 3000 };
 beforeEach(() => {
   const api = installElectronAPIMock();
   api.streams.getPlaybackUrl = vi.fn().mockResolvedValue({
-        success: true,
-        data: { url: "https://example.com/stream.m3u8", format: "hls" },
-      });
+    success: true,
+    data: { url: "https://example.com/stream.m3u8", format: "hls" },
+  });
 });
 
 afterEach(() => {
@@ -34,6 +34,7 @@ afterEach(() => {
 // Guards: sidebar/startup prefetch warms the same playback cache used by the player.
 // Guards: reload failure after a live stream ends clears the stale playback URL so pages can show their offline state instead of remounting the dead HLS URL.
 // Guards: changing stream identity never exposes the previous stream's playback URL during an intermediate render.
+// Guards: ordinary playback may reuse the main cache, while explicit recovery requests a fresh provider URL.
 describe("useStreamPlayback", () => {
   it("returns loading=true initially and resolves with playback data", async () => {
     vi.resetModules();
@@ -194,11 +195,22 @@ describe("useStreamPlayback", () => {
       WAIT_OPTS
     );
     expect(window.electronAPI!.streams.getPlaybackUrl).toHaveBeenCalledTimes(2);
+    expect(window.electronAPI!.streams.getPlaybackUrl).toHaveBeenNthCalledWith(1, {
+      platform: "kick",
+      channelSlug: "shared-refresh",
+      intent: "play",
+    });
+    expect(window.electronAPI!.streams.getPlaybackUrl).toHaveBeenNthCalledWith(2, {
+      platform: "kick",
+      channelSlug: "shared-refresh",
+      intent: "recover",
+    });
   });
 
   it("prefetch warms the same cache used by the player hook", async () => {
     vi.resetModules();
-    const { prefetchStreamPlayback, useStreamPlayback } = await import("@/features/playback/data/useStreamPlayback");
+    const { prefetchStreamPlayback, useStreamPlayback } =
+      await import("@/features/playback/data/useStreamPlayback");
 
     await prefetchStreamPlayback("kick", "prefetched-channel");
     expect(window.electronAPI!.streams.getPlaybackUrl).toHaveBeenCalledTimes(1);

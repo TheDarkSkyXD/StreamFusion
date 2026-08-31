@@ -120,7 +120,7 @@ describe("useFollowedStreams", () => {
       cursor: undefined,
     }));
 
-    renderHook(() => useFollowedStreams(undefined, 20, { enabled: true }), {
+    renderHook(() => useFollowedStreams(undefined, { enabled: true }), {
       wrapper: makeWrapper(),
     });
     await act(async () => Promise.resolve());
@@ -146,7 +146,7 @@ describe("useFollowedStreams", () => {
       cursor: undefined,
     }));
 
-    renderHook(() => useFollowedStreams("kick", 20, { enabled: true }), {
+    renderHook(() => useFollowedStreams("kick", { enabled: true }), {
       wrapper: makeWrapper(),
     });
     await act(async () => Promise.resolve());
@@ -172,7 +172,7 @@ describe("useFollowedStreams", () => {
       cursor: undefined,
     }));
 
-    const { result } = renderHook(() => useFollowedStreams(undefined, 20, { enabled: true }), {
+    const { result } = renderHook(() => useFollowedStreams(undefined, { enabled: true }), {
       wrapper: makeWrapper(),
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -192,7 +192,7 @@ describe("useFollowedStreams", () => {
       follows: ["twitch:channel-1"],
     } as const;
     const { result } = renderHook(
-      () => useFollowedStreams(undefined, 20, { enabled: true, snapshotIdentity: identity }),
+      () => useFollowedStreams(undefined, { enabled: true, snapshotIdentity: identity }),
       { wrapper: makeWrapper() }
     );
     await waitFor(() => expect(result.current.isError).toBe(true));
@@ -201,7 +201,7 @@ describe("useFollowedStreams", () => {
   });
 
   it("does not fetch when enabled=false", async () => {
-    const { result } = renderHook(() => useFollowedStreams(undefined, 20, { enabled: false }), {
+    const { result } = renderHook(() => useFollowedStreams(undefined, { enabled: false }), {
       wrapper: makeWrapper(),
     });
     await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
@@ -227,7 +227,7 @@ describe("useFollowedStreams", () => {
 
     const { rerender } = renderHook(
       ({ snapshotIdentity }) =>
-        useFollowedStreams(undefined, 20, { enabled: false, snapshotIdentity }),
+        useFollowedStreams(undefined, { enabled: false, snapshotIdentity }),
       { initialProps: { snapshotIdentity: firstIdentity }, wrapper: makeWrapper() }
     );
 
@@ -267,7 +267,7 @@ describe("useFollowedStreams", () => {
 
     const { result, rerender } = renderHook(
       ({ enabled, snapshotIdentity }) =>
-        useFollowedStreams(undefined, 20, { enabled, snapshotIdentity }),
+        useFollowedStreams(undefined, { enabled, snapshotIdentity }),
       { initialProps: { enabled: true, snapshotIdentity: firstIdentity }, wrapper: makeWrapper() }
     );
     await waitFor(() => expect(result.current.data).toEqual([warm]));
@@ -311,7 +311,7 @@ describe("useFollowedStreams", () => {
       });
 
     const { result, rerender } = renderHook(
-      ({ snapshotIdentity }) => useFollowedStreams(undefined, 20, { snapshotIdentity }),
+      ({ snapshotIdentity }) => useFollowedStreams(undefined, { snapshotIdentity }),
       { initialProps: { snapshotIdentity: firstIdentity }, wrapper: makeWrapper() }
     );
     await waitFor(() => expect(result.current.data).toEqual([warm]));
@@ -343,7 +343,7 @@ describe("useFollowedStreams", () => {
       cursor: undefined,
     }));
 
-    const { result } = renderHook(() => useFollowedStreams("kick", 20, { enabled: true }), {
+    const { result } = renderHook(() => useFollowedStreams("kick", { enabled: true }), {
       wrapper: makeWrapper(),
     });
 
@@ -367,7 +367,7 @@ describe("useFollowedStreams", () => {
     } as const;
 
     const { result } = renderHook(
-      () => useFollowedStreams(undefined, 20, { enabled: true, snapshotIdentity: identity }),
+      () => useFollowedStreams(undefined, { enabled: true, snapshotIdentity: identity }),
       { wrapper: makeWrapper() }
     );
 
@@ -402,7 +402,7 @@ describe("useFollowedStreams", () => {
 
     const { result, rerender } = renderHook(
       ({ snapshotIdentity }: { snapshotIdentity: typeof identity | undefined }) =>
-        useFollowedStreams(undefined, 20, { enabled: true, snapshotIdentity }),
+        useFollowedStreams(undefined, { enabled: true, snapshotIdentity }),
       { initialProps, wrapper: makeWrapper() }
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -450,7 +450,7 @@ describe("useFollowedStreams", () => {
     }));
 
     const { result } = renderHook(
-      () => useFollowedStreams(undefined, 20, { enabled: true, snapshotIdentity: identity }),
+      () => useFollowedStreams(undefined, { enabled: true, snapshotIdentity: identity }),
       { wrapper: makeWrapper() }
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));

@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type React from "react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { BsChevronDown, BsX } from "react-icons/bs";
@@ -52,7 +52,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../../componen
 import { ChatComposerFooter } from "../ChatComposerFooter";
 import { ChatInput, type ChatInputHandle } from "../ChatInput";
 import { ChatMessageList } from "../ChatMessageList";
-import { type ChatSendEligibility, resolveChatSendEligibility } from "../chat-send-eligibility";
+import {
+  resolveAccountAgeRequirement,
+  type ChatSendEligibility,
+  resolveChatSendEligibility,
+} from "../chat-send-eligibility";
 import { type ChatPanelTabId, ChatPanelTabs } from "../mod/ChatPanelTabs";
 import { type InlineModAction, InlineModStrip } from "../mod/InlineModStrip";
 import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";
@@ -297,7 +301,33 @@ export const KickChat: React.FC<KickChatProps> = ({
         : undefined,
     [channel, chatroomId, kickRoomKey]
   );
+  const kickUser = useAuthStore((state) => state.kickUser);
   const roomState = useChatRoomState("kick", kickRoomKey || null);
+  const viewerAccountCreatedQuery = useQuery({
+    queryKey: ["userProfile", "kick", "account-created", kickUser?.id, kickUser?.slug, channel],
+    queryFn: () =>
+      window.electronAPI.userProfiles.getKickAccountCreated({
+        userId: String(kickUser!.id),
+        username: kickUser!.slug,
+        channelSlug: channel,
+      }),
+    enabled:
+      isAuthenticated &&
+      Boolean(kickUser && channel) &&
+      roomState.accountAge !== null &&
+      roomState.accountAge > 0,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const viewerAccountAgeRequirement = useMemo(() => {
+    if (isMod) return "satisfied" as const;
+    const result = viewerAccountCreatedQuery.data;
+    return resolveAccountAgeRequirement({
+      accountCreatedAt: result?.state === "known" ? result.value : undefined,
+      requiredMinutes: roomState.accountAge,
+      nowMs: Date.now(),
+    });
+  }, [isMod, roomState.accountAge, viewerAccountCreatedQuery.data]);
   const updateRoomState = useRoomStateStore((s) => s.updateRoomState);
   const setKickChannelModState = useModeratedChannelsStore((s) => s.setKickChannelModState);
   const setKickAuthorityResult = useModeratedChannelsStore((s) => s.setKickAuthorityResult);
@@ -327,7 +357,6 @@ export const KickChat: React.FC<KickChatProps> = ({
     channel,
     channelId: kickRoomKey || null,
   });
-  const kickUser = useAuthStore((state) => state.kickUser);
   const signedInUserIsBroadcaster = useMemo(() => {
     if (!channel || !kickUser) return false;
     return (
@@ -1383,6 +1412,7 @@ export const KickChat: React.FC<KickChatProps> = ({
             viewerUserId={isAuthenticated && kickUser ? String(kickUser.id) : undefined}
             onAuthRequired={() => loginKick()}
             viewerCanBypassRoomModes={isMod}
+            viewerAccountAgeRequirement={viewerAccountAgeRequirement}
             checkSubscriberEligibility={(request) =>
               window.electronAPI.chat.checkSubscriberEligibility(request)
             }

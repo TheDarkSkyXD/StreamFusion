@@ -84,14 +84,14 @@ beforeEach(() => {
 // IPC contract spelled out in PRD #51 → issue #55.
 
 describe("registerSlotControllerHandlers — host → main channels", () => {
-  it("registers invoke handlers for SLOT_REQUEST_FOCUS, SLOT_SET_MULTIVIEW_CAP, SLOT_SET_BACKGROUND_QUALITY, SLOT_REBIND_EXISTING_SLOTS", () => {
+  it("registers focus, playback-budget, background-quality, and rebind handlers", () => {
     const { window } = makeFakeMainWindow();
     registerSlotControllerHandlers(window as unknown as Electron.BrowserWindow);
     const channels = vi.mocked(ipcMain.handle).mock.calls.map((c) => c[0]);
     expect(channels).toEqual(
       expect.arrayContaining([
         IPC_CHANNELS.SLOT_REQUEST_FOCUS,
-        IPC_CHANNELS.SLOT_SET_MULTIVIEW_CAP,
+        IPC_CHANNELS.SLOT_SET_PLAYBACK_BUDGET,
         IPC_CHANNELS.SLOT_SET_BACKGROUND_QUALITY,
         IPC_CHANNELS.SLOT_REBIND_EXISTING_SLOTS,
       ])
@@ -112,19 +112,19 @@ describe("registerSlotControllerHandlers — host → main channels", () => {
     expect(getSlotPresence("slot-a")).toBe("background");
   });
 
-  it("SLOT_SET_MULTIVIEW_CAP raises the cap so subsequent creates pass", async () => {
+  it("SLOT_SET_PLAYBACK_BUDGET raises the budget so subsequent creates pass", async () => {
     const { window } = makeFakeMainWindow();
     registerSlotControllerHandlers(window as unknown as Electron.BrowserWindow);
 
-    // Lower cap, fill it.
-    const handler = getInvokeHandler(IPC_CHANNELS.SLOT_SET_MULTIVIEW_CAP);
-    await handler({}, { cap: 1 });
+    // Lower the playback budget, then fill it.
+    const handler = getInvokeHandler(IPC_CHANNELS.SLOT_SET_PLAYBACK_BUDGET);
+    await handler({}, { budget: 1 });
     createSlot("slot-1");
     createSlot("slot-2");
     expect(getSlotPresence("slot-2")).toBeUndefined();
 
-    // Raise the cap.
-    await handler({}, { cap: 3 });
+    // Raise the playback budget.
+    await handler({}, { budget: 3 });
     createSlot("slot-2");
     expect(getSlotPresence("slot-2")).toBe("background");
   });
@@ -164,7 +164,9 @@ describe("registerSlotControllerHandlers — main → renderer dispatch fan-out"
     createSlot("slot-2");
     setSlotPresence("slot-2", "focused");
 
-    const presenceCalls = send.mock.calls.filter(([ch]) => ch === IPC_CHANNELS.SLOT_PRESENCE_CHANGED);
+    const presenceCalls = send.mock.calls.filter(
+      ([ch]) => ch === IPC_CHANNELS.SLOT_PRESENCE_CHANGED
+    );
     // Two pushes: slot-1 → background, slot-2 → focused.
     expect(presenceCalls).toHaveLength(2);
   });
@@ -320,10 +322,13 @@ describe("registerSlotControllerHandlers — slot-05 dispatch routing", () => {
 
     createSlot("slot-1");
     const handler = getInvokeHandler(IPC_CHANNELS.SLOT_LOAD_STREAM_REQUEST);
-    handler({}, {
-      slotId: "slot-1",
-      payload: { platform: "kick", channelName: "xqc", playbackUrl: "https://x.test/m.m3u8" },
-    });
+    handler(
+      {},
+      {
+        slotId: "slot-1",
+        payload: { platform: "kick", channelName: "xqc", playbackUrl: "https://x.test/m.m3u8" },
+      }
+    );
 
     expect(send).toHaveBeenCalledWith(
       IPC_CHANNELS.SLOT_LOAD_STREAM,

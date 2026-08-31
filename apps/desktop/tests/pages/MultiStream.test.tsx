@@ -41,7 +41,7 @@ vi.mock('@/features/multistream/components/multistream/grid-layout', () => ({
   MultiStreamGrid: () => <div data-testid="multistream-grid">grid</div>,
 }));
 
-vi.mock('@/features/chat/components/chat', () => ({
+vi.mock('@/features/chat/components/chat/ChatPanel', () => ({
   ChatPanel: (props: {
     initialPlatform: string;
     initialChannel: string;

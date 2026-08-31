@@ -1,15 +1,23 @@
 import { Link } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
-import { useTopStreams } from "@/features/discovery/data/queries/useStreams";
+import { useInfiniteTopStreams } from "@/features/discovery/data/queries/useInfiniteStreams";
 
 import { LiveNowSection } from "./components/live-now-section";
 import { FeaturedStage } from "./components/featured-stage";
 
-const HOME_STREAM_LIMIT = 13;
-
 export function HomePage() {
-  const { data: streams, isLoading, error } = useTopStreams(undefined, HOME_STREAM_LIMIT);
+  const {
+    data: streams,
+    isLoading,
+    error,
+    hasNextPage,
+    isFetchingNextPage,
+    loadMoreError,
+    unavailablePlatforms,
+    fetchNextPage,
+    refetch,
+  } = useInfiniteTopStreams();
 
   const featuredStream = streams && streams.length > 0 ? streams[0] : undefined;
   const featuredStreams = streams?.slice(0, 10);
@@ -20,7 +28,7 @@ export function HomePage() {
       <div className="p-12 flex flex-col items-center justify-center space-y-4 text-center">
         <div className="text-red-500 text-xl font-bold">Failed to load streams</div>
         <p className="text-[var(--color-foreground-secondary)]">{error.message}</p>
-        <Button onClick={() => window.location.reload()} variant="outline">
+        <Button onClick={() => void refetch()} variant="outline">
           Retry
         </Button>
       </div>
@@ -34,7 +42,16 @@ export function HomePage() {
       </section>
 
       {/* Live Channels Section */}
-      <LiveNowSection streams={otherStreams} isLoading={isLoading} />
+      <LiveNowSection
+        streams={otherStreams}
+        isLoading={isLoading}
+        hasNextPage={hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        loadMoreError={loadMoreError}
+        unavailablePlatforms={unavailablePlatforms}
+        onLoadMore={() => void fetchNextPage()}
+        onRetryUnavailable={() => void refetch()}
+      />
 
       {/* Browse Categories Link */}
       <div className="flex justify-center pt-8">

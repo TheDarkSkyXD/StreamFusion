@@ -118,22 +118,17 @@ interface DirectoryLivestream extends DirectoryNode {
 function isDirectoryLivestream(value: unknown): value is DirectoryLivestream {
   return isRecord(value);
 }
+import { normalizeKickDate, transformKickLivestream } from "../kick-transformers";
 import {
-  normalizeKickDate,
-  transformKickLivestream,
-  transformKickUserLivestream,
-} from "../kick-transformers";
-import {
+  KICK_API_V2_BASE,
   KICK_LEGACY_API_V1_BASE,
   type KickApiLivestream,
+  type KickApiPaginatedResponse,
   type KickApiResponse,
-  type KickApiUser,
-  type KickApiUserLivestream,
   type PaginatedResult,
   type PaginationOptions,
 } from "../kick-types";
 import { getChannelsBySlugs } from "./channel-endpoints";
-import { getUsersById } from "./user-endpoints";
 
 let _topStreamsCache: { data: UnifiedStream[]; timestamp: number } | null = null;
 const CACHE_TTL = 1000 * 60 * 5; // 5 minutes
@@ -942,7 +937,7 @@ export async function getStreamsByBroadcasterIds(
       params.append("user_id", id.toString());
     }
 
-    const response = await client.request<KickApiResponse<KickApiUserLivestream[]>>(
+    const response = await client.request<KickApiResponse<KickApiLivestream[]>>(
       `/users/livestreams?${params.toString()}`
     );
     const requested = new Set(ids);
@@ -955,7 +950,7 @@ export async function getStreamsByBroadcasterIds(
         });
         continue;
       }
-      streams.push(transformKickUserLivestream(apiStream));
+      streams.push(transformKickLivestream(apiStream));
     }
   }
 
@@ -1317,19 +1312,14 @@ export async function getPublicTopStreams(
 }
 
 /**
- * Get top/featured live streams
- * https://docs.kick.com/apis/livestreams - GET /public/v1/livestreams
+ * Get live streams through Kick's cursor-paginated V2 endpoint.
  */
 export async function getTopStreams(
   client: KickRequestor,
   options: PaginationOptions & { categoryId?: string; language?: string } = {}
 ): Promise<PaginatedResult<UnifiedStream>> {
-  // Offset pagination — `cursor` is the next offset as a string.
-  const offsetIn = options.cursor ? parseInt(options.cursor, 10) : 0;
-  const safeOffset = Number.isFinite(offsetIn) && offsetIn > 0 ? offsetIn : 0;
-
   if (!client.isAuthenticated()) {
-    return safeOffset > 0 ? { data: [] } : getPublicTopStreams(options);
+    return options.cursor ? { data: [] } : getPublicTopStreams(options);
   }
 
   try {
@@ -1342,133 +1332,27 @@ export async function getTopStreams(
       params.set("category_id", options.categoryId);
     }
     if (options.language) {
-      params.set("language", options.language);
+      params.set("language_code", options.language);
     }
-    if (safeOffset > 0) {
-      params.set("offset", safeOffset.toString());
+    if (options.cursor) {
+      params.set("cursor", options.cursor);
     }
-    // Default sort by viewer count (highest first)
-    params.set("sort", "viewer_count");
 
     const queryString = params.toString();
-    const endpoint = queryString ? `/livestreams?${queryString}` : "/livestreams";
-
-    const response = await client.request<KickApiResponse<KickApiLivestream[]>>(endpoint);
-    const rawStreams = response.data || [];
-
-    // Fetch avatars
-    const userIds = rawStreams.map((s) => s.broadcaster_user_id);
-
-    let userMap = new Map<number, KickApiUser>();
-    try {
-      // Only fetch if we have streams
-      if (userIds.length > 0) {
-        const users = await getUsersById(client, userIds);
-        userMap = new Map(users.map((u) => [u.user_id, u]));
-      }
-    } catch (e) {
-      logger.warn("Kick:Endpoints:Stream", "Failed to fetch user avatars for streams", {
-        error:
-          e instanceof Error ? { name: e.name, message: e.message, stack: e.stack } : String(e),
-      });
-    }
-
-    const streams = await recoverKickLiveMetadataBatch(
-      rawStreams.map((s) => {
-        const stream = transformKickLivestream(s);
-        const user = userMap.get(s.broadcaster_user_id);
-        if (user) {
-          if (user.profile_picture) {
-            stream.channelAvatar = user.profile_picture;
-          }
-          if (user.name) {
-            stream.channelDisplayName = user.name;
-          }
-          stream.channelIsVerified ||= isKickChannelVerified(user);
-        }
-        return stream;
-      })
-    );
-
-    // If we couldn't enrich with user data (unauthenticated or rate limited),
-    // the display names will still be lowercase slugs.
-    // Fetch individual channel data which has properly capitalized display names.
-    if (userMap.size === 0 && streams.length > 0) {
-      try {
-        // Get unique slugs that need enrichment
-        const uniqueSlugs = [...new Set(streams.map((s) => s.channelName))];
-
-        // Fetch channel data in small batches to avoid rate limiting (429)
-        // Reduced from 15 to 3 concurrent requests with delay between batches
-        const displayNameMap = new Map<
-          string,
-          { displayName: string; avatar: string; isVerified: boolean }
-        >();
-        const batchSize = 3; // Reduced from 15 to avoid 429 rate limits
-        const batchDelayMs = 200; // Add delay between batches
-
-        for (let i = 0; i < uniqueSlugs.length; i += batchSize) {
-          // Add delay between batches (not before first batch)
-          if (i > 0) {
-            await sleep(batchDelayMs);
-          }
-
-          const batch = uniqueSlugs.slice(i, i + batchSize);
-          const results = await Promise.all(
-            batch.map(async (slug) => {
-              const info = await getChannelDisplayInfo(slug);
-              if (info) {
-                return { slug, ...info };
-              }
-              return null;
-            })
-          );
-
-          for (const result of results) {
-            if (result?.displayName) {
-              displayNameMap.set(result.slug.toLowerCase(), {
-                displayName: result.displayName,
-                avatar: result.avatar || "",
-                isVerified: result.isVerified,
-              });
-            }
-          }
-        }
-
-        // Enrich streams with properly capitalized display names and avatars
-        for (const stream of streams) {
-          const data = displayNameMap.get(stream.channelName.toLowerCase());
-          if (data) {
-            if (data.displayName && data.displayName !== stream.channelName) {
-              stream.channelDisplayName = data.displayName;
-            }
-            if (data.avatar && !stream.channelAvatar) {
-              stream.channelAvatar = data.avatar;
-            }
-            stream.channelIsVerified ||= data.isVerified;
-          }
-        }
-      } catch {
-        // Silently ignore enrichment failures - streams will just have lowercase names
-      }
-    }
-
-    // Return next-offset cursor if the page came back full (more likely exists).
-    const requestedLimit = options.limit || 20;
-    const nextCursor =
-      streams.length >= requestedLimit ? (safeOffset + requestedLimit).toString() : undefined;
+    const endpoint = `${KICK_API_V2_BASE}/livestreams${queryString ? `?${queryString}` : ""}`;
+    const response = await client.request<KickApiPaginatedResponse<KickApiLivestream>>(endpoint);
+    const streams = (response.data || []).map(transformKickLivestream);
+    const nextCursor = response.pagination?.next_cursor || undefined;
 
     return {
       data: streams,
-      cursor: nextCursor,
+      cursor: nextCursor && nextCursor !== options.cursor ? nextCursor : undefined,
     };
   } catch (error) {
     if (isKickRateLimitError(error)) throw error;
-    // Unauthenticated or API error → use public (no-auth) API.
-    // The public fallback doesn't support offset, so we only serve the first
-    // page (offset === 0). Subsequent paginated requests return empty so the
-    // frontend stops loading further pages cleanly.
-    if (safeOffset > 0) {
+    // The anonymous fallback has no compatible cursor contract. Never replay
+    // its first page for a later V2 cursor.
+    if (options.cursor) {
       return { data: [] };
     }
     const message = error instanceof Error ? error.message : String(error);

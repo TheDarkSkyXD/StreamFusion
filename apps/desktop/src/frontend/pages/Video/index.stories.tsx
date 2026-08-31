@@ -12,8 +12,8 @@ import { type ComponentProps, useEffect, useRef, useState } from "react";
 import { expect, mocked, waitFor, within } from "storybook/test";
 
 import type { UnifiedChannel } from "@shared/platform-types";
-import { KickVodPlayer } from "@/features/playback/components/player/kick";
-import { TwitchVodPlayer } from "@/features/playback/components/player/twitch";
+import { KickVodPlayer } from "@/features/playback/components/player/kick/kick-vod-player";
+import { TwitchVodPlayer } from "@/features/playback/components/player/twitch/twitch-vod-player";
 import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
 import { useHistoryStore } from "@/store/history-store";

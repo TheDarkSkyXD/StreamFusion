@@ -63,7 +63,7 @@ function configureMultiStreamStore(state: MultiStreamStoryState): void {
       streams: multistreamFixtures.slice(0, 2),
       favoriteStreams: multistreamFavoriteFixtures.slice(0, 1),
       isChatOpen: false,
-      multiviewCap: 2,
+      playbackBudget: 2,
     });
     return;
   }
@@ -73,7 +73,7 @@ function configureMultiStreamStore(state: MultiStreamStoryState): void {
       streams: multistreamFixtures.slice(0, 1),
       favoriteStreams: multistreamFavoriteFixtures.slice(0, 1),
       isChatOpen: false,
-      multiviewCap: 4,
+      playbackBudget: 4,
     });
     return;
   }

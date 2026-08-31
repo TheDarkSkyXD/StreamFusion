@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createIpcReplyMock } from "../../../helpers/ipc-reply-mock";
+import type { SevenTvUser } from "@shared/ipc-contracts/third-party-emote-schemas";
 
 // Guards: 7TV REST prefers electronAPI.emotes.* (main-process IPC) — direct API fetch is only the fallback when the preload bridge is absent.
 // Guards: 404 path is a null sentinel from main (NOT a thrown error) — the renderer logs at info and returns [] without ever hitting ApiClient[error]
@@ -29,7 +30,7 @@ import { SevenTVEmoteProvider } from "@backend/services/emotes/7tv-emotes";
 // 7TV's GET /v3/users/{platform}/{id} returns a flat UserConnection:
 // `emote_set` sits at the top level — no `connections[]` array. Confirmed
 // against TWITCH and KICK on 2026-05-23.
-function flatUserConnection(platform: "KICK" | "TWITCH") {
+function flatUserConnection(platform: "KICK" | "TWITCH"): SevenTvUser {
   return {
     id: "676",
     platform,
@@ -106,6 +107,48 @@ describe("SevenTVEmoteProvider.fetchChannelEmotes", () => {
     expect(emotesApi.get7TVUserByConnection).toHaveBeenCalledWith("twitch", "71092938");
     expect(emotes).toHaveLength(1);
     expect(emotes[0].name).toBe("GAMBA");
+  });
+
+  it("preserves logical geometry from the lowest-density valid 7TV file", async () => {
+    const connection = flatUserConnection("TWITCH");
+    const entry = connection.emote_set?.emotes[0];
+    if (!entry?.data.host) throw new Error("fixture must include an emote host");
+    entry.data.host.files = [
+      { name: "4x.webp", width: 448, height: 112, format: "WEBP" },
+      { name: "1x.webp", width: 112, height: 28, format: "WEBP" },
+      { name: "2x.webp", width: 224, height: 56, format: "WEBP" },
+    ];
+    emotesApi.get7TVUserByConnection.mockResolvedValueOnce(connection);
+
+    const [emote] = await new SevenTVEmoteProvider().fetchChannelEmotes(
+      "71092938",
+      "xqc",
+      "twitch"
+    );
+
+    expect(emote).toMatchObject({ width: 112, height: 28 });
+  });
+
+  it("uses the active-set zero-width flag instead of the base recommendation", async () => {
+    const activeOverlay = flatUserConnection("TWITCH");
+    const recommendationOnly = flatUserConnection("TWITCH");
+    const activeEntry = activeOverlay.emote_set?.emotes[0];
+    const recommendationEntry = recommendationOnly.emote_set?.emotes[0];
+    if (!activeEntry || !recommendationEntry) throw new Error("fixture must include an emote");
+    activeEntry.flags = 1;
+    activeEntry.data.flags = 0;
+    recommendationEntry.flags = 0;
+    recommendationEntry.data.flags = 256;
+    emotesApi.get7TVUserByConnection
+      .mockResolvedValueOnce(activeOverlay)
+      .mockResolvedValueOnce(recommendationOnly);
+    const provider = new SevenTVEmoteProvider();
+
+    const [active] = await provider.fetchChannelEmotes("71092938", "xqc", "twitch");
+    const [recommended] = await provider.fetchChannelEmotes("71092938", "xqc", "twitch");
+
+    expect(active?.isZeroWidth).toBe(true);
+    expect(recommended?.isZeroWidth).toBe(false);
   });
 
   it("Kick without a resolved user_id: returns [] WITHOUT invoking electronAPI (no 404 noise)", async () => {

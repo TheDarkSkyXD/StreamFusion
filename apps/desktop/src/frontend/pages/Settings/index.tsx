@@ -33,7 +33,7 @@ import {
 } from "react-icons/lu";
 
 import streamFusionLogo from "@/assets/brand/streamfusion-logo.png";
-import { AccountConnect } from "@/features/auth/components/auth";
+import { AccountConnect } from "@/features/auth/components/auth/AccountConnect";
 import {
   getAdBlockDeviceId,
   randomizeAdBlockDeviceId,
@@ -89,8 +89,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
 import {
   type BackgroundQuality,
-  MULTIVIEW_CAP_MAX,
-  MULTIVIEW_CAP_MIN,
+  MULTIVIEW_PLAYBACK_BUDGET_MIN,
   useMultiStreamStore,
 } from "@/features/multistream/data/multistream-store";
 import { useSeekIntervalStore } from "@/store/seek-interval-store";
@@ -546,9 +545,9 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
   // Multiview (slice 03 + slice 08 background-quality row).
   {
     tab: "multiview",
-    label: "Maximum concurrent streams",
-    description: "User-configurable upper bound on simultaneous StreamSlots",
-    keywords: ["multistream", "slots", "cap", "ram", "memory", "grid", "tiles"],
+    label: "Concurrent playback budget",
+    description: "Number of simultaneous video decoders; layout membership stays unbounded",
+    keywords: ["multistream", "slots", "budget", "ram", "memory", "grid", "tiles"],
   },
   {
     tab: "multiview",
@@ -803,16 +802,15 @@ export function SettingsPage() {
     notifySettingsSaved();
   };
 
-  // Multiview state (slice 03 + slice 08). MultiviewCap is the user-
-  // configurable upper bound on simultaneous StreamSlots; BackgroundQuality
-  // controls how non-focused slots render (auto-low / match-source / off).
-  const multiviewCap = useMultiStreamStore((state) => state.multiviewCap);
-  const setMultiviewCap = useMultiStreamStore((state) => state.setMultiviewCap);
+  // Layout membership is unbounded. The playback budget controls decoder
+  // concurrency; BackgroundQuality controls non-focused slots.
+  const playbackBudget = useMultiStreamStore((state) => state.playbackBudget);
+  const setPlaybackBudget = useMultiStreamStore((state) => state.setPlaybackBudget);
   const backgroundQuality = useMultiStreamStore((state) => state.backgroundQuality);
   const setBackgroundQualityInStore = useMultiStreamStore((state) => state.setBackgroundQuality);
-  const activeStreamCount = useMultiStreamStore((state) => state.streams.length);
-  const handleMultiviewCapChange = (next: number) => {
-    setMultiviewCap(next);
+  const handlePlaybackBudgetChange = (next: number) => {
+    setPlaybackBudget(next);
+    void window.electronAPI?.slot?.setPlaybackBudget?.(next);
     notifySettingsSaved();
   };
   const handleBackgroundQualityChange = (next: BackgroundQuality) => {
@@ -1906,68 +1904,57 @@ export function SettingsPage() {
                 </div>
               )}
 
-              {/* Multiview Tab (slice 03) — exposes MultiviewCap. Background
-                  stream quality lands here in slice 08; today this tab only
-                  surfaces the cap slider. */}
+              {/* Multiview keeps layout membership separate from concurrent playback cost. */}
               {activeTab === "multiview" && (
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">Multiview</h2>
                     <p className="text-zinc-400">
-                      Set how many streams you can watch side by side, and how the app spends memory
-                      on background streams.
+                      Keep any number of channels in your layout, choose how many play at once, and
+                      control how the app spends memory on background streams.
                     </p>
                   </div>
 
-                  {isRowVisible("Maximum concurrent streams") && (
+                  {isRowVisible("Concurrent playback budget") && (
                     <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
                       <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
                         <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                          Multiview cap
+                          Playback budget
                         </h3>
                       </div>
 
                       <div className="px-6 py-2 divide-y divide-[#27272a]/60">
                         <div className="flex items-center justify-between gap-4 py-4">
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium text-zinc-200">Maximum concurrent streams</p>
+                            <p className="font-medium text-zinc-200">Concurrent playback budget</p>
                             <p className="text-sm text-zinc-500 mt-0.5 leading-relaxed">
-                              Each extra stream gets its own renderer process for crash isolation,
-                              so every step up costs real memory. Pick the lowest number you
-                              actually watch at once. Most viewers do well at 4. Bump it to 6 if you
-                              regularly run a full grid and have RAM to spare; drop to 2 on tight
-                              machines.
+                              Add as many channels as you need. This budget controls how many video
+                              decoders run at once; extra slots stay suspended until you activate
+                              them. Most viewers do well at 4.
                             </p>
-                            {activeStreamCount > multiviewCap && (
-                              <p className="text-xs text-amber-400 mt-2">
-                                You have {activeStreamCount} streams open. Lowering the cap below
-                                the current count won't close any open streams; it only blocks new
-                                ones from being added.
-                              </p>
-                            )}
                           </div>
                           <div className="flex items-center gap-3 flex-shrink-0">
                             <input
-                              type="range"
-                              min={MULTIVIEW_CAP_MIN}
-                              max={MULTIVIEW_CAP_MAX}
+                              type="number"
+                              min={MULTIVIEW_PLAYBACK_BUDGET_MIN}
                               step={1}
-                              value={multiviewCap}
+                              value={playbackBudget}
                               onChange={(e) =>
-                                handleMultiviewCapChange(Number.parseInt(e.target.value, 10))
+                                handlePlaybackBudgetChange(Number.parseInt(e.target.value, 10))
                               }
-                              className="w-40 accent-zinc-300"
-                              aria-label="Maximum concurrent streams"
+                              className="w-24 rounded-md border border-[#27272a] bg-[#1a1a1a] px-3 py-2 text-right text-zinc-200"
+                              aria-label="Concurrent playback budget"
                             />
                             <span className="w-16 text-right text-sm tabular-nums text-zinc-200">
-                              {multiviewCap} {multiviewCap === 1 ? "stream" : "streams"}
+                              {playbackBudget} {playbackBudget === 1 ? "stream" : "streams"}
                             </span>
                           </div>
                         </div>
                       </div>
 
                       <div className="px-6 py-3 border-t border-[#27272a] text-xs text-zinc-500">
-                        Range: {MULTIVIEW_CAP_MIN}–{MULTIVIEW_CAP_MAX}. Default is 4.
+                        Minimum: {MULTIVIEW_PLAYBACK_BUDGET_MIN}. Default is 4; there is no hard
+                        maximum.
                       </div>
                     </div>
                   )}

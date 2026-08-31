@@ -162,7 +162,7 @@ describe("useChannelByUsername", () => {
     );
   });
 
-  it("repairs a stale Twitch username when the canonical channel lookup resolves", async () => {
+  it("returns the canonical channel without duplicating backend follow refresh in the renderer", async () => {
     useFollowStore.setState({
       localFollows: [
         fixtures.channel({
@@ -180,44 +180,13 @@ describe("useChannelByUsername", () => {
       displayName: "New Login",
     });
     api.channels.getByUsername = vi.fn(async () => ({ success: true as const, data: canonical }));
-    api.follows.getAll = vi
-      .fn()
-      .mockResolvedValueOnce([
-        {
-          id: "twitch-row-1",
-          platform: "twitch",
-          channelId: "123",
-          channelName: "old-login",
-          displayName: "Old Login",
-          profileImage: "",
-          followedAt: "2026-01-01T00:00:00.000Z",
-          source: "twitch",
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          id: "twitch-row-1",
-          platform: "twitch",
-          channelId: "123",
-          channelName: "new-login",
-          displayName: "New Login",
-          profileImage: canonical.avatarUrl,
-          followedAt: "2026-01-01T00:00:00.000Z",
-          source: "twitch",
-        },
-      ]);
-
-    renderHook(() => useChannelByUsername("old-login", "twitch"), {
+    const { result } = renderHook(() => useChannelByUsername("old-login", "twitch"), {
       wrapper: makeWrapper(),
     });
 
-    await waitFor(() =>
-      expect(api.follows.update).toHaveBeenCalledWith("twitch-row-1", {
-        channelId: "123",
-        channelName: "new-login",
-        displayName: "New Login",
-        profileImage: canonical.avatarUrl,
-      })
-    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(canonical);
+    expect(api.follows.getAll).not.toHaveBeenCalled();
+    expect(api.follows.update).not.toHaveBeenCalled();
   });
 });

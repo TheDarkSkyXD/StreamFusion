@@ -398,9 +398,17 @@ export const KickLivePlayer = forwardRef<HTMLVideoElement, KickLivePlayerProps>(
             onQualityLevels={handleQualityLevels}
             onActiveQualityChange={setActiveQualityId}
             onError={(error) => {
-              logger.error("Player:Kick:Live", "player error", { error });
-              setHasError(true);
-              setIsLoading(false);
+              if (error.shouldRefresh === true) {
+                logger.warn("Player:Kick:Live", "playback interrupted; refreshing source", {
+                  code: error.code,
+                });
+                setHasError(false);
+                setIsLoading(true);
+              } else {
+                logger.error("Player:Kick:Live", "player error", { error });
+                setHasError(true);
+                setIsLoading(false);
+              }
               onError?.(error);
             }}
             onHlsInstance={handleHlsInstance}

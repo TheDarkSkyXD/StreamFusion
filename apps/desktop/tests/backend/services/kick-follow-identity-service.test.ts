@@ -30,9 +30,9 @@ vi.mock("@backend/logging/logger", () => ({
 import type { UnifiedChannel } from "@shared/platform-types";
 import { dbService } from "@backend/services/database-service";
 import {
-  repairKickFollowSlugs,
+  resolveKickFollowMetadata,
   resolveKickFollowPlaybackSlug,
-} from "@backend/services/kick-follow-metadata-repair";
+} from "@backend/services/kick-follow-identity-service";
 import { logger } from "@backend/logging/logger";
 import { storageService } from "@backend/services/storage-service";
 import type { LocalFollow } from "@shared/auth-types";
@@ -75,7 +75,7 @@ beforeEach(() => {
 // Guards: ID-less Kick follows hydrate by slug without replacing richer stored display-name casing with a lowercase slug fallback.
 // Guards: stale callers do not repeat persisted repairs, and real repair batches emit one count-only summary instead of per-channel success logs.
 // Guards: account follow sync owns account avatars, while guest repair accepts a genuinely new asset without oscillating renditions.
-describe("repairKickFollowSlugs verification metadata", () => {
+describe("Kick follow identity resolution and verification metadata", () => {
   it("repairs a slug-keyed follow through the broadcaster ID in its avatar URL", async () => {
     const staleFollow = makeFollow({
       id: "row-abby",
@@ -99,7 +99,7 @@ describe("repairKickFollowSlugs verification metadata", () => {
       }),
     };
 
-    const repaired = await repairKickFollowSlugs(client, [staleFollow]);
+    const repaired = await resolveKickFollowMetadata(client, [staleFollow]);
 
     expect(client.getChannelsByBroadcasterIds).toHaveBeenCalledWith([110821336]);
     expect(repaired.get(staleFollow.id)?.username).toBe("abbyapple");
@@ -126,7 +126,7 @@ describe("repairKickFollowSlugs verification metadata", () => {
       getPublicChannel: vi.fn().mockResolvedValue(null),
     };
 
-    const repaired = await repairKickFollowSlugs(client, [legacyFollow]);
+    const repaired = await resolveKickFollowMetadata(client, [legacyFollow]);
 
     expect(client.getChannelsByBroadcasterIds).not.toHaveBeenCalled();
     expect(client.getChannelsBySlugs).toHaveBeenCalledWith(["nickwhite"]);
@@ -161,7 +161,7 @@ describe("repairKickFollowSlugs verification metadata", () => {
       }),
     };
 
-    await repairKickFollowSlugs(client, [staleRequest]);
+    await resolveKickFollowMetadata(client, [staleRequest]);
 
     expect(storageService.updateLocalFollow).not.toHaveBeenCalled();
     expect(logger.info).not.toHaveBeenCalled();
@@ -185,12 +185,12 @@ describe("repairKickFollowSlugs verification metadata", () => {
       }),
     };
 
-    await repairKickFollowSlugs(client, follows);
+    await resolveKickFollowMetadata(client, follows);
 
     expect(logger.info).toHaveBeenCalledOnce();
     expect(logger.info).toHaveBeenCalledWith(
-      "IPC:KickFollowRepair",
-      "Kick follow metadata repair completed",
+      "Service:KickFollowIdentity",
+      "Kick follow metadata refresh completed",
       {
         requestedCount: 2,
         resolvedCount: 2,
@@ -224,7 +224,7 @@ describe("repairKickFollowSlugs verification metadata", () => {
       }),
     };
 
-    await repairKickFollowSlugs(client, [storedFollow]);
+    await resolveKickFollowMetadata(client, [storedFollow]);
 
     expect(storageService.updateLocalFollow).not.toHaveBeenCalled();
   });
@@ -249,7 +249,7 @@ describe("repairKickFollowSlugs verification metadata", () => {
       }),
     };
 
-    await repairKickFollowSlugs(client, [storedFollow]);
+    await resolveKickFollowMetadata(client, [storedFollow]);
 
     expect(storageService.updateLocalFollow).toHaveBeenCalledWith(storedFollow.id, {
       profileImage: currentAvatar,
@@ -298,7 +298,7 @@ describe("repairKickFollowSlugs verification metadata", () => {
       getPublicChannel,
     };
 
-    const repaired = await repairKickFollowSlugs(client, [staleFollow]);
+    const repaired = await resolveKickFollowMetadata(client, [staleFollow]);
     expect(repaired.get(staleFollow.id)?.isVerified).toBe(true);
     expect(dbService.set).toHaveBeenCalledWith(
       "kick-follow-verification-cache-v1",
@@ -318,7 +318,7 @@ describe("repairKickFollowSlugs verification metadata", () => {
     vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([currentFollow]);
     getPublicChannel.mockRejectedValue(new Error("public lookup unavailable after restart"));
 
-    const afterRestart = await repairKickFollowSlugs(client, [currentFollow]);
+    const afterRestart = await resolveKickFollowMetadata(client, [currentFollow]);
 
     expect(afterRestart.get(currentFollow.id)?.isVerified).toBe(true);
     expect(getPublicChannel).toHaveBeenCalledTimes(1);
@@ -358,12 +358,12 @@ describe("repairKickFollowSlugs verification metadata", () => {
       getPublicChannel,
     };
 
-    const firstBatch = await repairKickFollowSlugs(client, follows);
+    const firstBatch = await resolveKickFollowMetadata(client, follows);
 
     expect([...firstBatch.values()].filter((channel) => channel.isVerified)).toHaveLength(3);
     expect(getPublicChannel).toHaveBeenCalledTimes(3);
 
-    const secondBatch = await repairKickFollowSlugs(client, follows);
+    const secondBatch = await resolveKickFollowMetadata(client, follows);
 
     expect([...secondBatch.values()].filter((channel) => channel.isVerified)).toHaveLength(5);
     expect(getPublicChannel).toHaveBeenCalledTimes(5);
@@ -386,7 +386,7 @@ describe("repairKickFollowSlugs verification metadata", () => {
       getPublicChannel,
     };
 
-    const repaired = await repairKickFollowSlugs(client, follows);
+    const repaired = await resolveKickFollowMetadata(client, follows);
 
     expect(getPublicChannel).toHaveBeenCalledTimes(1);
     expect(repaired.get(firstFollow.id)?.isVerified).toBe(true);
@@ -439,9 +439,9 @@ describe("repairKickFollowSlugs verification metadata", () => {
       getPublicChannel,
     };
 
-    const firstRepair = repairKickFollowSlugs(client, firstFollows);
+    const firstRepair = resolveKickFollowMetadata(client, firstFollows);
     await vi.waitFor(() => expect(getPublicChannel).toHaveBeenCalledTimes(1));
-    const secondRepair = repairKickFollowSlugs(client, secondFollows);
+    const secondRepair = resolveKickFollowMetadata(client, secondFollows);
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     releaseFirstLookup();
     await Promise.all([firstRepair, secondRepair]);
@@ -507,9 +507,9 @@ describe("repairKickFollowSlugs verification metadata", () => {
       }),
     };
 
-    const firstRepair = repairKickFollowSlugs(client, [firstFollow]);
+    const firstRepair = resolveKickFollowMetadata(client, [firstFollow]);
     await vi.waitFor(() => expect(client.getPublicChannel).toHaveBeenCalledTimes(1));
-    const secondRepair = repairKickFollowSlugs(client, [secondFollow]);
+    const secondRepair = resolveKickFollowMetadata(client, [secondFollow]);
     const secondReachedOfficialBeforeRelease = await Promise.race([
       secondOfficialReached.then(() => true),
       new Promise<false>((resolve) => setTimeout(() => resolve(false), 0)),
@@ -556,11 +556,11 @@ describe("repairKickFollowSlugs verification metadata", () => {
         getPublicChannel,
       };
 
-      const seeded = await repairKickFollowSlugs(client, [follow]);
+      const seeded = await resolveKickFollowMetadata(client, [follow]);
       expect(seeded.get(follow.id)?.isVerified).toBe(true);
 
       vi.setSystemTime(new Date("2026-07-02T00:00:00.001Z"));
-      const revalidated = await repairKickFollowSlugs(client, [follow]);
+      const revalidated = await resolveKickFollowMetadata(client, [follow]);
 
       expect(revalidated.get(follow.id)?.isVerified).toBe(false);
       expect(getPublicChannel).toHaveBeenCalledTimes(2);
@@ -615,7 +615,7 @@ describe("repairKickFollowSlugs verification metadata", () => {
       getPublicChannel,
     };
 
-    const repaired = await repairKickFollowSlugs(client, follows);
+    const repaired = await resolveKickFollowMetadata(client, follows);
 
     expect(getPublicChannel).toHaveBeenCalledTimes(3);
     expect(repaired.get(renamedFollow.id)?.username).toBe("new-priority-slug");
@@ -636,7 +636,7 @@ describe("repairKickFollowSlugs verification metadata", () => {
       ),
     };
 
-    const repaired = await repairKickFollowSlugs(client, [staleFollow]);
+    const repaired = await resolveKickFollowMetadata(client, [staleFollow]);
 
     expect(repaired.get(staleFollow.id)).toEqual(
       expect.objectContaining({
@@ -660,7 +660,7 @@ describe("repairKickFollowSlugs verification metadata", () => {
       ),
     };
 
-    const repaired = await repairKickFollowSlugs(client, [staleFollow]);
+    const repaired = await resolveKickFollowMetadata(client, [staleFollow]);
     const stored = persistedValues.get("kick-follow-verification-cache-v1") as {
       entries: Record<string, unknown>;
     };
