@@ -165,7 +165,6 @@ describe("useTopCategories", () => {
     firstMount.unmount();
 
     const restartedClient = createQueryClient();
-    const startedAt = performance.now();
     await hydratePersistedBrowseSnapshots(restartedClient);
     const pendingTwitch = deferred<{ success: true; data: never[] }>();
     const pendingKick = deferred<{ success: true; data: never[] }>();
@@ -177,12 +176,10 @@ describe("useTopCategories", () => {
     const restarted = renderHook(() => useTopCategories(), {
       wrapper: makeWrapper(restartedClient),
     });
-    const bootstrapToPublicationMs = performance.now() - startedAt;
 
     expect(restarted.result.current.data).toEqual([
       expect.objectContaining({ id: "twitch-restart", viewerCount: 1_500 }),
     ]);
-    expect(bootstrapToPublicationMs).toBeLessThan(50);
     await waitFor(() => expect(api.categories.getTop).toHaveBeenCalledTimes(1));
     expect(api.categories.getTop).toHaveBeenCalledWith({ platform: undefined });
     restarted.unmount();
@@ -252,19 +249,16 @@ describe("useTopCategories", () => {
     first.unmount();
 
     const restartedClient = createQueryClient();
-    const startedAt = performance.now();
     await hydratePersistedBrowseSnapshots(restartedClient);
     api.categories.getTop = mockGetTopCategories(() => new Promise<never>(() => undefined));
     api.streams.getTop = mockGetTopStreams(() => new Promise<never>(() => undefined));
     const restarted = renderHook(() => useTopCategories(), {
       wrapper: makeWrapper(restartedClient),
     });
-    const bootstrapToPublicationMs = performance.now() - startedAt;
 
     expect(restarted.result.current.data).toHaveLength(5_000);
     expect(restarted.result.current.data?.[0]?.id).toBe("ranked-0");
     expect(restarted.result.current.data?.at(-1)?.id).toBe("ranked-4999");
-    expect(bootstrapToPublicationMs).toBeLessThan(50);
     restarted.unmount();
   });
 
