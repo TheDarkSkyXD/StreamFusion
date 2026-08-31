@@ -75,6 +75,32 @@ describe("preloadable route", () => {
     expect(withSuspense(Page, { forwardPreload: true })).toHaveProperty("preload", preload);
   });
 
+  it("exposes preload on every sidebar destination component", async () => {
+    const [
+      { HomePage, FollowingPage, CategoriesPage },
+      { HistoryPage, DownloadsPage },
+      settings,
+      multistream,
+    ] = await Promise.all([
+      import("@/features/discovery/routes"),
+      import("@/features/media-library/routes"),
+      import("@/features/settings/routes"),
+      import("@/features/multistream/routes"),
+    ]);
+
+    for (const page of [
+      HomePage,
+      FollowingPage,
+      CategoriesPage,
+      HistoryPage,
+      DownloadsPage,
+      settings.SettingsPage,
+      multistream.MultiStreamPage,
+    ]) {
+      expect(page).toHaveProperty("preload", expect.any(Function));
+    }
+  });
+
   it("throws the shared load promise when clicked before preload finishes", async () => {
     let finishLoad: ((module: { default: () => null }) => void) | undefined;
     const loadPromise = new Promise<{ default: () => null }>((resolve) => {

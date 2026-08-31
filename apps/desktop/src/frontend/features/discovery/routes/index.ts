@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { createPreloadableRoute } from "@/routes/preloadable-route";
 
 export { validateCategoryDetailSearch } from "./category-detail-search";
 export { SearchPage, preloadSearchPage } from "./search-page";
@@ -7,17 +7,17 @@ export function validateSearchQuery(search: Record<string, unknown>): { q: strin
   return { q: typeof search.q === "string" ? search.q : "" };
 }
 
-export const HomePage = lazy(() =>
+export const HomePage = createPreloadableRoute(() =>
   import("../../../pages/Home").then((module) => ({ default: module.HomePage }))
-);
-export const FollowingPage = lazy(() =>
+).Component;
+export const FollowingPage = createPreloadableRoute(() =>
   import("../../../pages/Following").then((module) => ({ default: module.FollowingPage }))
-);
-export const CategoriesPage = lazy(() =>
+).Component;
+export const CategoriesPage = createPreloadableRoute(() =>
   import("../../../pages/Categories").then((module) => ({ default: module.CategoriesPage }))
-);
-export const CategoryDetailPage = lazy(() =>
+).Component;
+export const CategoryDetailPage = createPreloadableRoute(() =>
   import("../../../pages/CategoryDetail").then((module) => ({
     default: module.CategoryDetailPage,
   }))
-);
+).Component;

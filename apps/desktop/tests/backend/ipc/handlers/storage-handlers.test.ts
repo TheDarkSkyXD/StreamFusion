@@ -22,15 +22,10 @@ vi.mock("@backend/services/storage-service", () => ({
   },
 }));
 
-vi.mock("@backend/services/kick-follow-metadata-refresh", () => ({
-  refreshKickFollowMetadataNow: vi.fn(),
-}));
-
 import { app, ipcMain } from "electron";
 
 import { registerStorageHandlers } from "@backend/ipc/handlers/storage-handlers";
 import { dbService } from "@backend/services/database-service";
-import { refreshKickFollowMetadataNow } from "@backend/services/kick-follow-metadata-refresh";
 import { storageService } from "@backend/services/storage-service";
 
 type AddArgs = { follow: Omit<LocalFollow, "id" | "followedAt"> };
@@ -78,7 +73,9 @@ describe("storage-handlers FOLLOWS_ADD — per-platform source routing", () => {
     registerStorageHandlers();
 
     const follow = makeFollow("twitch");
-    expect(() => getHandler(IPC_CHANNELS.FOLLOWS_ADD)({}, { follow })).toThrow("IPC request failed");
+    expect(() => getHandler(IPC_CHANNELS.FOLLOWS_ADD)({}, { follow })).toThrow(
+      "IPC request failed"
+    );
 
     expect(storageService.hasToken).toHaveBeenCalledWith("twitch");
     expect(storageService.addLocalFollow).not.toHaveBeenCalled();
@@ -89,7 +86,9 @@ describe("storage-handlers FOLLOWS_ADD — per-platform source routing", () => {
     registerStorageHandlers();
 
     const follow = makeFollow("kick");
-    expect(() => getHandler(IPC_CHANNELS.FOLLOWS_ADD)({}, { follow })).toThrow("IPC request failed");
+    expect(() => getHandler(IPC_CHANNELS.FOLLOWS_ADD)({}, { follow })).toThrow(
+      "IPC request failed"
+    );
 
     expect(storageService.addLocalFollow).not.toHaveBeenCalled();
   });
@@ -141,25 +140,20 @@ describe("storage-handlers FOLLOWS_ADD — per-platform source routing", () => {
   });
 });
 
-// Guards: renderer hydration routes Kick metadata repair through the throttled coordinator before re-reading SQLite.
-describe("storage-handlers FOLLOWS_GET_ALL — Kick metadata refresh", () => {
-  it("returns re-read Kick follows after the coordinated metadata refresh", async () => {
-    const staleKickFollow = {
+// Guards: renderer hydration is a local database read and never waits for platform I/O.
+// Kick metadata maintenance belongs to the background synchronization boundary.
+describe("storage-handlers follow reads", () => {
+  it("returns the persisted Twitch and Kick follows synchronously", () => {
+    const kickFollow = {
       id: "kick-row-1",
       platform: "kick",
       channelId: "123",
-      channelName: "old-slug",
-      displayName: "Old Slug",
+      channelName: "kick-channel",
+      displayName: "Kick Channel",
       profileImage: "",
       followedAt: "2026-01-01T00:00:00.000Z",
       source: "guest",
     } as LocalFollow;
-    const repairedKickFollow = {
-      ...staleKickFollow,
-      channelName: "new-slug",
-      displayName: "New Slug",
-      profileImage: "https://example.com/new.jpg",
-    };
     const twitchFollow = {
       id: "twitch-row-1",
       platform: "twitch",
@@ -173,63 +167,38 @@ describe("storage-handlers FOLLOWS_GET_ALL — Kick metadata refresh", () => {
 
     vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) => {
       if (platform === "twitch") return [twitchFollow];
-      const callCount = vi
-        .mocked(storageService.getActiveFollowsByPlatform)
-        .mock.calls.filter(([calledPlatform]) => calledPlatform === "kick").length;
-      return callCount <= 1 ? [staleKickFollow] : [repairedKickFollow];
+      return [kickFollow];
     });
-    vi.mocked(refreshKickFollowMetadataNow).mockResolvedValue();
     registerStorageHandlers();
 
-    const result = (await getHandler(IPC_CHANNELS.FOLLOWS_GET_ALL)({})) as LocalFollow[];
+    const result = getHandler(IPC_CHANNELS.FOLLOWS_GET_ALL)({});
 
-    expect(refreshKickFollowMetadataNow).toHaveBeenCalledWith("follow-read");
-    expect(result.map((follow) => follow.channelName)).toEqual(["twitchy", "new-slug"]);
+    expect(result).not.toBeInstanceOf(Promise);
+    expect((result as LocalFollow[]).map((follow) => follow.channelName)).toEqual([
+      "twitchy",
+      "kick-channel",
+    ]);
+    expect(storageService.getActiveFollowsByPlatform).toHaveBeenCalledTimes(2);
   });
 
-  it("repairs a slug-id active Kick row by borrowing the stable id from a hidden sibling row", async () => {
-    const activeSlugOnlyFollow = {
-      id: "kick-account-old-slug",
+  it("returns one platform from the same local read boundary", () => {
+    const kickFollow = {
+      id: "kick-account-channel",
       platform: "kick",
-      channelId: "old-slug",
-      channelName: "old-slug",
-      displayName: "Old Slug",
+      channelId: "123",
+      channelName: "kick-channel",
+      displayName: "Kick Channel",
       profileImage: "",
       followedAt: "2026-01-01T00:00:00.000Z",
       source: "kick",
     } as LocalFollow;
-    const hiddenGuestFollowWithStableId = {
-      ...activeSlugOnlyFollow,
-      id: "kick-guest-stable-id",
-      channelId: "123",
-      source: "guest",
-    } as LocalFollow;
-    const repairedKickFollow = {
-      ...activeSlugOnlyFollow,
-      channelId: "123",
-      channelName: "new-slug",
-      displayName: "New Slug",
-    };
-
-    vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) => {
-      if (platform === "twitch") return [];
-      const callCount = vi
-        .mocked(storageService.getActiveFollowsByPlatform)
-        .mock.calls.filter(([calledPlatform]) => calledPlatform === "kick").length;
-      return callCount <= 1 ? [activeSlugOnlyFollow] : [repairedKickFollow];
-    });
-    vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([
-      activeSlugOnlyFollow,
-      hiddenGuestFollowWithStableId,
-    ]);
-    vi.mocked(refreshKickFollowMetadataNow).mockResolvedValue();
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([kickFollow]);
     registerStorageHandlers();
 
-    const result = (await getHandler(IPC_CHANNELS.FOLLOWS_GET_ALL)({})) as LocalFollow[];
+    const result = getHandler(IPC_CHANNELS.FOLLOWS_GET_BY_PLATFORM)({}, { platform: "kick" });
 
-    expect(refreshKickFollowMetadataNow).toHaveBeenCalledWith("follow-read");
-    expect(
-      result.map((follow) => `${follow.source}:${follow.channelId}:${follow.channelName}`)
-    ).toEqual(["kick:123:new-slug"]);
+    expect(result).not.toBeInstanceOf(Promise);
+    expect(result).toEqual([kickFollow]);
+    expect(storageService.getActiveFollowsByPlatform).toHaveBeenCalledOnce();
   });
 });

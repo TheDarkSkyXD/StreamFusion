@@ -133,36 +133,25 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
   // Fetch data
   const twitchFollowsQuery = useFollowedChannels("twitch", { enabled: twitchConnected });
   const kickFollowsQuery = useFollowedChannels("kick", { enabled: kickConnected });
-  const twitchStreamsQuery = useFollowedStreams("twitch", {
-    enabled: twitchConnected || hasLocalTwitchFollows,
-  });
-  const kickStreamsQuery = useFollowedStreams("kick", {
-    enabled: kickConnected || hasLocalKickFollows,
+  const followedStreamsQuery = useFollowedStreams(undefined, {
+    enabled: twitchConnected || kickConnected || hasLocalTwitchFollows || hasLocalKickFollows,
   });
   const { data: twitchFollows } = twitchFollowsQuery;
   const { data: kickFollows } = kickFollowsQuery;
-  const { data: twitchLiveStreams } = twitchStreamsQuery;
-  const { data: kickLiveStreams } = kickStreamsQuery;
+  const { data: followedLiveStreams } = followedStreamsQuery;
   const liveStreams = useMemo(() => {
-    const streams = dedupeStreamsByChannelIdentity([
-      ...(twitchLiveStreams ?? []),
-      ...(kickLiveStreams ?? []),
-    ]);
+    const streams = dedupeStreamsByChannelIdentity(followedLiveStreams ?? []);
     streams.sort((a, b) => b.viewerCount - a.viewerCount);
     return streams;
-  }, [twitchLiveStreams, kickLiveStreams]);
+  }, [followedLiveStreams]);
   const isLoading =
     !followsHydrated ||
     twitchFollowsQuery.isLoading ||
     kickFollowsQuery.isLoading ||
-    twitchStreamsQuery.isLoading ||
-    kickStreamsQuery.isLoading;
-  const failedQueries = [
-    twitchFollowsQuery,
-    kickFollowsQuery,
-    twitchStreamsQuery,
-    kickStreamsQuery,
-  ].filter((query) => query.isError);
+    followedStreamsQuery.isLoading;
+  const failedQueries = [twitchFollowsQuery, kickFollowsQuery, followedStreamsQuery].filter(
+    (query) => query.isError
+  );
   const hasLoadError = failedQueries.length > 0;
   const retryFailedQueries = (): void => {
     void Promise.all(failedQueries.map((query) => query.refetch()));
@@ -579,7 +568,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
                     alt={channel.displayName}
                     platform={channel.platform}
                     size="w-8 h-8"
-                    className="grayscale group-hover:grayscale-0 transition-all"
+                    className="grayscale transition-[filter] group-hover:grayscale-0"
                   />
 
                   {!collapsed && (

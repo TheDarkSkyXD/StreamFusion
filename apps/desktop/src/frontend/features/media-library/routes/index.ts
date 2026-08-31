@@ -1,8 +1,8 @@
-import { lazy } from "react";
+import { createPreloadableRoute } from "@/routes/preloadable-route";
 
-export const HistoryPage = lazy(() =>
+export const HistoryPage = createPreloadableRoute(() =>
   import("../../../pages/History").then((module) => ({ default: module.HistoryPage }))
-);
-export const DownloadsPage = lazy(() =>
+).Component;
+export const DownloadsPage = createPreloadableRoute(() =>
   import("../../../pages/Downloads").then((module) => ({ default: module.DownloadsPage }))
-);
+).Component;

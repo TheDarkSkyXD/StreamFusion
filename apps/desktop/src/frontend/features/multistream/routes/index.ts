@@ -1,5 +1,5 @@
-import { lazy } from "react";
+import { createPreloadableRoute } from "@/routes/preloadable-route";
 
-export const MultiStreamPage = lazy(() =>
+export const MultiStreamPage = createPreloadableRoute(() =>
   import("../../../pages/MultiStream").then((module) => ({ default: module.MultiStreamPage }))
-);
+).Component;

@@ -110,6 +110,26 @@ describe("AppLayout", () => {
     expect(screen.getAllByText(/categories/i).length).toBeGreaterThan(0);
   });
 
+  it("preloads sidebar destinations from navigation intent", () => {
+    renderWithProviders(
+      <AppLayout>
+        <div>x</div>
+      </AppLayout>
+    );
+
+    for (const name of [
+      "Home",
+      "Following",
+      "Categories",
+      "MultiView",
+      "History",
+      "Downloads",
+      "Settings",
+    ]) {
+      expect(screen.getByRole("link", { name })).toHaveAttribute("preload", "intent");
+    }
+  });
+
   it("shows the offline banner instead of the platform banner while the app is offline", () => {
     mockNetworkStatus.mockReturnValue({
       isOnline: false,

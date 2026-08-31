@@ -1,15 +1,15 @@
-import { lazy } from "react";
+import { createPreloadableRoute } from "@/routes/preloadable-route";
 
-export const ModPage = lazy(() =>
+export const ModPage = createPreloadableRoute(() =>
   import("../../../pages/Mod").then((module) => ({ default: module.ModPage }))
-);
-export const ModChannelTwitchPage = lazy(() =>
+).Component;
+export const ModChannelTwitchPage = createPreloadableRoute(() =>
   import("../../../pages/Mod/channel/ModChannelTwitchPage").then((module) => ({
     default: module.ModChannelTwitchPage,
   }))
-);
-export const ModChannelKickPage = lazy(() =>
+).Component;
+export const ModChannelKickPage = createPreloadableRoute(() =>
   import("../../../pages/Mod/channel/ModChannelKickPage").then((module) => ({
     default: module.ModChannelKickPage,
   }))
-);
+).Component;

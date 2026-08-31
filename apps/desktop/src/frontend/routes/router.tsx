@@ -81,21 +81,21 @@ const appLayoutRoute = createRoute({
 const homeRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/",
-  component: withSuspense(HomePage),
+  component: withSuspense(HomePage, { forwardPreload: true }),
 });
 
 // Following page
 const followingRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/following",
-  component: withSuspense(FollowingPage),
+  component: withSuspense(FollowingPage, { forwardPreload: true }),
 });
 
 // Categories page
 const categoriesRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/categories",
-  component: withSuspense(CategoriesPage),
+  component: withSuspense(CategoriesPage, { forwardPreload: true }),
 });
 
 // Category detail page.
@@ -106,7 +106,7 @@ const categoryDetailRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/categories/$platform/$categoryId",
   validateSearch: validateCategoryDetailSearch,
-  component: withSuspense(CategoryDetailPage),
+  component: withSuspense(CategoryDetailPage, { forwardPreload: true }),
 });
 
 // Search page
@@ -114,7 +114,7 @@ const searchRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/search",
   validateSearch: validateSearchQuery,
-  component: withSuspense(SearchPage),
+  component: withSuspense(SearchPage, { forwardPreload: true }),
 });
 
 // Stream viewing page
@@ -130,7 +130,7 @@ const videoRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/video/$platform/$videoId",
   validateSearch: validateVideoSearch,
-  component: withSuspense(VideoPage),
+  component: withSuspense(VideoPage, { forwardPreload: true }),
 });
 
 // Settings page
@@ -138,28 +138,28 @@ const settingsRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/settings",
   validateSearch: validateSettingsSearch,
-  component: withSuspense(SettingsPage),
+  component: withSuspense(SettingsPage, { forwardPreload: true }),
 });
 
 // MultiStream page
 const multiStreamRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/multistream",
-  component: withSuspense(MultiStreamPage),
+  component: withSuspense(MultiStreamPage, { forwardPreload: true }),
 });
 
 // History page
 const historyRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/history",
-  component: withSuspense(HistoryPage),
+  component: withSuspense(HistoryPage, { forwardPreload: true }),
 });
 
 // Downloads page
 const downloadsRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/downloads",
-  component: withSuspense(DownloadsPage),
+  component: withSuspense(DownloadsPage, { forwardPreload: true }),
 });
 
 // Moderation page — top-level /mod surface. Nav-link gating happens in the
@@ -168,7 +168,7 @@ const downloadsRoute = createRoute({
 const modRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/mod",
-  component: withSuspense(ModPage),
+  component: withSuspense(ModPage, { forwardPreload: true }),
 });
 
 // Per-channel mod admin pages — one per platform. The URL param is the
@@ -177,13 +177,13 @@ const modRoute = createRoute({
 const modChannelTwitchRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/mod/twitch/$channel",
-  component: withSuspense(ModChannelTwitchPage),
+  component: withSuspense(ModChannelTwitchPage, { forwardPreload: true }),
 });
 
 const modChannelKickRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: "/mod/kick/$channel",
-  component: withSuspense(ModChannelKickPage),
+  component: withSuspense(ModChannelKickPage, { forwardPreload: true }),
 });
 
 // Build the route tree

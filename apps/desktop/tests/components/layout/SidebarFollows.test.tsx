@@ -36,7 +36,15 @@ const routerState = vi.hoisted(() => ({
 // Guards: live/offline state comes from followed-stream API results, not stale localStorage status cache
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, params, search, children, className, onClick, ...rest }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+  Link: ({
+    to,
+    params,
+    search,
+    children,
+    className,
+    onClick,
+    ...rest
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
     to?: string;
     params?: Record<string, unknown>;
     search?: Record<string, unknown>;
@@ -500,7 +508,7 @@ describe("SidebarFollows", () => {
     expect(screen.getAllByText("KickCached").length).toBeGreaterThan(0);
   });
 
-  it("platform split: queries Twitch and Kick followed streams independently", () => {
+  it("shares one combined live-stream query with the Following page", () => {
     storeState.twitchConnected = true;
     storeState.kickConnected = true;
     useFollowedChannelsMock.mockReturnValue({
@@ -514,12 +522,8 @@ describe("SidebarFollows", () => {
 
     renderWithProviders(<SidebarFollows collapsed={false} />);
 
-    expect(useFollowedStreamsMock).toHaveBeenCalledWith("twitch", { enabled: true });
-    expect(useFollowedStreamsMock).toHaveBeenCalledWith("kick", { enabled: true });
-    expect(useFollowedStreamsMock).not.toHaveBeenCalledWith(
-      undefined,
-      expect.anything()
-    );
+    expect(useFollowedStreamsMock).toHaveBeenCalledOnce();
+    expect(useFollowedStreamsMock).toHaveBeenCalledWith(undefined, { enabled: true });
   });
 
   it("error: shows retryable failure copy instead of the empty-follow invitation", () => {
@@ -714,13 +718,10 @@ describe("SidebarFollows", () => {
           isLoading: false,
         }) as unknown as ReturnType<typeof useFollowedChannels>
     );
-    useFollowedStreamsMock.mockImplementation(
-      (platform) =>
-        ({
-          data: platform === "twitch" ? twitchStreams : [],
-          isLoading: false,
-        }) as unknown as ReturnType<typeof useFollowedStreams>
-    );
+    useFollowedStreamsMock.mockReturnValue({
+      data: twitchStreams,
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
 
     renderWithProviders(<SidebarFollows collapsed={false} />);
 
@@ -905,19 +906,17 @@ describe("SidebarFollows", () => {
       }),
     ];
     useFollowedStreamsMock.mockImplementation(
-      (platform) =>
+      () =>
         ({
-          data:
-            platform === "kick"
-              ? kickStreams
-              : [
-                  fixtures.stream({
-                    id: "twitch-live",
-                    channelId: "twitch-live-channel",
-                    channelName: "twitchlive",
-                    channelDisplayName: "TwitchLive",
-                  }),
-                ],
+          data: [
+            ...kickStreams,
+            fixtures.stream({
+              id: "twitch-live",
+              channelId: "twitch-live-channel",
+              channelName: "twitchlive",
+              channelDisplayName: "TwitchLive",
+            }),
+          ],
           isLoading: false,
         }) as unknown as ReturnType<typeof useFollowedStreams>
     );
@@ -965,33 +964,27 @@ describe("SidebarFollows", () => {
       data: [],
       isLoading: false,
     } as unknown as ReturnType<typeof useFollowedChannels>);
-    useFollowedStreamsMock.mockImplementation(
-      (platform) =>
-        ({
-          data:
-            platform === "kick"
-              ? [
-                  fixtures.stream({
-                    id: "remote-live-id",
-                    platform: "kick",
-                    channelId: "kick-user-id",
-                    channelName: "xqc",
-                    channelDisplayName: "xQc",
-                    viewerCount: 6300,
-                  }),
-                  fixtures.stream({
-                    id: "public-live-id",
-                    platform: "kick",
-                    channelId: "kick-channel-id",
-                    channelName: "XQC",
-                    channelDisplayName: "xQc",
-                    viewerCount: 6300,
-                  }),
-                ]
-              : [],
-          isLoading: false,
-        }) as unknown as ReturnType<typeof useFollowedStreams>
-    );
+    useFollowedStreamsMock.mockReturnValue({
+      data: [
+        fixtures.stream({
+          id: "remote-live-id",
+          platform: "kick",
+          channelId: "kick-user-id",
+          channelName: "xqc",
+          channelDisplayName: "xQc",
+          viewerCount: 6300,
+        }),
+        fixtures.stream({
+          id: "public-live-id",
+          platform: "kick",
+          channelId: "kick-channel-id",
+          channelName: "XQC",
+          channelDisplayName: "xQc",
+          viewerCount: 6300,
+        }),
+      ],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
 
     renderWithProviders(<SidebarFollows collapsed={false} />);
 

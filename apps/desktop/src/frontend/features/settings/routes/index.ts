@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { createPreloadableRoute } from "@/routes/preloadable-route";
 
 export function validateSettingsSearch(search: Record<string, unknown>): {
   tab?: string;
@@ -10,6 +10,6 @@ export function validateSettingsSearch(search: Record<string, unknown>): {
   };
 }
 
-export const SettingsPage = lazy(() =>
+export const SettingsPage = createPreloadableRoute(() =>
   import("../../../pages/Settings").then((module) => ({ default: module.SettingsPage }))
-);
+).Component;

@@ -11,7 +11,6 @@ import type {
 } from "../../../shared/auth-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { KickFollowWriteService } from "../../services/kick-follow-write-service";
-import { refreshKickFollowMetadataNow } from "../../services/kick-follow-metadata-refresh";
 import { storageService } from "../../services/storage-service";
 import { isAllowedSender } from "../sender-origin";
 import type { MainRendererPort } from "../main-renderer-port";
@@ -32,24 +31,20 @@ const INVALID_ACCOUNT_FOLLOW_WRITE: KickAccountFollowWriteResult = {
 function createAccountFollowWriteRequestSchema<TPlatform extends "kick" | "twitch">(
   platform: TPlatform
 ) {
-  return z
-    .object({
-      action: z.enum(["follow", "unfollow"]),
-      follow: z
-        .object({
-          platform: z.literal(platform),
-          channelId: z.string().trim().min(1),
-          channelName: z.string().trim().min(1),
-          displayName: z.string(),
-          profileImage: z.string(),
-          lastSeen: z.string().optional(),
-          isLive: z.boolean().optional(),
-          notifications: z.boolean().optional(),
-          source: z.enum(["guest", "twitch", "kick"]).optional(),
-        })
-        .strict(),
-    })
-    .strict();
+  return z.strictObject({
+    action: z.enum(["follow", "unfollow"]),
+    follow: z.strictObject({
+      platform: z.literal(platform),
+      channelId: z.string().trim().min(1),
+      channelName: z.string().trim().min(1),
+      displayName: z.string(),
+      profileImage: z.string(),
+      lastSeen: z.string().optional(),
+      isLive: z.boolean().optional(),
+      notifications: z.boolean().optional(),
+      source: z.enum(["guest", "twitch", "kick"]).optional(),
+    }),
+  });
 }
 
 const accountFollowWriteRequestSchema = z.union([
@@ -111,24 +106,17 @@ export function registerStorageHandlers(renderer?: MainRendererPort): void {
   // This wrapper is now equivalent to `getActiveFollowsByPlatform` — the
   // function already returns guest follows when no token is present — but
   // it's kept as the seam for future "degraded mode" handling.
-  const activeFollows = async (platform: Platform) => {
-    const follows = storageService.getActiveFollowsByPlatform(platform);
-    if (platform !== "kick" || follows.length === 0) {
-      return follows;
-    }
+  // Hydration is intentionally a local-only read. Platform metadata is
+  // maintained by background synchronization and must never block the shell.
+  const activeFollows = (platform: Platform) => storageService.getActiveFollowsByPlatform(platform);
 
-    await refreshKickFollowMetadataNow("follow-read");
-
-    return storageService.getActiveFollowsByPlatform("kick");
-  };
-
-  ipcMain.handle(IPC_CHANNELS.FOLLOWS_GET_ALL, async () => {
-    return [...(await activeFollows("twitch")), ...(await activeFollows("kick"))];
+  ipcMain.handle(IPC_CHANNELS.FOLLOWS_GET_ALL, () => {
+    return [...activeFollows("twitch"), ...activeFollows("kick")];
   });
 
   ipcMain.handle(
     IPC_CHANNELS.FOLLOWS_GET_BY_PLATFORM,
-    async (_event, { platform }: { platform: Platform }) => {
+    (_event, { platform }: { platform: Platform }) => {
       return activeFollows(platform);
     }
   );
