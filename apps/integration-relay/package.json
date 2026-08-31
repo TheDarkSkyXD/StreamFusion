@@ -1,0 +1,44 @@
+{
+  "name": "@streamfusion/integration-relay",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.19.0",
+  "engines": {
+    "node": ">=22.14.0",
+    "npm": ">=11.8.0 <12"
+  },
+  "scripts": {
+    "preinstall": "node ../../scripts/require-npm.mjs",
+    "dev": "wrangler dev --env development",
+    "start": "wrangler dev --env development",
+    "build": "npm run typecheck && npm run deploy:dry-run",
+    "deploy:development": "wrangler deploy --env development",
+    "deploy:production": "wrangler deploy --env production",
+    "deploy:dry-run": "node scripts/relay-dry-run.mjs",
+    "lint": "eslint src/ tests/ scripts/ eslint.config.mjs vitest.config.mts --max-warnings=0 && prettier --check . --ignore-path ../../.gitignore --trailing-comma none",
+    "test": "vitest run && npm run test:architecture && npm run test:environment-isolation && npm run test:secret-scan",
+    "test:architecture": "node scripts/verify-architecture.mjs",
+    "test:environment-isolation": "node scripts/verify-environments.mjs",
+    "test:secret-scan": "node scripts/verify-secret-boundary.mjs",
+    "pretypecheck": "npm run --workspace @streamfusion/core build",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@streamfusion/core": "0.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260728.1",
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-import-resolver-alias": "1.1.2",
+    "eslint-plugin-boundaries": "7.2.0",
+    "globals": "^17.8.0",
+    "prettier": "^3.9.6",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.115.0"
+  }
+}

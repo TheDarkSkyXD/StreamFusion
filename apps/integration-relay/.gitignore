@@ -1,0 +1,4 @@
+.wrangler/
+coverage/
+dist/
+src/**/architecture-proof-*.ts

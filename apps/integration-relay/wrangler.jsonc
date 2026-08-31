@@ -1,0 +1,26 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "streamfusion-integration-relay-development",
+  "main": "src/composition/worker.ts",
+  "compatibility_date": "2026-08-27",
+  "vars": {
+    "RELAY_ENVIRONMENT": "development"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "env": {
+    "development": {
+      "name": "streamfusion-integration-relay-development",
+      "vars": {
+        "RELAY_ENVIRONMENT": "development"
+      }
+    },
+    "production": {
+      "name": "streamfusion-integration-relay-production",
+      "vars": {
+        "RELAY_ENVIRONMENT": "production"
+      }
+    }
+  }
+}
