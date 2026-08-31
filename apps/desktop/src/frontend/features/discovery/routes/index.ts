@@ -1,6 +1,9 @@
 import { lazy } from "react";
 
+import { preloadSearchPage } from "./search-page";
+
 export { validateCategoryDetailSearch } from "./category-detail-search";
+export { SearchPage, preloadSearchPage } from "./search-page";
 
 export function validateSearchQuery(search: Record<string, unknown>): { q: string } {
   return { q: typeof search.q === "string" ? search.q : "" };
@@ -20,14 +23,10 @@ export const CategoryDetailPage = lazy(() =>
     default: module.CategoryDetailPage,
   }))
 );
-export const SearchPage = lazy(() =>
-  import("../../../pages/SearchResults").then((module) => ({ default: module.SearchPage }))
-);
-
 export const discoveryPageChunkLoaders = [
   () => import("../../../pages/Home"),
   () => import("../../../pages/Following"),
   () => import("../../../pages/Categories"),
   () => import("../../../pages/CategoryDetail"),
-  () => import("../../../pages/SearchResults"),
+  preloadSearchPage,
 ];

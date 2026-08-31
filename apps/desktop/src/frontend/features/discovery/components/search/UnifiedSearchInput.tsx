@@ -20,6 +20,7 @@ import {
   isExactChannelSearchMatch,
   rankSearchChannels,
 } from "@/features/discovery/utils/search/channel-search-contract";
+import { preloadSearchPage } from "@/features/discovery/routes/search-page";
 import type { Platform } from "@shared/auth-types";
 
 interface UnifiedSearchInputProps {
@@ -670,7 +671,7 @@ export function UnifiedSearchInput({
           onKeyDown={handleKeyDown}
           onFocus={() => {
             setIsFocused(true);
-            void import("@/pages/SearchResults");
+            void preloadSearchPage();
           }}
           // Prevent default autocomplete
           autoComplete="off"

@@ -34,6 +34,14 @@ const historyMockState = vi.hoisted(() => ({
   clearHistory: vi.fn(),
 }));
 
+const routeMockState = vi.hoisted(() => ({
+  preloadSearchPage: vi.fn(() => Promise.resolve()),
+}));
+
+const searchPageModuleMockState = vi.hoisted(() => ({
+  loaded: vi.fn(),
+}));
+
 vi.mock("@/features/discovery/data/queries/useSearch", () => ({
   useSearchChannels: (...args: unknown[]) => {
     searchMockState.useSearchChannels(...args);
@@ -86,6 +94,15 @@ vi.mock("@/features/discovery/data/queries/useCategories", () => ({
 vi.mock("@/components/ui/proxied-image", () => ({
   ProxiedImage: ({ alt }: { alt: string }) => <div>{alt}</div>,
 }));
+
+vi.mock("@/features/discovery/routes/search-page", () => ({
+  preloadSearchPage: routeMockState.preloadSearchPage,
+}));
+
+vi.mock("@/pages/SearchResults", () => {
+  searchPageModuleMockState.loaded();
+  return { SearchPage: () => null };
+});
 
 import { UnifiedSearchInput } from "@/features/discovery/components/search/UnifiedSearchInput";
 
@@ -152,10 +169,13 @@ function resetHistoryMock() {
 // Guards: inactive autocomplete tabs do not start provider work that cannot yet render.
 // Guards: one-letter cross-platform autocomplete retrieves enough exact/prefix candidates to render at least five Channels rows, excluding Best Match.
 // Guards: one-letter autocomplete does not relax substring/fuzzy relevance when the expanded provider page has fewer than five strong Channels candidates.
+// Guards: search focus delegates page loading to the route preload owner.
 describe("UnifiedSearchInput", () => {
   beforeEach(() => {
     resetSearchMock();
     resetHistoryMock();
+    routeMockState.preloadSearchPage.mockClear();
+    searchPageModuleMockState.loaded.mockClear();
   });
 
   it("renders an input with the placeholder", () => {
@@ -163,6 +183,16 @@ describe("UnifiedSearchInput", () => {
     const input = screen.getByPlaceholderText("Search the world");
     expect(input).toBeInTheDocument();
     expect(input).toHaveClass("bg-neutral-800", "border-neutral-700", "text-white");
+  });
+
+  it("preloads Search Results through the route lifecycle on focus", async () => {
+    renderWithProviders(<UnifiedSearchInput />);
+
+    fireEvent.focus(screen.getByRole("textbox"));
+    await vi.dynamicImportSettled();
+
+    expect(routeMockState.preloadSearchPage).toHaveBeenCalledTimes(1);
+    expect(searchPageModuleMockState.loaded).not.toHaveBeenCalled();
   });
 
   it("honors initialValue", () => {
