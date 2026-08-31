@@ -25,7 +25,8 @@ const errors = results.flatMap((result) =>
   result.messages
     .filter(
       (message) =>
-        message.ruleId === "no-restricted-imports" && message.severity === 2,
+        message.ruleId === "streamfusion/core-import-boundary" &&
+        message.severity === 2,
     )
     .map(
       (message) =>
@@ -88,6 +89,19 @@ const cases = [
     allowed: false,
   },
   {
+    name: "forbidden Desktop dynamic relative deep import",
+    filePath: "apps/desktop/src/architecture-proof.ts",
+    source:
+      'await import("../../../../packages/core/src/platform/index.ts");\n',
+    allowed: false,
+  },
+  {
+    name: "forbidden Worker CommonJS relative deep import",
+    filePath: "apps/worker/src/architecture-proof.ts",
+    source: 'require("../../../packages/core/src/reliability/index.ts");\n',
+    allowed: false,
+  },
+  {
     name: "forbidden Mobile test relative deep import",
     filePath: "apps/mobile/tests/architecture-proof.test.ts",
     source: 'import "../../../packages/core/src/testing/index.ts";\n',
@@ -115,7 +129,8 @@ for (const proofCase of cases) {
   assert.ok(result, `${proofCase.name}: ESLint returned no result`);
   const policyErrors = result.messages.filter(
     (message) =>
-      message.ruleId === "no-restricted-imports" && message.severity === 2,
+      message.ruleId === "streamfusion/core-import-boundary" &&
+      message.severity === 2,
   );
   if (proofCase.allowed) {
     assert.equal(
@@ -126,7 +141,7 @@ for (const proofCase of cases) {
   } else {
     assert.ok(
       policyErrors.length > 0,
-      `${proofCase.name}: no-restricted-imports did not reject the import`,
+      `${proofCase.name}: the core import boundary did not reject the import`,
     );
   }
 }
