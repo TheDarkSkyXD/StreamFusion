@@ -12,6 +12,7 @@ import { logger } from "@/renderer/logging/logger";
 import { router } from "@/routes/router";
 import type { UnifiedPrediction } from "@shared/chat-types";
 import {
+  type KickChatModeUpdate,
   type KickModResult,
   setKickChatMode,
 } from "../../../../../../backend/api/platforms/kick/kick-mod-mutations";
@@ -52,6 +53,10 @@ import { useRenderCount } from "../../../../../components/dev/use-render-count";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../../components/ui/tooltip";
 import { ChatComposerFooter } from "../ChatComposerFooter";
 import { ChatInput, type ChatInputHandle } from "../ChatInput";
+import type {
+  ChatCommandAccess,
+  ChatCommandDefinition,
+} from "../../../utils/chat-command-registry";
 import { ChatMessageList } from "../ChatMessageList";
 import {
   resolveAccountAgeRequirement,
@@ -161,6 +166,15 @@ async function unbanKickUserViaKickWebSession(
   username: string
 ): Promise<KickModResult> {
   const result = await window.electronAPI.kickChat.unbanUser(channelSlug, username);
+  return kickWebMutationToKickModResult(result);
+}
+
+async function timeoutKickUserViaKickWebSession(
+  channelSlug: string,
+  username: string,
+  duration: number
+): Promise<KickModResult> {
+  const result = await window.electronAPI.kickChat.timeoutUser(channelSlug, username, duration);
   return kickWebMutationToKickModResult(result);
 }
 
@@ -368,6 +382,84 @@ export const KickChat: React.FC<KickChatProps> = ({
         kickUser.username.toLowerCase() === channel.toLowerCase())
     );
   }, [channel, kickUser, kickUserId]);
+  const commandAccess: ChatCommandAccess = useMemo(() => {
+    if (!isAuthenticated) return { kind: "guest", platform: "kick" };
+    if (signedInUserIsBroadcaster) {
+      return { kind: "authenticated", platform: "kick", role: "broadcaster" };
+    }
+    return { kind: "authenticated", platform: "kick", role: isMod ? "moderator" : "viewer" };
+  }, [isAuthenticated, isMod, signedInUserIsBroadcaster]);
+  const executeKickCommand = useCallback(
+    async ({ command, args }: { command: ChatCommandDefinition; args: string; text: string }) => {
+      if (command.execution === "action-message") {
+        await kickChatService.sendMessage(channel, `*${args}*`, kickUser ?? undefined);
+        return;
+      }
+
+      if (["slow", "followonly", "subonly", "emoteonly"].includes(command.name)) {
+        const [mode, amount] = args.toLowerCase().split(/\s+/, 2);
+        if (mode !== "on" && mode !== "off") {
+          throw new Error(`/${command.name} needs "on" or "off"`);
+        }
+        const enabled = mode === "on";
+        let update: KickChatModeUpdate;
+        let roomPatch: Parameters<typeof updateRoomState>[2];
+        if (command.name === "slow") {
+          const seconds = enabled ? Number(amount) : 0;
+          if (enabled && (!Number.isInteger(seconds) || seconds <= 0)) {
+            throw new Error("/slow on needs a positive number of seconds");
+          }
+          update = { slowMode: { enabled, seconds } };
+          roomPatch = { slowMode: enabled ? seconds : null };
+        } else if (command.name === "followonly") {
+          update = { followersOnly: { enabled, minutes: 0 } };
+          roomPatch = { followersOnly: enabled ? 0 : null };
+        } else if (command.name === "subonly") {
+          update = { subscribersOnly: { enabled } };
+          roomPatch = { subscribersOnly: enabled };
+        } else {
+          update = { emoteOnly: { enabled } };
+          roomPatch = { emoteOnly: enabled };
+        }
+
+        const token = await window.electronAPI.auth.getToken("kick");
+        if (!token?.accessToken) throw new Error("Sign in to Kick to use this command");
+        const result = await setKickChatMode({
+          channelSlug: channel,
+          accessToken: token.accessToken,
+          update,
+        });
+        if (!result.ok) throw new Error(result.message);
+        if (kickRoomKey) updateRoomState("kick", kickRoomKey, roomPatch);
+        return;
+      }
+
+      const [usernameArgument, durationText] = args.split(/\s+/, 2);
+      if (!usernameArgument) throw new Error(`/${command.name} needs a username`);
+      const username = usernameArgument.replace(/^@/, "");
+      let result: KickModResult;
+      switch (command.name) {
+        case "ban":
+          result = await banKickUserViaKickWebSession(channel, username);
+          break;
+        case "unban":
+          result = await unbanKickUserViaKickWebSession(channel, username);
+          break;
+        case "timeout": {
+          const duration = Number(durationText);
+          if (!Number.isInteger(duration) || duration <= 0) {
+            throw new Error("/timeout needs a positive number of seconds");
+          }
+          result = await timeoutKickUserViaKickWebSession(channel, username, duration);
+          break;
+        }
+        default:
+          throw new Error(`/${command.name} is not available on Kick`);
+      }
+      if (!result.ok) throw new Error(result.message);
+    },
+    [channel, kickRoomKey, kickUser, updateRoomState]
+  );
 
   useEffect(() => {
     if (!signedInUserIsBroadcaster) return;
@@ -1408,6 +1500,8 @@ export const KickChat: React.FC<KickChatProps> = ({
             canSend={isAuthenticated && isKickConnected}
             isAuthenticated={isAuthenticated}
             viewerUserId={isAuthenticated && kickUser ? String(kickUser.id) : undefined}
+            commandAccess={commandAccess}
+            onProviderCommand={executeKickCommand}
             onAuthRequired={() => loginKick()}
             viewerCanBypassRoomModes={isMod}
             viewerAccountAgeRequirement={viewerAccountAgeRequirement}

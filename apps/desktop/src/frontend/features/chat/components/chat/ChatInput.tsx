@@ -69,8 +69,19 @@ import { InfoBanner } from "./InfoBanner";
 import { NativeEmoteButton } from "./input/NativeEmoteButton";
 import { QuickEmoteActionBar } from "./input/QuickEmoteActionBar";
 import { ThirdPartyEmoteButton } from "./input/ThirdPartyEmoteButton";
+import { CommandAutocomplete } from "./CommandAutocomplete";
 import { MentionAutocomplete } from "./MentionAutocomplete";
-import { useMentionAutocomplete } from "./use-mention-autocomplete";
+import { getMentionSuggestions } from "./mention-suggestions";
+import {
+  getCommandCompletion,
+  getCommandsForAccess,
+  parseAvailableCommand,
+  replaceLeadingCommand,
+  type ChatCommandDefinition,
+  type ChatCommandAccess,
+  type CommandSuggestion,
+  type TextRange,
+} from "../../utils/chat-command-registry";
 
 // ========== Types ==========
 
@@ -100,6 +111,12 @@ export interface ChatInputProps {
   isAuthenticated?: boolean;
   /** Stable ID for the connected platform account. Omitted for guests or disconnected sessions. */
   viewerUserId?: string;
+  commandAccess?: ChatCommandAccess;
+  onProviderCommand?: (request: {
+    readonly command: ChatCommandDefinition;
+    readonly args: string;
+    readonly text: string;
+  }) => Promise<void>;
   /** Called when an unauthenticated viewer attempts to send. */
   onAuthRequired?: (platform: ChatPlatform) => void | Promise<void>;
   /** True when known app state says this viewer can bypass room-mode restrictions. */
@@ -140,41 +157,20 @@ interface SubmittedDraft {
 
 // ========== Chat Commands ==========
 
-interface ParsedCommand {
-  command: string;
-  args: string[];
-  originalMessage: string;
-}
-
-const CHAT_COMMANDS = {
-  me: { platforms: ["twitch", "kick"], description: "Send an action message" },
-  clear: { platforms: ["twitch", "kick"], description: "Clear chat (mod only)" },
-  timeout: { platforms: ["twitch", "kick"], description: "Timeout a user (mod only)" },
-  ban: { platforms: ["twitch", "kick"], description: "Ban a user (mod only)" },
-  unban: { platforms: ["twitch", "kick"], description: "Unban a user (mod only)" },
-  slow: { platforms: ["twitch"], description: "Enable slow mode" },
-  slowoff: { platforms: ["twitch"], description: "Disable slow mode" },
-  followers: { platforms: ["twitch"], description: "Enable followers-only mode" },
-  followersoff: { platforms: ["twitch"], description: "Disable followers-only mode" },
-  subscribers: { platforms: ["twitch"], description: "Enable subscribers-only mode" },
-  subscribersoff: { platforms: ["twitch"], description: "Disable subscribers-only mode" },
-  emoteonly: { platforms: ["twitch"], description: "Enable emote-only mode" },
-  emoteonlyoff: { platforms: ["twitch"], description: "Disable emote-only mode" },
-} as const;
-
-function parseCommand(message: string): ParsedCommand | null {
-  if (!message.startsWith("/")) return null;
-
-  const parts = message.slice(1).split(" ");
-  const command = parts[0].toLowerCase();
-  const args = parts.slice(1);
-
-  return {
-    command,
-    args,
-    originalMessage: message,
-  };
-}
+type CompletionState =
+  | { readonly kind: "none" }
+  | {
+      readonly kind: "command";
+      readonly range: TextRange;
+      readonly selectedKey: string | null;
+      readonly items: readonly CommandSuggestion[];
+    }
+  | {
+      readonly kind: "mention";
+      readonly range: TextRange;
+      readonly selectedKey: string | null;
+      readonly items: readonly { readonly key: string; readonly username: string }[];
+    };
 
 // ========== Component ==========
 
@@ -744,6 +740,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       canSend = true,
       isAuthenticated,
       viewerUserId,
+      commandAccess = { kind: "guest", platform },
+      onProviderCommand,
       onAuthRequired,
       viewerCanBypassRoomModes = false,
       viewerAccountAgeRequirement = "unknown",
@@ -782,6 +780,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const [slowCooldownDurationMs, setSlowCooldownDurationMs] = useState(0);
     const [nowMs, setNowMs] = useState(() => Date.now());
     const [error, setError] = useState<string | null>(null);
+    const [completion, setCompletion] = useState<CompletionState>({ kind: "none" });
+    const [showCommandHelp, setShowCommandHelp] = useState(false);
 
     // Refs
     const editorRef = useRef<HTMLDivElement>(null);
@@ -1038,7 +1038,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     // Autocomplete hooks
     const { cd: chatDisplay } = useChatDisplay();
     const emoteAutocomplete = useContextualEmoteMode();
-    const mentionAutocomplete = useMentionAutocomplete();
     const addRecentEmote = useEmoteStore((state) => state.addRecentEmote);
     const claimLegacyRecentEmotes = useEmoteStore((state) => state.claimLegacyRecentEmotes);
     useEffect(() => {
@@ -1047,13 +1046,94 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     }, [claimLegacyRecentEmotes, platform, viewerUserId]);
     const { checkTrigger: checkEmoteAutocompleteTrigger, isActive: isEmoteAutocompleteActive } =
       emoteAutocomplete;
-    const { checkTrigger: checkMentionAutocompleteTrigger, isActive: isMentionAutocompleteActive } =
-      mentionAutocomplete;
+    const availableCommands = useMemo(() => getCommandsForAccess(commandAccess), [commandAccess]);
+    const helpCommands = useMemo(() => {
+      if (!showCommandHelp) return [];
+      const query = parseAvailableCommand(message, availableCommands)?.args.toLowerCase();
+      return query
+        ? availableCommands.filter((command) => command.name === query)
+        : availableCommands;
+    }, [availableCommands, message, showCommandHelp]);
+    useEffect(() => {
+      if (!showCommandHelp) return;
+      const parsedCommand = parseAvailableCommand(message, availableCommands);
+      if (parsedCommand?.definition.name !== "help") setShowCommandHelp(false);
+    }, [availableCommands, message, showCommandHelp]);
+    const mentionCompletion = useMemo(
+      () => getMentionSuggestions({ inputValue: message, cursorPosition, platform, channel }),
+      [channel, cursorPosition, message, platform]
+    );
+    useEffect(() => {
+      const commandCompletion = getCommandCompletion(message, cursorPosition, availableCommands);
+      if (commandCompletion) {
+        setCompletion((current) => {
+          const selectedKey =
+            commandCompletion.items.find(
+              (item) => item.key === (current.kind === "command" ? current.selectedKey : null)
+            )?.key ??
+            commandCompletion.items[0]?.key ??
+            null;
+          if (
+            current.kind === "command" &&
+            current.range.start === commandCompletion.range.start &&
+            current.range.end === commandCompletion.range.end &&
+            current.selectedKey === selectedKey &&
+            current.items.length === commandCompletion.items.length &&
+            current.items.every((item, index) => item.key === commandCompletion.items[index]?.key)
+          ) {
+            return current;
+          }
+          return {
+            kind: "command",
+            range: commandCompletion.range,
+            items: commandCompletion.items,
+            selectedKey,
+          };
+        });
+        return;
+      }
+
+      const mentionMatch = mentionCompletion.match;
+      if (mentionMatch) {
+        const items = mentionCompletion.suggestions.map((suggestion) => ({
+          key: suggestion.username,
+          username: suggestion.username,
+        }));
+        setCompletion((current) => {
+          const selectedKey =
+            items.find(
+              (item) => item.key === (current.kind === "mention" ? current.selectedKey : null)
+            )?.key ??
+            items[0]?.key ??
+            null;
+          if (
+            current.kind === "mention" &&
+            current.range.start === mentionMatch.start &&
+            current.range.end === mentionMatch.end &&
+            current.selectedKey === selectedKey &&
+            current.items.length === items.length &&
+            current.items.every((item, index) => item.key === items[index]?.key)
+          ) {
+            return current;
+          }
+          return {
+            kind: "mention",
+            range: { start: mentionMatch.start, end: mentionMatch.end },
+            items,
+            selectedKey,
+          };
+        });
+        return;
+      }
+
+      setCompletion((current) => (current.kind === "none" ? current : { kind: "none" }));
+    }, [availableCommands, cursorPosition, mentionCompletion, message]);
     const contextualEmoteMatch = getContextualEmoteMatch(message, cursorPosition);
     const showContextualEmoteRow =
       channelId !== null &&
       emoteAutocomplete.isActive &&
-      !mentionAutocomplete.isActive &&
+      completion.kind !== "mention" &&
+      completion.kind !== "command" &&
       contextualEmoteMatch !== null;
 
     useLayoutEffect(() => {
@@ -1116,8 +1196,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       setCursorPosition(nextCursorPosition);
       setError(null);
       emoteAutocomplete.checkTrigger(parsed.message, nextCursorPosition, ":");
-      mentionAutocomplete.checkTrigger(parsed.message, nextCursorPosition);
-    }, [emoteAutocomplete, mentionAutocomplete]);
+    }, [emoteAutocomplete]);
 
     const updateCursorFromSelection = useCallback(
       (event: React.KeyboardEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
@@ -1367,20 +1446,19 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           renderEditorDom(editor, next.message, next.slots);
         }
         checkEmoteAutocompleteTrigger(next.message, next.cursorPosition, ":");
-        checkMentionAutocompleteTrigger(next.message, next.cursorPosition);
         if (editor) {
           editor.focus();
           setEditorCaret(editor, next.cursorPosition);
         }
       },
-      [checkEmoteAutocompleteTrigger, checkMentionAutocompleteTrigger]
+      [checkEmoteAutocompleteTrigger]
     );
 
     const handleBeforeInput = useCallback(
       (e: React.FormEvent<HTMLDivElement>) => {
         const inputEvent = e.nativeEvent as InputEvent;
         const editor = editorRef.current;
-        if (!editor || emoteAutocomplete.isActive || mentionAutocomplete.isActive) return;
+        if (!editor || emoteAutocomplete.isActive) return;
 
         if (inputEvent.inputType === "insertText" && inputEvent.data) {
           e.preventDefault();
@@ -1429,7 +1507,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         editor.focus();
         setEditorCaret(editor, next.cursorPosition);
       },
-      [emoteAutocomplete.isActive, mentionAutocomplete.isActive, replaceSelection]
+      [emoteAutocomplete.isActive, replaceSelection]
     );
 
     // Handle emote selection from autocomplete or dialog. The autocomplete
@@ -1506,9 +1584,31 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           setEditorCaret(editor, next.cursorPosition);
         }
 
-        mentionAutocomplete.deactivate();
+        setCompletion({ kind: "none" });
       },
-      [message, emoteSlots, mentionAutocomplete]
+      [message, emoteSlots]
+    );
+
+    const handleCommandSelect = useCallback(
+      (command: CommandSuggestion, range: TextRange) => {
+        const nextMessage = replaceLeadingCommand(message, range, command.name);
+        const nextCursorPosition = range.start + command.name.length + 2;
+        flushSync(() => {
+          messageRef.current = nextMessage;
+          cursorPositionRef.current = nextCursorPosition;
+          setMessage(nextMessage);
+          setCursorPosition(nextCursorPosition);
+          setError(null);
+          setCompletion({ kind: "none" });
+        });
+        const editor = editorRef.current;
+        if (editor) {
+          renderEditorDom(editor, nextMessage, emoteSlots);
+          editor.focus();
+          setEditorCaret(editor, nextCursorPosition);
+        }
+      },
+      [emoteSlots, message]
     );
 
     // Handle reply
@@ -1784,13 +1884,34 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       }
       if (viewerIsBanned) return;
       if (twitchVerificationRequirement) return;
-      const roomBlocker = getRoomSendBlocker(message);
+      const parsedCommand = parseAvailableCommand(trimmedMessage, availableCommands);
+      if (trimmedMessage.startsWith("/") && !parsedCommand) {
+        setError(`Unknown or unavailable command: ${trimmedMessage.split(/\s/, 1)[0]}`);
+        return;
+      }
+      if (parsedCommand?.definition.execution === "local") {
+        const helpQuery = parsedCommand.args.toLowerCase();
+        if (helpQuery && !availableCommands.some((command) => command.name === helpQuery)) {
+          setShowCommandHelp(false);
+          setError(`No help is available for /${parsedCommand.args}`);
+          return;
+        }
+        setShowCommandHelp(true);
+        setError(null);
+        return;
+      }
+      if (parsedCommand?.definition.execution === "action-message" && !parsedCommand.args) {
+        setError(`/${parsedCommand.definition.name} needs a message`);
+        return;
+      }
+      const isProviderCommand = parsedCommand !== null;
+      const roomBlocker = isProviderCommand ? null : getRoomSendBlocker(message);
       if (roomBlocker === "followersOnly") {
         showRoomSendBlocker(roomBlocker);
         return;
       }
       isSendingRef.current = true;
-      const subscriberCheck = getSubscriberSendBlocker();
+      const subscriberCheck = isProviderCommand ? null : getSubscriberSendBlocker();
       if (subscriberCheck) setIsSending(true);
       let subscriberBlocker: RoomSendBlockerKind | "stale" | null;
       try {
@@ -1822,7 +1943,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         showRoomSendBlocker(roomBlocker);
         return;
       }
-      const slowModeBlocker = getSlowModeSendBlocker();
+      const slowModeBlocker = isProviderCommand ? null : getSlowModeSendBlocker();
       if (slowModeBlocker) {
         isSendingRef.current = false;
         setIsSending(false);
@@ -1833,17 +1954,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         isSendingRef.current = false;
         setIsSending(false);
         return;
-      }
-
-      const parsedCommand = parseCommand(trimmedMessage);
-      if (parsedCommand) {
-        const commandConfig = CHAT_COMMANDS[parsedCommand.command as keyof typeof CHAT_COMMANDS];
-        if (!commandConfig || !(commandConfig.platforms as readonly string[]).includes(platform)) {
-          isSendingRef.current = false;
-          setIsSending(false);
-          setError(`Unknown command: /${parsedCommand.command}`);
-          return;
-        }
       }
 
       // Pre-rendered fragments for the Kick optimistic local echo so the
@@ -1899,43 +2009,14 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
       try {
         if (parsedCommand) {
-          const { command, args } = parsedCommand;
-
-          if (command === "me") {
-            const actionMessage = args.join(" ");
-            if (platform === "twitch") {
-              const { twitchChatService } =
-                getLoadedTwitchChatModule() ?? (await loadTwitchChatModule());
-              // /me strips emote-slot context: actionMessage is rebuilt from the
-              // serialized wire string's args, so no fragments to pass.
-              await twitchChatService.sendAction(channel, actionMessage);
-            } else {
-              const { kickChatService } = getLoadedKickChatModule() ?? (await loadKickChatModule());
-              // /me strips emote slot context (actionMessage rebuilt from args
-              // of the serialized wire string), so no fragments to pass — the
-              // echo falls back to single text, matching prior behavior.
-              await kickChatService.sendMessage(
-                channel,
-                `*${actionMessage}*`,
-                kickUser ?? undefined
-              );
-            }
-          } else {
-            if (platform === "twitch") {
-              const { twitchChatService } =
-                getLoadedTwitchChatModule() ?? (await loadTwitchChatModule());
-              await twitchChatService.sendMessage(channel, trimmedMessage, localFragments);
-            } else {
-              const { kickChatService } = getLoadedKickChatModule() ?? (await loadKickChatModule());
-              await kickChatService.sendMessage(
-                channel,
-                trimmedMessage,
-                kickUser ?? undefined,
-                localFragments
-              );
-            }
-          }
-        } else {
+          if (!onProviderCommand) throw new Error("This command is not available in this chat");
+          await onProviderCommand({
+            command: parsedCommand.definition,
+            args: parsedCommand.args,
+            text: parsedCommand.text,
+          });
+        }
+        if (!parsedCommand) {
           await sendChatPayload(trimmedMessage, localFragments);
         }
 
@@ -1969,6 +2050,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     }, [
       message,
       emoteSlots,
+      availableCommands,
       canSend,
       getRoomSendBlocker,
       getSubscriberSendBlocker,
@@ -1976,8 +2058,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       handleAuthRequired,
       handleClassifiedSendBlocker,
       platform,
-      channel,
-      kickUser,
+      onProviderCommand,
       maxLength,
       sendChatPayload,
       showRoomSendBlocker,
@@ -1994,6 +2075,39 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     // contenteditable behavior, just do not preventDefault).
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (completion.kind === "command" || completion.kind === "mention") {
+          const items = completion.items;
+          const selectedIndex = items.findIndex((item) => item.key === completion.selectedKey);
+          if ((e.key === "ArrowDown" || e.key === "ArrowUp") && items.length > 0) {
+            e.preventDefault();
+            const direction = e.key === "ArrowDown" ? 1 : -1;
+            const nextIndex = (selectedIndex + direction + items.length) % items.length;
+            setCompletion({ ...completion, selectedKey: items[nextIndex].key });
+            return;
+          }
+          if ((e.key === "Tab" || e.key === "Enter") && items.length > 0) {
+            e.preventDefault();
+            if (completion.kind === "command") {
+              const selected = completion.items[selectedIndex < 0 ? 0 : selectedIndex];
+              handleCommandSelect(selected, completion.range);
+            } else {
+              const selected = completion.items[selectedIndex < 0 ? 0 : selectedIndex];
+              handleMentionSelect(selected.username, completion.range.start, completion.range.end);
+            }
+            return;
+          }
+          if (e.key === "Escape") {
+            e.preventDefault();
+            setCompletion({ kind: "none" });
+            setShowCommandHelp(false);
+            return;
+          }
+        }
+        if (e.key === "Escape" && showCommandHelp) {
+          e.preventDefault();
+          setShowCommandHelp(false);
+          return;
+        }
         const isTextInput =
           e.key.length === 1 &&
           !e.ctrlKey &&
@@ -2052,7 +2166,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               renderEditorDom(editor, next.message, next.slots);
             }
             checkEmoteAutocompleteTrigger(next.message, next.cursorPosition, ":");
-            checkMentionAutocompleteTrigger(next.message, next.cursorPosition);
             editor?.focus();
             if (editor) {
               setEditorCaret(editor, next.cursorPosition);
@@ -2062,7 +2175,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         }
 
         if (
-          isMentionAutocompleteActive ||
+          (completion.kind === "mention" && completion.items.length > 0) ||
           (isEmoteAutocompleteActive &&
             (contextualEmoteMatch?.explicit || contextualEmoteResultCount > 0) &&
             e.key !== "Enter")
@@ -2088,10 +2201,12 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       },
       [
         checkEmoteAutocompleteTrigger,
-        checkMentionAutocompleteTrigger,
+        handleCommandSelect,
+        handleMentionSelect,
         handleSend,
         isEmoteAutocompleteActive,
-        isMentionAutocompleteActive,
+        completion,
+        showCommandHelp,
         contextualEmoteMatch,
         contextualEmoteResultCount,
         replaceSelection,
@@ -2107,13 +2222,14 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       const handleClickOutside = (e: MouseEvent) => {
         if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
           emoteAutocomplete.deactivate();
-          mentionAutocomplete.deactivate();
+          setCompletion({ kind: "none" });
+          setShowCommandHelp(false);
         }
       };
 
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [emoteAutocomplete, mentionAutocomplete]);
+    }, [emoteAutocomplete]);
 
     const handleNativeOpenRequest = useCallback(() => {
       setActiveDialog((cur) => (cur === "native" ? null : "native"));
@@ -2474,10 +2590,31 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               inputValue={message}
               cursorPosition={cursorPosition}
               onSelect={handleMentionSelect}
-              onClose={mentionAutocomplete.deactivate}
-              isActive={mentionAutocomplete.isActive}
+              selectedKey={completion.kind === "mention" ? completion.selectedKey : null}
+              onSelectedKeyChange={(selectedKey) => {
+                if (completion.kind === "mention") setCompletion({ ...completion, selectedKey });
+              }}
+              isActive={completion.kind === "mention"}
               platform={platform}
               channel={channel}
+            />
+            <CommandAutocomplete
+              commands={
+                showCommandHelp
+                  ? helpCommands
+                  : completion.kind === "command"
+                    ? completion.items
+                    : []
+              }
+              selectedKey={completion.kind === "command" ? completion.selectedKey : null}
+              onSelect={(command) => {
+                if (completion.kind === "command") {
+                  handleCommandSelect(command, completion.range);
+                }
+              }}
+              onSelectedKeyChange={(selectedKey) => {
+                if (completion.kind === "command") setCompletion({ ...completion, selectedKey });
+              }}
             />
             {showSlowModeCountdown && (
               <div

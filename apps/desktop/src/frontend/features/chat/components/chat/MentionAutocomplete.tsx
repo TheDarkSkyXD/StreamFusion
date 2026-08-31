@@ -6,10 +6,10 @@
  */
 
 import type React from "react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import type { ChatPlatform } from "../../../../../shared/chat-types";
-import { buildChannelKey, useChatStore } from "../../../../store/chat-store";
+import { getMentionSuggestions, type RecentChatter } from "./mention-suggestions";
 
 interface MentionAutocompleteProps {
   /** Current input value */
@@ -18,8 +18,9 @@ interface MentionAutocompleteProps {
   cursorPosition: number;
   /** Called when a user is selected */
   onSelect: (username: string, startPos: number, endPos: number) => void;
-  /** Called when autocomplete should close */
-  onClose: () => void;
+  selectedKey?: string | null;
+  onSelectedKeyChange?: (key: string) => void;
+  onClose?: () => void;
   /** Whether autocomplete is active */
   isActive: boolean;
   /** Platform to filter chatters by */
@@ -36,163 +37,41 @@ const SCROLL_LOAD_THRESHOLD_PX = 24;
 const KICK_DEFAULT_AVATAR_URL =
   "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2248%22%20height%3D%2248%22%20viewBox%3D%220%200%2048%2048%22%3E%3Crect%20width%3D%2248%22%20height%3D%2248%22%20rx%3D%2224%22%20fill%3D%22%2353FC18%22%2F%3E%3Ccircle%20cx%3D%2224%22%20cy%3D%2218%22%20r%3D%228%22%20fill%3D%22%23101510%22%2F%3E%3Cpath%20d%3D%22M10%2041c2.4-9%207.2-13%2014-13s11.6%204%2014%2013%22%20fill%3D%22%23101510%22%2F%3E%3C%2Fsvg%3E";
 
-export interface RecentChatter {
-  /** Platform user ID */
-  userId: string;
-  /** Username (login) */
-  username: string;
-  /** Display name */
-  displayName: string;
-  /** User color */
-  color?: string;
-  /** Avatar URL */
-  avatarUrl?: string;
-  /** Last seen timestamp */
-  lastSeen: Date;
-}
-
-interface AutocompleteMatch {
-  query: string;
-  startPos: number;
-  endPos: number;
-}
+const noopSelectedKeyChange = () => {};
 
 export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
   inputValue,
   cursorPosition,
   onSelect,
-  onClose,
+  selectedKey,
+  onSelectedKeyChange = noopSelectedKeyChange,
   isActive,
   platform,
   channel,
   maxSuggestions = 8,
   minChars = 0,
 }) => {
-  const [selectedIndex, setSelectedIndex] = useState(0);
   const [visibleCount, setVisibleCount] = useState(maxSuggestions);
   const [enrichedUsers, setEnrichedUsers] = useState<Record<string, Partial<RecentChatter>>>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
-  // Snapshot the chatter list once when the popup activates, then keep it
-  // stable until the popup closes. Subscribing to chat messages while typing
-  // an @ would re-run this scan on every inbound message, which is exactly
-  // what we are trying to avoid for high-volume chats.
-  const recentChatters: RecentChatter[] = useMemo(() => {
-    if (!isActive) return [];
-    const channelKey = buildChannelKey(platform, channel);
-    const state = useChatStore.getState();
-    const usersByUsername = new Map<string, RecentChatter>();
-    const knownUsers = state.usersByChannel[channelKey] ?? {};
-    for (const user of Object.values(knownUsers)) {
-      usersByUsername.set(user.username.toLowerCase(), {
-        userId: user.userId,
-        username: user.username,
-        displayName: user.displayName,
-        color: user.color,
-        avatarUrl: user.avatarUrl,
-        lastSeen: user.lastSeen,
-      });
-    }
-
-    const messages = state.messagesByChannel[channelKey] ?? [];
-    const chatterMap = new Map<string, RecentChatter>();
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i];
-      if (msg.type !== "message") continue;
-      const key = msg.username.toLowerCase();
-      if (!chatterMap.has(key)) {
-        const known = usersByUsername.get(key);
-        chatterMap.set(key, {
-          userId: msg.userId,
-          username: msg.username,
-          displayName: msg.displayName,
-          color: msg.color || known?.color,
-          avatarUrl: msg.avatarUrl || known?.avatarUrl,
-          lastSeen: msg.timestamp,
-        });
-      }
-    }
-
-    for (const [key, user] of usersByUsername) {
-      if (!chatterMap.has(key)) {
-        chatterMap.set(key, user);
-      }
-    }
-
-    return Array.from(chatterMap.values()).map((chatter) => {
-      const enriched = enrichedUsers[chatter.username.toLowerCase()];
-      return enriched ? { ...chatter, ...enriched } : chatter;
-    });
-  }, [channel, enrichedUsers, isActive, platform]);
-
-  // Find the current autocomplete match (text after @)
-  const match = useMemo((): AutocompleteMatch | null => {
-    if (!isActive || !inputValue) return null;
-
-    // Look backwards from cursor to find @ character
-    let startPos = -1;
-    for (let i = cursorPosition - 1; i >= 0; i--) {
-      const char = inputValue[i];
-
-      // Stop at whitespace - no match
-      if (/\s/.test(char)) {
-        break;
-      }
-
-      // Found trigger
-      if (char === "@") {
-        startPos = i;
-        break;
-      }
-    }
-
-    if (startPos === -1) return null;
-
-    // Extract the query (text between @ and cursor)
-    const query = inputValue.slice(startPos + 1, cursorPosition);
-
-    // Check minimum characters requirement
-    if (query.length < minChars) return null;
-
-    return {
-      query,
-      startPos,
-      endPos: cursorPosition,
-    };
-  }, [inputValue, cursorPosition, isActive, minChars]);
-
-  // Get suggestions based on the match
-  const suggestions = useMemo(() => {
-    if (!match) return [];
-
-    const query = match.query.toLowerCase();
-
-    // Filter and sort recent chatters
-    const filtered = recentChatters
-      .filter(
-        (chatter) =>
-          chatter.username.toLowerCase().includes(query) ||
-          chatter.displayName.toLowerCase().includes(query)
-      )
-      .sort((a, b) => {
-        // Prioritize exact prefix matches
-        const aStartsWithQuery =
-          a.username.toLowerCase().startsWith(query) ||
-          a.displayName.toLowerCase().startsWith(query);
-        const bStartsWithQuery =
-          b.username.toLowerCase().startsWith(query) ||
-          b.displayName.toLowerCase().startsWith(query);
-
-        if (aStartsWithQuery && !bStartsWithQuery) return -1;
-        if (!aStartsWithQuery && bStartsWithQuery) return 1;
-
-        // Then sort by most recent
-        return b.lastSeen.getTime() - a.lastSeen.getTime();
-      });
-
-    return filtered;
-  }, [match, recentChatters]);
+  const completion = useMemo(
+    () =>
+      isActive
+        ? getMentionSuggestions({ inputValue, cursorPosition, platform, channel, minChars })
+        : { match: null, suggestions: [] },
+    [channel, cursorPosition, inputValue, isActive, minChars, platform]
+  );
+  const match = completion.match;
+  const suggestions = useMemo(
+    () =>
+      completion.suggestions.map((chatter) => {
+        const enriched = enrichedUsers[chatter.username.toLowerCase()];
+        return enriched ? { ...chatter, ...enriched } : chatter;
+      }),
+    [completion.suggestions, enrichedUsers]
+  );
 
   const visibleSuggestions = useMemo(
     () => suggestions.slice(0, visibleCount),
@@ -203,7 +82,6 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
   useEffect(() => {
     void resetKey;
     setVisibleCount(maxSuggestions);
-    setSelectedIndex(0);
   }, [resetKey, maxSuggestions]);
 
   useEffect(() => {
@@ -212,12 +90,10 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
     if (!api?.enrichMentionUsers) return;
 
     let cancelled = false;
-    const users = visibleSuggestions
-      .filter((chatter) => !chatter.avatarUrl)
-      .map((chatter) => ({
-        userId: chatter.userId,
-        username: chatter.username,
-      }));
+    const users: Array<{ userId: string; username: string }> = [];
+    for (const chatter of visibleSuggestions) {
+      if (!chatter.avatarUrl) users.push({ userId: chatter.userId, username: chatter.username });
+    }
     if (users.length === 0) return;
 
     void api.enrichMentionUsers({ platform, channel, users }).then((result) => {
@@ -240,80 +116,11 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
     };
   }, [channel, isActive, platform, visibleSuggestions]);
 
-  // Latest-ref pattern: hold mutable values the listener reads in a single
-  // ref so the registration effect can depend on `isActive` only. Without
-  // this, every keystroke that mutates suggestions/selectedIndex/match would
-  // recreate handleKeyDown and force document-level listener churn.
-  const latestRef = useRef({
-    suggestions: visibleSuggestions,
-    selectedIndex,
-    match,
-    onSelect,
-    onClose,
-  });
-  useLayoutEffect(() => {
-    latestRef.current = {
-      suggestions: visibleSuggestions,
-      selectedIndex,
-      match,
-      onSelect,
-      onClose,
-    };
-  }, [match, onClose, onSelect, selectedIndex, visibleSuggestions]);
-
-  // Register keyboard handler exactly once per active session.
   useEffect(() => {
-    if (!isActive) return;
-
-    const handler = (e: KeyboardEvent) => {
-      const {
-        suggestions: curSuggestions,
-        selectedIndex: curIndex,
-        match: curMatch,
-        onSelect: curOnSelect,
-        onClose: curOnClose,
-      } = latestRef.current;
-      if (curSuggestions.length === 0) return;
-
-      switch (e.key) {
-        case "ArrowDown":
-          e.preventDefault();
-          setSelectedIndex((prev) => (prev < curSuggestions.length - 1 ? prev + 1 : 0));
-          break;
-
-        case "ArrowUp":
-          e.preventDefault();
-          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : curSuggestions.length - 1));
-          break;
-
-        case "Tab":
-        case "Enter":
-          if (curMatch && curSuggestions[curIndex]) {
-            e.preventDefault();
-            curOnSelect(curSuggestions[curIndex].username, curMatch.startPos, curMatch.endPos);
-          }
-          break;
-
-        case "Escape":
-          e.preventDefault();
-          curOnClose();
-          break;
-      }
-    };
-
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [isActive]);
-
-  // Scroll selected item into view
-  useEffect(() => {
-    if (containerRef.current) {
-      const selectedEl = containerRef.current.querySelector(`[data-index="${selectedIndex}"]`);
-      if (selectedEl) {
-        selectedEl.scrollIntoView({ block: "nearest" });
-      }
-    }
-  }, [selectedIndex]);
+    if (!containerRef.current || !selectedKey) return;
+    const selectedEl = containerRef.current.querySelector(`[data-key="${selectedKey}"]`);
+    selectedEl?.scrollIntoView({ block: "nearest" });
+  }, [selectedKey]);
 
   const handleSuggestionsScroll = useCallback(() => {
     const el = suggestionsRef.current;
@@ -325,13 +132,13 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
 
   // Handle user click
   const handleUserClick = useCallback(
-    (username: string, index: number) => {
+    (username: string) => {
       if (match) {
-        setSelectedIndex(index);
-        onSelect(username, match.startPos, match.endPos);
+        onSelectedKeyChange(username);
+        onSelect(username, match.start, match.end);
       }
     },
-    [match, onSelect]
+    [match, onSelect, onSelectedKeyChange]
   );
 
   // Don't render if no active match or no suggestions
@@ -362,15 +169,14 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
         }`}
         onScroll={handleSuggestionsScroll}
       >
-        {visibleSuggestions.map((chatter, index) => (
+        {visibleSuggestions.map((chatter) => (
           <MentionAutocompleteItem
             key={chatter.username}
             chatter={chatter}
             platform={platform}
-            isSelected={index === selectedIndex}
-            index={index}
-            onClick={() => handleUserClick(chatter.username, index)}
-            onHover={() => setSelectedIndex(index)}
+            isSelected={chatter.username === selectedKey}
+            onClick={() => handleUserClick(chatter.username)}
+            onHover={() => onSelectedKeyChange(chatter.username)}
           />
         ))}
       </div>
@@ -383,7 +189,6 @@ interface MentionAutocompleteItemProps {
   chatter: RecentChatter;
   platform: ChatPlatform;
   isSelected: boolean;
-  index: number;
   onClick: () => void;
   onHover: () => void;
 }
@@ -392,7 +197,6 @@ const MentionAutocompleteItem: React.FC<MentionAutocompleteItemProps> = ({
   chatter,
   platform,
   isSelected,
-  index,
   onClick,
   onHover,
 }) => {
@@ -401,9 +205,10 @@ const MentionAutocompleteItem: React.FC<MentionAutocompleteItemProps> = ({
 
   return (
     <div
-      data-index={index}
+      data-key={chatter.username}
       role="option"
       aria-selected={isSelected}
+      tabIndex={-1}
       className={`flex cursor-pointer items-start gap-2 px-3 py-2 transition-colors ${
         isSelected ? "bg-white/10" : "hover:bg-white/5"
       }`}

@@ -748,6 +748,49 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     }
   }
 
+  async executeNativeCommand({
+    channel,
+    commandText,
+  }: {
+    readonly channel: string;
+    readonly commandText: string;
+  }): Promise<void> {
+    if (!commandText.startsWith("/")) throw new Error("Twitch commands must begin with a slash");
+    if (this.isAnonymous) throw new Error("Cannot use Twitch commands in anonymous mode");
+    if (!this.client || this.connectionState !== "connected") {
+      throw new Error("Not connected to Twitch IRC");
+    }
+
+    const normalizedChannel = this.normalizeChannel(channel);
+    const normalizedCommandText = commandText.replace(
+      /^(\/(?:ban|unban|timeout|block|unblock)\s+)@/i,
+      "$1"
+    );
+    if (!this.channels.has(normalizedChannel)) {
+      throw new Error(`Not in channel: ${normalizedChannel}`);
+    }
+
+    const rateLimitReservation = this.reserveMessageSend(normalizedChannel);
+    if (!rateLimitReservation) throw new Error("Message rate limit exceeded");
+
+    try {
+      await this.client.say(normalizedChannel, normalizedCommandText);
+      this.pendingMessageReservations.delete(rateLimitReservation);
+      this.recordMessageSent();
+    } catch (error) {
+      this.pendingMessageReservations.delete(rateLimitReservation);
+      logger.error("Chat:Twitch", "Failed to execute native command", {
+        channel: normalizedChannel,
+        command: commandText.split(/\s/, 1)[0],
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : String(error),
+      });
+      throw error;
+    }
+  }
+
   /**
    * Send a reply to a message
    */

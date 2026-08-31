@@ -250,9 +250,23 @@ vi.mock("@/features/chat/components/chat/MentionAutocomplete", () => {
   };
 });
 
-vi.mock("@/features/chat/components/chat/use-mention-autocomplete", () => ({
-  useMentionAutocomplete: () => mentionAutocompleteCtl,
-}));
+vi.mock("@/features/chat/components/chat/mention-suggestions", () => {
+  return {
+    getMentionSuggestions: ({
+      inputValue,
+      cursorPosition,
+    }: {
+      inputValue: string;
+      cursorPosition: number;
+    }) =>
+      mentionAutocompleteCtl.isActive
+        ? {
+            match: { start: 0, end: cursorPosition, query: inputValue },
+            suggestions: [],
+          }
+        : { match: null, suggestions: [] },
+  };
+});
 
 import type { UnifiedChannel } from "@shared/platform-types";
 import {
@@ -1759,12 +1773,7 @@ describe("ChatInput — footer actions", () => {
         "data-testid",
         "chat-emote-settings-anchor"
       );
-      expect(overlayAnchor).toHaveClass(
-        "absolute",
-        "inset-x-0",
-        "top-0",
-        "max-w-full"
-      );
+      expect(overlayAnchor).toHaveClass("absolute", "inset-x-0", "top-0", "max-w-full");
       expect(overlayAnchor).not.toHaveClass("mb-12");
       expect(quickSettingsPopoverCalls.at(-1)?.placement).toBe("top");
       expect(quickSettingsPopoverCalls.at(-1)?.platform).toBe(platform);
@@ -3080,6 +3089,7 @@ describe("ChatInput - mention editing", () => {
 });
 
 // Guards: Enter sends once on both platforms, preserves newer drafts on failure, and Shift+Enter keeps editing.
+// Guards: recognized slash commands use the provider command path and never fall through to ordinary chat sends.
 describe("ChatInput — Enter / Shift+Enter", () => {
   // Guards: normal sends with slow mode disabled clear in the same interaction frame and do not wait for the network promise.
   it.each(["twitch", "kick"] as const)(
@@ -3200,30 +3210,117 @@ describe("ChatInput — Enter / Shift+Enter", () => {
     expect(twitchChatService.sendMessage).not.toHaveBeenCalled();
   });
 
-  it("/me routes to sendAction on Twitch", async () => {
+  it("/me uses the Twitch provider command path", async () => {
     infoBannerImpl.mockReturnValue(null);
-    vi.mocked(twitchChatService.sendAction).mockClear();
-    renderInput();
+    const onProviderCommand = vi.fn(async () => {});
+    renderInput({
+      commandAccess: { kind: "authenticated", platform: "twitch", role: "viewer" },
+      onProviderCommand,
+    });
     const editor = getEditor();
     typeInEditor(editor, "/me waves");
     await act(async () => {
       fireEvent.keyDown(editor, { key: "Enter" });
     });
-    expect(twitchChatService.sendAction).toHaveBeenCalledWith("ninja", "waves");
+    expect(onProviderCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ args: "waves", command: expect.objectContaining({ name: "me" }) })
+    );
+    expect(twitchChatService.sendMessage).not.toHaveBeenCalled();
   });
 
-  it("/me on Kick wraps in asterisks via sendMessage", async () => {
+  it("selects a command with the keyboard without sending ordinary chat text", async () => {
     infoBannerImpl.mockReturnValue(null);
-    vi.mocked(kickChatService.sendMessage).mockClear();
-    renderInput({ platform: "kick" });
+    renderInput({
+      commandAccess: { kind: "authenticated", platform: "twitch", role: "viewer" },
+      onProviderCommand: vi.fn(async () => {}),
+    });
+    const editor = getEditor();
+    typeInEditor(editor, "/me");
+
+    await screen.findByRole("option", { name: /\/me \[message\]/i });
+    fireEvent.keyDown(editor, { key: "Enter" });
+
+    expect(editor.textContent).toBe("/me ");
+    expect(twitchChatService.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("/me uses the Kick provider command path", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    const onProviderCommand = vi.fn(async () => {});
+    renderInput({
+      platform: "kick",
+      commandAccess: { kind: "authenticated", platform: "kick", role: "viewer" },
+      onProviderCommand,
+    });
     const editor = getEditor();
     typeInEditor(editor, "/me hi");
     await act(async () => {
       fireEvent.keyDown(editor, { key: "Enter" });
     });
-    // ChatInput passes `kickUser ?? undefined` as the third arg so Kick's
-    // optimistic echo can stamp the local user's badges on outbound messages.
-    expect(kickChatService.sendMessage).toHaveBeenCalledWith("ninja", "*hi*", undefined);
+    expect(onProviderCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ args: "hi", command: expect.objectContaining({ name: "me" }) })
+    );
+    expect(kickChatService.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("keeps unknown slash text in the editor and does not send it as chat", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    const onProviderCommand = vi.fn(async () => {});
+    renderInput({
+      commandAccess: { kind: "authenticated", platform: "twitch", role: "viewer" },
+      onProviderCommand,
+    });
+    const editor = getEditor();
+    typeInEditor(editor, "/not-a-command");
+
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+
+    expect(editor).toHaveTextContent("/not-a-command");
+    expect(screen.getByText("Unknown or unavailable command: /not-a-command")).toBeInTheDocument();
+    expect(onProviderCommand).not.toHaveBeenCalled();
+    expect(twitchChatService.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("restores a slash command when its provider execution fails", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    const onProviderCommand = vi.fn(async () => {
+      throw new Error("Twitch rejected the command");
+    });
+    renderInput({
+      commandAccess: { kind: "authenticated", platform: "twitch", role: "moderator" },
+      onProviderCommand,
+    });
+    const editor = getEditor();
+    typeInEditor(editor, "/ban @viewer");
+
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+
+    expect(editor).toHaveTextContent("/ban @viewer");
+    expect(screen.getByText("Twitch rejected the command")).toBeInTheDocument();
+    expect(twitchChatService.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("/help filters the visible command reference without calling the provider", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    const onProviderCommand = vi.fn(async () => {});
+    renderInput({
+      commandAccess: { kind: "authenticated", platform: "twitch", role: "moderator" },
+      onProviderCommand,
+    });
+    const editor = getEditor();
+    typeInEditor(editor, "/help ban");
+
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+
+    expect(screen.getByRole("option", { name: /\/ban \[username\]/i })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /\/block \[username\]/i })).toBeNull();
+    expect(onProviderCommand).not.toHaveBeenCalled();
   });
 });
 

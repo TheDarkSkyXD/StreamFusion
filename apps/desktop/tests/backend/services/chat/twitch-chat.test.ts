@@ -76,6 +76,7 @@ function makeFakeTmiClient(): typeof fakeClient {
 // Guards: failed Twitch replies release their reservation, while successful replies consume exactly one slot.
 // Guards: pending Twitch actions consume the shared rolling-window capacity before IRC transport settles.
 // Guards: failed Twitch actions release their reservation, while successful actions consume exactly one slot.
+// Guards: authenticated slash commands use Twitch's command transport and are not emitted as optimistic chat messages.
 // Guards: a rapid remount waits for final-release teardown before opening its replacement Twitch connection.
 // Guards: concurrent soft and hard shutdown calls share one physical Twitch disconnect.
 // Guards: soft and final teardown do not ask tmi.js to disconnect a socket that is already closed.
@@ -958,6 +959,31 @@ describe("TwitchChatService connect() single-flight", () => {
       "Message rate limit exceeded"
     );
     expect(fakeClient.action).toHaveBeenCalledTimes(21);
+  });
+
+  it("sends authenticated slash commands through Twitch's command transport", async () => {
+    const service = new TwitchChatService();
+    const messages: ChatMessage[] = [];
+    service.on("message", (message) => messages.push(message));
+    const connectPromise = service.connect({
+      accessToken: "tok",
+      user: {
+        id: "viewer-1",
+        login: "viewer",
+        displayName: "Viewer",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+    await service.joinChannel("ninja");
+
+    await service.executeNativeCommand({ channel: "ninja", commandText: "/mods" });
+
+    expect(fakeClient.say).toHaveBeenCalledWith("ninja", "/mods");
+    expect(messages).toEqual([]);
   });
 
   it("emits a community gift notice for Twitch mystery gift aggregates", async () => {

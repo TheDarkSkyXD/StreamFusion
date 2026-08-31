@@ -37,6 +37,8 @@ function resetChatStore(): void {
 // Guards: mention suggestions show complete long usernames by wrapping instead of truncating.
 // Guards: mention suggestions show the first page of users, then scroll-load additional known users instead of hard-capping at eight.
 // Guards: Kick mention suggestions render avatar images immediately for bare "@" input; users should not need to type a query letter before avatars appear.
+// Guards: mention suggestions leave keyboard ownership with the active chat editor instead of registering a document-wide listener.
+// Guards: controlled mention selection follows the key chosen by the chat editor and reports pointer selection through the same contract.
 describe("MentionAutocomplete", () => {
   beforeEach(resetChatStore);
   afterEach(resetChatStore);
@@ -71,7 +73,7 @@ describe("MentionAutocomplete", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("registers keydown listener once across selectedIndex changes", () => {
+  it("does not register a document-wide keydown listener", () => {
     useChatStore.setState({
       messagesByChannel: {
         [buildChannelKey("twitch", "test")]: [
@@ -83,65 +85,51 @@ describe("MentionAutocomplete", () => {
     });
 
     const addSpy = vi.spyOn(document, "addEventListener");
-    const removeSpy = vi.spyOn(document, "removeEventListener");
+    render(
+      <MentionAutocomplete
+        inputValue="@a"
+        cursorPosition={2}
+        onSelect={vi.fn()}
+        isActive
+        platform="twitch"
+        channel="test"
+      />
+    );
 
-    const props = {
-      inputValue: "@a",
-      cursorPosition: 2,
-      onSelect: vi.fn(),
-      onClose: vi.fn(),
-      isActive: true,
-      platform: "twitch" as const,
-      channel: "test",
-    };
-
-    const { rerender } = render(<MentionAutocomplete {...props} />);
-
-    const initialKeydowns = addSpy.mock.calls.filter((c) => c[0] === "keydown").length;
-    expect(initialKeydowns).toBe(1);
-
-    // Drive selectedIndex up and down. With the latest-ref pattern, this
-    // should not re-register the listener.
-    fireEvent.keyDown(document, { key: "ArrowDown" });
-    fireEvent.keyDown(document, { key: "ArrowDown" });
-    fireEvent.keyDown(document, { key: "ArrowUp" });
-
-    rerender(<MentionAutocomplete {...props} />);
-
-    const finalKeydowns = addSpy.mock.calls.filter((c) => c[0] === "keydown").length;
-    expect(finalKeydowns).toBe(1);
+    const keydownListeners = addSpy.mock.calls.filter((call) => call[0] === "keydown");
+    expect(keydownListeners).toHaveLength(0);
 
     addSpy.mockRestore();
-    removeSpy.mockRestore();
   });
 
-  it("removes listener when isActive flips to false", () => {
+  it("renders controlled selection and reports pointer selection", () => {
     useChatStore.setState({
       messagesByChannel: {
         [buildChannelKey("twitch", "test")]: [makeMessage("alice", "Alice")],
       },
     });
 
-    const removeSpy = vi.spyOn(document, "removeEventListener");
-    const initialRemoveCount = removeSpy.mock.calls.filter((c) => c[0] === "keydown").length;
+    const onSelect = vi.fn();
+    const onSelectedKeyChange = vi.fn();
+    const { getByRole } = render(
+      <MentionAutocomplete
+        inputValue="@a"
+        cursorPosition={2}
+        onSelect={onSelect}
+        selectedKey="alice"
+        onSelectedKeyChange={onSelectedKeyChange}
+        isActive
+        platform="twitch"
+        channel="test"
+      />
+    );
 
-    const props = {
-      inputValue: "@a",
-      cursorPosition: 2,
-      onSelect: vi.fn(),
-      onClose: vi.fn(),
-      isActive: true,
-      platform: "twitch" as const,
-      channel: "test",
-    };
-
-    const { rerender } = render(<MentionAutocomplete {...props} />);
-    rerender(<MentionAutocomplete {...props} isActive={false} />);
-
-    const removedKeydowns = removeSpy.mock.calls.filter((c) => c[0] === "keydown").length;
-    expect(removedKeydowns).toBeGreaterThan(initialRemoveCount);
-
-    removeSpy.mockRestore();
+    const alice = getByRole("option", { name: /Alice/ });
+    expect(alice).toHaveAttribute("aria-selected", "true");
+    fireEvent.mouseEnter(alice);
+    fireEvent.click(alice);
+    expect(onSelectedKeyChange).toHaveBeenCalledWith("alice");
+    expect(onSelect).toHaveBeenCalledWith("alice", 0, 2);
   });
 
   it("builds suggestions from the active channel bucket only", () => {

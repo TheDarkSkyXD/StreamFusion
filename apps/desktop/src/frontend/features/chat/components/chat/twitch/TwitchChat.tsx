@@ -55,6 +55,10 @@ import { useRenderCount } from "../../../../../components/dev/use-render-count";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../../components/ui/tooltip";
 import { ChatComposerFooter } from "../ChatComposerFooter";
 import { ChatInput, type ChatInputHandle } from "../ChatInput";
+import type {
+  ChatCommandAccess,
+  ChatCommandDefinition,
+} from "../../../utils/chat-command-registry";
 import { ChatMessageList } from "../ChatMessageList";
 import { type ChatSendEligibility, resolveChatSendEligibility } from "../chat-send-eligibility";
 import { type ChatPanelTabId, ChatPanelTabs } from "../mod/ChatPanelTabs";
@@ -331,6 +335,35 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
   // as the `moderator_id` query param. Pulled from the auth store rather than
   // re-fetched per call.
   const twitchUser = useAuthStore((state) => state.twitchUser);
+  const commandAccess: ChatCommandAccess = useMemo(() => {
+    if (!isAuthenticated) return { kind: "guest", platform: "twitch" };
+    if (twitchUser?.id === channelId) {
+      return { kind: "authenticated", platform: "twitch", role: "broadcaster" };
+    }
+    return { kind: "authenticated", platform: "twitch", role: isMod ? "moderator" : "viewer" };
+  }, [channelId, isAuthenticated, isMod, twitchUser?.id]);
+  const executeTwitchCommand = useCallback(
+    async ({
+      command,
+      args,
+      text,
+    }: {
+      command: ChatCommandDefinition;
+      args: string;
+      text: string;
+    }) => {
+      if (command.execution === "action-message") {
+        await twitchChatService.sendAction(channel, args);
+        return;
+      }
+      if (command.execution === "platform-command") {
+        await twitchChatService.executeNativeCommand({ channel, commandText: text });
+        return;
+      }
+      throw new Error(`/${command.name} is handled locally`);
+    },
+    [channel]
+  );
 
   const currentModeratorPresentation = useCallback((): ChatUserPresentation | undefined => {
     if (!twitchUser?.id || !twitchUser.login) return undefined;
@@ -1614,6 +1647,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
             canSend={isAuthenticated && isTwitchConnected}
             isAuthenticated={isAuthenticated}
             viewerUserId={isAuthenticated ? twitchUser?.id : undefined}
+            commandAccess={commandAccess}
+            onProviderCommand={executeTwitchCommand}
             onAuthRequired={() => loginTwitch()}
             viewerCanBypassRoomModes={isMod}
             checkSubscriberEligibility={(request) =>
