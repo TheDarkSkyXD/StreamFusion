@@ -45,10 +45,13 @@ test("the install guard accepts only the pinned npm version", () => {
   }
 });
 
-test("the root workspace owns npm policy and desktop startup", () => {
+test("the root workspace owns npm policy and application startup", () => {
   const rootPackage = JSON.parse(readFileSync("package.json", "utf8"));
   const desktopPackage = JSON.parse(
     readFileSync("apps/desktop/package.json", "utf8"),
+  );
+  const mobilePackage = JSON.parse(
+    readFileSync("apps/mobile/package.json", "utf8"),
   );
 
   assert.equal(rootPackage.engines.npm, ">=11.8.0 <12");
@@ -58,14 +61,20 @@ test("the root workspace owns npm policy and desktop startup", () => {
   assert.match(rootPackage.scripts.preinstall, /require-npm\.mjs/);
   assert.deepEqual(rootPackage.workspaces, ["apps/*", "packages/*"]);
 
+  assert.equal(rootPackage.scripts.start, "node scripts/start-picker.mjs");
   assert.equal(
-    rootPackage.scripts.start,
-    "npm run --workspace streamfusion start:checked",
+    rootPackage.scripts.desktop,
+    "npm run --workspace streamfusion dev:electron",
   );
-  assert.match(
-    desktopPackage.scripts["start:checked"],
-    /node scripts\/start-picker\.js/,
+  assert.equal(
+    rootPackage.scripts.browser,
+    "npm run --workspace streamfusion dev",
   );
+  assert.equal(
+    rootPackage.scripts.mobile,
+    "npm run --workspace @streamfusion/mobile android",
+  );
+  assert.equal(mobilePackage.scripts.android, "expo run:android");
 
   assert.match(readFileSync(".npmrc", "utf8"), /^loglevel=error$/m);
   assert.equal(existsSync("apps/desktop/.npmrc"), false);
@@ -75,7 +84,7 @@ test("the root workspace owns npm policy and desktop startup", () => {
   assert.ok(rootPackage.overrides["@napi-rs/wasm-runtime"]);
   assert.match(
     rootPackage.scripts["rebuild:dependencies"],
-    /^npm rebuild better-sqlite3 electron-winstaller esbuild ffmpeg-static fsevents workerd /,
+    /^npm rebuild better-sqlite3 electron-winstaller esbuild ffmpeg-static fsevents unrs-resolver workerd /,
   );
   assert.doesNotMatch(
     rootPackage.scripts["rebuild:dependencies"],
@@ -89,6 +98,10 @@ test("the root workspace owns npm policy and desktop startup", () => {
   assert.match(
     rootPackage.scripts.typecheck,
     /^npm run --workspace @streamfusion\/core typecheck/,
+  );
+  assert.match(
+    rootPackage.scripts.typecheck,
+    /npm run --workspace @streamfusion\/mobile typecheck/,
   );
 });
 
@@ -263,6 +276,10 @@ test("the root owns the dependency policy and override baseline", () => {
     "streamfusion-worker",
   );
   assert.equal(
+    rootLockfile.packages["apps/mobile"].name,
+    "@streamfusion/mobile",
+  );
+  assert.equal(
     rootLockfile.packages["packages/core"].name,
     "@streamfusion/core",
   );
@@ -272,6 +289,10 @@ test("the root owns the dependency policy and override baseline", () => {
   });
   assert.deepEqual(rootLockfile.packages["node_modules/@streamfusion/core"], {
     resolved: "packages/core",
+    link: true,
+  });
+  assert.deepEqual(rootLockfile.packages["node_modules/@streamfusion/mobile"], {
+    resolved: "apps/mobile",
     link: true,
   });
   assert.equal(rootLockfile.packages["node_modules/ws"].version, "8.21.3");

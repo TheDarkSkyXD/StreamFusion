@@ -61,6 +61,18 @@ jobs:
       - name: Test shared core contracts and architecture
         run: npm run --workspace @streamfusion/core test
 
+      - name: Lint mobile
+        run: npm run --workspace @streamfusion/mobile lint
+
+      - name: Typecheck mobile
+        run: npm run --workspace @streamfusion/mobile typecheck
+
+      - name: Test mobile scaffold and architecture
+        run: npm run --workspace @streamfusion/mobile test
+
+      - name: Bundle mobile for Android
+        run: npm run --workspace @streamfusion/mobile bundle:android
+
       - name: Lint desktop
         run: npm --prefix apps/desktop run lint
 
@@ -84,6 +96,53 @@ jobs:
 
       - name: Build worker dry run
         run: npm run --workspace streamfusion-worker deploy:dry-run
+
+  android-development:
+    name: Android development APK and API 30 install
+    runs-on: ubuntu-latest
+    needs: verify
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Setup Java
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Pin npm
+        run: npm install --global npm@11.19.0
+
+      - name: Install dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+
+      - name: Build Android development APK
+        run: npm run build:mobile:development
+
+      - name: Install and launch on API 30
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 30
+          arch: x86_64
+          profile: pixel_2
+          script: |
+            test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = "30"
+            adb install --no-streaming apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+            adb shell monkey -p com.thedarkskyxd.streamfusion.dev -c android.intent.category.LAUNCHER 1
+            timeout 30 sh -c 'until adb shell pidof com.thedarkskyxd.streamfusion.dev; do sleep 1; done'
+
+      - name: Upload development APK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: streamfusion-android-development
+          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
 
   build:
     name: Build (${{ matrix.os }})

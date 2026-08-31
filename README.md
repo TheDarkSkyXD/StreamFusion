@@ -75,23 +75,26 @@ Ensure you have the following installed:
     The install command uses the root workspace lockfile. It installs with lifecycle scripts
     disabled, checks the seven-day release-age policy and registry signatures, then runs
     only the version-pinned scripts in `allowScripts`. Use `npm install <package>` for the
-    root. Use `npm install --workspace streamfusion <package>` for the desktop app and
-    `npm install --workspace streamfusion-worker <package>` for the Worker. Shared-core
-    tooling belongs to the `@streamfusion/core` workspace under `packages/core`.
+    root. Use `npm install --workspace streamfusion <package>` for the desktop app,
+    `npm install --workspace @streamfusion/mobile <package>` for the Android app, and
+    `npm install --workspace streamfusion-worker <package>` for the Worker. Mobile
+    dependencies and tooling belong to `apps/mobile`. Shared-core tooling belongs to
+    the `@streamfusion/core` workspace under `packages/core`.
     See the [npm security research](docs/brainstorms/2026-08-29-npm-supply-chain-security-research.md)
     for the policy and its limits.
 
 ### Running Locally
 
-To start the desktop application in development mode with hot-reloading:
+To choose Electron, Browser, or Mobile development mode:
 
 ```bash
 npm start
 ```
 
-The root `npm start` command runs the desktop checks and opens the start picker. From
-`apps/desktop`, you can also run `npm start` directly. Run
-`npm --prefix apps/desktop run dev` to start the desktop app without the picker.
+Run `npm run desktop` to start Electron without the picker. Run `npm run mobile` to
+build, install, and start the Android development client on a connected device or
+emulator. Mobile source, Expo configuration, generated Android files, tests, assets,
+and dependency declarations stay under `apps/mobile`.
 
 
 

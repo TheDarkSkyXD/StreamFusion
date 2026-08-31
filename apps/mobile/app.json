@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "StreamFusion Development",
+    "slug": "streamfusion-development",
+    "version": "0.1.0",
+    "platforms": ["android"],
+    "scheme": "streamfusion-development",
+    "newArchEnabled": true,
+    "android": {
+      "package": "com.thedarkskyxd.streamfusion.dev",
+      "versionCode": 1
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 30
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
