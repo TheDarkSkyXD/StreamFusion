@@ -77,7 +77,7 @@
     "eslint": "^9.39.5",
     "eslint-plugin-lockfile": "^2.1.0",
     "js-yaml": "^5.2.2",
-    "pacote": "21.5.1",
+    "pacote": "22.0.0",
     "ws": "8.21.3"
   }
 }
