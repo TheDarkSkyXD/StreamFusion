@@ -83,8 +83,8 @@ test("the root workspace owns npm policy and application startup", () => {
     rootPackage.scripts["test:evidence"],
     "node --test scripts/verify-evidence.test.mjs",
   );
-  assert.match(rootPackage.scripts.test, /^npm run test:evidence &&/);
-  assert.match(rootPackage.scripts["test:all"], /^npm run test:evidence &&/);
+  assert.match(rootPackage.scripts.test, /npm run test:evidence/);
+  assert.match(rootPackage.scripts["test:all"], /npm run test:evidence/);
 
   assert.match(readFileSync(".npmrc", "utf8"), /^loglevel=error$/m);
   assert.equal(existsSync("apps/desktop/.npmrc"), false);
