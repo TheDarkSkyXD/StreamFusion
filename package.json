@@ -71,6 +71,8 @@
       "fast-uri": "3.1.5"
     },
     "glob": "^10.4.5",
+    "react-native-reanimated": "4.5.1",
+    "react-native-worklets": "0.10.1",
     "rimraf": "^5.0.0",
     "tar": "^7.5.7",
     "tmp": "^0.2.5",
