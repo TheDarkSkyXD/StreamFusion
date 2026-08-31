@@ -12,6 +12,7 @@ logs
 /.scratch/media-trigger-trace.mjs
 /.scratch/perf-profile-*/
 /apps/desktop/.scratch-icon-package/
+/artifacts/mobile-evidence/
 /packages/core/src/**/architecture-proof-*.ts
 /.tmp-*.png
 /.claude/settings.local.json

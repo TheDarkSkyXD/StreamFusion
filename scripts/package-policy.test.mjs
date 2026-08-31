@@ -75,6 +75,16 @@ test("the root workspace owns npm policy and application startup", () => {
     "npm run --workspace @streamfusion/mobile android",
   );
   assert.equal(mobilePackage.scripts.android, "expo run:android");
+  assert.equal(
+    rootPackage.scripts["verify:evidence"],
+    "node scripts/verify-evidence.mjs",
+  );
+  assert.equal(
+    rootPackage.scripts["test:evidence"],
+    "node --test scripts/verify-evidence.test.mjs",
+  );
+  assert.match(rootPackage.scripts.test, /^npm run test:evidence &&/);
+  assert.match(rootPackage.scripts["test:all"], /^npm run test:evidence &&/);
 
   assert.match(readFileSync(".npmrc", "utf8"), /^loglevel=error$/m);
   assert.equal(existsSync("apps/desktop/.npmrc"), false);
