@@ -73,6 +73,15 @@ function loadJson(filePath) {
   return JSON.parse(readFileSync(filePath, "utf8"));
 }
 
+function findCompetingPackageFileViolations(rootDirectory, policyDirectory) {
+  return findCompetingPackageFiles(readdirSync(policyDirectory)).map((file) => ({
+    file: path.relative(rootDirectory, path.join(policyDirectory, file)),
+    section: "repository",
+    dependency: file,
+    specifier: "competing package-manager file",
+  }));
+}
+
 export function validateRepository(rootDirectory) {
   const manifestPaths = [path.join(rootDirectory, "package.json")];
   const workspaceDirectories = [];
@@ -90,15 +99,10 @@ export function validateRepository(rootDirectory) {
     }
   }
 
-  const violations = [];
-  for (const file of findCompetingPackageFiles(readdirSync(rootDirectory))) {
-    violations.push({
-      file,
-      section: "repository",
-      dependency: file,
-      specifier: "competing package-manager file",
-    });
-  }
+  const violations = findCompetingPackageFileViolations(
+    rootDirectory,
+    rootDirectory,
+  );
   const rootLockfilePath = path.join(rootDirectory, "package-lock.json");
   if (!existsSync(rootLockfilePath)) {
     violations.push({
@@ -119,16 +123,9 @@ export function validateRepository(rootDirectory) {
         specifier: "nested npm lockfile is not allowed",
       });
     }
-    for (const file of findCompetingPackageFiles(
-      readdirSync(workspaceDirectory),
-    )) {
-      violations.push({
-        file: path.relative(rootDirectory, path.join(workspaceDirectory, file)),
-        section: "repository",
-        dependency: file,
-        specifier: "competing package-manager file",
-      });
-    }
+    violations.push(
+      ...findCompetingPackageFileViolations(rootDirectory, workspaceDirectory),
+    );
   }
 
   for (const manifestPath of manifestPaths) {
