@@ -238,12 +238,40 @@ test("the root owns the dependency policy and override baseline", () => {
   assert.equal(desktopPackage.overrides, undefined);
   assert.equal(desktopPackage.allowScripts, undefined);
   assert.ok(Object.keys(rootPackage.overrides).length > 0);
+  assert.equal(rootPackage.devDependencies.ws, "8.21.3");
+  assert.deepEqual(rootPackage.overrides["@tanstack/router-core@1.171.26"], {
+    seroval: "1.6.2",
+    "seroval-plugins": "1.6.2",
+  });
   assert.ok(Object.keys(rootPackage.allowScripts).length > 0);
-  assert.deepEqual(rootLockfile.packages[""].workspaces, rootPackage.workspaces);
+  assert.deepEqual(
+    rootLockfile.packages[""].workspaces,
+    rootPackage.workspaces,
+  );
   assert.equal(rootLockfile.packages["apps/desktop"].name, "streamfusion");
-  assert.equal(rootLockfile.packages["apps/worker"].name, "streamfusion-worker");
+  assert.equal(
+    rootLockfile.packages["apps/worker"].name,
+    "streamfusion-worker",
+  );
   assert.deepEqual(rootLockfile.packages["node_modules/streamfusion"], {
     resolved: "apps/desktop",
     link: true,
   });
+  assert.equal(rootLockfile.packages["node_modules/ws"].version, "8.21.3");
+  assert.equal(
+    rootLockfile.packages["node_modules/miniflare/node_modules/ws"].version,
+    "8.21.0",
+  );
+  assert.equal(
+    rootLockfile.packages[
+      "node_modules/@tanstack/router-core/node_modules/seroval"
+    ].version,
+    "1.6.2",
+  );
+  assert.equal(
+    rootLockfile.packages[
+      "node_modules/@tanstack/router-core/node_modules/seroval-plugins"
+    ].version,
+    "1.6.2",
+  );
 });
