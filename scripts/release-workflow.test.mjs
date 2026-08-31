@@ -22,6 +22,7 @@ test("the build workflow is CI-only and cannot publish a GitHub release", () => 
   assert.match(source, /rebuild-deps:\$\{\{ matrix\.arch \}\}/);
   assert.match(source, /package:\$\{\{ matrix\.arch \}\}/);
   assert.doesNotMatch(source, /npm (?:exec|run).* -- --(?:arch|dry-run)/);
+  assert.doesNotMatch(source, /npm --prefix apps\/desktop (?:ci|audit|rebuild)/);
   assert.doesNotMatch(source, /pnpm\/action-setup|\bpnpm\b/);
 });
 
@@ -44,6 +45,7 @@ test("one release workflow handles tagged and manual releases with fail-closed g
     /package:\$\{\{ matrix\.platform \}\}:\$\{\{ matrix\.arch \}\}:signed/,
   );
   assert.doesNotMatch(source, /npm (?:exec|run).* -- --(?:arch|dry-run)/);
+  assert.doesNotMatch(source, /npm --prefix apps\/desktop (?:ci|audit|rebuild)/);
   assert.doesNotMatch(source, /pnpm\/action-setup|\bpnpm\b/);
   assert.match(source, /macos-15-intel/);
   assert.match(source, /macos-15/);

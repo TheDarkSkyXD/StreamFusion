@@ -106,11 +106,11 @@ Add the dependency review action to pull requests and make the check required. S
 
 ## StreamFusion implementation
 
-- Pin npm 11.19.0 in both package manifests and CI.
-- Keep separate root and desktop npm lockfiles. The desktop boundary isolates Electron's native dependency and packaging flow.
-- Run the seven-day validator against both committed lockfiles because `npm ci` does not check release age.
+- Pin npm 11.19.0 in the root package manifest and CI.
+- Keep one root npm workspace and lockfile for every app and package.
+- Run the seven-day validator against the root lockfile because `npm ci` does not check release age.
 - Install with scripts disabled, verify registry signatures, then rebuild under version-pinned `allowScripts` entries and `strict-allow-scripts=true`.
-- Cover both npm roots and GitHub Actions with a seven-day Dependabot cooldown.
+- Cover the root npm workspace and GitHub Actions with a seven-day Dependabot cooldown.
 - Pin workflow actions to full commit SHAs and audit the full dependency tree.
 - Keep npm publication disabled. StreamFusion publishes signed desktop artifacts through GitHub Releases.
 

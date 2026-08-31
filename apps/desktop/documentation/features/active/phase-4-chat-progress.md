@@ -222,7 +222,7 @@ This tracker monitors implementation of the unified chat system for StreamFusion
 ## Dependencies to Install
 
 ```bash
-npm --prefix apps/desktop install tmi.js html-entities @tanstack/react-virtual
+npm install --workspace streamfusion tmi.js html-entities @tanstack/react-virtual
 ```
 
 | Package | Purpose | Status |

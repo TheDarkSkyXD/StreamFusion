@@ -16,7 +16,7 @@ export default [
     },
   },
   {
-    files: ["package-lock.json", "apps/*/package-lock.json"],
+    files: ["package-lock.json"],
     rules: {
       "lockfile/flavor": ["error", "npm"],
       "lockfile/integrity": "error",

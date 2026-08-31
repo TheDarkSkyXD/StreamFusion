@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -44,32 +45,42 @@ test("the install guard accepts only the pinned npm version", () => {
   }
 });
 
-test("root start supports npm 11 while installs remain pinned", () => {
+test("the root workspace owns npm policy and desktop startup", () => {
   const rootPackage = JSON.parse(readFileSync("package.json", "utf8"));
   const desktopPackage = JSON.parse(
     readFileSync("apps/desktop/package.json", "utf8"),
   );
 
-  for (const packageManifest of [rootPackage, desktopPackage]) {
-    assert.equal(packageManifest.engines.npm, ">=11.8.0 <12");
-    assert.equal(packageManifest.devEngines.packageManager.version, ">=11.8.0 <12");
-    assert.equal(packageManifest.devEngines.packageManager.onFail, "error");
-    assert.equal(packageManifest.packageManager, `npm@${REQUIRED_NPM_VERSION}`);
-    assert.match(packageManifest.scripts.preinstall, /require-npm\.mjs/);
-  }
+  assert.equal(rootPackage.engines.npm, ">=11.8.0 <12");
+  assert.equal(rootPackage.devEngines.packageManager.version, ">=11.8.0 <12");
+  assert.equal(rootPackage.devEngines.packageManager.onFail, "error");
+  assert.equal(rootPackage.packageManager, `npm@${REQUIRED_NPM_VERSION}`);
+  assert.match(rootPackage.scripts.preinstall, /require-npm\.mjs/);
+  assert.deepEqual(rootPackage.workspaces, ["apps/*", "packages/*"]);
 
   assert.equal(
     rootPackage.scripts.start,
-    "npm --prefix apps/desktop run start:checked",
+    "npm run --workspace streamfusion start:checked",
   );
   assert.match(
     desktopPackage.scripts["start:checked"],
     /node scripts\/start-picker\.js/,
   );
 
-  for (const npmConfigPath of [".npmrc", "apps/desktop/.npmrc"]) {
-    assert.match(readFileSync(npmConfigPath, "utf8"), /^loglevel=error$/m);
-  }
+  assert.match(readFileSync(".npmrc", "utf8"), /^loglevel=error$/m);
+  assert.equal(existsSync("apps/desktop/.npmrc"), false);
+  assert.equal(desktopPackage.allowScripts, undefined);
+  assert.equal(desktopPackage.overrides, undefined);
+  assert.ok(rootPackage.allowScripts["better-sqlite3@13.0.3"]);
+  assert.ok(rootPackage.overrides["@napi-rs/wasm-runtime"]);
+  assert.match(
+    rootPackage.scripts["rebuild:dependencies"],
+    /^npm rebuild better-sqlite3 electron-winstaller esbuild ffmpeg-static fsevents workerd /,
+  );
+  assert.doesNotMatch(
+    rootPackage.scripts["rebuild:dependencies"],
+    /^npm rebuild --ignore-scripts=false/,
+  );
 });
 
 test("dependency policy rejects Git, URL, tarball, and local sources", () => {
@@ -147,7 +158,7 @@ test("dependency policy rejects other package-manager files", () => {
   );
 });
 
-test("repository policy requires root and desktop npm lockfiles", () => {
+test("repository policy requires one root lockfile and rejects nested lockfiles", () => {
   const rootDirectory = mkdtempSync(
     path.join(os.tmpdir(), "streamfusion-package-policy-"),
   );
@@ -159,21 +170,27 @@ test("repository policy requires root and desktop npm lockfiles", () => {
     writeFileSync(path.join(rootDirectory, "package.json"), "{}\n");
     writeFileSync(path.join(desktopDirectory, "package.json"), "{}\n");
     writeFileSync(path.join(workerDirectory, "package.json"), "{}\n");
-    writeFileSync(path.join(rootDirectory, "package-lock.json"), "{}\n");
+    writeFileSync(path.join(desktopDirectory, "package-lock.json"), "{}\n");
     writeFileSync(path.join(desktopDirectory, "pnpm-lock.yaml"), "{}\n");
 
     assert.deepEqual(validateRepository(rootDirectory), [
       {
-        file: path.join("apps", "desktop", "pnpm-lock.yaml"),
+        file: "package-lock.json",
         section: "repository",
-        dependency: "pnpm-lock.yaml",
-        specifier: "competing package-manager file",
+        dependency: "package-lock.json",
+        specifier: "required npm lockfile is missing",
       },
       {
         file: path.join("apps", "desktop", "package-lock.json"),
         section: "repository",
         dependency: "package-lock.json",
-        specifier: "required npm lockfile is missing",
+        specifier: "nested npm lockfile is not allowed",
+      },
+      {
+        file: path.join("apps", "desktop", "pnpm-lock.yaml"),
+        section: "repository",
+        dependency: "pnpm-lock.yaml",
+        specifier: "competing package-manager file",
       },
     ]);
   } finally {
@@ -197,7 +214,6 @@ test("repository policy checks nested npm overrides", () => {
     writeFileSync(path.join(desktopDirectory, "package.json"), "{}\n");
     writeFileSync(path.join(workerDirectory, "package.json"), "{}\n");
     writeFileSync(path.join(rootDirectory, "package-lock.json"), "{}\n");
-    writeFileSync(path.join(desktopDirectory, "package-lock.json"), "{}\n");
 
     assert.deepEqual(validateRepository(rootDirectory), [
       {
@@ -212,14 +228,22 @@ test("repository policy checks nested npm overrides", () => {
   }
 });
 
-test("the two dependency roots share npm policy and override baselines", () => {
-  assert.equal(
-    readFileSync(".npmrc", "utf8"),
-    readFileSync("apps/desktop/.npmrc", "utf8"),
-  );
+test("the root owns the dependency policy and override baseline", () => {
   const rootPackage = JSON.parse(readFileSync("package.json", "utf8"));
+  const rootLockfile = JSON.parse(readFileSync("package-lock.json", "utf8"));
   const desktopPackage = JSON.parse(
     readFileSync("apps/desktop/package.json", "utf8"),
   );
-  assert.deepEqual(desktopPackage.overrides, rootPackage.overrides);
+  assert.equal(existsSync("apps/desktop/.npmrc"), false);
+  assert.equal(desktopPackage.overrides, undefined);
+  assert.equal(desktopPackage.allowScripts, undefined);
+  assert.ok(Object.keys(rootPackage.overrides).length > 0);
+  assert.ok(Object.keys(rootPackage.allowScripts).length > 0);
+  assert.deepEqual(rootLockfile.packages[""].workspaces, rootPackage.workspaces);
+  assert.equal(rootLockfile.packages["apps/desktop"].name, "streamfusion");
+  assert.equal(rootLockfile.packages["apps/worker"].name, "streamfusion-worker");
+  assert.deepEqual(rootLockfile.packages["node_modules/streamfusion"], {
+    resolved: "apps/desktop",
+    link: true,
+  });
 });

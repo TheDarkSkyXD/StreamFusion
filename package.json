@@ -2,7 +2,8 @@
   "name": "streamfusion-monorepo",
   "private": true,
   "workspaces": [
-    "apps/worker"
+    "apps/*",
+    "packages/*"
   ],
   "packageManager": "npm@11.19.0",
   "engines": {
@@ -22,33 +23,39 @@
     }
   },
   "allowScripts": {
+    "better-sqlite3@13.0.3": true,
+    "electron-winstaller@5.4.0": true,
+    "esbuild@0.25.12": true,
     "esbuild@0.28.1": true,
+    "esbuild@0.28.2": true,
+    "ffmpeg-static@5.3.0": true,
+    "fsevents@2.3.2": true,
     "fsevents@2.3.3": true,
     "workerd@1.20260820.1": true
   },
   "scripts": {
     "preinstall": "node scripts/require-npm.mjs",
-    "start": "npm --prefix apps/desktop run start:checked",
-    "desktop": "npm --prefix apps/desktop run start:checked",
-    "build": "npm --prefix apps/desktop run build",
-    "dist": "npm --prefix apps/desktop run dist",
-    "dist:win": "npm --prefix apps/desktop run dist:win",
-    "dist:mac": "npm --prefix apps/desktop run dist:mac",
-    "dist:linux": "npm --prefix apps/desktop run dist:linux",
-    "install:dependencies": "npm ci --ignore-scripts && npm --prefix apps/desktop ci --ignore-scripts && npm run lint:dependencies && npm run lint:release-age && npm run audit:signatures && npm run audit:dependencies && npm run rebuild:dependencies",
-    "rebuild:dependencies": "npm rebuild --ignore-scripts=false && npm --prefix apps/desktop rebuild --ignore-scripts=false && npm --prefix apps/desktop run install:electron",
-    "audit:signatures": "npm audit signatures && npm --prefix apps/desktop audit signatures",
-    "audit:dependencies": "npm audit --audit-level=high && npm --prefix apps/desktop audit --audit-level=high",
-    "lint": "npm run lint:dependencies && npm run lint:lockfile && npm --prefix apps/desktop run lint",
+    "start": "npm run --workspace streamfusion start:checked",
+    "desktop": "npm run --workspace streamfusion start:checked",
+    "build": "npm run --workspace streamfusion build",
+    "dist": "npm run --workspace streamfusion dist",
+    "dist:win": "npm run --workspace streamfusion dist:win",
+    "dist:mac": "npm run --workspace streamfusion dist:mac",
+    "dist:linux": "npm run --workspace streamfusion dist:linux",
+    "install:dependencies": "npm ci --ignore-scripts && npm run lint:dependencies && npm run lint:release-age && npm run audit:signatures && npm run audit:dependencies && npm run rebuild:dependencies",
+    "rebuild:dependencies": "npm rebuild better-sqlite3 electron-winstaller esbuild ffmpeg-static fsevents workerd --ignore-scripts=false && npm run --workspace streamfusion install:electron",
+    "audit:signatures": "npm audit signatures",
+    "audit:dependencies": "npm audit --audit-level=high",
+    "lint": "npm run lint:dependencies && npm run lint:lockfile && npm run --workspace streamfusion lint",
     "lint:dependencies": "node scripts/validate-dependency-sources.mjs",
-    "lint:lockfile": "eslint --config eslint.lockfile.config.mjs package-lock.json apps/desktop/package-lock.json package.json apps/*/package.json && npm run lint:release-age",
+    "lint:lockfile": "eslint --config eslint.lockfile.config.mjs package-lock.json package.json \"apps/*/package.json\" && npm run lint:release-age",
     "lint:release-age": "node scripts/validate-lockfile-release-age.mjs",
-    "test": "npm --prefix apps/desktop test && npm run --workspace streamfusion-worker test",
-    "test:all": "npm --prefix apps/desktop run test:all && npm run --workspace streamfusion-worker test",
+    "test": "npm run --workspace streamfusion test && npm run --workspace streamfusion-worker test",
+    "test:all": "npm run --workspace streamfusion test:all && npm run --workspace streamfusion-worker test",
     "test:package-policy": "node --test scripts/package-policy.test.mjs scripts/validate-lockfile-release-age.test.mjs",
     "test:release-policy": "node --test scripts/release-policy.test.mjs scripts/merge-artifacts.test.mjs scripts/release-workflow.test.mjs",
-    "typecheck": "npm --prefix apps/desktop run typecheck && npm run --workspace streamfusion-worker typecheck",
-    "perf:soak": "npm --prefix apps/desktop run perf:soak"
+    "typecheck": "npm run --workspace streamfusion typecheck && npm run --workspace streamfusion-worker typecheck",
+    "perf:soak": "npm run --workspace streamfusion perf:soak"
   },
   "overrides": {
     "ajv@8.20.0": {

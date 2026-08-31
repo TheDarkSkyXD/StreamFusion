@@ -21,7 +21,7 @@ const COMPETING_PACKAGE_FILES = new Set([
   "bun.lock",
   "bun.lockb",
 ]);
-const LOCKFILE_ROOTS = [".", path.join("apps", "desktop")];
+const WORKSPACE_DIRECTORIES = ["apps", "packages"];
 
 export function findCompetingPackageFiles(fileNames) {
   return fileNames.filter((fileName) => COMPETING_PACKAGE_FILES.has(fileName));
@@ -74,34 +74,59 @@ function loadJson(filePath) {
 }
 
 export function validateRepository(rootDirectory) {
-  const appsDirectory = path.join(rootDirectory, "apps");
   const manifestPaths = [path.join(rootDirectory, "package.json")];
-  for (const entry of readdirSync(appsDirectory, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
-      manifestPaths.push(path.join(appsDirectory, entry.name, "package.json"));
+  const workspaceDirectories = [];
+  for (const relativeDirectory of WORKSPACE_DIRECTORIES) {
+    const workspaceRoot = path.join(rootDirectory, relativeDirectory);
+    if (!existsSync(workspaceRoot)) continue;
+    for (const entry of readdirSync(workspaceRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const workspaceDirectory = path.join(workspaceRoot, entry.name);
+      const manifestPath = path.join(workspaceDirectory, "package.json");
+      if (existsSync(manifestPath)) {
+        workspaceDirectories.push(workspaceDirectory);
+        manifestPaths.push(manifestPath);
+      }
     }
   }
 
   const violations = [];
-  for (const relativeRoot of LOCKFILE_ROOTS) {
-    const policyDirectory = path.join(rootDirectory, relativeRoot);
+  for (const file of findCompetingPackageFiles(readdirSync(rootDirectory))) {
+    violations.push({
+      file,
+      section: "repository",
+      dependency: file,
+      specifier: "competing package-manager file",
+    });
+  }
+  const rootLockfilePath = path.join(rootDirectory, "package-lock.json");
+  if (!existsSync(rootLockfilePath)) {
+    violations.push({
+      file: "package-lock.json",
+      section: "repository",
+      dependency: "package-lock.json",
+      specifier: "required npm lockfile is missing",
+    });
+  }
+
+  for (const workspaceDirectory of workspaceDirectories) {
+    const nestedLockfilePath = path.join(workspaceDirectory, "package-lock.json");
+    if (existsSync(nestedLockfilePath)) {
+      violations.push({
+        file: path.relative(rootDirectory, nestedLockfilePath),
+        section: "repository",
+        dependency: "package-lock.json",
+        specifier: "nested npm lockfile is not allowed",
+      });
+    }
     for (const file of findCompetingPackageFiles(
-      readdirSync(policyDirectory),
+      readdirSync(workspaceDirectory),
     )) {
       violations.push({
-        file: path.relative(rootDirectory, path.join(policyDirectory, file)),
+        file: path.relative(rootDirectory, path.join(workspaceDirectory, file)),
         section: "repository",
         dependency: file,
         specifier: "competing package-manager file",
-      });
-    }
-    const lockfilePath = path.join(policyDirectory, "package-lock.json");
-    if (!existsSync(lockfilePath)) {
-      violations.push({
-        file: path.relative(rootDirectory, lockfilePath),
-        section: "repository",
-        dependency: "package-lock.json",
-        specifier: "required npm lockfile is missing",
       });
     }
   }

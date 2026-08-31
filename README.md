@@ -40,11 +40,10 @@ This project is organized as a monorepo:
 ```bash
 StreamFusion/
 ├── apps/
-│   ├── desktop/        # Standalone Electron dependency root
-│   │   └── package-lock.json
-│   └── worker/         # Cloudflare Worker in the root tooling workspace
-├── package-lock.json   # Root tooling and worker lockfile
-└── package.json        # Root scripts and package-manager pin
+│   ├── desktop/
+│   └── worker/
+├── package-lock.json
+└── package.json
 ```
 
 ## 🚀 Getting Started
@@ -71,10 +70,11 @@ Ensure you have the following installed:
     npm run install:dependencies
     ```
 
-    The install command uses both committed lockfiles. It installs with lifecycle scripts
+    The install command uses the root workspace lockfile. It installs with lifecycle scripts
     disabled, checks the seven-day release-age policy and registry signatures, then runs
     only the version-pinned scripts in `allowScripts`. Use `npm install <package>` for the
-    root and worker. Use `npm --prefix apps/desktop install <package>` for the desktop app.
+    root. Use `npm install --workspace streamfusion <package>` for the desktop app and
+    `npm install --workspace streamfusion-worker <package>` for the Worker.
     See the [npm security research](docs/brainstorms/2026-08-29-npm-supply-chain-security-research.md)
     for the policy and its limits.
 

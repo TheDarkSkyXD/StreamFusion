@@ -8,7 +8,6 @@ const EXACT_VERSION =
   /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const DEFAULT_REGISTRY = "https://registry.npmjs.org";
 const REGISTRY_CONCURRENCY = 16;
-const POLICY_DIRECTORIES = [".", path.join("apps", "desktop")];
 
 async function mapWithConcurrency(values, concurrency, mapper) {
   const results = new Array(values.length);
@@ -278,29 +277,18 @@ export async function validateRepository(
       "utf8",
     ),
   );
-  const policyViolations = await Promise.all(
-    POLICY_DIRECTORIES.map(async (relativeDirectory) => {
-      const policyDirectory = path.join(rootDirectory, relativeDirectory);
-      const [lockfileSource, npmrcSource] = await Promise.all([
-        readFile(path.join(policyDirectory, "package-lock.json"), "utf8"),
-        readFile(path.join(policyDirectory, ".npmrc"), "utf8"),
-      ]);
-      const violations = await findReleaseAgeViolations({
-        lockfile: JSON.parse(lockfileSource),
-        minimumReleaseAgeMinutes: readMinimumReleaseAgeMinutes(npmrcSource),
-        exceptions,
-        now,
-        getPackageTimes,
-      });
-      const lockfilePath = path.relative(
-        rootDirectory,
-        path.join(policyDirectory, "package-lock.json"),
-      );
-      return violations.map((violation) => `${lockfilePath}: ${violation}`);
-    }),
-  );
-
-  return policyViolations.flat();
+  const [lockfileSource, npmrcSource] = await Promise.all([
+    readFile(path.join(rootDirectory, "package-lock.json"), "utf8"),
+    readFile(path.join(rootDirectory, ".npmrc"), "utf8"),
+  ]);
+  const violations = await findReleaseAgeViolations({
+    lockfile: JSON.parse(lockfileSource),
+    minimumReleaseAgeMinutes: readMinimumReleaseAgeMinutes(npmrcSource),
+    exceptions,
+    now,
+    getPackageTimes,
+  });
+  return violations.map((violation) => `package-lock.json: ${violation}`);
 }
 
 const isDirectExecution =
