@@ -454,11 +454,9 @@ export const useChatStore = create<ChatState>()(
                 ),
                 ...(reconciledOptimistic
                   ? {
-                      usersByChannel: mergeReconciledKnownUsers(
-                        state.usersByChannel,
-                        channelKey,
-                        [reconciled]
-                      ),
+                      usersByChannel: mergeReconciledKnownUsers(state.usersByChannel, channelKey, [
+                        reconciled,
+                      ]),
                     }
                   : {}),
               };
