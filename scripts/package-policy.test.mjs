@@ -53,6 +53,9 @@ test("the root workspace owns npm policy and application startup", () => {
   const mobilePackage = JSON.parse(
     readFileSync("apps/mobile/package.json", "utf8"),
   );
+  const relayPackage = JSON.parse(
+    readFileSync("apps/integration-relay/package.json", "utf8"),
+  );
 
   assert.equal(rootPackage.engines.npm, ">=11.8.0 <12");
   assert.equal(rootPackage.devEngines.packageManager.version, ">=11.8.0 <12");
@@ -75,6 +78,15 @@ test("the root workspace owns npm policy and application startup", () => {
     "npm run --workspace @streamfusion/mobile android",
   );
   assert.equal(mobilePackage.scripts.android, "expo run:android");
+  assert.equal(
+    rootPackage.scripts.relay,
+    "npm run --workspace @streamfusion/integration-relay dev",
+  );
+  assert.equal(
+    rootPackage.scripts["build:relay"],
+    "npm run --workspace @streamfusion/integration-relay build",
+  );
+  assert.equal(relayPackage.scripts.dev, "wrangler dev --env development");
   assert.equal(
     rootPackage.scripts["verify:evidence"],
     "node scripts/verify-evidence.mjs --resume",
@@ -113,6 +125,16 @@ test("the root workspace owns npm policy and application startup", () => {
     rootPackage.scripts.typecheck,
     /npm run --workspace @streamfusion\/mobile typecheck/,
   );
+  for (const gate of ["lint", "test", "test:all", "typecheck"]) {
+    const relayGate = gate === "test:all" ? "test" : gate;
+    assert.match(
+      rootPackage.scripts[gate],
+      new RegExp(
+        `npm run --workspace @streamfusion/integration-relay ${relayGate}`,
+      ),
+      `${gate} must include the integration relay`,
+    );
+  }
 });
 
 test("dependency policy rejects Git, URL, tarball, and local sources", () => {
@@ -290,6 +312,10 @@ test("the root owns the dependency policy and override baseline", () => {
     "@streamfusion/mobile",
   );
   assert.equal(
+    rootLockfile.packages["apps/integration-relay"].name,
+    "@streamfusion/integration-relay",
+  );
+  assert.equal(
     rootLockfile.packages["packages/core"].name,
     "@streamfusion/core",
   );
@@ -305,6 +331,13 @@ test("the root owns the dependency policy and override baseline", () => {
     resolved: "apps/mobile",
     link: true,
   });
+  assert.deepEqual(
+    rootLockfile.packages["node_modules/@streamfusion/integration-relay"],
+    {
+      resolved: "apps/integration-relay",
+      link: true,
+    },
+  );
   assert.equal(rootLockfile.packages["node_modules/ws"].version, "8.21.3");
   assert.equal(
     rootLockfile.packages["node_modules/miniflare/node_modules/ws"].version,

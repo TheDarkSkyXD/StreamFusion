@@ -61,6 +61,18 @@ jobs:
       - name: Test shared core contracts and architecture
         run: npm run --workspace @streamfusion/core test
 
+      - name: Lint integration relay
+        run: npm run --workspace @streamfusion/integration-relay lint
+
+      - name: Typecheck integration relay
+        run: npm run --workspace @streamfusion/integration-relay typecheck
+
+      - name: Test integration relay boundaries
+        run: npm run --workspace @streamfusion/integration-relay test
+
+      - name: Build integration relay dry run
+        run: npm run --workspace @streamfusion/integration-relay deploy:dry-run
+
       - name: Lint mobile
         run: npm run --workspace @streamfusion/mobile lint
 
