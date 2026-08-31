@@ -32,6 +32,13 @@ const rendererNodeRuntimeImportRestrictions = [
   name,
   message: "Frontend code must use the preload bridge instead of Node.js runtime APIs.",
 }));
+const coreImportRestrictionPatterns = [
+  {
+    group: ["@streamfusion/core/testing", "@streamfusion/core/src/**", "@streamfusion/core/*/**"],
+    message:
+      "Production code must import @streamfusion/core through a declared production subpath.",
+  },
+];
 const rendererFeatureDependencies = {
   auth: ["moderation"],
   chat: ["auth", "discovery", "moderation", "settings", "shell"],
@@ -124,6 +131,7 @@ export default tseslint.config(
             },
           ],
           patterns: [
+            ...coreImportRestrictionPatterns,
             {
               group: [
                 "@/**",
@@ -169,6 +177,7 @@ export default tseslint.config(
             },
           ],
           patterns: [
+            ...coreImportRestrictionPatterns,
             {
               group: [
                 "node:*",
@@ -221,6 +230,7 @@ export default tseslint.config(
             },
           ],
           patterns: [
+            ...coreImportRestrictionPatterns,
             {
               group: ["**/ipc-contracts/**", "@shared/ipc-contracts/**"],
               message:
@@ -248,6 +258,7 @@ export default tseslint.config(
             },
           ],
           patterns: [
+            ...coreImportRestrictionPatterns,
             {
               group: ["react-*", "@radix-ui/**", "@tanstack/react-*/**", "lucide-react", "sonner"],
               message: "Backend code must remain independent of frontend libraries.",

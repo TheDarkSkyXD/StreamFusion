@@ -21,7 +21,7 @@
 
 ## 🛠 Tech Stack
 
-StreamFusion uses npm for both dependency roots:
+StreamFusion uses one root npm workspace and lockfile:
 
 - **Core Framework**: [Electron](https://www.electronjs.org/) & [React](https://reactjs.org/)
 - **Build Tooling**: [Vite](https://vitejs.dev/) & [Electron-Vite](https://electron-vite.org/)
@@ -42,6 +42,8 @@ StreamFusion/
 ├── apps/
 │   ├── desktop/
 │   └── worker/
+├── packages/
+│   └── core/
 ├── package-lock.json
 └── package.json
 ```
@@ -74,7 +76,8 @@ Ensure you have the following installed:
     disabled, checks the seven-day release-age policy and registry signatures, then runs
     only the version-pinned scripts in `allowScripts`. Use `npm install <package>` for the
     root. Use `npm install --workspace streamfusion <package>` for the desktop app and
-    `npm install --workspace streamfusion-worker <package>` for the Worker.
+    `npm install --workspace streamfusion-worker <package>` for the Worker. Shared-core
+    tooling belongs to the `@streamfusion/core` workspace under `packages/core`.
     See the [npm security research](docs/brainstorms/2026-08-29-npm-supply-chain-security-research.md)
     for the policy and its limits.
 

@@ -73,6 +73,7 @@ jobs:
 
       - name: Lint and typecheck
         run: |
+          npm run --workspace @streamfusion/core lint
           npm --prefix apps/desktop run lint
           npm run typecheck
 
@@ -143,6 +144,9 @@ jobs:
 
       - name: Rebuild native dependencies
         run: npm --prefix apps/desktop run rebuild-deps:${{ matrix.arch }}
+
+      - name: Build shared core
+        run: npm run --workspace @streamfusion/core build
 
       - name: Test Windows system contracts
         if: matrix.platform == 'windows'

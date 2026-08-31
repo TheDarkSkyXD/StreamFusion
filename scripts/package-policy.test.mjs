@@ -81,6 +81,14 @@ test("the root workspace owns npm policy and desktop startup", () => {
     rootPackage.scripts["rebuild:dependencies"],
     /^npm rebuild --ignore-scripts=false/,
   );
+  assert.match(
+    rootPackage.scripts.lint,
+    /npm run --workspace @streamfusion\/core lint/,
+  );
+  assert.match(
+    rootPackage.scripts.typecheck,
+    /^npm run --workspace @streamfusion\/core typecheck/,
+  );
 });
 
 test("dependency policy rejects Git, URL, tarball, and local sources", () => {
@@ -253,8 +261,16 @@ test("the root owns the dependency policy and override baseline", () => {
     rootLockfile.packages["apps/worker"].name,
     "streamfusion-worker",
   );
+  assert.equal(
+    rootLockfile.packages["packages/core"].name,
+    "@streamfusion/core",
+  );
   assert.deepEqual(rootLockfile.packages["node_modules/streamfusion"], {
     resolved: "apps/desktop",
+    link: true,
+  });
+  assert.deepEqual(rootLockfile.packages["node_modules/@streamfusion/core"], {
+    resolved: "packages/core",
     link: true,
   });
   assert.equal(rootLockfile.packages["node_modules/ws"].version, "8.21.3");

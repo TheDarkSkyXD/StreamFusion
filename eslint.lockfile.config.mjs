@@ -10,7 +10,7 @@ export default [
   },
   ...recommended,
   {
-    files: ["package.json", "apps/*/package.json"],
+    files: ["package.json", "apps/*/package.json", "packages/*/package.json"],
     rules: {
       "lockfile/tracked": "off",
     },

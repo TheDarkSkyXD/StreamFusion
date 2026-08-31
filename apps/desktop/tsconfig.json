@@ -2,11 +2,7 @@
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
-    "lib": [
-      "ESNext",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -20,29 +16,17 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "paths": {
-      "@backend/*": [
-        "./src/backend/*"
-      ],
-      "@frontend/*": [
-        "./src/frontend/*"
-      ],
-      "@shared/*": [
-        "./src/shared/*"
-      ],
-      "@/*": [
-        "./src/frontend/*"
-      ]
+      "@backend/*": ["./src/backend/*"],
+      "@frontend/*": ["./src/frontend/*"],
+      "@shared/*": ["./src/shared/*"],
+      "@/*": ["./src/frontend/*"]
     }
   },
-  "include": [
-    "src/**/*",
-    "tests/**/*",
-    "electron.vite.config.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "out",
-    ".vite"
+  "include": ["src/**/*", "tests/**/*", "electron.vite.config.ts"],
+  "exclude": ["node_modules", "dist", "out", ".vite"],
+  "references": [
+    {
+      "path": "../../packages/core"
+    }
   ]
 }

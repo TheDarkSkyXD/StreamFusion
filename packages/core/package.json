@@ -1,0 +1,68 @@
+{
+  "name": "@streamfusion/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "packageManager": "npm@11.19.0",
+  "engines": {
+    "node": ">=22.14.0",
+    "npm": ">=11.8.0 <12"
+  },
+  "exports": {
+    "./platform": {
+      "types": "./src/platform/index.ts",
+      "default": "./src/platform/index.ts"
+    },
+    "./content": {
+      "types": "./src/content/index.ts",
+      "default": "./src/content/index.ts"
+    },
+    "./discovery": {
+      "types": "./src/discovery/index.ts",
+      "default": "./src/discovery/index.ts"
+    },
+    "./auth": {
+      "types": "./src/auth/index.ts",
+      "default": "./src/auth/index.ts"
+    },
+    "./chat": {
+      "types": "./src/chat/index.ts",
+      "default": "./src/chat/index.ts"
+    },
+    "./reliability": {
+      "types": "./src/reliability/index.ts",
+      "default": "./src/reliability/index.ts"
+    },
+    "./relay": {
+      "types": "./src/relay/index.ts",
+      "default": "./src/relay/index.ts"
+    },
+    "./testing": {
+      "types": "./src/testing/index.ts",
+      "default": "./src/testing/index.ts"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "preinstall": "node ../../scripts/require-npm.mjs",
+    "build": "tsc --project tsconfig.json",
+    "lint": "eslint src/ tests/*.mjs scripts/ eslint.config.mjs --max-warnings=0 && prettier --check . --ignore-path ../../.gitignore",
+    "test": "node --test tests/*.test.mjs && npm run test:architecture",
+    "test:architecture": "node scripts/verify-architecture.mjs",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-import-resolver-alias": "1.1.2",
+    "eslint-plugin-boundaries": "7.2.0",
+    "globals": "^17.8.0",
+    "prettier": "^3.9.6",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "typescript-eslint": "^8.65.0"
+  }
+}
