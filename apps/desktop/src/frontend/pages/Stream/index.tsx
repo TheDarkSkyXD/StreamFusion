@@ -17,6 +17,8 @@ import { useRegisterDockedPlayerConfig } from "@/features/playback/components/pl
 import { OfflineOverlay } from "@/features/playback/components/player/offline-overlay";
 import { StreamRecordingControl } from "@/features/media-library/components/recording/stream-recording-control";
 import { StreamInfo } from "@/features/playback/components/stream-info";
+import { RaidHandoffPopup } from "@/features/playback/components/raid-handoff/raid-handoff-popup";
+import { useRaidHandoff } from "@/features/playback/data/use-raid-handoff";
 import { useChatDisplay } from "@/features/settings/data/use-chat-display";
 import { KickLoadingSpinner, TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { useChannelByUsername } from "@/features/discovery/data/queries/useChannels";
@@ -31,6 +33,7 @@ import { requirePlatform } from "@/features/playback/routes/route-boundaries";
 import { useAppStore } from "@/store/app-store";
 import { useAuthStore } from "@/store/auth-store";
 import { usePipStore } from "@/store/pip-store";
+import type { RaidSource, RaidTarget } from "@shared/raid-handoff-types";
 
 let chatPanelModulePromise:
   Promise<typeof import("@/features/chat/components/chat/ChatPanel")> | undefined;
@@ -165,6 +168,45 @@ export function StreamPage() {
 
     return { ...detailChannelData, displayName: visibleDisplayName };
   }, [detailChannelData, visibleDisplayName]);
+  const raidSource = useMemo<RaidSource | null>(() => {
+    if (!detailChannelData?.id) return null;
+    if (routePlatform === "twitch") {
+      return {
+        platform: "twitch",
+        channelId: detailChannelData.id,
+        channelSlug: channelName,
+      };
+    }
+    const broadcasterUserId = detailChannelData.kickUserId || detailChannelData.id;
+    return broadcasterUserId
+      ? { platform: "kick", broadcasterUserId, channelSlug: channelName }
+      : null;
+  }, [channelName, detailChannelData, routePlatform]);
+  const isRaidSourceCurrent = useCallback(
+    (source: RaidSource) =>
+      source.platform === routePlatform &&
+      normalizeChannelLogin(source.channelSlug) === normalizeChannelLogin(channelName),
+    [channelName, routePlatform]
+  );
+  const joinRaidTarget = useCallback(
+    (target: RaidTarget) => {
+      if (!raidSource || target.platform !== routePlatform || !isRaidSourceCurrent(raidSource)) {
+        return;
+      }
+      void navigate({
+        to: "/stream/$platform/$channel",
+        params: { platform: target.platform, channel: target.channelSlug },
+        search: { tab: "home" },
+        replace: true,
+      });
+    },
+    [isRaidSourceCurrent, navigate, raidSource, routePlatform]
+  );
+  const raidHandoff = useRaidHandoff({
+    source: raidSource,
+    isSourceCurrent: isRaidSourceCurrent,
+    onJoin: joinRaidTarget,
+  });
   const hasRouteMatchedStreamLiveEvidence =
     streamDataMatchesRoute && !isStreamPlaceholderData && streamData?.isLive === true;
   const hasRouteMatchedChannelLiveEvidence =
@@ -883,6 +925,7 @@ export function StreamPage() {
                 onCheckAgain={handleCheckAgain}
               />
             )}
+            {raidHandoff.popup && <RaidHandoffPopup model={raidHandoff.popup} />}
           </div>
 
           <div className={`${isTheater ? "hidden" : "block"} p-6 space-y-6`}>

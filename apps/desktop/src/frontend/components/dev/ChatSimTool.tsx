@@ -12,6 +12,7 @@ import { useState } from "react";
 
 import { kickChatService, kickPinToNormalized } from "../../../backend/services/chat/kick-chat";
 import { twitchChatService } from "../../../backend/services/chat/twitch-chat";
+import { simulateRaidHandoffForDev } from "../../../backend/services/chat/raid-handoff-source";
 import type { ModerationHighlightStyle, UserPreferences } from "../../../shared/auth-types";
 import {
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
@@ -45,6 +46,20 @@ function getInitialPlatform(): ChatPlatform {
   if (connectionStatus.kick.channels.length > 0) return "kick";
   return "twitch";
 }
+
+function getCurrentRaidSourceSlug(platform: ChatPlatform, fallback: string): string {
+  const routePath = window.location.hash.startsWith("#/")
+    ? window.location.hash.slice(1).split("?", 1)[0]
+    : window.location.pathname;
+  const parts = routePath.split("/").filter(Boolean);
+  if (parts[0] === "stream" && parts[1] === platform && parts[2]) {
+    return decodeURIComponent(parts[2]);
+  }
+  return fallback;
+}
+
+const RAID_TARGET_AVATAR =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='48' fill='%2325252a'/%3E%3Ccircle cx='48' cy='38' r='18' fill='%23ffffff'/%3E%3Cpath d='M18 88c3-20 14-30 30-30s27 10 30 30' fill='%23ffffff'/%3E%3C/svg%3E";
 
 interface FakeUser {
   username: string;
@@ -378,6 +393,36 @@ export function ChatSimTool() {
   const injectRaid = (count: number) => {
     const u = pickUser();
     injectEventNotice(u, `${count} raiders from ${u.displayName} have joined!`, "raid");
+  };
+
+  const simulateOutgoingTwitchRaid = (phase: "offer" | "go" | "cancel") => {
+    const sourceChannelSlug = getCurrentRaidSourceSlug("twitch", targetChannel);
+    simulateRaidHandoffForDev(
+      phase === "offer"
+        ? {
+            phase,
+            platform: "twitch",
+            sourceChannelSlug,
+            targetChannelSlug: "raid_destination",
+            targetDisplayName: "Raid Destination",
+            targetAvatarUrl: RAID_TARGET_AVATAR,
+            count: 842,
+          }
+        : { phase, platform: "twitch", sourceChannelSlug }
+    );
+  };
+
+  const simulateOutgoingKickRaid = () => {
+    simulateRaidHandoffForDev({
+      phase: "offer",
+      platform: "kick",
+      sourceChannelSlug: getCurrentRaidSourceSlug("kick", targetChannel),
+      targetChannelSlug: "raid-destination",
+      targetDisplayName: "Raid Destination",
+      targetAvatarUrl: RAID_TARGET_AVATAR,
+      count: 12_304,
+      kickDeadlineMs: 3_000,
+    });
   };
 
   const injectDeletedMessagePreview = (style: ModerationHighlightStyle) => {
@@ -862,6 +907,36 @@ export function ChatSimTool() {
           </PillButton>
           <PillButton title="Inject a 1.2k viewer raid notice" onClick={() => injectRaid(1234)}>
             raid 1.2k
+          </PillButton>
+        </div>
+      </section>
+
+      <section style={sectionStyle}>
+        <div style={sectionLabelStyle}>Outgoing raid handoff</div>
+        <div style={buttonRowStyle}>
+          <PillButton
+            title="Show a Twitch outgoing raid offer for the current stream"
+            onClick={() => simulateOutgoingTwitchRaid("offer")}
+          >
+            Twitch offer
+          </PillButton>
+          <PillButton
+            title="Launch the active simulated Twitch raid"
+            onClick={() => simulateOutgoingTwitchRaid("go")}
+          >
+            Twitch go
+          </PillButton>
+          <PillButton
+            title="Cancel the active simulated Twitch raid"
+            onClick={() => simulateOutgoingTwitchRaid("cancel")}
+          >
+            Twitch cancel
+          </PillButton>
+          <PillButton
+            title="Show a three-second Kick outgoing raid handoff"
+            onClick={simulateOutgoingKickRaid}
+          >
+            Kick short deadline
           </PillButton>
         </div>
       </section>

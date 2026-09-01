@@ -1,9 +1,11 @@
 import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LuGripVertical, LuMessageSquare, LuVolume2, LuVolumeX, LuX } from "react-icons/lu";
 
 import { KickLivePlayer } from "@/features/playback/components/player/kick/kick-live-player";
 import { TwitchLivePlayer } from "@/features/playback/components/player/twitch/twitch-live-player";
+import { RaidHandoffPopup } from "@/features/playback/components/raid-handoff/raid-handoff-popup";
+import { useRaidHandoff } from "@/features/playback/data/use-raid-handoff";
 import { useTwitchLiveRecovery } from "@/features/playback/components/player/hooks/use-twitch-live-recovery";
 import type { PlayerError } from "@/features/playback/components/player/types";
 import { Button } from "@/components/ui/button";
@@ -14,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@shared/auth-types";
 import { useMultiStreamStore } from "@/features/multistream/data/multistream-store";
+import type { RaidSource, RaidTarget } from "@shared/raid-handoff-types";
 
 const VISIBILITY_THRESHOLD = 0.25;
 
@@ -55,6 +58,7 @@ export function StreamSlot({
   const toggleMute = useMultiStreamStore((state) => state.toggleMute);
   const setChatStream = useMultiStreamStore((state) => state.setChatStream);
   const setMultiChatView = useMultiStreamStore((state) => state.setMultiChatView);
+  const replaceRaidSource = useMultiStreamStore((state) => state.replaceRaidSource);
   const isChatActive = useMultiStreamStore(
     (state) => state.multiChatView === "tabs" && state.chatStreamId === streamId
   );
@@ -110,6 +114,39 @@ export function StreamSlot({
 
   // Fetch channel data to get offline banner, avatar, and display name
   const { data: channelData } = useChannelByUsername(playbackActive ? channelName : "", platform);
+  const raidSource = useMemo<RaidSource | null>(() => {
+    if (!playbackActive || !channelData?.id) return null;
+    if (platform === "twitch") {
+      return { platform: "twitch", channelId: channelData.id, channelSlug: channelName };
+    }
+    const broadcasterUserId = channelData.kickUserId || channelData.id;
+    return broadcasterUserId
+      ? { platform: "kick", broadcasterUserId, channelSlug: channelName }
+      : null;
+  }, [channelData, channelName, platform, playbackActive]);
+  const isRaidSourceCurrent = useCallback(
+    (source: RaidSource) => {
+      const current = useMultiStreamStore
+        .getState()
+        .streams.find((stream) => stream.id === streamId);
+      return (
+        current?.platform === source.platform &&
+        current.channelName.trim().toLowerCase() === source.channelSlug.trim().toLowerCase()
+      );
+    },
+    [streamId]
+  );
+  const joinRaidTarget = useCallback(
+    (target: RaidTarget) => {
+      replaceRaidSource(streamId, target);
+    },
+    [replaceRaidSource, streamId]
+  );
+  const raidHandoff = useRaidHandoff({
+    source: raidSource,
+    isSourceCurrent: isRaidSourceCurrent,
+    onJoin: joinRaidTarget,
+  });
 
   // ===== Slice 06: WCV-per-slot path (gated by env flag during dogfood) =====
   // When the controller has its WCV path enabled, this slot:
@@ -483,6 +520,7 @@ export function StreamSlot({
           </div>
         )}
       </div>
+      {raidHandoff.popup && <RaidHandoffPopup model={raidHandoff.popup} compact />}
     </div>
   );
 }

@@ -9,6 +9,11 @@ import { buildChannelKey, useChatStore } from "@/store/chat-store";
 const serviceMocks = vi.hoisted(() => ({
   kickEmit: vi.fn(),
   twitchEmit: vi.fn(),
+  simulateRaid: vi.fn(),
+}));
+
+vi.mock("@backend/services/chat/raid-handoff-source", () => ({
+  simulateRaidHandoffForDev: (...args: unknown[]) => serviceMocks.simulateRaid(...args),
 }));
 
 vi.mock("@backend/services/chat/kick-chat", () => ({
@@ -60,11 +65,42 @@ function resetChatStore() {
 // Guards: every chat simulator button has a hover tooltip so the debug console controls are discoverable.
 // Guards: Twitch-only slash-me action is hidden on Kick because Kick chat does not support /me messages.
 // Guards: moderation simulator controls create retained deleted rows in the selected Twitch/Kick channel and preview both highlight styles.
+// Guards: outgoing raid controls remain separate from the incoming raid notice and drive the normalized production ingestion seam.
 describe("ChatSimTool", () => {
   beforeEach(() => {
+    window.history.replaceState(null, "", "/");
     resetChatStore();
     serviceMocks.kickEmit.mockReset();
     serviceMocks.twitchEmit.mockReset();
+    serviceMocks.simulateRaid.mockReset();
+  });
+
+  it("offers separate deterministic outgoing raid controls", () => {
+    window.history.replaceState(null, "", "/#/stream/kick/xqc");
+    render(<ChatSimTool />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Twitch offer" }));
+    expect(serviceMocks.simulateRaid).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: "offer", platform: "twitch", sourceChannelSlug: "ninja" })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Twitch go" }));
+    expect(serviceMocks.simulateRaid).toHaveBeenCalledWith({
+      phase: "go",
+      platform: "twitch",
+      sourceChannelSlug: "ninja",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Kick short deadline" }));
+    expect(serviceMocks.simulateRaid).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: "offer",
+        platform: "kick",
+        sourceChannelSlug: "xqc",
+        kickDeadlineMs: 3_000,
+      })
+    );
+    expect(screen.getByRole("button", { name: "raid 1.2k" })).toBeInTheDocument();
   });
 
   it("injects debug messages into the connected Twitch chat channel", () => {

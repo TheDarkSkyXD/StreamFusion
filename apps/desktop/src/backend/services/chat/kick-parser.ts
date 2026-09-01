@@ -16,6 +16,14 @@ import type {
   SubscriberBadge,
   UserNotice,
 } from "../../../shared/chat-types";
+import {
+  RAID_CONTRACT_PROFILES,
+  isValidRaidChannelSlug,
+  normalizeRaidChannelSlug,
+  type KickRaidSource,
+  type KickRaidTarget,
+  type RaidHandoffEvent,
+} from "../../../shared/raid-handoff-types";
 
 export type { SubscriberBadge } from "../../../shared/chat-types";
 
@@ -716,6 +724,112 @@ export function parseKickHostRaid(event: KickHostRaidEvent, channel: string): Us
     timestamp: new Date(),
     viewerCount: event.number_viewers,
   };
+}
+
+export type KickRaidParseResult =
+  { kind: "event"; event: RaidHandoffEvent } | { kind: "ignored" } | { kind: "contract-mismatch" };
+
+export function parseKickRaidNotification(
+  eventName: string,
+  raw: unknown,
+  source: KickRaidSource,
+  receivedAt: number,
+  sessionId: string
+): KickRaidParseResult {
+  if (eventName !== "App\\Events\\ChatMoveToSupportedChannelEvent") {
+    return { kind: "ignored" };
+  }
+  if (!isUnknownRecord(raw) || !isUnknownRecord(raw.hosted)) {
+    return { kind: "contract-mismatch" };
+  }
+
+  const hosted = raw.hosted;
+  const channelSlug = readRequiredString(hosted, "slug");
+  const displayName = readRequiredString(hosted, "username");
+  if (
+    !channelSlug ||
+    !displayName ||
+    !isValidRaidChannelSlug(channelSlug) ||
+    normalizeRaidChannelSlug(channelSlug) === normalizeRaidChannelSlug(source.channelSlug)
+  ) {
+    return { kind: "contract-mismatch" };
+  }
+
+  const avatarResult = readKickAvatar(hosted.profile_pic);
+  if (avatarResult.kind === "invalid") return { kind: "contract-mismatch" };
+
+  const viewersResult = readKickViewerCount(hosted.viewers_count);
+  if (viewersResult.kind === "invalid") return { kind: "contract-mismatch" };
+
+  const target: KickRaidTarget = {
+    platform: "kick",
+    channelSlug,
+    displayName,
+    ...(avatarResult.kind === "value" ? { avatarUrl: avatarResult.value } : {}),
+  };
+  const deadlineAt = receivedAt + 8_000;
+
+  return {
+    kind: "event",
+    event: {
+      phase: "offer",
+      offer: {
+        sessionId,
+        platform: "kick",
+        source,
+        target,
+        audience:
+          viewersResult.kind === "value"
+            ? { kind: "target-viewers", count: viewersResult.value }
+            : { kind: "unknown" },
+        progress: {
+          kind: "timed",
+          startedAt: receivedAt,
+          endsAt: deadlineAt,
+          provenance: "observed-first-party-client",
+        },
+        launchAuthority: {
+          kind: "deadline",
+          deadlineAt,
+          provenance: "observed-first-party-client",
+        },
+        receivedAt,
+        contract: RAID_CONTRACT_PROFILES.kick,
+      },
+    },
+  };
+}
+
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readRequiredString(value: Record<string, unknown>, key: string): string | undefined {
+  const candidate = value[key];
+  return typeof candidate === "string" && candidate.trim() ? candidate.trim() : undefined;
+}
+
+type OptionalBoundaryValue<T> =
+  { kind: "missing" } | { kind: "value"; value: T } | { kind: "invalid" };
+
+function readKickAvatar(value: unknown): OptionalBoundaryValue<string> {
+  if (value === undefined || value === null || value === "") return { kind: "missing" };
+  if (typeof value !== "string") return { kind: "invalid" };
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:"
+      ? { kind: "value", value }
+      : { kind: "invalid" };
+  } catch {
+    return { kind: "invalid" };
+  }
+}
+
+function readKickViewerCount(value: unknown): OptionalBoundaryValue<number> {
+  if (value === undefined || value === null) return { kind: "missing" };
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? { kind: "value", value }
+    : { kind: "invalid" };
 }
 
 // ========== Utility Functions ==========

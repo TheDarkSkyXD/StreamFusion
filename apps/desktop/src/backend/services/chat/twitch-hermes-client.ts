@@ -29,6 +29,14 @@ import { createCancellableSleep, type CancellableSleep } from "@shared/utils/sle
 
 import { EventEmitter } from "../../../shared/browser-event-emitter";
 import type { UnifiedPrediction, UnifiedPredictionOutcome } from "../../../shared/chat-types";
+import {
+  RAID_CONTRACT_PROFILES,
+  isValidRaidChannelSlug,
+  normalizeRaidChannelSlug,
+  type RaidHandoffEvent,
+  type TwitchRaidSource,
+  type TwitchRaidTarget,
+} from "../../../shared/raid-handoff-types";
 
 const HERMES_URL = "wss://hermes.twitch.tv/v1?clientId=kimne78kx3ncx6brgo4mv6wki5h1ko";
 const DEFAULT_KEEPALIVE_MS = 15_000;
@@ -41,8 +49,15 @@ const VALID_STATUSES: ReadonlySet<string> = new Set(["ACTIVE", "LOCKED", "RESOLV
 
 interface HermesClientEvents {
   prediction: (prediction: UnifiedPrediction) => void;
+  raidHandoff: (event: RaidHandoffEvent) => void;
+  raidContractMismatch: () => void;
   /** Diagnostic — fires on connect / reconnect / disconnect. */
   state: (state: "connecting" | "connected" | "disconnected") => void;
+}
+
+interface TwitchHermesClientOptions {
+  subscribePredictions?: boolean;
+  raidSource?: TwitchRaidSource;
 }
 
 type Listener<T extends keyof HermesClientEvents> = HermesClientEvents[T];
@@ -58,12 +73,17 @@ export class TwitchHermesClient {
   private keepaliveMs = DEFAULT_KEEPALIVE_MS;
   private reconnectAttempts = 0;
   private reconnectTimer: CancellableSleep | null = null;
-  private subscriptionId: string | null = null;
+  private subscriptionKinds = new Map<string, "prediction" | "raid">();
   private emitter = new EventEmitter();
   private handledMessageIds = new Set<string>();
   private active = false;
+  private activeRaidSessionId: string | null = null;
+  private raidContractBroken = false;
 
-  constructor(private readonly channelId: string) {}
+  constructor(
+    private readonly channelId: string,
+    private readonly options: TwitchHermesClientOptions = {}
+  ) {}
 
   start(): void {
     if (this.active) return;
@@ -75,6 +95,8 @@ export class TwitchHermesClient {
     this.active = false;
     this.reconnectAttempts = 0;
     this.clearTimers();
+    this.subscriptionKinds.clear();
+    this.activeRaidSessionId = null;
     if (this.ws) {
       closeWebSocketSafe(this.ws);
       this.ws = null;
@@ -216,20 +238,26 @@ export class TwitchHermesClient {
     // only now so a half-open socket can't loop us at the 1s base delay.
     this.reconnectAttempts = 0;
     this.resetPongTimer();
-    this.subscribePrediction();
+    this.subscriptionKinds.clear();
+    if (this.options.subscribePredictions !== false) {
+      this.subscribeTopic("prediction", `predictions-channel-v1.${this.channelId}`);
+    }
+    if (this.options.raidSource && !this.raidContractBroken) {
+      this.subscribeTopic("raid", `raid.${this.channelId}`);
+    }
   }
 
-  private subscribePrediction(): void {
+  private subscribeTopic(kind: "prediction" | "raid", topic: string): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     const subId = makeId();
-    this.subscriptionId = subId;
+    this.subscriptionKinds.set(subId, kind);
     const frame = {
       type: "subscribe",
       id: makeId(),
       subscribe: {
         id: subId,
         type: "pubsub",
-        pubsub: { topic: `predictions-channel-v1.${this.channelId}` },
+        pubsub: { topic },
       },
       timestamp: new Date().toISOString(),
     };
@@ -245,7 +273,10 @@ export class TwitchHermesClient {
     const notif = isObject(frame.notification) ? frame.notification : null;
     if (!notif) return;
     const sub = isObject(notif.subscription) ? notif.subscription : null;
-    if (!sub || sub.id !== this.subscriptionId) return; // not our topic
+    const subscriptionId = sub && typeof sub.id === "string" ? sub.id : null;
+    if (!subscriptionId) return;
+    const kind = this.subscriptionKinds.get(subscriptionId);
+    if (!kind) return;
     const pubsubRaw = notif.pubsub;
     if (typeof pubsubRaw !== "string") return;
     let inner: unknown;
@@ -254,9 +285,109 @@ export class TwitchHermesClient {
     } catch {
       return;
     }
-    const prediction = parsePredictionEvent(inner, this.channelId);
-    if (prediction) this.emitter.emit("prediction", prediction);
+    if (kind === "prediction") {
+      const prediction = parsePredictionEvent(inner, this.channelId);
+      if (prediction) this.emitter.emit("prediction", prediction);
+      return;
+    }
+
+    const source = this.options.raidSource;
+    if (!source || this.raidContractBroken) return;
+    const result = parseTwitchRaidNotification(inner, source, Date.now(), this.activeRaidSessionId);
+    if (result.kind === "ignored") return;
+    if (result.kind === "contract-mismatch") {
+      this.raidContractBroken = true;
+      this.activeRaidSessionId = null;
+      this.emitter.emit("raidContractMismatch");
+      return;
+    }
+
+    const event = result.event;
+    if (event.phase === "offer") this.activeRaidSessionId = event.offer.sessionId;
+    if (event.phase === "cancel" || event.phase === "go") this.activeRaidSessionId = null;
+    this.emitter.emit("raidHandoff", event);
   }
+}
+
+export type TwitchRaidParseResult =
+  { kind: "event"; event: RaidHandoffEvent } | { kind: "ignored" } | { kind: "contract-mismatch" };
+
+export function parseTwitchRaidNotification(
+  inner: unknown,
+  source: TwitchRaidSource,
+  receivedAt: number,
+  activeSessionId: string | null = null
+): TwitchRaidParseResult {
+  if (!isObject(inner)) return { kind: "ignored" };
+  const type = typeof inner.type === "string" ? inner.type : "";
+  if (type !== "raid_update_v2" && type !== "raid_cancel_v2" && type !== "raid_go_v2") {
+    return { kind: "ignored" };
+  }
+
+  const raid = isObject(inner.raid) ? inner.raid : isObject(inner.data) ? inner.data : null;
+  const payloadSessionId = raid ? readNonEmptyString(raid, ["id", "raid_id"]) : undefined;
+  const sessionId = payloadSessionId ?? activeSessionId;
+
+  if (type === "raid_cancel_v2" || type === "raid_go_v2") {
+    if (!sessionId) return { kind: "contract-mismatch" };
+    return {
+      kind: "event",
+      event: {
+        phase: type === "raid_go_v2" ? "go" : "cancel",
+        source,
+        sessionId,
+        occurredAt: receivedAt,
+      },
+    };
+  }
+
+  if (!raid) return { kind: "contract-mismatch" };
+  if (!payloadSessionId) return { kind: "contract-mismatch" };
+  const channelSlug = readNonEmptyString(raid, ["target_login", "target_slug"]);
+  const displayName = readNonEmptyString(raid, ["target_display_name", "target_name"]);
+  if (
+    !channelSlug ||
+    !displayName ||
+    !isValidRaidChannelSlug(channelSlug) ||
+    normalizeRaidChannelSlug(channelSlug) === normalizeRaidChannelSlug(source.channelSlug)
+  ) {
+    return { kind: "contract-mismatch" };
+  }
+
+  const targetChannelId = readNonEmptyString(raid, ["target_id"]);
+  const avatar = readOptionalHttpUrl(raid, ["target_profile_image", "target_profile_image_url"]);
+  if (avatar.kind === "invalid") return { kind: "contract-mismatch" };
+  const viewerCount = readOptionalNonNegativeInteger(raid, ["viewer_count"]);
+  if (viewerCount === null) return { kind: "contract-mismatch" };
+
+  const target: TwitchRaidTarget = {
+    platform: "twitch",
+    ...(targetChannelId ? { channelId: targetChannelId } : {}),
+    channelSlug,
+    displayName,
+    ...(avatar.kind === "value" ? { avatarUrl: avatar.value } : {}),
+  };
+
+  return {
+    kind: "event",
+    event: {
+      phase: "offer",
+      offer: {
+        sessionId: payloadSessionId,
+        platform: "twitch",
+        source,
+        target,
+        audience:
+          viewerCount === undefined
+            ? { kind: "unknown" }
+            : { kind: "raid-party", count: viewerCount },
+        progress: { kind: "waiting" },
+        launchAuthority: { kind: "provider-go" },
+        receivedAt,
+        contract: RAID_CONTRACT_PROFILES.twitch,
+      },
+    },
+  };
 }
 
 /**
@@ -376,6 +507,61 @@ const VALID_COLORS: ReadonlySet<string> = new Set([
 
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function readNonEmptyString(
+  value: Record<string, unknown>,
+  keys: readonly string[]
+): string | undefined {
+  for (const key of keys) {
+    const candidate = value[key];
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+  }
+  return undefined;
+}
+
+type OptionalBoundaryValue<T> =
+  | { kind: "missing" }
+  | { kind: "value"; value: T }
+  | { kind: "invalid" };
+
+function readOptionalHttpUrl(
+  value: Record<string, unknown>,
+  keys: readonly string[]
+): OptionalBoundaryValue<string> {
+  let present = false;
+  for (const key of keys) {
+    const candidate = value[key];
+    if (candidate === undefined || candidate === null || candidate === "") continue;
+    present = true;
+    if (typeof candidate !== "string") continue;
+    try {
+      const normalized = candidate.replace("profile_image-%s", "profile_image-300x300");
+      const url = new URL(normalized);
+      if (url.protocol === "https:" || url.protocol === "http:") {
+        return { kind: "value", value: normalized };
+      }
+    } catch {
+      continue;
+    }
+  }
+  return present ? { kind: "invalid" } : { kind: "missing" };
+}
+
+function readOptionalNonNegativeInteger(
+  value: Record<string, unknown>,
+  keys: readonly string[]
+): number | null | undefined {
+  let present = false;
+  for (const key of keys) {
+    const candidate = value[key];
+    if (candidate === undefined || candidate === null) continue;
+    present = true;
+    if (typeof candidate === "number" && Number.isInteger(candidate) && candidate >= 0) {
+      return candidate;
+    }
+  }
+  return present ? null : undefined;
 }
 
 // Closing a CONNECTING WebSocket emits a browser-level console error

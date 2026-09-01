@@ -477,3 +477,53 @@ describe("multistream-store audio", () => {
     expect(useMultiStreamStore.getState().streams[0].volume).toBe(0.9);
   });
 });
+
+// Guards: a raid replaces only its source slot while preserving order, mute, volume, focus, and chat selection.
+// Guards: a raid target already open in MultiView is focused and merged instead of duplicated.
+describe("multistream-store outgoing raid replacement", () => {
+  it("replaces the matching slot atomically", () => {
+    useMultiStreamStore.getState().addStream("twitch", "alpha");
+    useMultiStreamStore.getState().addStream("kick", "beta");
+    useMultiStreamStore.getState().updateStream("twitch-alpha", { isMuted: true, volume: 0.73 });
+    useMultiStreamStore.getState().setFocusedStream("twitch-alpha");
+    useMultiStreamStore.getState().setChatStream("twitch-alpha");
+
+    const result = useMultiStreamStore.getState().replaceRaidSource("twitch-alpha", {
+      platform: "twitch",
+      channelSlug: "gamma",
+      displayName: "Gamma",
+    });
+
+    expect(result).toEqual({ kind: "replaced", targetStreamId: "twitch-gamma", wasFocused: true });
+    expect(useMultiStreamStore.getState()).toMatchObject({
+      streams: [{ id: "twitch-gamma", isMuted: true, volume: 0.73 }, { id: "kick-beta" }],
+      focusedStreamId: "twitch-gamma",
+      chatStreamId: "twitch-gamma",
+    });
+  });
+
+  it("merges into an existing target and remaps focus and chat", () => {
+    useMultiStreamStore.getState().addStream("twitch", "alpha");
+    useMultiStreamStore.getState().addStream("twitch", "gamma");
+    useMultiStreamStore.getState().setFocusedStream("twitch-alpha");
+    useMultiStreamStore.getState().setChatStream("twitch-alpha");
+
+    const result = useMultiStreamStore.getState().replaceRaidSource("twitch-alpha", {
+      platform: "twitch",
+      channelSlug: "gamma",
+      displayName: "Gamma",
+    });
+
+    expect(result).toEqual({
+      kind: "merged-existing",
+      targetStreamId: "twitch-gamma",
+      removedSourceId: "twitch-alpha",
+      wasFocused: true,
+    });
+    expect(useMultiStreamStore.getState().streams.map((stream) => stream.id)).toEqual([
+      "twitch-gamma",
+    ]);
+    expect(useMultiStreamStore.getState().focusedStreamId).toBe("twitch-gamma");
+    expect(useMultiStreamStore.getState().chatStreamId).toBe("twitch-gamma");
+  });
+});

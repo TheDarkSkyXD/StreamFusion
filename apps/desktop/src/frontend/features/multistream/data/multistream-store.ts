@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import type { Platform } from "@shared/auth-types";
+import type { RaidTarget } from "@shared/raid-handoff-types";
 
 export interface MultiStreamConfig {
   id: string;
@@ -39,6 +40,16 @@ export const DEFAULT_BACKGROUND_QUALITY: BackgroundQuality = "auto-low";
 
 export const MULTISTREAM_STORE_VERSION = 5;
 
+export type ReplaceRaidSourceResult =
+  | { kind: "replaced"; targetStreamId: string; wasFocused: boolean }
+  | {
+      kind: "merged-existing";
+      targetStreamId: string;
+      removedSourceId: string;
+      wasFocused: boolean;
+    }
+  | { kind: "source-not-found" };
+
 interface MultiStreamState {
   // Streams
   streams: MultiStreamConfig[];
@@ -48,6 +59,7 @@ interface MultiStreamState {
     streamId: string,
     updates: Partial<Pick<MultiStreamConfig, "isMuted" | "volume">>
   ) => void;
+  replaceRaidSource: (streamId: string, target: RaidTarget) => ReplaceRaidSourceResult;
   reorderStreams: (startIndex: number, endIndex: number) => void;
   clearStreams: () => void;
 
@@ -279,6 +291,51 @@ export const useMultiStreamStore = create<MultiStreamState>()(
         set((state) => ({
           streams: state.streams.map((s) => (s.id === streamId ? { ...s, ...updates } : s)),
         })),
+
+      replaceRaidSource: (streamId, target) => {
+        let result: ReplaceRaidSourceResult = { kind: "source-not-found" };
+        set((state) => {
+          const sourceIndex = state.streams.findIndex((stream) => stream.id === streamId);
+          const source = state.streams[sourceIndex];
+          if (!source || source.platform !== target.platform) return state;
+
+          const targetStreamId = buildStreamId(target.platform, target.channelSlug);
+          const wasFocused = state.focusedStreamId === streamId;
+          const existingTarget = state.streams.find(
+            (stream) => stream.id === targetStreamId && stream.id !== streamId
+          );
+
+          if (existingTarget) {
+            result = {
+              kind: "merged-existing",
+              targetStreamId: existingTarget.id,
+              removedSourceId: streamId,
+              wasFocused,
+            };
+            return {
+              streams: state.streams.filter((stream) => stream.id !== streamId),
+              focusedStreamId: wasFocused ? existingTarget.id : state.focusedStreamId,
+              chatStreamId:
+                state.chatStreamId === streamId ? existingTarget.id : state.chatStreamId,
+            };
+          }
+
+          const replacement: MultiStreamConfig = {
+            ...source,
+            id: targetStreamId,
+            channelName: target.channelSlug,
+          };
+          const streams = [...state.streams];
+          streams[sourceIndex] = replacement;
+          result = { kind: "replaced", targetStreamId, wasFocused };
+          return {
+            streams,
+            focusedStreamId: wasFocused ? targetStreamId : state.focusedStreamId,
+            chatStreamId: state.chatStreamId === streamId ? targetStreamId : state.chatStreamId,
+          };
+        });
+        return result;
+      },
 
       reorderStreams: (startIndex, endIndex) =>
         set((state) => {
