@@ -3060,16 +3060,35 @@ describe("ChatInput — rich emote editing", () => {
   });
 });
 
-// Guards: mention suggestions stay anchored to the editor and do not steal Backspace editing.
-describe("ChatInput - mention editing", () => {
-  it("anchors mention results to the full text row width", () => {
+// Guards: mention and slash-command previews escape the clipped text row while staying anchored to the composer.
+// Guards: mention suggestions do not steal Backspace editing.
+describe("ChatInput - completion overlays", () => {
+  it("anchors mention results outside the clipped text row", () => {
     infoBannerImpl.mockReturnValue(null);
     mentionAutocompleteCtl.isActive = true;
     renderInput();
 
     const popup = screen.getByTestId("mention-autocomplete-anchor");
-    expect(popup.parentElement).toBe(screen.getByTestId("chat-input-text-row"));
-    expect(screen.getByTestId("chat-input-text-row")).toHaveClass("relative");
+    expect(popup.parentElement).toBe(screen.getByTestId("chat-input-main-area"));
+    expect(screen.getByTestId("chat-input-main-area")).toHaveClass("relative");
+    expect(screen.getByTestId("chat-input-text-row")).toHaveClass("overflow-hidden");
+  });
+
+  it("anchors slash-command results outside the clipped text row", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    renderInput({
+      isAuthenticated: true,
+      canSend: true,
+      commandAccess: { kind: "authenticated", platform: "twitch", role: "viewer" },
+    });
+
+    const editor = getEditor();
+    fireEvent.focus(editor);
+    typeInEditor(editor, "/");
+
+    const popup = await screen.findByRole("listbox", { name: "Chat commands" });
+    expect(popup.parentElement).toBe(screen.getByTestId("chat-input-main-area"));
+    expect(screen.getByRole("option", { name: /\/block \[username\]/i })).toBeInTheDocument();
   });
 
   it("keeps Backspace state-driven while mention autocomplete is active", () => {
