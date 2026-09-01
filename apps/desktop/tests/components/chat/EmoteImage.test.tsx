@@ -24,6 +24,7 @@ const emote = {
 // Guards: loaded emote URLs remount without returning to a loading skeleton, preventing virtualized-picker flash during fast scroll
 // Guards: a successfully loaded official 7TV fallback is reused from cache so remounts do not retry the failed canonical host
 // Guards: a virtualized picker cell reused for a new emote URL resets prior load/error state instead of showing stale content
+// Guards: zero-width emotes stay centered in standalone previews instead of shifting outside their tile
 describe("EmoteImage", () => {
   it("renders the emote with name as alt", () => {
     render(<EmoteImage emote={emote} />);
@@ -33,6 +34,14 @@ describe("EmoteImage", () => {
   it("selects the URL appropriate to the size", () => {
     render(<EmoteImage emote={emote} size="xlarge" />);
     expect(screen.getByAltText("Kappa")).toHaveAttribute("src", "https://x.test/4x.png");
+  });
+
+  it("renders a zero-width emote preview without chat-message overlay positioning", () => {
+    render(<EmoteImage emote={{ ...emote, isZeroWidth: true }} size="quick" />);
+
+    const preview = screen.getByAltText("Kappa").parentElement;
+    expect(preview).not.toHaveStyle({ position: "absolute" });
+    expect(preview).not.toHaveStyle({ marginLeft: "-24px" });
   });
 
   it("fires onClick when provided", () => {
