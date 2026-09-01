@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { helixResponseSchema } from "./twitch-helix-schemas";
 import { twitchClient } from "./twitch-client";
+import * as UserEndpoints from "./endpoints/user-endpoints";
 
 export interface TwitchApiService {
   execute(command: TwitchApiCommand): Promise<TwitchApiResult>;
@@ -114,6 +115,14 @@ export function createTwitchApiService(requestor: TwitchRequestPort): TwitchApiS
             unknownResponseSchema,
             `/users?${params.toString()}`
           );
+          return { ok: true, data: response };
+        }
+
+        if (command.operation === "block-user" || command.operation === "unblock-user") {
+          const rawResponse = await (command.operation === "block-user"
+            ? UserEndpoints.blockUser(requestor, command.targetUserId)
+            : UserEndpoints.unblockUser(requestor, command.targetUserId));
+          const response = emptyResponseSchema.parse(rawResponse);
           return { ok: true, data: response };
         }
 

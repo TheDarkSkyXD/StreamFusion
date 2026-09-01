@@ -4,6 +4,7 @@ import { createTwitchApiService } from "@backend/api/platforms/twitch/twitch-api
 
 // Guards: allowlisted renderer capabilities map to fixed Worker-relative Helix paths.
 // Guards: access-token refresh and retry ownership stays inside TwitchRequestor rather than IPC payloads.
+// Guards: personal block-list mutations await their fixed Helix endpoint and surface provider rejection.
 describe("Twitch API service", () => {
   it("rejects malformed Helix envelopes at the service boundary", async () => {
     const request = vi.fn().mockResolvedValue({ data: "not-an-array" });
@@ -332,5 +333,25 @@ describe("Twitch API service", () => {
     expect(request).toHaveBeenLastCalledWith("/chat/emotes/user?user_id=200&after=next");
     await service.execute({ operation: "get-users", userIds: ["1", "2"] });
     expect(request).toHaveBeenLastCalledWith("/users?id=1&id=2");
+  });
+
+  it("waits for acknowledged block-list mutations", async () => {
+    const request = vi.fn().mockResolvedValue(null);
+    const service = createTwitchApiService({ request });
+
+    await expect(
+      service.execute({ operation: "block-user", targetUserId: "300" })
+    ).resolves.toEqual({ ok: true, data: null });
+    expect(request).toHaveBeenLastCalledWith("/users/blocks?target_user_id=300", {
+      method: "PUT",
+    });
+
+    request.mockRejectedValueOnce(new Error("Twitch rejected the unblock"));
+    await expect(
+      service.execute({ operation: "unblock-user", targetUserId: "300" })
+    ).resolves.toEqual({
+      ok: false,
+      error: { code: "unavailable", message: "Twitch rejected the unblock" },
+    });
   });
 });

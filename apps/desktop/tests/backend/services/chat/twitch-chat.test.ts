@@ -60,6 +60,8 @@ let fakeClient: EventEmitter & {
   readyState: ReturnType<typeof vi.fn>;
   join: ReturnType<typeof vi.fn>;
   say: ReturnType<typeof vi.fn>;
+  mods: ReturnType<typeof vi.fn>;
+  vips: ReturnType<typeof vi.fn>;
   action: ReturnType<typeof vi.fn>;
   raw: ReturnType<typeof vi.fn>;
 };
@@ -76,7 +78,8 @@ function makeFakeTmiClient(): typeof fakeClient {
 // Guards: failed Twitch replies release their reservation, while successful replies consume exactly one slot.
 // Guards: pending Twitch actions consume the shared rolling-window capacity before IRC transport settles.
 // Guards: failed Twitch actions release their reservation, while successful actions consume exactly one slot.
-// Guards: authenticated slash commands use Twitch's command transport and are not emitted as optimistic chat messages.
+// Guards: authenticated slash commands use Twitch's command transport, while list commands emit only their acknowledged result.
+// Guards: rejected Twitch commands propagate to the composer so its draft can be restored for retry.
 // Guards: a rapid remount waits for final-release teardown before opening its replacement Twitch connection.
 // Guards: concurrent soft and hard shutdown calls share one physical Twitch disconnect.
 // Guards: soft and final teardown do not ask tmi.js to disconnect a socket that is already closed.
@@ -88,6 +91,8 @@ describe("TwitchChatService connect() single-flight", () => {
       readyState: vi.fn(() => "OPEN" as const),
       join: vi.fn(() => Promise.resolve(["#xqc"])),
       say: vi.fn(() => Promise.resolve(["#xqc", "hello"])),
+      mods: vi.fn(() => Promise.resolve(["modder", "helper"])),
+      vips: vi.fn(() => Promise.resolve([])),
       action: vi.fn(() => Promise.resolve(["#xqc", "waves"])),
       raw: vi.fn(() => Promise.resolve()),
     });
@@ -982,8 +987,43 @@ describe("TwitchChatService connect() single-flight", () => {
 
     await service.executeNativeCommand({ channel: "ninja", commandText: "/mods" });
 
-    expect(fakeClient.say).toHaveBeenCalledWith("ninja", "/mods");
-    expect(messages).toEqual([]);
+    expect(fakeClient.mods).toHaveBeenCalledWith("ninja");
+    expect(fakeClient.say).not.toHaveBeenCalledWith("ninja", "/mods");
+    expect(messages).toEqual([
+      expect.objectContaining({
+        type: "system",
+        channel: "ninja",
+        rawContent: "Moderators: @modder, @helper",
+      }),
+    ]);
+
+    await service.executeNativeCommand({ channel: "ninja", commandText: "/vips" });
+    expect(messages.at(-1)).toEqual(
+      expect.objectContaining({ rawContent: "No VIPs found for this channel." })
+    );
+  });
+
+  it("surfaces Twitch command rejections to the composer boundary", async () => {
+    const service = new TwitchChatService();
+    const connectPromise = service.connect({
+      accessToken: "tok",
+      user: {
+        id: "viewer-1",
+        login: "viewer",
+        displayName: "Viewer",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await connectPromise;
+    await service.joinChannel("ninja");
+    fakeClient.mods.mockRejectedValueOnce(new Error("No response from Twitch"));
+
+    await expect(
+      service.executeNativeCommand({ channel: "ninja", commandText: "/mods" })
+    ).rejects.toThrow("No response from Twitch");
   });
 
   it("emits a community gift notice for Twitch mystery gift aggregates", async () => {

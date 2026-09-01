@@ -45,7 +45,7 @@ export function CommandAutocomplete({
               key={command.key}
               data-key={command.key}
               aria-selected={selected}
-              className={`flex w-full items-start gap-3 px-3 py-2 text-left transition-colors duration-150 ${
+              className={`flex w-full items-start gap-3 px-3 py-2 text-left transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-white ${
                 selected ? "bg-white/10" : "hover:bg-white/5"
               }`}
               onClick={() => onSelect(command)}

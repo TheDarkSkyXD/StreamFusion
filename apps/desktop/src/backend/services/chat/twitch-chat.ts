@@ -707,6 +707,26 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     this.emit("message", echo);
   }
 
+  private emitCommandResult(channel: string, message: string): void {
+    this.emit("message", {
+      id: crypto.randomUUID(),
+      platform: "twitch",
+      type: "system",
+      channel,
+      userId: "system",
+      username: "System",
+      displayName: "System",
+      color: "#808080",
+      badges: [],
+      content: [{ type: "text", content: message }],
+      rawContent: message,
+      timestamp: new Date(),
+      isDeleted: false,
+      isHighlighted: false,
+      isAction: false,
+    });
+  }
+
   /**
    * Send a /me action message
    */
@@ -762,23 +782,111 @@ export class TwitchChatService extends EventEmitter implements TypedEventEmitter
     }
 
     const normalizedChannel = this.normalizeChannel(channel);
-    const normalizedCommandText = commandText.replace(
-      /^(\/(?:ban|unban|timeout|block|unblock)\s+)@/i,
-      "$1"
-    );
     if (!this.channels.has(normalizedChannel)) {
       throw new Error(`Not in channel: ${normalizedChannel}`);
     }
 
-    const rateLimitReservation = this.reserveMessageSend(normalizedChannel);
-    if (!rateLimitReservation) throw new Error("Message rate limit exceeded");
+    const [commandToken, ...argumentTokens] = commandText.trim().slice(1).split(/\s+/);
+    const command = commandToken.toLowerCase();
+    const username = argumentTokens[0]?.replace(/^@/, "") ?? "";
+    const trailingArguments = argumentTokens.slice(1);
 
     try {
-      await this.client.say(normalizedChannel, normalizedCommandText);
-      this.pendingMessageReservations.delete(rateLimitReservation);
-      this.recordMessageSent();
+      switch (command) {
+        case "ban":
+          await this.client.ban(normalizedChannel, username, trailingArguments.join(" "));
+          break;
+        case "unban":
+          await this.client.unban(normalizedChannel, username);
+          break;
+        case "timeout":
+          await this.client.timeout(
+            normalizedChannel,
+            username,
+            trailingArguments[0] ? Number(trailingArguments[0]) : undefined,
+            trailingArguments.slice(1).join(" ")
+          );
+          break;
+        case "clear":
+          await this.client.clear(normalizedChannel);
+          break;
+        case "slow":
+          await this.client.slow(
+            normalizedChannel,
+            argumentTokens[0] ? Number(argumentTokens[0]) : undefined
+          );
+          break;
+        case "slowoff":
+          await this.client.slowoff(normalizedChannel);
+          break;
+        case "followers":
+          await this.client.followersonly(
+            normalizedChannel,
+            argumentTokens[0] ? Number(argumentTokens[0]) : undefined
+          );
+          break;
+        case "followersoff":
+          await this.client.followersonlyoff(normalizedChannel);
+          break;
+        case "subscribers":
+          await this.client.subscribers(normalizedChannel);
+          break;
+        case "subscribersoff":
+          await this.client.subscribersoff(normalizedChannel);
+          break;
+        case "uniquechat":
+          await this.client.r9kbeta(normalizedChannel);
+          break;
+        case "uniquechatoff":
+          await this.client.r9kbetaoff(normalizedChannel);
+          break;
+        case "emoteonly":
+          await this.client.emoteonly(normalizedChannel);
+          break;
+        case "emoteonlyoff":
+          await this.client.emoteonlyoff(normalizedChannel);
+          break;
+        case "mod":
+          await this.client.mod(normalizedChannel, username);
+          break;
+        case "unmod":
+          await this.client.unmod(normalizedChannel, username);
+          break;
+        case "vip":
+          await this.client.vip(normalizedChannel, username);
+          break;
+        case "unvip":
+          await this.client.unvip(normalizedChannel, username);
+          break;
+        case "color":
+          await this.client.color(argumentTokens[0]);
+          break;
+        case "mods":
+          {
+            const moderators = await this.client.mods(normalizedChannel);
+            this.emitCommandResult(
+              normalizedChannel,
+              moderators.length > 0
+                ? `Moderators: ${moderators.map((moderator) => `@${moderator}`).join(", ")}`
+                : "No moderators found for this channel."
+            );
+          }
+          break;
+        case "vips":
+          {
+            const vips = await this.client.vips(normalizedChannel);
+            this.emitCommandResult(
+              normalizedChannel,
+              vips.length > 0
+                ? `VIPs: ${vips.map((vip) => `@${vip}`).join(", ")}`
+                : "No VIPs found for this channel."
+            );
+          }
+          break;
+        default:
+          throw new Error(`Unsupported Twitch command: /${command}`);
+      }
     } catch (error) {
-      this.pendingMessageReservations.delete(rateLimitReservation);
       logger.error("Chat:Twitch", "Failed to execute native command", {
         channel: normalizedChannel,
         command: commandText.split(/\s/, 1)[0],

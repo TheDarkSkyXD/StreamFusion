@@ -1,6 +1,6 @@
 import type { ChatPlatform } from "../../../../../shared/chat-types";
 import { buildChannelKey, useChatStore } from "../../../../store/chat-store";
-import { getMentionRange, type MentionRange } from "./mention-completion";
+import { getMentionRange, type MentionRange } from "../../utils/mention-completion";
 
 export interface RecentChatter {
   readonly userId: string;

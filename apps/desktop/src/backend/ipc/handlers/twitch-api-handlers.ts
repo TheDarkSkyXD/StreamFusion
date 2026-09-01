@@ -48,6 +48,12 @@ const commandSchema = z.discriminatedUnion("operation", [
     .strict(),
   z
     .object({
+      operation: z.enum(["block-user", "unblock-user"]),
+      targetUserId: z.string().trim().min(1).max(64),
+    })
+    .strict(),
+  z
+    .object({
       operation: z.literal("resolve-channel"),
       login: z.string().trim().min(1).max(64),
     })

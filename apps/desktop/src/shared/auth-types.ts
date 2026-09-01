@@ -49,6 +49,7 @@ export const TWITCH_APP_SCOPES = [
   // IRC chat auth. Helix moderation scopes do not unlock tmi.js read/write.
   "chat:read",
   "chat:edit",
+  "user:manage:blocked_users",
   // Mod-channel discovery and chat message moderation.
   "user:read:moderated_channels",
   "moderator:read:followers",

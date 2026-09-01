@@ -3,6 +3,8 @@ import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@shared/auth-types";
 import type { ChatKnownUser, ChatMessage, NormalizedPinnedMessage } from "@shared/chat-types";
+import type { ChatInputProps } from "@/features/chat/components/chat/ChatInput";
+import { getCommandsForAccess } from "@/features/chat/utils/chat-command-registry";
 import { installElectronAPIMock, renderWithProviders as render } from "../../test-utils";
 
 // U11 — capture the latest ChatMessageList props so tests can simulate a
@@ -308,11 +310,21 @@ vi.mock("@/features/chat/components/chat/ChatMessageList", () => ({
   },
 }));
 
-const chatInputProps: { canSend?: boolean; viewerUserId?: string } = {};
+const chatInputProps: Pick<
+  ChatInputProps,
+  "canSend" | "viewerUserId" | "commandAccess" | "onProviderCommand"
+> = {};
 vi.mock("@/features/chat/components/chat/ChatInput", () => ({
-  ChatInput: (props: { canSend?: boolean; viewerUserId?: string }) => {
+  ChatInput: (
+    props: Pick<
+      ChatInputProps,
+      "canSend" | "viewerUserId" | "commandAccess" | "onProviderCommand"
+    >
+  ) => {
     chatInputProps.canSend = props.canSend;
     chatInputProps.viewerUserId = props.viewerUserId;
+    chatInputProps.commandAccess = props.commandAccess;
+    chatInputProps.onProviderCommand = props.onProviderCommand;
     return (
       <div data-testid="chat-input">
         input
@@ -368,6 +380,7 @@ const fakePrediction = {
 // Guards: anonymous Twitch chat loads non-forced global emotes before joining so the guest quick-emote row is populated.
 // Guards: Twitch channel.moderate delete notifications attach the deleting moderator to retained deleted-message rows; IRC CLEARMSG alone cannot provide that actor.
 // Guards: the full-width composer footer paints above the message scroller so chat text cannot show behind its quick-emote row or padding.
+// Guards: viewer block commands resolve @usernames and await a credential-free Helix mutation instead of falling through to IRC chat.
 describe("TwitchChat", () => {
   beforeEach(() => {
     sevenTvInstances.length = 0;
@@ -453,6 +466,8 @@ describe("TwitchChat", () => {
     storeState.chatterCountByChannel = {};
     chatInputProps.canSend = undefined;
     chatInputProps.viewerUserId = undefined;
+    chatInputProps.commandAccess = undefined;
+    chatInputProps.onProviderCommand = undefined;
     lastListProps.onBan = undefined;
     lastListProps.onTimeout = undefined;
     lastListProps.onUnban = undefined;
@@ -549,6 +564,44 @@ describe("TwitchChat", () => {
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     expect(screen.getByTestId("message-list")).toBeInTheDocument();
     expect(screen.getByTestId("chat-input")).toBeInTheDocument();
+  });
+
+  it("resolves and acknowledges viewer block commands through Helix", async () => {
+    mockAuthState.twitchConnected = true;
+    mockIsTwitchMod.value = false;
+    twitchExecuteMock.mockImplementation(async (command: { operation: string }) => {
+      if (command.operation === "resolve-channel") {
+        return {
+          ok: true,
+          data: { id: "target-1", login: "trouble", displayName: "Trouble" },
+        };
+      }
+      return { ok: true, data: null };
+    });
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    const blockCommand = getCommandsForAccess({
+      kind: "authenticated",
+      platform: "twitch",
+      role: "viewer",
+    }).find((command) => command.name === "block");
+
+    expect(blockCommand).toBeDefined();
+    await act(async () => {
+      await chatInputProps.onProviderCommand?.({
+        command: blockCommand!,
+        args: "@trouble",
+        text: "/block @trouble",
+      });
+    });
+
+    expect(twitchExecuteMock).toHaveBeenCalledWith({
+      operation: "resolve-channel",
+      login: "trouble",
+    });
+    expect(twitchExecuteMock).toHaveBeenCalledWith({
+      operation: "block-user",
+      targetUserId: "target-1",
+    });
   });
 
   it("opens Recent Chatters over the live chat without unmounting it", () => {

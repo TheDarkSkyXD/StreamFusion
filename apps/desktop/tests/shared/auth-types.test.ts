@@ -36,6 +36,7 @@ describe("Twitch OAuth scope constants", () => {
         "moderator:read:chat_settings",
         "moderator:read:moderators",
         "moderator:read:vips",
+        "user:manage:blocked_users",
       ])
     );
   });

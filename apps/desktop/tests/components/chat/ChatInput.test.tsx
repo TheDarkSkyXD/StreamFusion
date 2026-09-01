@@ -3090,6 +3090,7 @@ describe("ChatInput - mention editing", () => {
 
 // Guards: Enter sends once on both platforms, preserves newer drafts on failure, and Shift+Enter keeps editing.
 // Guards: recognized slash commands use the provider command path and never fall through to ordinary chat sends.
+// Guards: unknown and malformed slash commands retain the draft and never call provider or ordinary send paths.
 describe("ChatInput — Enter / Shift+Enter", () => {
   // Guards: normal sends with slow mode disabled clear in the same interaction frame and do not wait for the network promise.
   it.each(["twitch", "kick"] as const)(
@@ -3281,6 +3282,25 @@ describe("ChatInput — Enter / Shift+Enter", () => {
     expect(screen.getByText("Unknown or unavailable command: /not-a-command")).toBeInTheDocument();
     expect(onProviderCommand).not.toHaveBeenCalled();
     expect(twitchChatService.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("keeps malformed slash commands in the editor and does not call the provider", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    const onProviderCommand = vi.fn(async () => {});
+    renderInput({
+      commandAccess: { kind: "authenticated", platform: "twitch", role: "moderator" },
+      onProviderCommand,
+    });
+    const editor = getEditor();
+    typeInEditor(editor, "/ban ");
+
+    await act(async () => {
+      fireEvent.keyDown(editor, { key: "Enter" });
+    });
+
+    expect(editor).toHaveTextContent("/ban");
+    expect(screen.getByText("/ban needs a username")).toBeInTheDocument();
+    expect(onProviderCommand).not.toHaveBeenCalled();
   });
 
   it("restores a slash command when its provider execution fails", async () => {

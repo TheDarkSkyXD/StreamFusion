@@ -74,6 +74,7 @@ import { MentionAutocomplete } from "./MentionAutocomplete";
 import { getMentionSuggestions } from "./mention-suggestions";
 import {
   getCommandCompletion,
+  getCommandArgumentError,
   getCommandsForAccess,
   parseAvailableCommand,
   replaceLeadingCommand,
@@ -1889,6 +1890,13 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         setError(`Unknown or unavailable command: ${trimmedMessage.split(/\s/, 1)[0]}`);
         return;
       }
+      if (parsedCommand) {
+        const argumentError = getCommandArgumentError(parsedCommand);
+        if (argumentError) {
+          setError(argumentError);
+          return;
+        }
+      }
       if (parsedCommand?.definition.execution === "local") {
         const helpQuery = parsedCommand.args.toLowerCase();
         if (helpQuery && !availableCommands.some((command) => command.name === helpQuery)) {
@@ -1898,10 +1906,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         }
         setShowCommandHelp(true);
         setError(null);
-        return;
-      }
-      if (parsedCommand?.definition.execution === "action-message" && !parsedCommand.args) {
-        setError(`/${parsedCommand.definition.name} needs a message`);
         return;
       }
       const isProviderCommand = parsedCommand !== null;

@@ -73,9 +73,13 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
     [completion.suggestions, enrichedUsers]
   );
 
+  const selectedSuggestionIndex = selectedKey
+    ? suggestions.findIndex((suggestion) => suggestion.username === selectedKey)
+    : -1;
+  const effectiveVisibleCount = Math.max(visibleCount, selectedSuggestionIndex + 1);
   const visibleSuggestions = useMemo(
-    () => suggestions.slice(0, visibleCount),
-    [suggestions, visibleCount]
+    () => suggestions.slice(0, effectiveVisibleCount),
+    [effectiveVisibleCount, suggestions]
   );
   const resetKey = `${platform}:${channel}:${isActive}:${match?.query ?? ""}:${maxSuggestions}`;
 
@@ -120,7 +124,7 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
     if (!containerRef.current || !selectedKey) return;
     const selectedEl = containerRef.current.querySelector(`[data-key="${selectedKey}"]`);
     selectedEl?.scrollIntoView({ block: "nearest" });
-  }, [selectedKey]);
+  }, [selectedKey, visibleSuggestions.length]);
 
   const handleSuggestionsScroll = useCallback(() => {
     const el = suggestionsRef.current;

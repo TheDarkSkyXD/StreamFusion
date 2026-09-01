@@ -12,7 +12,7 @@ import { unwrapIpcReply } from "@/lib/ipc-reply";
 import { router } from "@/routes/router";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@shared/auth-types";
 import type { UnifiedPrediction } from "@shared/chat-types";
-import type { TwitchChannelModeratePayload } from "@shared/twitch-api-types";
+import type { ResolvedTwitchChannel, TwitchChannelModeratePayload } from "@shared/twitch-api-types";
 import { substituteThirdPartyEmotes } from "../../../../../../backend/services/chat/third-party-emote-enrich";
 import { twitchChatService } from "../../../../../../backend/services/chat/twitch-chat";
 import {
@@ -357,6 +357,23 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
         return;
       }
       if (command.execution === "platform-command") {
+        if (command.name === "block" || command.name === "unblock") {
+          const username = args.split(/\s+/, 1)[0]?.replace(/^@/, "");
+          if (!username) throw new Error(`/${command.name} needs a username`);
+          const resolved = await window.electronAPI.twitch.execute({
+            operation: "resolve-channel",
+            login: username,
+          });
+          if (!resolved.ok) throw new Error(resolved.error.message);
+          const target = resolved.data as ResolvedTwitchChannel | null;
+          if (!target) throw new Error(`Twitch user ${username} was not found`);
+          const result = await window.electronAPI.twitch.execute({
+            operation: command.name === "block" ? "block-user" : "unblock-user",
+            targetUserId: target.id,
+          });
+          if (!result.ok) throw new Error(result.error.message);
+          return;
+        }
         await twitchChatService.executeNativeCommand({ channel, commandText: text });
         return;
       }

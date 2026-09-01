@@ -116,6 +116,7 @@ export type TwitchApiCommand =
   | { operation: "get-emote-set"; emoteSetId: string }
   | { operation: "get-user-emotes"; userId: string; after?: string }
   | { operation: "get-users"; userIds: string[] }
+  | { operation: "block-user" | "unblock-user"; targetUserId: string }
   | { operation: "get-moderated-channels"; userId: string }
   | { operation: "get-chat-settings"; broadcasterId: string }
   | { operation: "get-banned-users"; broadcasterId: string; cursor?: string; userId?: string }

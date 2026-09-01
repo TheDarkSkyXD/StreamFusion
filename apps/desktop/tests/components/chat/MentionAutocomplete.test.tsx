@@ -39,6 +39,7 @@ function resetChatStore(): void {
 // Guards: Kick mention suggestions render avatar images immediately for bare "@" input; users should not need to type a query letter before avatars appear.
 // Guards: mention suggestions leave keyboard ownership with the active chat editor instead of registering a document-wide listener.
 // Guards: controlled mention selection follows the key chosen by the chat editor and reports pointer selection through the same contract.
+// Guards: keyboard selection beyond the first eight mention results expands the rendered list so the active option stays visible.
 describe("MentionAutocomplete", () => {
   beforeEach(resetChatStore);
   afterEach(resetChatStore);
@@ -130,6 +131,31 @@ describe("MentionAutocomplete", () => {
     fireEvent.click(alice);
     expect(onSelectedKeyChange).toHaveBeenCalledWith("alice");
     expect(onSelect).toHaveBeenCalledWith("alice", 0, 2);
+  });
+
+  it("renders a controlled selection beyond the first suggestion page", async () => {
+    const messages = Array.from({ length: 10 }, (_, index) =>
+      makeMessage(`user${index}`, `User ${index}`)
+    );
+    useChatStore.setState({
+      messagesByChannel: { [buildChannelKey("twitch", "test")]: messages },
+    });
+
+    const { getByRole } = render(
+      <MentionAutocomplete
+        inputValue="@"
+        cursorPosition={1}
+        onSelect={vi.fn()}
+        selectedKey="user1"
+        isActive
+        platform="twitch"
+        channel="test"
+      />
+    );
+
+    await waitFor(() => {
+      expect(getByRole("option", { name: /User 1/ })).toHaveAttribute("aria-selected", "true");
+    });
   });
 
   it("builds suggestions from the active channel bucket only", () => {

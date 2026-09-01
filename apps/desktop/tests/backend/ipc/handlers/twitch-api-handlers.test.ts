@@ -30,6 +30,7 @@ beforeEach(() => {
 
 // Guards: renderer Twitch reads cross only an allowlisted capability boundary without credentials.
 // Guards: opaque user-emote cursors get provider-sized headroom without widening unrelated Twitch inputs.
+// Guards: block-list mutations accept only bounded target IDs and reject renderer credential injection.
 describe("Twitch API IPC handlers", () => {
   it("maps a channel lookup capability to the main-owned Twitch service", async () => {
     const service = {
@@ -218,6 +219,26 @@ describe("Twitch API IPC handlers", () => {
       payload
     );
 
+    expect(service.execute).toHaveBeenCalledWith(payload);
+  });
+
+  it("accepts credential-free block-list mutations and rejects credential injection", async () => {
+    const service = {
+      execute: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
+      startEventSubFeed: vi.fn(),
+      stopEventSubFeed: vi.fn(),
+    };
+    registerTwitchApiHandlers({ service });
+    const invoke = handlerFor(IPC_CHANNELS.TWITCH_API_EXECUTE);
+    const payload = { operation: "block-user", targetUserId: "300" };
+
+    await invoke({ senderFrame: { url: "file:///app/index.html" } }, payload);
+    await invoke(
+      { senderFrame: { url: "file:///app/index.html" } },
+      { ...payload, accessToken: "secret" }
+    );
+
+    expect(service.execute).toHaveBeenCalledTimes(1);
     expect(service.execute).toHaveBeenCalledWith(payload);
   });
 

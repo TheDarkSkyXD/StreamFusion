@@ -93,6 +93,20 @@ export async function getUsersByLogin(
   }));
 }
 
+type UserMutationRequestor = Pick<TwitchRequestor, "request">;
+
+export function blockUser(client: UserMutationRequestor, targetUserId: string): Promise<unknown> {
+  return client.request(`/users/blocks?target_user_id=${encodeURIComponent(targetUserId)}`, {
+    method: "PUT",
+  });
+}
+
+export function unblockUser(client: UserMutationRequestor, targetUserId: string): Promise<unknown> {
+  return client.request(`/users/blocks?target_user_id=${encodeURIComponent(targetUserId)}`, {
+    method: "DELETE",
+  });
+}
+
 /**
  * Get channels followed by the authenticated user
  */
