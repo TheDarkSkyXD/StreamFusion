@@ -2590,36 +2590,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 />
               </div>
             </div>
-            <MentionAutocomplete
-              inputValue={message}
-              cursorPosition={cursorPosition}
-              onSelect={handleMentionSelect}
-              selectedKey={completion.kind === "mention" ? completion.selectedKey : null}
-              onSelectedKeyChange={(selectedKey) => {
-                if (completion.kind === "mention") setCompletion({ ...completion, selectedKey });
-              }}
-              isActive={completion.kind === "mention"}
-              platform={platform}
-              channel={channel}
-            />
-            <CommandAutocomplete
-              commands={
-                showCommandHelp
-                  ? helpCommands
-                  : completion.kind === "command"
-                    ? completion.items
-                    : []
-              }
-              selectedKey={completion.kind === "command" ? completion.selectedKey : null}
-              onSelect={(command) => {
-                if (completion.kind === "command") {
-                  handleCommandSelect(command, completion.range);
-                }
-              }}
-              onSelectedKeyChange={(selectedKey) => {
-                if (completion.kind === "command") setCompletion({ ...completion, selectedKey });
-              }}
-            />
             {showSlowModeCountdown && (
               <div
                 aria-label="Slow mode cooldown"
@@ -2639,6 +2609,33 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               </div>
             )}
           </div>
+
+          <MentionAutocomplete
+            inputValue={message}
+            cursorPosition={cursorPosition}
+            onSelect={handleMentionSelect}
+            selectedKey={completion.kind === "mention" ? completion.selectedKey : null}
+            onSelectedKeyChange={(selectedKey) => {
+              if (completion.kind === "mention") setCompletion({ ...completion, selectedKey });
+            }}
+            isActive={completion.kind === "mention"}
+            platform={platform}
+            channel={channel}
+          />
+          <CommandAutocomplete
+            commands={
+              showCommandHelp ? helpCommands : completion.kind === "command" ? completion.items : []
+            }
+            selectedKey={completion.kind === "command" ? completion.selectedKey : null}
+            onSelect={(command) => {
+              if (completion.kind === "command") {
+                handleCommandSelect(command, completion.range);
+              }
+            }}
+            onSelectedKeyChange={(selectedKey) => {
+              if (completion.kind === "command") setCompletion({ ...completion, selectedKey });
+            }}
+          />
 
           {/* Footer actions. The second row is only chat settings + submit. */}
           <div
