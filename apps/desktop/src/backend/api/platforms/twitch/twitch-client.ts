@@ -33,6 +33,11 @@ import type {
 // Re-export types for backward compatibility
 export type { PaginationOptions, PaginatedResult, PaginationEndReason, TwitchClientError };
 
+export type TwitchFollowedStreamAccess =
+  | { kind: "guest" }
+  | { kind: "ready" }
+  | { kind: "unavailable" };
+
 function mergeCategoryViewerCounts(
   result: PaginatedResult<UnifiedCategory>,
   countsById: Record<string, number>
@@ -53,6 +58,13 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
 
   isAuthenticated(): boolean {
     return twitchAuthService.isAuthenticated();
+  }
+
+  async getFollowedStreamAccess(): Promise<TwitchFollowedStreamAccess> {
+    if (!this.isAuthenticated()) return { kind: "guest" };
+
+    const accessToken = await twitchAuthService.getValidAccessToken();
+    return accessToken ? { kind: "ready" } : { kind: "unavailable" };
   }
 
   // ==========================================

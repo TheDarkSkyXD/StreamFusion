@@ -365,7 +365,8 @@ export function registerStreamHandlers(): void {
           let completedSources = 0;
 
           // 1. Remote (User Authenticated)
-          if (twitchClient.isAuthenticated()) {
+          const followedStreamAccess = await twitchClient.getFollowedStreamAccess();
+          if (followedStreamAccess.kind === "ready") {
             attemptedSources += 1;
             try {
               const seenCursors = new Set<string>();
@@ -401,6 +402,9 @@ export function registerStreamHandlers(): void {
                     : String(err),
               });
             }
+          } else if (followedStreamAccess.kind === "unavailable") {
+            attemptedSources += 1;
+            logger.warn("IPC:Stream", "Twitch remote followed streams are unavailable");
           }
 
           // 2. Local Follows (GQL - no auth needed, works for guests)
