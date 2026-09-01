@@ -164,7 +164,6 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     const isEffectActiveRef = useRef(false);
     const adBlockStatusRef = useRef<AdBlockStatus | null>(null);
     const adBlockRecoveryArmedRef = useRef(false);
-    const adBlockRecoveryAttemptsRef = useRef(0);
     const adBlockRecoveryActionRef = useRef<(() => void) | null>(null);
     const safePlayActionRef = useRef<(() => void) | null>(null);
     const memoryRestoreActionRef = useRef<(() => void) | null>(null);
@@ -184,7 +183,6 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
 
     const clearAdBlockRecoveryWatchdog = useCallback(() => {
       adBlockRecoveryArmedRef.current = false;
-      adBlockRecoveryAttemptsRef.current = 0;
       adBlockRecoveryActionRef.current = null;
       adBlockRecoveryTimeout.clear();
     }, [adBlockRecoveryTimeout]);
@@ -198,23 +196,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           const status = adBlockStatusRef.current;
           if (!isEffectActiveRef.current || !status || !isUnsafeAdPresentation(status)) return;
 
-          if (adBlockRecoveryAttemptsRef.current >= 1) {
-            logger.warn("Player:Twitch:HLS", "ad-block hold remained stale; refreshing source", {
-              channelName,
-              isShowingAd: status.isShowingAd,
-              isStrippingSegments: status.isStrippingSegments,
-              isUsingFallbackMode: status.isUsingFallbackMode,
-            });
-            onErrorRef.current?.({
-              code: "AD_BLOCK_STALL",
-              message: "Twitch ad-block recovery remained stalled",
-              fatal: true,
-              shouldRefresh: true,
-            });
-            return;
-          }
-
-          logger.warn("Player:Twitch:HLS", "ad-block hold stalled; refreshing playback path", {
+          logger.warn("Player:Twitch:HLS", "ad-block hold stalled; restarting local loader", {
             channelName,
             isShowingAd: status.isShowingAd,
             isStrippingSegments: status.isStrippingSegments,
@@ -228,7 +210,6 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
               errorName: error instanceof Error ? error.name : "unknown",
             });
           }
-          adBlockRecoveryAttemptsRef.current += 1;
           adBlockRecoveryArmedRef.current = true;
           adBlockRecoveryTimeout.start(AD_BLOCK_RECOVERY_REFRESH_MS);
         };
