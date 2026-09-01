@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { BsChevronDown, BsPeople, BsX } from "react-icons/bs";
+import { BsChevronDown, BsPeople, BsShieldFill, BsX } from "react-icons/bs";
 
 import type { ChatKnownUser, ChatKnownUserRole } from "../../../../../shared/chat-types";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../../../shared/auth-types";
@@ -11,15 +11,21 @@ import { ChatBadge as ProviderBadge } from "./ChatBadge";
 
 const EMPTY_CHATTERS: Record<string, ChatKnownUser> = {};
 
-const ROLE_SECTIONS: ReadonlyArray<{
-  role: ChatKnownUserRole;
+type ActiveChatterGroupId = "moderators" | "chatters";
+
+interface ActiveChatterSection {
+  id: ActiveChatterGroupId;
   label: string;
-}> = [
-  { role: "broadcaster", label: "Broadcaster" },
-  { role: "moderator", label: "Moderators" },
-  { role: "subscriber", label: "Subscribers" },
-  { role: "viewer", label: "Viewers" },
+}
+
+const ACTIVE_CHATTER_SECTIONS: readonly ActiveChatterSection[] = [
+  { id: "moderators", label: "Moderators" },
+  { id: "chatters", label: "Chatters" },
 ];
+
+function groupIdForRole(role: ChatKnownUserRole): ActiveChatterGroupId {
+  return role === "broadcaster" || role === "moderator" ? "moderators" : "chatters";
+}
 
 interface RecentChattersButtonProps {
   panelId: string;
@@ -33,7 +39,7 @@ export function RecentChattersButton({ panelId, open, onClick }: RecentChattersB
       <TooltipTrigger asChild>
         <button
           type="button"
-          aria-label={open ? "Hide recent chatters" : "Show recent chatters"}
+          aria-label={open ? "Hide active chatters" : "Show active chatters"}
           aria-expanded={open}
           aria-controls={panelId}
           onClick={onClick}
@@ -46,7 +52,7 @@ export function RecentChattersButton({ panelId, open, onClick }: RecentChattersB
           )}
         </button>
       </TooltipTrigger>
-      <TooltipContent side="bottom">Recent Chatters</TooltipContent>
+      <TooltipContent side="bottom">Active Chatters</TooltipContent>
     </Tooltip>
   );
 }
@@ -62,26 +68,26 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
   const trackedTotal = useChatStore((state) => state.chatterCountByChannel[channelKey]);
   const chatDisplay =
     useAuthStore((state) => state.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
-  const [collapsedRoles, setCollapsedRoles] = useState<ReadonlySet<ChatKnownUserRole>>(
+  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<ActiveChatterGroupId>>(
     () => new Set()
   );
-  const roleScrollRefs = useRef<Partial<Record<ChatKnownUserRole, HTMLUListElement | null>>>({});
-  const savedRoleScrollRef = useRef<
-    Partial<Record<ChatKnownUserRole, { channelKey: string; top: number }>>
+  const groupScrollRefs = useRef<Partial<Record<ActiveChatterGroupId, HTMLUListElement | null>>>(
+    {}
+  );
+  const savedGroupScrollRef = useRef<
+    Partial<Record<ActiveChatterGroupId, { channelKey: string; top: number }>>
   >({});
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const platform = channelKey.startsWith("twitch:") ? "twitch" : "kick";
 
   const groupedChatters = useMemo(() => {
-    const groups: Record<ChatKnownUserRole, ChatKnownUser[]> = {
-      broadcaster: [],
-      moderator: [],
-      subscriber: [],
-      viewer: [],
+    const groups: Record<ActiveChatterGroupId, ChatKnownUser[]> = {
+      moderators: [],
+      chatters: [],
     };
 
     for (const chatter of Object.values(chatters)) {
-      groups[chatter.role ?? "viewer"].push(chatter);
+      groups[groupIdForRole(chatter.role ?? "viewer")].push(chatter);
     }
     for (const group of Object.values(groups)) {
       group.sort((left, right) => right.lastSeen.getTime() - left.lastSeen.getTime());
@@ -104,36 +110,39 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
   }, []);
 
   useLayoutEffect(() => {
-    for (const { role } of ROLE_SECTIONS) {
-      const saved = savedRoleScrollRef.current[role];
+    for (const { id: groupId } of ACTIVE_CHATTER_SECTIONS) {
+      const saved = savedGroupScrollRef.current[groupId];
       if (saved?.channelKey === channelKey) continue;
-      savedRoleScrollRef.current[role] = { channelKey, top: 0 };
-      const scroller = roleScrollRefs.current[role];
+      savedGroupScrollRef.current[groupId] = { channelKey, top: 0 };
+      const scroller = groupScrollRefs.current[groupId];
       if (scroller) scroller.scrollTop = 0;
     }
   }, [channelKey]);
 
-  const toggleRole = useCallback((role: ChatKnownUserRole) => {
-    setCollapsedRoles((current) => {
+  const toggleGroup = useCallback((groupId: ActiveChatterGroupId) => {
+    setCollapsedGroups((current) => {
       const next = new Set(current);
-      if (next.has(role)) next.delete(role);
-      else next.add(role);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
       return next;
     });
   }, []);
 
   const total = trackedTotal ?? Object.keys(chatters).length;
+  const moderatorBadge = groupedChatters.moderators
+    .flatMap((chatter) => chatter.badges ?? [])
+    .find((badge) => badge.setId.toLowerCase() === "moderator");
 
   return (
     <aside
       id={id}
-      aria-label="Recent Chatters"
+      aria-label="Active Chatters"
       onWheel={(event) => event.stopPropagation()}
       className="absolute inset-0 z-20 flex min-h-0 flex-col bg-[#171717]"
     >
       <div className="flex shrink-0 items-center border-b border-[var(--color-border)] px-3 py-2.5">
         <div className="min-w-0">
-          <h3 className="text-base font-bold text-white">Recent Chatters</h3>
+          <h3 className="text-base font-bold text-white">Active Chatters</h3>
           <p role="status" aria-live="polite" className="text-sm font-semibold text-neutral-300">
             {total === 0 ? "People appear as messages arrive" : `${total} seen in this chat`}
           </p>
@@ -145,25 +154,24 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
           <div className="mb-3 flex size-10 items-center justify-center rounded-full bg-white/5 text-neutral-500">
             <BsPeople className="size-5" aria-hidden="true" />
           </div>
-          <p className="text-sm font-medium text-neutral-300">No recent chatters yet</p>
+          <p className="text-sm font-medium text-neutral-300">No active chatters yet</p>
           <p className="mt-1 text-xs leading-5 text-neutral-500">
             Live messages and loaded chat history will populate this list.
           </p>
         </div>
       ) : (
         <div
-          aria-label="Recent chatter groups"
+          aria-label="Active chatter groups"
           className="flex min-h-0 flex-1 flex-col overflow-y-hidden overscroll-y-contain px-2 py-2 [overflow-anchor:none]"
         >
-          {ROLE_SECTIONS.map(({ role, label }) => {
-            const users = groupedChatters[role];
-            if (users.length === 0) return null;
-            const collapsed = collapsedRoles.has(role);
-            const toggleId = `${id}-${role}-toggle`;
-            const listId = `${id}-${role}-list`;
+          {ACTIVE_CHATTER_SECTIONS.map(({ id: groupId, label }) => {
+            const users = groupedChatters[groupId];
+            const collapsed = collapsedGroups.has(groupId);
+            const toggleId = `${id}-${groupId}-toggle`;
+            const listId = `${id}-${groupId}-list`;
             return (
               <section
-                key={role}
+                key={groupId}
                 aria-labelledby={toggleId}
                 className="mb-3 flex min-h-0 flex-col last:mb-0"
               >
@@ -173,7 +181,7 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
                   aria-label={`${label}, ${users.length} ${users.length === 1 ? "chatter" : "chatters"}`}
                   aria-expanded={!collapsed}
                   aria-controls={listId}
-                  onClick={() => toggleRole(role)}
+                  onClick={() => toggleGroup(groupId)}
                   className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm font-bold text-neutral-100 transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary,#9146ff)]"
                 >
                   <span className="flex min-w-0 items-center gap-1.5">
@@ -182,6 +190,20 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
                       strokeWidth={3}
                       className={`size-3.5 shrink-0 transition-transform ${collapsed ? "-rotate-90" : ""}`}
                     />
+                    {groupId === "moderators" ? (
+                      moderatorBadge ? (
+                        <span className="flex size-4 shrink-0 items-center" aria-hidden="true">
+                          <ProviderBadge badge={moderatorBadge} platform={platform} />
+                        </span>
+                      ) : (
+                        <BsShieldFill
+                          className="size-3.5 shrink-0 text-neutral-300"
+                          aria-hidden="true"
+                        />
+                      )
+                    ) : (
+                      <BsPeople className="size-3.5 shrink-0 text-neutral-300" aria-hidden="true" />
+                    )}
                     <span className="uppercase tracking-wide">{label}</span>
                   </span>
                   <span className="tabular-nums text-white" aria-hidden="true">
@@ -192,15 +214,15 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
                   id={listId}
                   hidden={collapsed}
                   ref={(element) => {
-                    roleScrollRefs.current[role] = element;
-                    const saved = savedRoleScrollRef.current[role];
+                    groupScrollRefs.current[groupId] = element;
+                    const saved = savedGroupScrollRef.current[groupId];
                     if (element && saved?.channelKey === channelKey) {
                       element.scrollTop = saved.top;
                     }
                   }}
                   aria-label={label}
                   onScroll={(event) => {
-                    savedRoleScrollRef.current[role] = {
+                    savedGroupScrollRef.current[groupId] = {
                       channelKey,
                       top: event.currentTarget.scrollTop,
                     };

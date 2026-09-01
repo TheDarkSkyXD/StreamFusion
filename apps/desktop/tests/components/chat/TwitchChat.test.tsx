@@ -604,7 +604,7 @@ describe("TwitchChat", () => {
     });
   });
 
-  it("opens Recent Chatters over the live chat without unmounting it", () => {
+  it("opens Active Chatters over the live chat without unmounting it", () => {
     storeState.usersByChannel = {
       "twitch:ninja": {
         chatter: {
@@ -620,9 +620,9 @@ describe("TwitchChat", () => {
     };
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Show recent chatters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show active chatters" }));
 
-    expect(screen.getByRole("heading", { name: "Recent Chatters" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Active Chatters" })).toBeInTheDocument();
     expect(screen.getByText("Chatter")).toBeInTheDocument();
     expect(screen.getByTestId("message-list")).toBeInTheDocument();
   });

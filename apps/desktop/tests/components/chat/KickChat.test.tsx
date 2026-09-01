@@ -360,7 +360,7 @@ describe("KickChat", () => {
     expect(kickChatService.releaseSendWindowRetention).toHaveBeenCalledTimes(1);
   });
 
-  it("opens Recent Chatters over the live chat without unmounting it", () => {
+  it("opens Active Chatters over the live chat without unmounting it", () => {
     storeState.usersByChannel = {
       "kick:xqc": {
         chatter: {
@@ -376,9 +376,9 @@ describe("KickChat", () => {
     };
     renderKickChat(<KickChat channel="xqc" chatroomId={12345} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Show recent chatters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show active chatters" }));
 
-    expect(screen.getByRole("heading", { name: "Recent Chatters" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Active Chatters" })).toBeInTheDocument();
     expect(screen.getByText("Chatter")).toBeInTheDocument();
     expect(screen.getByTestId("message-list")).toBeInTheDocument();
   });

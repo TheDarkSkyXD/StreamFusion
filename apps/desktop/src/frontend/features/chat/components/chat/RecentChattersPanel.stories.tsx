@@ -88,7 +88,7 @@ function installChatters(
 }
 
 const meta = {
-  title: "Components/Chat/RecentChattersPanel",
+  title: "Components/Chat/ActiveChattersPanel",
   component: RecentChattersPanel,
   parameters: { layout: "centered" },
   decorators: [
@@ -120,7 +120,7 @@ export const CollapsedModeratorGroup: Story = {
   beforeEach: () => installChatters(POPULATED_CHATTERS, 36),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const moderators = canvas.getByRole("button", { name: "Moderators, 1 chatter" });
+    const moderators = canvas.getByRole("button", { name: "Moderators, 2 chatters" });
 
     await userEvent.click(moderators);
 
