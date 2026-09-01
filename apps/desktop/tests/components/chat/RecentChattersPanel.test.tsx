@@ -51,7 +51,8 @@ function message(username: string, timestamp: Date, badges: ChatBadge[] = []): C
 // Guards: The overlay reads only the requested platform/channel bucket.
 // Guards: Active Chatter rows render profile avatars instead of message badges.
 // Guards: The moderator group heading still renders the provider moderator badge.
-// Guards: Missing Active Chatter avatars hydrate through the bounded known-user enrichment IPC.
+// Guards: Missing Active Chatter avatars hydrate only for the visible roster window, then advance on search or scroll.
+// Guards: Passive avatar hydration stays within its session budget while an explicit search can still resolve its result.
 // Guards: The visible list and count update as live chat messages arrive.
 // Guards: The seen-in-chat total keeps updating beyond the 500-row recent-roster cap.
 // Guards: Chatter names use the same preference-resolved color and provider fallback as chat messages.
@@ -256,7 +257,58 @@ describe("RecentChattersPanel", () => {
     );
   });
 
-  it("caps each active-chatter avatar hydration request at 25 users", async () => {
+  it("hydrates only the initial visible chatter window without chaining into offscreen users", async () => {
+    const enrichMentionUsers = vi.fn().mockImplementation(({ users }) =>
+      Promise.resolve({
+        success: true,
+        data: users.map((user: { userId: string; username: string }) => ({
+          ...user,
+          displayName: user.username,
+          avatarUrl: `https://example.com/${user.username}.png`,
+        })),
+      })
+    );
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { chat: { enrichMentionUsers } },
+    });
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": Object.fromEntries(
+          Array.from({ length: 30 }, (_, index) => {
+            const username = `viewer-${index}`;
+            return [username, chatter(username, "viewer", index)];
+          })
+        ),
+      },
+    });
+
+    render(
+      <RecentChattersPanel id="recent-chatters-test" channelKey="twitch:alpha" onClose={vi.fn()} />
+    );
+
+    await waitFor(() => expect(enrichMentionUsers).toHaveBeenCalledTimes(1));
+    const requestedUsers = enrichMentionUsers.mock.calls[0][0].users;
+    expect(requestedUsers).toHaveLength(12);
+    expect(requestedUsers).toEqual(
+      expect.arrayContaining([
+        { userId: "viewer-29", username: "viewer-29" },
+        { userId: "viewer-18", username: "viewer-18" },
+      ])
+    );
+    expect(requestedUsers).not.toEqual(
+      expect.arrayContaining([{ userId: "viewer-0", username: "viewer-0" }])
+    );
+    await waitFor(() =>
+      expect(screen.getByText("viewer-29").closest("li")?.querySelector("img")).toHaveAttribute(
+        "src",
+        "https://example.com/viewer-29.png"
+      )
+    );
+    expect(enrichMentionUsers).toHaveBeenCalledTimes(1);
+  });
+
+  it("hydrates a searched chatter even when it was outside the initial roster window", async () => {
     const enrichMentionUsers = vi.fn().mockResolvedValue({ success: true, data: [] });
     Object.defineProperty(window, "electronAPI", {
       configurable: true,
@@ -278,7 +330,173 @@ describe("RecentChattersPanel", () => {
     );
 
     await waitFor(() => expect(enrichMentionUsers).toHaveBeenCalledTimes(1));
-    expect(enrichMentionUsers.mock.calls[0][0].users).toHaveLength(25);
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search active chatters" }), {
+      target: { value: "viewer-0" },
+    });
+
+    await waitFor(() => expect(enrichMentionUsers).toHaveBeenCalledTimes(2));
+    expect(enrichMentionUsers.mock.calls[1][0].users).toEqual([
+      { userId: "viewer-0", username: "viewer-0" },
+    ]);
+  });
+
+  it("hydrates chatters as their group scroller reveals them", async () => {
+    const enrichMentionUsers = vi.fn().mockResolvedValue({ success: true, data: [] });
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { chat: { enrichMentionUsers } },
+    });
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": Object.fromEntries(
+          Array.from({ length: 30 }, (_, index) => {
+            const username = `viewer-${index}`;
+            return [username, chatter(username, "viewer", index)];
+          })
+        ),
+      },
+    });
+
+    render(
+      <RecentChattersPanel id="recent-chatters-test" channelKey="twitch:alpha" onClose={vi.fn()} />
+    );
+
+    await waitFor(() => expect(enrichMentionUsers).toHaveBeenCalledTimes(1));
+    const chattersList = screen.getByRole("list", { name: "Chatters" });
+    Object.defineProperty(chattersList, "scrollTop", {
+      configurable: true,
+      value: 32 * 12,
+      writable: true,
+    });
+    fireEvent.scroll(chattersList);
+
+    await waitFor(() => expect(enrichMentionUsers).toHaveBeenCalledTimes(2));
+    expect(enrichMentionUsers.mock.calls[1][0].users).toEqual(
+      expect.arrayContaining([{ userId: "viewer-17", username: "viewer-17" }])
+    );
+  });
+
+  it("caps passive avatar hydration without blocking an explicit chatter search", async () => {
+    const enrichMentionUsers = vi.fn().mockResolvedValue({ success: true, data: [] });
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { chat: { enrichMentionUsers } },
+    });
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": Object.fromEntries(
+          Array.from({ length: 100 }, (_, index) => {
+            const username = `viewer-${index}`;
+            return [username, chatter(username, "viewer", index)];
+          })
+        ),
+      },
+    });
+
+    render(
+      <RecentChattersPanel id="recent-chatters-test" channelKey="twitch:alpha" onClose={vi.fn()} />
+    );
+
+    await waitFor(() => expect(enrichMentionUsers).toHaveBeenCalledTimes(1));
+    const chattersList = screen.getByRole("list", { name: "Chatters" });
+    Object.defineProperty(chattersList, "scrollTop", {
+      configurable: true,
+      value: 0,
+      writable: true,
+    });
+    for (let firstVisibleIndex = 12; firstVisibleIndex <= 72; firstVisibleIndex += 12) {
+      chattersList.scrollTop = 32 * firstVisibleIndex;
+      fireEvent.scroll(chattersList);
+      await waitFor(() =>
+        expect(enrichMentionUsers).toHaveBeenCalledTimes(firstVisibleIndex / 12 + 1)
+      );
+    }
+
+    expect(
+      enrichMentionUsers.mock.calls.flatMap(([request]) => request.users)
+    ).toHaveLength(75);
+    chattersList.scrollTop = 32 * 84;
+    fireEvent.scroll(chattersList);
+    await act(async () => Promise.resolve());
+    expect(enrichMentionUsers).toHaveBeenCalledTimes(7);
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search active chatters" }), {
+      target: { value: "viewer-0" },
+    });
+    await waitFor(() => expect(enrichMentionUsers).toHaveBeenCalledTimes(8));
+    expect(enrichMentionUsers.mock.calls[7][0].users).toEqual([
+      { userId: "viewer-0", username: "viewer-0" },
+    ]);
+  });
+
+  it("uses the latest search window after an in-flight avatar request settles", async () => {
+    let resolveFirstRequest: ((result: { success: true; data: Array<never> }) => void) | undefined;
+    const enrichMentionUsers = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ success: true; data: Array<never> }>((resolve) => {
+            resolveFirstRequest = resolve;
+          })
+      )
+      .mockResolvedValue({ success: true, data: [] });
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { chat: { enrichMentionUsers } },
+    });
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": Object.fromEntries(
+          Array.from({ length: 30 }, (_, index) => {
+            const username = `viewer-${index}`;
+            return [username, chatter(username, "viewer", index)];
+          })
+        ),
+      },
+    });
+
+    render(
+      <RecentChattersPanel id="recent-chatters-test" channelKey="twitch:alpha" onClose={vi.fn()} />
+    );
+
+    await waitFor(() => expect(enrichMentionUsers).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search active chatters" }), {
+      target: { value: "viewer-0" },
+    });
+    if (!resolveFirstRequest) throw new Error("Expected the first avatar request to be pending");
+    resolveFirstRequest({ success: true, data: [] });
+
+    await waitFor(() => expect(enrichMentionUsers).toHaveBeenCalledTimes(2));
+    expect(enrichMentionUsers.mock.calls[1][0].users).toEqual([
+      { userId: "viewer-0", username: "viewer-0" },
+    ]);
+  });
+
+  it("does not hydrate new chatter rows while their group is collapsed", async () => {
+    const enrichMentionUsers = vi.fn().mockResolvedValue({ success: true, data: [] });
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { chat: { enrichMentionUsers } },
+    });
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": { viewer: chatter("viewer", "viewer") },
+      },
+    });
+
+    render(
+      <RecentChattersPanel id="recent-chatters-test" channelKey="twitch:alpha" onClose={vi.fn()} />
+    );
+
+    await waitFor(() => expect(enrichMentionUsers).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Chatters, 1 chatter" }));
+    act(() => {
+      useChatStore
+        .getState()
+        .addMessage(message("new-collapsed-viewer", new Date("2026-08-07T12:00:01Z")));
+    });
+
+    expect(enrichMentionUsers).toHaveBeenCalledTimes(1);
   });
 
   it("updates the visible count and list as live messages arrive", () => {

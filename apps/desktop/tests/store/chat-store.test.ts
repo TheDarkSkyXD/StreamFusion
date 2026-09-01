@@ -160,8 +160,11 @@ describe('chat-store recent chatter roles', () => {
 
   it('updates known chatter profile metadata without changing messages or counts', () => {
     const channelKey = defaultChannelKey();
+    const lastSeen = new Date('2026-08-07T12:00:00.000Z');
     useChatStore.getState().addMessage({
       ...makeMessage('avatar-user'),
+      color: '#a78bfa',
+      timestamp: lastSeen,
       badges: [
         {
           setId: 'subscriber',
@@ -179,6 +182,12 @@ describe('chat-store recent chatter roles', () => {
         displayName: 'Avatar User',
         avatarUrl: 'https://example.com/avatar-user.png',
       },
+      {
+        userId: 'unknown-id',
+        username: 'unknown-user',
+        displayName: 'Unknown User',
+        avatarUrl: 'https://example.com/unknown-user.png',
+      },
     ]);
 
     const user = useChatStore.getState().usersByChannel[channelKey]?.['avatar-user'];
@@ -189,6 +198,9 @@ describe('chat-store recent chatter roles', () => {
       role: 'subscriber',
     });
     expect(user?.badges[0]).toMatchObject({ setId: 'subscriber', version: '3' });
+    expect(user?.color).toBe('#a78bfa');
+    expect(user?.lastSeen).toEqual(lastSeen);
+    expect(useChatStore.getState().usersByChannel[channelKey]?.['unknown-user']).toBeUndefined();
     expect(messagesFor(channelKey)[0]).toMatchObject({
       username: 'avatar-user',
       displayName: 'avatar-user',

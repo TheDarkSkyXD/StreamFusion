@@ -12,10 +12,25 @@ import { ChatBadge as ProviderBadge } from "./ChatBadge";
 
 const EMPTY_CHATTERS: Record<string, ChatKnownUser> = {};
 const ACTIVE_CHATTER_AVATAR_BATCH_SIZE = 25;
-const ACTIVE_CHATTER_AVATAR_HYDRATION_LIMIT = 100;
+const ACTIVE_CHATTER_AVATAR_PASSIVE_LIMIT = 75;
+const ACTIVE_CHATTER_AVATAR_VISIBLE_ROWS = 6;
+const ACTIVE_CHATTER_AVATAR_OVERSCAN_ROWS = 6;
+const ACTIVE_CHATTER_ROW_HEIGHT_PX = 32;
 
 type ActiveChatterGroupId = "moderators" | "chatters";
 type ActiveChatterGroups = Record<ActiveChatterGroupId, ChatKnownUser[]>;
+type ActiveChatterVisibleStarts = Record<ActiveChatterGroupId, number>;
+
+const INITIAL_ACTIVE_CHATTER_VISIBLE_STARTS: ActiveChatterVisibleStarts = {
+  moderators: 0,
+  chatters: 0,
+};
+
+interface AvatarHydrationChannelState {
+  requested: Set<string>;
+  inFlight: boolean;
+  rerunAfterSettle: boolean;
+}
 
 interface ActiveChatterSection {
   id: ActiveChatterGroupId;
@@ -124,7 +139,10 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
     Partial<Record<ActiveChatterGroupId, { channelKey: string; top: number }>>
   >({});
   const returnFocusRef = useRef<HTMLElement | null>(null);
-  const requestedAvatarUsersRef = useRef<Record<string, Set<string>>>({});
+  const avatarHydrationByChannelRef = useRef<Record<string, AvatarHydrationChannelState>>({});
+  const visibleStartsByChannelRef = useRef<Record<string, ActiveChatterVisibleStarts>>({});
+  const mountedRef = useRef(true);
+  const [avatarHydrationRevision, setAvatarHydrationRevision] = useState(0);
   const platform = channelKey.startsWith("twitch:") ? "twitch" : "kick";
   const trimmedSearchQuery = searchQuery.trim();
 
@@ -146,18 +164,35 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
     const api = globalThis.window?.electronAPI?.chat;
     if (!api?.enrichMentionUsers) return;
 
-    const requested =
-      requestedAvatarUsersRef.current[channelKey] ??
-      (requestedAvatarUsersRef.current[channelKey] = new Set<string>());
-    const remainingBudget = ACTIVE_CHATTER_AVATAR_HYDRATION_LIMIT - requested.size;
+    const hydration =
+      avatarHydrationByChannelRef.current[channelKey] ??
+      (avatarHydrationByChannelRef.current[channelKey] = {
+        requested: new Set<string>(),
+        inFlight: false,
+        rerunAfterSettle: false,
+      });
+    if (hydration.inFlight) {
+      hydration.rerunAfterSettle = true;
+      return;
+    }
+    const remainingBudget = trimmedSearchQuery
+      ? ACTIVE_CHATTER_AVATAR_BATCH_SIZE
+      : ACTIVE_CHATTER_AVATAR_PASSIVE_LIMIT - hydration.requested.size;
     if (remainingBudget <= 0) return;
 
     const usersToHydrate: Array<{ userId: string; username: string }> = [];
+    const groupVisibleStarts =
+      visibleStartsByChannelRef.current[channelKey] ?? INITIAL_ACTIVE_CHATTER_VISIBLE_STARTS;
     for (const { id: groupId } of ACTIVE_CHATTER_SECTIONS) {
       if (collapsedGroups.has(groupId)) continue;
-      for (const user of groupedChatters[groupId]) {
+      const firstVisibleIndex = groupVisibleStarts[groupId];
+      const lastVisibleIndex =
+        firstVisibleIndex +
+        ACTIVE_CHATTER_AVATAR_VISIBLE_ROWS +
+        ACTIVE_CHATTER_AVATAR_OVERSCAN_ROWS;
+      for (const user of groupedChatters[groupId].slice(firstVisibleIndex, lastVisibleIndex)) {
         const key = user.username.toLowerCase();
-        if (user.avatarUrl || requested.has(key)) continue;
+        if (user.avatarUrl || hydration.requested.has(key)) continue;
         usersToHydrate.push({ userId: user.userId, username: user.username });
         if (
           usersToHydrate.length >= ACTIVE_CHATTER_AVATAR_BATCH_SIZE ||
@@ -176,10 +211,10 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
     if (usersToHydrate.length === 0) return;
 
     for (const user of usersToHydrate) {
-      requested.add(user.username.toLowerCase());
+      hydration.requested.add(user.username.toLowerCase());
     }
 
-    let cancelled = false;
+    hydration.inFlight = true;
     void api
       .enrichMentionUsers({
         platform,
@@ -187,14 +222,31 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
         users: usersToHydrate,
       })
       .then((result) => {
-        if (cancelled || !result.success || !result.data) return;
+        if (!mountedRef.current || !result.success || !result.data) return;
         updateKnownUserProfiles(channelKey, result.data);
+      })
+      .finally(() => {
+        hydration.inFlight = false;
+        if (!hydration.rerunAfterSettle || !mountedRef.current) return;
+        hydration.rerunAfterSettle = false;
+        setAvatarHydrationRevision((revision) => revision + 1);
       });
+  }, [
+    avatarHydrationRevision,
+    channelKey,
+    collapsedGroups,
+    groupedChatters,
+    platform,
+    trimmedSearchQuery,
+    updateKnownUserProfiles,
+  ]);
 
+  useEffect(() => {
+    mountedRef.current = true;
     return () => {
-      cancelled = true;
+      mountedRef.current = false;
     };
-  }, [channelKey, collapsedGroups, groupedChatters, platform, updateKnownUserProfiles]);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -229,6 +281,21 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
     });
   }, []);
 
+  const updateSearchQuery = useCallback(
+    (query: string) => {
+      setSearchQuery(query);
+      for (const { id: groupId } of ACTIVE_CHATTER_SECTIONS) {
+        const scroller = groupScrollRefs.current[groupId];
+        if (scroller) scroller.scrollTop = 0;
+        savedGroupScrollRef.current[groupId] = { channelKey, top: 0 };
+      }
+      visibleStartsByChannelRef.current[channelKey] = {
+        ...INITIAL_ACTIVE_CHATTER_VISIBLE_STARTS,
+      };
+    },
+    [channelKey]
+  );
+
   const total = trackedTotal ?? Object.keys(chatters).length;
   const visibleTotal = groupedChatters.moderators.length + groupedChatters.chatters.length;
   const searching = trimmedSearchQuery.length > 0;
@@ -257,7 +324,7 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
               ref={searchInputRef}
               type="search"
               value={searchQuery}
-              onChange={(event) => setSearchQuery(event.currentTarget.value)}
+              onChange={(event) => updateSearchQuery(event.currentTarget.value)}
               aria-label="Search active chatters"
               placeholder="Search chatters"
               className="h-8 w-full rounded-md border border-[var(--color-border)] bg-[#252525] py-1.5 pl-8 pr-8 text-sm font-medium text-white placeholder:text-neutral-500 transition-colors duration-200 focus:border-white focus:outline-none focus:ring-1 focus:ring-white [&::-webkit-search-cancel-button]:hidden"
@@ -267,7 +334,7 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
                 type="button"
                 aria-label="Clear search"
                 onClick={() => {
-                  setSearchQuery("");
+                  updateSearchQuery("");
                   searchInputRef.current?.focus();
                 }}
                 className="absolute right-1.5 top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded text-neutral-400 transition-colors duration-200 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
@@ -361,10 +428,22 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
                   }}
                   aria-label={label}
                   onScroll={(event) => {
+                    const top = event.currentTarget.scrollTop;
                     savedGroupScrollRef.current[groupId] = {
                       channelKey,
-                      top: event.currentTarget.scrollTop,
+                      top,
                     };
+                    const firstVisibleIndex = Math.floor(top / ACTIVE_CHATTER_ROW_HEIGHT_PX);
+                    const visibleStarts =
+                      visibleStartsByChannelRef.current[channelKey] ??
+                      INITIAL_ACTIVE_CHATTER_VISIBLE_STARTS;
+                    if (visibleStarts[groupId] !== firstVisibleIndex) {
+                      visibleStartsByChannelRef.current[channelKey] = {
+                        ...visibleStarts,
+                        [groupId]: firstVisibleIndex,
+                      };
+                      setAvatarHydrationRevision((revision) => revision + 1);
+                    }
                   }}
                   onWheel={(event) => event.stopPropagation()}
                   className="min-h-0 max-h-48 space-y-0.5 overflow-y-auto overscroll-y-contain [overflow-anchor:none]"
