@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RecentChattersPanel } from "@/features/chat/components/chat/RecentChattersPanel";
@@ -12,7 +12,8 @@ function chatter(
   username: string,
   role: ChatKnownUser["role"],
   lastSeenOffset = 0,
-  badges: ChatBadge[] = []
+  badges: ChatBadge[] = [],
+  avatarUrl?: string
 ): ChatKnownUser {
   return {
     userId: username,
@@ -21,6 +22,7 @@ function chatter(
     color: "#a78bfa",
     role,
     badges,
+    avatarUrl,
     lastSeen: new Date(Date.parse("2026-08-07T12:00:00.000Z") + lastSeenOffset),
   };
 }
@@ -47,8 +49,9 @@ function message(username: string, timestamp: Date, badges: ChatBadge[] = []): C
 
 // Guards: Active Chatters renders exactly two groups, merging channel authorities and regular chatters without losing users.
 // Guards: The overlay reads only the requested platform/channel bucket.
-// Guards: Twitch rows render exact resolved provider badge images, never generated substitutes.
-// Guards: Kick rows preserve the provider badge version while using Electron's image proxy (regression 67fdc95)
+// Guards: Active Chatter rows render profile avatars instead of message badges.
+// Guards: The moderator group heading still renders the provider moderator badge.
+// Guards: Missing Active Chatter avatars hydrate through the bounded known-user enrichment IPC.
 // Guards: The visible list and count update as live chat messages arrive.
 // Guards: The seen-in-chat total keeps updating beyond the 500-row recent-roster cap.
 // Guards: Chatter names use the same preference-resolved color and provider fallback as chat messages.
@@ -64,6 +67,7 @@ function message(username: string, timestamp: Date, badges: ChatBadge[] = []): C
 // Guards: Empty search results keep both group headings visible at zero and use distinct copy from a truly empty roster.
 describe("RecentChattersPanel", () => {
   beforeEach(() => {
+    Reflect.deleteProperty(window, "electronAPI");
     useChatStore.getState().cleanupBatching();
     useChatStore.setState({
       messagesByChannel: {},
@@ -127,18 +131,19 @@ describe("RecentChattersPanel", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders the exact Twitch provider badge image and version observed on the message", () => {
+  it("renders a profile avatar instead of message badges on a Twitch chatter row", () => {
+    const avatarUrl = "https://example.com/twitch-avatar.png";
     useChatStore.setState({
       usersByChannel: {
         "twitch:alpha": {
-          owner: chatter("owner", "broadcaster", 0, [
+          viewer: chatter("viewer", "viewer", 0, [
             {
-              setId: "broadcaster",
-              version: "1",
-              imageUrl: "https://static-cdn.jtvnw.net/badges/v1/twitch-owner/2",
-              title: "Broadcaster",
+              setId: "subscriber",
+              version: "3",
+              imageUrl: "https://static-cdn.jtvnw.net/badges/v1/subscriber/2",
+              title: "Subscriber",
             },
-          ]),
+          ], avatarUrl),
         },
       },
     });
@@ -147,14 +152,17 @@ describe("RecentChattersPanel", () => {
       <RecentChattersPanel id="recent-chatters-test" channelKey="twitch:alpha" onClose={vi.fn()} />
     );
 
-    expect(screen.getByRole("img", { name: "Broadcaster" })).toHaveAttribute(
+    const row = screen.getByText("viewer").closest("li");
+    expect(row?.querySelector("img")).toHaveAttribute("src", avatarUrl);
+    expect(row?.querySelector("img")).not.toHaveAttribute(
       "src",
-      "https://static-cdn.jtvnw.net/badges/v1/twitch-owner/2"
+      "https://static-cdn.jtvnw.net/badges/v1/subscriber/2"
     );
   });
 
-  it("renders the exact Kick provider badge image and version observed on the message", () => {
-    const sourceUrl = "https://files.kick.com/channel/subscriber-badges/24-month.webp";
+  it("uses Electron's image proxy for Kick chatter avatars, not Kick badge images", () => {
+    const avatarUrl = "https://files.kick.com/images/user/123/profile_image/avatar.webp";
+    const badgeUrl = "https://files.kick.com/channel/subscriber-badges/24-month.webp";
     useChatStore.setState({
       usersByChannel: {
         "kick:alpha": {
@@ -162,10 +170,10 @@ describe("RecentChattersPanel", () => {
             {
               setId: "subscriber",
               version: "24",
-              imageUrl: sourceUrl,
+              imageUrl: badgeUrl,
               title: "24-Month Subscriber",
             },
-          ]),
+          ], avatarUrl),
         },
       },
     });
@@ -174,13 +182,15 @@ describe("RecentChattersPanel", () => {
       <RecentChattersPanel id="recent-chatters-test" channelKey="kick:alpha" onClose={vi.fn()} />
     );
 
-    const src = screen.getByRole("img", { name: "24-Month Subscriber" }).getAttribute("src");
+    const row = screen.getByText("sub").closest("li");
+    const src = row?.querySelector("img")?.getAttribute("src");
     expect(src).toMatch(/^kick-image:\/\/image\?u=/);
     const encodedSource = new URL(src ?? "").searchParams.get("u") ?? "";
-    expect(atob(encodedSource.replace(/-/g, "+").replace(/_/g, "/"))).toBe(sourceUrl);
+    expect(atob(encodedSource.replace(/-/g, "+").replace(/_/g, "/"))).toBe(avatarUrl);
+    expect(row?.querySelector("img")).not.toHaveAttribute("src", badgeUrl);
   });
 
-  it("renders no badge or generated initial when the provider badge is unresolved", () => {
+  it("renders a stable initial fallback when a chatter has no avatar", () => {
     useChatStore.setState({
       usersByChannel: {
         "twitch:alpha": {
@@ -201,8 +211,74 @@ describe("RecentChattersPanel", () => {
     );
 
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
-    expect(screen.queryByText("V")).not.toBeInTheDocument();
+    expect(screen.getByText("V")).toBeInTheDocument();
     expect(screen.getByText("viewer")).toBeInTheDocument();
+  });
+
+  it("hydrates missing avatars through one bounded known-user enrichment request", async () => {
+    const enrichMentionUsers = vi.fn().mockResolvedValue({
+      success: true,
+      data: [
+        {
+          userId: "viewer",
+          username: "viewer",
+          displayName: "Viewer",
+          avatarUrl: "https://example.com/viewer-avatar.png",
+        },
+      ],
+    });
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { chat: { enrichMentionUsers } },
+    });
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": { viewer: chatter("viewer", "viewer") },
+      },
+    });
+
+    render(
+      <RecentChattersPanel id="recent-chatters-test" channelKey="twitch:alpha" onClose={vi.fn()} />
+    );
+
+    await waitFor(() =>
+      expect(enrichMentionUsers).toHaveBeenCalledWith({
+        platform: "twitch",
+        channel: "alpha",
+        users: [{ userId: "viewer", username: "viewer" }],
+      })
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Viewer").closest("li")?.querySelector("img")).toHaveAttribute(
+        "src",
+        "https://example.com/viewer-avatar.png"
+      )
+    );
+  });
+
+  it("caps each active-chatter avatar hydration request at 25 users", async () => {
+    const enrichMentionUsers = vi.fn().mockResolvedValue({ success: true, data: [] });
+    Object.defineProperty(window, "electronAPI", {
+      configurable: true,
+      value: { chat: { enrichMentionUsers } },
+    });
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": Object.fromEntries(
+          Array.from({ length: 30 }, (_, index) => {
+            const username = `viewer-${index}`;
+            return [username, chatter(username, "viewer", index)];
+          })
+        ),
+      },
+    });
+
+    render(
+      <RecentChattersPanel id="recent-chatters-test" channelKey="twitch:alpha" onClose={vi.fn()} />
+    );
+
+    await waitFor(() => expect(enrichMentionUsers).toHaveBeenCalledTimes(1));
+    expect(enrichMentionUsers.mock.calls[0][0].users).toHaveLength(25);
   });
 
   it("updates the visible count and list as live messages arrive", () => {
@@ -427,7 +503,7 @@ describe("RecentChattersPanel", () => {
     expect(toggle.querySelector("svg")).toHaveAttribute("stroke-width", "3");
   });
 
-  it("preserves a group's scroll position across live additions, re-sorts, and badge rehydration", () => {
+  it("preserves a group's scroll position across live additions, re-sorts, and avatar hydration", () => {
     const viewers = Object.fromEntries(
       Array.from({ length: 20 }, (_, index) => {
         const username = `viewer-${index}`;
@@ -464,17 +540,19 @@ describe("RecentChattersPanel", () => {
         );
     });
     act(() => {
-      useChatStore.getState().rehydrateChannelBadges("twitch:alpha", (badges) =>
-        badges.map((badge) => ({
-          ...badge,
-          imageUrl: "https://static-cdn.jtvnw.net/badges/v1/subscriber-3/2",
-        }))
-      );
+      useChatStore.getState().updateKnownUserProfiles("twitch:alpha", [
+        {
+          userId: "badge-user",
+          username: "badge-user",
+          displayName: "Badge User",
+          avatarUrl: "https://example.com/badge-user-avatar.png",
+        },
+      ]);
     });
     expect(scroller.scrollTop).toBe(140);
-    expect(screen.getByRole("img", { name: "Subscriber" })).toHaveAttribute(
+    expect(screen.getByText("Badge User").closest("li")?.querySelector("img")).toHaveAttribute(
       "src",
-      "https://static-cdn.jtvnw.net/badges/v1/subscriber-3/2"
+      "https://example.com/badge-user-avatar.png"
     );
   });
 

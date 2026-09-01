@@ -6,10 +6,13 @@ import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../../../shared/auth-typ
 import { resolveChatUsernameColor } from "../../utils/chat-visuals";
 import { useAuthStore } from "../../../../store/auth-store";
 import { useChatStore } from "../../../../store/chat-store";
+import { ProxiedImage } from "../../../../components/ui/proxied-image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 import { ChatBadge as ProviderBadge } from "./ChatBadge";
 
 const EMPTY_CHATTERS: Record<string, ChatKnownUser> = {};
+const ACTIVE_CHATTER_AVATAR_BATCH_SIZE = 25;
+const ACTIVE_CHATTER_AVATAR_HYDRATION_LIMIT = 100;
 
 type ActiveChatterGroupId = "moderators" | "chatters";
 type ActiveChatterGroups = Record<ActiveChatterGroupId, ChatKnownUser[]>;
@@ -56,6 +59,17 @@ function groupActiveChatters(
   return groups;
 }
 
+function getChannelFromChannelKey(channelKey: string): string | undefined {
+  const separatorIndex = channelKey.indexOf(":");
+  if (separatorIndex === -1) return undefined;
+  return channelKey.slice(separatorIndex + 1) || undefined;
+}
+
+function getChatterInitial(user: ChatKnownUser): string {
+  const label = (user.displayName || user.username).trim();
+  return label.charAt(0).toUpperCase() || "?";
+}
+
 interface RecentChattersButtonProps {
   panelId: string;
   open: boolean;
@@ -95,6 +109,7 @@ interface RecentChattersPanelProps {
 export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersPanelProps) {
   const chatters = useChatStore((state) => state.usersByChannel[channelKey] ?? EMPTY_CHATTERS);
   const trackedTotal = useChatStore((state) => state.chatterCountByChannel[channelKey]);
+  const updateKnownUserProfiles = useChatStore((state) => state.updateKnownUserProfiles);
   const chatDisplay =
     useAuthStore((state) => state.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
   const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<ActiveChatterGroupId>>(
@@ -109,6 +124,7 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
     Partial<Record<ActiveChatterGroupId, { channelKey: string; top: number }>>
   >({});
   const returnFocusRef = useRef<HTMLElement | null>(null);
+  const requestedAvatarUsersRef = useRef<Record<string, Set<string>>>({});
   const platform = channelKey.startsWith("twitch:") ? "twitch" : "kick";
   const trimmedSearchQuery = searchQuery.trim();
 
@@ -125,6 +141,60 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
     }
     return undefined;
   }, [chatters]);
+
+  useEffect(() => {
+    const api = globalThis.window?.electronAPI?.chat;
+    if (!api?.enrichMentionUsers) return;
+
+    const requested =
+      requestedAvatarUsersRef.current[channelKey] ??
+      (requestedAvatarUsersRef.current[channelKey] = new Set<string>());
+    const remainingBudget = ACTIVE_CHATTER_AVATAR_HYDRATION_LIMIT - requested.size;
+    if (remainingBudget <= 0) return;
+
+    const usersToHydrate: Array<{ userId: string; username: string }> = [];
+    for (const { id: groupId } of ACTIVE_CHATTER_SECTIONS) {
+      if (collapsedGroups.has(groupId)) continue;
+      for (const user of groupedChatters[groupId]) {
+        const key = user.username.toLowerCase();
+        if (user.avatarUrl || requested.has(key)) continue;
+        usersToHydrate.push({ userId: user.userId, username: user.username });
+        if (
+          usersToHydrate.length >= ACTIVE_CHATTER_AVATAR_BATCH_SIZE ||
+          usersToHydrate.length >= remainingBudget
+        ) {
+          break;
+        }
+      }
+      if (
+        usersToHydrate.length >= ACTIVE_CHATTER_AVATAR_BATCH_SIZE ||
+        usersToHydrate.length >= remainingBudget
+      ) {
+        break;
+      }
+    }
+    if (usersToHydrate.length === 0) return;
+
+    for (const user of usersToHydrate) {
+      requested.add(user.username.toLowerCase());
+    }
+
+    let cancelled = false;
+    void api
+      .enrichMentionUsers({
+        platform,
+        channel: getChannelFromChannelKey(channelKey),
+        users: usersToHydrate,
+      })
+      .then((result) => {
+        if (cancelled || !result.success || !result.data) return;
+        updateKnownUserProfiles(channelKey, result.data);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [channelKey, collapsedGroups, groupedChatters, platform, updateKnownUserProfiles]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -304,17 +374,21 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
                       key={user.username.toLowerCase()}
                       className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5"
                     >
-                      {(user.badges ?? []).some((badge) => Boolean(badge.imageUrl)) ? (
-                        <span className="flex shrink-0 items-center gap-1">
-                          {(user.badges ?? []).map((badge) => (
-                            <ProviderBadge
-                              key={`${badge.setId}:${badge.version}:${badge.imageUrl}`}
-                              badge={badge}
-                              platform={platform}
-                            />
-                          ))}
-                        </span>
-                      ) : null}
+                      <ProxiedImage
+                        src={user.avatarUrl}
+                        alt=""
+                        className="size-6 shrink-0 rounded-full object-cover"
+                        fallback={
+                          <span
+                            aria-hidden="true"
+                            className="flex size-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold text-neutral-200"
+                          >
+                            {getChatterInitial(user)}
+                          </span>
+                        }
+                        width={24}
+                        height={24}
+                      />
                       <span
                         className="min-w-0 truncate text-sm"
                         style={{

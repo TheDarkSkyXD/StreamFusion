@@ -63,6 +63,7 @@ function resetStore(opts: { batching?: boolean; interval?: number } = {}): void 
 
 // Guards: Recent Chatters assigns one exclusive role using broadcaster > moderator > subscriber > viewer priority.
 // Guards: Recent Chatters retains exact provider badge images and versions from live and historical messages.
+// Guards: Active Chatter avatar enrichment updates known-user presentation without rewriting message history.
 // Guards: The 500-user memory bound replaces the oldest identity as new live chatters arrive.
 // Guards: The seen-in-chat total continues increasing when the bounded recent roster reaches 500 users.
 describe('chat-store recent chatter roles', () => {
@@ -155,6 +156,44 @@ describe('chat-store recent chatter roles', () => {
     expect(
       useChatStore.getState().usersByChannel[defaultChannelKey('kick')]?.['historical-user']?.badges
     ).toEqual([historicalBadge]);
+  });
+
+  it('updates known chatter profile metadata without changing messages or counts', () => {
+    const channelKey = defaultChannelKey();
+    useChatStore.getState().addMessage({
+      ...makeMessage('avatar-user'),
+      badges: [
+        {
+          setId: 'subscriber',
+          version: '3',
+          imageUrl: 'https://static-cdn.jtvnw.net/badges/v1/subscriber-3/2',
+          title: 'Subscriber',
+        },
+      ],
+    });
+
+    useChatStore.getState().updateKnownUserProfiles(channelKey, [
+      {
+        userId: 'avatar-user-id',
+        username: 'avatar-user',
+        displayName: 'Avatar User',
+        avatarUrl: 'https://example.com/avatar-user.png',
+      },
+    ]);
+
+    const user = useChatStore.getState().usersByChannel[channelKey]?.['avatar-user'];
+    expect(user).toMatchObject({
+      userId: 'avatar-user-id',
+      displayName: 'Avatar User',
+      avatarUrl: 'https://example.com/avatar-user.png',
+      role: 'subscriber',
+    });
+    expect(user?.badges[0]).toMatchObject({ setId: 'subscriber', version: '3' });
+    expect(messagesFor(channelKey)[0]).toMatchObject({
+      username: 'avatar-user',
+      displayName: 'avatar-user',
+    });
+    expect(useChatStore.getState().chatterCountByChannel[channelKey]).toBe(1);
   });
 
   it('keeps the live roster current when a new chatter crosses the 500-user cap', () => {

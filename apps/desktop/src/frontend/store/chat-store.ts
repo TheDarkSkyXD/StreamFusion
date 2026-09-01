@@ -337,6 +337,10 @@ interface ChatState {
     channelKey: string,
     resolve: (badges: ChatBadge[]) => ChatBadge[]
   ) => void;
+  updateKnownUserProfiles: (
+    channelKey: string,
+    profiles: Array<Pick<ChatKnownUser, "userId" | "username" | "displayName" | "avatarUrl">>
+  ) => void;
   trimChannelToMessageLimit: (channelKey: string) => void;
   setPaused: (channelKey: string, paused: boolean) => void;
   setBatchingEnabled: (enabled: boolean) => void;
@@ -820,6 +824,43 @@ export const useChatStore = create<ChatState>()(
               })),
             },
             usersByChannel,
+          };
+        });
+      },
+
+      updateKnownUserProfiles: (channelKey, profiles) => {
+        if (profiles.length === 0) return;
+        set((state) => {
+          const channelUsers = state.usersByChannel[channelKey];
+          if (!channelUsers) return state;
+
+          let next: Record<string, ChatKnownUser> | null = null;
+          for (const profile of profiles) {
+            const key = profile.username.toLowerCase();
+            const existing = channelUsers[key];
+            if (!existing) continue;
+
+            const displayName = profile.displayName || existing.displayName;
+            const userId = profile.userId || existing.userId;
+            const avatarUrl = profile.avatarUrl || existing.avatarUrl;
+            if (
+              displayName === existing.displayName &&
+              userId === existing.userId &&
+              avatarUrl === existing.avatarUrl
+            ) {
+              continue;
+            }
+
+            if (!next) next = { ...channelUsers };
+            next[key] = { ...existing, userId, displayName, avatarUrl };
+          }
+
+          if (!next) return state;
+          return {
+            usersByChannel: {
+              ...state.usersByChannel,
+              [channelKey]: next,
+            },
           };
         });
       },
