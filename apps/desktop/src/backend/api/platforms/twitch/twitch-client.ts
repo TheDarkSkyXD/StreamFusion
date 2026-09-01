@@ -34,9 +34,7 @@ import type {
 export type { PaginationOptions, PaginatedResult, PaginationEndReason, TwitchClientError };
 
 export type TwitchFollowedStreamAccess =
-  | { kind: "guest" }
-  | { kind: "ready" }
-  | { kind: "unavailable" };
+  { kind: "guest" } | { kind: "ready" } | { kind: "unavailable" };
 
 function mergeCategoryViewerCounts(
   result: PaginatedResult<UnifiedCategory>,
