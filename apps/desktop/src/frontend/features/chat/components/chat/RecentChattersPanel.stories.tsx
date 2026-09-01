@@ -43,7 +43,7 @@ const POPULATED_CHATTERS: Record<string, ChatKnownUser> = {
   viewerone: {
     userId: "viewer-1",
     username: "viewerone",
-    displayName: "ViewerOne",
+    displayName: "Friendly Viewer",
     color: "#38bdf8",
     role: "viewer",
     badges: [],
@@ -114,6 +114,44 @@ export const Empty: Story = {
 
 export const Populated: Story = {
   beforeEach: () => installChatters(POPULATED_CHATTERS, 36),
+};
+
+export const SearchFiltered: Story = {
+  beforeEach: () => installChatters(POPULATED_CHATTERS, 36),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.type(
+      canvas.getByRole("searchbox", { name: "Search active chatters" }),
+      "friendly"
+    );
+
+    await expect(canvas.getByText("36 seen in this chat")).toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Moderators, 0 chatters" })
+    ).toBeInTheDocument();
+    await expect(canvas.getByRole("button", { name: "Chatters, 1 chatter" })).toBeInTheDocument();
+    await expect(canvas.getByText("Friendly Viewer")).toBeInTheDocument();
+    await expect(canvas.queryByText("PixelPatron")).not.toBeInTheDocument();
+  },
+};
+
+export const SearchNoResults: Story = {
+  beforeEach: () => installChatters(POPULATED_CHATTERS, 36),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.type(
+      canvas.getByRole("searchbox", { name: "Search active chatters" }),
+      "missing"
+    );
+
+    await expect(canvas.getByText('No active chatters match "missing".')).toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", { name: "Moderators, 0 chatters" })
+    ).toBeInTheDocument();
+    await expect(canvas.getByRole("button", { name: "Chatters, 0 chatters" })).toBeInTheDocument();
+  },
 };
 
 export const CollapsedModeratorGroup: Story = {

@@ -60,6 +60,8 @@ function message(username: string, timestamp: Date, badges: ChatBadge[] = []): C
 // Guards: Roster totals and group headings remain readable without making user rows taller.
 // Guards: The host chat header owns the only visible close button; the overlay does not duplicate it.
 // Guards: Each group owns a bounded 12rem scroller rather than borrowing the outer roster.
+// Guards: Search filters active chatter rows and group counts by username or display name without changing the session total.
+// Guards: Empty search results keep both group headings visible at zero and use distinct copy from a truly empty roster.
 describe("RecentChattersPanel", () => {
   beforeEach(() => {
     useChatStore.getState().cleanupBatching();
@@ -120,6 +122,9 @@ describe("RecentChattersPanel", () => {
 
     expect(screen.queryByRole("button", { name: "Close active chatters" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Active chatter groups")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("searchbox", { name: "Search active chatters" })
+    ).not.toBeInTheDocument();
   });
 
   it("renders the exact Twitch provider badge image and version observed on the message", () => {
@@ -328,6 +333,83 @@ describe("RecentChattersPanel", () => {
     expect(screen.getByRole("status")).toHaveTextContent("5 seen in this chat");
     expect(screen.getByRole("button", { name: /^chatters/i })).toHaveAccessibleName(/3 chatters/i);
     expect(document.getElementById("recent-chatters-test-chatters-list")).toHaveAttribute("hidden");
+  });
+
+  it("searches username and display name while keeping the seen total unfiltered", () => {
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": {
+          owner: chatter("owner", "broadcaster"),
+          mod: {
+            ...chatter("stafflogin", "moderator"),
+            displayName: "Mira",
+          },
+          sub: chatter("pixelpatron", "subscriber"),
+          viewer: {
+            ...chatter("viewerone", "viewer"),
+            displayName: "Friendly Viewer",
+          },
+        },
+      },
+      chatterCountByChannel: { "twitch:alpha": 12 },
+    });
+
+    render(
+      <RecentChattersPanel id="recent-chatters-test" channelKey="twitch:alpha" onClose={vi.fn()} />
+    );
+
+    const search = screen.getByRole("searchbox", { name: "Search active chatters" });
+    fireEvent.change(search, { target: { value: "FRIENDLY" } });
+
+    expect(screen.getByText("12 seen in this chat")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Moderators, 0 chatters" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Chatters, 1 chatter" })).toBeInTheDocument();
+    expect(screen.getByText("Friendly Viewer")).toBeInTheDocument();
+    expect(screen.queryByText("owner")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mira")).not.toBeInTheDocument();
+    expect(screen.queryByText("pixelpatron")).not.toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: "STAFF" } });
+
+    expect(screen.getByRole("button", { name: "Moderators, 1 chatter" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Chatters, 0 chatters" })).toBeInTheDocument();
+    expect(screen.getByText("Mira")).toBeInTheDocument();
+
+    const clear = screen.getByRole("button", { name: "Clear search" });
+    fireEvent.click(clear);
+
+    expect(search).toHaveValue("");
+    expect(search).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Moderators, 2 chatters" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Chatters, 2 chatters" })).toBeInTheDocument();
+    expect(screen.getByText("pixelpatron")).toBeInTheDocument();
+  });
+
+  it("keeps both groups visible when search has no matches", () => {
+    useChatStore.setState({
+      usersByChannel: {
+        "twitch:alpha": {
+          mod: chatter("mod", "moderator"),
+          viewer: chatter("viewer", "viewer"),
+        },
+      },
+      chatterCountByChannel: { "twitch:alpha": 2 },
+    });
+
+    render(
+      <RecentChattersPanel id="recent-chatters-test" channelKey="twitch:alpha" onClose={vi.fn()} />
+    );
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search active chatters" }), {
+      target: { value: "missing" },
+    });
+
+    expect(screen.getByText('No active chatters match "missing".')).toBeInTheDocument();
+    expect(screen.queryByText("No active chatters yet")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Moderators, 0 chatters" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Chatters, 0 chatters" })).toBeInTheDocument();
+    expect(screen.queryByText("mod")).not.toBeInTheDocument();
+    expect(screen.queryByText("viewer")).not.toBeInTheDocument();
   });
 
   it("renders a heavier chevron without changing the group toggle's accessible name", () => {
@@ -584,7 +666,9 @@ describe("RecentChattersPanel", () => {
     const trigger = screen.getByRole("button", { name: "Open roster" });
     trigger.focus();
     fireEvent.click(trigger);
-    screen.getByRole("button", { name: /^chatters/i }).focus();
+    const search = screen.getByRole("searchbox", { name: "Search active chatters" });
+    search.focus();
+    fireEvent.change(search, { target: { value: "viewer" } });
 
     fireEvent.keyDown(document, { key: "Escape" });
 
