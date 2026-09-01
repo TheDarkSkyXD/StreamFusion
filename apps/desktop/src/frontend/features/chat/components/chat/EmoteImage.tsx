@@ -104,13 +104,6 @@ export const EmoteImage: React.FC<EmoteImageProps> = memo(
       setShowTooltipState(false);
     }, []);
 
-    // Zero-width emotes need special positioning
-    const zeroWidthStyles: React.CSSProperties = emote.isZeroWidth
-      ? {
-          position: "absolute",
-          marginLeft: `-${config.height}px`,
-        }
-      : {};
     const shouldRenderImage = !deferLoad;
     const shouldRenderPlaceholder = !imageSource.loaded && deferredPlaceholder !== "none";
     const placeholderClass =
@@ -139,7 +132,6 @@ export const EmoteImage: React.FC<EmoteImageProps> = memo(
       <>
         <span
           className={`relative inline-flex items-center ${onClick ? "cursor-pointer" : ""} ${className}`}
-          style={zeroWidthStyles}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           onClick={handleClick}
