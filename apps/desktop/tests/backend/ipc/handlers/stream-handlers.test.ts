@@ -15,6 +15,7 @@ vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
     getTopStreams: vi.fn(),
     getStreamByLogin: vi.fn(),
     isAuthenticated: vi.fn(),
+    getFollowedStreamAccess: vi.fn(),
     getFollowedStreams: vi.fn(),
     getStreamsByLogins: vi.fn(),
   },
@@ -175,6 +176,9 @@ function getHandler<T>(channel: string): Handler<T> {
 beforeEach(() => {
   vi.clearAllMocks();
   databaseLifecycle.initialize();
+  vi.mocked(twitchClient.getFollowedStreamAccess).mockImplementation(async () =>
+    twitchClient.isAuthenticated() ? { kind: "ready" } : { kind: "guest" }
+  );
   vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([]);
   vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([]);
   vi.mocked(storageService.getKickFollowedStreamsCache).mockReturnValue(undefined);
@@ -418,6 +422,7 @@ describe("STREAMS_GET_BY_CHANNEL", () => {
 // Guards: a restart snapshot is fallback evidence, never proof that the currently followed channels are still offline.
 // Guards: numeric Kick follow ids that the official channel API cannot resolve fall back to slug status checks.
 // Guards: authenticated Twitch followed-live pagination is exhausted so the returned collection has no arbitrary cap.
+// Guards: stale Twitch credentials never enter Helix and local GQL follows remain available.
 // Guards: obsolete limit/cursor fields are rejected so result caps cannot silently return through IPC.
 describe("STREAMS_GET_FOLLOWED", () => {
   it("classifies Kick rate-limit failures without matching unrelated errors", () => {
@@ -700,6 +705,24 @@ describe("STREAMS_GET_FOLLOWED", () => {
       first: 100,
       after: "next-page",
     });
+  });
+
+  it("skips Helix when stored Twitch credentials cannot pass async validation", async () => {
+    vi.mocked(twitchClient.isAuthenticated).mockReturnValue(true);
+    vi.mocked(twitchClient.getFollowedStreamAccess).mockResolvedValue({ kind: "unavailable" });
+    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
+      { ...follow("local-twitch"), platform: "twitch" },
+    ]);
+    vi.mocked(twitchClient.getStreamsByLogins).mockResolvedValue({
+      data: [stream("local-live", "twitch", 42)],
+    });
+
+    const handler = getHandler(IPC_CHANNELS.STREAMS_GET_FOLLOWED);
+    const result = await handler({}, { platform: "twitch" });
+
+    expect(twitchClient.getFollowedStreams).not.toHaveBeenCalled();
+    expect(twitchClient.getStreamsByLogins).toHaveBeenCalledWith(["local-twitch"]);
+    expect(result.data.map((item) => item.id)).toEqual(["local-live"]);
   });
 
   it("reports provider failure on an outer followed-stream error", async () => {

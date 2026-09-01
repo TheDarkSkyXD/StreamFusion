@@ -1305,7 +1305,7 @@ describe("TwitchHlsPlayer adblock status", () => {
     expect(hls.destroy).toHaveBeenCalledTimes(1);
   });
 
-  it("escalates a stale unsafe ad hold to a fresh playback URL after one local retry", () => {
+  it("keeps a stale unsafe ad hold inside local HLS recovery without refreshing playback", () => {
     vi.useFakeTimers();
     const onError = vi.fn();
 
@@ -1358,10 +1358,18 @@ describe("TwitchHlsPlayer adblock status", () => {
       vi.advanceTimersByTime(15_000);
     });
 
-    expect(onError).toHaveBeenCalledTimes(1);
-    expect(onError).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "AD_BLOCK_STALL", fatal: true, shouldRefresh: true })
-    );
+    expect(hls.startLoad).toHaveBeenCalledTimes(2);
+    expect(hls.startLoad).toHaveBeenLastCalledWith(-1);
+    expect(onError).not.toHaveBeenCalled();
+    expect(hls.destroy).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(15_000);
+    });
+
+    expect(hls.startLoad).toHaveBeenCalledTimes(3);
+    expect(onError).not.toHaveBeenCalled();
+    expect(hls.destroy).not.toHaveBeenCalled();
   });
 
   it("does not refresh during a long ad hold while fragments keep progressing", () => {
