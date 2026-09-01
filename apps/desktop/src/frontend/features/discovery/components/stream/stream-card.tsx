@@ -25,6 +25,10 @@ interface StreamCardProps {
 // trigger prefetches, short enough that intentional hovers still warm the
 // cache before the user clicks.
 const HOVER_PREFETCH_DELAY_MS = 150;
+const STREAM_CARD_RENDER_STYLE = {
+  contentVisibility: "auto",
+  containIntrinsicSize: "auto 296px",
+} satisfies React.CSSProperties;
 // Memoize StreamCard to prevent re-renders when grid updates but individual stream hasn't changed
 export const StreamCard = React.memo(
   ({ stream, showCategory = true, isWatching = false }: StreamCardProps) => {
@@ -118,6 +122,7 @@ export const StreamCard = React.memo(
         params={{ platform: stream.platform, channel: stream.channelName }}
         search={{ tab: "home" }}
         className="block group"
+        style={STREAM_CARD_RENDER_STYLE}
         aria-current={isWatching ? "true" : undefined}
         onPointerMove={handlePointerMove}
         onMouseLeave={handleMouseLeave}
