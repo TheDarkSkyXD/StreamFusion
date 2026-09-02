@@ -1,4 +1,5 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 /**
  * ChatInput Component
  *
@@ -375,7 +376,11 @@ function getKickSendResult(err: unknown): KickChatSendError["kickSendResult"] | 
   return err.kickSendResult;
 }
 
-function classifySendRejection(platform: ChatPlatform, err: unknown): ClassifiedSendBlocker | null {
+function classifySendRejection(
+  platform: ChatPlatform,
+  err: unknown,
+  t: TFunction
+): ClassifiedSendBlocker | null {
   const message = err instanceof Error ? err.message : String(err);
   const lower = message.toLowerCase();
 
@@ -383,7 +388,7 @@ function classifySendRejection(platform: ChatPlatform, err: unknown): Classified
     if (lower.includes("slow") && lower.includes("mode")) {
       return {
         kind: "slowMode",
-        copy: { message: i18n.t("chat.slowModeIsActiveTryAgainInAMoment"), action: null },
+        copy: { message: t("chat.slowModeIsActiveTryAgainInAMoment"), action: null },
       };
     }
     if (lower.includes("verified") && lower.includes("phone")) {
@@ -415,10 +420,10 @@ function classifySendRejection(platform: ChatPlatform, err: unknown): Classified
         copy: {
           message:
             cooldownSeconds !== undefined
-              ? i18n.t("chat.slowModeActiveWaitValue0", {
+              ? t("chat.slowModeActiveWaitValue0", {
                   value0: formatSlowModeWait(cooldownSeconds),
                 })
-              : i18n.t("chat.slowModeIsActiveTryAgainInAMoment"),
+              : t("chat.slowModeIsActiveTryAgainInAMoment"),
           action: null,
         },
         cooldownSeconds,
@@ -427,19 +432,19 @@ function classifySendRejection(platform: ChatPlatform, err: unknown): Classified
     if (lower.includes("subscriber") || lower.includes("sub-only")) {
       return {
         kind: "subscribersOnly",
-        copy: { message: i18n.t("chat.subscribersOnlyChatIsEnabled"), action: "Subscribe" },
+        copy: { message: t("chat.subscribersOnlyChatIsEnabled"), action: "Subscribe" },
       };
     }
     if (lower.includes("follower")) {
       return {
         kind: "followersOnly",
-        copy: { message: i18n.t("chat.followersOnlyChatIsEnabled"), action: "Open channel" },
+        copy: { message: t("chat.followersOnlyChatIsEnabled"), action: "Open channel" },
       };
     }
     if (lower.includes("emote")) {
       return {
         kind: "emoteOnly",
-        copy: { message: i18n.t("chat.emoteOnlyChatIsEnabled"), action: null },
+        copy: { message: t("chat.emoteOnlyChatIsEnabled"), action: null },
       };
     }
     if (kickResult.kind === "forbidden") {
@@ -532,10 +537,10 @@ function getEditorSelectionRange(editor: HTMLElement): { start: number; end: num
   return start <= end ? { start, end } : { start: end, end: start };
 }
 
-function showMessageTooLongToast(maxLength: number) {
-  toast.error(i18n.t("chat.messageIsTooLong"), {
+function showMessageTooLongToast(maxLength: number, t: TFunction) {
+  toast.error(t("chat.messageIsTooLong"), {
     id: "chat-message-too-long",
-    description: i18n.t("chat.twitchAndKickMessagesCanBeUpToValue0Characters", {
+    description: t("chat.twitchAndKickMessagesCanBeUpToValue0Characters", {
       value0: maxLength,
     }),
   });
@@ -669,7 +674,8 @@ function replaceMessageRange(
   start: number,
   end: number,
   insertText: string,
-  insertSlot?: Emote
+  insertSlot: Emote | undefined,
+  t: TFunction
 ): { message: string; slots: Emote[]; cursorPosition: number } {
   const before = message.slice(0, start);
   const removed = message.slice(start, end);
@@ -679,7 +685,7 @@ function replaceMessageRange(
   const insertedSlots = insertSlot ? [insertSlot] : [];
 
   return {
-    message: i18n.t("chat.value0Value1Value2", {
+    message: t("chat.value0Value1Value2", {
       value0: before,
       value1: insertText,
       value2: after,
@@ -766,6 +772,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     },
     ref
   ) => {
+    const { t } = useTranslation();
     // State
     const [message, setMessage] = useState("");
     /** One entry per EMOTE_CHAR in `message`, in left-to-right order. The
@@ -972,7 +979,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       viewerIsAuthenticated,
     ]);
     const authCopy = {
-      message: i18n.t("chat.logInToChat"),
+      message: t("chat.logInToChat"),
       action: platform === "twitch" ? "Log in" : "Sign in",
     };
     const slowModeRemainingMs = Math.max(0, slowCooldownUntilMs - nowMs);
@@ -984,24 +991,24 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const roomBlockerCopy: SendBlockerCopy | null =
       activeBlockerCopy ??
       (activeRoomBlocker === "followersOnly"
-        ? { message: i18n.t("chat.followersOnlyChatIsEnabled"), action: "Open channel" }
+        ? { message: t("chat.followersOnlyChatIsEnabled"), action: "Open channel" }
         : activeRoomBlocker === "subscribersOnly"
-          ? { message: i18n.t("chat.subscribersOnlyChatIsEnabled"), action: "Subscribe" }
+          ? { message: t("chat.subscribersOnlyChatIsEnabled"), action: "Subscribe" }
           : activeRoomBlocker === "twitchSubscriptionScopes"
             ? {
-                message: i18n.t("chat.reconnectTwitchToCheckSubscriberOnlyChat"),
+                message: t("chat.reconnectTwitchToCheckSubscriberOnlyChat"),
                 action: "Reconnect Twitch",
               }
             : activeRoomBlocker === "emoteOnly"
-              ? { message: i18n.t("chat.emoteOnlyChatIsEnabled"), action: null }
+              ? { message: t("chat.emoteOnlyChatIsEnabled"), action: null }
               : activeRoomBlocker === "slowMode"
                 ? {
                     message:
                       slowModeRemainingSeconds > 0
-                        ? i18n.t("chat.slowModeActiveWaitValue0", {
+                        ? t("chat.slowModeActiveWaitValue0", {
                             value0: formatSlowModeWait(slowModeRemainingSeconds),
                           })
-                        : i18n.t("chat.slowModeIsActiveTryAgainInAMoment"),
+                        : t("chat.slowModeIsActiveTryAgainInAMoment"),
                     action: null,
                   }
                 : null);
@@ -1453,7 +1460,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           selection.start,
           selection.end,
           insertText,
-          insertSlot
+          insertSlot,
+          t
         );
         flushSync(() => {
           messageRef.current = next.message;
@@ -1473,7 +1481,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           setEditorCaret(editor, next.cursorPosition);
         }
       },
-      [checkEmoteAutocompleteTrigger]
+      [checkEmoteAutocompleteTrigger, t]
     );
 
     const handleBeforeInput = useCallback(
@@ -1514,7 +1522,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           currentSlots,
           deleteRange.start,
           deleteRange.end,
-          ""
+          "",
+          undefined,
+          t
         );
         flushSync(() => {
           messageRef.current = next.message;
@@ -1529,7 +1539,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         editor.focus();
         setEditorCaret(editor, next.cursorPosition);
       },
-      [emoteAutocomplete.isActive, replaceSelection]
+      [emoteAutocomplete.isActive, replaceSelection, t]
     );
 
     // Handle emote selection from autocomplete or dialog. The autocomplete
@@ -1563,7 +1573,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           insertAt,
           replaceUpTo,
           `${EMOTE_CHAR}${trailing}`,
-          emote
+          emote,
+          t
         );
         flushSync(() => {
           setEmoteSlots(next.slots);
@@ -1588,13 +1599,22 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         addRecentEmote,
         platform,
         viewerUserId,
+        t,
       ]
     );
 
     // Handle mention selection
     const handleMentionSelect = useCallback(
       (username: string, startPos: number, endPos: number) => {
-        const next = replaceMessageRange(message, emoteSlots, startPos, endPos, `@${username} `);
+        const next = replaceMessageRange(
+          message,
+          emoteSlots,
+          startPos,
+          endPos,
+          `@${username} `,
+          undefined,
+          t
+        );
         flushSync(() => {
           setMessage(next.message);
           setEmoteSlots(next.slots);
@@ -1608,7 +1628,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
         setCompletion({ kind: "none" });
       },
-      [message, emoteSlots]
+      [message, emoteSlots, t]
     );
 
     const handleCommandSelect = useCallback(
@@ -1766,7 +1786,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         const trimmedMessage = serialized.trim();
         if (!trimmedMessage) return;
         if (serialized.length > maxLength) {
-          showMessageTooLongToast(maxLength);
+          showMessageTooLongToast(maxLength, t);
           editorRef.current?.focus();
           return;
         }
@@ -1837,7 +1857,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             setReply(null);
             editorRef.current?.focus();
           } catch (err) {
-            const sendBlocker = classifySendRejection(platform, err);
+            const sendBlocker = classifySendRejection(platform, err, t);
             if (sendBlocker) {
               handleClassifiedSendBlocker(sendBlocker);
               logger.info("UI:Chat:Input", "quick emote send blocked by room restriction", {
@@ -1883,6 +1903,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         viewerChatContext,
         viewerIsAuthenticated,
         viewerIsBanned,
+        t,
       ]
     );
 
@@ -1896,7 +1917,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       const trimmedMessage = serialized.trim();
       if (!trimmedMessage || isSendingRef.current) return;
       if (serialized.length > maxLength) {
-        showMessageTooLongToast(maxLength);
+        showMessageTooLongToast(maxLength, t);
         editorRef.current?.focus();
         return;
       }
@@ -1909,7 +1930,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       const parsedCommand = parseAvailableCommand(trimmedMessage, availableCommands);
       if (trimmedMessage.startsWith("/") && !parsedCommand) {
         setError(
-          i18n.t("chat.unknownOrUnavailableCommandValue0", {
+          t("chat.unknownOrUnavailableCommandValue0", {
             value0: trimmedMessage.split(/\s/, 1)[0],
           })
         );
@@ -1926,7 +1947,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         const helpQuery = parsedCommand.args.toLowerCase();
         if (helpQuery && !availableCommands.some((command) => command.name === helpQuery)) {
           setShowCommandHelp(false);
-          setError(i18n.t("chat.noHelpIsAvailableForValue0", { value0: parsedCommand.args }));
+          setError(t("chat.noHelpIsAvailableForValue0", { value0: parsedCommand.args }));
           return;
         }
         setShowCommandHelp(true);
@@ -2069,7 +2090,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         editorRef.current?.focus();
       } catch (err) {
         restoreSubmittedDraft();
-        const sendBlocker = classifySendRejection(platform, err);
+        const sendBlocker = classifySendRejection(platform, err, t);
         if (sendBlocker) {
           handleClassifiedSendBlocker(sendBlocker);
           logger.info("UI:Chat:Input", "message send blocked by room restriction", {
@@ -2109,6 +2130,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       viewerIsBanned,
       cursorPosition,
       reply,
+      t,
     ]);
 
     // Handle key press — Enter sends; Shift+Enter inserts newline (default
@@ -2191,7 +2213,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               currentSlots,
               deleteRange.start,
               deleteRange.end,
-              ""
+              "",
+              undefined,
+              t
             );
             flushSync(() => {
               messageRef.current = next.message;
@@ -2252,6 +2276,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         replaceSelection,
         reply,
         clearReply,
+        t,
       ]
     );
 
@@ -2425,7 +2450,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             role="status"
             className="mb-1 flex items-center rounded-md border border-[var(--color-border,rgba(83,83,95,0.48))] bg-[#262626] px-2 py-1 text-sm font-semibold text-white"
           >
-            <span className="min-w-0 truncate">{i18n.t("chat.youAreBannedFromChat")}</span>
+            <span className="min-w-0 truncate">{t("chat.youAreBannedFromChat")}</span>
           </div>
         )}
 
@@ -2441,19 +2466,19 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#ffca61]"
               />
               <div className="min-w-0 flex-1">
-                <div className="font-bold">{i18n.t("chat.verifiedAccountsOnlyChat")}</div>
+                <div className="font-bold">{t("chat.verifiedAccountsOnlyChat")}</div>
                 <p className="mt-2 text-sm leading-5 text-[#dedee3]">
                   {twitchVerificationRequirement === "phone"
-                    ? i18n.t(
+                    ? t(
                         "chat.value0RequiresPhoneVerificationToParticipateInChatPleaseVerifyYourAccountWithAMobilePhoneNumberToContinueYouLlOnlyNeedToCompleteThisStepOncePerAccount",
                         { value0: channel }
                       )
                     : twitchVerificationRequirement === "email"
-                      ? i18n.t(
+                      ? t(
                           "chat.value0RequiresEmailVerificationToParticipateInChatPleaseVerifyYourEmailAddressToContinue",
                           { value0: channel }
                         )
-                      : i18n.t(
+                      : t(
                           "chat.value0RequiresAccountVerificationToParticipateInChatPleaseVerifyYourTwitchAccountToContinue",
                           { value0: channel }
                         )}
@@ -2461,7 +2486,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               </div>
               <button
                 type="button"
-                aria-label={i18n.t("chat.dismissVerificationNotice")}
+                aria-label={t("chat.dismissVerificationNotice")}
                 onClick={handleDismissTwitchVerification}
                 className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-[#adadb8] hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
@@ -2474,7 +2499,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 onClick={handleVerifyTwitchAccount}
                 className="rounded-full bg-[#9146ff] px-4 py-1.5 text-sm font-bold text-white transition-colors hover:bg-[#772ce8] focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                {i18n.t("chat.verifyAccount")}
+                {t("chat.verifyAccount")}
               </button>
             </div>
           </div>
@@ -2641,7 +2666,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             </div>
             {showSlowModeCountdown && (
               <div
-                aria-label={i18n.t("chat.slowModeCooldown")}
+                aria-label={t("chat.slowModeCooldown")}
                 aria-valuemax={100}
                 aria-valuemin={0}
                 aria-valuenow={Math.round(slowModeProgressValue)}
@@ -2698,7 +2723,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                 className="min-w-0 flex-1 truncate text-base font-bold leading-6 text-[#efeff1]"
                 data-testid="chat-slow-mode-countdown"
               >
-                {i18n.t("chat.youCanChatInValue0", {
+                {t("chat.youCanChatInValue0", {
                   value0: formatSlowModeWait(slowModeRemainingSeconds),
                 })}
               </p>
@@ -2711,7 +2736,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                       to={platform === "twitch" ? "/mod/twitch/$channel" : "/mod/kick/$channel"}
                       params={{ channel }}
                       data-testid="chat-mod-view-link"
-                      aria-label={i18n.t("chat.openChannelModerationPage")}
+                      aria-label={t("chat.openChannelModerationPage")}
                       className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#191919] ${
                         platform === "twitch"
                           ? "border-[#9146FF]/40 bg-[#9146FF]/15 text-[#a970ff] hover:bg-[#9146FF]/25"
@@ -2726,7 +2751,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                     className={TWITCH_CHAT_ACTION_TOOLTIP_CLASS}
                     arrowClassName={TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS}
                   >
-                    {i18n.t("chat.modView")}
+                    {t("chat.modView")}
                   </TooltipContent>
                 </Tooltip>
               ) : null}
@@ -2736,7 +2761,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                     ref={settingsButtonRef}
                     type="button"
                     onClick={() => setShowChatSettings((v) => !v)}
-                    aria-label={i18n.t("chat.chatSettings")}
+                    aria-label={t("chat.chatSettings")}
                     aria-expanded={showChatSettings}
                     className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-white transition-colors duration-150 hover:bg-[#232629] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#191919]"
                   >
@@ -2748,7 +2773,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                   className={TWITCH_CHAT_ACTION_TOOLTIP_CLASS}
                   arrowClassName={TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS}
                 >
-                  {i18n.t("chat.chatSettings")}
+                  {t("chat.chatSettings")}
                 </TooltipContent>
               </Tooltip>
               <button
@@ -2760,7 +2785,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
                   shouldDimSubmit ? "opacity-40" : ""
                 }`}
               >
-                {i18n.t("chat.chat")}
+                {t("chat.chat")}
               </button>
             </div>
           </div>

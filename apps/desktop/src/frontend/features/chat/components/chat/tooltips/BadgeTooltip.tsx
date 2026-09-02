@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 import type React from "react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -15,6 +15,7 @@ interface BadgeTooltipProps {
 }
 
 export const BadgeTooltip: React.FC<BadgeTooltipProps> = ({ show, mousePos, badgeInfo }) => {
+  const { t } = useTranslation();
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<{ top: number; left: number; opacity: number }>({
     top: 0,
@@ -99,14 +100,14 @@ export const BadgeTooltip: React.FC<BadgeTooltipProps> = ({ show, mousePos, badg
         {/* Platform Badge - Consistent with EmoteTooltip style */}
         <div className="w-full bg-[#1e1f23] border border-white/10 rounded px-4 py-1.5 text-center">
           <span className="text-[#b0b3b8] font-bold text-sm">
-            {badgeInfo.platform || i18n.t("chat.system")}
+            {badgeInfo.platform || t("chat.system")}
           </span>
         </div>
       </div>
 
       {badgeInfo.owner && (
         <span className="mt-3 text-xs text-neutral-500">
-          {i18n.t("chat.createdBy")}{" "}
+          {t("chat.createdBy")}{" "}
           <span className="text-white hover:underline cursor-pointer">
             {badgeInfo.owner.username}
           </span>

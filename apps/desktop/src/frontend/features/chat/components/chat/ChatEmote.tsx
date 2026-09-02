@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 import type React from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Emote } from "../../../../../backend/services/emotes/emote-types";
@@ -101,6 +101,7 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
     url2x,
     url4x,
   }) => {
+    const { t } = useTranslation();
     const cd = useAuthStore((s) => s.preferences?.chatDisplay) ?? DEFAULT_CHAT_DISPLAY_PREFERENCES;
     const emoteSizePx = cd.emoteSizePx;
     const [showTooltip, setShowTooltip] = useState(false);
@@ -260,7 +261,7 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
           type="button"
           data-zero-width={renderAsOverlay ? "true" : undefined}
           style={triggerStyle}
-          aria-label={i18n.t("chat.showValue0EmoteDetails", { value0: name })}
+          aria-label={t("chat.showValue0EmoteDetails", { value0: name })}
           className="inline-block mx-0.5 cursor-pointer border-0 bg-transparent p-0 align-middle leading-none"
           onMouseEnter={handleMouseEnter}
           onMouseMove={handleMouseMove}

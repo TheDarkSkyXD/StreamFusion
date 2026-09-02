@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { LuTriangleAlert, LuX } from "react-icons/lu";
 
 import type { ChatCommandResult } from "../../utils/chat-command-outcome";
@@ -10,6 +10,7 @@ export function CommandResultCard({
   readonly result: ChatCommandResult;
   readonly onDismiss: () => void;
 }) {
+  const { t } = useTranslation();
   const isError = result.tone === "error";
 
   return (
@@ -36,7 +37,7 @@ export function CommandResultCard({
           </p>
         </div>
         <button
-          aria-label={i18n.t("chat.dismissCommandResult")}
+          aria-label={t("chat.dismissCommandResult")}
           className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-[4px] text-[#a0a0a0] transition-colors duration-150 hover:bg-[#2d2d2d] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
           onClick={onDismiss}
           type="button"

@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 import type React from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -19,6 +19,7 @@ const PROVIDER_COLORS: Record<string, string> = {
 };
 
 export const EmoteTooltip: React.FC<EmoteTooltipProps> = ({ show, mousePos, emote }) => {
+  const { t } = useTranslation();
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<{ top: number; left: number; opacity: number }>({
     top: 0,
@@ -143,13 +144,13 @@ export const EmoteTooltip: React.FC<EmoteTooltipProps> = ({ show, mousePos, emot
           <div className="flex flex-col items-center gap-0.5 -mt-1">
             {emote.owner && (
               <span className="text-[#b0b3b8] text-xs">
-                {i18n.t("chat.madeBy")}
+                {t("chat.madeBy")}
                 <span className="text-white">{emote.owner.displayName}</span>
               </span>
             )}
             {addedOnLabel && (
               <span className="text-[#b0b3b8] text-xs">
-                {i18n.t("chat.addedOn")}
+                {t("chat.addedOn")}
                 {addedOnLabel}
               </span>
             )}

@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { useEffect, useRef } from "react";
 import type { CommandSuggestion } from "../../utils/chat-command-registry";
 
@@ -15,6 +15,7 @@ export function CommandAutocomplete({
   onSelect,
   onSelectedKeyChange,
 }: CommandAutocompleteProps) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,13 +31,13 @@ export function CommandAutocomplete({
   return (
     <div
       ref={containerRef}
-      aria-label={i18n.t("chat.chatCommands")}
+      aria-label={t("chat.chatCommands")}
       className="absolute bottom-full left-0 z-50 mb-1 w-full overflow-hidden rounded-lg border border-[#333] bg-[#2d2d2d] shadow-[0_4px_16px_rgba(0,0,0,0.4),0_1px_4px_rgba(0,0,0,0.3)]"
       role="listbox"
     >
       <div className="flex items-center justify-between gap-3 border-b border-[#333] px-3 py-1.5 text-xs text-[#a0a0a0]">
         <span className="font-semibold text-white">{platformLabel}</span>
-        <span>{i18n.t("chat.arrowKeysTabOrEnter")}</span>
+        <span>{t("chat.arrowKeysTabOrEnter")}</span>
       </div>
       <div className="max-h-64 overflow-y-auto py-1">
         {commands.map((command) => {

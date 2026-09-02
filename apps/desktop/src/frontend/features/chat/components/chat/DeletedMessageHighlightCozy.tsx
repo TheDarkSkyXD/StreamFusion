@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { Trash2 } from "lucide-react";
 import type React from "react";
 import { memo } from "react";
@@ -16,6 +16,7 @@ interface DeletedMessageHighlightCozyProps {
 
 export const DeletedMessageHighlightCozy: React.FC<DeletedMessageHighlightCozyProps> = memo(
   ({ auditDetail, content, deletedTime, mode, moderator, sender, style }) => {
+    const { t } = useTranslation();
     return (
       <ChatHighlightCard
         borderClassName="border-[#ff6b6b]"
@@ -35,11 +36,11 @@ export const DeletedMessageHighlightCozy: React.FC<DeletedMessageHighlightCozyPr
               </span>
             </div>
             <div className="align-bottom text-xs font-normal leading-snug text-[#adadb8]">
-              <span className="align-bottom">{i18n.t("chat.deletedBy")}</span>
+              <span className="align-bottom">{t("chat.deletedBy")}</span>
               {moderator}
               <span className="align-bottom">
                 {" "}
-                {i18n.t("chat.at")}
+                {t("chat.at")}
                 {deletedTime}
               </span>
               {auditDetail}

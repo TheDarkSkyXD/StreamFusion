@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 import type React from "react";
 import { memo } from "react";
 import type {
@@ -109,6 +109,7 @@ export const DeletedMessageHighlight: React.FC<DeletedMessageHighlightProps> = m
     style,
     usernamesInteractive = true,
   }) => {
+    const { t } = useTranslation();
     const fallbackModeratorUsername = moderatorUsername?.trim();
     const moderator =
       moderatorUser ??
@@ -162,13 +163,13 @@ export const DeletedMessageHighlight: React.FC<DeletedMessageHighlightProps> = m
         user={moderator}
       />
     ) : (
-      <span>{i18n.t("chat.unknownModerator")}</span>
+      <span>{t("chat.unknownModerator")}</span>
     );
     const auditDetail =
       mode === "audit" ? (
         <>
           {" "}
-          - {platformLabel(message.platform)} {i18n.t("chat.id")}
+          - {platformLabel(message.platform)} {t("chat.id")}
           {message.id}
         </>
       ) : undefined;

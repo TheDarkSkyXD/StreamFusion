@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 import type React from "react";
 import { lazy, memo, Suspense, useEffect } from "react";
 
@@ -91,12 +91,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
 });
 
 function ChatPanelLoading() {
+  const { t } = useTranslation();
   return (
     <div
       className="flex h-full min-h-48 items-center justify-center text-sm text-[var(--color-foreground-muted)]"
       role="status"
     >
-      {i18n.t("chat.loadingChat")}
+      {t("chat.loadingChat")}
     </div>
   );
 }

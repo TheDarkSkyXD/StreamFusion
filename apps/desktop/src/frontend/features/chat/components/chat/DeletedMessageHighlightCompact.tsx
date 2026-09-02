@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { Trash2 } from "lucide-react";
 import type React from "react";
 import { memo } from "react";
@@ -18,6 +18,7 @@ interface DeletedMessageHighlightCompactProps {
 
 export const DeletedMessageHighlightCompact: React.FC<DeletedMessageHighlightCompactProps> = memo(
   ({ auditDetail, content, deletedTime, mode, moderator, platform, sender, style }) => {
+    const { t } = useTranslation();
     return (
       <ChatEventHighlightCard
         accentColor="#ff6b6b"
@@ -34,7 +35,7 @@ export const DeletedMessageHighlightCompact: React.FC<DeletedMessageHighlightCom
         ) : (
           <div className="min-w-0 space-y-1">
             <div className="text-xs font-semibold uppercase tracking-normal text-[#ffb4b4]">
-              {i18n.t("chat.deletedMessage")}
+              {t("chat.deletedMessage")}
             </div>
             <div className="min-w-0 align-bottom text-sm leading-[1.45]">
               {sender}
@@ -43,11 +44,11 @@ export const DeletedMessageHighlightCompact: React.FC<DeletedMessageHighlightCom
               </span>
             </div>
             <div className="align-bottom text-xs font-normal leading-snug text-[#adadb8]">
-              <span className="align-bottom">{i18n.t("chat.deletedBy")}</span>
+              <span className="align-bottom">{t("chat.deletedBy")}</span>
               {moderator}
               <span className="align-bottom">
                 {" "}
-                {i18n.t("chat.at")}
+                {t("chat.at")}
                 {deletedTime}
               </span>
               {auditDetail}

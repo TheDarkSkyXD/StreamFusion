@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 /**
  * TwitchPinMessageDialog
  *
@@ -29,7 +29,8 @@ import { ChatEmote } from "../ChatEmote";
 import { formatMentionLabel } from "../mention-label";
 
 interface DurationOption {
-  label: string;
+  labelKey:
+    "chat.1Minute" | "chat.5Minutes" | "chat.15Minutes" | "chat.30Minutes" | "chat.noExpiry";
   value: number | null;
 }
 
@@ -39,11 +40,11 @@ type DurationSelection = DurationOption["value"] | typeof CUSTOM_DURATION;
 type CustomDurationUnit = "seconds" | "minutes";
 
 const DURATION_OPTIONS: DurationOption[] = [
-  { label: i18n.t("chat.1Minute"), value: 60 },
-  { label: i18n.t("chat.5Minutes"), value: 5 * 60 },
-  { label: i18n.t("chat.15Minutes"), value: 15 * 60 },
-  { label: i18n.t("chat.30Minutes"), value: 30 * 60 },
-  { label: i18n.t("chat.noExpiry"), value: null },
+  { labelKey: "chat.1Minute", value: 60 },
+  { labelKey: "chat.5Minutes", value: 5 * 60 },
+  { labelKey: "chat.15Minutes", value: 15 * 60 },
+  { labelKey: "chat.30Minutes", value: 30 * 60 },
+  { labelKey: "chat.noExpiry", value: null },
 ];
 
 const DEFAULT_DURATION_SECONDS = 30 * 60;
@@ -152,6 +153,7 @@ export function TwitchPinMessageDialog({
   onConfirm,
   busy = false,
 }: TwitchPinMessageDialogProps) {
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<DurationSelection>(DEFAULT_DURATION_SECONDS);
   const [customAmount, setCustomAmount] = useState("1");
   const [customUnit, setCustomUnit] = useState<CustomDurationUnit>("minutes");
@@ -216,10 +218,10 @@ export function TwitchPinMessageDialog({
         <DialogHeader className="pb-4 border-b border-[var(--color-border)]">
           <DialogTitle className="flex items-center gap-2 text-xl text-white">
             <LuPin className="w-5 h-5 text-[var(--color-storm-primary)]" />
-            {i18n.t("chat.pinMessage")}
+            {t("chat.pinMessage")}
           </DialogTitle>
           <DialogDescription className="text-[var(--color-foreground-muted)] pt-2">
-            {i18n.t(
+            {t(
               "chat.chooseHowLongThisMessageShouldStayPinnedAnyoneInChatWillSeeItUntilYouUnpinItOrItExpires"
             )}
           </DialogDescription>
@@ -260,11 +262,11 @@ export function TwitchPinMessageDialog({
 
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium text-[#EFEFF1] mb-2">
-              {i18n.t("chat.duration")}
+              {t("chat.duration")}
             </legend>
             {DURATION_OPTIONS.map((opt) => (
               <label
-                key={opt.label}
+                key={opt.labelKey}
                 className="flex items-center gap-2 cursor-pointer text-sm text-[#EFEFF1] hover:bg-white/5 px-2 py-1.5 rounded"
               >
                 <input
@@ -274,7 +276,7 @@ export function TwitchPinMessageDialog({
                   onChange={() => setSelected(opt.value)}
                   className="cursor-pointer accent-[#9146FF]"
                 />
-                {opt.label}
+                {t(opt.labelKey)}
               </label>
             ))}
             <label className="flex items-center gap-2 cursor-pointer text-sm text-[#EFEFF1] hover:bg-white/5 px-2 py-1.5 rounded">
@@ -285,7 +287,7 @@ export function TwitchPinMessageDialog({
                 onChange={() => setSelected(CUSTOM_DURATION)}
                 className="cursor-pointer accent-[#9146FF]"
               />
-              {i18n.t("chat.custom")}
+              {t("chat.custom")}
             </label>
           </fieldset>
 
@@ -296,20 +298,20 @@ export function TwitchPinMessageDialog({
                 min={1}
                 step={1}
                 inputMode="numeric"
-                aria-label={i18n.t("chat.customPinDuration")}
+                aria-label={t("chat.customPinDuration")}
                 value={customAmount}
                 onChange={(event) => setCustomAmount(event.target.value)}
                 onFocus={() => setSelected(CUSTOM_DURATION)}
                 className="h-9 min-w-0 flex-1 rounded border border-[var(--color-border)] bg-[#0A0A0D] px-3 text-sm text-[#EFEFF1] outline-none focus:border-[#9146FF]"
               />
               <select
-                aria-label={i18n.t("chat.customPinDurationUnit")}
+                aria-label={t("chat.customPinDurationUnit")}
                 value={customUnit}
                 onChange={(event) => setCustomUnit(event.target.value as CustomDurationUnit)}
                 className="h-9 rounded border border-[var(--color-border)] bg-[#0A0A0D] px-2 text-sm text-[#EFEFF1] outline-none focus:border-[#9146FF]"
               >
-                <option value="seconds">{i18n.t("chat.secs")}</option>
-                <option value="minutes">{i18n.t("chat.mins")}</option>
+                <option value="seconds">{t("chat.secs")}</option>
+                <option value="minutes">{t("chat.mins")}</option>
               </select>
             </div>
           ) : null}
@@ -317,14 +319,14 @@ export function TwitchPinMessageDialog({
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-            {i18n.t("chat.cancel")}
+            {t("chat.cancel")}
           </Button>
           <Button
             onClick={handleConfirm}
             disabled={busy || !canConfirm}
             className="bg-[#9146FF] hover:bg-[#9146FF]/90 text-white"
           >
-            {busy ? i18n.t("chat.pinning") : i18n.t("chat.pinMessage")}
+            {busy ? t("chat.pinning") : t("chat.pinMessage")}
           </Button>
         </DialogFooter>
       </DialogContent>

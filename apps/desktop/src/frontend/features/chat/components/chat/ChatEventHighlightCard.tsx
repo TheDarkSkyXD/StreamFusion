@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 import type React from "react";
 import { memo } from "react";
 import type { ChatPlatform } from "../../../../../shared/chat-types";
@@ -16,11 +16,12 @@ interface ChatEventHighlightCardProps {
 
 export const ChatEventHighlightCard: React.FC<ChatEventHighlightCardProps> = memo(
   ({ children, accentColor, accentWidth = 3, icon, label, platform, style, testId }) => {
+    const { t } = useTranslation();
     const platformLabel = platform === "kick" ? "Kick" : "Twitch";
 
     return (
       <div
-        aria-label={i18n.t("chat.value0Value1Notice", { value0: platformLabel, value1: label })}
+        aria-label={t("chat.value0Value1Notice", { value0: platformLabel, value1: label })}
         className="mx-1 my-1 min-w-0 max-w-full overflow-x-clip bg-[#1f1f24] text-[#efeff1]"
         data-testid={testId}
         style={{

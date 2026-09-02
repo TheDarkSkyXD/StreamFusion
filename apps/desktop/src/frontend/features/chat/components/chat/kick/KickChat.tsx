@@ -1,4 +1,5 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type React from "react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -154,39 +155,44 @@ function readOwnKickModeratorState(
 
 async function deleteKickMessageViaKickWebSession(
   chatroomId: number,
-  messageId: string
+  messageId: string,
+  t: TFunction
 ): Promise<KickModResult> {
   const result = await window.electronAPI.kickChat.deleteMessage(chatroomId, messageId);
-  return kickWebMutationToKickModResult(result);
+  return kickWebMutationToKickModResult(result, t);
 }
 
 async function banKickUserViaKickWebSession(
   channelSlug: string,
-  username: string
+  username: string,
+  t: TFunction
 ): Promise<KickModResult> {
   const result = await window.electronAPI.kickChat.banUser(channelSlug, username);
-  return kickWebMutationToKickModResult(result);
+  return kickWebMutationToKickModResult(result, t);
 }
 
 async function unbanKickUserViaKickWebSession(
   channelSlug: string,
-  username: string
+  username: string,
+  t: TFunction
 ): Promise<KickModResult> {
   const result = await window.electronAPI.kickChat.unbanUser(channelSlug, username);
-  return kickWebMutationToKickModResult(result);
+  return kickWebMutationToKickModResult(result, t);
 }
 
 async function timeoutKickUserViaKickWebSession(
   channelSlug: string,
   username: string,
-  duration: number
+  duration: number,
+  t: TFunction
 ): Promise<KickModResult> {
   const result = await window.electronAPI.kickChat.timeoutUser(channelSlug, username, duration);
-  return kickWebMutationToKickModResult(result);
+  return kickWebMutationToKickModResult(result, t);
 }
 
 function kickWebMutationToKickModResult(
-  result: Awaited<ReturnType<typeof window.electronAPI.kickChat.deleteMessage>>
+  result: Awaited<ReturnType<typeof window.electronAPI.kickChat.deleteMessage>>,
+  t: TFunction
 ): KickModResult {
   if (result.ok) return { ok: true };
 
@@ -202,7 +208,7 @@ function kickWebMutationToKickModResult(
   return {
     ok: false,
     kind: "unknown",
-    message: result.status ? i18n.t("chat.value0", { value0: result.status }) : result.message,
+    message: result.status ? t("chat.value0", { value0: result.status }) : result.message,
   };
 }
 
@@ -246,6 +252,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   retryBadgeCatalog = () => {},
   showComposer = true,
 }) => {
+  const { t } = useTranslation();
   useRenderCount("KickChat");
   const queryClient = useQueryClient();
   // Chat store — subscribe only to fields read in render; actions have stable refs.
@@ -553,14 +560,14 @@ export const KickChat: React.FC<KickChatProps> = ({
   const handleDeleteMessage = useCallback(
     async (message: ChatMessage) => {
       if (chatroomId === undefined) {
-        toast.error(i18n.t("chat.couldnTDeleteMessage"), {
-          description: i18n.t("chat.chatroomNotLoaded"),
+        toast.error(t("chat.couldnTDeleteMessage"), {
+          description: t("chat.chatroomNotLoaded"),
         });
         return;
       }
 
       try {
-        const result = await deleteKickMessageViaKickWebSession(chatroomId, message.id);
+        const result = await deleteKickMessageViaKickWebSession(chatroomId, message.id, t);
         if (result.ok) {
           if (channelId && kickUser) {
             void modLogWriter
@@ -590,49 +597,49 @@ export const KickChat: React.FC<KickChatProps> = ({
           return;
         }
         if (result.kind === "unauthenticated") {
-          toast.error(i18n.t("chat.reconnectKickToDeleteMessages"), {
-            description: i18n.t("chat.kickNeedsTheChatModerationPermission"),
+          toast.error(t("chat.reconnectKickToDeleteMessages"), {
+            description: t("chat.kickNeedsTheChatModerationPermission"),
           });
           return;
         }
         if (result.kind === "forbidden") {
-          toast.error(i18n.t("chat.actionForbidden"), { description: result.message });
+          toast.error(t("chat.actionForbidden"), { description: result.message });
           return;
         }
         if (result.kind === "rate-limited") {
           const retry = result.retryAfterSeconds;
           toast.error(
             retry !== null
-              ? i18n.t("chat.rateLimitedRetryInValue0S", { value0: retry })
-              : i18n.t("chat.rateLimitedRetryShortly")
+              ? t("chat.rateLimitedRetryInValue0S", { value0: retry })
+              : t("chat.rateLimitedRetryShortly")
           );
           return;
         }
-        toast.error(i18n.t("chat.couldnTDeleteMessage"), {
+        toast.error(t("chat.couldnTDeleteMessage"), {
           description: result.message ?? result.kind,
         });
       } catch (error) {
-        toast.error(i18n.t("chat.couldnTDeleteMessage"), {
+        toast.error(t("chat.couldnTDeleteMessage"), {
           description: error instanceof Error ? error.message : String(error),
         });
       }
     },
-    [channel, channelId, chatroomId, kickUser]
+    [channel, channelId, chatroomId, kickUser, t]
   );
 
   const handlePinMessage = useCallback(
     async (message: ChatMessage) => {
       if (chatroomId === undefined) {
-        toast.error(i18n.t("chat.couldnTPinMessage"), {
-          description: i18n.t("chat.chatroomNotLoaded"),
+        toast.error(t("chat.couldnTPinMessage"), {
+          description: t("chat.chatroomNotLoaded"),
         });
         return;
       }
 
       const senderId = Number(message.userId);
       if (!Number.isFinite(senderId)) {
-        toast.error(i18n.t("chat.couldnTPinMessage"), {
-          description: i18n.t("chat.messageSenderUnavailable"),
+        toast.error(t("chat.couldnTPinMessage"), {
+          description: t("chat.messageSenderUnavailable"),
         });
         return;
       }
@@ -651,14 +658,14 @@ export const KickChat: React.FC<KickChatProps> = ({
           durationSeconds: null,
         });
         if (result.ok) {
-          toast.success(i18n.t("chat.pinnedMessage"));
+          toast.success(t("chat.pinnedMessage"));
           return;
         }
-        toast.error(i18n.t("chat.couldnTPinMessage"), {
+        toast.error(t("chat.couldnTPinMessage"), {
           description: result.message || result.kind,
         });
       } catch (error) {
-        toast.error(i18n.t("chat.couldnTPinMessage"), {
+        toast.error(t("chat.couldnTPinMessage"), {
           description: error instanceof Error ? error.message : String(error),
         });
       }
@@ -1538,7 +1545,7 @@ export const KickChat: React.FC<KickChatProps> = ({
       <div className="flex flex-col h-full w-full bg-gradient-to-b from-[#141414] to-[#171717]">
         <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between flex-shrink-0">
           <h2 className="font-semibold flex items-center gap-2">
-            <span className="text-white">{i18n.t("chat.chat")}</span>
+            <span className="text-white">{t("chat.chat")}</span>
           </h2>
           <RecentChattersButton
             panelId={recentChattersPanelId}
@@ -1553,7 +1560,7 @@ export const KickChat: React.FC<KickChatProps> = ({
               modlog: channelId ? (
                 <ModLogTab platform="kick" channelId={channelId} channelSlug={channel} />
               ) : (
-                <div className="p-4 text-neutral-400">{i18n.t("chat.noChannelSelected")}</div>
+                <div className="p-4 text-neutral-400">{t("chat.noChannelSelected")}</div>
               ),
             }}
           </ChatPanelTabs>
@@ -1595,7 +1602,7 @@ export const KickChat: React.FC<KickChatProps> = ({
                       <div>
                         <div className="line-clamp-2">{action.message.rawContent || ""}</div>
                         <div className="mt-1 text-xs text-[var(--color-foreground-muted)]">
-                          {i18n.t("chat.fromValue0", { value0: action.message.username })}
+                          {t("chat.fromValue0", { value0: action.message.username })}
                         </div>
                       </div>
                     }
@@ -1617,7 +1624,7 @@ export const KickChat: React.FC<KickChatProps> = ({
                   <div>
                     <div className="line-clamp-2">{action.message.rawContent || ""}</div>
                     <div className="text-xs text-[var(--color-foreground-muted)] mt-1">
-                      {i18n.t("chat.fromValue0", { value0: action.message.username })}
+                      {t("chat.fromValue0", { value0: action.message.username })}
                     </div>
                   </div>
                 );
@@ -1642,7 +1649,7 @@ export const KickChat: React.FC<KickChatProps> = ({
               } else {
                 actionType = "clear";
                 targetPreview = (
-                  <div className="text-sm">{i18n.t("chat.clearChatForEveryoneInThisChannel")}</div>
+                  <div className="text-sm">{t("chat.clearChatForEveryoneInThisChannel")}</div>
                 );
               }
 
@@ -1682,7 +1689,7 @@ export const KickChat: React.FC<KickChatProps> = ({
                       if (action.kind === "strip" && action.actionType === "clear") {
                         clearMessages(channelKey);
                         setPendingModAction(null);
-                        toast.success(i18n.t("chat.clearedLocalChat"));
+                        toast.success(t("chat.clearedLocalChat"));
                         return;
                       }
                       let result: KickModResult;
@@ -1690,7 +1697,7 @@ export const KickChat: React.FC<KickChatProps> = ({
                         const token = await window.electronAPI.auth.getToken("kick");
                         if (!token?.accessToken) {
                           setPendingModAction(null);
-                          toast.error(i18n.t("chat.signInToKickToTakeThisAction"));
+                          toast.error(t("chat.signInToKickToTakeThisAction"));
                           return;
                         }
                         const turnOn = !action.currentlyActive;
@@ -1750,7 +1757,7 @@ export const KickChat: React.FC<KickChatProps> = ({
                             }
                           }
                           setPendingModAction(null);
-                          toast.success(i18n.t("chat.chatModeUpdated"));
+                          toast.success(t("chat.chatModeUpdated"));
                           return;
                         }
                       } else if (action.kind === "messageScoped") {
@@ -1758,24 +1765,33 @@ export const KickChat: React.FC<KickChatProps> = ({
                         let messageResult: KickModResult;
                         switch (action.actionType) {
                           case "ban":
-                            messageResult = await banKickUserViaKickWebSession(channel, username);
+                            messageResult = await banKickUserViaKickWebSession(
+                              channel,
+                              username,
+                              t
+                            );
                             break;
                           case "timeout":
                             throw new Error("Timeout must use the state-aware moderation IPC");
                           case "unban":
-                            messageResult = await unbanKickUserViaKickWebSession(channel, username);
+                            messageResult = await unbanKickUserViaKickWebSession(
+                              channel,
+                              username,
+                              t
+                            );
                             break;
                           case "delete":
                             if (chatroomId === undefined) {
                               setPendingModAction(null);
-                              toast.error(i18n.t("chat.couldnTDeleteMessage"), {
-                                description: i18n.t("chat.chatroomNotLoaded"),
+                              toast.error(t("chat.couldnTDeleteMessage"), {
+                                description: t("chat.chatroomNotLoaded"),
                               });
                               return;
                             }
                             messageResult = await deleteKickMessageViaKickWebSession(
                               chatroomId,
-                              action.message.id
+                              action.message.id,
+                              t
                             );
                             break;
                         }
@@ -1818,7 +1834,7 @@ export const KickChat: React.FC<KickChatProps> = ({
                             showModActionSuccessToast(`Banned ${username}`);
                           } else if (action.actionType === "unban") {
                             markUserUnbanned(action.message.userId);
-                            toast.success(i18n.t("chat.unbannedValue0", { value0: username }));
+                            toast.success(t("chat.unbannedValue0", { value0: username }));
                           } else if (action.actionType === "delete") {
                             showModActionSuccessToast("Deleted message");
                           }
@@ -1830,7 +1846,7 @@ export const KickChat: React.FC<KickChatProps> = ({
                       }
 
                       if (result.kind === "forbidden") {
-                        toast.error(i18n.t("chat.actionForbidden"), {
+                        toast.error(t("chat.actionForbidden"), {
                           description: result.message,
                         });
                         return;
@@ -1839,13 +1855,13 @@ export const KickChat: React.FC<KickChatProps> = ({
                         const retry = result.retryAfterSeconds;
                         toast.error(
                           retry !== null
-                            ? i18n.t("chat.rateLimitedRetryInValue0S", { value0: retry })
-                            : i18n.t("chat.rateLimitedRetryShortly")
+                            ? t("chat.rateLimitedRetryInValue0S", { value0: retry })
+                            : t("chat.rateLimitedRetryShortly")
                         );
                         return;
                       }
                       setPendingModAction(null);
-                      toast.error(i18n.t("chat.couldnTCompleteAction"), {
+                      toast.error(t("chat.couldnTCompleteAction"), {
                         description: result.message ?? result.kind,
                       });
                     } finally {
@@ -1876,6 +1892,7 @@ const KickPollWidget: React.FC<KickPollWidgetProps> = ({
   onToggleExpand,
   onDismiss,
 }) => {
+  const { t } = useTranslation();
   const totalVotes = poll.options.reduce((sum, o) => sum + o.votes, 0);
   const maxVotes = Math.max(...poll.options.map((o) => o.votes), 0);
   const isPollEnded = poll.remaining <= 0;
@@ -1884,10 +1901,10 @@ const KickPollWidget: React.FC<KickPollWidgetProps> = ({
     <div className="border-b border-[var(--color-border)] bg-[var(--color-background-tertiary,#1a1a1a)] text-sm">
       <div className="flex items-center justify-between px-3 pt-2 pb-1">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-neutral-400 text-xs font-medium">{i18n.t("chat.poll")}</span>
+          <span className="text-neutral-400 text-xs font-medium">{t("chat.poll")}</span>
           <span className="text-white text-xs font-semibold truncate">{poll.title}</span>
           {isPollEnded && (
-            <span className="text-xs text-neutral-500 flex-shrink-0">{i18n.t("chat.ended")}</span>
+            <span className="text-xs text-neutral-500 flex-shrink-0">{t("chat.ended")}</span>
           )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
@@ -1896,7 +1913,7 @@ const KickPollWidget: React.FC<KickPollWidgetProps> = ({
               <button
                 type="button"
                 onClick={onToggleExpand}
-                aria-label={isExpanded ? i18n.t("chat.collapse") : i18n.t("chat.expand")}
+                aria-label={isExpanded ? t("chat.collapse") : t("chat.expand")}
                 className="p-1 text-neutral-400 hover:text-white rounded transition-colors"
               >
                 <BsChevronDown
@@ -1908,22 +1925,20 @@ const KickPollWidget: React.FC<KickPollWidgetProps> = ({
                 />
               </button>
             </TooltipTrigger>
-            <TooltipContent>
-              {isExpanded ? i18n.t("chat.collapse") : i18n.t("chat.expand")}
-            </TooltipContent>
+            <TooltipContent>{isExpanded ? t("chat.collapse") : t("chat.expand")}</TooltipContent>
           </Tooltip>
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
               <button
                 type="button"
                 onClick={onDismiss}
-                aria-label={i18n.t("chat.dismiss")}
+                aria-label={t("chat.dismiss")}
                 className="p-1 text-neutral-400 hover:text-white rounded transition-colors"
               >
                 <BsX size={14} />
               </button>
             </TooltipTrigger>
-            <TooltipContent>{i18n.t("chat.dismiss")}</TooltipContent>
+            <TooltipContent>{t("chat.dismiss")}</TooltipContent>
           </Tooltip>
         </div>
       </div>

@@ -1,4 +1,5 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 /**
  * Viewer-side prediction widget — a read-only mirror of Twitch's community-
  * highlight prediction card. Captured live from https://www.twitch.tv/adinross
@@ -134,6 +135,7 @@ const CollapsedView: React.FC<CollapsedProps> = ({
   onExpand,
   onDismiss,
 }) => {
+  const { t } = useTranslation();
   const totalAmount = sumAmount(prediction);
   const leader = topOutcome(prediction);
   const { locksAtMs, windowMs } = predictionCountdown(prediction);
@@ -174,14 +176,14 @@ const CollapsedView: React.FC<CollapsedProps> = ({
                 <button
                   type="button"
                   onClick={onDismiss}
-                  aria-label={i18n.t("chat.dismissPrediction")}
+                  aria-label={t("chat.dismissPrediction")}
                   className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-300 transition-colors hover:bg-white/10"
                   data-testid="prediction-dismiss"
                 >
                   {VerticalDotsIcon}
                 </button>
               </TooltipTrigger>
-              <TooltipContent>{i18n.t("chat.dismiss")}</TooltipContent>
+              <TooltipContent>{t("chat.dismiss")}</TooltipContent>
             </Tooltip>
           )}
         </div>
@@ -195,7 +197,7 @@ const CollapsedView: React.FC<CollapsedProps> = ({
           windowMs={windowMs}
         />
       )}
-      {isLocked && <span className="sr-only">{i18n.t("chat.locked")}</span>}
+      {isLocked && <span className="sr-only">{t("chat.locked")}</span>}
     </div>
   );
 };
@@ -207,10 +209,11 @@ const CollapsedHeaderText: React.FC<{
   totalAmount: number;
   leader: UnifiedPredictionOutcome | null;
 }> = ({ prediction, style, isEnded, totalAmount, leader }) => {
+  const { t } = useTranslation();
   const subtitle = headerSubtitle(prediction, style);
   const detail = isEnded
-    ? endedTeaser(prediction, totalAmount)
-    : detailTeaser(prediction, totalAmount, leader, style);
+    ? endedTeaser(t, prediction, totalAmount)
+    : detailTeaser(t, prediction, totalAmount, leader, style);
 
   return (
     <div className="flex min-w-0 flex-1 flex-col justify-center">
@@ -240,6 +243,7 @@ function headerSubtitle(prediction: UnifiedPrediction, style: Style): string {
 }
 
 function detailTeaser(
+  t: TFunction,
   prediction: UnifiedPrediction,
   total: number,
   leader: UnifiedPredictionOutcome | null,
@@ -254,7 +258,7 @@ function detailTeaser(
       <span className="inline-flex items-center gap-1.5">
         <span className="inline-block h-2 w-2 rounded-full bg-[#53FC18]" aria-hidden />
         <span className="text-white">{short(a.totalAmount)}</span>
-        <span className="text-zinc-500">{i18n.t("chat.vs")}</span>
+        <span className="text-zinc-500">{t("chat.vs")}</span>
         <span className="inline-block h-2 w-2 rounded-full bg-[#ff4f8c]" aria-hidden />
         <span className="text-white">{short(b.totalAmount)}</span>
       </span>
@@ -269,13 +273,13 @@ function detailTeaser(
         <ChannelPointsIcon size={14} />
         <span className="text-white">{short(total)}</span>
         <span>
-          {i18n.t("chat.goTo")}
+          {t("chat.goTo")}
           {topUser}
         </span>
         {others > 0 && (
           <span>
-            {i18n.t("chat.and")}
-            {others} {i18n.t("chat.others")}
+            {t("chat.and")}
+            {others} {t("chat.others")}
           </span>
         )}
       </span>
@@ -285,18 +289,18 @@ function detailTeaser(
     <span className="inline-flex items-center gap-1.5">
       <ChannelPointsIcon size={14} />
       <span className="text-white">{short(total)}</span>
-      <span>{i18n.t("chat.contributed")}</span>
+      <span>{t("chat.contributed")}</span>
     </span>
   );
 }
 
-function endedTeaser(prediction: UnifiedPrediction, total: number): React.ReactNode {
+function endedTeaser(t: TFunction, prediction: UnifiedPrediction, total: number): React.ReactNode {
   const winner = prediction.outcomes.find((o) => o.id === prediction.winningOutcomeId);
   if (winner) {
     return (
       <span>
-        {i18n.t("chat.winner")}
-        <span className="text-white">{winner.title}</span> · {short(total)} {i18n.t("chat.pool")}
+        {t("chat.winner")}
+        <span className="text-white">{winner.title}</span> · {short(total)} {t("chat.pool")}
       </span>
     );
   }
@@ -323,6 +327,7 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
   onCollapse,
   onDismiss,
 }) => {
+  const { t } = useTranslation();
   const { locksAtMs, windowMs } = predictionCountdown(prediction);
 
   return (
@@ -358,7 +363,7 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
       {isLocked && (
         <div className="mt-3">
           <span className="inline-block rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
-            {i18n.t("chat.votingLocked")}
+            {t("chat.votingLocked")}
           </span>
         </div>
       )}
@@ -380,6 +385,7 @@ const ActiveOutcomeRow: React.FC<{
   isViewerPick: boolean;
   style: Style;
 }> = ({ outcome, index, isWinner, isViewerPick, style }) => {
+  const { t } = useTranslation();
   return (
     <li
       data-testid={`prediction-outcome-${outcome.id}`}
@@ -395,7 +401,7 @@ const ActiveOutcomeRow: React.FC<{
         {isWinner && (
           <span
             className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"
-            aria-label={i18n.t("chat.winner2")}
+            aria-label={t("chat.winner2")}
           >
             <CheckIcon size={10} />
           </span>
@@ -426,6 +432,7 @@ const EndedPanel: React.FC<{
   onCollapse: () => void;
   onDismiss?: () => void;
 }> = ({ prediction, style, onCollapse, onDismiss }) => {
+  const { t } = useTranslation();
   const total = sumAmount(prediction);
   const endedAtLabel = endedRelativeLabel(prediction.endedAt);
   // Single accent for the resolved list, mirroring twitch.tv's "Prediction"
@@ -444,8 +451,8 @@ const EndedPanel: React.FC<{
 
       <div className="mt-2 text-[12px] text-[#adadb8]">
         {prediction.status === "CANCELED"
-          ? i18n.t("chat.predictionCanceledRefunded")
-          : i18n.t("chat.predictionEndedValue0", { value0: endedAtLabel })}
+          ? t("chat.predictionCanceledRefunded")
+          : t("chat.predictionEndedValue0", { value0: endedAtLabel })}
       </div>
 
       {/* All outcomes in declaration order — supports 3+ results like twitch.tv. */}
@@ -479,6 +486,7 @@ const EndedOutcomeRow: React.FC<{
   isWinner: boolean;
   accent: string;
 }> = ({ outcome, index, total, isWinner, accent }) => {
+  const { t } = useTranslation();
   const pct = total > 0 ? Math.round((outcome.totalAmount / total) * 100) : 0;
   return (
     <div
@@ -491,7 +499,7 @@ const EndedOutcomeRow: React.FC<{
           <span className="flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-white text-[#0e0e10]">
             <CheckIcon size={11} />
           </span>
-          {i18n.t("chat.winner2")}
+          {t("chat.winner2")}
         </div>
       )}
       <div className="flex items-center justify-between gap-2">
@@ -546,13 +554,14 @@ const ExpandedHeader: React.FC<{
   onCollapse: () => void;
   onDismiss?: () => void;
 }> = ({ prediction, style, onCollapse, onDismiss }) => {
+  const { t } = useTranslation();
   const subtitle = headerSubtitle(prediction, style);
   return (
     <header className="flex items-start gap-2">
       <button
         type="button"
         onClick={onCollapse}
-        aria-label={i18n.t("chat.collapsePredictionPanel")}
+        aria-label={t("chat.collapsePredictionPanel")}
         className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[#adadb8] transition-colors hover:bg-white/10 hover:text-white"
       >
         <svg
@@ -585,20 +594,20 @@ const ExpandedHeader: React.FC<{
               <button
                 type="button"
                 onClick={onDismiss}
-                aria-label={i18n.t("chat.dismissPrediction")}
+                aria-label={t("chat.dismissPrediction")}
                 className="flex h-8 w-8 items-center justify-center rounded-full text-[#adadb8] transition-colors hover:bg-white/10 hover:text-white"
                 data-testid="prediction-dismiss-expanded"
               >
                 {VerticalDotsIcon}
               </button>
             </TooltipTrigger>
-            <TooltipContent>{i18n.t("chat.dismiss")}</TooltipContent>
+            <TooltipContent>{t("chat.dismiss")}</TooltipContent>
           </Tooltip>
         )}
         <button
           type="button"
           onClick={onCollapse}
-          aria-label={i18n.t("chat.closePredictionPanel")}
+          aria-label={t("chat.closePredictionPanel")}
           className="flex h-8 w-8 items-center justify-center rounded-full text-[#adadb8] transition-colors hover:bg-white/10 hover:text-white"
         >
           <svg

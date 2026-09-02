@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { Ban } from "lucide-react";
 import type React from "react";
 import { memo } from "react";
@@ -16,6 +16,7 @@ interface ModerationActionHighlightCompactProps {
 
 export const ModerationActionHighlightCompact: React.FC<ModerationActionHighlightCompactProps> =
   memo(({ actionLabel, deletedMessageCount, deletedMessages, platform, style, summary }) => {
+    const { t } = useTranslation();
     return (
       <ChatEventHighlightCard
         accentColor="#f87171"
@@ -36,7 +37,7 @@ export const ModerationActionHighlightCompact: React.FC<ModerationActionHighligh
               data-testid="moderation-deleted-messages"
             >
               <div className="mb-1 text-xs font-semibold uppercase tracking-normal text-[#adadb8]">
-                {i18n.t("chat.deletedMessages")}
+                {t("chat.deletedMessages")}
                 {deletedMessageCount})
               </div>
               {deletedMessages}

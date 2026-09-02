@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 /**
  * InfoBanner — chat-room-mode banner shown above ChatInput.
  *
@@ -70,6 +70,7 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({
   viewerSatisfiesFollowerOnly = false,
   viewerAccountAgeRequirement = "unknown",
 }) => {
+  const { t } = useTranslation();
   const state = useChatRoomState(platform, channelId);
 
   // Build the precedence-ordered list of chat restrictions relevant to the viewer.
@@ -82,9 +83,7 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({
     active.push({
       key: "followers",
       label:
-        n > 0
-          ? i18n.t("chat.followersOnlyModeValue0M", { value0: n })
-          : i18n.t("chat.followersOnlyMode"),
+        n > 0 ? t("chat.followersOnlyModeValue0M", { value0: n }) : t("chat.followersOnlyMode"),
       tooltipLabel: n > 0 ? `Followers Only Mode Enabled [${n}m]` : "Followers Only Mode Enabled",
     });
   }
@@ -92,7 +91,7 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({
   if (state.subscribersOnly) {
     active.push({
       key: "subscribers",
-      label: i18n.t("chat.subscribersOnlyMode"),
+      label: t("chat.subscribersOnlyMode"),
       tooltipLabel: "Subscribers Only Mode Enabled",
     });
   }
@@ -106,7 +105,7 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({
     const n = state.accountAge;
     active.push({
       key: "accountAge",
-      label: i18n.t("chat.accountAgeModeValue0M", { value0: n }),
+      label: t("chat.accountAgeModeValue0M", { value0: n }),
       tooltipLabel: `Account Age Restriction Enabled [${n}m]`,
     });
   }
@@ -114,7 +113,7 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({
   if (state.emoteOnly) {
     active.push({
       key: "emoteOnly",
-      label: i18n.t("chat.emoteOnlyMode"),
+      label: t("chat.emoteOnlyMode"),
       tooltipLabel: "Emote Only Mode Enabled",
     });
   }
@@ -123,7 +122,7 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({
     const interval = convertSecondsToHumanReadable(state.slowMode);
     active.push({
       key: "slow",
-      label: i18n.t("chat.slowModeValue0", { value0: interval }),
+      label: t("chat.slowModeValue0", { value0: interval }),
       tooltipLabel: `Slow Mode Enabled [${interval}]`,
     });
   }
@@ -143,7 +142,7 @@ export const InfoBanner: React.FC<InfoBannerProps> = ({
         <TooltipTrigger asChild>
           <button
             type="button"
-            aria-label={i18n.t("chat.activeChatModes")}
+            aria-label={t("chat.activeChatModes")}
             data-testid="info-banner-icon"
             className="flex-shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full text-[#d3d3d9] hover:text-white focus:text-white focus:outline-none focus-visible:ring-1 focus-visible:ring-white"
           >

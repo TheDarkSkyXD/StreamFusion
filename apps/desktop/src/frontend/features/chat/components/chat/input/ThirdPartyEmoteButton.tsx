@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 /**
  * ThirdPartyEmoteButton — trigger button + anchored EmotePickerPopover pair for the
  * third-party emote scope (7TV/BTTV/FFZ on Twitch, 7TV on Kick).
@@ -52,6 +52,7 @@ export const ThirdPartyEmoteButton: React.FC<ThirdPartyEmoteButtonProps> = ({
   disabled = false,
   popoverAnchorRef,
 }) => {
+  const { t } = useTranslation();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const setButtonRef = useCallback(
     (node: HTMLButtonElement | null) => {
@@ -74,7 +75,7 @@ export const ThirdPartyEmoteButton: React.FC<ThirdPartyEmoteButtonProps> = ({
         className={`group flex-shrink-0 flex items-center justify-center w-14 h-full transition-colors text-white disabled:opacity-50 disabled:cursor-not-allowed ${
           isOpen ? "bg-white/20" : "hover:bg-white/10"
         }`}
-        aria-label={i18n.t("chat.openThirdPartyEmotePicker")}
+        aria-label={t("chat.openThirdPartyEmotePicker")}
         aria-pressed={isOpen}
         data-testid="third-party-emote-button"
         disabled={disabled}

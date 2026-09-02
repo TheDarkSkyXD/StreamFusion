@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import type React from "react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -177,6 +177,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
   channelId,
   showComposer = true,
 }) => {
+  const { t } = useTranslation();
   useRenderCount("TwitchChat");
   const queryClient = useQueryClient();
   // Chat store — subscribe only to fields read in render; actions have stable refs.
@@ -498,8 +499,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
   const handleDeleteMessage = useCallback(
     async (message: ChatMessage) => {
       if (!channelId || !twitchUser?.id) {
-        toast.error(i18n.t("chat.couldnTDeleteMessage"), {
-          description: i18n.t("chat.channelOrModeratorIdentityNotLoaded"),
+        toast.error(t("chat.couldnTDeleteMessage"), {
+          description: t("chat.channelOrModeratorIdentityNotLoaded"),
         });
         return;
       }
@@ -528,7 +529,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                 markMessageDeletedByModerator(message.id, currentModeratorPresentation());
                 showModActionSuccessToast("Deleted message");
               } else {
-                toast.error(i18n.t("chat.couldnTDeleteMessage"), {
+                toast.error(t("chat.couldnTDeleteMessage"), {
                   description: retry.error.message,
                 });
               }
@@ -536,11 +537,11 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
           });
           return;
         }
-        toast.error(i18n.t("chat.couldnTDeleteMessage"), {
+        toast.error(t("chat.couldnTDeleteMessage"), {
           description: result.error.message,
         });
       } catch (error) {
-        toast.error(i18n.t("chat.couldnTDeleteMessage"), {
+        toast.error(t("chat.couldnTDeleteMessage"), {
           description: error instanceof Error ? error.message : String(error),
         });
       }
@@ -611,7 +612,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
               id: `bttv:${entry.providerId}`,
               provider: "bttv" as const,
               providerId: entry.providerId,
-              title: entry.badge.description || i18n.t("chat.betterTTVBadge"),
+              title: entry.badge.description || t("chat.betterTTVBadge"),
               imageUrl: normalizeCosmeticUrl(entry.badge.svg),
             },
           }))
@@ -642,7 +643,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
               id: `ffz:${badgeId}`,
               provider: "ffz" as const,
               providerId: badgeId,
-              title: badge.title || i18n.t("chat.frankerFaceZBadge"),
+              title: badge.title || t("chat.frankerFaceZBadge"),
               imageUrl: normalizeCosmeticUrl(badge.urls["4"] ?? badge.urls["2"] ?? badge.urls["1"]),
               slot: badge.slot,
               replaces: badge.replaces,
@@ -678,7 +679,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                   id: `ffz:room-${role}`,
                   provider: "ffz" as const,
                   providerId: `room-${role}`,
-                  title: i18n.t("chat.frankerFaceZValue0", {
+                  title: t("chat.frankerFaceZValue0", {
                     value0: role === "vip" ? "VIP" : "Moderator",
                   }),
                   imageUrl: normalizeCosmeticUrl(urls["4"] ?? urls["2"] ?? urls["1"]),
@@ -1364,22 +1365,22 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
       if (!result) return;
       if (result.ok) {
         setPinDialogMessage(null);
-        toast.success(i18n.t("chat.pinnedMessage"));
+        toast.success(t("chat.pinnedMessage"));
       } else if (result.error.code === "unauthorized") {
         setPinDialogMessage(null);
         promptReconnect({
           missingScopes: ["moderator:manage:chat_messages"],
           onReconnected: async () => {
             const retry = await runPin();
-            if (retry?.ok) toast.success(i18n.t("chat.pinnedMessage"));
+            if (retry?.ok) toast.success(t("chat.pinnedMessage"));
             else if (retry)
-              toast.error(i18n.t("chat.couldnTPinMessage"), {
+              toast.error(t("chat.couldnTPinMessage"), {
                 description: retry.error.message,
               });
           },
         });
       } else {
-        toast.error(i18n.t("chat.couldnTPinMessage"), {
+        toast.error(t("chat.couldnTPinMessage"), {
           description: result.error.message,
         });
         setPinDialogMessage(null);
@@ -1551,9 +1552,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                             const retry = await runUpdatePin();
                             if (retry?.ok) {
                               applyOptimisticDuration();
-                              toast.success(i18n.t("chat.pinnedMessageUpdated"));
+                              toast.success(t("chat.pinnedMessageUpdated"));
                             } else if (retry) {
-                              toast.error(i18n.t("chat.couldnTUpdatePinnedMessage"), {
+                              toast.error(t("chat.couldnTUpdatePinnedMessage"), {
                                 description: retry.error.message,
                               });
                             }
@@ -1566,18 +1567,18 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                       if (!result) return;
                       if (result.ok) {
                         applyOptimisticDuration();
-                        toast.success(i18n.t("chat.pinnedMessageUpdated"));
+                        toast.success(t("chat.pinnedMessageUpdated"));
                       } else if (result.error.code === "unauthorized") {
                         promptReconnect({
                           missingScopes: ["moderator:manage:chat_messages"],
                         });
                       } else {
-                        toast.error(i18n.t("chat.couldnTUpdatePinnedMessage"), {
+                        toast.error(t("chat.couldnTUpdatePinnedMessage"), {
                           description: result.error.message,
                         });
                       }
                     } catch (error) {
-                      toast.error(i18n.t("chat.couldnTUpdatePinnedMessage"), {
+                      toast.error(t("chat.couldnTUpdatePinnedMessage"), {
                         description: error instanceof Error ? error.message : String(error),
                       });
                     } finally {
@@ -1694,7 +1695,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
       <div className="flex flex-col h-full w-full bg-gradient-to-b from-[#141414] to-[#171717]">
         <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between flex-shrink-0">
           <h2 className="font-semibold flex items-center gap-2">
-            <span className="text-white">{i18n.t("chat.chat")}</span>
+            <span className="text-white">{t("chat.chat")}</span>
           </h2>
           <RecentChattersButton
             panelId={recentChattersPanelId}
@@ -1713,12 +1714,12 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
               modlog: channelId ? (
                 <ModLogTab platform="twitch" channelId={channelId} channelSlug={channel} />
               ) : (
-                <div className="p-4 text-neutral-400">{i18n.t("chat.noChannelSelected")}</div>
+                <div className="p-4 text-neutral-400">{t("chat.noChannelSelected")}</div>
               ),
               engagement: channelId ? (
                 <EngagementTab channelId={channelId} />
               ) : (
-                <div className="p-4 text-neutral-400">{i18n.t("chat.noChannelSelected")}</div>
+                <div className="p-4 text-neutral-400">{t("chat.noChannelSelected")}</div>
               ),
             }}
           </ChatPanelTabs>
@@ -1761,7 +1762,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                       <div>
                         <div className="line-clamp-2">{action.message.rawContent || ""}</div>
                         <div className="mt-1 text-xs text-[var(--color-foreground-muted)]">
-                          {i18n.t("chat.fromValue0", { value0: action.message.username })}
+                          {t("chat.fromValue0", { value0: action.message.username })}
                         </div>
                       </div>
                     }
@@ -1786,7 +1787,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                   <div>
                     <div className="line-clamp-2">{action.message.rawContent || ""}</div>
                     <div className="text-xs text-[var(--color-foreground-muted)] mt-1">
-                      {i18n.t("chat.fromValue0", { value0: action.message.username })}
+                      {t("chat.fromValue0", { value0: action.message.username })}
                     </div>
                   </div>
                 );
@@ -1830,7 +1831,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                 actionType = "raid";
                 targetPreview = (
                   <div className="text-sm text-[var(--color-foreground-muted)]">
-                    {i18n.t("chat.pickAChannelToSendYourViewersTo")}
+                    {t("chat.pickAChannelToSendYourViewersTo")}
                   </div>
                 );
               } else {
@@ -1838,17 +1839,17 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                 targetPreview = (
                   <div className="text-sm">
                     {action.actionType === "clear"
-                      ? i18n.t("chat.clearChatForEveryoneInThisChannel")
+                      ? t("chat.clearChatForEveryoneInThisChannel")
                       : action.actionType === "commercial"
-                        ? i18n.t("chat.runACommercialOnThisChannel")
+                        ? t("chat.runACommercialOnThisChannel")
                         : action.actionType === "shield"
-                          ? i18n.t("chat.enableShieldModeOnThisChannel")
+                          ? t("chat.enableShieldModeOnThisChannel")
                           : action.actionType === "shieldOff"
-                            ? i18n.t("chat.disableShieldModeOnThisChannel")
+                            ? t("chat.disableShieldModeOnThisChannel")
                             : action.actionType === "uniqueChat"
                               ? action.currentlyActive
-                                ? i18n.t("chat.turnOFFUniqueChatMode")
-                                : i18n.t("chat.turnONUniqueChatMode")
+                                ? t("chat.turnOFFUniqueChatMode")
+                                : t("chat.turnONUniqueChatMode")
                               : ""}
                   </div>
                 );
@@ -1890,7 +1891,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                               htmlFor="twitch-warn-reason"
                               className="block text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)]"
                             >
-                              {i18n.t("chat.warningReason")}
+                              {t("chat.warningReason")}
                             </label>
                             <textarea
                               id="twitch-warn-reason"
@@ -1903,7 +1904,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                                 onDataChange({ reason: next });
                               }}
                               className="min-h-24 w-full resize-none rounded-md border border-[var(--color-border)] bg-black/30 px-3 py-2 text-sm text-white outline-none placeholder:text-[var(--color-foreground-muted)] focus:border-[#9146FF] focus:ring-1 focus:ring-[#9146FF]"
-                              placeholder={i18n.t("chat.reasonShownToTheUser")}
+                              placeholder={t("chat.reasonShownToTheUser")}
                             />
                             <div className="text-right text-xs text-[var(--color-foreground-muted)]">
                               {warnReason.trim().length}/{MAX_TWITCH_WARN_REASON_LENGTH}
@@ -1997,7 +1998,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                                 ok: false as const,
                                 error: {
                                   code: "invalid-input" as const,
-                                  message: i18n.t("chat.pickATargetChannelFirst"),
+                                  message: t("chat.pickATargetChannelFirst"),
                                 },
                               };
                             }
@@ -2147,10 +2148,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                             showModActionSuccessToast(`Banned ${username}`);
                           } else if (action.actionType === "warn") {
                             setWarnReason("");
-                            toast.success(i18n.t("chat.warnedValue0", { value0: username }));
+                            toast.success(t("chat.warnedValue0", { value0: username }));
                           } else if (action.actionType === "unban") {
                             markUserUnbanned(action.message.userId);
-                            toast.success(i18n.t("chat.unbannedValue0", { value0: username }));
+                            toast.success(t("chat.unbannedValue0", { value0: username }));
                           } else if (action.actionType === "delete") {
                             markMessageDeletedByModerator(
                               action.message.id,
@@ -2159,9 +2160,9 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                             showModActionSuccessToast("Deleted message");
                           }
                         } else if (action.kind === "strip") {
-                          toast.success(i18n.t("chat.done"));
+                          toast.success(t("chat.done"));
                         } else {
-                          toast.success(i18n.t("chat.chatModeUpdated"));
+                          toast.success(t("chat.chatModeUpdated"));
                         }
                         return;
                       }
@@ -2188,10 +2189,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                               ) {
                                 showModActionSuccessToast("Action completed");
                               } else {
-                                toast.success(i18n.t("chat.actionCompleted"));
+                                toast.success(t("chat.actionCompleted"));
                               }
                             } else
-                              toast.error(i18n.t("chat.actionStillFailedAfterReconnect"), {
+                              toast.error(t("chat.actionStillFailedAfterReconnect"), {
                                 description: retry.error.message,
                               });
                           },
@@ -2199,7 +2200,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                         return;
                       }
                       setPendingModAction(null);
-                      toast.error(i18n.t("chat.couldnTCompleteAction"), {
+                      toast.error(t("chat.couldnTCompleteAction"), {
                         description: result.error.message,
                       });
                     } finally {
@@ -2253,6 +2254,7 @@ const TwitchPollWidget: React.FC<TwitchPollWidgetProps> = ({
   onToggleExpand,
   onDismiss,
 }) => {
+  const { t } = useTranslation();
   const totalVotes = poll.options.reduce((sum, o) => sum + o.votes, 0);
   const maxVotes = Math.max(...poll.options.map((o) => o.votes), 0);
   const isPollEnded = poll.remaining <= 0;
@@ -2276,10 +2278,10 @@ const TwitchPollWidget: React.FC<TwitchPollWidgetProps> = ({
     <div className="border-b border-[var(--color-border)] bg-[var(--color-background-tertiary,#1a1a1a)] text-sm">
       <div className="flex items-center justify-between px-3 pt-2 pb-1">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-neutral-400 text-xs font-medium">{i18n.t("chat.poll")}</span>
+          <span className="text-neutral-400 text-xs font-medium">{t("chat.poll")}</span>
           <span className="text-white text-xs font-semibold truncate">{poll.title}</span>
           {isPollEnded && (
-            <span className="text-xs text-neutral-500 flex-shrink-0">{i18n.t("chat.ended")}</span>
+            <span className="text-xs text-neutral-500 flex-shrink-0">{t("chat.ended")}</span>
           )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
@@ -2288,7 +2290,7 @@ const TwitchPollWidget: React.FC<TwitchPollWidgetProps> = ({
               <button
                 type="button"
                 onClick={onToggleExpand}
-                aria-label={isExpanded ? i18n.t("chat.collapse") : i18n.t("chat.expand")}
+                aria-label={isExpanded ? t("chat.collapse") : t("chat.expand")}
                 className="p-1 text-neutral-400 hover:text-white rounded transition-colors"
               >
                 <BsChevronDown
@@ -2300,22 +2302,20 @@ const TwitchPollWidget: React.FC<TwitchPollWidgetProps> = ({
                 />
               </button>
             </TooltipTrigger>
-            <TooltipContent>
-              {isExpanded ? i18n.t("chat.collapse") : i18n.t("chat.expand")}
-            </TooltipContent>
+            <TooltipContent>{isExpanded ? t("chat.collapse") : t("chat.expand")}</TooltipContent>
           </Tooltip>
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
               <button
                 type="button"
                 onClick={onDismiss}
-                aria-label={i18n.t("chat.dismiss")}
+                aria-label={t("chat.dismiss")}
                 className="p-1 text-neutral-400 hover:text-white rounded transition-colors"
               >
                 <BsX size={14} />
               </button>
             </TooltipTrigger>
-            <TooltipContent>{i18n.t("chat.dismiss")}</TooltipContent>
+            <TooltipContent>{t("chat.dismiss")}</TooltipContent>
           </Tooltip>
         </div>
       </div>

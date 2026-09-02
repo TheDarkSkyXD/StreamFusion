@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 /**
  * MentionAutocomplete Component
  *
@@ -52,6 +52,7 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
   maxSuggestions = 8,
   minChars = 0,
 }) => {
+  const { t } = useTranslation();
   const [visibleCount, setVisibleCount] = useState(maxSuggestions);
   const [enrichedUsers, setEnrichedUsers] = useState<Record<string, Partial<RecentChatter>>>({});
   const containerRef = useRef<HTMLDivElement>(null);
@@ -156,16 +157,16 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
       ref={containerRef}
       className="absolute bottom-full left-0 mb-1 w-full max-w-none overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] shadow-xl z-50"
       role="listbox"
-      aria-label={i18n.t("chat.userSuggestions")}
+      aria-label={t("chat.userSuggestions")}
     >
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-[var(--color-border)] px-3 py-1.5 text-xs text-neutral-500">
         <span className="min-w-0 break-words [overflow-wrap:anywhere]">
-          {i18n.t("chat.usersMatchingQuot")}
+          {t("chat.usersMatchingQuot")}
           {match.query}
-          {i18n.t("chat.quot")}
+          {t("chat.quot")}
         </span>
-        <span className="text-neutral-600">{i18n.t("chat.toNavigateTabEnterToSelect")}</span>
+        <span className="text-neutral-600">{t("chat.toNavigateTabEnterToSelect")}</span>
       </div>
 
       {/* Suggestions */}

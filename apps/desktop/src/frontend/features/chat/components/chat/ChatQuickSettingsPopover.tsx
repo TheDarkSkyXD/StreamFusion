@@ -1,4 +1,5 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { FaChevronRight } from "react-icons/fa";
@@ -38,17 +39,17 @@ import { useAuthStore } from "@/store/auth-store";
  * outside-click; Escape backs out of a sub-view, then closes the popover.
  */
 
-const DENSITY_OPTIONS: { value: ChatDensity; label: string }[] = [
-  { value: "compact", label: i18n.t("chat.tight") },
-  { value: "cozy", label: i18n.t("chat.medium") },
-  { value: "loose", label: i18n.t("chat.loose") },
-];
-const PAUSE_OPTIONS: { value: ChatPauseMode; label: string }[] = [
-  { value: "scroll", label: i18n.t("chat.scrollOnly") },
-  { value: "mouseover", label: i18n.t("chat.mouseover") },
-  { value: "alt", label: i18n.t("chat.holdAltKey") },
-  { value: "mouseover-alt", label: i18n.t("chat.mouseoverAltKey") },
-];
+const DENSITY_OPTIONS = [
+  { value: "compact", labelKey: "chat.tight" },
+  { value: "cozy", labelKey: "chat.medium" },
+  { value: "loose", labelKey: "chat.loose" },
+] as const satisfies readonly { value: ChatDensity; labelKey: string }[];
+const PAUSE_OPTIONS = [
+  { value: "scroll", labelKey: "chat.scrollOnly" },
+  { value: "mouseover", labelKey: "chat.mouseover" },
+  { value: "alt", labelKey: "chat.holdAltKey" },
+  { value: "mouseover-alt", labelKey: "chat.mouseoverAltKey" },
+] as const satisfies readonly { value: ChatPauseMode; labelKey: string }[];
 
 const ICON_SIZE = 16;
 const FONT_SIZE_MIN = 10;
@@ -60,9 +61,9 @@ const EMOTE_SIZE_MAX = 56;
 const EMOTE_SIZE_DEFAULT = DEFAULT_CHAT_DISPLAY_PREFERENCES.emoteSizePx;
 const EMOTE_SIZE_STOPS = [EMOTE_SIZE_MIN, EMOTE_SIZE_DEFAULT, 42, EMOTE_SIZE_MAX];
 const CHAT_WIDTH_OPTIONS = [
-  { value: 280, label: i18n.t("chat.280px") },
-  { value: 340, label: i18n.t("chat.340px") },
-  { value: 420, label: i18n.t("chat.420px") },
+  { value: 280, labelKey: "chat.280px" },
+  { value: 340, labelKey: "chat.340px" },
+  { value: 420, labelKey: "chat.420px" },
 ] as const;
 const PREVIEW_EMOTES: Record<ChatPlatform, { name: string; url: string }> = {
   twitch: {
@@ -100,6 +101,7 @@ export function ChatQuickSettingsPopover({
   /** Keeps a click on the gear from being treated as an outside click. */
   triggerRef?: React.RefObject<HTMLElement | null>;
 }) {
+  const { t } = useTranslation();
   const { cd, set } = useChatDisplay();
   const twitchUser = useAuthStore((state) => state.twitchUser);
   const kickUser = useAuthStore((state) => state.kickUser);
@@ -142,7 +144,7 @@ export function ChatQuickSettingsPopover({
     <div
       ref={ref}
       role="dialog"
-      aria-label={i18n.t("chat.quickChatSettings")}
+      aria-label={t("chat.quickChatSettings")}
       // Right-aligned inside the caller's positioned anchor; Kick-sized, but
       // capped to the chat column so it cannot spill past narrow panels.
       className={`absolute right-0 z-50 w-[320px] max-w-full min-w-0 rounded-t-xl rounded-b-none border border-neutral-700 bg-neutral-800 shadow-xl animate-in fade-in duration-200 ${
@@ -152,7 +154,7 @@ export function ChatQuickSettingsPopover({
       }`}
     >
       <PopoverHeader
-        title={view === "appearance" ? i18n.t("chat.chatAppearance") : i18n.t("chat.chatSettings")}
+        title={view === "appearance" ? t("chat.chatAppearance") : t("chat.chatSettings")}
         onBack={view === "root" ? undefined : () => setView("root")}
         onClose={onClose}
       />
@@ -188,6 +190,7 @@ function PopoverHeader({
   onBack?: () => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--color-border)]">
       <div className="flex items-center gap-2">
@@ -195,7 +198,7 @@ function PopoverHeader({
           <button
             type="button"
             onClick={onBack}
-            aria-label={i18n.t("chat.backToChatSettings")}
+            aria-label={t("chat.backToChatSettings")}
             className="flex h-8 w-8 items-center justify-center rounded-full text-white hover:bg-neutral-700 transition-colors"
           >
             <LuArrowLeft size={16} />
@@ -208,7 +211,7 @@ function PopoverHeader({
       <button
         type="button"
         onClick={onClose}
-        aria-label={i18n.t("chat.closeChatSettings")}
+        aria-label={t("chat.closeChatSettings")}
         className="flex h-8 w-8 items-center justify-center rounded-full text-white hover:bg-neutral-700 transition-colors"
       >
         <LuX size={20} strokeWidth={3} />
@@ -231,12 +234,13 @@ function RootView({
   onOpenAppearance: () => void;
   onMoreSettings: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="px-2 py-2 space-y-1">
       <NavRow
         icon={<LuPause size={ICON_SIZE} />}
         label="Pause Chat"
-        description={getPauseModeLabel(pauseMode)}
+        description={getPauseModeLabel(pauseMode, t)}
         onClick={onOpenPause}
       />
       <NavRow
@@ -253,7 +257,7 @@ function RootView({
         <span className="flex-shrink-0 text-white" aria-hidden>
           <LuSettings size={ICON_SIZE} />
         </span>
-        {i18n.t("chat.moreSettings")}
+        {t("chat.moreSettings")}
       </button>
     </div>
   );
@@ -266,15 +270,16 @@ function PauseChatView({
   value: ChatPauseMode;
   onChange: (value: ChatPauseMode) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="px-4 pt-3 pb-4">
       <div className="pb-3">
-        <h4 className="text-sm font-bold leading-5 text-white">{i18n.t("chat.pauseChat")}</h4>
+        <h4 className="text-sm font-bold leading-5 text-white">{t("chat.pauseChat")}</h4>
         <p className="mt-1 text-sm leading-5 text-zinc-400">
-          {i18n.t("chat.manageYourPauseChatOptionsChatWillAlwaysPauseWhenScrollingTheChatPane")}
+          {t("chat.manageYourPauseChatOptionsChatWillAlwaysPauseWhenScrollingTheChatPane")}
         </p>
       </div>
-      <div role="radiogroup" aria-label={i18n.t("chat.pauseChat")} className="space-y-1">
+      <div role="radiogroup" aria-label={t("chat.pauseChat")} className="space-y-1">
         {PAUSE_OPTIONS.map((option) => (
           <label
             key={option.value}
@@ -300,7 +305,7 @@ function PauseChatView({
                 }`}
               />
             </span>
-            <span>{option.label}</span>
+            <span>{t(option.labelKey)}</span>
           </label>
         ))}
       </div>
@@ -385,6 +390,7 @@ function AppearanceView({
   previewUsername: string;
   set: ChatDisplaySet;
 }) {
+  const { t } = useTranslation();
   const { chatWidthPx, density, timestamps, hoverSmooth, quickEmotes } = cd;
 
   return (
@@ -414,14 +420,14 @@ function AppearanceView({
         footer={`Currently: ${chatWidthPx}px`}
         label="Chat window width"
         name="quick-chat-width"
-        options={CHAT_WIDTH_OPTIONS}
+        options={CHAT_WIDTH_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
         value={chatWidthPx}
         onChange={(value) => void set("chatWidthPx", value)}
       />
       <SegmentedRadioGroup
         label="Message spacing"
         name="quick-chat-message-spacing"
-        options={DENSITY_OPTIONS}
+        options={DENSITY_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
         value={density}
         onChange={(value) => void set("density", value)}
       />
@@ -446,8 +452,9 @@ function AppearanceView({
   );
 }
 
-function getPauseModeLabel(value: ChatPauseMode) {
-  return PAUSE_OPTIONS.find((option) => option.value === value)?.label ?? "Scroll Only";
+function getPauseModeLabel(value: ChatPauseMode, t: TFunction) {
+  const option = PAUSE_OPTIONS.find((candidate) => candidate.value === value);
+  return option ? t(option.labelKey) : t("chat.scrollOnly");
 }
 
 function ChatAppearancePreview({
@@ -463,11 +470,12 @@ function ChatAppearancePreview({
   platform: ChatPlatform;
   username: string;
 }) {
+  const { t } = useTranslation();
   const rows = [
     {
       badgeClassName: "bg-[#1f9dff]",
       badgeText: platform === "kick" ? "K" : "T",
-      message: i18n.t("chat.hiThere"),
+      message: t("chat.hiThere"),
       testId: "chat-preview-row-primary",
       username,
       usernameClassName: platform === "kick" ? "text-[#00ad96]" : "text-[#a970ff]",
@@ -476,7 +484,7 @@ function ChatAppearancePreview({
     {
       badgeClassName: "bg-[#7c3aed]",
       badgeText: "M",
-      message: i18n.t("chat.spacingChangesRightHere"),
+      message: t("chat.spacingChangesRightHere"),
       testId: "chat-preview-row-mod",
       username: "modbot",
       usernameClassName: "text-[#f5a623]",
@@ -485,7 +493,7 @@ function ChatAppearancePreview({
     {
       badgeClassName: "bg-[#4b5563]",
       badgeText: "#",
-      message: i18n.t("chat.sameFontTighterRows"),
+      message: t("chat.sameFontTighterRows"),
       testId: "chat-preview-row-viewer",
       username: "viewer",
       usernameClassName: "text-[#7dd3fc]",
@@ -498,9 +506,7 @@ function ChatAppearancePreview({
       data-testid="chat-appearance-preview"
       className="mx-[2px] mt-3 mb-2 overflow-hidden rounded-md border border-neutral-600 bg-neutral-700 px-3 pt-2 pb-3"
     >
-      <h4 className="text-sm font-semibold leading-5 text-zinc-300">
-        {i18n.t("chat.chatAppearance2")}
-      </h4>
+      <h4 className="text-sm font-semibold leading-5 text-zinc-300">{t("chat.chatAppearance2")}</h4>
       <div
         data-density={density}
         data-testid="chat-appearance-density-preview"
@@ -524,7 +530,7 @@ function ChatAppearancePreview({
         ))}
       </div>
       <p className="mt-3 text-xs font-semibold leading-4 text-zinc-400">
-        {i18n.t("chat.youMayCustomizeYourChatAppearanceBelow")}
+        {t("chat.youMayCustomizeYourChatAppearanceBelow")}
       </p>
     </div>
   );
@@ -553,6 +559,7 @@ function ChatAppearancePreviewRow({
   usernameClassName: string;
   withEmote: boolean;
 }) {
+  const { t } = useTranslation();
   const densityPresentation = getChatDensityPresentation(density);
   const isCompact = density === "compact";
   const isLoose = density === "loose";
@@ -578,7 +585,7 @@ function ChatAppearancePreviewRow({
           platform={platform}
           sizePx={emoteSizePx}
           testId="chat-preview-emote"
-          aria-label={i18n.t("chat.previewEmote")}
+          aria-label={t("chat.previewEmote")}
         />
       )}
     </div>
@@ -592,6 +599,7 @@ function KickFontSizeSlider({
   value: number;
   onChange: (value: number) => void;
 }) {
+  const { t } = useTranslation();
   const snappedValue = snapSizeToStop(value, FONT_SIZE_STOPS);
   const selectedIndex = getStopIndex(snappedValue, FONT_SIZE_STOPS);
   const percent = getStopPercent(snappedValue, FONT_SIZE_STOPS);
@@ -603,7 +611,7 @@ function KickFontSizeSlider({
   return (
     <div>
       <label htmlFor="quick-chat-font-size" className="text-sm font-bold leading-5 text-white">
-        {i18n.t("chat.fontSize")}
+        {t("chat.fontSize")}
       </label>
       <div className="relative mt-2 h-7">
         <span
@@ -618,7 +626,7 @@ function KickFontSizeSlider({
           className={`absolute bottom-0 -translate-x-1/2 ${labelClass(FONT_SIZE_DEFAULT, "text-sm")}`}
           style={{ left: `${getStopPercent(FONT_SIZE_DEFAULT, FONT_SIZE_STOPS)}%` }}
         >
-          {i18n.t("chat.default")}
+          {t("chat.default")}
         </span>
         <span
           data-testid="font-size-label-large"
@@ -657,7 +665,7 @@ function KickFontSizeSlider({
         />
         <input
           id="quick-chat-font-size"
-          aria-label={i18n.t("chat.fontSize")}
+          aria-label={t("chat.fontSize")}
           aria-valuetext={`${snappedValue}px`}
           type="range"
           min={0}
@@ -683,6 +691,7 @@ function KickEmoteSizeSlider({
   value: number;
   onChange: (value: number) => void;
 }) {
+  const { t } = useTranslation();
   const snappedValue = snapSizeToStop(value, EMOTE_SIZE_STOPS);
   const selectedIndex = getStopIndex(snappedValue, EMOTE_SIZE_STOPS);
   const percent = getStopPercent(snappedValue, EMOTE_SIZE_STOPS);
@@ -690,7 +699,7 @@ function KickEmoteSizeSlider({
   return (
     <div>
       <label htmlFor="quick-chat-emote-size" className="text-sm font-bold leading-5 text-white">
-        {i18n.t("chat.emoteSize")}
+        {t("chat.emoteSize")}
       </label>
       <div className="relative mt-2 h-8 text-[#9ca3af]">
         <EmoteSizeLabel
@@ -704,7 +713,7 @@ function KickEmoteSizeSlider({
           className="absolute bottom-0 -translate-x-1/2 text-sm font-bold leading-none text-white"
           style={{ left: `${getStopPercent(EMOTE_SIZE_DEFAULT, EMOTE_SIZE_STOPS)}%` }}
         >
-          {i18n.t("chat.default")}
+          {t("chat.default")}
         </span>
         <EmoteSizeLabel platform={platform} sizePx={24} stop={42} testId="emote-size-label-large" />
         <EmoteSizeLabel
@@ -736,7 +745,7 @@ function KickEmoteSizeSlider({
         />
         <input
           id="quick-chat-emote-size"
-          aria-label={i18n.t("chat.emoteSize")}
+          aria-label={t("chat.emoteSize")}
           aria-valuetext={`${snappedValue}px`}
           type="range"
           min={0}

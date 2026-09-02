@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { useTranslation } from "react-i18next";
 import type React from "react";
 import {
   memo,
@@ -103,16 +103,17 @@ function advanceFirstItemIndex(
 }
 
 function NewMessagesDivider({ platform }: { platform: ChatPlatform }) {
+  const { t } = useTranslation();
   const dividerColor = NEW_MESSAGES_DIVIDER_COLOR[platform];
 
   return (
     <div
       className="flex items-center gap-2 px-2 py-1.5"
-      aria-label={i18n.t("chat.newMessages")}
+      aria-label={t("chat.newMessages")}
       style={{ color: dividerColor }}
     >
       <div className="h-px min-w-0 flex-1 bg-current" />
-      <div className="shrink-0 text-sm font-bold leading-none">{i18n.t("chat.newMessages")}</div>
+      <div className="shrink-0 text-sm font-bold leading-none">{t("chat.newMessages")}</div>
       <div className="h-px min-w-0 flex-1 bg-current" />
     </div>
   );
@@ -154,6 +155,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
     selfUserId,
     currentChannelContext,
   }) => {
+    const { t } = useTranslation();
     useRenderCount(`ChatMessageList:${channelKey}`);
     const messages = useChatStore((state) => state.messagesByChannel[channelKey] ?? EMPTY_MESSAGES);
     const isPaused = useChatStore((state) => state.pausedChannels.has(channelKey));
@@ -666,7 +668,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
             <button
               type="button"
               onClick={scrollToBottom}
-              aria-label={i18n.t("chat.scrollToLiveChatPausedDueToScrollValue0", {
+              aria-label={t("chat.scrollToLiveChatPausedDueToScrollValue0", {
                 value0: pausedMessageCountLabel,
               })}
               className="group pointer-events-auto inline-flex max-w-full min-w-0 items-center justify-center gap-[5px] rounded-full border border-white/20 bg-[#2d2d2d] px-[18px] py-1.5 text-xs font-semibold whitespace-nowrap text-white shadow-lg transition-colors hover:bg-[#2d2d2d]/90 focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#2d2d2d] focus-visible:outline-none motion-reduce:transition-none"
@@ -687,7 +689,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
                     d="m11 13.586-2.293-2.293-1.414 1.414L12 17.414l4.707-4.707-1.414-1.414L13 13.586V6h-2v7.586Z"
                   />
                 </svg>
-                <span>{i18n.t("chat.chatPausedDueToScroll")}</span>
+                <span>{t("chat.chatPausedDueToScroll")}</span>
               </span>
               <span className="hidden items-center gap-[5px] group-hover:inline-flex">
                 <svg
