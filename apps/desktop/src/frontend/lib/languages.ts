@@ -30,9 +30,23 @@ export const BROADCAST_LANGUAGES = [
   "id",
 ] as const;
 
-// Constructing Intl.DisplayNames is non-trivial; build it once at module load.
-const displayNames = new Intl.DisplayNames(["en"], { type: "language" });
+const displayNamesByLocale = new Map<string, Intl.DisplayNames>();
+const englishDisplayNames = new Intl.DisplayNames(["en"], { type: "language" });
+const codesByEnglishName = new Map(
+  BROADCAST_LANGUAGES.map((code) => [englishDisplayNames.of(code)?.toLowerCase(), code] as const)
+);
 
-export function getLanguageDisplayName(code: string): string {
-  return displayNames.of(code) || code;
+function getDisplayNames(locale: string): Intl.DisplayNames {
+  const existing = displayNamesByLocale.get(locale);
+  if (existing) return existing;
+  const created = new Intl.DisplayNames([locale], { type: "language" });
+  displayNamesByLocale.set(locale, created);
+  return created;
+}
+
+export function getLanguageDisplayName(language: string, locale = "en"): string {
+  const normalized = language.trim().toLowerCase();
+  const code = normalized.length <= 3 ? normalized : codesByEnglishName.get(normalized);
+  if (!code) return language;
+  return getDisplayNames(locale).of(code) || language;
 }

@@ -33,7 +33,8 @@ const STREAM_CARD_RENDER_STYLE = {
 // Memoize StreamCard to prevent re-renders when grid updates but individual stream hasn't changed
 export const StreamCard = React.memo(
   ({ stream, showCategory = true, isWatching = false }: StreamCardProps) => {
-    const { t } = useTranslation();
+    const { i18n, t } = useTranslation();
+    const locale = i18n.resolvedLanguage ?? i18n.language;
     const PlatformIcon = stream.platform === "twitch" ? TwitchIcon : KickIcon;
     const platformColor = stream.platform === "twitch" ? "text-[#9146FF]" : "text-[#53FC18]";
 
@@ -91,7 +92,7 @@ export const StreamCard = React.memo(
       const tags: string[] = [];
 
       if (stream.language) {
-        tags.push(formatLanguageLabel(stream.language));
+        tags.push(formatLanguageLabel(stream.language, locale));
       }
 
       if (stream.tags && stream.tags.length > 0) {
@@ -116,7 +117,7 @@ export const StreamCard = React.memo(
 
       const maxTags = totalChars > 24 ? 3 : 4;
       return uniqueTags.slice(0, maxTags);
-    }, [stream.language, stream.tags]);
+    }, [locale, stream.language, stream.tags]);
 
     return (
       <Link

@@ -1,24 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { i18n } from "@/i18n";
-import type { settingsEn } from "@/i18n/locales/en/settings";
+import { useTranslation } from "react-i18next";
 import { LuBug, LuCopy, LuFolderOpen } from "react-icons/lu";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { translateSettings } from "@/features/settings/utils/settings-translation";
 
-function translateSettings(
-  key: `settings.${keyof typeof settingsEn.settings}`,
-  options?: Record<string, unknown>
-): string {
-  const translated: string = i18n["t"](key, { defaultValue: String(key) });
-  return options
-    ? Object.entries(options).reduce(
-        (result, [name, value]) => result.replaceAll(`{{${name}}}`, String(value)),
-        translated
-      )
-    : translated;
-}
 const MIN_DESCRIPTION_LENGTH = 10;
 const RECENT_REPORTS_LIMIT = 5;
 
@@ -30,6 +18,7 @@ const RECENT_REPORTS_LIMIT = 5;
  * so attached log content is safe to ship as-is.
  */
 export function BugReportSection() {
+  useTranslation();
   const [description, setDescription] = useState("");
   const [includeMainLog, setIncludeMainLog] = useState(true);
   const [includeNoiseLog, setIncludeNoiseLog] = useState(true);

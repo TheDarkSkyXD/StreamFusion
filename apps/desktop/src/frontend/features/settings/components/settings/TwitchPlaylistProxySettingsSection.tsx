@@ -1,6 +1,5 @@
 import { useCallback, useState, type CSSProperties } from "react";
-import { i18n } from "@/i18n";
-import type { settingsEn } from "@/i18n/locales/en/settings";
+import { useTranslation } from "react-i18next";
 import {
   closestCenter,
   DndContext,
@@ -20,6 +19,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { LuGripVertical, LuPencil, LuPlus, LuRefreshCw, LuTrash2 } from "react-icons/lu";
 
 import { Button } from "@/components/ui/button";
+import { translateSettings } from "@/features/settings/utils/settings-translation";
 import {
   Dialog,
   DialogContent,
@@ -40,18 +40,6 @@ import {
   type TwitchPlaylistProxySource,
 } from "@shared/auth-types";
 
-function translateSettings(
-  key: `settings.${keyof typeof settingsEn.settings}`,
-  options?: Record<string, unknown>
-): string {
-  const translated: string = i18n["t"](key, { defaultValue: String(key) });
-  return options
-    ? Object.entries(options).reduce(
-        (result, [name, value]) => result.replaceAll(`{{${name}}}`, String(value)),
-        translated
-      )
-    : translated;
-}
 interface SourceDraft {
   id: string | null;
   url: string;
@@ -184,6 +172,7 @@ function DeleteSourceDialog({ source, onClose, onConfirm }: DeleteSourceDialogPr
 }
 
 export function TwitchPlaylistProxySettingsSection() {
+  useTranslation();
   const preferences = useAuthStore((state) => state.preferences);
   const updatePreferences = useAuthStore((state) => state.updatePreferences);
   const proxyPreferences =

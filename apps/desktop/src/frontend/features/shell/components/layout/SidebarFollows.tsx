@@ -45,7 +45,7 @@ function getActiveStreamRoute(pathname: string): { platform: string; channel: st
 }
 
 export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   // Use individual selectors to prevent re-renders when unrelated state changes
   const twitchConnected = useAuthStore((state) => state.twitchConnected);
   const kickConnected = useAuthStore((state) => state.kickConnected);
@@ -91,7 +91,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
       });
     }
 
-    const syncedTime = new Intl.DateTimeFormat(undefined, {
+    const syncedTime = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? i18n.language, {
       hour: "numeric",
       minute: "2-digit",
     }).format(new Date(oldestSynced.syncedAt));
@@ -99,7 +99,15 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
       platform: PLATFORM_LABELS[oldestSynced.platform],
       time: syncedTime,
     });
-  }, [connectedPlatforms, followSyncInProgress, followSyncLastSyncedAt, hasConnectedPlatforms, t]);
+  }, [
+    connectedPlatforms,
+    followSyncInProgress,
+    followSyncLastSyncedAt,
+    hasConnectedPlatforms,
+    i18n.language,
+    i18n.resolvedLanguage,
+    t,
+  ]);
 
   const handleSyncFollows = async () => {
     if (!hasConnectedPlatforms || followSyncInProgress) return;

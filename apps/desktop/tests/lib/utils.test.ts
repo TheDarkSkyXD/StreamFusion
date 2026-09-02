@@ -115,6 +115,11 @@ describe("formatLanguageLabel", () => {
     expect(formatLanguageLabel("fr")).toBe("French");
   });
 
+  it("uses the selected locale for codes and English API names", () => {
+    expect(formatLanguageLabel("en", "es")).toBe("inglés");
+    expect(formatLanguageLabel("english", "es")).toBe("inglés");
+  });
+
   it("title-cases full-word inputs (Kick-style)", () => {
     expect(formatLanguageLabel("english")).toBe("English");
     expect(formatLanguageLabel("SPANISH")).toBe("Spanish");

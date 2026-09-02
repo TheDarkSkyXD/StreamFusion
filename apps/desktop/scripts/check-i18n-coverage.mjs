@@ -242,10 +242,15 @@ for (const file of await collectSourceFiles(frontendDirectory)) {
     if (
       extname(file) === ".tsx" &&
       ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression) &&
-      ts.isIdentifier(node.expression.expression) &&
-      node.expression.expression.text === "i18n" &&
-      node.expression.name.text === "t"
+      ((ts.isPropertyAccessExpression(node.expression) &&
+        ts.isIdentifier(node.expression.expression) &&
+        node.expression.expression.text === "i18n" &&
+        node.expression.name.text === "t") ||
+        (ts.isElementAccessExpression(node.expression) &&
+          ts.isIdentifier(node.expression.expression) &&
+          node.expression.expression.text === "i18n" &&
+          ts.isStringLiteral(node.expression.argumentExpression) &&
+          node.expression.argumentExpression.text === "t"))
     ) {
       record(node.expression, "Direct i18n.t call", "nonreactive-translation");
     }

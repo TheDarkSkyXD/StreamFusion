@@ -34,7 +34,8 @@ export function FeaturedStream({
   onActiveIndexChange,
   isAutoRotationEnabled = true,
 }: FeaturedStreamProps) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language;
   const carouselStreams = useMemo(() => {
     const candidates = streams && streams.length > 0 ? streams : stream ? [stream] : [];
     return candidates.slice(0, 10);
@@ -110,7 +111,7 @@ export function FeaturedStream({
       : "bg-[#53FC18] text-black hover:bg-[#3DD912]";
   const tags = [
     activeStream.categoryName,
-    formatLanguageLabel(activeStream.language),
+    formatLanguageLabel(activeStream.language, locale),
     ...activeStream.tags,
   ].filter((tag): tag is string => Boolean(tag));
   const showTags = uniqueTagLabels(tags).slice(0, 2);

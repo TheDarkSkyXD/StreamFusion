@@ -163,15 +163,15 @@ function manualRefreshResultFailed(result: PromiseSettledResult<unknown>) {
   return queryResult.isError === true || queryResult.status === "error";
 }
 
-function formatFollowSyncFreshness(syncedAt: string): string {
-  return new Intl.DateTimeFormat(undefined, {
+function formatFollowSyncFreshness(syncedAt: string, language: string): string {
+  return new Intl.DateTimeFormat(language, {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(syncedAt));
 }
 
 function FollowingSyncStatus({ stamps }: { stamps: readonly FollowSyncStamp[] }) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   if (stamps.length === 0) return null;
 
   return (
@@ -193,7 +193,9 @@ function FollowingSyncStatus({ stamps }: { stamps: readonly FollowSyncStamp[] })
               <span className="sr-only">{t("discovery.following.synced", { label })}</span>
             </dt>
             <dd className="whitespace-nowrap tabular-nums text-[var(--color-foreground)]">
-              <time dateTime={syncedAt}>{formatFollowSyncFreshness(syncedAt)}</time>
+              <time dateTime={syncedAt}>
+                {formatFollowSyncFreshness(syncedAt, i18n.resolvedLanguage ?? i18n.language)}
+              </time>
             </dd>
           </div>
         );

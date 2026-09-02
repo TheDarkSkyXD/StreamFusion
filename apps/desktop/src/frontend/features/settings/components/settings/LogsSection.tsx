@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { i18n } from "@/i18n";
-import type { settingsEn } from "@/i18n/locales/en/settings";
+import { useTranslation } from "react-i18next";
 import {
   LuCopy,
   LuFileText,
@@ -16,31 +15,22 @@ import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useInterval } from "@/hooks/useInterval";
 import { cn } from "@/lib/utils";
+import { translateSettings } from "@/features/settings/utils/settings-translation";
 
-function translateSettings(
-  key: `settings.${keyof typeof settingsEn.settings}`,
-  options?: Record<string, unknown>
-): string {
-  const translated: string = i18n["t"](key, { defaultValue: String(key) });
-  return options
-    ? Object.entries(options).reduce(
-        (result, [name, value]) => result.replaceAll(`{{${name}}}`, String(value)),
-        translated
-      )
-    : translated;
-}
 type LogFile = "main" | "noise" | "network";
 type LogLevel = "all" | "debug" | "info" | "warn" | "error";
 type LogFocus = "all" | "network";
 type LogView = "text" | "table";
 
-const LEVEL_OPTIONS: { value: LogLevel; label: string }[] = [
-  { value: "all", label: i18n["t"]("settings.allLevels") },
-  { value: "debug", label: i18n["t"]("settings.debug") },
-  { value: "info", label: i18n["t"]("settings.info") },
-  { value: "warn", label: i18n["t"]("settings.warn") },
-  { value: "error", label: i18n["t"]("settings.error") },
-];
+function getLevelOptions(): { value: LogLevel; label: string }[] {
+  return [
+    { value: "all", label: translateSettings("settings.allLevels") },
+    { value: "debug", label: translateSettings("settings.debug") },
+    { value: "info", label: translateSettings("settings.info") },
+    { value: "warn", label: translateSettings("settings.warn") },
+    { value: "error", label: translateSettings("settings.error") },
+  ];
+}
 
 const LINES_MIN = 50;
 const LINES_MAX = 2000;
@@ -241,6 +231,8 @@ function statusClassName(status: string, level: LogLevel): string {
  * `useInterval` so the no-raw-timers policy stays happy.
  */
 export function LogsSection() {
+  useTranslation();
+  const levelOptions = getLevelOptions();
   const [file, setFile] = useState<LogFile>("main");
   const [focus, setFocus] = useState<LogFocus>("all");
   const [view, setView] = useState<LogView>("text");
@@ -576,7 +568,7 @@ export function LogsSection() {
               onChange={(e) => setLevel(e.target.value as LogLevel)}
               className="rounded-md border border-[#27272a] bg-[#18181b] px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-500/20"
             >
-              {LEVEL_OPTIONS.map((o) => (
+              {levelOptions.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>

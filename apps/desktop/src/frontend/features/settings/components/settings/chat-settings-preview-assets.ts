@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { translateSettings } from "@/features/settings/utils/settings-translation";
 import type { Emote } from "@backend/services/emotes/emote-types";
 import type { ChatCosmeticBadge, ChatCosmeticProvider } from "@shared/chat-types";
 
@@ -53,21 +53,28 @@ const badgeArtwork: Record<ChatCosmeticProvider, string> = {
   ffz: '<path d="m32 7 8 13 15-2-6 14 8 12-15 2-10 11-10-11-15-2 8-12-6-14 15 2 8-13Z" fill="#f59e0b"/><path d="m21 27 7 4-7 4v-8Zm22 0v8l-7-4 7-4Zm-15 13h8" fill="#fff7e6" stroke="#fff7e6" stroke-width="3" stroke-linecap="round"/>',
 };
 
-export const CHAT_PREVIEW_FALLBACK_BADGES: Record<ChatCosmeticProvider, ChatCosmeticBadge> =
-  Object.fromEntries(
+export function getChatPreviewFallbackBadges(
+  language: string
+): Record<ChatCosmeticProvider, ChatCosmeticBadge> {
+  return Object.fromEntries(
     (Object.keys(badgeArtwork) as ChatCosmeticProvider[]).map((provider) => [
       provider,
       {
         id: `settings-preview-${provider}`,
         provider,
         providerId: `settings-preview-${provider}`,
-        title: i18n["t"]("settings.valueProfileBadge", {
-          value1: provider === "7tv" ? "7TV" : provider === "bttv" ? "BetterTTV" : "FrankerFaceZ",
-        }),
+        title: translateSettings(
+          "settings.valueProfileBadge",
+          {
+            value1: provider === "7tv" ? "7TV" : provider === "bttv" ? "BetterTTV" : "FrankerFaceZ",
+          },
+          language
+        ),
         imageUrl: svgDataUrl(badgeArtwork[provider]),
       },
     ])
   ) as Record<ChatCosmeticProvider, ChatCosmeticBadge>;
+}
 
 export const CHAT_PREVIEW_OVERLAY_EMOTE_URL = svgDataUrl(
   '<path d="m32 5 6 18 19-4-13 14 13 14-19-4-6 18-6-18-19 4 13-14L7 19l19 4 6-18Z" fill="#facc15"/><circle cx="32" cy="33" r="8" fill="#fff7c2"/><circle cx="29" cy="31" r="1.5" fill="#5b4210"/><circle cx="35" cy="31" r="1.5" fill="#5b4210"/><path d="M28 36c3 2 5 2 8 0" fill="none" stroke="#5b4210" stroke-width="2" stroke-linecap="round"/>'

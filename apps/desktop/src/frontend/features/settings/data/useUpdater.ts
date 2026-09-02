@@ -1,5 +1,5 @@
-import { i18n } from "@/i18n";
 import { useCallback, useEffect } from "react";
+import { translateSettings } from "@/features/settings/utils/settings-translation";
 import { logger } from "@/renderer/logging/logger";
 import type {
   CheckFrequency,
@@ -112,7 +112,7 @@ export function useUpdater(): UseUpdaterReturn {
       setError(
         err instanceof Error
           ? err.message
-          : i18n["t"]("settings.failedToCheckForUpdates", {
+          : translateSettings("settings.failedToCheckForUpdates", {
               defaultValue: "Failed to check for updates",
             })
       );
@@ -134,7 +134,7 @@ export function useUpdater(): UseUpdaterReturn {
       setError(
         err instanceof Error
           ? err.message
-          : i18n["t"]("settings.failedToDownloadUpdate", {
+          : translateSettings("settings.failedToDownloadUpdate", {
               defaultValue: "Failed to download update",
             })
       );
@@ -152,7 +152,7 @@ export function useUpdater(): UseUpdaterReturn {
       setError(
         err instanceof Error
           ? err.message
-          : i18n["t"]("settings.failedToInstallUpdate", {
+          : translateSettings("settings.failedToInstallUpdate", {
               defaultValue: "Failed to install update",
             })
       );

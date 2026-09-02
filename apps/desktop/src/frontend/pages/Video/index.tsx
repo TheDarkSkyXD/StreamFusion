@@ -52,32 +52,34 @@ function formatViews(views: number | string): string {
   return num.toString();
 }
 
-function formatRelativeDate(dateString: string): string {
+function formatRelativeDate(dateString: string, language: string): string {
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-  if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
-  return `${Math.floor(diffDays / 365)} years ago`;
+  const formatter = new Intl.RelativeTimeFormat(language, { numeric: "auto" });
+  if (diffDays < 7) return formatter.format(-diffDays, "day");
+  if (diffDays < 30) return formatter.format(-Math.floor(diffDays / 7), "week");
+  if (diffDays < 365) return formatter.format(-Math.floor(diffDays / 30), "month");
+  return formatter.format(-Math.floor(diffDays / 365), "year");
 }
 
-const englishLanguageNames = new Intl.DisplayNames(["en"], { type: "language" });
-
-function formatLanguage(language: string): string {
+function formatLanguage(language: string, displayNames: Intl.DisplayNames): string {
   try {
-    return englishLanguageNames.of(language) || language;
+    return displayNames.of(language) || language;
   } catch {
     return language;
   }
 }
 
 export function VideoPage() {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language;
+  const languageDisplayNames = useMemo(
+    () => new Intl.DisplayNames([locale], { type: "language" }),
+    [locale]
+  );
   const { platform, videoId } = useParams({ from: "/_app/video/$platform/$videoId" });
   const routePlatform = requirePlatform(platform);
   const searchParams = useSearch({ from: "/_app/video/$platform/$videoId" });
@@ -508,9 +510,9 @@ export function VideoPage() {
       : null;
   const hasDate = videoMetadata ? true : Boolean(passedDate);
   const date = videoMetadata
-    ? formatRelativeDate(videoMetadata.createdAt)
+    ? formatRelativeDate(videoMetadata.createdAt, locale)
     : passedDate
-      ? formatRelativeDate(passedDate)
+      ? formatRelativeDate(passedDate, locale)
       : null;
   const category = videoMetadata?.category || passedCategory;
   const categoryId = passedCategoryId || category;
@@ -763,7 +765,7 @@ export function VideoPage() {
                     {/* Language Tag */}
                     {displayLanguage && (
                       <span className="text-xs px-3 py-1 rounded-full font-medium bg-[#4a4d55] text-[#efeff1] hover:bg-[#5a5d66] transition-colors cursor-default">
-                        {formatLanguage(displayLanguage)}
+                        {formatLanguage(displayLanguage, languageDisplayNames)}
                       </span>
                     )}
                     {/* Mature Content Tag */}

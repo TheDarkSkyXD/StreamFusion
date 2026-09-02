@@ -1,6 +1,5 @@
 import { type ComponentType, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { i18n } from "@/i18n";
-import type { settingsEn } from "@/i18n/locales/en/settings";
+import { useTranslation } from "react-i18next";
 import {
   LuActivity,
   LuBug,
@@ -24,6 +23,7 @@ import { LogsSection } from "@/features/settings/components/settings/LogsSection
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDiagnosticsWorkspace } from "@/features/settings/data/use-diagnostics-workspace";
+import { translateSettings } from "@/features/settings/utils/settings-translation";
 import { cn } from "@/lib/utils";
 import type {
   DiagnosticSourceStatus,
@@ -40,51 +40,51 @@ import {
   resourceHistoryBarHeight,
 } from "./diagnostics-resource-history";
 
-function translateSettings(
-  key: `settings.${keyof typeof settingsEn.settings}`,
-  options?: Record<string, unknown>
-): string {
-  const translated: string = i18n["t"](key, { defaultValue: String(key) });
-  return options
-    ? Object.entries(options).reduce(
-        (result, [name, value]) => result.replaceAll(`{{${name}}}`, String(value)),
-        translated
-      )
-    : translated;
-}
-const TABS: ReadonlyArray<{
+function getTabs(): ReadonlyArray<{
   id: DiagnosticsTab;
   label: string;
   icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   color: string;
-}> = [
-  {
-    id: "overview",
-    label: i18n["t"]("settings.overview"),
-    icon: LuGauge,
-    color: "text-emerald-400",
-  },
-  {
-    id: "resources",
-    label: i18n["t"]("settings.resources"),
-    icon: LuActivity,
-    color: "text-cyan-300",
-  },
-  { id: "io", label: i18n["t"]("settings.iO"), icon: LuDatabase, color: "text-emerald-200" },
-  { id: "traces", label: i18n["t"]("settings.traces"), icon: LuWorkflow, color: "text-sky-300" },
-  {
-    id: "logs-reports",
-    label: i18n["t"]("settings.logsReports"),
-    icon: LuFileText,
-    color: "text-emerald-400",
-  },
-  {
-    id: "developer-tools",
-    label: i18n["t"]("settings.developerTools"),
-    icon: LuBug,
-    color: "text-red-400",
-  },
-];
+}> {
+  return [
+    {
+      id: "overview",
+      label: translateSettings("settings.overview"),
+      icon: LuGauge,
+      color: "text-emerald-400",
+    },
+    {
+      id: "resources",
+      label: translateSettings("settings.resources"),
+      icon: LuActivity,
+      color: "text-cyan-300",
+    },
+    {
+      id: "io",
+      label: translateSettings("settings.iO"),
+      icon: LuDatabase,
+      color: "text-emerald-200",
+    },
+    {
+      id: "traces",
+      label: translateSettings("settings.traces"),
+      icon: LuWorkflow,
+      color: "text-sky-300",
+    },
+    {
+      id: "logs-reports",
+      label: translateSettings("settings.logsReports"),
+      icon: LuFileText,
+      color: "text-emerald-400",
+    },
+    {
+      id: "developer-tools",
+      label: translateSettings("settings.developerTools"),
+      icon: LuBug,
+      color: "text-red-400",
+    },
+  ];
+}
 
 const WINDOWS: readonly DiagnosticsWindowMinutes[] = [5, 15, 30, 60];
 
@@ -361,9 +361,15 @@ function aggregateProcessMetrics(
   const write = rows.reduce((total, row) => total + (row.writeBytesPerSecond ?? 0), 0);
   return [
     { label: "CPU", value: `${cpu.toFixed(1)}%` },
-    { label: i18n["t"]("settings.memory"), value: formatBytes(memory) },
-    { label: i18n["t"]("settings.read"), value: hasReadRate ? formatRate(read) : ioPlaceholder },
-    { label: i18n["t"]("settings.write"), value: hasWriteRate ? formatRate(write) : ioPlaceholder },
+    { label: translateSettings("settings.memory"), value: formatBytes(memory) },
+    {
+      label: translateSettings("settings.read"),
+      value: hasReadRate ? formatRate(read) : ioPlaceholder,
+    },
+    {
+      label: translateSettings("settings.write"),
+      value: hasWriteRate ? formatRate(write) : ioPlaceholder,
+    },
   ];
 }
 
@@ -902,14 +908,14 @@ function ResourcesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
                 value: valueText(footprint.collectorCpuPercent, (value) => `${value.toFixed(2)}%`),
               },
               {
-                label: i18n["t"]("settings.collection"),
+                label: translateSettings("settings.collection"),
                 value: valueText(footprint.collectionDurationMs, formatDuration),
               },
               {
-                label: i18n["t"]("settings.retainedState"),
+                label: translateSettings("settings.retainedState"),
                 value: valueText(footprint.collectorResidentBytes, formatBytes),
               },
-              { label: i18n["t"]("settings.iO"), value: "Included in main" },
+              { label: translateSettings("settings.iO"), value: "Included in main" },
             ]}
           />
         </div>
@@ -1512,6 +1518,8 @@ export function DiagnosticsWorkspace({
 }: {
   readonly onSectionChange: () => void;
 }) {
+  useTranslation();
+  const tabs = getTabs();
   const [activeTab, setActiveTab] = useState<DiagnosticsTab>("overview");
   const previousTabRef = useRef(activeTab);
   const [windowsByTab, setWindowsByTab] =
@@ -1572,7 +1580,7 @@ export function DiagnosticsWorkspace({
           aria-label={translateSettings("settings.diagnosticsSections")}
         >
           <div className="flex min-w-max px-2">
-            {TABS.map((tab) => {
+            {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
                 <button

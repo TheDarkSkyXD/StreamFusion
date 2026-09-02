@@ -12,6 +12,7 @@ import {
 } from "@shared/auth-types";
 import { HOME_CAROUSEL_INTERVAL_DEFAULT_MS, useAppStore } from "@/store/app-store";
 import { useFollowStore } from "@/store/follow-store";
+import { i18n } from "@/i18n";
 
 import {
   installElectronAPIMock,
@@ -1050,5 +1051,20 @@ describe("SettingsPage display language", () => {
     await user.click(screen.getByRole("option", { name: "Español (Spanish)" }));
 
     expect(updatePreferences).toHaveBeenCalledWith({ language: "es" });
+  });
+
+  it("updates already-mounted settings metadata when the display language changes", async () => {
+    renderWithProviders(<SettingsPage />);
+    expect(screen.getByRole("button", { name: "Viewing settings section" })).toBeInTheDocument();
+
+    await i18n.changeLanguage("es");
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Sección de ajustes de Visualización" })
+      ).toBeInTheDocument();
+    });
+
+    await i18n.changeLanguage("en");
   });
 });

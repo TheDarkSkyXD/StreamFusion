@@ -1,6 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { i18n } from "@/i18n";
-import type { settingsEn } from "@/i18n/locales/en/settings";
+import { useTranslation } from "react-i18next";
 
 import type { Emote } from "@backend/services/emotes/emote-types";
 import {
@@ -19,6 +18,7 @@ import {
 } from "@/features/chat/utils/chat-visuals";
 import { getChatDensityPresentation } from "@/features/chat/utils/chat-density-presentation";
 import { notifySettingsSaved } from "@/features/settings/utils/settings-toast";
+import { translateSettings } from "@/features/settings/utils/settings-translation";
 import { useChatDisplay } from "@/features/settings/data/use-chat-display";
 import { cn } from "@/lib/utils";
 import {
@@ -33,9 +33,9 @@ import { useAuthStore } from "@/store/auth-store";
 import { useChatCosmeticsStore } from "@/store/chat-cosmetics-store";
 import { useEmoteStore } from "@/store/emote-store";
 import {
-  CHAT_PREVIEW_FALLBACK_BADGES,
   CHAT_PREVIEW_FALLBACK_EMOTES,
   CHAT_PREVIEW_OVERLAY_EMOTE_URL,
+  getChatPreviewFallbackBadges,
 } from "./chat-settings-preview-assets";
 
 /**
@@ -49,18 +49,6 @@ import {
  * `notifySettingsSaved`), shared with the rest of the Settings page.
  */
 
-function translateSettings(
-  key: `settings.${keyof typeof settingsEn.settings}`,
-  options?: Record<string, unknown>
-): string {
-  const translated: string = i18n["t"](key, { defaultValue: String(key) });
-  return options
-    ? Object.entries(options).reduce(
-        (result, [name, value]) => result.replaceAll(`{{${name}}}`, String(value)),
-        translated
-      )
-    : translated;
-}
 export type ChatSettingsGroup = "appearance" | "emotes" | "events" | "behavior";
 
 // ───────────────────────────── row primitives ─────────────────────────────
@@ -508,6 +496,8 @@ function AppearancePreview({ cd }: { cd: ChatDisplayPreferences }) {
 }
 
 function EmotesPreview({ cd }: { cd: ChatDisplayPreferences }) {
+  const { i18n: translation } = useTranslation();
+  const translationLanguage = translation.resolvedLanguage ?? translation.language;
   useEmoteStore((state) => state.emoteRevision);
   useEmoteStore((state) => state.activeChannelId);
   const badgeDefinitions = useChatCosmeticsStore((state) => state.badgeDefinitions);
@@ -519,13 +509,13 @@ function EmotesPreview({ cd }: { cd: ChatDisplayPreferences }) {
   };
   const providerBadges = useMemo(() => {
     const loaded = [...badgeDefinitions.values()];
+    const fallbackBadges = getChatPreviewFallbackBadges(translationLanguage);
     return {
-      "7tv":
-        loaded.find((badge) => badge.provider === "7tv") ?? CHAT_PREVIEW_FALLBACK_BADGES["7tv"],
-      bttv: loaded.find((badge) => badge.provider === "bttv") ?? CHAT_PREVIEW_FALLBACK_BADGES.bttv,
-      ffz: loaded.find((badge) => badge.provider === "ffz") ?? CHAT_PREVIEW_FALLBACK_BADGES.ffz,
+      "7tv": loaded.find((badge) => badge.provider === "7tv") ?? fallbackBadges["7tv"],
+      bttv: loaded.find((badge) => badge.provider === "bttv") ?? fallbackBadges.bttv,
+      ffz: loaded.find((badge) => badge.provider === "ffz") ?? fallbackBadges.ffz,
     };
-  }, [badgeDefinitions]);
+  }, [badgeDefinitions, translationLanguage]);
   const fallbackColor = resolveChatUsernameColor({
     color: "#9146ff",
     platform: "twitch",
@@ -700,6 +690,7 @@ export function ChatSettingsSection({
   only?: ChatSettingsGroup[];
   className?: string;
 }) {
+  useTranslation();
   const show = (g: ChatSettingsGroup) => !only || only.includes(g);
 
   return (
@@ -740,14 +731,14 @@ function AppearanceGroup() {
         label="Timestamp format"
         value={cd.timestampFormat}
         options={[
-          { value: "H:mm", label: i18n["t"]("settings.value24Hour905") },
-          { value: "HH:mm", label: i18n["t"]("settings.value24Hour0905") },
-          { value: "H:mm:ss", label: i18n["t"]("settings.value24Hour90507") },
-          { value: "HH:mm:ss", label: i18n["t"]("settings.value24Hour090507") },
-          { value: "h:mm a", label: i18n["t"]("settings.value12Hour905Am") },
-          { value: "hh:mm a", label: i18n["t"]("settings.value12Hour0905Am") },
-          { value: "h:mm:ss a", label: i18n["t"]("settings.value12Hour90507Am") },
-          { value: "hh:mm:ss a", label: i18n["t"]("settings.value12Hour090507Am") },
+          { value: "H:mm", label: translateSettings("settings.value24Hour905") },
+          { value: "HH:mm", label: translateSettings("settings.value24Hour0905") },
+          { value: "H:mm:ss", label: translateSettings("settings.value24Hour90507") },
+          { value: "HH:mm:ss", label: translateSettings("settings.value24Hour090507") },
+          { value: "h:mm a", label: translateSettings("settings.value12Hour905Am") },
+          { value: "hh:mm a", label: translateSettings("settings.value12Hour0905Am") },
+          { value: "h:mm:ss a", label: translateSettings("settings.value12Hour90507Am") },
+          { value: "hh:mm:ss a", label: translateSettings("settings.value12Hour090507Am") },
         ]}
         onChange={(v) => set("timestampFormat", v)}
       />
@@ -771,9 +762,9 @@ function AppearanceGroup() {
         label="Density"
         value={cd.density}
         options={[
-          { value: "compact", label: i18n["t"]("settings.tight") },
-          { value: "cozy", label: i18n["t"]("settings.medium") },
-          { value: "loose", label: i18n["t"]("settings.loose") },
+          { value: "compact", label: translateSettings("settings.tight") },
+          { value: "cozy", label: translateSettings("settings.medium") },
+          { value: "loose", label: translateSettings("settings.loose") },
         ]}
         onChange={(v) => set("density", v)}
       />
@@ -995,10 +986,10 @@ function EventsGroup() {
         description="Choose how much retained deleted-message detail appears in chat."
         value={cd.deletedMessageDisplay}
         options={[
-          { value: "tombstone", label: i18n["t"]("settings.tombstoneOnly") },
-          { value: "message", label: i18n["t"]("settings.messageContentOnly") },
-          { value: "compact", label: i18n["t"]("settings.fullCompactDetailRecommended") },
-          { value: "audit", label: i18n["t"]("settings.auditStyleDetail") },
+          { value: "tombstone", label: translateSettings("settings.tombstoneOnly") },
+          { value: "message", label: translateSettings("settings.messageContentOnly") },
+          { value: "compact", label: translateSettings("settings.fullCompactDetailRecommended") },
+          { value: "audit", label: translateSettings("settings.auditStyleDetail") },
         ]}
         onChange={(v) => set("deletedMessageDisplay", v)}
       />

@@ -35,14 +35,16 @@ export function CategoryFilterBar({
   showViewerSort = true,
   compact = false,
 }: Props) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language;
   const [tagInput, setTagInput] = useState(tagQuery);
   const languageOptions = useMemo(
     () =>
-      BROADCAST_LANGUAGES.map((code) => ({ code, name: getLanguageDisplayName(code) })).sort(
-        (a, b) => a.name.localeCompare(b.name)
-      ),
-    []
+      BROADCAST_LANGUAGES.map((code) => ({
+        code,
+        name: getLanguageDisplayName(code, locale),
+      })).sort((a, b) => a.name.localeCompare(b.name)),
+    [locale]
   );
 
   useEffect(() => {

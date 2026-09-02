@@ -64,6 +64,7 @@ import {
   setPerChannelNotificationPreference,
 } from "@/features/auth/utils/live-notification-preferences";
 import { notifySettingsSaved } from "@/features/settings/utils/settings-toast";
+import { translateSettings } from "@/features/settings/utils/settings-translation";
 import { cn } from "@/lib/utils";
 import type { Platform } from "@shared/auth-types";
 import {
@@ -84,8 +85,7 @@ import {
 } from "@shared/auth-types";
 import type { CheckFrequency, TokenStatusResult } from "@shared/ipc-channels";
 import { useAdBlockStore } from "@/store/adblock-store";
-import { i18n, resolveDisplayLanguage } from "@/i18n";
-import type { settingsEn } from "@/i18n/locales/en/settings";
+import { resolveDisplayLanguage } from "@/i18n";
 import {
   HOME_CAROUSEL_INTERVAL_MAX_MS,
   HOME_CAROUSEL_INTERVAL_MIN_MS,
@@ -100,18 +100,6 @@ import {
 } from "@/features/multistream/data/multistream-store";
 import { useSeekIntervalStore } from "@/store/seek-interval-store";
 
-function translateSettings(
-  key: `settings.${keyof typeof settingsEn.settings}`,
-  options?: Record<string, unknown>
-): string {
-  const translated: string = i18n["t"](key, { defaultValue: String(key) });
-  return options
-    ? Object.entries(options).reduce(
-        (result, [name, value]) => result.replaceAll(`{{${name}}}`, String(value)),
-        translated
-      )
-    : translated;
-}
 const DiagnosticsWorkspace = lazy(() =>
   import("./diagnostics/DiagnosticsWorkspace").then((module) => ({
     default: module.DiagnosticsWorkspace,
@@ -220,7 +208,7 @@ function SeekIntervalSelect({ id, descriptionId, value, onChange }: SeekInterval
 
 // Numeric buffer controls surfaced in Settings → Buffer (U10). Each maps to one
 // BufferPreferences number field; ranges keep values in HLS.js-sane bounds.
-const BUFFER_RANGE_CONTROLS: {
+function getBufferRangeControls(): {
   field: Exclude<keyof BufferPreferences, "lowLatencyMode">;
   label: string;
   description: string;
@@ -228,262 +216,288 @@ const BUFFER_RANGE_CONTROLS: {
   max: number;
   step: number;
   unit: string;
-}[] = [
-  {
-    field: "liveSyncDurationCount",
-    label: i18n["t"]("settings.targetLiveLatency"),
-    description: i18n["t"]("settings.segmentsFromTheLiveEdgeLowerStaysCloserToLiveButIsLessStable"),
-    min: 1,
-    max: 10,
-    step: 1,
-    unit: "seg",
-  },
-  {
-    field: "maxBufferLengthSec",
-    label: i18n["t"]("settings.forwardBuffer"),
-    description: i18n["t"]("settings.secondsOfVideoBufferedAheadHigherResistsStallsButAddsLatency"),
-    min: 5,
-    max: 60,
-    step: 1,
-    unit: "s",
-  },
-  {
-    field: "maxMaxBufferLengthSec",
-    label: i18n["t"]("settings.maxBuffer"),
-    description: i18n["t"]("settings.hardCapOnBufferedSecondsTheByteBudgetScalesWithThisValue"),
-    min: 10,
-    max: 120,
-    step: 5,
-    unit: "s",
-  },
-];
+}[] {
+  return [
+    {
+      field: "liveSyncDurationCount",
+      label: translateSettings("settings.targetLiveLatency"),
+      description: translateSettings(
+        "settings.segmentsFromTheLiveEdgeLowerStaysCloserToLiveButIsLessStable"
+      ),
+      min: 1,
+      max: 10,
+      step: 1,
+      unit: "seg",
+    },
+    {
+      field: "maxBufferLengthSec",
+      label: translateSettings("settings.forwardBuffer"),
+      description: translateSettings(
+        "settings.secondsOfVideoBufferedAheadHigherResistsStallsButAddsLatency"
+      ),
+      min: 5,
+      max: 60,
+      step: 1,
+      unit: "s",
+    },
+    {
+      field: "maxMaxBufferLengthSec",
+      label: translateSettings("settings.maxBuffer"),
+      description: translateSettings(
+        "settings.hardCapOnBufferedSecondsTheByteBudgetScalesWithThisValue"
+      ),
+      min: 10,
+      max: 120,
+      step: 5,
+      unit: "s",
+    },
+  ];
+}
 
 // Player-control visibility toggles surfaced in the Settings → Player controls tab (U9).
 // Covers only the controls that actually render in the UI (wired in U8). Picture-in-Picture
 // is intentionally omitted: no PiP control renders today, so a toggle would be a dead control
 // (the `showPictureInPicture` pref field still exists, just unsurfaced here).
-const PLAYER_CONTROL_TOGGLES: {
+function getPlayerControlToggles(): {
   field: Exclude<keyof PlayerControlsPreferences, "showPictureInPicture">;
   label: string;
   description?: string;
-}[] = [
-  {
-    field: "showQuality",
-    label: i18n["t"]("settings.quality"),
-    description: i18n["t"]("settings.streamQualitySelectorMenuItem"),
-  },
-  {
-    field: "showPlaybackSpeed",
-    label: i18n["t"]("settings.playbackSpeed"),
-    description: i18n["t"]("settings.speedSelectorVodPlayback"),
-  },
-  {
-    field: "showVolume",
-    label: i18n["t"]("settings.volume"),
-    description: i18n["t"]("settings.volumeSliderAndMuteButton"),
-  },
-  {
-    field: "showFullscreen",
-    label: i18n["t"]("settings.fullscreen"),
-    description: i18n["t"]("settings.fullscreenToggleButton"),
-  },
-  {
-    field: "showTheater",
-    label: i18n["t"]("settings.theater"),
-    description: i18n["t"]("settings.theaterModeToggleButton"),
-  },
-  {
-    field: "showVideoStats",
-    label: i18n["t"]("settings.videoStats"),
-    description: i18n["t"]("settings.liveVideoStatsOverlay"),
-  },
-];
+}[] {
+  return [
+    {
+      field: "showQuality",
+      label: translateSettings("settings.quality"),
+      description: translateSettings("settings.streamQualitySelectorMenuItem"),
+    },
+    {
+      field: "showPlaybackSpeed",
+      label: translateSettings("settings.playbackSpeed"),
+      description: translateSettings("settings.speedSelectorVodPlayback"),
+    },
+    {
+      field: "showVolume",
+      label: translateSettings("settings.volume"),
+      description: translateSettings("settings.volumeSliderAndMuteButton"),
+    },
+    {
+      field: "showFullscreen",
+      label: translateSettings("settings.fullscreen"),
+      description: translateSettings("settings.fullscreenToggleButton"),
+    },
+    {
+      field: "showTheater",
+      label: translateSettings("settings.theater"),
+      description: translateSettings("settings.theaterModeToggleButton"),
+    },
+    {
+      field: "showVideoStats",
+      label: translateSettings("settings.videoStats"),
+      description: translateSettings("settings.liveVideoStatsOverlay"),
+    },
+  ];
+}
 
 // Player-type options for the advanced stream-token control (U13). "default" is
 // the behavior-neutral sentinel; the rest are the ad-block `PlayerType` union.
-const PLAYBACK_ADVANCED_PLAYER_TYPES: { value: PlaybackAdvancedPlayerType; label: string }[] = [
-  { value: "default", label: i18n["t"]("settings.defaultRecommended") },
-  { value: "site", label: i18n["t"]("settings.site") },
-  { value: "embed", label: i18n["t"]("settings.embed") },
-  { value: "popout", label: i18n["t"]("settings.popout") },
-  { value: "autoplay", label: i18n["t"]("settings.autoplay") },
-  { value: "picture-by-picture", label: i18n["t"]("settings.pictureByPicture") },
-  { value: "thunderdome", label: i18n["t"]("settings.thunderdome") },
-];
+function getPlaybackAdvancedPlayerTypes(): {
+  value: PlaybackAdvancedPlayerType;
+  label: string;
+}[] {
+  return [
+    { value: "default", label: translateSettings("settings.defaultRecommended") },
+    { value: "site", label: translateSettings("settings.site") },
+    { value: "embed", label: translateSettings("settings.embed") },
+    { value: "popout", label: translateSettings("settings.popout") },
+    { value: "autoplay", label: translateSettings("settings.autoplay") },
+    { value: "picture-by-picture", label: translateSettings("settings.pictureByPicture") },
+    { value: "thunderdome", label: translateSettings("settings.thunderdome") },
+  ];
+}
 
-const NOTIFICATION_TOGGLES: {
+function getNotificationToggles(): {
   field: Exclude<
     keyof NotificationPreferences,
     "restartGracePeriodMinutes" | "perChannelNotifications"
   >;
   label: string;
   description: string;
-}[] = [
-  {
-    field: "enabled",
-    label: i18n["t"]("settings.desktopNotifications"),
-    description: i18n["t"]("settings.showNativeOsNotificationsWhenFollowedStreamsGoLive"),
-  },
-  {
-    field: "liveAlerts",
-    label: i18n["t"]("settings.liveNotifications"),
-    description: i18n["t"]("settings.keepLiveStreamAlertsInTheAppNotificationHistory"),
-  },
-  {
-    field: "twitch",
-    label: "Twitch",
-    description: i18n["t"]("settings.allowLiveNotificationsFromTwitch"),
-  },
-  {
-    field: "kick",
-    label: "Kick",
-    description: i18n["t"]("settings.allowLiveNotificationsFromKick"),
-  },
-  {
-    field: "guestFollows",
-    label: i18n["t"]("settings.guestFollowNotifications"),
-    description: i18n["t"]("settings.notifyForChannelsFollowedWhileSignedOut"),
-  },
-  {
-    field: "toastAlerts",
-    label: i18n["t"]("settings.toastNotifications"),
-    description: i18n["t"]("settings.showInAppToastBannersWhenFollowedStreamsGoLive"),
-  },
-  {
-    field: "sound",
-    label: i18n["t"]("settings.sound"),
-    description: i18n["t"]("settings.playANotificationSound"),
-  },
-  {
-    field: "favoriteChannelsOnly",
-    label: i18n["t"]("settings.favoritesOnly"),
-    description: i18n["t"](
-      "settings.onlyNotifyForFollowedChannelsWithPerChannelNotificationsEnabled"
-    ),
-  },
-];
+}[] {
+  return [
+    {
+      field: "enabled",
+      label: translateSettings("settings.desktopNotifications"),
+      description: translateSettings("settings.showNativeOsNotificationsWhenFollowedStreamsGoLive"),
+    },
+    {
+      field: "liveAlerts",
+      label: translateSettings("settings.liveNotifications"),
+      description: translateSettings("settings.keepLiveStreamAlertsInTheAppNotificationHistory"),
+    },
+    {
+      field: "twitch",
+      label: "Twitch",
+      description: translateSettings("settings.allowLiveNotificationsFromTwitch"),
+    },
+    {
+      field: "kick",
+      label: "Kick",
+      description: translateSettings("settings.allowLiveNotificationsFromKick"),
+    },
+    {
+      field: "guestFollows",
+      label: translateSettings("settings.guestFollowNotifications"),
+      description: translateSettings("settings.notifyForChannelsFollowedWhileSignedOut"),
+    },
+    {
+      field: "toastAlerts",
+      label: translateSettings("settings.toastNotifications"),
+      description: translateSettings("settings.showInAppToastBannersWhenFollowedStreamsGoLive"),
+    },
+    {
+      field: "sound",
+      label: translateSettings("settings.sound"),
+      description: translateSettings("settings.playANotificationSound"),
+    },
+    {
+      field: "favoriteChannelsOnly",
+      label: translateSettings("settings.favoritesOnly"),
+      description: translateSettings(
+        "settings.onlyNotifyForFollowedChannelsWithPerChannelNotificationsEnabled"
+      ),
+    },
+  ];
+}
 
-const RESTART_GRACE_OPTIONS: {
+function getRestartGraceOptions(): {
   value: NotificationPreferences["restartGracePeriodMinutes"];
   label: string;
-}[] = [
-  { value: 0, label: i18n["t"]("settings.off") },
-  { value: 5, label: i18n["t"]("settings.value5Minutes") },
-  { value: 15, label: i18n["t"]("settings.value15Minutes") },
-  { value: 30, label: i18n["t"]("settings.value30Minutes") },
-];
+}[] {
+  return [
+    { value: 0, label: translateSettings("settings.off") },
+    { value: 5, label: translateSettings("settings.value5Minutes") },
+    { value: 15, label: translateSettings("settings.value15Minutes") },
+    { value: 30, label: translateSettings("settings.value30Minutes") },
+  ];
+}
 
 // Per-tab metadata (sidebar label, description, icon). Single source of truth
 // for the sidebar render + the settings-search haystack, so adding a tab only
 // needs editing in one place.
 type TabKey = (typeof SETTINGS_TABS)[number];
-const TAB_META: Record<TabKey, { label: string; description: string; icon: typeof LuMonitor }> = {
-  general: {
-    label: i18n["t"]("settings.general2"),
-    description: i18n["t"]("settings.languageAndAppPreferences"),
-    icon: LuSlidersHorizontal,
-  },
-  playback: {
-    label: i18n["t"]("settings.playback"),
-    description: i18n["t"]("settings.streamQualityPreferences"),
-    icon: LuMonitor,
-  },
-  notifications: {
-    label: i18n["t"]("settings.notifications"),
-    description: i18n["t"]("settings.liveAlertsDesktopNotices"),
-    icon: LuBell,
-  },
-  "player-controls": {
-    label: i18n["t"]("settings.playerControls"),
-    description: i18n["t"]("settings.showOrHidePlayerButtons"),
-    icon: LuSlidersHorizontal,
-  },
-  buffer: {
-    label: i18n["t"]("settings.buffer"),
-    description: i18n["t"]("settings.liveLatencyStability"),
-    icon: LuGauge,
-  },
-  multiview: {
-    label: i18n["t"]("settings.multiview"),
-    description: i18n["t"]("settings.slotCountMemoryTradeOff"),
-    icon: LuLayoutGrid,
-  },
-  chat: {
-    label: i18n["t"]("settings.chat"),
-    description: i18n["t"]("settings.appearanceEmotesEvents"),
-    icon: LuMessageSquare,
-  },
-  adblock: {
-    label: i18n["t"]("settings.adBlock"),
-    description: i18n["t"]("settings.twitchAdBlockingSettings"),
-    icon: LuShieldCheck,
-  },
-  proxy: {
-    label: i18n["t"]("settings.proxy"),
-    description: i18n["t"]("settings.proxyDefaultSessionChromiumRequests"),
-    icon: LuNetwork,
-  },
-  predictions: {
-    label: i18n["t"]("settings.predictions"),
-    description: i18n["t"]("settings.chatPredictionWidgetStyle"),
-    icon: LuTrophy,
-  },
-  integrations: {
-    label: i18n["t"]("settings.integrations"),
-    description: i18n["t"]("settings.connectedAccountsApis"),
-    icon: LuLink,
-  },
-  "api-tokens": {
-    label: i18n["t"]("settings.apiTokens"),
-    description: i18n["t"]("settings.signInTokenStatus"),
-    icon: LuKeyRound,
-  },
-  updates: {
-    label: i18n["t"]("settings.updates"),
-    description: i18n["t"]("settings.autoUpdatePreferences"),
-    icon: LuRefreshCw,
-  },
-  diagnostics: {
-    label: i18n["t"]("settings.diagnostics"),
-    description: i18n["t"]("settings.inspectLivePerformanceProcessesTracesAndLogs"),
-    icon: LuActivity,
-  },
-  logs: {
-    label: i18n["t"]("settings.logs"),
-    description: i18n["t"]("settings.inAppLogViewerDiagnostics"),
-    icon: LuFileText,
-  },
-  "report-bug": {
-    label: i18n["t"]("settings.reportBug"),
-    description: i18n["t"]("settings.captureABugReportForSharing"),
-    icon: LuBug,
-  },
-  about: {
-    label: i18n["t"]("settings.about"),
-    description: i18n["t"]("settings.versionInfo"),
-    icon: LuCircleHelp,
-  },
-};
+function getTabMeta(): Record<
+  TabKey,
+  { label: string; description: string; icon: typeof LuMonitor }
+> {
+  return {
+    general: {
+      label: translateSettings("settings.general2"),
+      description: translateSettings("settings.languageAndAppPreferences"),
+      icon: LuSlidersHorizontal,
+    },
+    playback: {
+      label: translateSettings("settings.playback"),
+      description: translateSettings("settings.streamQualityPreferences"),
+      icon: LuMonitor,
+    },
+    notifications: {
+      label: translateSettings("settings.notifications"),
+      description: translateSettings("settings.liveAlertsDesktopNotices"),
+      icon: LuBell,
+    },
+    "player-controls": {
+      label: translateSettings("settings.playerControls"),
+      description: translateSettings("settings.showOrHidePlayerButtons"),
+      icon: LuSlidersHorizontal,
+    },
+    buffer: {
+      label: translateSettings("settings.buffer"),
+      description: translateSettings("settings.liveLatencyStability"),
+      icon: LuGauge,
+    },
+    multiview: {
+      label: translateSettings("settings.multiview"),
+      description: translateSettings("settings.slotCountMemoryTradeOff"),
+      icon: LuLayoutGrid,
+    },
+    chat: {
+      label: translateSettings("settings.chat"),
+      description: translateSettings("settings.appearanceEmotesEvents"),
+      icon: LuMessageSquare,
+    },
+    adblock: {
+      label: translateSettings("settings.adBlock"),
+      description: translateSettings("settings.twitchAdBlockingSettings"),
+      icon: LuShieldCheck,
+    },
+    proxy: {
+      label: translateSettings("settings.proxy"),
+      description: translateSettings("settings.proxyDefaultSessionChromiumRequests"),
+      icon: LuNetwork,
+    },
+    predictions: {
+      label: translateSettings("settings.predictions"),
+      description: translateSettings("settings.chatPredictionWidgetStyle"),
+      icon: LuTrophy,
+    },
+    integrations: {
+      label: translateSettings("settings.integrations"),
+      description: translateSettings("settings.connectedAccountsApis"),
+      icon: LuLink,
+    },
+    "api-tokens": {
+      label: translateSettings("settings.apiTokens"),
+      description: translateSettings("settings.signInTokenStatus"),
+      icon: LuKeyRound,
+    },
+    updates: {
+      label: translateSettings("settings.updates"),
+      description: translateSettings("settings.autoUpdatePreferences"),
+      icon: LuRefreshCw,
+    },
+    diagnostics: {
+      label: translateSettings("settings.diagnostics"),
+      description: translateSettings("settings.inspectLivePerformanceProcessesTracesAndLogs"),
+      icon: LuActivity,
+    },
+    logs: {
+      label: translateSettings("settings.logs"),
+      description: translateSettings("settings.inAppLogViewerDiagnostics"),
+      icon: LuFileText,
+    },
+    "report-bug": {
+      label: translateSettings("settings.reportBug"),
+      description: translateSettings("settings.captureABugReportForSharing"),
+      icon: LuBug,
+    },
+    about: {
+      label: translateSettings("settings.about"),
+      description: translateSettings("settings.versionInfo"),
+      icon: LuCircleHelp,
+    },
+  };
+}
 
-const SETTINGS_GROUPS: ReadonlyArray<{ label: string; tabs: readonly TabKey[] }> = [
-  { label: i18n["t"]("settings.general2"), tabs: ["general"] },
-  {
-    label: i18n["t"]("settings.viewing"),
-    tabs: ["playback", "player-controls", "buffer", "multiview"],
-  },
-  {
-    label: i18n["t"]("settings.experience"),
-    tabs: ["notifications", "chat", "predictions"],
-  },
-  {
-    label: i18n["t"]("settings.accountsNetwork"),
-    tabs: ["adblock", "proxy", "integrations", "api-tokens"],
-  },
-  {
-    label: i18n["t"]("settings.systemSupport"),
-    tabs: ["updates", "diagnostics", "logs", "report-bug", "about"],
-  },
-];
+function getSettingsGroups(): ReadonlyArray<{ label: string; tabs: readonly TabKey[] }> {
+  return [
+    { label: translateSettings("settings.general2"), tabs: ["general"] },
+    {
+      label: translateSettings("settings.viewing"),
+      tabs: ["playback", "player-controls", "buffer", "multiview"],
+    },
+    {
+      label: translateSettings("settings.experience"),
+      tabs: ["notifications", "chat", "predictions"],
+    },
+    {
+      label: translateSettings("settings.accountsNetwork"),
+      tabs: ["adblock", "proxy", "integrations", "api-tokens"],
+    },
+    {
+      label: translateSettings("settings.systemSupport"),
+      tabs: ["updates", "diagnostics", "logs", "report-bug", "about"],
+    },
+  ];
+}
 
 // Searchable index of individual settings. Each entry's match haystack also
 // pulls in its tab's label/description, so typing a tab name surfaces every
@@ -495,327 +509,370 @@ type SettingsIndexEntry = {
   description?: string;
   keywords?: string[];
 };
-const SETTINGS_INDEX: SettingsIndexEntry[] = [
-  {
-    tab: "general",
-    label: i18n["t"]("settings.displayLanguage2"),
-    description: i18n["t"]("settings.chooseTheLanguageUsedByStreamfusionSInterface"),
-    keywords: ["language", "locale", "english", "spanish"],
-  },
-  {
-    tab: "playback",
-    label: i18n["t"]("settings.defaultQuality"),
-    description: i18n["t"]("settings.preferredStreamQualityWhenAvailable"),
-    keywords: [
-      "highest",
-      "source",
-      "1440p",
-      "2k",
-      "1080p",
-      "720p",
-      "480p",
-      "360p",
-      "160p",
-      "auto",
-      "resolution",
-    ],
-  },
-  {
-    tab: "playback",
-    label: i18n["t"]("settings.featuredCarouselTiming"),
-    description: i18n["t"]("settings.howLongEachHomePageFeaturedStreamStaysActive"),
-    keywords: ["home", "featured", "banner", "carousel", "rotate", "seconds", "minutes"],
-  },
-  {
-    tab: "playback",
-    label: i18n["t"]("settings.accessTokenPlayerType"),
-    description: i18n["t"]("settings.playerTypeUsedWhenRequestingTheAdBlockStreamToken"),
-    keywords: ["advanced", "site", "embed", "popout", "autoplay", "thunderdome"],
-  },
-  {
-    tab: "playback",
-    label: i18n["t"]("settings.allowHevcH265"),
-    description: i18n["t"]("settings.keepHevcStreamsInsteadOfSwappingToAvcDuringAds"),
-    keywords: ["codec", "h265", "advanced"],
-  },
-  {
-    tab: "playback",
-    label: i18n["t"]("settings.streamDeviceId"),
-    description: i18n["t"]("settings.identifierSentWithTheAdBlockStreamToken"),
-    keywords: ["randomize", "device", "advanced"],
-  },
-  {
-    tab: "notifications",
-    label: i18n["t"]("settings.desktopNotifications"),
-    description: i18n["t"]("settings.allowNativeDesktopNotificationsWhenFollowedStreamsGoLive"),
-    keywords: ["native", "system", "toast"],
-  },
-  {
-    tab: "notifications",
-    label: i18n["t"]("settings.liveNotifications"),
-    description: i18n["t"](
-      "settings.createLiveNotificationHistoryEntriesWhenFollowedStreamsGoLive"
-    ),
-    keywords: ["stream", "live", "history"],
-  },
-  {
-    tab: "notifications",
-    label: "Twitch",
-    description: i18n["t"]("settings.allowTwitchLiveNotifications"),
-  },
-  {
-    tab: "notifications",
-    label: "Kick",
-    description: i18n["t"]("settings.allowKickLiveNotifications"),
-  },
-  {
-    tab: "notifications",
-    label: i18n["t"]("settings.guestFollowNotifications"),
-    description: i18n["t"]("settings.notifyForChannelsFollowedWhileSignedOut2"),
-    keywords: ["guest", "signed out", "local follows"],
-  },
-  {
-    tab: "notifications",
-    label: i18n["t"]("settings.toastNotifications"),
-    description: i18n["t"]("settings.showInAppToastBannersWhenFollowedStreamsGoLive2"),
-    keywords: ["toast", "banner", "in-app"],
-  },
-  {
-    tab: "notifications",
-    label: i18n["t"]("settings.sound"),
-    description: i18n["t"]("settings.playASoundWithNotifications"),
-  },
-  {
-    tab: "notifications",
-    label: i18n["t"]("settings.favoritesOnly"),
-    description: i18n["t"](
-      "settings.onlyNotifyForFollowedChannelsWithPerChannelNotificationsEnabled2"
-    ),
-    keywords: ["favorites", "followed channels"],
-  },
-  {
-    tab: "notifications",
-    label: i18n["t"]("settings.restartGrace"),
-    description: i18n["t"]("settings.cooldownBeforeRepeatNotificationsAfterStreamRestarts"),
-    keywords: ["cooldown", "restarts", "grace"],
-  },
-  {
-    tab: "notifications",
-    label: i18n["t"]("settings.perChannelNotifications"),
-    description: i18n["t"](
-      "settings.chooseWhichFollowedChannelsAreEligibleWhenFavoritesOnlyIsEnabled"
-    ),
-    keywords: ["favorites", "followed channels"],
-  },
-  {
-    tab: "notifications",
-    label: i18n["t"]("settings.notificationCoverage"),
-    description: i18n["t"]("settings.statusForDesktopSupportAndDegradedLiveSourceCoverage"),
-    keywords: ["support", "degraded", "status"],
-  },
-  // Player controls — array entries (one per toggle in PLAYER_CONTROL_TOGGLES).
-  {
-    tab: "player-controls",
-    label: i18n["t"]("settings.quality"),
-    description: i18n["t"]("settings.streamQualitySelectorMenuItem"),
-  },
-  {
-    tab: "player-controls",
-    label: i18n["t"]("settings.playbackSpeed"),
-    description: i18n["t"]("settings.speedSelectorVodPlayback"),
-  },
-  {
-    tab: "player-controls",
-    label: i18n["t"]("settings.volume"),
-    description: i18n["t"]("settings.volumeSliderAndMuteButton"),
-  },
-  {
-    tab: "player-controls",
-    label: i18n["t"]("settings.fullscreen"),
-    description: i18n["t"]("settings.fullscreenToggleButton"),
-  },
-  {
-    tab: "player-controls",
-    label: i18n["t"]("settings.theater"),
-    description: i18n["t"]("settings.theaterModeToggleButton"),
-  },
-  {
-    tab: "player-controls",
-    label: i18n["t"]("settings.videoStats"),
-    description: i18n["t"]("settings.liveVideoStatsOverlay"),
-  },
-  {
-    tab: "player-controls",
-    label: i18n["t"]("settings.rewind"),
-    description: i18n["t"]("settings.secondsSkippedBackwardInVodsAndClips"),
-    keywords: ["seek", "interval", "backward", "seconds", "VOD", "clip"],
-  },
-  {
-    tab: "player-controls",
-    label: i18n["t"]("settings.fastForward"),
-    description: i18n["t"]("settings.secondsSkippedForwardInVodsAndClips"),
-    keywords: ["seek", "interval", "forward", "seconds", "VOD", "clip"],
-  },
-  // Buffer
-  {
-    tab: "buffer",
-    label: i18n["t"]("settings.lowLatencyMode"),
-    description: i18n["t"]("settings.trackTheLiveEdgeAggressively"),
-    keywords: ["latency"],
-  },
-  {
-    tab: "buffer",
-    label: i18n["t"]("settings.targetLiveLatency"),
-    description: i18n["t"]("settings.segmentsFromTheLiveEdge"),
-    keywords: ["livesync"],
-  },
-  {
-    tab: "buffer",
-    label: i18n["t"]("settings.forwardBuffer"),
-    description: i18n["t"]("settings.secondsOfVideoBufferedAhead"),
-  },
-  {
-    tab: "buffer",
-    label: i18n["t"]("settings.maxBuffer"),
-    description: i18n["t"]("settings.hardCapOnBufferedSeconds"),
-  },
-  // Multiview (slice 03 + slice 08 background-quality row).
-  {
-    tab: "multiview",
-    label: i18n["t"]("settings.concurrentPlaybackBudget"),
-    description: i18n["t"](
-      "settings.numberOfSimultaneousVideoDecodersLayoutMembershipStaysUnbounded"
-    ),
-    keywords: ["multistream", "slots", "budget", "ram", "memory", "grid", "tiles"],
-  },
-  {
-    tab: "multiview",
-    label: i18n["t"]("settings.backgroundStreamQuality"),
-    description: i18n["t"]("settings.howNonFocusedSlotsRenderAutoLowMatchSourceOff"),
-    keywords: ["background", "quality", "480p", "ram", "memory", "auto-low", "match-source"],
-  },
-  // Chat — content delegated to ChatSettingsSection. One umbrella entry so the
-  // tab surfaces for "emotes", "events", "bttv", etc.
-  {
-    tab: "chat",
-    label: i18n["t"]("settings.chat"),
-    description: i18n["t"]("settings.appearanceEmotesEventsBehavior"),
-    keywords: ["bttv", "7tv", "ffz", "raid", "sub", "emote", "events", "messages"],
-  },
-  {
-    tab: "adblock",
-    label: i18n["t"]("settings.enableAdBlocking"),
-    description: i18n["t"]("settings.blockTwitchAdsUsingAlternativePlayerTokens"),
-    keywords: ["vaft"],
-  },
-  // Proxy — listed per-field so any field name jumps to the tab, but the form
-  // renders as a single unit so users see the full context.
-  {
-    tab: "proxy",
-    label: i18n["t"]("settings.twitchPlaylistProxy"),
-    description: i18n["t"](
-      "settings.replaceTheCustomTwitchAdBlockerWithOrderedPlaylistProxySources"
-    ),
-    keywords: ["playlist", "fallback", "ad block", "ad blocker"],
-  },
-  {
-    tab: "proxy",
-    label: i18n["t"]("settings.playlistProxySources"),
-    description: i18n["t"]("settings.enableReorderAddEditOrRemovePlaylistSources"),
-    keywords: ["list", "order", "status", "online", "offline", "health"],
-  },
-  {
-    tab: "proxy",
-    label: i18n["t"]("settings.enableProxy"),
-    description: i18n["t"]("settings.routesDefaultSessionChromiumRequestsThroughTheHost"),
-  },
-  {
-    tab: "proxy",
-    label: i18n["t"]("settings.host"),
-    description: i18n["t"]("settings.proxyHostOrIp"),
-    keywords: ["server"],
-  },
-  {
-    tab: "proxy",
-    label: i18n["t"]("settings.port"),
-    description: i18n["t"]("settings.proxyPortNumber"),
-  },
-  {
-    tab: "proxy",
-    label: i18n["t"]("settings.credentials"),
-    description: i18n["t"]("settings.usernameAndPasswordForTheProxy"),
-    keywords: ["username", "password", "auth"],
-  },
-  {
-    tab: "proxy",
-    label: i18n["t"]("settings.networkLibrary"),
-    description: i18n["t"]("settings.chromiumBuiltInProxyAwareNetworkEngine"),
-    keywords: ["chromium", "electron", "manifest", "websocket", "direct partition", "http"],
-  },
-  {
-    tab: "predictions",
-    label: i18n["t"]("settings.style"),
-    description: i18n["t"]("settings.visualStyleForTheChatPredictionWidget"),
-    keywords: ["native", "unified"],
-  },
-  {
-    tab: "integrations",
-    label: i18n["t"]("settings.connectedAccounts"),
-    description: i18n["t"]("settings.twitchAndKickAccountConnections"),
-    keywords: ["sign in", "login", "auth"],
-  },
-  {
-    tab: "api-tokens",
-    label: i18n["t"]("settings.tokenStatus"),
-    description: i18n["t"]("settings.signInAndTokenValidity"),
-    keywords: ["scopes", "expiry", "twitch", "kick"],
-  },
-  {
-    tab: "updates",
-    label: i18n["t"]("settings.allowPreReleaseUpdates"),
-    description: i18n["t"]("settings.receiveBetaAndPreviewVersionsBeforeStableRelease"),
-    keywords: ["beta"],
-  },
-  {
-    tab: "updates",
-    label: i18n["t"]("settings.checkForUpdatesOnStartup"),
-    description: i18n["t"]("settings.checkForNewVersionsInTheBackgroundOnASchedule"),
-  },
-  {
-    tab: "updates",
-    label: i18n["t"]("settings.checkFrequency"),
-    description: i18n["t"]("settings.howOftenToCheckWhenAutomaticUpdatesAreOn"),
-    keywords: ["hourly", "daily", "weekly"],
-  },
-  {
-    tab: "updates",
-    label: i18n["t"]("settings.checkForUpdates"),
-    description: i18n["t"]("settings.checkForAvailableUpdatesNow"),
-  },
-  {
-    tab: "diagnostics",
-    label: i18n["t"]("settings.diagnostics"),
-    description: i18n["t"]("settings.resourcesProcessesTracesFailuresLogsAndReports"),
-  },
-  {
-    tab: "logs",
-    label: i18n["t"]("settings.logs"),
-    description: i18n["t"]("settings.inAppLogViewerAndDiagnostics"),
-  },
-  {
-    tab: "report-bug",
-    label: i18n["t"]("settings.reportABug"),
-    description: i18n["t"]("settings.generateABugReportFile"),
-  },
-  {
-    tab: "about",
-    label: i18n["t"]("settings.about"),
-    description: i18n["t"]("settings.versionAndInfo"),
-  },
-];
+function getSettingsIndex(): SettingsIndexEntry[] {
+  return [
+    {
+      tab: "general",
+      label: translateSettings("settings.displayLanguage2"),
+      description: translateSettings("settings.chooseTheLanguageUsedByStreamfusionSInterface"),
+      keywords: ["language", "locale", "english", "spanish"],
+    },
+    {
+      tab: "playback",
+      label: translateSettings("settings.defaultQuality"),
+      description: translateSettings("settings.preferredStreamQualityWhenAvailable"),
+      keywords: [
+        "highest",
+        "source",
+        "1440p",
+        "2k",
+        "1080p",
+        "720p",
+        "480p",
+        "360p",
+        "160p",
+        "auto",
+        "resolution",
+      ],
+    },
+    {
+      tab: "playback",
+      label: translateSettings("settings.featuredCarouselTiming"),
+      description: translateSettings("settings.howLongEachHomePageFeaturedStreamStaysActive"),
+      keywords: ["home", "featured", "banner", "carousel", "rotate", "seconds", "minutes"],
+    },
+    {
+      tab: "playback",
+      label: translateSettings("settings.accessTokenPlayerType"),
+      description: translateSettings("settings.playerTypeUsedWhenRequestingTheAdBlockStreamToken"),
+      keywords: ["advanced", "site", "embed", "popout", "autoplay", "thunderdome"],
+    },
+    {
+      tab: "playback",
+      label: translateSettings("settings.allowHevcH265"),
+      description: translateSettings("settings.keepHevcStreamsInsteadOfSwappingToAvcDuringAds"),
+      keywords: ["codec", "h265", "advanced"],
+    },
+    {
+      tab: "playback",
+      label: translateSettings("settings.streamDeviceId"),
+      description: translateSettings("settings.identifierSentWithTheAdBlockStreamToken"),
+      keywords: ["randomize", "device", "advanced"],
+    },
+    {
+      tab: "notifications",
+      label: translateSettings("settings.desktopNotifications"),
+      description: translateSettings(
+        "settings.allowNativeDesktopNotificationsWhenFollowedStreamsGoLive"
+      ),
+      keywords: ["native", "system", "toast"],
+    },
+    {
+      tab: "notifications",
+      label: translateSettings("settings.liveNotifications"),
+      description: translateSettings(
+        "settings.createLiveNotificationHistoryEntriesWhenFollowedStreamsGoLive"
+      ),
+      keywords: ["stream", "live", "history"],
+    },
+    {
+      tab: "notifications",
+      label: "Twitch",
+      description: translateSettings("settings.allowTwitchLiveNotifications"),
+    },
+    {
+      tab: "notifications",
+      label: "Kick",
+      description: translateSettings("settings.allowKickLiveNotifications"),
+    },
+    {
+      tab: "notifications",
+      label: translateSettings("settings.guestFollowNotifications"),
+      description: translateSettings("settings.notifyForChannelsFollowedWhileSignedOut2"),
+      keywords: ["guest", "signed out", "local follows"],
+    },
+    {
+      tab: "notifications",
+      label: translateSettings("settings.toastNotifications"),
+      description: translateSettings("settings.showInAppToastBannersWhenFollowedStreamsGoLive2"),
+      keywords: ["toast", "banner", "in-app"],
+    },
+    {
+      tab: "notifications",
+      label: translateSettings("settings.sound"),
+      description: translateSettings("settings.playASoundWithNotifications"),
+    },
+    {
+      tab: "notifications",
+      label: translateSettings("settings.favoritesOnly"),
+      description: translateSettings(
+        "settings.onlyNotifyForFollowedChannelsWithPerChannelNotificationsEnabled2"
+      ),
+      keywords: ["favorites", "followed channels"],
+    },
+    {
+      tab: "notifications",
+      label: translateSettings("settings.restartGrace"),
+      description: translateSettings(
+        "settings.cooldownBeforeRepeatNotificationsAfterStreamRestarts"
+      ),
+      keywords: ["cooldown", "restarts", "grace"],
+    },
+    {
+      tab: "notifications",
+      label: translateSettings("settings.perChannelNotifications"),
+      description: translateSettings(
+        "settings.chooseWhichFollowedChannelsAreEligibleWhenFavoritesOnlyIsEnabled"
+      ),
+      keywords: ["favorites", "followed channels"],
+    },
+    {
+      tab: "notifications",
+      label: translateSettings("settings.notificationCoverage"),
+      description: translateSettings(
+        "settings.statusForDesktopSupportAndDegradedLiveSourceCoverage"
+      ),
+      keywords: ["support", "degraded", "status"],
+    },
+    // Player controls — array entries (one per toggle in PLAYER_CONTROL_TOGGLES).
+    {
+      tab: "player-controls",
+      label: translateSettings("settings.quality"),
+      description: translateSettings("settings.streamQualitySelectorMenuItem"),
+    },
+    {
+      tab: "player-controls",
+      label: translateSettings("settings.playbackSpeed"),
+      description: translateSettings("settings.speedSelectorVodPlayback"),
+    },
+    {
+      tab: "player-controls",
+      label: translateSettings("settings.volume"),
+      description: translateSettings("settings.volumeSliderAndMuteButton"),
+    },
+    {
+      tab: "player-controls",
+      label: translateSettings("settings.fullscreen"),
+      description: translateSettings("settings.fullscreenToggleButton"),
+    },
+    {
+      tab: "player-controls",
+      label: translateSettings("settings.theater"),
+      description: translateSettings("settings.theaterModeToggleButton"),
+    },
+    {
+      tab: "player-controls",
+      label: translateSettings("settings.videoStats"),
+      description: translateSettings("settings.liveVideoStatsOverlay"),
+    },
+    {
+      tab: "player-controls",
+      label: translateSettings("settings.rewind"),
+      description: translateSettings("settings.secondsSkippedBackwardInVodsAndClips"),
+      keywords: ["seek", "interval", "backward", "seconds", "VOD", "clip"],
+    },
+    {
+      tab: "player-controls",
+      label: translateSettings("settings.fastForward"),
+      description: translateSettings("settings.secondsSkippedForwardInVodsAndClips"),
+      keywords: ["seek", "interval", "forward", "seconds", "VOD", "clip"],
+    },
+    // Buffer
+    {
+      tab: "buffer",
+      label: translateSettings("settings.lowLatencyMode"),
+      description: translateSettings("settings.trackTheLiveEdgeAggressively"),
+      keywords: ["latency"],
+    },
+    {
+      tab: "buffer",
+      label: translateSettings("settings.targetLiveLatency"),
+      description: translateSettings("settings.segmentsFromTheLiveEdge"),
+      keywords: ["livesync"],
+    },
+    {
+      tab: "buffer",
+      label: translateSettings("settings.forwardBuffer"),
+      description: translateSettings("settings.secondsOfVideoBufferedAhead"),
+    },
+    {
+      tab: "buffer",
+      label: translateSettings("settings.maxBuffer"),
+      description: translateSettings("settings.hardCapOnBufferedSeconds"),
+    },
+    // Multiview (slice 03 + slice 08 background-quality row).
+    {
+      tab: "multiview",
+      label: translateSettings("settings.concurrentPlaybackBudget"),
+      description: translateSettings(
+        "settings.numberOfSimultaneousVideoDecodersLayoutMembershipStaysUnbounded"
+      ),
+      keywords: ["multistream", "slots", "budget", "ram", "memory", "grid", "tiles"],
+    },
+    {
+      tab: "multiview",
+      label: translateSettings("settings.backgroundStreamQuality"),
+      description: translateSettings("settings.howNonFocusedSlotsRenderAutoLowMatchSourceOff"),
+      keywords: ["background", "quality", "480p", "ram", "memory", "auto-low", "match-source"],
+    },
+    // Chat — content delegated to ChatSettingsSection. One umbrella entry so the
+    // tab surfaces for "emotes", "events", "bttv", etc.
+    {
+      tab: "chat",
+      label: translateSettings("settings.chat"),
+      description: translateSettings("settings.appearanceEmotesEventsBehavior"),
+      keywords: ["bttv", "7tv", "ffz", "raid", "sub", "emote", "events", "messages"],
+    },
+    {
+      tab: "adblock",
+      label: translateSettings("settings.enableAdBlocking"),
+      description: translateSettings("settings.blockTwitchAdsUsingAlternativePlayerTokens"),
+      keywords: ["vaft"],
+    },
+    // Proxy — listed per-field so any field name jumps to the tab, but the form
+    // renders as a single unit so users see the full context.
+    {
+      tab: "proxy",
+      label: translateSettings("settings.twitchPlaylistProxy"),
+      description: translateSettings(
+        "settings.replaceTheCustomTwitchAdBlockerWithOrderedPlaylistProxySources"
+      ),
+      keywords: ["playlist", "fallback", "ad block", "ad blocker"],
+    },
+    {
+      tab: "proxy",
+      label: translateSettings("settings.playlistProxySources"),
+      description: translateSettings("settings.enableReorderAddEditOrRemovePlaylistSources"),
+      keywords: ["list", "order", "status", "online", "offline", "health"],
+    },
+    {
+      tab: "proxy",
+      label: translateSettings("settings.enableProxy"),
+      description: translateSettings("settings.routesDefaultSessionChromiumRequestsThroughTheHost"),
+    },
+    {
+      tab: "proxy",
+      label: translateSettings("settings.host"),
+      description: translateSettings("settings.proxyHostOrIp"),
+      keywords: ["server"],
+    },
+    {
+      tab: "proxy",
+      label: translateSettings("settings.port"),
+      description: translateSettings("settings.proxyPortNumber"),
+    },
+    {
+      tab: "proxy",
+      label: translateSettings("settings.credentials"),
+      description: translateSettings("settings.usernameAndPasswordForTheProxy"),
+      keywords: ["username", "password", "auth"],
+    },
+    {
+      tab: "proxy",
+      label: translateSettings("settings.networkLibrary"),
+      description: translateSettings("settings.chromiumBuiltInProxyAwareNetworkEngine"),
+      keywords: ["chromium", "electron", "manifest", "websocket", "direct partition", "http"],
+    },
+    {
+      tab: "predictions",
+      label: translateSettings("settings.style"),
+      description: translateSettings("settings.visualStyleForTheChatPredictionWidget"),
+      keywords: ["native", "unified"],
+    },
+    {
+      tab: "integrations",
+      label: translateSettings("settings.connectedAccounts"),
+      description: translateSettings("settings.twitchAndKickAccountConnections"),
+      keywords: ["sign in", "login", "auth"],
+    },
+    {
+      tab: "api-tokens",
+      label: translateSettings("settings.tokenStatus"),
+      description: translateSettings("settings.signInAndTokenValidity"),
+      keywords: ["scopes", "expiry", "twitch", "kick"],
+    },
+    {
+      tab: "updates",
+      label: translateSettings("settings.allowPreReleaseUpdates"),
+      description: translateSettings("settings.receiveBetaAndPreviewVersionsBeforeStableRelease"),
+      keywords: ["beta"],
+    },
+    {
+      tab: "updates",
+      label: translateSettings("settings.checkForUpdatesOnStartup"),
+      description: translateSettings("settings.checkForNewVersionsInTheBackgroundOnASchedule"),
+    },
+    {
+      tab: "updates",
+      label: translateSettings("settings.checkFrequency"),
+      description: translateSettings("settings.howOftenToCheckWhenAutomaticUpdatesAreOn"),
+      keywords: ["hourly", "daily", "weekly"],
+    },
+    {
+      tab: "updates",
+      label: translateSettings("settings.checkForUpdates"),
+      description: translateSettings("settings.checkForAvailableUpdatesNow"),
+    },
+    {
+      tab: "diagnostics",
+      label: translateSettings("settings.diagnostics"),
+      description: translateSettings("settings.resourcesProcessesTracesFailuresLogsAndReports"),
+    },
+    {
+      tab: "logs",
+      label: translateSettings("settings.logs"),
+      description: translateSettings("settings.inAppLogViewerAndDiagnostics"),
+    },
+    {
+      tab: "report-bug",
+      label: translateSettings("settings.reportABug"),
+      description: translateSettings("settings.generateABugReportFile"),
+    },
+    {
+      tab: "about",
+      label: translateSettings("settings.about"),
+      description: translateSettings("settings.versionAndInfo"),
+    },
+  ];
+}
+
+function createSettingsMetadata() {
+  return {
+    bufferRangeControls: getBufferRangeControls(),
+    playerControlToggles: getPlayerControlToggles(),
+    playbackAdvancedPlayerTypes: getPlaybackAdvancedPlayerTypes(),
+    notificationToggles: getNotificationToggles(),
+    restartGraceOptions: getRestartGraceOptions(),
+    tabMeta: getTabMeta(),
+    settingsGroups: getSettingsGroups(),
+    settingsIndex: getSettingsIndex(),
+  };
+}
+
+const settingsMetadataByLanguage = new Map<string, ReturnType<typeof createSettingsMetadata>>();
+
+function getSettingsMetadata(language: string): ReturnType<typeof createSettingsMetadata> {
+  const cached = settingsMetadataByLanguage.get(language);
+  if (cached) return cached;
+  const metadata = createSettingsMetadata();
+  settingsMetadataByLanguage.set(language, metadata);
+  return metadata;
+}
 
 export function SettingsPage() {
-  const { t } = useTranslation();
+  const { i18n: translation, t } = useTranslation();
+  const translationLanguage = translation.resolvedLanguage ?? translation.language;
+  const settingsMetadata = getSettingsMetadata(translationLanguage);
+  const {
+    bufferRangeControls,
+    playerControlToggles,
+    playbackAdvancedPlayerTypes,
+    notificationToggles,
+    restartGraceOptions,
+    tabMeta,
+    settingsGroups,
+    settingsIndex,
+  } = settingsMetadata;
   const canRenderSettingsPanel = useAfterFirstPaint();
   const appVersion = useAppVersion();
   const versionInfo = useAppVersionInfo();
@@ -916,8 +973,8 @@ export function SettingsPage() {
     }
     const tabs = new Set<TabKey>();
     const rows = new Set<string>();
-    for (const entry of SETTINGS_INDEX) {
-      const tabInfo = TAB_META[entry.tab];
+    for (const entry of settingsIndex) {
+      const tabInfo = tabMeta[entry.tab];
       const haystack = [
         entry.label,
         entry.description ?? "",
@@ -933,7 +990,7 @@ export function SettingsPage() {
       }
     }
     return { active: true, tabs, rows };
-  }, [normalizedQuery]);
+  }, [normalizedQuery, settingsIndex, tabMeta]);
 
   // Visibility helpers used by tab content. `isRowVisible` defaults to true when
   // search is inactive so the existing JSX renders unchanged.
@@ -1321,7 +1378,7 @@ export function SettingsPage() {
           aria-label={translateSettings("settings.settingsNavigation")}
           className="flex-1 space-y-3 overflow-y-auto px-3 pb-4 pt-2"
         >
-          {SETTINGS_GROUPS.map((group) => {
+          {settingsGroups.map((group) => {
             const visibleTabs = group.tabs.filter(
               (tab) =>
                 (!DEV_ONLY_TABS.has(tab) || isDev) &&
@@ -1374,7 +1431,7 @@ export function SettingsPage() {
                     className="space-y-1 border-t border-[#333333] bg-[#0f0f0f] p-2"
                   >
                     {visibleTabs.map((tab) => {
-                      const meta = TAB_META[tab];
+                      const meta = tabMeta[tab];
                       return (
                         <SidebarItem
                           key={tab}
@@ -1406,7 +1463,7 @@ export function SettingsPage() {
         ref={contentScrollerRef}
         role="region"
         aria-label={translateSettings("settings.valueSettings", {
-          value1: TAB_META[activeTab].label,
+          value1: tabMeta[activeTab].label,
         })}
         className="flex-1 overflow-y-auto bg-[var(--color-background)]"
       >
@@ -1666,7 +1723,7 @@ export function SettingsPage() {
                                 />
                               </SelectTrigger>
                               <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
-                                {PLAYBACK_ADVANCED_PLAYER_TYPES.map(({ value, label }) => (
+                                {playbackAdvancedPlayerTypes.map(({ value, label }) => (
                                   <SelectItem key={value} value={value}>
                                     {label}
                                   </SelectItem>
@@ -1754,7 +1811,7 @@ export function SettingsPage() {
                   </div>
 
                   {(() => {
-                    const visibleToggles = NOTIFICATION_TOGGLES.filter(({ label }) =>
+                    const visibleToggles = notificationToggles.filter(({ label }) =>
                       isRowVisible(label)
                     );
                     const showRestartGrace = isRowVisible("Restart grace");
@@ -1817,7 +1874,7 @@ export function SettingsPage() {
                                   />
                                 </SelectTrigger>
                                 <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
-                                  {RESTART_GRACE_OPTIONS.map((option) => (
+                                  {restartGraceOptions.map((option) => (
                                     <SelectItem key={option.value} value={String(option.value)}>
                                       {option.label}
                                     </SelectItem>
@@ -2029,7 +2086,7 @@ export function SettingsPage() {
                   </div>
 
                   {(() => {
-                    const visibleToggles = PLAYER_CONTROL_TOGGLES.filter(({ label }) =>
+                    const visibleToggles = playerControlToggles.filter(({ label }) =>
                       isRowVisible(label)
                     );
                     if (visibleToggles.length === 0) return null;
@@ -2153,7 +2210,7 @@ export function SettingsPage() {
 
                   {(() => {
                     const showLowLatency = isRowVisible("Low-latency mode");
-                    const visibleRanges = BUFFER_RANGE_CONTROLS.filter(({ label }) =>
+                    const visibleRanges = bufferRangeControls.filter(({ label }) =>
                       isRowVisible(label)
                     );
                     if (!showLowLatency && visibleRanges.length === 0) return null;

@@ -3,6 +3,7 @@ import { twMerge } from "tailwind-merge";
 
 import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "../../shared/auth-types";
+import { getLanguageDisplayName } from "./languages";
 
 /**
  * Merge class names with Tailwind CSS classes
@@ -30,12 +31,22 @@ export function formatViewerCount(count: number | undefined | null): string {
 /**
  * Format relative time (e.g. "2 hours ago")
  */
-export function formatRelativeTime(dateString: string): string | null {
+export function formatRelativeTime(dateString: string, locale = "en"): string | null {
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) return null;
 
   const now = new Date();
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  if (!locale.toLowerCase().startsWith("en")) {
+    const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+    if (diffInSeconds < 60) return formatter.format(0, "second");
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return formatter.format(-diffInMinutes, "minute");
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return formatter.format(-diffInHours, "hour");
+    return formatter.format(-Math.floor(diffInHours / 24), "day");
+  }
 
   if (diffInSeconds < 60) {
     return "just now";
@@ -75,25 +86,15 @@ export function formatDuration(seconds: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-// Module-scope singleton — Intl.DisplayNames is expensive to construct.
-const LANGUAGE_DISPLAY_NAMES = new Intl.DisplayNames(["en"], { type: "language" });
-
 /**
  * Render a language label in consistent Title Case regardless of input format.
  * Handles BCP-47 codes from Twitch ("en" → "English") and full words from Kick
  * ("english" → "English"), so the chip reads the same on every surface.
  */
-export function formatLanguageLabel(lang: string | null | undefined): string {
+export function formatLanguageLabel(lang: string | null | undefined, locale = "en"): string {
   if (!lang) return "";
-  // BCP-47 code path (e.g. "en", "es"): try Intl, accept only if it actually resolved.
-  if (lang.length <= 3) {
-    try {
-      const resolved = LANGUAGE_DISPLAY_NAMES.of(lang);
-      if (resolved && resolved.toLowerCase() !== lang.toLowerCase()) return resolved;
-    } catch {
-      // Structurally invalid BCP-47 tag — fall through to title case.
-    }
-  }
+  const resolved = getLanguageDisplayName(lang, locale);
+  if (resolved.toLowerCase() !== lang.toLowerCase()) return resolved;
   return lang.charAt(0).toUpperCase() + lang.slice(1).toLowerCase();
 }
 

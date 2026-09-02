@@ -79,14 +79,14 @@ function isAuthenticatedChannel(
   return false;
 }
 
-function formatFollowerLabel(followerCount: number | undefined): string | null {
+function formatFollowerLabel(followerCount: number | undefined, label: string): string | null {
   if (typeof followerCount !== "number") return null;
-  const suffix = followerCount === 1 ? "follower" : "followers";
-  return `${formatViewerCount(followerCount)} ${suffix}`;
+  return label.replace("{{value}}", formatViewerCount(followerCount));
 }
 
 export function StreamInfo({ channel, stream, isLoading, recordingAction }: StreamInfoProps) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language;
   const { twitchUser, kickUser } = useUserInfo();
   // Resolve canonical cross-platform link target so clicking the badge lands on
   // the same merged Categories page as clicking the same category in the grid
@@ -104,9 +104,9 @@ export function StreamInfo({ channel, stream, isLoading, recordingAction }: Stre
   const displayCategory = stream?.categoryName || channel?.categoryName || "";
   const isOwnerView = isAuthenticatedChannel(channel, twitchUser, kickUser);
   const isOffline = !stream?.isLive;
-  const followerLabel = formatFollowerLabel(channel?.followerCount);
+  const followerLabel = formatFollowerLabel(channel?.followerCount, t("playback.followerCount"));
   const lastLiveLabel =
-    isOffline && channel?.lastLiveAt ? formatRelativeTime(channel.lastLiveAt) : null;
+    isOffline && channel?.lastLiveAt ? formatRelativeTime(channel.lastLiveAt, locale) : null;
 
   if (isLoading || !channel) {
     return (
@@ -189,7 +189,7 @@ export function StreamInfo({ channel, stream, isLoading, recordingAction }: Stre
                   {/* Language Tag */}
                   {stream.language && (
                     <span className="text-xs px-3 py-1 rounded-full font-bold bg-[#4a4d55] text-white hover:bg-[#5a5d66] transition-colors cursor-default">
-                      {formatLanguageLabel(stream.language)}
+                      {formatLanguageLabel(stream.language, locale)}
                     </span>
                   )}
                   {/* Mature Content Tag */}
@@ -204,7 +204,7 @@ export function StreamInfo({ channel, stream, isLoading, recordingAction }: Stre
                     (() => {
                       // Get the display name of the stream's language to filter duplicates
                       const languageDisplayName = stream.language
-                        ? formatLanguageLabel(stream.language).toLowerCase()
+                        ? formatLanguageLabel(stream.language, locale).toLowerCase()
                         : null;
 
                       return stream.tags
