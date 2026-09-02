@@ -27,31 +27,20 @@ interface ChatCommandMetadata {
   readonly execution: ChatCommandExecution;
 }
 
-export type TwitchFirstPartyDestination =
-  | { readonly kind: "channel-chat" }
-  | { readonly kind: "subscriptions" }
-  | { readonly kind: "user"; readonly login: string }
-  | { readonly kind: "stream-manager" };
-
 export type TwitchCommandEffect =
   | { readonly kind: "help" }
   | { readonly kind: "irc-action"; readonly message: string }
   | { readonly kind: "disconnect" }
   | { readonly kind: "api"; readonly action: TwitchSlashCommandAction }
   | { readonly kind: "engagement"; readonly section: "polls" | "predictions" }
-  | {
-      readonly kind: "first-party";
-      readonly destination: TwitchFirstPartyDestination;
-      readonly explanation: string;
-    };
+  | { readonly kind: "channel-members"; readonly list: "moderators" | "vips" }
+  | { readonly kind: "local-notice"; readonly message: string };
 
 export interface TwitchCommandDefinition extends ChatCommandMetadata {
   readonly platform: "twitch";
   readonly requiredScopes: readonly TwitchAppScope[];
   readonly compile: (args: string, role: ChatCommandRole) => TwitchCommandEffect;
 }
-
-export type KickFirstPartyDestination = { readonly kind: "channel-chat" };
 
 export type KickModerationEffect =
   | {
@@ -77,11 +66,7 @@ export type KickCommandEffect =
   | { readonly kind: "help" }
   | { readonly kind: "action-message"; readonly message: string }
   | KickModerationEffect
-  | {
-      readonly kind: "first-party";
-      readonly destination: KickFirstPartyDestination;
-      readonly explanation: string;
-    };
+  | { readonly kind: "local-notice"; readonly message: string };
 
 export interface KickCommandDefinition extends ChatCommandMetadata {
   readonly platform: "kick";
@@ -212,15 +197,8 @@ function kickTimeoutMinutes(rawValue: string | undefined): number {
   return seconds / 60;
 }
 
-function kickFirstParty(
-  destination: KickFirstPartyDestination,
-  explanation: string
-): KickCommandEffect {
-  return { kind: "first-party", destination, explanation };
-}
-
 function kickChannelHandoff(explanation: string): KickCommandEffect {
-  return kickFirstParty({ kind: "channel-chat" }, explanation);
+  return { kind: "local-notice", message: explanation };
 }
 
 const TWITCH_CHAT_COLORS: Readonly<Record<string, string>> = {
@@ -272,11 +250,8 @@ function apiTargetCommand(
   });
 }
 
-function firstParty(
-  destination: TwitchFirstPartyDestination,
-  explanation: string
-): TwitchCommandDefinition["compile"] {
-  return () => ({ kind: "first-party", destination, explanation });
+function localTwitchNotice(message: string): TwitchCommandDefinition["compile"] {
+  return () => ({ kind: "local-notice", message });
 }
 
 function followersMinutes(value: string | undefined): number {
@@ -341,19 +316,19 @@ const TWITCH_COMMAND_CATALOG = [
     name: "mods",
     usage: "/mods",
     description: "Show this channel's moderators on Twitch",
-    compile: firstParty(
-      { kind: "channel-chat" },
-      "Twitch only exposes another channel's moderator list in its own chat."
-    ),
+    compile: (args) => {
+      noArguments(args, "mods");
+      return { kind: "channel-members", list: "moderators" };
+    },
   }),
   twitchCommand({
     name: "vips",
     usage: "/vips",
     description: "Show this channel's VIPs on Twitch",
-    compile: firstParty(
-      { kind: "channel-chat" },
-      "Twitch only exposes another channel's VIP list in its own chat."
-    ),
+    compile: (args) => {
+      noArguments(args, "vips");
+      return { kind: "channel-members", list: "vips" };
+    },
   }),
   twitchCommand({
     name: "color",
@@ -408,7 +383,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "gift",
     usage: "/gift [quantity]",
-    description: "Open Twitch's gift subscription flow",
+    description: "Show gift subscription availability",
     compile: (args) => {
       const [quantity, extra] = argumentsList(args);
       if (
@@ -418,22 +393,20 @@ const TWITCH_COMMAND_CATALOG = [
         throw new Error("/gift quantity must be between 1 and 100");
       }
       return {
-        kind: "first-party",
-        destination: { kind: "subscriptions" },
-        explanation: "Twitch handles gift purchases in its secure subscription flow.",
+        kind: "local-notice",
+        message: "Twitch handles gift purchases in its secure subscription flow.",
       };
     },
   }),
   twitchCommand({
     name: "vote",
     usage: "/vote",
-    description: "Open Twitch chat to vote in the current poll",
+    description: "Show poll voting availability",
     compile: (args) => {
       noArguments(args, "vote");
       return {
-        kind: "first-party",
-        destination: { kind: "channel-chat" },
-        explanation: "Twitch does not provide third-party apps an API for casting poll votes.",
+        kind: "local-notice",
+        message: "Twitch does not provide third-party apps an API for casting poll votes.",
       };
     },
   }),
@@ -659,10 +632,9 @@ const TWITCH_COMMAND_CATALOG = [
       compile: (args) => {
         requiredUsername(args, name);
         return {
-          kind: "first-party",
-          destination: { kind: "channel-chat" },
-          explanation:
-            "Twitch's public removal endpoint clears either suspicious-user treatment, so this command opens Twitch chat to preserve the other status.",
+          kind: "local-notice",
+          message:
+            "Twitch's public removal endpoint clears either suspicious-user treatment, so StreamFusion does not run this command from chat.",
         };
       },
     })
@@ -670,21 +642,22 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "user",
     usage: "/user [username]",
-    description: "Open a Twitch user's profile and moderation tools",
+    description: "Show Twitch user-card availability",
     roles: moderatorRoles,
-    compile: (args) => ({
-      kind: "first-party",
-      destination: { kind: "user", login: requiredUsername(args, "user").login },
-      explanation: "Twitch keeps the complete viewer card and moderation history in its own UI.",
-    }),
+    compile: (args) => {
+      requiredUsername(args, "user");
+      return {
+        kind: "local-notice",
+        message: "Twitch keeps the complete viewer card and moderation history in its own UI.",
+      };
+    },
   }),
   twitchCommand({
     name: "requests",
     usage: "/requests",
-    description: "Open the Channel Points request queue",
+    description: "Show Channel Points request availability",
     roles: moderatorRoles,
-    compile: firstParty(
-      { kind: "channel-chat" },
+    compile: localTwitchNotice(
       "Twitch exposes the native Channel Points request command in its own chat."
     ),
   }),
@@ -699,15 +672,14 @@ const TWITCH_COMMAND_CATALOG = [
     twitchCommand({
       name,
       usage: `/${name}`,
-      description: `Open ${section} management`,
+      description: `Open ${section} management in StreamFusion`,
       roles: moderatorRoles,
       compile: (_args, role) =>
         role === "broadcaster"
           ? { kind: "engagement", section }
           : {
-              kind: "first-party",
-              destination: { kind: "channel-chat" },
-              explanation: `Twitch's public ${section} mutations require the broadcaster's token, so moderator management opens the channel's Twitch chat.`,
+              kind: "local-notice",
+              message: `Twitch's public ${section} mutations require the broadcaster's token, so StreamFusion does not run this moderator command from chat.`,
             },
     })
   ),
@@ -733,20 +705,14 @@ const TWITCH_COMMAND_CATALOG = [
     usage: "/rules",
     description: "Show this channel's chat rules",
     roles: broadcasterRoles,
-    compile: firstParty(
-      { kind: "channel-chat" },
-      "Twitch does not expose channel rules through its public API."
-    ),
+    compile: localTwitchNotice("Twitch does not expose channel rules through its public API."),
   }),
   twitchCommand({
     name: "sharedchat",
     usage: "/sharedchat",
-    description: "Open Shared Chat management",
+    description: "Show Shared Chat management availability",
     roles: broadcasterRoles,
-    compile: firstParty(
-      { kind: "stream-manager" },
-      "Twitch exposes Shared Chat setup only in its own Stream Manager."
-    ),
+    compile: localTwitchNotice("Twitch exposes Shared Chat setup only in its own Stream Manager."),
   }),
   twitchCommand({
     name: "commercial",
@@ -772,12 +738,9 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "goal",
     usage: "/goal",
-    description: "Open creator goal management",
+    description: "Show creator goal management availability",
     roles: broadcasterRoles,
-    compile: firstParty(
-      { kind: "stream-manager" },
-      "Twitch does not provide a public API for changing creator goals."
-    ),
+    compile: localTwitchNotice("Twitch does not provide a public API for changing creator goals."),
   }),
   twitchCommand({
     name: "raid",
@@ -936,7 +899,7 @@ const KICK_COMMAND_CATALOG = [
   kickCommand({
     name: "user",
     usage: "/user [username]",
-    description: "Open a user's Kick information",
+    description: "Show Kick user information availability",
     roles: moderatorRoles,
     compile: (args) => {
       const target = requiredUsername(args, "user");
@@ -1016,25 +979,21 @@ const KICK_COMMAND_CATALOG = [
   kickCommand({
     name: "category",
     usage: "/category",
-    description: "Open the stream category selector",
+    description: "Show stream category controls availability",
     roles: moderatorRoles,
     compile: (args) => {
       noArguments(args, "category");
-      return kickChannelHandoff(
-        "Kick's category command uses a first-party interactive selector."
-      );
+      return kickChannelHandoff("Kick's category command uses a first-party interactive selector.");
     },
   }),
   kickCommand({
     name: "raid",
     usage: "/raid",
-    description: "Open the Kick raid workflow",
+    description: "Show Kick raid controls availability",
     roles: broadcasterRoles,
     compile: (args) => {
       noArguments(args, "raid");
-      return kickChannelHandoff(
-        "Kick does not provide third-party apps a raid operation."
-      );
+      return kickChannelHandoff("Kick does not provide third-party apps a raid operation.");
     },
   }),
   ...(
@@ -1073,9 +1032,7 @@ const KICK_COMMAND_CATALOG = [
       roles: moderatorRoles,
       compile: (args) => {
         noArguments(args, name);
-        return kickChannelHandoff(
-          "Kick exposes this engagement workflow only in its own chat UI."
-        );
+        return kickChannelHandoff("Kick exposes this engagement workflow only in its own chat UI.");
       },
     })
   ),
@@ -1136,7 +1093,8 @@ export function getCommandsForAccess(access: ChatCommandAccess): readonly Comman
   if (access.kind === "guest") return [];
   const commands: CommandSuggestion[] = [];
   for (const command of CHAT_COMMAND_REGISTRY) {
-    if (command.platform !== access.platform || !command.allowedRoles.includes(access.role)) continue;
+    if (command.platform !== access.platform || !command.allowedRoles.includes(access.role))
+      continue;
     if (
       command.platform === "kick" &&
       command.requiresPartnerChannel &&

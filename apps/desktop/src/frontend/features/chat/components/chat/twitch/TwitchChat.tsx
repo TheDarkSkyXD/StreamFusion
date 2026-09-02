@@ -354,7 +354,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
       }
       if (!channelId) throw new Error("Twitch channel identity is unavailable");
       const tokenStatus = await window.electronAPI.auth.tokenStatus("twitch");
-      await runTwitchCommandEffect(command, args, {
+      return runTwitchCommandEffect(command, args, {
         channel: { id: channelId, login: channel },
         role: commandAccess.role,
         grantedScopes: tokenStatus.scopes ?? [],
@@ -364,14 +364,14 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
           setDisconnectedChannel(channel.toLowerCase());
         },
         executeApi: (apiCommand) => window.electronAPI.twitch.execute(apiCommand),
-        openExternal: async (url) => {
-          await window.electronAPI.openExternal(url);
+        readChannelMembers: (list) => {
+          const operation = list === "moderators" ? "get-moderators" : "get-vips";
+          return window.electronAPI.twitch.execute({ operation, broadcasterId: channelId });
         },
         openEngagement: () => setActivePanelTab("engagement"),
         requestReconnect: (missingScopes) => {
           promptReconnect({ missingScopes: [...missingScopes] });
         },
-        explainHandoff: (message) => toast.info("Opening Twitch", { description: message }),
       });
     },
     [channel, channelId, commandAccess, promptReconnect]

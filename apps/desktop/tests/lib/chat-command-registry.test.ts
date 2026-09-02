@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest";
 // Guards: platform-specific commands do not appear in the other platform's composer.
 // Guards: malformed and unrecognized slash text cannot reach an ordinary chat send.
 // Guards: Kick's official 23-command catalog retains exact role and argument contracts.
+// Guards: unsupported provider workflows compile to renderer-local notices instead of external page handoffs.
 describe("chat command registry", () => {
   const linkedNames = [
     "mods",
@@ -152,6 +153,11 @@ describe("chat command registry", () => {
       kind: "irc-action",
       message: "waves",
     });
+    expect(effects.filter((effect) => effect.kind === "channel-members")).toEqual([
+      { kind: "channel-members", list: "moderators" },
+      { kind: "channel-members", list: "vips" },
+    ]);
+    expect(effects.filter((effect) => effect.kind === "local-notice")).toHaveLength(9);
   });
 
   it("matches and compiles the linked 23-command Kick catalog exactly", () => {
@@ -202,7 +208,7 @@ describe("chat command registry", () => {
     );
 
     expect(effects.filter((effect) => effect.kind === "moderation")).toHaveLength(3);
-    expect(effects.filter((effect) => effect.kind === "first-party")).toHaveLength(20);
+    expect(effects.filter((effect) => effect.kind === "local-notice")).toHaveLength(20);
   });
   it("filters commands by platform and role", () => {
     const twitchViewer = getCommandsForAccess({
@@ -400,7 +406,7 @@ describe("chat command registry", () => {
     });
   });
 
-  it("routes a known moderator prediction command to Twitch's first-party manager", () => {
+  it("routes a known moderator prediction command to a private local notice", () => {
     const moderator = getCommandsForAccess({
       kind: "authenticated",
       platform: "twitch",
@@ -409,8 +415,9 @@ describe("chat command registry", () => {
     const prediction = parseAvailableCommand("/prediction", moderator)!;
 
     expect(compileTwitchCommand(prediction, "moderator")).toMatchObject({
-      kind: "first-party",
-      destination: { kind: "channel-chat" },
+      kind: "local-notice",
+      message:
+        "Twitch's public predictions mutations require the broadcaster's token, so StreamFusion does not run this moderator command from chat.",
     });
   });
 

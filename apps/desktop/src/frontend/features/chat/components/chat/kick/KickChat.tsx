@@ -407,8 +407,7 @@ export const KickChat: React.FC<KickChatProps> = ({
         throw new Error(`/${command.name} is not available in this Kick chat`);
       }
 
-      await runKickCommandEffect(command, args, {
-        channelLogin: channel,
+      return runKickCommandEffect(command, args, {
         role: commandAccess.role,
         sendAction: (message) =>
           kickChatService.sendMessage(channel, `*${message}*`, kickUser ?? undefined),
@@ -465,10 +464,6 @@ export const KickChat: React.FC<KickChatProps> = ({
           }
           if (!result.ok) throw new Error(result.message);
         },
-        openExternal: async (url) => {
-          await window.electronAPI.openExternal(url);
-        },
-        explainHandoff: (message) => toast.info("Opening Kick", { description: message }),
       });
     },
     [channel, channelId, commandAccess, kickUser, kickUserId]

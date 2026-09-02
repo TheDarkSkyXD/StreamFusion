@@ -60,6 +60,7 @@ import {
   TWITCH_CHAT_ACTION_TOOLTIP_CLASS,
 } from "./ChatMessageActionStyles";
 import { ChatQuickSettingsPopover } from "./ChatQuickSettingsPopover";
+import { CommandResultCard } from "./CommandResultCard";
 import { ChatComposerReplyPreview } from "./ChatReply";
 import { ContextualEmoteRow } from "./ContextualEmoteRow";
 import { getContextualEmoteMatch, useContextualEmoteMode } from "./contextual-emote-mode";
@@ -83,6 +84,7 @@ import {
   type CommandSuggestion,
   type TextRange,
 } from "../../utils/chat-command-registry";
+import type { ChatCommandOutcome, ChatCommandResult } from "../../utils/chat-command-outcome";
 
 // ========== Types ==========
 
@@ -117,7 +119,7 @@ export interface ChatInputProps {
     readonly command: ChatCommandDefinition;
     readonly args: string;
     readonly text: string;
-  }) => Promise<void>;
+  }) => Promise<ChatCommandOutcome>;
   /** Called when an unauthenticated viewer attempts to send. */
   onAuthRequired?: (platform: ChatPlatform) => void | Promise<void>;
   /** True when known app state says this viewer can bypass room-mode restrictions. */
@@ -783,6 +785,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const [error, setError] = useState<string | null>(null);
     const [completion, setCompletion] = useState<CompletionState>({ kind: "none" });
     const [showCommandHelp, setShowCommandHelp] = useState(false);
+    const [commandResult, setCommandResult] = useState<ChatCommandResult | null>(null);
 
     // Refs
     const editorRef = useRef<HTMLDivElement>(null);
@@ -799,6 +802,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const lastSubmittedDraftRef = useRef<SubmittedDraft | null>(null);
     const isSendingRef = useRef(false);
     const previousViewerChatContextRef = useRef("");
+    const commandContextRef = useRef("");
+    const commandRequestSequenceRef = useRef(0);
     const previousSubscribersOnlyRef = useRef<{
       context: string;
       enabled: boolean;
@@ -840,6 +845,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     );
     const subscriberEligibilityContext = `${platform}:${channelId ?? ""}:${channel}`;
     const viewerChatContext = `${platform}:${channelId ?? ""}:${channel.toLowerCase()}:${viewerUserId ?? "guest"}`;
+    useLayoutEffect(() => {
+      commandContextRef.current = viewerChatContext;
+      commandRequestSequenceRef.current += 1;
+      setCommandResult(null);
+    }, [viewerChatContext]);
     useLayoutEffect(() => {
       subscriberEligibilityContextRef.current = subscriberEligibilityContext;
     }, [subscriberEligibilityContext]);
@@ -1973,6 +1983,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         cursorPosition,
         reply,
       };
+      const commandRequestSequence = parsedCommand
+        ? ++commandRequestSequenceRef.current
+        : undefined;
       lastSubmittedDraftRef.current = submittedDraft;
 
       flushSync(() => {
@@ -1981,6 +1994,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
         cursorPositionRef.current = 0;
         setIsSending(true);
         setError(null);
+        if (parsedCommand) setCommandResult(null);
         setMessage("");
         setEmoteSlots([]);
         setActiveRoomBlocker(null);
@@ -2014,11 +2028,18 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       try {
         if (parsedCommand) {
           if (!onProviderCommand) throw new Error("This command is not available in this chat");
-          await onProviderCommand({
+          const outcome = await onProviderCommand({
             command: parsedCommand.definition,
             args: parsedCommand.args,
             text: parsedCommand.text,
           });
+          if (
+            outcome.kind === "local-result" &&
+            commandRequestSequence === commandRequestSequenceRef.current &&
+            submittedDraft.contextKey === commandContextRef.current
+          ) {
+            setCommandResult(outcome.result);
+          }
         }
         if (!parsedCommand) {
           await sendChatPayload(trimmedMessage, localFragments);
@@ -2316,6 +2337,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             onCancel={clearReply}
           />
         )}
+
+        {commandResult ? (
+          <CommandResultCard result={commandResult} onDismiss={() => setCommandResult(null)} />
+        ) : null}
 
         <div className="relative" data-testid="chat-emote-settings-anchor">
           {showContextualEmoteRow ? (

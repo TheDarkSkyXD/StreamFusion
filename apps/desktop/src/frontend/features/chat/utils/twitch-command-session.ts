@@ -1,11 +1,24 @@
-import type { TwitchApiCommand, TwitchApiResult } from "@shared/twitch-api-types";
+import type {
+  TwitchApiCommand,
+  TwitchApiResult,
+  TwitchChannelMember,
+} from "@shared/twitch-api-types";
 
 import type {
   ChatCommandRole,
   TwitchCommandDefinition,
   TwitchCommandEffect,
-  TwitchFirstPartyDestination,
 } from "./chat-command-registry";
+import {
+  HANDLED_CHAT_COMMAND,
+  localChatCommandResult,
+  type ChatCommandOutcome,
+} from "./chat-command-outcome";
+
+type TwitchChannelMembersPage = {
+  readonly data: readonly TwitchChannelMember[];
+  readonly pagination: { readonly cursor?: string };
+};
 
 interface TwitchCommandSessionDependencies {
   readonly channel: { readonly id: string; readonly login: string };
@@ -16,42 +29,47 @@ interface TwitchCommandSessionDependencies {
   readonly executeApi: (
     command: Extract<TwitchApiCommand, { operation: "execute-slash-command" }>
   ) => Promise<TwitchApiResult>;
-  readonly openExternal: (url: string) => Promise<void>;
+  readonly readChannelMembers: (list: "moderators" | "vips") => Promise<TwitchApiResult<unknown>>;
   readonly openEngagement: (section: "polls" | "predictions") => void;
   readonly requestReconnect: (missingScopes: readonly string[]) => void;
-  readonly explainHandoff: (message: string) => void;
 }
 
-function channelFallback(login: string): string {
-  return `https://www.twitch.tv/${encodeURIComponent(login)}`;
-}
-
-export function getTwitchFirstPartyUrl(
-  destination: TwitchFirstPartyDestination,
-  channelLogin: string
-): string {
-  const login = encodeURIComponent(channelLogin.toLowerCase());
-  switch (destination.kind) {
-    case "channel-chat":
-      return `https://www.twitch.tv/popout/${login}/chat?popout=`;
-    case "subscriptions":
-      return `https://www.twitch.tv/subs/${login}`;
-    case "user":
-      return `https://www.twitch.tv/${encodeURIComponent(destination.login.toLowerCase())}`;
-    case "stream-manager":
-      return `https://dashboard.twitch.tv/u/${login}/stream-manager`;
-    default: {
-      const exhaustive: never = destination;
-      return exhaustive;
-    }
+function formatChannelMembers(list: "moderators" | "vips", page: TwitchChannelMembersPage): string {
+  const label = list === "moderators" ? "Moderators" : "VIPs";
+  if (page.data.length === 0) {
+    return list === "moderators"
+      ? "No moderators found for this channel."
+      : "No VIPs found for this channel.";
   }
+  const names = page.data.map((member) => member.user_name || member.user_login).join(", ");
+  return page.pagination.cursor ? `${label}: ${names} (showing first 100)` : `${label}: ${names}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isChannelMember(value: unknown): value is TwitchChannelMember {
+  return (
+    isRecord(value) &&
+    typeof value.user_id === "string" &&
+    typeof value.user_login === "string" &&
+    typeof value.user_name === "string"
+  );
+}
+
+function isChannelMembersPage(value: unknown): value is TwitchChannelMembersPage {
+  if (!isRecord(value)) return false;
+  if (!Array.isArray(value.data) || !value.data.every(isChannelMember)) return false;
+  if (!isRecord(value.pagination)) return false;
+  return value.pagination.cursor === undefined || typeof value.pagination.cursor === "string";
 }
 
 export async function runTwitchCommandEffect(
   definition: TwitchCommandDefinition,
   args: string,
   dependencies: TwitchCommandSessionDependencies
-): Promise<void> {
+): Promise<ChatCommandOutcome> {
   const effect: TwitchCommandEffect = definition.compile(args, dependencies.role);
   const missingScopes = definition.requiredScopes.filter(
     (scope) => !dependencies.grantedScopes.includes(scope)
@@ -66,22 +84,42 @@ export async function runTwitchCommandEffect(
       throw new Error("Help is handled by the chat composer");
     case "irc-action":
       await dependencies.sendAction(effect.message);
-      return;
+      return HANDLED_CHAT_COMMAND;
     case "disconnect":
       await dependencies.leaveChannel();
-      return;
+      return HANDLED_CHAT_COMMAND;
     case "engagement":
       dependencies.openEngagement(effect.section);
-      return;
-    case "first-party": {
-      const preferredUrl = getTwitchFirstPartyUrl(effect.destination, dependencies.channel.login);
-      dependencies.explainHandoff(effect.explanation);
-      try {
-        await dependencies.openExternal(preferredUrl);
-      } catch {
-        await dependencies.openExternal(channelFallback(dependencies.channel.login));
+      return HANDLED_CHAT_COMMAND;
+    case "channel-members": {
+      const result = await dependencies.readChannelMembers(effect.list);
+      const title = effect.list === "moderators" ? "Channel moderators" : "Channel VIPs";
+      if (result.ok) {
+        if (!isChannelMembersPage(result.data)) {
+          return localChatCommandResult({
+            tone: "error",
+            title,
+            body: "Twitch returned an unexpected member list.",
+          });
+        }
+        return localChatCommandResult({
+          tone: "info",
+          title,
+          body: formatChannelMembers(effect.list, result.data),
+        });
       }
-      return;
+      return localChatCommandResult({
+        tone: "error",
+        title,
+        body: result.error.message,
+      });
+    }
+    case "local-notice": {
+      return localChatCommandResult({
+        tone: "info",
+        title: `/${definition.name}`,
+        body: effect.message,
+      });
     }
     case "api": {
       const result = await dependencies.executeApi({
@@ -90,7 +128,7 @@ export async function runTwitchCommandEffect(
         action: effect.action,
       });
       if (!result.ok) throw new Error(result.error.message);
-      return;
+      return HANDLED_CHAT_COMMAND;
     }
     default: {
       const exhaustive: never = effect;

@@ -277,6 +277,7 @@ import { KickChatSendError, kickChatService } from "@backend/services/chat/kick-
 import { twitchChatService } from "@backend/services/chat/twitch-chat";
 import type { Emote, EmoteProvider } from "@backend/services/emotes/emote-types";
 import { ChatInput, type ChatInputHandle } from "@/features/chat/components/chat/ChatInput";
+import { HANDLED_CHAT_COMMAND } from "@/features/chat/utils/chat-command-outcome";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES, DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
 import type { ChatMessage } from "@shared/chat-types";
@@ -3232,7 +3233,7 @@ describe("ChatInput — Enter / Shift+Enter", () => {
 
   it("/me uses the Twitch provider command path", async () => {
     infoBannerImpl.mockReturnValue(null);
-    const onProviderCommand = vi.fn(async () => {});
+    const onProviderCommand = vi.fn(async () => HANDLED_CHAT_COMMAND);
     renderInput({
       commandAccess: { kind: "authenticated", platform: "twitch", role: "viewer" },
       onProviderCommand,
@@ -3252,7 +3253,7 @@ describe("ChatInput — Enter / Shift+Enter", () => {
     infoBannerImpl.mockReturnValue(null);
     renderInput({
       commandAccess: { kind: "authenticated", platform: "twitch", role: "viewer" },
-      onProviderCommand: vi.fn(async () => {}),
+      onProviderCommand: vi.fn(async () => HANDLED_CHAT_COMMAND),
     });
     const editor = getEditor();
     typeInEditor(editor, "/me");
@@ -3266,7 +3267,7 @@ describe("ChatInput — Enter / Shift+Enter", () => {
 
   it("/me uses the Kick provider command path", async () => {
     infoBannerImpl.mockReturnValue(null);
-    const onProviderCommand = vi.fn(async () => {});
+    const onProviderCommand = vi.fn(async () => HANDLED_CHAT_COMMAND);
     renderInput({
       platform: "kick",
       commandAccess: { kind: "authenticated", platform: "kick", role: "viewer" },
@@ -3283,9 +3284,82 @@ describe("ChatInput — Enter / Shift+Enter", () => {
     expect(kickChatService.sendMessage).not.toHaveBeenCalled();
   });
 
+  it("renders and dismisses a provider result without adding chat text", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    renderInput({
+      commandAccess: { kind: "authenticated", platform: "twitch", role: "viewer" },
+      onProviderCommand: vi.fn(async () => ({
+        kind: "local-result" as const,
+        result: {
+          tone: "info" as const,
+          title: "Channel VIPs",
+          body: "VIPs: Alice, Bob",
+        },
+      })),
+    });
+    const editor = getEditor();
+    typeInEditor(editor, "/vips");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Chat" }));
+    });
+
+    expect(screen.getByRole("status")).toHaveTextContent("Channel VIPs");
+    expect(screen.getByRole("status")).toHaveTextContent("VIPs: Alice, Bob");
+    expect(twitchChatService.sendMessage).not.toHaveBeenCalledWith("ninja", "/vips");
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss command result" }));
+    expect(screen.queryByTestId("chat-command-result")).toBeNull();
+  });
+
+  it("discards an async command result after the channel changes", async () => {
+    infoBannerImpl.mockReturnValue(null);
+    let resolveCommand:
+      | ((outcome: {
+          kind: "local-result";
+          result: { tone: "info"; title: string; body: string };
+        }) => void)
+      | null = null;
+    const onProviderCommand = vi.fn(
+      () =>
+        new Promise<{
+          kind: "local-result";
+          result: { tone: "info"; title: string; body: string };
+        }>((resolve) => {
+          resolveCommand = resolve;
+        })
+    );
+    const view = renderInput({
+      commandAccess: { kind: "authenticated", platform: "twitch", role: "viewer" },
+      onProviderCommand,
+    });
+    typeInEditor(getEditor(), "/vips");
+    fireEvent.click(screen.getByRole("button", { name: "Chat" }));
+
+    view.rerender(
+      <TooltipProvider>
+        <ChatInput
+          channel="shroud"
+          platform="twitch"
+          channelId="67890"
+          commandAccess={{ kind: "authenticated", platform: "twitch", role: "viewer" }}
+          onProviderCommand={onProviderCommand}
+        />
+      </TooltipProvider>
+    );
+    await act(async () => {
+      resolveCommand?.({
+        kind: "local-result",
+        result: { tone: "info", title: "Channel VIPs", body: "VIPs: stale" },
+      });
+    });
+
+    expect(screen.queryByTestId("chat-command-result")).toBeNull();
+  });
+
   it("keeps unknown slash text in the editor and does not send it as chat", async () => {
     infoBannerImpl.mockReturnValue(null);
-    const onProviderCommand = vi.fn(async () => {});
+    const onProviderCommand = vi.fn(async () => HANDLED_CHAT_COMMAND);
     renderInput({
       commandAccess: { kind: "authenticated", platform: "twitch", role: "viewer" },
       onProviderCommand,
@@ -3305,7 +3379,7 @@ describe("ChatInput — Enter / Shift+Enter", () => {
 
   it("keeps malformed slash commands in the editor and does not call the provider", async () => {
     infoBannerImpl.mockReturnValue(null);
-    const onProviderCommand = vi.fn(async () => {});
+    const onProviderCommand = vi.fn(async () => HANDLED_CHAT_COMMAND);
     renderInput({
       commandAccess: { kind: "authenticated", platform: "twitch", role: "moderator" },
       onProviderCommand,
@@ -3345,7 +3419,7 @@ describe("ChatInput — Enter / Shift+Enter", () => {
 
   it("/help filters the visible command reference without calling the provider", async () => {
     infoBannerImpl.mockReturnValue(null);
-    const onProviderCommand = vi.fn(async () => {});
+    const onProviderCommand = vi.fn(async () => HANDLED_CHAT_COMMAND);
     renderInput({
       commandAccess: { kind: "authenticated", platform: "twitch", role: "moderator" },
       onProviderCommand,

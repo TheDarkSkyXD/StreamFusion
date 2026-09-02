@@ -240,10 +240,7 @@ const chatInputProps: Partial<
 > = {};
 vi.mock("@/features/chat/components/chat/ChatInput", () => ({
   ChatInput: (
-    props: Pick<
-      ChatInputProps,
-      "canSend" | "viewerUserId" | "commandAccess" | "onProviderCommand"
-    >
+    props: Pick<ChatInputProps, "canSend" | "viewerUserId" | "commandAccess" | "onProviderCommand">
   ) => {
     chatInputProps.canSend = props.canSend;
     chatInputProps.viewerUserId = props.viewerUserId;
@@ -283,7 +280,7 @@ function renderKickChat(ui: ReactElement, queryClient?: QueryClient) {
 // Guards: history that resolves after a channel switch cannot mutate the prior channel's messages, pin, or moderator state.
 // Guards: unavailable recent history cannot disconnect or withhold live Kick chat.
 // Guards: viewers still observe ban UI without writing moderator-only history records.
-// Guards: Kick slash commands keep official moderation execution and first-party handoffs wired through the composer.
+// Guards: Kick slash commands keep official moderation execution and local-only notices wired through the composer.
 describe("KickChat", () => {
   beforeEach(() => {
     const api = installElectronAPIMock();
@@ -372,17 +369,15 @@ describe("KickChat", () => {
 
   it("exposes Partner commands only to the signed-in owner of a Partner channel", () => {
     mockAuthState.kickConnected = true;
-    renderKickChat(
-      <KickChat channel="modder" chatroomId={12345} isPartnerChannel={true} />
-    );
+    renderKickChat(<KickChat channel="modder" chatroomId={12345} isPartnerChannel={true} />);
 
     if (!chatInputProps.commandAccess) throw new Error("Kick command access missing");
-    expect(getCommandsForAccess(chatInputProps.commandAccess).map((command) => command.name)).toEqual(
-      expect.arrayContaining(["multi", "kpp"])
-    );
+    expect(
+      getCommandsForAccess(chatInputProps.commandAccess).map((command) => command.name)
+    ).toEqual(expect.arrayContaining(["multi", "kpp"]));
   });
 
-  it("opens Kick's first-party chat for a platform-owned chat-mode command", async () => {
+  it("shows a local notice for a platform-owned chat-mode command", async () => {
     mockAuthState.kickConnected = true;
     renderKickChat(<KickChat channel="xqc" chatroomId={12345} />);
     const slow = getCommandsForAccess({
@@ -392,14 +387,25 @@ describe("KickChat", () => {
     }).find((command) => command.name === "slow");
     if (!slow || !chatInputProps.onProviderCommand) throw new Error("Kick command wiring missing");
 
-    await act(() =>
-      chatInputProps.onProviderCommand?.({ command: slow, args: "on 30", text: "/slow on 30" })
-    );
-
-    expect(toastInfoMock).toHaveBeenCalledWith("Opening Kick", {
-      description: "Kick exposes slow-mode controls only in its first-party channel chat.",
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await chatInputProps.onProviderCommand?.({
+        command: slow,
+        args: "on 30",
+        text: "/slow on 30",
+      });
     });
-    expect(openExternalMock).toHaveBeenCalledWith("https://kick.com/xqc");
+
+    expect(toastInfoMock).not.toHaveBeenCalled();
+    expect(openExternalMock).not.toHaveBeenCalled();
+    expect(outcome).toEqual({
+      kind: "local-result",
+      result: {
+        tone: "info",
+        title: "/slow",
+        body: "Kick exposes slow-mode controls only in its first-party channel chat.",
+      },
+    });
     expect(setKickChatModeMock).not.toHaveBeenCalled();
   });
 
@@ -430,7 +436,7 @@ describe("KickChat", () => {
     expect(openExternalMock).not.toHaveBeenCalled();
   });
 
-  it("opens Kick's first-party workflow for a command without a public mutation", async () => {
+  it("shows a local notice for a command without a public mutation", async () => {
     mockAuthState.kickConnected = true;
     renderKickChat(<KickChat channel="xqc" chatroomId={12345} />);
     const title = getCommandsForAccess({
@@ -440,18 +446,25 @@ describe("KickChat", () => {
     }).find((command) => command.name === "title");
     if (!title || !chatInputProps.onProviderCommand) throw new Error("Kick command wiring missing");
 
-    await act(() =>
-      chatInputProps.onProviderCommand?.({
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await chatInputProps.onProviderCommand?.({
         command: title,
         args: "New title",
         text: "/title New title",
-      })
-    );
-
-    expect(toastInfoMock).toHaveBeenCalledWith("Opening Kick", {
-      description: "Kick only documents programmatic title changes for the channel owner's token.",
+      });
     });
-    expect(openExternalMock).toHaveBeenCalledWith("https://kick.com/xqc");
+
+    expect(toastInfoMock).not.toHaveBeenCalled();
+    expect(openExternalMock).not.toHaveBeenCalled();
+    expect(outcome).toEqual({
+      kind: "local-result",
+      result: {
+        tone: "info",
+        title: "/title",
+        body: "Kick only documents programmatic title changes for the channel owner's token.",
+      },
+    });
   });
 
   it("does not retain the Kick send window for read-only chat", () => {

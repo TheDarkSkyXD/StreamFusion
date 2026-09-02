@@ -385,6 +385,7 @@ const fakePrediction = {
 // Guards: the full-width composer footer paints above the message scroller so chat text cannot show behind its quick-emote row or padding.
 // Guards: viewer block commands compile @usernames into semantic main-process actions instead of falling through to IRC chat.
 // Guards: `/disconnect` parts only the current Channel and closes that Channel's composer until it rejoins.
+// Guards: Twitch slash commands return renderer-local outcomes instead of opening Twitch.
 describe("TwitchChat", () => {
   beforeEach(() => {
     sevenTvInstances.length = 0;
@@ -632,7 +633,7 @@ describe("TwitchChat", () => {
     expect(chatInputProps.canSend).toBe(false);
   });
 
-  it("hands moderator prediction management to Twitch", async () => {
+  it("reports moderator prediction management inside chat without opening Twitch", async () => {
     mockAuthState.twitchConnected = true;
     mockIsTwitchMod.value = true;
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
@@ -642,17 +643,75 @@ describe("TwitchChat", () => {
       role: "moderator",
     }).find((command) => command.name === "prediction")!;
 
+    let outcome: unknown;
     await act(async () => {
-      await chatInputProps.onProviderCommand?.({
+      outcome = await chatInputProps.onProviderCommand?.({
         command: prediction,
         args: "",
         text: "/prediction",
       });
     });
 
-    expect(window.electronAPI.openExternal).toHaveBeenCalledWith(
-      "https://www.twitch.tv/popout/ninja/chat?popout="
-    );
+    expect(window.electronAPI.openExternal).not.toHaveBeenCalled();
+    expect(outcome).toEqual({
+      kind: "local-result",
+      result: {
+        tone: "info",
+        title: "/prediction",
+        body: "Twitch's public predictions mutations require the broadcaster's token, so StreamFusion does not run this moderator command from chat.",
+      },
+    });
+  });
+
+  it("shows Twitch VIPs in chat through the typed API without posting slash text", async () => {
+    mockAuthState.twitchConnected = true;
+    mockIsTwitchMod.value = false;
+    twitchExecuteMock.mockImplementation(async (command: { operation: string }) => {
+      if (command.operation === "get-vips") {
+        return {
+          ok: true,
+          data: {
+            data: [
+              { user_id: "1", user_login: "vip_one", user_name: "Vip One" },
+              { user_id: "2", user_login: "vip_two", user_name: "" },
+            ],
+            pagination: {},
+          },
+        };
+      }
+      if (command.operation === "get-moderated-channels") return { ok: true, data: [] };
+      return { ok: true, data: undefined };
+    });
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    const vips = getCommandsForAccess({
+      kind: "authenticated",
+      platform: "twitch",
+      role: "viewer",
+    }).find((command) => command.name === "vips")!;
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await chatInputProps.onProviderCommand?.({
+        command: vips,
+        args: "",
+        text: "/vips",
+      });
+    });
+
+    expect(twitchExecuteMock).toHaveBeenCalledWith({
+      operation: "get-vips",
+      broadcasterId: "ninja-id",
+    });
+    expect(window.electronAPI.openExternal).not.toHaveBeenCalled();
+    expect(outcome).toEqual({
+      kind: "local-result",
+      result: {
+        tone: "info",
+        title: "Channel VIPs",
+        body: "VIPs: Vip One, vip_two",
+      },
+    });
+    expect(twitchChatService.sendMessage).not.toHaveBeenCalledWith("ninja", "/vips");
   });
 
   it("opens local Engagement for a broadcaster poll command", async () => {

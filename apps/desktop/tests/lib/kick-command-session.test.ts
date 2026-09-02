@@ -3,7 +3,6 @@ import {
   type KickCommandDefinition,
 } from "@/features/chat/utils/chat-command-registry";
 import {
-  getKickFirstPartyUrl,
   runKickCommandEffect,
   type KickCommandSessionDependencies,
 } from "@/features/chat/utils/kick-command-session";
@@ -24,28 +23,22 @@ function broadcasterCommand(name: string): KickCommandDefinition {
 
 function dependencies() {
   return {
-    channelLogin: "XQC",
     role: "broadcaster",
     sendAction: vi.fn(async () => {}),
     moderate: vi.fn(async () => {}),
-    openExternal: vi.fn(async () => {}),
-    explainHandoff: vi.fn(),
   } satisfies KickCommandSessionDependencies;
 }
 
-// Guards: local Kick commands dispatch locally and platform commands use the first-party channel.
+// Guards: local Kick commands dispatch locally and unsupported workflows report inside StreamFusion.
+// Guards: no Kick slash command opens an external page.
 describe("Kick command session", () => {
-  it("builds allowlisted first-party destinations", () => {
-    expect(getKickFirstPartyUrl({ kind: "channel-chat" }, "XQC")).toBe("https://kick.com/xqc");
-  });
-
   it("dispatches local actions without opening Kick", async () => {
     const deps = dependencies();
 
-    await runKickCommandEffect(broadcasterCommand("me"), "waves", deps);
+    const outcome = await runKickCommandEffect(broadcasterCommand("me"), "waves", deps);
 
     expect(deps.sendAction).toHaveBeenCalledWith("waves");
-    expect(deps.openExternal).not.toHaveBeenCalled();
+    expect(outcome).toEqual({ kind: "handled" });
   });
 
   it("dispatches documented moderation effects without sending raw slash text", async () => {
@@ -59,26 +52,20 @@ describe("Kick command session", () => {
       targetLogin: "viewer",
       reason: "spam",
     });
-    expect(deps.openExternal).not.toHaveBeenCalled();
   });
 
-  it("opens Kick for first-party-only commands", async () => {
+  it("reports first-party-only commands without opening Kick", async () => {
     const deps = dependencies();
 
-    await runKickCommandEffect(broadcasterCommand("title"), "New title", deps);
+    const outcome = await runKickCommandEffect(broadcasterCommand("title"), "New title", deps);
 
-    expect(deps.explainHandoff).toHaveBeenCalledWith(
-      "Kick only documents programmatic title changes for the channel owner's token."
-    );
-    expect(deps.openExternal).toHaveBeenCalledWith("https://kick.com/xqc");
-  });
-
-  it("surfaces first-party launch failures", async () => {
-    const deps = dependencies();
-    deps.openExternal.mockRejectedValueOnce(new Error("Kick unavailable"));
-
-    await expect(
-      runKickCommandEffect(broadcasterCommand("title"), "New title", deps)
-    ).rejects.toThrow("Kick unavailable");
+    expect(outcome).toEqual({
+      kind: "local-result",
+      result: {
+        tone: "info",
+        title: "/title",
+        body: "Kick only documents programmatic title changes for the channel owner's token.",
+      },
+    });
   });
 });

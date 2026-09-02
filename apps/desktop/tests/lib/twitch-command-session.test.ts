@@ -2,16 +2,19 @@ import {
   getCommandsForAccess,
   type TwitchCommandDefinition,
 } from "@/features/chat/utils/chat-command-registry";
-import {
-  getTwitchFirstPartyUrl,
-  runTwitchCommandEffect,
-} from "@/features/chat/utils/twitch-command-session";
-import type { TwitchApiResult } from "@shared/twitch-api-types";
+import { runTwitchCommandEffect } from "@/features/chat/utils/twitch-command-session";
+import type { TwitchApiResult, TwitchChannelMember } from "@shared/twitch-api-types";
 import { describe, expect, it, vi } from "vitest";
+
+type TwitchChannelMembersPage = {
+  readonly data: readonly TwitchChannelMember[];
+  readonly pagination: { readonly cursor?: string };
+};
 
 // Guards: each closed Twitch command effect reaches only its intended renderer or IPC capability.
 // Guards: API rejection and missing OAuth scopes reject execution so ChatInput restores the submitted draft.
-// Guards: first-party URLs encode logins and fall back to the channel when Twitch rejects a dashboard URL.
+// Guards: Twitch-owned workflows report a renderer-local result and never open an external page.
+// Guards: roster commands use the typed Twitch API so VIP and moderator results can stay in StreamFusion.
 describe("Twitch command session", () => {
   const commands = getCommandsForAccess({
     kind: "authenticated",
@@ -33,20 +36,29 @@ describe("Twitch command session", () => {
       ok: true,
       data: { action: "ban" },
     })),
-    openExternal: vi.fn(async () => undefined),
+    readChannelMembers: vi.fn(async (): Promise<TwitchApiResult<TwitchChannelMembersPage>> => ({
+      ok: true,
+      data: {
+        data: [
+          { user_id: "1", user_login: "vip_one", user_name: "Vip One" },
+          { user_id: "2", user_login: "vip_two", user_name: "" },
+        ],
+        pagination: {},
+      },
+    })),
     openEngagement: vi.fn(),
     requestReconnect: vi.fn(),
-    explainHandoff: vi.fn(),
   });
 
-  it("runs IRC, disconnect, API, engagement, first-party, and reconnect effects", async () => {
+  it("runs IRC, disconnect, API, engagement, local notice, and reconnect effects", async () => {
     const ports = dependencies();
 
     await runTwitchCommandEffect(definition("me"), "waves", ports);
     await runTwitchCommandEffect(definition("disconnect"), "", ports);
     await runTwitchCommandEffect(definition("color"), "blue", ports);
     await runTwitchCommandEffect(definition("poll"), "", ports);
-    await runTwitchCommandEffect(definition("gift"), "5", ports);
+    const giftOutcome = await runTwitchCommandEffect(definition("gift"), "5", ports);
+    const vipOutcome = await runTwitchCommandEffect(definition("vips"), "", ports);
 
     expect(ports.sendAction).toHaveBeenCalledWith("waves");
     expect(ports.leaveChannel).toHaveBeenCalledOnce();
@@ -56,8 +68,23 @@ describe("Twitch command session", () => {
       action: { kind: "update-chat-color", color: "blue" },
     });
     expect(ports.openEngagement).toHaveBeenCalledWith("polls");
-    expect(ports.openExternal).toHaveBeenCalledWith("https://www.twitch.tv/subs/streamer");
-    expect(ports.explainHandoff).toHaveBeenCalled();
+    expect(giftOutcome).toEqual({
+      kind: "local-result",
+      result: {
+        tone: "info",
+        title: "/gift",
+        body: "Twitch handles gift purchases in its secure subscription flow.",
+      },
+    });
+    expect(ports.readChannelMembers).toHaveBeenCalledWith("vips");
+    expect(vipOutcome).toEqual({
+      kind: "local-result",
+      result: {
+        tone: "info",
+        title: "Channel VIPs",
+        body: "VIPs: Vip One, vip_two",
+      },
+    });
 
     ports.grantedScopes.splice(0);
     await expect(runTwitchCommandEffect(definition("ban"), "viewer", ports)).rejects.toThrow(
@@ -78,24 +105,42 @@ describe("Twitch command session", () => {
     );
   });
 
-  it("builds only central Twitch first-party destinations", () => {
-    expect(getTwitchFirstPartyUrl({ kind: "user", login: "Some_User" }, "streamer")).toBe(
-      "https://www.twitch.tv/some_user"
-    );
-    expect(getTwitchFirstPartyUrl({ kind: "channel-chat" }, "Some_User")).toBe(
-      "https://www.twitch.tv/popout/some_user/chat?popout="
-    );
+  it("shows Twitch member-list failures privately instead of restoring the slash draft", async () => {
+    const ports = dependencies();
+    ports.readChannelMembers.mockResolvedValueOnce({
+      ok: false,
+      error: { code: "unauthorized", message: "Missing scope: moderator:read:vips" },
+    });
+
+    const outcome = await runTwitchCommandEffect(definition("vips"), "", ports);
+
+    expect(outcome).toEqual({
+      kind: "local-result",
+      result: {
+        tone: "error",
+        title: "Channel VIPs",
+        body: "Missing scope: moderator:read:vips",
+      },
+    });
   });
 
-  it("opens the channel fallback when a preferred Twitch destination fails", async () => {
+  it("formats empty moderator rosters as a local result", async () => {
     const ports = dependencies();
-    ports.openExternal.mockRejectedValueOnce(new Error("dashboard unavailable"));
+    ports.readChannelMembers.mockResolvedValueOnce({
+      ok: true,
+      data: { data: [], pagination: {} },
+    });
 
-    await runTwitchCommandEffect(definition("sharedchat"), "", ports);
+    const outcome = await runTwitchCommandEffect(definition("mods"), "", ports);
 
-    expect(ports.openExternal.mock.calls).toEqual([
-      ["https://dashboard.twitch.tv/u/streamer/stream-manager"],
-      ["https://www.twitch.tv/streamer"],
-    ]);
+    expect(ports.readChannelMembers).toHaveBeenCalledWith("moderators");
+    expect(outcome).toEqual({
+      kind: "local-result",
+      result: {
+        tone: "info",
+        title: "Channel moderators",
+        body: "No moderators found for this channel.",
+      },
+    });
   });
 });
