@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import type { Emote } from "@backend/services/emotes/emote-types";
 import type { ChatCosmeticBadge, ChatCosmeticProvider } from "@shared/chat-types";
 
@@ -60,7 +61,9 @@ export const CHAT_PREVIEW_FALLBACK_BADGES: Record<ChatCosmeticProvider, ChatCosm
         id: `settings-preview-${provider}`,
         provider,
         providerId: `settings-preview-${provider}`,
-        title: `${provider === "7tv" ? "7TV" : provider === "bttv" ? "BetterTTV" : "FrankerFaceZ"} profile badge`,
+        title: i18n["t"]("settings.valueProfileBadge", {
+          value1: provider === "7tv" ? "7TV" : provider === "bttv" ? "BetterTTV" : "FrankerFaceZ",
+        }),
         imageUrl: svgDataUrl(badgeArtwork[provider]),
       },
     ])

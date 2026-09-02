@@ -1,4 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { i18n } from "@/i18n";
+import type { settingsEn } from "@/i18n/locales/en/settings";
 
 import type { Emote } from "@backend/services/emotes/emote-types";
 import {
@@ -47,6 +49,18 @@ import {
  * `notifySettingsSaved`), shared with the rest of the Settings page.
  */
 
+function translateSettings(
+  key: `settings.${keyof typeof settingsEn.settings}`,
+  options?: Record<string, unknown>
+): string {
+  const translated: string = i18n["t"](key, { defaultValue: String(key) });
+  return options
+    ? Object.entries(options).reduce(
+        (result, [name, value]) => result.replaceAll(`{{${name}}}`, String(value)),
+        translated
+      )
+    : translated;
+}
 export type ChatSettingsGroup = "appearance" | "emotes" | "events" | "behavior";
 
 // ───────────────────────────── row primitives ─────────────────────────────
@@ -243,12 +257,14 @@ export function RangeRow({
           {(defaultDisplayValue || onReset) && (
             <div className="mt-1.5 flex min-h-6 items-center justify-between gap-3">
               {defaultDisplayValue && (
-                <p className="text-xs text-zinc-600">Default: {defaultDisplayValue}</p>
+                <p className="text-xs text-zinc-600">
+                  {translateSettings("settings.defaultValue", { value: defaultDisplayValue })}
+                </p>
               )}
               {onReset && (
                 <button
                   type="button"
-                  aria-label={`Reset ${label} to default`}
+                  aria-label={translateSettings("settings.resetValueToDefault", { label: label })}
                   disabled={!canReset}
                   onClick={() => {
                     if (defaultValue !== undefined) {
@@ -258,7 +274,7 @@ export function RangeRow({
                   }}
                   className="ml-auto rounded-md px-2 py-1 text-xs font-medium text-zinc-400 transition-colors hover:bg-[#27272a] hover:text-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121214] disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-zinc-400"
                 >
-                  Reset
+                  {translateSettings("settings.reset")}
                 </button>
               )}
             </div>
@@ -344,7 +360,7 @@ function PreviewFrame({ testId, children }: { testId: string; children: ReactNod
     <div className="py-4" data-testid={testId}>
       <div className="overflow-hidden rounded-lg border border-[#333333] bg-[#18181b]">
         <div className="border-b border-[#333333] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
-          Preview
+          {translateSettings("settings.preview")}
         </div>
         {children}
       </div>
@@ -467,9 +483,11 @@ function AppearancePreview({ cd }: { cd: ChatDisplayPreferences }) {
             </span>
           )}
           <span className="font-bold" style={{ color: uncoloredUsernameColor }}>
-            NightOwl:
+            {translateSettings("settings.nightowl")}
           </span>
-          <span className="min-w-0 truncate">This chat setup feels right</span>
+          <span className="min-w-0 truncate">
+            {translateSettings("settings.thisChatSetupFeelsRight")}
+          </span>
           <SampleEmote emote={CHAT_PREVIEW_FALLBACK_EMOTES["7tv"]} size={cd.emoteSizePx} />
         </div>
         <div className={cn("flex items-center gap-1.5", densityPresentation.rowPaddingClass)}>
@@ -478,9 +496,11 @@ function AppearancePreview({ cd }: { cd: ChatDisplayPreferences }) {
             data-preview-adapted-color="true"
             style={{ color: chosenUsernameColor }}
           >
-            DeepViolet:
+            {translateSettings("settings.deepviolet")}
           </span>
-          <span className="min-w-0 truncate text-zinc-400">low-contrast colors stay readable</span>
+          <span className="min-w-0 truncate text-zinc-400">
+            {translateSettings("settings.lowContrastColorsStayReadable")}
+          </span>
         </div>
       </div>
     </PreviewFrame>
@@ -565,15 +585,15 @@ function EmotesPreview({ cd }: { cd: ChatDisplayPreferences }) {
               className="rounded-[3px] font-bold"
             >
               <span data-preview-painted="true" style={usernameStyle}>
-                PaintedPixel:
+                {translateSettings("settings.paintedpixel")}
               </span>
             </PreviewTooltip>
           ) : (
             <span className="font-bold" data-preview-painted="false" style={usernameStyle}>
-              PaintedPixel:
+              {translateSettings("settings.paintedpixel")}
             </span>
           )}
-          <span className="text-zinc-400">great stream</span>
+          <span className="text-zinc-400">{translateSettings("settings.greatStream")}</span>
           {cd.enable7tv && (
             <SampleEmote
               animated={cd.animatedEmotes}
@@ -605,7 +625,7 @@ function EmotesPreview({ cd }: { cd: ChatDisplayPreferences }) {
         {cd.systemMessageEmotes && (
           <div className="flex items-center gap-1.5 rounded-md bg-[#202024] px-2 py-1 text-xs text-zinc-400">
             <SampleEmote emote={providerEmotes["7tv"]} size={18} />
-            <span>System emotes are enabled</span>
+            <span>{translateSettings("settings.systemEmotesAreEnabled")}</span>
           </div>
         )}
       </div>
@@ -619,7 +639,10 @@ function EventsPreview({ cd }: { cd: ChatDisplayPreferences }) {
       <div className="space-y-1.5 px-3 py-3 text-xs text-zinc-300">
         {cd.showUserNotices && (
           <div className="rounded-md bg-[#252525] px-2 py-1.5">
-            <span className="font-semibold text-white">NightOwl</span> subscribed for 6 months
+            <span className="font-semibold text-white">
+              {translateSettings("settings.nightowl2")}
+            </span>{" "}
+            {translateSettings("settings.subscribedFor6Months")}
           </div>
         )}
         {cd.showClearMsg && (
@@ -635,21 +658,31 @@ function EventsPreview({ cd }: { cd: ChatDisplayPreferences }) {
           >
             <span data-deleted-mode={cd.deletedMessageDisplay}>
               {cd.deletedMessageDisplay === "tombstone"
-                ? "Message deleted"
-                : "Mod removed: keep chat friendly"}
+                ? translateSettings("settings.messageDeleted")
+                : translateSettings("settings.modRemovedKeepChatFriendly")}
             </span>
           </PreviewTooltip>
         )}
-        {cd.showClearChat && <div className="text-zinc-500">Chat was cleared by a moderator</div>}
+        {cd.showClearChat && (
+          <div className="text-zinc-500">
+            {translateSettings("settings.chatWasClearedByAModerator")}
+          </div>
+        )}
         {cd.firstMsgHighlight && (
           <div className="rounded-md border border-[#a970ff]/50 px-2 py-1 text-[#d8bfff]">
-            First message from a new chatter
+            {translateSettings("settings.firstMessageFromANewChatter")}
           </div>
         )}
         <div className="flex gap-1.5">
-          {cd.showPolls && <span className="rounded bg-[#2d2d32] px-2 py-1">Poll open</span>}
+          {cd.showPolls && (
+            <span className="rounded bg-[#2d2d32] px-2 py-1">
+              {translateSettings("settings.pollOpen")}
+            </span>
+          )}
           {cd.showPredictions && (
-            <span className="rounded bg-[#2d2d32] px-2 py-1">Prediction live</span>
+            <span className="rounded bg-[#2d2d32] px-2 py-1">
+              {translateSettings("settings.predictionLive")}
+            </span>
           )}
         </div>
       </div>
@@ -684,7 +717,7 @@ export function ChatSettingsSection({
 function AppearanceGroup() {
   const { cd, set } = useChatDisplay(notifySettingsSaved);
   return (
-    <GroupCard title="Appearance">
+    <GroupCard title={translateSettings("settings.appearance")}>
       <AppearancePreview cd={cd} />
       <SwitchRow
         label="Readable color for uncolored users"
@@ -707,14 +740,14 @@ function AppearanceGroup() {
         label="Timestamp format"
         value={cd.timestampFormat}
         options={[
-          { value: "H:mm", label: "24-hour · 9:05" },
-          { value: "HH:mm", label: "24-hour · 09:05" },
-          { value: "H:mm:ss", label: "24-hour · 9:05:07" },
-          { value: "HH:mm:ss", label: "24-hour · 09:05:07" },
-          { value: "h:mm a", label: "12-hour · 9:05 AM" },
-          { value: "hh:mm a", label: "12-hour · 09:05 AM" },
-          { value: "h:mm:ss a", label: "12-hour · 9:05:07 AM" },
-          { value: "hh:mm:ss a", label: "12-hour · 09:05:07 AM" },
+          { value: "H:mm", label: i18n["t"]("settings.value24Hour905") },
+          { value: "HH:mm", label: i18n["t"]("settings.value24Hour0905") },
+          { value: "H:mm:ss", label: i18n["t"]("settings.value24Hour90507") },
+          { value: "HH:mm:ss", label: i18n["t"]("settings.value24Hour090507") },
+          { value: "h:mm a", label: i18n["t"]("settings.value12Hour905Am") },
+          { value: "hh:mm a", label: i18n["t"]("settings.value12Hour0905Am") },
+          { value: "h:mm:ss a", label: i18n["t"]("settings.value12Hour90507Am") },
+          { value: "hh:mm:ss a", label: i18n["t"]("settings.value12Hour090507Am") },
         ]}
         onChange={(v) => set("timestampFormat", v)}
       />
@@ -738,9 +771,9 @@ function AppearanceGroup() {
         label="Density"
         value={cd.density}
         options={[
-          { value: "compact", label: "Tight" },
-          { value: "cozy", label: "Medium" },
-          { value: "loose", label: "Loose" },
+          { value: "compact", label: i18n["t"]("settings.tight") },
+          { value: "cozy", label: i18n["t"]("settings.medium") },
+          { value: "loose", label: i18n["t"]("settings.loose") },
         ]}
         onChange={(v) => set("density", v)}
       />
@@ -752,7 +785,7 @@ function EmotesGroup() {
   const { cd, set } = useChatDisplay(notifySettingsSaved);
   const nextLoadNote = "Applies on next channel load.";
   return (
-    <GroupCard title="Emotes & badges">
+    <GroupCard title={translateSettings("settings.emotesBadges")}>
       <EmotesPreview cd={cd} />
       <SwitchRow
         label="7TV emotes"
@@ -848,7 +881,7 @@ function HighlightStylePreview({
         <span className="block text-xs font-semibold">{label}</span>
         {active && (
           <span className="rounded-[4px] bg-white px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-normal text-[#18181b]">
-            Selected
+            {translateSettings("settings.selected")}
           </span>
         )}
       </span>
@@ -867,13 +900,13 @@ function HighlightStylePreview({
         {isCozy && (
           <span className="flex h-5 items-center gap-1 bg-[#26262c] px-1.5 text-[#efeff1]">
             <span className="h-2.5 w-2.5 rounded-full bg-[#f87171]" />
-            <span>Timeout</span>
+            <span>{translateSettings("settings.timeout")}</span>
           </span>
         )}
         <span className={cn("block bg-[#1f1f24] px-1.5 py-1", isCozy && "bg-[#18181b]")}>
-          <span className="font-bold text-[#70AD47]">Mod</span>
-          <span className="text-[#adadb8]"> removed </span>
-          <span className="text-white">message</span>
+          <span className="font-bold text-[#70AD47]">{translateSettings("settings.mod")}</span>
+          <span className="text-[#adadb8]"> {translateSettings("settings.removed")}</span>
+          <span className="text-white">{translateSettings("settings.message2")}</span>
         </span>
       </span>
     </button>
@@ -914,7 +947,7 @@ function HighlightStyleRow({
 function EventsGroup() {
   const { cd, set } = useChatDisplay(notifySettingsSaved);
   return (
-    <GroupCard title="Messages & events">
+    <GroupCard title={translateSettings("settings.messagesEvents")}>
       <EventsPreview cd={cd} />
       <RangeRow
         label="Message limit"
@@ -962,10 +995,10 @@ function EventsGroup() {
         description="Choose how much retained deleted-message detail appears in chat."
         value={cd.deletedMessageDisplay}
         options={[
-          { value: "tombstone", label: "Tombstone only" },
-          { value: "message", label: "Message content only" },
-          { value: "compact", label: "Full compact detail (Recommended)" },
-          { value: "audit", label: "Audit-style detail" },
+          { value: "tombstone", label: i18n["t"]("settings.tombstoneOnly") },
+          { value: "message", label: i18n["t"]("settings.messageContentOnly") },
+          { value: "compact", label: i18n["t"]("settings.fullCompactDetailRecommended") },
+          { value: "audit", label: i18n["t"]("settings.auditStyleDetail") },
         ]}
         onChange={(v) => set("deletedMessageDisplay", v)}
       />
@@ -1005,7 +1038,7 @@ function BehaviorGroup() {
   };
 
   return (
-    <GroupCard title="Behavior">
+    <GroupCard title={translateSettings("settings.behavior")}>
       <SwitchRow
         label="Hide chat panel"
         description="Collapse the docked chat panel on stream pages."

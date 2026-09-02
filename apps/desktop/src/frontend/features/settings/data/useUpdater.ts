@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import { useCallback, useEffect } from "react";
 import { logger } from "@/renderer/logging/logger";
 import type {
@@ -108,7 +109,13 @@ export function useUpdater(): UseUpdaterReturn {
       });
     } catch (err) {
       logger.error("Hook:Updater", "check failed", { error: serializeError(err) });
-      setError(err instanceof Error ? err.message : "Failed to check for updates");
+      setError(
+        err instanceof Error
+          ? err.message
+          : i18n["t"]("settings.failedToCheckForUpdates", {
+              defaultValue: "Failed to check for updates",
+            })
+      );
       setStatus("error");
     }
   }, [updateFromBackend, setError, setStatus]);
@@ -124,7 +131,13 @@ export function useUpdater(): UseUpdaterReturn {
       });
     } catch (err) {
       logger.error("Hook:Updater", "download failed", { error: serializeError(err) });
-      setError(err instanceof Error ? err.message : "Failed to download update");
+      setError(
+        err instanceof Error
+          ? err.message
+          : i18n["t"]("settings.failedToDownloadUpdate", {
+              defaultValue: "Failed to download update",
+            })
+      );
       setStatus("error");
     }
   }, [allowPrerelease, updateFromBackend, setError, setStatus]);
@@ -136,7 +149,13 @@ export function useUpdater(): UseUpdaterReturn {
       await window.electronAPI.updater.install();
     } catch (err) {
       logger.error("Hook:Updater", "install failed", { error: serializeError(err) });
-      setError(err instanceof Error ? err.message : "Failed to install update");
+      setError(
+        err instanceof Error
+          ? err.message
+          : i18n["t"]("settings.failedToInstallUpdate", {
+              defaultValue: "Failed to install update",
+            })
+      );
       setStatus("error");
     }
   }, [setError, setStatus]);

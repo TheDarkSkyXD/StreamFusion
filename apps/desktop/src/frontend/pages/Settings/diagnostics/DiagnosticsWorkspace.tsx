@@ -1,4 +1,6 @@
 import { type ComponentType, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { i18n } from "@/i18n";
+import type { settingsEn } from "@/i18n/locales/en/settings";
 import {
   LuActivity,
   LuBug,
@@ -38,18 +40,50 @@ import {
   resourceHistoryBarHeight,
 } from "./diagnostics-resource-history";
 
+function translateSettings(
+  key: `settings.${keyof typeof settingsEn.settings}`,
+  options?: Record<string, unknown>
+): string {
+  const translated: string = i18n["t"](key, { defaultValue: String(key) });
+  return options
+    ? Object.entries(options).reduce(
+        (result, [name, value]) => result.replaceAll(`{{${name}}}`, String(value)),
+        translated
+      )
+    : translated;
+}
 const TABS: ReadonlyArray<{
   id: DiagnosticsTab;
   label: string;
   icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   color: string;
 }> = [
-  { id: "overview", label: "Overview", icon: LuGauge, color: "text-emerald-400" },
-  { id: "resources", label: "Resources", icon: LuActivity, color: "text-cyan-300" },
-  { id: "io", label: "I/O", icon: LuDatabase, color: "text-emerald-200" },
-  { id: "traces", label: "Traces", icon: LuWorkflow, color: "text-sky-300" },
-  { id: "logs-reports", label: "Logs & Reports", icon: LuFileText, color: "text-emerald-400" },
-  { id: "developer-tools", label: "Developer Tools", icon: LuBug, color: "text-red-400" },
+  {
+    id: "overview",
+    label: i18n["t"]("settings.overview"),
+    icon: LuGauge,
+    color: "text-emerald-400",
+  },
+  {
+    id: "resources",
+    label: i18n["t"]("settings.resources"),
+    icon: LuActivity,
+    color: "text-cyan-300",
+  },
+  { id: "io", label: i18n["t"]("settings.iO"), icon: LuDatabase, color: "text-emerald-200" },
+  { id: "traces", label: i18n["t"]("settings.traces"), icon: LuWorkflow, color: "text-sky-300" },
+  {
+    id: "logs-reports",
+    label: i18n["t"]("settings.logsReports"),
+    icon: LuFileText,
+    color: "text-emerald-400",
+  },
+  {
+    id: "developer-tools",
+    label: i18n["t"]("settings.developerTools"),
+    icon: LuBug,
+    color: "text-red-400",
+  },
 ];
 
 const WINDOWS: readonly DiagnosticsWindowMinutes[] = [5, 15, 30, 60];
@@ -111,9 +145,9 @@ function formatObservedAt(observedAtMs: number): string {
 async function copyTraceId(traceId: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(traceId);
-    toast.success("Trace ID copied");
+    toast.success(translateSettings("settings.traceIdCopied"));
   } catch {
-    toast.error("Could not copy the trace ID");
+    toast.error(translateSettings("settings.couldNotCopyTheTraceId"));
   }
 }
 
@@ -327,9 +361,9 @@ function aggregateProcessMetrics(
   const write = rows.reduce((total, row) => total + (row.writeBytesPerSecond ?? 0), 0);
   return [
     { label: "CPU", value: `${cpu.toFixed(1)}%` },
-    { label: "Memory", value: formatBytes(memory) },
-    { label: "Read", value: hasReadRate ? formatRate(read) : ioPlaceholder },
-    { label: "Write", value: hasWriteRate ? formatRate(write) : ioPlaceholder },
+    { label: i18n["t"]("settings.memory"), value: formatBytes(memory) },
+    { label: i18n["t"]("settings.read"), value: hasReadRate ? formatRate(read) : ioPlaceholder },
+    { label: i18n["t"]("settings.write"), value: hasWriteRate ? formatRate(write) : ioPlaceholder },
   ];
 }
 
@@ -343,7 +377,7 @@ function WindowControl({
   return (
     <div
       className="flex rounded-lg border border-[var(--color-border)] p-1"
-      aria-label="Time window"
+      aria-label={translateSettings("settings.timeWindow")}
     >
       {WINDOWS.map((minutes) => (
         <button
@@ -358,7 +392,9 @@ function WindowControl({
           )}
           aria-pressed={value === minutes}
         >
-          {minutes === 60 ? "1h" : `${minutes}m`}
+          {minutes === 60
+            ? translateSettings("settings.value1h")
+            : translateSettings("settings.valueM", { minutes: minutes })}
         </button>
       ))}
     </div>
@@ -391,25 +427,28 @@ function ResourceChart({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
       <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-[var(--color-foreground-secondary)]">
         <span>
           <span className="mr-2 inline-block h-1.5 w-3 rounded-full bg-violet-300" />
-          CPU average
+          {translateSettings("settings.cpuAverage")}
         </span>
         <span>
           <span className="mr-2 inline-block h-1.5 w-3 rounded-full bg-emerald-200" />
-          I/O reads
+          {translateSettings("settings.iOReads")}
         </span>
         <span>
           <span className="mr-2 inline-block h-1.5 w-3 rounded-full bg-violet-500" />
-          I/O writes
+          {translateSettings("settings.iOWrites")}
         </span>
       </div>
       <div
         className="flex h-32 items-end gap-1 overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] px-2 pb-2 pt-3"
         role="img"
-        aria-label={`Resource history for the selected ${snapshot.view.windowMinutes} minute window with ${buckets.length} time buckets`}
+        aria-label={translateSettings(
+          "settings.resourceHistoryForTheSelectedValueMinuteWindowWithValueTimeBucke",
+          { value1: snapshot.view.windowMinutes, value2: buckets.length }
+        )}
       >
         {buckets.length === 0 ? (
           <p className="m-auto text-sm text-[var(--color-foreground-secondary)]">
-            Waiting for resource history.
+            {translateSettings("settings.waitingForResourceHistory")}
           </p>
         ) : (
           buckets.map((bucket) => {
@@ -451,10 +490,22 @@ function ResourceChart({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="space-y-0.5 text-left text-xs tabular-nums">
-                  <div>CPU avg {bucket.avgCpuPercent.toFixed(1)}%</div>
-                  <div>CPU peak {bucket.maxCpuPercent.toFixed(1)}%</div>
-                  <div>Read {formatBytes(bucket.ioReadBytes)}</div>
-                  <div>Write {formatBytes(bucket.ioWriteBytes)}</div>
+                  <div>
+                    {translateSettings("settings.cpuAvg")}
+                    {bucket.avgCpuPercent.toFixed(1)}%
+                  </div>
+                  <div>
+                    {translateSettings("settings.cpuPeak")}
+                    {bucket.maxCpuPercent.toFixed(1)}%
+                  </div>
+                  <div>
+                    {translateSettings("settings.read")}
+                    {formatBytes(bucket.ioReadBytes)}
+                  </div>
+                  <div>
+                    {translateSettings("settings.write")}
+                    {formatBytes(bucket.ioWriteBytes)}
+                  </div>
                 </TooltipContent>
               </Tooltip>
             );
@@ -511,7 +562,7 @@ function ProcessTable({
   if (rows.length === 0) {
     return (
       <p className="p-5 text-sm text-[var(--color-foreground-secondary)]">
-        No live processes observed.
+        {translateSettings("settings.noLiveProcessesObserved")}
       </p>
     );
   }
@@ -534,17 +585,17 @@ function ProcessTable({
         </colgroup>
         <thead>
           <tr className="text-left text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
-            <th className="px-2 py-3">Process</th>
-            <th className="px-4 py-3">Category</th>
+            <th className="px-2 py-3">{translateSettings("settings.process")}</th>
+            <th className="px-4 py-3">{translateSettings("settings.category")}</th>
             <th className="px-4 py-3 text-right">CPU</th>
-            <th className="px-4 py-3 text-right">CPU time</th>
-            <th className="px-4 py-3 text-right">Memory</th>
-            <th className="px-4 py-3 text-right">Read/s</th>
-            <th className="px-4 py-3 text-right">Write/s</th>
-            <th className="px-4 py-3 text-right">Read total</th>
-            <th className="px-4 py-3 text-right">Write total</th>
+            <th className="px-4 py-3 text-right">{translateSettings("settings.cpuTime")}</th>
+            <th className="px-4 py-3 text-right">{translateSettings("settings.memory")}</th>
+            <th className="px-4 py-3 text-right">{translateSettings("settings.readS")}</th>
+            <th className="px-4 py-3 text-right">{translateSettings("settings.writeS")}</th>
+            <th className="px-4 py-3 text-right">{translateSettings("settings.readTotal")}</th>
+            <th className="px-4 py-3 text-right">{translateSettings("settings.writeTotal")}</th>
             <th className="px-5 py-3 text-right">PID</th>
-            <th className="px-4 py-3 text-right">Kill</th>
+            <th className="px-4 py-3 text-right">{translateSettings("settings.kill")}</th>
           </tr>
         </thead>
         <tbody>
@@ -576,8 +627,10 @@ function ProcessTable({
               </td>
               <td className="px-4 py-3.5 text-right tabular-nums text-white">
                 {row.cumulativeCpuMs === null
-                  ? "Unsupported"
-                  : `${(row.cumulativeCpuMs / 1_000).toFixed(1)}s`}
+                  ? translateSettings("settings.unsupported")
+                  : translateSettings("settings.valueS", {
+                      value1: (row.cumulativeCpuMs / 1_000).toFixed(1),
+                    })}
               </td>
               <td className="px-4 py-3.5 text-right tabular-nums text-white">
                 {formatBytes(row.residentBytes)}
@@ -617,12 +670,12 @@ function ProcessHistoryTable({ rows }: { rows: readonly ProcessObservation[] }) 
       <table className="w-full min-w-[940px] border-collapse text-sm">
         <thead className="sticky top-0 bg-[var(--color-background-secondary)]">
           <tr className="text-left text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
-            <th className="px-5 py-3">Process</th>
-            <th className="px-4 py-3 text-right">CPU time</th>
-            <th className="px-4 py-3 text-right">Current</th>
-            <th className="px-4 py-3 text-right">Average</th>
-            <th className="px-4 py-3 text-right">Peak</th>
-            <th className="px-4 py-3 text-right">Max memory</th>
+            <th className="px-5 py-3">{translateSettings("settings.process")}</th>
+            <th className="px-4 py-3 text-right">{translateSettings("settings.cpuTime")}</th>
+            <th className="px-4 py-3 text-right">{translateSettings("settings.current2")}</th>
+            <th className="px-4 py-3 text-right">{translateSettings("settings.average")}</th>
+            <th className="px-4 py-3 text-right">{translateSettings("settings.peak")}</th>
+            <th className="px-4 py-3 text-right">{translateSettings("settings.maxMemory")}</th>
             <th className="px-5 py-3 text-right">PID</th>
           </tr>
         </thead>
@@ -634,7 +687,9 @@ function ProcessHistoryTable({ rows }: { rows: readonly ProcessObservation[] }) 
                 {row.displayName}
               </td>
               <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-white">
-                {row.cumulativeCpuMs === null ? "N/A" : formatDuration(row.cumulativeCpuMs)}
+                {row.cumulativeCpuMs === null
+                  ? translateSettings("settings.nA")
+                  : formatDuration(row.cumulativeCpuMs)}
               </td>
               <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-violet-200">
                 {row.currentCpuPercent.toFixed(1)}%
@@ -666,7 +721,7 @@ function OverviewTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
   return (
     <div className="space-y-4">
       <Panel
-        title="Host state and collection"
+        title={translateSettings("settings.hostStateAndCollection")}
         eyebrow="Host & collection"
         icon={<LuGauge />}
         iconClassName="text-violet-300"
@@ -713,7 +768,7 @@ function OverviewTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
 
       <Panel
         eyebrow="Source status"
-        title="Evidence availability"
+        title={translateSettings("settings.evidenceAvailability")}
         icon={<LuRadio />}
         iconClassName="text-violet-300"
       >
@@ -752,23 +807,26 @@ function ResourcesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
   return (
     <div className="space-y-4">
       <Panel
-        title="Resource monitor"
+        title={translateSettings("settings.resourceMonitor")}
         icon={<LuActivity />}
         iconClassName="text-cyan-300"
         action={
           <div className="flex flex-wrap items-center justify-end gap-3">
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold uppercase tracking-[0.04em] text-[var(--color-foreground-secondary)]">
-                Native
+                {translateSettings("settings.native")}
               </span>
               <StatusPill status={nativeStatus} />
             </div>
             <span className="text-xs tabular-nums text-[var(--color-foreground-secondary)]">
-              Updated {formatObservedAt(snapshot.observedAtMs)}
+              {translateSettings("settings.updated")}
+              {formatObservedAt(snapshot.observedAtMs)}
             </span>
             <span className="flex items-center gap-2 text-xs text-[var(--color-foreground-secondary)]">
               <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
-              Sampling every {(collection.sampleIntervalMs / 1_000).toFixed(0)} second
+              {translateSettings("settings.samplingEvery")}
+              {(collection.sampleIntervalMs / 1_000).toFixed(0)}{" "}
+              {translateSettings("settings.second")}
             </span>
           </div>
         }
@@ -844,20 +902,20 @@ function ResourcesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
                 value: valueText(footprint.collectorCpuPercent, (value) => `${value.toFixed(2)}%`),
               },
               {
-                label: "Collection",
+                label: i18n["t"]("settings.collection"),
                 value: valueText(footprint.collectionDurationMs, formatDuration),
               },
               {
-                label: "Retained state",
+                label: i18n["t"]("settings.retainedState"),
                 value: valueText(footprint.collectorResidentBytes, formatBytes),
               },
-              { label: "I/O", value: "Included in main" },
+              { label: i18n["t"]("settings.iO"), value: "Included in main" },
             ]}
           />
         </div>
       </Panel>
       <Panel
-        title="Resource timeline and live process tree"
+        title={translateSettings("settings.resourceTimelineAndLiveProcessTree")}
         eyebrow="Current activity and process hierarchy"
         icon={<LuGauge />}
         iconClassName="text-amber-300"
@@ -866,9 +924,11 @@ function ResourcesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
           <ResourceChart snapshot={snapshot} />
         </div>
         <div className="border-y border-[var(--color-border)] bg-[var(--color-background-secondary)] px-5 py-3">
-          <p className="text-sm font-bold text-white">Live process tree</p>
+          <p className="text-sm font-bold text-white">
+            {translateSettings("settings.liveProcessTree")}
+          </p>
           <p className="mt-1 text-xs text-[var(--color-foreground-secondary)]">
-            Parent-child identity uses PID and creation time.
+            {translateSettings("settings.parentChildIdentityUsesPidAndCreationTime")}
           </p>
         </div>
         <ProcessTable
@@ -878,7 +938,7 @@ function ResourcesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
         />
       </Panel>
       <Panel
-        title="Resource history"
+        title={translateSettings("settings.resourceHistory")}
         eyebrow="Windowed process statistics"
         icon={<LuActivity />}
         iconClassName="text-cyan-300"
@@ -932,7 +992,7 @@ function IoTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
   if (snapshot.detail.rows.length === 0) {
     return (
       <EmptySource
-        title="Instrumented application I/O"
+        title={translateSettings("settings.instrumentedApplicationIO")}
         status={snapshot.sourceStatuses["logical-io"]}
         explanation="No logical I/O operations have been observed. Diagnostics does not substitute OS process counters or prototype rows."
       />
@@ -940,25 +1000,26 @@ function IoTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
   }
   return (
     <Panel
-      title="Instrumented application I/O"
+      title={translateSettings("settings.instrumentedApplicationIO")}
       eyebrow="Logical bytes by operation"
       icon={<LuDatabase />}
       iconClassName="text-emerald-300"
     >
       <p className="border-b border-[var(--color-border)] px-5 py-4 text-[13px] leading-6 text-[var(--color-foreground-secondary)]">
-        Application counters identify known persistence and logging work. These logical bytes stay
-        separate from OS process I/O.
+        {translateSettings(
+          "settings.applicationCountersIdentifyKnownPersistenceAndLoggingWorkTheseLo"
+        )}
       </p>
       <div className="max-h-[560px] overflow-auto">
         <table className="w-full min-w-[860px] border-collapse text-sm">
           <thead className="sticky top-0 bg-[var(--color-background-secondary)]">
             <tr className="text-left text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
-              <th className="px-5 py-3">Component</th>
-              <th className="px-4 py-3">Operation</th>
-              <th className="px-4 py-3 text-right">Logical read</th>
-              <th className="px-4 py-3 text-right">Logical write</th>
-              <th className="px-4 py-3 text-right">Count</th>
-              <th className="px-5 py-3 text-right">Time</th>
+              <th className="px-5 py-3">{translateSettings("settings.component")}</th>
+              <th className="px-4 py-3">{translateSettings("settings.operation")}</th>
+              <th className="px-4 py-3 text-right">{translateSettings("settings.logicalRead")}</th>
+              <th className="px-4 py-3 text-right">{translateSettings("settings.logicalWrite")}</th>
+              <th className="px-4 py-3 text-right">{translateSettings("settings.count")}</th>
+              <th className="px-5 py-3 text-right">{translateSettings("settings.time")}</th>
             </tr>
           </thead>
           <tbody>
@@ -1000,7 +1061,7 @@ function TracesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
   return (
     <div className="space-y-4">
       <Panel
-        title="Trace diagnostics"
+        title={translateSettings("settings.traceDiagnostics")}
         eyebrow="Canonical spans and logs"
         icon={<LuWorkflow />}
         iconClassName="text-violet-300"
@@ -1040,25 +1101,27 @@ function TracesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
       <TraceFailurePanels latest={latestFailures} common={commonFailures} />
 
       <Panel
-        title="Slowest spans"
+        title={translateSettings("settings.slowestSpans")}
         eyebrow="Duration-ranked operations"
         icon={<LuGauge />}
         iconClassName="text-emerald-300"
       >
         {slowest.length === 0 ? (
           <p className="p-5 text-sm text-[var(--color-foreground-secondary)]">
-            No spans were retained in this window.
+            {translateSettings("settings.noSpansWereRetainedInThisWindow")}
           </p>
         ) : (
           <div className="max-h-[420px] overflow-auto">
             <table className="w-full min-w-[820px] border-collapse text-sm">
               <thead className="sticky top-0 bg-[var(--color-background-secondary)]">
                 <tr className="text-left text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
-                  <th className="px-5 py-3">Span</th>
-                  <th className="px-4 py-3 text-right">Duration</th>
-                  <th className="px-4 py-3">Ended</th>
-                  <th className="px-4 py-3">Outcome</th>
-                  <th className="w-14 px-5 py-3 text-right">Copy</th>
+                  <th className="px-5 py-3">{translateSettings("settings.span")}</th>
+                  <th className="px-4 py-3 text-right">{translateSettings("settings.duration")}</th>
+                  <th className="px-4 py-3">{translateSettings("settings.ended")}</th>
+                  <th className="px-4 py-3">{translateSettings("settings.outcome")}</th>
+                  <th className="w-14 px-5 py-3 text-right">
+                    {translateSettings("settings.copy")}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -1083,8 +1146,10 @@ function TracesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
                       <button
                         type="button"
                         className="inline-flex rounded-md p-1.5 text-[var(--color-foreground-secondary)] hover:bg-[var(--color-background-tertiary)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                        title="Copy trace ID"
-                        aria-label={`Copy trace ID ${span.traceId}`}
+                        title={translateSettings("settings.copyTraceId")}
+                        aria-label={translateSettings("settings.copyTraceIdValue", {
+                          value1: span.traceId,
+                        })}
                         onClick={() => void copyTraceId(span.traceId)}
                       >
                         <LuCopy className="h-4 w-4" aria-hidden />
@@ -1099,25 +1164,25 @@ function TracesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
       </Panel>
 
       <Panel
-        title="Span logs"
+        title={translateSettings("settings.spanLogs")}
         eyebrow="Correlated retained log evidence"
         icon={<LuFileText />}
         iconClassName="text-cyan-200"
       >
         {logs.length === 0 ? (
           <p className="p-5 text-sm text-[var(--color-foreground-secondary)]">
-            No retained logs match this window.
+            {translateSettings("settings.noRetainedLogsMatchThisWindow")}
           </p>
         ) : (
           <div className="max-h-[420px] overflow-auto">
             <table className="w-full min-w-[920px] table-fixed border-collapse text-sm">
               <thead className="sticky top-0 bg-[var(--color-background-secondary)]">
                 <tr className="text-left text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
-                  <th className="w-[14%] px-5 py-3">Time</th>
-                  <th className="w-[10%] px-4 py-3">Level</th>
-                  <th className="w-[20%] px-4 py-3">Source</th>
-                  <th className="w-[41%] px-4 py-3">Message</th>
-                  <th className="w-[15%] px-5 py-3">Trace</th>
+                  <th className="w-[14%] px-5 py-3">{translateSettings("settings.time")}</th>
+                  <th className="w-[10%] px-4 py-3">{translateSettings("settings.level")}</th>
+                  <th className="w-[20%] px-4 py-3">{translateSettings("settings.source")}</th>
+                  <th className="w-[41%] px-4 py-3">{translateSettings("settings.message")}</th>
+                  <th className="w-[15%] px-5 py-3">{translateSettings("settings.trace")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1149,7 +1214,7 @@ function TracesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
                         {log.message}
                       </td>
                       <td className="px-5 py-3.5 font-mono text-xs text-[var(--color-foreground-secondary)]">
-                        {log.traceId?.slice(0, 12) ?? "None"}
+                        {log.traceId?.slice(0, 12) ?? translateSettings("settings.none")}
                       </td>
                     </tr>
                   ))}
@@ -1160,25 +1225,25 @@ function TracesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
       </Panel>
 
       <Panel
-        title="Top span names"
+        title={translateSettings("settings.topSpanNames")}
         eyebrow="Count, failures, average, and max"
         icon={<LuActivity />}
         iconClassName="text-violet-300"
       >
         {topNames.length === 0 ? (
           <p className="p-5 text-sm text-[var(--color-foreground-secondary)]">
-            No span names were counted in this window.
+            {translateSettings("settings.noSpanNamesWereCountedInThisWindow")}
           </p>
         ) : (
           <div className="max-h-[420px] overflow-auto">
             <table className="w-full min-w-[720px] border-collapse text-sm">
               <thead className="sticky top-0 bg-[var(--color-background-secondary)]">
                 <tr className="text-left text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
-                  <th className="px-5 py-3">Span</th>
-                  <th className="px-4 py-3 text-right">Count</th>
-                  <th className="px-4 py-3 text-right">Failures</th>
-                  <th className="px-4 py-3 text-right">Average</th>
-                  <th className="px-5 py-3 text-right">Max</th>
+                  <th className="px-5 py-3">{translateSettings("settings.span")}</th>
+                  <th className="px-4 py-3 text-right">{translateSettings("settings.count")}</th>
+                  <th className="px-4 py-3 text-right">{translateSettings("settings.failures")}</th>
+                  <th className="px-4 py-3 text-right">{translateSettings("settings.average")}</th>
+                  <th className="px-5 py-3 text-right">{translateSettings("settings.max")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1218,24 +1283,26 @@ function TraceFailurePanels({
   return (
     <>
       <Panel
-        title="Latest failures"
+        title={translateSettings("settings.latestFailures")}
         eyebrow="Newest explicit error evidence"
         icon={<LuTriangleAlert />}
         iconClassName="text-amber-300"
       >
         {latest.length === 0 ? (
           <p className="p-5 text-sm text-[var(--color-foreground-secondary)]">
-            No failures were observed in this window.
+            {translateSettings("settings.noFailuresWereObservedInThisWindow")}
           </p>
         ) : (
           <div className="max-h-[470px] overflow-auto">
             <table className="w-full min-w-[860px] table-fixed border-collapse text-sm">
               <thead className="sticky top-0 bg-[var(--color-background-secondary)]">
                 <tr className="text-left text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
-                  <th className="w-[28%] px-5 py-3">Span</th>
-                  <th className="w-[48%] px-4 py-3">Cause</th>
-                  <th className="w-[11%] px-4 py-3 text-right">Duration</th>
-                  <th className="w-[13%] px-5 py-3">Ended</th>
+                  <th className="w-[28%] px-5 py-3">{translateSettings("settings.span")}</th>
+                  <th className="w-[48%] px-4 py-3">{translateSettings("settings.cause")}</th>
+                  <th className="w-[11%] px-4 py-3 text-right">
+                    {translateSettings("settings.duration")}
+                  </th>
+                  <th className="w-[13%] px-5 py-3">{translateSettings("settings.ended")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1246,7 +1313,9 @@ function TraceFailurePanels({
                       {failure.cause}
                     </td>
                     <td className="px-4 py-3.5 text-right tabular-nums text-white">
-                      {failure.durationMs === null ? "N/A" : formatDuration(failure.durationMs)}
+                      {failure.durationMs === null
+                        ? translateSettings("settings.nA")
+                        : formatDuration(failure.durationMs)}
                     </td>
                     <td className="px-5 py-3.5 tabular-nums text-[var(--color-foreground-secondary)]">
                       {formatObservedAt(failure.observedAtMs)}
@@ -1259,24 +1328,26 @@ function TraceFailurePanels({
         )}
       </Panel>
       <Panel
-        title="Most common failures"
+        title={translateSettings("settings.mostCommonFailures")}
         eyebrow="Grouped by stable fingerprint"
         icon={<LuActivity />}
         iconClassName="text-amber-300"
       >
         {common.length === 0 ? (
           <p className="p-5 text-sm text-[var(--color-foreground-secondary)]">
-            No recurring failures were observed in this window.
+            {translateSettings("settings.noRecurringFailuresWereObservedInThisWindow")}
           </p>
         ) : (
           <div className="max-h-[470px] overflow-auto">
             <table className="w-full min-w-[860px] table-fixed border-collapse text-sm">
               <thead className="sticky top-0 bg-[var(--color-background-secondary)]">
                 <tr className="text-left text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
-                  <th className="w-[28%] px-5 py-3">Span</th>
-                  <th className="w-[10%] px-4 py-3 text-right">Count</th>
-                  <th className="w-[49%] px-4 py-3">Cause</th>
-                  <th className="w-[13%] px-5 py-3">Last seen</th>
+                  <th className="w-[28%] px-5 py-3">{translateSettings("settings.span")}</th>
+                  <th className="w-[10%] px-4 py-3 text-right">
+                    {translateSettings("settings.count")}
+                  </th>
+                  <th className="w-[49%] px-4 py-3">{translateSettings("settings.cause")}</th>
+                  <th className="w-[13%] px-5 py-3">{translateSettings("settings.lastSeen")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1308,7 +1379,7 @@ function DeveloperToolsTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
   if (!hasValue(snapshot.detail.renderer))
     return (
       <EmptySource
-        title="Renderer performance"
+        title={translateSettings("settings.rendererPerformance")}
         status={snapshot.detail.renderer.status}
         explanation="Waiting for the trusted renderer performance reporter. It starts only while Diagnostics is open and stops on unmount."
       />
@@ -1317,7 +1388,7 @@ function DeveloperToolsTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
   return (
     <div className="space-y-4">
       <Panel
-        title="Renderer performance"
+        title={translateSettings("settings.rendererPerformance")}
         eyebrow="Production-safe live counters"
         icon={<LuBug />}
         iconClassName="text-red-400"
@@ -1374,23 +1445,26 @@ function DeveloperToolsTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
         </div>
       </Panel>
       <Panel
-        title="Developer controls"
+        title={translateSettings("settings.developerControls")}
         eyebrow="Explicit local tools"
         icon={<LuBug />}
         iconClassName="text-red-400"
       >
         <div className="flex flex-wrap items-center gap-3 p-5">
           <Button variant="outline" onClick={() => window.electronAPI.toggleDevTools()}>
-            Open Chromium DevTools
+            {translateSettings("settings.openChromiumDevtools")}
           </Button>
           {import.meta.env.DEV ? (
             <p className="text-[13px] leading-6 text-[var(--color-foreground-secondary)]">
-              Chat Sim and UI simulation remain in the floating Developer Console. Press
-              Ctrl+Shift+D to show or hide it.
+              {translateSettings(
+                "settings.chatSimAndUiSimulationRemainInTheFloatingDeveloperConsolePressCt"
+              )}
             </p>
           ) : (
             <p className="text-[13px] leading-6 text-[var(--color-foreground-secondary)]">
-              State-mutating simulators are unavailable in production builds.
+              {translateSettings(
+                "settings.stateMutatingSimulatorsAreUnavailableInProductionBuilds"
+              )}
             </p>
           )}
         </div>
@@ -1408,7 +1482,7 @@ function WorkspaceContent({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
     return (
       <div className="space-y-4">
         <Panel
-          title="Session logs"
+          title={translateSettings("settings.sessionLogs")}
           eyebrow="Main, network, and noise"
           icon={<LuFileText />}
           iconClassName="text-emerald-400"
@@ -1418,7 +1492,7 @@ function WorkspaceContent({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
           </div>
         </Panel>
         <Panel
-          title="Create diagnostic report"
+          title={translateSettings("settings.createDiagnosticReport")}
           eyebrow="Safe local report"
           icon={<LuBug />}
           iconClassName="text-red-400"
@@ -1459,12 +1533,15 @@ export function DiagnosticsWorkspace({
       <header className="flex flex-wrap items-start gap-4">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--color-foreground-secondary)]">
-            StreamFusion system evidence
+            {translateSettings("settings.streamfusionSystemEvidence")}
           </p>
-          <h2 className="mt-1 text-2xl font-bold text-white">Diagnostics</h2>
+          <h2 className="mt-1 text-2xl font-bold text-white">
+            {translateSettings("settings.diagnostics")}
+          </h2>
           <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--color-foreground-secondary)]">
-            Live resources, processes, application I/O, traces, failures, logs, reports, and
-            renderer health from trusted local sources.
+            {translateSettings(
+              "settings.liveResourcesProcessesApplicationIOTracesFailuresLogsReportsAndR"
+            )}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1482,7 +1559,8 @@ export function DiagnosticsWorkspace({
             onClick={() => void diagnostics.refresh()}
             disabled={diagnostics.kind === "loading"}
           >
-            <LuRefreshCw className="mr-2 h-4 w-4" aria-hidden /> Refresh
+            <LuRefreshCw className="mr-2 h-4 w-4" aria-hidden />{" "}
+            {translateSettings("settings.refresh")}
           </Button>
         </div>
       </header>
@@ -1491,7 +1569,7 @@ export function DiagnosticsWorkspace({
         <div
           className="overflow-x-auto border-b border-[var(--color-border)]"
           role="tablist"
-          aria-label="Diagnostics sections"
+          aria-label={translateSettings("settings.diagnosticsSections")}
         >
           <div className="flex min-w-max px-2">
             {TABS.map((tab) => {
@@ -1529,7 +1607,7 @@ export function DiagnosticsWorkspace({
           {diagnostics.kind === "loading" ? (
             <div
               className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
-              aria-label="Loading live Diagnostics"
+              aria-label={translateSettings("settings.loadingLiveDiagnostics")}
             >
               {[1, 2, 3, 4, 5, 6].map((item) => (
                 <div
@@ -1545,7 +1623,9 @@ export function DiagnosticsWorkspace({
                   role="alert"
                   className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100"
                 >
-                  The latest refresh failed. Showing the last trusted snapshot. Diagnostic ID{" "}
+                  {translateSettings(
+                    "settings.theLatestRefreshFailedShowingTheLastTrustedSnapshotDiagnosticId"
+                  )}{" "}
                   {diagnostics.diagnosticId}.
                 </div>
               ) : null}
@@ -1556,8 +1636,13 @@ export function DiagnosticsWorkspace({
               role="alert"
               className="rounded-lg border border-red-400/30 bg-red-400/10 p-5 text-sm text-red-100"
             >
-              Diagnostics could not establish a trusted local source. Diagnostic ID{" "}
-              {diagnostics.kind === "error" ? diagnostics.diagnosticId : "unavailable"}.
+              {translateSettings(
+                "settings.diagnosticsCouldNotEstablishATrustedLocalSourceDiagnosticId"
+              )}{" "}
+              {diagnostics.kind === "error"
+                ? diagnostics.diagnosticId
+                : translateSettings("settings.unavailable")}
+              .
             </div>
           )}
         </div>

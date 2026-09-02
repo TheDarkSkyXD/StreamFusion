@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { i18n } from "@/i18n";
+import type { settingsEn } from "@/i18n/locales/en/settings";
 import {
   LuCopy,
   LuFileText,
@@ -15,17 +17,29 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useInterval } from "@/hooks/useInterval";
 import { cn } from "@/lib/utils";
 
+function translateSettings(
+  key: `settings.${keyof typeof settingsEn.settings}`,
+  options?: Record<string, unknown>
+): string {
+  const translated: string = i18n["t"](key, { defaultValue: String(key) });
+  return options
+    ? Object.entries(options).reduce(
+        (result, [name, value]) => result.replaceAll(`{{${name}}}`, String(value)),
+        translated
+      )
+    : translated;
+}
 type LogFile = "main" | "noise" | "network";
 type LogLevel = "all" | "debug" | "info" | "warn" | "error";
 type LogFocus = "all" | "network";
 type LogView = "text" | "table";
 
 const LEVEL_OPTIONS: { value: LogLevel; label: string }[] = [
-  { value: "all", label: "All levels" },
-  { value: "debug", label: "Debug" },
-  { value: "info", label: "Info" },
-  { value: "warn", label: "Warn" },
-  { value: "error", label: "Error" },
+  { value: "all", label: i18n["t"]("settings.allLevels") },
+  { value: "debug", label: i18n["t"]("settings.debug") },
+  { value: "info", label: i18n["t"]("settings.info") },
+  { value: "warn", label: i18n["t"]("settings.warn") },
+  { value: "error", label: i18n["t"]("settings.error") },
 ];
 
 const LINES_MIN = 50;
@@ -294,7 +308,9 @@ export function LogsSection() {
       setTail(result);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to read log file");
+      setError(
+        err instanceof Error ? err.message : translateSettings("settings.failedToReadLogFile")
+      );
     } finally {
       setLoading(false);
     }
@@ -342,10 +358,12 @@ export function LogsSection() {
     try {
       const result = await api.openFolder();
       if (!result.ok) {
-        toast.error(result.error ?? "Couldn't open the logs folder");
+        toast.error(result.error ?? translateSettings("settings.couldnTOpenTheLogsFolder"));
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't open the logs folder");
+      toast.error(
+        err instanceof Error ? err.message : translateSettings("settings.couldnTOpenTheLogsFolder")
+      );
     }
   }, []);
 
@@ -353,20 +371,22 @@ export function LogsSection() {
 
   const handleCopyPath = useCallback(async () => {
     if (!activePath) {
-      toast.error("Log path not available yet");
+      toast.error(translateSettings("settings.logPathNotAvailableYet"));
       return;
     }
     try {
       await navigator.clipboard.writeText(activePath);
-      toast.success("Log path copied to clipboard");
+      toast.success(translateSettings("settings.logPathCopiedToClipboard"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't copy log path");
+      toast.error(
+        err instanceof Error ? err.message : translateSettings("settings.couldnTCopyLogPath")
+      );
     }
   }, [activePath]);
 
   const handleCopyLogs = useCallback(async () => {
     if (filteredLines.length === 0) {
-      toast.error("No log lines to copy");
+      toast.error(translateSettings("settings.noLogLinesToCopy"));
       return;
     }
     try {
@@ -374,23 +394,30 @@ export function LogsSection() {
       // paste into an issue/Slack/email matches what the user is staring at.
       await navigator.clipboard.writeText(filteredLines.join("\n"));
       toast.success(
-        `Copied ${filteredLines.length} log line${filteredLines.length === 1 ? "" : "s"}`
+        translateSettings("settings.copiedValueLogLineValue", {
+          value1: filteredLines.length,
+          value2: filteredLines.length === 1 ? "" : "s",
+        })
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't copy log lines");
+      toast.error(
+        err instanceof Error ? err.message : translateSettings("settings.couldnTCopyLogLines")
+      );
     }
   }, [filteredLines]);
 
   const handleCopyCurl = useCallback(async (curl: string | null) => {
     if (curl == null) {
-      toast.error("cURL command not available for this row");
+      toast.error(translateSettings("settings.curlCommandNotAvailableForThisRow"));
       return;
     }
     try {
       await navigator.clipboard.writeText(curl);
-      toast.success("cURL command copied to clipboard");
+      toast.success(translateSettings("settings.curlCommandCopiedToClipboard"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't copy cURL command");
+      toast.error(
+        err instanceof Error ? err.message : translateSettings("settings.couldnTCopyCurlCommand")
+      );
     }
   }, []);
 
@@ -414,9 +441,9 @@ export function LogsSection() {
           <LuFileText className="w-5 h-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-lg">Logs</h3>
+          <h3 className="font-semibold text-lg">{translateSettings("settings.logs")}</h3>
           <p className="text-sm text-zinc-500 truncate" title={activePath ?? undefined}>
-            {activePath ?? "Locating log file…"}
+            {activePath ?? translateSettings("settings.locatingLogFile")}
           </p>
         </div>
       </div>
@@ -426,51 +453,55 @@ export function LogsSection() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
             <label htmlFor="logs-file" className="text-xs font-medium text-zinc-400">
-              Log file
+              {translateSettings("settings.logFile")}
             </label>
             {noiseDisabled ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <select
                     id="logs-file"
-                    aria-label="Log file"
+                    aria-label={translateSettings("settings.logFile")}
                     value={file}
                     onChange={(e) => handleFileChange(e.target.value as LogFile)}
                     className="rounded-md border border-[#27272a] bg-[#18181b] px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-500/20"
                   >
-                    <option value="main">Main</option>
+                    <option value="main">{translateSettings("settings.main")}</option>
                     <option value="network" disabled={networkDisabled}>
-                      Network{networkDisabled ? " (unavailable)" : ""}
+                      {translateSettings("settings.network")}
+                      {networkDisabled ? translateSettings("settings.unavailable2") : ""}
                     </option>
                     <option value="noise" disabled>
-                      Noise (unavailable)
+                      {translateSettings("settings.noiseUnavailable")}
                     </option>
                   </select>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Noise side-channel logger is disabled in this build.
+                  {translateSettings("settings.noiseSideChannelLoggerIsDisabledInThisBuild")}
                 </TooltipContent>
               </Tooltip>
             ) : (
               <select
                 id="logs-file"
-                aria-label="Log file"
+                aria-label={translateSettings("settings.logFile")}
                 value={file}
                 onChange={(e) => handleFileChange(e.target.value as LogFile)}
                 className="rounded-md border border-[#27272a] bg-[#18181b] px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-500/20"
               >
-                <option value="main">Main</option>
+                <option value="main">{translateSettings("settings.main")}</option>
                 <option value="network" disabled={networkDisabled}>
-                  Network{networkDisabled ? " (unavailable)" : ""}
+                  {translateSettings("settings.network")}
+                  {networkDisabled ? translateSettings("settings.unavailable2") : ""}
                 </option>
-                <option value="noise">Noise</option>
+                <option value="noise">{translateSettings("settings.noise")}</option>
               </select>
             )}
           </div>
 
           {file !== "network" && (
             <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-zinc-400">Focus</span>
+              <span className="text-xs font-medium text-zinc-400">
+                {translateSettings("settings.focus")}
+              </span>
               <div className="flex rounded-md border border-[#27272a] bg-[#18181b] p-0.5">
                 <button
                   type="button"
@@ -482,7 +513,7 @@ export function LogsSection() {
                       : "text-zinc-400 hover:text-zinc-200"
                   )}
                 >
-                  All
+                  {translateSettings("settings.all")}
                 </button>
                 <button
                   type="button"
@@ -494,7 +525,7 @@ export function LogsSection() {
                       : "text-zinc-400 hover:text-zinc-200"
                   )}
                 >
-                  Network
+                  {translateSettings("settings.network")}
                 </button>
               </div>
             </div>
@@ -502,7 +533,9 @@ export function LogsSection() {
 
           {canUseTableView && (
             <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-zinc-400">View</span>
+              <span className="text-xs font-medium text-zinc-400">
+                {translateSettings("settings.view")}
+              </span>
               <div className="flex rounded-md border border-[#27272a] bg-[#18181b] p-0.5">
                 <button
                   type="button"
@@ -514,7 +547,7 @@ export function LogsSection() {
                       : "text-zinc-400 hover:text-zinc-200"
                   )}
                 >
-                  Text
+                  {translateSettings("settings.text")}
                 </button>
                 <button
                   type="button"
@@ -526,7 +559,7 @@ export function LogsSection() {
                       : "text-zinc-400 hover:text-zinc-200"
                   )}
                 >
-                  Table
+                  {translateSettings("settings.table")}
                 </button>
               </div>
             </div>
@@ -534,11 +567,11 @@ export function LogsSection() {
 
           <div className="flex flex-col gap-1">
             <label htmlFor="logs-level" className="text-xs font-medium text-zinc-400">
-              Level
+              {translateSettings("settings.level")}
             </label>
             <select
               id="logs-level"
-              aria-label="Filter by level"
+              aria-label={translateSettings("settings.filterByLevel")}
               value={level}
               onChange={(e) => setLevel(e.target.value as LogLevel)}
               className="rounded-md border border-[#27272a] bg-[#18181b] px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-500/20"
@@ -553,15 +586,15 @@ export function LogsSection() {
 
           <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
             <label htmlFor="logs-tag" className="text-xs font-medium text-zinc-400">
-              Tag
+              {translateSettings("settings.tag")}
             </label>
             <input
               id="logs-tag"
               type="text"
-              aria-label="Filter by tag"
+              aria-label={translateSettings("settings.filterByTag")}
               value={tagFilter}
               onChange={(e) => setTagFilter(e.target.value)}
-              placeholder="Twitch, Kick, Auth…"
+              placeholder={translateSettings("settings.twitchKickAuth")}
               autoComplete="off"
               spellCheck={false}
               className="rounded-md border border-[#27272a] bg-[#18181b] px-3 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-zinc-500/20"
@@ -570,12 +603,12 @@ export function LogsSection() {
 
           <div className="flex flex-col gap-1">
             <label htmlFor="logs-lines" className="text-xs font-medium text-zinc-400">
-              Lines
+              {translateSettings("settings.lines")}
             </label>
             <input
               id="logs-lines"
               type="number"
-              aria-label="Lines to fetch"
+              aria-label={translateSettings("settings.linesToFetch")}
               min={LINES_MIN}
               max={LINES_MAX}
               step={50}
@@ -595,10 +628,10 @@ export function LogsSection() {
               id="logs-auto-refresh"
               checked={autoRefresh}
               onCheckedChange={setAutoRefresh}
-              aria-label="Auto-refresh every 3 seconds"
+              aria-label={translateSettings("settings.autoRefreshEvery3Seconds")}
             />
             <label htmlFor="logs-auto-refresh" className="text-sm text-zinc-300 cursor-pointer">
-              Auto-refresh
+              {translateSettings("settings.autoRefresh")}
             </label>
           </div>
         </div>
@@ -613,7 +646,7 @@ export function LogsSection() {
             className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
           >
             <LuRefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
-            Refresh
+            {translateSettings("settings.refresh")}
           </Button>
           <Button
             variant="outline"
@@ -622,7 +655,7 @@ export function LogsSection() {
             className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
           >
             <LuFolderOpen className="w-4 h-4 mr-2" />
-            Open Logs Folder
+            {translateSettings("settings.openLogsFolder")}
           </Button>
           <Button
             variant="outline"
@@ -632,7 +665,7 @@ export function LogsSection() {
             className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
           >
             <LuCopy className="w-4 h-4 mr-2" />
-            Copy Log Path
+            {translateSettings("settings.copyLogPath")}
           </Button>
           <Button
             variant="outline"
@@ -641,13 +674,16 @@ export function LogsSection() {
             disabled={filteredLines.length === 0}
             title={
               filteredLines.length === 0
-                ? "No log lines to copy"
-                : `Copy the ${filteredLines.length} visible log line${filteredLines.length === 1 ? "" : "s"} to the clipboard`
+                ? translateSettings("settings.noLogLinesToCopy")
+                : translateSettings("settings.copyTheValueVisibleLogLineValueToTheClipboard", {
+                    value1: filteredLines.length,
+                    value2: filteredLines.length === 1 ? "" : "s",
+                  })
             }
             className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
           >
             <LuCopy className="w-4 h-4 mr-2" />
-            Copy Logs
+            {translateSettings("settings.copyLogs")}
           </Button>
         </div>
 
@@ -665,36 +701,36 @@ export function LogsSection() {
             {loading && tail.length === 0 ? (
               <div className="flex items-center gap-2 text-zinc-500 py-6 justify-center">
                 <LuRefreshCw className="w-4 h-4 animate-spin" />
-                Loading log lines…
+                {translateSettings("settings.loadingLogLines")}
               </div>
             ) : filteredLines.length === 0 ? (
               <div className="text-zinc-600 italic py-6 text-center">
-                No log lines match these filters
+                {translateSettings("settings.noLogLinesMatchTheseFilters")}
               </div>
             ) : canUseTableView && view === "table" ? (
               <table className="w-full min-w-[980px] border-collapse text-left">
                 <thead className="sticky top-0 z-10 bg-[#09090b] text-[11px] uppercase tracking-wide text-zinc-500">
                   <tr className="border-b border-[#27272a]">
                     <th scope="col" className="px-2 py-2 font-medium">
-                      Name
+                      {translateSettings("settings.name")}
                     </th>
                     <th scope="col" className="px-2 py-2 font-medium">
-                      Type
+                      {translateSettings("settings.type")}
                     </th>
                     <th scope="col" className="px-2 py-2 font-medium">
-                      Status
+                      {translateSettings("settings.status")}
                     </th>
                     <th scope="col" className="px-2 py-2 font-medium">
-                      Initiator
+                      {translateSettings("settings.initiator")}
                     </th>
                     <th scope="col" className="px-2 py-2 font-medium text-right">
-                      Size
+                      {translateSettings("settings.size")}
                     </th>
                     <th scope="col" className="px-2 py-2 font-medium text-right">
-                      Time
+                      {translateSettings("settings.time")}
                     </th>
                     <th scope="col" className="px-2 py-2 font-medium text-right">
-                      cURL
+                      {translateSettings("settings.curl")}
                     </th>
                   </tr>
                 </thead>
@@ -730,7 +766,9 @@ export function LogsSection() {
                           size="sm"
                           onClick={() => void handleCopyCurl(row.curl)}
                           disabled={row.curl == null}
-                          aria-label={`Copy cURL for ${row.name}`}
+                          aria-label={translateSettings("settings.copyCurlForValue", {
+                            value1: row.name,
+                          })}
                           className="h-7 px-2 text-zinc-300 hover:bg-[#27272a] hover:text-white"
                         >
                           <LuTerminal className="h-3.5 w-3.5" />
@@ -756,9 +794,15 @@ export function LogsSection() {
           </div>
           <div className="px-3 py-2 border-t border-[#27272a] text-xs text-zinc-500 flex items-center justify-between">
             <span>
-              Showing {filteredLines.length} of {tail.length} lines
+              {translateSettings("settings.showing")}
+              {filteredLines.length} {translateSettings("settings.of")}
+              {tail.length} {translateSettings("settings.lines2")}
             </span>
-            {autoRefresh && <span className="text-zinc-400">Auto-refreshing every 3s</span>}
+            {autoRefresh && (
+              <span className="text-zinc-400">
+                {translateSettings("settings.autoRefreshingEvery3s")}
+              </span>
+            )}
           </div>
         </div>
       </div>

@@ -84,7 +84,8 @@ import {
 } from "@shared/auth-types";
 import type { CheckFrequency, TokenStatusResult } from "@shared/ipc-channels";
 import { useAdBlockStore } from "@/store/adblock-store";
-import { resolveDisplayLanguage } from "@/i18n";
+import { i18n, resolveDisplayLanguage } from "@/i18n";
+import type { settingsEn } from "@/i18n/locales/en/settings";
 import {
   HOME_CAROUSEL_INTERVAL_MAX_MS,
   HOME_CAROUSEL_INTERVAL_MIN_MS,
@@ -99,6 +100,18 @@ import {
 } from "@/features/multistream/data/multistream-store";
 import { useSeekIntervalStore } from "@/store/seek-interval-store";
 
+function translateSettings(
+  key: `settings.${keyof typeof settingsEn.settings}`,
+  options?: Record<string, unknown>
+): string {
+  const translated: string = i18n["t"](key, { defaultValue: String(key) });
+  return options
+    ? Object.entries(options).reduce(
+        (result, [name, value]) => result.replaceAll(`{{${name}}}`, String(value)),
+        translated
+      )
+    : translated;
+}
 const DiagnosticsWorkspace = lazy(() =>
   import("./diagnostics/DiagnosticsWorkspace").then((module) => ({
     default: module.DiagnosticsWorkspace,
@@ -161,7 +174,11 @@ function SeekIntervalSelect({ id, descriptionId, value, onChange }: SeekInterval
       >
         <SelectTrigger
           aria-describedby={descriptionId}
-          aria-label={id === "rewind-seconds" ? "Rewind" : "Fast forward"}
+          aria-label={
+            id === "rewind-seconds"
+              ? translateSettings("settings.rewind")
+              : translateSettings("settings.fastForward")
+          }
           className="h-10 w-32"
           id={id}
         >
@@ -170,17 +187,19 @@ function SeekIntervalSelect({ id, descriptionId, value, onChange }: SeekInterval
         <SelectContent>
           {SEEK_INTERVAL_OPTIONS.map((seconds) => (
             <SelectItem key={seconds} value={String(seconds)}>
-              {seconds} seconds
+              {seconds} {translateSettings("settings.seconds")}
             </SelectItem>
           ))}
-          <SelectItem value="custom">Custom</SelectItem>
+          <SelectItem value="custom">{translateSettings("settings.custom")}</SelectItem>
         </SelectContent>
       </Select>
       {isCustom && (
         <div className="flex items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-background-tertiary)] pr-3 text-sm text-[var(--color-foreground-muted)] focus-within:ring-2 focus-within:ring-[var(--color-ring)]">
           <input
             aria-describedby={descriptionId}
-            aria-label={`${id === "rewind-seconds" ? "Rewind" : "Fast forward"} custom seconds`}
+            aria-label={translateSettings("settings.valueCustomSeconds", {
+              value1: id === "rewind-seconds" ? "Rewind" : "Fast forward",
+            })}
             className="h-10 w-20 rounded-l-lg bg-transparent px-3 text-right tabular-nums text-[var(--color-foreground)] outline-none"
             inputMode="numeric"
             min={0}
@@ -192,7 +211,7 @@ function SeekIntervalSelect({ id, descriptionId, value, onChange }: SeekInterval
             type="number"
             value={value}
           />
-          sec
+          {translateSettings("settings.sec")}
         </div>
       )}
     </div>
@@ -212,8 +231,8 @@ const BUFFER_RANGE_CONTROLS: {
 }[] = [
   {
     field: "liveSyncDurationCount",
-    label: "Target live latency",
-    description: "Segments from the live edge. Lower stays closer to live but is less stable.",
+    label: i18n["t"]("settings.targetLiveLatency"),
+    description: i18n["t"]("settings.segmentsFromTheLiveEdgeLowerStaysCloserToLiveButIsLessStable"),
     min: 1,
     max: 10,
     step: 1,
@@ -221,8 +240,8 @@ const BUFFER_RANGE_CONTROLS: {
   },
   {
     field: "maxBufferLengthSec",
-    label: "Forward buffer",
-    description: "Seconds of video buffered ahead. Higher resists stalls but adds latency.",
+    label: i18n["t"]("settings.forwardBuffer"),
+    description: i18n["t"]("settings.secondsOfVideoBufferedAheadHigherResistsStallsButAddsLatency"),
     min: 5,
     max: 60,
     step: 1,
@@ -230,8 +249,8 @@ const BUFFER_RANGE_CONTROLS: {
   },
   {
     field: "maxMaxBufferLengthSec",
-    label: "Max buffer",
-    description: "Hard cap on buffered seconds. The byte budget scales with this value.",
+    label: i18n["t"]("settings.maxBuffer"),
+    description: i18n["t"]("settings.hardCapOnBufferedSecondsTheByteBudgetScalesWithThisValue"),
     min: 10,
     max: 120,
     step: 5,
@@ -248,28 +267,48 @@ const PLAYER_CONTROL_TOGGLES: {
   label: string;
   description?: string;
 }[] = [
-  { field: "showQuality", label: "Quality", description: "Stream quality selector menu item." },
+  {
+    field: "showQuality",
+    label: i18n["t"]("settings.quality"),
+    description: i18n["t"]("settings.streamQualitySelectorMenuItem"),
+  },
   {
     field: "showPlaybackSpeed",
-    label: "Playback speed",
-    description: "Speed selector (VOD playback).",
+    label: i18n["t"]("settings.playbackSpeed"),
+    description: i18n["t"]("settings.speedSelectorVodPlayback"),
   },
-  { field: "showVolume", label: "Volume", description: "Volume slider and mute button." },
-  { field: "showFullscreen", label: "Fullscreen", description: "Fullscreen toggle button." },
-  { field: "showTheater", label: "Theater", description: "Theater-mode toggle button." },
-  { field: "showVideoStats", label: "Video Stats", description: "Live video stats overlay." },
+  {
+    field: "showVolume",
+    label: i18n["t"]("settings.volume"),
+    description: i18n["t"]("settings.volumeSliderAndMuteButton"),
+  },
+  {
+    field: "showFullscreen",
+    label: i18n["t"]("settings.fullscreen"),
+    description: i18n["t"]("settings.fullscreenToggleButton"),
+  },
+  {
+    field: "showTheater",
+    label: i18n["t"]("settings.theater"),
+    description: i18n["t"]("settings.theaterModeToggleButton"),
+  },
+  {
+    field: "showVideoStats",
+    label: i18n["t"]("settings.videoStats"),
+    description: i18n["t"]("settings.liveVideoStatsOverlay"),
+  },
 ];
 
 // Player-type options for the advanced stream-token control (U13). "default" is
 // the behavior-neutral sentinel; the rest are the ad-block `PlayerType` union.
 const PLAYBACK_ADVANCED_PLAYER_TYPES: { value: PlaybackAdvancedPlayerType; label: string }[] = [
-  { value: "default", label: "Default (recommended)" },
-  { value: "site", label: "site" },
-  { value: "embed", label: "embed" },
-  { value: "popout", label: "popout" },
-  { value: "autoplay", label: "autoplay" },
-  { value: "picture-by-picture", label: "picture-by-picture" },
-  { value: "thunderdome", label: "thunderdome" },
+  { value: "default", label: i18n["t"]("settings.defaultRecommended") },
+  { value: "site", label: i18n["t"]("settings.site") },
+  { value: "embed", label: i18n["t"]("settings.embed") },
+  { value: "popout", label: i18n["t"]("settings.popout") },
+  { value: "autoplay", label: i18n["t"]("settings.autoplay") },
+  { value: "picture-by-picture", label: i18n["t"]("settings.pictureByPicture") },
+  { value: "thunderdome", label: i18n["t"]("settings.thunderdome") },
 ];
 
 const NOTIFICATION_TOGGLES: {
@@ -282,31 +321,45 @@ const NOTIFICATION_TOGGLES: {
 }[] = [
   {
     field: "enabled",
-    label: "Desktop notifications",
-    description: "Show native OS notifications when followed streams go live.",
+    label: i18n["t"]("settings.desktopNotifications"),
+    description: i18n["t"]("settings.showNativeOsNotificationsWhenFollowedStreamsGoLive"),
   },
   {
     field: "liveAlerts",
-    label: "Live Notifications",
-    description: "Keep live-stream alerts in the app notification history.",
+    label: i18n["t"]("settings.liveNotifications"),
+    description: i18n["t"]("settings.keepLiveStreamAlertsInTheAppNotificationHistory"),
   },
-  { field: "twitch", label: "Twitch", description: "Allow live notifications from Twitch." },
-  { field: "kick", label: "Kick", description: "Allow live notifications from Kick." },
+  {
+    field: "twitch",
+    label: "Twitch",
+    description: i18n["t"]("settings.allowLiveNotificationsFromTwitch"),
+  },
+  {
+    field: "kick",
+    label: "Kick",
+    description: i18n["t"]("settings.allowLiveNotificationsFromKick"),
+  },
   {
     field: "guestFollows",
-    label: "Guest Follow notifications",
-    description: "Notify for channels followed while signed out.",
+    label: i18n["t"]("settings.guestFollowNotifications"),
+    description: i18n["t"]("settings.notifyForChannelsFollowedWhileSignedOut"),
   },
   {
     field: "toastAlerts",
-    label: "Toast notifications",
-    description: "Show in-app toast banners when followed streams go live.",
+    label: i18n["t"]("settings.toastNotifications"),
+    description: i18n["t"]("settings.showInAppToastBannersWhenFollowedStreamsGoLive"),
   },
-  { field: "sound", label: "Sound", description: "Play a notification sound." },
+  {
+    field: "sound",
+    label: i18n["t"]("settings.sound"),
+    description: i18n["t"]("settings.playANotificationSound"),
+  },
   {
     field: "favoriteChannelsOnly",
-    label: "Favorites-only",
-    description: "Only notify for followed channels with per-channel notifications enabled.",
+    label: i18n["t"]("settings.favoritesOnly"),
+    description: i18n["t"](
+      "settings.onlyNotifyForFollowedChannelsWithPerChannelNotificationsEnabled"
+    ),
   },
 ];
 
@@ -314,10 +367,10 @@ const RESTART_GRACE_OPTIONS: {
   value: NotificationPreferences["restartGracePeriodMinutes"];
   label: string;
 }[] = [
-  { value: 0, label: "Off" },
-  { value: 5, label: "5 minutes" },
-  { value: 15, label: "15 minutes" },
-  { value: 30, label: "30 minutes" },
+  { value: 0, label: i18n["t"]("settings.off") },
+  { value: 5, label: i18n["t"]("settings.value5Minutes") },
+  { value: 15, label: i18n["t"]("settings.value15Minutes") },
+  { value: 30, label: i18n["t"]("settings.value30Minutes") },
 ];
 
 // Per-tab metadata (sidebar label, description, icon). Single source of truth
@@ -326,80 +379,108 @@ const RESTART_GRACE_OPTIONS: {
 type TabKey = (typeof SETTINGS_TABS)[number];
 const TAB_META: Record<TabKey, { label: string; description: string; icon: typeof LuMonitor }> = {
   general: {
-    label: "General",
-    description: "Language and app preferences",
+    label: i18n["t"]("settings.general2"),
+    description: i18n["t"]("settings.languageAndAppPreferences"),
     icon: LuSlidersHorizontal,
   },
-  playback: { label: "Playback", description: "Stream quality & preferences", icon: LuMonitor },
+  playback: {
+    label: i18n["t"]("settings.playback"),
+    description: i18n["t"]("settings.streamQualityPreferences"),
+    icon: LuMonitor,
+  },
   notifications: {
-    label: "Notifications",
-    description: "Live alerts & desktop notices",
+    label: i18n["t"]("settings.notifications"),
+    description: i18n["t"]("settings.liveAlertsDesktopNotices"),
     icon: LuBell,
   },
   "player-controls": {
-    label: "Player controls",
-    description: "Show or hide player buttons",
+    label: i18n["t"]("settings.playerControls"),
+    description: i18n["t"]("settings.showOrHidePlayerButtons"),
     icon: LuSlidersHorizontal,
   },
-  buffer: { label: "Buffer", description: "Live latency & stability", icon: LuGauge },
+  buffer: {
+    label: i18n["t"]("settings.buffer"),
+    description: i18n["t"]("settings.liveLatencyStability"),
+    icon: LuGauge,
+  },
   multiview: {
-    label: "Multiview",
-    description: "Slot count & memory trade-off",
+    label: i18n["t"]("settings.multiview"),
+    description: i18n["t"]("settings.slotCountMemoryTradeOff"),
     icon: LuLayoutGrid,
   },
-  chat: { label: "Chat", description: "Appearance, emotes & events", icon: LuMessageSquare },
-  adblock: { label: "Ad-Block", description: "Twitch ad-blocking settings", icon: LuShieldCheck },
+  chat: {
+    label: i18n["t"]("settings.chat"),
+    description: i18n["t"]("settings.appearanceEmotesEvents"),
+    icon: LuMessageSquare,
+  },
+  adblock: {
+    label: i18n["t"]("settings.adBlock"),
+    description: i18n["t"]("settings.twitchAdBlockingSettings"),
+    icon: LuShieldCheck,
+  },
   proxy: {
-    label: "Proxy",
-    description: "Proxy default-session Chromium requests",
+    label: i18n["t"]("settings.proxy"),
+    description: i18n["t"]("settings.proxyDefaultSessionChromiumRequests"),
     icon: LuNetwork,
   },
   predictions: {
-    label: "Predictions",
-    description: "Chat prediction widget style",
+    label: i18n["t"]("settings.predictions"),
+    description: i18n["t"]("settings.chatPredictionWidgetStyle"),
     icon: LuTrophy,
   },
   integrations: {
-    label: "Integrations",
-    description: "Connected accounts & APIs",
+    label: i18n["t"]("settings.integrations"),
+    description: i18n["t"]("settings.connectedAccountsApis"),
     icon: LuLink,
   },
   "api-tokens": {
-    label: "API / Tokens",
-    description: "Sign-in & token status",
+    label: i18n["t"]("settings.apiTokens"),
+    description: i18n["t"]("settings.signInTokenStatus"),
     icon: LuKeyRound,
   },
-  updates: { label: "Updates", description: "Auto update preferences", icon: LuRefreshCw },
+  updates: {
+    label: i18n["t"]("settings.updates"),
+    description: i18n["t"]("settings.autoUpdatePreferences"),
+    icon: LuRefreshCw,
+  },
   diagnostics: {
-    label: "Diagnostics",
-    description: "Inspect live performance, processes, traces, and logs",
+    label: i18n["t"]("settings.diagnostics"),
+    description: i18n["t"]("settings.inspectLivePerformanceProcessesTracesAndLogs"),
     icon: LuActivity,
   },
-  logs: { label: "Logs", description: "In-app log viewer & diagnostics", icon: LuFileText },
+  logs: {
+    label: i18n["t"]("settings.logs"),
+    description: i18n["t"]("settings.inAppLogViewerDiagnostics"),
+    icon: LuFileText,
+  },
   "report-bug": {
-    label: "Report Bug",
-    description: "Capture a bug report for sharing",
+    label: i18n["t"]("settings.reportBug"),
+    description: i18n["t"]("settings.captureABugReportForSharing"),
     icon: LuBug,
   },
-  about: { label: "About", description: "Version & info", icon: LuCircleHelp },
+  about: {
+    label: i18n["t"]("settings.about"),
+    description: i18n["t"]("settings.versionInfo"),
+    icon: LuCircleHelp,
+  },
 };
 
 const SETTINGS_GROUPS: ReadonlyArray<{ label: string; tabs: readonly TabKey[] }> = [
-  { label: "General", tabs: ["general"] },
+  { label: i18n["t"]("settings.general2"), tabs: ["general"] },
   {
-    label: "Viewing",
+    label: i18n["t"]("settings.viewing"),
     tabs: ["playback", "player-controls", "buffer", "multiview"],
   },
   {
-    label: "Experience",
+    label: i18n["t"]("settings.experience"),
     tabs: ["notifications", "chat", "predictions"],
   },
   {
-    label: "Accounts & Network",
+    label: i18n["t"]("settings.accountsNetwork"),
     tabs: ["adblock", "proxy", "integrations", "api-tokens"],
   },
   {
-    label: "System & Support",
+    label: i18n["t"]("settings.systemSupport"),
     tabs: ["updates", "diagnostics", "logs", "report-bug", "about"],
   },
 ];
@@ -417,14 +498,14 @@ type SettingsIndexEntry = {
 const SETTINGS_INDEX: SettingsIndexEntry[] = [
   {
     tab: "general",
-    label: "Display language",
-    description: "Choose the language used by StreamFusion's interface",
+    label: i18n["t"]("settings.displayLanguage2"),
+    description: i18n["t"]("settings.chooseTheLanguageUsedByStreamfusionSInterface"),
     keywords: ["language", "locale", "english", "spanish"],
   },
   {
     tab: "playback",
-    label: "Default Quality",
-    description: "Preferred stream quality when available",
+    label: i18n["t"]("settings.defaultQuality"),
+    description: i18n["t"]("settings.preferredStreamQualityWhenAvailable"),
     keywords: [
       "highest",
       "source",
@@ -441,237 +522,296 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
   },
   {
     tab: "playback",
-    label: "Featured carousel timing",
-    description: "How long each home page featured stream stays active",
+    label: i18n["t"]("settings.featuredCarouselTiming"),
+    description: i18n["t"]("settings.howLongEachHomePageFeaturedStreamStaysActive"),
     keywords: ["home", "featured", "banner", "carousel", "rotate", "seconds", "minutes"],
   },
   {
     tab: "playback",
-    label: "Access-token player type",
-    description: "Player type used when requesting the ad-block stream token",
+    label: i18n["t"]("settings.accessTokenPlayerType"),
+    description: i18n["t"]("settings.playerTypeUsedWhenRequestingTheAdBlockStreamToken"),
     keywords: ["advanced", "site", "embed", "popout", "autoplay", "thunderdome"],
   },
   {
     tab: "playback",
-    label: "Allow HEVC (H.265)",
-    description: "Keep HEVC streams instead of swapping to AVC during ads",
+    label: i18n["t"]("settings.allowHevcH265"),
+    description: i18n["t"]("settings.keepHevcStreamsInsteadOfSwappingToAvcDuringAds"),
     keywords: ["codec", "h265", "advanced"],
   },
   {
     tab: "playback",
-    label: "Stream device ID",
-    description: "Identifier sent with the ad-block stream token",
+    label: i18n["t"]("settings.streamDeviceId"),
+    description: i18n["t"]("settings.identifierSentWithTheAdBlockStreamToken"),
     keywords: ["randomize", "device", "advanced"],
   },
   {
     tab: "notifications",
-    label: "Desktop notifications",
-    description: "Allow native desktop notifications when followed streams go live",
+    label: i18n["t"]("settings.desktopNotifications"),
+    description: i18n["t"]("settings.allowNativeDesktopNotificationsWhenFollowedStreamsGoLive"),
     keywords: ["native", "system", "toast"],
   },
   {
     tab: "notifications",
-    label: "Live Notifications",
-    description: "Create Live Notification history entries when followed streams go live",
+    label: i18n["t"]("settings.liveNotifications"),
+    description: i18n["t"](
+      "settings.createLiveNotificationHistoryEntriesWhenFollowedStreamsGoLive"
+    ),
     keywords: ["stream", "live", "history"],
   },
-  { tab: "notifications", label: "Twitch", description: "Allow Twitch live notifications" },
-  { tab: "notifications", label: "Kick", description: "Allow Kick live notifications" },
   {
     tab: "notifications",
-    label: "Guest Follow notifications",
-    description: "Notify for channels followed while signed out",
+    label: "Twitch",
+    description: i18n["t"]("settings.allowTwitchLiveNotifications"),
+  },
+  {
+    tab: "notifications",
+    label: "Kick",
+    description: i18n["t"]("settings.allowKickLiveNotifications"),
+  },
+  {
+    tab: "notifications",
+    label: i18n["t"]("settings.guestFollowNotifications"),
+    description: i18n["t"]("settings.notifyForChannelsFollowedWhileSignedOut2"),
     keywords: ["guest", "signed out", "local follows"],
   },
   {
     tab: "notifications",
-    label: "Toast notifications",
-    description: "Show in-app toast banners when followed streams go live",
+    label: i18n["t"]("settings.toastNotifications"),
+    description: i18n["t"]("settings.showInAppToastBannersWhenFollowedStreamsGoLive2"),
     keywords: ["toast", "banner", "in-app"],
   },
-  { tab: "notifications", label: "Sound", description: "Play a sound with notifications" },
   {
     tab: "notifications",
-    label: "Favorites-only",
-    description: "Only notify for followed channels with per-channel notifications enabled",
+    label: i18n["t"]("settings.sound"),
+    description: i18n["t"]("settings.playASoundWithNotifications"),
+  },
+  {
+    tab: "notifications",
+    label: i18n["t"]("settings.favoritesOnly"),
+    description: i18n["t"](
+      "settings.onlyNotifyForFollowedChannelsWithPerChannelNotificationsEnabled2"
+    ),
     keywords: ["favorites", "followed channels"],
   },
   {
     tab: "notifications",
-    label: "Restart grace",
-    description: "Cooldown before repeat notifications after stream restarts",
+    label: i18n["t"]("settings.restartGrace"),
+    description: i18n["t"]("settings.cooldownBeforeRepeatNotificationsAfterStreamRestarts"),
     keywords: ["cooldown", "restarts", "grace"],
   },
   {
     tab: "notifications",
-    label: "Per-channel notifications",
-    description: "Choose which followed channels are eligible when favorites-only is enabled",
+    label: i18n["t"]("settings.perChannelNotifications"),
+    description: i18n["t"](
+      "settings.chooseWhichFollowedChannelsAreEligibleWhenFavoritesOnlyIsEnabled"
+    ),
     keywords: ["favorites", "followed channels"],
   },
   {
     tab: "notifications",
-    label: "Notification coverage",
-    description: "Status for desktop support and degraded live-source coverage",
+    label: i18n["t"]("settings.notificationCoverage"),
+    description: i18n["t"]("settings.statusForDesktopSupportAndDegradedLiveSourceCoverage"),
     keywords: ["support", "degraded", "status"],
   },
   // Player controls — array entries (one per toggle in PLAYER_CONTROL_TOGGLES).
-  { tab: "player-controls", label: "Quality", description: "Stream quality selector menu item." },
   {
     tab: "player-controls",
-    label: "Playback speed",
-    description: "Speed selector (VOD playback).",
-  },
-  { tab: "player-controls", label: "Volume", description: "Volume slider and mute button." },
-  {
-    tab: "player-controls",
-    label: "Fullscreen",
-    description: "Fullscreen toggle button.",
-  },
-  { tab: "player-controls", label: "Theater", description: "Theater-mode toggle button." },
-  {
-    tab: "player-controls",
-    label: "Video Stats",
-    description: "Live video stats overlay.",
+    label: i18n["t"]("settings.quality"),
+    description: i18n["t"]("settings.streamQualitySelectorMenuItem"),
   },
   {
     tab: "player-controls",
-    label: "Rewind",
-    description: "Seconds skipped backward in VODs and clips.",
+    label: i18n["t"]("settings.playbackSpeed"),
+    description: i18n["t"]("settings.speedSelectorVodPlayback"),
+  },
+  {
+    tab: "player-controls",
+    label: i18n["t"]("settings.volume"),
+    description: i18n["t"]("settings.volumeSliderAndMuteButton"),
+  },
+  {
+    tab: "player-controls",
+    label: i18n["t"]("settings.fullscreen"),
+    description: i18n["t"]("settings.fullscreenToggleButton"),
+  },
+  {
+    tab: "player-controls",
+    label: i18n["t"]("settings.theater"),
+    description: i18n["t"]("settings.theaterModeToggleButton"),
+  },
+  {
+    tab: "player-controls",
+    label: i18n["t"]("settings.videoStats"),
+    description: i18n["t"]("settings.liveVideoStatsOverlay"),
+  },
+  {
+    tab: "player-controls",
+    label: i18n["t"]("settings.rewind"),
+    description: i18n["t"]("settings.secondsSkippedBackwardInVodsAndClips"),
     keywords: ["seek", "interval", "backward", "seconds", "VOD", "clip"],
   },
   {
     tab: "player-controls",
-    label: "Fast forward",
-    description: "Seconds skipped forward in VODs and clips.",
+    label: i18n["t"]("settings.fastForward"),
+    description: i18n["t"]("settings.secondsSkippedForwardInVodsAndClips"),
     keywords: ["seek", "interval", "forward", "seconds", "VOD", "clip"],
   },
   // Buffer
   {
     tab: "buffer",
-    label: "Low-latency mode",
-    description: "Track the live edge aggressively.",
+    label: i18n["t"]("settings.lowLatencyMode"),
+    description: i18n["t"]("settings.trackTheLiveEdgeAggressively"),
     keywords: ["latency"],
   },
   {
     tab: "buffer",
-    label: "Target live latency",
-    description: "Segments from the live edge.",
+    label: i18n["t"]("settings.targetLiveLatency"),
+    description: i18n["t"]("settings.segmentsFromTheLiveEdge"),
     keywords: ["livesync"],
   },
   {
     tab: "buffer",
-    label: "Forward buffer",
-    description: "Seconds of video buffered ahead.",
+    label: i18n["t"]("settings.forwardBuffer"),
+    description: i18n["t"]("settings.secondsOfVideoBufferedAhead"),
   },
-  { tab: "buffer", label: "Max buffer", description: "Hard cap on buffered seconds." },
+  {
+    tab: "buffer",
+    label: i18n["t"]("settings.maxBuffer"),
+    description: i18n["t"]("settings.hardCapOnBufferedSeconds"),
+  },
   // Multiview (slice 03 + slice 08 background-quality row).
   {
     tab: "multiview",
-    label: "Concurrent playback budget",
-    description: "Number of simultaneous video decoders; layout membership stays unbounded",
+    label: i18n["t"]("settings.concurrentPlaybackBudget"),
+    description: i18n["t"](
+      "settings.numberOfSimultaneousVideoDecodersLayoutMembershipStaysUnbounded"
+    ),
     keywords: ["multistream", "slots", "budget", "ram", "memory", "grid", "tiles"],
   },
   {
     tab: "multiview",
-    label: "Background-stream quality",
-    description: "How non-focused slots render: auto-low / match-source / off",
+    label: i18n["t"]("settings.backgroundStreamQuality"),
+    description: i18n["t"]("settings.howNonFocusedSlotsRenderAutoLowMatchSourceOff"),
     keywords: ["background", "quality", "480p", "ram", "memory", "auto-low", "match-source"],
   },
   // Chat — content delegated to ChatSettingsSection. One umbrella entry so the
   // tab surfaces for "emotes", "events", "bttv", etc.
   {
     tab: "chat",
-    label: "Chat",
-    description: "Appearance, emotes, events, behavior",
+    label: i18n["t"]("settings.chat"),
+    description: i18n["t"]("settings.appearanceEmotesEventsBehavior"),
     keywords: ["bttv", "7tv", "ffz", "raid", "sub", "emote", "events", "messages"],
   },
   {
     tab: "adblock",
-    label: "Enable Ad-Blocking",
-    description: "Block Twitch ads using alternative player tokens",
+    label: i18n["t"]("settings.enableAdBlocking"),
+    description: i18n["t"]("settings.blockTwitchAdsUsingAlternativePlayerTokens"),
     keywords: ["vaft"],
   },
   // Proxy — listed per-field so any field name jumps to the tab, but the form
   // renders as a single unit so users see the full context.
   {
     tab: "proxy",
-    label: "Twitch playlist proxy",
-    description: "Replace the custom Twitch ad blocker with ordered playlist proxy sources",
+    label: i18n["t"]("settings.twitchPlaylistProxy"),
+    description: i18n["t"](
+      "settings.replaceTheCustomTwitchAdBlockerWithOrderedPlaylistProxySources"
+    ),
     keywords: ["playlist", "fallback", "ad block", "ad blocker"],
   },
   {
     tab: "proxy",
-    label: "Playlist proxy sources",
-    description: "Enable, reorder, add, edit, or remove playlist sources",
+    label: i18n["t"]("settings.playlistProxySources"),
+    description: i18n["t"]("settings.enableReorderAddEditOrRemovePlaylistSources"),
     keywords: ["list", "order", "status", "online", "offline", "health"],
   },
   {
     tab: "proxy",
-    label: "Enable proxy",
-    description: "Routes default-session Chromium requests through the host",
+    label: i18n["t"]("settings.enableProxy"),
+    description: i18n["t"]("settings.routesDefaultSessionChromiumRequestsThroughTheHost"),
   },
-  { tab: "proxy", label: "Host", description: "Proxy host or IP", keywords: ["server"] },
-  { tab: "proxy", label: "Port", description: "Proxy port number" },
   {
     tab: "proxy",
-    label: "Credentials",
-    description: "Username and password for the proxy",
+    label: i18n["t"]("settings.host"),
+    description: i18n["t"]("settings.proxyHostOrIp"),
+    keywords: ["server"],
+  },
+  {
+    tab: "proxy",
+    label: i18n["t"]("settings.port"),
+    description: i18n["t"]("settings.proxyPortNumber"),
+  },
+  {
+    tab: "proxy",
+    label: i18n["t"]("settings.credentials"),
+    description: i18n["t"]("settings.usernameAndPasswordForTheProxy"),
     keywords: ["username", "password", "auth"],
   },
   {
     tab: "proxy",
-    label: "Network library",
-    description: "Chromium (built in) proxy-aware network engine",
+    label: i18n["t"]("settings.networkLibrary"),
+    description: i18n["t"]("settings.chromiumBuiltInProxyAwareNetworkEngine"),
     keywords: ["chromium", "electron", "manifest", "websocket", "direct partition", "http"],
   },
   {
     tab: "predictions",
-    label: "Style",
-    description: "Visual style for the chat prediction widget",
+    label: i18n["t"]("settings.style"),
+    description: i18n["t"]("settings.visualStyleForTheChatPredictionWidget"),
     keywords: ["native", "unified"],
   },
   {
     tab: "integrations",
-    label: "Connected Accounts",
-    description: "Twitch and Kick account connections",
+    label: i18n["t"]("settings.connectedAccounts"),
+    description: i18n["t"]("settings.twitchAndKickAccountConnections"),
     keywords: ["sign in", "login", "auth"],
   },
   {
     tab: "api-tokens",
-    label: "Token Status",
-    description: "Sign-in and token validity",
+    label: i18n["t"]("settings.tokenStatus"),
+    description: i18n["t"]("settings.signInAndTokenValidity"),
     keywords: ["scopes", "expiry", "twitch", "kick"],
   },
   {
     tab: "updates",
-    label: "Allow Pre-release Updates",
-    description: "Receive beta and preview versions before stable release",
+    label: i18n["t"]("settings.allowPreReleaseUpdates"),
+    description: i18n["t"]("settings.receiveBetaAndPreviewVersionsBeforeStableRelease"),
     keywords: ["beta"],
   },
   {
     tab: "updates",
-    label: "Check for updates on startup",
-    description: "Check for new versions in the background on a schedule",
+    label: i18n["t"]("settings.checkForUpdatesOnStartup"),
+    description: i18n["t"]("settings.checkForNewVersionsInTheBackgroundOnASchedule"),
   },
   {
     tab: "updates",
-    label: "Check frequency",
-    description: "How often to check when automatic updates are on",
+    label: i18n["t"]("settings.checkFrequency"),
+    description: i18n["t"]("settings.howOftenToCheckWhenAutomaticUpdatesAreOn"),
     keywords: ["hourly", "daily", "weekly"],
   },
   {
     tab: "updates",
-    label: "Check for Updates",
-    description: "Check for available updates now",
+    label: i18n["t"]("settings.checkForUpdates"),
+    description: i18n["t"]("settings.checkForAvailableUpdatesNow"),
   },
   {
     tab: "diagnostics",
-    label: "Diagnostics",
-    description: "Resources, processes, traces, failures, logs, and reports",
+    label: i18n["t"]("settings.diagnostics"),
+    description: i18n["t"]("settings.resourcesProcessesTracesFailuresLogsAndReports"),
   },
-  { tab: "logs", label: "Logs", description: "In-app log viewer and diagnostics" },
-  { tab: "report-bug", label: "Report a Bug", description: "Generate a bug report file" },
-  { tab: "about", label: "About", description: "Version and info" },
+  {
+    tab: "logs",
+    label: i18n["t"]("settings.logs"),
+    description: i18n["t"]("settings.inAppLogViewerAndDiagnostics"),
+  },
+  {
+    tab: "report-bug",
+    label: i18n["t"]("settings.reportABug"),
+    description: i18n["t"]("settings.generateABugReportFile"),
+  },
+  {
+    tab: "about",
+    label: i18n["t"]("settings.about"),
+    description: i18n["t"]("settings.versionAndInfo"),
+  },
 ];
 
 export function SettingsPage() {
@@ -1015,7 +1155,7 @@ export function SettingsPage() {
   }, []);
   const handleRandomizeDeviceId = () => {
     setAdBlockDeviceId(randomizeAdBlockDeviceId());
-    notifySettingsSaved("Stream device ID randomized");
+    notifySettingsSaved(translateSettings("settings.streamDeviceIdRandomized"));
   };
 
   // ===== Proxy (U12) =====
@@ -1139,10 +1279,10 @@ export function SettingsPage() {
               className="h-5 w-5 text-[var(--color-foreground-secondary)]"
               aria-hidden
             />
-            Settings
+            {translateSettings("settings.settings")}
           </h1>
           <p className="mt-1 text-xs text-[var(--color-foreground-secondary)]">
-            Personalize your StreamFusion experience
+            {translateSettings("settings.personalizeYourStreamfusionExperience")}
           </p>
         </div>
 
@@ -1158,8 +1298,8 @@ export function SettingsPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search settings"
-              aria-label="Search settings"
+              placeholder={translateSettings("settings.searchSettings")}
+              aria-label={translateSettings("settings.searchSettings")}
               autoComplete="off"
               spellCheck={false}
               className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background-tertiary)] py-2 pl-9 pr-9 text-sm text-[var(--color-foreground)] placeholder:text-[var(--color-foreground-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
@@ -1168,7 +1308,7 @@ export function SettingsPage() {
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                aria-label="Clear search"
+                aria-label={translateSettings("settings.clearSearch")}
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--color-foreground-muted)] hover:bg-[var(--color-background-elevated)] hover:text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
               >
                 <LuX className="w-3.5 h-3.5" />
@@ -1178,7 +1318,7 @@ export function SettingsPage() {
         </div>
 
         <nav
-          aria-label="Settings navigation"
+          aria-label={translateSettings("settings.settingsNavigation")}
           className="flex-1 space-y-3 overflow-y-auto px-3 pb-4 pt-2"
         >
           {SETTINGS_GROUPS.map((group) => {
@@ -1198,14 +1338,16 @@ export function SettingsPage() {
             return (
               <section
                 key={group.label}
-                aria-label={`${group.label} settings`}
+                aria-label={translateSettings("settings.valueSettings", { value1: group.label })}
                 className="overflow-hidden rounded-xl border border-[#333333] bg-[#1a1a1a]"
               >
                 <button
                   type="button"
                   aria-expanded={isGroupOpen}
                   aria-controls={groupPanelId}
-                  aria-label={`${group.label} settings section`}
+                  aria-label={translateSettings("settings.valueSettingsSection", {
+                    value1: group.label,
+                  })}
                   onClick={() => {
                     if (!containsActiveTab) navigateToTab(firstVisibleTab, false, true);
                   }}
@@ -1252,7 +1394,8 @@ export function SettingsPage() {
 
           {!hasVisibleTabMatches && (
             <p className="px-2 py-6 text-center text-sm text-[var(--color-foreground-muted)]">
-              No settings match "{searchQuery}".
+              {translateSettings("settings.noSettingsMatch")}
+              {searchQuery}".
             </p>
           )}
         </nav>
@@ -1262,7 +1405,9 @@ export function SettingsPage() {
       <div
         ref={contentScrollerRef}
         role="region"
-        aria-label={`${TAB_META[activeTab].label} settings`}
+        aria-label={translateSettings("settings.valueSettings", {
+          value1: TAB_META[activeTab].label,
+        })}
         className="flex-1 overflow-y-auto bg-[var(--color-background)]"
       >
         <div
@@ -1294,14 +1439,19 @@ export function SettingsPage() {
               <div className="w-12 h-12 rounded-xl bg-[#18181b] border border-[#27272a] flex items-center justify-center mb-4">
                 <LuSearch className="w-5 h-5 text-zinc-500" />
               </div>
-              <h2 className="text-lg font-semibold text-zinc-200 mb-1">No settings found</h2>
-              <p className="text-sm text-zinc-500 mb-4">Nothing matches "{searchQuery}".</p>
+              <h2 className="text-lg font-semibold text-zinc-200 mb-1">
+                {translateSettings("settings.noSettingsFound")}
+              </h2>
+              <p className="text-sm text-zinc-500 mb-4">
+                {translateSettings("settings.nothingMatches")}
+                {searchQuery}".
+              </p>
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
                 className="text-sm font-medium text-zinc-300 hover:text-white hover:underline"
               >
-                Clear search
+                {translateSettings("settings.clearSearch")}
               </button>
             </div>
           ) : (
@@ -1338,8 +1488,12 @@ export function SettingsPage() {
               {activeTab === "playback" && (
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
-                    <h2 className="text-2xl font-bold mb-1">Playback</h2>
-                    <p className="text-zinc-400">Manage your default stream viewing experience.</p>
+                    <h2 className="text-2xl font-bold mb-1">
+                      {translateSettings("settings.playback")}
+                    </h2>
+                    <p className="text-zinc-400">
+                      {translateSettings("settings.manageYourDefaultStreamViewingExperience")}
+                    </p>
                   </div>
 
                   {isRowVisible("Default Quality") && (
@@ -1347,9 +1501,11 @@ export function SettingsPage() {
                       <div className="p-6">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="font-medium text-zinc-200">Default Quality</p>
+                            <p className="font-medium text-zinc-200">
+                              {translateSettings("settings.defaultQuality")}
+                            </p>
                             <p className="text-sm text-zinc-500 mt-1">
-                              Preferred stream quality when available
+                              {translateSettings("settings.preferredStreamQualityWhenAvailable")}
                             </p>
                           </div>
                           <div className="flex items-center gap-3">
@@ -1362,20 +1518,38 @@ export function SettingsPage() {
                               onValueChange={handleQualityChange}
                             >
                               <SelectTrigger
-                                aria-label="Default Quality"
+                                aria-label={translateSettings("settings.defaultQuality")}
                                 className="w-[180px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20"
                               >
-                                <SelectValue placeholder="Select quality" />
+                                <SelectValue
+                                  placeholder={translateSettings("settings.selectQuality")}
+                                />
                               </SelectTrigger>
                               <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
-                                <SelectItem value="auto">Auto</SelectItem>
-                                <SelectItem value="highest">Highest</SelectItem>
-                                <SelectItem value="1440p">1440p / 2K</SelectItem>
-                                <SelectItem value="1080p">1080p60</SelectItem>
-                                <SelectItem value="720p">720p60</SelectItem>
-                                <SelectItem value="480p">480p</SelectItem>
-                                <SelectItem value="360p">360p</SelectItem>
-                                <SelectItem value="160p">160p</SelectItem>
+                                <SelectItem value="auto">
+                                  {translateSettings("settings.auto")}
+                                </SelectItem>
+                                <SelectItem value="highest">
+                                  {translateSettings("settings.highest")}
+                                </SelectItem>
+                                <SelectItem value="1440p">
+                                  {translateSettings("settings.value1440p2k")}
+                                </SelectItem>
+                                <SelectItem value="1080p">
+                                  {translateSettings("settings.value1080p60")}
+                                </SelectItem>
+                                <SelectItem value="720p">
+                                  {translateSettings("settings.value720p60")}
+                                </SelectItem>
+                                <SelectItem value="480p">
+                                  {translateSettings("settings.value480p")}
+                                </SelectItem>
+                                <SelectItem value="360p">
+                                  {translateSettings("settings.value360p")}
+                                </SelectItem>
+                                <SelectItem value="160p">
+                                  {translateSettings("settings.value160p")}
+                                </SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -1391,17 +1565,21 @@ export function SettingsPage() {
                       <div className="p-6">
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
-                            <p className="font-medium text-zinc-200">Featured carousel timing</p>
+                            <p className="font-medium text-zinc-200">
+                              {translateSettings("settings.featuredCarouselTiming")}
+                            </p>
                             <p className="text-sm text-zinc-500 mt-1">
-                              How long each home page featured stream stays active before rotating.
-                              Current: {formatCarouselIntervalLabel(homeCarouselIntervalSeconds)}.
+                              {translateSettings(
+                                "settings.howLongEachHomePageFeaturedStreamStaysActiveBeforeRotatingCurren"
+                              )}
+                              {formatCarouselIntervalLabel(homeCarouselIntervalSeconds)}.
                             </p>
                           </div>
 
                           <div className="flex w-full items-center gap-3 sm:w-[360px]">
                             <input
                               type="range"
-                              aria-label="Featured carousel timing"
+                              aria-label={translateSettings("settings.featuredCarouselTiming")}
                               min={homeCarouselIntervalMinSeconds}
                               max={homeCarouselIntervalMaxSeconds}
                               step={HOME_CAROUSEL_INTERVAL_STEP_SECONDS}
@@ -1414,7 +1592,9 @@ export function SettingsPage() {
                             <div className="flex shrink-0 items-center rounded-lg border border-[#27272a] bg-[#18181b] pr-2 text-sm text-zinc-500">
                               <input
                                 type="number"
-                                aria-label="Featured carousel timing seconds"
+                                aria-label={translateSettings(
+                                  "settings.featuredCarouselTimingSeconds"
+                                )}
                                 min={homeCarouselIntervalMinSeconds}
                                 max={homeCarouselIntervalMaxSeconds}
                                 step={HOME_CAROUSEL_INTERVAL_STEP_SECONDS}
@@ -1424,7 +1604,7 @@ export function SettingsPage() {
                                 }
                                 className="h-9 w-16 rounded-l-lg bg-transparent px-2 text-right text-zinc-200 outline-none"
                               />
-                              sec
+                              {translateSettings("settings.sec")}
                             </div>
                           </div>
                         </div>
@@ -1440,7 +1620,7 @@ export function SettingsPage() {
                     <div className="rounded-xl border border-amber-500/20 bg-[#121214] overflow-hidden">
                       <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
                         <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                          Advanced (stream token)
+                          {translateSettings("settings.advancedStreamToken")}
                         </h3>
                       </div>
 
@@ -1448,10 +1628,9 @@ export function SettingsPage() {
                       <div className="mx-6 mt-4 flex items-start gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300/90">
                         <LuTriangleAlert className="w-5 h-5 flex-shrink-0 mt-0.5" />
                         <p className="text-sm leading-relaxed">
-                          These affect how the Twitch stream token is requested. Wrong values can
-                          break playback. Defaults match the current configuration. They apply
-                          through the ad-block pipeline only. With ad-block off, the standard player
-                          is unaffected.
+                          {translateSettings(
+                            "settings.theseAffectHowTheTwitchStreamTokenIsRequestedWrongValuesCanBreak"
+                          )}
                         </p>
                       </div>
 
@@ -1460,10 +1639,13 @@ export function SettingsPage() {
                         {isRowVisible("Access-token player type") && (
                           <div className="flex items-center justify-between gap-4 py-3">
                             <div className="min-w-0 flex-1">
-                              <p className="font-medium text-zinc-200">Access-token player type</p>
+                              <p className="font-medium text-zinc-200">
+                                {translateSettings("settings.accessTokenPlayerType")}
+                              </p>
                               <p className="text-sm text-zinc-500 mt-0.5">
-                                Player type used when requesting the ad-block stream token. Leave on
-                                Default unless a specific type is needed.
+                                {translateSettings(
+                                  "settings.playerTypeUsedWhenRequestingTheAdBlockStreamTokenLeaveOnDefaultU"
+                                )}
                               </p>
                             </div>
                             <Select
@@ -1476,10 +1658,12 @@ export function SettingsPage() {
                               }
                             >
                               <SelectTrigger
-                                aria-label="Access-token player type"
+                                aria-label={translateSettings("settings.accessTokenPlayerType")}
                                 className="w-[200px] flex-shrink-0 bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-amber-500/20"
                               >
-                                <SelectValue placeholder="Select player type" />
+                                <SelectValue
+                                  placeholder={translateSettings("settings.selectPlayerType")}
+                                />
                               </SelectTrigger>
                               <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
                                 {PLAYBACK_ADVANCED_PLAYER_TYPES.map(({ value, label }) => (
@@ -1496,17 +1680,19 @@ export function SettingsPage() {
                         {isRowVisible("Allow HEVC (H.265)") && (
                           <div className="flex items-center justify-between gap-4 py-3">
                             <div className="min-w-0 flex-1">
-                              <p className="font-medium text-zinc-200">Allow HEVC (H.265)</p>
+                              <p className="font-medium text-zinc-200">
+                                {translateSettings("settings.allowHevcH265")}
+                              </p>
                               <p className="text-sm text-zinc-500 mt-0.5">
-                                Keep HEVC streams instead of swapping to AVC during ads. Off by
-                                default. Enabling can break playback if the decoder can't switch
-                                cleanly.
+                                {translateSettings(
+                                  "settings.keepHevcStreamsInsteadOfSwappingToAvcDuringAdsOffByDefaultEnabli"
+                                )}
                               </p>
                             </div>
                             <Switch
                               checked={playbackAdvanced.allowHevc}
                               onCheckedChange={(v) => handlePlaybackAdvancedChange("allowHevc", v)}
-                              aria-label="Allow HEVC"
+                              aria-label={translateSettings("settings.allowHevc")}
                             />
                           </div>
                         )}
@@ -1515,20 +1701,26 @@ export function SettingsPage() {
                         {isRowVisible("Stream device ID") && (
                           <div className="flex items-center justify-between gap-4 py-3">
                             <div className="min-w-0 flex-1">
-                              <p className="font-medium text-zinc-200">Stream device ID</p>
+                              <p className="font-medium text-zinc-200">
+                                {translateSettings("settings.streamDeviceId")}
+                              </p>
                               <p className="text-sm text-zinc-500 mt-0.5">
-                                Identifier sent with the ad-block stream token.{" "}
+                                {translateSettings(
+                                  "settings.identifierSentWithTheAdBlockStreamToken2"
+                                )}{" "}
                                 {adBlockDeviceId ? (
                                   <>
-                                    Current:{" "}
+                                    {translateSettings("settings.current")}{" "}
                                     <code className="text-zinc-400">
                                       {adBlockDeviceId.slice(0, 8)}…
                                     </code>
                                   </>
                                 ) : (
-                                  "Not yet generated (set on first stream load)."
+                                  translateSettings("settings.notYetGeneratedSetOnFirstStreamLoad")
                                 )}{" "}
-                                Randomizing takes effect on the next stream load.
+                                {translateSettings(
+                                  "settings.randomizingTakesEffectOnTheNextStreamLoad"
+                                )}
                               </p>
                             </div>
                             <Button
@@ -1537,7 +1729,7 @@ export function SettingsPage() {
                               onClick={handleRandomizeDeviceId}
                               className="flex-shrink-0 bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
                             >
-                              Randomize
+                              {translateSettings("settings.randomize")}
                             </Button>
                           </div>
                         )}
@@ -1551,10 +1743,13 @@ export function SettingsPage() {
               {activeTab === "notifications" && (
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
-                    <h2 className="text-2xl font-bold mb-1">Notifications</h2>
+                    <h2 className="text-2xl font-bold mb-1">
+                      {translateSettings("settings.notifications")}
+                    </h2>
                     <p className="text-zinc-400">
-                      Control live-stream alerts, desktop notices, restart cooldowns, and followed
-                      channel eligibility.
+                      {translateSettings(
+                        "settings.controlLiveStreamAlertsDesktopNoticesRestartCooldownsAndFollowed"
+                      )}
                     </p>
                   </div>
 
@@ -1569,7 +1764,7 @@ export function SettingsPage() {
                       <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
                           <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                            Live notification preferences
+                            {translateSettings("settings.liveNotificationPreferences")}
                           </h3>
                         </div>
 
@@ -1593,10 +1788,13 @@ export function SettingsPage() {
                           {showRestartGrace && (
                             <div className="flex items-center justify-between gap-4 py-3">
                               <div className="min-w-0 flex-1">
-                                <p className="font-medium text-zinc-200">Restart grace</p>
+                                <p className="font-medium text-zinc-200">
+                                  {translateSettings("settings.restartGrace")}
+                                </p>
                                 <p className="text-sm text-zinc-500 mt-0.5">
-                                  Suppress repeat alerts when a stream restarts inside the selected
-                                  cooldown.
+                                  {translateSettings(
+                                    "settings.suppressRepeatAlertsWhenAStreamRestartsInsideTheSelectedCooldown"
+                                  )}
                                 </p>
                               </div>
                               <Select
@@ -1611,10 +1809,12 @@ export function SettingsPage() {
                                 }
                               >
                                 <SelectTrigger
-                                  aria-label="Restart grace"
+                                  aria-label={translateSettings("settings.restartGrace")}
                                   className="w-[180px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-zinc-500/30"
                                 >
-                                  <SelectValue placeholder="Restart grace" />
+                                  <SelectValue
+                                    placeholder={translateSettings("settings.restartGrace")}
+                                  />
                                 </SelectTrigger>
                                 <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
                                   {RESTART_GRACE_OPTIONS.map((option) => (
@@ -1636,11 +1836,12 @@ export function SettingsPage() {
                       <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
                         <div>
                           <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                            Followed channels
+                            {translateSettings("settings.followedChannels")}
                           </h3>
                           <p className="text-sm text-zinc-500 mt-1">
-                            New follows are enabled by default. Favorites-only uses these switches
-                            to decide which channels can alert.
+                            {translateSettings(
+                              "settings.newFollowsAreEnabledByDefaultFavoritesOnlyUsesTheseSwitchesToDec"
+                            )}
                           </p>
                         </div>
                         <button
@@ -1648,8 +1849,8 @@ export function SettingsPage() {
                           aria-expanded={followedChannelNotificationsExpanded}
                           aria-label={
                             followedChannelNotificationsExpanded
-                              ? "Hide followed channels"
-                              : "Show followed channels"
+                              ? translateSettings("settings.hideFollowedChannels")
+                              : translateSettings("settings.showFollowedChannels")
                           }
                           onClick={() =>
                             setFollowedChannelNotificationsExpanded((expanded) => !expanded)
@@ -1679,8 +1880,8 @@ export function SettingsPage() {
                                   type="text"
                                   value={followedChannelSearch}
                                   onChange={(e) => setFollowedChannelSearch(e.target.value)}
-                                  placeholder="Search followed channels"
-                                  aria-label="Search followed channels"
+                                  placeholder={translateSettings("settings.searchFollowedChannels")}
+                                  aria-label={translateSettings("settings.searchFollowedChannels")}
                                   autoComplete="off"
                                   spellCheck={false}
                                   className="w-full rounded-lg border border-[#27272a] bg-[#18181b] py-2 pl-9 pr-9 text-sm text-zinc-200 placeholder:text-zinc-500 focus:border-zinc-500/40 focus:outline-none focus:ring-2 focus:ring-zinc-500/30"
@@ -1689,7 +1890,9 @@ export function SettingsPage() {
                                   <button
                                     type="button"
                                     onClick={() => setFollowedChannelSearch("")}
-                                    aria-label="Clear followed channel search"
+                                    aria-label={translateSettings(
+                                      "settings.clearFollowedChannelSearch"
+                                    )}
                                     className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-zinc-500 hover:bg-[#27272a] hover:text-zinc-200"
                                   >
                                     <LuX className="h-3.5 w-3.5" />
@@ -1701,11 +1904,12 @@ export function SettingsPage() {
 
                           {followedChannels.length === 0 ? (
                             <div className="px-6 py-8 text-sm text-zinc-500">
-                              No followed channels yet.
+                              {translateSettings("settings.noFollowedChannelsYet")}
                             </div>
                           ) : filteredFollowedChannels.length === 0 ? (
                             <div className="px-6 py-8 text-sm text-zinc-500">
-                              No followed channels match "{followedChannelSearch}".
+                              {translateSettings("settings.noFollowedChannelsMatch")}
+                              {followedChannelSearch}".
                             </div>
                           ) : (
                             <div className="px-6 py-2 divide-y divide-[#27272a]/60">
@@ -1723,9 +1927,10 @@ export function SettingsPage() {
                                     </p>
                                   </div>
                                   <Switch
-                                    aria-label={`Notifications for ${
-                                      channel.displayName || channel.username
-                                    }`}
+                                    aria-label={translateSettings(
+                                      "settings.notificationsForValue",
+                                      { value1: channel.displayName || channel.username }
+                                    )}
                                     checked={isPerChannelNotificationEnabled(
                                       notifications,
                                       channel
@@ -1747,13 +1952,13 @@ export function SettingsPage() {
                     <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
                       <div className="px-6 py-4 border-b border-[#27272a]">
                         <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                          Notification coverage
+                          {translateSettings("settings.notificationCoverage")}
                         </h3>
                       </div>
                       <div className="px-6 py-4 grid gap-3 sm:grid-cols-2">
                         <div className="rounded-lg border border-[#27272a] bg-[#18181b] p-4">
                           <p className="text-sm font-medium text-zinc-200">
-                            Desktop notification support
+                            {translateSettings("settings.desktopNotificationSupport")}
                           </p>
                           <p className="text-sm text-zinc-500 mt-1">
                             {formatDesktopNotificationStatus(
@@ -1768,16 +1973,19 @@ export function SettingsPage() {
                           const isDegraded = platformCoverage?.status === "degraded";
                           const statusLabel = platformCoverage
                             ? isDegraded
-                              ? "degraded"
-                              : "normal"
-                            : "status unavailable";
+                              ? translateSettings("settings.degraded")
+                              : translateSettings("settings.normal")
+                            : translateSettings("settings.statusUnavailable");
                           return (
                             <div
                               key={platform}
                               className="rounded-lg border border-[#27272a] bg-[#18181b] p-4"
                             >
                               <p className="text-sm font-medium text-zinc-200">
-                                {formatPlatformLabel(platform)} coverage {statusLabel}
+                                {translateSettings("settings.platformCoverageStatus", {
+                                  platform: formatPlatformLabel(platform),
+                                  status: statusLabel,
+                                })}
                               </p>
                               {platformCoverage?.issues.length ? (
                                 <div className="mt-2 space-y-1">
@@ -1792,7 +2000,9 @@ export function SettingsPage() {
                                 </div>
                               ) : (
                                 <p className="text-sm text-zinc-500 mt-1">
-                                  Live notifications are monitoring normally.
+                                  {translateSettings(
+                                    "settings.liveNotificationsAreMonitoringNormally"
+                                  )}
                                 </p>
                               )}
                             </div>
@@ -1808,11 +2018,13 @@ export function SettingsPage() {
               {activeTab === "player-controls" && (
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
-                    <h2 className="text-2xl font-bold mb-1">Player controls</h2>
+                    <h2 className="text-2xl font-bold mb-1">
+                      {translateSettings("settings.playerControls")}
+                    </h2>
                     <p className="text-zinc-400">
-                      Choose which buttons appear in the player. Hiding a control only removes its
-                      button — it never changes playback (audio keeps playing, quality stays
-                      selected).
+                      {translateSettings(
+                        "settings.chooseWhichButtonsAppearInThePlayerHidingAControlOnlyRemovesItsB"
+                      )}
                     </p>
                   </div>
 
@@ -1825,7 +2037,7 @@ export function SettingsPage() {
                       <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
                           <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                            Visible controls
+                            {translateSettings("settings.visibleControls")}
                           </h3>
                         </div>
                         <div className="px-6 py-2 divide-y divide-[#27272a]/60">
@@ -1855,10 +2067,12 @@ export function SettingsPage() {
                     <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-background-secondary)]">
                       <div className="border-b border-[var(--color-border)] px-6 py-4">
                         <h3 className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-foreground-muted)]">
-                          Seek intervals
+                          {translateSettings("settings.seekIntervals")}
                         </h3>
                         <p className="mt-1 text-xs text-[var(--color-foreground-secondary)]">
-                          Seek intervals apply to VODs and clips. Live streams are unaffected.
+                          {translateSettings(
+                            "settings.seekIntervalsApplyToVodsAndClipsLiveStreamsAreUnaffected"
+                          )}
                         </p>
                       </div>
                       <div className="divide-y divide-[var(--color-border)] px-6 py-2">
@@ -1869,13 +2083,13 @@ export function SettingsPage() {
                                 className="font-medium text-[var(--color-foreground)]"
                                 htmlFor="rewind-seconds"
                               >
-                                Rewind
+                                {translateSettings("settings.rewind")}
                               </label>
                               <p
                                 className="mt-0.5 text-sm text-[var(--color-foreground-muted)]"
                                 id="rewind-seconds-description"
                               >
-                                Seconds skipped backward in VODs and clips.
+                                {translateSettings("settings.secondsSkippedBackwardInVodsAndClips")}
                               </p>
                             </div>
                             <SeekIntervalSelect
@@ -1897,13 +2111,13 @@ export function SettingsPage() {
                                 className="font-medium text-[var(--color-foreground)]"
                                 htmlFor="fast-forward-seconds"
                               >
-                                Fast forward
+                                {translateSettings("settings.fastForward")}
                               </label>
                               <p
                                 className="mt-0.5 text-sm text-[var(--color-foreground-muted)]"
                                 id="fast-forward-seconds-description"
                               >
-                                Seconds skipped forward in VODs and clips.
+                                {translateSettings("settings.secondsSkippedForwardInVodsAndClips")}
                               </p>
                             </div>
                             <SeekIntervalSelect
@@ -1927,10 +2141,13 @@ export function SettingsPage() {
               {activeTab === "buffer" && (
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
-                    <h2 className="text-2xl font-bold mb-1">Buffer</h2>
+                    <h2 className="text-2xl font-bold mb-1">
+                      {translateSettings("settings.buffer")}
+                    </h2>
                     <p className="text-zinc-400">
-                      Tune the latency-vs-stability tradeoff for live streams (Twitch + Kick). These
-                      apply to live playback only.
+                      {translateSettings(
+                        "settings.tuneTheLatencyVsStabilityTradeoffForLiveStreamsTwitchKickTheseAp"
+                      )}
                     </p>
                   </div>
 
@@ -1944,7 +2161,7 @@ export function SettingsPage() {
                       <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
                           <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                            Live buffer
+                            {translateSettings("settings.liveBuffer")}
                           </h3>
                           <div className="flex items-center gap-3">
                             <Button
@@ -1953,7 +2170,7 @@ export function SettingsPage() {
                               onClick={handleBufferReset}
                               className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
                             >
-                              Reset to defaults
+                              {translateSettings("settings.resetToDefaults")}
                             </Button>
                           </div>
                         </div>
@@ -1963,10 +2180,13 @@ export function SettingsPage() {
                           {showLowLatency && (
                             <div className="flex items-center justify-between gap-4 py-3">
                               <div className="min-w-0 flex-1">
-                                <p className="font-medium text-zinc-200">Low-latency mode</p>
+                                <p className="font-medium text-zinc-200">
+                                  {translateSettings("settings.lowLatencyMode")}
+                                </p>
                                 <p className="text-sm text-zinc-500 mt-0.5">
-                                  Track the live edge aggressively. Disable for steadier playback on
-                                  flaky connections.
+                                  {translateSettings(
+                                    "settings.trackTheLiveEdgeAggressivelyDisableForSteadierPlaybackOnFlakyCon"
+                                  )}
                                 </p>
                               </div>
                               <Switch
@@ -2010,7 +2230,7 @@ export function SettingsPage() {
                         </div>
 
                         <div className="px-6 py-3 border-t border-[#27272a] text-xs text-zinc-500">
-                          Changes apply when the stream next loads.
+                          {translateSettings("settings.changesApplyWhenTheStreamNextLoads")}
                         </div>
                       </div>
                     );
@@ -2022,10 +2242,13 @@ export function SettingsPage() {
               {activeTab === "multiview" && (
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
-                    <h2 className="text-2xl font-bold mb-1">Multiview</h2>
+                    <h2 className="text-2xl font-bold mb-1">
+                      {translateSettings("settings.multiview")}
+                    </h2>
                     <p className="text-zinc-400">
-                      Keep any number of channels in your layout, choose how many play at once, and
-                      control how the app spends memory on background streams.
+                      {translateSettings(
+                        "settings.keepAnyNumberOfChannelsInYourLayoutChooseHowManyPlayAtOnceAndCon"
+                      )}
                     </p>
                   </div>
 
@@ -2033,18 +2256,20 @@ export function SettingsPage() {
                     <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
                       <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
                         <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                          Playback budget
+                          {translateSettings("settings.playbackBudget")}
                         </h3>
                       </div>
 
                       <div className="px-6 py-2 divide-y divide-[#27272a]/60">
                         <div className="flex items-center justify-between gap-4 py-4">
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium text-zinc-200">Concurrent playback budget</p>
+                            <p className="font-medium text-zinc-200">
+                              {translateSettings("settings.concurrentPlaybackBudget")}
+                            </p>
                             <p className="text-sm text-zinc-500 mt-0.5 leading-relaxed">
-                              Add as many channels as you need. This budget controls how many video
-                              decoders run at once; extra slots stay suspended until you activate
-                              them. Most viewers do well at 4.
+                              {translateSettings(
+                                "settings.addAsManyChannelsAsYouNeedThisBudgetControlsHowManyVideoDecoders"
+                              )}
                             </p>
                           </div>
                           <div className="flex items-center gap-3 flex-shrink-0">
@@ -2057,18 +2282,22 @@ export function SettingsPage() {
                                 handlePlaybackBudgetChange(Number.parseInt(e.target.value, 10))
                               }
                               className="w-24 rounded-md border border-[#27272a] bg-[#1a1a1a] px-3 py-2 text-right text-zinc-200"
-                              aria-label="Concurrent playback budget"
+                              aria-label={translateSettings("settings.concurrentPlaybackBudget")}
                             />
                             <span className="w-16 text-right text-sm tabular-nums text-zinc-200">
-                              {playbackBudget} {playbackBudget === 1 ? "stream" : "streams"}
+                              {playbackBudget}{" "}
+                              {playbackBudget === 1
+                                ? translateSettings("settings.stream")
+                                : translateSettings("settings.streams")}
                             </span>
                           </div>
                         </div>
                       </div>
 
                       <div className="px-6 py-3 border-t border-[#27272a] text-xs text-zinc-500">
-                        Minimum: {MULTIVIEW_PLAYBACK_BUDGET_MIN}. Default is 4; there is no hard
-                        maximum.
+                        {translateSettings("settings.minimum")}
+                        {MULTIVIEW_PLAYBACK_BUDGET_MIN}
+                        {translateSettings("settings.defaultIs4ThereIsNoHardMaximum")}
                       </div>
                     </div>
                   )}
@@ -2081,18 +2310,20 @@ export function SettingsPage() {
                     <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
                       <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
                         <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                          Background streams
+                          {translateSettings("settings.backgroundStreams")}
                         </h3>
                       </div>
 
                       <div className="px-6 py-2 divide-y divide-[#27272a]/60">
                         <div className="flex items-center justify-between gap-4 py-4">
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium text-zinc-200">Background-stream quality</p>
+                            <p className="font-medium text-zinc-200">
+                              {translateSettings("settings.backgroundStreamQuality")}
+                            </p>
                             <p className="text-sm text-zinc-500 mt-0.5 leading-relaxed">
-                              How non-focused streams render. Lower settings free up RAM and
-                              bandwidth so the focused stream gets the full pipe. Changes apply live
-                              to every background slot — no app reload needed.
+                              {translateSettings(
+                                "settings.howNonFocusedStreamsRenderLowerSettingsFreeUpRamAndBandwidthSoTh"
+                              )}
                             </p>
                           </div>
                           <div className="flex items-center gap-3 flex-shrink-0">
@@ -2103,19 +2334,23 @@ export function SettingsPage() {
                               }
                             >
                               <SelectTrigger
-                                aria-label="Background-stream quality"
+                                aria-label={translateSettings("settings.backgroundStreamQuality")}
                                 className="w-[200px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-zinc-500/30"
                               >
-                                <SelectValue placeholder="Select quality" />
+                                <SelectValue
+                                  placeholder={translateSettings("settings.selectQuality")}
+                                />
                               </SelectTrigger>
                               <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
                                 <SelectItem value="auto-low">
-                                  Auto-low (≤480p, recommended)
+                                  {translateSettings("settings.autoLow480pRecommended")}
                                 </SelectItem>
                                 <SelectItem value="match-source">
-                                  Match source (uses more RAM)
+                                  {translateSettings("settings.matchSourceUsesMoreRam")}
                                 </SelectItem>
-                                <SelectItem value="off">Off (audio-only)</SelectItem>
+                                <SelectItem value="off">
+                                  {translateSettings("settings.offAudioOnly")}
+                                </SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -2123,7 +2358,7 @@ export function SettingsPage() {
                       </div>
 
                       <div className="px-6 py-3 border-t border-[#27272a] text-xs text-zinc-500">
-                        Default: auto-low.
+                        {translateSettings("settings.defaultAutoLow")}
                       </div>
                     </div>
                   )}
@@ -2134,9 +2369,13 @@ export function SettingsPage() {
               {activeTab === "chat" && (
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
-                    <h2 className="text-2xl font-bold mb-1">Chat</h2>
+                    <h2 className="text-2xl font-bold mb-1">
+                      {translateSettings("settings.chat")}
+                    </h2>
                     <p className="text-zinc-400">
-                      Appearance, emotes, events, and behavior for the unified Twitch + Kick chat.
+                      {translateSettings(
+                        "settings.appearanceEmotesEventsAndBehaviorForTheUnifiedTwitchKickChat"
+                      )}
                     </p>
                   </div>
 
@@ -2148,9 +2387,11 @@ export function SettingsPage() {
               {activeTab === "adblock" && (
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
-                    <h2 className="text-2xl font-bold mb-1">Ad-Block</h2>
+                    <h2 className="text-2xl font-bold mb-1">
+                      {translateSettings("settings.adBlock")}
+                    </h2>
                     <p className="text-zinc-400">
-                      Manage ad-blocking capabilities for Twitch streams.
+                      {translateSettings("settings.manageAdBlockingCapabilitiesForTwitchStreams")}
                     </p>
                   </div>
 
@@ -2161,18 +2402,24 @@ export function SettingsPage() {
                           <LuShieldCheck className="w-6 h-6" />
                         </div>
                         <div>
-                          <h3 className="font-semibold text-lg">Client-Side Ad-Blocking</h3>
+                          <h3 className="font-semibold text-lg">
+                            {translateSettings("settings.clientSideAdBlocking")}
+                          </h3>
                           <p className="text-sm text-zinc-500">
-                            Bypass Twitch advertisements locally
+                            {translateSettings("settings.bypassTwitchAdvertisementsLocally")}
                           </p>
                         </div>
                       </div>
 
                       <div className="flex items-center justify-between p-4 rounded-lg bg-[#18181b]/50 border border-[#27272a]">
                         <div>
-                          <p className="font-medium text-zinc-200">Enable Ad-Blocking</p>
+                          <p className="font-medium text-zinc-200">
+                            {translateSettings("settings.enableAdBlocking")}
+                          </p>
                           <p className="text-sm text-zinc-500 mt-1">
-                            Block Twitch ads using alternative player tokens
+                            {translateSettings(
+                              "settings.blockTwitchAdsUsingAlternativePlayerTokens"
+                            )}
                           </p>
                         </div>
                         <Switch
@@ -2185,15 +2432,15 @@ export function SettingsPage() {
                       </div>
                       {isPlaylistProxyEnabled && (
                         <p className="mt-4 text-sm text-zinc-400">
-                          Twitch playlist proxy is enabled, so the custom ad blocker is paused. Your
-                          saved ad-block preference will return when playlist proxy mode is turned
-                          off.
+                          {translateSettings(
+                            "settings.twitchPlaylistProxyIsEnabledSoTheCustomAdBlockerIsPausedYourSave"
+                          )}
                         </p>
                       )}
                       <div className="mt-4 p-4 rounded-lg bg-blue-500/5 border border-blue-500/10 text-sm text-blue-300/80 leading-relaxed">
-                        This uses the VAFT technique to request ad-free streams via backup player
-                        types. It works without external proxies. A shield icon will appear in the
-                        player when active.
+                        {translateSettings(
+                          "settings.thisUsesTheVaftTechniqueToRequestAdFreeStreamsViaBackupPlayerTyp"
+                        )}
                       </div>
                     </div>
                   )}
@@ -2204,10 +2451,13 @@ export function SettingsPage() {
               {activeTab === "proxy" && (
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
-                    <h2 className="text-2xl font-bold mb-1">Proxy</h2>
+                    <h2 className="text-2xl font-bold mb-1">
+                      {translateSettings("settings.proxy")}
+                    </h2>
                     <p className="text-zinc-400">
-                      Use playlist proxies for Twitch playback, or configure the default-session
-                      transport proxy.
+                      {translateSettings(
+                        "settings.usePlaylistProxiesForTwitchPlaybackOrConfigureTheDefaultSessionT"
+                      )}
                     </p>
                   </div>
 
@@ -2217,15 +2467,17 @@ export function SettingsPage() {
                     <div className="rounded-xl border border-[#333333] bg-[#1a1a1a] p-6">
                       <div className="flex items-start justify-between gap-6">
                         <div>
-                          <p className="font-medium text-zinc-200">Network library</p>
+                          <p className="font-medium text-zinc-200">
+                            {translateSettings("settings.networkLibrary")}
+                          </p>
                           <p className="mt-1 text-sm text-zinc-400">
-                            Shared main-process HTTP and renderer media use Chromium.
-                            Interceptor-owned manifests, WebSockets, and direct partitions are not
-                            controlled.
+                            {translateSettings(
+                              "settings.sharedMainProcessHttpAndRendererMediaUseChromiumInterceptorOwned"
+                            )}
                           </p>
                         </div>
                         <span className="shrink-0 rounded-md border border-[#333333] bg-[#252525] px-3 py-1.5 text-sm font-medium text-zinc-300">
-                          Chromium (built in)
+                          {translateSettings("settings.chromiumBuiltIn")}
                         </span>
                       </div>
                     </div>
@@ -2239,9 +2491,13 @@ export function SettingsPage() {
                             <LuNetwork className="w-6 h-6" />
                           </div>
                           <div>
-                            <h3 className="font-semibold text-lg">Advanced transport proxy</h3>
+                            <h3 className="font-semibold text-lg">
+                              {translateSettings("settings.advancedTransportProxy")}
+                            </h3>
                             <p className="text-sm text-zinc-500">
-                              Applied to Chromium requests in Electron&apos;s default session
+                              {translateSettings(
+                                "settings.appliedToChromiumRequestsInElectronAposSDefaultSession"
+                              )}
                             </p>
                           </div>
                         </div>
@@ -2251,16 +2507,19 @@ export function SettingsPage() {
                         {/* Enable switch */}
                         <div className="flex items-center justify-between gap-4">
                           <div className="min-w-0 flex-1">
-                            <p className="font-medium text-zinc-200">Enable proxy</p>
+                            <p className="font-medium text-zinc-200">
+                              {translateSettings("settings.enableProxy")}
+                            </p>
                             <p className="text-sm text-zinc-500 mt-1">
-                              Off by default. Routes default-session Chromium requests through the
-                              host below.
+                              {translateSettings(
+                                "settings.offByDefaultRoutesDefaultSessionChromiumRequestsThroughTheHostBe"
+                              )}
                             </p>
                           </div>
                           <Switch
                             checked={proxyEnabled}
                             onCheckedChange={setProxyEnabled}
-                            aria-label="Enable proxy"
+                            aria-label={translateSettings("settings.enableProxy")}
                             className="data-[state=checked]:!bg-sky-500 data-[state=checked]:!border-sky-500"
                             thumbClassName="data-[state=checked]:!bg-white"
                           />
@@ -2269,7 +2528,7 @@ export function SettingsPage() {
                         {/* Host */}
                         <div className="space-y-2">
                           <label htmlFor="proxy-host" className="block font-medium text-zinc-200">
-                            Host
+                            {translateSettings("settings.host")}
                           </label>
                           <input
                             id="proxy-host"
@@ -2282,15 +2541,16 @@ export function SettingsPage() {
                             className="w-full rounded-lg border border-[#27272a] bg-[#18181b] px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500/40"
                           />
                           <p className="text-xs text-zinc-500">
-                            Host or IP only — no scheme (e.g. <code>127.0.0.1</code>, not{" "}
-                            <code>http://…</code>).
+                            {translateSettings("settings.hostOrIpOnlyNoSchemeEG")}
+                            <code>127.0.0.1</code>
+                            {translateSettings("settings.not")} <code>http://…</code>).
                           </p>
                         </div>
 
                         {/* Port */}
                         <div className="space-y-2">
                           <label htmlFor="proxy-port" className="block font-medium text-zinc-200">
-                            Port
+                            {translateSettings("settings.port")}
                           </label>
                           <input
                             id="proxy-port"
@@ -2311,23 +2571,28 @@ export function SettingsPage() {
                           {proxyPortError ? (
                             <p className="text-xs text-red-400">{proxyPortError}</p>
                           ) : (
-                            <p className="text-xs text-zinc-500">A number between 1 and 65535.</p>
+                            <p className="text-xs text-zinc-500">
+                              {translateSettings("settings.aNumberBetween1And65535")}
+                            </p>
                           )}
                         </div>
 
                         {/* Credentials */}
                         <div className="pt-6 border-t border-[#27272a] space-y-4">
                           <div>
-                            <p className="font-medium text-zinc-200">Credentials (optional)</p>
+                            <p className="font-medium text-zinc-200">
+                              {translateSettings("settings.credentialsOptional")}
+                            </p>
                             <p className="text-sm text-zinc-500 mt-1">
-                              For a proxy that requires authentication. Stored encrypted on this
-                              device and never displayed again.
+                              {translateSettings(
+                                "settings.forAProxyThatRequiresAuthenticationStoredEncryptedOnThisDeviceAn"
+                              )}
                             </p>
                           </div>
 
                           <div className="space-y-2">
                             <label htmlFor="proxy-username" className="block text-sm text-zinc-400">
-                              Username
+                              {translateSettings("settings.username")}
                             </label>
                             <input
                               id="proxy-username"
@@ -2342,7 +2607,7 @@ export function SettingsPage() {
 
                           <div className="space-y-2">
                             <label htmlFor="proxy-password" className="block text-sm text-zinc-400">
-                              Password
+                              {translateSettings("settings.password")}
                             </label>
                             <div className="relative">
                               <input
@@ -2352,7 +2617,7 @@ export function SettingsPage() {
                                 onChange={(e) => setProxyPassword(e.target.value)}
                                 placeholder={
                                   proxyHasCredentials && proxyPassword === ""
-                                    ? "••••• (saved)"
+                                    ? translateSettings("settings.saved")
                                     : undefined
                                 }
                                 autoComplete="new-password"
@@ -2361,7 +2626,11 @@ export function SettingsPage() {
                               <button
                                 type="button"
                                 onClick={() => setShowProxyPassword((v) => !v)}
-                                aria-label={showProxyPassword ? "Hide password" : "Show password"}
+                                aria-label={
+                                  showProxyPassword
+                                    ? translateSettings("settings.hidePassword")
+                                    : translateSettings("settings.showPassword")
+                                }
                                 className="absolute inset-y-0 right-0 flex items-center px-3 text-zinc-500 hover:text-zinc-300"
                               >
                                 {showProxyPassword ? (
@@ -2377,7 +2646,7 @@ export function SettingsPage() {
                                 onClick={handleProxyClearCredentials}
                                 className="text-xs font-medium text-zinc-500 hover:text-zinc-300 hover:underline"
                               >
-                                Clear credentials
+                                {translateSettings("settings.clearCredentials")}
                               </button>
                             )}
                           </div>
@@ -2388,7 +2657,9 @@ export function SettingsPage() {
                           <div className="flex items-start gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400">
                             <LuTriangleAlert className="w-5 h-5 flex-shrink-0 mt-0.5" />
                             <div className="flex-1">
-                              <p className="text-sm font-medium">Couldn't apply the proxy</p>
+                              <p className="text-sm font-medium">
+                                {translateSettings("settings.couldnTApplyTheProxy")}
+                              </p>
                               <p className="text-sm mt-0.5 opacity-80">{proxyApplyError}</p>
                             </div>
                           </div>
@@ -2399,12 +2670,12 @@ export function SettingsPage() {
                           <div className="min-h-[1.25rem]">
                             {proxyStatus === "saved" && (
                               <span className="text-sm text-yellow-500 font-medium animate-in fade-in slide-in-from-left-2 duration-300">
-                                Saved
+                                {translateSettings("settings.saved2")}
                               </span>
                             )}
                             {proxyStatus === "disabled" && (
                               <span className="text-sm text-zinc-500 font-medium">
-                                Proxy disabled (no host set)
+                                {translateSettings("settings.proxyDisabledNoHostSet")}
                               </span>
                             )}
                           </div>
@@ -2412,15 +2683,15 @@ export function SettingsPage() {
                             onClick={handleProxySave}
                             className="bg-sky-500 hover:bg-sky-400 text-white"
                           >
-                            Save & apply
+                            {translateSettings("settings.saveApply")}
                           </Button>
                         </div>
                       </div>
 
                       <div className="px-6 py-4 border-t border-[#27272a] text-xs text-zinc-500 leading-relaxed">
-                        When enabled, this proxy applies to Chromium requests in Electron&apos;s
-                        default session on subsequent requests. It does not control WebSockets or
-                        explicitly direct partitions. It&apos;s off by default.
+                        {translateSettings(
+                          "settings.whenEnabledThisProxyAppliesToChromiumRequestsInElectronAposSDefa"
+                        )}
                       </div>
                     </div>
                   )}
@@ -2431,9 +2702,13 @@ export function SettingsPage() {
               {activeTab === "predictions" && (
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
-                    <h2 className="text-2xl font-bold mb-1">Predictions</h2>
+                    <h2 className="text-2xl font-bold mb-1">
+                      {translateSettings("settings.predictions")}
+                    </h2>
                     <p className="text-zinc-400">
-                      Visual style for the chat prediction widget when a streamer runs a prediction.
+                      {translateSettings(
+                        "settings.visualStyleForTheChatPredictionWidgetWhenAStreamerRunsAPredictio"
+                      )}
                     </p>
                   </div>
 
@@ -2442,11 +2717,13 @@ export function SettingsPage() {
                       <div className="p-6">
                         <div className="flex items-center justify-between">
                           <div className="max-w-md">
-                            <p className="font-medium text-zinc-200">Style</p>
+                            <p className="font-medium text-zinc-200">
+                              {translateSettings("settings.style")}
+                            </p>
                             <p className="text-sm text-zinc-500 mt-1">
-                              Native matches each platform's own UI (Twitch purple with bubble
-                              chart; Kick green/pink dot pairs). Unified uses StreamFusion's storm
-                              accent on both platforms.
+                              {translateSettings(
+                                "settings.nativeMatchesEachPlatformSOwnUiTwitchPurpleWithBubbleChartKickGr"
+                              )}
                             </p>
                           </div>
                           <div className="flex items-center gap-3">
@@ -2455,11 +2732,17 @@ export function SettingsPage() {
                               onValueChange={handlePredictionStyleChange}
                             >
                               <SelectTrigger className="w-[200px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20">
-                                <SelectValue placeholder="Select style" />
+                                <SelectValue
+                                  placeholder={translateSettings("settings.selectStyle")}
+                                />
                               </SelectTrigger>
                               <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
-                                <SelectItem value="native">Native (per platform)</SelectItem>
-                                <SelectItem value="unified">Unified StreamFusion</SelectItem>
+                                <SelectItem value="native">
+                                  {translateSettings("settings.nativePerPlatform")}
+                                </SelectItem>
+                                <SelectItem value="unified">
+                                  {translateSettings("settings.unifiedStreamfusion")}
+                                </SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -2474,8 +2757,12 @@ export function SettingsPage() {
               {activeTab === "integrations" && (
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
-                    <h2 className="text-2xl font-bold mb-1">Integrations</h2>
-                    <p className="text-zinc-400">Manage your connected accounts and services.</p>
+                    <h2 className="text-2xl font-bold mb-1">
+                      {translateSettings("settings.integrations")}
+                    </h2>
+                    <p className="text-zinc-400">
+                      {translateSettings("settings.manageYourConnectedAccountsAndServices")}
+                    </p>
                   </div>
 
                   {/* Auth Error Alert (Moved here) */}
@@ -2503,10 +2790,10 @@ export function SettingsPage() {
                       <div className="flex-1">
                         <p className="font-medium text-white">
                           {error.platform === "twitch"
-                            ? "Twitch Connection Error"
+                            ? translateSettings("settings.twitchConnectionError")
                             : error.platform === "kick"
-                              ? "Kick Connection Error"
-                              : "Authentication Error"}
+                              ? translateSettings("settings.kickConnectionError")
+                              : translateSettings("settings.authenticationError")}
                         </p>
                         <p className="text-sm mt-1 text-white leading-relaxed">{error.message}</p>
                       </div>
@@ -2516,14 +2803,16 @@ export function SettingsPage() {
                         onClick={clearError}
                         className="h-auto min-h-10 shrink-0 cursor-pointer border border-zinc-600 bg-zinc-800 px-3 py-2 text-white shadow-sm hover:bg-zinc-700 hover:text-white focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121214] active:bg-zinc-900 disabled:cursor-not-allowed"
                       >
-                        Dismiss
+                        {translateSettings("settings.dismiss")}
                       </Button>
                     </div>
                   )}
 
                   {isRowVisible("Connected Accounts") && (
                     <div className="p-6 rounded-xl border border-[#27272a] bg-[#121214]">
-                      <h3 className="font-semibold text-lg mb-4">Connected Accounts</h3>
+                      <h3 className="font-semibold text-lg mb-4">
+                        {translateSettings("settings.connectedAccounts")}
+                      </h3>
                       <AccountConnect />
                     </div>
                   )}
@@ -2534,10 +2823,13 @@ export function SettingsPage() {
               {activeTab === "api-tokens" && (
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
-                    <h2 className="text-2xl font-bold mb-1">API / Tokens</h2>
+                    <h2 className="text-2xl font-bold mb-1">
+                      {translateSettings("settings.apiTokens")}
+                    </h2>
                     <p className="text-zinc-400">
-                      Read-only status of your Twitch and Kick sign-in. Token values never leave
-                      your device — this only shows identity, validity, expiry, and granted scopes.
+                      {translateSettings(
+                        "settings.readOnlyStatusOfYourTwitchAndKickSignInTokenValuesNeverLeaveYour"
+                      )}
                     </p>
                   </div>
 
@@ -2570,7 +2862,10 @@ export function SettingsPage() {
               {activeTab === "diagnostics" && (
                 <Suspense
                   fallback={
-                    <div className="space-y-4" aria-label="Loading Diagnostics">
+                    <div
+                      className="space-y-4"
+                      aria-label={translateSettings("settings.loadingDiagnostics")}
+                    >
                       <div className="h-20 animate-pulse rounded-xl bg-[var(--color-background-secondary)]" />
                       <div className="h-72 animate-pulse rounded-xl border border-[var(--color-border)] bg-[var(--color-background-secondary)]" />
                     </div>
@@ -2586,10 +2881,13 @@ export function SettingsPage() {
               {isDev && activeTab === "logs" && (
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
-                    <h2 className="text-2xl font-bold mb-1">Logs</h2>
+                    <h2 className="text-2xl font-bold mb-1">
+                      {translateSettings("settings.logs")}
+                    </h2>
                     <p className="text-zinc-400">
-                      Inspect the in-app log files. Useful for debugging playback, chat, and auth
-                      issues — or for attaching to a bug report.
+                      {translateSettings(
+                        "settings.inspectTheInAppLogFilesUsefulForDebuggingPlaybackChatAndAuthIssu"
+                      )}
                     </p>
                   </div>
 
@@ -2601,9 +2899,13 @@ export function SettingsPage() {
               {isDev && activeTab === "report-bug" && (
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
-                    <h2 className="text-2xl font-bold mb-1">Report a Bug</h2>
+                    <h2 className="text-2xl font-bold mb-1">
+                      {translateSettings("settings.reportABug")}
+                    </h2>
                     <p className="text-zinc-400">
-                      Generate a bug report file you can share with someone debugging the issue.
+                      {translateSettings(
+                        "settings.generateABugReportFileYouCanShareWithSomeoneDebuggingTheIssue"
+                      )}
                     </p>
                   </div>
 
@@ -2615,8 +2917,12 @@ export function SettingsPage() {
               {activeTab === "about" && (
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
-                    <h2 className="text-2xl font-bold mb-1">About</h2>
-                    <p className="text-zinc-400">Application information.</p>
+                    <h2 className="text-2xl font-bold mb-1">
+                      {translateSettings("settings.about")}
+                    </h2>
+                    <p className="text-zinc-400">
+                      {translateSettings("settings.applicationInformation")}
+                    </p>
                   </div>
 
                   {isRowVisible("About") && (
@@ -2630,18 +2936,21 @@ export function SettingsPage() {
                         <h3 className="text-xl font-bold text-white">StreamFusion</h3>
                         <div className="flex items-center justify-center gap-2 mt-1">
                           <p className="text-zinc-500">
-                            v{versionInfo?.version ?? appVersion ?? "0.1.0"}
+                            {translateSettings("settings.v")}
+                            {versionInfo?.version ?? appVersion ?? "0.1.0"}
                           </p>
                           {versionInfo?.isPrerelease && (
                             <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
-                              Pre-release
+                              {translateSettings("settings.preRelease")}
                             </span>
                           )}
                         </div>
                       </div>
                       <div className="pt-6 text-sm text-zinc-500">
-                        <p>Built with Electron + React + TailwindCSS</p>
-                        <p className="mt-1">Designed for the best streaming experience.</p>
+                        <p>{translateSettings("settings.builtWithElectronReactTailwindcss")}</p>
+                        <p className="mt-1">
+                          {translateSettings("settings.designedForTheBestStreamingExperience")}
+                        </p>
                       </div>
                     </div>
                   )}
@@ -2693,8 +3002,10 @@ function UpdatesSettingsPanel({
   return (
     <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
       <div>
-        <h2 className="text-2xl font-bold mb-1">Updates</h2>
-        <p className="text-zinc-400">Manage application updates and release channels.</p>
+        <h2 className="text-2xl font-bold mb-1">{translateSettings("settings.updates")}</h2>
+        <p className="text-zinc-400">
+          {translateSettings("settings.manageApplicationUpdatesAndReleaseChannels")}
+        </p>
       </div>
 
       {anyRowVisible(
@@ -2711,8 +3022,13 @@ function UpdatesSettingsPanel({
                 <LuRefreshCw className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-semibold text-lg">Software Update</h3>
-                <p className="text-sm text-zinc-500">Current Version: v{appVersion ?? "0.0.0"}</p>
+                <h3 className="font-semibold text-lg">
+                  {translateSettings("settings.softwareUpdate")}
+                </h3>
+                <p className="text-sm text-zinc-500">
+                  {translateSettings("settings.currentVersionV")}
+                  {appVersion ?? "0.0.0"}
+                </p>
               </div>
             </div>
           </div>
@@ -2721,10 +3037,12 @@ function UpdatesSettingsPanel({
             {isRowVisible("Update check URL") && (
               <div>
                 <label htmlFor="update-check-url" className="font-medium text-zinc-200">
-                  Update check URL
+                  {translateSettings("settings.updateCheckUrl")}
                 </label>
                 <p className="text-sm text-zinc-500 mt-1 mb-3">
-                  Electron update feed containing the platform update metadata
+                  {translateSettings(
+                    "settings.electronUpdateFeedContainingThePlatformUpdateMetadata"
+                  )}
                 </p>
                 <input
                   id="update-check-url"
@@ -2743,9 +3061,11 @@ function UpdatesSettingsPanel({
             {isRowVisible("Allow Pre-release Updates") && (
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium text-zinc-200">Allow Pre-release Updates</p>
+                  <p className="font-medium text-zinc-200">
+                    {translateSettings("settings.allowPreReleaseUpdates")}
+                  </p>
                   <p className="text-sm text-zinc-500 mt-1">
-                    Receive beta and preview versions before stable release
+                    {translateSettings("settings.receiveBetaAndPreviewVersionsBeforeStableRelease")}
                   </p>
                 </div>
                 <Switch
@@ -2760,13 +3080,15 @@ function UpdatesSettingsPanel({
             {isRowVisible("Check for updates on startup") && (
               <div className="flex items-center justify-between pt-6 border-t border-[#27272a]">
                 <div>
-                  <p className="font-medium text-zinc-200">Check for updates on startup</p>
+                  <p className="font-medium text-zinc-200">
+                    {translateSettings("settings.checkForUpdatesOnStartup")}
+                  </p>
                   <p className="text-sm text-zinc-500 mt-1">
-                    Check at launch when the selected interval has elapsed
+                    {translateSettings("settings.checkAtLaunchWhenTheSelectedIntervalHasElapsed")}
                   </p>
                 </div>
                 <Switch
-                  aria-label="Check for updates on startup"
+                  aria-label={translateSettings("settings.checkForUpdatesOnStartup")}
                   checked={autoCheckEnabled}
                   onCheckedChange={setAutoCheckEnabled}
                   className="data-[state=checked]:!bg-blue-500 data-[state=checked]:!border-blue-500"
@@ -2784,9 +3106,11 @@ function UpdatesSettingsPanel({
                       autoCheckEnabled ? "text-zinc-200" : "text-zinc-500"
                     )}
                   >
-                    Check frequency
+                    {translateSettings("settings.checkFrequency")}
                   </p>
-                  <p className="text-sm text-zinc-500 mt-1">Minimum time between startup checks</p>
+                  <p className="text-sm text-zinc-500 mt-1">
+                    {translateSettings("settings.minimumTimeBetweenStartupChecks")}
+                  </p>
                 </div>
                 <Select
                   value={checkFrequency}
@@ -2794,15 +3118,15 @@ function UpdatesSettingsPanel({
                   disabled={!autoCheckEnabled}
                 >
                   <SelectTrigger
-                    aria-label="Check frequency"
+                    aria-label={translateSettings("settings.checkFrequency")}
                     className="w-[180px] flex-shrink-0 bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-blue-500/20 disabled:opacity-50"
                   >
-                    <SelectValue placeholder="Select frequency" />
+                    <SelectValue placeholder={translateSettings("settings.selectFrequency")} />
                   </SelectTrigger>
                   <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
-                    <SelectItem value="hourly">Hourly</SelectItem>
-                    <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="hourly">{translateSettings("settings.hourly")}</SelectItem>
+                    <SelectItem value="daily">{translateSettings("settings.daily")}</SelectItem>
+                    <SelectItem value="weekly">{translateSettings("settings.weekly")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -2811,15 +3135,22 @@ function UpdatesSettingsPanel({
             {isRowVisible("Check for Updates") && (
               <div className="flex items-center justify-between pt-6 border-t border-[#27272a]">
                 <div>
-                  <p className="font-medium text-zinc-200">Check for Updates</p>
+                  <p className="font-medium text-zinc-200">
+                    {translateSettings("settings.checkForUpdates")}
+                  </p>
                   <p className="text-sm text-zinc-500 mt-1">
-                    {status === "idle" && "Click to check for available updates"}
-                    {status === "checking" && "Checking for updates..."}
-                    {status === "not-available" && "You are on the latest version"}
-                    {status === "available" && `Version ${updateInfo?.version} is available`}
-                    {status === "downloading" && "Downloading update..."}
-                    {status === "downloaded" && "Update ready to install"}
-                    {status === "error" && "Failed to check for updates"}
+                    {status === "idle" &&
+                      translateSettings("settings.clickToCheckForAvailableUpdates")}
+                    {status === "checking" && translateSettings("settings.checkingForUpdates")}
+                    {status === "not-available" &&
+                      translateSettings("settings.youAreOnTheLatestVersion")}
+                    {status === "available" &&
+                      translateSettings("settings.versionValueIsAvailable", {
+                        value1: updateInfo?.version,
+                      })}
+                    {status === "downloading" && translateSettings("settings.downloadingUpdate")}
+                    {status === "downloaded" && translateSettings("settings.updateReadyToInstall")}
+                    {status === "error" && translateSettings("settings.failedToCheckForUpdates")}
                   </p>
                 </div>
                 <Button
@@ -2830,7 +3161,7 @@ function UpdatesSettingsPanel({
                   className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
                 >
                   <LuRefreshCw className={`w-4 h-4 mr-2 ${isChecking ? "animate-spin" : ""}`} />
-                  Check Now
+                  {translateSettings("settings.checkNow")}
                 </Button>
               </div>
             )}
@@ -2849,17 +3180,19 @@ function UpdatesSettingsPanel({
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-bold text-white">
-                      {updateInfo.releaseName || `Version ${updateInfo.version}`}
+                      {updateInfo.releaseName ||
+                        translateSettings("settings.versionValue", { value1: updateInfo.version })}
                     </p>
                     {updateInfo.releaseDate && (
                       <p className="text-xs text-zinc-500 mt-0.5">
-                        Released {new Date(updateInfo.releaseDate).toLocaleDateString()}
+                        {translateSettings("settings.released")}
+                        {new Date(updateInfo.releaseDate).toLocaleDateString()}
                       </p>
                     )}
                   </div>
                   <Button size="sm" onClick={downloadUpdate} disabled={isDownloading}>
                     <LuDownload className="w-4 h-4 mr-2" />
-                    Download Update
+                    {translateSettings("settings.downloadUpdate")}
                   </Button>
                 </div>
                 {updateInfo.releaseNotes && (
@@ -2873,7 +3206,7 @@ function UpdatesSettingsPanel({
             {isDownloading && progress && (
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Downloading...</span>
+                  <span>{translateSettings("settings.downloading")}</span>
                   <span>{Math.round(progress.percent)}%</span>
                 </div>
                 <Progress value={progress.percent} className="h-2" />
@@ -2882,7 +3215,7 @@ function UpdatesSettingsPanel({
 
             {isUpdateDownloaded && (
               <Button onClick={installUpdate} className="w-full">
-                <LuRocket className="w-4 h-4 mr-2" /> Restart & Install
+                <LuRocket className="w-4 h-4 mr-2" /> {translateSettings("settings.restartInstall")}
               </Button>
             )}
           </div>
@@ -3037,7 +3370,7 @@ function ApiTokenPanel({
           className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
         >
           <LuRefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
-          Validate now
+          {translateSettings("settings.validateNow")}
         </Button>
       </div>
 
@@ -3046,21 +3379,21 @@ function ApiTokenPanel({
         {loading && status == null && (
           <div className="flex items-center gap-2 text-sm text-zinc-400">
             <LuRefreshCw className="w-4 h-4 animate-spin" />
-            Validating…
+            {translateSettings("settings.validating")}
           </div>
         )}
 
         {/* Not signed in. */}
         {notConnected && (
           <div className="space-y-3">
-            <p className="text-sm text-zinc-400">Not signed in.</p>
+            <p className="text-sm text-zinc-400">{translateSettings("settings.notSignedIn")}</p>
             <button
               type="button"
               onClick={onOpenIntegrations}
               className="text-sm font-medium hover:underline"
               style={{ color: accent }}
             >
-              Connect in Integrations
+              {translateSettings("settings.connectInIntegrations")}
             </button>
           </div>
         )}
@@ -3070,7 +3403,7 @@ function ApiTokenPanel({
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm text-red-400">
               <LuCircleX className="w-4 h-4" />
-              Token invalid or expired
+              {translateSettings("settings.tokenInvalidOrExpired")}
             </div>
             <Button
               size="sm"
@@ -3078,7 +3411,7 @@ function ApiTokenPanel({
               className="text-white"
               style={{ backgroundColor: accent }}
             >
-              Reconnect
+              {translateSettings("settings.reconnect")}
             </Button>
           </div>
         )}
@@ -3088,20 +3421,22 @@ function ApiTokenPanel({
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm text-green-400">
               <LuCircleCheck className="w-4 h-4" />
-              Token valid
+              {translateSettings("settings.tokenValid")}
             </div>
 
             <dl className="grid grid-cols-[7rem_1fr] gap-y-2 text-sm">
-              <dt className="text-zinc-500">Login</dt>
+              <dt className="text-zinc-500">{translateSettings("settings.login")}</dt>
               <dd className="text-zinc-200 break-all">{status.login ?? "—"}</dd>
-              <dt className="text-zinc-500">User ID</dt>
+              <dt className="text-zinc-500">{translateSettings("settings.userId")}</dt>
               <dd className="text-zinc-200 break-all tabular-nums">{status.userId ?? "—"}</dd>
-              <dt className="text-zinc-500">Expires</dt>
+              <dt className="text-zinc-500">{translateSettings("settings.expires")}</dt>
               <dd className="text-zinc-200">{formatExpiry(status.expiresAt)}</dd>
             </dl>
 
             <div>
-              <p className="text-sm text-zinc-500 mb-2">Granted scopes</p>
+              <p className="text-sm text-zinc-500 mb-2">
+                {translateSettings("settings.grantedScopes")}
+              </p>
               {status.scopes && status.scopes.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5">
                   {status.scopes.map((scope) => (
@@ -3114,7 +3449,9 @@ function ApiTokenPanel({
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-zinc-600">No scopes reported.</p>
+                <p className="text-xs text-zinc-600">
+                  {translateSettings("settings.noScopesReported")}
+                </p>
               )}
             </div>
           </div>
