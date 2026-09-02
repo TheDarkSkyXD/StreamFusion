@@ -93,9 +93,13 @@ function normalizeLiteral(value) {
 
 function isTranslatable(value) {
   const normalized = normalizeLiteral(value);
+  const visibleText = normalized.replace(/\{\{[^}]+\}\}/g, "");
   return (
-    /\p{L}/u.test(normalized) &&
+    /\p{L}/u.test(visibleText) &&
     !/^\p{Lu}$/u.test(normalized) &&
+    !/^\d+(?:\.\d+)?\s?(?:p|k|s|m|h|d)$/i.test(normalized) &&
+    !/^[a-z][A-Za-z0-9]*(\.[A-Za-z0-9]+)+$/.test(normalized) &&
+    !(normalized.startsWith("!") && normalized.includes("text-")) &&
     !allowedLiterals.has(normalized) &&
     !/^https?:\/\//i.test(normalized)
   );
@@ -125,6 +129,11 @@ function expressionLiterals(expression) {
     return [...expressionLiterals(expression.left), ...expressionLiterals(expression.right)];
   }
   return [];
+}
+
+function literalValue(node) {
+  if (!ts.isTemplateExpression(node)) return node.text;
+  return [node.head.text, ...node.templateSpans.map((span) => span.literal.text)].join("{{value}}");
 }
 
 function propertyName(node) {
@@ -191,7 +200,7 @@ for (const file of await collectSourceFiles(frontendDirectory)) {
       !isInsideTechnicalText(node)
     ) {
       for (const literal of expressionLiterals(node.expression)) {
-        record(literal, literal.text ?? literal.getText(sourceFile), "expression");
+        record(literal, literalValue(literal), "expression");
       }
     }
 
@@ -200,11 +209,7 @@ for (const file of await collectSourceFiles(frontendDirectory)) {
         record(node.initializer, node.initializer.text, `attribute:${node.name.text}`);
       } else if (node.initializer && ts.isJsxExpression(node.initializer)) {
         for (const literal of expressionLiterals(node.initializer.expression)) {
-          record(
-            literal,
-            literal.text ?? literal.getText(sourceFile),
-            `attribute:${node.name.text}`
-          );
+          record(literal, literalValue(literal), `attribute:${node.name.text}`);
         }
       }
     }
@@ -215,20 +220,27 @@ for (const file of await collectSourceFiles(frontendDirectory)) {
       !isInsideTechnicalText(node)
     ) {
       for (const literal of expressionLiterals(node.initializer)) {
-        record(
-          literal,
-          literal.text ?? literal.getText(sourceFile),
-          `property:${propertyName(node)}`
-        );
+        record(literal, literalValue(literal), `property:${propertyName(node)}`);
       }
     }
 
     if (ts.isCallExpression(node) && isVisibleNotificationCall(node)) {
       for (const argument of node.arguments) {
         for (const literal of expressionLiterals(argument)) {
-          record(literal, literal.text ?? literal.getText(sourceFile), "notification");
+          record(literal, literalValue(literal), "notification");
         }
       }
+    }
+
+    if (
+      extname(file) === ".tsx" &&
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ts.isIdentifier(node.expression.expression) &&
+      node.expression.expression.text === "i18n" &&
+      node.expression.name.text === "t"
+    ) {
+      record(node.expression, "Direct i18n.t call", "nonreactive-translation");
     }
 
     ts.forEachChild(node, visit);

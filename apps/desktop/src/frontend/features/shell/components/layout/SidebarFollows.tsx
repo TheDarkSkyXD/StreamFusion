@@ -485,7 +485,10 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
                   aria-current={isRouteActive ? "page" : isPipStreamActive ? "true" : undefined}
                   title={
                     collapsed
-                      ? `${stream.channelDisplayName} (Live: ${formatViewerCount(stream.viewerCount)})`
+                      ? t("shell.sidebar.collapsedLiveTitle", {
+                          channel: stream.channelDisplayName,
+                          viewers: formatViewerCount(stream.viewerCount),
+                        })
                       : undefined
                   }
                 >

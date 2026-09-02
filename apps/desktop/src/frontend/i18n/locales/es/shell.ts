@@ -40,6 +40,7 @@ export const shellEs = {
         "Kick está degradado. Algunos datos de Kick pueden estar en caché o retrasados.",
     },
     sidebar: {
+      collapsedLiveTitle: "{{channel}} (En directo: {{viewers}})",
       connectToSync: "Conecta Twitch o Kick para sincronizar tus seguimientos",
       syncing: "Sincronizando seguimientos",
       syncWith: "Sincronizar seguimientos con {{platforms}}",

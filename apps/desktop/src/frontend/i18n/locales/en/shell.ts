@@ -34,6 +34,7 @@ export const shellEn = {
       kickDegradedMessage: "Kick is degraded. Some Kick data may be cached or delayed.",
     },
     sidebar: {
+      collapsedLiveTitle: "{{channel}} (Live: {{viewers}})",
       connectToSync: "Connect Twitch or Kick to sync follows",
       syncing: "Syncing follows",
       syncWith: "Sync follows with {{platforms}}",
