@@ -22,6 +22,7 @@ export interface ChatPanelTabsProps {
   children: Partial<Record<ChatPanelTabId, ReactNode>>;
   /** Initial active tab. Default = "chat". */
   initialTab?: ChatPanelTabId;
+  activeTab?: ChatPanelTabId;
   /** Called when the user switches tabs. */
   onTabChange?: (tab: ChatPanelTabId) => void;
 }
@@ -41,16 +42,19 @@ export const ChatPanelTabs: React.FC<ChatPanelTabsProps> = ({
   badges,
   children,
   initialTab = "chat",
+  activeTab: controlledActiveTab,
   onTabChange,
 }) => {
   // Pick an initial tab that's actually visible. If the caller passes an
   // initialTab that got filtered out (e.g. broadcaster lost a role), fall
   // back to "chat", which is guaranteed to be present.
   const safeInitial = visibleTabs.includes(initialTab) ? initialTab : "chat";
-  const [activeTab, setActiveTab] = useState<ChatPanelTabId>(safeInitial);
+  const [internalActiveTab, setInternalActiveTab] = useState<ChatPanelTabId>(safeInitial);
+  const requestedActiveTab = controlledActiveTab ?? internalActiveTab;
+  const activeTab = visibleTabs.includes(requestedActiveTab) ? requestedActiveTab : "chat";
 
   const handleClick = (tab: ChatPanelTabId) => {
-    setActiveTab(tab);
+    setInternalActiveTab(tab);
     onTabChange?.(tab);
   };
 

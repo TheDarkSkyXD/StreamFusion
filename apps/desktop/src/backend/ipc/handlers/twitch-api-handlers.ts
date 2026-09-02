@@ -19,7 +19,124 @@ import type { MainRendererPort } from "../main-renderer-port";
 // Keep a finite IPC boundary without coupling validation to one observed cursor.
 const TWITCH_USER_EMOTE_CURSOR_MAX_LENGTH = 8 * 1024;
 
+const slashTargetLogin = z
+  .string()
+  .trim()
+  .min(1)
+  .max(25)
+  .regex(/^[a-zA-Z0-9_]+$/);
+const slashCommandActionSchema = z.discriminatedUnion("kind", [
+  z
+    .object({ kind: z.literal("update-chat-color"), color: z.string().trim().min(1).max(32) })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("whisper"),
+      targetLogin: slashTargetLogin,
+      message: z.string().trim().min(1).max(500),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.enum([
+        "block",
+        "unblock",
+        "unban",
+        "shoutout",
+        "add-moderator",
+        "remove-moderator",
+        "add-vip",
+        "remove-vip",
+        "start-raid",
+      ]),
+      targetLogin: slashTargetLogin,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("ban"),
+      targetLogin: slashTargetLogin,
+      reason: z.string().max(500).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("timeout"),
+      targetLogin: slashTargetLogin,
+      durationSeconds: z.number().int().min(1).max(1_209_600),
+      reason: z.string().max(500).optional(),
+    })
+    .strict(),
+  z.object({ kind: z.literal("clear-chat") }).strict(),
+  z
+    .object({
+      kind: z.literal("update-chat-settings"),
+      settings: z
+        .object({
+          slow_mode: z.boolean().optional(),
+          slow_mode_wait_time: z.number().int().min(3).max(120).nullable().optional(),
+          follower_mode: z.boolean().optional(),
+          follower_mode_duration: z.number().int().min(0).max(129_600).nullable().optional(),
+          subscriber_mode: z.boolean().optional(),
+          emote_mode: z.boolean().optional(),
+          unique_chat_mode: z.boolean().optional(),
+          non_moderator_chat_delay: z.boolean().optional(),
+          non_moderator_chat_delay_duration: z.number().int().nullable().optional(),
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({ kind: z.literal("send-and-pin"), message: z.string().trim().min(1).max(500) })
+    .strict(),
+  z.object({ kind: z.literal("announce"), message: z.string().trim().min(1).max(500) }).strict(),
+  z
+    .object({
+      kind: z.literal("set-suspicious-status"),
+      targetLogin: slashTargetLogin,
+      status: z.enum(["ACTIVE_MONITORING", "RESTRICTED"]),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("run-commercial"),
+      length: z.union([
+        z.literal(30),
+        z.literal(60),
+        z.literal(90),
+        z.literal(120),
+        z.literal(150),
+        z.literal(180),
+      ]),
+    })
+    .strict(),
+  z.object({ kind: z.literal("cancel-raid") }).strict(),
+  z
+    .object({
+      kind: z.literal("create-stream-marker"),
+      description: z.string().max(140).optional(),
+    })
+    .strict(),
+]);
+
 const commandSchema = z.discriminatedUnion("operation", [
+  z
+    .object({
+      operation: z.literal("execute-slash-command"),
+      channel: z
+        .object({
+          id: z.string().trim().min(1).max(64),
+          login: z
+            .string()
+            .trim()
+            .min(1)
+            .max(25)
+            .regex(/^[a-zA-Z0-9_]+$/),
+        })
+        .strict(),
+      action: slashCommandActionSchema,
+    })
+    .strict(),
   z.object({ operation: z.literal("get-global-emotes") }).strict(),
   z
     .object({

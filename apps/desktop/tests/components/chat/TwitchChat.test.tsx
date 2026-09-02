@@ -1,7 +1,11 @@
 import { QueryClient } from "@tanstack/react-query";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { type ChatDisplayPreferences, DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@shared/auth-types";
+import {
+  type ChatDisplayPreferences,
+  DEFAULT_CHAT_DISPLAY_PREFERENCES,
+  TWITCH_APP_SCOPES,
+} from "@shared/auth-types";
 import type { ChatKnownUser, ChatMessage, NormalizedPinnedMessage } from "@shared/chat-types";
 import type { ChatInputProps } from "@/features/chat/components/chat/ChatInput";
 import { getCommandsForAccess } from "@/features/chat/utils/chat-command-registry";
@@ -192,6 +196,8 @@ vi.mock("@backend/services/chat/twitch-chat", () => ({
     release: vi.fn(() => undefined),
     isConnected: vi.fn(() => false),
     sendMessage: vi.fn(async () => true),
+    sendAction: vi.fn(async () => undefined),
+    leaveChannel: vi.fn(async () => undefined),
     on: vi.fn((event: string, handler: (arg: unknown) => void) => {
       mockServiceHandlers[event] = handler;
     }),
@@ -316,10 +322,7 @@ const chatInputProps: Pick<
 > = {};
 vi.mock("@/features/chat/components/chat/ChatInput", () => ({
   ChatInput: (
-    props: Pick<
-      ChatInputProps,
-      "canSend" | "viewerUserId" | "commandAccess" | "onProviderCommand"
-    >
+    props: Pick<ChatInputProps, "canSend" | "viewerUserId" | "commandAccess" | "onProviderCommand">
   ) => {
     chatInputProps.canSend = props.canSend;
     chatInputProps.viewerUserId = props.viewerUserId;
@@ -380,7 +383,8 @@ const fakePrediction = {
 // Guards: anonymous Twitch chat loads non-forced global emotes before joining so the guest quick-emote row is populated.
 // Guards: Twitch channel.moderate delete notifications attach the deleting moderator to retained deleted-message rows; IRC CLEARMSG alone cannot provide that actor.
 // Guards: the full-width composer footer paints above the message scroller so chat text cannot show behind its quick-emote row or padding.
-// Guards: viewer block commands resolve @usernames and await a credential-free Helix mutation instead of falling through to IRC chat.
+// Guards: viewer block commands compile @usernames into semantic main-process actions instead of falling through to IRC chat.
+// Guards: `/disconnect` parts only the current Channel and closes that Channel's composer until it rejoins.
 describe("TwitchChat", () => {
   beforeEach(() => {
     sevenTvInstances.length = 0;
@@ -444,6 +448,15 @@ describe("TwitchChat", () => {
     eventSubStartMock.mockReset();
     eventSubStartMock.mockResolvedValue({ ok: true, data: undefined });
     api.twitch.execute = twitchExecuteMock;
+    api.auth.tokenStatus = vi.fn(async () => ({
+      platform: "twitch" as const,
+      connected: true,
+      valid: true,
+      hasToken: true,
+      isExpired: false,
+      scopes: [...TWITCH_APP_SCOPES],
+    }));
+    api.openExternal = vi.fn(async () => undefined);
     api.twitch.eventSub = {
       start: eventSubStartMock,
       stop: vi.fn(async () => true),
@@ -461,6 +474,7 @@ describe("TwitchChat", () => {
     storeState.connectionStatus.twitch.state = "disconnected";
     mockAuthState.twitchConnected = false;
     mockAuthState.twitchReconnectRequired = false;
+    mockAuthState.twitchUser = { id: "mod-1", login: "modder", displayName: "Modder" };
     storeState.messagesByChannel = {};
     storeState.usersByChannel = {};
     storeState.chatterCountByChannel = {};
@@ -491,6 +505,8 @@ describe("TwitchChat", () => {
     promptReconnectMock.mockReset();
     vi.mocked(twitchChatService.connect).mockClear();
     vi.mocked(twitchChatService.sendMessage).mockClear();
+    vi.mocked(twitchChatService.sendAction).mockClear();
+    vi.mocked(twitchChatService.leaveChannel).mockClear();
     vi.mocked(twitchChatService.loadChannelBadges).mockClear();
     vi.mocked(twitchChatService.joinChannel).mockClear();
     vi.mocked(getTwitchEventSubClient).mockClear();
@@ -566,18 +582,10 @@ describe("TwitchChat", () => {
     expect(screen.getByTestId("chat-input")).toBeInTheDocument();
   });
 
-  it("resolves and acknowledges viewer block commands through Helix", async () => {
+  it("executes viewer block commands through semantic Twitch IPC", async () => {
     mockAuthState.twitchConnected = true;
     mockIsTwitchMod.value = false;
-    twitchExecuteMock.mockImplementation(async (command: { operation: string }) => {
-      if (command.operation === "resolve-channel") {
-        return {
-          ok: true,
-          data: { id: "target-1", login: "trouble", displayName: "Trouble" },
-        };
-      }
-      return { ok: true, data: null };
-    });
+    twitchExecuteMock.mockResolvedValue({ ok: true, data: { action: "block" } });
     render(<TwitchChat channel="ninja" channelId="ninja-id" />);
     const blockCommand = getCommandsForAccess({
       kind: "authenticated",
@@ -595,13 +603,77 @@ describe("TwitchChat", () => {
     });
 
     expect(twitchExecuteMock).toHaveBeenCalledWith({
-      operation: "resolve-channel",
-      login: "trouble",
+      operation: "execute-slash-command",
+      channel: { id: "ninja-id", login: "ninja" },
+      action: { kind: "block", targetLogin: "trouble" },
     });
-    expect(twitchExecuteMock).toHaveBeenCalledWith({
-      operation: "block-user",
-      targetUserId: "target-1",
+  });
+
+  it("disconnects only the current Twitch channel", async () => {
+    mockAuthState.twitchConnected = true;
+    mockIsTwitchMod.value = false;
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    const disconnect = getCommandsForAccess({
+      kind: "authenticated",
+      platform: "twitch",
+      role: "viewer",
+    }).find((command) => command.name === "disconnect")!;
+
+    await act(async () => {
+      await chatInputProps.onProviderCommand?.({
+        command: disconnect,
+        args: "",
+        text: "/disconnect",
+      });
     });
+
+    expect(twitchChatService.leaveChannel).toHaveBeenCalledWith("ninja");
+    expect(twitchChatService.disconnect).not.toHaveBeenCalled();
+    expect(chatInputProps.canSend).toBe(false);
+  });
+
+  it("hands moderator prediction management to Twitch", async () => {
+    mockAuthState.twitchConnected = true;
+    mockIsTwitchMod.value = true;
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    const prediction = getCommandsForAccess({
+      kind: "authenticated",
+      platform: "twitch",
+      role: "moderator",
+    }).find((command) => command.name === "prediction")!;
+
+    await act(async () => {
+      await chatInputProps.onProviderCommand?.({
+        command: prediction,
+        args: "",
+        text: "/prediction",
+      });
+    });
+
+    expect(window.electronAPI.openExternal).toHaveBeenCalledWith(
+      "https://www.twitch.tv/popout/ninja/chat?popout="
+    );
+  });
+
+  it("opens local Engagement for a broadcaster poll command", async () => {
+    mockAuthState.twitchConnected = true;
+    mockAuthState.twitchUser = { id: "ninja-id", login: "ninja", displayName: "Ninja" };
+    mockIsTwitchMod.value = true;
+    render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    const poll = getCommandsForAccess({
+      kind: "authenticated",
+      platform: "twitch",
+      role: "broadcaster",
+    }).find((command) => command.name === "poll")!;
+
+    await act(async () => {
+      await chatInputProps.onProviderCommand?.({ command: poll, args: "", text: "/poll" });
+    });
+
+    expect(screen.getByRole("tab", { name: "Engagement" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
   });
 
   it("opens Active Chatters over the live chat without unmounting it", () => {

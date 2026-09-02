@@ -33,7 +33,10 @@ vi.mock("@/features/chat/components/chat/kick/KickChat", () => ({
 }));
 
 import { ChatPanel } from "@/features/chat/components/chat/ChatPanel";
-import { ChatPanelTabs, type ChatPanelTabId } from "@/features/chat/components/chat/mod/ChatPanelTabs";
+import {
+  ChatPanelTabs,
+  type ChatPanelTabId,
+} from "@/features/chat/components/chat/mod/ChatPanelTabs";
 
 // Guards: ChatPanel must always route to the correct platform-specific chat child — silently mounting the wrong one would render zero messages on a live channel
 // Guards: empty initial channel (no `initialChannel` prop) still mounts the routed child, so the chat tree exists when the parent finishes loading the channel data
@@ -189,5 +192,31 @@ describe("ChatPanelTabs", () => {
     const modlogTab = screen.getAllByRole("tab").find((t) => t.textContent?.startsWith("Mod log"))!;
     // Just "Mod log" with no trailing digits.
     expect(modlogTab.textContent).toBe("Mod log");
+  });
+
+  // Guards: losing broadcaster authority while Engagement is selected must reveal Chat instead of a blank panel.
+  it("falls back to chat when the controlled tab is no longer visible", () => {
+    const view = render(
+      <ChatPanelTabs visibleTabs={["chat", "modlog", "engagement"]} activeTab="engagement">
+        {{
+          chat: <div data-testid="controlled-chat">chat</div>,
+          modlog: <div>modlog</div>,
+          engagement: <div>engagement</div>,
+        }}
+      </ChatPanelTabs>
+    );
+
+    view.rerender(
+      <ChatPanelTabs visibleTabs={["chat", "modlog"]} activeTab="engagement">
+        {{
+          chat: <div data-testid="controlled-chat">chat</div>,
+          modlog: <div>modlog</div>,
+        }}
+      </ChatPanelTabs>
+    );
+
+    expect(screen.getByTestId("controlled-chat").parentElement).not.toHaveStyle({
+      display: "none",
+    });
   });
 });

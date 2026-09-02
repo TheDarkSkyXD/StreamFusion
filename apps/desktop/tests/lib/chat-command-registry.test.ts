@@ -1,9 +1,12 @@
 import {
+  CHAT_COMMAND_REGISTRY,
+  compileTwitchCommand,
   getCommandArgumentError,
   getCommandCompletion,
   getCommandsForAccess,
   parseAvailableCommand,
   replaceLeadingCommand,
+  TWITCH_LINKED_COMMAND_NAMES,
 } from "@/features/chat/utils/chat-command-registry";
 import { describe, expect, it } from "vitest";
 
@@ -11,6 +14,117 @@ import { describe, expect, it } from "vitest";
 // Guards: platform-specific commands do not appear in the other platform's composer.
 // Guards: malformed and unrecognized slash text cannot reach an ordinary chat send.
 describe("chat command registry", () => {
+  const linkedNames = [
+    "mods",
+    "vips",
+    "color",
+    "w",
+    "block",
+    "unblock",
+    "disconnect",
+    "gift",
+    "vote",
+    "timeout",
+    "ban",
+    "unban",
+    "clear",
+    "followers",
+    "followersoff",
+    "slow",
+    "slowoff",
+    "subscribers",
+    "subscribersoff",
+    "emoteonly",
+    "emoteonlyoff",
+    "uniquechat",
+    "uniquechatoff",
+    "pin",
+    "announce",
+    "shoutout",
+    "monitor",
+    "unmonitor",
+    "restrict",
+    "unrestrict",
+    "user",
+    "requests",
+    "poll",
+    "endpoll",
+    "deletepoll",
+    "mod",
+    "unmod",
+    "vip",
+    "unvip",
+    "rules",
+    "sharedchat",
+    "commercial",
+    "goal",
+    "prediction",
+    "raid",
+    "unraid",
+    "marker",
+  ];
+
+  it("matches the linked 47-command Twitch catalog exactly", () => {
+    expect(TWITCH_LINKED_COMMAND_NAMES).toHaveLength(47);
+    expect([...TWITCH_LINKED_COMMAND_NAMES].sort()).toEqual([...linkedNames].sort());
+    expect(new Set(CHAT_COMMAND_REGISTRY.map((command) => command.id)).size).toBe(
+      CHAT_COMMAND_REGISTRY.length
+    );
+    expect(
+      CHAT_COMMAND_REGISTRY.filter((command) => command.platform === "twitch")
+        .map((command) => command.name)
+        .filter((name) => !linkedNames.includes(name))
+        .sort()
+    ).toEqual(["help", "me"]);
+  });
+
+  it("compiles every Twitch command and keeps me as the only IRC effect", () => {
+    const sampleArgs: Record<string, string> = {
+      color: "blue",
+      w: "@friend hello",
+      block: "@friend",
+      unblock: "friend",
+      gift: "5",
+      timeout: "friend",
+      ban: "friend spam",
+      unban: "friend",
+      followers: "2h",
+      slow: "30",
+      pin: "Pinned update",
+      announce: "Channel update",
+      shoutout: "friend",
+      monitor: "friend",
+      unmonitor: "friend",
+      restrict: "friend",
+      unrestrict: "friend",
+      user: "friend",
+      mod: "friend",
+      unmod: "friend",
+      vip: "friend",
+      unvip: "friend",
+      commercial: "60",
+      raid: "friend",
+      marker: "Great play",
+      me: "waves",
+    };
+    const effects = CHAT_COMMAND_REGISTRY.filter((command) => command.platform === "twitch").map(
+      (definition) =>
+        compileTwitchCommand(
+          {
+            definition,
+            args: sampleArgs[definition.name] ?? "",
+            text: `/${definition.name}`,
+          },
+          definition.allowedRoles.includes("broadcaster") ? "broadcaster" : "viewer"
+        )
+    );
+
+    expect(effects.filter((effect) => effect.kind === "irc-action")).toHaveLength(1);
+    expect(effects.find((effect) => effect.kind === "irc-action")).toEqual({
+      kind: "irc-action",
+      message: "waves",
+    });
+  });
   it("filters commands by platform and role", () => {
     const twitchViewer = getCommandsForAccess({
       kind: "authenticated",
@@ -37,23 +151,65 @@ describe("chat command registry", () => {
       platform: "kick",
       role: "broadcaster",
     });
+    const kickViewer = getCommandsForAccess({
+      kind: "authenticated",
+      platform: "kick",
+      role: "viewer",
+    });
 
     expect(twitchViewer.map((command) => command.name)).toEqual(
       expect.arrayContaining(["block", "color", "help", "me", "mods", "vips"])
     );
+    expect(twitchViewer.map((command) => command.name)).toEqual([
+      "mods",
+      "vips",
+      "color",
+      "w",
+      "block",
+      "unblock",
+      "disconnect",
+      "gift",
+      "vote",
+      "help",
+      "me",
+    ]);
     expect(twitchViewer.map((command) => command.name)).not.toContain("ban");
     expect(twitchModerator.map((command) => command.name)).toEqual(
       expect.arrayContaining(["block", "me", "ban", "timeout", "emoteonly"])
     );
     expect(twitchModerator.map((command) => command.name)).not.toContain("mod");
+    expect(twitchModerator).toHaveLength(38);
     expect(twitchBroadcaster.map((command) => command.name)).toEqual(
       expect.arrayContaining(["mod", "unmod", "vip", "unvip"])
     );
+    expect(twitchBroadcaster).toHaveLength(49);
     expect(kickModerator.map((command) => command.name)).toEqual(
       expect.arrayContaining(["help", "me", "ban", "unban", "timeout", "slow", "followonly"])
     );
     expect(kickModerator.map((command) => command.name)).not.toContain("subonly");
     expect(kickBroadcaster.map((command) => command.name)).toContain("subonly");
+    expect(kickViewer.map((command) => command.name)).toEqual(["help", "me"]);
+    expect(kickModerator.map((command) => command.name)).toEqual([
+      "help",
+      "me",
+      "ban",
+      "unban",
+      "timeout",
+      "slow",
+      "followonly",
+      "emoteonly",
+    ]);
+    expect(kickBroadcaster.map((command) => command.name)).toEqual([
+      "help",
+      "me",
+      "ban",
+      "unban",
+      "timeout",
+      "slow",
+      "followonly",
+      "emoteonly",
+      "subonly",
+    ]);
     expect(getCommandsForAccess({ kind: "guest", platform: "twitch" })).toEqual([]);
   });
 
@@ -121,6 +277,85 @@ describe("chat command registry", () => {
 
     const followersForEveryone = parseAvailableCommand("/followers 0", twitchCommands);
     expect(followersForEveryone && getCommandArgumentError(followersForEveryone)).toBeNull();
+  });
+
+  it("normalizes Twitch defaults, units, and leading at-sign usernames", () => {
+    const moderator = getCommandsForAccess({
+      kind: "authenticated",
+      platform: "twitch",
+      role: "moderator",
+    });
+    const timeout = parseAvailableCommand("/timeout @viewer", moderator)!;
+    const followers = parseAvailableCommand("/followers 3mo", moderator)!;
+    const slow = parseAvailableCommand("/slow", moderator)!;
+
+    expect(compileTwitchCommand(timeout, "moderator")).toMatchObject({
+      kind: "api",
+      action: { targetLogin: "viewer", durationSeconds: 600 },
+    });
+    expect(compileTwitchCommand(followers, "moderator")).toMatchObject({
+      action: { settings: { follower_mode_duration: 129_600 } },
+    });
+    expect(compileTwitchCommand(slow, "moderator")).toMatchObject({
+      action: { settings: { slow_mode_wait_time: 30 } },
+    });
+  });
+
+  it("routes a known moderator prediction command to Twitch's first-party manager", () => {
+    const moderator = getCommandsForAccess({
+      kind: "authenticated",
+      platform: "twitch",
+      role: "moderator",
+    });
+    const prediction = parseAvailableCommand("/prediction", moderator)!;
+
+    expect(compileTwitchCommand(prediction, "moderator")).toMatchObject({
+      kind: "first-party",
+      destination: { kind: "channel-chat" },
+    });
+  });
+
+  it("normalizes native Twitch color names and validates custom hex colors", () => {
+    const viewer = getCommandsForAccess({
+      kind: "authenticated",
+      platform: "twitch",
+      role: "viewer",
+    });
+    const named = parseAvailableCommand("/color DodgerBlue", viewer)!;
+    const custom = parseAvailableCommand("/color #aabbcc", viewer)!;
+    const invalid = parseAvailableCommand("/color ultraviolet", viewer)!;
+
+    expect(compileTwitchCommand(named, "viewer")).toMatchObject({
+      action: { color: "dodger_blue" },
+    });
+    expect(compileTwitchCommand(custom, "viewer")).toMatchObject({
+      action: { color: "#AABBCC" },
+    });
+    expect(getCommandArgumentError(invalid)).toBe(
+      "/color needs a supported Twitch color or six-digit hex value"
+    );
+  });
+
+  it("rejects moderation reasons above Twitch's 500-character boundary", () => {
+    const moderator = getCommandsForAccess({
+      kind: "authenticated",
+      platform: "twitch",
+      role: "moderator",
+    });
+    const accepted = parseAvailableCommand(`/ban viewer ${"a".repeat(500)}`, moderator)!;
+    const rejectedBan = parseAvailableCommand(`/ban viewer ${"a".repeat(501)}`, moderator)!;
+    const rejectedTimeout = parseAvailableCommand(
+      `/timeout viewer 600 ${"a".repeat(501)}`,
+      moderator
+    )!;
+
+    expect(getCommandArgumentError(accepted)).toBeNull();
+    expect(getCommandArgumentError(rejectedBan)).toBe(
+      "/ban reason must be 500 characters or fewer"
+    );
+    expect(getCommandArgumentError(rejectedTimeout)).toBe(
+      "/timeout reason must be 500 characters or fewer"
+    );
   });
 
   it("does not resolve unknown slash text for any send path", () => {

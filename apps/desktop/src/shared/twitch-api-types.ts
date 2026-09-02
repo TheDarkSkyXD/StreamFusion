@@ -109,7 +109,43 @@ export interface TwitchChannelModeratePayload {
   event: TwitchChannelModerateEvent;
 }
 
+export type TwitchSlashCommandAction =
+  | { kind: "update-chat-color"; color: string }
+  | { kind: "whisper"; targetLogin: string; message: string }
+  | { kind: "block" | "unblock"; targetLogin: string }
+  | { kind: "ban"; targetLogin: string; reason?: string }
+  | { kind: "timeout"; targetLogin: string; durationSeconds: number; reason?: string }
+  | { kind: "unban"; targetLogin: string }
+  | { kind: "clear-chat" }
+  | {
+      kind: "update-chat-settings";
+      settings: Omit<TwitchChatSettings, "broadcaster_id" | "moderator_id">;
+    }
+  | { kind: "send-and-pin"; message: string }
+  | { kind: "announce"; message: string }
+  | { kind: "shoutout"; targetLogin: string }
+  | {
+      kind: "set-suspicious-status";
+      targetLogin: string;
+      status: "ACTIVE_MONITORING" | "RESTRICTED";
+    }
+  | { kind: "add-moderator" | "remove-moderator" | "add-vip" | "remove-vip"; targetLogin: string }
+  | { kind: "run-commercial"; length: 30 | 60 | 90 | 120 | 150 | 180 }
+  | { kind: "start-raid"; targetLogin: string }
+  | { kind: "cancel-raid" }
+  | { kind: "create-stream-marker"; description?: string };
+
+export interface TwitchSlashCommandReceipt {
+  action: TwitchSlashCommandAction["kind"];
+  targetLogin?: string;
+}
+
 export type TwitchApiCommand =
+  | {
+      operation: "execute-slash-command";
+      channel: { id: string; login: string };
+      action: TwitchSlashCommandAction;
+    }
   | { operation: "resolve-channel"; login: string }
   | { operation: "get-global-emotes" }
   | { operation: "get-channel-emotes"; broadcasterId: string }

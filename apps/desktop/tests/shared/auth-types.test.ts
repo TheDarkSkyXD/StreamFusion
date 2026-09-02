@@ -37,6 +37,13 @@ describe("Twitch OAuth scope constants", () => {
         "moderator:read:moderators",
         "moderator:read:vips",
         "user:manage:blocked_users",
+        "user:manage:chat_color",
+        "user:write:chat",
+        "moderator:manage:chat_settings",
+        "moderator:manage:announcements",
+        "moderator:manage:shoutouts",
+        "moderator:manage:suspicious_users",
+        "channel:manage:broadcast",
       ])
     );
   });

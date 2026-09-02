@@ -49,6 +49,8 @@ export const TWITCH_APP_SCOPES = [
   // IRC chat auth. Helix moderation scopes do not unlock tmi.js read/write.
   "chat:read",
   "chat:edit",
+  "user:write:chat",
+  "user:manage:chat_color",
   "user:manage:blocked_users",
   // Mod-channel discovery and chat message moderation.
   "user:read:moderated_channels",
@@ -58,6 +60,10 @@ export const TWITCH_APP_SCOPES = [
   "moderator:read:moderators",
   "moderator:read:vips",
   "moderator:manage:chat_messages",
+  "moderator:manage:chat_settings",
+  "moderator:manage:announcements",
+  "moderator:manage:shoutouts",
+  "moderator:manage:suspicious_users",
   // Channel-management console actions.
   "moderator:manage:banned_users",
   "moderator:manage:warnings",
@@ -68,6 +74,7 @@ export const TWITCH_APP_SCOPES = [
   "channel:manage:predictions",
   "channel:manage:polls",
   "channel:edit:commercial",
+  "channel:manage:broadcast",
   "user:manage:whispers",
   // Unban-request review and decisions.
   "moderator:read:unban_requests",

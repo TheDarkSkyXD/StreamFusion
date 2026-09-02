@@ -2,6 +2,8 @@ import type {
   ResolvedTwitchChannel,
   TwitchApiCommand,
   TwitchApiResult,
+  TwitchSlashCommandAction,
+  TwitchSlashCommandReceipt,
 } from "@shared/twitch-api-types";
 import { z } from "zod";
 
@@ -44,6 +46,13 @@ const chatSettingsResponseSchema = helixResponseSchema(
 const resolvedUserResponseSchema = helixResponseSchema(
   z.object({ id: z.string(), login: z.string(), display_name: z.string() })
 );
+const sendChatMessageResponseSchema = helixResponseSchema(
+  z.object({
+    message_id: z.string(),
+    is_sent: z.boolean(),
+    drop_reason: z.object({ code: z.string(), message: z.string() }).nullable().optional(),
+  })
+);
 
 type TwitchResponseSchema<T> = z.ZodType<T>;
 
@@ -67,10 +76,322 @@ function query(path: string, values: Record<string, string | number | undefined>
   return `${path}?${params.toString()}`;
 }
 
+interface TwitchUserIdentity {
+  readonly id: string;
+  readonly login: string;
+}
+
+async function getCurrentUser(requestor: TwitchRequestPort): Promise<TwitchUserIdentity> {
+  const response = await requestDecoded(requestor, resolvedUserResponseSchema, "/users");
+  const user = response.data?.[0];
+  if (!user) throw new Error("Twitch could not resolve the signed-in user.");
+  return { id: user.id, login: user.login };
+}
+
+async function resolveTarget(
+  requestor: TwitchRequestPort,
+  login: string
+): Promise<TwitchUserIdentity> {
+  const response = await requestDecoded(
+    requestor,
+    resolvedUserResponseSchema,
+    `/users?login=${encodeURIComponent(login.toLowerCase())}`
+  );
+  const user = response.data?.[0];
+  if (!user) throw new Error(`Twitch user ${login} was not found.`);
+  return { id: user.id, login: user.login };
+}
+
+function targetLoginForAction(action: TwitchSlashCommandAction): string | null {
+  switch (action.kind) {
+    case "whisper":
+    case "block":
+    case "unblock":
+    case "ban":
+    case "timeout":
+    case "unban":
+    case "shoutout":
+    case "set-suspicious-status":
+    case "add-moderator":
+    case "remove-moderator":
+    case "add-vip":
+    case "remove-vip":
+    case "start-raid":
+      return action.targetLogin;
+    case "update-chat-color":
+    case "clear-chat":
+    case "update-chat-settings":
+    case "send-and-pin":
+    case "announce":
+    case "run-commercial":
+    case "cancel-raid":
+    case "create-stream-marker":
+      return null;
+    default: {
+      const exhaustive: never = action;
+      return exhaustive;
+    }
+  }
+}
+
+function requiresBroadcasterIdentity(action: TwitchSlashCommandAction): boolean {
+  switch (action.kind) {
+    case "add-moderator":
+    case "remove-moderator":
+    case "add-vip":
+    case "remove-vip":
+    case "run-commercial":
+    case "start-raid":
+    case "cancel-raid":
+      return true;
+    case "update-chat-color":
+    case "whisper":
+    case "block":
+    case "unblock":
+    case "ban":
+    case "timeout":
+    case "unban":
+    case "clear-chat":
+    case "update-chat-settings":
+    case "send-and-pin":
+    case "announce":
+    case "shoutout":
+    case "set-suspicious-status":
+    case "create-stream-marker":
+      return false;
+    default: {
+      const exhaustive: never = action;
+      return exhaustive;
+    }
+  }
+}
+
+function resolvedTargetId(target: TwitchUserIdentity | null): string {
+  if (!target) throw new Error("Twitch could not resolve the command target.");
+  return target.id;
+}
+
+async function executeSlashCommand(
+  requestor: TwitchRequestPort,
+  command: Extract<TwitchApiCommand, { operation: "execute-slash-command" }>
+): Promise<TwitchSlashCommandReceipt> {
+  const actor = await getCurrentUser(requestor);
+  if (requiresBroadcasterIdentity(command.action) && actor.id !== command.channel.id) {
+    throw new Error("This Twitch action requires the broadcaster's signed-in account.");
+  }
+  const targetLogin = targetLoginForAction(command.action);
+  const target = targetLogin ? await resolveTarget(requestor, targetLogin) : null;
+  const action = command.action;
+
+  switch (action.kind) {
+    case "update-chat-color":
+      await requestDecoded(
+        requestor,
+        emptyResponseSchema,
+        query("/chat/color", { user_id: actor.id, color: action.color }),
+        { method: "PUT" }
+      );
+      break;
+    case "whisper":
+      await requestDecoded(
+        requestor,
+        emptyResponseSchema,
+        query("/whispers", { from_user_id: actor.id, to_user_id: resolvedTargetId(target) }),
+        { method: "POST", body: JSON.stringify({ message: action.message }) }
+      );
+      break;
+    case "block":
+    case "unblock":
+      await (action.kind === "block"
+        ? UserEndpoints.blockUser(requestor, resolvedTargetId(target))
+        : UserEndpoints.unblockUser(requestor, resolvedTargetId(target)));
+      break;
+    case "ban":
+    case "timeout":
+      await requestDecoded(
+        requestor,
+        unknownResponseSchema,
+        query("/moderation/bans", {
+          broadcaster_id: command.channel.id,
+          moderator_id: actor.id,
+        }),
+        {
+          method: "POST",
+          body: JSON.stringify({
+            data: {
+              user_id: resolvedTargetId(target),
+              ...(action.kind === "timeout" ? { duration: action.durationSeconds } : {}),
+              ...(action.reason ? { reason: action.reason } : {}),
+            },
+          }),
+        }
+      );
+      break;
+    case "unban":
+      await requestDecoded(
+        requestor,
+        emptyResponseSchema,
+        query("/moderation/bans", {
+          broadcaster_id: command.channel.id,
+          moderator_id: actor.id,
+          user_id: resolvedTargetId(target),
+        }),
+        { method: "DELETE" }
+      );
+      break;
+    case "clear-chat":
+      await requestDecoded(
+        requestor,
+        emptyResponseSchema,
+        query("/moderation/chat", {
+          broadcaster_id: command.channel.id,
+          moderator_id: actor.id,
+        }),
+        { method: "DELETE" }
+      );
+      break;
+    case "update-chat-settings":
+      await requestDecoded(
+        requestor,
+        unknownResponseSchema,
+        query("/chat/settings", {
+          broadcaster_id: command.channel.id,
+          moderator_id: actor.id,
+        }),
+        { method: "PATCH", body: JSON.stringify(action.settings) }
+      );
+      break;
+    case "send-and-pin":
+      {
+        const response = await requestDecoded(
+          requestor,
+          sendChatMessageResponseSchema,
+          "/chat/messages",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              broadcaster_id: command.channel.id,
+              sender_id: actor.id,
+              message: action.message,
+              pin: true,
+            }),
+          }
+        );
+        const sent = response.data?.[0];
+        if (!sent?.is_sent) {
+          throw new Error(sent?.drop_reason?.message ?? "Twitch declined the pinned message.");
+        }
+      }
+      break;
+    case "announce":
+      await requestDecoded(
+        requestor,
+        emptyResponseSchema,
+        query("/chat/announcements", {
+          broadcaster_id: command.channel.id,
+          moderator_id: actor.id,
+        }),
+        { method: "POST", body: JSON.stringify({ message: action.message }) }
+      );
+      break;
+    case "shoutout":
+      await requestDecoded(
+        requestor,
+        emptyResponseSchema,
+        query("/chat/shoutouts", {
+          from_broadcaster_id: command.channel.id,
+          to_broadcaster_id: resolvedTargetId(target),
+          moderator_id: actor.id,
+        }),
+        { method: "POST" }
+      );
+      break;
+    case "set-suspicious-status":
+      await requestDecoded(
+        requestor,
+        unknownResponseSchema,
+        query("/moderation/suspicious_users", {
+          broadcaster_id: command.channel.id,
+          moderator_id: actor.id,
+        }),
+        {
+          method: "POST",
+          body: JSON.stringify({
+            user_id: resolvedTargetId(target),
+            low_trust_status: action.status,
+          }),
+        }
+      );
+      break;
+    case "add-moderator":
+    case "remove-moderator":
+    case "add-vip":
+    case "remove-vip": {
+      const moderatorAction = action.kind.endsWith("moderator");
+      await requestDecoded(
+        requestor,
+        emptyResponseSchema,
+        query(moderatorAction ? "/moderation/moderators" : "/channels/vips", {
+          broadcaster_id: command.channel.id,
+          user_id: resolvedTargetId(target),
+        }),
+        { method: action.kind.startsWith("add-") ? "POST" : "DELETE" }
+      );
+      break;
+    }
+    case "run-commercial":
+      await requestDecoded(requestor, unknownResponseSchema, "/channels/commercial", {
+        method: "POST",
+        body: JSON.stringify({ broadcaster_id: command.channel.id, length: action.length }),
+      });
+      break;
+    case "start-raid":
+      await requestDecoded(
+        requestor,
+        unknownResponseSchema,
+        query("/raids", {
+          from_broadcaster_id: command.channel.id,
+          to_broadcaster_id: resolvedTargetId(target),
+        }),
+        { method: "POST" }
+      );
+      break;
+    case "cancel-raid":
+      await requestDecoded(
+        requestor,
+        emptyResponseSchema,
+        query("/raids", { broadcaster_id: command.channel.id }),
+        { method: "DELETE" }
+      );
+      break;
+    case "create-stream-marker":
+      await requestDecoded(requestor, unknownResponseSchema, "/streams/markers", {
+        method: "POST",
+        body: JSON.stringify({
+          user_id: command.channel.id,
+          ...(action.description ? { description: action.description } : {}),
+        }),
+      });
+      break;
+    default: {
+      const exhaustive: never = action;
+      return exhaustive;
+    }
+  }
+
+  return {
+    action: action.kind,
+    ...(target ? { targetLogin: target.login } : {}),
+  };
+}
+
 export function createTwitchApiService(requestor: TwitchRequestPort): TwitchApiService {
   return {
     async execute(command) {
       try {
+        if (command.operation === "execute-slash-command") {
+          return { ok: true, data: await executeSlashCommand(requestor, command) };
+        }
         if (command.operation === "get-global-emotes") {
           const response = await requestDecoded(
             requestor,

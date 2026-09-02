@@ -5,6 +5,8 @@ import { createTwitchApiService } from "@backend/api/platforms/twitch/twitch-api
 // Guards: allowlisted renderer capabilities map to fixed Worker-relative Helix paths.
 // Guards: access-token refresh and retry ownership stays inside TwitchRequestor rather than IPC payloads.
 // Guards: personal block-list mutations await their fixed Helix endpoint and surface provider rejection.
+// Guards: semantic slash mutations derive the actor from the current Twitch token and resolve target logins in main.
+// Guards: Twitch-declined send-and-pin responses fail instead of reporting a successful command.
 describe("Twitch API service", () => {
   it("rejects malformed Helix envelopes at the service boundary", async () => {
     const request = vi.fn().mockResolvedValue({ data: "not-an-array" });
@@ -353,5 +355,217 @@ describe("Twitch API service", () => {
       ok: false,
       error: { code: "unavailable", message: "Twitch rejected the unblock" },
     });
+  });
+
+  it("derives the actor and resolves targets for semantic moderation commands", async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [{ id: "200", login: "moderator", display_name: "Moderator" }],
+      })
+      .mockResolvedValueOnce({
+        data: [{ id: "300", login: "viewer", display_name: "Viewer" }],
+      })
+      .mockResolvedValueOnce({ data: [{ id: "ban-1" }] });
+    const service = createTwitchApiService({ request });
+
+    await expect(
+      service.execute({
+        operation: "execute-slash-command",
+        channel: { id: "100", login: "streamer" },
+        action: { kind: "timeout", targetLogin: "@viewer".slice(1), durationSeconds: 600 },
+      })
+    ).resolves.toEqual({
+      ok: true,
+      data: { action: "timeout", targetLogin: "viewer" },
+    });
+    expect(request.mock.calls).toEqual([
+      ["/users"],
+      ["/users?login=viewer"],
+      [
+        "/moderation/bans?broadcaster_id=100&moderator_id=200",
+        {
+          method: "POST",
+          body: JSON.stringify({ data: { user_id: "300", duration: 600 } }),
+        },
+      ],
+    ]);
+    expect(JSON.stringify(request.mock.calls)).not.toMatch(/actorId|accessToken|clientId/);
+  });
+
+  it("uses POST with a target body to add suspicious-user status", async () => {
+    const request = vi.fn();
+    const service = createTwitchApiService({ request });
+    const identity = { data: [{ id: "200", login: "moderator", display_name: "Moderator" }] };
+    const target = { data: [{ id: "300", login: "viewer", display_name: "Viewer" }] };
+
+    request
+      .mockResolvedValueOnce(identity)
+      .mockResolvedValueOnce(target)
+      .mockResolvedValueOnce({ data: [{ user_id: "300" }] });
+    await service.execute({
+      operation: "execute-slash-command",
+      channel: { id: "100", login: "streamer" },
+      action: {
+        kind: "set-suspicious-status",
+        targetLogin: "viewer",
+        status: "ACTIVE_MONITORING",
+      },
+    });
+    expect(request).toHaveBeenLastCalledWith(
+      "/moderation/suspicious_users?broadcaster_id=100&moderator_id=200",
+      {
+        method: "POST",
+        body: JSON.stringify({ user_id: "300", low_trust_status: "ACTIVE_MONITORING" }),
+      }
+    );
+  });
+
+  it("fails a send-and-pin command when Twitch returns a drop reason", async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [{ id: "200", login: "moderator", display_name: "Moderator" }],
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            message_id: "message-1",
+            is_sent: false,
+            drop_reason: { code: "automod_held", message: "The message was held by AutoMod." },
+          },
+        ],
+      });
+    const service = createTwitchApiService({ request });
+
+    await expect(
+      service.execute({
+        operation: "execute-slash-command",
+        channel: { id: "100", login: "streamer" },
+        action: { kind: "send-and-pin", message: "Important update" },
+      })
+    ).resolves.toEqual({
+      ok: false,
+      error: { code: "unavailable", message: "The message was held by AutoMod." },
+    });
+  });
+
+  it("rejects broadcaster-owned slash actions before mutation when the token owner differs", async () => {
+    const request = vi.fn().mockResolvedValueOnce({
+      data: [{ id: "200", login: "editor", display_name: "Editor" }],
+    });
+    const service = createTwitchApiService({ request });
+
+    await expect(
+      service.execute({
+        operation: "execute-slash-command",
+        channel: { id: "100", login: "streamer" },
+        action: { kind: "cancel-raid" },
+      })
+    ).resolves.toMatchObject({ ok: false, error: { code: "unavailable" } });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith("/users");
+  });
+
+  it("maps every semantic slash action family to a fixed Helix request", async () => {
+    const request = vi.fn(async (endpoint: string, options?: RequestInit) => {
+      if (endpoint === "/users") {
+        return { data: [{ id: "100", login: "streamer", display_name: "Streamer" }] };
+      }
+      if (endpoint.startsWith("/users?login=")) {
+        return { data: [{ id: "300", login: "target", display_name: "Target" }] };
+      }
+      if (endpoint === "/chat/messages") {
+        return { data: [{ message_id: "m1", is_sent: true, drop_reason: null }] };
+      }
+      if (
+        options?.method === "DELETE" ||
+        endpoint.startsWith("/whispers?") ||
+        endpoint.startsWith("/users/blocks?") ||
+        endpoint.startsWith("/chat/color?") ||
+        endpoint.startsWith("/chat/announcements?") ||
+        endpoint.startsWith("/chat/shoutouts?") ||
+        endpoint.startsWith("/moderation/moderators?") ||
+        endpoint.startsWith("/channels/vips?")
+      ) {
+        return null;
+      }
+      return { data: [{ id: "result" }] };
+    });
+    const service = createTwitchApiService({ request });
+    const channel = { id: "100", login: "streamer" };
+    const cases = [
+      [
+        { kind: "update-chat-color", color: "dodger_blue" },
+        "/chat/color?user_id=100&color=dodger_blue",
+        "PUT",
+      ],
+      [
+        { kind: "whisper", targetLogin: "target", message: "hello" },
+        "/whispers?from_user_id=100&to_user_id=300",
+        "POST",
+      ],
+      [{ kind: "block", targetLogin: "target" }, "/users/blocks?target_user_id=300", "PUT"],
+      [{ kind: "unblock", targetLogin: "target" }, "/users/blocks?target_user_id=300", "DELETE"],
+      [
+        { kind: "ban", targetLogin: "target", reason: "spam" },
+        "/moderation/bans?broadcaster_id=100&moderator_id=100",
+        "POST",
+      ],
+      [
+        { kind: "unban", targetLogin: "target" },
+        "/moderation/bans?broadcaster_id=100&moderator_id=100&user_id=300",
+        "DELETE",
+      ],
+      [{ kind: "clear-chat" }, "/moderation/chat?broadcaster_id=100&moderator_id=100", "DELETE"],
+      [
+        { kind: "update-chat-settings", settings: { slow_mode: false } },
+        "/chat/settings?broadcaster_id=100&moderator_id=100",
+        "PATCH",
+      ],
+      [{ kind: "send-and-pin", message: "Pinned" }, "/chat/messages", "POST"],
+      [
+        { kind: "announce", message: "News" },
+        "/chat/announcements?broadcaster_id=100&moderator_id=100",
+        "POST",
+      ],
+      [
+        { kind: "shoutout", targetLogin: "target" },
+        "/chat/shoutouts?from_broadcaster_id=100&to_broadcaster_id=300&moderator_id=100",
+        "POST",
+      ],
+      [
+        { kind: "add-moderator", targetLogin: "target" },
+        "/moderation/moderators?broadcaster_id=100&user_id=300",
+        "POST",
+      ],
+      [
+        { kind: "remove-vip", targetLogin: "target" },
+        "/channels/vips?broadcaster_id=100&user_id=300",
+        "DELETE",
+      ],
+      [{ kind: "run-commercial", length: 60 }, "/channels/commercial", "POST"],
+      [
+        { kind: "start-raid", targetLogin: "target" },
+        "/raids?from_broadcaster_id=100&to_broadcaster_id=300",
+        "POST",
+      ],
+      [{ kind: "cancel-raid" }, "/raids?broadcaster_id=100", "DELETE"],
+      [{ kind: "create-stream-marker", description: "Great play" }, "/streams/markers", "POST"],
+    ] as const;
+
+    for (const [action, expectedPath, expectedMethod] of cases) {
+      request.mockClear();
+      const result = await service.execute({
+        operation: "execute-slash-command",
+        channel,
+        action,
+      });
+      expect(result).toMatchObject({ ok: true });
+      expect(request).toHaveBeenLastCalledWith(
+        expectedPath,
+        expect.objectContaining({ method: expectedMethod })
+      );
+    }
   });
 });

@@ -12,7 +12,7 @@ import { unwrapIpcReply } from "@/lib/ipc-reply";
 import { router } from "@/routes/router";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@shared/auth-types";
 import type { UnifiedPrediction } from "@shared/chat-types";
-import type { ResolvedTwitchChannel, TwitchChannelModeratePayload } from "@shared/twitch-api-types";
+import type { TwitchChannelModeratePayload } from "@shared/twitch-api-types";
 import { substituteThirdPartyEmotes } from "../../../../../../backend/services/chat/third-party-emote-enrich";
 import { twitchChatService } from "../../../../../../backend/services/chat/twitch-chat";
 import {
@@ -59,6 +59,7 @@ import type {
   ChatCommandAccess,
   ChatCommandDefinition,
 } from "../../../utils/chat-command-registry";
+import { runTwitchCommandEffect } from "../../../utils/twitch-command-session";
 import { ChatMessageList } from "../ChatMessageList";
 import { type ChatSendEligibility, resolveChatSendEligibility } from "../chat-send-eligibility";
 import { type ChatPanelTabId, ChatPanelTabs } from "../mod/ChatPanelTabs";
@@ -197,6 +198,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
   const channelKey = buildChannelKey("twitch", channel);
   const recentChattersPanelId = useId();
   const [showRecentChatters, setShowRecentChatters] = useState(false);
+  const [activePanelTab, setActivePanelTab] = useState<ChatPanelTabId>("chat");
+  const [disconnectedChannel, setDisconnectedChannel] = useState<string | null>(null);
   const [badgeCatalogStatus, setBadgeCatalogStatus] = useState<"loading" | "ready" | "failed">(
     "loading"
   );
@@ -221,6 +224,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
   const isAuthenticated = useAuthStore(
     (state) => state.twitchConnected && !state.twitchReconnectRequired
   );
+  const canSendToCurrentChannel =
+    isAuthenticated && isTwitchConnected && disconnectedChannel !== channel.toLowerCase();
   const loginTwitch = useAuthStore((state) => state.loginTwitch);
   // U5 — gate the in-chat prediction widget on the viewer pref. Reactive
   // selector so toggling it live shows/hides the banner without remounting.
@@ -343,43 +348,33 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
     return { kind: "authenticated", platform: "twitch", role: isMod ? "moderator" : "viewer" };
   }, [channelId, isAuthenticated, isMod, twitchUser?.id]);
   const executeTwitchCommand = useCallback(
-    async ({
-      command,
-      args,
-      text,
-    }: {
-      command: ChatCommandDefinition;
-      args: string;
-      text: string;
-    }) => {
-      if (command.execution === "action-message") {
-        await twitchChatService.sendAction(channel, args);
-        return;
+    async ({ command, args }: { command: ChatCommandDefinition; args: string; text: string }) => {
+      if (command.platform !== "twitch" || commandAccess.kind !== "authenticated") {
+        throw new Error(`/${command.name} is not available in this Twitch chat`);
       }
-      if (command.execution === "platform-command") {
-        if (command.name === "block" || command.name === "unblock") {
-          const username = args.split(/\s+/, 1)[0]?.replace(/^@/, "");
-          if (!username) throw new Error(`/${command.name} needs a username`);
-          const resolved = await window.electronAPI.twitch.execute({
-            operation: "resolve-channel",
-            login: username,
-          });
-          if (!resolved.ok) throw new Error(resolved.error.message);
-          const target = resolved.data as ResolvedTwitchChannel | null;
-          if (!target) throw new Error(`Twitch user ${username} was not found`);
-          const result = await window.electronAPI.twitch.execute({
-            operation: command.name === "block" ? "block-user" : "unblock-user",
-            targetUserId: target.id,
-          });
-          if (!result.ok) throw new Error(result.error.message);
-          return;
-        }
-        await twitchChatService.executeNativeCommand({ channel, commandText: text });
-        return;
-      }
-      throw new Error(`/${command.name} is handled locally`);
+      if (!channelId) throw new Error("Twitch channel identity is unavailable");
+      const tokenStatus = await window.electronAPI.auth.tokenStatus("twitch");
+      await runTwitchCommandEffect(command, args, {
+        channel: { id: channelId, login: channel },
+        role: commandAccess.role,
+        grantedScopes: tokenStatus.scopes ?? [],
+        sendAction: (message) => twitchChatService.sendAction(channel, message),
+        leaveChannel: async () => {
+          await twitchChatService.leaveChannel(channel);
+          setDisconnectedChannel(channel.toLowerCase());
+        },
+        executeApi: (apiCommand) => window.electronAPI.twitch.execute(apiCommand),
+        openExternal: async (url) => {
+          await window.electronAPI.openExternal(url);
+        },
+        openEngagement: () => setActivePanelTab("engagement"),
+        requestReconnect: (missingScopes) => {
+          promptReconnect({ missingScopes: [...missingScopes] });
+        },
+        explainHandoff: (message) => toast.info("Opening Twitch", { description: message }),
+      });
     },
-    [channel]
+    [channel, channelId, commandAccess, promptReconnect]
   );
 
   const currentModeratorPresentation = useCallback((): ChatUserPresentation | undefined => {
@@ -566,7 +561,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
   const [sendEligibility, setSendEligibility] = useState<ChatSendEligibility>(() =>
     resolveChatSendEligibility({
       isAuthenticated,
-      canSend: isAuthenticated && isTwitchConnected,
+      canSend: canSendToCurrentChannel,
       disabled: false,
     })
   );
@@ -729,7 +724,10 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
           const session = await startChatSession({
             joinLive: async () => {
               await twitchChatService.joinChannel(target, broadcasterId);
-              if (isMounted) addMessage(createConnectionStatusMessage(target, "connected"));
+              if (isMounted) {
+                setDisconnectedChannel(null);
+                addMessage(createConnectionStatusMessage(target, "connected"));
+              }
             },
             loadHistory: () =>
               seedTwitchChatHistory({
@@ -974,6 +972,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
           });
           if (cancelled) return;
           await twitchChatService.joinChannel(channel, twitchUser.id);
+          if (!cancelled) setDisconnectedChannel(null);
         } else {
           await twitchChatService.connect({
             anonymous: true,
@@ -981,6 +980,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
           });
           if (cancelled) return;
           await twitchChatService.joinChannel(channel);
+          if (!cancelled) setDisconnectedChannel(null);
         }
       } catch (err) {
         if (!cancelled) {
@@ -1661,7 +1661,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
             platform="twitch"
             channel={channel}
             channelId={channelId ?? null}
-            canSend={isAuthenticated && isTwitchConnected}
+            canSend={canSendToCurrentChannel}
             isAuthenticated={isAuthenticated}
             viewerUserId={isAuthenticated ? twitchUser?.id : undefined}
             commandAccess={commandAccess}
@@ -1700,7 +1700,11 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
           />
         </div>
         <div className="relative min-h-0 flex-1">
-          <ChatPanelTabs visibleTabs={visibleTabs}>
+          <ChatPanelTabs
+            visibleTabs={visibleTabs}
+            activeTab={activePanelTab}
+            onTabChange={setActivePanelTab}
+          >
             {{
               chat: chatBody,
               modlog: channelId ? (

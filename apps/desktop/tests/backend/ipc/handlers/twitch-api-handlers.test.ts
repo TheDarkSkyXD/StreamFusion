@@ -31,6 +31,7 @@ beforeEach(() => {
 // Guards: renderer Twitch reads cross only an allowlisted capability boundary without credentials.
 // Guards: opaque user-emote cursors get provider-sized headroom without widening unrelated Twitch inputs.
 // Guards: block-list mutations accept only bounded target IDs and reject renderer credential injection.
+// Guards: slash-command IPC accepts semantic actions but rejects actor spoofing, raw slash text, URLs, and credentials.
 describe("Twitch API IPC handlers", () => {
   it("maps a channel lookup capability to the main-owned Twitch service", async () => {
     const service = {
@@ -287,6 +288,38 @@ describe("Twitch API IPC handlers", () => {
       { ...payload, clientId: "renderer-secret" }
     );
 
+    expect(service.execute).toHaveBeenCalledTimes(1);
+    expect(service.execute).toHaveBeenCalledWith(payload);
+  });
+
+  it("accepts only the strict semantic slash-command contract", async () => {
+    const service = {
+      execute: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
+      startEventSubFeed: vi.fn(),
+      stopEventSubFeed: vi.fn(),
+    };
+    registerTwitchApiHandlers({ service });
+    const invoke = handlerFor(IPC_CHANNELS.TWITCH_API_EXECUTE);
+    const event = { senderFrame: { url: "file:///app/index.html" } };
+    const payload = {
+      operation: "execute-slash-command",
+      channel: { id: "100", login: "streamer" },
+      action: { kind: "timeout", targetLogin: "viewer", durationSeconds: 600 },
+    };
+
+    await expect(invoke(event, payload)).resolves.toMatchObject({ ok: true });
+    for (const injected of [
+      { ...payload, actorId: "spoofed" },
+      { ...payload, commandText: "/ban viewer" },
+      { ...payload, url: "https://attacker.example/" },
+      { ...payload, accessToken: "secret" },
+      { ...payload, action: { ...payload.action, moderatorId: "spoofed" } },
+    ]) {
+      await expect(invoke(event, injected)).resolves.toMatchObject({
+        ok: false,
+        error: { code: "invalid-input" },
+      });
+    }
     expect(service.execute).toHaveBeenCalledTimes(1);
     expect(service.execute).toHaveBeenCalledWith(payload);
   });

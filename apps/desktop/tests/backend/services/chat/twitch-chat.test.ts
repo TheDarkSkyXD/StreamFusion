@@ -966,66 +966,6 @@ describe("TwitchChatService connect() single-flight", () => {
     expect(fakeClient.action).toHaveBeenCalledTimes(21);
   });
 
-  it("sends authenticated slash commands through Twitch's command transport", async () => {
-    const service = new TwitchChatService();
-    const messages: ChatMessage[] = [];
-    service.on("message", (message) => messages.push(message));
-    const connectPromise = service.connect({
-      accessToken: "tok",
-      user: {
-        id: "viewer-1",
-        login: "viewer",
-        displayName: "Viewer",
-        profileImageUrl: "",
-        createdAt: "",
-        broadcasterType: "",
-      },
-    });
-    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
-    await connectPromise;
-    await service.joinChannel("ninja");
-
-    await service.executeNativeCommand({ channel: "ninja", commandText: "/mods" });
-
-    expect(fakeClient.mods).toHaveBeenCalledWith("ninja");
-    expect(fakeClient.say).not.toHaveBeenCalledWith("ninja", "/mods");
-    expect(messages).toEqual([
-      expect.objectContaining({
-        type: "system",
-        channel: "ninja",
-        rawContent: "Moderators: @modder, @helper",
-      }),
-    ]);
-
-    await service.executeNativeCommand({ channel: "ninja", commandText: "/vips" });
-    expect(messages.at(-1)).toEqual(
-      expect.objectContaining({ rawContent: "No VIPs found for this channel." })
-    );
-  });
-
-  it("surfaces Twitch command rejections to the composer boundary", async () => {
-    const service = new TwitchChatService();
-    const connectPromise = service.connect({
-      accessToken: "tok",
-      user: {
-        id: "viewer-1",
-        login: "viewer",
-        displayName: "Viewer",
-        profileImageUrl: "",
-        createdAt: "",
-        broadcasterType: "",
-      },
-    });
-    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
-    await connectPromise;
-    await service.joinChannel("ninja");
-    fakeClient.mods.mockRejectedValueOnce(new Error("No response from Twitch"));
-
-    await expect(
-      service.executeNativeCommand({ channel: "ninja", commandText: "/mods" })
-    ).rejects.toThrow("No response from Twitch");
-  });
-
   it("emits a community gift notice for Twitch mystery gift aggregates", async () => {
     const service = new TwitchChatService();
     const notices: UserNotice[] = [];
