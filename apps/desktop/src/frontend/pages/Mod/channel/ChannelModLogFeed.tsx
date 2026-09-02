@@ -43,9 +43,9 @@ export interface ChannelModLogFeedProps {
   refreshCounter?: number;
 }
 
-function formatTimestamp(ms: number): string {
+function formatTimestamp(ms: number, locale: string): string {
   const d = new Date(ms);
-  return `${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
+  return `${d.toLocaleDateString(locale)} ${d.toLocaleTimeString(locale)}`;
 }
 
 function formatDuration(seconds: number | null | undefined, t: TFunction): string {
@@ -62,7 +62,8 @@ export function ChannelModLogFeed({
   channelSlug,
   refreshCounter,
 }: ChannelModLogFeedProps) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
+  const locale = i18n.resolvedLanguage ?? i18n.language;
   const [actionFilter, setActionFilter] = useState<"" | ModLogAction>("");
   const [moderatorFilter, setModeratorFilter] = useState<string>("");
   const [limit, setLimit] = useState<number>(PAGE_INCREMENT);
@@ -146,7 +147,9 @@ export function ChannelModLogFeed({
                     data-action={entry.action}
                     className="text-xs text-neutral-200 border-b border-white/5 py-1 flex flex-wrap gap-2 items-baseline"
                   >
-                    <span className="text-neutral-500">{formatTimestamp(entry.createdAt)}</span>
+                    <span className="text-neutral-500">
+                      {formatTimestamp(entry.createdAt, locale)}
+                    </span>
                     <span className="text-purple-300 font-medium">{entry.moderatorUsername}</span>
                     <span className="text-yellow-200">{entry.action}</span>
                     <span className="text-white" data-testid="modlog-target-username">

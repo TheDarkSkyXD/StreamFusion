@@ -163,22 +163,23 @@ function hasRetainedDeletedContent(message: ChatMessageType): boolean {
 
 function formatModerationTimestamp(
   timestamp: Date | number | undefined,
-  mode: DeletedMessageDisplayMode
+  mode: DeletedMessageDisplayMode,
+  locale: string
 ): string | null {
   if (!timestamp) return null;
   const date = new Date(timestamp);
   if (mode === "compact") {
-    return date.toLocaleTimeString([], {
+    return date.toLocaleTimeString(locale, {
       hour: "numeric",
       minute: "2-digit",
     });
   }
   if (mode === "audit") {
-    return `${date.toLocaleDateString([], {
+    return `${date.toLocaleDateString(locale, {
       month: "short",
       day: "numeric",
       year: "numeric",
-    })}, ${date.toLocaleTimeString([], {
+    })}, ${date.toLocaleTimeString(locale, {
       hour: "numeric",
       minute: "2-digit",
     })}`;
@@ -463,7 +464,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
     badgeLimit,
     embedded = false,
   }) => {
-    const { t } = useTranslation();
+    const { i18n, t } = useTranslation();
     const { cd } = useChatDisplay();
     const moderationHighlightStyle =
       cd.moderationHighlightStyle ?? DEFAULT_CHAT_DISPLAY_PREFERENCES.moderationHighlightStyle;
@@ -636,7 +637,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
             : [];
       const visibleDeletedMessages = fallbackDeletedMessages.filter((entry) => entry.trim());
       const canShowDeletedMessages = cd.showClearMsg && displayMode !== "tombstone";
-      const moderationTimestamp = formatModerationTimestamp(message.timestamp, displayMode);
+      const moderationTimestamp = formatModerationTimestamp(
+        message.timestamp,
+        displayMode,
+        i18n.resolvedLanguage ?? i18n.language
+      );
       const actionLabel: "Timeout" | "Ban" = duration ? "Timeout" : "Ban";
       const actionPhrase = `was ${actionText}`;
       const summary = (
@@ -899,7 +904,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
           {hasInlineModActions && (
             <span className="mr-1 inline-flex align-middle items-center gap-0.5">
               {inlineBanAction && (
-                <IconActionTooltip label="Ban user">
+                <IconActionTooltip label={t("chat.banUser")}>
                   <button
                     type="button"
                     onClick={() => inlineBanAction(message)}
@@ -911,7 +916,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
                 </IconActionTooltip>
               )}
               {inlineTimeoutAction && (
-                <IconActionTooltip label="Timeout user">
+                <IconActionTooltip label={t("chat.timeoutUser")}>
                   <button
                     type="button"
                     onClick={() => inlineTimeoutAction(message)}
@@ -923,7 +928,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
                 </IconActionTooltip>
               )}
               {inlineWarnAction && (
-                <IconActionTooltip label="Warn user">
+                <IconActionTooltip label={t("chat.warnUser")}>
                   <button
                     type="button"
                     onClick={() => inlineWarnAction(message)}
@@ -935,7 +940,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
                 </IconActionTooltip>
               )}
               {inlineUnbanAction && (
-                <IconActionTooltip label="Unban user">
+                <IconActionTooltip label={t("chat.unbanUser")}>
                   <button
                     type="button"
                     onClick={() => inlineUnbanAction(message)}
@@ -947,7 +952,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
                 </IconActionTooltip>
               )}
               {inlineDeleteAction && (
-                <IconActionTooltip label="Delete message">
+                <IconActionTooltip label={t("chat.deleteMessage")}>
                   <button
                     type="button"
                     onClick={() => inlineDeleteAction(message)}

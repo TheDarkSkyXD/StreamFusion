@@ -9,6 +9,8 @@ import { translateSettings } from "./settings-translation";
  * buffer/font-size slider, which fires per tick) collapse into one toast that
  * just refreshes its timer instead of stacking dozens.
  */
-export function notifySettingsSaved(message: string = translateSettings("settings.settingsSaved")) {
+export function notifySettingsSaved(
+  message: string = translateSettings({ key: "settings.settingsSaved" })
+) {
   toast.success(message, { id: "settings-saved" });
 }

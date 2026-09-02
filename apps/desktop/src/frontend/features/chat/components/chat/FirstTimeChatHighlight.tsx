@@ -25,7 +25,7 @@ export const FirstTimeChatHighlight: React.FC<FirstTimeChatHighlightProps> = mem
     return (
       <ChatHighlightCard
         icon={<TwitchFirstTimeChatIcon />}
-        label="First Time Chat"
+        labelKey="chat.firstTimeChat"
         testId="first-time-chat-highlight"
         style={style}
       >

@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { i18n } from "@/i18n";
 /**
  * Viewer-side prediction widget — a read-only mirror of Twitch's community-
  * highlight prediction card. Captured live from https://www.twitch.tv/adinross
@@ -304,8 +305,8 @@ function endedTeaser(t: TFunction, prediction: UnifiedPrediction, total: number)
       </span>
     );
   }
-  if (prediction.status === "CANCELED") return "Refunded to predictors";
-  return `${short(total)} pool`;
+  if (prediction.status === "CANCELED") return t("chat.refundedToPredictors");
+  return t("chat.poolValue", { value: short(total) });
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -434,7 +435,7 @@ const EndedPanel: React.FC<{
 }> = ({ prediction, style, onCollapse, onDismiss }) => {
   const { t } = useTranslation();
   const total = sumAmount(prediction);
-  const endedAtLabel = endedRelativeLabel(prediction.endedAt);
+  const endedAtLabel = endedRelativeLabel(prediction.endedAt, t);
   // Single accent for the resolved list, mirroring twitch.tv's "Prediction"
   // results panel: every outcome shares the prediction-blue, and the numbered
   // circles + "Winner" badge distinguish them rather than per-outcome colors.
@@ -781,22 +782,34 @@ function topOutcome(prediction: UnifiedPrediction): UnifiedPredictionOutcome | n
   );
 }
 
-function short(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
-  return n.toLocaleString();
+const compactNumberFormatters = new Map<string, Intl.NumberFormat>();
+
+function getCompactNumberFormatter(locale: string): Intl.NumberFormat {
+  const existing = compactNumberFormatters.get(locale);
+  if (existing) return existing;
+  const formatter = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
+  compactNumberFormatters.set(locale, formatter);
+  return formatter;
 }
 
-function endedRelativeLabel(endedAt: string | null): string {
-  if (!endedAt) return "moments ago";
-  const t = Date.parse(endedAt);
-  if (Number.isNaN(t)) return "moments ago";
-  const seconds = Math.max(0, Math.round((Date.now() - t) / 1000));
-  if (seconds < 60) return "moments ago";
+function short(n: number): string {
+  const locale = i18n.resolvedLanguage ?? i18n.language;
+  const compact = (value: number) => getCompactNumberFormatter(locale).format(value);
+  if (n >= 1_000_000) return `${compact(n / 1_000_000)}M`;
+  if (n >= 1_000) return `${compact(n / 1_000)}K`;
+  return n.toLocaleString(locale);
+}
+
+function endedRelativeLabel(endedAt: string | null, t: TFunction): string {
+  if (!endedAt) return t("chat.momentsAgo");
+  const endedAtMs = Date.parse(endedAt);
+  if (Number.isNaN(endedAtMs)) return t("chat.momentsAgo");
+  const seconds = Math.max(0, Math.round((Date.now() - endedAtMs) / 1000));
+  if (seconds < 60) return t("chat.momentsAgo");
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  if (minutes < 60) return t("chat.minutesAgo", { count: minutes });
   const hours = Math.round(minutes / 60);
-  return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  return t("chat.hoursAgo", { count: hours });
 }
 
 /**

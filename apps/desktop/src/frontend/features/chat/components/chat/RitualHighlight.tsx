@@ -15,7 +15,7 @@ export const RitualHighlight: React.FC<RitualHighlightProps> = memo(
     <ChatEventHighlightCard
       accentColor="#fb7185"
       icon={<Crown aria-hidden="true" className="h-5 w-5" strokeWidth={2.2} />}
-      label="Ritual"
+      labelKey="chat.ritual"
       platform={platform}
       style={style}
       testId="ritual-highlight"

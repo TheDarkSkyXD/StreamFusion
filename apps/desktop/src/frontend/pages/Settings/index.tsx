@@ -164,8 +164,8 @@ function SeekIntervalSelect({ id, descriptionId, value, onChange }: SeekInterval
           aria-describedby={descriptionId}
           aria-label={
             id === "rewind-seconds"
-              ? translateSettings("settings.rewind")
-              : translateSettings("settings.fastForward")
+              ? translateSettings({ key: "settings.rewind" })
+              : translateSettings({ key: "settings.fastForward" })
           }
           className="h-10 w-32"
           id={id}
@@ -175,18 +175,24 @@ function SeekIntervalSelect({ id, descriptionId, value, onChange }: SeekInterval
         <SelectContent>
           {SEEK_INTERVAL_OPTIONS.map((seconds) => (
             <SelectItem key={seconds} value={String(seconds)}>
-              {seconds} {translateSettings("settings.seconds")}
+              {seconds} {translateSettings({ key: "settings.seconds" })}
             </SelectItem>
           ))}
-          <SelectItem value="custom">{translateSettings("settings.custom")}</SelectItem>
+          <SelectItem value="custom">{translateSettings({ key: "settings.custom" })}</SelectItem>
         </SelectContent>
       </Select>
       {isCustom && (
         <div className="flex items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-background-tertiary)] pr-3 text-sm text-[var(--color-foreground-muted)] focus-within:ring-2 focus-within:ring-[var(--color-ring)]">
           <input
             aria-describedby={descriptionId}
-            aria-label={translateSettings("settings.valueCustomSeconds", {
-              value1: id === "rewind-seconds" ? "Rewind" : "Fast forward",
+            aria-label={translateSettings({
+              key: "settings.valueCustomSeconds",
+              options: {
+                value1:
+                  id === "rewind-seconds"
+                    ? translateSettings({ key: "settings.rewind" })
+                    : translateSettings({ key: "settings.fastForward" }),
+              },
             })}
             className="h-10 w-20 rounded-l-lg bg-transparent px-3 text-right tabular-nums text-[var(--color-foreground)] outline-none"
             inputMode="numeric"
@@ -199,7 +205,7 @@ function SeekIntervalSelect({ id, descriptionId, value, onChange }: SeekInterval
             type="number"
             value={value}
           />
-          {translateSettings("settings.sec")}
+          {translateSettings({ key: "settings.sec" })}
         </div>
       )}
     </div>
@@ -220,10 +226,10 @@ function getBufferRangeControls(): {
   return [
     {
       field: "liveSyncDurationCount",
-      label: translateSettings("settings.targetLiveLatency"),
-      description: translateSettings(
-        "settings.segmentsFromTheLiveEdgeLowerStaysCloserToLiveButIsLessStable"
-      ),
+      label: translateSettings({ key: "settings.targetLiveLatency" }),
+      description: translateSettings({
+        key: "settings.segmentsFromTheLiveEdgeLowerStaysCloserToLiveButIsLessStable",
+      }),
       min: 1,
       max: 10,
       step: 1,
@@ -231,10 +237,10 @@ function getBufferRangeControls(): {
     },
     {
       field: "maxBufferLengthSec",
-      label: translateSettings("settings.forwardBuffer"),
-      description: translateSettings(
-        "settings.secondsOfVideoBufferedAheadHigherResistsStallsButAddsLatency"
-      ),
+      label: translateSettings({ key: "settings.forwardBuffer" }),
+      description: translateSettings({
+        key: "settings.secondsOfVideoBufferedAheadHigherResistsStallsButAddsLatency",
+      }),
       min: 5,
       max: 60,
       step: 1,
@@ -242,10 +248,10 @@ function getBufferRangeControls(): {
     },
     {
       field: "maxMaxBufferLengthSec",
-      label: translateSettings("settings.maxBuffer"),
-      description: translateSettings(
-        "settings.hardCapOnBufferedSecondsTheByteBudgetScalesWithThisValue"
-      ),
+      label: translateSettings({ key: "settings.maxBuffer" }),
+      description: translateSettings({
+        key: "settings.hardCapOnBufferedSecondsTheByteBudgetScalesWithThisValue",
+      }),
       min: 10,
       max: 120,
       step: 5,
@@ -266,33 +272,33 @@ function getPlayerControlToggles(): {
   return [
     {
       field: "showQuality",
-      label: translateSettings("settings.quality"),
-      description: translateSettings("settings.streamQualitySelectorMenuItem"),
+      label: translateSettings({ key: "settings.quality" }),
+      description: translateSettings({ key: "settings.streamQualitySelectorMenuItem" }),
     },
     {
       field: "showPlaybackSpeed",
-      label: translateSettings("settings.playbackSpeed"),
-      description: translateSettings("settings.speedSelectorVodPlayback"),
+      label: translateSettings({ key: "settings.playbackSpeed" }),
+      description: translateSettings({ key: "settings.speedSelectorVodPlayback" }),
     },
     {
       field: "showVolume",
-      label: translateSettings("settings.volume"),
-      description: translateSettings("settings.volumeSliderAndMuteButton"),
+      label: translateSettings({ key: "settings.volume" }),
+      description: translateSettings({ key: "settings.volumeSliderAndMuteButton" }),
     },
     {
       field: "showFullscreen",
-      label: translateSettings("settings.fullscreen"),
-      description: translateSettings("settings.fullscreenToggleButton"),
+      label: translateSettings({ key: "settings.fullscreen" }),
+      description: translateSettings({ key: "settings.fullscreenToggleButton" }),
     },
     {
       field: "showTheater",
-      label: translateSettings("settings.theater"),
-      description: translateSettings("settings.theaterModeToggleButton"),
+      label: translateSettings({ key: "settings.theater" }),
+      description: translateSettings({ key: "settings.theaterModeToggleButton" }),
     },
     {
       field: "showVideoStats",
-      label: translateSettings("settings.videoStats"),
-      description: translateSettings("settings.liveVideoStatsOverlay"),
+      label: translateSettings({ key: "settings.videoStats" }),
+      description: translateSettings({ key: "settings.liveVideoStatsOverlay" }),
     },
   ];
 }
@@ -304,13 +310,13 @@ function getPlaybackAdvancedPlayerTypes(): {
   label: string;
 }[] {
   return [
-    { value: "default", label: translateSettings("settings.defaultRecommended") },
-    { value: "site", label: translateSettings("settings.site") },
-    { value: "embed", label: translateSettings("settings.embed") },
-    { value: "popout", label: translateSettings("settings.popout") },
-    { value: "autoplay", label: translateSettings("settings.autoplay") },
-    { value: "picture-by-picture", label: translateSettings("settings.pictureByPicture") },
-    { value: "thunderdome", label: translateSettings("settings.thunderdome") },
+    { value: "default", label: translateSettings({ key: "settings.defaultRecommended" }) },
+    { value: "site", label: translateSettings({ key: "settings.site" }) },
+    { value: "embed", label: translateSettings({ key: "settings.embed" }) },
+    { value: "popout", label: translateSettings({ key: "settings.popout" }) },
+    { value: "autoplay", label: translateSettings({ key: "settings.autoplay" }) },
+    { value: "picture-by-picture", label: translateSettings({ key: "settings.pictureByPicture" }) },
+    { value: "thunderdome", label: translateSettings({ key: "settings.thunderdome" }) },
   ];
 }
 
@@ -325,45 +331,51 @@ function getNotificationToggles(): {
   return [
     {
       field: "enabled",
-      label: translateSettings("settings.desktopNotifications"),
-      description: translateSettings("settings.showNativeOsNotificationsWhenFollowedStreamsGoLive"),
+      label: translateSettings({ key: "settings.desktopNotifications" }),
+      description: translateSettings({
+        key: "settings.showNativeOsNotificationsWhenFollowedStreamsGoLive",
+      }),
     },
     {
       field: "liveAlerts",
-      label: translateSettings("settings.liveNotifications"),
-      description: translateSettings("settings.keepLiveStreamAlertsInTheAppNotificationHistory"),
+      label: translateSettings({ key: "settings.liveNotifications" }),
+      description: translateSettings({
+        key: "settings.keepLiveStreamAlertsInTheAppNotificationHistory",
+      }),
     },
     {
       field: "twitch",
       label: "Twitch",
-      description: translateSettings("settings.allowLiveNotificationsFromTwitch"),
+      description: translateSettings({ key: "settings.allowLiveNotificationsFromTwitch" }),
     },
     {
       field: "kick",
       label: "Kick",
-      description: translateSettings("settings.allowLiveNotificationsFromKick"),
+      description: translateSettings({ key: "settings.allowLiveNotificationsFromKick" }),
     },
     {
       field: "guestFollows",
-      label: translateSettings("settings.guestFollowNotifications"),
-      description: translateSettings("settings.notifyForChannelsFollowedWhileSignedOut"),
+      label: translateSettings({ key: "settings.guestFollowNotifications" }),
+      description: translateSettings({ key: "settings.notifyForChannelsFollowedWhileSignedOut" }),
     },
     {
       field: "toastAlerts",
-      label: translateSettings("settings.toastNotifications"),
-      description: translateSettings("settings.showInAppToastBannersWhenFollowedStreamsGoLive"),
+      label: translateSettings({ key: "settings.toastNotifications" }),
+      description: translateSettings({
+        key: "settings.showInAppToastBannersWhenFollowedStreamsGoLive",
+      }),
     },
     {
       field: "sound",
-      label: translateSettings("settings.sound"),
-      description: translateSettings("settings.playANotificationSound"),
+      label: translateSettings({ key: "settings.sound" }),
+      description: translateSettings({ key: "settings.playANotificationSound" }),
     },
     {
       field: "favoriteChannelsOnly",
-      label: translateSettings("settings.favoritesOnly"),
-      description: translateSettings(
-        "settings.onlyNotifyForFollowedChannelsWithPerChannelNotificationsEnabled"
-      ),
+      label: translateSettings({ key: "settings.favoritesOnly" }),
+      description: translateSettings({
+        key: "settings.onlyNotifyForFollowedChannelsWithPerChannelNotificationsEnabled",
+      }),
     },
   ];
 }
@@ -373,10 +385,10 @@ function getRestartGraceOptions(): {
   label: string;
 }[] {
   return [
-    { value: 0, label: translateSettings("settings.off") },
-    { value: 5, label: translateSettings("settings.value5Minutes") },
-    { value: 15, label: translateSettings("settings.value15Minutes") },
-    { value: 30, label: translateSettings("settings.value30Minutes") },
+    { value: 0, label: translateSettings({ key: "settings.off" }) },
+    { value: 5, label: translateSettings({ key: "settings.value5Minutes" }) },
+    { value: 15, label: translateSettings({ key: "settings.value15Minutes" }) },
+    { value: 30, label: translateSettings({ key: "settings.value30Minutes" }) },
   ];
 }
 
@@ -390,88 +402,90 @@ function getTabMeta(): Record<
 > {
   return {
     general: {
-      label: translateSettings("settings.general2"),
-      description: translateSettings("settings.languageAndAppPreferences"),
+      label: translateSettings({ key: "settings.general2" }),
+      description: translateSettings({ key: "settings.languageAndAppPreferences" }),
       icon: LuSlidersHorizontal,
     },
     playback: {
-      label: translateSettings("settings.playback"),
-      description: translateSettings("settings.streamQualityPreferences"),
+      label: translateSettings({ key: "settings.playback" }),
+      description: translateSettings({ key: "settings.streamQualityPreferences" }),
       icon: LuMonitor,
     },
     notifications: {
-      label: translateSettings("settings.notifications"),
-      description: translateSettings("settings.liveAlertsDesktopNotices"),
+      label: translateSettings({ key: "settings.notifications" }),
+      description: translateSettings({ key: "settings.liveAlertsDesktopNotices" }),
       icon: LuBell,
     },
     "player-controls": {
-      label: translateSettings("settings.playerControls"),
-      description: translateSettings("settings.showOrHidePlayerButtons"),
+      label: translateSettings({ key: "settings.playerControls" }),
+      description: translateSettings({ key: "settings.showOrHidePlayerButtons" }),
       icon: LuSlidersHorizontal,
     },
     buffer: {
-      label: translateSettings("settings.buffer"),
-      description: translateSettings("settings.liveLatencyStability"),
+      label: translateSettings({ key: "settings.buffer" }),
+      description: translateSettings({ key: "settings.liveLatencyStability" }),
       icon: LuGauge,
     },
     multiview: {
-      label: translateSettings("settings.multiview"),
-      description: translateSettings("settings.slotCountMemoryTradeOff"),
+      label: translateSettings({ key: "settings.multiview" }),
+      description: translateSettings({ key: "settings.slotCountMemoryTradeOff" }),
       icon: LuLayoutGrid,
     },
     chat: {
-      label: translateSettings("settings.chat"),
-      description: translateSettings("settings.appearanceEmotesEvents"),
+      label: translateSettings({ key: "settings.chat" }),
+      description: translateSettings({ key: "settings.appearanceEmotesEvents" }),
       icon: LuMessageSquare,
     },
     adblock: {
-      label: translateSettings("settings.adBlock"),
-      description: translateSettings("settings.twitchAdBlockingSettings"),
+      label: translateSettings({ key: "settings.adBlock" }),
+      description: translateSettings({ key: "settings.twitchAdBlockingSettings" }),
       icon: LuShieldCheck,
     },
     proxy: {
-      label: translateSettings("settings.proxy"),
-      description: translateSettings("settings.proxyDefaultSessionChromiumRequests"),
+      label: translateSettings({ key: "settings.proxy" }),
+      description: translateSettings({ key: "settings.proxyDefaultSessionChromiumRequests" }),
       icon: LuNetwork,
     },
     predictions: {
-      label: translateSettings("settings.predictions"),
-      description: translateSettings("settings.chatPredictionWidgetStyle"),
+      label: translateSettings({ key: "settings.predictions" }),
+      description: translateSettings({ key: "settings.chatPredictionWidgetStyle" }),
       icon: LuTrophy,
     },
     integrations: {
-      label: translateSettings("settings.integrations"),
-      description: translateSettings("settings.connectedAccountsApis"),
+      label: translateSettings({ key: "settings.integrations" }),
+      description: translateSettings({ key: "settings.connectedAccountsApis" }),
       icon: LuLink,
     },
     "api-tokens": {
-      label: translateSettings("settings.apiTokens"),
-      description: translateSettings("settings.signInTokenStatus"),
+      label: translateSettings({ key: "settings.apiTokens" }),
+      description: translateSettings({ key: "settings.signInTokenStatus" }),
       icon: LuKeyRound,
     },
     updates: {
-      label: translateSettings("settings.updates"),
-      description: translateSettings("settings.autoUpdatePreferences"),
+      label: translateSettings({ key: "settings.updates" }),
+      description: translateSettings({ key: "settings.autoUpdatePreferences" }),
       icon: LuRefreshCw,
     },
     diagnostics: {
-      label: translateSettings("settings.diagnostics"),
-      description: translateSettings("settings.inspectLivePerformanceProcessesTracesAndLogs"),
+      label: translateSettings({ key: "settings.diagnostics" }),
+      description: translateSettings({
+        key: "settings.inspectLivePerformanceProcessesTracesAndLogs",
+      }),
       icon: LuActivity,
     },
     logs: {
-      label: translateSettings("settings.logs"),
-      description: translateSettings("settings.inAppLogViewerDiagnostics"),
+      label: translateSettings({ key: "settings.logs" }),
+      description: translateSettings({ key: "settings.inAppLogViewerDiagnostics" }),
       icon: LuFileText,
     },
     "report-bug": {
-      label: translateSettings("settings.reportBug"),
-      description: translateSettings("settings.captureABugReportForSharing"),
+      label: translateSettings({ key: "settings.reportBug" }),
+      description: translateSettings({ key: "settings.captureABugReportForSharing" }),
       icon: LuBug,
     },
     about: {
-      label: translateSettings("settings.about"),
-      description: translateSettings("settings.versionInfo"),
+      label: translateSettings({ key: "settings.about" }),
+      description: translateSettings({ key: "settings.versionInfo" }),
       icon: LuCircleHelp,
     },
   };
@@ -479,21 +493,21 @@ function getTabMeta(): Record<
 
 function getSettingsGroups(): ReadonlyArray<{ label: string; tabs: readonly TabKey[] }> {
   return [
-    { label: translateSettings("settings.general2"), tabs: ["general"] },
+    { label: translateSettings({ key: "settings.general2" }), tabs: ["general"] },
     {
-      label: translateSettings("settings.viewing"),
+      label: translateSettings({ key: "settings.viewing" }),
       tabs: ["playback", "player-controls", "buffer", "multiview"],
     },
     {
-      label: translateSettings("settings.experience"),
+      label: translateSettings({ key: "settings.experience" }),
       tabs: ["notifications", "chat", "predictions"],
     },
     {
-      label: translateSettings("settings.accountsNetwork"),
+      label: translateSettings({ key: "settings.accountsNetwork" }),
       tabs: ["adblock", "proxy", "integrations", "api-tokens"],
     },
     {
-      label: translateSettings("settings.systemSupport"),
+      label: translateSettings({ key: "settings.systemSupport" }),
       tabs: ["updates", "diagnostics", "logs", "report-bug", "about"],
     },
   ];
@@ -513,14 +527,16 @@ function getSettingsIndex(): SettingsIndexEntry[] {
   return [
     {
       tab: "general",
-      label: translateSettings("settings.displayLanguage2"),
-      description: translateSettings("settings.chooseTheLanguageUsedByStreamfusionSInterface"),
+      label: translateSettings({ key: "settings.displayLanguage2" }),
+      description: translateSettings({
+        key: "settings.chooseTheLanguageUsedByStreamfusionSInterface",
+      }),
       keywords: ["language", "locale", "english", "spanish"],
     },
     {
       tab: "playback",
-      label: translateSettings("settings.defaultQuality"),
-      description: translateSettings("settings.preferredStreamQualityWhenAvailable"),
+      label: translateSettings({ key: "settings.defaultQuality" }),
+      description: translateSettings({ key: "settings.preferredStreamQualityWhenAvailable" }),
       keywords: [
         "highest",
         "source",
@@ -537,301 +553,316 @@ function getSettingsIndex(): SettingsIndexEntry[] {
     },
     {
       tab: "playback",
-      label: translateSettings("settings.featuredCarouselTiming"),
-      description: translateSettings("settings.howLongEachHomePageFeaturedStreamStaysActive"),
+      label: translateSettings({ key: "settings.featuredCarouselTiming" }),
+      description: translateSettings({
+        key: "settings.howLongEachHomePageFeaturedStreamStaysActive",
+      }),
       keywords: ["home", "featured", "banner", "carousel", "rotate", "seconds", "minutes"],
     },
     {
       tab: "playback",
-      label: translateSettings("settings.accessTokenPlayerType"),
-      description: translateSettings("settings.playerTypeUsedWhenRequestingTheAdBlockStreamToken"),
+      label: translateSettings({ key: "settings.accessTokenPlayerType" }),
+      description: translateSettings({
+        key: "settings.playerTypeUsedWhenRequestingTheAdBlockStreamToken",
+      }),
       keywords: ["advanced", "site", "embed", "popout", "autoplay", "thunderdome"],
     },
     {
       tab: "playback",
-      label: translateSettings("settings.allowHevcH265"),
-      description: translateSettings("settings.keepHevcStreamsInsteadOfSwappingToAvcDuringAds"),
+      label: translateSettings({ key: "settings.allowHevcH265" }),
+      description: translateSettings({
+        key: "settings.keepHevcStreamsInsteadOfSwappingToAvcDuringAds",
+      }),
       keywords: ["codec", "h265", "advanced"],
     },
     {
       tab: "playback",
-      label: translateSettings("settings.streamDeviceId"),
-      description: translateSettings("settings.identifierSentWithTheAdBlockStreamToken"),
+      label: translateSettings({ key: "settings.streamDeviceId" }),
+      description: translateSettings({ key: "settings.identifierSentWithTheAdBlockStreamToken" }),
       keywords: ["randomize", "device", "advanced"],
     },
     {
       tab: "notifications",
-      label: translateSettings("settings.desktopNotifications"),
-      description: translateSettings(
-        "settings.allowNativeDesktopNotificationsWhenFollowedStreamsGoLive"
-      ),
+      label: translateSettings({ key: "settings.desktopNotifications" }),
+      description: translateSettings({
+        key: "settings.allowNativeDesktopNotificationsWhenFollowedStreamsGoLive",
+      }),
       keywords: ["native", "system", "toast"],
     },
     {
       tab: "notifications",
-      label: translateSettings("settings.liveNotifications"),
-      description: translateSettings(
-        "settings.createLiveNotificationHistoryEntriesWhenFollowedStreamsGoLive"
-      ),
+      label: translateSettings({ key: "settings.liveNotifications" }),
+      description: translateSettings({
+        key: "settings.createLiveNotificationHistoryEntriesWhenFollowedStreamsGoLive",
+      }),
       keywords: ["stream", "live", "history"],
     },
     {
       tab: "notifications",
       label: "Twitch",
-      description: translateSettings("settings.allowTwitchLiveNotifications"),
+      description: translateSettings({ key: "settings.allowTwitchLiveNotifications" }),
     },
     {
       tab: "notifications",
       label: "Kick",
-      description: translateSettings("settings.allowKickLiveNotifications"),
+      description: translateSettings({ key: "settings.allowKickLiveNotifications" }),
     },
     {
       tab: "notifications",
-      label: translateSettings("settings.guestFollowNotifications"),
-      description: translateSettings("settings.notifyForChannelsFollowedWhileSignedOut2"),
+      label: translateSettings({ key: "settings.guestFollowNotifications" }),
+      description: translateSettings({ key: "settings.notifyForChannelsFollowedWhileSignedOut2" }),
       keywords: ["guest", "signed out", "local follows"],
     },
     {
       tab: "notifications",
-      label: translateSettings("settings.toastNotifications"),
-      description: translateSettings("settings.showInAppToastBannersWhenFollowedStreamsGoLive2"),
+      label: translateSettings({ key: "settings.toastNotifications" }),
+      description: translateSettings({
+        key: "settings.showInAppToastBannersWhenFollowedStreamsGoLive2",
+      }),
       keywords: ["toast", "banner", "in-app"],
     },
     {
       tab: "notifications",
-      label: translateSettings("settings.sound"),
-      description: translateSettings("settings.playASoundWithNotifications"),
+      label: translateSettings({ key: "settings.sound" }),
+      description: translateSettings({ key: "settings.playASoundWithNotifications" }),
     },
     {
       tab: "notifications",
-      label: translateSettings("settings.favoritesOnly"),
-      description: translateSettings(
-        "settings.onlyNotifyForFollowedChannelsWithPerChannelNotificationsEnabled2"
-      ),
+      label: translateSettings({ key: "settings.favoritesOnly" }),
+      description: translateSettings({
+        key: "settings.onlyNotifyForFollowedChannelsWithPerChannelNotificationsEnabled2",
+      }),
       keywords: ["favorites", "followed channels"],
     },
     {
       tab: "notifications",
-      label: translateSettings("settings.restartGrace"),
-      description: translateSettings(
-        "settings.cooldownBeforeRepeatNotificationsAfterStreamRestarts"
-      ),
+      label: translateSettings({ key: "settings.restartGrace" }),
+      description: translateSettings({
+        key: "settings.cooldownBeforeRepeatNotificationsAfterStreamRestarts",
+      }),
       keywords: ["cooldown", "restarts", "grace"],
     },
     {
       tab: "notifications",
-      label: translateSettings("settings.perChannelNotifications"),
-      description: translateSettings(
-        "settings.chooseWhichFollowedChannelsAreEligibleWhenFavoritesOnlyIsEnabled"
-      ),
+      label: translateSettings({ key: "settings.perChannelNotifications" }),
+      description: translateSettings({
+        key: "settings.chooseWhichFollowedChannelsAreEligibleWhenFavoritesOnlyIsEnabled",
+      }),
       keywords: ["favorites", "followed channels"],
     },
     {
       tab: "notifications",
-      label: translateSettings("settings.notificationCoverage"),
-      description: translateSettings(
-        "settings.statusForDesktopSupportAndDegradedLiveSourceCoverage"
-      ),
+      label: translateSettings({ key: "settings.notificationCoverage" }),
+      description: translateSettings({
+        key: "settings.statusForDesktopSupportAndDegradedLiveSourceCoverage",
+      }),
       keywords: ["support", "degraded", "status"],
     },
-    // Player controls — array entries (one per toggle in PLAYER_CONTROL_TOGGLES).
     {
       tab: "player-controls",
-      label: translateSettings("settings.quality"),
-      description: translateSettings("settings.streamQualitySelectorMenuItem"),
+      label: translateSettings({ key: "settings.quality" }),
+      description: translateSettings({ key: "settings.streamQualitySelectorMenuItem" }),
     },
     {
       tab: "player-controls",
-      label: translateSettings("settings.playbackSpeed"),
-      description: translateSettings("settings.speedSelectorVodPlayback"),
+      label: translateSettings({ key: "settings.playbackSpeed" }),
+      description: translateSettings({ key: "settings.speedSelectorVodPlayback" }),
     },
     {
       tab: "player-controls",
-      label: translateSettings("settings.volume"),
-      description: translateSettings("settings.volumeSliderAndMuteButton"),
+      label: translateSettings({ key: "settings.volume" }),
+      description: translateSettings({ key: "settings.volumeSliderAndMuteButton" }),
     },
     {
       tab: "player-controls",
-      label: translateSettings("settings.fullscreen"),
-      description: translateSettings("settings.fullscreenToggleButton"),
+      label: translateSettings({ key: "settings.fullscreen" }),
+      description: translateSettings({ key: "settings.fullscreenToggleButton" }),
     },
     {
       tab: "player-controls",
-      label: translateSettings("settings.theater"),
-      description: translateSettings("settings.theaterModeToggleButton"),
+      label: translateSettings({ key: "settings.theater" }),
+      description: translateSettings({ key: "settings.theaterModeToggleButton" }),
     },
     {
       tab: "player-controls",
-      label: translateSettings("settings.videoStats"),
-      description: translateSettings("settings.liveVideoStatsOverlay"),
+      label: translateSettings({ key: "settings.videoStats" }),
+      description: translateSettings({ key: "settings.liveVideoStatsOverlay" }),
     },
     {
       tab: "player-controls",
-      label: translateSettings("settings.rewind"),
-      description: translateSettings("settings.secondsSkippedBackwardInVodsAndClips"),
+      label: translateSettings({ key: "settings.rewind" }),
+      description: translateSettings({ key: "settings.secondsSkippedBackwardInVodsAndClips" }),
       keywords: ["seek", "interval", "backward", "seconds", "VOD", "clip"],
     },
     {
       tab: "player-controls",
-      label: translateSettings("settings.fastForward"),
-      description: translateSettings("settings.secondsSkippedForwardInVodsAndClips"),
+      label: translateSettings({ key: "settings.fastForward" }),
+      description: translateSettings({ key: "settings.secondsSkippedForwardInVodsAndClips" }),
       keywords: ["seek", "interval", "forward", "seconds", "VOD", "clip"],
     },
-    // Buffer
     {
       tab: "buffer",
-      label: translateSettings("settings.lowLatencyMode"),
-      description: translateSettings("settings.trackTheLiveEdgeAggressively"),
+      label: translateSettings({ key: "settings.lowLatencyMode" }),
+      description: translateSettings({ key: "settings.trackTheLiveEdgeAggressively" }),
       keywords: ["latency"],
     },
     {
       tab: "buffer",
-      label: translateSettings("settings.targetLiveLatency"),
-      description: translateSettings("settings.segmentsFromTheLiveEdge"),
+      label: translateSettings({ key: "settings.targetLiveLatency" }),
+      description: translateSettings({ key: "settings.segmentsFromTheLiveEdge" }),
       keywords: ["livesync"],
     },
     {
       tab: "buffer",
-      label: translateSettings("settings.forwardBuffer"),
-      description: translateSettings("settings.secondsOfVideoBufferedAhead"),
+      label: translateSettings({ key: "settings.forwardBuffer" }),
+      description: translateSettings({ key: "settings.secondsOfVideoBufferedAhead" }),
     },
     {
       tab: "buffer",
-      label: translateSettings("settings.maxBuffer"),
-      description: translateSettings("settings.hardCapOnBufferedSeconds"),
+      label: translateSettings({ key: "settings.maxBuffer" }),
+      description: translateSettings({ key: "settings.hardCapOnBufferedSeconds" }),
     },
-    // Multiview (slice 03 + slice 08 background-quality row).
     {
       tab: "multiview",
-      label: translateSettings("settings.concurrentPlaybackBudget"),
-      description: translateSettings(
-        "settings.numberOfSimultaneousVideoDecodersLayoutMembershipStaysUnbounded"
-      ),
+      label: translateSettings({ key: "settings.concurrentPlaybackBudget" }),
+      description: translateSettings({
+        key: "settings.numberOfSimultaneousVideoDecodersLayoutMembershipStaysUnbounded",
+      }),
       keywords: ["multistream", "slots", "budget", "ram", "memory", "grid", "tiles"],
     },
     {
       tab: "multiview",
-      label: translateSettings("settings.backgroundStreamQuality"),
-      description: translateSettings("settings.howNonFocusedSlotsRenderAutoLowMatchSourceOff"),
+      label: translateSettings({ key: "settings.backgroundStreamQuality" }),
+      description: translateSettings({
+        key: "settings.howNonFocusedSlotsRenderAutoLowMatchSourceOff",
+      }),
       keywords: ["background", "quality", "480p", "ram", "memory", "auto-low", "match-source"],
     },
-    // Chat — content delegated to ChatSettingsSection. One umbrella entry so the
-    // tab surfaces for "emotes", "events", "bttv", etc.
     {
       tab: "chat",
-      label: translateSettings("settings.chat"),
-      description: translateSettings("settings.appearanceEmotesEventsBehavior"),
+      label: translateSettings({ key: "settings.chat" }),
+      description: translateSettings({ key: "settings.appearanceEmotesEventsBehavior" }),
       keywords: ["bttv", "7tv", "ffz", "raid", "sub", "emote", "events", "messages"],
     },
     {
       tab: "adblock",
-      label: translateSettings("settings.enableAdBlocking"),
-      description: translateSettings("settings.blockTwitchAdsUsingAlternativePlayerTokens"),
+      label: translateSettings({ key: "settings.enableAdBlocking" }),
+      description: translateSettings({
+        key: "settings.blockTwitchAdsUsingAlternativePlayerTokens",
+      }),
       keywords: ["vaft"],
     },
-    // Proxy — listed per-field so any field name jumps to the tab, but the form
-    // renders as a single unit so users see the full context.
     {
       tab: "proxy",
-      label: translateSettings("settings.twitchPlaylistProxy"),
-      description: translateSettings(
-        "settings.replaceTheCustomTwitchAdBlockerWithOrderedPlaylistProxySources"
-      ),
+      label: translateSettings({ key: "settings.twitchPlaylistProxy" }),
+      description: translateSettings({
+        key: "settings.replaceTheCustomTwitchAdBlockerWithOrderedPlaylistProxySources",
+      }),
       keywords: ["playlist", "fallback", "ad block", "ad blocker"],
     },
     {
       tab: "proxy",
-      label: translateSettings("settings.playlistProxySources"),
-      description: translateSettings("settings.enableReorderAddEditOrRemovePlaylistSources"),
+      label: translateSettings({ key: "settings.playlistProxySources" }),
+      description: translateSettings({
+        key: "settings.enableReorderAddEditOrRemovePlaylistSources",
+      }),
       keywords: ["list", "order", "status", "online", "offline", "health"],
     },
     {
       tab: "proxy",
-      label: translateSettings("settings.enableProxy"),
-      description: translateSettings("settings.routesDefaultSessionChromiumRequestsThroughTheHost"),
+      label: translateSettings({ key: "settings.enableProxy" }),
+      description: translateSettings({
+        key: "settings.routesDefaultSessionChromiumRequestsThroughTheHost",
+      }),
     },
     {
       tab: "proxy",
-      label: translateSettings("settings.host"),
-      description: translateSettings("settings.proxyHostOrIp"),
+      label: translateSettings({ key: "settings.host" }),
+      description: translateSettings({ key: "settings.proxyHostOrIp" }),
       keywords: ["server"],
     },
     {
       tab: "proxy",
-      label: translateSettings("settings.port"),
-      description: translateSettings("settings.proxyPortNumber"),
+      label: translateSettings({ key: "settings.port" }),
+      description: translateSettings({ key: "settings.proxyPortNumber" }),
     },
     {
       tab: "proxy",
-      label: translateSettings("settings.credentials"),
-      description: translateSettings("settings.usernameAndPasswordForTheProxy"),
+      label: translateSettings({ key: "settings.credentials" }),
+      description: translateSettings({ key: "settings.usernameAndPasswordForTheProxy" }),
       keywords: ["username", "password", "auth"],
     },
     {
       tab: "proxy",
-      label: translateSettings("settings.networkLibrary"),
-      description: translateSettings("settings.chromiumBuiltInProxyAwareNetworkEngine"),
+      label: translateSettings({ key: "settings.networkLibrary" }),
+      description: translateSettings({ key: "settings.chromiumBuiltInProxyAwareNetworkEngine" }),
       keywords: ["chromium", "electron", "manifest", "websocket", "direct partition", "http"],
     },
     {
       tab: "predictions",
-      label: translateSettings("settings.style"),
-      description: translateSettings("settings.visualStyleForTheChatPredictionWidget"),
+      label: translateSettings({ key: "settings.style" }),
+      description: translateSettings({ key: "settings.visualStyleForTheChatPredictionWidget" }),
       keywords: ["native", "unified"],
     },
     {
       tab: "integrations",
-      label: translateSettings("settings.connectedAccounts"),
-      description: translateSettings("settings.twitchAndKickAccountConnections"),
+      label: translateSettings({ key: "settings.connectedAccounts" }),
+      description: translateSettings({ key: "settings.twitchAndKickAccountConnections" }),
       keywords: ["sign in", "login", "auth"],
     },
     {
       tab: "api-tokens",
-      label: translateSettings("settings.tokenStatus"),
-      description: translateSettings("settings.signInAndTokenValidity"),
+      label: translateSettings({ key: "settings.tokenStatus" }),
+      description: translateSettings({ key: "settings.signInAndTokenValidity" }),
       keywords: ["scopes", "expiry", "twitch", "kick"],
     },
     {
       tab: "updates",
-      label: translateSettings("settings.allowPreReleaseUpdates"),
-      description: translateSettings("settings.receiveBetaAndPreviewVersionsBeforeStableRelease"),
+      label: translateSettings({ key: "settings.allowPreReleaseUpdates" }),
+      description: translateSettings({
+        key: "settings.receiveBetaAndPreviewVersionsBeforeStableRelease",
+      }),
       keywords: ["beta"],
     },
     {
       tab: "updates",
-      label: translateSettings("settings.checkForUpdatesOnStartup"),
-      description: translateSettings("settings.checkForNewVersionsInTheBackgroundOnASchedule"),
+      label: translateSettings({ key: "settings.checkForUpdatesOnStartup" }),
+      description: translateSettings({
+        key: "settings.checkForNewVersionsInTheBackgroundOnASchedule",
+      }),
     },
     {
       tab: "updates",
-      label: translateSettings("settings.checkFrequency"),
-      description: translateSettings("settings.howOftenToCheckWhenAutomaticUpdatesAreOn"),
+      label: translateSettings({ key: "settings.checkFrequency" }),
+      description: translateSettings({ key: "settings.howOftenToCheckWhenAutomaticUpdatesAreOn" }),
       keywords: ["hourly", "daily", "weekly"],
     },
     {
       tab: "updates",
-      label: translateSettings("settings.checkForUpdates"),
-      description: translateSettings("settings.checkForAvailableUpdatesNow"),
+      label: translateSettings({ key: "settings.checkForUpdates" }),
+      description: translateSettings({ key: "settings.checkForAvailableUpdatesNow" }),
     },
     {
       tab: "diagnostics",
-      label: translateSettings("settings.diagnostics"),
-      description: translateSettings("settings.resourcesProcessesTracesFailuresLogsAndReports"),
+      label: translateSettings({ key: "settings.diagnostics" }),
+      description: translateSettings({
+        key: "settings.resourcesProcessesTracesFailuresLogsAndReports",
+      }),
     },
     {
       tab: "logs",
-      label: translateSettings("settings.logs"),
-      description: translateSettings("settings.inAppLogViewerAndDiagnostics"),
+      label: translateSettings({ key: "settings.logs" }),
+      description: translateSettings({ key: "settings.inAppLogViewerAndDiagnostics" }),
     },
     {
       tab: "report-bug",
-      label: translateSettings("settings.reportABug"),
-      description: translateSettings("settings.generateABugReportFile"),
+      label: translateSettings({ key: "settings.reportABug" }),
+      description: translateSettings({ key: "settings.generateABugReportFile" }),
     },
     {
       tab: "about",
-      label: translateSettings("settings.about"),
-      description: translateSettings("settings.versionAndInfo"),
+      label: translateSettings({ key: "settings.about" }),
+      description: translateSettings({ key: "settings.versionAndInfo" }),
     },
   ];
 }
@@ -1212,7 +1243,7 @@ export function SettingsPage() {
   }, []);
   const handleRandomizeDeviceId = () => {
     setAdBlockDeviceId(randomizeAdBlockDeviceId());
-    notifySettingsSaved(translateSettings("settings.streamDeviceIdRandomized"));
+    notifySettingsSaved(translateSettings({ key: "settings.streamDeviceIdRandomized" }));
   };
 
   // ===== Proxy (U12) =====
@@ -1336,10 +1367,10 @@ export function SettingsPage() {
               className="h-5 w-5 text-[var(--color-foreground-secondary)]"
               aria-hidden
             />
-            {translateSettings("settings.settings")}
+            {translateSettings({ key: "settings.settings" })}
           </h1>
           <p className="mt-1 text-xs text-[var(--color-foreground-secondary)]">
-            {translateSettings("settings.personalizeYourStreamfusionExperience")}
+            {translateSettings({ key: "settings.personalizeYourStreamfusionExperience" })}
           </p>
         </div>
 
@@ -1355,8 +1386,8 @@ export function SettingsPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={translateSettings("settings.searchSettings")}
-              aria-label={translateSettings("settings.searchSettings")}
+              placeholder={translateSettings({ key: "settings.searchSettings" })}
+              aria-label={translateSettings({ key: "settings.searchSettings" })}
               autoComplete="off"
               spellCheck={false}
               className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background-tertiary)] py-2 pl-9 pr-9 text-sm text-[var(--color-foreground)] placeholder:text-[var(--color-foreground-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
@@ -1365,7 +1396,7 @@ export function SettingsPage() {
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                aria-label={translateSettings("settings.clearSearch")}
+                aria-label={translateSettings({ key: "settings.clearSearch" })}
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--color-foreground-muted)] hover:bg-[var(--color-background-elevated)] hover:text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
               >
                 <LuX className="w-3.5 h-3.5" />
@@ -1375,7 +1406,7 @@ export function SettingsPage() {
         </div>
 
         <nav
-          aria-label={translateSettings("settings.settingsNavigation")}
+          aria-label={translateSettings({ key: "settings.settingsNavigation" })}
           className="flex-1 space-y-3 overflow-y-auto px-3 pb-4 pt-2"
         >
           {settingsGroups.map((group) => {
@@ -1395,15 +1426,21 @@ export function SettingsPage() {
             return (
               <section
                 key={group.label}
-                aria-label={translateSettings("settings.valueSettings", { value1: group.label })}
+                aria-label={translateSettings({
+                  key: "settings.valueSettings",
+                  options: { value1: group.label },
+                })}
                 className="overflow-hidden rounded-xl border border-[#333333] bg-[#1a1a1a]"
               >
                 <button
                   type="button"
                   aria-expanded={isGroupOpen}
                   aria-controls={groupPanelId}
-                  aria-label={translateSettings("settings.valueSettingsSection", {
-                    value1: group.label,
+                  aria-label={translateSettings({
+                    key: "settings.valueSettingsSection",
+                    options: {
+                      value1: group.label,
+                    },
                   })}
                   onClick={() => {
                     if (!containsActiveTab) navigateToTab(firstVisibleTab, false, true);
@@ -1451,7 +1488,7 @@ export function SettingsPage() {
 
           {!hasVisibleTabMatches && (
             <p className="px-2 py-6 text-center text-sm text-[var(--color-foreground-muted)]">
-              {translateSettings("settings.noSettingsMatch")}
+              {translateSettings({ key: "settings.noSettingsMatch" })}
               {searchQuery}".
             </p>
           )}
@@ -1462,8 +1499,11 @@ export function SettingsPage() {
       <div
         ref={contentScrollerRef}
         role="region"
-        aria-label={translateSettings("settings.valueSettings", {
-          value1: tabMeta[activeTab].label,
+        aria-label={translateSettings({
+          key: "settings.valueSettings",
+          options: {
+            value1: tabMeta[activeTab].label,
+          },
         })}
         className="flex-1 overflow-y-auto bg-[var(--color-background)]"
       >
@@ -1497,10 +1537,10 @@ export function SettingsPage() {
                 <LuSearch className="w-5 h-5 text-zinc-500" />
               </div>
               <h2 className="text-lg font-semibold text-zinc-200 mb-1">
-                {translateSettings("settings.noSettingsFound")}
+                {translateSettings({ key: "settings.noSettingsFound" })}
               </h2>
               <p className="text-sm text-zinc-500 mb-4">
-                {translateSettings("settings.nothingMatches")}
+                {translateSettings({ key: "settings.nothingMatches" })}
                 {searchQuery}".
               </p>
               <button
@@ -1508,7 +1548,7 @@ export function SettingsPage() {
                 onClick={() => setSearchQuery("")}
                 className="text-sm font-medium text-zinc-300 hover:text-white hover:underline"
               >
-                {translateSettings("settings.clearSearch")}
+                {translateSettings({ key: "settings.clearSearch" })}
               </button>
             </div>
           ) : (
@@ -1546,10 +1586,12 @@ export function SettingsPage() {
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">
-                      {translateSettings("settings.playback")}
+                      {translateSettings({ key: "settings.playback" })}
                     </h2>
                     <p className="text-zinc-400">
-                      {translateSettings("settings.manageYourDefaultStreamViewingExperience")}
+                      {translateSettings({
+                        key: "settings.manageYourDefaultStreamViewingExperience",
+                      })}
                     </p>
                   </div>
 
@@ -1559,10 +1601,12 @@ export function SettingsPage() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="font-medium text-zinc-200">
-                              {translateSettings("settings.defaultQuality")}
+                              {translateSettings({ key: "settings.defaultQuality" })}
                             </p>
                             <p className="text-sm text-zinc-500 mt-1">
-                              {translateSettings("settings.preferredStreamQualityWhenAvailable")}
+                              {translateSettings({
+                                key: "settings.preferredStreamQualityWhenAvailable",
+                              })}
                             </p>
                           </div>
                           <div className="flex items-center gap-3">
@@ -1575,37 +1619,37 @@ export function SettingsPage() {
                               onValueChange={handleQualityChange}
                             >
                               <SelectTrigger
-                                aria-label={translateSettings("settings.defaultQuality")}
+                                aria-label={translateSettings({ key: "settings.defaultQuality" })}
                                 className="w-[180px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20"
                               >
                                 <SelectValue
-                                  placeholder={translateSettings("settings.selectQuality")}
+                                  placeholder={translateSettings({ key: "settings.selectQuality" })}
                                 />
                               </SelectTrigger>
                               <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
                                 <SelectItem value="auto">
-                                  {translateSettings("settings.auto")}
+                                  {translateSettings({ key: "settings.auto" })}
                                 </SelectItem>
                                 <SelectItem value="highest">
-                                  {translateSettings("settings.highest")}
+                                  {translateSettings({ key: "settings.highest" })}
                                 </SelectItem>
                                 <SelectItem value="1440p">
-                                  {translateSettings("settings.value1440p2k")}
+                                  {translateSettings({ key: "settings.value1440p2k" })}
                                 </SelectItem>
                                 <SelectItem value="1080p">
-                                  {translateSettings("settings.value1080p60")}
+                                  {translateSettings({ key: "settings.value1080p60" })}
                                 </SelectItem>
                                 <SelectItem value="720p">
-                                  {translateSettings("settings.value720p60")}
+                                  {translateSettings({ key: "settings.value720p60" })}
                                 </SelectItem>
                                 <SelectItem value="480p">
-                                  {translateSettings("settings.value480p")}
+                                  {translateSettings({ key: "settings.value480p" })}
                                 </SelectItem>
                                 <SelectItem value="360p">
-                                  {translateSettings("settings.value360p")}
+                                  {translateSettings({ key: "settings.value360p" })}
                                 </SelectItem>
                                 <SelectItem value="160p">
-                                  {translateSettings("settings.value160p")}
+                                  {translateSettings({ key: "settings.value160p" })}
                                 </SelectItem>
                               </SelectContent>
                             </Select>
@@ -1623,12 +1667,12 @@ export function SettingsPage() {
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0">
                             <p className="font-medium text-zinc-200">
-                              {translateSettings("settings.featuredCarouselTiming")}
+                              {translateSettings({ key: "settings.featuredCarouselTiming" })}
                             </p>
                             <p className="text-sm text-zinc-500 mt-1">
-                              {translateSettings(
-                                "settings.howLongEachHomePageFeaturedStreamStaysActiveBeforeRotatingCurren"
-                              )}
+                              {translateSettings({
+                                key: "settings.howLongEachHomePageFeaturedStreamStaysActiveBeforeRotatingCurren",
+                              })}
                               {formatCarouselIntervalLabel(homeCarouselIntervalSeconds)}.
                             </p>
                           </div>
@@ -1636,7 +1680,9 @@ export function SettingsPage() {
                           <div className="flex w-full items-center gap-3 sm:w-[360px]">
                             <input
                               type="range"
-                              aria-label={translateSettings("settings.featuredCarouselTiming")}
+                              aria-label={translateSettings({
+                                key: "settings.featuredCarouselTiming",
+                              })}
                               min={homeCarouselIntervalMinSeconds}
                               max={homeCarouselIntervalMaxSeconds}
                               step={HOME_CAROUSEL_INTERVAL_STEP_SECONDS}
@@ -1649,9 +1695,9 @@ export function SettingsPage() {
                             <div className="flex shrink-0 items-center rounded-lg border border-[#27272a] bg-[#18181b] pr-2 text-sm text-zinc-500">
                               <input
                                 type="number"
-                                aria-label={translateSettings(
-                                  "settings.featuredCarouselTimingSeconds"
-                                )}
+                                aria-label={translateSettings({
+                                  key: "settings.featuredCarouselTimingSeconds",
+                                })}
                                 min={homeCarouselIntervalMinSeconds}
                                 max={homeCarouselIntervalMaxSeconds}
                                 step={HOME_CAROUSEL_INTERVAL_STEP_SECONDS}
@@ -1661,7 +1707,7 @@ export function SettingsPage() {
                                 }
                                 className="h-9 w-16 rounded-l-lg bg-transparent px-2 text-right text-zinc-200 outline-none"
                               />
-                              {translateSettings("settings.sec")}
+                              {translateSettings({ key: "settings.sec" })}
                             </div>
                           </div>
                         </div>
@@ -1677,7 +1723,7 @@ export function SettingsPage() {
                     <div className="rounded-xl border border-amber-500/20 bg-[#121214] overflow-hidden">
                       <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
                         <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                          {translateSettings("settings.advancedStreamToken")}
+                          {translateSettings({ key: "settings.advancedStreamToken" })}
                         </h3>
                       </div>
 
@@ -1685,9 +1731,9 @@ export function SettingsPage() {
                       <div className="mx-6 mt-4 flex items-start gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300/90">
                         <LuTriangleAlert className="w-5 h-5 flex-shrink-0 mt-0.5" />
                         <p className="text-sm leading-relaxed">
-                          {translateSettings(
-                            "settings.theseAffectHowTheTwitchStreamTokenIsRequestedWrongValuesCanBreak"
-                          )}
+                          {translateSettings({
+                            key: "settings.theseAffectHowTheTwitchStreamTokenIsRequestedWrongValuesCanBreak",
+                          })}
                         </p>
                       </div>
 
@@ -1697,12 +1743,12 @@ export function SettingsPage() {
                           <div className="flex items-center justify-between gap-4 py-3">
                             <div className="min-w-0 flex-1">
                               <p className="font-medium text-zinc-200">
-                                {translateSettings("settings.accessTokenPlayerType")}
+                                {translateSettings({ key: "settings.accessTokenPlayerType" })}
                               </p>
                               <p className="text-sm text-zinc-500 mt-0.5">
-                                {translateSettings(
-                                  "settings.playerTypeUsedWhenRequestingTheAdBlockStreamTokenLeaveOnDefaultU"
-                                )}
+                                {translateSettings({
+                                  key: "settings.playerTypeUsedWhenRequestingTheAdBlockStreamTokenLeaveOnDefaultU",
+                                })}
                               </p>
                             </div>
                             <Select
@@ -1715,11 +1761,15 @@ export function SettingsPage() {
                               }
                             >
                               <SelectTrigger
-                                aria-label={translateSettings("settings.accessTokenPlayerType")}
+                                aria-label={translateSettings({
+                                  key: "settings.accessTokenPlayerType",
+                                })}
                                 className="w-[200px] flex-shrink-0 bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-amber-500/20"
                               >
                                 <SelectValue
-                                  placeholder={translateSettings("settings.selectPlayerType")}
+                                  placeholder={translateSettings({
+                                    key: "settings.selectPlayerType",
+                                  })}
                                 />
                               </SelectTrigger>
                               <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
@@ -1738,18 +1788,18 @@ export function SettingsPage() {
                           <div className="flex items-center justify-between gap-4 py-3">
                             <div className="min-w-0 flex-1">
                               <p className="font-medium text-zinc-200">
-                                {translateSettings("settings.allowHevcH265")}
+                                {translateSettings({ key: "settings.allowHevcH265" })}
                               </p>
                               <p className="text-sm text-zinc-500 mt-0.5">
-                                {translateSettings(
-                                  "settings.keepHevcStreamsInsteadOfSwappingToAvcDuringAdsOffByDefaultEnabli"
-                                )}
+                                {translateSettings({
+                                  key: "settings.keepHevcStreamsInsteadOfSwappingToAvcDuringAdsOffByDefaultEnabli",
+                                })}
                               </p>
                             </div>
                             <Switch
                               checked={playbackAdvanced.allowHevc}
                               onCheckedChange={(v) => handlePlaybackAdvancedChange("allowHevc", v)}
-                              aria-label={translateSettings("settings.allowHevc")}
+                              aria-label={translateSettings({ key: "settings.allowHevc" })}
                             />
                           </div>
                         )}
@@ -1759,25 +1809,27 @@ export function SettingsPage() {
                           <div className="flex items-center justify-between gap-4 py-3">
                             <div className="min-w-0 flex-1">
                               <p className="font-medium text-zinc-200">
-                                {translateSettings("settings.streamDeviceId")}
+                                {translateSettings({ key: "settings.streamDeviceId" })}
                               </p>
                               <p className="text-sm text-zinc-500 mt-0.5">
-                                {translateSettings(
-                                  "settings.identifierSentWithTheAdBlockStreamToken2"
-                                )}{" "}
+                                {translateSettings({
+                                  key: "settings.identifierSentWithTheAdBlockStreamToken2",
+                                })}{" "}
                                 {adBlockDeviceId ? (
                                   <>
-                                    {translateSettings("settings.current")}{" "}
+                                    {translateSettings({ key: "settings.current" })}{" "}
                                     <code className="text-zinc-400">
                                       {adBlockDeviceId.slice(0, 8)}…
                                     </code>
                                   </>
                                 ) : (
-                                  translateSettings("settings.notYetGeneratedSetOnFirstStreamLoad")
+                                  translateSettings({
+                                    key: "settings.notYetGeneratedSetOnFirstStreamLoad",
+                                  })
                                 )}{" "}
-                                {translateSettings(
-                                  "settings.randomizingTakesEffectOnTheNextStreamLoad"
-                                )}
+                                {translateSettings({
+                                  key: "settings.randomizingTakesEffectOnTheNextStreamLoad",
+                                })}
                               </p>
                             </div>
                             <Button
@@ -1786,7 +1838,7 @@ export function SettingsPage() {
                               onClick={handleRandomizeDeviceId}
                               className="flex-shrink-0 bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
                             >
-                              {translateSettings("settings.randomize")}
+                              {translateSettings({ key: "settings.randomize" })}
                             </Button>
                           </div>
                         )}
@@ -1801,12 +1853,12 @@ export function SettingsPage() {
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">
-                      {translateSettings("settings.notifications")}
+                      {translateSettings({ key: "settings.notifications" })}
                     </h2>
                     <p className="text-zinc-400">
-                      {translateSettings(
-                        "settings.controlLiveStreamAlertsDesktopNoticesRestartCooldownsAndFollowed"
-                      )}
+                      {translateSettings({
+                        key: "settings.controlLiveStreamAlertsDesktopNoticesRestartCooldownsAndFollowed",
+                      })}
                     </p>
                   </div>
 
@@ -1821,7 +1873,7 @@ export function SettingsPage() {
                       <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
                           <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                            {translateSettings("settings.liveNotificationPreferences")}
+                            {translateSettings({ key: "settings.liveNotificationPreferences" })}
                           </h3>
                         </div>
 
@@ -1846,12 +1898,12 @@ export function SettingsPage() {
                             <div className="flex items-center justify-between gap-4 py-3">
                               <div className="min-w-0 flex-1">
                                 <p className="font-medium text-zinc-200">
-                                  {translateSettings("settings.restartGrace")}
+                                  {translateSettings({ key: "settings.restartGrace" })}
                                 </p>
                                 <p className="text-sm text-zinc-500 mt-0.5">
-                                  {translateSettings(
-                                    "settings.suppressRepeatAlertsWhenAStreamRestartsInsideTheSelectedCooldown"
-                                  )}
+                                  {translateSettings({
+                                    key: "settings.suppressRepeatAlertsWhenAStreamRestartsInsideTheSelectedCooldown",
+                                  })}
                                 </p>
                               </div>
                               <Select
@@ -1866,11 +1918,13 @@ export function SettingsPage() {
                                 }
                               >
                                 <SelectTrigger
-                                  aria-label={translateSettings("settings.restartGrace")}
+                                  aria-label={translateSettings({ key: "settings.restartGrace" })}
                                   className="w-[180px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-zinc-500/30"
                                 >
                                   <SelectValue
-                                    placeholder={translateSettings("settings.restartGrace")}
+                                    placeholder={translateSettings({
+                                      key: "settings.restartGrace",
+                                    })}
                                   />
                                 </SelectTrigger>
                                 <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
@@ -1893,12 +1947,12 @@ export function SettingsPage() {
                       <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
                         <div>
                           <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                            {translateSettings("settings.followedChannels")}
+                            {translateSettings({ key: "settings.followedChannels" })}
                           </h3>
                           <p className="text-sm text-zinc-500 mt-1">
-                            {translateSettings(
-                              "settings.newFollowsAreEnabledByDefaultFavoritesOnlyUsesTheseSwitchesToDec"
-                            )}
+                            {translateSettings({
+                              key: "settings.newFollowsAreEnabledByDefaultFavoritesOnlyUsesTheseSwitchesToDec",
+                            })}
                           </p>
                         </div>
                         <button
@@ -1906,8 +1960,8 @@ export function SettingsPage() {
                           aria-expanded={followedChannelNotificationsExpanded}
                           aria-label={
                             followedChannelNotificationsExpanded
-                              ? translateSettings("settings.hideFollowedChannels")
-                              : translateSettings("settings.showFollowedChannels")
+                              ? translateSettings({ key: "settings.hideFollowedChannels" })
+                              : translateSettings({ key: "settings.showFollowedChannels" })
                           }
                           onClick={() =>
                             setFollowedChannelNotificationsExpanded((expanded) => !expanded)
@@ -1937,8 +1991,12 @@ export function SettingsPage() {
                                   type="text"
                                   value={followedChannelSearch}
                                   onChange={(e) => setFollowedChannelSearch(e.target.value)}
-                                  placeholder={translateSettings("settings.searchFollowedChannels")}
-                                  aria-label={translateSettings("settings.searchFollowedChannels")}
+                                  placeholder={translateSettings({
+                                    key: "settings.searchFollowedChannels",
+                                  })}
+                                  aria-label={translateSettings({
+                                    key: "settings.searchFollowedChannels",
+                                  })}
                                   autoComplete="off"
                                   spellCheck={false}
                                   className="w-full rounded-lg border border-[#27272a] bg-[#18181b] py-2 pl-9 pr-9 text-sm text-zinc-200 placeholder:text-zinc-500 focus:border-zinc-500/40 focus:outline-none focus:ring-2 focus:ring-zinc-500/30"
@@ -1947,9 +2005,9 @@ export function SettingsPage() {
                                   <button
                                     type="button"
                                     onClick={() => setFollowedChannelSearch("")}
-                                    aria-label={translateSettings(
-                                      "settings.clearFollowedChannelSearch"
-                                    )}
+                                    aria-label={translateSettings({
+                                      key: "settings.clearFollowedChannelSearch",
+                                    })}
                                     className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-zinc-500 hover:bg-[#27272a] hover:text-zinc-200"
                                   >
                                     <LuX className="h-3.5 w-3.5" />
@@ -1961,11 +2019,11 @@ export function SettingsPage() {
 
                           {followedChannels.length === 0 ? (
                             <div className="px-6 py-8 text-sm text-zinc-500">
-                              {translateSettings("settings.noFollowedChannelsYet")}
+                              {translateSettings({ key: "settings.noFollowedChannelsYet" })}
                             </div>
                           ) : filteredFollowedChannels.length === 0 ? (
                             <div className="px-6 py-8 text-sm text-zinc-500">
-                              {translateSettings("settings.noFollowedChannelsMatch")}
+                              {translateSettings({ key: "settings.noFollowedChannelsMatch" })}
                               {followedChannelSearch}".
                             </div>
                           ) : (
@@ -1984,10 +2042,10 @@ export function SettingsPage() {
                                     </p>
                                   </div>
                                   <Switch
-                                    aria-label={translateSettings(
-                                      "settings.notificationsForValue",
-                                      { value1: channel.displayName || channel.username }
-                                    )}
+                                    aria-label={translateSettings({
+                                      key: "settings.notificationsForValue",
+                                      options: { value1: channel.displayName || channel.username },
+                                    })}
                                     checked={isPerChannelNotificationEnabled(
                                       notifications,
                                       channel
@@ -2009,13 +2067,13 @@ export function SettingsPage() {
                     <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
                       <div className="px-6 py-4 border-b border-[#27272a]">
                         <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                          {translateSettings("settings.notificationCoverage")}
+                          {translateSettings({ key: "settings.notificationCoverage" })}
                         </h3>
                       </div>
                       <div className="px-6 py-4 grid gap-3 sm:grid-cols-2">
                         <div className="rounded-lg border border-[#27272a] bg-[#18181b] p-4">
                           <p className="text-sm font-medium text-zinc-200">
-                            {translateSettings("settings.desktopNotificationSupport")}
+                            {translateSettings({ key: "settings.desktopNotificationSupport" })}
                           </p>
                           <p className="text-sm text-zinc-500 mt-1">
                             {formatDesktopNotificationStatus(
@@ -2030,18 +2088,21 @@ export function SettingsPage() {
                           const isDegraded = platformCoverage?.status === "degraded";
                           const statusLabel = platformCoverage
                             ? isDegraded
-                              ? translateSettings("settings.degraded")
-                              : translateSettings("settings.normal")
-                            : translateSettings("settings.statusUnavailable");
+                              ? translateSettings({ key: "settings.degraded" })
+                              : translateSettings({ key: "settings.normal" })
+                            : translateSettings({ key: "settings.statusUnavailable" });
                           return (
                             <div
                               key={platform}
                               className="rounded-lg border border-[#27272a] bg-[#18181b] p-4"
                             >
                               <p className="text-sm font-medium text-zinc-200">
-                                {translateSettings("settings.platformCoverageStatus", {
-                                  platform: formatPlatformLabel(platform),
-                                  status: statusLabel,
+                                {translateSettings({
+                                  key: "settings.platformCoverageStatus",
+                                  options: {
+                                    platform: formatPlatformLabel(platform),
+                                    status: statusLabel,
+                                  },
                                 })}
                               </p>
                               {platformCoverage?.issues.length ? (
@@ -2057,9 +2118,9 @@ export function SettingsPage() {
                                 </div>
                               ) : (
                                 <p className="text-sm text-zinc-500 mt-1">
-                                  {translateSettings(
-                                    "settings.liveNotificationsAreMonitoringNormally"
-                                  )}
+                                  {translateSettings({
+                                    key: "settings.liveNotificationsAreMonitoringNormally",
+                                  })}
                                 </p>
                               )}
                             </div>
@@ -2076,12 +2137,12 @@ export function SettingsPage() {
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">
-                      {translateSettings("settings.playerControls")}
+                      {translateSettings({ key: "settings.playerControls" })}
                     </h2>
                     <p className="text-zinc-400">
-                      {translateSettings(
-                        "settings.chooseWhichButtonsAppearInThePlayerHidingAControlOnlyRemovesItsB"
-                      )}
+                      {translateSettings({
+                        key: "settings.chooseWhichButtonsAppearInThePlayerHidingAControlOnlyRemovesItsB",
+                      })}
                     </p>
                   </div>
 
@@ -2094,7 +2155,7 @@ export function SettingsPage() {
                       <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
                           <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                            {translateSettings("settings.visibleControls")}
+                            {translateSettings({ key: "settings.visibleControls" })}
                           </h3>
                         </div>
                         <div className="px-6 py-2 divide-y divide-[#27272a]/60">
@@ -2124,12 +2185,12 @@ export function SettingsPage() {
                     <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-background-secondary)]">
                       <div className="border-b border-[var(--color-border)] px-6 py-4">
                         <h3 className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-foreground-muted)]">
-                          {translateSettings("settings.seekIntervals")}
+                          {translateSettings({ key: "settings.seekIntervals" })}
                         </h3>
                         <p className="mt-1 text-xs text-[var(--color-foreground-secondary)]">
-                          {translateSettings(
-                            "settings.seekIntervalsApplyToVodsAndClipsLiveStreamsAreUnaffected"
-                          )}
+                          {translateSettings({
+                            key: "settings.seekIntervalsApplyToVodsAndClipsLiveStreamsAreUnaffected",
+                          })}
                         </p>
                       </div>
                       <div className="divide-y divide-[var(--color-border)] px-6 py-2">
@@ -2140,13 +2201,15 @@ export function SettingsPage() {
                                 className="font-medium text-[var(--color-foreground)]"
                                 htmlFor="rewind-seconds"
                               >
-                                {translateSettings("settings.rewind")}
+                                {translateSettings({ key: "settings.rewind" })}
                               </label>
                               <p
                                 className="mt-0.5 text-sm text-[var(--color-foreground-muted)]"
                                 id="rewind-seconds-description"
                               >
-                                {translateSettings("settings.secondsSkippedBackwardInVodsAndClips")}
+                                {translateSettings({
+                                  key: "settings.secondsSkippedBackwardInVodsAndClips",
+                                })}
                               </p>
                             </div>
                             <SeekIntervalSelect
@@ -2168,13 +2231,15 @@ export function SettingsPage() {
                                 className="font-medium text-[var(--color-foreground)]"
                                 htmlFor="fast-forward-seconds"
                               >
-                                {translateSettings("settings.fastForward")}
+                                {translateSettings({ key: "settings.fastForward" })}
                               </label>
                               <p
                                 className="mt-0.5 text-sm text-[var(--color-foreground-muted)]"
                                 id="fast-forward-seconds-description"
                               >
-                                {translateSettings("settings.secondsSkippedForwardInVodsAndClips")}
+                                {translateSettings({
+                                  key: "settings.secondsSkippedForwardInVodsAndClips",
+                                })}
                               </p>
                             </div>
                             <SeekIntervalSelect
@@ -2199,12 +2264,12 @@ export function SettingsPage() {
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">
-                      {translateSettings("settings.buffer")}
+                      {translateSettings({ key: "settings.buffer" })}
                     </h2>
                     <p className="text-zinc-400">
-                      {translateSettings(
-                        "settings.tuneTheLatencyVsStabilityTradeoffForLiveStreamsTwitchKickTheseAp"
-                      )}
+                      {translateSettings({
+                        key: "settings.tuneTheLatencyVsStabilityTradeoffForLiveStreamsTwitchKickTheseAp",
+                      })}
                     </p>
                   </div>
 
@@ -2218,7 +2283,7 @@ export function SettingsPage() {
                       <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
                         <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
                           <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                            {translateSettings("settings.liveBuffer")}
+                            {translateSettings({ key: "settings.liveBuffer" })}
                           </h3>
                           <div className="flex items-center gap-3">
                             <Button
@@ -2227,7 +2292,7 @@ export function SettingsPage() {
                               onClick={handleBufferReset}
                               className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
                             >
-                              {translateSettings("settings.resetToDefaults")}
+                              {translateSettings({ key: "settings.resetToDefaults" })}
                             </Button>
                           </div>
                         </div>
@@ -2238,12 +2303,12 @@ export function SettingsPage() {
                             <div className="flex items-center justify-between gap-4 py-3">
                               <div className="min-w-0 flex-1">
                                 <p className="font-medium text-zinc-200">
-                                  {translateSettings("settings.lowLatencyMode")}
+                                  {translateSettings({ key: "settings.lowLatencyMode" })}
                                 </p>
                                 <p className="text-sm text-zinc-500 mt-0.5">
-                                  {translateSettings(
-                                    "settings.trackTheLiveEdgeAggressivelyDisableForSteadierPlaybackOnFlakyCon"
-                                  )}
+                                  {translateSettings({
+                                    key: "settings.trackTheLiveEdgeAggressivelyDisableForSteadierPlaybackOnFlakyCon",
+                                  })}
                                 </p>
                               </div>
                               <Switch
@@ -2287,7 +2352,9 @@ export function SettingsPage() {
                         </div>
 
                         <div className="px-6 py-3 border-t border-[#27272a] text-xs text-zinc-500">
-                          {translateSettings("settings.changesApplyWhenTheStreamNextLoads")}
+                          {translateSettings({
+                            key: "settings.changesApplyWhenTheStreamNextLoads",
+                          })}
                         </div>
                       </div>
                     );
@@ -2300,12 +2367,12 @@ export function SettingsPage() {
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">
-                      {translateSettings("settings.multiview")}
+                      {translateSettings({ key: "settings.multiview" })}
                     </h2>
                     <p className="text-zinc-400">
-                      {translateSettings(
-                        "settings.keepAnyNumberOfChannelsInYourLayoutChooseHowManyPlayAtOnceAndCon"
-                      )}
+                      {translateSettings({
+                        key: "settings.keepAnyNumberOfChannelsInYourLayoutChooseHowManyPlayAtOnceAndCon",
+                      })}
                     </p>
                   </div>
 
@@ -2313,7 +2380,7 @@ export function SettingsPage() {
                     <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
                       <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
                         <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                          {translateSettings("settings.playbackBudget")}
+                          {translateSettings({ key: "settings.playbackBudget" })}
                         </h3>
                       </div>
 
@@ -2321,12 +2388,12 @@ export function SettingsPage() {
                         <div className="flex items-center justify-between gap-4 py-4">
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-zinc-200">
-                              {translateSettings("settings.concurrentPlaybackBudget")}
+                              {translateSettings({ key: "settings.concurrentPlaybackBudget" })}
                             </p>
                             <p className="text-sm text-zinc-500 mt-0.5 leading-relaxed">
-                              {translateSettings(
-                                "settings.addAsManyChannelsAsYouNeedThisBudgetControlsHowManyVideoDecoders"
-                              )}
+                              {translateSettings({
+                                key: "settings.addAsManyChannelsAsYouNeedThisBudgetControlsHowManyVideoDecoders",
+                              })}
                             </p>
                           </div>
                           <div className="flex items-center gap-3 flex-shrink-0">
@@ -2339,22 +2406,24 @@ export function SettingsPage() {
                                 handlePlaybackBudgetChange(Number.parseInt(e.target.value, 10))
                               }
                               className="w-24 rounded-md border border-[#27272a] bg-[#1a1a1a] px-3 py-2 text-right text-zinc-200"
-                              aria-label={translateSettings("settings.concurrentPlaybackBudget")}
+                              aria-label={translateSettings({
+                                key: "settings.concurrentPlaybackBudget",
+                              })}
                             />
                             <span className="w-16 text-right text-sm tabular-nums text-zinc-200">
                               {playbackBudget}{" "}
                               {playbackBudget === 1
-                                ? translateSettings("settings.stream")
-                                : translateSettings("settings.streams")}
+                                ? translateSettings({ key: "settings.stream" })
+                                : translateSettings({ key: "settings.streams" })}
                             </span>
                           </div>
                         </div>
                       </div>
 
                       <div className="px-6 py-3 border-t border-[#27272a] text-xs text-zinc-500">
-                        {translateSettings("settings.minimum")}
+                        {translateSettings({ key: "settings.minimum" })}
                         {MULTIVIEW_PLAYBACK_BUDGET_MIN}
-                        {translateSettings("settings.defaultIs4ThereIsNoHardMaximum")}
+                        {translateSettings({ key: "settings.defaultIs4ThereIsNoHardMaximum" })}
                       </div>
                     </div>
                   )}
@@ -2367,7 +2436,7 @@ export function SettingsPage() {
                     <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
                       <div className="flex items-center justify-between px-6 py-4 border-b border-[#27272a]">
                         <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                          {translateSettings("settings.backgroundStreams")}
+                          {translateSettings({ key: "settings.backgroundStreams" })}
                         </h3>
                       </div>
 
@@ -2375,12 +2444,12 @@ export function SettingsPage() {
                         <div className="flex items-center justify-between gap-4 py-4">
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-zinc-200">
-                              {translateSettings("settings.backgroundStreamQuality")}
+                              {translateSettings({ key: "settings.backgroundStreamQuality" })}
                             </p>
                             <p className="text-sm text-zinc-500 mt-0.5 leading-relaxed">
-                              {translateSettings(
-                                "settings.howNonFocusedStreamsRenderLowerSettingsFreeUpRamAndBandwidthSoTh"
-                              )}
+                              {translateSettings({
+                                key: "settings.howNonFocusedStreamsRenderLowerSettingsFreeUpRamAndBandwidthSoTh",
+                              })}
                             </p>
                           </div>
                           <div className="flex items-center gap-3 flex-shrink-0">
@@ -2391,22 +2460,24 @@ export function SettingsPage() {
                               }
                             >
                               <SelectTrigger
-                                aria-label={translateSettings("settings.backgroundStreamQuality")}
+                                aria-label={translateSettings({
+                                  key: "settings.backgroundStreamQuality",
+                                })}
                                 className="w-[200px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-zinc-500/30"
                               >
                                 <SelectValue
-                                  placeholder={translateSettings("settings.selectQuality")}
+                                  placeholder={translateSettings({ key: "settings.selectQuality" })}
                                 />
                               </SelectTrigger>
                               <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
                                 <SelectItem value="auto-low">
-                                  {translateSettings("settings.autoLow480pRecommended")}
+                                  {translateSettings({ key: "settings.autoLow480pRecommended" })}
                                 </SelectItem>
                                 <SelectItem value="match-source">
-                                  {translateSettings("settings.matchSourceUsesMoreRam")}
+                                  {translateSettings({ key: "settings.matchSourceUsesMoreRam" })}
                                 </SelectItem>
                                 <SelectItem value="off">
-                                  {translateSettings("settings.offAudioOnly")}
+                                  {translateSettings({ key: "settings.offAudioOnly" })}
                                 </SelectItem>
                               </SelectContent>
                             </Select>
@@ -2415,7 +2486,7 @@ export function SettingsPage() {
                       </div>
 
                       <div className="px-6 py-3 border-t border-[#27272a] text-xs text-zinc-500">
-                        {translateSettings("settings.defaultAutoLow")}
+                        {translateSettings({ key: "settings.defaultAutoLow" })}
                       </div>
                     </div>
                   )}
@@ -2427,12 +2498,12 @@ export function SettingsPage() {
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">
-                      {translateSettings("settings.chat")}
+                      {translateSettings({ key: "settings.chat" })}
                     </h2>
                     <p className="text-zinc-400">
-                      {translateSettings(
-                        "settings.appearanceEmotesEventsAndBehaviorForTheUnifiedTwitchKickChat"
-                      )}
+                      {translateSettings({
+                        key: "settings.appearanceEmotesEventsAndBehaviorForTheUnifiedTwitchKickChat",
+                      })}
                     </p>
                   </div>
 
@@ -2445,10 +2516,12 @@ export function SettingsPage() {
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">
-                      {translateSettings("settings.adBlock")}
+                      {translateSettings({ key: "settings.adBlock" })}
                     </h2>
                     <p className="text-zinc-400">
-                      {translateSettings("settings.manageAdBlockingCapabilitiesForTwitchStreams")}
+                      {translateSettings({
+                        key: "settings.manageAdBlockingCapabilitiesForTwitchStreams",
+                      })}
                     </p>
                   </div>
 
@@ -2460,10 +2533,12 @@ export function SettingsPage() {
                         </div>
                         <div>
                           <h3 className="font-semibold text-lg">
-                            {translateSettings("settings.clientSideAdBlocking")}
+                            {translateSettings({ key: "settings.clientSideAdBlocking" })}
                           </h3>
                           <p className="text-sm text-zinc-500">
-                            {translateSettings("settings.bypassTwitchAdvertisementsLocally")}
+                            {translateSettings({
+                              key: "settings.bypassTwitchAdvertisementsLocally",
+                            })}
                           </p>
                         </div>
                       </div>
@@ -2471,12 +2546,12 @@ export function SettingsPage() {
                       <div className="flex items-center justify-between p-4 rounded-lg bg-[#18181b]/50 border border-[#27272a]">
                         <div>
                           <p className="font-medium text-zinc-200">
-                            {translateSettings("settings.enableAdBlocking")}
+                            {translateSettings({ key: "settings.enableAdBlocking" })}
                           </p>
                           <p className="text-sm text-zinc-500 mt-1">
-                            {translateSettings(
-                              "settings.blockTwitchAdsUsingAlternativePlayerTokens"
-                            )}
+                            {translateSettings({
+                              key: "settings.blockTwitchAdsUsingAlternativePlayerTokens",
+                            })}
                           </p>
                         </div>
                         <Switch
@@ -2489,15 +2564,15 @@ export function SettingsPage() {
                       </div>
                       {isPlaylistProxyEnabled && (
                         <p className="mt-4 text-sm text-zinc-400">
-                          {translateSettings(
-                            "settings.twitchPlaylistProxyIsEnabledSoTheCustomAdBlockerIsPausedYourSave"
-                          )}
+                          {translateSettings({
+                            key: "settings.twitchPlaylistProxyIsEnabledSoTheCustomAdBlockerIsPausedYourSave",
+                          })}
                         </p>
                       )}
                       <div className="mt-4 p-4 rounded-lg bg-blue-500/5 border border-blue-500/10 text-sm text-blue-300/80 leading-relaxed">
-                        {translateSettings(
-                          "settings.thisUsesTheVaftTechniqueToRequestAdFreeStreamsViaBackupPlayerTyp"
-                        )}
+                        {translateSettings({
+                          key: "settings.thisUsesTheVaftTechniqueToRequestAdFreeStreamsViaBackupPlayerTyp",
+                        })}
                       </div>
                     </div>
                   )}
@@ -2509,12 +2584,12 @@ export function SettingsPage() {
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">
-                      {translateSettings("settings.proxy")}
+                      {translateSettings({ key: "settings.proxy" })}
                     </h2>
                     <p className="text-zinc-400">
-                      {translateSettings(
-                        "settings.usePlaylistProxiesForTwitchPlaybackOrConfigureTheDefaultSessionT"
-                      )}
+                      {translateSettings({
+                        key: "settings.usePlaylistProxiesForTwitchPlaybackOrConfigureTheDefaultSessionT",
+                      })}
                     </p>
                   </div>
 
@@ -2525,16 +2600,16 @@ export function SettingsPage() {
                       <div className="flex items-start justify-between gap-6">
                         <div>
                           <p className="font-medium text-zinc-200">
-                            {translateSettings("settings.networkLibrary")}
+                            {translateSettings({ key: "settings.networkLibrary" })}
                           </p>
                           <p className="mt-1 text-sm text-zinc-400">
-                            {translateSettings(
-                              "settings.sharedMainProcessHttpAndRendererMediaUseChromiumInterceptorOwned"
-                            )}
+                            {translateSettings({
+                              key: "settings.sharedMainProcessHttpAndRendererMediaUseChromiumInterceptorOwned",
+                            })}
                           </p>
                         </div>
                         <span className="shrink-0 rounded-md border border-[#333333] bg-[#252525] px-3 py-1.5 text-sm font-medium text-zinc-300">
-                          {translateSettings("settings.chromiumBuiltIn")}
+                          {translateSettings({ key: "settings.chromiumBuiltIn" })}
                         </span>
                       </div>
                     </div>
@@ -2549,12 +2624,12 @@ export function SettingsPage() {
                           </div>
                           <div>
                             <h3 className="font-semibold text-lg">
-                              {translateSettings("settings.advancedTransportProxy")}
+                              {translateSettings({ key: "settings.advancedTransportProxy" })}
                             </h3>
                             <p className="text-sm text-zinc-500">
-                              {translateSettings(
-                                "settings.appliedToChromiumRequestsInElectronAposSDefaultSession"
-                              )}
+                              {translateSettings({
+                                key: "settings.appliedToChromiumRequestsInElectronAposSDefaultSession",
+                              })}
                             </p>
                           </div>
                         </div>
@@ -2565,18 +2640,18 @@ export function SettingsPage() {
                         <div className="flex items-center justify-between gap-4">
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-zinc-200">
-                              {translateSettings("settings.enableProxy")}
+                              {translateSettings({ key: "settings.enableProxy" })}
                             </p>
                             <p className="text-sm text-zinc-500 mt-1">
-                              {translateSettings(
-                                "settings.offByDefaultRoutesDefaultSessionChromiumRequestsThroughTheHostBe"
-                              )}
+                              {translateSettings({
+                                key: "settings.offByDefaultRoutesDefaultSessionChromiumRequestsThroughTheHostBe",
+                              })}
                             </p>
                           </div>
                           <Switch
                             checked={proxyEnabled}
                             onCheckedChange={setProxyEnabled}
-                            aria-label={translateSettings("settings.enableProxy")}
+                            aria-label={translateSettings({ key: "settings.enableProxy" })}
                             className="data-[state=checked]:!bg-sky-500 data-[state=checked]:!border-sky-500"
                             thumbClassName="data-[state=checked]:!bg-white"
                           />
@@ -2585,7 +2660,7 @@ export function SettingsPage() {
                         {/* Host */}
                         <div className="space-y-2">
                           <label htmlFor="proxy-host" className="block font-medium text-zinc-200">
-                            {translateSettings("settings.host")}
+                            {translateSettings({ key: "settings.host" })}
                           </label>
                           <input
                             id="proxy-host"
@@ -2598,16 +2673,16 @@ export function SettingsPage() {
                             className="w-full rounded-lg border border-[#27272a] bg-[#18181b] px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500/40"
                           />
                           <p className="text-xs text-zinc-500">
-                            {translateSettings("settings.hostOrIpOnlyNoSchemeEG")}
+                            {translateSettings({ key: "settings.hostOrIpOnlyNoSchemeEG" })}
                             <code>127.0.0.1</code>
-                            {translateSettings("settings.not")} <code>http://…</code>).
+                            {translateSettings({ key: "settings.not" })} <code>http://…</code>).
                           </p>
                         </div>
 
                         {/* Port */}
                         <div className="space-y-2">
                           <label htmlFor="proxy-port" className="block font-medium text-zinc-200">
-                            {translateSettings("settings.port")}
+                            {translateSettings({ key: "settings.port" })}
                           </label>
                           <input
                             id="proxy-port"
@@ -2629,7 +2704,7 @@ export function SettingsPage() {
                             <p className="text-xs text-red-400">{proxyPortError}</p>
                           ) : (
                             <p className="text-xs text-zinc-500">
-                              {translateSettings("settings.aNumberBetween1And65535")}
+                              {translateSettings({ key: "settings.aNumberBetween1And65535" })}
                             </p>
                           )}
                         </div>
@@ -2638,18 +2713,18 @@ export function SettingsPage() {
                         <div className="pt-6 border-t border-[#27272a] space-y-4">
                           <div>
                             <p className="font-medium text-zinc-200">
-                              {translateSettings("settings.credentialsOptional")}
+                              {translateSettings({ key: "settings.credentialsOptional" })}
                             </p>
                             <p className="text-sm text-zinc-500 mt-1">
-                              {translateSettings(
-                                "settings.forAProxyThatRequiresAuthenticationStoredEncryptedOnThisDeviceAn"
-                              )}
+                              {translateSettings({
+                                key: "settings.forAProxyThatRequiresAuthenticationStoredEncryptedOnThisDeviceAn",
+                              })}
                             </p>
                           </div>
 
                           <div className="space-y-2">
                             <label htmlFor="proxy-username" className="block text-sm text-zinc-400">
-                              {translateSettings("settings.username")}
+                              {translateSettings({ key: "settings.username" })}
                             </label>
                             <input
                               id="proxy-username"
@@ -2664,7 +2739,7 @@ export function SettingsPage() {
 
                           <div className="space-y-2">
                             <label htmlFor="proxy-password" className="block text-sm text-zinc-400">
-                              {translateSettings("settings.password")}
+                              {translateSettings({ key: "settings.password" })}
                             </label>
                             <div className="relative">
                               <input
@@ -2674,7 +2749,7 @@ export function SettingsPage() {
                                 onChange={(e) => setProxyPassword(e.target.value)}
                                 placeholder={
                                   proxyHasCredentials && proxyPassword === ""
-                                    ? translateSettings("settings.saved")
+                                    ? translateSettings({ key: "settings.saved" })
                                     : undefined
                                 }
                                 autoComplete="new-password"
@@ -2685,8 +2760,8 @@ export function SettingsPage() {
                                 onClick={() => setShowProxyPassword((v) => !v)}
                                 aria-label={
                                   showProxyPassword
-                                    ? translateSettings("settings.hidePassword")
-                                    : translateSettings("settings.showPassword")
+                                    ? translateSettings({ key: "settings.hidePassword" })
+                                    : translateSettings({ key: "settings.showPassword" })
                                 }
                                 className="absolute inset-y-0 right-0 flex items-center px-3 text-zinc-500 hover:text-zinc-300"
                               >
@@ -2703,7 +2778,7 @@ export function SettingsPage() {
                                 onClick={handleProxyClearCredentials}
                                 className="text-xs font-medium text-zinc-500 hover:text-zinc-300 hover:underline"
                               >
-                                {translateSettings("settings.clearCredentials")}
+                                {translateSettings({ key: "settings.clearCredentials" })}
                               </button>
                             )}
                           </div>
@@ -2715,7 +2790,7 @@ export function SettingsPage() {
                             <LuTriangleAlert className="w-5 h-5 flex-shrink-0 mt-0.5" />
                             <div className="flex-1">
                               <p className="text-sm font-medium">
-                                {translateSettings("settings.couldnTApplyTheProxy")}
+                                {translateSettings({ key: "settings.couldnTApplyTheProxy" })}
                               </p>
                               <p className="text-sm mt-0.5 opacity-80">{proxyApplyError}</p>
                             </div>
@@ -2727,12 +2802,12 @@ export function SettingsPage() {
                           <div className="min-h-[1.25rem]">
                             {proxyStatus === "saved" && (
                               <span className="text-sm text-yellow-500 font-medium animate-in fade-in slide-in-from-left-2 duration-300">
-                                {translateSettings("settings.saved2")}
+                                {translateSettings({ key: "settings.saved2" })}
                               </span>
                             )}
                             {proxyStatus === "disabled" && (
                               <span className="text-sm text-zinc-500 font-medium">
-                                {translateSettings("settings.proxyDisabledNoHostSet")}
+                                {translateSettings({ key: "settings.proxyDisabledNoHostSet" })}
                               </span>
                             )}
                           </div>
@@ -2740,15 +2815,15 @@ export function SettingsPage() {
                             onClick={handleProxySave}
                             className="bg-sky-500 hover:bg-sky-400 text-white"
                           >
-                            {translateSettings("settings.saveApply")}
+                            {translateSettings({ key: "settings.saveApply" })}
                           </Button>
                         </div>
                       </div>
 
                       <div className="px-6 py-4 border-t border-[#27272a] text-xs text-zinc-500 leading-relaxed">
-                        {translateSettings(
-                          "settings.whenEnabledThisProxyAppliesToChromiumRequestsInElectronAposSDefa"
-                        )}
+                        {translateSettings({
+                          key: "settings.whenEnabledThisProxyAppliesToChromiumRequestsInElectronAposSDefa",
+                        })}
                       </div>
                     </div>
                   )}
@@ -2760,12 +2835,12 @@ export function SettingsPage() {
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">
-                      {translateSettings("settings.predictions")}
+                      {translateSettings({ key: "settings.predictions" })}
                     </h2>
                     <p className="text-zinc-400">
-                      {translateSettings(
-                        "settings.visualStyleForTheChatPredictionWidgetWhenAStreamerRunsAPredictio"
-                      )}
+                      {translateSettings({
+                        key: "settings.visualStyleForTheChatPredictionWidgetWhenAStreamerRunsAPredictio",
+                      })}
                     </p>
                   </div>
 
@@ -2775,12 +2850,12 @@ export function SettingsPage() {
                         <div className="flex items-center justify-between">
                           <div className="max-w-md">
                             <p className="font-medium text-zinc-200">
-                              {translateSettings("settings.style")}
+                              {translateSettings({ key: "settings.style" })}
                             </p>
                             <p className="text-sm text-zinc-500 mt-1">
-                              {translateSettings(
-                                "settings.nativeMatchesEachPlatformSOwnUiTwitchPurpleWithBubbleChartKickGr"
-                              )}
+                              {translateSettings({
+                                key: "settings.nativeMatchesEachPlatformSOwnUiTwitchPurpleWithBubbleChartKickGr",
+                              })}
                             </p>
                           </div>
                           <div className="flex items-center gap-3">
@@ -2790,15 +2865,15 @@ export function SettingsPage() {
                             >
                               <SelectTrigger className="w-[200px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20">
                                 <SelectValue
-                                  placeholder={translateSettings("settings.selectStyle")}
+                                  placeholder={translateSettings({ key: "settings.selectStyle" })}
                                 />
                               </SelectTrigger>
                               <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
                                 <SelectItem value="native">
-                                  {translateSettings("settings.nativePerPlatform")}
+                                  {translateSettings({ key: "settings.nativePerPlatform" })}
                                 </SelectItem>
                                 <SelectItem value="unified">
-                                  {translateSettings("settings.unifiedStreamfusion")}
+                                  {translateSettings({ key: "settings.unifiedStreamfusion" })}
                                 </SelectItem>
                               </SelectContent>
                             </Select>
@@ -2815,10 +2890,12 @@ export function SettingsPage() {
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">
-                      {translateSettings("settings.integrations")}
+                      {translateSettings({ key: "settings.integrations" })}
                     </h2>
                     <p className="text-zinc-400">
-                      {translateSettings("settings.manageYourConnectedAccountsAndServices")}
+                      {translateSettings({
+                        key: "settings.manageYourConnectedAccountsAndServices",
+                      })}
                     </p>
                   </div>
 
@@ -2847,10 +2924,10 @@ export function SettingsPage() {
                       <div className="flex-1">
                         <p className="font-medium text-white">
                           {error.platform === "twitch"
-                            ? translateSettings("settings.twitchConnectionError")
+                            ? translateSettings({ key: "settings.twitchConnectionError" })
                             : error.platform === "kick"
-                              ? translateSettings("settings.kickConnectionError")
-                              : translateSettings("settings.authenticationError")}
+                              ? translateSettings({ key: "settings.kickConnectionError" })
+                              : translateSettings({ key: "settings.authenticationError" })}
                         </p>
                         <p className="text-sm mt-1 text-white leading-relaxed">{error.message}</p>
                       </div>
@@ -2860,7 +2937,7 @@ export function SettingsPage() {
                         onClick={clearError}
                         className="h-auto min-h-10 shrink-0 cursor-pointer border border-zinc-600 bg-zinc-800 px-3 py-2 text-white shadow-sm hover:bg-zinc-700 hover:text-white focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121214] active:bg-zinc-900 disabled:cursor-not-allowed"
                       >
-                        {translateSettings("settings.dismiss")}
+                        {translateSettings({ key: "settings.dismiss" })}
                       </Button>
                     </div>
                   )}
@@ -2868,7 +2945,7 @@ export function SettingsPage() {
                   {isRowVisible("Connected Accounts") && (
                     <div className="p-6 rounded-xl border border-[#27272a] bg-[#121214]">
                       <h3 className="font-semibold text-lg mb-4">
-                        {translateSettings("settings.connectedAccounts")}
+                        {translateSettings({ key: "settings.connectedAccounts" })}
                       </h3>
                       <AccountConnect />
                     </div>
@@ -2881,12 +2958,12 @@ export function SettingsPage() {
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">
-                      {translateSettings("settings.apiTokens")}
+                      {translateSettings({ key: "settings.apiTokens" })}
                     </h2>
                     <p className="text-zinc-400">
-                      {translateSettings(
-                        "settings.readOnlyStatusOfYourTwitchAndKickSignInTokenValuesNeverLeaveYour"
-                      )}
+                      {translateSettings({
+                        key: "settings.readOnlyStatusOfYourTwitchAndKickSignInTokenValuesNeverLeaveYour",
+                      })}
                     </p>
                   </div>
 
@@ -2921,7 +2998,7 @@ export function SettingsPage() {
                   fallback={
                     <div
                       className="space-y-4"
-                      aria-label={translateSettings("settings.loadingDiagnostics")}
+                      aria-label={translateSettings({ key: "settings.loadingDiagnostics" })}
                     >
                       <div className="h-20 animate-pulse rounded-xl bg-[var(--color-background-secondary)]" />
                       <div className="h-72 animate-pulse rounded-xl border border-[var(--color-border)] bg-[var(--color-background-secondary)]" />
@@ -2939,12 +3016,12 @@ export function SettingsPage() {
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">
-                      {translateSettings("settings.logs")}
+                      {translateSettings({ key: "settings.logs" })}
                     </h2>
                     <p className="text-zinc-400">
-                      {translateSettings(
-                        "settings.inspectTheInAppLogFilesUsefulForDebuggingPlaybackChatAndAuthIssu"
-                      )}
+                      {translateSettings({
+                        key: "settings.inspectTheInAppLogFilesUsefulForDebuggingPlaybackChatAndAuthIssu",
+                      })}
                     </p>
                   </div>
 
@@ -2957,12 +3034,12 @@ export function SettingsPage() {
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">
-                      {translateSettings("settings.reportABug")}
+                      {translateSettings({ key: "settings.reportABug" })}
                     </h2>
                     <p className="text-zinc-400">
-                      {translateSettings(
-                        "settings.generateABugReportFileYouCanShareWithSomeoneDebuggingTheIssue"
-                      )}
+                      {translateSettings({
+                        key: "settings.generateABugReportFileYouCanShareWithSomeoneDebuggingTheIssue",
+                      })}
                     </p>
                   </div>
 
@@ -2975,10 +3052,10 @@ export function SettingsPage() {
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
                   <div>
                     <h2 className="text-2xl font-bold mb-1">
-                      {translateSettings("settings.about")}
+                      {translateSettings({ key: "settings.about" })}
                     </h2>
                     <p className="text-zinc-400">
-                      {translateSettings("settings.applicationInformation")}
+                      {translateSettings({ key: "settings.applicationInformation" })}
                     </p>
                   </div>
 
@@ -2993,20 +3070,24 @@ export function SettingsPage() {
                         <h3 className="text-xl font-bold text-white">StreamFusion</h3>
                         <div className="flex items-center justify-center gap-2 mt-1">
                           <p className="text-zinc-500">
-                            {translateSettings("settings.v")}
+                            {translateSettings({ key: "settings.v" })}
                             {versionInfo?.version ?? appVersion ?? "0.1.0"}
                           </p>
                           {versionInfo?.isPrerelease && (
                             <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
-                              {translateSettings("settings.preRelease")}
+                              {translateSettings({ key: "settings.preRelease" })}
                             </span>
                           )}
                         </div>
                       </div>
                       <div className="pt-6 text-sm text-zinc-500">
-                        <p>{translateSettings("settings.builtWithElectronReactTailwindcss")}</p>
+                        <p>
+                          {translateSettings({ key: "settings.builtWithElectronReactTailwindcss" })}
+                        </p>
                         <p className="mt-1">
-                          {translateSettings("settings.designedForTheBestStreamingExperience")}
+                          {translateSettings({
+                            key: "settings.designedForTheBestStreamingExperience",
+                          })}
                         </p>
                       </div>
                     </div>
@@ -3030,6 +3111,8 @@ function UpdatesSettingsPanel({
   anyRowVisible: (...labels: string[]) => boolean;
   isRowVisible: (label: string) => boolean;
 }) {
+  const { i18n: translation } = useTranslation();
+  const translationLanguage = translation.resolvedLanguage ?? translation.language;
   const {
     status,
     updateInfo,
@@ -3059,9 +3142,11 @@ function UpdatesSettingsPanel({
   return (
     <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
       <div>
-        <h2 className="text-2xl font-bold mb-1">{translateSettings("settings.updates")}</h2>
+        <h2 className="text-2xl font-bold mb-1">
+          {translateSettings({ key: "settings.updates" })}
+        </h2>
         <p className="text-zinc-400">
-          {translateSettings("settings.manageApplicationUpdatesAndReleaseChannels")}
+          {translateSettings({ key: "settings.manageApplicationUpdatesAndReleaseChannels" })}
         </p>
       </div>
 
@@ -3080,10 +3165,10 @@ function UpdatesSettingsPanel({
               </div>
               <div>
                 <h3 className="font-semibold text-lg">
-                  {translateSettings("settings.softwareUpdate")}
+                  {translateSettings({ key: "settings.softwareUpdate" })}
                 </h3>
                 <p className="text-sm text-zinc-500">
-                  {translateSettings("settings.currentVersionV")}
+                  {translateSettings({ key: "settings.currentVersionV" })}
                   {appVersion ?? "0.0.0"}
                 </p>
               </div>
@@ -3094,12 +3179,12 @@ function UpdatesSettingsPanel({
             {isRowVisible("Update check URL") && (
               <div>
                 <label htmlFor="update-check-url" className="font-medium text-zinc-200">
-                  {translateSettings("settings.updateCheckUrl")}
+                  {translateSettings({ key: "settings.updateCheckUrl" })}
                 </label>
                 <p className="text-sm text-zinc-500 mt-1 mb-3">
-                  {translateSettings(
-                    "settings.electronUpdateFeedContainingThePlatformUpdateMetadata"
-                  )}
+                  {translateSettings({
+                    key: "settings.electronUpdateFeedContainingThePlatformUpdateMetadata",
+                  })}
                 </p>
                 <input
                   id="update-check-url"
@@ -3119,10 +3204,12 @@ function UpdatesSettingsPanel({
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium text-zinc-200">
-                    {translateSettings("settings.allowPreReleaseUpdates")}
+                    {translateSettings({ key: "settings.allowPreReleaseUpdates" })}
                   </p>
                   <p className="text-sm text-zinc-500 mt-1">
-                    {translateSettings("settings.receiveBetaAndPreviewVersionsBeforeStableRelease")}
+                    {translateSettings({
+                      key: "settings.receiveBetaAndPreviewVersionsBeforeStableRelease",
+                    })}
                   </p>
                 </div>
                 <Switch
@@ -3138,14 +3225,16 @@ function UpdatesSettingsPanel({
               <div className="flex items-center justify-between pt-6 border-t border-[#27272a]">
                 <div>
                   <p className="font-medium text-zinc-200">
-                    {translateSettings("settings.checkForUpdatesOnStartup")}
+                    {translateSettings({ key: "settings.checkForUpdatesOnStartup" })}
                   </p>
                   <p className="text-sm text-zinc-500 mt-1">
-                    {translateSettings("settings.checkAtLaunchWhenTheSelectedIntervalHasElapsed")}
+                    {translateSettings({
+                      key: "settings.checkAtLaunchWhenTheSelectedIntervalHasElapsed",
+                    })}
                   </p>
                 </div>
                 <Switch
-                  aria-label={translateSettings("settings.checkForUpdatesOnStartup")}
+                  aria-label={translateSettings({ key: "settings.checkForUpdatesOnStartup" })}
                   checked={autoCheckEnabled}
                   onCheckedChange={setAutoCheckEnabled}
                   className="data-[state=checked]:!bg-blue-500 data-[state=checked]:!border-blue-500"
@@ -3163,10 +3252,10 @@ function UpdatesSettingsPanel({
                       autoCheckEnabled ? "text-zinc-200" : "text-zinc-500"
                     )}
                   >
-                    {translateSettings("settings.checkFrequency")}
+                    {translateSettings({ key: "settings.checkFrequency" })}
                   </p>
                   <p className="text-sm text-zinc-500 mt-1">
-                    {translateSettings("settings.minimumTimeBetweenStartupChecks")}
+                    {translateSettings({ key: "settings.minimumTimeBetweenStartupChecks" })}
                   </p>
                 </div>
                 <Select
@@ -3175,15 +3264,23 @@ function UpdatesSettingsPanel({
                   disabled={!autoCheckEnabled}
                 >
                   <SelectTrigger
-                    aria-label={translateSettings("settings.checkFrequency")}
+                    aria-label={translateSettings({ key: "settings.checkFrequency" })}
                     className="w-[180px] flex-shrink-0 bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-blue-500/20 disabled:opacity-50"
                   >
-                    <SelectValue placeholder={translateSettings("settings.selectFrequency")} />
+                    <SelectValue
+                      placeholder={translateSettings({ key: "settings.selectFrequency" })}
+                    />
                   </SelectTrigger>
                   <SelectContent className="bg-[#18181b] border-[#27272a] text-zinc-200">
-                    <SelectItem value="hourly">{translateSettings("settings.hourly")}</SelectItem>
-                    <SelectItem value="daily">{translateSettings("settings.daily")}</SelectItem>
-                    <SelectItem value="weekly">{translateSettings("settings.weekly")}</SelectItem>
+                    <SelectItem value="hourly">
+                      {translateSettings({ key: "settings.hourly" })}
+                    </SelectItem>
+                    <SelectItem value="daily">
+                      {translateSettings({ key: "settings.daily" })}
+                    </SelectItem>
+                    <SelectItem value="weekly">
+                      {translateSettings({ key: "settings.weekly" })}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -3193,21 +3290,28 @@ function UpdatesSettingsPanel({
               <div className="flex items-center justify-between pt-6 border-t border-[#27272a]">
                 <div>
                   <p className="font-medium text-zinc-200">
-                    {translateSettings("settings.checkForUpdates")}
+                    {translateSettings({ key: "settings.checkForUpdates" })}
                   </p>
                   <p className="text-sm text-zinc-500 mt-1">
                     {status === "idle" &&
-                      translateSettings("settings.clickToCheckForAvailableUpdates")}
-                    {status === "checking" && translateSettings("settings.checkingForUpdates")}
+                      translateSettings({ key: "settings.clickToCheckForAvailableUpdates" })}
+                    {status === "checking" &&
+                      translateSettings({ key: "settings.checkingForUpdates" })}
                     {status === "not-available" &&
-                      translateSettings("settings.youAreOnTheLatestVersion")}
+                      translateSettings({ key: "settings.youAreOnTheLatestVersion" })}
                     {status === "available" &&
-                      translateSettings("settings.versionValueIsAvailable", {
-                        value1: updateInfo?.version,
+                      translateSettings({
+                        key: "settings.versionValueIsAvailable",
+                        options: {
+                          value1: updateInfo?.version,
+                        },
                       })}
-                    {status === "downloading" && translateSettings("settings.downloadingUpdate")}
-                    {status === "downloaded" && translateSettings("settings.updateReadyToInstall")}
-                    {status === "error" && translateSettings("settings.failedToCheckForUpdates")}
+                    {status === "downloading" &&
+                      translateSettings({ key: "settings.downloadingUpdate" })}
+                    {status === "downloaded" &&
+                      translateSettings({ key: "settings.updateReadyToInstall" })}
+                    {status === "error" &&
+                      translateSettings({ key: "settings.failedToCheckForUpdates" })}
                   </p>
                 </div>
                 <Button
@@ -3218,7 +3322,7 @@ function UpdatesSettingsPanel({
                   className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
                 >
                   <LuRefreshCw className={`w-4 h-4 mr-2 ${isChecking ? "animate-spin" : ""}`} />
-                  {translateSettings("settings.checkNow")}
+                  {translateSettings({ key: "settings.checkNow" })}
                 </Button>
               </div>
             )}
@@ -3238,18 +3342,21 @@ function UpdatesSettingsPanel({
                   <div>
                     <p className="font-bold text-white">
                       {updateInfo.releaseName ||
-                        translateSettings("settings.versionValue", { value1: updateInfo.version })}
+                        translateSettings({
+                          key: "settings.versionValue",
+                          options: { value1: updateInfo.version },
+                        })}
                     </p>
                     {updateInfo.releaseDate && (
                       <p className="text-xs text-zinc-500 mt-0.5">
-                        {translateSettings("settings.released")}
-                        {new Date(updateInfo.releaseDate).toLocaleDateString()}
+                        {translateSettings({ key: "settings.released" })}
+                        {new Date(updateInfo.releaseDate).toLocaleDateString(translationLanguage)}
                       </p>
                     )}
                   </div>
                   <Button size="sm" onClick={downloadUpdate} disabled={isDownloading}>
                     <LuDownload className="w-4 h-4 mr-2" />
-                    {translateSettings("settings.downloadUpdate")}
+                    {translateSettings({ key: "settings.downloadUpdate" })}
                   </Button>
                 </div>
                 {updateInfo.releaseNotes && (
@@ -3263,7 +3370,7 @@ function UpdatesSettingsPanel({
             {isDownloading && progress && (
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>{translateSettings("settings.downloading")}</span>
+                  <span>{translateSettings({ key: "settings.downloading" })}</span>
                   <span>{Math.round(progress.percent)}%</span>
                 </div>
                 <Progress value={progress.percent} className="h-2" />
@@ -3272,7 +3379,8 @@ function UpdatesSettingsPanel({
 
             {isUpdateDownloaded && (
               <Button onClick={installUpdate} className="w-full">
-                <LuRocket className="w-4 h-4 mr-2" /> {translateSettings("settings.restartInstall")}
+                <LuRocket className="w-4 h-4 mr-2" />{" "}
+                {translateSettings({ key: "settings.restartInstall" })}
               </Button>
             )}
           </div>
@@ -3328,18 +3436,18 @@ function SidebarItem({
 
 function formatDesktopNotificationStatus(supported: boolean, permission: string): string {
   if (!supported || permission === "unsupported") {
-    return "Desktop notifications unsupported";
+    return translateSettings({ key: "settings.desktopNotificationsUnsupported" });
   }
   if (permission === "denied") {
-    return "Desktop notifications blocked";
+    return translateSettings({ key: "settings.desktopNotificationsBlocked" });
   }
   if (permission === "granted") {
-    return "Desktop notifications allowed";
+    return translateSettings({ key: "settings.desktopNotificationsAllowed" });
   }
   if (permission === "default") {
-    return "Desktop notifications not allowed yet";
+    return translateSettings({ key: "settings.desktopNotificationsNotAllowedYet" });
   }
-  return "Desktop notification support available";
+  return translateSettings({ key: "settings.desktopNotificationSupportAvailable" });
 }
 
 function formatPlatformLabel(platform: Platform): string {
@@ -3349,17 +3457,23 @@ function formatPlatformLabel(platform: Platform): string {
 function formatCarouselIntervalLabel(seconds: number): string {
   if (seconds >= 60 && seconds % 60 === 0) {
     const minutes = seconds / 60;
-    return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+    return translateSettings({
+      key: minutes === 1 ? "settings.minuteCount_one" : "settings.minuteCount_other",
+      options: { count: minutes },
+    });
   }
-  return `${seconds} seconds`;
+  return translateSettings({
+    key: seconds === 1 ? "settings.secondCount_one" : "settings.secondCount_other",
+    options: { count: seconds },
+  });
 }
 
 // Format a token expiry (Unix ms) for the API/Tokens panel. `null`/`undefined`
 // means the platform reports no expiry — shown honestly as "unknown" rather
 // than fabricating a date.
-function formatExpiry(expiresAt: number | null | undefined): string {
-  if (expiresAt == null) return "unknown";
-  return new Date(expiresAt).toLocaleString();
+function formatExpiry(expiresAt: number | null | undefined, locale: string): string {
+  if (expiresAt == null) return translateSettings({ key: "settings.unknown" });
+  return new Date(expiresAt).toLocaleString(locale);
 }
 
 /**
@@ -3378,6 +3492,8 @@ function ApiTokenPanel({
   label: string;
   onOpenIntegrations: () => void;
 }) {
+  const { i18n: translation } = useTranslation();
+  const translationLanguage = translation.resolvedLanguage ?? translation.language;
   const loginTwitch = useAuthStore((state) => state.loginTwitch);
   const loginKick = useAuthStore((state) => state.loginKick);
   const reconnect = platform === "twitch" ? loginTwitch : loginKick;
@@ -3427,7 +3543,7 @@ function ApiTokenPanel({
           className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
         >
           <LuRefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
-          {translateSettings("settings.validateNow")}
+          {translateSettings({ key: "settings.validateNow" })}
         </Button>
       </div>
 
@@ -3436,21 +3552,23 @@ function ApiTokenPanel({
         {loading && status == null && (
           <div className="flex items-center gap-2 text-sm text-zinc-400">
             <LuRefreshCw className="w-4 h-4 animate-spin" />
-            {translateSettings("settings.validating")}
+            {translateSettings({ key: "settings.validating" })}
           </div>
         )}
 
         {/* Not signed in. */}
         {notConnected && (
           <div className="space-y-3">
-            <p className="text-sm text-zinc-400">{translateSettings("settings.notSignedIn")}</p>
+            <p className="text-sm text-zinc-400">
+              {translateSettings({ key: "settings.notSignedIn" })}
+            </p>
             <button
               type="button"
               onClick={onOpenIntegrations}
               className="text-sm font-medium hover:underline"
               style={{ color: accent }}
             >
-              {translateSettings("settings.connectInIntegrations")}
+              {translateSettings({ key: "settings.connectInIntegrations" })}
             </button>
           </div>
         )}
@@ -3460,7 +3578,7 @@ function ApiTokenPanel({
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm text-red-400">
               <LuCircleX className="w-4 h-4" />
-              {translateSettings("settings.tokenInvalidOrExpired")}
+              {translateSettings({ key: "settings.tokenInvalidOrExpired" })}
             </div>
             <Button
               size="sm"
@@ -3468,7 +3586,7 @@ function ApiTokenPanel({
               className="text-white"
               style={{ backgroundColor: accent }}
             >
-              {translateSettings("settings.reconnect")}
+              {translateSettings({ key: "settings.reconnect" })}
             </Button>
           </div>
         )}
@@ -3478,21 +3596,23 @@ function ApiTokenPanel({
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm text-green-400">
               <LuCircleCheck className="w-4 h-4" />
-              {translateSettings("settings.tokenValid")}
+              {translateSettings({ key: "settings.tokenValid" })}
             </div>
 
             <dl className="grid grid-cols-[7rem_1fr] gap-y-2 text-sm">
-              <dt className="text-zinc-500">{translateSettings("settings.login")}</dt>
+              <dt className="text-zinc-500">{translateSettings({ key: "settings.login" })}</dt>
               <dd className="text-zinc-200 break-all">{status.login ?? "—"}</dd>
-              <dt className="text-zinc-500">{translateSettings("settings.userId")}</dt>
+              <dt className="text-zinc-500">{translateSettings({ key: "settings.userId" })}</dt>
               <dd className="text-zinc-200 break-all tabular-nums">{status.userId ?? "—"}</dd>
-              <dt className="text-zinc-500">{translateSettings("settings.expires")}</dt>
-              <dd className="text-zinc-200">{formatExpiry(status.expiresAt)}</dd>
+              <dt className="text-zinc-500">{translateSettings({ key: "settings.expires" })}</dt>
+              <dd className="text-zinc-200">
+                {formatExpiry(status.expiresAt, translationLanguage)}
+              </dd>
             </dl>
 
             <div>
               <p className="text-sm text-zinc-500 mb-2">
-                {translateSettings("settings.grantedScopes")}
+                {translateSettings({ key: "settings.grantedScopes" })}
               </p>
               {status.scopes && status.scopes.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5">
@@ -3507,7 +3627,7 @@ function ApiTokenPanel({
                 </div>
               ) : (
                 <p className="text-xs text-zinc-600">
-                  {translateSettings("settings.noScopesReported")}
+                  {translateSettings({ key: "settings.noScopesReported" })}
                 </p>
               )}
             </div>

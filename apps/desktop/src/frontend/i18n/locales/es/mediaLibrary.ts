@@ -18,6 +18,8 @@ export const mediaLibraryEs = {
     open: "Abrir",
     showRecordingInFolder: "Mostrar grabación en la carpeta",
     showInFolder: "Mostrar en la carpeta",
+    openFile: "Abrir archivo",
+    removeFromList: "Quitar de la lista",
     gapSummary_one: "{{count}} brecha{{suffix}}",
     gapSummary_other: "{{count}} brechas{{suffix}}",
     currentGapOpen: " · brecha actual abierta",

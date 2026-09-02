@@ -246,13 +246,19 @@ export function RangeRow({
             <div className="mt-1.5 flex min-h-6 items-center justify-between gap-3">
               {defaultDisplayValue && (
                 <p className="text-xs text-zinc-600">
-                  {translateSettings("settings.defaultValue", { value: defaultDisplayValue })}
+                  {translateSettings({
+                    key: "settings.defaultValue",
+                    options: { value: defaultDisplayValue },
+                  })}
                 </p>
               )}
               {onReset && (
                 <button
                   type="button"
-                  aria-label={translateSettings("settings.resetValueToDefault", { label: label })}
+                  aria-label={translateSettings({
+                    key: "settings.resetValueToDefault",
+                    options: { label: label },
+                  })}
                   disabled={!canReset}
                   onClick={() => {
                     if (defaultValue !== undefined) {
@@ -262,7 +268,7 @@ export function RangeRow({
                   }}
                   className="ml-auto rounded-md px-2 py-1 text-xs font-medium text-zinc-400 transition-colors hover:bg-[#27272a] hover:text-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-[#121214] disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-zinc-400"
                 >
-                  {translateSettings("settings.reset")}
+                  {translateSettings({ key: "settings.reset" })}
                 </button>
               )}
             </div>
@@ -348,7 +354,7 @@ function PreviewFrame({ testId, children }: { testId: string; children: ReactNod
     <div className="py-4" data-testid={testId}>
       <div className="overflow-hidden rounded-lg border border-[#333333] bg-[#18181b]">
         <div className="border-b border-[#333333] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
-          {translateSettings("settings.preview")}
+          {translateSettings({ key: "settings.preview" })}
         </div>
         {children}
       </div>
@@ -423,8 +429,8 @@ function SampleEmote({
       />
       {overlay && (
         <PreviewTooltip
-          label="Overlay emote preview"
-          content="This stacked emote is controlled by the Overlay emotes setting."
+          label={translateSettings({ key: "settings.overlayEmotePreview" })}
+          content={translateSettings({ key: "settings.overlayEmotePreviewDescription" })}
           className="absolute inset-0 size-full rounded-[4px]"
         >
           <img
@@ -471,10 +477,10 @@ function AppearancePreview({ cd }: { cd: ChatDisplayPreferences }) {
             </span>
           )}
           <span className="font-bold" style={{ color: uncoloredUsernameColor }}>
-            {translateSettings("settings.nightowl")}
+            {translateSettings({ key: "settings.nightowl" })}
           </span>
           <span className="min-w-0 truncate">
-            {translateSettings("settings.thisChatSetupFeelsRight")}
+            {translateSettings({ key: "settings.thisChatSetupFeelsRight" })}
           </span>
           <SampleEmote emote={CHAT_PREVIEW_FALLBACK_EMOTES["7tv"]} size={cd.emoteSizePx} />
         </div>
@@ -484,10 +490,10 @@ function AppearancePreview({ cd }: { cd: ChatDisplayPreferences }) {
             data-preview-adapted-color="true"
             style={{ color: chosenUsernameColor }}
           >
-            {translateSettings("settings.deepviolet")}
+            {translateSettings({ key: "settings.deepviolet" })}
           </span>
           <span className="min-w-0 truncate text-zinc-400">
-            {translateSettings("settings.lowContrastColorsStayReadable")}
+            {translateSettings({ key: "settings.lowContrastColorsStayReadable" })}
           </span>
         </div>
       </div>
@@ -533,8 +539,8 @@ function EmotesPreview({ cd }: { cd: ChatDisplayPreferences }) {
         <div className="flex items-center gap-1.5">
           {cd.enable7tvBadges && (
             <PreviewTooltip
-              label="7TV badge preview"
-              content="7TV badge. Controlled by the 7TV chat badges setting."
+              label={translateSettings({ key: "settings.sevenTvBadgePreview" })}
+              content={translateSettings({ key: "settings.sevenTvBadgePreviewDescription" })}
               className="size-4 rounded-[3px]"
             >
               <span className="inline-flex size-4" data-preview-badge-provider="7tv">
@@ -548,8 +554,8 @@ function EmotesPreview({ cd }: { cd: ChatDisplayPreferences }) {
           )}
           {cd.enableBttvBadges && (
             <PreviewTooltip
-              label="BetterTTV badge preview"
-              content="BetterTTV badge. Controlled by the BetterTTV chat badges setting."
+              label={translateSettings({ key: "settings.betterTtvBadgePreview" })}
+              content={translateSettings({ key: "settings.betterTtvBadgePreviewDescription" })}
               className="size-4 rounded-[3px]"
             >
               <span className="inline-flex size-4" data-preview-badge-provider="bttv">
@@ -559,8 +565,8 @@ function EmotesPreview({ cd }: { cd: ChatDisplayPreferences }) {
           )}
           {cd.enableFfzBadges && (
             <PreviewTooltip
-              label="FrankerFaceZ badge preview"
-              content="FrankerFaceZ badge. Controlled by the FrankerFaceZ chat badges setting."
+              label={translateSettings({ key: "settings.frankerFacezBadgePreview" })}
+              content={translateSettings({ key: "settings.frankerFacezBadgePreviewDescription" })}
               className="size-4 rounded-[3px]"
             >
               <span className="inline-flex size-4" data-preview-badge-provider="ffz">
@@ -570,20 +576,24 @@ function EmotesPreview({ cd }: { cd: ChatDisplayPreferences }) {
           )}
           {cd.enable7tvUsernamePaints ? (
             <PreviewTooltip
-              label="7TV username paint preview"
-              content="7TV username paint. Controlled by the 7TV username paints setting."
+              label={translateSettings({ key: "settings.sevenTvUsernamePaintPreview" })}
+              content={translateSettings({
+                key: "settings.sevenTvUsernamePaintPreviewDescription",
+              })}
               className="rounded-[3px] font-bold"
             >
               <span data-preview-painted="true" style={usernameStyle}>
-                {translateSettings("settings.paintedpixel")}
+                {translateSettings({ key: "settings.paintedpixel" })}
               </span>
             </PreviewTooltip>
           ) : (
             <span className="font-bold" data-preview-painted="false" style={usernameStyle}>
-              {translateSettings("settings.paintedpixel")}
+              {translateSettings({ key: "settings.paintedpixel" })}
             </span>
           )}
-          <span className="text-zinc-400">{translateSettings("settings.greatStream")}</span>
+          <span className="text-zinc-400">
+            {translateSettings({ key: "settings.greatStream" })}
+          </span>
           {cd.enable7tv && (
             <SampleEmote
               animated={cd.animatedEmotes}
@@ -615,7 +625,7 @@ function EmotesPreview({ cd }: { cd: ChatDisplayPreferences }) {
         {cd.systemMessageEmotes && (
           <div className="flex items-center gap-1.5 rounded-md bg-[#202024] px-2 py-1 text-xs text-zinc-400">
             <SampleEmote emote={providerEmotes["7tv"]} size={18} />
-            <span>{translateSettings("settings.systemEmotesAreEnabled")}</span>
+            <span>{translateSettings({ key: "settings.systemEmotesAreEnabled" })}</span>
           </div>
         )}
       </div>
@@ -630,15 +640,15 @@ function EventsPreview({ cd }: { cd: ChatDisplayPreferences }) {
         {cd.showUserNotices && (
           <div className="rounded-md bg-[#252525] px-2 py-1.5">
             <span className="font-semibold text-white">
-              {translateSettings("settings.nightowl2")}
+              {translateSettings({ key: "settings.nightowl2" })}
             </span>{" "}
-            {translateSettings("settings.subscribedFor6Months")}
+            {translateSettings({ key: "settings.subscribedFor6Months" })}
           </div>
         )}
         {cd.showClearMsg && (
           <PreviewTooltip
-            label="Deleted message preview"
-            content="Controlled by Deleted message display and Moderation highlight style."
+            label={translateSettings({ key: "settings.deletedMessagePreview" })}
+            content={translateSettings({ key: "settings.deletedMessagePreviewDescription" })}
             className={cn(
               "w-full px-2 py-1.5 text-left",
               cd.moderationHighlightStyle === "cozy"
@@ -648,30 +658,30 @@ function EventsPreview({ cd }: { cd: ChatDisplayPreferences }) {
           >
             <span data-deleted-mode={cd.deletedMessageDisplay}>
               {cd.deletedMessageDisplay === "tombstone"
-                ? translateSettings("settings.messageDeleted")
-                : translateSettings("settings.modRemovedKeepChatFriendly")}
+                ? translateSettings({ key: "settings.messageDeleted" })
+                : translateSettings({ key: "settings.modRemovedKeepChatFriendly" })}
             </span>
           </PreviewTooltip>
         )}
         {cd.showClearChat && (
           <div className="text-zinc-500">
-            {translateSettings("settings.chatWasClearedByAModerator")}
+            {translateSettings({ key: "settings.chatWasClearedByAModerator" })}
           </div>
         )}
         {cd.firstMsgHighlight && (
           <div className="rounded-md border border-[#a970ff]/50 px-2 py-1 text-[#d8bfff]">
-            {translateSettings("settings.firstMessageFromANewChatter")}
+            {translateSettings({ key: "settings.firstMessageFromANewChatter" })}
           </div>
         )}
         <div className="flex gap-1.5">
           {cd.showPolls && (
             <span className="rounded bg-[#2d2d32] px-2 py-1">
-              {translateSettings("settings.pollOpen")}
+              {translateSettings({ key: "settings.pollOpen" })}
             </span>
           )}
           {cd.showPredictions && (
             <span className="rounded bg-[#2d2d32] px-2 py-1">
-              {translateSettings("settings.predictionLive")}
+              {translateSettings({ key: "settings.predictionLive" })}
             </span>
           )}
         </div>
@@ -708,42 +718,49 @@ export function ChatSettingsSection({
 function AppearanceGroup() {
   const { cd, set } = useChatDisplay(notifySettingsSaved);
   return (
-    <GroupCard title={translateSettings("settings.appearance")}>
+    <GroupCard title={translateSettings({ key: "settings.appearance" })}>
       <AppearancePreview cd={cd} />
       <SwitchRow
-        label="Readable color for uncolored users"
-        description="Assign a deterministic readable color to chatters with no chosen color."
+        label={translateSettings({ key: "settings.readableColorForUncoloredUsers" })}
+        description={translateSettings({
+          key: "settings.readableColorForUncoloredUsersDescription",
+        })}
         checked={cd.readableColorForUncolored}
         onChange={(v) => set("readableColorForUncolored", v)}
       />
       <SwitchRow
-        label="Adapt username colors to dark theme"
-        description="Lift low-contrast username colors so they stay legible."
+        label={translateSettings({ key: "settings.adaptUsernameColorsToDarkTheme" })}
+        description={translateSettings({
+          key: "settings.adaptUsernameColorsToDarkThemeDescription",
+        })}
         checked={cd.themeAdaptUsernameColor}
         onChange={(v) => set("themeAdaptUsernameColor", v)}
       />
       <SwitchRow
-        label="Show timestamps"
+        label={translateSettings({ key: "settings.showTimestamps" })}
         checked={cd.timestamps}
         onChange={(v) => set("timestamps", v)}
       />
       <SelectRow
-        label="Timestamp format"
+        label={translateSettings({ key: "settings.timestampFormat" })}
         value={cd.timestampFormat}
         options={[
-          { value: "H:mm", label: translateSettings("settings.value24Hour905") },
-          { value: "HH:mm", label: translateSettings("settings.value24Hour0905") },
-          { value: "H:mm:ss", label: translateSettings("settings.value24Hour90507") },
-          { value: "HH:mm:ss", label: translateSettings("settings.value24Hour090507") },
-          { value: "h:mm a", label: translateSettings("settings.value12Hour905Am") },
-          { value: "hh:mm a", label: translateSettings("settings.value12Hour0905Am") },
-          { value: "h:mm:ss a", label: translateSettings("settings.value12Hour90507Am") },
-          { value: "hh:mm:ss a", label: translateSettings("settings.value12Hour090507Am") },
+          { value: "H:mm", label: translateSettings({ key: "settings.value24Hour905" }) },
+          { value: "HH:mm", label: translateSettings({ key: "settings.value24Hour0905" }) },
+          { value: "H:mm:ss", label: translateSettings({ key: "settings.value24Hour90507" }) },
+          { value: "HH:mm:ss", label: translateSettings({ key: "settings.value24Hour090507" }) },
+          { value: "h:mm a", label: translateSettings({ key: "settings.value12Hour905Am" }) },
+          { value: "hh:mm a", label: translateSettings({ key: "settings.value12Hour0905Am" }) },
+          { value: "h:mm:ss a", label: translateSettings({ key: "settings.value12Hour90507Am" }) },
+          {
+            value: "hh:mm:ss a",
+            label: translateSettings({ key: "settings.value12Hour090507Am" }),
+          },
         ]}
         onChange={(v) => set("timestampFormat", v)}
       />
       <RangeRow
-        label="Font size"
+        label={translateSettings({ key: "settings.fontSize" })}
         value={cd.fontSizePx}
         min={10}
         max={20}
@@ -751,7 +768,7 @@ function AppearanceGroup() {
         onChange={(v) => set("fontSizePx", v)}
       />
       <RangeRow
-        label="Emote size"
+        label={translateSettings({ key: "settings.emoteSize" })}
         value={cd.emoteSizePx}
         min={16}
         max={56}
@@ -759,12 +776,12 @@ function AppearanceGroup() {
         onChange={(v) => set("emoteSizePx", v)}
       />
       <SelectRow
-        label="Density"
+        label={translateSettings({ key: "settings.density" })}
         value={cd.density}
         options={[
-          { value: "compact", label: translateSettings("settings.tight") },
-          { value: "cozy", label: translateSettings("settings.medium") },
-          { value: "loose", label: translateSettings("settings.loose") },
+          { value: "compact", label: translateSettings({ key: "settings.tight" }) },
+          { value: "cozy", label: translateSettings({ key: "settings.medium" }) },
+          { value: "loose", label: translateSettings({ key: "settings.loose" }) },
         ]}
         onChange={(v) => set("density", v)}
       />
@@ -774,68 +791,68 @@ function AppearanceGroup() {
 
 function EmotesGroup() {
   const { cd, set } = useChatDisplay(notifySettingsSaved);
-  const nextLoadNote = "Applies on next channel load.";
+  const nextLoadNote = translateSettings({ key: "settings.appliesOnNextChannelLoad" });
   return (
-    <GroupCard title={translateSettings("settings.emotesBadges")}>
+    <GroupCard title={translateSettings({ key: "settings.emotesBadges" })}>
       <EmotesPreview cd={cd} />
       <SwitchRow
-        label="7TV emotes"
+        label={translateSettings({ key: "settings.sevenTvEmotes" })}
         note={nextLoadNote}
         checked={cd.enable7tv}
         onChange={(v) => set("enable7tv", v)}
       />
       <SwitchRow
-        label="BetterTTV emotes"
+        label={translateSettings({ key: "settings.betterTtvEmotes" })}
         note={nextLoadNote}
         checked={cd.enableBttv}
         onChange={(v) => set("enableBttv", v)}
       />
       <SwitchRow
-        label="FrankerFaceZ emotes"
+        label={translateSettings({ key: "settings.frankerFacezEmotes" })}
         note={nextLoadNote}
         checked={cd.enableFfz}
         onChange={(v) => set("enableFfz", v)}
       />
       <SwitchRow
-        label="7TV chat badges"
-        description="Show 7TV profile badges next to Twitch usernames."
+        label={translateSettings({ key: "settings.sevenTvChatBadges" })}
+        description={translateSettings({ key: "settings.sevenTvChatBadgesDescription" })}
         checked={cd.enable7tvBadges}
         onChange={(v) => set("enable7tvBadges", v)}
       />
       <SwitchRow
-        label="7TV username paints"
-        description="Use 7TV gradients, image textures, and shadows on Twitch usernames."
+        label={translateSettings({ key: "settings.sevenTvUsernamePaints" })}
+        description={translateSettings({ key: "settings.sevenTvUsernamePaintsDescription" })}
         checked={cd.enable7tvUsernamePaints}
         onChange={(v) => set("enable7tvUsernamePaints", v)}
       />
       <SwitchRow
-        label="BetterTTV chat badges"
-        description="Show BetterTTV profile badges next to Twitch usernames."
+        label={translateSettings({ key: "settings.betterTtvChatBadges" })}
+        description={translateSettings({ key: "settings.betterTtvChatBadgesDescription" })}
         checked={cd.enableBttvBadges}
         onChange={(v) => set("enableBttvBadges", v)}
       />
       <SwitchRow
-        label="FrankerFaceZ chat badges"
-        description="Show FFZ global badges and channel-specific moderator or VIP artwork."
+        label={translateSettings({ key: "settings.frankerFacezChatBadges" })}
+        description={translateSettings({ key: "settings.frankerFacezChatBadgesDescription" })}
         checked={cd.enableFfzBadges}
         onChange={(v) => set("enableFfzBadges", v)}
       />
       <SwitchRow
-        label="Animated emotes"
-        description="Play animated emotes instead of a static frame."
+        label={translateSettings({ key: "settings.animatedEmotes" })}
+        description={translateSettings({ key: "settings.animatedEmotesDescription" })}
         note={nextLoadNote}
         checked={cd.animatedEmotes}
         onChange={(v) => set("animatedEmotes", v)}
       />
       <SwitchRow
-        label="Overlay emotes"
-        description="Stack zero-width emotes on the previous emote."
+        label={translateSettings({ key: "settings.overlayEmotes" })}
+        description={translateSettings({ key: "settings.overlayEmotesDescription" })}
         note={nextLoadNote}
         checked={cd.overlayEmotes}
         onChange={(v) => set("overlayEmotes", v)}
       />
       <SwitchRow
-        label="Emotes in system messages"
+        label={translateSettings({ key: "settings.emotesInSystemMessages" })}
         checked={cd.systemMessageEmotes}
         onChange={(v) => set("systemMessageEmotes", v)}
       />
@@ -872,7 +889,7 @@ function HighlightStylePreview({
         <span className="block text-xs font-semibold">{label}</span>
         {active && (
           <span className="rounded-[4px] bg-white px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none tracking-normal text-[#18181b]">
-            {translateSettings("settings.selected")}
+            {translateSettings({ key: "settings.selected" })}
           </span>
         )}
       </span>
@@ -891,13 +908,15 @@ function HighlightStylePreview({
         {isCozy && (
           <span className="flex h-5 items-center gap-1 bg-[#26262c] px-1.5 text-[#efeff1]">
             <span className="h-2.5 w-2.5 rounded-full bg-[#f87171]" />
-            <span>{translateSettings("settings.timeout")}</span>
+            <span>{translateSettings({ key: "settings.timeout" })}</span>
           </span>
         )}
         <span className={cn("block bg-[#1f1f24] px-1.5 py-1", isCozy && "bg-[#18181b]")}>
-          <span className="font-bold text-[#70AD47]">{translateSettings("settings.mod")}</span>
-          <span className="text-[#adadb8]"> {translateSettings("settings.removed")}</span>
-          <span className="text-white">{translateSettings("settings.message2")}</span>
+          <span className="font-bold text-[#70AD47]">
+            {translateSettings({ key: "settings.mod" })}
+          </span>
+          <span className="text-[#adadb8]"> {translateSettings({ key: "settings.removed" })}</span>
+          <span className="text-white">{translateSettings({ key: "settings.message2" })}</span>
         </span>
       </span>
     </button>
@@ -913,19 +932,19 @@ function HighlightStyleRow({
 }) {
   return (
     <SettingRow
-      label="Moderation highlight style"
-      description="Choose the visual treatment for deleted-message, timeout, and ban highlights."
+      label={translateSettings({ key: "settings.moderationHighlightStyle" })}
+      description={translateSettings({ key: "settings.moderationHighlightStyleDescription" })}
       control={
         <div className="flex flex-wrap justify-end gap-2">
           <HighlightStylePreview
             active={value === "compact"}
-            label="Compact"
+            label={translateSettings({ key: "settings.compact" })}
             onClick={() => onChange("compact")}
             tone="compact"
           />
           <HighlightStylePreview
             active={value === "cozy"}
-            label="Framed"
+            label={translateSettings({ key: "settings.framed" })}
             onClick={() => onChange("cozy")}
             tone="cozy"
           />
@@ -938,12 +957,12 @@ function HighlightStyleRow({
 function EventsGroup() {
   const { cd, set } = useChatDisplay(notifySettingsSaved);
   return (
-    <GroupCard title={translateSettings("settings.messagesEvents")}>
+    <GroupCard title={translateSettings({ key: "settings.messagesEvents" })}>
       <EventsPreview cd={cd} />
       <RangeRow
-        label="Message limit"
-        description="Messages kept in the buffer before the oldest are removed."
-        note="Higher values use more memory."
+        label={translateSettings({ key: "settings.messageLimit" })}
+        description={translateSettings({ key: "settings.messageLimitDescription" })}
+        note={translateSettings({ key: "settings.higherValuesUseMoreMemory" })}
         value={cd.messageLimit}
         defaultValue={DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit}
         min={100}
@@ -953,13 +972,13 @@ function EventsGroup() {
         onReset={() => set("messageLimit", DEFAULT_CHAT_DISPLAY_PREFERENCES.messageLimit)}
       />
       <SwitchRow
-        label="Load recent messages on join"
+        label={translateSettings({ key: "settings.loadRecentMessagesOnJoin" })}
         checked={cd.recentMessagesOnJoin}
         onChange={(v) => set("recentMessagesOnJoin", v)}
       />
       {cd.recentMessagesOnJoin && (
         <RangeRow
-          label="Recent messages to load"
+          label={translateSettings({ key: "settings.recentMessagesToLoad" })}
           value={Math.min(800, Math.max(100, cd.recentMessagesLimit))}
           defaultValue={DEFAULT_CHAT_DISPLAY_PREFERENCES.recentMessagesLimit}
           min={100}
@@ -972,24 +991,27 @@ function EventsGroup() {
         />
       )}
       <SwitchRow
-        label="Show sub / raid notices"
+        label={translateSettings({ key: "settings.showSubRaidNotices" })}
         checked={cd.showUserNotices}
         onChange={(v) => set("showUserNotices", v)}
       />
       <SwitchRow
-        label="Show deleted-message notices"
+        label={translateSettings({ key: "settings.showDeletedMessageNotices" })}
         checked={cd.showClearMsg}
         onChange={(v) => set("showClearMsg", v)}
       />
       <SelectRow<DeletedMessageDisplayMode>
-        label="Deleted message display"
-        description="Choose how much retained deleted-message detail appears in chat."
+        label={translateSettings({ key: "settings.deletedMessageDisplay" })}
+        description={translateSettings({ key: "settings.deletedMessageDisplayDescription" })}
         value={cd.deletedMessageDisplay}
         options={[
-          { value: "tombstone", label: translateSettings("settings.tombstoneOnly") },
-          { value: "message", label: translateSettings("settings.messageContentOnly") },
-          { value: "compact", label: translateSettings("settings.fullCompactDetailRecommended") },
-          { value: "audit", label: translateSettings("settings.auditStyleDetail") },
+          { value: "tombstone", label: translateSettings({ key: "settings.tombstoneOnly" }) },
+          { value: "message", label: translateSettings({ key: "settings.messageContentOnly" }) },
+          {
+            value: "compact",
+            label: translateSettings({ key: "settings.fullCompactDetailRecommended" }),
+          },
+          { value: "audit", label: translateSettings({ key: "settings.auditStyleDetail" }) },
         ]}
         onChange={(v) => set("deletedMessageDisplay", v)}
       />
@@ -998,18 +1020,22 @@ function EventsGroup() {
         onChange={(v) => set("moderationHighlightStyle", v)}
       />
       <SwitchRow
-        label="Show chat-cleared notices"
+        label={translateSettings({ key: "settings.showChatClearedNotices" })}
         checked={cd.showClearChat}
         onChange={(v) => set("showClearChat", v)}
       />
       <SwitchRow
-        label="Highlight first-time chatters"
+        label={translateSettings({ key: "settings.highlightFirstTimeChatters" })}
         checked={cd.firstMsgHighlight}
         onChange={(v) => set("firstMsgHighlight", v)}
       />
-      <SwitchRow label="Show polls" checked={cd.showPolls} onChange={(v) => set("showPolls", v)} />
       <SwitchRow
-        label="Show predictions"
+        label={translateSettings({ key: "settings.showPolls" })}
+        checked={cd.showPolls}
+        onChange={(v) => set("showPolls", v)}
+      />
+      <SwitchRow
+        label={translateSettings({ key: "settings.showPredictions" })}
         checked={cd.showPredictions}
         onChange={(v) => set("showPredictions", v)}
       />
@@ -1029,16 +1055,16 @@ function BehaviorGroup() {
   };
 
   return (
-    <GroupCard title={translateSettings("settings.behavior")}>
+    <GroupCard title={translateSettings({ key: "settings.behavior" })}>
       <SwitchRow
-        label="Hide chat panel"
-        description="Collapse the docked chat panel on stream pages."
+        label={translateSettings({ key: "settings.hideChatPanel" })}
+        description={translateSettings({ key: "settings.hideChatPanelDescription" })}
         checked={hidden}
         onChange={onHideChange}
       />
       <SwitchRow
-        label="Ask for Twitch pin duration"
-        description="Show the duration dialog when pinning a Twitch chat message. Turn this off to pin immediately."
+        label={translateSettings({ key: "settings.askForTwitchPinDuration" })}
+        description={translateSettings({ key: "settings.askForTwitchPinDurationDescription" })}
         checked={cd.showTwitchPinDurationDialog}
         onChange={(v) => set("showTwitchPinDurationDialog", v)}
       />

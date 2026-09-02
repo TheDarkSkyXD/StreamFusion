@@ -72,7 +72,7 @@ export function BugReportSection() {
   const handleSubmit = useCallback(async () => {
     const api = window.electronAPI?.bugReports;
     if (!api?.write) {
-      toast.error(translateSettings("settings.bugReportIpcIsNotAvailable"));
+      toast.error(translateSettings({ key: "settings.bugReportIpcIsNotAvailable" }));
       return;
     }
     setSubmitting(true);
@@ -83,17 +83,23 @@ export function BugReportSection() {
         includeNoiseLog: noiseAvailable ? includeNoiseLog : false,
       });
       if (!result.ok || !result.filePath) {
-        toast.error(result.error ?? translateSettings("settings.couldnTWriteTheBugReport"));
+        toast.error(
+          result.error ?? translateSettings({ key: "settings.couldnTWriteTheBugReport" })
+        );
         return;
       }
       setSavedPath(result.filePath);
       const filename = result.filePath.split(/[/\\]/).pop() ?? result.filePath;
-      toast.success(translateSettings("settings.savedToValue", { filename: filename }));
+      toast.success(
+        translateSettings({ key: "settings.savedToValue", options: { filename: filename } })
+      );
       // Refresh the recent-reports list so the new entry appears.
       void refreshRecent();
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : translateSettings("settings.couldnTWriteTheBugReport")
+        err instanceof Error
+          ? err.message
+          : translateSettings({ key: "settings.couldnTWriteTheBugReport" })
       );
     } finally {
       setSubmitting(false);
@@ -103,19 +109,21 @@ export function BugReportSection() {
   const handleOpenFolder = useCallback(async () => {
     const api = window.electronAPI?.bugReports;
     if (!api?.openFolder) {
-      toast.error(translateSettings("settings.bugReportIpcIsNotAvailable"));
+      toast.error(translateSettings({ key: "settings.bugReportIpcIsNotAvailable" }));
       return;
     }
     try {
       const result = await api.openFolder();
       if (!result.ok) {
-        toast.error(result.error ?? translateSettings("settings.couldnTOpenTheBugReportsFolder"));
+        toast.error(
+          result.error ?? translateSettings({ key: "settings.couldnTOpenTheBugReportsFolder" })
+        );
       }
     } catch (err) {
       toast.error(
         err instanceof Error
           ? err.message
-          : translateSettings("settings.couldnTOpenTheBugReportsFolder")
+          : translateSettings({ key: "settings.couldnTOpenTheBugReportsFolder" })
       );
     }
   }, []);
@@ -123,10 +131,10 @@ export function BugReportSection() {
   const handleCopyPath = useCallback(async (path: string) => {
     try {
       await navigator.clipboard.writeText(path);
-      toast.success(translateSettings("settings.pathCopiedToClipboard"));
+      toast.success(translateSettings({ key: "settings.pathCopiedToClipboard" }));
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : translateSettings("settings.couldnTCopyPath")
+        err instanceof Error ? err.message : translateSettings({ key: "settings.couldnTCopyPath" })
       );
     }
   }, []);
@@ -138,11 +146,13 @@ export function BugReportSection() {
           <LuBug className="w-5 h-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-lg">{translateSettings("settings.reportABug")}</h3>
+          <h3 className="font-semibold text-lg">
+            {translateSettings({ key: "settings.reportABug" })}
+          </h3>
           <p className="text-sm text-zinc-500">
-            {translateSettings(
-              "settings.writeABugReportToDiskYouCanAttachRecentLogFileContentsTheyReAlre"
-            )}
+            {translateSettings({
+              key: "settings.writeABugReportToDiskYouCanAttachRecentLogFileContentsTheyReAlre",
+            })}
           </p>
         </div>
       </div>
@@ -150,15 +160,15 @@ export function BugReportSection() {
       <div className="p-6 space-y-5">
         <div className="space-y-2">
           <label htmlFor="bug-description" className="block text-sm font-medium text-zinc-300">
-            {translateSettings("settings.description")}
+            {translateSettings({ key: "settings.description" })}
           </label>
           <textarea
             id="bug-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder={translateSettings(
-              "settings.describeWhatHappenedWhatYouExpectedAndAnyReproductionSteps"
-            )}
+            placeholder={translateSettings({
+              key: "settings.describeWhatHappenedWhatYouExpectedAndAnyReproductionSteps",
+            })}
             rows={6}
             spellCheck
             className="w-full rounded-lg border border-[#27272a] bg-[#18181b] px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-zinc-500/20 focus:border-zinc-500/40 resize-y"
@@ -169,16 +179,16 @@ export function BugReportSection() {
           <div className="flex items-center justify-between gap-4 px-4 py-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-zinc-200">
-                {translateSettings("settings.includeCurrentLogFileLast500Lines")}
+                {translateSettings({ key: "settings.includeCurrentLogFileLast500Lines" })}
               </p>
               <p className="text-xs text-zinc-500 mt-0.5">
-                {translateSettings(
-                  "settings.recentMainProcessLogEntriesRedactedOfTokensAndSecrets"
-                )}
+                {translateSettings({
+                  key: "settings.recentMainProcessLogEntriesRedactedOfTokensAndSecrets",
+                })}
               </p>
             </div>
             <Switch
-              aria-label={translateSettings("settings.includeCurrentLogFile")}
+              aria-label={translateSettings({ key: "settings.includeCurrentLogFile" })}
               checked={includeMainLog}
               onCheckedChange={setIncludeMainLog}
             />
@@ -186,16 +196,20 @@ export function BugReportSection() {
           <div className="flex items-center justify-between gap-4 px-4 py-3">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-zinc-200">
-                {translateSettings("settings.includeNoiseLogLast200LinesChatHlsEvents")}
+                {translateSettings({ key: "settings.includeNoiseLogLast200LinesChatHlsEvents" })}
               </p>
               <p className="text-xs text-zinc-500 mt-0.5">
                 {noiseAvailable
-                  ? translateSettings("settings.highVolumeBackgroundEventsSplitIntoASideChannelLog")
-                  : translateSettings("settings.noiseSideChannelLogIsnTAvailableInThisBuild")}
+                  ? translateSettings({
+                      key: "settings.highVolumeBackgroundEventsSplitIntoASideChannelLog",
+                    })
+                  : translateSettings({
+                      key: "settings.noiseSideChannelLogIsnTAvailableInThisBuild",
+                    })}
               </p>
             </div>
             <Switch
-              aria-label={translateSettings("settings.includeNoiseLog")}
+              aria-label={translateSettings({ key: "settings.includeNoiseLog" })}
               checked={includeNoiseLog}
               onCheckedChange={setIncludeNoiseLog}
               disabled={!noiseAvailable}
@@ -210,7 +224,7 @@ export function BugReportSection() {
             className="bg-yellow-500 hover:bg-yellow-400 text-black"
           >
             <LuBug className="w-4 h-4 mr-2" />
-            {translateSettings("settings.generateBugReport")}
+            {translateSettings({ key: "settings.generateBugReport" })}
           </Button>
           <Button
             variant="outline"
@@ -218,7 +232,7 @@ export function BugReportSection() {
             className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
           >
             <LuFolderOpen className="w-4 h-4 mr-2" />
-            {translateSettings("settings.openBugReportsFolder")}
+            {translateSettings({ key: "settings.openBugReportsFolder" })}
           </Button>
         </div>
 
@@ -226,7 +240,7 @@ export function BugReportSection() {
           <div className="rounded-lg border border-[#27272a] bg-[#09090b] p-3 flex items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-xs text-zinc-500 mb-1">
-                {translateSettings("settings.savedReport")}
+                {translateSettings({ key: "settings.savedReport" })}
               </p>
               <p className="text-xs font-mono text-zinc-300 truncate" title={savedPath}>
                 {savedPath}
@@ -239,7 +253,7 @@ export function BugReportSection() {
               className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white flex-shrink-0"
             >
               <LuCopy className="w-4 h-4 mr-2" />
-              {translateSettings("settings.copyPath")}
+              {translateSettings({ key: "settings.copyPath" })}
             </Button>
           </div>
         )}
@@ -247,7 +261,7 @@ export function BugReportSection() {
         {recentReports.length > 0 && (
           <div className="space-y-2 pt-4 border-t border-[#27272a]">
             <p className="text-xs font-medium text-zinc-400 uppercase tracking-wide">
-              {translateSettings("settings.recentReports")}
+              {translateSettings({ key: "settings.recentReports" })}
             </p>
             <ul className="space-y-1">
               {recentReports.map((path) => (
@@ -258,7 +272,10 @@ export function BugReportSection() {
                   <button
                     type="button"
                     onClick={() => void handleCopyPath(path)}
-                    aria-label={translateSettings("settings.copyPathValue", { path: path })}
+                    aria-label={translateSettings({
+                      key: "settings.copyPathValue",
+                      options: { path: path },
+                    })}
                     className="text-zinc-500 hover:text-zinc-200 transition-colors flex-shrink-0"
                   >
                     <LuCopy className="w-3.5 h-3.5" />

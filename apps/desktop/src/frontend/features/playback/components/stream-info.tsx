@@ -254,7 +254,7 @@ export function StreamInfo({ channel, stream, isLoading, recordingAction }: Stre
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
                     {t("playback.viewerCount", {
-                      value: stream.viewerCount.toLocaleString(),
+                      value: stream.viewerCount.toLocaleString(locale),
                       defaultValue: "{{value}} viewers",
                     })}
                   </TooltipContent>

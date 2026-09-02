@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDiagnosticsWorkspace } from "@/features/settings/data/use-diagnostics-workspace";
 import { translateSettings } from "@/features/settings/utils/settings-translation";
+import { i18n } from "@/i18n";
 import { cn } from "@/lib/utils";
 import type {
   DiagnosticSourceStatus,
@@ -49,37 +50,37 @@ function getTabs(): ReadonlyArray<{
   return [
     {
       id: "overview",
-      label: translateSettings("settings.overview"),
+      label: translateSettings({ key: "settings.overview" }),
       icon: LuGauge,
       color: "text-emerald-400",
     },
     {
       id: "resources",
-      label: translateSettings("settings.resources"),
+      label: translateSettings({ key: "settings.resources" }),
       icon: LuActivity,
       color: "text-cyan-300",
     },
     {
       id: "io",
-      label: translateSettings("settings.iO"),
+      label: translateSettings({ key: "settings.iO" }),
       icon: LuDatabase,
       color: "text-emerald-200",
     },
     {
       id: "traces",
-      label: translateSettings("settings.traces"),
+      label: translateSettings({ key: "settings.traces" }),
       icon: LuWorkflow,
       color: "text-sky-300",
     },
     {
       id: "logs-reports",
-      label: translateSettings("settings.logsReports"),
+      label: translateSettings({ key: "settings.logsReports" }),
       icon: LuFileText,
       color: "text-emerald-400",
     },
     {
       id: "developer-tools",
-      label: translateSettings("settings.developerTools"),
+      label: translateSettings({ key: "settings.developerTools" }),
       icon: LuBug,
       color: "text-red-400",
     },
@@ -135,7 +136,7 @@ function formatDuration(durationMs: number): string {
 }
 
 function formatObservedAt(observedAtMs: number): string {
-  return new Date(observedAtMs).toLocaleTimeString([], {
+  return new Date(observedAtMs).toLocaleTimeString(i18n.resolvedLanguage ?? i18n.language, {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -145,21 +146,56 @@ function formatObservedAt(observedAtMs: number): string {
 async function copyTraceId(traceId: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(traceId);
-    toast.success(translateSettings("settings.traceIdCopied"));
+    toast.success(translateSettings({ key: "settings.traceIdCopied" }));
   } catch {
-    toast.error(translateSettings("settings.couldNotCopyTheTraceId"));
+    toast.error(translateSettings({ key: "settings.couldNotCopyTheTraceId" }));
   }
 }
 
 function sourceLabel(status: DiagnosticSourceStatus): string {
-  if (status.kind === "ready") return "Ready";
-  if (status.kind === "stale") return "Stale";
-  if (status.kind === "unsupported") return "Unsupported";
-  return "Unavailable";
+  if (status.kind === "ready") return translateSettings({ key: "settings.ready" });
+  if (status.kind === "stale") return translateSettings({ key: "settings.stale" });
+  if (status.kind === "unsupported") return translateSettings({ key: "settings.unsupported" });
+  return translateSettings({ key: "settings.unavailable" });
 }
 
 function valueText<T>(value: DiagnosticValue<T>, format: (item: T) => string): string {
   return hasValue(value) ? format(value.value) : sourceLabel(value.status);
+}
+
+function formatSessionState(value: "active" | "idle" | "locked" | "unknown"): string {
+  switch (value) {
+    case "active":
+      return translateSettings({ key: "settings.active" });
+    case "idle":
+      return translateSettings({ key: "settings.idle" });
+    case "locked":
+      return translateSettings({ key: "settings.locked" });
+    case "unknown":
+      return translateSettings({ key: "settings.unknown" });
+  }
+}
+
+function formatThermalState(value: "nominal" | "fair" | "serious" | "critical"): string {
+  switch (value) {
+    case "nominal":
+      return translateSettings({ key: "settings.nominal" });
+    case "fair":
+      return translateSettings({ key: "settings.fair" });
+    case "serious":
+      return translateSettings({ key: "settings.serious" });
+    case "critical":
+      return translateSettings({ key: "settings.critical" });
+  }
+}
+
+function formatProcessCount(count: number): string {
+  return translateSettings({
+    key: count === 1 ? "settings.processCount_one" : "settings.processCount_other",
+    options: {
+      count,
+    },
+  });
 }
 
 function Panel({
@@ -232,13 +268,26 @@ function StatusPill({
 function sourceStatusDetail(status: DiagnosticSourceStatus): string {
   switch (status.kind) {
     case "ready":
-      return "No reported errors";
+      return translateSettings({ key: "settings.noReportedErrors" });
     case "stale":
-      return `Updates are stale (${status.reason.replaceAll("-", " ")})`;
+      return translateSettings({
+        key: "settings.updatesAreStaleReason",
+        options: {
+          reason: status.reason.replaceAll("-", " "),
+        },
+      });
     case "unavailable":
-      return `Unavailable (${status.reason.replaceAll("-", " ")})`;
+      return translateSettings({
+        key: "settings.unavailableReason",
+        options: {
+          reason: status.reason.replaceAll("-", " "),
+        },
+      });
     case "unsupported":
-      return `Not supported on ${status.platform}`;
+      return translateSettings({
+        key: "settings.notSupportedOnPlatform",
+        options: { platform: status.platform },
+      });
   }
 }
 
@@ -251,7 +300,7 @@ function CollectionHealthRow({ label, status }: { label: string; status: Diagnos
           {sourceStatusDetail(status)}
         </p>
       </div>
-      <StatusPill status={status} readyLabel="Healthy" />
+      <StatusPill status={status} readyLabel={translateSettings({ key: "settings.healthy" })} />
     </div>
   );
 }
@@ -361,13 +410,13 @@ function aggregateProcessMetrics(
   const write = rows.reduce((total, row) => total + (row.writeBytesPerSecond ?? 0), 0);
   return [
     { label: "CPU", value: `${cpu.toFixed(1)}%` },
-    { label: translateSettings("settings.memory"), value: formatBytes(memory) },
+    { label: translateSettings({ key: "settings.memory" }), value: formatBytes(memory) },
     {
-      label: translateSettings("settings.read"),
+      label: translateSettings({ key: "settings.read" }),
       value: hasReadRate ? formatRate(read) : ioPlaceholder,
     },
     {
-      label: translateSettings("settings.write"),
+      label: translateSettings({ key: "settings.write" }),
       value: hasWriteRate ? formatRate(write) : ioPlaceholder,
     },
   ];
@@ -383,7 +432,7 @@ function WindowControl({
   return (
     <div
       className="flex rounded-lg border border-[var(--color-border)] p-1"
-      aria-label={translateSettings("settings.timeWindow")}
+      aria-label={translateSettings({ key: "settings.timeWindow" })}
     >
       {WINDOWS.map((minutes) => (
         <button
@@ -399,8 +448,8 @@ function WindowControl({
           aria-pressed={value === minutes}
         >
           {minutes === 60
-            ? translateSettings("settings.value1h")
-            : translateSettings("settings.valueM", { minutes: minutes })}
+            ? translateSettings({ key: "settings.value1h" })
+            : translateSettings({ key: "settings.valueM", options: { minutes: minutes } })}
         </button>
       ))}
     </div>
@@ -433,28 +482,28 @@ function ResourceChart({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
       <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-[var(--color-foreground-secondary)]">
         <span>
           <span className="mr-2 inline-block h-1.5 w-3 rounded-full bg-violet-300" />
-          {translateSettings("settings.cpuAverage")}
+          {translateSettings({ key: "settings.cpuAverage" })}
         </span>
         <span>
           <span className="mr-2 inline-block h-1.5 w-3 rounded-full bg-emerald-200" />
-          {translateSettings("settings.iOReads")}
+          {translateSettings({ key: "settings.iOReads" })}
         </span>
         <span>
           <span className="mr-2 inline-block h-1.5 w-3 rounded-full bg-violet-500" />
-          {translateSettings("settings.iOWrites")}
+          {translateSettings({ key: "settings.iOWrites" })}
         </span>
       </div>
       <div
         className="flex h-32 items-end gap-1 overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] px-2 pb-2 pt-3"
         role="img"
-        aria-label={translateSettings(
-          "settings.resourceHistoryForTheSelectedValueMinuteWindowWithValueTimeBucke",
-          { value1: snapshot.view.windowMinutes, value2: buckets.length }
-        )}
+        aria-label={translateSettings({
+          key: "settings.resourceHistoryForTheSelectedValueMinuteWindowWithValueTimeBucke",
+          options: { value1: snapshot.view.windowMinutes, value2: buckets.length },
+        })}
       >
         {buckets.length === 0 ? (
           <p className="m-auto text-sm text-[var(--color-foreground-secondary)]">
-            {translateSettings("settings.waitingForResourceHistory")}
+            {translateSettings({ key: "settings.waitingForResourceHistory" })}
           </p>
         ) : (
           buckets.map((bucket) => {
@@ -497,19 +546,19 @@ function ResourceChart({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
                 </TooltipTrigger>
                 <TooltipContent side="top" className="space-y-0.5 text-left text-xs tabular-nums">
                   <div>
-                    {translateSettings("settings.cpuAvg")}
+                    {translateSettings({ key: "settings.cpuAvg" })}
                     {bucket.avgCpuPercent.toFixed(1)}%
                   </div>
                   <div>
-                    {translateSettings("settings.cpuPeak")}
+                    {translateSettings({ key: "settings.cpuPeak" })}
                     {bucket.maxCpuPercent.toFixed(1)}%
                   </div>
                   <div>
-                    {translateSettings("settings.read")}
+                    {translateSettings({ key: "settings.read" })}
                     {formatBytes(bucket.ioReadBytes)}
                   </div>
                   <div>
-                    {translateSettings("settings.write")}
+                    {translateSettings({ key: "settings.write" })}
                     {formatBytes(bucket.ioWriteBytes)}
                   </div>
                 </TooltipContent>
@@ -568,11 +617,14 @@ function ProcessTable({
   if (rows.length === 0) {
     return (
       <p className="p-5 text-sm text-[var(--color-foreground-secondary)]">
-        {translateSettings("settings.noLiveProcessesObserved")}
+        {translateSettings({ key: "settings.noLiveProcessesObserved" })}
       </p>
     );
   }
-  const ioPlaceholder = ioStatus.kind === "unsupported" ? "Unsupported" : "Collecting…";
+  const ioPlaceholder =
+    ioStatus.kind === "unsupported"
+      ? translateSettings({ key: "settings.unsupported" })
+      : translateSettings({ key: "settings.collecting" });
   return (
     <div className={cn("max-w-full overflow-x-auto", viewportClassName)}>
       <table className="w-full min-w-[1280px] table-fixed border-collapse text-sm">
@@ -591,17 +643,27 @@ function ProcessTable({
         </colgroup>
         <thead>
           <tr className="text-left text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
-            <th className="px-2 py-3">{translateSettings("settings.process")}</th>
-            <th className="px-4 py-3">{translateSettings("settings.category")}</th>
+            <th className="px-2 py-3">{translateSettings({ key: "settings.process" })}</th>
+            <th className="px-4 py-3">{translateSettings({ key: "settings.category" })}</th>
             <th className="px-4 py-3 text-right">CPU</th>
-            <th className="px-4 py-3 text-right">{translateSettings("settings.cpuTime")}</th>
-            <th className="px-4 py-3 text-right">{translateSettings("settings.memory")}</th>
-            <th className="px-4 py-3 text-right">{translateSettings("settings.readS")}</th>
-            <th className="px-4 py-3 text-right">{translateSettings("settings.writeS")}</th>
-            <th className="px-4 py-3 text-right">{translateSettings("settings.readTotal")}</th>
-            <th className="px-4 py-3 text-right">{translateSettings("settings.writeTotal")}</th>
+            <th className="px-4 py-3 text-right">
+              {translateSettings({ key: "settings.cpuTime" })}
+            </th>
+            <th className="px-4 py-3 text-right">
+              {translateSettings({ key: "settings.memory" })}
+            </th>
+            <th className="px-4 py-3 text-right">{translateSettings({ key: "settings.readS" })}</th>
+            <th className="px-4 py-3 text-right">
+              {translateSettings({ key: "settings.writeS" })}
+            </th>
+            <th className="px-4 py-3 text-right">
+              {translateSettings({ key: "settings.readTotal" })}
+            </th>
+            <th className="px-4 py-3 text-right">
+              {translateSettings({ key: "settings.writeTotal" })}
+            </th>
             <th className="px-5 py-3 text-right">PID</th>
-            <th className="px-4 py-3 text-right">{translateSettings("settings.kill")}</th>
+            <th className="px-4 py-3 text-right">{translateSettings({ key: "settings.kill" })}</th>
           </tr>
         </thead>
         <tbody>
@@ -633,9 +695,12 @@ function ProcessTable({
               </td>
               <td className="px-4 py-3.5 text-right tabular-nums text-white">
                 {row.cumulativeCpuMs === null
-                  ? translateSettings("settings.unsupported")
-                  : translateSettings("settings.valueS", {
-                      value1: (row.cumulativeCpuMs / 1_000).toFixed(1),
+                  ? translateSettings({ key: "settings.unsupported" })
+                  : translateSettings({
+                      key: "settings.valueS",
+                      options: {
+                        value1: (row.cumulativeCpuMs / 1_000).toFixed(1),
+                      },
                     })}
               </td>
               <td className="px-4 py-3.5 text-right tabular-nums text-white">
@@ -676,12 +741,20 @@ function ProcessHistoryTable({ rows }: { rows: readonly ProcessObservation[] }) 
       <table className="w-full min-w-[940px] border-collapse text-sm">
         <thead className="sticky top-0 bg-[var(--color-background-secondary)]">
           <tr className="text-left text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
-            <th className="px-5 py-3">{translateSettings("settings.process")}</th>
-            <th className="px-4 py-3 text-right">{translateSettings("settings.cpuTime")}</th>
-            <th className="px-4 py-3 text-right">{translateSettings("settings.current2")}</th>
-            <th className="px-4 py-3 text-right">{translateSettings("settings.average")}</th>
-            <th className="px-4 py-3 text-right">{translateSettings("settings.peak")}</th>
-            <th className="px-4 py-3 text-right">{translateSettings("settings.maxMemory")}</th>
+            <th className="px-5 py-3">{translateSettings({ key: "settings.process" })}</th>
+            <th className="px-4 py-3 text-right">
+              {translateSettings({ key: "settings.cpuTime" })}
+            </th>
+            <th className="px-4 py-3 text-right">
+              {translateSettings({ key: "settings.current2" })}
+            </th>
+            <th className="px-4 py-3 text-right">
+              {translateSettings({ key: "settings.average" })}
+            </th>
+            <th className="px-4 py-3 text-right">{translateSettings({ key: "settings.peak" })}</th>
+            <th className="px-4 py-3 text-right">
+              {translateSettings({ key: "settings.maxMemory" })}
+            </th>
             <th className="px-5 py-3 text-right">PID</th>
           </tr>
         </thead>
@@ -694,7 +767,7 @@ function ProcessHistoryTable({ rows }: { rows: readonly ProcessObservation[] }) 
               </td>
               <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-white">
                 {row.cumulativeCpuMs === null
-                  ? translateSettings("settings.nA")
+                  ? translateSettings({ key: "settings.nA" })
                   : formatDuration(row.cumulativeCpuMs)}
               </td>
               <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-violet-200">
@@ -727,54 +800,95 @@ function OverviewTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
   return (
     <div className="space-y-4">
       <Panel
-        title={translateSettings("settings.hostStateAndCollection")}
-        eyebrow="Host & collection"
+        title={translateSettings({ key: "settings.hostStateAndCollection" })}
+        eyebrow={translateSettings({ key: "settings.hostAndCollection" })}
         icon={<LuGauge />}
         iconClassName="text-violet-300"
       >
         <div className="grid lg:grid-cols-2">
           <div className="border-b border-[var(--color-border)] px-5 lg:border-b-0 lg:border-r">
             <StatusRow
-              label="Power source"
+              label={translateSettings({ key: "settings.powerSource" })}
               value={valueText(host.powerSource, (value) =>
-                value === "external" ? "External power" : "Battery"
+                value === "external"
+                  ? translateSettings({ key: "settings.externalPower" })
+                  : translateSettings({ key: "settings.battery" })
               )}
             />
             <StatusRow
-              label="Low power mode"
-              value={valueText(host.lowPowerMode, (value) => (value ? "On" : "Off"))}
+              label={translateSettings({ key: "settings.lowPowerMode" })}
+              value={valueText(host.lowPowerMode, (value) =>
+                value
+                  ? translateSettings({ key: "settings.on" })
+                  : translateSettings({ key: "settings.off" })
+              )}
             />
-            <StatusRow label="Idle" value={valueText(host.idleSeconds, (value) => `${value}s`)} />
-            <StatusRow label="Session" value={valueText(host.sessionState, (value) => value)} />
-            <StatusRow label="Thermal" value={valueText(host.thermalState, (value) => value)} />
+            <StatusRow
+              label={translateSettings({ key: "settings.idle" })}
+              value={valueText(host.idleSeconds, (value) => `${value}s`)}
+            />
+            <StatusRow
+              label={translateSettings({ key: "settings.session" })}
+              value={valueText(host.sessionState, formatSessionState)}
+            />
+            <StatusRow
+              label={translateSettings({ key: "settings.thermal" })}
+              value={valueText(host.thermalState, formatThermalState)}
+            />
           </div>
           <div className="px-5">
-            <CollectionHealthRow label="Native process monitor" status={processStatus} />
-            <CollectionHealthRow label="Electron main process" status={mainProcessStatus} />
+            <CollectionHealthRow
+              label={translateSettings({ key: "settings.nativeProcessMonitor" })}
+              status={processStatus}
+            />
+            <CollectionHealthRow
+              label={translateSettings({ key: "settings.electronMainProcess" })}
+              status={mainProcessStatus}
+            />
             <StatusRow
-              label="Collection time"
+              label={translateSettings({ key: "settings.collectionTime" })}
               value={valueText(footprint.collectionDurationMs, (value) => `${value.toFixed(2)} ms`)}
             />
             <StatusRow
-              label="Collector CPU"
+              label={translateSettings({ key: "settings.collectorCpu" })}
               value={valueText(footprint.collectorCpuPercent, (value) => `${value.toFixed(2)}%`)}
             />
             <StatusRow
-              label="Sampling interval"
+              label={translateSettings({ key: "settings.samplingInterval" })}
               value={`${(collection.sampleIntervalMs / 1_000).toFixed(0)} s`}
             />
-            <StatusRow label="Retained samples" value={String(collection.retainedSamples)} />
-            <StatusRow label="Process scan" value={`${collection.processScanCount} retained`} />
-            <StatusRow label="Inaccessible" value={String(collection.inaccessibleProcessCount)} />
-            <StatusRow label="Collector restarts" value={String(collection.restartCount)} />
-            <StatusRow label="Dropped detail" value={String(collection.droppedDetailCount)} />
+            <StatusRow
+              label={translateSettings({ key: "settings.retainedSamples" })}
+              value={String(collection.retainedSamples)}
+            />
+            <StatusRow
+              label={translateSettings({ key: "settings.processScan" })}
+              value={translateSettings({
+                key: "settings.retainedCount",
+                options: {
+                  count: collection.processScanCount,
+                },
+              })}
+            />
+            <StatusRow
+              label={translateSettings({ key: "settings.inaccessible" })}
+              value={String(collection.inaccessibleProcessCount)}
+            />
+            <StatusRow
+              label={translateSettings({ key: "settings.collectorRestarts" })}
+              value={String(collection.restartCount)}
+            />
+            <StatusRow
+              label={translateSettings({ key: "settings.droppedDetail" })}
+              value={String(collection.droppedDetailCount)}
+            />
           </div>
         </div>
       </Panel>
 
       <Panel
-        eyebrow="Source status"
-        title={translateSettings("settings.evidenceAvailability")}
+        eyebrow={translateSettings({ key: "settings.sourceStatus" })}
+        title={translateSettings({ key: "settings.evidenceAvailability" })}
         icon={<LuRadio />}
         iconClassName="text-violet-300"
       >
@@ -808,78 +922,120 @@ function ResourcesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
   const readTotalBytes = rows.reduce((total, row) => total + (row.readTotalBytes ?? 0), 0);
   const writeTotalBytes = rows.reduce((total, row) => total + (row.writeTotalBytes ?? 0), 0);
   const ioStatus = snapshot.sourceStatuses["process-io"];
-  const ioPlaceholder = ioStatus.kind === "unsupported" ? "Unsupported" : "Collecting…";
+  const ioPlaceholder =
+    ioStatus.kind === "unsupported"
+      ? translateSettings({ key: "settings.unsupported" })
+      : translateSettings({ key: "settings.collecting" });
   const nativeStatus = snapshot.sourceStatuses["electron-processes"];
   return (
     <div className="space-y-4">
       <Panel
-        title={translateSettings("settings.resourceMonitor")}
+        title={translateSettings({ key: "settings.resourceMonitor" })}
         icon={<LuActivity />}
         iconClassName="text-cyan-300"
         action={
           <div className="flex flex-wrap items-center justify-end gap-3">
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold uppercase tracking-[0.04em] text-[var(--color-foreground-secondary)]">
-                {translateSettings("settings.native")}
+                {translateSettings({ key: "settings.native" })}
               </span>
               <StatusPill status={nativeStatus} />
             </div>
             <span className="text-xs tabular-nums text-[var(--color-foreground-secondary)]">
-              {translateSettings("settings.updated")}
+              {translateSettings({ key: "settings.updated" })}
               {formatObservedAt(snapshot.observedAtMs)}
             </span>
             <span className="flex items-center gap-2 text-xs text-[var(--color-foreground-secondary)]">
               <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
-              {translateSettings("settings.samplingEvery")}
+              {translateSettings({ key: "settings.samplingEvery" })}
               {(collection.sampleIntervalMs / 1_000).toFixed(0)}{" "}
-              {translateSettings("settings.second")}
+              {translateSettings({ key: "settings.second" })}
             </span>
           </div>
         }
       >
         <div className="grid sm:grid-cols-2 xl:grid-cols-3">
           <MetricCard
-            label="Current CPU"
+            label={translateSettings({ key: "settings.currentCpu" })}
             value={valueText(footprint.cpuPercent, (value) => `${value.toFixed(1)}%`)}
-            detail={`${formatDuration(cpuTimeMs)} observed CPU time`}
+            detail={translateSettings({
+              key: "settings.observedCpuTime",
+              options: {
+                value: formatDuration(cpuTimeMs),
+              },
+            })}
             icon={<LuCpu />}
             iconClassName="text-violet-300"
           />
           <MetricCard
-            label="Resident memory"
+            label={translateSettings({ key: "settings.residentMemory" })}
             value={valueText(footprint.residentMemoryBytes, formatBytes)}
-            detail={`${formatBytes(peakResidentBytes)} combined process peaks`}
+            detail={translateSettings({
+              key: "settings.combinedProcessPeaks",
+              options: {
+                value: formatBytes(peakResidentBytes),
+              },
+            })}
             icon={<LuMemoryStick />}
             iconClassName="text-cyan-300"
           />
           <MetricCard
-            label="Process count"
+            label={translateSettings({ key: "settings.processCount" })}
             value={valueText(footprint.processCount, String)}
-            detail={`${collection.processStarts} starts · ${collection.processExits} exits`}
+            detail={translateSettings({
+              key: "settings.processStartsAndExits",
+              options: {
+                starts: collection.processStarts,
+                exits: collection.processExits,
+              },
+            })}
             icon={<LuActivity />}
             iconClassName="text-emerald-300"
           />
           <MetricCard
-            label="Read throughput"
+            label={translateSettings({ key: "settings.readThroughput" })}
             value={valueText(footprint.readBytesPerSecond, formatRate)}
-            detail={hasReadTotals ? `${formatBytes(readTotalBytes)} observed` : ioPlaceholder}
+            detail={
+              hasReadTotals
+                ? translateSettings({
+                    key: "settings.observedValue",
+                    options: {
+                      value: formatBytes(readTotalBytes),
+                    },
+                  })
+                : ioPlaceholder
+            }
             icon={<LuHardDrive />}
             iconClassName="text-emerald-200"
           />
           <MetricCard
-            label="Write throughput"
+            label={translateSettings({ key: "settings.writeThroughput" })}
             value={valueText(footprint.writeBytesPerSecond, formatRate)}
-            detail={hasWriteTotals ? `${formatBytes(writeTotalBytes)} observed` : ioPlaceholder}
+            detail={
+              hasWriteTotals
+                ? translateSettings({
+                    key: "settings.observedValue",
+                    options: {
+                      value: formatBytes(writeTotalBytes),
+                    },
+                  })
+                : ioPlaceholder
+            }
             icon={<LuFileText />}
             iconClassName="text-violet-200"
           />
           <MetricCard
-            label="CPU speed limit"
+            label={translateSettings({ key: "settings.cpuSpeedLimit" })}
             value={valueText(footprint.cpuSpeedLimitPercent, (value) => `${value.toFixed(0)}%`)}
             detail={
               hasValue(host.thermalState)
-                ? `${host.thermalState.value} thermal state`
-                : "OS-advertised processor limit"
+                ? translateSettings({
+                    key: "settings.thermalStateValue",
+                    options: {
+                      value: host.thermalState.value,
+                    },
+                  })
+                : translateSettings({ key: "settings.osAdvertisedProcessorLimit" })
             }
             icon={<LuGauge />}
             iconClassName="text-amber-300"
@@ -887,20 +1043,20 @@ function ResourcesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
         </div>
         <div className="grid border-t border-[var(--color-border)] bg-[var(--color-background-secondary)] lg:grid-cols-3">
           <ResourceAggregateCard
-            label="Main process"
-            countLabel={`${mainProcesses.length} ${mainProcesses.length === 1 ? "process" : "processes"}`}
+            label={translateSettings({ key: "settings.mainProcess" })}
+            countLabel={formatProcessCount(mainProcesses.length)}
             accentClassName="bg-emerald-300"
             metrics={aggregateProcessMetrics(mainProcesses, ioPlaceholder)}
           />
           <ResourceAggregateCard
-            label="Desktop processes"
-            countLabel={`${desktopProcesses.length} ${desktopProcesses.length === 1 ? "process" : "processes"}`}
+            label={translateSettings({ key: "settings.desktopProcesses" })}
+            countLabel={formatProcessCount(desktopProcesses.length)}
             accentClassName="bg-cyan-300"
             metrics={aggregateProcessMetrics(desktopProcesses, ioPlaceholder)}
           />
           <ResourceAggregateCard
-            label="Collector overhead"
-            countLabel="in main process"
+            label={translateSettings({ key: "settings.collectorOverhead" })}
+            countLabel={translateSettings({ key: "settings.inMainProcess" })}
             accentClassName="bg-amber-300"
             metrics={[
               {
@@ -908,21 +1064,24 @@ function ResourcesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
                 value: valueText(footprint.collectorCpuPercent, (value) => `${value.toFixed(2)}%`),
               },
               {
-                label: translateSettings("settings.collection"),
+                label: translateSettings({ key: "settings.collection" }),
                 value: valueText(footprint.collectionDurationMs, formatDuration),
               },
               {
-                label: translateSettings("settings.retainedState"),
+                label: translateSettings({ key: "settings.retainedState" }),
                 value: valueText(footprint.collectorResidentBytes, formatBytes),
               },
-              { label: translateSettings("settings.iO"), value: "Included in main" },
+              {
+                label: translateSettings({ key: "settings.iO" }),
+                value: translateSettings({ key: "settings.includedInMain" }),
+              },
             ]}
           />
         </div>
       </Panel>
       <Panel
-        title={translateSettings("settings.resourceTimelineAndLiveProcessTree")}
-        eyebrow="Current activity and process hierarchy"
+        title={translateSettings({ key: "settings.resourceTimelineAndLiveProcessTree" })}
+        eyebrow={translateSettings({ key: "settings.currentActivityAndProcessHierarchy" })}
         icon={<LuGauge />}
         iconClassName="text-amber-300"
       >
@@ -931,10 +1090,10 @@ function ResourcesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
         </div>
         <div className="border-y border-[var(--color-border)] bg-[var(--color-background-secondary)] px-5 py-3">
           <p className="text-sm font-bold text-white">
-            {translateSettings("settings.liveProcessTree")}
+            {translateSettings({ key: "settings.liveProcessTree" })}
           </p>
           <p className="mt-1 text-xs text-[var(--color-foreground-secondary)]">
-            {translateSettings("settings.parentChildIdentityUsesPidAndCreationTime")}
+            {translateSettings({ key: "settings.parentChildIdentityUsesPidAndCreationTime" })}
           </p>
         </div>
         <ProcessTable
@@ -944,19 +1103,28 @@ function ResourcesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
         />
       </Panel>
       <Panel
-        title={translateSettings("settings.resourceHistory")}
-        eyebrow="Windowed process statistics"
+        title={translateSettings({ key: "settings.resourceHistory" })}
+        eyebrow={translateSettings({ key: "settings.windowedProcessStatistics" })}
         icon={<LuActivity />}
         iconClassName="text-cyan-300"
       >
         <div className="grid sm:grid-cols-2 xl:grid-cols-4">
-          <HistoryMetric label="CPU time" value={formatDuration(cpuTimeMs)} />
-          <HistoryMetric label="Samples" value={samples.toLocaleString()} />
           <HistoryMetric
-            label="Interval"
+            label={translateSettings({ key: "settings.cpuTime" })}
+            value={formatDuration(cpuTimeMs)}
+          />
+          <HistoryMetric
+            label={translateSettings({ key: "settings.samples" })}
+            value={samples.toLocaleString(i18n.resolvedLanguage ?? i18n.language)}
+          />
+          <HistoryMetric
+            label={translateSettings({ key: "settings.interval" })}
             value={`${(collection.sampleIntervalMs / 1_000).toFixed(2)} s`}
           />
-          <HistoryMetric label="Processes" value={String(rows.length)} />
+          <HistoryMetric
+            label={translateSettings({ key: "settings.processes" })}
+            value={String(rows.length)}
+          />
         </div>
         <div className="border-t border-[var(--color-border)] p-4">
           <ResourceChart snapshot={snapshot} />
@@ -979,7 +1147,7 @@ function EmptySource({
   return (
     <Panel
       title={title}
-      eyebrow="Source status"
+      eyebrow={translateSettings({ key: "settings.sourceStatus" })}
       icon={<LuShieldCheck />}
       iconClassName="text-amber-300"
     >
@@ -998,34 +1166,42 @@ function IoTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
   if (snapshot.detail.rows.length === 0) {
     return (
       <EmptySource
-        title={translateSettings("settings.instrumentedApplicationIO")}
+        title={translateSettings({ key: "settings.instrumentedApplicationIO" })}
         status={snapshot.sourceStatuses["logical-io"]}
-        explanation="No logical I/O operations have been observed. Diagnostics does not substitute OS process counters or prototype rows."
+        explanation={translateSettings({ key: "settings.noLogicalIoOperationsObserved" })}
       />
     );
   }
   return (
     <Panel
-      title={translateSettings("settings.instrumentedApplicationIO")}
-      eyebrow="Logical bytes by operation"
+      title={translateSettings({ key: "settings.instrumentedApplicationIO" })}
+      eyebrow={translateSettings({ key: "settings.logicalBytesByOperation" })}
       icon={<LuDatabase />}
       iconClassName="text-emerald-300"
     >
       <p className="border-b border-[var(--color-border)] px-5 py-4 text-[13px] leading-6 text-[var(--color-foreground-secondary)]">
-        {translateSettings(
-          "settings.applicationCountersIdentifyKnownPersistenceAndLoggingWorkTheseLo"
-        )}
+        {translateSettings({
+          key: "settings.applicationCountersIdentifyKnownPersistenceAndLoggingWorkTheseLo",
+        })}
       </p>
       <div className="max-h-[560px] overflow-auto">
         <table className="w-full min-w-[860px] border-collapse text-sm">
           <thead className="sticky top-0 bg-[var(--color-background-secondary)]">
             <tr className="text-left text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
-              <th className="px-5 py-3">{translateSettings("settings.component")}</th>
-              <th className="px-4 py-3">{translateSettings("settings.operation")}</th>
-              <th className="px-4 py-3 text-right">{translateSettings("settings.logicalRead")}</th>
-              <th className="px-4 py-3 text-right">{translateSettings("settings.logicalWrite")}</th>
-              <th className="px-4 py-3 text-right">{translateSettings("settings.count")}</th>
-              <th className="px-5 py-3 text-right">{translateSettings("settings.time")}</th>
+              <th className="px-5 py-3">{translateSettings({ key: "settings.component" })}</th>
+              <th className="px-4 py-3">{translateSettings({ key: "settings.operation" })}</th>
+              <th className="px-4 py-3 text-right">
+                {translateSettings({ key: "settings.logicalRead" })}
+              </th>
+              <th className="px-4 py-3 text-right">
+                {translateSettings({ key: "settings.logicalWrite" })}
+              </th>
+              <th className="px-4 py-3 text-right">
+                {translateSettings({ key: "settings.count" })}
+              </th>
+              <th className="px-5 py-3 text-right">
+                {translateSettings({ key: "settings.time" })}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -1045,7 +1221,7 @@ function IoTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
                   {formatBytes(row.logicalWriteBytes)}
                 </td>
                 <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-white">
-                  {row.count.toLocaleString()}
+                  {row.count.toLocaleString(i18n.resolvedLanguage ?? i18n.language)}
                 </td>
                 <td className="px-5 py-3.5 text-right tabular-nums text-[var(--color-foreground-secondary)]">
                   {formatDuration(row.durationMs)}
@@ -1067,37 +1243,39 @@ function TracesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
   return (
     <div className="space-y-4">
       <Panel
-        title={translateSettings("settings.traceDiagnostics")}
-        eyebrow="Canonical spans and logs"
+        title={translateSettings({ key: "settings.traceDiagnostics" })}
+        eyebrow={translateSettings({ key: "settings.canonicalSpansAndLogs" })}
         icon={<LuWorkflow />}
         iconClassName="text-violet-300"
       >
         <div className="grid sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
-            label="Spans"
-            value={spans.length.toLocaleString()}
-            detail="Retained in this time window"
+            label={translateSettings({ key: "settings.spans" })}
+            value={spans.length.toLocaleString(i18n.resolvedLanguage ?? i18n.language)}
+            detail={translateSettings({ key: "settings.retainedInThisTimeWindow" })}
             icon={<LuWorkflow />}
             iconClassName="text-violet-300"
           />
           <MetricCard
-            label="Failures"
-            value={failures.length.toLocaleString()}
-            detail="Explicit error outcomes"
+            label={translateSettings({ key: "settings.failures" })}
+            value={failures.length.toLocaleString(i18n.resolvedLanguage ?? i18n.language)}
+            detail={translateSettings({ key: "settings.explicitErrorOutcomes" })}
             icon={<LuTriangleAlert />}
             iconClassName="text-amber-300"
           />
           <MetricCard
-            label="Slow spans"
-            value={spans.filter((span) => span.durationMs >= 500).length.toLocaleString()}
-            detail="At least 500 ms"
+            label={translateSettings({ key: "settings.slowSpans" })}
+            value={spans
+              .filter((span) => span.durationMs >= 500)
+              .length.toLocaleString(i18n.resolvedLanguage ?? i18n.language)}
+            detail={translateSettings({ key: "settings.atLeast500Ms" })}
             icon={<LuGauge />}
             iconClassName="text-emerald-300"
           />
           <MetricCard
-            label="Span logs"
-            value={logs.length.toLocaleString()}
-            detail="Separate canonical log evidence"
+            label={translateSettings({ key: "settings.spanLogs" })}
+            value={logs.length.toLocaleString(i18n.resolvedLanguage ?? i18n.language)}
+            detail={translateSettings({ key: "settings.separateCanonicalLogEvidence" })}
             icon={<LuFileText />}
             iconClassName="text-cyan-200"
           />
@@ -1107,26 +1285,28 @@ function TracesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
       <TraceFailurePanels latest={latestFailures} common={commonFailures} />
 
       <Panel
-        title={translateSettings("settings.slowestSpans")}
-        eyebrow="Duration-ranked operations"
+        title={translateSettings({ key: "settings.slowestSpans" })}
+        eyebrow={translateSettings({ key: "settings.durationRankedOperations" })}
         icon={<LuGauge />}
         iconClassName="text-emerald-300"
       >
         {slowest.length === 0 ? (
           <p className="p-5 text-sm text-[var(--color-foreground-secondary)]">
-            {translateSettings("settings.noSpansWereRetainedInThisWindow")}
+            {translateSettings({ key: "settings.noSpansWereRetainedInThisWindow" })}
           </p>
         ) : (
           <div className="max-h-[420px] overflow-auto">
             <table className="w-full min-w-[820px] border-collapse text-sm">
               <thead className="sticky top-0 bg-[var(--color-background-secondary)]">
                 <tr className="text-left text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
-                  <th className="px-5 py-3">{translateSettings("settings.span")}</th>
-                  <th className="px-4 py-3 text-right">{translateSettings("settings.duration")}</th>
-                  <th className="px-4 py-3">{translateSettings("settings.ended")}</th>
-                  <th className="px-4 py-3">{translateSettings("settings.outcome")}</th>
+                  <th className="px-5 py-3">{translateSettings({ key: "settings.span" })}</th>
+                  <th className="px-4 py-3 text-right">
+                    {translateSettings({ key: "settings.duration" })}
+                  </th>
+                  <th className="px-4 py-3">{translateSettings({ key: "settings.ended" })}</th>
+                  <th className="px-4 py-3">{translateSettings({ key: "settings.outcome" })}</th>
                   <th className="w-14 px-5 py-3 text-right">
-                    {translateSettings("settings.copy")}
+                    {translateSettings({ key: "settings.copy" })}
                   </th>
                 </tr>
               </thead>
@@ -1152,9 +1332,12 @@ function TracesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
                       <button
                         type="button"
                         className="inline-flex rounded-md p-1.5 text-[var(--color-foreground-secondary)] hover:bg-[var(--color-background-tertiary)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                        title={translateSettings("settings.copyTraceId")}
-                        aria-label={translateSettings("settings.copyTraceIdValue", {
-                          value1: span.traceId,
+                        title={translateSettings({ key: "settings.copyTraceId" })}
+                        aria-label={translateSettings({
+                          key: "settings.copyTraceIdValue",
+                          options: {
+                            value1: span.traceId,
+                          },
                         })}
                         onClick={() => void copyTraceId(span.traceId)}
                       >
@@ -1170,25 +1353,35 @@ function TracesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
       </Panel>
 
       <Panel
-        title={translateSettings("settings.spanLogs")}
-        eyebrow="Correlated retained log evidence"
+        title={translateSettings({ key: "settings.spanLogs" })}
+        eyebrow={translateSettings({ key: "settings.correlatedRetainedLogEvidence" })}
         icon={<LuFileText />}
         iconClassName="text-cyan-200"
       >
         {logs.length === 0 ? (
           <p className="p-5 text-sm text-[var(--color-foreground-secondary)]">
-            {translateSettings("settings.noRetainedLogsMatchThisWindow")}
+            {translateSettings({ key: "settings.noRetainedLogsMatchThisWindow" })}
           </p>
         ) : (
           <div className="max-h-[420px] overflow-auto">
             <table className="w-full min-w-[920px] table-fixed border-collapse text-sm">
               <thead className="sticky top-0 bg-[var(--color-background-secondary)]">
                 <tr className="text-left text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
-                  <th className="w-[14%] px-5 py-3">{translateSettings("settings.time")}</th>
-                  <th className="w-[10%] px-4 py-3">{translateSettings("settings.level")}</th>
-                  <th className="w-[20%] px-4 py-3">{translateSettings("settings.source")}</th>
-                  <th className="w-[41%] px-4 py-3">{translateSettings("settings.message")}</th>
-                  <th className="w-[15%] px-5 py-3">{translateSettings("settings.trace")}</th>
+                  <th className="w-[14%] px-5 py-3">
+                    {translateSettings({ key: "settings.time" })}
+                  </th>
+                  <th className="w-[10%] px-4 py-3">
+                    {translateSettings({ key: "settings.level" })}
+                  </th>
+                  <th className="w-[20%] px-4 py-3">
+                    {translateSettings({ key: "settings.source" })}
+                  </th>
+                  <th className="w-[41%] px-4 py-3">
+                    {translateSettings({ key: "settings.message" })}
+                  </th>
+                  <th className="w-[15%] px-5 py-3">
+                    {translateSettings({ key: "settings.trace" })}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -1220,7 +1413,7 @@ function TracesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
                         {log.message}
                       </td>
                       <td className="px-5 py-3.5 font-mono text-xs text-[var(--color-foreground-secondary)]">
-                        {log.traceId?.slice(0, 12) ?? translateSettings("settings.none")}
+                        {log.traceId?.slice(0, 12) ?? translateSettings({ key: "settings.none" })}
                       </td>
                     </tr>
                   ))}
@@ -1231,25 +1424,33 @@ function TracesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
       </Panel>
 
       <Panel
-        title={translateSettings("settings.topSpanNames")}
-        eyebrow="Count, failures, average, and max"
+        title={translateSettings({ key: "settings.topSpanNames" })}
+        eyebrow={translateSettings({ key: "settings.countFailuresAverageAndMax" })}
         icon={<LuActivity />}
         iconClassName="text-violet-300"
       >
         {topNames.length === 0 ? (
           <p className="p-5 text-sm text-[var(--color-foreground-secondary)]">
-            {translateSettings("settings.noSpanNamesWereCountedInThisWindow")}
+            {translateSettings({ key: "settings.noSpanNamesWereCountedInThisWindow" })}
           </p>
         ) : (
           <div className="max-h-[420px] overflow-auto">
             <table className="w-full min-w-[720px] border-collapse text-sm">
               <thead className="sticky top-0 bg-[var(--color-background-secondary)]">
                 <tr className="text-left text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
-                  <th className="px-5 py-3">{translateSettings("settings.span")}</th>
-                  <th className="px-4 py-3 text-right">{translateSettings("settings.count")}</th>
-                  <th className="px-4 py-3 text-right">{translateSettings("settings.failures")}</th>
-                  <th className="px-4 py-3 text-right">{translateSettings("settings.average")}</th>
-                  <th className="px-5 py-3 text-right">{translateSettings("settings.max")}</th>
+                  <th className="px-5 py-3">{translateSettings({ key: "settings.span" })}</th>
+                  <th className="px-4 py-3 text-right">
+                    {translateSettings({ key: "settings.count" })}
+                  </th>
+                  <th className="px-4 py-3 text-right">
+                    {translateSettings({ key: "settings.failures" })}
+                  </th>
+                  <th className="px-4 py-3 text-right">
+                    {translateSettings({ key: "settings.average" })}
+                  </th>
+                  <th className="px-5 py-3 text-right">
+                    {translateSettings({ key: "settings.max" })}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -1257,10 +1458,10 @@ function TracesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
                   <tr key={row.name} className="border-t border-[var(--color-border)]">
                     <td className="px-5 py-3.5 font-semibold text-white">{row.name}</td>
                     <td className="px-4 py-3.5 text-right tabular-nums text-white">
-                      {row.count.toLocaleString()}
+                      {row.count.toLocaleString(i18n.resolvedLanguage ?? i18n.language)}
                     </td>
                     <td className="px-4 py-3.5 text-right tabular-nums text-white">
-                      {row.failures.toLocaleString()}
+                      {row.failures.toLocaleString(i18n.resolvedLanguage ?? i18n.language)}
                     </td>
                     <td className="px-4 py-3.5 text-right tabular-nums text-violet-200">
                       {formatDuration(row.averageDurationMs)}
@@ -1289,26 +1490,32 @@ function TraceFailurePanels({
   return (
     <>
       <Panel
-        title={translateSettings("settings.latestFailures")}
-        eyebrow="Newest explicit error evidence"
+        title={translateSettings({ key: "settings.latestFailures" })}
+        eyebrow={translateSettings({ key: "settings.newestExplicitErrorEvidence" })}
         icon={<LuTriangleAlert />}
         iconClassName="text-amber-300"
       >
         {latest.length === 0 ? (
           <p className="p-5 text-sm text-[var(--color-foreground-secondary)]">
-            {translateSettings("settings.noFailuresWereObservedInThisWindow")}
+            {translateSettings({ key: "settings.noFailuresWereObservedInThisWindow" })}
           </p>
         ) : (
           <div className="max-h-[470px] overflow-auto">
             <table className="w-full min-w-[860px] table-fixed border-collapse text-sm">
               <thead className="sticky top-0 bg-[var(--color-background-secondary)]">
                 <tr className="text-left text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
-                  <th className="w-[28%] px-5 py-3">{translateSettings("settings.span")}</th>
-                  <th className="w-[48%] px-4 py-3">{translateSettings("settings.cause")}</th>
-                  <th className="w-[11%] px-4 py-3 text-right">
-                    {translateSettings("settings.duration")}
+                  <th className="w-[28%] px-5 py-3">
+                    {translateSettings({ key: "settings.span" })}
                   </th>
-                  <th className="w-[13%] px-5 py-3">{translateSettings("settings.ended")}</th>
+                  <th className="w-[48%] px-4 py-3">
+                    {translateSettings({ key: "settings.cause" })}
+                  </th>
+                  <th className="w-[11%] px-4 py-3 text-right">
+                    {translateSettings({ key: "settings.duration" })}
+                  </th>
+                  <th className="w-[13%] px-5 py-3">
+                    {translateSettings({ key: "settings.ended" })}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -1320,7 +1527,7 @@ function TraceFailurePanels({
                     </td>
                     <td className="px-4 py-3.5 text-right tabular-nums text-white">
                       {failure.durationMs === null
-                        ? translateSettings("settings.nA")
+                        ? translateSettings({ key: "settings.nA" })
                         : formatDuration(failure.durationMs)}
                     </td>
                     <td className="px-5 py-3.5 tabular-nums text-[var(--color-foreground-secondary)]">
@@ -1334,26 +1541,32 @@ function TraceFailurePanels({
         )}
       </Panel>
       <Panel
-        title={translateSettings("settings.mostCommonFailures")}
-        eyebrow="Grouped by stable fingerprint"
+        title={translateSettings({ key: "settings.mostCommonFailures" })}
+        eyebrow={translateSettings({ key: "settings.groupedByStableFingerprint" })}
         icon={<LuActivity />}
         iconClassName="text-amber-300"
       >
         {common.length === 0 ? (
           <p className="p-5 text-sm text-[var(--color-foreground-secondary)]">
-            {translateSettings("settings.noRecurringFailuresWereObservedInThisWindow")}
+            {translateSettings({ key: "settings.noRecurringFailuresWereObservedInThisWindow" })}
           </p>
         ) : (
           <div className="max-h-[470px] overflow-auto">
             <table className="w-full min-w-[860px] table-fixed border-collapse text-sm">
               <thead className="sticky top-0 bg-[var(--color-background-secondary)]">
                 <tr className="text-left text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
-                  <th className="w-[28%] px-5 py-3">{translateSettings("settings.span")}</th>
-                  <th className="w-[10%] px-4 py-3 text-right">
-                    {translateSettings("settings.count")}
+                  <th className="w-[28%] px-5 py-3">
+                    {translateSettings({ key: "settings.span" })}
                   </th>
-                  <th className="w-[49%] px-4 py-3">{translateSettings("settings.cause")}</th>
-                  <th className="w-[13%] px-5 py-3">{translateSettings("settings.lastSeen")}</th>
+                  <th className="w-[10%] px-4 py-3 text-right">
+                    {translateSettings({ key: "settings.count" })}
+                  </th>
+                  <th className="w-[49%] px-4 py-3">
+                    {translateSettings({ key: "settings.cause" })}
+                  </th>
+                  <th className="w-[13%] px-5 py-3">
+                    {translateSettings({ key: "settings.lastSeen" })}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -1361,7 +1574,7 @@ function TraceFailurePanels({
                   <tr key={failure.fingerprint} className="border-t border-[var(--color-border)]">
                     <td className="px-5 py-3.5 font-semibold text-white">{failure.source}</td>
                     <td className="px-4 py-3.5 text-right font-semibold tabular-nums text-white">
-                      {failure.count.toLocaleString()}
+                      {failure.count.toLocaleString(i18n.resolvedLanguage ?? i18n.language)}
                     </td>
                     <td className="whitespace-normal break-words px-4 py-3.5 text-[13px] leading-5 text-[var(--color-foreground-secondary)]">
                       {failure.cause}
@@ -1385,92 +1598,105 @@ function DeveloperToolsTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
   if (!hasValue(snapshot.detail.renderer))
     return (
       <EmptySource
-        title={translateSettings("settings.rendererPerformance")}
+        title={translateSettings({ key: "settings.rendererPerformance" })}
         status={snapshot.detail.renderer.status}
-        explanation="Waiting for the trusted renderer performance reporter. It starts only while Diagnostics is open and stops on unmount."
+        explanation={translateSettings({
+          key: "settings.waitingForTrustedRendererPerformanceReporter",
+        })}
       />
     );
   const renderer = snapshot.detail.renderer.value;
   return (
     <div className="space-y-4">
       <Panel
-        title={translateSettings("settings.rendererPerformance")}
-        eyebrow="Production-safe live counters"
+        title={translateSettings({ key: "settings.rendererPerformance" })}
+        eyebrow={translateSettings({ key: "settings.productionSafeLiveCounters" })}
         icon={<LuBug />}
         iconClassName="text-red-400"
       >
         <div className="grid sm:grid-cols-2 xl:grid-cols-3">
           <MetricCard
-            label="Heap used"
+            label={translateSettings({ key: "settings.heapUsed" })}
             value={
-              renderer.heapUsedBytes === null ? "Unsupported" : formatBytes(renderer.heapUsedBytes)
+              renderer.heapUsedBytes === null
+                ? translateSettings({ key: "settings.unsupported" })
+                : formatBytes(renderer.heapUsedBytes)
             }
             detail={
               renderer.heapTotalBytes === null
-                ? "Chromium heap total unavailable"
-                : `${formatBytes(renderer.heapTotalBytes)} allocated`
+                ? translateSettings({ key: "settings.chromiumHeapTotalUnavailable" })
+                : translateSettings({
+                    key: "settings.allocatedValue",
+                    options: {
+                      value: formatBytes(renderer.heapTotalBytes),
+                    },
+                  })
             }
             icon={<LuMemoryStick />}
             iconClassName="text-violet-300"
           />
           <MetricCard
-            label="Frames / second"
+            label={translateSettings({ key: "settings.framesPerSecond" })}
             value={renderer.framesPerSecond.toFixed(1)}
-            detail="Observed while Diagnostics is visible"
+            detail={translateSettings({ key: "settings.observedWhileDiagnosticsIsVisible" })}
             icon={<LuActivity />}
             iconClassName="text-emerald-300"
           />
           <MetricCard
-            label="Frame time"
+            label={translateSettings({ key: "settings.frameTime" })}
             value={formatDuration(renderer.averageFrameTimeMs)}
-            detail="Average animation-frame interval"
+            detail={translateSettings({ key: "settings.averageAnimationFrameInterval" })}
             icon={<LuGauge />}
             iconClassName="text-violet-300"
           />
           <MetricCard
-            label="Live intervals"
-            value={renderer.liveIntervalCount.toLocaleString()}
-            detail="Tracked active interval handles"
+            label={translateSettings({ key: "settings.liveIntervals" })}
+            value={renderer.liveIntervalCount.toLocaleString(
+              i18n.resolvedLanguage ?? i18n.language
+            )}
+            detail={translateSettings({ key: "settings.trackedActiveIntervalHandles" })}
             icon={<LuRadio />}
             iconClassName="text-emerald-300"
           />
           <MetricCard
-            label="Render count"
-            value={renderer.renderCount.toLocaleString()}
-            detail="Selected high-value boundaries"
+            label={translateSettings({ key: "settings.renderCount" })}
+            value={renderer.renderCount.toLocaleString(i18n.resolvedLanguage ?? i18n.language)}
+            detail={translateSettings({ key: "settings.selectedHighValueBoundaries" })}
             icon={<LuWorkflow />}
             iconClassName="text-violet-300"
           />
           <MetricCard
-            label="Chat store rate / second"
+            label={translateSettings({ key: "settings.chatStoreRatePerSecond" })}
             value={renderer.chatStoreCallsPerSecond.toFixed(1)}
-            detail="Aggregated store actions, not individual messages"
+            detail={translateSettings({
+              key: "settings.aggregatedStoreActionsNotIndividualMessages",
+            })}
             icon={<LuActivity />}
             iconClassName="text-emerald-300"
           />
         </div>
       </Panel>
       <Panel
-        title={translateSettings("settings.developerControls")}
-        eyebrow="Explicit local tools"
+        title={translateSettings({ key: "settings.developerControls" })}
+        eyebrow={translateSettings({ key: "settings.explicitLocalTools" })}
         icon={<LuBug />}
         iconClassName="text-red-400"
       >
         <div className="flex flex-wrap items-center gap-3 p-5">
           <Button variant="outline" onClick={() => window.electronAPI.toggleDevTools()}>
-            {translateSettings("settings.openChromiumDevtools")}
+            {translateSettings({ key: "settings.openChromiumDevtools" })}
           </Button>
           {import.meta.env.DEV ? (
             <p className="text-[13px] leading-6 text-[var(--color-foreground-secondary)]">
-              {translateSettings(
-                "settings.chatSimAndUiSimulationRemainInTheFloatingDeveloperConsolePressCt"
-              )}
+              {translateSettings({
+                key: "settings.chatSimAndUiSimulationRemainInTheFloatingDeveloperConsolePressCt",
+              })}
             </p>
           ) : (
             <p className="text-[13px] leading-6 text-[var(--color-foreground-secondary)]">
-              {translateSettings(
-                "settings.stateMutatingSimulatorsAreUnavailableInProductionBuilds"
-              )}
+              {translateSettings({
+                key: "settings.stateMutatingSimulatorsAreUnavailableInProductionBuilds",
+              })}
             </p>
           )}
         </div>
@@ -1488,8 +1714,8 @@ function WorkspaceContent({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
     return (
       <div className="space-y-4">
         <Panel
-          title={translateSettings("settings.sessionLogs")}
-          eyebrow="Main, network, and noise"
+          title={translateSettings({ key: "settings.sessionLogs" })}
+          eyebrow={translateSettings({ key: "settings.mainNetworkAndNoise" })}
           icon={<LuFileText />}
           iconClassName="text-emerald-400"
         >
@@ -1498,8 +1724,8 @@ function WorkspaceContent({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
           </div>
         </Panel>
         <Panel
-          title={translateSettings("settings.createDiagnosticReport")}
-          eyebrow="Safe local report"
+          title={translateSettings({ key: "settings.createDiagnosticReport" })}
+          eyebrow={translateSettings({ key: "settings.safeLocalReport" })}
           icon={<LuBug />}
           iconClassName="text-red-400"
         >
@@ -1541,15 +1767,15 @@ export function DiagnosticsWorkspace({
       <header className="flex flex-wrap items-start gap-4">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--color-foreground-secondary)]">
-            {translateSettings("settings.streamfusionSystemEvidence")}
+            {translateSettings({ key: "settings.streamfusionSystemEvidence" })}
           </p>
           <h2 className="mt-1 text-2xl font-bold text-white">
-            {translateSettings("settings.diagnostics")}
+            {translateSettings({ key: "settings.diagnostics" })}
           </h2>
           <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--color-foreground-secondary)]">
-            {translateSettings(
-              "settings.liveResourcesProcessesApplicationIOTracesFailuresLogsReportsAndR"
-            )}
+            {translateSettings({
+              key: "settings.liveResourcesProcessesApplicationIOTracesFailuresLogsReportsAndR",
+            })}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1568,7 +1794,7 @@ export function DiagnosticsWorkspace({
             disabled={diagnostics.kind === "loading"}
           >
             <LuRefreshCw className="mr-2 h-4 w-4" aria-hidden />{" "}
-            {translateSettings("settings.refresh")}
+            {translateSettings({ key: "settings.refresh" })}
           </Button>
         </div>
       </header>
@@ -1577,7 +1803,7 @@ export function DiagnosticsWorkspace({
         <div
           className="overflow-x-auto border-b border-[var(--color-border)]"
           role="tablist"
-          aria-label={translateSettings("settings.diagnosticsSections")}
+          aria-label={translateSettings({ key: "settings.diagnosticsSections" })}
         >
           <div className="flex min-w-max px-2">
             {tabs.map((tab) => {
@@ -1615,7 +1841,7 @@ export function DiagnosticsWorkspace({
           {diagnostics.kind === "loading" ? (
             <div
               className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
-              aria-label={translateSettings("settings.loadingLiveDiagnostics")}
+              aria-label={translateSettings({ key: "settings.loadingLiveDiagnostics" })}
             >
               {[1, 2, 3, 4, 5, 6].map((item) => (
                 <div
@@ -1631,9 +1857,9 @@ export function DiagnosticsWorkspace({
                   role="alert"
                   className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100"
                 >
-                  {translateSettings(
-                    "settings.theLatestRefreshFailedShowingTheLastTrustedSnapshotDiagnosticId"
-                  )}{" "}
+                  {translateSettings({
+                    key: "settings.theLatestRefreshFailedShowingTheLastTrustedSnapshotDiagnosticId",
+                  })}{" "}
                   {diagnostics.diagnosticId}.
                 </div>
               ) : null}
@@ -1644,12 +1870,12 @@ export function DiagnosticsWorkspace({
               role="alert"
               className="rounded-lg border border-red-400/30 bg-red-400/10 p-5 text-sm text-red-100"
             >
-              {translateSettings(
-                "settings.diagnosticsCouldNotEstablishATrustedLocalSourceDiagnosticId"
-              )}{" "}
+              {translateSettings({
+                key: "settings.diagnosticsCouldNotEstablishATrustedLocalSourceDiagnosticId",
+              })}{" "}
               {diagnostics.kind === "error"
                 ? diagnostics.diagnosticId
-                : translateSettings("settings.unavailable")}
+                : translateSettings({ key: "settings.unavailable" })}
               .
             </div>
           )}

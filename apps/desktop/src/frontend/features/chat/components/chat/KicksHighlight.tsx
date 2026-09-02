@@ -15,7 +15,7 @@ export const KicksHighlight: React.FC<KicksHighlightProps> = memo(
     <ChatEventHighlightCard
       accentColor="#53fc18"
       icon={<Coins aria-hidden="true" className="h-5 w-5" strokeWidth={2.25} />}
-      label="KICKs Sent"
+      labelKey="chat.kicksSent"
       platform={platform}
       style={style}
       testId="kicks-highlight"

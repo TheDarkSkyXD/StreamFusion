@@ -78,7 +78,7 @@ function normalizeChannelName(value: string | undefined): string {
 }
 
 export function MiniPlayer() {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const dockedConfig = useDockedPlayerConfig();
@@ -882,7 +882,9 @@ export function MiniPlayer() {
                 {currentStream.viewerCount !== undefined && (
                   <span className="text-white/60 text-xs ml-auto">
                     {t("playback.viewerCount", {
-                      value: currentStream.viewerCount.toLocaleString(),
+                      value: currentStream.viewerCount.toLocaleString(
+                        i18n.resolvedLanguage ?? i18n.language
+                      ),
                       defaultValue: "{{value}} viewers",
                     })}
                   </span>

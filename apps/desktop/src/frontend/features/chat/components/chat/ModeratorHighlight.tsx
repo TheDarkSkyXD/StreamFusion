@@ -38,7 +38,7 @@ export const ModeratorHighlight: React.FC<ModeratorHighlightProps> = memo(
       <ChatHighlightCard
         borderClassName="border-[#00a865]"
         icon={icon}
-        label="Moderator"
+        labelKey="chat.moderator"
         testId="moderator-chat-highlight"
         style={style}
       >

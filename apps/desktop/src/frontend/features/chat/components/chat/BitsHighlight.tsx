@@ -14,7 +14,7 @@ export const BitsHighlight: React.FC<BitsHighlightProps> = memo(({ children, pla
   <ChatEventHighlightCard
     accentColor="#a970ff"
     icon={<Gem aria-hidden="true" className="h-5 w-5" strokeWidth={2.3} />}
-    label="Bits"
+    labelKey="chat.bits"
     platform={platform}
     style={style}
     testId="bits-highlight"

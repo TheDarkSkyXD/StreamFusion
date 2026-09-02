@@ -24,11 +24,11 @@ type LogView = "text" | "table";
 
 function getLevelOptions(): { value: LogLevel; label: string }[] {
   return [
-    { value: "all", label: translateSettings("settings.allLevels") },
-    { value: "debug", label: translateSettings("settings.debug") },
-    { value: "info", label: translateSettings("settings.info") },
-    { value: "warn", label: translateSettings("settings.warn") },
-    { value: "error", label: translateSettings("settings.error") },
+    { value: "all", label: translateSettings({ key: "settings.allLevels" }) },
+    { value: "debug", label: translateSettings({ key: "settings.debug" }) },
+    { value: "info", label: translateSettings({ key: "settings.info" }) },
+    { value: "warn", label: translateSettings({ key: "settings.warn" }) },
+    { value: "error", label: translateSettings({ key: "settings.error" }) },
   ];
 }
 
@@ -301,7 +301,9 @@ export function LogsSection() {
       setError(null);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : translateSettings("settings.failedToReadLogFile")
+        err instanceof Error
+          ? err.message
+          : translateSettings({ key: "settings.failedToReadLogFile" })
       );
     } finally {
       setLoading(false);
@@ -350,11 +352,15 @@ export function LogsSection() {
     try {
       const result = await api.openFolder();
       if (!result.ok) {
-        toast.error(result.error ?? translateSettings("settings.couldnTOpenTheLogsFolder"));
+        toast.error(
+          result.error ?? translateSettings({ key: "settings.couldnTOpenTheLogsFolder" })
+        );
       }
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : translateSettings("settings.couldnTOpenTheLogsFolder")
+        err instanceof Error
+          ? err.message
+          : translateSettings({ key: "settings.couldnTOpenTheLogsFolder" })
       );
     }
   }, []);
@@ -363,22 +369,24 @@ export function LogsSection() {
 
   const handleCopyPath = useCallback(async () => {
     if (!activePath) {
-      toast.error(translateSettings("settings.logPathNotAvailableYet"));
+      toast.error(translateSettings({ key: "settings.logPathNotAvailableYet" }));
       return;
     }
     try {
       await navigator.clipboard.writeText(activePath);
-      toast.success(translateSettings("settings.logPathCopiedToClipboard"));
+      toast.success(translateSettings({ key: "settings.logPathCopiedToClipboard" }));
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : translateSettings("settings.couldnTCopyLogPath")
+        err instanceof Error
+          ? err.message
+          : translateSettings({ key: "settings.couldnTCopyLogPath" })
       );
     }
   }, [activePath]);
 
   const handleCopyLogs = useCallback(async () => {
     if (filteredLines.length === 0) {
-      toast.error(translateSettings("settings.noLogLinesToCopy"));
+      toast.error(translateSettings({ key: "settings.noLogLinesToCopy" }));
       return;
     }
     try {
@@ -386,29 +394,36 @@ export function LogsSection() {
       // paste into an issue/Slack/email matches what the user is staring at.
       await navigator.clipboard.writeText(filteredLines.join("\n"));
       toast.success(
-        translateSettings("settings.copiedValueLogLineValue", {
-          value1: filteredLines.length,
-          value2: filteredLines.length === 1 ? "" : "s",
+        translateSettings({
+          key: "settings.copiedValueLogLineValue",
+          options: {
+            value1: filteredLines.length,
+            value2: filteredLines.length === 1 ? "" : "s",
+          },
         })
       );
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : translateSettings("settings.couldnTCopyLogLines")
+        err instanceof Error
+          ? err.message
+          : translateSettings({ key: "settings.couldnTCopyLogLines" })
       );
     }
   }, [filteredLines]);
 
   const handleCopyCurl = useCallback(async (curl: string | null) => {
     if (curl == null) {
-      toast.error(translateSettings("settings.curlCommandNotAvailableForThisRow"));
+      toast.error(translateSettings({ key: "settings.curlCommandNotAvailableForThisRow" }));
       return;
     }
     try {
       await navigator.clipboard.writeText(curl);
-      toast.success(translateSettings("settings.curlCommandCopiedToClipboard"));
+      toast.success(translateSettings({ key: "settings.curlCommandCopiedToClipboard" }));
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : translateSettings("settings.couldnTCopyCurlCommand")
+        err instanceof Error
+          ? err.message
+          : translateSettings({ key: "settings.couldnTCopyCurlCommand" })
       );
     }
   }, []);
@@ -433,9 +448,9 @@ export function LogsSection() {
           <LuFileText className="w-5 h-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-lg">{translateSettings("settings.logs")}</h3>
+          <h3 className="font-semibold text-lg">{translateSettings({ key: "settings.logs" })}</h3>
           <p className="text-sm text-zinc-500 truncate" title={activePath ?? undefined}>
-            {activePath ?? translateSettings("settings.locatingLogFile")}
+            {activePath ?? translateSettings({ key: "settings.locatingLogFile" })}
           </p>
         </div>
       </div>
@@ -445,46 +460,48 @@ export function LogsSection() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
             <label htmlFor="logs-file" className="text-xs font-medium text-zinc-400">
-              {translateSettings("settings.logFile")}
+              {translateSettings({ key: "settings.logFile" })}
             </label>
             {noiseDisabled ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <select
                     id="logs-file"
-                    aria-label={translateSettings("settings.logFile")}
+                    aria-label={translateSettings({ key: "settings.logFile" })}
                     value={file}
                     onChange={(e) => handleFileChange(e.target.value as LogFile)}
                     className="rounded-md border border-[#27272a] bg-[#18181b] px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-500/20"
                   >
-                    <option value="main">{translateSettings("settings.main")}</option>
+                    <option value="main">{translateSettings({ key: "settings.main" })}</option>
                     <option value="network" disabled={networkDisabled}>
-                      {translateSettings("settings.network")}
-                      {networkDisabled ? translateSettings("settings.unavailable2") : ""}
+                      {translateSettings({ key: "settings.network" })}
+                      {networkDisabled ? translateSettings({ key: "settings.unavailable2" }) : ""}
                     </option>
                     <option value="noise" disabled>
-                      {translateSettings("settings.noiseUnavailable")}
+                      {translateSettings({ key: "settings.noiseUnavailable" })}
                     </option>
                   </select>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {translateSettings("settings.noiseSideChannelLoggerIsDisabledInThisBuild")}
+                  {translateSettings({
+                    key: "settings.noiseSideChannelLoggerIsDisabledInThisBuild",
+                  })}
                 </TooltipContent>
               </Tooltip>
             ) : (
               <select
                 id="logs-file"
-                aria-label={translateSettings("settings.logFile")}
+                aria-label={translateSettings({ key: "settings.logFile" })}
                 value={file}
                 onChange={(e) => handleFileChange(e.target.value as LogFile)}
                 className="rounded-md border border-[#27272a] bg-[#18181b] px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-500/20"
               >
-                <option value="main">{translateSettings("settings.main")}</option>
+                <option value="main">{translateSettings({ key: "settings.main" })}</option>
                 <option value="network" disabled={networkDisabled}>
-                  {translateSettings("settings.network")}
-                  {networkDisabled ? translateSettings("settings.unavailable2") : ""}
+                  {translateSettings({ key: "settings.network" })}
+                  {networkDisabled ? translateSettings({ key: "settings.unavailable2" }) : ""}
                 </option>
-                <option value="noise">{translateSettings("settings.noise")}</option>
+                <option value="noise">{translateSettings({ key: "settings.noise" })}</option>
               </select>
             )}
           </div>
@@ -492,7 +509,7 @@ export function LogsSection() {
           {file !== "network" && (
             <div className="flex flex-col gap-1">
               <span className="text-xs font-medium text-zinc-400">
-                {translateSettings("settings.focus")}
+                {translateSettings({ key: "settings.focus" })}
               </span>
               <div className="flex rounded-md border border-[#27272a] bg-[#18181b] p-0.5">
                 <button
@@ -505,7 +522,7 @@ export function LogsSection() {
                       : "text-zinc-400 hover:text-zinc-200"
                   )}
                 >
-                  {translateSettings("settings.all")}
+                  {translateSettings({ key: "settings.all" })}
                 </button>
                 <button
                   type="button"
@@ -517,7 +534,7 @@ export function LogsSection() {
                       : "text-zinc-400 hover:text-zinc-200"
                   )}
                 >
-                  {translateSettings("settings.network")}
+                  {translateSettings({ key: "settings.network" })}
                 </button>
               </div>
             </div>
@@ -526,7 +543,7 @@ export function LogsSection() {
           {canUseTableView && (
             <div className="flex flex-col gap-1">
               <span className="text-xs font-medium text-zinc-400">
-                {translateSettings("settings.view")}
+                {translateSettings({ key: "settings.view" })}
               </span>
               <div className="flex rounded-md border border-[#27272a] bg-[#18181b] p-0.5">
                 <button
@@ -539,7 +556,7 @@ export function LogsSection() {
                       : "text-zinc-400 hover:text-zinc-200"
                   )}
                 >
-                  {translateSettings("settings.text")}
+                  {translateSettings({ key: "settings.text" })}
                 </button>
                 <button
                   type="button"
@@ -551,7 +568,7 @@ export function LogsSection() {
                       : "text-zinc-400 hover:text-zinc-200"
                   )}
                 >
-                  {translateSettings("settings.table")}
+                  {translateSettings({ key: "settings.table" })}
                 </button>
               </div>
             </div>
@@ -559,11 +576,11 @@ export function LogsSection() {
 
           <div className="flex flex-col gap-1">
             <label htmlFor="logs-level" className="text-xs font-medium text-zinc-400">
-              {translateSettings("settings.level")}
+              {translateSettings({ key: "settings.level" })}
             </label>
             <select
               id="logs-level"
-              aria-label={translateSettings("settings.filterByLevel")}
+              aria-label={translateSettings({ key: "settings.filterByLevel" })}
               value={level}
               onChange={(e) => setLevel(e.target.value as LogLevel)}
               className="rounded-md border border-[#27272a] bg-[#18181b] px-3 py-1.5 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-500/20"
@@ -578,15 +595,15 @@ export function LogsSection() {
 
           <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
             <label htmlFor="logs-tag" className="text-xs font-medium text-zinc-400">
-              {translateSettings("settings.tag")}
+              {translateSettings({ key: "settings.tag" })}
             </label>
             <input
               id="logs-tag"
               type="text"
-              aria-label={translateSettings("settings.filterByTag")}
+              aria-label={translateSettings({ key: "settings.filterByTag" })}
               value={tagFilter}
               onChange={(e) => setTagFilter(e.target.value)}
-              placeholder={translateSettings("settings.twitchKickAuth")}
+              placeholder={translateSettings({ key: "settings.twitchKickAuth" })}
               autoComplete="off"
               spellCheck={false}
               className="rounded-md border border-[#27272a] bg-[#18181b] px-3 py-1.5 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-zinc-500/20"
@@ -595,12 +612,12 @@ export function LogsSection() {
 
           <div className="flex flex-col gap-1">
             <label htmlFor="logs-lines" className="text-xs font-medium text-zinc-400">
-              {translateSettings("settings.lines")}
+              {translateSettings({ key: "settings.lines" })}
             </label>
             <input
               id="logs-lines"
               type="number"
-              aria-label={translateSettings("settings.linesToFetch")}
+              aria-label={translateSettings({ key: "settings.linesToFetch" })}
               min={LINES_MIN}
               max={LINES_MAX}
               step={50}
@@ -620,10 +637,10 @@ export function LogsSection() {
               id="logs-auto-refresh"
               checked={autoRefresh}
               onCheckedChange={setAutoRefresh}
-              aria-label={translateSettings("settings.autoRefreshEvery3Seconds")}
+              aria-label={translateSettings({ key: "settings.autoRefreshEvery3Seconds" })}
             />
             <label htmlFor="logs-auto-refresh" className="text-sm text-zinc-300 cursor-pointer">
-              {translateSettings("settings.autoRefresh")}
+              {translateSettings({ key: "settings.autoRefresh" })}
             </label>
           </div>
         </div>
@@ -638,7 +655,7 @@ export function LogsSection() {
             className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
           >
             <LuRefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
-            {translateSettings("settings.refresh")}
+            {translateSettings({ key: "settings.refresh" })}
           </Button>
           <Button
             variant="outline"
@@ -647,7 +664,7 @@ export function LogsSection() {
             className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
           >
             <LuFolderOpen className="w-4 h-4 mr-2" />
-            {translateSettings("settings.openLogsFolder")}
+            {translateSettings({ key: "settings.openLogsFolder" })}
           </Button>
           <Button
             variant="outline"
@@ -657,7 +674,7 @@ export function LogsSection() {
             className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
           >
             <LuCopy className="w-4 h-4 mr-2" />
-            {translateSettings("settings.copyLogPath")}
+            {translateSettings({ key: "settings.copyLogPath" })}
           </Button>
           <Button
             variant="outline"
@@ -666,16 +683,19 @@ export function LogsSection() {
             disabled={filteredLines.length === 0}
             title={
               filteredLines.length === 0
-                ? translateSettings("settings.noLogLinesToCopy")
-                : translateSettings("settings.copyTheValueVisibleLogLineValueToTheClipboard", {
-                    value1: filteredLines.length,
-                    value2: filteredLines.length === 1 ? "" : "s",
+                ? translateSettings({ key: "settings.noLogLinesToCopy" })
+                : translateSettings({
+                    key: "settings.copyTheValueVisibleLogLineValueToTheClipboard",
+                    options: {
+                      value1: filteredLines.length,
+                      value2: filteredLines.length === 1 ? "" : "s",
+                    },
                   })
             }
             className="bg-[#18181b] border-[#27272a] text-zinc-200 hover:bg-[#27272a] hover:text-white"
           >
             <LuCopy className="w-4 h-4 mr-2" />
-            {translateSettings("settings.copyLogs")}
+            {translateSettings({ key: "settings.copyLogs" })}
           </Button>
         </div>
 
@@ -693,36 +713,36 @@ export function LogsSection() {
             {loading && tail.length === 0 ? (
               <div className="flex items-center gap-2 text-zinc-500 py-6 justify-center">
                 <LuRefreshCw className="w-4 h-4 animate-spin" />
-                {translateSettings("settings.loadingLogLines")}
+                {translateSettings({ key: "settings.loadingLogLines" })}
               </div>
             ) : filteredLines.length === 0 ? (
               <div className="text-zinc-600 italic py-6 text-center">
-                {translateSettings("settings.noLogLinesMatchTheseFilters")}
+                {translateSettings({ key: "settings.noLogLinesMatchTheseFilters" })}
               </div>
             ) : canUseTableView && view === "table" ? (
               <table className="w-full min-w-[980px] border-collapse text-left">
                 <thead className="sticky top-0 z-10 bg-[#09090b] text-[11px] uppercase tracking-wide text-zinc-500">
                   <tr className="border-b border-[#27272a]">
                     <th scope="col" className="px-2 py-2 font-medium">
-                      {translateSettings("settings.name")}
+                      {translateSettings({ key: "settings.name" })}
                     </th>
                     <th scope="col" className="px-2 py-2 font-medium">
-                      {translateSettings("settings.type")}
+                      {translateSettings({ key: "settings.type" })}
                     </th>
                     <th scope="col" className="px-2 py-2 font-medium">
-                      {translateSettings("settings.status")}
+                      {translateSettings({ key: "settings.status" })}
                     </th>
                     <th scope="col" className="px-2 py-2 font-medium">
-                      {translateSettings("settings.initiator")}
+                      {translateSettings({ key: "settings.initiator" })}
                     </th>
                     <th scope="col" className="px-2 py-2 font-medium text-right">
-                      {translateSettings("settings.size")}
+                      {translateSettings({ key: "settings.size" })}
                     </th>
                     <th scope="col" className="px-2 py-2 font-medium text-right">
-                      {translateSettings("settings.time")}
+                      {translateSettings({ key: "settings.time" })}
                     </th>
                     <th scope="col" className="px-2 py-2 font-medium text-right">
-                      {translateSettings("settings.curl")}
+                      {translateSettings({ key: "settings.curl" })}
                     </th>
                   </tr>
                 </thead>
@@ -758,8 +778,11 @@ export function LogsSection() {
                           size="sm"
                           onClick={() => void handleCopyCurl(row.curl)}
                           disabled={row.curl == null}
-                          aria-label={translateSettings("settings.copyCurlForValue", {
-                            value1: row.name,
+                          aria-label={translateSettings({
+                            key: "settings.copyCurlForValue",
+                            options: {
+                              value1: row.name,
+                            },
                           })}
                           className="h-7 px-2 text-zinc-300 hover:bg-[#27272a] hover:text-white"
                         >
@@ -786,13 +809,13 @@ export function LogsSection() {
           </div>
           <div className="px-3 py-2 border-t border-[#27272a] text-xs text-zinc-500 flex items-center justify-between">
             <span>
-              {translateSettings("settings.showing")}
-              {filteredLines.length} {translateSettings("settings.of")}
-              {tail.length} {translateSettings("settings.lines2")}
+              {translateSettings({ key: "settings.showing" })}
+              {filteredLines.length} {translateSettings({ key: "settings.of" })}
+              {tail.length} {translateSettings({ key: "settings.lines2" })}
             </span>
             {autoRefresh && (
               <span className="text-zinc-400">
-                {translateSettings("settings.autoRefreshingEvery3s")}
+                {translateSettings({ key: "settings.autoRefreshingEvery3s" })}
               </span>
             )}
           </div>

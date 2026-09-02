@@ -15,7 +15,7 @@ export const CheerHighlight: React.FC<CheerHighlightProps> = memo(
     <ChatEventHighlightCard
       accentColor="#c084fc"
       icon={<Sparkles aria-hidden="true" className="h-5 w-5" strokeWidth={2.25} />}
-      label="Cheer"
+      labelKey="chat.cheer"
       platform={platform}
       style={style}
       testId="cheer-highlight"

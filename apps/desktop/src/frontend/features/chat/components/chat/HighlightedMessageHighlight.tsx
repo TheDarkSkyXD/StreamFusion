@@ -16,7 +16,7 @@ export const HighlightedMessageHighlight: React.FC<HighlightedMessageHighlightPr
       accentColor={platform === "kick" ? "#53fc18" : "#9146ff"}
       accentWidth={3}
       icon={<MessageSquareText aria-hidden="true" className="h-5 w-5" strokeWidth={2.25} />}
-      label="Highlighted Message"
+      labelKey="chat.highlightedMessage"
       platform={platform}
       style={style}
       testId="highlighted-message-highlight"

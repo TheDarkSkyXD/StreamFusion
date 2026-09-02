@@ -15,7 +15,7 @@ export const GiftedSubHighlight: React.FC<GiftedSubHighlightProps> = memo(
     <ChatEventHighlightCard
       accentColor="#f472b6"
       icon={<Gift aria-hidden="true" className="h-5 w-5" strokeWidth={2.35} />}
-      label="Gifted Sub"
+      labelKey="chat.giftedSub"
       platform={platform}
       style={style}
       testId="gifted-sub-highlight"

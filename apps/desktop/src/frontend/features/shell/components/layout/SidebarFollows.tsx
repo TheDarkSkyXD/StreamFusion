@@ -534,7 +534,9 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
                           className="inline-flex shrink-0 items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[11px] font-extrabold leading-none tabular-nums text-white ring-1 ring-white/10"
                           title={t("shell.sidebar.viewers", {
                             count: stream.viewerCount,
-                            formattedCount: stream.viewerCount.toLocaleString(),
+                            formattedCount: stream.viewerCount.toLocaleString(
+                              i18n.resolvedLanguage ?? i18n.language
+                            ),
                           })}
                         >
                           <span

@@ -26,16 +26,22 @@ interface UserProfileHeaderProps {
     | { state: "failed"; retry: () => void; sourceLabel?: string };
 }
 
-const ABSOLUTE_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-});
+const absoluteDateFormatters = new Map<string, Intl.DateTimeFormat>();
 
-function formatAbsoluteDate(iso: string): string | null {
+function formatAbsoluteDate(iso: string, locale: string): string | null {
   const date = new Date(iso);
-  return Number.isFinite(date.getTime()) ? ABSOLUTE_DATE_FORMATTER.format(date) : null;
+  if (!Number.isFinite(date.getTime())) return null;
+  let formatter = absoluteDateFormatters.get(locale);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    });
+    absoluteDateFormatters.set(locale, formatter);
+  }
+  return formatter.format(date);
 }
 
 function formatRelativeDate(iso: string, t: TFunction): string {
@@ -128,7 +134,7 @@ function BadgeSection({
           data-testid="user-profile-badges"
         >
           {badges.badges.map((badge, index) => {
-            const badgeName = badge.title || badge.setId || "Badge";
+            const badgeName = badge.title || badge.setId || t("chat.badge");
             const badgeKey = `${badge.setId}-${badge.version}-${index}`;
             return (
               <Tooltip key={badgeKey} open={hoveredBadge === badgeKey}>
@@ -185,7 +191,7 @@ function DateValue({
   onRetry: () => void;
   onReconnect: () => void;
 }) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const [showRelativeTooltip, setShowRelativeTooltip] = useState(false);
 
   if (field.state === "loading")
@@ -195,7 +201,7 @@ function DateValue({
       </span>
     );
   if (field.state === "known") {
-    const absolute = formatAbsoluteDate(field.value);
+    const absolute = formatAbsoluteDate(field.value, i18n.resolvedLanguage ?? i18n.language);
     if (!absolute) {
       return (
         <RetryValue

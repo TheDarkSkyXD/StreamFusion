@@ -1,4 +1,4 @@
-import { translateSettings } from "@/features/settings/utils/settings-translation";
+import { translateSettingsForLanguage } from "@/features/settings/utils/settings-translation";
 import type { Emote } from "@backend/services/emotes/emote-types";
 import type { ChatCosmeticBadge, ChatCosmeticProvider } from "@shared/chat-types";
 
@@ -63,13 +63,13 @@ export function getChatPreviewFallbackBadges(
         id: `settings-preview-${provider}`,
         provider,
         providerId: `settings-preview-${provider}`,
-        title: translateSettings(
-          "settings.valueProfileBadge",
-          {
+        title: translateSettingsForLanguage({
+          key: "settings.valueProfileBadge",
+          options: {
             value1: provider === "7tv" ? "7TV" : provider === "bttv" ? "BetterTTV" : "FrankerFaceZ",
           },
-          language
-        ),
+          language,
+        }),
         imageUrl: svgDataUrl(badgeArtwork[provider]),
       },
     ])

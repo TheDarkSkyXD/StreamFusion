@@ -19,7 +19,7 @@ const PROVIDER_COLORS: Record<string, string> = {
 };
 
 export const EmoteTooltip: React.FC<EmoteTooltipProps> = ({ show, mousePos, emote }) => {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<{ top: number; left: number; opacity: number }>({
     top: 0,
@@ -87,10 +87,8 @@ export const EmoteTooltip: React.FC<EmoteTooltipProps> = ({ show, mousePos, emot
   // Determine provider color for badge
   const _providerColor = PROVIDER_COLORS[emote.provider] || "#ffffff";
 
-  // Match KickTalk's "Jun 22, 2023" format; force en-US so the layout stays predictable
-  // across locales. 7TV ActiveEmote.timestamp is unix-ms (0 means absent → undefined).
   const addedOnLabel = emote.addedAt
-    ? new Date(emote.addedAt).toLocaleDateString("en-US", {
+    ? new Date(emote.addedAt).toLocaleDateString(i18n.resolvedLanguage ?? i18n.language, {
         month: "short",
         day: "numeric",
         year: "numeric",

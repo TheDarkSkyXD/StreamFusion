@@ -15,7 +15,7 @@ export const ResubHighlight: React.FC<ResubHighlightProps> = memo(
     <ChatEventHighlightCard
       accentColor="#f59e0b"
       icon={<Repeat2 aria-hidden="true" className="h-5 w-5" strokeWidth={2.4} />}
-      label="Resub"
+      labelKey="chat.resub"
       platform={platform}
       style={style}
       testId="resub-highlight"

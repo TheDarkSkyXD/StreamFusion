@@ -22,7 +22,7 @@ interface ChannelEngagementProps {
 }
 
 export function ChannelEngagement({ broadcasterId, refreshCounter }: ChannelEngagementProps) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const [prediction, setPrediction] = useState<TwitchPrediction | null>(null);
   const [poll, setPoll] = useState<TwitchPoll | null>(null);
   const [loading, setLoading] = useState(false);
@@ -75,7 +75,9 @@ export function ChannelEngagement({ broadcasterId, refreshCounter }: ChannelEnga
                 <li key={o.id}>
                   {t("moderation.predictionOutcome", {
                     title: o.title,
-                    formattedCount: o.channel_points.toLocaleString(),
+                    formattedCount: o.channel_points.toLocaleString(
+                      i18n.resolvedLanguage ?? i18n.language
+                    ),
                   })}
                 </li>
               ))}
@@ -94,7 +96,7 @@ export function ChannelEngagement({ broadcasterId, refreshCounter }: ChannelEnga
                 <li key={c.id}>
                   {t("moderation.pollChoice", {
                     title: c.title,
-                    formattedCount: c.votes.toLocaleString(),
+                    formattedCount: c.votes.toLocaleString(i18n.resolvedLanguage ?? i18n.language),
                   })}
                 </li>
               ))}

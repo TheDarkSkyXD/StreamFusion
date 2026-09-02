@@ -242,14 +242,13 @@ function orderRenderableUsernameBadges(
 
 /** Format an ISO timestamp as "HH:MM AM/PM" — same shape Twitch uses in the
  *  sender-attribution row of expanded pinned messages. */
-function formatSentAt(iso: string | null): string {
+function formatSentAt(iso: string | null, locale: string): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString(undefined, {
+  return d.toLocaleTimeString(locale, {
     hour: "numeric",
     minute: "2-digit",
-    hour12: true,
   });
 }
 
@@ -330,7 +329,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
   pinActionBusy = false,
   currentChannelContext,
 }) => {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [selectedDuration, setSelectedDuration] = useState<TwitchPinDurationSelection>(() =>
@@ -755,7 +754,9 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
               />
               {pin.sentAt ? (
                 <span className="text-[#E6E6E6]" data-testid="pinned-message-timestamp">
-                  {t("chat.sentAtValue0", { value0: formatSentAt(pin.sentAt) })}
+                  {t("chat.sentAtValue0", {
+                    value0: formatSentAt(pin.sentAt, i18n.resolvedLanguage ?? i18n.language),
+                  })}
                 </span>
               ) : null}
             </div>

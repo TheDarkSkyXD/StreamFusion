@@ -112,8 +112,11 @@ export function useUpdater(): UseUpdaterReturn {
       setError(
         err instanceof Error
           ? err.message
-          : translateSettings("settings.failedToCheckForUpdates", {
-              defaultValue: "Failed to check for updates",
+          : translateSettings({
+              key: "settings.failedToCheckForUpdates",
+              options: {
+                defaultValue: "Failed to check for updates",
+              },
             })
       );
       setStatus("error");
@@ -134,8 +137,11 @@ export function useUpdater(): UseUpdaterReturn {
       setError(
         err instanceof Error
           ? err.message
-          : translateSettings("settings.failedToDownloadUpdate", {
-              defaultValue: "Failed to download update",
+          : translateSettings({
+              key: "settings.failedToDownloadUpdate",
+              options: {
+                defaultValue: "Failed to download update",
+              },
             })
       );
       setStatus("error");
@@ -152,8 +158,11 @@ export function useUpdater(): UseUpdaterReturn {
       setError(
         err instanceof Error
           ? err.message
-          : translateSettings("settings.failedToInstallUpdate", {
-              defaultValue: "Failed to install update",
+          : translateSettings({
+              key: "settings.failedToInstallUpdate",
+              options: {
+                defaultValue: "Failed to install update",
+              },
             })
       );
       setStatus("error");

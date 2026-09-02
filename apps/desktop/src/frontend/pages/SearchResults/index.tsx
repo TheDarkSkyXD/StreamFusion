@@ -60,12 +60,12 @@ function InfiniteSearchSentinel({
   enabled,
   fetching,
   fetchNextPage,
-  label,
+  kind,
 }: {
   enabled: boolean;
   fetching: boolean;
   fetchNextPage: () => Promise<unknown>;
-  label: "videos" | "clips";
+  kind: "videos" | "clips";
 }) {
   const sentinelRef = React.useRef<HTMLDivElement>(null);
 
@@ -84,12 +84,12 @@ function InfiniteSearchSentinel({
 
   if (!enabled) return null;
   return (
-    <div ref={sentinelRef} data-testid={`${label}-infinite-sentinel`} className="h-1" aria-hidden />
+    <div ref={sentinelRef} data-testid={`${kind}-infinite-sentinel`} className="h-1" aria-hidden />
   );
 }
 
 function SearchVideoCard({ video }: { video: UnifiedVideo }) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const [thumbnailFailed, setThumbnailFailed] = React.useState(!video.thumbnailUrl.trim());
 
   if (thumbnailFailed) return null;
@@ -142,7 +142,10 @@ function SearchVideoCard({ video }: { video: UnifiedVideo }) {
                 count: video.viewCount || 0,
                 formattedCount: formatViewerCount(video.viewCount || 0),
               })}{" "}
-              • {new Date(video.publishedAt).toLocaleDateString()}
+              •{" "}
+              {new Date(video.publishedAt).toLocaleDateString(
+                i18n.resolvedLanguage ?? i18n.language
+              )}
             </p>
           </div>
         </div>
@@ -869,7 +872,7 @@ export function SearchPage() {
           enabled={Boolean(videosQuery.hasNextPage)}
           fetching={videosQuery.isFetchingNextPage}
           fetchNextPage={videosQuery.fetchNextPage}
-          label="videos"
+          kind="videos"
         />
       )}
       {activeTab === "clips" && (
@@ -877,7 +880,7 @@ export function SearchPage() {
           enabled={Boolean(clipsQuery.hasNextPage)}
           fetching={clipsQuery.isFetchingNextPage}
           fetchNextPage={clipsQuery.fetchNextPage}
-          label="clips"
+          kind="clips"
         />
       )}
 

@@ -302,7 +302,7 @@ function DownloadRow({
         <div className="flex shrink-0 items-center gap-1 justify-self-start sm:col-start-2 lg:col-start-auto">
           {hasFileActions ? (
             <>
-              <DownloadActionTooltip label="Open file">
+              <DownloadActionTooltip label={t("mediaLibrary.openFile")}>
                 <Button
                   type="button"
                   variant="ghost"
@@ -314,7 +314,7 @@ function DownloadRow({
                   <LuPlay className="size-5" aria-hidden="true" />
                 </Button>
               </DownloadActionTooltip>
-              <DownloadActionTooltip label="Show in folder">
+              <DownloadActionTooltip label={t("mediaLibrary.showInFolder")}>
                 <Button
                   type="button"
                   variant="ghost"
@@ -340,7 +340,7 @@ function DownloadRow({
               </DownloadActionTooltip>
             </>
           ) : null}
-          <DownloadActionTooltip label="Remove from list">
+          <DownloadActionTooltip label={t("mediaLibrary.removeFromList")}>
             <Button
               type="button"
               variant="ghost"

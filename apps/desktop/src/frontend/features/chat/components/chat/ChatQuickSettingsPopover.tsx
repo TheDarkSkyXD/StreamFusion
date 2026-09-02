@@ -239,14 +239,14 @@ function RootView({
     <div className="px-2 py-2 space-y-1">
       <NavRow
         icon={<LuPause size={ICON_SIZE} />}
-        label="Pause Chat"
+        label={t("chat.pauseChat")}
         description={getPauseModeLabel(pauseMode, t)}
         onClick={onOpenPause}
       />
       <NavRow
         icon={<LuPalette size={ICON_SIZE} />}
-        label="Chat appearance"
-        description="Font, emotes, width, spacing, and more."
+        label={t("chat.chatAppearance")}
+        description={t("chat.chatAppearanceSummary")}
         onClick={onOpenAppearance}
       />
       <button
@@ -416,16 +416,16 @@ function AppearanceView({
         />
       </div>
       <SegmentedRadioGroup
-        accessibleLabel="Chat width"
-        footer={`Currently: ${chatWidthPx}px`}
-        label="Chat window width"
+        accessibleLabel={t("chat.chatWidth")}
+        footer={t("chat.currentlyValue", { value: `${chatWidthPx}px` })}
+        label={t("chat.chatWindowWidth")}
         name="quick-chat-width"
         options={CHAT_WIDTH_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
         value={chatWidthPx}
         onChange={(value) => void set("chatWidthPx", value)}
       />
       <SegmentedRadioGroup
-        label="Message spacing"
+        label={t("chat.messageSpacing")}
         name="quick-chat-message-spacing"
         options={DENSITY_OPTIONS.map((option) => ({ ...option, label: t(option.labelKey) }))}
         value={density}
@@ -433,17 +433,17 @@ function AppearanceView({
       />
       <div className="px-4 py-1 divide-y divide-[var(--color-border)]">
         <QuickAppearanceSwitch
-          label="Timestamps"
+          label={t("chat.timestamps")}
           checked={timestamps}
           onChange={(value) => void set("timestamps", value)}
         />
         <QuickAppearanceSwitch
-          label="Hover smooth mode"
+          label={t("chat.hoverSmoothMode")}
           checked={hoverSmooth}
           onChange={(value) => void set("hoverSmooth", value)}
         />
         <QuickAppearanceSwitch
-          label="Quick Emotes"
+          label={t("chat.quickEmotesTitle")}
           checked={quickEmotes}
           onChange={(value) => void set("quickEmotes", value)}
         />

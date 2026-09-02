@@ -14,7 +14,7 @@ export const RaidHighlight: React.FC<RaidHighlightProps> = memo(({ children, pla
   <ChatEventHighlightCard
     accentColor="#38bdf8"
     icon={<Users aria-hidden="true" className="h-5 w-5" strokeWidth={2.3} />}
-    label="Raid"
+    labelKey="chat.raid"
     platform={platform}
     style={style}
     testId="raid-highlight"

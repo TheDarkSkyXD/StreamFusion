@@ -15,6 +15,8 @@ export const mediaLibraryEn = {
     open: "Open",
     showRecordingInFolder: "Show recording in folder",
     showInFolder: "Show in Folder",
+    openFile: "Open file",
+    removeFromList: "Remove from list",
     gapSummary_one: "{{count}} gap{{suffix}}",
     gapSummary_other: "{{count}} gaps{{suffix}}",
     currentGapOpen: " · current gap open",

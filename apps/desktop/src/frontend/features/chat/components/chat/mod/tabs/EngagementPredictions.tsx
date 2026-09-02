@@ -59,7 +59,7 @@ function isLocked(p: TwitchPrediction | null | undefined): boolean {
 }
 
 export function EngagementPredictions({ channelId }: EngagementPredictionsProps) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const twitchUser = useAuthStore((s) => s.twitchUser);
 
   const fetcher = useCallback(async (): Promise<{ data: TwitchPrediction[] } | null> => {
@@ -326,12 +326,16 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
                     <span className="text-xs text-[var(--color-foreground-muted)]">
                       {totalPoints > 0
                         ? t("chatModeration.pointsViewersWithPercentage", {
-                            points: o.channel_points.toLocaleString(),
+                            points: o.channel_points.toLocaleString(
+                              i18n.resolvedLanguage ?? i18n.language
+                            ),
                             count: o.users,
                             percent: pct,
                           })
                         : t("chatModeration.pointsAndViewers", {
-                            points: o.channel_points.toLocaleString(),
+                            points: o.channel_points.toLocaleString(
+                              i18n.resolvedLanguage ?? i18n.language
+                            ),
                             count: o.users,
                           })}
                     </span>

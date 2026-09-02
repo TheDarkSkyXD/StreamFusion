@@ -59,7 +59,7 @@ function favoriteFromStream(stream: UnifiedStream): FavoriteStreamRef {
 }
 
 export function AddStreamDialog() {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<DialogTab>("search");
   const [resetKey, setResetKey] = useState(0);
@@ -300,7 +300,9 @@ export function AddStreamDialog() {
                           </span>
                         </span>
                         <span className="shrink-0 text-xs font-semibold text-[var(--color-foreground-secondary)]">
-                          {stream.viewerCount.toLocaleString()}
+                          {stream.viewerCount.toLocaleString(
+                            i18n.resolvedLanguage ?? i18n.language
+                          )}
                         </span>
                       </button>
                       <button

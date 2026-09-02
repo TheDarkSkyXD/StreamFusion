@@ -25,7 +25,7 @@ export const MentionHighlight: React.FC<MentionHighlightProps> = memo(({ childre
           />
         </svg>
       }
-      label="Mention"
+      labelKey="chat.mention"
       testId="viewer-mention-highlight"
       style={style}
     >

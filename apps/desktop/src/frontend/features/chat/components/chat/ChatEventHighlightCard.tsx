@@ -2,26 +2,29 @@ import { useTranslation } from "react-i18next";
 import type React from "react";
 import { memo } from "react";
 import type { ChatPlatform } from "../../../../../shared/chat-types";
+import type { chatEn } from "@/i18n/locales/en/chat";
 
-interface ChatEventHighlightCardProps {
+type ChatTranslationKey = `chat.${keyof typeof chatEn.chat}`;
+
+type ChatEventHighlightCardProps = {
   children: React.ReactNode;
   accentColor: string;
   icon: React.ReactNode;
-  label: string;
   platform: ChatPlatform;
   accentWidth?: number;
   style?: React.CSSProperties;
   testId: string;
-}
+} & ({ label: string; labelKey?: never } | { label?: never; labelKey: ChatTranslationKey });
 
 export const ChatEventHighlightCard: React.FC<ChatEventHighlightCardProps> = memo(
-  ({ children, accentColor, accentWidth = 3, icon, label, platform, style, testId }) => {
+  ({ children, accentColor, accentWidth = 3, icon, label, labelKey, platform, style, testId }) => {
     const { t } = useTranslation();
     const platformLabel = platform === "kick" ? "Kick" : "Twitch";
+    const resolvedLabel = labelKey ? t(labelKey) : label;
 
     return (
       <div
-        aria-label={t("chat.value0Value1Notice", { value0: platformLabel, value1: label })}
+        aria-label={t("chat.value0Value1Notice", { value0: platformLabel, value1: resolvedLabel })}
         className="mx-1 my-1 min-w-0 max-w-full overflow-x-clip bg-[#1f1f24] text-[#efeff1]"
         data-testid={testId}
         style={{

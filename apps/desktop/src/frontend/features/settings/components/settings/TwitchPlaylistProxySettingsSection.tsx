@@ -95,7 +95,10 @@ function SortableSourceRow({ source, status, onToggle, onEdit, onDelete }: Sorta
         variant="ghost"
         size="icon"
         className="cursor-grab active:cursor-grabbing"
-        aria-label={translateSettings("settings.reorderValue", { value1: source.url })}
+        aria-label={translateSettings({
+          key: "settings.reorderValue",
+          options: { value1: source.url },
+        })}
         {...attributes}
         {...listeners}
       >
@@ -104,7 +107,10 @@ function SortableSourceRow({ source, status, onToggle, onEdit, onDelete }: Sorta
       <Switch
         checked={source.enabled}
         onCheckedChange={onToggle}
-        aria-label={translateSettings("settings.enableValue", { value1: source.url })}
+        aria-label={translateSettings({
+          key: "settings.enableValue",
+          options: { value1: source.url },
+        })}
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-white">{source.url}</p>
@@ -112,7 +118,7 @@ function SortableSourceRow({ source, status, onToggle, onEdit, onDelete }: Sorta
           <span className={`size-2 rounded-full ${sourceStatusClass(status)}`} aria-hidden />
           <span>{sourceStatusCopy(status)}</span>
           {source.addQueryParams && (
-            <span>{translateSettings("settings.usesPlaybackQueryParameters")}</span>
+            <span>{translateSettings({ key: "settings.usesPlaybackQueryParameters" })}</span>
           )}
         </div>
       </div>
@@ -121,7 +127,10 @@ function SortableSourceRow({ source, status, onToggle, onEdit, onDelete }: Sorta
           variant="ghost"
           size="icon"
           onClick={onEdit}
-          aria-label={translateSettings("settings.editValue", { value1: source.url })}
+          aria-label={translateSettings({
+            key: "settings.editValue",
+            options: { value1: source.url },
+          })}
         >
           <LuPencil className="size-4" aria-hidden />
         </Button>
@@ -129,7 +138,10 @@ function SortableSourceRow({ source, status, onToggle, onEdit, onDelete }: Sorta
           variant="ghost"
           size="icon"
           onClick={onDelete}
-          aria-label={translateSettings("settings.deleteValue", { value1: source.url })}
+          aria-label={translateSettings({
+            key: "settings.deleteValue",
+            options: { value1: source.url },
+          })}
         >
           <LuTrash2 className="size-4 text-red-400" aria-hidden />
         </Button>
@@ -149,21 +161,21 @@ function DeleteSourceDialog({ source, onClose, onConfirm }: DeleteSourceDialogPr
     <Dialog open={source !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="border-[#333333] bg-[#1a1a1a] text-white shadow-[0_8px_32px_rgba(0,0,0,0.5),0_2px_8px_rgba(0,0,0,0.3)]">
         <DialogHeader>
-          <DialogTitle>{translateSettings("settings.deletePlaylistSource")}</DialogTitle>
+          <DialogTitle>{translateSettings({ key: "settings.deletePlaylistSource" })}</DialogTitle>
           <DialogDescription>
-            {translateSettings("settings.remove")}
+            {translateSettings({ key: "settings.remove" })}
             {source?.url}{" "}
-            {translateSettings(
-              "settings.fromTheFallbackOrderItWillNoLongerBeTriedDuringTwitchPlayback"
-            )}
+            {translateSettings({
+              key: "settings.fromTheFallbackOrderItWillNoLongerBeTriedDuringTwitchPlayback",
+            })}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="secondary" onClick={onClose}>
-            {translateSettings("settings.cancel")}
+            {translateSettings({ key: "settings.cancel" })}
           </Button>
           <Button variant="destructive" onClick={onConfirm}>
-            {translateSettings("settings.deleteSource")}
+            {translateSettings({ key: "settings.deleteSource" })}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -261,18 +273,18 @@ export function TwitchPlaylistProxySettingsSection() {
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#333333] px-6 py-5">
         <div>
           <h3 id="playlist-proxy-heading" className="text-lg font-semibold text-white">
-            {translateSettings("settings.twitchPlaylistProxy")}
+            {translateSettings({ key: "settings.twitchPlaylistProxy" })}
           </h3>
           <p className="mt-1 max-w-2xl text-sm text-[#a0a0a0]">
-            {translateSettings(
-              "settings.routesLiveTwitchPlaylistsThroughAnOrderedSourceListWhenEnabledTh"
-            )}
+            {translateSettings({
+              key: "settings.routesLiveTwitchPlaylistsThroughAnOrderedSourceListWhenEnabledTh",
+            })}
           </p>
         </div>
         <Switch
           checked={proxyPreferences.enabled}
           onCheckedChange={(enabled) => save({ ...proxyPreferences, enabled })}
-          aria-label={translateSettings("settings.enableTwitchPlaylistProxy")}
+          aria-label={translateSettings({ key: "settings.enableTwitchPlaylistProxy" })}
           className="data-[state=checked]:!bg-[#9146ff] data-[state=checked]:!border-[#9146ff]"
           thumbClassName="data-[state=checked]:!bg-white"
         />
@@ -281,18 +293,18 @@ export function TwitchPlaylistProxySettingsSection() {
       <div className="space-y-3 p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-[#a0a0a0]">
-            {translateSettings(
-              "settings.sourcesAreTriedOnceFromTopToBottomDirectTwitchPlaybackIsTheFinal"
-            )}
+            {translateSettings({
+              key: "settings.sourcesAreTriedOnceFromTopToBottomDirectTwitchPlaybackIsTheFinal",
+            })}
           </p>
           <div className="flex items-center gap-2">
             <Button variant="secondary" size="sm" onClick={refreshStatuses}>
               <LuRefreshCw className="mr-1.5 size-3.5" aria-hidden />
-              {translateSettings("settings.refreshStatus")}
+              {translateSettings({ key: "settings.refreshStatus" })}
             </Button>
             <Button size="sm" onClick={openAdd}>
               <LuPlus className="mr-1.5 size-3.5" aria-hidden />
-              {translateSettings("settings.addSource")}
+              {translateSettings({ key: "settings.addSource" })}
             </Button>
           </div>
         </div>
@@ -300,10 +312,10 @@ export function TwitchPlaylistProxySettingsSection() {
         {proxyPreferences.sources.length === 0 ? (
           <div className="rounded-lg border border-dashed border-[#333333] bg-[#252525] px-4 py-8 text-center">
             <p className="text-sm font-medium text-white">
-              {translateSettings("settings.noPlaylistProxySources")}
+              {translateSettings({ key: "settings.noPlaylistProxySources" })}
             </p>
             <p className="mt-1 text-sm text-[#a0a0a0]">
-              {translateSettings("settings.addASourceOrRestoreTheDefaultList")}
+              {translateSettings({ key: "settings.addASourceOrRestoreTheDefaultList" })}
             </p>
             <Button
               variant="secondary"
@@ -311,7 +323,7 @@ export function TwitchPlaylistProxySettingsSection() {
               className="mt-4"
               onClick={() => save(DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES)}
             >
-              {translateSettings("settings.restoreDefaults")}
+              {translateSettings({ key: "settings.restoreDefaults" })}
             </Button>
           </div>
         ) : (
@@ -346,7 +358,7 @@ export function TwitchPlaylistProxySettingsSection() {
             onClick={() => save(DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES)}
             className="text-xs font-medium text-[#a0a0a0] transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
-            {translateSettings("settings.restoreDefaults")}
+            {translateSettings({ key: "settings.restoreDefaults" })}
           </button>
         )}
       </div>
@@ -356,17 +368,19 @@ export function TwitchPlaylistProxySettingsSection() {
           <DialogHeader>
             <DialogTitle>
               {draft.id
-                ? translateSettings("settings.editPlaylistSource")
-                : translateSettings("settings.addPlaylistSource")}
+                ? translateSettings({ key: "settings.editPlaylistSource" })
+                : translateSettings({ key: "settings.addPlaylistSource" })}
             </DialogTitle>
             <DialogDescription>
-              {translateSettings("settings.includeChannelWhereTwitchAposSChannelNameBelongs")}
+              {translateSettings({
+                key: "settings.includeChannelWhereTwitchAposSChannelNameBelongs",
+              })}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <label htmlFor="playlist-proxy-url" className="text-sm font-medium text-white">
-                {translateSettings("settings.playlistUrl")}
+                {translateSettings({ key: "settings.playlistUrl" })}
               </label>
               <input
                 id="playlist-proxy-url"
@@ -385,10 +399,10 @@ export function TwitchPlaylistProxySettingsSection() {
             <div className="flex items-center justify-between gap-4 rounded-lg border border-[#333333] bg-[#252525] px-3 py-3">
               <div>
                 <p className="text-sm font-medium text-white">
-                  {translateSettings("settings.addPlaybackQueryParameters")}
+                  {translateSettings({ key: "settings.addPlaybackQueryParameters" })}
                 </p>
                 <p className="mt-1 text-xs text-[#a0a0a0]">
-                  {translateSettings("settings.addsSourceAudioOnlyAndFastBreadFlags")}
+                  {translateSettings({ key: "settings.addsSourceAudioOnlyAndFastBreadFlags" })}
                 </p>
               </div>
               <Switch
@@ -396,18 +410,18 @@ export function TwitchPlaylistProxySettingsSection() {
                 onCheckedChange={(addQueryParams) =>
                   setDraft((current) => ({ ...current, addQueryParams }))
                 }
-                aria-label={translateSettings("settings.addPlaybackQueryParameters")}
+                aria-label={translateSettings({ key: "settings.addPlaybackQueryParameters" })}
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setDialogOpen(false)}>
-              {translateSettings("settings.cancel")}
+              {translateSettings({ key: "settings.cancel" })}
             </Button>
             <Button onClick={saveDraft}>
               {draft.id
-                ? translateSettings("settings.saveSource")
-                : translateSettings("settings.addSource")}
+                ? translateSettings({ key: "settings.saveSource" })
+                : translateSettings({ key: "settings.addSource" })}
             </Button>
           </DialogFooter>
         </DialogContent>
