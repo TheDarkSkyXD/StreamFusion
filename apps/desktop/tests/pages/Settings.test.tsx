@@ -8,6 +8,7 @@ import {
   DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
+  DEFAULT_USER_PREFERENCES,
 } from "@shared/auth-types";
 import { HOME_CAROUSEL_INTERVAL_DEFAULT_MS, useAppStore } from "@/store/app-store";
 import { useFollowStore } from "@/store/follow-store";
@@ -104,6 +105,7 @@ vi.mock("@/store/auth-store", () => ({
   useAuthStore: (selector?: (s: unknown) => unknown) => {
     const state = {
       preferences: {
+        ...DEFAULT_USER_PREFERENCES,
         playback,
         playerControls,
         buffer,
@@ -139,6 +141,7 @@ beforeEach(() => {
 });
 
 // Guards: a Twitch connection failure remains visible and dismissible from Integrations.
+// Guards: Settings mocks include every persisted preference group when the schema grows.
 describe("SettingsPage auth errors", () => {
   it("surfaces and dismisses a Twitch connection error", async () => {
     authErrorMock.error = {
@@ -558,25 +561,27 @@ describe("SettingsPage — Notifications tab", () => {
       value: { permission: "denied" },
     });
     const api = installElectronAPIMock();
-    api.notifications.getCoverageStatus = vi.fn<typeof api.notifications.getCoverageStatus>(async () => ({
-      desktop: { supported: true, permission: "unknown" },
-      platforms: {
-        twitch: {
-          status: "degraded",
-          issues: [
-            {
-              platform: "twitch",
-              reason: "eventsub-failed",
-              message: "Twitch EventSub unavailable",
-              safeContext: { channelId: "123" },
-              firstSeenAt: 1_000,
-              lastSeenAt: 1_000,
-            },
-          ],
+    api.notifications.getCoverageStatus = vi.fn<typeof api.notifications.getCoverageStatus>(
+      async () => ({
+        desktop: { supported: true, permission: "unknown" },
+        platforms: {
+          twitch: {
+            status: "degraded",
+            issues: [
+              {
+                platform: "twitch",
+                reason: "eventsub-failed",
+                message: "Twitch EventSub unavailable",
+                safeContext: { channelId: "123" },
+                firstSeenAt: 1_000,
+                lastSeenAt: 1_000,
+              },
+            ],
+          },
+          kick: { status: "normal", issues: [] },
         },
-        kick: { status: "normal", issues: [] },
-      },
-    }));
+      })
+    );
 
     await openNotificationsTab();
 
@@ -812,9 +817,7 @@ describe("SettingsPage — API / Tokens tab (U14)", () => {
   // documented TokenStatusResult shape per platform. The default auto-stub
   // returns `{data:[],error:null}`, which is the wrong shape for this panel.
   function installTokenStatusMock(
-    byPlatform: Partial<
-      Record<"twitch" | "kick", import("@shared/ipc-channels").TokenStatusResult>
-    >
+    byPlatform: Partial<Record<"twitch" | "kick", import("@shared/ipc-channels").TokenStatusResult>>
   ) {
     const api = installElectronAPIMock();
     const tokenStatus = vi.fn(async (platform: "twitch" | "kick") => {
@@ -825,9 +828,7 @@ describe("SettingsPage — API / Tokens tab (U14)", () => {
   }
 
   async function openApiTokensTab(
-    byPlatform: Partial<
-      Record<"twitch" | "kick", import("@shared/ipc-channels").TokenStatusResult>
-    >
+    byPlatform: Partial<Record<"twitch" | "kick", import("@shared/ipc-channels").TokenStatusResult>>
   ) {
     const mock = installTokenStatusMock(byPlatform);
     const user = userEvent.setup({ delay: null });

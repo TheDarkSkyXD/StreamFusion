@@ -7,6 +7,7 @@ import {
   DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
+  DEFAULT_USER_PREFERENCES,
 } from "@shared/auth-types";
 import {
   DEFAULT_SEEK_INTERVAL_SECONDS,
@@ -56,7 +57,8 @@ vi.mock("@/store/auth-store", () => ({
   useAuthStore: (selector?: (state: unknown) => unknown) => {
     const state = {
       preferences: {
-        playback: { defaultQuality: "auto", autoplay: true },
+        ...DEFAULT_USER_PREFERENCES,
+        playback: { ...DEFAULT_USER_PREFERENCES.playback, defaultQuality: "auto", autoplay: true },
         playerControls: DEFAULT_PLAYER_CONTROLS_PREFERENCES,
         buffer: DEFAULT_BUFFER_PREFERENCES,
         proxy: DEFAULT_PROXY_PREFERENCES,
@@ -95,6 +97,7 @@ beforeEach(() => {
 
 // Guards: Player controls expose searchable, accessible preset seek intervals plus a whole-second Custom option for VODs and clips only.
 // Guards: rewind and fast-forward values persist independently through the real seek interval store.
+// Guards: Settings mocks include every persisted preference group when the schema grows.
 describe("Settings seek intervals", () => {
   it("exposes both Xtra-style controls and filters them through Settings search", async () => {
     const user = userEvent.setup();

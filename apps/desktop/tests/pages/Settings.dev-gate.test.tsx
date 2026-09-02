@@ -7,6 +7,7 @@ import {
   DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
+  DEFAULT_USER_PREFERENCES,
 } from "@shared/auth-types";
 
 import {
@@ -65,7 +66,8 @@ vi.mock("@/store/auth-store", () => ({
   useAuthStore: (selector?: (s: unknown) => unknown) => {
     const state = {
       preferences: {
-        playback: { defaultQuality: "auto", autoplay: true },
+        ...DEFAULT_USER_PREFERENCES,
+        playback: { ...DEFAULT_USER_PREFERENCES.playback, defaultQuality: "auto", autoplay: true },
         playerControls,
         buffer,
         proxy,
@@ -117,6 +119,7 @@ const DEVELOPER_ONLY_PANELS = [
   { tab: "report-bug", testId: "bug-report-section" },
 ] as const;
 
+// Guards: Settings mocks include every persisted preference group when the schema grows.
 describe("SettingsPage — developer-only deep links", () => {
   beforeEach(() => {
     updatePreferences.mockReset();
