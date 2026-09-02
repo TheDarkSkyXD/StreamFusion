@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LuChevronLeft, LuChevronRight, LuVolume2, LuVolumeX } from "react-icons/lu";
+import { useTranslation } from "react-i18next";
 
 import type { UnifiedStream } from "@shared/platform-types";
 import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
@@ -33,6 +34,7 @@ export function FeaturedStream({
   onActiveIndexChange,
   isAutoRotationEnabled = true,
 }: FeaturedStreamProps) {
+  const { t } = useTranslation();
   const carouselStreams = useMemo(() => {
     const candidates = streams && streams.length > 0 ? streams : stream ? [stream] : [];
     return candidates.slice(0, 10);
@@ -150,7 +152,7 @@ export function FeaturedStream({
         params={{ platform: activeStream.platform, channel: activeStream.channelName }}
         search={{ tab: "home" }}
         className="absolute inset-0"
-        aria-label={`Watch ${activeStream.channelDisplayName}`}
+        aria-label={t("home.watch", { channel: activeStream.channelDisplayName })}
       >
         <ProxiedImage
           src={activeStream.thumbnailUrl.replace("{width}", "1920").replace("{height}", "1080")}
@@ -180,8 +182,8 @@ export function FeaturedStream({
         <button
           type="button"
           className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded bg-black/65 text-white transition-colors hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-          aria-label={previewMuted ? "Unmute preview" : "Mute preview"}
-          title={previewMuted ? "Unmute preview" : "Mute preview"}
+          aria-label={previewMuted ? t("home.unmutePreview") : t("home.mutePreview")}
+          title={previewMuted ? t("home.unmutePreview") : t("home.mutePreview")}
           onClick={togglePreviewAudio}
         >
           {previewMuted ? <LuVolumeX className="h-5 w-5" /> : <LuVolume2 className="h-5 w-5" />}
@@ -244,7 +246,7 @@ export function FeaturedStream({
               watchNowClassName
             )}
           >
-            Watch now
+            {t("home.watchNow")}
           </Link>
         </div>
 
@@ -259,7 +261,9 @@ export function FeaturedStream({
                     "h-2 rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
                     index === activeIndex ? "w-12 bg-white" : "w-2 bg-white/35 hover:bg-white/70"
                   )}
-                  aria-label={`Show ${carouselStream.channelDisplayName}`}
+                  aria-label={t("home.showChannel", {
+                    channel: carouselStream.channelDisplayName,
+                  })}
                   aria-current={index === activeIndex ? "true" : undefined}
                   onClick={() => changeActiveIndex(index)}
                 />
@@ -270,7 +274,7 @@ export function FeaturedStream({
               <button
                 type="button"
                 className="inline-flex h-8 w-8 items-center justify-center text-white transition-colors hover:text-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                aria-label="Previous featured stream"
+                aria-label={t("home.previousFeatured")}
                 onClick={goToPrevious}
               >
                 <LuChevronLeft className="h-8 w-8" />
@@ -278,7 +282,7 @@ export function FeaturedStream({
               <button
                 type="button"
                 className="inline-flex h-8 w-8 items-center justify-center text-white transition-colors hover:text-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                aria-label="Next featured stream"
+                aria-label={t("home.nextFeatured")}
                 onClick={goToNext}
               >
                 <LuChevronRight className="h-8 w-8" />
@@ -296,7 +300,7 @@ export function FeaturedStream({
               watchNowClassName
             )}
           >
-            Watch now
+            {t("home.watchNow")}
           </Link>
         </div>
       </div>

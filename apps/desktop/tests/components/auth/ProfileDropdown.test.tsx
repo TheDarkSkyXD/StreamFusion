@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { KickUser, TwitchUser } from "@shared/auth-types";
+import { DEFAULT_USER_PREFERENCES, type KickUser, type TwitchUser } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
+import "@/i18n";
 
 import { renderWithProviders, routerMock, screen, userEvent } from "../../test-utils";
 
@@ -46,13 +47,15 @@ beforeEach(() => {
     error: null,
     localFollows: [],
     followsLoading: false,
-    preferences: null,
+    preferences: DEFAULT_USER_PREFERENCES,
+    updatePreferences: vi.fn(),
   });
   navigateMock.mockClear();
 });
 
 // Guards: profile dropdown trigger must expose an accessible name so keyboard, screen-reader, and runtime automation users can open the account menu
 // Guards: profile dropdown channel actions must navigate inside StreamFusion to the authenticated account's real platform channel instead of opening an external browser URL or using a stale display name
+// Guards: the profile language selector persists through the same preference path as Settings.
 describe("ProfileDropdown", () => {
   it("navigates to connected Twitch and Kick account channels inside the app", async () => {
     useAuthStore.setState({
@@ -84,5 +87,15 @@ describe("ProfileDropdown", () => {
       params: { platform: "kick", channel: "anonsociety" },
       search: { tab: "home" },
     });
+  });
+
+  it("writes the selected display language through the shared preference path", async () => {
+    const updatePreferences = vi.fn(async () => ({ success: true }));
+    useAuthStore.setState({ updatePreferences });
+    renderWithProviders(<ProfileDropdown />);
+    await userEvent.click(screen.getByRole("button", { name: "Open profile menu" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Display language" }));
+    await userEvent.click(screen.getByRole("option", { name: "Español (Spanish)" }));
+    expect(updatePreferences).toHaveBeenCalledWith({ language: "es" });
   });
 });

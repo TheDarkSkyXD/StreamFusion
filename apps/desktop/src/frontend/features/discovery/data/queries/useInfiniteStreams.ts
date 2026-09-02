@@ -1,9 +1,11 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
+import { useAuthStore } from "@/store/auth-store";
 
 import type { Platform } from "../../../../../shared/auth-types";
+import type { DisplayLanguage } from "../../../../../shared/display-language";
 
 import { useQueryCachePerformance } from "./cache-performance";
 import { getQueryCacheOptions } from "./cache-policy";
@@ -12,14 +14,19 @@ import { STREAM_KEYS } from "./useStreams";
 const TOP_STREAMS_PAGE_SIZE = 12;
 const TOP_STREAM_PLATFORMS = ["twitch", "kick"] as const satisfies readonly Platform[];
 
-function useInfiniteTopStreamsByPlatform(platform: Platform) {
-  const queryKey = STREAM_KEYS.topInfinite(platform, TOP_STREAMS_PAGE_SIZE);
+function useInfiniteTopStreamsByPlatform(
+  platform: Platform,
+  language: DisplayLanguage,
+  enabled: boolean
+) {
+  const queryKey = STREAM_KEYS.topInfinite(platform, TOP_STREAMS_PAGE_SIZE, language);
   return useInfiniteQuery({
     queryKey,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam, signal }) => {
       const response = await window.electronAPI.streams.getTop({
         platform,
+        language,
         limit: TOP_STREAMS_PAGE_SIZE,
         ...(pageParam === undefined ? {} : { cursor: pageParam }),
       });
@@ -32,13 +39,17 @@ function useInfiniteTopStreamsByPlatform(platform: Platform) {
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+    enabled,
     ...getQueryCacheOptions("streamList"),
   });
 }
 
 export function useInfiniteTopStreams() {
-  const twitch = useInfiniteTopStreamsByPlatform("twitch");
-  const kick = useInfiniteTopStreamsByPlatform("kick");
+  const initialized = useAuthStore((state) => state.initialized);
+  const preferences = useAuthStore((state) => state.preferences);
+  const language = preferences?.language ?? "en";
+  const twitch = useInfiniteTopStreamsByPlatform("twitch", language, initialized);
+  const kick = useInfiniteTopStreamsByPlatform("kick", language, initialized);
   const loadMoreInFlight = useRef<Promise<void> | null>(null);
   const twitchPages = twitch.data?.pages;
   const kickPages = kick.data?.pages;
@@ -59,6 +70,46 @@ export function useInfiniteTopStreams() {
   const fetchNextKickPage = kick.fetchNextPage;
   const refetchTwitch = twitch.refetch;
   const refetchKick = kick.refetch;
+  const twitchStreamCount = twitchPages?.reduce((count, page) => count + page.data.length, 0) ?? 0;
+  const kickStreamCount = kickPages?.reduce((count, page) => count + page.data.length, 0) ?? 0;
+
+  useEffect(() => {
+    if (
+      initialized &&
+      twitchStreamCount === 0 &&
+      twitch.hasNextPage &&
+      !twitch.isFetchingNextPage &&
+      !twitch.isFetchNextPageError
+    ) {
+      void fetchNextTwitchPage({ cancelRefetch: false });
+    }
+  }, [
+    fetchNextTwitchPage,
+    initialized,
+    twitch.hasNextPage,
+    twitch.isFetchNextPageError,
+    twitch.isFetchingNextPage,
+    twitchStreamCount,
+  ]);
+
+  useEffect(() => {
+    if (
+      initialized &&
+      kickStreamCount === 0 &&
+      kick.hasNextPage &&
+      !kick.isFetchingNextPage &&
+      !kick.isFetchNextPageError
+    ) {
+      void fetchNextKickPage({ cancelRefetch: false });
+    }
+  }, [
+    fetchNextKickPage,
+    initialized,
+    kick.hasNextPage,
+    kick.isFetchNextPageError,
+    kick.isFetchingNextPage,
+    kickStreamCount,
+  ]);
 
   const fetchNextPage = useCallback((): Promise<void> => {
     if (loadMoreInFlight.current) return loadMoreInFlight.current;

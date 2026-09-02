@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { useInfiniteTopStreams } from "@/features/discovery/data/queries/useInfiniteStreams";
@@ -7,6 +8,7 @@ import { LiveNowSection } from "./components/live-now-section";
 import { FeaturedStage } from "./components/featured-stage";
 
 export function HomePage() {
+  const { t } = useTranslation();
   const {
     data: streams,
     isLoading,
@@ -26,10 +28,10 @@ export function HomePage() {
   if (error) {
     return (
       <div className="p-12 flex flex-col items-center justify-center space-y-4 text-center">
-        <div className="text-red-500 text-xl font-bold">Failed to load streams</div>
+        <div className="text-red-500 text-xl font-bold">{t("home.failed")}</div>
         <p className="text-[var(--color-foreground-secondary)]">{error.message}</p>
         <Button onClick={() => void refetch()} variant="outline">
-          Retry
+          {t("home.retry")}
         </Button>
       </div>
     );
@@ -57,7 +59,7 @@ export function HomePage() {
       <div className="flex justify-center pt-8">
         <Link to="/categories">
           <Button variant="outline" size="lg" className="rounded-full px-8">
-            Browse All Categories
+            {t("home.browseCategories")}
           </Button>
         </Link>
       </div>

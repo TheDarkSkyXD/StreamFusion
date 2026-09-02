@@ -1076,7 +1076,7 @@ export async function getPublicTopStreams(
   }
 
   try {
-    const language = options.language || "en";
+    const language = options.language?.trim().toLowerCase();
 
     // Try multiple endpoints — some may be blocked or return limited data.
     // When a categoryId is set, also try category-filtered variants of the
@@ -1090,24 +1090,36 @@ export async function getPublicTopStreams(
     const categoryQuery = queryString ? `?${queryString}` : "";
     const endpoints = options.categoryId
       ? [
-          // Category-filtered guesses first (anonymous, web app shape)
+          ...(language
+            ? [
+                `https://kick.com/stream/livestreams/${language}${categoryQuery}`,
+                `https://kick.com/stream/featured-livestreams/${language}${categoryQuery}`,
+              ]
+            : []),
           `https://api.kick.com/private/v1/livestreams${categoryQuery}`,
-          `https://kick.com/stream/livestreams/${language}${categoryQuery}`,
-          `https://kick.com/stream/featured-livestreams/${language}${categoryQuery}`,
-          // Plain fallbacks
           `https://api.kick.com/private/v1/livestreams`,
-          `https://kick.com/stream/livestreams/${language}`,
+          ...(language ? [`https://kick.com/stream/livestreams/${language}`] : []),
         ]
       : [
+          ...(language
+            ? [
+                `https://kick.com/stream/livestreams/${language}`,
+                `https://kick.com/stream/featured-livestreams/${language}`,
+              ]
+            : []),
           `https://api.kick.com/private/v1/livestreams${categoryQuery}`,
-          `https://kick.com/stream/livestreams/${language}`,
-          `https://kick.com/stream/featured-livestreams/${language}`,
         ];
 
     let bestData: unknown = null;
     let bestCount = 0;
+    let bestDataIsLanguageScoped = false;
 
     for (const url of endpoints) {
+      const isLanguageScopedEndpoint = Boolean(
+        language &&
+        (url.startsWith(`https://kick.com/stream/livestreams/${language}`) ||
+          url.startsWith(`https://kick.com/stream/featured-livestreams/${language}`))
+      );
       try {
         let data: unknown = null;
         try {
@@ -1145,9 +1157,15 @@ export async function getPublicTopStreams(
           if (rawList.length > bestCount) {
             bestData = data;
             bestCount = rawList.length;
+            bestDataIsLanguageScoped = isLanguageScopedEndpoint;
           }
 
           // If we got a good number of streams, stop trying
+          if (isLanguageScopedEndpoint && rawList.length > 0) {
+            bestData = data;
+            bestDataIsLanguageScoped = true;
+            break;
+          }
           if (rawList.length >= 50) {
             break;
           }
@@ -1266,7 +1284,10 @@ export async function getPublicTopStreams(
         thumbnailUrl: thumbnailUrl,
         isLive: true,
         startedAt: normalizeKickDate(item.started_at || item.created_at || item.start_time),
-        language: item.metadata?.language || item.language || language,
+        language:
+          item.metadata?.language ||
+          item.language ||
+          (bestDataIsLanguageScoped ? (language ?? "") : ""),
         tags: item.custom_tags && item.custom_tags.length > 0 ? item.custom_tags : item.tags || [],
         isMature:
           item.metadata?.has_mature_content ?? item.is_mature ?? item.has_mature_content ?? false,
@@ -1297,6 +1318,9 @@ export async function getPublicTopStreams(
     let result = streams;
     if (options.categoryId) {
       result = result.filter((s) => s.categoryId === options.categoryId);
+    }
+    if (language) {
+      result = result.filter((stream) => stream.language.trim().toLowerCase() === language);
     }
     if (options.limit && result.length > options.limit) {
       result = result.slice(0, options.limit);

@@ -1,6 +1,11 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { beforeEach, vi } from 'vitest';
+import { i18n } from '@/i18n';
 import './setup-node';
+
+beforeEach(async () => {
+    await i18n.changeLanguage('en');
+});
 
 // Mock matchMedia for Radix UI
 Object.defineProperty(window, 'matchMedia', {

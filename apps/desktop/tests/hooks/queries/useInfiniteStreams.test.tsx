@@ -110,7 +110,7 @@ describe("useInfiniteStreamsByCategory", () => {
   });
 });
 
-// Guards: Home never treats the interface language as a stream-content filter.
+// Guards: Home waits for the display language and scopes every provider request and cache entry to it.
 // Guards: Home pages Twitch and Kick independently so one provider cursor is never sent to the other.
 // Guards: every fetched stream remains visible after merge; provider-page results are never sliced away.
 // Guards: one provider can fail without hiding usable streams from the other provider.
@@ -155,8 +155,16 @@ describe("useInfiniteTopStreams", () => {
 
     await waitFor(() => expect(result.current.data).toHaveLength(24));
     expect(api.streams.getTop).toHaveBeenCalledTimes(2);
-    expect(api.streams.getTop).toHaveBeenCalledWith({ platform: "twitch", limit: 12 });
-    expect(api.streams.getTop).toHaveBeenCalledWith({ platform: "kick", limit: 12 });
+    expect(api.streams.getTop).toHaveBeenCalledWith({
+      platform: "twitch",
+      language: "en",
+      limit: 12,
+    });
+    expect(api.streams.getTop).toHaveBeenCalledWith({
+      platform: "kick",
+      language: "en",
+      limit: 12,
+    });
     expect(result.current.data[0].viewerCount).toBe(200);
   });
 
@@ -206,6 +214,7 @@ describe("useInfiniteTopStreams", () => {
     await waitFor(() => expect(result.current.data).toHaveLength(2));
     expect(api.streams.getTop).toHaveBeenCalledWith({
       platform: "twitch",
+      language: "en",
       limit: 12,
       cursor: "twitch-next",
     });
@@ -214,7 +223,7 @@ describe("useInfiniteTopStreams", () => {
     ).toHaveLength(1);
   });
 
-  it("loads live streams without waiting for or filtering by display-language preferences", async () => {
+  it("waits for preferences and reloads both providers for the selected display language", async () => {
     useAuthStore.setState({ initialized: false, preferences: null });
     api.streams.getTop = vi.fn<typeof api.streams.getTop>(async (request = {}) => ({
       success: true,
@@ -224,14 +233,68 @@ describe("useInfiniteTopStreams", () => {
     }));
     const { result } = renderHook(() => useInfiniteTopStreams(), { wrapper: makeWrapper() });
 
+    expect(result.current.data).toEqual([]);
+    expect(api.streams.getTop).not.toHaveBeenCalled();
+
+    act(() => {
+      useAuthStore.setState({
+        initialized: true,
+        preferences: { ...DEFAULT_USER_PREFERENCES, language: "es" },
+      });
+    });
+
     await waitFor(() => expect(result.current.data).toHaveLength(2));
     expect(api.streams.getTop).toHaveBeenCalledWith({
       platform: "twitch",
+      language: "es",
       limit: 12,
     });
     expect(api.streams.getTop).toHaveBeenCalledWith({
       platform: "kick",
+      language: "es",
       limit: 12,
+    });
+  });
+
+  it("continues a provider until it finds a stream in the selected language", async () => {
+    useAuthStore.setState({
+      initialized: true,
+      preferences: { ...DEFAULT_USER_PREFERENCES, language: "es" },
+    });
+    const spanishStream = fixtures.stream({
+      id: "spanish-stream",
+      platform: "twitch",
+      language: "es",
+    });
+    api.streams.getTop = vi.fn<typeof api.streams.getTop>(async (request = {}) => {
+      if (request.platform === "kick") {
+        return { success: true, platform: "kick", providers: { kick: "complete" }, data: [] };
+      }
+      if (request.cursor === "twitch-next") {
+        return {
+          success: true,
+          platform: "twitch",
+          providers: { twitch: "complete" },
+          data: [spanishStream],
+        };
+      }
+      return {
+        success: true,
+        platform: "twitch",
+        providers: { twitch: "complete" },
+        data: [],
+        cursor: "twitch-next",
+      };
+    });
+
+    const { result } = renderHook(() => useInfiniteTopStreams(), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.data).toEqual([spanishStream]));
+    expect(api.streams.getTop).toHaveBeenCalledWith({
+      platform: "twitch",
+      language: "es",
+      limit: 12,
+      cursor: "twitch-next",
     });
   });
 

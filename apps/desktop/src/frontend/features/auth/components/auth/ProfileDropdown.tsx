@@ -1,11 +1,14 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Tv, User, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { IoMdSettings } from "react-icons/io";
 
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useAuthStatus, useUserInfo } from "@/features/auth/data/useAuth";
 import { useAuthStore } from "@/store/auth-store";
+import { DisplayLanguageSelect } from "@/components/settings/DisplayLanguageSelect";
+import { resolveDisplayLanguage } from "@/i18n";
 
 const kickMenuItemClass =
   "flex h-12 w-full items-center gap-4 px-4 py-1 text-left text-base font-normal leading-6 text-white transition-colors hover:bg-[var(--color-background-tertiary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]";
@@ -121,6 +124,7 @@ function SingleAvatar({
 }
 
 export function ProfileDropdown() {
+  const { t } = useTranslation();
   const { displayName, hasAnyUser, twitchUser, kickUser } = useUserInfo();
   const { twitch, kick } = useAuthStatus();
   const navigate = useNavigate();
@@ -131,11 +135,19 @@ export function ProfileDropdown() {
   const logoutKick = useAuthStore((state) => state.logoutKick);
   const loginTwitch = useAuthStore((state) => state.loginTwitch);
   const loginKick = useAuthStore((state) => state.loginKick);
+  const preferences = useAuthStore((state) => state.preferences);
+  const updatePreferences = useAuthStore((state) => state.updatePreferences);
 
   const bothConnected = twitch.connected && kick.connected;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
+      if (
+        event.target instanceof Element &&
+        event.target.closest("[data-display-language-options]")
+      ) {
+        return;
+      }
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
@@ -270,7 +282,7 @@ export function ProfileDropdown() {
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-1 py-1 rounded-full hover:bg-[var(--color-background-secondary)] transition-colors outline-none"
         type="button"
-        aria-label="Open profile menu"
+        aria-label={t("profile.open")}
         aria-expanded={isOpen}
       >
         {renderAvatarButton()}
@@ -286,13 +298,13 @@ export function ProfileDropdown() {
                 <p className="text-sm font-medium text-white truncate">{displayName}</p>
                 {!hasAnyUser && (
                   <span className="inline-flex items-center rounded-full bg-[var(--color-background-tertiary)] text-[var(--color-foreground-muted)] text-xs px-1.5 py-0.5 font-medium">
-                    Guest
+                    {t("profile.guest")}
                   </span>
                 )}
               </div>
               {!hasAnyUser && (
                 <p className="text-xs text-[var(--color-foreground-muted)] mt-0.5">
-                  Connect an account for full access
+                  {t("profile.guestPrompt")}
                 </p>
               )}
             </div>
@@ -304,7 +316,7 @@ export function ProfileDropdown() {
               <>
                 <div className="px-4 py-1.5">
                   <p className="text-xs font-medium text-[var(--color-foreground-muted)] uppercase tracking-wider">
-                    Connected Accounts
+                    {t("profile.connectedAccounts")}
                   </p>
                 </div>
 
@@ -334,7 +346,7 @@ export function ProfileDropdown() {
                     <button
                       onClick={handleDisconnectTwitch}
                       className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-500/20 transition-all"
-                      title="Disconnect Twitch"
+                      title={t("profile.disconnectTwitch")}
                     >
                       <X size={18} strokeWidth={3} className="text-red-400" />
                     </button>
@@ -354,7 +366,7 @@ export function ProfileDropdown() {
                     >
                       <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
                     </svg>
-                    <span>Connect Twitch</span>
+                    <span>{t("profile.connectTwitch")}</span>
                   </button>
                 )}
 
@@ -382,7 +394,7 @@ export function ProfileDropdown() {
                     <button
                       onClick={handleDisconnectKick}
                       className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-500/20 transition-all"
-                      title="Disconnect Kick"
+                      title={t("profile.disconnectKick")}
                     >
                       <X size={18} strokeWidth={3} className="text-red-400" />
                     </button>
@@ -402,7 +414,7 @@ export function ProfileDropdown() {
                     >
                       <path d="M9 3a1 1 0 0 1 1 1v3h1v-1a1 1 0 0 1 .883 -.993l.117 -.007h1v-1a1 1 0 0 1 .883 -.993l.117 -.007h6a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-1v1a1 1 0 0 1 -.883 .993l-.117 .007h-1v2h1a1 1 0 0 1 .993 .883l.007 .117v1h1a1 1 0 0 1 .993 .883l.007 .117v4a1 1 0 0 1 -1 1h-6a1 1 0 0 1 -1 -1v-1h-1a1 1 0 0 1 -.993 -.883l-.007 -.117v-1h-1v3a1 1 0 0 1 -.883 .993l-.117 .007h-5a1 1 0 0 1 -1 -1v-16a1 1 0 0 1 1 -1z" />
                     </svg>
-                    <span>Connect Kick</span>
+                    <span>{t("profile.connectKick")}</span>
                   </button>
                 )}
 
@@ -427,7 +439,7 @@ export function ProfileDropdown() {
                   >
                     <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
                   </svg>
-                  Connect Twitch
+                  {t("profile.connectTwitch")}
                 </button>
                 <button
                   onClick={() => {
@@ -443,7 +455,7 @@ export function ProfileDropdown() {
                   >
                     <path d="M9 3a1 1 0 0 1 1 1v3h1v-1a1 1 0 0 1 .883 -.993l.117 -.007h1v-1a1 1 0 0 1 .883 -.993l.117 -.007h6a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-1v1a1 1 0 0 1 -.883 .993l-.117 .007h-1v2h1a1 1 0 0 1 .993 .883l.007 .117v1h1a1 1 0 0 1 .993 .883l.007 .117v4a1 1 0 0 1 -1 1h-6a1 1 0 0 1 -1 -1v-1h-1a1 1 0 0 1 -.993 -.883l-.007 -.117v-1h-1v3a1 1 0 0 1 -.883 .993l-.117 .007h-5a1 1 0 0 1 -1 -1v-16a1 1 0 0 1 1 -1z" />
                   </svg>
-                  Connect Kick
+                  {t("profile.connectKick")}
                 </button>
                 <div className="my-1 border-t border-[var(--color-border)]" />
               </>
@@ -452,26 +464,42 @@ export function ProfileDropdown() {
             {twitch.connected && twitchUser?.login && (
               <button onClick={handleOpenTwitchChannel} className={kickMenuItemClass}>
                 <Tv className={settingsMenuIconClass} size={18} />
-                {bothConnected ? "Twitch Channel" : "Channel"}
+                {bothConnected ? t("profile.twitchChannel") : t("profile.channel")}
               </button>
             )}
 
             {kick.connected && (kickUser?.slug || kickUser?.username) && (
               <button onClick={handleOpenKickChannel} className={kickMenuItemClass}>
                 <Tv className={settingsMenuIconClass} size={18} />
-                {bothConnected ? "Kick Channel" : "Channel"}
+                {bothConnected ? t("profile.kickChannel") : t("profile.channel")}
               </button>
             )}
 
             <Link to="/settings" className={kickMenuItemClass} onClick={() => setIsOpen(false)}>
               <IoMdSettings className={settingsMenuIconClass} size={18} />
-              Settings
+              {t("profile.settings")}
             </Link>
+
+            {preferences && (
+              <div className="px-4 py-3 border-t border-[var(--color-border)]">
+                <label
+                  className="mb-2 block text-xs font-medium text-[var(--color-foreground-muted)]"
+                  htmlFor="profile-display-language"
+                >
+                  {t("profile.displayLanguage")}
+                </label>
+                <DisplayLanguageSelect
+                  id="profile-display-language"
+                  value={resolveDisplayLanguage(preferences.language)}
+                  onChange={(language) => void updatePreferences({ language })}
+                />
+              </div>
+            )}
 
             {hasAnyUser && (
               <button onClick={handleLogoutAll} className={kickMenuItemClass}>
                 <KickLogoutIcon className={kickMenuIconClass} />
-                Log out
+                {t("profile.logout")}
               </button>
             )}
           </div>

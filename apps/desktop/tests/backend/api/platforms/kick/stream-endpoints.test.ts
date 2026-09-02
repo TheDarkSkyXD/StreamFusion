@@ -15,6 +15,7 @@ import type { KickRequestor } from "@backend/api/platforms/kick/kick-requestor";
 // Guards: an active official top-stream cooldown does not fan out into the anonymous fallback and amplify a 429.
 // Guards: cross-platform category browsing can fetch Kick streams by category name before its numeric ID resolves.
 // Guards: top-stream pagination uses Kick's V2 opaque cursor contract; V1 never supported the fabricated offset cursor.
+// Guards: language-filtered guest discovery trusts scoped endpoints and rejects conflicting stream metadata.
 
 // Guards: an official Kick channel response with no active stream returns route-matched offline evidence instead of ambiguous null, so stale player and channel caches cannot keep a finished stream live.
 
@@ -814,6 +815,54 @@ describe("getPublicTopStreams", () => {
     expect(result.data[0].channelName).toBe("alpha-0");
     expect(result.data[0].channelIsVerified).toBe(true);
     expect(result.cursor).toBe("livestream_next");
+  });
+
+  it("uses the language-scoped guest endpoint and excludes conflicting metadata", async () => {
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: JSON.stringify([
+        {
+          id: "stream-1",
+          streamer: {
+            user: { id: "user-1", username: "EnglishUser" },
+            channel: { id: "channel-1", slug: "english-user" },
+          },
+          metadata: {
+            title: "English stream",
+            language: "en",
+            category: { id: "1", name: "Chatting" },
+          },
+          viewers_count: 10,
+        },
+      ]),
+    });
+
+    const result = await getPublicTopStreams({ language: "es" });
+
+    expect(mockState.state.netRequestCalls[0]?.url).toBe("https://kick.com/stream/livestreams/es");
+    expect(result.data).toEqual([]);
+  });
+
+  it("accepts missing item metadata when the guest endpoint is language-scoped", async () => {
+    mockState.state.responseQueue.push({
+      kind: "ok",
+      body: JSON.stringify([
+        {
+          id: "stream-1",
+          streamer: {
+            user: { id: "user-1", username: "SpanishUser" },
+            channel: { id: "channel-1", slug: "spanish-user" },
+          },
+          metadata: { title: "Transmisión", category: { id: "1", name: "Charlando" } },
+          viewers_count: 10,
+        },
+      ]),
+    });
+
+    const result = await getPublicTopStreams({ language: "es" });
+
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0]?.language).toBe("es");
   });
 });
 

@@ -31,6 +31,7 @@ import {
   type TwitchPlaylistProxySource,
   type UserPreferences,
 } from "../../shared/auth-types";
+import { DISPLAY_LANGUAGE_REGISTRY, type DisplayLanguage } from "../../shared/display-language";
 import type { DownloadQueueSnapshot } from "../../shared/download-types";
 import type { StreamRecordingJournalV2 } from "../../shared/stream-recording-types";
 
@@ -68,6 +69,14 @@ interface KickApiRateLimitState {
 interface KickFollowedStreamsCache {
   cachedAt: number;
   streams: unknown[];
+}
+
+function normalizeStoredDisplayLanguage(value: unknown): DisplayLanguage {
+  if (typeof value !== "string") return "en";
+  const normalized = value.trim().toLowerCase().split("-")[0];
+  return DISPLAY_LANGUAGE_REGISTRY.some(({ code }) => code === normalized)
+    ? (normalized as DisplayLanguage)
+    : "en";
 }
 
 const ELECTRON_STORE_KEYS: ReadonlySet<string> = new Set([
@@ -303,6 +312,7 @@ function hydratePreferences(stored: Partial<UserPreferences>): UserPreferences {
     },
     captions: normalizeCaptionPreferences(stored.captions),
     twitchPlaylistProxy: normalizeTwitchPlaylistProxyPreferences(stored.twitchPlaylistProxy),
+    language: normalizeStoredDisplayLanguage(stored.language),
   };
   if (isLegacyLatencyFirstBufferPreferences(hydrated.buffer)) {
     return { ...hydrated, buffer: DEFAULT_USER_PREFERENCES.buffer };
@@ -1027,6 +1037,9 @@ export class StorageService {
     const current = this.getPreferences();
     const normalizedUpdates = {
       ...updates,
+      ...(updates.language !== undefined
+        ? { language: normalizeStoredDisplayLanguage(updates.language) }
+        : {}),
       ...(updates.captions ? { captions: normalizeCaptionPreferences(updates.captions) } : {}),
       ...(updates.twitchPlaylistProxy
         ? {

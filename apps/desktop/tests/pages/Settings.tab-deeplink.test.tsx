@@ -111,6 +111,10 @@ import { SettingsPage } from "@/pages/Settings";
 
 const NAVIGATION_GROUPS = [
   {
+    name: "General",
+    destinations: ["General"],
+  },
+  {
     name: "Viewing",
     destinations: ["Playback", "Player controls", "Buffer", "Multiview"],
   },
@@ -138,6 +142,15 @@ function installDevEnvironment() {
     nodeVersion: "20.0.0",
   }));
   api.env.get = get;
+  api.notifications.getCoverageStatus = vi.fn<typeof api.notifications.getCoverageStatus>(
+    async () => ({
+      desktop: { supported: true, permission: "granted" },
+      platforms: {
+        twitch: { status: "normal", issues: [] },
+        kick: { status: "normal", issues: [] },
+      },
+    })
+  );
   return get;
 }
 
@@ -158,7 +171,7 @@ function getRequestedSearch(call: unknown): Record<string, unknown> | undefined 
   return typeof request.search === "function" ? request.search({}) : request.search;
 }
 
-// Guards: settings destinations remain discoverable under four plain-language navigation groups.
+// Guards: settings destinations remain discoverable under five plain-language navigation groups.
 // Guards: the Settings sidebar exposes a named navigation landmark and identifies its active destination.
 // Guards: selecting a destination writes the tab choice to the URL so refresh and sharing preserve context.
 // Guards: a `?tab=` deep-link selects both the requested content and its matching navigation item.
@@ -180,7 +193,13 @@ describe("SettingsPage navigation", () => {
     const navigation = screen.getByRole("navigation", { name: "Settings navigation" });
 
     for (const group of NAVIGATION_GROUPS) {
-      expect(within(navigation).getByRole("heading", { name: group.name })).toBeInTheDocument();
+      const sectionToggle = within(navigation).getByRole("button", {
+        name: `${group.name} settings section`,
+      });
+      expect(sectionToggle).toBeInTheDocument();
+      if (sectionToggle.getAttribute("aria-expanded") === "false") {
+        await user.click(sectionToggle);
+      }
       for (const destination of group.destinations) {
         expect(
           within(navigation).getByRole("link", {
@@ -190,14 +209,19 @@ describe("SettingsPage navigation", () => {
       }
     }
 
+    await user.click(within(navigation).getByRole("button", { name: "Viewing settings section" }));
     expect(within(navigation).getByRole("link", { name: /^Playback\b/i })).toHaveAttribute(
       "aria-current",
       "page"
+    );
+    await user.click(
+      within(navigation).getByRole("button", { name: "Experience settings section" })
     );
     expect(within(navigation).getByRole("link", { name: /^Chat\b/i })).not.toHaveAttribute(
       "aria-current"
     );
 
+    routerState.navigate.mockReset();
     await user.click(within(navigation).getByRole("link", { name: /^Chat\b/i }));
 
     expect(routerState.navigate).toHaveBeenCalledTimes(1);
@@ -227,6 +251,9 @@ describe("SettingsPage navigation", () => {
     const { rerender } = renderWithProviders(<SettingsPage />);
     await settleEnvironmentProbe();
     const navigation = screen.getByRole("navigation", { name: "Settings navigation" });
+    await user.click(
+      within(navigation).getByRole("button", { name: "Experience settings section" })
+    );
 
     await user.click(within(navigation).getByRole("link", { name: /^Chat\b/i }));
     expect(within(navigation).getByRole("link", { name: /^Chat\b/i })).toHaveAttribute(
@@ -241,9 +268,10 @@ describe("SettingsPage navigation", () => {
       "aria-current",
       "page"
     );
-    expect(within(navigation).getByRole("link", { name: /^Chat\b/i })).not.toHaveAttribute(
-      "aria-current"
-    );
+    expect(
+      within(navigation).getByRole("button", { name: "Experience settings section" })
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(within(navigation).queryByRole("link", { name: /^Chat\b/i })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Buffer" })).toBeInTheDocument();
   });
 });

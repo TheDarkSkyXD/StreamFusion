@@ -305,6 +305,7 @@ describe("gqlGetGameMetadata", () => {
 // ---------------------------------------------------------------------------
 
 // Guards: Twitch top-stream browse must not return unroutable streams when GQL omits broadcaster data.
+// Guards: top-stream discovery excludes Twitch streams whose metadata does not prove the requested language.
 describe("gqlGetTopStreams", () => {
   let fetchMock: FetchMock;
 
@@ -355,6 +356,39 @@ describe("gqlGetTopStreams", () => {
     const body = JSON.parse(lastFetchBody(fetchMock));
     const query = body[0];
     expect(query.variables.limit).toBe(30);
+  });
+
+  it("does not label language-unknown top streams as matching the requested language", async () => {
+    stubFetch(fetchMock, {
+      data: {
+        streams: {
+          edges: [{ cursor: "c1", node: makeDirectoryPageGameStream(), __typename: "StreamEdge" }],
+          pageInfo: { hasNextPage: false },
+        },
+      },
+    });
+    stubFetchBatch(fetchMock, makeTagsAndLanguageResponse([], ""));
+
+    const result = await gqlGetTopStreams({ language: "es" });
+
+    expect(result.data).toEqual([]);
+  });
+
+  it("hydrates top-stream language before applying the requested filter", async () => {
+    stubFetch(fetchMock, {
+      data: {
+        streams: {
+          edges: [{ cursor: "c1", node: makeDirectoryPageGameStream(), __typename: "StreamEdge" }],
+          pageInfo: { hasNextPage: false },
+        },
+      },
+    });
+    stubFetchBatch(fetchMock, makeTagsAndLanguageResponse(["Español"], "ES"));
+
+    const result = await gqlGetTopStreams({ language: "es" });
+
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].language).toBe("es");
   });
 
   it("returns empty data when streams is null", async () => {

@@ -7,6 +7,7 @@
 // ========== Platform Types ==========
 
 import type { Platform } from "@streamfusion/core/platform";
+import type { DisplayLanguage } from "./display-language";
 
 export type { Platform };
 
@@ -656,7 +657,7 @@ export interface CaptionPreferences {
 
 export interface UserPreferences {
   theme: Theme;
-  language: string;
+  language: DisplayLanguage;
   notifications: NotificationPreferences;
   chat: ChatPreferences;
   /** Viewer-facing chat display settings (Xtra port, U1). */

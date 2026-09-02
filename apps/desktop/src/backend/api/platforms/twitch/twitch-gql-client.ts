@@ -679,13 +679,33 @@ export async function gqlGetTopStreams(
   const data = response.data;
   if (!data?.streams) return { data: [] };
 
-  const streams = await enrichRecoveredStreamMetadata(
+  let streams = await enrichRecoveredStreamMetadata(
     onlyRoutableStreams(data.streams.edges.map((edge) => transformGqlStream(edge.node)))
   );
+  const language = options.language?.trim().toLowerCase();
+  if (language) {
+    const metadataByLogin = await getTagsAndLanguageByLogins(
+      streams.map((stream) => stream.channelName)
+    );
+    streams = streams.map((stream) => {
+      const metadata = metadataByLogin.get(stream.channelName);
+      return metadata
+        ? {
+            ...stream,
+            channelDisplayName: metadata.displayName || stream.channelDisplayName,
+            language: metadata.language,
+            tags: metadata.tags.length > 0 ? metadata.tags : stream.tags,
+          }
+        : stream;
+    });
+  }
+  const languageScopedStreams = language
+    ? streams.filter((stream) => stream.language.trim().toLowerCase() === language)
+    : streams;
 
   const lastCursor = data.streams.edges[data.streams.edges.length - 1]?.cursor;
   return {
-    data: streams,
+    data: languageScopedStreams,
     cursor: data.streams.pageInfo.hasNextPage ? lastCursor || undefined : undefined,
   };
 }

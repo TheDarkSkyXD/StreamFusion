@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { UnifiedStream } from "@shared/platform-types";
 import { getStreamElementKey } from "@/lib/id-utils";
@@ -20,11 +21,12 @@ interface StreamGridProps {
 export function StreamGrid({
   streams,
   isLoading = false,
-  emptyMessage = "No streams found",
+  emptyMessage,
   className,
   skeletons = 8,
   activeStream = null,
 }: StreamGridProps) {
+  const { t } = useTranslation();
   // Only stagger-animate the first batch of cards. New cards added via infinite
   // scroll mount without animation — the slide-up on 30 cards at once reads as
   // a "bounce" during pagination.
@@ -54,7 +56,7 @@ export function StreamGrid({
     return (
       <div className="flex flex-col items-center justify-center p-12 text-[var(--color-foreground-muted)] animate-fade-in-up">
         <div className="text-4xl mb-4">📺</div>
-        <p>{emptyMessage}</p>
+        <p>{emptyMessage ?? t("streamGrid.empty")}</p>
       </div>
     );
   }

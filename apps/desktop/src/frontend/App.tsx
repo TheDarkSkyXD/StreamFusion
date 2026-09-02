@@ -9,6 +9,7 @@ import { useLiveNotificationBridge } from "@/features/auth/data/use-live-notific
 import { QueryProvider } from "@/providers/query-provider";
 import { router } from "@/routes/router";
 import { useDownloadDuplicateConfirmationStore } from "@/store/download-duplicate-confirmation-store";
+import { DisplayLanguageSync } from "@/i18n/DisplayLanguageSync";
 
 const DeveloperConsole = import.meta.env.DEV
   ? lazy(() =>
@@ -40,14 +41,16 @@ function App() {
       <QueryProvider>
         <TooltipProvider>
           <AuthProvider>
-            <RouterProvider router={router} />
-            <DeferredDownloadDuplicateConfirmationDialog />
-            {DeveloperConsole && (
-              <Suspense fallback={null}>
-                <DeveloperConsole />
-              </Suspense>
-            )}
-            <ToastRoot />
+            <DisplayLanguageSync>
+              <RouterProvider router={router} />
+              <DeferredDownloadDuplicateConfirmationDialog />
+              {DeveloperConsole && (
+                <Suspense fallback={null}>
+                  <DeveloperConsole />
+                </Suspense>
+              )}
+              <ToastRoot />
+            </DisplayLanguageSync>
           </AuthProvider>
         </TooltipProvider>
       </QueryProvider>

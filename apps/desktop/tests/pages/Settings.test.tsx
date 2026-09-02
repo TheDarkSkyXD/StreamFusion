@@ -1033,3 +1033,22 @@ describe("SettingsPage — Updates tab (U15)", () => {
     expect(updaterMock.setCheckFrequency).toHaveBeenCalledWith("daily");
   });
 });
+
+// Guards: Settings persists display language through the shared user preference.
+describe("SettingsPage display language", () => {
+  it("persists a language selected from General settings", async () => {
+    updatePreferences.mockReset();
+    const user = userEvent.setup({ delay: null });
+    renderWithProviders(<SettingsPage />);
+
+    const generalSection = screen.queryByRole("button", { name: "General settings section" });
+    if (generalSection?.getAttribute("aria-expanded") === "false") {
+      await user.click(generalSection);
+    }
+    await user.click(screen.getByRole("link", { name: "General" }));
+    await user.click(screen.getByRole("combobox", { name: "Display language" }));
+    await user.click(screen.getByRole("option", { name: "Español (Spanish)" }));
+
+    expect(updatePreferences).toHaveBeenCalledWith({ language: "es" });
+  });
+});

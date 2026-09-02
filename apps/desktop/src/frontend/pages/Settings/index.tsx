@@ -2,6 +2,7 @@ import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IoMdSettings } from "react-icons/io";
 import type { IconType } from "react-icons";
+import { useTranslation } from "react-i18next";
 import {
   LuActivity,
   LuBell,
@@ -43,6 +44,7 @@ import { BugReportSection } from "@/features/settings/components/settings/BugRep
 import { ChatSettingsSection } from "@/features/settings/components/settings/ChatSettingsSection";
 import { LogsSection } from "@/features/settings/components/settings/LogsSection";
 import { TwitchPlaylistProxySettingsSection } from "@/features/settings/components/settings/TwitchPlaylistProxySettingsSection";
+import { DisplayLanguageSelect } from "@/components/settings/DisplayLanguageSelect";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -82,6 +84,7 @@ import {
 } from "@shared/auth-types";
 import type { CheckFrequency, TokenStatusResult } from "@shared/ipc-channels";
 import { useAdBlockStore } from "@/store/adblock-store";
+import { resolveDisplayLanguage } from "@/i18n";
 import {
   HOME_CAROUSEL_INTERVAL_MAX_MS,
   HOME_CAROUSEL_INTERVAL_MIN_MS,
@@ -103,6 +106,7 @@ const DiagnosticsWorkspace = lazy(() =>
 );
 
 const SETTINGS_TABS = [
+  "general",
   "playback",
   "notifications",
   "player-controls",
@@ -321,6 +325,11 @@ const RESTART_GRACE_OPTIONS: {
 // needs editing in one place.
 type TabKey = (typeof SETTINGS_TABS)[number];
 const TAB_META: Record<TabKey, { label: string; description: string; icon: typeof LuMonitor }> = {
+  general: {
+    label: "General",
+    description: "Language and app preferences",
+    icon: LuSlidersHorizontal,
+  },
   playback: { label: "Playback", description: "Stream quality & preferences", icon: LuMonitor },
   notifications: {
     label: "Notifications",
@@ -376,6 +385,7 @@ const TAB_META: Record<TabKey, { label: string; description: string; icon: typeo
 };
 
 const SETTINGS_GROUPS: ReadonlyArray<{ label: string; tabs: readonly TabKey[] }> = [
+  { label: "General", tabs: ["general"] },
   {
     label: "Viewing",
     tabs: ["playback", "player-controls", "buffer", "multiview"],
@@ -405,6 +415,12 @@ type SettingsIndexEntry = {
   keywords?: string[];
 };
 const SETTINGS_INDEX: SettingsIndexEntry[] = [
+  {
+    tab: "general",
+    label: "Display language",
+    description: "Choose the language used by StreamFusion's interface",
+    keywords: ["language", "locale", "english", "spanish"],
+  },
   {
     tab: "playback",
     label: "Default Quality",
@@ -659,6 +675,7 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
 ];
 
 export function SettingsPage() {
+  const { t } = useTranslation();
   const canRenderSettingsPanel = useAfterFirstPaint();
   const appVersion = useAppVersion();
   const versionInfo = useAppVersionInfo();
@@ -1289,6 +1306,34 @@ export function SettingsPage() {
             </div>
           ) : (
             <>
+              {activeTab === "general" && preferences && (
+                <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">
+                  <div>
+                    <h2 className="text-2xl font-bold mb-1">{t("settings.general")}</h2>
+                    <p className="text-zinc-400">{t("settings.generalDescription")}</p>
+                  </div>
+                  <div className="rounded-xl border border-[#27272a] bg-[#121214] p-6">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <label
+                          htmlFor="settings-display-language"
+                          className="font-medium text-zinc-200"
+                        >
+                          {t("settings.displayLanguage")}
+                        </label>
+                        <p className="mt-1 text-sm text-zinc-500">
+                          {t("settings.languageDescription")}
+                        </p>
+                      </div>
+                      <DisplayLanguageSelect
+                        id="settings-display-language"
+                        value={resolveDisplayLanguage(preferences.language)}
+                        onChange={(language) => void updatePreferences({ language })}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* Playback Tab */}
               {activeTab === "playback" && (
                 <div className="animate-in space-y-6 fade-in slide-in-from-bottom-2 transition-[opacity,transform] duration-300 motion-reduce:animate-none motion-reduce:transform-none motion-reduce:transition-none">

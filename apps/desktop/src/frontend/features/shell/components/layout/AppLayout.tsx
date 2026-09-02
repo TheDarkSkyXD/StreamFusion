@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { lazy, Suspense } from "react";
+import { useTranslation } from "react-i18next";
 import { IoMdSettings } from "react-icons/io";
 
 import { PersistentPlayerShell } from "@/features/playback/components/player/persistent-player-shell";
@@ -37,36 +38,42 @@ interface AppLayoutProps {
 }
 
 const navItems = [
-  { path: "/", label: "Home", icon: LuHouse },
+  { path: "/", label: "Home", translationKey: "home", icon: LuHouse },
   {
     path: "/following",
     label: "Following",
+    translationKey: "following",
     icon: LuHeart,
   },
   {
     path: "/categories",
     label: "Categories",
+    translationKey: "categories",
     icon: LuGrid3X3,
   },
   {
     path: "/multistream",
     label: "MultiView",
+    translationKey: "multiview",
     icon: LuLayoutDashboard,
   },
-  { path: "/history", label: "History", icon: LuHistory },
+  { path: "/history", label: "History", translationKey: "history", icon: LuHistory },
   {
     path: "/downloads",
     label: "Downloads",
+    translationKey: "downloads",
     icon: LuDownload,
   },
   {
     path: "/settings",
     label: "Settings",
+    translationKey: "settings",
     icon: IoMdSettings,
   },
 ] as const;
 
 export function AppLayout({ children }: AppLayoutProps) {
+  const { t } = useTranslation();
   // Use individual selectors to prevent re-renders when unrelated state changes
   const sidebarCollapsed = useAppStore((state) => state.sidebarCollapsed);
   const _setSidebarCollapsed = useAppStore((state) => state.setSidebarCollapsed);
@@ -117,7 +124,9 @@ export function AppLayout({ children }: AppLayoutProps) {
                           )}
                         >
                           <Icon size={20} />
-                          {!sidebarCollapsed && <span>{item.label}</span>}
+                          {!sidebarCollapsed && (
+                            <span>{t(`navigation.${item.translationKey}`)}</span>
+                          )}
                         </Link>
                       </li>
                     );

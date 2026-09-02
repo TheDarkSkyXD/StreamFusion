@@ -6,6 +6,7 @@ import { logger } from "@/renderer/logging/logger";
 
 import type { UnifiedChannel, UnifiedStream } from "../../../../../shared/platform-types";
 import type { Platform } from "../../../../../shared/auth-types";
+import type { DisplayLanguage } from "../../../../../shared/display-language";
 import { hasCompleteDiscoveryCoverage } from "../../../../../shared/discovery-types";
 
 import { useQueryCachePerformance } from "./cache-performance";
@@ -16,8 +17,8 @@ export const STREAM_KEYS = {
   all: ["streams"] as const,
   top: (platform?: Platform, limit?: number) =>
     [...STREAM_KEYS.all, "top", platform, limit] as const,
-  topInfinite: (platform: Platform, limit: number) =>
-    [...STREAM_KEYS.all, "top", "infinite", platform, limit] as const,
+  topInfinite: (platform: Platform, limit: number, language: DisplayLanguage) =>
+    [...STREAM_KEYS.all, "top", "infinite", platform, limit, language] as const,
   byCategory: (categoryId: string, platform?: Platform) =>
     [...STREAM_KEYS.all, "category", categoryId, platform] as const,
   followed: (platform?: Platform) => [...STREAM_KEYS.all, "followed", platform] as const,
