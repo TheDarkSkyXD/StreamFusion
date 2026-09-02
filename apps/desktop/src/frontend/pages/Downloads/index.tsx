@@ -30,7 +30,16 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { prewarmViewportImages } from "@/lib/viewport-image-prewarm";
 import type { DownloadJob, DownloadQueueSnapshot } from "@shared/download-types";
 
-const STATUS_LABEL_KEYS: Record<DownloadJob["status"], string> = {
+type DownloadStatusLabelKey =
+  | "mediaLibrary.downloadStatusQueued"
+  | "mediaLibrary.downloadStatusDownloading"
+  | "mediaLibrary.downloadStatusPaused"
+  | "mediaLibrary.downloadStatusFailed"
+  | "mediaLibrary.downloadStatusWaiting"
+  | "mediaLibrary.downloadStatusCompleted"
+  | "mediaLibrary.downloadStatusCancelled";
+
+const STATUS_LABEL_KEYS = {
   queued: "mediaLibrary.downloadStatusQueued",
   downloading: "mediaLibrary.downloadStatusDownloading",
   paused: "mediaLibrary.downloadStatusPaused",
@@ -38,14 +47,21 @@ const STATUS_LABEL_KEYS: Record<DownloadJob["status"], string> = {
   waiting: "mediaLibrary.downloadStatusWaiting",
   completed: "mediaLibrary.downloadStatusCompleted",
   cancelled: "mediaLibrary.downloadStatusCancelled",
-};
+} as const satisfies Record<DownloadJob["status"], DownloadStatusLabelKey>;
 
 type DownloadSectionId = "inProgress" | "needsAttention" | "finished";
+type DownloadSectionTranslationKey =
+  | "mediaLibrary.downloadsInProgress"
+  | "mediaLibrary.downloadsInProgressDescription"
+  | "mediaLibrary.downloadsNeedsAttention"
+  | "mediaLibrary.downloadsNeedsAttentionDescription"
+  | "mediaLibrary.downloadsFinished"
+  | "mediaLibrary.downloadsFinishedDescription";
 
 interface DownloadSectionDefinition {
   id: DownloadSectionId;
-  titleKey: string;
-  descriptionKey: string;
+  titleKey: DownloadSectionTranslationKey;
+  descriptionKey: DownloadSectionTranslationKey;
   statuses: readonly DownloadJob["status"][];
   icon: IconType;
   iconClassName: string;

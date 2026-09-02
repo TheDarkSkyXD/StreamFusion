@@ -36,12 +36,17 @@ const presentationProperties = new Set([
 ]);
 const allowedLiterals = new Set([
   "<unserializable error>",
+  "7TV",
+  "Aa",
   "API",
   "AV1",
+  "BTTV",
   "CPU",
   "Esc",
+  "FFZ",
   "FFmpeg",
   "FPS",
+  "GIF",
   "GPU",
   "HLS",
   "HEVC",
@@ -54,6 +59,7 @@ const allowedLiterals = new Set([
   "StreamFusion",
   "Twitch",
   "VOD",
+  "ZW",
 ]);
 
 async function collectSourceFiles(directory) {
@@ -98,6 +104,7 @@ function isTranslatable(value) {
     /\p{L}/u.test(visibleText) &&
     !/^\p{Lu}$/u.test(normalized) &&
     !/^\d+(?:\.\d+)?\s?(?:p|k|s|m|h|d)$/i.test(normalized) &&
+    !/^\(?\{\{value\}\}(?:k|x)\)?$/i.test(normalized) &&
     !/^[a-z][A-Za-z0-9]*(\.[A-Za-z0-9]+)+$/.test(normalized) &&
     !(normalized.startsWith("!") && normalized.includes("text-")) &&
     !allowedLiterals.has(normalized) &&
