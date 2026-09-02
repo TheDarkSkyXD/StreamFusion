@@ -98,11 +98,19 @@ export function ClipDialog({
   );
   const clipMetadata: Array<ClipMetadataItem | null> = [
     clipCreatorName
-      ? { key: "creator", label: `Clipped by @${clipCreatorName}`, Icon: LuScissors }
+      ? {
+          key: "creator",
+          label: t("playback.clippedBy", { creator: clipCreatorName }),
+          Icon: LuScissors,
+        }
       : null,
     clipCategory ? { key: "category", label: clipCategory, Icon: LuGamepad2 } : null,
     clipViews
-      ? { key: t("playback.views"), label: `${formatViews(clipViews)} views`, Icon: LuEye }
+      ? {
+          key: t("playback.views"),
+          label: t("playback.viewCount", { value: formatViews(clipViews) }),
+          Icon: LuEye,
+        }
       : null,
     selectedClip?.created_at || selectedClip?.date
       ? {
@@ -378,7 +386,7 @@ export function ClipDialog({
                     )}
                     <span className="text-[var(--color-foreground-muted)] text-sm">
                       {typeof followerCount === "number"
-                        ? `${formatViews(followerCount)} followers`
+                        ? t("playback.followerCount", { value: formatViews(followerCount) })
                         : t("playback.followersUnavailable")}
                     </span>
                   </div>

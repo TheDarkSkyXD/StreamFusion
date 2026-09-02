@@ -65,7 +65,7 @@ const HistoryItemLink = ({
 };
 
 export function HistoryPage() {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const navigate = useNavigate();
   const { data: history = [] } = useHistoryQuery();
   const { clearHistory, removeFromHistory } = useHistoryActions();
@@ -87,7 +87,7 @@ export function HistoryPage() {
   };
 
   const formatDate = (timestamp: number) => {
-    return new Intl.DateTimeFormat("en-US", {
+    return new Intl.DateTimeFormat(i18n.resolvedLanguage, {
       month: "short",
       day: "numeric",
       hour: "numeric",
@@ -286,7 +286,7 @@ export function HistoryPage() {
                         onClick={() => watchHistoryItem(item)}
                         disabled={verifyingItemId === item.id}
                         className="flex h-12 w-12 scale-90 items-center justify-center rounded-full border border-white/35 bg-black/70 text-white backdrop-blur-sm transition-all hover:bg-white hover:text-black disabled:opacity-60 group-hover:scale-100"
-                        aria-label={`Watch ${item.title}`}
+                        aria-label={t("mediaLibrary.watchHistoryItem", { title: item.title })}
                       >
                         <LuPlay className="h-5 w-5 fill-current" />
                       </button>
@@ -329,7 +329,10 @@ export function HistoryPage() {
                         className="font-medium text-sm line-clamp-2 mb-1 group-hover:text-[var(--color-primary)] transition-colors"
                         title={item.title}
                       >
-                        {item.title || `Untitled ${item.type}`}
+                        {item.title ||
+                          t("mediaLibrary.untitledHistoryItem", {
+                            kind: t(`mediaLibrary.historyKind.${item.type}`),
+                          })}
                       </h3>
                     </HistoryItemLink>
                   ) : (
@@ -343,7 +346,10 @@ export function HistoryPage() {
                         className="font-medium text-sm line-clamp-2 mb-1 group-hover:text-[var(--color-primary)] transition-colors"
                         title={item.title}
                       >
-                        {item.title || `Untitled ${item.type}`}
+                        {item.title ||
+                          t("mediaLibrary.untitledHistoryItem", {
+                            kind: t(`mediaLibrary.historyKind.${item.type}`),
+                          })}
                       </h3>
                     </button>
                   )}

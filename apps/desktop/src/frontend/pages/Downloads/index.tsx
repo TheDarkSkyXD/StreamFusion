@@ -163,10 +163,7 @@ function formatTransfer(job: DownloadJob, t: TFunction): string {
     : null;
 
   return t("mediaLibrary.transferSummary", {
-    summary: [
-      total ? t("mediaLibrary.transferOf", { transferred, total }) : transferred,
-      speed,
-    ]
+    summary: [total ? t("mediaLibrary.transferOf", { transferred, total }) : transferred, speed]
       .filter(Boolean)
       .join("  /  "),
   });
@@ -237,9 +234,13 @@ function DownloadRow({
           <div className="min-w-0">
             <h3 className="truncate text-base font-bold leading-6">{job.title}</h3>
             <p className="mt-0.5 text-sm text-[var(--color-foreground-secondary)]">
-              {job.channelName} <span aria-hidden="true">/</span>{" "}
-              {job.kind === "video" ? t("mediaLibrary.video") : t("mediaLibrary.clip")}
-              {job.qualityLabel ? ` / ${job.qualityLabel}` : ""}
+              {[
+                job.channelName,
+                job.kind === "video" ? t("mediaLibrary.video") : t("mediaLibrary.clip"),
+                job.qualityLabel,
+              ]
+                .filter(Boolean)
+                .join(" / ")}
             </p>
           </div>
           <span
@@ -257,7 +258,7 @@ function DownloadRow({
           <span className="shrink-0 tabular-nums">
             {progress === undefined
               ? t("mediaLibrary.progressUnavailable")
-              : `${Math.round(progress)}%`}
+              : Math.round(progress) + "%"}
           </span>
         </div>
         {(job.error || job.statusMessage) && job.progress.transferredBytes > 0 ? (
@@ -315,7 +316,7 @@ function DownloadRow({
                   variant="ghost"
                   size="icon"
                   className="size-10"
-              aria-label={t("mediaLibrary.deleteDownloadTitle", { title: job.title })}
+                  aria-label={t("mediaLibrary.deleteDownloadTitle", { title: job.title })}
                   onClick={(event) => onRequestDelete(job, event.currentTarget)}
                 >
                   <LuTrash2 className="size-5" aria-hidden="true" />

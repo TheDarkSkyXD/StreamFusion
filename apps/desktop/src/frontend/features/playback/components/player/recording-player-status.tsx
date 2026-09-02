@@ -29,7 +29,6 @@ export function RecordingPlayerStatus({ platform, channelName, mode }: Recording
     ? t("playback.gapSummary", {
         count: active.gapCount,
         suffix: active.hasOpenGap ? t("playback.currentGapOpen") : "",
-        defaultValue: "{{count}} {{count, plural, one {gap} other {gaps}}}{{suffix}}",
       })
     : null;
   return (

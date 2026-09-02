@@ -25,7 +25,7 @@ import { Button } from "../../../../components/ui/button";
 import { Switch } from "../../../../components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 
-import type { QualityLevel, TimedTextTrack } from "./types";
+import { LOCAL_LIVE_CAPTION_TRACK, type QualityLevel, type TimedTextTrack } from "./types";
 
 export interface SettingsMenuProps {
   qualities: QualityLevel[];
@@ -54,6 +54,10 @@ export interface SettingsMenuProps {
 }
 
 const PLAYBACK_SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
+
+function formatPlaybackRate(rate: number): string {
+  return `${rate}x`;
+}
 
 export function SettingsMenu({
   qualities,
@@ -134,10 +138,14 @@ export function SettingsMenu({
   const selectedCaptionTrack = captionTracks.find(
     (track) => track.key === currentTimedTextTrackKey
   );
+  const getCaptionTrackLabel = (track: TimedTextTrack) =>
+    track.key === LOCAL_LIVE_CAPTION_TRACK.key
+      ? t("playback.localLiveCaptionsEnglish")
+      : track.label;
   const currentCaptionLabel = selectedCaptionTrack
-    ? selectedCaptionTrack.label
+    ? getCaptionTrackLabel(selectedCaptionTrack)
     : captionPreferences.enabled
-      ? "Choose language"
+      ? t("playback.chooseLanguage")
       : t("playback.off");
 
   const persistCaptionAppearance = (
@@ -224,7 +232,9 @@ export function SettingsMenu({
                     </div>
                     <div className="flex items-center text-[#aaaaaa] gap-1">
                       <span className="text-[13px]">
-                        {playbackRate === 1 ? t("playback.normal") : `${playbackRate}x`}
+                        {playbackRate === 1
+                          ? t("playback.normal")
+                          : formatPlaybackRate(playbackRate)}
                       </span>
                       <LuChevronRight className="w-5 h-5" />
                     </div>
@@ -340,7 +350,7 @@ export function SettingsMenu({
                         ) : (
                           <span className="w-5 h-5" />
                         )}
-                        <span>{track.label}</span>
+                        <span>{getCaptionTrackLabel(track)}</span>
                       </button>
                     );
                   })}

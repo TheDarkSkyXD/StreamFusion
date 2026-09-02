@@ -35,7 +35,7 @@ export const ClipCard = memo(function ClipCard({
       <button
         type="button"
         onClick={onClick}
-        aria-label={`Play clip ${clip.title}`}
+        aria-label={t("playback.playClip", { title: clip.title })}
         className="block relative aspect-video w-full cursor-pointer overflow-hidden bg-[var(--color-background-tertiary)] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
       >
         {clip.thumbnailUrl && (
@@ -82,7 +82,7 @@ export const ClipCard = memo(function ClipCard({
           <button
             type="button"
             onClick={onClick}
-            aria-label={`Open clip ${clip.title}`}
+            aria-label={t("playback.openClip", { title: clip.title })}
             className="block w-full cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
             <h3 className="font-medium text-sm line-clamp-2 group-hover:text-[var(--color-primary)] transition-colors text-white">

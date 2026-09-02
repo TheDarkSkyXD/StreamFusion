@@ -1,5 +1,6 @@
 import type Hls from "hls.js";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useTranslation } from "react-i18next";
 
 import { useInterval } from "@/hooks/useInterval";
 import { logger } from "@/renderer/logging/logger";
@@ -29,6 +30,11 @@ interface LivePlaybackStallRecovery {
   noteNetworkError: () => void;
 }
 
+interface LivePlaybackStallMessages {
+  decoderStalled: string;
+  liveDataStalled: string;
+}
+
 const WATCHDOG_INTERVAL_MS = 500;
 
 function bufferedAheadSeconds(video: HTMLVideoElement): number {
@@ -53,6 +59,14 @@ export function useLivePlaybackStallRecovery({
   isActiveRef,
   shouldSuppress,
 }: UseLivePlaybackStallRecoveryOptions): LivePlaybackStallRecovery {
+  const { t } = useTranslation();
+  const messages = useMemo<LivePlaybackStallMessages>(
+    () => ({
+      decoderStalled: t("playback.decoderStalled"),
+      liveDataStalled: t("playback.liveDataStalled"),
+    }),
+    [t]
+  );
   const generationRef = useRef(0);
   const suppressRef = useRef(shouldSuppress);
   const lastPresentedFrameAtRef = useRef<number | null>(null);
@@ -205,15 +219,28 @@ export function useLivePlaybackStallRecovery({
       if (action) {
         const now = Date.now();
         const currentTimeDelta = video.currentTime - lastEvaluatedCurrentTimeRef.current;
-        applyRecoveryAction(action, video, hlsRef, onErrorRef, onHlsInstanceRef, controller, {
-          generation: generationRef.current,
-          frameAgeMs:
-            lastPresentedFrameAtRef.current === null ? null : now - lastPresentedFrameAtRef.current,
-          currentTimeDelta,
-          bufferedAheadSeconds: bufferedAheadSeconds(video),
-          fragmentAgeMs:
-            lastFragmentLoadedAtRef.current === null ? null : now - lastFragmentLoadedAtRef.current,
-        });
+        applyRecoveryAction(
+          action,
+          video,
+          hlsRef,
+          onErrorRef,
+          onHlsInstanceRef,
+          controller,
+          messages,
+          {
+            generation: generationRef.current,
+            frameAgeMs:
+              lastPresentedFrameAtRef.current === null
+                ? null
+                : now - lastPresentedFrameAtRef.current,
+            currentTimeDelta,
+            bufferedAheadSeconds: bufferedAheadSeconds(video),
+            fragmentAgeMs:
+              lastFragmentLoadedAtRef.current === null
+                ? null
+                : now - lastFragmentLoadedAtRef.current,
+          }
+        );
       }
       lastEvaluatedCurrentTimeRef.current = video.currentTime;
     },
@@ -247,6 +274,7 @@ function applyRecoveryAction(
   onErrorRef: RefObject<((error: PlayerError) => void) | undefined>,
   onHlsInstanceRef: RefObject<((hls: Hls | null) => void) | undefined> | undefined,
   controller: LivePlaybackStallController,
+  messages: LivePlaybackStallMessages,
   telemetry: {
     generation: number;
     frameAgeMs: number | null;
@@ -301,9 +329,7 @@ function applyRecoveryAction(
         const noFragments = !decoderStall && telemetry.fragmentAgeMs === null;
         onErrorRef.current?.({
           code: decoderStall ? "DECODER_STALL" : noFragments ? "NO_FRAGMENTS" : "PLAYBACK_STALL",
-          message: decoderStall
-            ? "Video decoder stopped making progress"
-            : "Live video stopped receiving playable data",
+          message: decoderStall ? messages.decoderStalled : messages.liveDataStalled,
           fatal: true,
           shouldRefresh: true,
           originalError: null,

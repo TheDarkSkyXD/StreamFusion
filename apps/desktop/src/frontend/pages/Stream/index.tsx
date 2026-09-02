@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { PlayerError } from "@/features/playback/components/player/types";
 import { useTwitchLiveRecovery } from "@/features/playback/components/player/hooks/use-twitch-live-recovery";
@@ -27,7 +28,6 @@ import {
   useStreamByChannel,
 } from "@/features/discovery/data/queries/useStreams";
 import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
-import { i18n } from "@/i18n";
 import { useStreamPlayback } from "@/features/playback/data/useStreamPlayback";
 import { logger } from "@/renderer/logging/logger";
 import { requirePlatform } from "@/features/playback/routes/route-boundaries";
@@ -99,6 +99,7 @@ function selectChannelDisplayName(
 }
 
 export function StreamPage() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const registerDockedConfig = useRegisterDockedPlayerConfig();
@@ -510,7 +511,7 @@ export function StreamPage() {
       const exhaustedError: PlayerError = {
         ...error,
         code: "PLAYBACK_RECOVERY_EXHAUSTED",
-        message: i18n.t("common.playbackRecoveryExhausted"),
+        message: t("playback.playbackRecoveryExhausted"),
         shouldRefresh: false,
       };
       logger.error("Page:Stream", "Twitch playback recovery exhausted", {
@@ -520,7 +521,7 @@ export function StreamPage() {
       setTheaterModeActive(false);
       setPlayerError(exhaustedError);
     },
-    [channelName, setTheaterModeActive]
+    [channelName, setTheaterModeActive, t]
   );
   const twitchRecovery = useTwitchLiveRecovery({
     sessionKey: `stream-page:${streamIdentity}`,

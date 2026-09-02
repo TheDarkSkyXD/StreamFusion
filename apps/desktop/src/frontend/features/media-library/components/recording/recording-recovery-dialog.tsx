@@ -213,7 +213,6 @@ export function RecordingRecoveryDialog() {
                     {t("mediaLibrary.gapCount", {
                       count: gapCount,
                       suffix: active.hasOpenGap ? t("mediaLibrary.restartGapOpen") : "",
-                      defaultValue: "{{count}} {{count, plural, one {gap} other {gaps}}}{{suffix}}",
                     })}
                   </dd>
                 </div>

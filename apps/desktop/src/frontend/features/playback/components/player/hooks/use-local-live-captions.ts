@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { DEFAULT_CAPTION_PREFERENCES } from "@shared/auth-types";
 import {
   DEFAULT_LOCAL_CAPTION_MODEL_STATE,
@@ -72,6 +73,8 @@ export function useLocalLiveCaptions({
   volume,
   allowLocalCaptions = true,
 }: UseLocalLiveCaptionsOptions) {
+  const { t } = useTranslation();
+  const translateRef = useRef(t);
   const captionPreferences = useAuthStore((state) => state.preferences?.captions ?? null);
   const updatePreferences = useAuthStore((state) => state.updatePreferences);
   const [modelState, setModelState] = useState<LocalCaptionModelState>(
@@ -93,6 +96,11 @@ export function useLocalLiveCaptions({
   const activeCuesRef = useRef(activeCues);
   const presentationRef = useRef({ muted, volume });
   const hasSource = sourceKey.length > 0;
+
+  useEffect(() => {
+    translateRef.current = t;
+  }, [t]);
+
   useLayoutEffect(() => {
     presentationRef.current = { muted, volume };
     activeCuesRef.current = activeCues;
@@ -268,7 +276,11 @@ export function useLocalLiveCaptions({
             selectedRef.current = false;
             setSelected(false);
             setPhase("error");
-            setError(cause instanceof Error ? cause.message : "Decoded audio capture failed");
+            setError(
+              cause instanceof Error
+                ? cause.message
+                : translateRef.current("playback.decodedAudioCaptureFailed")
+            );
           }
         })
         .finally(() => {
@@ -288,7 +300,7 @@ export function useLocalLiveCaptions({
           selectedRef.current = false;
           setSelected(false);
           setPhase("error");
-          setError(result.error ?? "Local captions failed to start");
+          setError(result.error ?? translateRef.current("playback.localCaptionsStartFailed"));
           return;
         }
         video.addEventListener("playing", bind);
@@ -299,7 +311,11 @@ export function useLocalLiveCaptions({
         selectedRef.current = false;
         setSelected(false);
         setPhase("error");
-        setError(cause instanceof Error ? cause.message : "Local captions failed to start");
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : translateRef.current("playback.localCaptionsStartFailed")
+        );
       });
 
     return () => {
@@ -398,7 +414,9 @@ export function useLocalLiveCaptions({
   const downloadModel = useCallback(async () => {
     const result = await window.electronAPI.localCaptions.downloadModel();
     if (result.state) setModelState(result.state);
-    if (!result.success) setError(result.error ?? "Model download failed");
+    if (!result.success) {
+      setError(result.error ?? translateRef.current("playback.captionModelDownloadFailed"));
+    }
     return result.success;
   }, []);
 
@@ -410,7 +428,9 @@ export function useLocalLiveCaptions({
     deactivate();
     const result = await window.electronAPI.localCaptions.removeModel();
     if (result.state) setModelState(result.state);
-    if (!result.success) setError(result.error ?? "Model removal failed");
+    if (!result.success) {
+      setError(result.error ?? translateRef.current("playback.captionModelRemovalFailed"));
+    }
     const preferences = useAuthStore.getState().preferences?.captions;
     if (allowLocalCaptions && preferences?.enabled && preferences.source === "local") {
       selectedRef.current = true;

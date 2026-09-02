@@ -545,7 +545,7 @@ export function MiniPlayer() {
       handleError({
         ...error,
         code: "PLAYBACK_RECOVERY_EXHAUSTED",
-        message: "Playback stopped after two automatic recovery attempts",
+        message: t("playback.playbackRecoveryExhausted"),
         shouldRefresh: false,
       }),
   });

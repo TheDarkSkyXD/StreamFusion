@@ -78,11 +78,13 @@ export interface TimedTextError {
   message: string;
 }
 
+const LOCAL_LIVE_CAPTION_TRACK_LABEL = "Local live captions (English)";
+
 export const LOCAL_LIVE_CAPTION_TRACK: TimedTextTrack = {
   key: "local-live:en",
   hlsTrackId: null,
   cueTrack: "local-live",
   kind: "captions",
-  label: "Local live captions (English)",
+  label: LOCAL_LIVE_CAPTION_TRACK_LABEL,
   language: "en",
 };

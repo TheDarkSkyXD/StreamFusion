@@ -625,7 +625,9 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
         <img
           ref={adPresentationPosterRef}
           src={poster}
-          alt={`${channelName.charAt(0).toUpperCase()}${channelName.slice(1)} live stream`}
+          alt={t("playback.liveStreamAlt", {
+            channel: `${channelName.charAt(0).toUpperCase()}${channelName.slice(1)}`,
+          })}
           hidden={adPresentationCover !== "poster"}
           className="pointer-events-none absolute inset-0 z-20 size-full object-cover"
           onError={() => {

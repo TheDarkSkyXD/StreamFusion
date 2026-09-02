@@ -1,6 +1,7 @@
 import Hls from "hls.js";
 import type React from "react";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { useInterval } from "@/hooks/useInterval";
 import { logger } from "@/renderer/logging/logger";
@@ -70,6 +71,11 @@ const LIVE_FRAGMENT_WATCHDOG_INTERVAL_MS = 1000;
 // Keep this above HLS.js's live fragLoadingTimeOut (15s). A 3s grace made
 // ordinary Kick CDN jitter look like an ended stream, forcing refresh loops.
 const LIVE_FRAGMENT_OFFLINE_GRACE_MS = 20_000;
+const AUTO_QUALITY_LABEL = "auto";
+
+function formatResolutionLabel(height: number): string {
+  return `${height}p`;
+}
 
 function applyPreferredQuality(
   hls: Hls,
@@ -129,6 +135,8 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
     },
     ref
   ) => {
+    const { t } = useTranslation();
+    const translateRef = useRef(t);
     const videoRef = useRef<HTMLVideoElement>(null);
     const hlsRef = useRef<Hls | null>(null);
     const isMountedRef = useRef(true);
@@ -146,6 +154,10 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
     // Delay state: null = paused, number = running. Set when HLS initialises, cleared on teardown.
     const [heartbeatDelay, setHeartbeatDelay] = useState<number | null>(null);
     const [memoryCleanupDelay, setMemoryCleanupDelay] = useState<number | null>(null);
+
+    useEffect(() => {
+      translateRef.current = t;
+    }, [t]);
 
     useEffect(() => {
       sourcesRef.current = sources;
@@ -242,7 +254,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         hlsRef.current = null;
         onErrorRef.current?.({
           code: "NO_FRAGMENTS",
-          message: "No video data received - stream may be offline or token expired",
+          message: translateRef.current("playback.noVideoDataReceived"),
           fatal: true,
           shouldRefresh: true,
           originalError: null,
@@ -263,7 +275,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         hlsRef.current = null;
         onErrorRef.current?.({
           code: "STREAM_OFFLINE",
-          message: "Stream ended or became unavailable",
+          message: translateRef.current("playback.streamEndedUnavailable"),
           fatal: true,
           // A fragment drought proves that this source stopped advancing, not
           // that the broadcaster ended. Kick live URLs are signed and can age
@@ -714,7 +726,14 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           if (onQualityLevelsRef.current && data.levels) {
             // Add Auto level
             onQualityLevelsRef.current([
-              { id: "auto", label: "Auto", width: 0, height: 0, bitrate: 0, isAuto: true },
+              {
+                id: "auto",
+                label: AUTO_QUALITY_LABEL,
+                width: 0,
+                height: 0,
+                bitrate: 0,
+                isAuto: true,
+              },
               ...levels,
             ]);
           }
@@ -766,7 +785,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
             hlsRef.current = null;
             onErrorRef.current?.({
               code: "STREAM_OFFLINE",
-              message: "Stream offline or unavailable",
+              message: translateRef.current("playback.streamOfflineUnavailable"),
               fatal: true,
               shouldRefresh: isRefreshableKickLiveCdnError,
               originalError: data,
@@ -781,7 +800,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
             hlsRef.current = null;
             onErrorRef.current?.({
               code: "PROXY_ERROR",
-              message: "Proxy server error (500)",
+              message: translateRef.current("playback.proxyServerError"),
               fatal: true,
               originalError: data,
             });
@@ -797,7 +816,9 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
             hlsRef.current = null;
             onErrorRef.current?.({
               code: "PROXY_ERROR",
-              message: `Proxy error: ${statusCode || "manifest load failed"}`,
+              message: translateRef.current("playback.proxyError", {
+                detail: statusCode || translateRef.current("playback.manifestLoadFailed"),
+              }),
               fatal: true,
               originalError: data,
             });
@@ -832,7 +853,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
                 );
                 onErrorRef.current?.({
                   code: "STREAM_OFFLINE",
-                  message: "Stream offline or unavailable",
+                  message: translateRef.current("playback.streamOfflineUnavailable"),
                   fatal: true,
                   shouldRefresh:
                     isStreamEndingError &&
@@ -861,7 +882,9 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
                   // If we can't recover, report the error
                   onErrorRef.current?.({
                     code: "MEDIA_ERROR",
-                    message: `Fatal media error: ${data.details}`,
+                    message: translateRef.current("playback.fatalMediaError", {
+                      detail: data.details,
+                    }),
                     fatal: true,
                     originalError: data,
                   });
@@ -874,7 +897,9 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
                 logger.error("Player:HLS", "unrecoverable error", { data });
                 onErrorRef.current?.({
                   code: "HLS_FATAL",
-                  message: `Fatal HLS Error: ${data.details}`,
+                  message: translateRef.current("playback.fatalHlsError", {
+                    detail: data.details,
+                  }),
                   fatal: true,
                   originalError: data,
                 });
@@ -951,7 +976,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
               hlsRef.current = null;
               onErrorRef.current?.({
                 code: "TOKEN_EXPIRED",
-                message: "Playback token may have expired - reload required",
+                message: translateRef.current("playback.playbackTokenExpiredReload"),
                 fatal: true,
                 shouldRefresh: true,
                 originalError: data,
@@ -987,7 +1012,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
         handleError = (e: Event) => {
           onErrorRef.current?.({
             code: "NATIVE_ERROR",
-            message: "Native playback error",
+            message: translateRef.current("playback.nativePlaybackError"),
             fatal: true,
             originalError: e,
           });
@@ -1013,20 +1038,35 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
               }));
 
               onQualityLevelsRef.current([
-                { id: "auto", label: "Auto (Best)", width: 0, height: 0, bitrate: 0, isAuto: true },
+                {
+                  id: "auto",
+                  label: AUTO_QUALITY_LABEL,
+                  width: 0,
+                  height: 0,
+                  bitrate: 0,
+                  isAuto: true,
+                },
                 ...levels,
               ]);
             } else if (video.videoHeight) {
               // Fallback: Single source
               onQualityLevelsRef.current([
-                { id: "auto", label: "Auto", width: 0, height: 0, bitrate: 0, isAuto: true },
+                {
+                  id: "auto",
+                  label: AUTO_QUALITY_LABEL,
+                  width: 0,
+                  height: 0,
+                  bitrate: 0,
+                  isAuto: true,
+                },
                 {
                   id: "source",
-                  label: `${video.videoHeight}p (Source)`,
+                  label: formatResolutionLabel(video.videoHeight),
                   width: video.videoWidth,
                   height: video.videoHeight,
                   bitrate: 0,
                   isAuto: false,
+                  isSource: true,
                 },
               ]);
             }
@@ -1036,7 +1076,7 @@ export const HlsPlayer = forwardRef<HTMLVideoElement, HlsPlayerProps>(
           // Only report error if we really fail
           onErrorRef.current?.({
             code: "PLAYBACK_ERROR",
-            message: "Playback failed",
+            message: translateRef.current("playback.playbackFailed"),
             fatal: true,
             originalError: e,
           });

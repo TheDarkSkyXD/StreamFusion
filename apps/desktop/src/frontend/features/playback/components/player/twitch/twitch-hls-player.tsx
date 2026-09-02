@@ -18,6 +18,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useTranslation } from "react-i18next";
 
 import { useInterval } from "@/hooks/useInterval";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
@@ -82,6 +83,11 @@ export interface TwitchHlsPlayerProps extends Omit<
 const TWITCH_AD_PRESENTATION_SHIELD_ATTRIBUTE = "data-streamfusion-ad-presentation-shielded";
 const LIVE_MEMORY_CLEANUP_INTERVAL_MS = 60 * 1000;
 const AD_BLOCK_RECOVERY_REFRESH_MS = 15_000;
+const AUTO_QUALITY_LABEL = "auto";
+
+function formatResolutionLabel(height: number, frameRate?: number): string {
+  return `${height}p${frameRate ? Math.round(frameRate) : ""}`;
+}
 
 function applyPreferredQuality(
   hls: Hls,
@@ -142,6 +148,8 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     },
     ref
   ) => {
+    const { t } = useTranslation();
+    const translateRef = useRef(t);
     const videoRef = useRef<HTMLVideoElement>(null);
     const preferences = useAuthStore((state) => state.preferences);
     const playlistProxyPreferences = preferences?.twitchPlaylistProxy;
@@ -167,6 +175,10 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       key: playlistRouteKey,
       index: 0,
     });
+
+    useEffect(() => {
+      translateRef.current = t;
+    }, [t]);
     const activePlaylistProxyCursor =
       playlistProxyCursor.key === playlistRouteKey ? playlistProxyCursor.index : 0;
     const playlistProxySource =
@@ -829,8 +841,8 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
             label: level.name
               ? level.name
               : level.height
-                ? `${level.height}p${level.frameRate ? Math.round(level.frameRate) : ""}`
-                : `Level ${index}`,
+                ? formatResolutionLabel(level.height, level.frameRate)
+                : translateRef.current("playback.qualityLevel", { index }),
             width: level.width,
             height: level.height,
             bitrate: level.bitrate,
@@ -873,7 +885,14 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
 
           if (onQualityLevelsRef.current && data.levels) {
             onQualityLevelsRef.current([
-              { id: "auto", label: "Auto", width: 0, height: 0, bitrate: 0, isAuto: true },
+              {
+                id: "auto",
+                label: AUTO_QUALITY_LABEL,
+                width: 0,
+                height: 0,
+                bitrate: 0,
+                isAuto: true,
+              },
               ...levels,
             ]);
           }
@@ -972,7 +991,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
             releaseHls();
             onErrorRef.current?.({
               code: "TOKEN_EXPIRED",
-              message: "Twitch playback token expired or was rejected",
+              message: translateRef.current("playback.twitchPlaybackTokenRejected"),
               fatal: true,
               shouldRefresh: true,
               originalError: data,
@@ -985,7 +1004,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
             releaseHls();
             onErrorRef.current?.({
               code: "STREAM_OFFLINE",
-              message: "Stream offline or unavailable",
+              message: translateRef.current("playback.streamOfflineUnavailable"),
               fatal: true,
               originalError: data,
             });
@@ -1024,7 +1043,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
                     logger.debug("Player:Twitch:HLS", "recovery failed, stream unavailable");
                     onErrorRef.current?.({
                       code: "STREAM_OFFLINE",
-                      message: "Stream offline or unavailable",
+                      message: translateRef.current("playback.streamOfflineUnavailable"),
                       fatal: true,
                       originalError: data,
                     });
@@ -1038,7 +1057,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
                   );
                   onErrorRef.current?.({
                     code: "STREAM_OFFLINE",
-                    message: "Stream offline or unavailable",
+                    message: translateRef.current("playback.streamOfflineUnavailable"),
                     fatal: true,
                     originalError: data,
                   });
@@ -1056,7 +1075,9 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
                 } else {
                   onErrorRef.current?.({
                     code: "MEDIA_ERROR",
-                    message: `Fatal media error: ${data.details}`,
+                    message: translateRef.current("playback.fatalMediaError", {
+                      detail: data.details,
+                    }),
                     fatal: true,
                     originalError: data,
                   });
@@ -1068,7 +1089,9 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
                 logger.error("Player:Twitch:HLS", "unrecoverable error", { data });
                 onErrorRef.current?.({
                   code: "HLS_FATAL",
-                  message: `Fatal HLS Error: ${data.details}`,
+                  message: translateRef.current("playback.fatalHlsError", {
+                    detail: data.details,
+                  }),
                   fatal: true,
                   originalError: data,
                 });
@@ -1109,7 +1132,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         handleError = (e: Event) => {
           onErrorRef.current?.({
             code: "NATIVE_ERROR",
-            message: "Native playback error",
+            message: translateRef.current("playback.nativePlaybackError"),
             fatal: true,
             originalError: e,
           });
@@ -1125,14 +1148,22 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
           // Emit single source quality for native playback so UI shows something
           if (onQualityLevelsRef.current && video.videoHeight) {
             onQualityLevelsRef.current([
-              { id: "auto", label: "Auto", width: 0, height: 0, bitrate: 0, isAuto: true },
+              {
+                id: "auto",
+                label: AUTO_QUALITY_LABEL,
+                width: 0,
+                height: 0,
+                bitrate: 0,
+                isAuto: true,
+              },
               {
                 id: "source",
-                label: `${video.videoHeight}p (Source)`,
+                label: formatResolutionLabel(video.videoHeight),
                 width: video.videoWidth,
                 height: video.videoHeight,
                 bitrate: 0,
                 isAuto: false,
+                isSource: true,
               },
             ]);
           }
@@ -1140,7 +1171,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         handleError = (e: Event) => {
           onErrorRef.current?.({
             code: "PLAYBACK_ERROR",
-            message: "Playback failed",
+            message: translateRef.current("playback.playbackFailed"),
             fatal: true,
             originalError: e,
           });

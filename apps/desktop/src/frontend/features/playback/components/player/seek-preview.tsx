@@ -34,7 +34,7 @@ export function SeekPreview({ time, position, previewImage, className }: SeekPre
             {!imageError ? (
               <img
                 src={previewImage}
-                alt={`Preview at ${formatDuration(time)}`}
+                alt={t("playback.seekPreviewAt", { time: formatDuration(time) })}
                 className="w-full h-full object-cover"
                 onError={() => setFailedImage(previewImage)}
               />

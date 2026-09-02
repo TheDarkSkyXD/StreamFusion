@@ -132,10 +132,10 @@ export function KickVodPlayer(props: KickVodPlayerProps) {
     setHasError(true);
     onError?.({
       code: "SEEK_TIMEOUT",
-      message: "Seek timed out before a matching video frame was presented",
+      message: t("playback.seekTimedOut"),
       fatal: true,
     });
-  }, [onError]);
+  }, [onError, t]);
   const { commitSeek } = useOnDemandSeekRecovery({
     videoRef,
     hls,

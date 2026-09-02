@@ -70,7 +70,6 @@ export function RecordingGlobalIndicator({
     ? t("mediaLibrary.gapSummary", {
         count: active.gapCount,
         suffix: active.hasOpenGap ? t("mediaLibrary.currentGapOpen") : "",
-        defaultValue: "{{count}} {{count, plural, one {gap} other {gaps}}}{{suffix}}",
       })
     : null;
 
@@ -121,8 +120,12 @@ export function RecordingGlobalIndicator({
             {active.channelName} · {platformLabel}
           </p>
           <p className="mt-1 text-xs text-[var(--color-foreground-muted)]">
-            {t("mediaLibrary.capturedDuration", { duration: capturedDuration })}
-            {active.qualityLabel ? ` · ${active.qualityLabel}` : ""}
+            {[
+              t("mediaLibrary.capturedDuration", { duration: capturedDuration }),
+              active.qualityLabel,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
           {gapSummary ? (
             <p className="mt-1 text-xs text-amber-200">

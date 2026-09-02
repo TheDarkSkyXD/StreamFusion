@@ -28,7 +28,7 @@ export function RaidHandoffPopup({ model, compact = false }: RaidHandoffPopupPro
         isCompact && "bottom-2 w-[min(27rem,calc(100%-1rem))]"
       )}
       role="region"
-      aria-label={`Raid invitation to ${offer.target.displayName}`}
+      aria-label={t("playback.raidInvitationTo", { target: offer.target.displayName })}
       onClick={(event) => event.stopPropagation()}
     >
       <div
@@ -36,8 +36,10 @@ export function RaidHandoffPopup({ model, compact = false }: RaidHandoffPopupPro
       />
       <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {participation === "joining"
-          ? `Joining the raid to ${offer.target.displayName}`
-          : `Staying on the current stream. You can still join ${offer.target.displayName}`}
+          ? t("playback.joiningRaidTo", { target: offer.target.displayName })
+          : t("playback.stayingCurrentStreamJoinTarget", {
+              target: offer.target.displayName,
+            })}
       </span>
       <div className={cn("flex items-center gap-3 p-4", isCompact && "p-3")}>
         <PlatformAvatar
@@ -82,7 +84,7 @@ export function RaidHandoffPopup({ model, compact = false }: RaidHandoffPopupPro
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(model.progressPercent ?? 0)}
-          aria-valuetext={`${remainingSeconds ?? 0} seconds remaining`}
+          aria-valuetext={t("playback.secondsRemaining", { count: remainingSeconds ?? 0 })}
         >
           <div
             className={cn(

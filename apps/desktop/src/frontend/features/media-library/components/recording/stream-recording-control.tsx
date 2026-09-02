@@ -15,15 +15,21 @@ import {
 import { RecordingSessionControls } from "@/features/media-library/components/recording/recording-session-control";
 import { useStreamRecordingActions } from "@/features/media-library/data/use-stream-recording-actions";
 import { useStreamRecordingState } from "@/features/media-library/data/use-stream-recording-state";
-import { formatCapturedDuration } from "@/features/media-library/utils/stream-recording-presentation";
+import {
+  formatCapturedDuration,
+  RECORDING_PHASE_LABEL_KEYS,
+} from "@/features/media-library/utils/stream-recording-presentation";
 import type { Platform } from "@shared/auth-types";
 import type { ActiveStreamRecording } from "@shared/stream-recording-types";
 
 const RECORDING_QUALITIES = [
-  { label: "Best available", value: { quality: "Source", isSource: true } },
-  { label: "1080p", value: { quality: "1080p", height: 1080 } },
-  { label: "720p", value: { quality: "720p", height: 720 } },
-  { label: "480p", value: { quality: "480p", height: 480 } },
+  {
+    labelKey: "mediaLibrary.recordingQualityBestAvailable",
+    value: { quality: "Source", isSource: true },
+  },
+  { labelKey: "mediaLibrary.recordingQuality1080p", value: { quality: "1080p", height: 1080 } },
+  { labelKey: "mediaLibrary.recordingQuality720p", value: { quality: "720p", height: 720 } },
+  { labelKey: "mediaLibrary.recordingQuality480p", value: { quality: "480p", height: 480 } },
 ] as const;
 
 interface StreamRecordingControlProps {
@@ -56,14 +62,13 @@ export function StreamRecordingControl({
     active.channelName.trim().toLowerCase() === channelName.trim().toLowerCase();
 
   if (isCurrentStreamRecording) {
-    const detail = [
+    const progressDetail = [
+      t(RECORDING_PHASE_LABEL_KEYS[active.status]),
       t("mediaLibrary.capturedDuration", {
         duration: formatCapturedDuration(active.capturedDurationSeconds),
       }),
-      active.qualityLabel,
-    ]
-      .filter(Boolean)
-      .join(" / ");
+    ].join(" ");
+    const detail = [progressDetail, active.qualityLabel].filter(Boolean).join(" / ");
 
     return (
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-3">
@@ -132,7 +137,7 @@ export function StreamRecordingControl({
               const selected = qualityIndex === index;
               return (
                 <button
-                  key={option.label}
+                  key={option.value.quality}
                   type="button"
                   role="radio"
                   aria-checked={selected}
@@ -143,7 +148,7 @@ export function StreamRecordingControl({
                       : "border-[var(--color-border)] bg-[var(--color-background-secondary)] text-[var(--color-foreground-muted)] hover:text-white"
                   }`}
                 >
-                  <span className="font-semibold">{option.label}</span>
+                  <span className="font-semibold">{t(option.labelKey)}</span>
                   <span
                     aria-hidden="true"
                     className={`h-3 w-3 rounded-full border ${

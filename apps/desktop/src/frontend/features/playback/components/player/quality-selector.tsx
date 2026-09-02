@@ -16,6 +16,10 @@ export interface QualitySelectorProps {
   disabled?: boolean;
 }
 
+function formatBitrateLabel(bitrate: number): string {
+  return ` (${Math.round(bitrate / 1000)}k)`;
+}
+
 export function QualitySelector({ levels, current, onChange, disabled }: QualitySelectorProps) {
   const { t } = useTranslation();
   if (!levels || levels.length === 0) return null;
@@ -42,7 +46,7 @@ export function QualitySelector({ levels, current, onChange, disabled }: Quality
                 : level.isSource
                   ? t("playback.sourceQuality")
                   : level.label}
-              {!level.isAuto && level.bitrate > 0 && ` (${Math.round(level.bitrate / 1000)}k)`}
+              {!level.isAuto && level.bitrate > 0 && formatBitrateLabel(level.bitrate)}
             </SelectItem>
           ))}
         </SelectContent>
