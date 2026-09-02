@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BsChevronDown, BsPeople, BsSearch, BsShieldFill, BsX } from "react-icons/bs";
 
@@ -38,8 +39,8 @@ interface ActiveChatterSection {
 }
 
 const ACTIVE_CHATTER_SECTIONS: readonly ActiveChatterSection[] = [
-  { id: "moderators", label: "Moderators" },
-  { id: "chatters", label: "Chatters" },
+  { id: "moderators", label: i18n.t("chat.moderators") },
+  { id: "chatters", label: i18n.t("chat.chatters") },
 ];
 
 function groupIdForRole(role: ChatKnownUserRole): ActiveChatterGroupId {
@@ -97,7 +98,7 @@ export function RecentChattersButton({ panelId, open, onClick }: RecentChattersB
       <TooltipTrigger asChild>
         <button
           type="button"
-          aria-label={open ? "Hide active chatters" : "Show active chatters"}
+          aria-label={open ? i18n.t("chat.hideActiveChatters") : i18n.t("chat.showActiveChatters")}
           aria-expanded={open}
           aria-controls={panelId}
           onClick={onClick}
@@ -110,7 +111,7 @@ export function RecentChattersButton({ panelId, open, onClick }: RecentChattersB
           )}
         </button>
       </TooltipTrigger>
-      <TooltipContent side="bottom">Active Chatters</TooltipContent>
+      <TooltipContent side="bottom">{i18n.t("chat.activeChatters")}</TooltipContent>
     </Tooltip>
   );
 }
@@ -303,15 +304,17 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
   return (
     <aside
       id={id}
-      aria-label="Active Chatters"
+      aria-label={i18n.t("chat.activeChatters")}
       onWheel={(event) => event.stopPropagation()}
       className="absolute inset-0 z-20 flex min-h-0 flex-col bg-[#171717]"
     >
       <div className="shrink-0 border-b border-[var(--color-border)] px-3 py-2.5">
         <div className="min-w-0">
-          <h3 className="text-base font-bold text-white">Active Chatters</h3>
+          <h3 className="text-base font-bold text-white">{i18n.t("chat.activeChatters")}</h3>
           <p role="status" aria-live="polite" className="text-sm font-semibold text-neutral-300">
-            {total === 0 ? "People appear as messages arrive" : `${total} seen in this chat`}
+            {total === 0
+              ? i18n.t("chat.peopleAppearAsMessagesArrive")
+              : i18n.t("chat.value0SeenInThisChat", { value0: total })}
           </p>
         </div>
         {total > 0 ? (
@@ -325,14 +328,14 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
               type="search"
               value={searchQuery}
               onChange={(event) => updateSearchQuery(event.currentTarget.value)}
-              aria-label="Search active chatters"
-              placeholder="Search chatters"
+              aria-label={i18n.t("chat.searchActiveChatters")}
+              placeholder={i18n.t("chat.searchChatters")}
               className="h-8 w-full rounded-md border border-[var(--color-border)] bg-[#252525] py-1.5 pl-8 pr-8 text-sm font-medium text-white placeholder:text-neutral-500 transition-colors duration-200 focus:border-white focus:outline-none focus:ring-1 focus:ring-white [&::-webkit-search-cancel-button]:hidden"
             />
             {searchQuery.length > 0 ? (
               <button
                 type="button"
-                aria-label="Clear search"
+                aria-label={i18n.t("chat.clearSearch")}
                 onClick={() => {
                   updateSearchQuery("");
                   searchInputRef.current?.focus();
@@ -351,14 +354,16 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
           <div className="mb-3 flex size-10 items-center justify-center rounded-full bg-white/5 text-neutral-500">
             <BsPeople className="size-5" aria-hidden="true" />
           </div>
-          <p className="text-sm font-medium text-neutral-300">No active chatters yet</p>
+          <p className="text-sm font-medium text-neutral-300">
+            {i18n.t("chat.noActiveChattersYet")}
+          </p>
           <p className="mt-1 text-xs leading-5 text-neutral-500">
-            Live messages and loaded chat history will populate this list.
+            {i18n.t("chat.liveMessagesAndLoadedChatHistoryWillPopulateThisList")}
           </p>
         </div>
       ) : (
         <div
-          aria-label="Active chatter groups"
+          aria-label={i18n.t("chat.activeChatterGroups")}
           className="flex min-h-0 flex-1 flex-col overflow-y-hidden overscroll-y-contain px-2 py-2 [overflow-anchor:none]"
         >
           {searching && visibleTotal === 0 ? (
@@ -367,7 +372,9 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
               aria-live="polite"
               className="mx-2 mb-2 rounded-md bg-white/5 px-3 py-2 text-sm font-medium text-neutral-300"
             >
-              No active chatters match &quot;{trimmedSearchQuery}&quot;.
+              {i18n.t("chat.noActiveChattersMatchQuot")}
+              {trimmedSearchQuery}
+              {i18n.t("chat.quot2")}
             </p>
           ) : null}
           {ACTIVE_CHATTER_SECTIONS.map(({ id: groupId, label }) => {
@@ -384,7 +391,11 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
                 <button
                   id={toggleId}
                   type="button"
-                  aria-label={`${label}, ${users.length} ${users.length === 1 ? "chatter" : "chatters"}`}
+                  aria-label={i18n.t("chat.value0Value1Value22", {
+                    value0: label,
+                    value1: users.length,
+                    value2: users.length === 1 ? "chatter" : "chatters",
+                  })}
                   aria-expanded={!collapsed}
                   aria-controls={listId}
                   onClick={() => toggleGroup(groupId)}

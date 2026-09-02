@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import type React from "react";
 import { memo } from "react";
 import type {
@@ -161,13 +162,14 @@ export const DeletedMessageHighlight: React.FC<DeletedMessageHighlightProps> = m
         user={moderator}
       />
     ) : (
-      <span>unknown moderator</span>
+      <span>{i18n.t("chat.unknownModerator")}</span>
     );
     const auditDetail =
       mode === "audit" ? (
         <>
           {" "}
-          - {platformLabel(message.platform)} - id {message.id}
+          - {platformLabel(message.platform)} {i18n.t("chat.id")}
+          {message.id}
         </>
       ) : undefined;
     const sharedProps = {

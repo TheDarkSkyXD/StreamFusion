@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import type React from "react";
 import { memo, useCallback, useLayoutEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -134,7 +135,7 @@ export const QuickEmoteActionBar: React.FC<QuickEmoteActionBarProps> = memo(
       <div
         data-testid="quick-emote-action-bar"
         className="flex h-8 min-h-8 items-center gap-2 overflow-hidden px-1"
-        aria-label="Quick emotes"
+        aria-label={i18n.t("chat.quickEmotes")}
       >
         {quickEmotes.map((emote, index) => {
           const key = getEmoteKey(emote);
@@ -145,7 +146,7 @@ export const QuickEmoteActionBar: React.FC<QuickEmoteActionBarProps> = memo(
               type="button"
               disabled={disabled}
               onClick={() => onSelect(emote)}
-              aria-label={`Use ${emote.name}`}
+              aria-label={i18n.t("chat.useValue0", { value0: emote.name })}
               data-testid="quick-emote-button"
               data-emote-key={key}
               className="group flex h-7 w-7 shrink-0 items-center justify-center rounded-[4px] border border-white/10 bg-[#252525] p-0.5 opacity-90 transition-[background-color,border-color,opacity,transform] duration-150 ease-out hover:border-white/20 hover:bg-[#2d2d2d] hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#191919] disabled:cursor-not-allowed disabled:opacity-40"

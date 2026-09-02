@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import type { ReplyInfo } from "../../../../../shared/chat-types";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 import { TwitchReplyArrowIcon } from "./ChatReplyButton";
@@ -45,7 +46,7 @@ export function ChatMessageReplyPreview({ reply }: { reply: ReplyInfo }) {
     >
       <TwitchReplyBubbleIcon className="h-4 w-4 shrink-0 text-[#d3d3d9]" />
       <p className="min-w-0 truncate text-sm font-normal leading-[1.4]">
-        <span>Replying to </span>
+        <span>{i18n.t("chat.replyingTo")}</span>
         <span className="text-[#efeff1]">{formatReplyUser(displayName)}</span>
         {body ? <span>: {body}</span> : null}
       </p>
@@ -70,7 +71,10 @@ export function ChatComposerReplyPreview({
       <TwitchReplyArrowIcon className="h-5 w-5 shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm leading-[1.35]">
-          <span className="font-semibold">Replying to {formatReplyUser(displayName)}:</span>
+          <span className="font-semibold">
+            {i18n.t("chat.replyingTo")}
+            {formatReplyUser(displayName)}:
+          </span>
         </div>
         {content ? (
           <p className="truncate text-xs leading-[1.35] text-[#adadb8]">{content}</p>
@@ -82,7 +86,7 @@ export function ChatComposerReplyPreview({
             type="button"
             onClick={onCancel}
             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#adadb8] transition-colors duration-150 hover:bg-[rgba(83,83,95,0.48)] hover:text-[#efeff1] focus:outline-none focus-visible:ring-1 focus-visible:ring-white"
-            aria-label="Cancel reply"
+            aria-label={i18n.t("chat.cancelReply")}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
               <path d="m3.535 2.464 10 10-1.071 1.072-10-10 1.071-1.072Z" fill="currentColor" />
@@ -90,7 +94,7 @@ export function ChatComposerReplyPreview({
             </svg>
           </button>
         </TooltipTrigger>
-        <TooltipContent side="top">Cancel reply</TooltipContent>
+        <TooltipContent side="top">{i18n.t("chat.cancelReply")}</TooltipContent>
       </Tooltip>
     </div>
   );

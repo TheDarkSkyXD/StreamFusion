@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { LuChevronLeft, LuChevronRight, LuClock3, LuX } from "react-icons/lu";
 import { selectVisibleChatReplayMessages } from "../../routes/chat-replay-window";
@@ -43,7 +44,10 @@ function getResolvedBadge(
   const imageUrl = badge.imageUrl && badge.imageUrl.length > 0 ? badge.imageUrl : undefined;
   return {
     imageUrl: imageUrl && isAllowedPlatformImageUrl(imageUrl, platform) ? imageUrl : undefined,
-    title: badge.title && badge.title.length > 0 ? badge.title : `${badge.setId} badge`,
+    title:
+      badge.title && badge.title.length > 0
+        ? badge.title
+        : i18n.t("chat.value0Badge", { value0: badge.setId }),
   };
 }
 
@@ -77,7 +81,11 @@ function renderTextFragment(text: string, fragmentKey: string): ReactNode[] {
       }
       if (token.startsWith("@")) {
         return (
-          <span key={key} aria-label={`Mention ${token}`} className="font-semibold text-[#b2b2b2]">
+          <span
+            key={key}
+            aria-label={i18n.t("chat.mentionValue0", { value0: token })}
+            className="font-semibold text-[#b2b2b2]"
+          >
             {token}
           </span>
         );
@@ -119,12 +127,12 @@ export function ChatReplayRail({
   if (presentation === "rail" && isCollapsed) {
     return (
       <aside
-        aria-label="Chat Replay collapsed"
+        aria-label={i18n.t("chat.chatReplayCollapsed")}
         className="flex h-full w-14 shrink-0 flex-col items-center border-l border-[#333333] bg-[#1a1a1a] py-3 text-white"
       >
         <button
           type="button"
-          aria-label="Expand Chat Replay"
+          aria-label={i18n.t("chat.expandChatReplay")}
           aria-expanded="false"
           className="rounded-md p-2 text-[#a0a0a0] hover:bg-[#252525] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           onClick={() => setIsCollapsed(false)}
@@ -137,19 +145,19 @@ export function ChatReplayRail({
 
   return (
     <aside
-      aria-label="Chat Replay"
+      aria-label={i18n.t("chat.chatReplay")}
       className={`${presentation === "drawer" ? "w-full" : "w-80"} flex h-full shrink-0 flex-col border-l border-[#333333] bg-[#1a1a1a] text-white`}
     >
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-[#333333] px-4">
         <LuClock3 aria-hidden="true" className="size-4 text-[#a0a0a0]" />
-        <h2 className="text-sm font-bold">Chat Replay</h2>
+        <h2 className="text-sm font-bold">{i18n.t("chat.chatReplay")}</h2>
         <span className="ml-auto text-xs tabular-nums text-[#a0a0a0]">
           {formatOffset(playback.currentTime)}
         </span>
         {presentation === "drawer" ? (
           <button
             type="button"
-            aria-label="Close Chat Replay"
+            aria-label={i18n.t("chat.closeChatReplay")}
             className="rounded-md p-1 text-[#a0a0a0] hover:bg-[#252525] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             onClick={onClose}
           >
@@ -158,7 +166,7 @@ export function ChatReplayRail({
         ) : (
           <button
             type="button"
-            aria-label="Collapse Chat Replay"
+            aria-label={i18n.t("chat.collapseChatReplay")}
             aria-expanded="true"
             className="rounded-md p-1 text-[#a0a0a0] hover:bg-[#252525] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             onClick={() => setIsCollapsed(true)}
@@ -172,16 +180,16 @@ export function ChatReplayRail({
         <button
           type="button"
           className="mx-3 mt-3 rounded-md bg-[#252525] px-3 py-2 text-xs font-semibold text-white hover:bg-[#2d2d2d] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-          aria-label={`Return to ${formatOffset(playback.currentTime)}`}
+          aria-label={i18n.t("chat.returnToValue0", { value0: formatOffset(playback.currentTime) })}
           onClick={() => setBrowsingOffset(null)}
         >
-          Return to {formatOffset(playback.currentTime)}
+          {i18n.t("chat.returnToValue0", { value0: formatOffset(playback.currentTime) })}
         </button>
       )}
 
       <div
         ref={messageLogRef}
-        aria-label="Chat Replay messages"
+        aria-label={i18n.t("chat.chatReplayMessages")}
         className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-3"
         role="log"
         onScroll={(event) => {
@@ -196,14 +204,14 @@ export function ChatReplayRail({
         {result.capability === "empty" ? (
           <p
             role="status"
-            aria-label="Chat Replay window empty"
+            aria-label={i18n.t("chat.chatReplayWindowEmpty")}
             className="px-2 py-8 text-center text-sm text-[#a0a0a0]"
           >
-            No archived messages were found near this point.
+            {i18n.t("chat.noArchivedMessagesWereFoundNearThisPoint")}
           </p>
         ) : visibleMessages.length === 0 ? (
           <p className="px-2 py-8 text-center text-sm text-[#a0a0a0]">
-            No messages at this moment.
+            {i18n.t("chat.noMessagesAtThisMoment")}
           </p>
         ) : (
           <ol className="min-w-0 max-w-full space-y-2">
@@ -215,7 +223,9 @@ export function ChatReplayRail({
                 <div className="flex min-w-0 max-w-full items-center gap-2 text-xs">
                   <button
                     type="button"
-                    aria-label={`Seek to ${formatOffset(message.offsetSeconds)}`}
+                    aria-label={i18n.t("chat.seekToValue0", {
+                      value0: formatOffset(message.offsetSeconds),
+                    })}
                     className="shrink-0 rounded-sm tabular-nums text-[#a0a0a0] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                     disabled={!onSeek}
                     onClick={() => onSeek?.(message.offsetSeconds)}
@@ -241,7 +251,7 @@ export function ChatReplayRail({
                             loading="lazy"
                             fallback={
                               <span
-                                aria-label={`${title} unavailable`}
+                                aria-label={i18n.t("chat.value0Unavailable", { value0: title })}
                                 className="inline-flex size-4 items-center justify-center rounded-sm bg-[#2d2d2d] text-[9px] font-bold uppercase text-[#b2b2b2]"
                               >
                                 {badge.setId.charAt(0)}

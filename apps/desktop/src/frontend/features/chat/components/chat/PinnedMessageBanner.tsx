@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 /**
  * Shared pinned-message banner used by both Twitch and Kick chats.
  *
@@ -103,11 +104,11 @@ const EXPANDED_SCROLL_AREA_STYLE: React.CSSProperties = {
   position: "relative",
 };
 const TWITCH_PIN_DURATION_OPTIONS = [
-  { label: "1 minute", value: 60 },
-  { label: "5 minutes", value: 5 * 60 },
-  { label: "15 minutes", value: 15 * 60 },
-  { label: "30 minutes", value: 30 * 60 },
-  { label: "No expiry", value: null },
+  { label: i18n.t("chat.1Minute"), value: 60 },
+  { label: i18n.t("chat.5Minutes"), value: 5 * 60 },
+  { label: i18n.t("chat.15Minutes"), value: 15 * 60 },
+  { label: i18n.t("chat.30Minutes"), value: 30 * 60 },
+  { label: i18n.t("chat.noExpiry"), value: null },
 ] as const;
 const DEFAULT_TWITCH_PIN_DURATION_SECONDS = 30 * 60;
 const CUSTOM_TWITCH_PIN_DURATION = "custom";
@@ -457,7 +458,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                   style={{ gap: "3px" }}
                   data-testid="pinned-message-header"
                 >
-                  <span className="flex-shrink-0">Pinned by</span>
+                  <span className="flex-shrink-0">{i18n.t("chat.pinnedBy")}</span>
                   {renderablePinnedByBadges.map((badge, i) => (
                     <span
                       key={`${badge.setId}-${badge.version}-${i}`}
@@ -486,7 +487,9 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                   </span>
                 </div>
               ) : (
-                <div className="text-sm text-[#EFEFF1] truncate leading-snug">Pinned message</div>
+                <div className="text-sm text-[#EFEFF1] truncate leading-snug">
+                  {i18n.t("chat.pinnedMessage")}
+                </div>
               )}
             </div>
             {/* Control order matches twitch.tv's expanded card layout:
@@ -501,7 +504,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                       type="button"
                       onClick={onDismiss}
                       className={ICON_BUTTON_CLASS}
-                      aria-label="Hide for yourself"
+                      aria-label={i18n.t("chat.hideForYourself")}
                     >
                       <EyeOffIcon />
                     </button>
@@ -510,7 +513,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                     className={TWITCH_CHAT_ACTION_TOOLTIP_CLASS}
                     arrowClassName={TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS}
                   >
-                    Hide for yourself
+                    {i18n.t("chat.hideForYourself")}
                   </TooltipContent>
                 </Tooltip>
               ) : null}
@@ -521,7 +524,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                       type="button"
                       onClick={onUnpin}
                       className={ICON_BUTTON_CLASS}
-                      aria-label="Unpin"
+                      aria-label={i18n.t("chat.unpin")}
                       data-testid="pinned-message-unpin-button"
                     >
                       <EyeOffIcon />
@@ -531,7 +534,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                     className={TWITCH_CHAT_ACTION_TOOLTIP_CLASS}
                     arrowClassName={TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS}
                   >
-                    Unpin
+                    {i18n.t("chat.unpin")}
                   </TooltipContent>
                 </Tooltip>
               ) : null}
@@ -541,7 +544,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                     type="button"
                     onClick={() => setIsMenuOpen((open) => !open)}
                     className={ICON_BUTTON_CLASS}
-                    aria-label="Pinned message options"
+                    aria-label={i18n.t("chat.pinnedMessageOptions")}
                     aria-expanded={isMenuOpen}
                     data-testid="pinned-message-options-button"
                   >
@@ -550,14 +553,14 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                   {isMenuOpen ? (
                     <div
                       role="menu"
-                      aria-label="Pinned message options"
+                      aria-label={i18n.t("chat.pinnedMessageOptions")}
                       className="absolute right-0 top-full z-50 mt-1 w-56 rounded-md border border-[rgba(83,83,95,0.72)] bg-[#18181b] py-2 text-sm text-[#EFEFF1] shadow-[0_4px_16px_rgba(0,0,0,0.45)]"
                       data-testid="pinned-message-options-menu"
                     >
                       {onUpdateDuration ? (
                         <div className="px-2">
                           <div className="px-2 pb-1 text-xs font-semibold uppercase text-[#adadb8]">
-                            Duration
+                            {i18n.t("chat.duration")}
                           </div>
                           <fieldset className="space-y-0.5">
                             {TWITCH_PIN_DURATION_OPTIONS.map((option) => (
@@ -585,7 +588,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                                 className="cursor-pointer accent-[#9146FF]"
                                 disabled={pinActionBusy}
                               />
-                              <span>Custom</span>
+                              <span>{i18n.t("chat.custom")}</span>
                             </label>
                           </fieldset>
                           {selectedDuration === CUSTOM_TWITCH_PIN_DURATION ? (
@@ -595,7 +598,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                                 min={1}
                                 step={1}
                                 inputMode="numeric"
-                                aria-label="Custom pin duration"
+                                aria-label={i18n.t("chat.customPinDuration")}
                                 value={customDurationAmount}
                                 onChange={(event) => setCustomDurationAmount(event.target.value)}
                                 onFocus={() => setSelectedDuration(CUSTOM_TWITCH_PIN_DURATION)}
@@ -603,7 +606,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                                 className="h-8 min-w-0 flex-1 rounded border border-[rgba(83,83,95,0.72)] bg-[#0e0e10] px-2 text-sm text-[#EFEFF1] outline-none focus:border-[#a970ff] disabled:cursor-not-allowed disabled:opacity-60"
                               />
                               <select
-                                aria-label="Custom pin duration unit"
+                                aria-label={i18n.t("chat.customPinDurationUnit")}
                                 value={customDurationUnit}
                                 onChange={(event) =>
                                   setCustomDurationUnit(event.target.value as TwitchPinDurationUnit)
@@ -611,8 +614,8 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                                 disabled={pinActionBusy}
                                 className="h-8 rounded border border-[rgba(83,83,95,0.72)] bg-[#0e0e10] px-2 text-sm text-[#EFEFF1] outline-none focus:border-[#a970ff] disabled:cursor-not-allowed disabled:opacity-60"
                               >
-                                <option value="seconds">secs</option>
-                                <option value="minutes">mins</option>
+                                <option value="seconds">{i18n.t("chat.secs")}</option>
+                                <option value="minutes">{i18n.t("chat.mins")}</option>
                               </select>
                             </div>
                           ) : null}
@@ -622,7 +625,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                             disabled={pinActionBusy || !canApplyDuration}
                             className="mt-2 flex h-8 w-full items-center justify-center rounded bg-[#9146FF] px-3 text-sm font-semibold text-white transition-colors hover:bg-[#772ce8] disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            {pinActionBusy ? "Applying..." : "Apply"}
+                            {pinActionBusy ? i18n.t("chat.applying") : i18n.t("chat.apply")}
                           </button>
                         </div>
                       ) : null}
@@ -642,7 +645,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                             className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[#EFEFF1] transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             <EyeOffIcon className="h-4 w-4 flex-shrink-0" />
-                            <span>Hide for yourself</span>
+                            <span>{i18n.t("chat.hideForYourself")}</span>
                           </button>
                         </div>
                       ) : null}
@@ -662,7 +665,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                             className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[#ff8280] transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             <EyeOffIcon className="h-4 w-4 flex-shrink-0" />
-                            <span>Unpin message</span>
+                            <span>{i18n.t("chat.unpinMessage")}</span>
                           </button>
                         </div>
                       ) : null}
@@ -674,7 +677,11 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                 type="button"
                 onClick={onExpandToggle}
                 className={ICON_BUTTON_CLASS}
-                aria-label={isExpanded ? "Collapse pinned message" : "Expand pinned message"}
+                aria-label={
+                  isExpanded
+                    ? i18n.t("chat.collapsePinnedMessage")
+                    : i18n.t("chat.expandPinnedMessage")
+                }
               >
                 <BsChevronDown
                   data-testid="pinned-message-expand-icon"
@@ -749,7 +756,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
               />
               {pin.sentAt ? (
                 <span className="text-[#E6E6E6]" data-testid="pinned-message-timestamp">
-                  sent at {formatSentAt(pin.sentAt)}
+                  {i18n.t("chat.sentAtValue0", { value0: formatSentAt(pin.sentAt) })}
                 </span>
               ) : null}
             </div>
@@ -765,7 +772,7 @@ export const PinnedMessageBanner: React.FC<PinnedMessageBannerProps> = ({
                 >
                   <div
                     role="progressbar"
-                    aria-label="Pinned message duration"
+                    aria-label={i18n.t("chat.pinnedMessageDuration")}
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={progressAriaValue}

@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import type React from "react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -97,13 +98,15 @@ export const BadgeTooltip: React.FC<BadgeTooltipProps> = ({ show, mousePos, badg
 
         {/* Platform Badge - Consistent with EmoteTooltip style */}
         <div className="w-full bg-[#1e1f23] border border-white/10 rounded px-4 py-1.5 text-center">
-          <span className="text-[#b0b3b8] font-bold text-sm">{badgeInfo.platform || "System"}</span>
+          <span className="text-[#b0b3b8] font-bold text-sm">
+            {badgeInfo.platform || i18n.t("chat.system")}
+          </span>
         </div>
       </div>
 
       {badgeInfo.owner && (
         <span className="mt-3 text-xs text-neutral-500">
-          Created by{" "}
+          {i18n.t("chat.createdBy")}{" "}
           <span className="text-white hover:underline cursor-pointer">
             {badgeInfo.owner.username}
           </span>

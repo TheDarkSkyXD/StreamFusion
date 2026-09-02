@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 /**
  * Viewer-side prediction widget — a read-only mirror of Twitch's community-
  * highlight prediction card. Captured live from https://www.twitch.tv/adinross
@@ -173,14 +174,14 @@ const CollapsedView: React.FC<CollapsedProps> = ({
                 <button
                   type="button"
                   onClick={onDismiss}
-                  aria-label="Dismiss prediction"
+                  aria-label={i18n.t("chat.dismissPrediction")}
                   className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-300 transition-colors hover:bg-white/10"
                   data-testid="prediction-dismiss"
                 >
                   {VerticalDotsIcon}
                 </button>
               </TooltipTrigger>
-              <TooltipContent>Dismiss</TooltipContent>
+              <TooltipContent>{i18n.t("chat.dismiss")}</TooltipContent>
             </Tooltip>
           )}
         </div>
@@ -194,7 +195,7 @@ const CollapsedView: React.FC<CollapsedProps> = ({
           windowMs={windowMs}
         />
       )}
-      {isLocked && <span className="sr-only">Locked</span>}
+      {isLocked && <span className="sr-only">{i18n.t("chat.locked")}</span>}
     </div>
   );
 };
@@ -253,7 +254,7 @@ function detailTeaser(
       <span className="inline-flex items-center gap-1.5">
         <span className="inline-block h-2 w-2 rounded-full bg-[#53FC18]" aria-hidden />
         <span className="text-white">{short(a.totalAmount)}</span>
-        <span className="text-zinc-500">vs</span>
+        <span className="text-zinc-500">{i18n.t("chat.vs")}</span>
         <span className="inline-block h-2 w-2 rounded-full bg-[#ff4f8c]" aria-hidden />
         <span className="text-white">{short(b.totalAmount)}</span>
       </span>
@@ -267,8 +268,16 @@ function detailTeaser(
       <span className="inline-flex items-center gap-1.5">
         <ChannelPointsIcon size={14} />
         <span className="text-white">{short(total)}</span>
-        <span>go to {topUser}</span>
-        {others > 0 && <span>and {others} others</span>}
+        <span>
+          {i18n.t("chat.goTo")}
+          {topUser}
+        </span>
+        {others > 0 && (
+          <span>
+            {i18n.t("chat.and")}
+            {others} {i18n.t("chat.others")}
+          </span>
+        )}
       </span>
     );
   }
@@ -276,7 +285,7 @@ function detailTeaser(
     <span className="inline-flex items-center gap-1.5">
       <ChannelPointsIcon size={14} />
       <span className="text-white">{short(total)}</span>
-      <span>contributed</span>
+      <span>{i18n.t("chat.contributed")}</span>
     </span>
   );
 }
@@ -286,7 +295,8 @@ function endedTeaser(prediction: UnifiedPrediction, total: number): React.ReactN
   if (winner) {
     return (
       <span>
-        Winner: <span className="text-white">{winner.title}</span> · {short(total)} pool
+        {i18n.t("chat.winner")}
+        <span className="text-white">{winner.title}</span> · {short(total)} {i18n.t("chat.pool")}
       </span>
     );
   }
@@ -348,7 +358,7 @@ const ActivePanel: React.FC<ActivePanelProps> = ({
       {isLocked && (
         <div className="mt-3">
           <span className="inline-block rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
-            Voting locked
+            {i18n.t("chat.votingLocked")}
           </span>
         </div>
       )}
@@ -385,7 +395,7 @@ const ActiveOutcomeRow: React.FC<{
         {isWinner && (
           <span
             className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"
-            aria-label="Winner"
+            aria-label={i18n.t("chat.winner2")}
           >
             <CheckIcon size={10} />
           </span>
@@ -434,8 +444,8 @@ const EndedPanel: React.FC<{
 
       <div className="mt-2 text-[12px] text-[#adadb8]">
         {prediction.status === "CANCELED"
-          ? "Prediction canceled — refunded"
-          : `Prediction ended ${endedAtLabel}`}
+          ? i18n.t("chat.predictionCanceledRefunded")
+          : i18n.t("chat.predictionEndedValue0", { value0: endedAtLabel })}
       </div>
 
       {/* All outcomes in declaration order — supports 3+ results like twitch.tv. */}
@@ -481,7 +491,7 @@ const EndedOutcomeRow: React.FC<{
           <span className="flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-white text-[#0e0e10]">
             <CheckIcon size={11} />
           </span>
-          Winner
+          {i18n.t("chat.winner2")}
         </div>
       )}
       <div className="flex items-center justify-between gap-2">
@@ -542,7 +552,7 @@ const ExpandedHeader: React.FC<{
       <button
         type="button"
         onClick={onCollapse}
-        aria-label="Collapse prediction panel"
+        aria-label={i18n.t("chat.collapsePredictionPanel")}
         className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[#adadb8] transition-colors hover:bg-white/10 hover:text-white"
       >
         <svg
@@ -575,20 +585,20 @@ const ExpandedHeader: React.FC<{
               <button
                 type="button"
                 onClick={onDismiss}
-                aria-label="Dismiss prediction"
+                aria-label={i18n.t("chat.dismissPrediction")}
                 className="flex h-8 w-8 items-center justify-center rounded-full text-[#adadb8] transition-colors hover:bg-white/10 hover:text-white"
                 data-testid="prediction-dismiss-expanded"
               >
                 {VerticalDotsIcon}
               </button>
             </TooltipTrigger>
-            <TooltipContent>Dismiss</TooltipContent>
+            <TooltipContent>{i18n.t("chat.dismiss")}</TooltipContent>
           </Tooltip>
         )}
         <button
           type="button"
           onClick={onCollapse}
-          aria-label="Close prediction panel"
+          aria-label={i18n.t("chat.closePredictionPanel")}
           className="flex h-8 w-8 items-center justify-center rounded-full text-[#adadb8] transition-colors hover:bg-white/10 hover:text-white"
         >
           <svg

@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import type React from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import type { Emote, EmoteProvider } from "../../../../../backend/services/emotes/emote-types";
@@ -172,15 +173,15 @@ export const ContextualEmoteRow: React.FC<ContextualEmoteRowProps> = ({
         {announcement}
       </span>
       {isLoading ? (
-        <span className="text-xs text-neutral-400">Loading emotes…</span>
+        <span className="text-xs text-neutral-400">{i18n.t("chat.loadingEmotes")}</span>
       ) : suggestions.length === 0 ? (
-        <span className="text-xs text-neutral-400">No matching emotes</span>
+        <span className="text-xs text-neutral-400">{i18n.t("chat.noMatchingEmotes")}</span>
       ) : (
         <div
           className="flex h-full min-w-0 items-center gap-0.5 overflow-hidden"
           data-testid="contextual-emote-results"
           role="listbox"
-          aria-label={`Emotes matching ${match.query}`}
+          aria-label={i18n.t("chat.emotesMatchingValue0", { value0: match.query })}
         >
           {suggestions.map((emote, index) => {
             const identity = `${emote.provider}:${emote.id}`;

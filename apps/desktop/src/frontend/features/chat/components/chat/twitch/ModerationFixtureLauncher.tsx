@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import { selectedModerationDevelopmentFixture } from "@/dev-relay/moderation-browser-fixtures";
 
 export function ModerationFixtureLauncher() {
@@ -9,8 +10,11 @@ export function ModerationFixtureLauncher() {
       className="shrink-0 border-b border-neutral-700 bg-neutral-900 px-4 py-2 text-xs text-neutral-300"
       data-testid="moderation-fixture-launcher"
     >
-      <span className="font-semibold text-white">Development moderation state: {fixture}.</span>{" "}
-      Select a real chat user to test moderation.
+      <span className="font-semibold text-white">
+        {i18n.t("chat.developmentModerationState")}
+        {fixture}.
+      </span>{" "}
+      {i18n.t("chat.selectARealChatUserToTestModeration")}
     </div>
   );
 }

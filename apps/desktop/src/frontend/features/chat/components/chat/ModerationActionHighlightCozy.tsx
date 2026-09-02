@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import { Ban } from "lucide-react";
 import type React from "react";
 import { memo } from "react";
@@ -29,7 +30,8 @@ export const ModerationActionHighlightCozy: React.FC<ModerationActionHighlightCo
               data-testid="moderation-deleted-messages"
             >
               <div className="mb-1 align-bottom text-xs font-semibold uppercase tracking-normal text-[#adadb8]">
-                Deleted messages ({deletedMessageCount})
+                {i18n.t("chat.deletedMessages")}
+                {deletedMessageCount})
               </div>
               {deletedMessages}
             </div>

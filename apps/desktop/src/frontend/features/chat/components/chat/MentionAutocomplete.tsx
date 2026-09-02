@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 /**
  * MentionAutocomplete Component
  *
@@ -155,14 +156,16 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
       ref={containerRef}
       className="absolute bottom-full left-0 mb-1 w-full max-w-none overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] shadow-xl z-50"
       role="listbox"
-      aria-label="User suggestions"
+      aria-label={i18n.t("chat.userSuggestions")}
     >
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-[var(--color-border)] px-3 py-1.5 text-xs text-neutral-500">
         <span className="min-w-0 break-words [overflow-wrap:anywhere]">
-          Users matching &quot;{match.query}&quot;
+          {i18n.t("chat.usersMatchingQuot")}
+          {match.query}
+          {i18n.t("chat.quot")}
         </span>
-        <span className="text-neutral-600">↑↓ to navigate, Tab/Enter to select</span>
+        <span className="text-neutral-600">{i18n.t("chat.toNavigateTabEnterToSelect")}</span>
       </div>
 
       {/* Suggestions */}

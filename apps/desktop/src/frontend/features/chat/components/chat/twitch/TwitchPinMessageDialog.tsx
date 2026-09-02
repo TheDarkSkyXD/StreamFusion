@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 /**
  * TwitchPinMessageDialog
  *
@@ -38,11 +39,11 @@ type DurationSelection = DurationOption["value"] | typeof CUSTOM_DURATION;
 type CustomDurationUnit = "seconds" | "minutes";
 
 const DURATION_OPTIONS: DurationOption[] = [
-  { label: "1 minute", value: 60 },
-  { label: "5 minutes", value: 5 * 60 },
-  { label: "15 minutes", value: 15 * 60 },
-  { label: "30 minutes", value: 30 * 60 },
-  { label: "No expiry", value: null },
+  { label: i18n.t("chat.1Minute"), value: 60 },
+  { label: i18n.t("chat.5Minutes"), value: 5 * 60 },
+  { label: i18n.t("chat.15Minutes"), value: 15 * 60 },
+  { label: i18n.t("chat.30Minutes"), value: 30 * 60 },
+  { label: i18n.t("chat.noExpiry"), value: null },
 ];
 
 const DEFAULT_DURATION_SECONDS = 30 * 60;
@@ -215,11 +216,12 @@ export function TwitchPinMessageDialog({
         <DialogHeader className="pb-4 border-b border-[var(--color-border)]">
           <DialogTitle className="flex items-center gap-2 text-xl text-white">
             <LuPin className="w-5 h-5 text-[var(--color-storm-primary)]" />
-            Pin message
+            {i18n.t("chat.pinMessage")}
           </DialogTitle>
           <DialogDescription className="text-[var(--color-foreground-muted)] pt-2">
-            Choose how long this message should stay pinned. Anyone in chat will see it until you
-            unpin it or it expires.
+            {i18n.t(
+              "chat.chooseHowLongThisMessageShouldStayPinnedAnyoneInChatWillSeeItUntilYouUnpinItOrItExpires"
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -257,7 +259,9 @@ export function TwitchPinMessageDialog({
           </div>
 
           <fieldset className="space-y-2">
-            <legend className="text-sm font-medium text-[#EFEFF1] mb-2">Duration</legend>
+            <legend className="text-sm font-medium text-[#EFEFF1] mb-2">
+              {i18n.t("chat.duration")}
+            </legend>
             {DURATION_OPTIONS.map((opt) => (
               <label
                 key={opt.label}
@@ -281,7 +285,7 @@ export function TwitchPinMessageDialog({
                 onChange={() => setSelected(CUSTOM_DURATION)}
                 className="cursor-pointer accent-[#9146FF]"
               />
-              Custom
+              {i18n.t("chat.custom")}
             </label>
           </fieldset>
 
@@ -292,20 +296,20 @@ export function TwitchPinMessageDialog({
                 min={1}
                 step={1}
                 inputMode="numeric"
-                aria-label="Custom pin duration"
+                aria-label={i18n.t("chat.customPinDuration")}
                 value={customAmount}
                 onChange={(event) => setCustomAmount(event.target.value)}
                 onFocus={() => setSelected(CUSTOM_DURATION)}
                 className="h-9 min-w-0 flex-1 rounded border border-[var(--color-border)] bg-[#0A0A0D] px-3 text-sm text-[#EFEFF1] outline-none focus:border-[#9146FF]"
               />
               <select
-                aria-label="Custom pin duration unit"
+                aria-label={i18n.t("chat.customPinDurationUnit")}
                 value={customUnit}
                 onChange={(event) => setCustomUnit(event.target.value as CustomDurationUnit)}
                 className="h-9 rounded border border-[var(--color-border)] bg-[#0A0A0D] px-2 text-sm text-[#EFEFF1] outline-none focus:border-[#9146FF]"
               >
-                <option value="seconds">secs</option>
-                <option value="minutes">mins</option>
+                <option value="seconds">{i18n.t("chat.secs")}</option>
+                <option value="minutes">{i18n.t("chat.mins")}</option>
               </select>
             </div>
           ) : null}
@@ -313,14 +317,14 @@ export function TwitchPinMessageDialog({
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-            Cancel
+            {i18n.t("chat.cancel")}
           </Button>
           <Button
             onClick={handleConfirm}
             disabled={busy || !canConfirm}
             className="bg-[#9146FF] hover:bg-[#9146FF]/90 text-white"
           >
-            {busy ? "Pinning…" : "Pin message"}
+            {busy ? i18n.t("chat.pinning") : i18n.t("chat.pinMessage")}
           </Button>
         </DialogFooter>
       </DialogContent>

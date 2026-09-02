@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import { Ban, Check, Clock3, Trash2, TriangleAlert } from "lucide-react";
 import type React from "react";
 import { memo, useMemo, useState } from "react";
@@ -557,7 +558,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
           setId: badge.id,
           version: "1",
           imageUrl: badge.imageUrl,
-          title: `${COSMETIC_PROVIDER_LABEL[badge.provider]}: ${badge.title}`,
+          title: i18n.t("chat.value0Value1", {
+            value0: COSMETIC_PROVIDER_LABEL[badge.provider],
+            value1: badge.title,
+          }),
           backgroundColor: badge.color,
         }));
     }, [
@@ -649,7 +653,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
             />
           </span>
           <span className="font-bold text-white"> {actionPhrase}</span>
-          <span className="text-[#adadb8]"> by </span>
+          <span className="text-[#adadb8]"> {i18n.t("chat.by")}</span>
           {moderatorUser ? (
             <span className="inline-flex min-w-0 max-w-full items-center gap-1 align-middle">
               {renderBadgeList(moderatorBadges, message.platform)}
@@ -667,7 +671,13 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
           ) : (
             <span className="font-medium text-[#f4f4f5]">{moderatorUsername}</span>
           )}
-          {moderationTimestamp && <span className="text-[#adadb8]"> at {moderationTimestamp}</span>}
+          {moderationTimestamp && (
+            <span className="text-[#adadb8]">
+              {" "}
+              {i18n.t("chat.at")}
+              {moderationTimestamp}
+            </span>
+          )}
         </div>
       );
       const deletedMessageCount = retainedDeletedMessages?.length ?? visibleDeletedMessages.length;
@@ -789,7 +799,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
       }
       return (
         <div className="px-4 py-1 text-sm text-foreground-muted italic opacity-50" style={style}>
-          Message deleted
+          {i18n.t("chat.messageDeleted")}
         </div>
       );
     }
@@ -892,7 +902,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
                     type="button"
                     onClick={() => inlineBanAction(message)}
                     className={INLINE_MOD_BUTTON_CLASS}
-                    aria-label="Ban user"
+                    aria-label={i18n.t("chat.banUser")}
                   >
                     <Ban className="h-4 w-4" strokeWidth={2.75} />
                   </button>
@@ -904,7 +914,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
                     type="button"
                     onClick={() => inlineTimeoutAction(message)}
                     className={INLINE_MOD_BUTTON_CLASS}
-                    aria-label="Timeout user"
+                    aria-label={i18n.t("chat.timeoutUser")}
                   >
                     <Clock3 className="h-4 w-4" strokeWidth={2.75} />
                   </button>
@@ -916,7 +926,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
                     type="button"
                     onClick={() => inlineWarnAction(message)}
                     className={INLINE_MOD_BUTTON_CLASS}
-                    aria-label="Warn user"
+                    aria-label={i18n.t("chat.warnUser")}
                   >
                     <TriangleAlert className="h-4 w-4" strokeWidth={2.75} />
                   </button>
@@ -928,7 +938,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
                     type="button"
                     onClick={() => inlineUnbanAction(message)}
                     className={INLINE_MOD_BUTTON_CLASS}
-                    aria-label="Unban user"
+                    aria-label={i18n.t("chat.unbanUser")}
                   >
                     <Check className="h-4 w-4" strokeWidth={3} />
                   </button>
@@ -940,7 +950,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
                     type="button"
                     onClick={() => inlineDeleteAction(message)}
                     className={INLINE_MOD_BUTTON_CLASS}
-                    aria-label="Delete message"
+                    aria-label={i18n.t("chat.deleteMessage")}
                   >
                     <Trash2 className="h-4 w-4" strokeWidth={2.75} />
                   </button>

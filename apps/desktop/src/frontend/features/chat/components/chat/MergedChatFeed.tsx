@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import { memo, useCallback, useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 
@@ -36,7 +37,7 @@ export const MergedChatFeed = memo(function MergedChatFeed({
           type="button"
           onClick={() => onSelectChannel(entry.channelKey)}
           className="mx-2 mt-1 inline-flex h-5 max-w-[calc(100%-1rem)] items-center gap-1.5 rounded px-1.5 text-[11px] font-semibold text-[var(--color-foreground-muted)] hover:bg-[var(--color-background-tertiary)] hover:text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
-          aria-label={`Open ${entry.channelLabel} chat`}
+          aria-label={i18n.t("chat.openValue0Chat", { value0: entry.channelLabel })}
         >
           <span
             className="h-1.5 w-1.5 shrink-0 rounded-full"
@@ -54,7 +55,7 @@ export const MergedChatFeed = memo(function MergedChatFeed({
   if (messages.length === 0) {
     return (
       <div className="flex h-full min-h-0 items-center justify-center px-5 text-center text-sm text-[var(--color-foreground-muted)]">
-        Messages from every open stream will appear here.
+        {i18n.t("chat.messagesFromEveryOpenStreamWillAppearHere")}
       </div>
     );
   }

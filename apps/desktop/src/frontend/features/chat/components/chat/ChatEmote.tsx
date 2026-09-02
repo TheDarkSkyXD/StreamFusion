@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import type React from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Emote } from "../../../../../backend/services/emotes/emote-types";
@@ -259,7 +260,7 @@ export const ChatEmote: React.FC<ChatEmoteProps> = memo(
           type="button"
           data-zero-width={renderAsOverlay ? "true" : undefined}
           style={triggerStyle}
-          aria-label={`Show ${name} emote details`}
+          aria-label={i18n.t("chat.showValue0EmoteDetails", { value0: name })}
           className="inline-block mx-0.5 cursor-pointer border-0 bg-transparent p-0 align-middle leading-none"
           onMouseEnter={handleMouseEnter}
           onMouseMove={handleMouseMove}

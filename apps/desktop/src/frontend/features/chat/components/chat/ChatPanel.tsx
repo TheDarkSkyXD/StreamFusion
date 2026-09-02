@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import type React from "react";
 import { lazy, memo, Suspense, useEffect } from "react";
 
@@ -95,7 +96,7 @@ function ChatPanelLoading() {
       className="flex h-full min-h-48 items-center justify-center text-sm text-[var(--color-foreground-muted)]"
       role="status"
     >
-      Loading chat…
+      {i18n.t("chat.loadingChat")}
     </div>
   );
 }

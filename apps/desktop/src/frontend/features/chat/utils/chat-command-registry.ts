@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import type { TwitchAppScope } from "@shared/auth-types";
 import type { ChatPlatform } from "@shared/chat-types";
 import type { TwitchSlashCommandAction } from "@shared/twitch-api-types";
@@ -315,7 +316,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "mods",
     usage: "/mods",
-    description: "Show this channel's moderators on Twitch",
+    description: i18n.t("chat.showThisChannelSModeratorsOnTwitch"),
     compile: (args) => {
       noArguments(args, "mods");
       return { kind: "channel-members", list: "moderators" };
@@ -324,7 +325,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "vips",
     usage: "/vips",
-    description: "Show this channel's VIPs on Twitch",
+    description: i18n.t("chat.showThisChannelSVIPsOnTwitch"),
     compile: (args) => {
       noArguments(args, "vips");
       return { kind: "channel-members", list: "vips" };
@@ -333,7 +334,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "color",
     usage: "/color [color]",
-    description: "Change your Twitch username color",
+    description: i18n.t("chat.changeYourTwitchUsernameColor"),
     scopes: ["user:manage:chat_color"],
     compile: (args) => ({
       kind: "api",
@@ -343,7 +344,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "w",
     usage: "/w [username] [message]",
-    description: "Whisper another Twitch user",
+    description: i18n.t("chat.whisperAnotherTwitchUser"),
     scopes: ["user:manage:whispers"],
     compile: (args) => {
       const target = requiredUsername(args, "w");
@@ -360,21 +361,21 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "block",
     usage: "/block [username]",
-    description: "Block a Twitch user",
+    description: i18n.t("chat.blockATwitchUser"),
     scopes: ["user:manage:blocked_users"],
     compile: apiTargetCommand("block"),
   }),
   twitchCommand({
     name: "unblock",
     usage: "/unblock [username]",
-    description: "Unblock a Twitch user",
+    description: i18n.t("chat.unblockATwitchUser"),
     scopes: ["user:manage:blocked_users"],
     compile: apiTargetCommand("unblock"),
   }),
   twitchCommand({
     name: "disconnect",
     usage: "/disconnect",
-    description: "Leave this channel's chat",
+    description: i18n.t("chat.leaveThisChannelSChat"),
     compile: (args) => {
       noArguments(args, "disconnect");
       return { kind: "disconnect" };
@@ -383,7 +384,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "gift",
     usage: "/gift [quantity]",
-    description: "Show gift subscription availability",
+    description: i18n.t("chat.showGiftSubscriptionAvailability"),
     compile: (args) => {
       const [quantity, extra] = argumentsList(args);
       if (
@@ -394,26 +395,26 @@ const TWITCH_COMMAND_CATALOG = [
       }
       return {
         kind: "local-notice",
-        message: "Twitch handles gift purchases in its secure subscription flow.",
+        message: i18n.t("chat.twitchHandlesGiftPurchasesInItsSecureSubscriptionFlow"),
       };
     },
   }),
   twitchCommand({
     name: "vote",
     usage: "/vote",
-    description: "Show poll voting availability",
+    description: i18n.t("chat.showPollVotingAvailability"),
     compile: (args) => {
       noArguments(args, "vote");
       return {
         kind: "local-notice",
-        message: "Twitch does not provide third-party apps an API for casting poll votes.",
+        message: i18n.t("chat.twitchDoesNotProvideThirdPartyAppsAnAPIForCastingPollVotes"),
       };
     },
   }),
   twitchCommand({
     name: "timeout",
     usage: "/timeout [username] [seconds] [reason]",
-    description: "Temporarily timeout a user",
+    description: i18n.t("chat.temporarilyTimeoutAUser"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:banned_users"],
     compile: (args) => {
@@ -439,7 +440,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "ban",
     usage: "/ban [username] [reason]",
-    description: "Permanently ban a user",
+    description: i18n.t("chat.permanentlyBanAUser"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:banned_users"],
     compile: (args) => {
@@ -458,7 +459,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "unban",
     usage: "/unban [username]",
-    description: "Remove a channel ban or timeout",
+    description: i18n.t("chat.removeAChannelBanOrTimeout"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:banned_users"],
     compile: apiTargetCommand("unban"),
@@ -466,7 +467,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "clear",
     usage: "/clear",
-    description: "Clear the channel's chat history",
+    description: i18n.t("chat.clearTheChannelSChatHistory"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:chat_messages"],
     compile: (args) => {
@@ -477,7 +478,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "followers",
     usage: "/followers [30m|2h|2d|1w|3mo]",
-    description: "Enable followers-only mode",
+    description: i18n.t("chat.enableFollowersOnlyMode"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:chat_settings"],
     compile: (args) => {
@@ -495,7 +496,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "followersoff",
     usage: "/followersoff",
-    description: "Disable followers-only mode",
+    description: i18n.t("chat.disableFollowersOnlyMode"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:chat_settings"],
     compile: (args) => {
@@ -509,7 +510,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "slow",
     usage: "/slow [seconds]",
-    description: "Enable slow mode",
+    description: i18n.t("chat.enableSlowMode"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:chat_settings"],
     compile: (args) => {
@@ -535,7 +536,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "slowoff",
     usage: "/slowoff",
-    description: "Disable slow mode",
+    description: i18n.t("chat.disableSlowMode"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:chat_settings"],
     compile: (args) => {
@@ -574,7 +575,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "pin",
     usage: "/pin [description]",
-    description: "Send and pin a chat message",
+    description: i18n.t("chat.sendAndPinAChatMessage"),
     roles: moderatorRoles,
     scopes: ["user:write:chat", "moderator:manage:chat_messages"],
     compile: (args) => ({
@@ -585,7 +586,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "announce",
     usage: "/announce [description]",
-    description: "Send a highlighted announcement",
+    description: i18n.t("chat.sendAHighlightedAnnouncement"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:announcements"],
     compile: (args) => ({
@@ -596,7 +597,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "shoutout",
     usage: "/shoutout [username]",
-    description: "Shout out another channel",
+    description: i18n.t("chat.shoutOutAnotherChannel"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:shoutouts"],
     compile: apiTargetCommand("shoutout"),
@@ -610,7 +611,7 @@ const TWITCH_COMMAND_CATALOG = [
     twitchCommand({
       name,
       usage: `/${name} [username]`,
-      description: `Set a user's ${name} status`,
+      description: i18n.t("chat.setAUserSValue0Status", { value0: name }),
       roles: moderatorRoles,
       scopes: ["moderator:manage:suspicious_users"],
       compile: (args) => ({
@@ -627,14 +628,15 @@ const TWITCH_COMMAND_CATALOG = [
     twitchCommand({
       name,
       usage: `/${name} [username]`,
-      description: "Remove a user's suspicious-user treatment",
+      description: i18n.t("chat.removeAUserSSuspiciousUserTreatment"),
       roles: moderatorRoles,
       compile: (args) => {
         requiredUsername(args, name);
         return {
           kind: "local-notice",
-          message:
-            "Twitch's public removal endpoint clears either suspicious-user treatment, so StreamFusion does not run this command from chat.",
+          message: i18n.t(
+            "chat.twitchSPublicRemovalEndpointClearsEitherSuspiciousUserTreatmentSoStreamFusionDoesNotRunThisCommandFromChat"
+          ),
         };
       },
     })
@@ -642,20 +644,20 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "user",
     usage: "/user [username]",
-    description: "Show Twitch user-card availability",
+    description: i18n.t("chat.showTwitchUserCardAvailability"),
     roles: moderatorRoles,
     compile: (args) => {
       requiredUsername(args, "user");
       return {
         kind: "local-notice",
-        message: "Twitch keeps the complete viewer card and moderation history in its own UI.",
+        message: i18n.t("chat.twitchKeepsTheCompleteViewerCardAndModerationHistoryInItsOwnUI"),
       };
     },
   }),
   twitchCommand({
     name: "requests",
     usage: "/requests",
-    description: "Show Channel Points request availability",
+    description: i18n.t("chat.showChannelPointsRequestAvailability"),
     roles: moderatorRoles,
     compile: localTwitchNotice(
       "Twitch exposes the native Channel Points request command in its own chat."
@@ -672,14 +674,17 @@ const TWITCH_COMMAND_CATALOG = [
     twitchCommand({
       name,
       usage: `/${name}`,
-      description: `Open ${section} management in StreamFusion`,
+      description: i18n.t("chat.openValue0ManagementInStreamFusion", { value0: section }),
       roles: moderatorRoles,
       compile: (_args, role) =>
         role === "broadcaster"
           ? { kind: "engagement", section }
           : {
               kind: "local-notice",
-              message: `Twitch's public ${section} mutations require the broadcaster's token, so StreamFusion does not run this moderator command from chat.`,
+              message: i18n.t(
+                "chat.twitchSPublicValue0MutationsRequireTheBroadcasterSTokenSoStreamFusionDoesNotRunThisModeratorCommandFromChat",
+                { value0: section }
+              ),
             },
     })
   ),
@@ -703,21 +708,21 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "rules",
     usage: "/rules",
-    description: "Show this channel's chat rules",
+    description: i18n.t("chat.showThisChannelSChatRules"),
     roles: broadcasterRoles,
     compile: localTwitchNotice("Twitch does not expose channel rules through its public API."),
   }),
   twitchCommand({
     name: "sharedchat",
     usage: "/sharedchat",
-    description: "Show Shared Chat management availability",
+    description: i18n.t("chat.showSharedChatManagementAvailability"),
     roles: broadcasterRoles,
     compile: localTwitchNotice("Twitch exposes Shared Chat setup only in its own Stream Manager."),
   }),
   twitchCommand({
     name: "commercial",
     usage: "/commercial [30|60|90|120|150|180]",
-    description: "Run a commercial break",
+    description: i18n.t("chat.runACommercialBreak"),
     roles: broadcasterRoles,
     scopes: ["channel:edit:commercial"],
     compile: (args) => {
@@ -738,14 +743,14 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "goal",
     usage: "/goal",
-    description: "Show creator goal management availability",
+    description: i18n.t("chat.showCreatorGoalManagementAvailability"),
     roles: broadcasterRoles,
     compile: localTwitchNotice("Twitch does not provide a public API for changing creator goals."),
   }),
   twitchCommand({
     name: "raid",
     usage: "/raid [channel]",
-    description: "Start a raid",
+    description: i18n.t("chat.startARaid"),
     roles: broadcasterRoles,
     scopes: ["channel:manage:raids"],
     compile: (args) => ({
@@ -756,7 +761,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "unraid",
     usage: "/unraid",
-    description: "Cancel a pending raid",
+    description: i18n.t("chat.cancelAPendingRaid"),
     roles: broadcasterRoles,
     scopes: ["channel:manage:raids"],
     compile: (args) => {
@@ -767,7 +772,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "marker",
     usage: "/marker [description]",
-    description: "Create a stream marker",
+    description: i18n.t("chat.createAStreamMarker"),
     roles: broadcasterRoles,
     scopes: ["channel:manage:broadcast"],
     compile: (args) => {
@@ -787,14 +792,14 @@ const TWITCH_LOCAL_COMMANDS = [
   twitchCommand({
     name: "help",
     usage: "/help [command]",
-    description: "Show the commands available to you",
+    description: i18n.t("chat.showTheCommandsAvailableToYou"),
     execution: "local",
     compile: () => ({ kind: "help" }),
   }),
   twitchCommand({
     name: "me",
     usage: "/me [message]",
-    description: "Send an action message",
+    description: i18n.t("chat.sendAnActionMessage"),
     scopes: ["chat:edit"],
     execution: "action-message",
     compile: (args) => ({ kind: "irc-action", message: requiredMessage(args, "me") }),
@@ -805,14 +810,14 @@ const KICK_LOCAL_COMMANDS = [
   kickCommand({
     name: "help",
     usage: "/help [command]",
-    description: "Show the commands available to you",
+    description: i18n.t("chat.showTheCommandsAvailableToYou"),
     execution: "local",
     compile: () => ({ kind: "help" }),
   }),
   kickCommand({
     name: "me",
     usage: "/me [message]",
-    description: "Send an action message",
+    description: i18n.t("chat.sendAnActionMessage"),
     execution: "action-message",
     compile: (args) => ({ kind: "action-message", message: requiredMessage(args, "me") }),
   }),
@@ -822,7 +827,7 @@ const KICK_COMMAND_CATALOG = [
   kickCommand({
     name: "ban",
     usage: "/ban [username] [reason]",
-    description: "Permanently ban a user",
+    description: i18n.t("chat.permanentlyBanAUser"),
     roles: moderatorRoles,
     compile: (args) => {
       const target = requiredUsername(args, "ban");
@@ -838,7 +843,7 @@ const KICK_COMMAND_CATALOG = [
   kickCommand({
     name: "unban",
     usage: "/unban [username]",
-    description: "Remove a channel ban or timeout",
+    description: i18n.t("chat.removeAChannelBanOrTimeout"),
     roles: moderatorRoles,
     compile: (args) => {
       const target = requiredUsername(args, "unban");
@@ -849,7 +854,7 @@ const KICK_COMMAND_CATALOG = [
   kickCommand({
     name: "timeout",
     usage: "/timeout [username] [seconds] [reason]",
-    description: "Temporarily prevent a user from chatting",
+    description: i18n.t("chat.temporarilyPreventAUserFromChatting"),
     roles: moderatorRoles,
     compile: (args) => {
       const target = requiredUsername(args, "timeout");
@@ -867,7 +872,7 @@ const KICK_COMMAND_CATALOG = [
   kickCommand({
     name: "clear",
     usage: "/clear",
-    description: "Clear all current chat messages",
+    description: i18n.t("chat.clearAllCurrentChatMessages"),
     roles: moderatorRoles,
     compile: (args) => {
       noArguments(args, "clear");
@@ -899,7 +904,7 @@ const KICK_COMMAND_CATALOG = [
   kickCommand({
     name: "user",
     usage: "/user [username]",
-    description: "Show Kick user information availability",
+    description: i18n.t("chat.showKickUserInformationAvailability"),
     roles: moderatorRoles,
     compile: (args) => {
       const target = requiredUsername(args, "user");
@@ -912,7 +917,7 @@ const KICK_COMMAND_CATALOG = [
   kickCommand({
     name: "slow",
     usage: "/slow [on|off] [seconds]",
-    description: "Enable or disable slow mode",
+    description: i18n.t("chat.enableOrDisableSlowMode"),
     roles: moderatorRoles,
     compile: (args) => {
       const toggle = kickToggle(args, "slow");
@@ -940,7 +945,7 @@ const KICK_COMMAND_CATALOG = [
     kickCommand({
       name,
       usage: `/${name} [on|off]`,
-      description: `Enable or disable ${mode} mode`,
+      description: i18n.t("chat.enableOrDisableValue0Mode", { value0: mode }),
       roles: moderatorRoles,
       compile: (args) => {
         const toggle = kickToggle(args, name);
@@ -954,7 +959,7 @@ const KICK_COMMAND_CATALOG = [
   kickCommand({
     name: "subonly",
     usage: "/subonly [on|off]",
-    description: "Enable or disable subscribers-only mode",
+    description: i18n.t("chat.enableOrDisableSubscribersOnlyMode"),
     roles: broadcasterRoles,
     compile: (args) => {
       const toggle = kickToggle(args, "subonly");
@@ -967,7 +972,7 @@ const KICK_COMMAND_CATALOG = [
   kickCommand({
     name: "title",
     usage: "/title [new title]",
-    description: "Set the current stream title",
+    description: i18n.t("chat.setTheCurrentStreamTitle"),
     roles: moderatorRoles,
     compile: (args) => {
       requiredMessage(args, "title");
@@ -979,7 +984,7 @@ const KICK_COMMAND_CATALOG = [
   kickCommand({
     name: "category",
     usage: "/category",
-    description: "Show stream category controls availability",
+    description: i18n.t("chat.showStreamCategoryControlsAvailability"),
     roles: moderatorRoles,
     compile: (args) => {
       noArguments(args, "category");
@@ -989,7 +994,7 @@ const KICK_COMMAND_CATALOG = [
   kickCommand({
     name: "raid",
     usage: "/raid",
-    description: "Show Kick raid controls availability",
+    description: i18n.t("chat.showKickRaidControlsAvailability"),
     roles: broadcasterRoles,
     compile: (args) => {
       noArguments(args, "raid");
@@ -1045,7 +1050,7 @@ const KICK_COMMAND_CATALOG = [
     kickCommand({
       name,
       usage: `/${name} [on|off]`,
-      description: `${description}, Partner channels only`,
+      description: i18n.t("chat.value0PartnerChannelsOnly", { value0: description }),
       roles: broadcasterRoles,
       requiresPartnerChannel: true,
       compile: (args) => {

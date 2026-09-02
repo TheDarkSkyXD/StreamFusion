@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import type React from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -142,11 +143,15 @@ export const EmoteTooltip: React.FC<EmoteTooltipProps> = ({ show, mousePos, emot
           <div className="flex flex-col items-center gap-0.5 -mt-1">
             {emote.owner && (
               <span className="text-[#b0b3b8] text-xs">
-                Made by <span className="text-white">{emote.owner.displayName}</span>
+                {i18n.t("chat.madeBy")}
+                <span className="text-white">{emote.owner.displayName}</span>
               </span>
             )}
             {addedOnLabel && (
-              <span className="text-[#b0b3b8] text-xs">Added on {addedOnLabel}</span>
+              <span className="text-[#b0b3b8] text-xs">
+                {i18n.t("chat.addedOn")}
+                {addedOnLabel}
+              </span>
             )}
           </div>
         )}

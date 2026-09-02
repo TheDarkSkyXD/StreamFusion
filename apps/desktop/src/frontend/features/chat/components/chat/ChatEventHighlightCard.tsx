@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import type React from "react";
 import { memo } from "react";
 import type { ChatPlatform } from "../../../../../shared/chat-types";
@@ -19,7 +20,7 @@ export const ChatEventHighlightCard: React.FC<ChatEventHighlightCardProps> = mem
 
     return (
       <div
-        aria-label={`${platformLabel} ${label} notice`}
+        aria-label={i18n.t("chat.value0Value1Notice", { value0: platformLabel, value1: label })}
         className="mx-1 my-1 min-w-0 max-w-full overflow-x-clip bg-[#1f1f24] text-[#efeff1]"
         data-testid={testId}
         style={{

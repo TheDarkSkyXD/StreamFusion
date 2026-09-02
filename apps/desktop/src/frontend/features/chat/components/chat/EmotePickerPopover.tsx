@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 /**
  * EmotePickerPopover Component
  *
@@ -211,7 +212,7 @@ function getSubSectionsForScope(
 ): SubSectionConfig[] {
   const frequent: SubSectionConfig = {
     id: "recent",
-    label: "Frequently Used",
+    label: i18n.t("chat.frequentlyUsed"),
     icon: <ClockIcon />,
     targetSectionId: "frequent",
   };
@@ -224,12 +225,17 @@ function getSubSectionsForScope(
   if (scope === "native" && platform === "twitch") {
     return [
       frequent,
-      { id: "global", label: "Global", icon: <GlobeIcon />, targetSectionId: "global" },
+      {
+        id: "global",
+        label: i18n.t("chat.global"),
+        icon: <GlobeIcon />,
+        targetSectionId: "global",
+      },
       ...(showNativeChannelSection
         ? [
             {
               id: "channel" as const,
-              label: "Channel",
+              label: i18n.t("chat.channel"),
               icon: channelIcon,
               targetSectionId: "channel",
             },
@@ -237,7 +243,7 @@ function getSubSectionsForScope(
         : []),
       ...userEmoteGroups.map((group) => ({
         id: group.subSectionId,
-        label: `${group.title}'s Emotes`,
+        label: i18n.t("chat.value0SEmotes", { value0: group.title }),
         icon: group.avatarUrl ? (
           <ChannelAvatarIcon src={group.avatarUrl} />
         ) : (
@@ -250,12 +256,17 @@ function getSubSectionsForScope(
   if (scope === "native" && platform === "kick") {
     return [
       frequent,
-      { id: "global", label: "Global", icon: <GlobeIcon />, targetSectionId: "global" },
+      {
+        id: "global",
+        label: i18n.t("chat.global"),
+        icon: <GlobeIcon />,
+        targetSectionId: "global",
+      },
       ...(showNativeChannelSection
         ? [
             {
               id: "channel" as const,
-              label: "Channel",
+              label: i18n.t("chat.channel"),
               icon: channelIcon,
               targetSectionId: "channel",
             },
@@ -263,7 +274,7 @@ function getSubSectionsForScope(
         : []),
       ...userEmoteGroups.map((group) => ({
         id: group.subSectionId,
-        label: `${group.title}'s Emotes`,
+        label: i18n.t("chat.value0SEmotes", { value0: group.title }),
         icon: group.avatarUrl ? (
           <ChannelAvatarIcon src={group.avatarUrl} />
         ) : (
@@ -271,7 +282,12 @@ function getSubSectionsForScope(
         ),
         targetSectionId: group.sectionId,
       })),
-      { id: "emoji", label: "Emojis", icon: <KickIcon size={18} />, targetSectionId: "emoji" },
+      {
+        id: "emoji",
+        label: i18n.t("chat.emojis"),
+        icon: <KickIcon size={18} />,
+        targetSectionId: "emoji",
+      },
     ];
   }
   if (scope === "thirdParty" && platform === "twitch") {
@@ -518,7 +534,7 @@ const EmoteSection: React.FC<EmoteSectionProps> = ({
           {title}
           {collapsedHeaderOnly && showCollapsedCount && (
             <span className="ml-2 normal-case font-normal text-[#777777]">
-              ({emotes.length} match{emotes.length === 1 ? "" : "es"})
+              ({i18n.t("chat.matchCount", { count: emotes.length })})
             </span>
           )}
         </span>
@@ -550,7 +566,7 @@ const EmoteSection: React.FC<EmoteSectionProps> = ({
           )}
           {emotes.length === 0 ? (
             <div className="text-center py-4 text-xs text-[var(--color-foreground-muted)]">
-              No emotes
+              {i18n.t("chat.noEmotes")}
             </div>
           ) : (
             <>
@@ -664,7 +680,11 @@ const EmotePickerItem = memo(function EmotePickerItem({
         <button
           type="button"
           onClick={handleFavorite}
-          aria-label={favorited ? `Unfavorite ${emote.name}` : `Favorite ${emote.name}`}
+          aria-label={
+            favorited
+              ? i18n.t("chat.unfavoriteValue0", { value0: emote.name })
+              : i18n.t("chat.favoriteValue0", { value0: emote.name })
+          }
           className={`absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center ${
             favorited
               ? "bg-yellow-500 text-black"
@@ -1093,7 +1113,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
         return [
           {
             id: "global",
-            title: "Global",
+            title: i18n.t("chat.global"),
             emotes: all.filter((e) => getKickEmoteSection(e) === "global"),
           },
           ...(showNativeChannelSection
@@ -1106,7 +1126,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
           })),
           {
             id: "emoji",
-            title: "Emojis",
+            title: i18n.t("chat.emojis"),
             emotes: all.filter((e) => getKickEmoteSection(e) === "emoji"),
           },
         ];
@@ -1120,14 +1140,14 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
             ? [
                 {
                   id: "channel" as const,
-                  label: "Channel",
+                  label: i18n.t("chat.channel"),
                   emotes: all.filter((e) => !e.isGlobal),
                 },
               ]
             : []),
           {
             id: "global" as const,
-            label: "Global",
+            label: i18n.t("chat.global"),
             emotes: all.filter((e) => e.isGlobal),
           },
         ];
@@ -1145,7 +1165,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
             tabs: sourceTabs.map((tab) => ({
               id: tab.id,
               label: tab.label,
-              ariaLabel: `${providerTitle} ${tab.label}`,
+              ariaLabel: i18n.t("chat.value0Value12", { value0: providerTitle, value1: tab.label }),
               active: tab.id === activeTabId,
               onClick: () => handleProviderSourceTabClick(provider, tab.id),
             })),
@@ -1158,7 +1178,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
         return [
           {
             id: "global",
-            title: "Global",
+            title: i18n.t("chat.global"),
             emotes: all.filter((e) => e.isGlobal && e.availability !== "user"),
           },
           ...(showNativeChannelSection
@@ -1196,7 +1216,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
   );
 
   const handleLockedEmoteClick = useCallback((emote: Emote) => {
-    toast.warning("You must subscribe to this channel to use this emote.", {
+    toast.warning(i18n.t("chat.youMustSubscribeToThisChannelToUseThisEmote"), {
       description: emote.name,
     });
   }, []);
@@ -1213,8 +1233,10 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
       .then(async () => {
         const scopeStatus = await refreshTwitchUserEmoteScopeStatus();
         if (scopeStatus !== "granted") {
-          toast.warning("Twitch did not grant subscribed-channel emote access.", {
-            description: `Authorize the ${TWITCH_USER_EMOTE_SCOPE} scope to load those emotes.`,
+          toast.warning(i18n.t("chat.twitchDidNotGrantSubscribedChannelEmoteAccess"), {
+            description: i18n.t("chat.authorizeTheValue0ScopeToLoadThoseEmotes", {
+              value0: TWITCH_USER_EMOTE_SCOPE,
+            }),
           });
           return;
         }
@@ -1223,7 +1245,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
       })
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : "Try again from Settings.";
-        toast.warning("Could not reconnect Twitch.", { description: message });
+        toast.warning(i18n.t("chat.couldNotReconnectTwitch"), { description: message });
       });
   }, [loadGlobalEmotes, refreshTwitchUserEmoteScopeStatus]);
 
@@ -1303,7 +1325,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
     <div
       ref={containerRef}
       data-testid="emote-picker-popover"
-      aria-label={`${platform} ${scope} emote picker`}
+      aria-label={i18n.t("chat.value0Value1EmotePicker", { value0: platform, value1: scope })}
       className="fixed z-50 w-[360px] max-h-[480px] flex flex-col bg-[var(--color-background-secondary)] border border-[var(--color-border)] rounded-lg shadow-xl overflow-hidden"
       style={{
         top: position?.top ?? -9999,
@@ -1317,7 +1339,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search emotes..."
+          placeholder={i18n.t("chat.searchEmotes")}
           className="w-full h-9 px-3 rounded-md bg-[var(--color-background-tertiary)] border border-[var(--color-border)] text-sm focus:outline-none focus:ring-1 focus:ring-white placeholder-[var(--color-foreground-muted)]"
         />
       </div>
@@ -1385,14 +1407,14 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
         >
           <div className="flex items-center justify-between gap-2">
             <p className="min-w-0 text-xs leading-4 text-[var(--color-foreground-secondary)]">
-              Reconnect Twitch to show subscribed-channel emotes.
+              {i18n.t("chat.reconnectTwitchToShowSubscribedChannelEmotes")}
             </p>
             <button
               type="button"
               onClick={handleReconnectTwitch}
               className="h-7 shrink-0 rounded-[4px] bg-white px-2 text-xs font-semibold text-[#0f0f0f] transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-[var(--color-background-tertiary)]"
             >
-              Reconnect
+              {i18n.t("chat.reconnect")}
             </button>
           </div>
         </div>
@@ -1402,7 +1424,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
       <div ref={scrollRef} className="flex-1 overflow-y-auto" onScroll={handleBodyScroll}>
         <EmoteSection
           sectionId="frequent"
-          title="Frequently Used"
+          title={i18n.t("chat.frequentlyUsed")}
           emotes={recentInScope}
           collapsedHeaderOnly={
             searching || (collapseEmptyPinnedSections && recentInScope.length === 0)
@@ -1419,7 +1441,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
         />
         <EmoteSection
           sectionId="favorites"
-          title="Favorites"
+          title={i18n.t("chat.favorites")}
           emotes={favoritesInScope}
           collapsedHeaderOnly={
             searching || (collapseEmptyPinnedSections && favoritesInScope.length === 0)

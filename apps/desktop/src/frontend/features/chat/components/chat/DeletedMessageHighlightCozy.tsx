@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import { Trash2 } from "lucide-react";
 import type React from "react";
 import { memo } from "react";
@@ -34,9 +35,13 @@ export const DeletedMessageHighlightCozy: React.FC<DeletedMessageHighlightCozyPr
               </span>
             </div>
             <div className="align-bottom text-xs font-normal leading-snug text-[#adadb8]">
-              <span className="align-bottom">Deleted by </span>
+              <span className="align-bottom">{i18n.t("chat.deletedBy")}</span>
               {moderator}
-              <span className="align-bottom"> at {deletedTime}</span>
+              <span className="align-bottom">
+                {" "}
+                {i18n.t("chat.at")}
+                {deletedTime}
+              </span>
               {auditDetail}
             </div>
           </div>

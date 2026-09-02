@@ -1,3 +1,4 @@
+import { i18n } from "@/i18n";
 import type React from "react";
 import { memo, useCallback, useMemo, useState } from "react";
 import { ProxiedImage } from "@/components/ui/proxied-image";
@@ -51,7 +52,7 @@ export const ChatBadge: React.FC<ChatBadgeProps> = memo(({ badge, platform = "ki
     return src
       ? {
           src,
-          title: badge.title || "Badge",
+          title: badge.title || i18n.t("chat.badge"),
           platform: platform === "twitch" ? ("Twitch" as const) : ("Kick" as const),
         }
       : null;
