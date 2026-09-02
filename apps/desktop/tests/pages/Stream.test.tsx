@@ -92,6 +92,10 @@ vi.mock("@/features/playback/data/useStreamPlayback", () => ({
   },
 }));
 
+vi.mock("@/features/playback/data/use-raid-handoff", () => ({
+  useRaidHandoff: () => ({ popup: null }),
+}));
+
 vi.mock("@/store/app-store", () => ({
   useAppStore: () => ({ isTheaterModeActive: false, setTheaterModeActive: vi.fn() }),
 }));
@@ -229,9 +233,7 @@ function setChatWidthPx(chatWidthPx: 280 | 340 | 420) {
   }));
 }
 
-function routeChannel(
-  overrides: Partial<import("@shared/platform-types").UnifiedChannel> = {}
-) {
+function routeChannel(overrides: Partial<import("@shared/platform-types").UnifiedChannel> = {}) {
   return fixtures.channel({
     platform: mockRouteParams.params.platform as "twitch" | "kick",
     username: mockRouteParams.params.channel,
@@ -274,6 +276,7 @@ function routeChannel(
 // Guards: changing Twitch routes clears the previous player's fatal error so the new channel can show its loading state
 // Guards: playable live Stream pages start direct-to-file recording with the provider's stable live Stream identity
 // Guards: Twitch ad shielding always receives a poster owned by the current route, even before route-matched stream metadata arrives.
+// Guards: Stream page tests never start raid-handoff provider transports or real WebSockets.
 describe("StreamPage", () => {
   beforeEach(() => {
     useChannelMock.mockReset();

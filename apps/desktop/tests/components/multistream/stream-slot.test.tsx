@@ -28,6 +28,10 @@ vi.mock("@/features/playback/data/useStreamPlayback", () => ({
   }),
 }));
 
+vi.mock("@/features/playback/data/use-raid-handoff", () => ({
+  useRaidHandoff: () => ({ popup: null }),
+}));
+
 const playerMocks = vi.hoisted(() => ({
   playbackRevision: 1,
   reload: vi.fn(),
@@ -69,6 +73,7 @@ import { StreamSlot } from "@/features/multistream/components/multistream/stream
 // Guards: loading/error/offline state — when playback is null (loading or failed) the slot renders the offline overlay with "is currently offline" + Check Again, not a black square. The Check Again button triggers a fresh playback fetch via reload()
 // Guards: cross-slot isolation — each StreamSlot owns its own playback hook (useStreamPlayback) and its own onError. One slot's failed HLS init must not blank the sibling slot; this is enforced by per-slot mounting (verified by the slot rendering its overlay locally without unmounting the player on the other slot)
 // Note: the multistream grid mounts multiple StreamSlots independently — slot isolation is locked at the grid level (grid-layout.test.tsx) and at the slot level (offline overlay verified here)
+// Guards: StreamSlot tests never start raid-handoff provider transports or real WebSockets.
 describe("StreamSlot", () => {
   afterEach(() => {
     vi.useRealTimers();
