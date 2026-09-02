@@ -594,6 +594,7 @@ describe("SettingsPage — Notifications tab", () => {
 });
 
 // Guards: proxy settings validate ports, preserve stored credentials, and report apply failures inline.
+// Guards: proxy settings disclose the built-in Chromium engine and its default-session exclusions.
 describe("SettingsPage — Proxy tab (U12)", () => {
   // Build the proxy namespace stubs with the documented shapes (the auto-stub
   // returns `{data:[],error:null}`, which is the wrong shape for these). Each
@@ -628,6 +629,24 @@ describe("SettingsPage — Proxy tab (U12)", () => {
 
   beforeEach(() => {
     updatePreferences.mockReset();
+  });
+
+  it("shows the built-in Chromium network library with its scope", async () => {
+    await openProxyTab();
+    fireEvent.change(screen.getByLabelText("Search settings"), {
+      target: { value: "direct partition" },
+    });
+
+    expect(screen.getByText("Network library")).toBeInTheDocument();
+    expect(screen.getByText("Chromium (built in)")).toBeInTheDocument();
+    expect(
+      screen.getByText(/shared main-process http and renderer media use chromium/i)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /interceptor-owned manifests, websockets, and direct partitions are not controlled/i
+      )
+    ).toBeInTheDocument();
   });
 
   it("toggling enable + entering host/port persists proxy prefs (spread preserved) and calls apply", async () => {

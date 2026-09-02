@@ -15,6 +15,7 @@
 
 import { logger } from "@backend/logging/logger";
 import { sleep } from "@shared/utils/sleep";
+import { appNetwork, type AppNetwork } from "./app-network";
 
 // ============================================================================
 // Types
@@ -110,6 +111,8 @@ const RETRYABLE_MESSAGE_PATTERNS = [
 // ============================================================================
 
 class RobustHttpClient {
+  constructor(private readonly network: AppNetwork = appNetwork) {}
+
   private circuitBreakers = new Map<string, CircuitBreakerState>();
 
   // Request queues per origin for concurrency control
@@ -276,7 +279,7 @@ class RobustHttpClient {
 
     for (let attempt = 0; attempt <= retryOpts.maxRetries; attempt++) {
       try {
-        const response = await fetch(url, {
+        const response = await this.network.fetch(url, {
           ...options,
           signal: AbortSignal.timeout(retryOpts.timeoutMs),
         });

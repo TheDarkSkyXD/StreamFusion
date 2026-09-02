@@ -340,7 +340,11 @@ const TAB_META: Record<TabKey, { label: string; description: string; icon: typeo
   },
   chat: { label: "Chat", description: "Appearance, emotes & events", icon: LuMessageSquare },
   adblock: { label: "Ad-Block", description: "Twitch ad-blocking settings", icon: LuShieldCheck },
-  proxy: { label: "Proxy", description: "Route Twitch traffic via a proxy", icon: LuNetwork },
+  proxy: {
+    label: "Proxy",
+    description: "Proxy default-session Chromium requests",
+    icon: LuNetwork,
+  },
   predictions: {
     label: "Predictions",
     description: "Chat prediction widget style",
@@ -588,7 +592,7 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
   {
     tab: "proxy",
     label: "Enable proxy",
-    description: "Routes Twitch traffic through the host",
+    description: "Routes default-session Chromium requests through the host",
   },
   { tab: "proxy", label: "Host", description: "Proxy host or IP", keywords: ["server"] },
   { tab: "proxy", label: "Port", description: "Proxy port number" },
@@ -597,6 +601,12 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
     label: "Credentials",
     description: "Username and password for the proxy",
     keywords: ["username", "password", "auth"],
+  },
+  {
+    tab: "proxy",
+    label: "Network library",
+    description: "Chromium (built in) proxy-aware network engine",
+    keywords: ["chromium", "electron", "manifest", "websocket", "direct partition", "http"],
   },
   {
     tab: "predictions",
@@ -2107,12 +2117,30 @@ export function SettingsPage() {
                   <div>
                     <h2 className="text-2xl font-bold mb-1">Proxy</h2>
                     <p className="text-zinc-400">
-                      Use playlist proxies for Twitch playback, or configure an advanced app-wide
+                      Use playlist proxies for Twitch playback, or configure the default-session
                       transport proxy.
                     </p>
                   </div>
 
                   <TwitchPlaylistProxySettingsSection />
+
+                  {isRowVisible("Network library") && (
+                    <div className="rounded-xl border border-[#333333] bg-[#1a1a1a] p-6">
+                      <div className="flex items-start justify-between gap-6">
+                        <div>
+                          <p className="font-medium text-zinc-200">Network library</p>
+                          <p className="mt-1 text-sm text-zinc-400">
+                            Shared main-process HTTP and renderer media use Chromium.
+                            Interceptor-owned manifests, WebSockets, and direct partitions are not
+                            controlled.
+                          </p>
+                        </div>
+                        <span className="shrink-0 rounded-md border border-[#333333] bg-[#252525] px-3 py-1.5 text-sm font-medium text-zinc-300">
+                          Chromium (built in)
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {anyRowVisible("Enable proxy", "Host", "Port", "Credentials") && (
                     <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
@@ -2124,7 +2152,7 @@ export function SettingsPage() {
                           <div>
                             <h3 className="font-semibold text-lg">Advanced transport proxy</h3>
                             <p className="text-sm text-zinc-500">
-                              Applied to the app's Twitch requests
+                              Applied to Chromium requests in Electron&apos;s default session
                             </p>
                           </div>
                         </div>
@@ -2136,7 +2164,8 @@ export function SettingsPage() {
                           <div className="min-w-0 flex-1">
                             <p className="font-medium text-zinc-200">Enable proxy</p>
                             <p className="text-sm text-zinc-500 mt-1">
-                              Off by default. Routes Twitch traffic through the host below.
+                              Off by default. Routes default-session Chromium requests through the
+                              host below.
                             </p>
                           </div>
                           <Switch
@@ -2300,9 +2329,9 @@ export function SettingsPage() {
                       </div>
 
                       <div className="px-6 py-4 border-t border-[#27272a] text-xs text-zinc-500 leading-relaxed">
-                        When enabled, the app's Twitch traffic — video, chat, API calls, and sign-in
-                        — routes through this proxy, applied on the next requests. This is a single
-                        app-wide proxy, not per-feature. It's off by default.
+                        When enabled, this proxy applies to Chromium requests in Electron&apos;s
+                        default session on subsequent requests. It does not control WebSockets or
+                        explicitly direct partitions. It&apos;s off by default.
                       </div>
                     </div>
                   )}

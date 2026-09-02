@@ -4,8 +4,10 @@ vi.mock("@shared/utils/sleep", () => ({
   sleep: vi.fn(() => Promise.resolve()),
 }));
 
-const fetchMock = vi.fn();
-vi.stubGlobal("fetch", fetchMock);
+const fetchMock = vi.hoisted(() => vi.fn());
+vi.mock("@backend/services/app-network", () => ({
+  appNetwork: { fetch: fetchMock },
+}));
 
 import { httpClient } from "@backend/services/http-client";
 
@@ -21,6 +23,7 @@ function networkError(code: string, message = "fetch failed"): Error {
   return Object.assign(new Error(message), { cause: { code } });
 }
 
+// Guards: shared Twitch HTTP requests use the proxy-aware app network boundary instead of Node fetch.
 describe("RobustHttpClient", () => {
   beforeEach(() => {
     fetchMock.mockReset();
