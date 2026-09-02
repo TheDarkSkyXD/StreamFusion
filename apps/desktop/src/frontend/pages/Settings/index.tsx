@@ -38,9 +38,11 @@ import {
   getAdBlockDeviceId,
   randomizeAdBlockDeviceId,
 } from "@/features/playback/components/player/twitch/twitch-adblock-device-id";
+import { isTwitchPlaylistProxyMode } from "@/features/playback/utils/twitch-playlist-proxy";
 import { BugReportSection } from "@/features/settings/components/settings/BugReportSection";
 import { ChatSettingsSection } from "@/features/settings/components/settings/ChatSettingsSection";
 import { LogsSection } from "@/features/settings/components/settings/LogsSection";
+import { TwitchPlaylistProxySettingsSection } from "@/features/settings/components/settings/TwitchPlaylistProxySettingsSection";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -573,6 +575,18 @@ const SETTINGS_INDEX: SettingsIndexEntry[] = [
   // renders as a single unit so users see the full context.
   {
     tab: "proxy",
+    label: "Twitch playlist proxy",
+    description: "Replace the custom Twitch ad blocker with ordered playlist proxy sources",
+    keywords: ["playlist", "fallback", "ad block", "ad blocker"],
+  },
+  {
+    tab: "proxy",
+    label: "Playlist proxy sources",
+    description: "Enable, reorder, add, edit, or remove playlist sources",
+    keywords: ["list", "order", "status", "online", "offline", "health"],
+  },
+  {
+    tab: "proxy",
     label: "Enable proxy",
     description: "Routes Twitch traffic through the host",
   },
@@ -790,6 +804,7 @@ export function SettingsPage() {
 
   // Ad-block state
   const enableAdBlock = useAdBlockStore((state) => state.enableAdBlock);
+  const isPlaylistProxyEnabled = isTwitchPlaylistProxyMode(preferences);
   const setEnableAdBlock = useAdBlockStore((state) => state.setEnableAdBlock);
 
   const homeCarouselIntervalMs = useAppStore((state) => state.homeCarouselIntervalMs);
@@ -2062,12 +2077,20 @@ export function SettingsPage() {
                           </p>
                         </div>
                         <Switch
-                          checked={enableAdBlock}
+                          checked={isPlaylistProxyEnabled ? false : enableAdBlock}
                           onCheckedChange={setEnableAdBlock}
+                          disabled={isPlaylistProxyEnabled}
                           className="data-[state=checked]:!bg-green-500 data-[state=checked]:!border-green-500"
                           thumbClassName="data-[state=checked]:!bg-white"
                         />
                       </div>
+                      {isPlaylistProxyEnabled && (
+                        <p className="mt-4 text-sm text-zinc-400">
+                          Twitch playlist proxy is enabled, so the custom ad blocker is paused. Your
+                          saved ad-block preference will return when playlist proxy mode is turned
+                          off.
+                        </p>
+                      )}
                       <div className="mt-4 p-4 rounded-lg bg-blue-500/5 border border-blue-500/10 text-sm text-blue-300/80 leading-relaxed">
                         This uses the VAFT technique to request ad-free streams via backup player
                         types. It works without external proxies. A shield icon will appear in the
@@ -2084,9 +2107,12 @@ export function SettingsPage() {
                   <div>
                     <h2 className="text-2xl font-bold mb-1">Proxy</h2>
                     <p className="text-zinc-400">
-                      Route the app's outbound Twitch traffic through an HTTP/HTTPS proxy.
+                      Use playlist proxies for Twitch playback, or configure an advanced app-wide
+                      transport proxy.
                     </p>
                   </div>
+
+                  <TwitchPlaylistProxySettingsSection />
 
                   {anyRowVisible("Enable proxy", "Host", "Port", "Credentials") && (
                     <div className="rounded-xl border border-[#27272a] bg-[#121214] overflow-hidden">
@@ -2096,7 +2122,7 @@ export function SettingsPage() {
                             <LuNetwork className="w-6 h-6" />
                           </div>
                           <div>
-                            <h3 className="font-semibold text-lg">Outbound Proxy</h3>
+                            <h3 className="font-semibold text-lg">Advanced transport proxy</h3>
                             <p className="text-sm text-zinc-500">
                               Applied to the app's Twitch requests
                             </p>

@@ -14,6 +14,7 @@ import {
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -24,6 +25,11 @@ import { logger } from "@/renderer/logging/logger";
 import type { AdBlockStatus } from "@shared/adblock-types";
 import { DEFAULT_BUFFER_PREFERENCES } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
+import {
+  getEnabledTwitchPlaylistProxySources,
+  isTwitchPlaylistProxyMode,
+  resolveTwitchPlaylistProxyUrl,
+} from "@/features/playback/utils/twitch-playlist-proxy";
 
 import { resolveHlsBufferConfig } from "../hls-buffer-config";
 import { useLivePlaybackStallRecovery } from "../hooks/use-live-playback-stall-recovery";
@@ -137,6 +143,54 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     ref
   ) => {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const preferences = useAuthStore((state) => state.preferences);
+    const playlistProxyPreferences = preferences?.twitchPlaylistProxy;
+    const playlistProxySources = useMemo(
+      () => getEnabledTwitchPlaylistProxySources(playlistProxyPreferences?.sources ?? []),
+      [playlistProxyPreferences?.sources]
+    );
+    const playlistProxyRevision = useMemo(
+      () =>
+        JSON.stringify(
+          (playlistProxyPreferences?.sources ?? []).map((source) => [
+            source.id,
+            source.url,
+            source.enabled,
+            source.addQueryParams,
+          ])
+        ),
+      [playlistProxyPreferences?.sources]
+    );
+    const playlistProxyEnabled = isTwitchPlaylistProxyMode(preferences);
+    const playlistRouteKey = `${src}\u0000${channelName}\u0000${playlistProxyEnabled}\u0000${playlistProxyRevision}`;
+    const [playlistProxyCursor, setPlaylistProxyCursor] = useState({
+      key: playlistRouteKey,
+      index: 0,
+    });
+    const activePlaylistProxyCursor =
+      playlistProxyCursor.key === playlistRouteKey ? playlistProxyCursor.index : 0;
+    const playlistProxySource =
+      playlistProxyEnabled && activePlaylistProxyCursor < playlistProxySources.length
+        ? playlistProxySources[activePlaylistProxyCursor]
+        : null;
+    const activeSource =
+      playlistProxySource === null
+        ? src
+        : (resolveTwitchPlaylistProxyUrl(playlistProxySource, channelName) ?? src);
+    const isPlaylistProxyMode = playlistProxyEnabled;
+    const isPlaylistProxyAttempt = playlistProxySource !== null && activeSource !== src;
+    const effectiveEnableAdBlock = enableAdBlock && !isPlaylistProxyMode;
+    useEffect(() => {
+      setPlaylistProxyCursor({ key: playlistRouteKey, index: 0 });
+    }, [playlistRouteKey]);
+    const advancePlaylistProxySource = useCallback(() => {
+      if (!isPlaylistProxyAttempt) return false;
+      setPlaylistProxyCursor((current) => {
+        if (current.key !== playlistRouteKey) return current;
+        return { ...current, index: current.index + 1 };
+      });
+      return true;
+    }, [isPlaylistProxyAttempt, playlistRouteKey]);
     const hlsRef = useRef<Hls | null>(null);
     const autoPlayRef = useRef(autoPlay);
     useLayoutEffect(() => {
@@ -374,7 +428,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     const appliedPreferredQualityRef = useRef<string | null>(null);
 
     const stallRecovery = useLivePlaybackStallRecovery({
-      sourceKey: src,
+      sourceKey: activeSource,
       enabled: true,
       videoRef,
       hlsRef,
@@ -386,7 +440,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       shouldSuppress: () => {
         const status = adBlockStatusRef.current;
         return (
-          enableAdBlock &&
+          effectiveEnableAdBlock &&
           !!status &&
           (status.isShowingAd || status.isStrippingSegments || status.isUsingFallbackMode)
         );
@@ -450,7 +504,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         publishAdBlockStatus(status);
       };
 
-      if (enableAdBlock) {
+      if (effectiveEnableAdBlock) {
         initAdBlockService({ enabled: true });
 
         // Apply the user's advanced stream-token overrides to the ad-block path
@@ -515,7 +569,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         }
       };
     }, [
-      enableAdBlock,
+      effectiveEnableAdBlock,
       channelName,
       armAdBlockRecoveryWatchdog,
       clearAdBlockRecoveryWatchdog,
@@ -571,11 +625,11 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
 
     // Register player callbacks with ad-block service
     useEffect(() => {
-      if (enableAdBlock) {
+      if (effectiveEnableAdBlock) {
         return setPlayerCallbacks(channelName, handleAdBlockTransition);
       }
       return undefined;
-    }, [channelName, enableAdBlock, handleAdBlockTransition]);
+    }, [channelName, effectiveEnableAdBlock, handleAdBlockTransition]);
 
     // Handle quality level changes without re-initializing HLS
     useEffect(() => {
@@ -601,7 +655,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
     useEffect(() => {
       const video = videoRef.current;
 
-      if (!video || !src) {
+      if (!video || !activeSource) {
         return;
       }
 
@@ -685,12 +739,15 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         safePlayTimeout.start(50);
       };
 
-      const isHls = src.includes(".m3u8") || src.includes("usher.ttvnw.net");
+      const isHls =
+        isPlaylistProxyAttempt ||
+        activeSource.includes(".m3u8") ||
+        activeSource.includes("usher.ttvnw.net");
 
       if (isHls && Hls.isSupported()) {
         // Get ad-blocking loaders if enabled
         const adBlockConfig =
-          enableAdBlock && isAdBlockEnabled() ? getAdBlockHlsConfig(channelName) : {};
+          effectiveEnableAdBlock && isAdBlockEnabled() ? getAdBlockHlsConfig(channelName) : {};
 
         // User buffer/latency prefs (live-only keys). Read at construction so the
         // value applies on the next stream load (R18); the periodic cleanup below
@@ -894,6 +951,22 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
             numericProperty(data.response, "status") ||
             numericProperty(data.networkDetails, "status");
 
+          const isPlaylistHttpFailure =
+            data.fatal &&
+            data.type === Hls.ErrorTypes.NETWORK_ERROR &&
+            (data.details === "manifestLoadError" || data.details === "levelLoadError") &&
+            typeof statusCode === "number" &&
+            statusCode >= 400;
+          if (isPlaylistHttpFailure && advancePlaylistProxySource()) {
+            logger.debug("Player:Twitch:HLS", "playlist proxy failed, trying next source", {
+              channelName,
+              statusCode,
+              sourceId: playlistProxySource?.id,
+            });
+            releaseHls();
+            return;
+          }
+
           if (data.details === "manifestLoadError" && statusCode === 403) {
             logger.debug("Player:Twitch:HLS", "playback token rejected", { statusCode });
             releaseHls();
@@ -1021,7 +1094,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         });
 
         try {
-          hls.loadSource(src);
+          hls.loadSource(activeSource);
           hls.attachMedia(video);
         } catch (e) {
           logger.error("Player:Twitch:HLS", "error setting up HLS", { error: e });
@@ -1029,7 +1102,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
       } else if (isHls && video.canPlayType("application/vnd.apple.mpegurl")) {
         // Native HLS (Safari)
         logger.debug("Player:Twitch:HLS", "using native HLS");
-        video.src = src;
+        video.src = activeSource;
         handleLoadedMetadata = () => {
           if (autoPlayRef.current && isMountedRef.current) safePlay();
         };
@@ -1074,7 +1147,7 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         };
         video.addEventListener("loadedmetadata", handleLoadedMetadata);
         video.addEventListener("error", handleError);
-        video.src = src;
+        video.src = activeSource;
       }
 
       const currentVideo = video;
@@ -1130,9 +1203,12 @@ export const TwitchHlsPlayer = forwardRef<HTMLVideoElement, TwitchHlsPlayerProps
         }
       };
     }, [
-      src,
+      activeSource,
       channelName,
-      enableAdBlock,
+      effectiveEnableAdBlock,
+      advancePlaylistProxySource,
+      isPlaylistProxyAttempt,
+      playlistProxySource?.id,
       armAdBlockRecoveryWatchdog,
       clearAdBlockRecoveryWatchdog,
       invalidatePresentationRecovery,

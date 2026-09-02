@@ -499,6 +499,25 @@ export interface ProxyPreferences {
   hasCredentials: boolean;
 }
 
+/** A user-configured Twitch playlist proxy source. Array order is fallback order. */
+export interface TwitchPlaylistProxySource {
+  id: string;
+  /** HLS playlist template. `$channel` is replaced with the Twitch channel name. */
+  url: string;
+  enabled: boolean;
+  /** Add source, audio-only, and low-latency query parameters to the playlist request. */
+  addQueryParams: boolean;
+}
+
+/**
+ * Ordered playlist routing for Twitch live streams. This remains separate
+ * from `ProxyPreferences`, which configures the session-wide transport proxy.
+ */
+export interface TwitchPlaylistProxyPreferences {
+  enabled: boolean;
+  sources: TwitchPlaylistProxySource[];
+}
+
 export type TimestampFormat =
   "H:mm" | "HH:mm" | "H:mm:ss" | "HH:mm:ss" | "h:mm a" | "hh:mm a" | "h:mm:ss a" | "hh:mm:ss a";
 export type ChatDensity = "cozy" | "compact" | "loose";
@@ -651,6 +670,8 @@ export interface UserPreferences {
   buffer: BufferPreferences;
   /** Outbound Twitch-stream proxy (host/port/enabled only — creds via safeStorage; Xtra port, U11). */
   proxy: ProxyPreferences;
+  /** Ordered Twitch playlist-proxy sources used as a custom-ad-block replacement. */
+  twitchPlaylistProxy: TwitchPlaylistProxyPreferences;
   /** Advanced Twitch stream-token controls, ad-block path only (Xtra port, U13). */
   playbackAdvanced: PlaybackAdvancedPreferences;
   /** Durable logical caption selection and appearance; runtime track/session state is excluded. */
@@ -758,6 +779,84 @@ export const DEFAULT_PROXY_PREFERENCES: ProxyPreferences = {
   hasCredentials: false,
 };
 
+export const DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES: TwitchPlaylistProxyPreferences = {
+  enabled: true,
+  sources: [
+    {
+      id: "luminous-eu",
+      url: "https://eu.luminous.dev/live/$channel",
+      enabled: true,
+      addQueryParams: true,
+    },
+    {
+      id: "luminous-eu-2",
+      url: "https://eu2.luminous.dev/live/$channel",
+      enabled: true,
+      addQueryParams: true,
+    },
+    {
+      id: "luminous-eu-3",
+      url: "https://eu3.luminous.dev/live/$channel",
+      enabled: true,
+      addQueryParams: true,
+    },
+    {
+      id: "luminous-asia",
+      url: "https://as.luminous.dev/live/$channel",
+      enabled: true,
+      addQueryParams: true,
+    },
+    {
+      id: "perfprod-eu",
+      url: "https://lb-eu.cdn-perfprod.com/live/$channel",
+      enabled: true,
+      addQueryParams: true,
+    },
+    {
+      id: "perfprod-eu-2",
+      url: "https://lb-eu2.cdn-perfprod.com/live/$channel",
+      enabled: true,
+      addQueryParams: true,
+    },
+    {
+      id: "perfprod-eu-3",
+      url: "https://lb-eu3.cdn-perfprod.com/live/$channel",
+      enabled: true,
+      addQueryParams: true,
+    },
+    {
+      id: "perfprod-eu-4",
+      url: "https://lb-eu4.cdn-perfprod.com/live/$channel",
+      enabled: true,
+      addQueryParams: true,
+    },
+    {
+      id: "perfprod-eu-5",
+      url: "https://lb-eu5.cdn-perfprod.com/live/$channel",
+      enabled: true,
+      addQueryParams: true,
+    },
+    {
+      id: "perfprod-na",
+      url: "https://lb-na.cdn-perfprod.com/live/$channel",
+      enabled: true,
+      addQueryParams: false,
+    },
+    {
+      id: "perfprod-sa",
+      url: "https://lb-sa.cdn-perfprod.com/live/$channel",
+      enabled: true,
+      addQueryParams: false,
+    },
+    {
+      id: "perfprod-asia",
+      url: "https://lb-as.cdn-perfprod.com/live/$channel",
+      enabled: true,
+      addQueryParams: false,
+    },
+  ],
+};
+
 export const DEFAULT_CHAT_DISPLAY_PREFERENCES: ChatDisplayPreferences = {
   // Appearance
   boldUsernames: false,
@@ -831,6 +930,7 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   playerControls: DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   buffer: DEFAULT_BUFFER_PREFERENCES,
   proxy: DEFAULT_PROXY_PREFERENCES,
+  twitchPlaylistProxy: DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES,
   playbackAdvanced: DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
   captions: DEFAULT_CAPTION_PREFERENCES,
   startMinimized: false,

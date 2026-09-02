@@ -17,6 +17,7 @@ import {
   type CaptionPreferences,
   DEFAULT_CAPTION_PREFERENCES,
   DEFAULT_NOTIFICATION_PREFERENCES,
+  DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
   DEFAULT_WINDOW_BOUNDS,
   type EncryptedToken,
@@ -26,6 +27,8 @@ import {
   type NotificationPreferences,
   type Platform,
   type TwitchUser,
+  type TwitchPlaylistProxyPreferences,
+  type TwitchPlaylistProxySource,
   type UserPreferences,
 } from "../../shared/auth-types";
 import type { DownloadQueueSnapshot } from "../../shared/download-types";
@@ -232,6 +235,42 @@ function normalizeCaptionPreferences(value: unknown): CaptionPreferences {
   };
 }
 
+function normalizeTwitchPlaylistProxyPreferences(value: unknown): TwitchPlaylistProxyPreferences {
+  const stored = value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+  if (!stored) {
+    return {
+      enabled: DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES.enabled,
+      sources: DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES.sources.map((source) => ({ ...source })),
+    };
+  }
+
+  const storedSources = Array.isArray(stored.sources) ? stored.sources : [];
+  const seenIds = new Set<string>();
+  const sources: TwitchPlaylistProxySource[] = [];
+  for (const candidate of storedSources) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const source = candidate as Record<string, unknown>;
+    const id = typeof source.id === "string" ? source.id.trim() : "";
+    const url = typeof source.url === "string" ? source.url.trim() : "";
+    if (!id || !url || seenIds.has(id)) continue;
+    seenIds.add(id);
+    sources.push({
+      id,
+      url,
+      enabled: typeof source.enabled === "boolean" ? source.enabled : true,
+      addQueryParams: typeof source.addQueryParams === "boolean" ? source.addQueryParams : false,
+    });
+  }
+
+  return {
+    enabled:
+      typeof stored.enabled === "boolean"
+        ? stored.enabled
+        : DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES.enabled,
+    sources,
+  };
+}
+
 function isAuthToken(value: unknown): value is AuthToken {
   if (typeof value !== "object" || value === null) return false;
   return (
@@ -263,6 +302,7 @@ function hydratePreferences(stored: Partial<UserPreferences>): UserPreferences {
       ...(stored.chatDisplay ?? {}),
     },
     captions: normalizeCaptionPreferences(stored.captions),
+    twitchPlaylistProxy: normalizeTwitchPlaylistProxyPreferences(stored.twitchPlaylistProxy),
   };
   if (isLegacyLatencyFirstBufferPreferences(hydrated.buffer)) {
     return { ...hydrated, buffer: DEFAULT_USER_PREFERENCES.buffer };
@@ -985,9 +1025,17 @@ export class StorageService {
    */
   updatePreferences(updates: Partial<UserPreferences>): UserPreferences {
     const current = this.getPreferences();
-    const normalizedUpdates = updates.captions
-      ? { ...updates, captions: normalizeCaptionPreferences(updates.captions) }
-      : updates;
+    const normalizedUpdates = {
+      ...updates,
+      ...(updates.captions ? { captions: normalizeCaptionPreferences(updates.captions) } : {}),
+      ...(updates.twitchPlaylistProxy
+        ? {
+            twitchPlaylistProxy: normalizeTwitchPlaylistProxyPreferences(
+              updates.twitchPlaylistProxy
+            ),
+          }
+        : {}),
+    };
     const updated = { ...current, ...normalizedUpdates };
     this.storeInstance.set("preferences", updated);
     return updated;

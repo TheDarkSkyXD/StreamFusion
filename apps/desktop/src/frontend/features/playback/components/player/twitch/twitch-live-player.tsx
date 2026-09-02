@@ -13,10 +13,12 @@ import { TWITCH_COLORS } from "@/assets/platforms/twitch";
 import { Button } from "@/components/ui/button";
 import { TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { useAdElementObserver } from "@/features/playback/data/use-ad-element-observer";
+import { isTwitchPlaylistProxyMode } from "@/features/playback/utils/twitch-playlist-proxy";
 import { createCancellableSleep, type CancellableSleep } from "@shared/utils/sleep";
 import { logger } from "@/renderer/logging/logger";
 import type { AdBlockStatus } from "@shared/adblock-types";
 import { useAdBlockStore } from "@/store/adblock-store";
+import { useAuthStore } from "@/store/auth-store";
 
 import { useDefaultQuality } from "../hooks/use-default-quality";
 import { useDockedPlayerConfig } from "../persistent-player-shell";
@@ -125,9 +127,13 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
 
     // Ad-block store setting
     const storeEnableAdBlock = useAdBlockStore((s) => s.enableAdBlock);
+    const isPlaylistProxyMode = useAuthStore((state) =>
+      isTwitchPlaylistProxyMode(state.preferences)
+    );
     // Use prop if explicitly set, otherwise use store value
     const effectiveEnableAdBlock =
-      enableAdBlock !== undefined ? enableAdBlock && storeEnableAdBlock : storeEnableAdBlock;
+      !isPlaylistProxyMode &&
+      (enableAdBlock !== undefined ? enableAdBlock && storeEnableAdBlock : storeEnableAdBlock);
 
     // Ad-block status tracking
     const [adBlockStatus, setAdBlockStatus] = useState<AdBlockStatus | null>(null);
@@ -184,6 +190,12 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
       }
       setAdPresentationCover(null);
     }, []);
+
+    useLayoutEffect(() => {
+      if (!isPlaylistProxyMode) return;
+      hideAdPresentationCover();
+      setAdBlockStatus(null);
+    }, [hideAdPresentationCover, isPlaylistProxyMode]);
 
     const coverUnsafeAdPresentation = useCallback(() => {
       if (
@@ -507,6 +519,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
             onQualityLevels={handleQualityLevels}
             onActiveQualityChange={setActiveQualityId}
             onAdBlockStatusChange={(status) => {
+              if (isPlaylistProxyMode) return;
               setAdBlockStatus(status);
               onAdBlockStatusChange?.(status);
             }}
@@ -625,7 +638,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
           className="pointer-events-none absolute inset-0 z-20 bg-[#18181b]"
         />
 
-        {isAdSubstitutionActive && (
+        {!isPlaylistProxyMode && isAdSubstitutionActive && (
           <div
             role="status"
             aria-live="polite"
@@ -636,7 +649,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
         )}
 
         {/* Ad-Block Fallback Overlay - Full screen when all backup types failed */}
-        {adBlockStatus && (
+        {!isPlaylistProxyMode && adBlockStatus && (
           <AdBlockFallbackOverlay status={adBlockStatus} channelName={channelName} />
         )}
 
@@ -707,7 +720,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
             onPlaybackRateChange={handlePlaybackRateChange}
             showVideoStats={showVideoStats}
             onToggleVideoStats={() => setShowVideoStats(!showVideoStats)}
-            adBlockStatus={adBlockStatus}
+            adBlockStatus={isPlaylistProxyMode ? null : adBlockStatus}
             onSeek={() => {}} // Dummy seek handler for visual progress bar
             onRefresh={onRefresh}
             timedTextTracks={timedText.tracks}

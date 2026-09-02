@@ -3,9 +3,12 @@ import type { Ref } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AdBlockStatus } from "@shared/adblock-types";
+import { DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
+import { useAuthStore } from "@/store/auth-store";
 
 interface HlsHarnessProps {
   ref?: Ref<HTMLVideoElement>;
+  enableAdBlock?: boolean;
   onAdBlockStatusChange?: (status: AdBlockStatus) => void;
 }
 
@@ -17,7 +20,9 @@ const harness = vi.hoisted(() => ({
 vi.mock("@/components/ui/loading-spinner", () => ({
   TwitchLoadingSpinner: () => <div data-testid="loading-spinner" />,
 }));
-vi.mock("@/features/playback/data/use-ad-element-observer", () => ({ useAdElementObserver: vi.fn() }));
+vi.mock("@/features/playback/data/use-ad-element-observer", () => ({
+  useAdElementObserver: vi.fn(),
+}));
 vi.mock("@/store/adblock-store", () => ({ useAdBlockStore: () => true }));
 vi.mock("@/features/playback/components/player/hooks/use-default-quality", () => ({
   useDefaultQuality: () => ({ defaultQuality: "auto" }),
@@ -46,7 +51,9 @@ vi.mock("@/features/playback/components/player/hooks/use-local-live-captions", (
 vi.mock("@/features/playback/components/player/hooks/use-picture-in-picture", () => ({
   usePictureInPicture: () => ({ isPip: false, togglePip: vi.fn() }),
 }));
-vi.mock("@/features/playback/components/player/hooks/use-player-keyboard", () => ({ usePlayerKeyboard: vi.fn() }));
+vi.mock("@/features/playback/components/player/hooks/use-player-keyboard", () => ({
+  usePlayerKeyboard: vi.fn(),
+}));
 vi.mock("@/features/playback/components/player/hooks/use-player-network-recovery", () => ({
   usePlayerNetworkRecovery: (_hasError: boolean, recover: () => void) => {
     harness.recoverFromNetworkError = recover;
@@ -69,7 +76,9 @@ vi.mock("@/features/playback/components/player/hooks/use-volume", () => ({
     syncFromVideoElement: vi.fn(),
   }),
 }));
-vi.mock("@/features/playback/components/player/caption-overlay", () => ({ CaptionOverlay: () => null }));
+vi.mock("@/features/playback/components/player/caption-overlay", () => ({
+  CaptionOverlay: () => null,
+}));
 vi.mock("@/features/playback/components/player/twitch/ad-block-fallback-overlay", () => ({
   AdBlockFallbackOverlay: () => null,
 }));
@@ -120,10 +129,12 @@ function publishStatus(nextStatus: AdBlockStatus) {
 
 // Guards: automatic playback recovery remains silent while the player reconnects in place.
 // Guards: active Twitch ad substitution keeps the visible top-left blocking status users rely on.
+// Guards: playlist-proxy replacement mode clears custom ad-block status and never announces Blocking ads.
 describe("Twitch live-player ad-block indicator", () => {
   beforeEach(() => {
     harness.hlsProps = null;
     harness.recoverFromNetworkError = null;
+    useAuthStore.setState({ preferences: null });
   });
 
   it("does not render or announce automatic playback recovery", () => {
@@ -140,6 +151,16 @@ describe("Twitch live-player ad-block indicator", () => {
     publishStatus(status({ isShowingAd: true, isUsingFallbackMode: true }));
 
     expect(screen.getByRole("status")).toHaveTextContent("Blocking ads");
+  });
+
+  it("suppresses custom adblock presentation while playlist proxy mode is active", () => {
+    useAuthStore.setState({ preferences: { ...DEFAULT_USER_PREFERENCES } });
+    renderPlayer();
+
+    publishStatus(status({ isShowingAd: true, isUsingFallbackMode: true }));
+
+    expect(harness.hlsProps?.enableAdBlock).toBe(false);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("distinguishes active midroll substitution", () => {

@@ -3,6 +3,8 @@ import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AdBlockStatus } from "@shared/adblock-types";
+import { DEFAULT_USER_PREFERENCES, type TwitchPlaylistProxyPreferences } from "@shared/auth-types";
+import { useAuthStore } from "@/store/auth-store";
 
 vi.mock("@/renderer/logging/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -198,6 +200,7 @@ import { TwitchHlsPlayer } from "@/features/playback/components/player/twitch/tw
 // Guards: ad-block player callbacks never pause or resume media; playback state remains user-owned.
 // Guards: a stalled ad hold retries HLS locally and never requests an external refresh/remount.
 // Guards: changing explicit playback intent never rebuilds HLS, and late autoplay work respects a deliberate pause.
+// Guards: playlist-proxy mode never initializes custom adblock loaders and advances only after terminal playlist HTTP failures.
 // Guards: Twitch manifest 403 is a refreshable token failure and never pauses media itself.
 // Guards: verified clean presentation restores the exact user mute preference after internal ad-audio suppression.
 // Guards: repeated ad-start recovery signals never stop/restart a verified clean HLS feed or disturb media progression.
@@ -225,6 +228,7 @@ describe("TwitchHlsPlayer adblock status", () => {
       adStartTime: null,
     }));
     vi.useRealTimers();
+    useAuthStore.setState({ preferences: null });
   });
 
   it("publishes the initial active adblock status on mount", () => {
@@ -269,6 +273,49 @@ describe("TwitchHlsPlayer adblock status", () => {
         isShowingAd: false,
         channelName: "sodapoppin",
       })
+    );
+  });
+
+  it("uses playlist sources before direct Twitch and suppresses custom adblock", () => {
+    const twitchPlaylistProxy: TwitchPlaylistProxyPreferences = {
+      enabled: true,
+      sources: [
+        {
+          id: "first",
+          url: "https://proxy.example/live/$channel",
+          enabled: true,
+          addQueryParams: true,
+        },
+      ],
+    };
+    useAuthStore.setState({
+      preferences: { ...DEFAULT_USER_PREFERENCES, twitchPlaylistProxy },
+    });
+
+    render(
+      <TwitchHlsPlayer
+        src="https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
+        channelName="sodapoppin"
+        enableAdBlock
+      />
+    );
+
+    expect(mockInitAdBlockService).not.toHaveBeenCalled();
+    expect(hlsInstances[0].loadSource).toHaveBeenCalledWith(
+      "https://proxy.example/live/sodapoppin?allow_source=true&allow_audio_only=true&fast_bread=true"
+    );
+
+    act(() => {
+      hlsInstances[0].emit("hlsError", {
+        type: "networkError",
+        details: "manifestLoadError",
+        fatal: true,
+        response: { code: 503 },
+      });
+    });
+
+    expect(hlsInstances[1].loadSource).toHaveBeenCalledWith(
+      "https://usher.ttvnw.net/api/channel/hls/sodapoppin.m3u8"
     );
   });
 
