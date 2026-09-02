@@ -24,6 +24,8 @@ export interface ChatPanelProps {
   kickChannelId?: string;
   /** Kick broadcaster user_id (for resolving 7TV channel emotes) */
   kickUserId?: string;
+  /** Whether the selected Kick channel is a Partner channel. */
+  isPartnerChannel?: boolean;
   /** Subscriber badges for Kick (if applicable) */
   subscriberBadges?: SubscriberBadge[];
   badgeCatalogState?: "loading" | "ready" | "failed";
@@ -42,6 +44,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
   channelId,
   kickChannelId,
   kickUserId,
+  isPartnerChannel,
   subscriberBadges,
   badgeCatalogState,
   retryBadgeCatalog,
@@ -69,6 +72,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
           kickChannelId={kickChannelId}
           chatroomId={chatroomId}
           kickUserId={kickUserId}
+          isPartnerChannel={isPartnerChannel}
           subscriberBadges={subscriberBadges}
           badgeCatalogState={badgeCatalogState}
           retryBadgeCatalog={retryBadgeCatalog}

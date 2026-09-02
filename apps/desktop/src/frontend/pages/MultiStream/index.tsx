@@ -226,6 +226,9 @@ export function MultiStreamPage() {
                   kickUserId={
                     activeChatStream.platform === "kick" ? activeChatChannel?.kickUserId : undefined
                   }
+                  isPartnerChannel={
+                    activeChatStream.platform === "kick" ? activeChatChannel?.isPartner : undefined
+                  }
                   subscriberBadges={subscriberBadges}
                   badgeCatalogState={
                     activeChatStream.platform !== "kick"

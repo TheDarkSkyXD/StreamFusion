@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   banKickUser,
+  banKickUserOfficial,
   deleteKickMessage,
   setKickChatMode,
   timeoutKickUser,
   timeoutKickUserOfficial,
   unbanKickUser,
+  unbanKickUserOfficial,
 } from "@backend/api/platforms/kick/kick-mod-mutations";
 
 // Guards: Kick v2 moderation mutations — ban (permanent=true), timeout (permanent=false + duration), unban, delete-message, set-chat-mode. Each pins URL + method + body envelope so a casual refactor that "simplifies" the request shape doesn't silently 4xx mod actions.
@@ -275,6 +277,50 @@ describe("timeoutKickUserOfficial", () => {
 
     expect(result.ok).toBe(false);
     expect(urls).toEqual(["https://api.kick.com/public/v1/moderation/bans"]);
+  });
+});
+
+describe("official-only slash-command moderation", () => {
+  it("preserves the ban reason without falling back to the web endpoint", async () => {
+    const result = await banKickUserOfficial({
+      broadcasterUserId: 123,
+      userId: 456,
+      reason: "spam",
+      accessToken: "tok-1",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(lastMethod).toBe("POST");
+    expect(lastUrl).toBe("https://api.kick.com/public/v1/moderation/bans");
+    expect(lastBody).toEqual({ broadcaster_user_id: 123, user_id: 456, reason: "spam" });
+  });
+
+  it("unbans through the official endpoint", async () => {
+    const result = await unbanKickUserOfficial({
+      broadcasterUserId: 123,
+      userId: 456,
+      accessToken: "tok-1",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(lastMethod).toBe("DELETE");
+    expect(lastUrl).toBe("https://api.kick.com/public/v1/moderation/bans");
+    expect(lastBody).toEqual({ broadcaster_user_id: 123, user_id: 456 });
+  });
+
+  it("rejects invalid user IDs before making a request", async () => {
+    const result = await banKickUserOfficial({
+      broadcasterUserId: 123,
+      userId: 0,
+      accessToken: "tok-1",
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      kind: "unknown",
+      message: "Invalid official Kick moderation input.",
+    });
+    expect(lastUrl).toBeNull();
   });
 });
 

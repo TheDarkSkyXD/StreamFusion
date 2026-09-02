@@ -123,6 +123,46 @@ export interface BanKickUserArgs {
   reason?: string;
 }
 
+export interface OfficialBanKickUserArgs {
+  accessToken: string;
+  broadcasterUserId: number;
+  userId: number;
+  reason?: string;
+}
+
+function hasValidOfficialModerationUsers(args: {
+  broadcasterUserId: number;
+  userId: number;
+}): boolean {
+  return (
+    Number.isSafeInteger(args.broadcasterUserId) &&
+    args.broadcasterUserId > 0 &&
+    Number.isSafeInteger(args.userId) &&
+    args.userId > 0
+  );
+}
+
+function invalidOfficialModerationResult(): KickModResult {
+  return { ok: false, kind: "unknown", message: "Invalid official Kick moderation input." };
+}
+
+/** Official-only permanent ban used by slash-command execution. */
+export function banKickUserOfficial(args: OfficialBanKickUserArgs): Promise<KickModResult> {
+  if (!hasValidOfficialModerationUsers(args) || (args.reason?.length ?? 0) > 100) {
+    return Promise.resolve(invalidOfficialModerationResult());
+  }
+  return kickRequest({
+    method: "POST",
+    url: `${KICK_OFFICIAL_API_BASE}/moderation/bans`,
+    accessToken: args.accessToken,
+    body: {
+      broadcaster_user_id: args.broadcasterUserId,
+      user_id: args.userId,
+      ...(args.reason ? { reason: args.reason } : {}),
+    },
+  });
+}
+
 export function banKickUser(args: BanKickUserArgs): Promise<KickModResult> {
   const broadcasterUserId = numericId(args.broadcasterUserId);
   const userId = numericId(args.userId);
@@ -183,17 +223,13 @@ export interface OfficialTimeoutKickUserArgs {
  */
 export function timeoutKickUserOfficial(args: OfficialTimeoutKickUserArgs): Promise<KickModResult> {
   if (
-    !Number.isSafeInteger(args.broadcasterUserId) ||
-    !Number.isSafeInteger(args.userId) ||
+    !hasValidOfficialModerationUsers(args) ||
     !Number.isInteger(args.duration) ||
     args.duration < 1 ||
-    args.duration > 10_080
+    args.duration > 10_080 ||
+    (args.reason?.length ?? 0) > 100
   ) {
-    return Promise.resolve({
-      ok: false,
-      kind: "unknown",
-      message: "Invalid official Kick timeout input.",
-    });
+    return Promise.resolve(invalidOfficialModerationResult());
   }
   return kickRequest({
     method: "POST",
@@ -250,6 +286,28 @@ export interface UnbanKickUserArgs {
   accessToken: string;
   broadcasterUserId?: number | string;
   userId?: number | string;
+}
+
+export interface OfficialUnbanKickUserArgs {
+  accessToken: string;
+  broadcasterUserId: number;
+  userId: number;
+}
+
+/** Official-only unban used by slash-command execution. */
+export function unbanKickUserOfficial(args: OfficialUnbanKickUserArgs): Promise<KickModResult> {
+  if (!hasValidOfficialModerationUsers(args)) {
+    return Promise.resolve(invalidOfficialModerationResult());
+  }
+  return kickRequest({
+    method: "DELETE",
+    url: `${KICK_OFFICIAL_API_BASE}/moderation/bans`,
+    accessToken: args.accessToken,
+    body: {
+      broadcaster_user_id: args.broadcasterUserId,
+      user_id: args.userId,
+    },
+  });
 }
 
 export function unbanKickUser(args: UnbanKickUserArgs): Promise<KickModResult> {

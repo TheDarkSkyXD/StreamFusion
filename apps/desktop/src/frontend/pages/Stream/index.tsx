@@ -984,6 +984,7 @@ export function StreamPage() {
                 kickChannelId={routePlatform === "kick" ? channelData?.kickChannelId : undefined}
                 chatroomId={routePlatform === "kick" ? channelData?.chatroomId : undefined}
                 kickUserId={routePlatform === "kick" ? channelData?.kickUserId : undefined}
+                isPartnerChannel={routePlatform === "kick" ? channelData?.isPartner : undefined}
                 subscriberBadges={memoizedSubscriberBadges}
                 badgeCatalogState={
                   routePlatform !== "kick"

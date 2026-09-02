@@ -12,9 +12,11 @@ import { logger } from "@/renderer/logging/logger";
 import { router } from "@/routes/router";
 import type { UnifiedPrediction } from "@shared/chat-types";
 import {
-  type KickChatModeUpdate,
+  banKickUserOfficial,
   type KickModResult,
   setKickChatMode,
+  timeoutKickUserOfficial,
+  unbanKickUserOfficial,
 } from "../../../../../../backend/api/platforms/kick/kick-mod-mutations";
 import { kickChatService } from "../../../../../../backend/services/chat/kick-chat";
 import {
@@ -56,7 +58,9 @@ import { ChatInput, type ChatInputHandle } from "../ChatInput";
 import type {
   ChatCommandAccess,
   ChatCommandDefinition,
+  KickModerationEffect,
 } from "../../../utils/chat-command-registry";
+import { runKickCommandEffect } from "../../../utils/kick-command-session";
 import { ChatMessageList } from "../ChatMessageList";
 import {
   resolveAccountAgeRequirement,
@@ -86,8 +90,10 @@ export interface KickChatProps {
   kickChannelId?: string;
   /** Chatroom ID (required for Kick) */
   chatroomId?: number;
-  /** Kick broadcaster user_id — used to resolve the channel's 7TV emotes. */
+  /** Kick broadcaster user_id, used to resolve the channel's 7TV emotes. */
   kickUserId?: string;
+  /** Whether this Kick channel is a Partner channel. */
+  isPartnerChannel?: boolean;
   /** Subscriber badges for the channel (for badge rendering) */
   subscriberBadges?: SubscriberBadge[];
   badgeCatalogState?: "loading" | "ready" | "failed";
@@ -95,8 +101,8 @@ export interface KickChatProps {
   showComposer?: boolean;
 }
 
-/** U13 — Kick has no raid/commercial/shield/unique-chat. The strip only fires
- *  four chat-mode toggles and a local clear. */
+/** U13: Kick's inline strip exposes four chat-mode toggles and a local clear.
+ *  The first-party raid workflow remains available through the command catalog. */
 type PendingKickModAction =
   | {
       kind: "messageScoped";
@@ -233,6 +239,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   kickChannelId,
   chatroomId,
   kickUserId,
+  isPartnerChannel = false,
   subscriberBadges,
   badgeCatalogState = subscriberBadges === undefined ? "loading" : "ready",
   retryBadgeCatalog = () => {},
@@ -385,80 +392,86 @@ export const KickChat: React.FC<KickChatProps> = ({
   const commandAccess: ChatCommandAccess = useMemo(() => {
     if (!isAuthenticated) return { kind: "guest", platform: "kick" };
     if (signedInUserIsBroadcaster) {
-      return { kind: "authenticated", platform: "kick", role: "broadcaster" };
+      return {
+        kind: "authenticated",
+        platform: "kick",
+        role: "broadcaster",
+        isPartnerBroadcaster: isPartnerChannel,
+      };
     }
     return { kind: "authenticated", platform: "kick", role: isMod ? "moderator" : "viewer" };
-  }, [isAuthenticated, isMod, signedInUserIsBroadcaster]);
+  }, [isAuthenticated, isMod, isPartnerChannel, signedInUserIsBroadcaster]);
   const executeKickCommand = useCallback(
     async ({ command, args }: { command: ChatCommandDefinition; args: string; text: string }) => {
-      if (command.execution === "action-message") {
-        await kickChatService.sendMessage(channel, `*${args}*`, kickUser ?? undefined);
-        return;
+      if (command.platform !== "kick" || commandAccess.kind !== "authenticated") {
+        throw new Error(`/${command.name} is not available in this Kick chat`);
       }
 
-      if (["slow", "followonly", "subonly", "emoteonly"].includes(command.name)) {
-        const [mode, amount] = args.toLowerCase().split(/\s+/, 2);
-        if (mode !== "on" && mode !== "off") {
-          throw new Error(`/${command.name} needs "on" or "off"`);
-        }
-        const enabled = mode === "on";
-        let update: KickChatModeUpdate;
-        let roomPatch: Parameters<typeof updateRoomState>[2];
-        if (command.name === "slow") {
-          const seconds = enabled ? Number(amount) : 0;
-          if (enabled && (!Number.isInteger(seconds) || seconds <= 0)) {
-            throw new Error("/slow on needs a positive number of seconds");
+      await runKickCommandEffect(command, args, {
+        channelLogin: channel,
+        role: commandAccess.role,
+        sendAction: (message) =>
+          kickChatService.sendMessage(channel, `*${message}*`, kickUser ?? undefined),
+        moderate: async (effect: KickModerationEffect) => {
+          const token = await window.electronAPI.auth.getToken("kick");
+          if (!token?.accessToken) throw new Error("Sign in to Kick to use this command");
+
+          const broadcasterUserId = Number(kickUserId ?? channelId);
+          if (!Number.isSafeInteger(broadcasterUserId) || broadcasterUserId < 1) {
+            throw new Error("Could not resolve this Kick channel's broadcaster identity");
           }
-          update = { slowMode: { enabled, seconds } };
-          roomPatch = { slowMode: enabled ? seconds : null };
-        } else if (command.name === "followonly") {
-          update = { followersOnly: { enabled, minutes: 0 } };
-          roomPatch = { followersOnly: enabled ? 0 : null };
-        } else if (command.name === "subonly") {
-          update = { subscribersOnly: { enabled } };
-          roomPatch = { subscribersOnly: enabled };
-        } else {
-          update = { emoteOnly: { enabled } };
-          roomPatch = { emoteOnly: enabled };
-        }
 
-        const token = await window.electronAPI.auth.getToken("kick");
-        if (!token?.accessToken) throw new Error("Sign in to Kick to use this command");
-        const result = await setKickChatMode({
-          channelSlug: channel,
-          accessToken: token.accessToken,
-          update,
-        });
-        if (!result.ok) throw new Error(result.message);
-        if (kickRoomKey) updateRoomState("kick", kickRoomKey, roomPatch);
-        return;
-      }
-
-      const [usernameArgument, durationText] = args.split(/\s+/, 2);
-      if (!usernameArgument) throw new Error(`/${command.name} needs a username`);
-      const username = usernameArgument.replace(/^@/, "");
-      let result: KickModResult;
-      switch (command.name) {
-        case "ban":
-          result = await banKickUserViaKickWebSession(channel, username);
-          break;
-        case "unban":
-          result = await unbanKickUserViaKickWebSession(channel, username);
-          break;
-        case "timeout": {
-          const duration = Number(durationText);
-          if (!Number.isInteger(duration) || duration <= 0) {
-            throw new Error("/timeout needs a positive number of seconds");
+          const target = await window.electronAPI.userProfiles.resolveKickChannel({
+            username: effect.targetLogin,
+          });
+          if (target.state !== "known") {
+            throw new Error(`Could not resolve @${effect.targetLogin} to a Kick user`);
           }
-          result = await timeoutKickUserViaKickWebSession(channel, username, duration);
-          break;
-        }
-        default:
-          throw new Error(`/${command.name} is not available on Kick`);
-      }
-      if (!result.ok) throw new Error(result.message);
+          const userId = Number(target.value.id);
+          if (!Number.isSafeInteger(userId) || userId < 1) {
+            throw new Error(`Kick returned an invalid identity for @${effect.targetLogin}`);
+          }
+
+          let result: KickModResult;
+          switch (effect.action) {
+            case "ban":
+              result = await banKickUserOfficial({
+                accessToken: token.accessToken,
+                broadcasterUserId,
+                userId,
+                ...(effect.reason ? { reason: effect.reason } : {}),
+              });
+              break;
+            case "unban":
+              result = await unbanKickUserOfficial({
+                accessToken: token.accessToken,
+                broadcasterUserId,
+                userId,
+              });
+              break;
+            case "timeout":
+              result = await timeoutKickUserOfficial({
+                accessToken: token.accessToken,
+                broadcasterUserId,
+                userId,
+                duration: effect.durationMinutes,
+                ...(effect.reason ? { reason: effect.reason } : {}),
+              });
+              break;
+            default: {
+              const exhaustive: never = effect;
+              return exhaustive;
+            }
+          }
+          if (!result.ok) throw new Error(result.message);
+        },
+        openExternal: async (url) => {
+          await window.electronAPI.openExternal(url);
+        },
+        explainHandoff: (message) => toast.info("Opening Kick", { description: message }),
+      });
     },
-    [channel, kickRoomKey, kickUser, updateRoomState]
+    [channel, channelId, commandAccess, kickUser, kickUserId]
   );
 
   useEffect(() => {
@@ -1392,9 +1405,8 @@ export const KickChat: React.FC<KickChatProps> = ({
         />
       )}
 
-      {/* U13 — Inline mod strip. Kick exposes only the 4 chat-mode toggles
-       *  plus a local clear. Broadcaster check is unused since Kick has no
-       *  raid/commercial. */}
+      {/* U13: Inline controls cover the four chat modes plus a local clear.
+       *  Other Kick commands use the composer catalog. */}
       {isMod && kickRoomKey ? (
         <InlineModStrip
           platform="kick"

@@ -1,11 +1,13 @@
 import {
   CHAT_COMMAND_REGISTRY,
+  compileKickCommand,
   compileTwitchCommand,
   getCommandArgumentError,
   getCommandCompletion,
   getCommandsForAccess,
   parseAvailableCommand,
   replaceLeadingCommand,
+  KICK_LINKED_COMMAND_NAMES,
   TWITCH_LINKED_COMMAND_NAMES,
 } from "@/features/chat/utils/chat-command-registry";
 import { describe, expect, it } from "vitest";
@@ -13,6 +15,7 @@ import { describe, expect, it } from "vitest";
 // Guards: command lists retain viewer commands when moderator authority is added, and guests do not see account commands.
 // Guards: platform-specific commands do not appear in the other platform's composer.
 // Guards: malformed and unrecognized slash text cannot reach an ordinary chat send.
+// Guards: Kick's official 23-command catalog retains exact role and argument contracts.
 describe("chat command registry", () => {
   const linkedNames = [
     "mods",
@@ -62,6 +65,31 @@ describe("chat command registry", () => {
     "raid",
     "unraid",
     "marker",
+  ];
+  const kickLinkedNames = [
+    "ban",
+    "unban",
+    "timeout",
+    "clear",
+    "mod",
+    "unmod",
+    "user",
+    "slow",
+    "followonly",
+    "subonly",
+    "emoteonly",
+    "title",
+    "category",
+    "raid",
+    "og",
+    "unog",
+    "vip",
+    "unvip",
+    "poll",
+    "polldelete",
+    "prediction",
+    "multi",
+    "kpp",
   ];
 
   it("matches the linked 47-command Twitch catalog exactly", () => {
@@ -125,6 +153,57 @@ describe("chat command registry", () => {
       message: "waves",
     });
   });
+
+  it("matches and compiles the linked 23-command Kick catalog exactly", () => {
+    expect(KICK_LINKED_COMMAND_NAMES).toHaveLength(23);
+    expect([...KICK_LINKED_COMMAND_NAMES].sort()).toEqual([...kickLinkedNames].sort());
+    expect(
+      CHAT_COMMAND_REGISTRY.filter((command) => command.platform === "kick")
+        .map((command) => command.name)
+        .filter((name) => !kickLinkedNames.includes(name))
+        .sort()
+    ).toEqual(["help", "me"]);
+
+    const broadcaster = getCommandsForAccess({
+      kind: "authenticated",
+      platform: "kick",
+      role: "broadcaster",
+      isPartnerBroadcaster: true,
+    });
+    const sampleArgs: Record<string, string> = {
+      ban: "viewer spam",
+      unban: "viewer",
+      timeout: "viewer 600 cool down",
+      mod: "viewer",
+      unmod: "viewer",
+      user: "viewer",
+      slow: "on 30",
+      followonly: "on",
+      subonly: "on",
+      emoteonly: "off",
+      title: "New stream title",
+      og: "viewer",
+      unog: "viewer",
+      vip: "viewer",
+      unvip: "viewer",
+      multi: "on",
+      kpp: "off",
+      me: "waves",
+    };
+    const effects = broadcaster.map((definition) =>
+      compileKickCommand(
+        {
+          definition,
+          args: sampleArgs[definition.name] ?? "",
+          text: `/${definition.name}`,
+        },
+        "broadcaster"
+      )
+    );
+
+    expect(effects.filter((effect) => effect.kind === "moderation")).toHaveLength(3);
+    expect(effects.filter((effect) => effect.kind === "first-party")).toHaveLength(20);
+  });
   it("filters commands by platform and role", () => {
     const twitchViewer = getCommandsForAccess({
       kind: "authenticated",
@@ -150,6 +229,12 @@ describe("chat command registry", () => {
       kind: "authenticated",
       platform: "kick",
       role: "broadcaster",
+    });
+    const kickPartnerBroadcaster = getCommandsForAccess({
+      kind: "authenticated",
+      platform: "kick",
+      role: "broadcaster",
+      isPartnerBroadcaster: true,
     });
     const kickViewer = getCommandsForAccess({
       kind: "authenticated",
@@ -184,10 +269,26 @@ describe("chat command registry", () => {
     );
     expect(twitchBroadcaster).toHaveLength(49);
     expect(kickModerator.map((command) => command.name)).toEqual(
-      expect.arrayContaining(["help", "me", "ban", "unban", "timeout", "slow", "followonly"])
+      expect.arrayContaining([
+        "help",
+        "me",
+        "ban",
+        "unban",
+        "timeout",
+        "clear",
+        "slow",
+        "followonly",
+        "title",
+        "poll",
+      ])
     );
     expect(kickModerator.map((command) => command.name)).not.toContain("subonly");
-    expect(kickBroadcaster.map((command) => command.name)).toContain("subonly");
+    expect(kickPartnerBroadcaster.map((command) => command.name)).toEqual(
+      expect.arrayContaining(["subonly", "mod", "raid", "vip", "multi", "kpp"])
+    );
+    expect(kickBroadcaster.map((command) => command.name)).not.toEqual(
+      expect.arrayContaining(["multi", "kpp"])
+    );
     expect(kickViewer.map((command) => command.name)).toEqual(["help", "me"]);
     expect(kickModerator.map((command) => command.name)).toEqual([
       "help",
@@ -195,21 +296,19 @@ describe("chat command registry", () => {
       "ban",
       "unban",
       "timeout",
+      "clear",
+      "user",
       "slow",
       "followonly",
       "emoteonly",
+      "title",
+      "category",
+      "poll",
+      "polldelete",
+      "prediction",
     ]);
-    expect(kickBroadcaster.map((command) => command.name)).toEqual([
-      "help",
-      "me",
-      "ban",
-      "unban",
-      "timeout",
-      "slow",
-      "followonly",
-      "emoteonly",
-      "subonly",
-    ]);
+    expect(kickBroadcaster).toHaveLength(23);
+    expect(kickPartnerBroadcaster).toHaveLength(25);
     expect(getCommandsForAccess({ kind: "guest", platform: "twitch" })).toEqual([]);
   });
 
@@ -243,7 +342,7 @@ describe("chat command registry", () => {
     const kickTimeout = parseAvailableCommand("/timeout viewer", kickCommands);
     expect(twitchBan && getCommandArgumentError(twitchBan)).toBe("/ban needs a username");
     expect(kickTimeout && getCommandArgumentError(kickTimeout)).toBe(
-      "/timeout needs a username and a positive number of seconds"
+      "/timeout needs a positive whole number of seconds"
     );
   });
 
@@ -272,7 +371,7 @@ describe("chat command registry", () => {
       "/timeout duration must be between 1 and 1209600 seconds",
       "/slow duration must be between 3 and 120 seconds",
       "/followers duration must be between 0 and 129600 minutes",
-      "/timeout duration must be a positive whole number of seconds",
+      "/timeout needs a positive whole number of seconds",
     ]);
 
     const followersForEveryone = parseAvailableCommand("/followers 0", twitchCommands);
@@ -356,6 +455,39 @@ describe("chat command registry", () => {
     expect(getCommandArgumentError(rejectedTimeout)).toBe(
       "/timeout reason must be 500 characters or fewer"
     );
+  });
+
+  it("validates Kick toggles, no-argument workflows, and moderation reasons", () => {
+    const moderator = getCommandsForAccess({
+      kind: "authenticated",
+      platform: "kick",
+      role: "moderator",
+    });
+    const broadcaster = getCommandsForAccess({
+      kind: "authenticated",
+      platform: "kick",
+      role: "broadcaster",
+      isPartnerBroadcaster: true,
+    });
+    const invalid = [
+      parseAvailableCommand("/slow on", moderator),
+      parseAvailableCommand("/slow off 30", moderator),
+      parseAvailableCommand("/followonly maybe", moderator),
+      parseAvailableCommand("/category games", moderator),
+      parseAvailableCommand(`/ban viewer ${"a".repeat(101)}`, moderator),
+      parseAvailableCommand("/timeout viewer 61", moderator),
+      parseAvailableCommand("/multi sometimes", broadcaster),
+    ];
+
+    expect(invalid.map((command) => command && getCommandArgumentError(command))).toEqual([
+      "/slow on needs a positive whole number of seconds",
+      "/slow off does not accept a duration",
+      '/followonly needs "on" or "off"',
+      "/category does not accept arguments",
+      "/ban reason must be 100 characters or fewer",
+      "/timeout seconds must be a multiple of 60 between 60 and 604800",
+      '/multi needs "on" or "off"',
+    ]);
   });
 
   it("does not resolve unknown slash text for any send path", () => {

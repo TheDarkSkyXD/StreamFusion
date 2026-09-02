@@ -7,8 +7,14 @@ export type ChatCommandAccess =
   | { readonly kind: "guest"; readonly platform: ChatPlatform }
   | {
       readonly kind: "authenticated";
-      readonly platform: ChatPlatform;
+      readonly platform: "twitch";
       readonly role: ChatCommandRole;
+    }
+  | {
+      readonly kind: "authenticated";
+      readonly platform: "kick";
+      readonly role: ChatCommandRole;
+      readonly isPartnerBroadcaster?: boolean;
     };
 export type ChatCommandExecution = "local" | "action-message" | "platform-command";
 
@@ -44,8 +50,43 @@ export interface TwitchCommandDefinition extends ChatCommandMetadata {
   readonly requiredScopes: readonly TwitchAppScope[];
   readonly compile: (args: string, role: ChatCommandRole) => TwitchCommandEffect;
 }
+
+export type KickFirstPartyDestination = { readonly kind: "channel-chat" };
+
+export type KickModerationEffect =
+  | {
+      readonly kind: "moderation";
+      readonly action: "ban";
+      readonly targetLogin: string;
+      readonly reason?: string;
+    }
+  | {
+      readonly kind: "moderation";
+      readonly action: "unban";
+      readonly targetLogin: string;
+    }
+  | {
+      readonly kind: "moderation";
+      readonly action: "timeout";
+      readonly targetLogin: string;
+      readonly durationMinutes: number;
+      readonly reason?: string;
+    };
+
+export type KickCommandEffect =
+  | { readonly kind: "help" }
+  | { readonly kind: "action-message"; readonly message: string }
+  | KickModerationEffect
+  | {
+      readonly kind: "first-party";
+      readonly destination: KickFirstPartyDestination;
+      readonly explanation: string;
+    };
+
 export interface KickCommandDefinition extends ChatCommandMetadata {
   readonly platform: "kick";
+  readonly requiresPartnerChannel: boolean;
+  readonly compile: (args: string, role: ChatCommandRole) => KickCommandEffect;
 }
 export type ChatCommandDefinition = TwitchCommandDefinition | KickCommandDefinition;
 export interface TextRange {
@@ -69,6 +110,16 @@ interface TwitchCommandOptions {
   readonly compile: TwitchCommandDefinition["compile"];
 }
 
+interface KickCommandOptions {
+  readonly name: string;
+  readonly usage: string;
+  readonly description: string;
+  readonly roles?: readonly ChatCommandRole[];
+  readonly execution?: ChatCommandExecution;
+  readonly requiresPartnerChannel?: boolean;
+  readonly compile: KickCommandDefinition["compile"];
+}
+
 const viewerRoles = ["viewer", "moderator", "broadcaster"] as const;
 const moderatorRoles = ["moderator", "broadcaster"] as const;
 const broadcasterRoles = ["broadcaster"] as const;
@@ -83,6 +134,20 @@ function twitchCommand(options: TwitchCommandOptions): TwitchCommandDefinition {
     allowedRoles: options.roles ?? viewerRoles,
     requiredScopes: options.scopes ?? [],
     execution: options.execution ?? "platform-command",
+    compile: options.compile,
+  };
+}
+
+function kickCommand(options: KickCommandOptions): KickCommandDefinition {
+  return {
+    id: `kick-${options.name}`,
+    name: options.name,
+    usage: options.usage,
+    description: options.description,
+    platform: "kick",
+    allowedRoles: options.roles ?? viewerRoles,
+    execution: options.execution ?? "platform-command",
+    requiresPartnerChannel: options.requiresPartnerChannel ?? false,
     compile: options.compile,
   };
 }
@@ -114,10 +179,48 @@ function noArguments(args: string, command: string): void {
   if (args.trim()) throw new Error(`/${command} does not accept arguments`);
 }
 
-function boundedReason(reason: string, command: string): string | undefined {
+function boundedReason(reason: string, command: string, maximum = 500): string | undefined {
   if (!reason) return undefined;
-  if (reason.length > 500) throw new Error(`/${command} reason must be 500 characters or fewer`);
+  if (reason.length > maximum) {
+    throw new Error(`/${command} reason must be ${maximum} characters or fewer`);
+  }
   return reason;
+}
+
+function kickToggle(args: string, command: string): { enabled: boolean; rest: string[] } {
+  const [rawMode, ...rest] = argumentsList(args);
+  const mode = rawMode?.toLowerCase();
+  if (mode !== "on" && mode !== "off") {
+    throw new Error(`/${command} needs "on" or "off"`);
+  }
+  return { enabled: mode === "on", rest };
+}
+
+function kickPositiveSeconds(rawValue: string | undefined, command: string): number {
+  const seconds = Number(rawValue);
+  if (!rawValue || !/^\d+$/.test(rawValue) || !Number.isSafeInteger(seconds) || seconds < 1) {
+    throw new Error(`/${command} needs a positive whole number of seconds`);
+  }
+  return seconds;
+}
+
+function kickTimeoutMinutes(rawValue: string | undefined): number {
+  const seconds = kickPositiveSeconds(rawValue, "timeout");
+  if (seconds % 60 !== 0 || seconds > 604_800) {
+    throw new Error("/timeout seconds must be a multiple of 60 between 60 and 604800");
+  }
+  return seconds / 60;
+}
+
+function kickFirstParty(
+  destination: KickFirstPartyDestination,
+  explanation: string
+): KickCommandEffect {
+  return { kind: "first-party", destination, explanation };
+}
+
+function kickChannelHandoff(explanation: string): KickCommandEffect {
+  return kickFirstParty({ kind: "channel-chat" }, explanation);
 }
 
 const TWITCH_CHAT_COLORS: Readonly<Record<string, string>> = {
@@ -735,85 +838,279 @@ const TWITCH_LOCAL_COMMANDS = [
   }),
 ] as const;
 
-const KICK_COMMANDS = [
-  {
-    id: "kick-help",
+const KICK_LOCAL_COMMANDS = [
+  kickCommand({
     name: "help",
-    usage: "/help",
+    usage: "/help [command]",
     description: "Show the commands available to you",
-    platform: "kick",
-    allowedRoles: viewerRoles,
     execution: "local",
-  },
-  {
-    id: "kick-me",
+    compile: () => ({ kind: "help" }),
+  }),
+  kickCommand({
     name: "me",
     usage: "/me [message]",
     description: "Send an action message",
-    platform: "kick",
-    allowedRoles: viewerRoles,
     execution: "action-message",
-  },
-  {
-    id: "kick-ban",
+    compile: (args) => ({ kind: "action-message", message: requiredMessage(args, "me") }),
+  }),
+] as const;
+
+const KICK_COMMAND_CATALOG = [
+  kickCommand({
     name: "ban",
-    usage: "/ban [username]",
+    usage: "/ban [username] [reason]",
     description: "Permanently ban a user",
-    platform: "kick",
-    allowedRoles: moderatorRoles,
-    execution: "platform-command",
-  },
-  {
-    id: "kick-unban",
+    roles: moderatorRoles,
+    compile: (args) => {
+      const target = requiredUsername(args, "ban");
+      const reason = boundedReason(target.rest, "ban", 100);
+      return {
+        kind: "moderation",
+        action: "ban",
+        targetLogin: target.login,
+        ...(reason ? { reason } : {}),
+      };
+    },
+  }),
+  kickCommand({
     name: "unban",
     usage: "/unban [username]",
-    description: "Remove a channel ban",
-    platform: "kick",
-    allowedRoles: moderatorRoles,
-    execution: "platform-command",
-  },
-  {
-    id: "kick-timeout",
+    description: "Remove a channel ban or timeout",
+    roles: moderatorRoles,
+    compile: (args) => {
+      const target = requiredUsername(args, "unban");
+      noArguments(target.rest, "unban");
+      return { kind: "moderation", action: "unban", targetLogin: target.login };
+    },
+  }),
+  kickCommand({
     name: "timeout",
-    usage: "/timeout [username] [seconds]",
-    description: "Temporarily timeout a user",
-    platform: "kick",
-    allowedRoles: moderatorRoles,
-    execution: "platform-command",
-  },
+    usage: "/timeout [username] [seconds] [reason]",
+    description: "Temporarily prevent a user from chatting",
+    roles: moderatorRoles,
+    compile: (args) => {
+      const target = requiredUsername(args, "timeout");
+      const [rawDuration, ...reasonParts] = argumentsList(target.rest);
+      const reason = boundedReason(reasonParts.join(" "), "timeout", 100);
+      return {
+        kind: "moderation",
+        action: "timeout",
+        targetLogin: target.login,
+        durationMinutes: kickTimeoutMinutes(rawDuration),
+        ...(reason ? { reason } : {}),
+      };
+    },
+  }),
+  kickCommand({
+    name: "clear",
+    usage: "/clear",
+    description: "Clear all current chat messages",
+    roles: moderatorRoles,
+    compile: (args) => {
+      noArguments(args, "clear");
+      return kickChannelHandoff(
+        "Kick does not provide third-party apps a clear-all chat operation."
+      );
+    },
+  }),
   ...(
     [
-      ["slow", "/slow [on|off] [seconds]", "Enable or disable slow mode"],
-      ["followonly", "/followonly [on|off]", "Enable or disable followers-only mode"],
-      ["emoteonly", "/emoteonly [on|off]", "Enable or disable emote-only mode"],
+      ["mod", "Give a user the Moderator role"],
+      ["unmod", "Remove a user's Moderator role"],
     ] as const
-  ).map(([name, usage, description]) => ({
-    id: `kick-${name}`,
-    name,
-    usage,
-    description,
-    platform: "kick" as const,
-    allowedRoles: moderatorRoles,
-    execution: "platform-command" as const,
-  })),
-  {
-    id: "kick-subonly",
+  ).map(([name, description]) =>
+    kickCommand({
+      name,
+      usage: `/${name} [username]`,
+      description,
+      roles: broadcasterRoles,
+      compile: (args) => {
+        const target = requiredUsername(args, name);
+        noArguments(target.rest, name);
+        return kickChannelHandoff(
+          "Kick does not provide third-party apps a Moderator role mutation."
+        );
+      },
+    })
+  ),
+  kickCommand({
+    name: "user",
+    usage: "/user [username]",
+    description: "Open a user's Kick information",
+    roles: moderatorRoles,
+    compile: (args) => {
+      const target = requiredUsername(args, "user");
+      noArguments(target.rest, "user");
+      return kickChannelHandoff(
+        "Kick exposes the moderation user card only in its first-party channel chat."
+      );
+    },
+  }),
+  kickCommand({
+    name: "slow",
+    usage: "/slow [on|off] [seconds]",
+    description: "Enable or disable slow mode",
+    roles: moderatorRoles,
+    compile: (args) => {
+      const toggle = kickToggle(args, "slow");
+      if (!toggle.enabled) {
+        if (toggle.rest.length > 0) throw new Error("/slow off does not accept a duration");
+        return kickChannelHandoff(
+          "Kick exposes slow-mode controls only in its first-party channel chat."
+        );
+      }
+      if (toggle.rest.length !== 1) {
+        throw new Error("/slow on needs a positive whole number of seconds");
+      }
+      kickPositiveSeconds(toggle.rest[0], "slow on");
+      return kickChannelHandoff(
+        "Kick exposes slow-mode controls only in its first-party channel chat."
+      );
+    },
+  }),
+  ...(
+    [
+      ["followonly", "followers-only"],
+      ["emoteonly", "emote-only"],
+    ] as const
+  ).map(([name, mode]) =>
+    kickCommand({
+      name,
+      usage: `/${name} [on|off]`,
+      description: `Enable or disable ${mode} mode`,
+      roles: moderatorRoles,
+      compile: (args) => {
+        const toggle = kickToggle(args, name);
+        if (toggle.rest.length > 0) throw new Error(`/${name} accepts only "on" or "off"`);
+        return kickChannelHandoff(
+          `Kick exposes ${mode} controls only in its first-party channel chat.`
+        );
+      },
+    })
+  ),
+  kickCommand({
     name: "subonly",
     usage: "/subonly [on|off]",
     description: "Enable or disable subscribers-only mode",
-    platform: "kick",
-    allowedRoles: broadcasterRoles,
-    execution: "platform-command",
-  },
+    roles: broadcasterRoles,
+    compile: (args) => {
+      const toggle = kickToggle(args, "subonly");
+      if (toggle.rest.length > 0) throw new Error('/subonly accepts only "on" or "off"');
+      return kickChannelHandoff(
+        "Kick exposes subscribers-only controls only in its first-party channel chat."
+      );
+    },
+  }),
+  kickCommand({
+    name: "title",
+    usage: "/title [new title]",
+    description: "Set the current stream title",
+    roles: moderatorRoles,
+    compile: (args) => {
+      requiredMessage(args, "title");
+      return kickChannelHandoff(
+        "Kick only documents programmatic title changes for the channel owner's token."
+      );
+    },
+  }),
+  kickCommand({
+    name: "category",
+    usage: "/category",
+    description: "Open the stream category selector",
+    roles: moderatorRoles,
+    compile: (args) => {
+      noArguments(args, "category");
+      return kickChannelHandoff(
+        "Kick's category command uses a first-party interactive selector."
+      );
+    },
+  }),
+  kickCommand({
+    name: "raid",
+    usage: "/raid",
+    description: "Open the Kick raid workflow",
+    roles: broadcasterRoles,
+    compile: (args) => {
+      noArguments(args, "raid");
+      return kickChannelHandoff(
+        "Kick does not provide third-party apps a raid operation."
+      );
+    },
+  }),
+  ...(
+    [
+      ["og", "Give a user the OG badge"],
+      ["unog", "Remove a user's OG badge"],
+      ["vip", "Give a user the VIP badge"],
+      ["unvip", "Remove a user's VIP badge"],
+    ] as const
+  ).map(([name, description]) =>
+    kickCommand({
+      name,
+      usage: `/${name} [username]`,
+      description,
+      roles: broadcasterRoles,
+      compile: (args) => {
+        const target = requiredUsername(args, name);
+        noArguments(target.rest, name);
+        return kickChannelHandoff(
+          "Kick does not provide third-party apps an OG or VIP role mutation."
+        );
+      },
+    })
+  ),
+  ...(
+    [
+      ["poll", "Open poll creation"],
+      ["polldelete", "Delete the active poll"],
+      ["prediction", "Open prediction creation or management"],
+    ] as const
+  ).map(([name, description]) =>
+    kickCommand({
+      name,
+      usage: `/${name}`,
+      description,
+      roles: moderatorRoles,
+      compile: (args) => {
+        noArguments(args, name);
+        return kickChannelHandoff(
+          "Kick exposes this engagement workflow only in its own chat UI."
+        );
+      },
+    })
+  ),
+  ...(
+    [
+      ["multi", "Toggle Kick Partner Multistreaming"],
+      ["kpp", "Toggle Kick Partner Program income"],
+    ] as const
+  ).map(([name, description]) =>
+    kickCommand({
+      name,
+      usage: `/${name} [on|off]`,
+      description: `${description}, Partner channels only`,
+      roles: broadcasterRoles,
+      requiresPartnerChannel: true,
+      compile: (args) => {
+        const toggle = kickToggle(args, name);
+        if (toggle.rest.length > 0) throw new Error(`/${name} accepts only "on" or "off"`);
+        return kickChannelHandoff(
+          "Kick Partner controls are available only in Kick's first-party UI."
+        );
+      },
+    })
+  ),
 ] as const satisfies readonly KickCommandDefinition[];
 
 export const CHAT_COMMAND_REGISTRY: readonly ChatCommandDefinition[] = [
   ...TWITCH_COMMAND_CATALOG,
   ...TWITCH_LOCAL_COMMANDS,
-  ...KICK_COMMANDS,
+  ...KICK_LOCAL_COMMANDS,
+  ...KICK_COMMAND_CATALOG,
 ];
 
 export const TWITCH_LINKED_COMMAND_NAMES = TWITCH_COMMAND_CATALOG.map((command) => command.name);
+export const KICK_LINKED_COMMAND_NAMES = KICK_COMMAND_CATALOG.map((command) => command.name);
 
 export function compileTwitchCommand(
   command: ParsedChatCommand,
@@ -825,13 +1122,29 @@ export function compileTwitchCommand(
   return command.definition.compile(command.args, role);
 }
 
+export function compileKickCommand(
+  command: ParsedChatCommand,
+  role: ChatCommandRole
+): KickCommandEffect {
+  if (command.definition.platform !== "kick") {
+    throw new Error(`/${command.definition.name} is not a Kick command`);
+  }
+  return command.definition.compile(command.args, role);
+}
+
 export function getCommandsForAccess(access: ChatCommandAccess): readonly CommandSuggestion[] {
   if (access.kind === "guest") return [];
   const commands: CommandSuggestion[] = [];
   for (const command of CHAT_COMMAND_REGISTRY) {
-    if (command.platform === access.platform && command.allowedRoles.includes(access.role)) {
-      commands.push({ ...command, key: command.id });
+    if (command.platform !== access.platform || !command.allowedRoles.includes(access.role)) continue;
+    if (
+      command.platform === "kick" &&
+      command.requiresPartnerChannel &&
+      !(access.platform === "kick" && access.isPartnerBroadcaster)
+    ) {
+      continue;
     }
+    commands.push({ ...command, key: command.id });
   }
   return commands;
 }
@@ -864,34 +1177,16 @@ export function parseAvailableCommand(
 }
 
 export function getCommandArgumentError(command: ParsedChatCommand): string | null {
-  if (command.definition.platform === "twitch") {
-    try {
+  try {
+    if (command.definition.platform === "twitch") {
       command.definition.compile(command.args, command.definition.allowedRoles[0] ?? "viewer");
-      return null;
-    } catch (error) {
-      return error instanceof Error ? error.message : "This command has invalid arguments";
+    } else {
+      command.definition.compile(command.args, command.definition.allowedRoles[0] ?? "viewer");
     }
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : "This command has invalid arguments";
   }
-  const args = argumentsList(command.args);
-  if (command.definition.name === "me" && args.length < 1) return "/me needs a message";
-  if (["ban", "unban"].includes(command.definition.name) && args.length < 1) {
-    return `/${command.definition.name} needs a username`;
-  }
-  if (command.definition.name === "timeout") {
-    if (args.length < 2) {
-      return "/timeout needs a username and a positive number of seconds";
-    }
-    if (!/^\d+$/.test(args[1] ?? "") || Number(args[1]) < 1) {
-      return "/timeout duration must be a positive whole number of seconds";
-    }
-  }
-  if (
-    ["slow", "followonly", "emoteonly", "subonly"].includes(command.definition.name) &&
-    args.length < 1
-  ) {
-    return `/${command.definition.name} needs "on" or "off"`;
-  }
-  return null;
 }
 
 export function replaceLeadingCommand(
