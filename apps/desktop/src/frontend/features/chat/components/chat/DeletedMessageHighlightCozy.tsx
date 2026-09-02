@@ -21,7 +21,7 @@ export const DeletedMessageHighlightCozy: React.FC<DeletedMessageHighlightCozyPr
       <ChatHighlightCard
         borderClassName="border-[#ff6b6b]"
         icon={<Trash2 className="h-5 w-5" strokeWidth={2.5} />}
-        label="Deleted message"
+        label={t("chat.deletedMessage")}
         testId="deleted-message-highlight"
         style={style}
       >
@@ -36,12 +36,11 @@ export const DeletedMessageHighlightCozy: React.FC<DeletedMessageHighlightCozyPr
               </span>
             </div>
             <div className="align-bottom text-xs font-normal leading-snug text-[#adadb8]">
-              <span className="align-bottom">{t("chat.deletedBy")}</span>
+              <span className="align-bottom">{t("chat.deletedBy")} </span>
               {moderator}
               <span className="align-bottom">
                 {" "}
-                {t("chat.at")}
-                {deletedTime}
+                {t("chat.at")} {deletedTime}
               </span>
               {auditDetail}
             </div>

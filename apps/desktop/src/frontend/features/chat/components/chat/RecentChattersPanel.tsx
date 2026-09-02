@@ -372,9 +372,7 @@ export function RecentChattersPanel({ id, channelKey, onClose }: RecentChattersP
               aria-live="polite"
               className="mx-2 mb-2 rounded-md bg-white/5 px-3 py-2 text-sm font-medium text-neutral-300"
             >
-              {t("chat.noActiveChattersMatchQuot")}
-              {trimmedSearchQuery}
-              {t("chat.quot2")}
+              {t("chat.noActiveChattersMatch", { query: trimmedSearchQuery })}
             </p>
           ) : null}
           {ACTIVE_CHATTER_SECTIONS.map(({ id: groupId, labelKey }) => {

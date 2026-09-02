@@ -34,8 +34,8 @@ function platformLabel(platform: ChatPlatform): string {
   return platform === "kick" ? "Kick" : "Twitch";
 }
 
-function formatDeletedAt(timestamp: Date | number | undefined): string {
-  if (!timestamp) return "time unknown";
+function formatDeletedAt(timestamp: Date | number | undefined, fallback: string): string {
+  if (!timestamp) return fallback;
   return new Date(timestamp).toLocaleTimeString([], {
     hour: "numeric",
     minute: "2-digit",
@@ -121,7 +121,7 @@ export const DeletedMessageHighlight: React.FC<DeletedMessageHighlightProps> = m
             badges: [],
           }
         : undefined);
-    const deletedTime = formatDeletedAt(deletedAt);
+    const deletedTime = formatDeletedAt(deletedAt, t("chat.timeUnknown"));
     const visibleSenderBadges = badgeLimit == null ? badges : badges.slice(0, badgeLimit);
     const moderatorBadgeLimit =
       badgeLimit == null ? undefined : Math.max(0, badgeLimit - visibleSenderBadges.length);
@@ -169,8 +169,7 @@ export const DeletedMessageHighlight: React.FC<DeletedMessageHighlightProps> = m
       mode === "audit" ? (
         <>
           {" "}
-          - {platformLabel(message.platform)} {t("chat.id")}
-          {message.id}
+          - {platformLabel(message.platform)} {t("chat.id")} {message.id}
         </>
       ) : undefined;
     const sharedProps = {

@@ -23,7 +23,7 @@ export const DeletedMessageHighlightCompact: React.FC<DeletedMessageHighlightCom
       <ChatEventHighlightCard
         accentColor="#ff6b6b"
         icon={<Trash2 className="h-4 w-4" strokeWidth={2.5} />}
-        label="Deleted message"
+        label={t("chat.deletedMessage")}
         platform={platform}
         style={style}
         testId="deleted-message-highlight"
@@ -44,12 +44,11 @@ export const DeletedMessageHighlightCompact: React.FC<DeletedMessageHighlightCom
               </span>
             </div>
             <div className="align-bottom text-xs font-normal leading-snug text-[#adadb8]">
-              <span className="align-bottom">{t("chat.deletedBy")}</span>
+              <span className="align-bottom">{t("chat.deletedBy")} </span>
               {moderator}
               <span className="align-bottom">
                 {" "}
-                {t("chat.at")}
-                {deletedTime}
+                {t("chat.at")} {deletedTime}
               </span>
               {auditDetail}
             </div>

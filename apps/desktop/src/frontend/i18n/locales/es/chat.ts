@@ -205,6 +205,8 @@ export const chatEs = {
       "Live messages and loaded chat history will populate this list.",
     activeChatterGroups: "Active chatter groups",
     noActiveChattersMatchQuot: "No active chatters match &quot;",
+    noActiveChattersMatch: 'Ningún participante activo coincide con "{{query}}".',
+    timeUnknown: "hora desconocida",
     quot2: "&quot;.",
     value0Value1Value22: "{{value0}}, {{value1}} {{value2}}",
     system: "System",

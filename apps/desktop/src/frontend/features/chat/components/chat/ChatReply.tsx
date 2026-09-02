@@ -47,7 +47,7 @@ export function ChatMessageReplyPreview({ reply }: { reply: ReplyInfo }) {
     >
       <TwitchReplyBubbleIcon className="h-4 w-4 shrink-0 text-[#d3d3d9]" />
       <p className="min-w-0 truncate text-sm font-normal leading-[1.4]">
-        <span>{t("chat.replyingTo")}</span>
+        <span>{t("chat.replyingTo")} </span>
         <span className="text-[#efeff1]">{formatReplyUser(displayName)}</span>
         {body ? <span>: {body}</span> : null}
       </p>
@@ -74,8 +74,7 @@ export function ChatComposerReplyPreview({
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm leading-[1.35]">
           <span className="font-semibold">
-            {t("chat.replyingTo")}
-            {formatReplyUser(displayName)}:
+            {t("chat.replyingTo")} {formatReplyUser(displayName)}:
           </span>
         </div>
         {content ? (
