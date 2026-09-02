@@ -294,7 +294,7 @@ export const settingsEn = {
     chromiumBuiltIn: "Chromium (built in)",
     advancedTransportProxy: "Advanced transport proxy",
     appliedToChromiumRequestsInElectronAposSDefaultSession:
-      "Applied to Chromium requests in Electron&apos;s default session",
+      "Applied to Chromium requests in Electron's default session",
     offByDefaultRoutesDefaultSessionChromiumRequestsThroughTheHostBe:
       "Off by default. Routes default-session Chromium requests through the host below.",
     hostOrIpOnlyNoSchemeEG: "Host or IP only — no scheme (e.g.",
@@ -314,7 +314,7 @@ export const settingsEn = {
     proxyDisabledNoHostSet: "Proxy disabled (no host set)",
     saveApply: "Save & apply",
     whenEnabledThisProxyAppliesToChromiumRequestsInElectronAposSDefa:
-      "When enabled, this proxy applies to Chromium requests in Electron&apos;s default session on subsequent requests. It does not control WebSockets or explicitly direct partitions. It&apos;s off by default.",
+      "When enabled, this proxy applies to Chromium requests in Electron's default session on subsequent requests. It does not control WebSockets or explicitly direct partitions. It's off by default.",
     visualStyleForTheChatPredictionWidgetWhenAStreamerRunsAPredictio:
       "Visual style for the chat prediction widget when a streamer runs a prediction.",
     nativeMatchesEachPlatformSOwnUiTwitchPurpleWithBubbleChartKickGr:
@@ -639,7 +639,7 @@ export const settingsEn = {
     editPlaylistSource: "Edit playlist source",
     addPlaylistSource: "Add playlist source",
     includeChannelWhereTwitchAposSChannelNameBelongs:
-      "Include $channel where Twitch&apos;s channel name belongs.",
+      "Include $channel where Twitch's channel name belongs.",
     playlistUrl: "Playlist URL",
     addPlaybackQueryParameters: "Add playback query parameters",
     addsSourceAudioOnlyAndFastBreadFlags: "Adds source, audio-only, and fast-bread flags.",

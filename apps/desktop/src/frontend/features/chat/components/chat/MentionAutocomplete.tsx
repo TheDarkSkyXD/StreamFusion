@@ -162,9 +162,7 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-[var(--color-border)] px-3 py-1.5 text-xs text-neutral-500">
         <span className="min-w-0 break-words [overflow-wrap:anywhere]">
-          {t("chat.usersMatchingQuot")}
-          {match.query}
-          {t("chat.quot")}
+          {t("chat.usersMatching", { query: match.query })}
         </span>
         <span className="text-neutral-600">{t("chat.toNavigateTabEnterToSelect")}</span>
       </div>
