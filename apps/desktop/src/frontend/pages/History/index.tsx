@@ -81,7 +81,7 @@ export function HistoryPage() {
   );
 
   const handleClearHistory = () => {
-    if (confirm("Are you sure you want to clear your watch history?")) {
+    if (window.confirm(t("mediaLibrary.clearHistoryConfirmation"))) {
       clearHistory();
     }
   };
@@ -97,7 +97,7 @@ export function HistoryPage() {
 
   const toClipDialogItem = (item: HistoryItem): VideoOrClip => ({
     id: item.originalId,
-    title: item.title || "Untitled clip",
+    title: item.title || t("playback.untitledClip"),
     duration: item.clipDuration || "",
     views: item.clipViews || "",
     date: item.clipDate || new Date(item.timestamp).toISOString(),

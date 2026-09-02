@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { useInterval } from "@/hooks/useInterval";
-import { RECORDING_LIFECYCLE_LABELS } from "@/features/media-library/utils/stream-recording-presentation";
+import { RECORDING_LIFECYCLE_LABEL_KEYS } from "@/features/media-library/utils/stream-recording-presentation";
 import type {
   StreamRecordingLifecycleState,
   StreamRecordingSnapshot,
@@ -119,7 +119,7 @@ function StreamRecordingPhaseAnnouncer() {
       aria-atomic="true"
     >
       {t("mediaLibrary.streamRecordingPhase", {
-        phase: RECORDING_LIFECYCLE_LABELS[state.phase],
+        phase: t(RECORDING_LIFECYCLE_LABEL_KEYS[state.phase]),
       })}
     </span>
   );

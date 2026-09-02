@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useStreamRecordingState } from "@/features/media-library/data/use-stream-recording-state";
 import {
   formatCapturedDuration,
-  RECORDING_PHASE_LABELS,
+  RECORDING_PHASE_LABEL_KEYS,
 } from "@/features/media-library/utils/stream-recording-presentation";
 import { RecordingPauseResumeControl } from "./recording-session-control";
 import { RecordingStopControl } from "./recording-stop-control";
@@ -62,7 +62,7 @@ export function RecordingGlobalIndicator({
 
   if (!active || state.phase === "interrupted") return null;
 
-  const phaseLabel = RECORDING_PHASE_LABELS[state.phase];
+  const phaseLabel = t(RECORDING_PHASE_LABEL_KEYS[state.phase]);
   const capturedDuration = formatCapturedDuration(active.capturedDurationSeconds);
   const isWarning = ["preparing", "reconnecting", "paused"].includes(state.phase);
   const platformLabel = active.platform === "twitch" ? "Twitch" : "Kick";

@@ -1,5 +1,6 @@
 import Hls, { type ErrorData, type Events } from "hls.js";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { type CaptionPreferences, DEFAULT_CAPTION_PREFERENCES } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
@@ -204,6 +205,7 @@ export function useTimedText(
   video: HTMLVideoElement | null,
   { usePersistedPreference = true }: UseTimedTextOptions = {}
 ) {
+  const { t } = useTranslation();
   const captionPreferences =
     useAuthStore((state) => state.preferences?.captions) ?? DEFAULT_CAPTION_PREFERENCES;
   const updatePreferences = useAuthStore((state) => state.updatePreferences);
@@ -394,7 +396,7 @@ export function useTimedText(
       setSelectedTrackKey(null);
       setError({
         failedTrackKey: selected.key,
-        message: `${selected.label} captions could not be loaded`,
+        message: t("playback.captionsLoadFailed", { label: selected.label }),
       });
       clearNativeTrack();
       clearCues();

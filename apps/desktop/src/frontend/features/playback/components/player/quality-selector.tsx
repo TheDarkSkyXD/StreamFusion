@@ -37,7 +37,11 @@ export function QualitySelector({ levels, current, onChange, disabled }: Quality
               value={level.id}
               className="text-xs cursor-pointer focus:bg-[#2c2e33] focus:text-white"
             >
-              {level.label}
+              {level.isAuto
+                ? t("playback.auto")
+                : level.isSource
+                  ? t("playback.sourceQuality")
+                  : level.label}
               {!level.isAuto && level.bitrate > 0 && ` (${Math.round(level.bitrate / 1000)}k)`}
             </SelectItem>
           ))}

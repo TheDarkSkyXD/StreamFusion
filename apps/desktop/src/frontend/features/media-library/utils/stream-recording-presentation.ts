@@ -3,21 +3,24 @@ import type {
   StreamRecordingLifecycleState,
 } from "@shared/stream-recording-types";
 
-export const RECORDING_PHASE_LABELS: Record<ActiveStreamRecordingPhase, string> = {
-  preparing: "Preparing",
-  recording: "Recording",
-  reconnecting: "Reconnecting",
-  paused: "Paused",
-  finalizing: "Finalizing",
-  interrupted: "Interrupted",
+export const RECORDING_PHASE_LABEL_KEYS: Record<ActiveStreamRecordingPhase, string> = {
+  preparing: "mediaLibrary.recordingPhasePreparing",
+  recording: "mediaLibrary.recordingPhaseRecording",
+  reconnecting: "mediaLibrary.recordingPhaseReconnecting",
+  paused: "mediaLibrary.recordingPhasePaused",
+  finalizing: "mediaLibrary.recordingPhaseFinalizing",
+  interrupted: "mediaLibrary.recordingPhaseInterrupted",
 };
 
-export const RECORDING_LIFECYCLE_LABELS: Record<StreamRecordingLifecycleState["phase"], string> = {
-  idle: "Idle",
-  ...RECORDING_PHASE_LABELS,
-  completed: "Completed",
-  partial: "Partial recording",
-  failed: "Recording failed",
+export const RECORDING_LIFECYCLE_LABEL_KEYS: Record<
+  StreamRecordingLifecycleState["phase"],
+  string
+> = {
+  idle: "mediaLibrary.recordingPhaseIdle",
+  ...RECORDING_PHASE_LABEL_KEYS,
+  completed: "mediaLibrary.recordingPhaseCompleted",
+  partial: "mediaLibrary.recordingPhasePartial",
+  failed: "mediaLibrary.recordingPhaseFailed",
 };
 
 export function formatCapturedDuration(seconds = 0): string {

@@ -76,28 +76,33 @@ export function VideoStatsOverlay({ hls, video, onClose }: VideoStatsOverlayProp
     // Codecs
     const videoCodec = level?.videoCodec;
     const audioCodec = level?.audioCodec;
-    const codecs = [videoCodec, audioCodec].filter(Boolean).join(",") || "N/A";
+    const codecs = [videoCodec, audioCodec].filter(Boolean).join(",") || t("playback.notAvailable");
 
     setStats({
-      downloadResolution: level ? `${level.width}x${level.height}` : "N/A",
+      downloadResolution: level ? `${level.width}x${level.height}` : t("playback.notAvailable"),
       renderResolution: `${videoWidth}x${videoHeight}`,
       viewportResolution: `${viewportWidth}x${viewportHeight}`,
-      downloadBitrate: level ? `${(level.bitrate / 1000).toFixed(0)} Kbps` : "N/A",
+      downloadBitrate: level
+        ? `${(level.bitrate / 1000).toFixed(0)} Kbps`
+        : t("playback.notAvailable"),
       bandwidthEstimate: `${(bandwidth / 1000).toFixed(0)} Kbps`,
-      fps: level?.frameRate ? `${level.frameRate}` : "N/A",
+      fps: level?.frameRate ? `${level.frameRate}` : t("playback.notAvailable"),
       skippedFrames: droppedFrames,
       bufferSize: `${bufferSize.toFixed(2)} sec.`,
-      latencyToBroadcaster: hls.latency != null ? `${hls.latency.toFixed(2)} sec.` : "N/A",
+      latencyToBroadcaster:
+        hls.latency != null ? `${hls.latency.toFixed(2)} sec.` : t("playback.notAvailable"),
       playbackRate: `${video.playbackRate}`,
       codecs: codecs,
       protocol: "HLS",
-      latencyMode: hls.config.lowLatencyMode ? "Low Latency" : "Standard",
+      latencyMode: hls.config.lowLatencyMode
+        ? t("playback.lowLatency")
+        : t("playback.standardLatency"),
       renderSurface: "video",
       backendVersion: Hls.version,
       playSessionId: sessionIds.playSessionId,
       servingId: sessionIds.servingId,
     });
-  }, [hls, sessionIds, video]);
+  }, [hls, sessionIds, t, video]);
 
   // Immediate update when hls/video/sessionIds change
   // biome-ignore lint/correctness/useExhaustiveDependencies: hls/video/sessionIds are the triggers; updateStats is intentionally excluded so it isn't a reactive dep
@@ -144,23 +149,23 @@ export function VideoStatsOverlay({ hls, video, onClose }: VideoStatsOverlayProp
           </tr>
         </thead>
         <tbody className="divide-y divide-transparent">
-          <StatRow label="Download Resolution" value={stats.downloadResolution} />
-          <StatRow label="Render Resolution" value={stats.renderResolution} />
-          <StatRow label="Viewport Resolution" value={stats.viewportResolution} />
-          <StatRow label="Download Bitrate" value={stats.downloadBitrate} />
-          <StatRow label="Bandwidth Estimate" value={stats.bandwidthEstimate} />
-          <StatRow label="FPS" value={stats.fps} />
-          <StatRow label="Skipped Frames" value={stats.skippedFrames.toString()} />
-          <StatRow label="Buffer Size" value={stats.bufferSize} />
-          <StatRow label="Latency To Broadcaster" value={stats.latencyToBroadcaster} />
-          <StatRow label="Playback Rate" value={stats.playbackRate} />
-          <StatRow label="Codecs" value={stats.codecs} />
-          <StatRow label="Protocol" value={stats.protocol} />
-          <StatRow label="Latency Mode" value={stats.latencyMode} />
-          <StatRow label="Render Surface" value={stats.renderSurface} />
-          <StatRow label="Backend Version" value={stats.backendVersion} />
-          <StatRow label="Play Session ID" value={stats.playSessionId} />
-          <StatRow label="Serving ID" value={stats.servingId} />
+          <StatRow label={t("playback.downloadResolution")} value={stats.downloadResolution} />
+          <StatRow label={t("playback.renderResolution")} value={stats.renderResolution} />
+          <StatRow label={t("playback.viewportResolution")} value={stats.viewportResolution} />
+          <StatRow label={t("playback.downloadBitrate")} value={stats.downloadBitrate} />
+          <StatRow label={t("playback.bandwidthEstimate")} value={stats.bandwidthEstimate} />
+          <StatRow label={t("playback.fps")} value={stats.fps} />
+          <StatRow label={t("playback.skippedFrames")} value={stats.skippedFrames.toString()} />
+          <StatRow label={t("playback.bufferSize")} value={stats.bufferSize} />
+          <StatRow label={t("playback.latencyToBroadcaster")} value={stats.latencyToBroadcaster} />
+          <StatRow label={t("playback.playbackRate")} value={stats.playbackRate} />
+          <StatRow label={t("playback.codecs")} value={stats.codecs} />
+          <StatRow label={t("playback.protocol")} value={stats.protocol} />
+          <StatRow label={t("playback.latencyMode")} value={stats.latencyMode} />
+          <StatRow label={t("playback.renderSurface")} value={stats.renderSurface} />
+          <StatRow label={t("playback.backendVersion")} value={stats.backendVersion} />
+          <StatRow label={t("playback.playSessionId")} value={stats.playSessionId} />
+          <StatRow label={t("playback.servingId")} value={stats.servingId} />
         </tbody>
       </table>
     </div>

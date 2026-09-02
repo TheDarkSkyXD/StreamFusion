@@ -417,12 +417,14 @@ export function VideoPage() {
   // Use fetched data or passed data or fallbacks
   const hasResolvedVideoTitle = Boolean(videoMetadata?.title || passedTitle);
   const videoTitle =
-    videoMetadata?.title || passedTitle || (error ? "Video unavailable" : "Loading...");
+    videoMetadata?.title ||
+    passedTitle ||
+    (error ? t("playback.videoUnavailable") : t("playback.loadingVideo"));
   const channelName = videoMetadata?.channelName || passedChannelName || "";
   const hasResolvedChannelName = channelName.trim().length > 0;
   const channelDisplayName =
     videoMetadata?.channelDisplayName || passedChannelDisplayName || passedChannelName || "";
-  const visibleChannelName = channelDisplayName || "Channel unavailable";
+  const visibleChannelName = channelDisplayName || t("playback.channelUnavailable");
 
   // Resolve the canonical channel for follow identity and as a metadata
   // fallback when a VOD route does not include the channel avatar.

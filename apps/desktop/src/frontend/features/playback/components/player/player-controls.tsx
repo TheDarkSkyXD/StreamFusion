@@ -296,7 +296,7 @@ export function PlayerControls(props: PlayerControlsProps) {
                 type="button"
                 variant="ghost"
                 size="icon"
-                aria-label={`Rewind ${seekBackwardSeconds} seconds`}
+                aria-label={t("playback.rewindSeconds", { seconds: seekBackwardSeconds })}
                 className="relative rounded-full text-white hover:bg-white/20 cursor-pointer"
                 onClick={onSeekBackward}
                 disabled={seekBackwardDisabled}
@@ -315,7 +315,7 @@ export function PlayerControls(props: PlayerControlsProps) {
                 type="button"
                 variant="ghost"
                 size="icon"
-                aria-label={`Fast forward ${seekForwardSeconds} seconds`}
+                aria-label={t("playback.fastForwardSeconds", { seconds: seekForwardSeconds })}
                 className="relative rounded-full text-white hover:bg-white/20 cursor-pointer"
                 onClick={onSeekForward}
                 disabled={seekForwardDisabled}

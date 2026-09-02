@@ -117,7 +117,16 @@ export function SettingsMenu({
     });
   }, [qualities]);
 
-  const currentQualityLabel = qualities.find((q) => q.id === currentQualityId)?.label || "Auto";
+  const getQualityLabel = (quality: QualityLevel) =>
+    quality.isAuto
+      ? t("playback.auto")
+      : quality.isSource
+        ? t("playback.sourceQuality")
+        : quality.label;
+  const currentQualityLabel =
+    qualities.find((q) => q.id === currentQualityId) !== undefined
+      ? getQualityLabel(qualities.find((q) => q.id === currentQualityId)!)
+      : t("playback.auto");
   const captionTracks = useMemo(
     () => (localTimedTextTrack ? [...timedTextTracks, localTimedTextTrack] : timedTextTracks),
     [localTimedTextTrack, timedTextTracks]
@@ -540,7 +549,7 @@ export function SettingsMenu({
                       ) : (
                         <div className="w-5 h-5" />
                       )}
-                      <span>{quality.label}</span>
+                      <span>{getQualityLabel(quality)}</span>
                       {quality.isAuto && <span className="text-xs text-[#aaaaaa] ml-2"></span>}
                     </button>
                   ))}

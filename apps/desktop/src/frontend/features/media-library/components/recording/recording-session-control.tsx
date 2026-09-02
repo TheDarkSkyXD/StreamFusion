@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { LuPause, LuPlay } from "react-icons/lu";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { useStreamRecordingActions } from "@/features/media-library/data/use-stream-recording-actions";
@@ -20,6 +21,7 @@ export function RecordingSessionControls({ surface }: { surface: "global" | "pla
 }
 
 export function RecordingPauseResumeControl({ surface }: { surface: "global" | "player" }) {
+  const { t } = useTranslation();
   const state = useStreamRecordingState();
   const { pause, resume } = useStreamRecordingActions();
   const [pending, setPending] = useState(false);
@@ -43,17 +45,21 @@ export function RecordingPauseResumeControl({ surface }: { surface: "global" | "
     return null;
   }
 
-  const label = isPausing ? "Pausing recording" : isPaused ? "Resume recording" : "Pause recording";
+  const label = isPausing
+    ? t("mediaLibrary.pausingRecording")
+    : isPaused
+      ? t("mediaLibrary.resumeRecording")
+      : t("mediaLibrary.pauseRecording");
   const Icon = isPaused && !isPausing ? LuPlay : LuPause;
   const buttonText = isPausing
-    ? "Pausing"
+    ? t("mediaLibrary.pausing")
     : pending || isResuming
       ? isPaused
-        ? "Resuming"
-        : "Pausing"
+        ? t("mediaLibrary.resuming")
+        : t("mediaLibrary.pausing")
       : isPaused
-        ? "Resume"
-        : "Pause";
+        ? t("mediaLibrary.resume")
+        : t("mediaLibrary.pause");
 
   async function handleClick() {
     if (!active?.sessionId || pending || isResuming || isPausing) return;

@@ -1,5 +1,6 @@
 import { type ReactElement, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import type { IconType } from "react-icons";
 import {
   LuCircleAlert,
@@ -29,22 +30,22 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { prewarmViewportImages } from "@/lib/viewport-image-prewarm";
 import type { DownloadJob, DownloadQueueSnapshot } from "@shared/download-types";
 
-const STATUS_LABELS: Record<DownloadJob["status"], string> = {
-  queued: "Queued",
-  downloading: "Downloading",
-  paused: "Paused",
-  failed: "Failed",
-  waiting: "Waiting for platform",
-  completed: "Completed",
-  cancelled: "Cancelled",
+const STATUS_LABEL_KEYS: Record<DownloadJob["status"], string> = {
+  queued: "mediaLibrary.downloadStatusQueued",
+  downloading: "mediaLibrary.downloadStatusDownloading",
+  paused: "mediaLibrary.downloadStatusPaused",
+  failed: "mediaLibrary.downloadStatusFailed",
+  waiting: "mediaLibrary.downloadStatusWaiting",
+  completed: "mediaLibrary.downloadStatusCompleted",
+  cancelled: "mediaLibrary.downloadStatusCancelled",
 };
 
 type DownloadSectionId = "inProgress" | "needsAttention" | "finished";
 
 interface DownloadSectionDefinition {
   id: DownloadSectionId;
-  title: string;
-  description: string;
+  titleKey: string;
+  descriptionKey: string;
   statuses: readonly DownloadJob["status"][];
   icon: IconType;
   iconClassName: string;
@@ -53,24 +54,24 @@ interface DownloadSectionDefinition {
 const DOWNLOAD_SECTIONS: readonly DownloadSectionDefinition[] = [
   {
     id: "inProgress",
-    title: "In progress",
-    description: "Active downloads and files waiting to start.",
+    titleKey: "mediaLibrary.downloadsInProgress",
+    descriptionKey: "mediaLibrary.downloadsInProgressDescription",
     statuses: ["downloading", "queued"],
     icon: LuClock3,
     iconClassName: "text-[var(--color-primary)]",
   },
   {
     id: "needsAttention",
-    title: "Needs attention",
-    description: "Paused downloads and items that could not finish.",
+    titleKey: "mediaLibrary.downloadsNeedsAttention",
+    descriptionKey: "mediaLibrary.downloadsNeedsAttentionDescription",
     statuses: ["paused", "waiting", "failed"],
     icon: LuCircleAlert,
     iconClassName: "text-amber-300",
   },
   {
     id: "finished",
-    title: "Finished",
-    description: "Completed and cancelled downloads.",
+    titleKey: "mediaLibrary.downloadsFinished",
+    descriptionKey: "mediaLibrary.downloadsFinishedDescription",
     statuses: ["completed", "cancelled"],
     icon: LuCircleCheck,
     iconClassName: "text-emerald-300",
@@ -154,14 +155,21 @@ function formatBytes(bytes: number): string {
   return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`;
 }
 
-function formatTransfer(job: DownloadJob): string {
+function formatTransfer(job: DownloadJob, t: TFunction): string {
   const transferred = formatBytes(job.progress.transferredBytes);
   const total = job.progress.totalBytes === null ? null : formatBytes(job.progress.totalBytes);
   const speed = job.progress.bytesPerSecond
-    ? `${formatBytes(job.progress.bytesPerSecond)}/s`
+    ? t("mediaLibrary.transferSpeed", { value: formatBytes(job.progress.bytesPerSecond) })
     : null;
 
-  return [total ? `${transferred} of ${total}` : transferred, speed].filter(Boolean).join("  /  ");
+  return t("mediaLibrary.transferSummary", {
+    summary: [
+      total ? t("mediaLibrary.transferOf", { transferred, total }) : transferred,
+      speed,
+    ]
+      .filter(Boolean)
+      .join("  /  "),
+  });
 }
 
 export function prewarmDownloadsFirstThumbnail(): Promise<void> {
@@ -237,14 +245,14 @@ function DownloadRow({
           <span
             className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${STATUS_CHIP_CLASSES[job.status]}`}
           >
-            {STATUS_LABELS[job.status]}
+            {t(STATUS_LABEL_KEYS[job.status])}
           </span>
         </div>
 
         <Progress value={progress} className="h-2" />
         <div className="mt-2 flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs text-[var(--color-foreground-secondary)]">
           <span className="min-w-0 truncate">
-            {job.error ?? job.statusMessage ?? formatTransfer(job)}
+            {job.error ?? job.statusMessage ?? formatTransfer(job, t)}
           </span>
           <span className="shrink-0 tabular-nums">
             {progress === undefined
@@ -254,7 +262,7 @@ function DownloadRow({
         </div>
         {(job.error || job.statusMessage) && job.progress.transferredBytes > 0 ? (
           <p className="mt-1 text-xs tabular-nums text-[var(--color-foreground-muted)]">
-            {formatTransfer(job)}
+            {formatTransfer(job, t)}
           </p>
         ) : null}
       </div>
@@ -265,7 +273,7 @@ function DownloadRow({
           variant="ghost"
           size="sm"
           className="min-h-10 shrink-0 gap-2 justify-self-start sm:col-start-2 lg:col-start-auto"
-          aria-label={`Cancel ${job.title}`}
+          aria-label={t("mediaLibrary.cancelDownloadTitle", { title: job.title })}
           onClick={() => onCancel(job)}
         >
           <LuX className="size-5" aria-hidden="true" />
@@ -283,7 +291,7 @@ function DownloadRow({
                   variant="ghost"
                   size="icon"
                   className="size-10"
-                  aria-label={`Open ${job.title}`}
+                  aria-label={t("mediaLibrary.openDownloadTitle", { title: job.title })}
                   onClick={() => onAction("openFile", job)}
                 >
                   <LuPlay className="size-5" aria-hidden="true" />
@@ -295,7 +303,7 @@ function DownloadRow({
                   variant="ghost"
                   size="icon"
                   className="size-10"
-                  aria-label={`Show ${job.title} in folder`}
+                  aria-label={t("mediaLibrary.showDownloadInFolderTitle", { title: job.title })}
                   onClick={() => onAction("showInFolder", job)}
                 >
                   <LuFolderOpen className="size-5" aria-hidden="true" />
@@ -307,7 +315,7 @@ function DownloadRow({
                   variant="ghost"
                   size="icon"
                   className="size-10"
-                  aria-label={`Delete ${job.title} from disk`}
+              aria-label={t("mediaLibrary.deleteDownloadTitle", { title: job.title })}
                   onClick={(event) => onRequestDelete(job, event.currentTarget)}
                 >
                   <LuTrash2 className="size-5" aria-hidden="true" />
@@ -321,7 +329,7 @@ function DownloadRow({
               variant="ghost"
               size="icon"
               className="size-10"
-              aria-label={`Remove ${job.title} from list`}
+              aria-label={t("mediaLibrary.removeDownloadTitle", { title: job.title })}
               onClick={() => onAction("remove", job)}
             >
               <LuListX className="size-5" aria-hidden="true" />
@@ -627,14 +635,14 @@ export function DownloadsPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 id={`download-section-${section.id}`} className="text-base font-bold">
-                      {section.title}
+                      {t(section.titleKey)}
                     </h2>
                     <span className="rounded-full bg-[var(--color-background-tertiary)] px-2 py-0.5 text-xs font-semibold tabular-nums text-[var(--color-foreground-secondary)]">
                       {section.jobs.length}
                     </span>
                   </div>
                   <p className="mt-0.5 text-xs text-[var(--color-foreground-muted)]">
-                    {section.description}
+                    {t(section.descriptionKey)}
                   </p>
                 </div>
               </div>

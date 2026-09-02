@@ -2,7 +2,7 @@ import { useStreamRecordingState } from "@/features/media-library/data/use-strea
 import { useTranslation } from "react-i18next";
 import {
   formatCapturedDuration,
-  RECORDING_PHASE_LABELS,
+  RECORDING_PHASE_LABEL_KEYS,
 } from "@/features/media-library/utils/stream-recording-presentation";
 import type { Platform } from "@shared/auth-types";
 
@@ -26,9 +26,11 @@ export function RecordingPlayerStatus({ platform, channelName, mode }: Recording
 
   const isWarning = ["preparing", "reconnecting", "paused", "interrupted"].includes(state.phase);
   const gapSummary = active.gapCount
-    ? `${active.gapCount} ${active.gapCount === 1 ? "gap" : "gaps"}${
-        active.hasOpenGap ? " · current gap open" : ""
-      }`
+    ? t("playback.gapSummary", {
+        count: active.gapCount,
+        suffix: active.hasOpenGap ? t("playback.currentGapOpen") : "",
+        defaultValue: "{{count}} {{count, plural, one {gap} other {gaps}}}{{suffix}}",
+      })
     : null;
   return (
     <div
@@ -48,7 +50,7 @@ export function RecordingPlayerStatus({ platform, channelName, mode }: Recording
         }`}
       />
       <span>
-        {RECORDING_PHASE_LABELS[state.phase]}{" "}
+        {t(RECORDING_PHASE_LABEL_KEYS[state.phase])}{" "}
         {t("playback.capturedDuration", {
           duration: formatCapturedDuration(active.capturedDurationSeconds),
         })}
