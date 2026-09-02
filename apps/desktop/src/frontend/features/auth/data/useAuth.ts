@@ -17,6 +17,7 @@ import { useAuthStore } from "../../../store/auth-store";
 export function useTwitchAuth() {
   const user = useAuthStore((state) => state.twitchUser);
   const connected = useAuthStore((state) => state.twitchConnected);
+  const reconnectRequired = useAuthStore((state) => state.twitchReconnectRequired);
   const loading = useAuthStore((state) => state.twitchLoading);
   const authPhase = useAuthStore((state) => state.twitchAuthPhase);
   const login = useAuthStore((state) => state.loginTwitch);
@@ -26,12 +27,13 @@ export function useTwitchAuth() {
     () => ({
       user,
       connected,
+      reconnectRequired,
       loading,
       authPhase,
       login,
       logout,
     }),
-    [user, connected, loading, authPhase, login, logout]
+    [user, connected, reconnectRequired, loading, authPhase, login, logout]
   );
 }
 

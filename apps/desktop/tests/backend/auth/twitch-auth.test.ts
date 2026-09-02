@@ -90,7 +90,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// Guards: live-valid Twitch tokens remain authenticated when their stored scope list is partial or absent.
 describe("isAuthenticated", () => {
   it("returns false when no token and no user", () => {
     expect(twitchAuthService.isAuthenticated()).toBe(false);
@@ -145,6 +144,7 @@ describe("getCurrentUser", () => {
   });
 });
 
+// Guards: live-valid Twitch tokens remain authenticated when their stored scope list is partial or absent.
 describe("ensureValidToken", () => {
   it("returns false when no token is stored", async () => {
     const result = await twitchAuthService.ensureValidToken();

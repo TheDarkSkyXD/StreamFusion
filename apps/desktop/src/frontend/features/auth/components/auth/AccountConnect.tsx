@@ -46,6 +46,7 @@ export function AccountConnect() {
       <PlatformCard
         platform="twitch"
         connected={twitch.connected}
+        reconnectRequired={twitch.reconnectRequired}
         user={twitch.user}
         loading={twitch.loading}
         loadingLabel={twitchLoadingLabel(twitch.authPhase, t)}
@@ -68,6 +69,7 @@ export function AccountConnect() {
 interface PlatformCardProps {
   platform: Platform;
   connected: boolean;
+  reconnectRequired?: boolean;
   user: PlatformUser | null;
   loading: boolean;
   loadingLabel?: string;
@@ -80,6 +82,7 @@ interface PlatformCardProps {
 function PlatformCard({
   platform,
   connected,
+  reconnectRequired = false,
   user,
   loading,
   loadingLabel,
@@ -91,7 +94,7 @@ function PlatformCard({
   const { t } = useTranslation();
   const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
   const color = getPlatformColor(platform);
-  const linked = user !== null;
+  const linked = connected || (platform === "twitch" && user !== null);
   const displayName = user ? ("displayName" in user ? user.displayName : user.username) : undefined;
   const profileImageUrl = user
     ? "profileImageUrl" in user
@@ -186,25 +189,28 @@ function PlatformCard({
           </div>
         ) : linked ? (
           <div className="flex w-full gap-2">
-            <Button
-              style={{
-                backgroundColor: color,
-                color: platform === "kick" ? "black" : "white",
-              }}
-              className="flex-1 gap-2 hover:brightness-110"
-              onClick={onConnect}
-              disabled={loading}
-            >
-              {loading
-                ? (loadingLabel ?? t("auth.connecting"))
-                : t("auth.reconnectPlatform", { platform: platformName })}
-              {!loading && <LuExternalLink className="h-4 w-4" />}
-            </Button>
+            {reconnectRequired && (
+              <Button
+                style={{
+                  backgroundColor: color,
+                  color: platform === "kick" ? "black" : "white",
+                }}
+                className="flex-1 gap-2 hover:brightness-110"
+                onClick={onConnect}
+                disabled={loading}
+              >
+                {loading
+                  ? (loadingLabel ?? t("auth.connecting"))
+                  : t("auth.reconnectPlatform", { platform: platformName })}
+                {!loading && <LuExternalLink className="h-4 w-4" />}
+              </Button>
+            )}
             <Button
               variant="destructive"
               size="sm"
               onClick={onDisconnect}
               disabled={loading}
+              className={reconnectRequired ? undefined : "w-full"}
               aria-label={t("auth.disconnect")}
             >
               <LuPower className="h-4 w-4" />

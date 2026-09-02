@@ -135,11 +135,12 @@ export function ProfileDropdown() {
   const logoutKick = useAuthStore((state) => state.logoutKick);
   const loginTwitch = useAuthStore((state) => state.loginTwitch);
   const loginKick = useAuthStore((state) => state.loginKick);
+  const twitchReconnectRequired = useAuthStore((state) => state.twitchReconnectRequired);
   const preferences = useAuthStore((state) => state.preferences);
   const updatePreferences = useAuthStore((state) => state.updatePreferences);
 
   const bothConnected = twitch.connected && kick.connected;
-  const bothLinked = twitchUser !== null && kickUser !== null;
+  const bothLinked = twitchUser !== null && kick.connected && kickUser !== null;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -216,7 +217,7 @@ export function ProfileDropdown() {
       );
     }
 
-    if (kickUser) {
+    if (kick.connected && kickUser) {
       return (
         <SingleAvatar
           avatar={kickUser.profilePic}
@@ -259,7 +260,7 @@ export function ProfileDropdown() {
       );
     }
 
-    if (kickUser) {
+    if (kick.connected && kickUser) {
       return (
         <SingleAvatar
           avatar={kickUser.profilePic}
@@ -345,14 +346,14 @@ export function ProfileDropdown() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
-                      {!twitch.connected && (
+                      {twitchReconnectRequired && (
                         <button
                           type="button"
                           onClick={() => {
                             void loginTwitch();
                             setIsOpen(false);
                           }}
-                          className="rounded-md px-2 py-1 text-xs font-medium text-[#9146FF] hover:bg-[#9146FF]/20"
+                          className="rounded-md px-2 py-1 text-xs font-medium text-[#b58cff] hover:bg-[#9146FF]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b58cff] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background-secondary)]"
                         >
                           {t("auth.reconnectPlatform", { platform: "Twitch" })}
                         </button>
