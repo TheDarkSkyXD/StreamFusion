@@ -35,7 +35,7 @@ export const playbackEs = {
     checkAgain: "Comprobar de nuevo",
     buffer: "Búfer",
     throttled: "⚡ Limitado",
-    auto: "📊 Automático",
+    auto: "Automático",
     sourceQuality: "Fuente",
     pauseSpace: "Pausar (espacio)",
     playSpace: "Reproducir (espacio)",

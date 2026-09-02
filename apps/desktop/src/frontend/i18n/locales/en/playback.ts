@@ -32,7 +32,7 @@ export const playbackEn = {
     checkAgain: "Check Again",
     buffer: "Buffer",
     throttled: "⚡ Throttled",
-    auto: "📊 Auto",
+    auto: "Auto",
     sourceQuality: "Source",
     pauseSpace: "Pause (Space)",
     playSpace: "Play (Space)",

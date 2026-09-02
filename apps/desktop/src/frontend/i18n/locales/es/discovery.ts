@@ -44,7 +44,7 @@ export const discoveryEs = {
     noThumbnail: "Sin miniatura",
     verified: "{{platform}} verificado",
     search: {
-      placeholder: "Buscar en StreamFusion…",
+      placeholder: "Buscar en StreamFusion...",
       tabs: {
         channels: "Canales",
         categories: "Categorías",

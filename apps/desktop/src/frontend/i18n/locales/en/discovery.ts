@@ -40,7 +40,7 @@ export const discoveryEn = {
     noThumbnail: "No Thumbnail",
     verified: "{{platform}} verified",
     search: {
-      placeholder: "Search StreamFusion…",
+      placeholder: "Search StreamFusion...",
       tabs: {
         channels: "Channels",
         categories: "Categories",
@@ -68,7 +68,7 @@ export const discoveryEn = {
       tabFilters: "Category {{tab}} filters",
       time: "Time",
       sort: "Sort",
-      sortTab: "Sort category {{tab}}",
+      sortTab: "Sort Category {{tab}}",
       filterClipsByTime: "Filter clips by time range",
       lastDay: "Last Day",
       lastWeek: "Last Week",
@@ -123,8 +123,8 @@ export const discoveryEn = {
       retryRefresh: "Retry refreshing following data",
       refresh: "Refresh following data",
       refreshFailed: "Some following data failed to refresh. Try again.",
-      following: "Following…",
-      unfollowing: "Unfollowing…",
+      following: "Following...",
+      unfollowing: "Unfollowing...",
       follow: "Follow",
       unfollow: "Unfollow",
       followWith: "Follow with your {{platform}} account",
@@ -138,7 +138,7 @@ export const discoveryEn = {
       emptyTitle: "Search StreamFusion",
       emptyDescription:
         "Search for your favorite channels, streams, and categories across Twitch and Kick.",
-      heading: 'Search results for "{{query}}"',
+      heading: 'Search Results for "{{query}}"',
       found_one: "Found {{count}} result",
       found_other: "Found {{count}} results",
       recentContent: "Recent content from matching channels.",

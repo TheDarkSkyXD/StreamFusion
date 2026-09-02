@@ -69,7 +69,7 @@ export const shellEn = {
       liveNow: "is live",
       justNow: "Just now",
       minutesAgo_one: "{{count}} min ago",
-      minutesAgo_other: "{{count}} mins ago",
+      minutesAgo_other: "{{count}} min ago",
       hoursAgo_one: "{{count}} hour ago",
       hoursAgo_other: "{{count}} hours ago",
       daysAgo_one: "{{count}} day ago",
