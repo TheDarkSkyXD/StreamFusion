@@ -1233,13 +1233,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
 
   const handleReconnectTwitch = useCallback(() => {
     void window.electronAPI.auth
-      .logoutTwitch()
-      .then((logoutResult) => {
-        if (!logoutResult.success) {
-          throw new Error(logoutResult.error || "Could not clear the old Twitch grant.");
-        }
-        return window.electronAPI.auth.openTwitchLogin();
-      })
+      .openTwitchLogin()
       .then(async () => {
         const scopeStatus = await refreshTwitchUserEmoteScopeStatus();
         if (scopeStatus !== "granted") {

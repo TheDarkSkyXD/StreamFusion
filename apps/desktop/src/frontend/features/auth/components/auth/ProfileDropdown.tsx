@@ -139,6 +139,7 @@ export function ProfileDropdown() {
   const updatePreferences = useAuthStore((state) => state.updatePreferences);
 
   const bothConnected = twitch.connected && kick.connected;
+  const bothLinked = twitchUser !== null && kickUser !== null;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -192,7 +193,7 @@ export function ProfileDropdown() {
 
   // Render the avatar button based on connection state
   const renderAvatarButton = () => {
-    if (bothConnected) {
+    if (bothLinked) {
       return (
         <StackedAvatars
           twitchAvatar={twitchUser?.profileImageUrl}
@@ -204,7 +205,7 @@ export function ProfileDropdown() {
       );
     }
 
-    if (twitch.connected && twitchUser) {
+    if (twitchUser) {
       return (
         <SingleAvatar
           avatar={twitchUser.profileImageUrl}
@@ -215,7 +216,7 @@ export function ProfileDropdown() {
       );
     }
 
-    if (kick.connected && kickUser) {
+    if (kickUser) {
       return (
         <SingleAvatar
           avatar={kickUser.profilePic}
@@ -235,7 +236,7 @@ export function ProfileDropdown() {
 
   // Render the avatar in dropdown header
   const renderDropdownAvatar = () => {
-    if (bothConnected) {
+    if (bothLinked) {
       return (
         <StackedAvatars
           twitchAvatar={twitchUser?.profileImageUrl}
@@ -247,7 +248,7 @@ export function ProfileDropdown() {
       );
     }
 
-    if (twitch.connected && twitchUser) {
+    if (twitchUser) {
       return (
         <SingleAvatar
           avatar={twitchUser.profileImageUrl}
@@ -258,7 +259,7 @@ export function ProfileDropdown() {
       );
     }
 
-    if (kick.connected && kickUser) {
+    if (kickUser) {
       return (
         <SingleAvatar
           avatar={kickUser.profilePic}
@@ -321,7 +322,7 @@ export function ProfileDropdown() {
                 </div>
 
                 {/* Twitch Account */}
-                {twitch.connected && twitchUser ? (
+                {twitchUser ? (
                   <div className="flex h-12 items-center justify-between px-4 py-1 bg-[var(--color-background-secondary)]/50 group">
                     <div className="flex items-center gap-3">
                       <div className="relative">
@@ -343,13 +344,28 @@ export function ProfileDropdown() {
                         <span className="text-xs text-[#9146FF]">Twitch</span>
                       </div>
                     </div>
-                    <button
-                      onClick={handleDisconnectTwitch}
-                      className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-500/20 transition-all"
-                      title={t("profile.disconnectTwitch")}
-                    >
-                      <X size={18} strokeWidth={3} className="text-red-400" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {!twitch.connected && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void loginTwitch();
+                            setIsOpen(false);
+                          }}
+                          className="rounded-md px-2 py-1 text-xs font-medium text-[#9146FF] hover:bg-[#9146FF]/20"
+                        >
+                          {t("auth.reconnectPlatform", { platform: "Twitch" })}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleDisconnectTwitch}
+                        className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-500/20 transition-all"
+                        title={t("profile.disconnectTwitch")}
+                      >
+                        <X size={18} strokeWidth={3} className="text-red-400" />
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <button

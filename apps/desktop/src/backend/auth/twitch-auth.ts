@@ -14,7 +14,6 @@ import { logger } from "@backend/logging/logger";
 import {
   type AuthToken,
   type Platform,
-  TWITCH_APP_SCOPES,
   type TwitchUser,
 } from "../../shared/auth-types";
 import {
@@ -51,13 +50,6 @@ const REFRESH_BUFFER_MS = 5 * 60 * 1000;
 // edge nodes. Don't schedule a refresh closer than this to the wall clock —
 // fire immediately instead.
 const MIN_REFRESH_DELAY_MS = 1000;
-
-function hasCompleteTwitchScopeSet(token: AuthToken): boolean {
-  return (
-    token.scope !== undefined &&
-    TWITCH_APP_SCOPES.every((requiredScope) => token.scope?.includes(requiredScope))
-  );
-}
 
 // Exponential backoff for transient refresh failures (network blip, 5xx,
 // 408, 429). The chain never gives up on transient failures alone — once
@@ -121,23 +113,11 @@ class TwitchAuthService {
         platform: this.platform,
         refreshToken: currentToken.refreshToken,
       });
-      const refreshedWithScope =
-        exchangedToken.scope === undefined && hasCompleteTwitchScopeSet(currentToken)
-          ? { ...exchangedToken, scope: currentToken.scope }
-          : exchangedToken;
       const newToken: AuthToken = {
-        ...refreshedWithScope,
+        ...exchangedToken,
+        scope: exchangedToken.scope ?? currentToken.scope,
         authFlow: exchangedToken.authFlow ?? currentToken.authFlow,
       };
-
-      if (!hasCompleteTwitchScopeSet(newToken)) {
-        logger.warn(
-          "Auth:Twitch",
-          "Refreshed Twitch token is missing required app scopes; reconnect is required"
-        );
-        this.authLostHandler?.();
-        return null;
-      }
 
       // Save the new token
       storageService.saveToken(this.platform, newToken);
@@ -316,15 +296,6 @@ class TwitchAuthService {
     const token = storageService.getToken(this.platform);
 
     if (!token) {
-      return false;
-    }
-
-    if (!hasCompleteTwitchScopeSet(token)) {
-      logger.warn(
-        "Auth:Twitch",
-        "Stored Twitch token is missing required app scopes; reconnect is required"
-      );
-      this.authLostHandler?.();
       return false;
     }
 

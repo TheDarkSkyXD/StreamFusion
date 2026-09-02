@@ -35,12 +35,11 @@ export interface EncryptedToken {
 // ========== Twitch OAuth Scopes ==========
 
 /**
- * Canonical Twitch user-token scope set for the current app.
+ * Scope set requested for a fresh Twitch user-token consent grant.
  *
  * Initial connect, reconnect/scope-upgrade, and device-code flows must all
- * request this full list. Existing installs may need one reconnect after a new
- * scope ships, but after that reconnect the token should carry every scope
- * StreamFusion currently uses.
+ * request this full list. Existing grants remain valid when this list grows;
+ * each protected feature checks its own required scopes before operating.
  */
 export const TWITCH_APP_SCOPES = [
   "user:read:email",

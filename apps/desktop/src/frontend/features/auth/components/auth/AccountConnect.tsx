@@ -91,6 +91,7 @@ function PlatformCard({
   const { t } = useTranslation();
   const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
   const color = getPlatformColor(platform);
+  const linked = user !== null;
   const displayName = user ? ("displayName" in user ? user.displayName : user.username) : undefined;
   const profileImageUrl = user
     ? "profileImageUrl" in user
@@ -128,7 +129,7 @@ function PlatformCard({
       </CardHeader>
 
       <CardContent>
-        {connected ? (
+        {linked ? (
           (() => {
             const initial = (displayName || "?").charAt(0).toUpperCase();
 
@@ -181,6 +182,32 @@ function PlatformCard({
             >
               <LuPower className="h-4 w-4" />
               {loading ? t("auth.disconnecting") : t("auth.disconnect")}
+            </Button>
+          </div>
+        ) : linked ? (
+          <div className="flex w-full gap-2">
+            <Button
+              style={{
+                backgroundColor: color,
+                color: platform === "kick" ? "black" : "white",
+              }}
+              className="flex-1 gap-2 hover:brightness-110"
+              onClick={onConnect}
+              disabled={loading}
+            >
+              {loading
+                ? (loadingLabel ?? t("auth.connecting"))
+                : t("auth.reconnectPlatform", { platform: platformName })}
+              {!loading && <LuExternalLink className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={onDisconnect}
+              disabled={loading}
+              aria-label={t("auth.disconnect")}
+            >
+              <LuPower className="h-4 w-4" />
             </Button>
           </div>
         ) : (
