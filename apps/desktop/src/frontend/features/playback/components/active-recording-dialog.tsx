@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import type { RefObject } from "react";
 import { LuRadio } from "react-icons/lu";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ export function ActiveRecordingDialog({
   onClose,
   returnFocusRef,
 }: ActiveRecordingDialogProps) {
+  const { t } = useTranslation();
   return (
     <Dialog open={recording !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
@@ -38,11 +40,8 @@ export function ActiveRecordingDialog({
             <LuRadio className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="space-y-1.5">
-            <DialogTitle>A recording is already active</DialogTitle>
-            <DialogDescription>
-              Stop the current recording before starting another. StreamFusion will not queue a live
-              recording.
-            </DialogDescription>
+            <DialogTitle>{t("playback.recordingAlreadyActive")}</DialogTitle>
+            <DialogDescription>{t("playback.recordingAlreadyActiveDescription")}</DialogDescription>
           </div>
         </DialogHeader>
 
@@ -55,7 +54,7 @@ export function ActiveRecordingDialog({
 
         <DialogFooter className="gap-2 sm:space-x-0">
           <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
+            <Button variant="outline">{t("playback.cancel")}</Button>
           </DialogClose>
           {recording && (
             <Button asChild>
@@ -63,7 +62,7 @@ export function ActiveRecordingDialog({
                 to="/stream/$platform/$channel"
                 params={{ platform: recording.platform, channel: recording.channelName }}
               >
-                View Recording
+                {t("playback.viewRecording")}
               </Link>
             </Button>
           )}

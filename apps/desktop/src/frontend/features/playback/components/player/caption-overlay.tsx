@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 
 import { DEFAULT_CAPTION_PREFERENCES } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
@@ -85,6 +86,7 @@ function cueLayout(cue: TimedTextCue): CSSProperties | null {
 }
 
 function CueText({ cue, highlightColor }: { cue: TimedTextCue; highlightColor?: string }) {
+  const { t } = useTranslation();
   const local = cue.localLive;
   if (!local) return cue.text;
   if (!local.wordTimingValid && !local.fallbackHighlight) return cue.text;
@@ -114,6 +116,7 @@ function CueText({ cue, highlightColor }: { cue: TimedTextCue; highlightColor?: 
 }
 
 export function CaptionOverlay({ cues, localHighlightColor }: CaptionOverlayProps) {
+  const { t } = useTranslation();
   const preferences =
     useAuthStore((state) => state.preferences?.captions) ?? DEFAULT_CAPTION_PREFERENCES;
   if (cues.length === 0) return null;
@@ -137,7 +140,7 @@ export function CaptionOverlay({ cues, localHighlightColor }: CaptionOverlayProp
     <>
       <div
         role="status"
-        aria-label="Captions"
+        aria-label={t("playback.captions")}
         aria-live="off"
         className="pointer-events-none absolute inset-4 z-20"
       >
@@ -174,7 +177,7 @@ export function CaptionOverlay({ cues, localHighlightColor }: CaptionOverlayProp
       {finalLocalCue && (
         <span
           key={finalLocalCue.localLive?.cueId}
-          aria-label="Final caption announcement"
+          aria-label={t("playback.finalCaptionAnnouncement")}
           aria-live="polite"
           aria-atomic="true"
           className="sr-only"

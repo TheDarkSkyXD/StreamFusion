@@ -1,4 +1,5 @@
 import type Hls from "hls.js";
+import { useTranslation } from "react-i18next";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -45,6 +46,7 @@ export interface TwitchVodPlayerProps {
 }
 
 export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
+  const { t } = useTranslation();
   const {
     streamUrl,
     poster,
@@ -347,7 +349,7 @@ export function TwitchVodPlayer(props: TwitchVodPlayerProps) {
         />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center text-white z-0">
-          <p>No Stream Source</p>
+          <p>{t("playback.noStreamSource")}</p>
         </div>
       )}
 

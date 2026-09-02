@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { LuSquare } from "react-icons/lu";
 
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ const DISCARD_CONTROL_CLASS =
   "bg-red-800 text-white hover:bg-red-700 motion-reduce:transition-none";
 
 export function RecordingStopControl({ surface }: { surface: "global" | "player" }) {
+  const { t } = useTranslation();
   const state = useStreamRecordingState();
   const { stop, discard } = useStreamRecordingActions();
   const [open, setOpen] = useState(false);
@@ -82,12 +84,12 @@ export function RecordingStopControl({ surface }: { surface: "global" | "player"
           type="button"
           variant="outline"
           size="sm"
-          aria-label="Stop recording"
+          aria-label={t("mediaLibrary.stopRecording")}
           data-recording-control-surface={surface}
           className={`gap-1.5 ${STOP_CONTROL_CLASS}`}
         >
           <LuSquare aria-hidden="true" className="h-3.5 w-3.5 fill-current" />
-          Stop
+          {t("mediaLibrary.stop")}
         </Button>
       </DialogTrigger>
       <DialogContent
@@ -104,12 +106,14 @@ export function RecordingStopControl({ surface }: { surface: "global" | "player"
       >
         <DialogHeader>
           <DialogTitle>
-            {confirmingDiscard ? "Permanently discard this recording?" : "Stop recording?"}
+            {confirmingDiscard
+              ? t("mediaLibrary.permanentlyDiscardRecording")
+              : t("mediaLibrary.stopRecordingQuestion")}
           </DialogTitle>
           <DialogDescription>
             {confirmingDiscard
-              ? "This permanently deletes the current recording and cannot be undone."
-              : "StreamFusion will combine the captured sections into one playable file. Keep recording if you are not ready to finish."}
+              ? t("mediaLibrary.discardDescription")
+              : t("mediaLibrary.stopDescription")}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -120,7 +124,7 @@ export function RecordingStopControl({ surface }: { surface: "global" | "player"
             disabled={pending}
             onClick={keepRecording}
           >
-            Keep Recording
+            {t("mediaLibrary.keepRecording")}
           </Button>
           {confirmingDiscard ? (
             <Button
@@ -131,7 +135,7 @@ export function RecordingStopControl({ surface }: { surface: "global" | "player"
               onClick={confirmDiscard}
               className={DISCARD_CONTROL_CLASS}
             >
-              {pending ? "Discarding" : "Discard Forever"}
+              {pending ? t("mediaLibrary.discarding") : t("mediaLibrary.discardForever")}
             </Button>
           ) : (
             <>
@@ -142,7 +146,7 @@ export function RecordingStopControl({ surface }: { surface: "global" | "player"
                 onClick={() => setConfirmingDiscard(true)}
                 className={DISCARD_CONTROL_CLASS}
               >
-                Discard recording…
+                {t("mediaLibrary.discardRecording")}
               </Button>
               <Button
                 type="button"
@@ -152,7 +156,7 @@ export function RecordingStopControl({ surface }: { surface: "global" | "player"
                 onClick={confirmStop}
                 className={STOP_CONTROL_CLASS}
               >
-                {pending ? "Finalizing" : "Stop and Save"}
+                {pending ? t("mediaLibrary.finalizing") : t("mediaLibrary.stopAndSave")}
               </Button>
             </>
           )}

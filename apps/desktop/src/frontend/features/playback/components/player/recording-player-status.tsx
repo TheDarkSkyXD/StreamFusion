@@ -1,4 +1,5 @@
 import { useStreamRecordingState } from "@/features/media-library/data/use-stream-recording-state";
+import { useTranslation } from "react-i18next";
 import {
   formatCapturedDuration,
   RECORDING_PHASE_LABELS,
@@ -12,6 +13,7 @@ export interface RecordingPlayerStatusProps {
 }
 
 export function RecordingPlayerStatus({ platform, channelName, mode }: RecordingPlayerStatusProps) {
+  const { t } = useTranslation();
   const state = useStreamRecordingState();
   const active = state.active;
   if (
@@ -47,7 +49,9 @@ export function RecordingPlayerStatus({ platform, channelName, mode }: Recording
       />
       <span>
         {RECORDING_PHASE_LABELS[state.phase]}{" "}
-        {formatCapturedDuration(active.capturedDurationSeconds)} captured
+        {t("playback.capturedDuration", {
+          duration: formatCapturedDuration(active.capturedDurationSeconds),
+        })}
       </span>
       {active.qualityLabel && (
         <span className="border-l border-white/20 pl-2 text-white/70">{active.qualityLabel}</span>
@@ -58,7 +62,10 @@ export function RecordingPlayerStatus({ platform, channelName, mode }: Recording
           data-quality-change-revision={active.qualityChange.revision}
           className="border-l border-white/20 pl-2 text-amber-200"
         >
-          Quality changed {active.qualityChange.fromQuality} → {active.qualityChange.toQuality}
+          {t("playback.qualityChanged", {
+            from: active.qualityChange.fromQuality,
+            to: active.qualityChange.toQuality,
+          })}
         </span>
       ) : null}
       {gapSummary ? <span className="border-l border-white/20 pl-2">{gapSummary}</span> : null}

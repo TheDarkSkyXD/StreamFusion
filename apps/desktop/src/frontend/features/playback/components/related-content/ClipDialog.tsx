@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useState } from "react";
 import type { IconType } from "react-icons";
 import {
@@ -75,6 +76,7 @@ export function ClipDialog({
   channelData,
   onPlaybackError,
 }: ClipDialogProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { addToHistory } = useHistoryActions();
   const [vodLookupLoading, setVodLookupLoading] = useState(false);
@@ -99,7 +101,9 @@ export function ClipDialog({
       ? { key: "creator", label: `Clipped by @${clipCreatorName}`, Icon: LuScissors }
       : null,
     clipCategory ? { key: "category", label: clipCategory, Icon: LuGamepad2 } : null,
-    clipViews ? { key: "views", label: `${formatViews(clipViews)} views`, Icon: LuEye } : null,
+    clipViews
+      ? { key: t("playback.views"), label: `${formatViews(clipViews)} views`, Icon: LuEye }
+      : null,
     selectedClip?.created_at || selectedClip?.date
       ? {
           key: "date",
@@ -258,9 +262,11 @@ export function ClipDialog({
     <Dialog open={!!selectedClip} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="w-[90vw] max-w-[1600px] gap-0 bg-black border-[var(--color-border)] p-0 overflow-hidden">
         <VisuallyHidden>
-          <DialogTitle>{selectedClip?.title || "Clip Viewer"}</DialogTitle>
+          <DialogTitle>{selectedClip?.title || t("playback.clipViewer")}</DialogTitle>
           <DialogDescription>
-            Viewing clip: {selectedClip?.title || "Selected clip"}
+            {t("playback.viewingClip", {
+              title: selectedClip?.title || t("playback.selectedClip"),
+            })}
           </DialogDescription>
         </VisuallyHidden>
         {selectedClip && (
@@ -273,18 +279,18 @@ export function ClipDialog({
                     <div className="mb-3 flex justify-center">
                       {clipPlatform === "kick" ? <KickLoadingSpinner /> : <TwitchLoadingSpinner />}
                     </div>
-                    <p>Loading clip...</p>
+                    <p>{t("playback.loadingClip")}</p>
                   </div>
                 ) : clipError ? (
                   <div className="text-center text-red-500">
-                    <p className="mb-2">Failed to load clip</p>
+                    <p className="mb-2">{t("playback.failedToLoadClip")}</p>
                     <p className="text-sm text-[var(--color-foreground-muted)]">{clipError}</p>
                   </div>
                 ) : playbackFailed ? (
                   <div className="text-center text-red-500">
-                    <p className="mb-2">Unable to play this clip</p>
+                    <p className="mb-2">{t("playback.unableToPlayThisClip")}</p>
                     <p className="text-sm text-[var(--color-foreground-muted)]">
-                      Try closing and reopening the clip, or try again later.
+                      {t("playback.tryClosingAndReopeningTheClipOrTryAgainLater")}
                     </p>
                   </div>
                 ) : clipPlaybackUrl ? (
@@ -314,7 +320,7 @@ export function ClipDialog({
                   )
                 ) : (
                   <div className="text-center text-white/50">
-                    <p>No playback URL available</p>
+                    <p>{t("playback.noPlaybackURLAvailable")}</p>
                   </div>
                 )}
               </div>
@@ -340,7 +346,7 @@ export function ClipDialog({
                     ))
                   ) : (
                     <span className="text-sm text-[var(--color-foreground-muted)]">
-                      Clip metadata unavailable
+                      {t("playback.clipMetadataUnavailable")}
                     </span>
                   )}
                 </div>
@@ -373,7 +379,7 @@ export function ClipDialog({
                     <span className="text-[var(--color-foreground-muted)] text-sm">
                       {typeof followerCount === "number"
                         ? `${formatViews(followerCount)} followers`
-                        : "Followers unavailable"}
+                        : t("playback.followersUnavailable")}
                     </span>
                   </div>
                 </div>
@@ -383,7 +389,7 @@ export function ClipDialog({
                     <FollowButton channel={channelData} className="flex-1" />
                   ) : (
                     <Button disabled className="flex-1 rounded-full">
-                      Follow
+                      {t("playback.follow")}
                     </Button>
                   )}
 
@@ -399,7 +405,7 @@ export function ClipDialog({
                     ) : (
                       <LuShare2 aria-hidden="true" />
                     )}
-                    {shareAction.copied ? "Copied" : "Share"}
+                    {shareAction.copied ? t("playback.copied") : t("playback.share")}
                   </Button>
                   <Button
                     variant="secondary"
@@ -408,12 +414,12 @@ export function ClipDialog({
                     disabled={!isPlaybackReady}
                     title={
                       !isPlaybackReady
-                        ? "Download is available when this Clip is ready to play."
+                        ? t("playback.downloadIsAvailableWhenThisClipIsReadyToPlay")
                         : undefined
                     }
                   >
                     <LuDownload aria-hidden="true" />
-                    Download
+                    {t("playback.download")}
                   </Button>
                 </div>
               </div>
@@ -423,7 +429,7 @@ export function ClipDialog({
               <div className="flex flex-col gap-3 mt-auto">
                 {selectedClip.isLive && (
                   <Button variant="secondary" className="w-full h-12 text-base font-bold">
-                    Watch Livestream
+                    {t("playback.watchLivestream")}
                   </Button>
                 )}
                 {/* Watch Full Video button - show if VOD is available */}
@@ -440,7 +446,7 @@ export function ClipDialog({
                         variant="outline"
                         className="w-full h-12 text-base font-bold border-[var(--color-border)] hover:bg-[var(--color-background-tertiary)]"
                       >
-                        Watch Full Video
+                        {t("playback.watchFullVideo")}
                       </Button>
                     </Link>
                   ) : (
@@ -451,7 +457,7 @@ export function ClipDialog({
                       onClick={handleKickWatchFullVideo}
                       disabled={vodLookupLoading || !selectedClip.channelSlug}
                     >
-                      {vodLookupLoading ? "Loading VOD..." : "Watch Full Video"}
+                      {vodLookupLoading ? t("playback.loadingVOD") : t("playback.watchFullVideo")}
                     </Button>
                   ))}
                 {/* Show VOD lookup error for Kick */}

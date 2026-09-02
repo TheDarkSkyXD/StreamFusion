@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { useStreamRecordingState } from "@/features/media-library/data/use-stream-recording-state";
@@ -21,6 +22,7 @@ export function RecordingGlobalIndicator({
   resumeControl,
   stopControl,
 }: RecordingGlobalIndicatorProps) {
+  const { t } = useTranslation();
   const state = useStreamRecordingState();
   const [open, setOpen] = useState(false);
   const detailsId = useId();
@@ -65,9 +67,11 @@ export function RecordingGlobalIndicator({
   const isWarning = ["preparing", "reconnecting", "paused"].includes(state.phase);
   const platformLabel = active.platform === "twitch" ? "Twitch" : "Kick";
   const gapSummary = active.gapCount
-    ? `${active.gapCount} ${active.gapCount === 1 ? "gap" : "gaps"}${
-        active.hasOpenGap ? " · current gap open" : ""
-      }`
+    ? t("mediaLibrary.gapSummary", {
+        count: active.gapCount,
+        suffix: active.hasOpenGap ? t("mediaLibrary.currentGapOpen") : "",
+        defaultValue: "{{count}} {{count, plural, one {gap} other {gaps}}}{{suffix}}",
+      })
     : null;
 
   return (
@@ -75,7 +79,12 @@ export function RecordingGlobalIndicator({
       <button
         ref={triggerRef}
         type="button"
-        aria-label={`Stream recording, ${phaseLabel}, ${active.channelName} on ${platformLabel}, ${capturedDuration} captured, show details`}
+        aria-label={t("mediaLibrary.recordingDetailsLabel", {
+          phase: phaseLabel,
+          channel: active.channelName,
+          platform: platformLabel,
+          duration: capturedDuration,
+        })}
         aria-expanded={open}
         aria-controls={detailsId}
         aria-haspopup="dialog"
@@ -101,22 +110,24 @@ export function RecordingGlobalIndicator({
           ref={detailsRef}
           id={detailsId}
           role="dialog"
-          aria-label="Recording details"
+          aria-label={t("mediaLibrary.recordingDetails")}
           className="absolute right-0 top-11 z-50 w-80 rounded-xl border border-[var(--color-border)] bg-[var(--color-background-elevated)] p-3 text-left shadow-[0_4px_16px_rgba(0,0,0,0.4),0_1px_4px_rgba(0,0,0,0.3)]"
         >
           <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-foreground-muted)]">
-            Active recording
+            {t("mediaLibrary.activeRecording")}
           </p>
           <p className="mt-1 truncate text-sm font-bold text-white">{active.title}</p>
           <p className="mt-1 text-xs font-semibold text-white/80">
             {active.channelName} · {platformLabel}
           </p>
           <p className="mt-1 text-xs text-[var(--color-foreground-muted)]">
-            {capturedDuration} captured
+            {t("mediaLibrary.capturedDuration", { duration: capturedDuration })}
             {active.qualityLabel ? ` · ${active.qualityLabel}` : ""}
           </p>
           {gapSummary ? (
-            <p className="mt-1 text-xs text-amber-200">Current session: {gapSummary}</p>
+            <p className="mt-1 text-xs text-amber-200">
+              {t("mediaLibrary.currentSession", { summary: gapSummary })}
+            </p>
           ) : null}
           {active.qualityChange ? (
             <p
@@ -124,7 +135,10 @@ export function RecordingGlobalIndicator({
               data-quality-change-revision={active.qualityChange.revision}
               className="mt-1 text-xs font-semibold text-amber-200"
             >
-              Quality changed {active.qualityChange.fromQuality} → {active.qualityChange.toQuality}
+              {t("mediaLibrary.qualityChanged", {
+                from: active.qualityChange.fromQuality,
+                to: active.qualityChange.toQuality,
+              })}
             </p>
           ) : null}
           <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -135,7 +149,7 @@ export function RecordingGlobalIndicator({
                 params={{ platform: active.platform, channel: active.channelName }}
                 onClick={() => setOpen(false)}
               >
-                View recording
+                {t("mediaLibrary.viewRecording")}
               </Link>
             </Button>
             {state.phase === "paused"

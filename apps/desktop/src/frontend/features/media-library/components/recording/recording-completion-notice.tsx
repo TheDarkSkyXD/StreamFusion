@@ -1,33 +1,41 @@
 import { LuFolderOpen, LuPlay, LuX } from "react-icons/lu";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 import { Button } from "@/components/ui/button";
 import { useStreamRecordingActions } from "@/features/media-library/data/use-stream-recording-actions";
 import { useStreamRecordingState } from "@/features/media-library/data/use-stream-recording-state";
 import type { StreamRecordingNotice } from "@shared/stream-recording-types";
 
-function outcomeCopy(notice: StreamRecordingNotice): { title: string; detail: string } {
+function outcomeCopy(
+  notice: StreamRecordingNotice,
+  t: TFunction
+): { title: string; detail: string } {
   if (notice.outcome === "completed") {
     return {
       title: notice.usedFallback
-        ? "Recording saved as TS fallback"
-        : `Recording saved${notice.outputFormat ? ` as ${notice.outputFormat.toUpperCase()}` : ""}`,
-      detail: `${notice.title} was saved successfully.`,
+        ? t("mediaLibrary.recordingSavedFallback")
+        : t("mediaLibrary.recordingSaved", {
+            format: notice.outputFormat ? notice.outputFormat.toUpperCase() : "",
+          }),
+      detail: t("mediaLibrary.recordingSavedDetail", { title: notice.title }),
     };
   }
   if (notice.outcome === "partial") {
     return {
-      title: "Partial recording saved",
-      detail: notice.error ?? `Some footage from ${notice.title} was saved.`,
+      title: t("mediaLibrary.partialRecordingSaved"),
+      detail: notice.error ?? t("mediaLibrary.partialRecordingDetail", { title: notice.title }),
     };
   }
-  return { title: "Recording failed", detail: notice.error };
+  return { title: t("mediaLibrary.recordingFailed"), detail: notice.error };
 }
 
 export function RecordingOutcomeNotice({ notice }: { notice: StreamRecordingNotice }) {
+  const { t } = useTranslation();
   const { openCompleted, showCompleted, dismissNotice } = useStreamRecordingActions();
   if (notice.delivery !== "in-app") return null;
 
-  const copy = outcomeCopy(notice);
+  const copy = outcomeCopy(notice, t);
   const hasOutput = notice.outcome !== "failed";
   return (
     <div
@@ -45,7 +53,7 @@ export function RecordingOutcomeNotice({ notice }: { notice: StreamRecordingNoti
           type="button"
           variant="ghost"
           size="icon"
-          aria-label="Dismiss recording notice"
+          aria-label={t("mediaLibrary.dismissRecordingNotice")}
           className="h-8 w-8 shrink-0 motion-reduce:transition-none"
           onClick={() => void dismissNotice(notice.sessionId)}
         >
@@ -58,23 +66,23 @@ export function RecordingOutcomeNotice({ notice }: { notice: StreamRecordingNoti
             type="button"
             variant="outline"
             size="sm"
-            aria-label="Open recording"
+            aria-label={t("mediaLibrary.openRecording")}
             className="gap-1.5 motion-reduce:transition-none"
             onClick={() => void openCompleted(notice.sessionId)}
           >
             <LuPlay aria-hidden="true" className="h-3.5 w-3.5" />
-            Open
+            {t("mediaLibrary.open")}
           </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            aria-label="Show recording in folder"
+            aria-label={t("mediaLibrary.showRecordingInFolder")}
             className="gap-1.5 motion-reduce:transition-none"
             onClick={() => void showCompleted(notice.sessionId)}
           >
             <LuFolderOpen aria-hidden="true" className="h-3.5 w-3.5" />
-            Show in Folder
+            {t("mediaLibrary.showInFolder")}
           </Button>
         </div>
       ) : null}

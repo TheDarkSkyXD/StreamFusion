@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { type MouseEvent, memo } from "react";
 import { LuImageOff, LuLock, LuPlay, LuSparkles } from "react-icons/lu";
 
@@ -22,10 +23,11 @@ interface VideoCardProps {
 }
 
 function ThumbnailUnavailable() {
+  const { t } = useTranslation();
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[var(--color-background-tertiary)] text-sm font-medium text-[var(--color-foreground-muted)]">
       <LuImageOff aria-hidden="true" className="h-5 w-5" />
-      <span>Thumbnail unavailable</span>
+      <span>{t("playback.thumbnailUnavailable")}</span>
     </div>
   );
 }
@@ -38,6 +40,7 @@ export const VideoCard = memo(function VideoCard({
   channelData,
   showWatchProgress = false,
 }: VideoCardProps) {
+  const { t } = useTranslation();
   // Route as VOD when:
   // - not live, OR
   // - live with a real duration AND a source URL (stream just ended; Kick keeps is_live=true briefly)
@@ -121,25 +124,28 @@ export const VideoCard = memo(function VideoCard({
         <div
           className={`absolute top-2 left-2 px-1.5 py-0.5 rounded text-xs font-medium ${!routeAsVod ? "bg-red-600 text-white" : "bg-black/80 text-white"}`}
         >
-          {!routeAsVod ? "LIVE" : video.duration}
+          {!routeAsVod ? t("playback.live") : video.duration}
         </div>
 
         {/* Sub Only Badge: Top Right - Keep for Twitch, move for Kick */}
         {video.isSubOnly && platform !== "kick" && (
           <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-xs font-medium bg-purple-600 text-white flex items-center gap-1">
             <LuLock className="w-3 h-3" />
-            SUB ONLY
+            {t("playback.subONLY")}
           </div>
         )}
 
         {/* Views: Bottom Left */}
         <div className="absolute bottom-2 left-2 bg-black/80 px-1.5 py-0.5 rounded text-xs text-white font-medium">
-          {formatViews(video.views)} views
+          {t("playback.viewCount", {
+            value: formatViews(video.views),
+            defaultValue: "{{value}} views",
+          })}
         </div>
 
         {/* Date: Bottom Right */}
         <div className="absolute bottom-2 right-2 bg-black/80 px-1.5 py-0.5 rounded text-xs text-white font-medium">
-          {!routeAsVod ? "Today" : formatTimeAgo(video.created_at || video.date)}
+          {!routeAsVod ? t("playback.today") : formatTimeAgo(video.created_at || video.date)}
         </div>
 
         {showWatchProgress && routeAsVod && (
@@ -195,7 +201,7 @@ export const VideoCard = memo(function VideoCard({
             <div className="mt-2 flex items-center">
               <div className="px-1.5 py-1 rounded-md text-[11px] font-semibold bg-[#2b2b2b] text-white flex items-center gap-1.5">
                 <LuSparkles className="w-3 h-3 text-white" />
-                <span>Sub-only</span>
+                <span>{t("playback.subOnly")}</span>
               </div>
             </div>
           )}

@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { IoMdSettings } from "react-icons/io";
 import {
   LuActivity,
@@ -79,6 +80,7 @@ export function SettingsMenu({
   onLocalCaptionModelRemove,
   onLocalCaptionRetry,
 }: SettingsMenuProps) {
+  const { t } = useTranslation();
   const controls =
     useAuthStore((s) => s.preferences?.playerControls) ?? DEFAULT_PLAYER_CONTROLS_PREFERENCES;
   const captionPreferences =
@@ -127,7 +129,7 @@ export function SettingsMenu({
     ? selectedCaptionTrack.label
     : captionPreferences.enabled
       ? "Choose language"
-      : "Off";
+      : t("playback.off");
 
   const persistCaptionAppearance = (
     updates: Partial<
@@ -158,7 +160,7 @@ export function SettingsMenu({
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Settings"
+            aria-label={t("playback.settings")}
             aria-expanded={isOpen}
             className="text-white hover:bg-white/20 cursor-pointer w-10 h-10"
             onClick={(e) => {
@@ -172,7 +174,7 @@ export function SettingsMenu({
           </Button>
         </TooltipTrigger>
         <TooltipContent container={container}>
-          <p>Settings</p>
+          <p>{t("playback.settings")}</p>
         </TooltipContent>
       </Tooltip>
 
@@ -192,7 +194,7 @@ export function SettingsMenu({
                   >
                     <div className="flex items-center gap-4">
                       <LuSlidersHorizontal className="w-6 h-6" />
-                      <span>Quality</span>
+                      <span>{t("playback.quality")}</span>
                     </div>
                     <div className="flex items-center text-[#aaaaaa] gap-1">
                       <span className="text-[13px]">{currentQualityLabel}</span>
@@ -209,11 +211,11 @@ export function SettingsMenu({
                   >
                     <div className="flex items-center gap-4">
                       <LuTimer className="w-6 h-6" />
-                      <span>Playback speed</span>
+                      <span>{t("playback.playbackSpeed")}</span>
                     </div>
                     <div className="flex items-center text-[#aaaaaa] gap-1">
                       <span className="text-[13px]">
-                        {playbackRate === 1 ? "Normal" : `${playbackRate}x`}
+                        {playbackRate === 1 ? t("playback.normal") : `${playbackRate}x`}
                       </span>
                       <LuChevronRight className="w-5 h-5" />
                     </div>
@@ -228,7 +230,7 @@ export function SettingsMenu({
                   >
                     <div className="flex items-center gap-4">
                       <LuFileText className="w-6 h-6" />
-                      <span>Subtitles/CC</span>
+                      <span>{t("playback.subtitlesCC")}</span>
                     </div>
                     <div className="flex items-center text-[#aaaaaa] gap-1">
                       <span className="text-[13px]">{currentCaptionLabel}</span>
@@ -244,7 +246,7 @@ export function SettingsMenu({
                   >
                     <div className="flex items-center gap-4">
                       <LuActivity className="w-6 h-6" />
-                      <span>Video Stats</span>
+                      <span>{t("playback.videoStats")}</span>
                     </div>
                     <Switch
                       checked={showVideoStats}
@@ -265,10 +267,10 @@ export function SettingsMenu({
                   onClick={() => setActiveSubMenu("main")}
                 >
                   <LuChevronLeft className="w-7 h-7 text-[#eee]" />
-                  <span>Subtitles/CC</span>
+                  <span>{t("playback.subtitlesCC")}</span>
                 </button>
 
-                <div role="radiogroup" aria-label="Subtitles/CC">
+                <div role="radiogroup" aria-label={t("playback.subtitlesCC")}>
                   <button
                     ref={(element) => {
                       captionOptionRefs.current[0] = element;
@@ -295,7 +297,7 @@ export function SettingsMenu({
                     ) : (
                       <span className="w-5 h-5" />
                     )}
-                    <span>Off</span>
+                    <span>{t("playback.off")}</span>
                   </button>
 
                   {captionTracks.map((track, trackIndex) => {
@@ -337,10 +339,10 @@ export function SettingsMenu({
 
                 <div className="border-t border-[#ffffff1a] px-4 py-3 text-[#eee]">
                   <label className="mb-3 block text-[13px] font-medium">
-                    <span className="mb-1 block">Caption text size</span>
+                    <span className="mb-1 block">{t("playback.captionTextSize")}</span>
                     <input
                       type="range"
-                      aria-label="Caption text size"
+                      aria-label={t("playback.captionTextSize")}
                       min={75}
                       max={200}
                       step={25}
@@ -352,10 +354,10 @@ export function SettingsMenu({
                     />
                   </label>
                   <label className="mb-3 block text-[13px] font-medium">
-                    <span className="mb-1 block">Caption background opacity</span>
+                    <span className="mb-1 block">{t("playback.captionBackgroundOpacity")}</span>
                     <input
                       type="range"
-                      aria-label="Caption background opacity"
+                      aria-label={t("playback.captionBackgroundOpacity")}
                       min={0}
                       max={100}
                       step={10}
@@ -379,19 +381,23 @@ export function SettingsMenu({
                       })
                     }
                   >
-                    Reset caption appearance
+                    {t("playback.resetCaptionAppearance")}
                   </button>
                 </div>
 
                 {localTimedTextTrack && localCaptionModel && (
                   <div className="border-t border-[#ffffff1a] px-4 py-3 text-[13px] text-[#d4d4d4]">
                     <p>
-                      {localCaptionModel.languageLabel} only. Download size:{" "}
-                      {localCaptionModel.downloadBytes.toLocaleString("en-US")} bytes (
-                      {localCaptionModel.displaySize}).
+                      {t("playback.captionModelInfo", {
+                        language: localCaptionModel.languageLabel,
+                        size: localCaptionModel.downloadBytes.toLocaleString("en-US"),
+                        displaySize: localCaptionModel.displaySize,
+                      })}
                     </p>
                     <p>
-                      License: {localCaptionModel.license}. Source:{" "}
+                      {t("playback.captionModelLicense", {
+                        license: localCaptionModel.license,
+                      })}{" "}
                       <a
                         className="text-white underline underline-offset-2"
                         href={localCaptionModel.sourceUrl}
@@ -408,7 +414,7 @@ export function SettingsMenu({
                         className="mt-3 rounded-md bg-white px-3 py-2 font-semibold text-[#0f0f0f] hover:bg-white/90"
                         onClick={() => void onLocalCaptionModelDownload()}
                       >
-                        Download local caption model
+                        {t("playback.downloadLocalCaptionModel")}
                       </button>
                     )}
 
@@ -429,10 +435,13 @@ export function SettingsMenu({
                           return (
                             <>
                               <p>
-                                Downloading {localCaptionModel.languageLabel} model: {progress}%
+                                {t("playback.downloadingCaptionModel", {
+                                  language: localCaptionModel.languageLabel,
+                                  progress,
+                                })}
                               </p>
                               <progress
-                                aria-label="Local caption model download"
+                                aria-label={t("playback.localCaptionModelDownload")}
                                 aria-valuemin={0}
                                 aria-valuemax={100}
                                 aria-valuenow={progress}
@@ -449,7 +458,7 @@ export function SettingsMenu({
                             className="mt-3 rounded-md bg-[#252525] px-3 py-2 font-semibold text-white hover:bg-[#2d2d2d]"
                             onClick={() => void onLocalCaptionModelCancel()}
                           >
-                            Cancel download
+                            {t("playback.cancelDownload")}
                           </button>
                         )}
                       </div>
@@ -464,7 +473,7 @@ export function SettingsMenu({
                             className="mt-3 rounded-md bg-white px-3 py-2 font-semibold text-[#0f0f0f] hover:bg-white/90"
                             onClick={() => void onLocalCaptionModelDownload()}
                           >
-                            Retry download
+                            {t("playback.retryDownload")}
                           </button>
                         )}
                       </div>
@@ -472,15 +481,17 @@ export function SettingsMenu({
 
                     {localCaptionModel.phase === "ready" && (
                       <div className="mt-3">
-                        <p>Ready offline</p>
-                        {localCaptionPhase === "starting" && <p>Starting local recognizer…</p>}
+                        <p>{t("playback.readyOffline")}</p>
+                        {localCaptionPhase === "starting" && (
+                          <p>{t("playback.startingLocalRecognizer")}</p>
+                        )}
                         {onLocalCaptionModelRemove && (
                           <button
                             type="button"
                             className="mt-3 rounded-md bg-[#252525] px-3 py-2 font-semibold text-white hover:bg-[#2d2d2d]"
                             onClick={() => void onLocalCaptionModelRemove()}
                           >
-                            Remove model
+                            {t("playback.removeModel")}
                           </button>
                         )}
                       </div>
@@ -495,7 +506,7 @@ export function SettingsMenu({
                             className="mt-3 rounded-md bg-white px-3 py-2 font-semibold text-[#0f0f0f] hover:bg-white/90"
                             onClick={() => void onLocalCaptionRetry()}
                           >
-                            Retry local captions
+                            {t("playback.retryLocalCaptions")}
                           </button>
                         )}
                       </div>
@@ -512,7 +523,7 @@ export function SettingsMenu({
                   onClick={() => setActiveSubMenu("main")}
                 >
                   <LuChevronLeft className="w-7 h-7 text-[#eee]" />
-                  <span>Quality</span>
+                  <span>{t("playback.quality")}</span>
                 </button>
                 <div className="max-h-80 overflow-y-auto custom-scrollbar">
                   {sortedQualities.map((quality) => (
@@ -544,7 +555,7 @@ export function SettingsMenu({
                   onClick={() => setActiveSubMenu("main")}
                 >
                   <LuChevronLeft className="w-7 h-7 text-[#eee]" />
-                  <span>Playback speed</span>
+                  <span>{t("playback.playbackSpeed")}</span>
                 </button>
                 <div className="max-h-80 overflow-y-auto custom-scrollbar">
                   {PLAYBACK_SPEEDS.map((speed) => (
@@ -561,7 +572,7 @@ export function SettingsMenu({
                       ) : (
                         <div className="w-5 h-5" />
                       )}
-                      <span>{speed === 1 ? "Normal" : speed.toString()}</span>
+                      <span>{speed === 1 ? t("playback.normal") : speed.toString()}</span>
                     </button>
                   ))}
                 </div>

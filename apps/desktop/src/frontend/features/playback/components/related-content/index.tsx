@@ -1,4 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ export function _resetRelatedContentRequestCache(): void {
 }
 
 function LazyRelatedCard({ eager, children }: { eager: boolean; children: React.ReactNode }) {
+  const { t } = useTranslation();
   const [shouldRender, setShouldRender] = useState(eager);
   const ref = React.useRef<HTMLDivElement | null>(null);
 
@@ -95,6 +97,7 @@ export function RelatedContent({
   streamStartedAt,
   onClipSelectionChange,
 }: RelatedContentProps) {
+  const { t } = useTranslation();
   const urlTab = useRouterState({
     select: (state) => {
       const tab = state.location.search.tab;
@@ -244,7 +247,7 @@ export function RelatedContent({
               channelName,
               channelId: channelData?.id,
               limit: 5,
-              sort: "views", // Popular clips
+              sort: t("playback.views"), // Popular clips
               timeRange: "all",
             }),
           ]);
@@ -270,7 +273,7 @@ export function RelatedContent({
           }
 
           if (!videosResult.success && !clipsResult.success) {
-            setError("Failed to load home content");
+            setError(t("playback.failedToLoadHomeContent"));
           }
         } else if (targetTab === "videos") {
           const result = await api.videos.getByChannel({
@@ -288,7 +291,7 @@ export function RelatedContent({
             setHasMoreVideos(!!result.cursor);
             setDebugInfo(result.debug || null);
           } else {
-            setError(result.error || "Failed to fetch videos");
+            setError(result.error || t("playback.failedToFetchVideos"));
           }
         } else if (targetTab === "clips") {
           const result = await api.clips.getByChannel({
@@ -306,14 +309,14 @@ export function RelatedContent({
             setClipCursor(result.cursor);
             setHasMoreClips(!!result.cursor);
           } else {
-            setError(result.error || "Failed to fetch clips");
+            setError(result.error || t("playback.failedToFetchClips"));
           }
         }
       } catch (error) {
         logger.error("Stream:Related", "failed to fetch content", {
           error: error instanceof Error ? error.message : String(error),
         });
-        setError("Failed to load content");
+        setError(t("playback.failedToLoadContent"));
       } finally {
         setIsLoading(false);
       }
@@ -322,7 +325,7 @@ export function RelatedContent({
     if (platform && channelName) {
       fetchInitialData();
     }
-  }, [activeTab, platform, channelName, channelData?.id, sortBy, timeRange, reloadKey]);
+  }, [activeTab, platform, channelName, channelData?.id, sortBy, timeRange, reloadKey, t]);
 
   // Load More Function
   const loadMore = useCallback(async () => {
@@ -448,7 +451,7 @@ export function RelatedContent({
       logger.error("Stream:Related", "error loading more items", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError("Failed to load more items. Please try again.");
+      setError(t("playback.failedToLoadMoreItems"));
       errorDismissTimer.start(3000);
     } finally {
       setIsFetchingMore(false);
@@ -469,6 +472,7 @@ export function RelatedContent({
     videos,
     clips,
     errorDismissTimer,
+    t,
   ]);
 
   // Intersection Observer Effect
@@ -526,7 +530,7 @@ export function RelatedContent({
           if (clipPlatform === "twitch") {
             setClipPlaybackUrl(null); // Signal to use iframe
           } else {
-            setClipError(result.error || "Failed to load clip");
+            setClipError(result.error || t("playback.failedToLoadClip"));
           }
         }
       } catch (err) {
@@ -537,7 +541,7 @@ export function RelatedContent({
         if ((selectedClip.platform ?? platform) === "twitch") {
           setClipPlaybackUrl(null);
         } else {
-          setClipError("Failed to load clip");
+          setClipError(t("playback.failedToLoadClip"));
         }
       } finally {
         setClipLoading(false);
@@ -545,13 +549,13 @@ export function RelatedContent({
     };
 
     fetchClipUrl();
-  }, [selectedClip, platform]);
+  }, [selectedClip, platform, t]);
 
   const handleClipPlaybackError = () => {
     if ((selectedClip?.platform ?? platform) === "twitch") {
       setClipPlaybackUrl(null);
     } else {
-      setClipError("Failed to play clip");
+      setClipError(t("playback.failedToPlayClip"));
     }
   };
 
@@ -568,42 +572,46 @@ export function RelatedContent({
             <div className="flex items-center gap-2 text-sm">
               {activeTab === "clips" && (
                 <div className="flex items-center gap-2 mr-4">
-                  <span className="text-[var(--color-foreground)] font-bold">Filter by:</span>
+                  <span className="text-[var(--color-foreground)] font-bold">
+                    {t("playback.filterBy")}
+                  </span>
                   <Select
                     value={timeRange}
                     onValueChange={(value) => setTimeRange(value as TimeRange)}
                   >
                     <SelectTrigger className="w-auto min-w-[100px] h-10 bg-[var(--color-background-secondary)] border-none font-bold px-4 text-base">
-                      <SelectValue placeholder="Time" />
+                      <SelectValue placeholder={t("playback.time")} />
                     </SelectTrigger>
                     <SelectContent align="end">
                       <SelectItem value="day" className="font-bold">
-                        Last Day
+                        {t("playback.lastDay")}
                       </SelectItem>
                       <SelectItem value="week" className="font-bold">
-                        Last Week
+                        {t("playback.lastWeek")}
                       </SelectItem>
                       <SelectItem value="month" className="font-bold">
-                        Last Month
+                        {t("playback.lastMonth")}
                       </SelectItem>
                       <SelectItem value="all" className="font-bold">
-                        All Time
+                        {t("playback.allTime")}
                       </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               )}
-              <span className="text-[var(--color-foreground)] font-bold">Sort by:</span>
+              <span className="text-[var(--color-foreground)] font-bold">
+                {t("playback.sortBy")}
+              </span>
               <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
                 <SelectTrigger className="w-auto min-w-[90px] h-10 bg-[var(--color-background-secondary)] border-none font-bold px-4 text-base">
-                  <SelectValue placeholder="Sort" />
+                  <SelectValue placeholder={t("playback.sort")} />
                 </SelectTrigger>
                 <SelectContent align="end">
                   <SelectItem value="recent" className="font-bold">
-                    Most Recent
+                    {t("playback.mostRecent")}
                   </SelectItem>
-                  <SelectItem value="views" className="font-bold">
-                    Views
+                  <SelectItem value={t("playback.views")} className="font-bold">
+                    {t("playback.views2")}
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -616,13 +624,13 @@ export function RelatedContent({
             {/* Videos Section */}
             <section>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold">Stream Videos</h3>
+                <h3 className="text-xl font-bold">{t("playback.streamVideos")}</h3>
                 <Link
                   from="/stream/$platform/$channel"
                   search={{ tab: "videos" }}
                   className="text-sm font-medium text-[var(--color-primary)] hover:underline"
                 >
-                  View all
+                  {t("playback.viewAll")}
                 </Link>
               </div>
               {isLoading ? (
@@ -648,20 +656,22 @@ export function RelatedContent({
                   ))}
                 </div>
               ) : (
-                <p className="text-[var(--color-foreground-muted)]">No recent videos found.</p>
+                <p className="text-[var(--color-foreground-muted)]">
+                  {t("playback.noRecentVideosFound")}
+                </p>
               )}
             </section>
 
             {/* Clips Section */}
             <section>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold">Popular Clips</h3>
+                <h3 className="text-xl font-bold">{t("playback.popularClips")}</h3>
                 <Link
                   from="/stream/$platform/$channel"
                   search={{ tab: "clips" }}
                   className="text-sm font-medium text-[var(--color-primary)] hover:underline"
                 >
-                  View all
+                  {t("playback.viewAll")}
                 </Link>
               </div>
               {isLoading ? (
@@ -687,7 +697,9 @@ export function RelatedContent({
                   ))}
                 </div>
               ) : (
-                <p className="text-[var(--color-foreground-muted)]">No popular clips found.</p>
+                <p className="text-[var(--color-foreground-muted)]">
+                  {t("playback.noPopularClipsFound")}
+                </p>
               )}
             </section>
           </div>
@@ -712,7 +724,7 @@ export function RelatedContent({
                   onClick={() => window.location.reload()}
                   className="mt-2"
                 >
-                  Retry
+                  {t("playback.retry")}
                 </Button>
               </div>
             ) : activeTab === "videos" ? (
@@ -730,7 +742,7 @@ export function RelatedContent({
                 ))
               ) : (
                 <div className="col-span-full py-12 text-center text-[var(--color-foreground-muted)]">
-                  No videos found
+                  {t("playback.noVideosFound")}
                   {debugInfo && <p className="text-xs mt-2 opacity-50 font-mono">{debugInfo}</p>}
                 </div>
               )
@@ -748,7 +760,7 @@ export function RelatedContent({
               ))
             ) : (
               <div className="col-span-full py-12 text-center text-[var(--color-foreground-muted)]">
-                No clips found
+                {t("playback.noClipsFound")}
               </div>
             )}
 

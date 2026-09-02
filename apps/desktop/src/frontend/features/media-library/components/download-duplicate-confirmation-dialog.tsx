@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +13,7 @@ import {
 import { useDownloadDuplicateConfirmationStore } from "@/store/download-duplicate-confirmation-store";
 
 export function DownloadDuplicateConfirmationDialog() {
+  const { t } = useTranslation();
   const pending = useDownloadDuplicateConfirmationStore((state) => state.pending);
   const resolve = useDownloadDuplicateConfirmationStore((state) => state.resolve);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
@@ -29,9 +31,13 @@ export function DownloadDuplicateConfirmationDialog() {
         }}
       >
         <DialogHeader>
-          <DialogTitle>Already in Downloads</DialogTitle>
+          <DialogTitle>{t("mediaLibrary.duplicateTitle")}</DialogTitle>
           <DialogDescription>
-            {pending?.title} is already in Downloads. Download this {contentKind} again?
+            {t("mediaLibrary.duplicateDescription", {
+              title: pending?.title,
+              kind: contentKind,
+              defaultValue: "{{title}} is already in Downloads. Download this {{kind}} again?",
+            })}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -41,10 +47,10 @@ export function DownloadDuplicateConfirmationDialog() {
             variant="secondary"
             onClick={() => resolve(false)}
           >
-            Cancel
+            {t("mediaLibrary.cancel")}
           </Button>
           <Button type="button" onClick={() => resolve(true)}>
-            Download again
+            {t("mediaLibrary.downloadAgain")}
           </Button>
         </DialogFooter>
       </DialogContent>

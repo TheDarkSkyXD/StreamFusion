@@ -1,4 +1,5 @@
 import { LuPause, LuPlay } from "react-icons/lu";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "../../../../components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
@@ -16,6 +17,7 @@ export function PlayPauseButton({
   onToggle,
   className,
 }: PlayPauseButtonProps) {
+  const { t } = useTranslation();
   return (
     <Tooltip delayDuration={0}>
       <TooltipTrigger asChild>
@@ -36,7 +38,7 @@ export function PlayPauseButton({
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>{isPlaying ? "Pause (Space)" : "Play (Space)"}</p>
+        <p>{isPlaying ? t("playback.pauseSpace") : t("playback.playSpace")}</p>
       </TooltipContent>
     </Tooltip>
   );

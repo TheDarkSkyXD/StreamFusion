@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LuMaximize, LuMinimize, LuRotateCcw, LuRotateCw } from "react-icons/lu";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
@@ -120,6 +121,7 @@ export interface PlayerControlsProps extends Pick<
 }
 
 export function PlayerControls(props: PlayerControlsProps) {
+  const { t } = useTranslation();
   const {
     isPlaying,
     isLoading,
@@ -337,7 +339,7 @@ export function PlayerControls(props: PlayerControlsProps) {
               (liveBadge ?? (
                 <div className="flex items-center gap-1.5 px-2 py-1 bg-red-600 rounded text-xs font-bold uppercase tracking-wider text-white ml-2 select-none">
                   <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                  Live
+                  {t("playback.live2")}
                 </div>
               ))
             ) : (
@@ -398,7 +400,7 @@ export function PlayerControls(props: PlayerControlsProps) {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent container={containerRef.current}>
-                  <p>{isTheater ? "Exit Theater Mode (t)" : "Theater Mode (t)"}</p>
+                  <p>{isTheater ? t("playback.exitTheaterModeT") : t("playback.theaterModeT")}</p>
                 </TooltipContent>
               </Tooltip>
             )}
@@ -420,7 +422,7 @@ export function PlayerControls(props: PlayerControlsProps) {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent container={containerRef.current}>
-                  <p>{isFullscreen ? "Exit Fullscreen (f)" : "Fullscreen (f)"}</p>
+                  <p>{isFullscreen ? t("playback.exitFullscreenF") : t("playback.fullscreenF")}</p>
                 </TooltipContent>
               </Tooltip>
             )}

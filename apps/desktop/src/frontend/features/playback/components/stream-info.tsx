@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import React, { useEffect, useState } from "react";
 import { LuClock, LuUsers } from "react-icons/lu";
 
@@ -85,6 +86,7 @@ function formatFollowerLabel(followerCount: number | undefined): string | null {
 }
 
 export function StreamInfo({ channel, stream, isLoading, recordingAction }: StreamInfoProps) {
+  const { t } = useTranslation();
   const { twitchUser, kickUser } = useUserInfo();
   // Resolve canonical cross-platform link target so clicking the badge lands on
   // the same merged Categories page as clicking the same category in the grid
@@ -151,7 +153,9 @@ export function StreamInfo({ channel, stream, isLoading, recordingAction }: Stre
           </div>
         )}
         {lastLiveLabel && (
-          <p className="mt-1 text-sm font-bold text-white">Last live {lastLiveLabel}</p>
+          <p className="mt-1 text-sm font-bold text-white">
+            {t("playback.lastLive")} {lastLiveLabel}
+          </p>
         )}
         {!isOffline && !isOwnerView && (
           <>
@@ -249,7 +253,10 @@ export function StreamInfo({ channel, stream, isLoading, recordingAction }: Stre
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
-                    {stream.viewerCount.toLocaleString()} Viewers
+                    {t("playback.viewerCount", {
+                      value: stream.viewerCount.toLocaleString(),
+                      defaultValue: "{{value}} viewers",
+                    })}
                   </TooltipContent>
                 </Tooltip>
 
@@ -261,7 +268,7 @@ export function StreamInfo({ channel, stream, isLoading, recordingAction }: Stre
                       {stream.startedAt && <UptimeCounter startedAt={stream.startedAt} />}
                     </div>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom">Stream Uptime</TooltipContent>
+                  <TooltipContent side="bottom">{t("playback.streamUptime")}</TooltipContent>
                 </Tooltip>
               </div>
             )}

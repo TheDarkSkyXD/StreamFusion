@@ -7,6 +7,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { useInterval } from "@/hooks/useInterval";
 import { RECORDING_LIFECYCLE_LABELS } from "@/features/media-library/utils/stream-recording-presentation";
 import type {
@@ -106,6 +107,7 @@ function StreamRecordingElapsedClock({ store }: { store: StreamRecordingStore })
 }
 
 function StreamRecordingPhaseAnnouncer() {
+  const { t } = useTranslation();
   const state = useStreamRecordingState();
   if (!state.active || state.phase === "interrupted") return null;
   return (
@@ -116,12 +118,15 @@ function StreamRecordingPhaseAnnouncer() {
       aria-live="polite"
       aria-atomic="true"
     >
-      Stream recording: {RECORDING_LIFECYCLE_LABELS[state.phase]}
+      {t("mediaLibrary.streamRecordingPhase", {
+        phase: RECORDING_LIFECYCLE_LABELS[state.phase],
+      })}
     </span>
   );
 }
 
 function StreamRecordingQualityAnnouncer() {
+  const { t } = useTranslation();
   const state = useStreamRecordingState();
   const [message, setMessage] = useState("");
   const announcedKeyRef = useRef<string | null>(null);
@@ -141,8 +146,8 @@ function StreamRecordingQualityAnnouncer() {
     const key = `${sessionId}:${revision}`;
     if (announcedKeyRef.current === key) return;
     announcedKeyRef.current = key;
-    setMessage(`Quality changed from ${fromQuality} to ${toQuality}`);
-  }, [interrupted, sessionId, revision, fromQuality, toQuality]);
+    setMessage(t("mediaLibrary.qualityChangedFromTo", { from: fromQuality, to: toQuality }));
+  }, [interrupted, sessionId, revision, fromQuality, toQuality, t]);
 
   if (!message) return null;
   return (

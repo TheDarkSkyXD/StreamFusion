@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { LuClapperboard, LuHouse, LuPlay } from "react-icons/lu";
 
 export type SortOption = "recent" | "views";
@@ -8,6 +9,7 @@ interface ContentTabsProps {
 }
 
 export function ContentTabs({ activeTab }: ContentTabsProps) {
+  const { t } = useTranslation();
   return (
     <div className="sticky top-0 z-30 bg-[var(--color-background)] pt-2 mb-4 flex items-center justify-between border-b border-[var(--color-border)]">
       <div className="flex items-center gap-4">
@@ -21,7 +23,7 @@ export function ContentTabs({ activeTab }: ContentTabsProps) {
           }`}
         >
           <span className="flex items-center gap-2">
-            <LuHouse className="w-4 h-4" /> Home
+            <LuHouse className="w-4 h-4" /> {t("playback.home")}
           </span>
           {(!activeTab || activeTab === "home") && (
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary)]" />
@@ -37,7 +39,7 @@ export function ContentTabs({ activeTab }: ContentTabsProps) {
           }`}
         >
           <span className="flex items-center gap-2">
-            <LuPlay className="w-4 h-4" /> Videos
+            <LuPlay className="w-4 h-4" /> {t("playback.videos")}
           </span>
           {activeTab === "videos" && (
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary)]" />
@@ -53,7 +55,7 @@ export function ContentTabs({ activeTab }: ContentTabsProps) {
           }`}
         >
           <span className="flex items-center gap-2">
-            <LuClapperboard className="w-4 h-4" /> Clips
+            <LuClapperboard className="w-4 h-4" /> {t("playback.clips")}
           </span>
           {activeTab === "clips" && (
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-primary)]" />

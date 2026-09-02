@@ -1,4 +1,5 @@
 import { type ReactElement, useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { IconType } from "react-icons";
 import {
   LuCircleAlert,
@@ -203,6 +204,7 @@ function DownloadRow({
   onAction: (action: ImmediateDownloadAction, job: DownloadJob) => void;
   onRequestDelete: (job: DownloadJob, opener: HTMLButtonElement) => void;
 }) {
+  const { t } = useTranslation();
   const progress = job.progress.percent === null ? undefined : job.progress.percent;
   const canCancel = job.status === "queued" || job.status === "downloading";
   const canRemove = !canCancel;
@@ -228,7 +230,7 @@ function DownloadRow({
             <h3 className="truncate text-base font-bold leading-6">{job.title}</h3>
             <p className="mt-0.5 text-sm text-[var(--color-foreground-secondary)]">
               {job.channelName} <span aria-hidden="true">/</span>{" "}
-              {job.kind === "video" ? "Video" : "Clip"}
+              {job.kind === "video" ? t("mediaLibrary.video") : t("mediaLibrary.clip")}
               {job.qualityLabel ? ` / ${job.qualityLabel}` : ""}
             </p>
           </div>
@@ -245,7 +247,9 @@ function DownloadRow({
             {job.error ?? job.statusMessage ?? formatTransfer(job)}
           </span>
           <span className="shrink-0 tabular-nums">
-            {progress === undefined ? "Progress unavailable" : `${Math.round(progress)}%`}
+            {progress === undefined
+              ? t("mediaLibrary.progressUnavailable")
+              : `${Math.round(progress)}%`}
           </span>
         </div>
         {(job.error || job.statusMessage) && job.progress.transferredBytes > 0 ? (
@@ -265,7 +269,7 @@ function DownloadRow({
           onClick={() => onCancel(job)}
         >
           <LuX className="size-5" aria-hidden="true" />
-          Cancel
+          {t("mediaLibrary.cancel")}
         </Button>
       ) : null}
 
@@ -297,7 +301,7 @@ function DownloadRow({
                   <LuFolderOpen className="size-5" aria-hidden="true" />
                 </Button>
               </DownloadActionTooltip>
-              <DownloadActionTooltip label="Delete from disk">
+              <DownloadActionTooltip label={t("mediaLibrary.deleteFromDisk")}>
                 <Button
                   type="button"
                   variant="ghost"
@@ -346,6 +350,7 @@ function DeleteFromDiskDialog({
   onCancel: () => void;
   onConfirm: () => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const cancelRef = useRef<HTMLButtonElement | null>(null);
   const isPending = state.phase === "pending";
   const isPartial = state.target.fileKind === "partial";
@@ -372,19 +377,22 @@ function DeleteFromDiskDialog({
           <div className="mb-1 flex size-10 items-center justify-center rounded-full bg-[var(--color-destructive)]/15 text-[var(--color-destructive)]">
             <LuTrash2 className="size-5" aria-hidden="true" />
           </div>
-          <DialogTitle>Delete file from disk?</DialogTitle>
+          <DialogTitle>{t("mediaLibrary.deleteFileQuestion")}</DialogTitle>
           <DialogDescription className="leading-6 text-[var(--color-foreground-secondary)]">
             <span className="font-semibold text-[var(--color-foreground)]">
               {state.target.title}
             </span>{" "}
-            is a {isPartial ? "partial download" : "completed download"}. This permanently deletes
-            the {isPartial ? "partial file" : "completed file"} from this computer. This cannot be
-            undone. Remove from list keeps the file.
+            {t("mediaLibrary.deleteDescription", {
+              kind: isPartial
+                ? t("mediaLibrary.partialDownload")
+                : t("mediaLibrary.completedDownload"),
+              file: isPartial ? t("mediaLibrary.partialFile") : t("mediaLibrary.completedFile"),
+            })}
           </DialogDescription>
         </DialogHeader>
         {isPending ? (
           <p aria-live="polite" className="text-sm text-[var(--color-foreground-secondary)]">
-            Deleting file...
+            {t("mediaLibrary.deletingFile")}
           </p>
         ) : null}
         {state.phase === "failed" ? (
@@ -403,7 +411,7 @@ function DeleteFromDiskDialog({
             disabled={isPending}
             onClick={onCancel}
           >
-            Cancel
+            {t("mediaLibrary.cancel")}
           </Button>
           <Button
             type="button"
@@ -415,10 +423,10 @@ function DeleteFromDiskDialog({
           >
             <LuTrash2 className="size-4" aria-hidden="true" />
             {isPending
-              ? "Deleting..."
+              ? t("mediaLibrary.deleting")
               : state.phase === "failed"
-                ? "Retry delete"
-                : "Delete from disk"}
+                ? t("mediaLibrary.retryDelete")
+                : t("mediaLibrary.deleteFromDisk")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -427,6 +435,7 @@ function DeleteFromDiskDialog({
 }
 
 export function DownloadsPage() {
+  const { t } = useTranslation();
   const [queue, setQueue] = useState<DownloadQueueSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deleteDialog, setDeleteDialog] = useState<DeleteFileDialogState>({ phase: "closed" });
@@ -443,7 +452,7 @@ export function DownloadsPage() {
   const loadQueue = useCallback(async () => {
     const api = window.electronAPI?.downloads;
     if (!api) {
-      if (isMounted.current) setError("Downloads are not available.");
+      if (isMounted.current) setError(t("mediaLibrary.downloadsUnavailable"));
       return;
     }
 
@@ -456,16 +465,16 @@ export function DownloadsPage() {
       }
     } catch {
       if (isMounted.current && queuePushVersion.current === versionAtStart) {
-        setError("Couldn't load downloads.");
+        setError(t("mediaLibrary.couldNotLoadDownloads"));
       }
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     isMounted.current = true;
     const api = window.electronAPI?.downloads;
     if (!api) {
-      setError("Downloads are not available.");
+      setError(t("mediaLibrary.downloadsUnavailable"));
       return () => {
         isMounted.current = false;
       };
@@ -484,7 +493,7 @@ export function DownloadsPage() {
       isMounted.current = false;
       unsubscribe();
     };
-  }, [loadQueue]);
+  }, [loadQueue, t]);
 
   useEffect(() => {
     if (deleteDialog.phase === "closed" && deleteTriggerRef.current?.isConnected) {
@@ -523,7 +532,7 @@ export function DownloadsPage() {
         updateDeleteDialog({
           phase: "failed",
           target: state.target,
-          error: result?.error ?? "StreamFusion couldn't delete the file. Try again.",
+          error: result?.error ?? t("mediaLibrary.couldNotDeleteFile"),
         });
       }
     } catch {
@@ -531,7 +540,7 @@ export function DownloadsPage() {
         updateDeleteDialog({
           phase: "failed",
           target: state.target,
-          error: "StreamFusion couldn't delete the file. Try again.",
+          error: t("mediaLibrary.couldNotDeleteFile"),
         });
       }
     }
@@ -549,9 +558,11 @@ export function DownloadsPage() {
           <LuDownload className="size-7 text-[var(--color-primary)]" aria-hidden="true" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Downloads</h1>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            {t("mediaLibrary.downloads")}
+          </h1>
           <p className="mt-1 text-sm text-[var(--color-foreground-secondary)]">
-            Track clips and videos saved from StreamFusion.
+            {t("mediaLibrary.downloadsDescription")}
           </p>
         </div>
       </header>
@@ -564,17 +575,19 @@ export function DownloadsPage() {
           <div className="flex gap-3">
             <LuCircleAlert className="mt-0.5 size-5 shrink-0 text-red-300" aria-hidden="true" />
             <div>
-              <h2 className="font-bold">Downloads could not be loaded</h2>
+              <h2 className="font-bold">{t("mediaLibrary.downloadsLoadError")}</h2>
               <p className="mt-1 text-sm text-[var(--color-foreground-secondary)]">{error}</p>
             </div>
           </div>
           <Button className="min-h-10" variant="outline" onClick={retryLoad}>
-            Retry
+            {t("mediaLibrary.retry")}
           </Button>
         </div>
       ) : queue === null ? (
-        <div className="space-y-4" aria-label="Loading downloads">
-          <p className="text-sm text-[var(--color-foreground-secondary)]">Loading downloads...</p>
+        <div className="space-y-4" aria-label={t("mediaLibrary.loadingDownloadsLabel")}>
+          <p className="text-sm text-[var(--color-foreground-secondary)]">
+            {t("mediaLibrary.loadingDownloads")}
+          </p>
           {[0, 1].map((item) => (
             <div
               key={item}
@@ -597,13 +610,13 @@ export function DownloadsPage() {
               aria-hidden="true"
             />
           </div>
-          <h2 className="text-base font-bold">No downloads yet</h2>
+          <h2 className="text-base font-bold">{t("mediaLibrary.noDownloads")}</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-[var(--color-foreground-secondary)]">
-            Download a playable Clip or Video. Its progress and file actions will appear here.
+            {t("mediaLibrary.emptyDownloads")}
           </p>
         </div>
       ) : (
-        <div aria-label="Download queue" className="space-y-8">
+        <div aria-label={t("mediaLibrary.downloadQueue")} className="space-y-8">
           {populatedSections.map((section) => (
             <section key={section.id} aria-labelledby={`download-section-${section.id}`}>
               <div className="mb-3 flex items-start gap-3">

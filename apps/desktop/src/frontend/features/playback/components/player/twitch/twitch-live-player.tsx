@@ -1,4 +1,5 @@
 import type Hls from "hls.js";
+import { useTranslation } from "react-i18next";
 import type React from "react";
 import {
   forwardRef,
@@ -94,6 +95,7 @@ const ignoreQualityChange = () => {};
 
 export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerProps>(
   function TwitchLivePlayer(props, forwardedVideoRef) {
+    const { t } = useTranslation();
     const {
       streamUrl,
       channelName,
@@ -606,7 +608,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-white z-0">
-            <p>No Stream Source</p>
+            <p>{t("playback.noStreamSource")}</p>
           </div>
         )}
 
@@ -644,7 +646,9 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
             aria-live="polite"
             className="pointer-events-none absolute left-3 top-3 z-40 rounded bg-black/80 px-3 py-1.5 text-sm font-medium text-white"
           >
-            {adBlockStatus?.isMidroll ? "Blocking midroll ads" : "Blocking ads"}
+            {adBlockStatus?.isMidroll
+              ? t("playback.blockingMidrollAds")
+              : t("playback.blockingAds")}
           </div>
         )}
 
@@ -665,9 +669,9 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
             className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-black/85 px-6 text-center"
             role="alert"
           >
-            <p className="text-base font-bold text-white">Playback interrupted</p>
+            <p className="text-base font-bold text-white">{t("playback.playbackInterrupted")}</p>
             <p className="text-sm font-medium text-[var(--color-text-secondary)]">
-              Automatic recovery could not restore this live stream.
+              {t("playback.automaticRecoveryCouldNotRestoreThisLiveStream")}
             </p>
             {onRefresh && (
               <Button
@@ -678,7 +682,7 @@ export const TwitchLivePlayer = forwardRef<HTMLVideoElement, TwitchLivePlayerPro
                   onRefresh();
                 }}
               >
-                Retry playback
+                {t("playback.retryPlayback")}
               </Button>
             )}
           </div>

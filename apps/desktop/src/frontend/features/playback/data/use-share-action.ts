@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
@@ -41,6 +42,7 @@ export function useShareAction({
   contentLabel,
   contentKey,
 }: UseShareActionOptions) {
+  const { t } = useTranslation();
   const contentIdentity = `${contentKey ?? ""}\u0000${shareUrl ?? ""}`;
   const [copiedFor, setCopiedFor] = useState<string | null>(null);
   const copiedReset = useManagedTimeout(useCallback(() => setCopiedFor(null), []));
@@ -61,18 +63,18 @@ export function useShareAction({
       await navigator.clipboard.writeText(shareUrl);
       setCopiedFor(contentIdentity);
       copiedReset.start(2_000);
-      toast.success("Link copied");
+      toast.success(t("playback.linkCopied"));
     } catch {
       setCopiedFor(null);
       copiedReset.clear();
-      toast.error("Couldn’t copy link. Try again.");
+      toast.error(t("playback.couldNotCopyLink"));
     }
-  }, [canShare, contentIdentity, copiedReset, shareUrl]);
+  }, [canShare, contentIdentity, copiedReset, shareUrl, t]);
 
   return {
     canShare,
     copied,
     share,
-    unavailableTitle: `Share is available when this ${contentLabel} is ready to play.`,
+    unavailableTitle: t("playback.shareUnavailable", { content: contentLabel }),
   };
 }

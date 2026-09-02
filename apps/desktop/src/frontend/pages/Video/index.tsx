@@ -1,4 +1,5 @@
 import { Link, useParams, useSearch } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LuCheck, LuCircleAlert, LuDownload, LuLock, LuShare2 } from "react-icons/lu";
 import { KickVodPlayer } from "@/features/playback/components/player/kick/kick-vod-player";
@@ -76,6 +77,7 @@ function formatLanguage(language: string): string {
 }
 
 export function VideoPage() {
+  const { t } = useTranslation();
   const { platform, videoId } = useParams({ from: "/_app/video/$platform/$videoId" });
   const routePlatform = requirePlatform(platform);
   const searchParams = useSearch({ from: "/_app/video/$platform/$videoId" });
@@ -322,7 +324,7 @@ export function VideoPage() {
               };
               setStreamUrl(playbackResult.data.url);
             } else {
-              setError(playbackResult.error || "Failed to resolve VOD URL");
+              setError(playbackResult.error || t("playback.failedToResolveVod"));
             }
           })
           .catch((err) => {
@@ -334,7 +336,7 @@ export function VideoPage() {
                   ? { name: err.name, message: err.message, stack: err.stack }
                   : String(err),
             });
-            setError("Failed to load video");
+            setError(t("playback.failedToLoadVideo"));
           })
           .finally(() => publish(() => setIsLoading(false)));
 
@@ -369,7 +371,7 @@ export function VideoPage() {
               : String(err),
         });
         publish(() => {
-          setError("Failed to load video");
+          setError(t("playback.failedToLoadVideo"));
           setIsLoading(false);
         });
       }
@@ -394,6 +396,7 @@ export function VideoPage() {
     passedDuration,
     isSubOnly,
     playbackRetryGeneration,
+    t,
   ]);
 
   useEffect(() => {
@@ -600,18 +603,19 @@ export function VideoPage() {
               <div className="w-16 h-16 rounded-full bg-purple-600/20 flex items-center justify-center mx-auto mb-4">
                 <LuLock className="w-8 h-8 text-purple-400" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">Subscriber Only VOD</h3>
+              <h3 className="text-xl font-semibold text-white mb-2">
+                {t("playback.subscriberOnlyVod")}
+              </h3>
               <p className="text-white/60 max-w-md mx-auto">
-                This VOD is only available to subscribers of this channel. Subscribe on Kick to
-                watch this content.
+                {t("playback.subscriberOnlyVodDescription")}
               </p>
             </div>
           ) : playbackFailed ? (
             <div className="text-center text-red-500">
               <LuCircleAlert className="w-8 h-8 mx-auto mb-2" />
-              <p className="mb-3">Unable to play this video</p>
+              <p className="mb-3">{t("playback.unableToPlayVideo")}</p>
               <Button type="button" onClick={handlePlaybackRetry}>
-                Retry
+                {t("playback.retry")}
               </Button>
             </div>
           ) : streamUrl ? (
@@ -647,13 +651,13 @@ export function VideoPage() {
               <LuCircleAlert className="w-8 h-8 mx-auto mb-2" />
               <p className="mb-3">{error}</p>
               <Button type="button" onClick={handlePlaybackRetry}>
-                Retry
+                {t("playback.retry")}
               </Button>
             </div>
           ) : (
             <div className="text-center text-white/50">
               <div className="animate-spin w-8 h-8 border-4 border-white border-t-transparent rounded-full mx-auto mb-2" />
-              <p>Loading VOD...</p>
+              <p>{t("playback.loadingVod")}</p>
             </div>
           )}
         </div>
@@ -724,7 +728,9 @@ export function VideoPage() {
                 {hasViews && views ? (
                   <>
                     <span>•</span>
-                    <span>{views} views</span>
+                    <span>
+                      {t("playback.viewCount", { value: views, defaultValue: "{{value}} views" })}
+                    </span>
                   </>
                 ) : null}
                 {hasDate && date ? (
@@ -736,7 +742,7 @@ export function VideoPage() {
               </div>
               {metadataFailed && (
                 <Button type="button" variant="ghost" size="sm" onClick={handleMetadataRetry}>
-                  Retry details
+                  {t("playback.retryDetails")}
                 </Button>
               )}
               {/* Tags */}
@@ -792,21 +798,17 @@ export function VideoPage() {
                 ) : (
                   <LuShare2 aria-hidden="true" />
                 )}
-                {shareAction.copied ? "Copied" : "Share"}
+                {shareAction.copied ? t("playback.copied") : t("playback.share")}
               </Button>
               <Button
                 className="rounded-full font-bold bg-neutral-800 hover:bg-neutral-700 text-white border-transparent gap-2"
                 size="sm"
                 onClick={handleDownload}
                 disabled={!isPlaybackReady}
-                title={
-                  !isPlaybackReady
-                    ? "Download is available when this Video is ready to play."
-                    : undefined
-                }
+                title={!isPlaybackReady ? t("playback.videoDownloadReady") : undefined}
               >
                 <LuDownload aria-hidden="true" />
-                Download
+                {t("playback.download")}
               </Button>
               {canOpenChannel && canWatchLive && (
                 <Link
@@ -818,7 +820,7 @@ export function VideoPage() {
                     className="rounded-full font-bold bg-neutral-800 hover:bg-neutral-700 text-white border-transparent gap-2"
                     size="sm"
                   >
-                    Watch Live
+                    {t("playback.watchLive")}
                   </Button>
                 </Link>
               )}
@@ -828,7 +830,9 @@ export function VideoPage() {
           {/* Related Videos */}
           {hasResolvedChannelName ? (
             <div>
-              <h2 className="text-lg font-bold text-white mb-4">More from {visibleChannelName}</h2>
+              <h2 className="text-lg font-bold text-white mb-4">
+                {t("playback.moreFrom", { channel: visibleChannelName })}
+              </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {isRelatedLoading ? (
                   Array.from({ length: 12 }).map((_, i) => (
@@ -864,7 +868,7 @@ export function VideoPage() {
                     ))
                 ) : (
                   <p className="text-[var(--color-foreground-muted)] col-span-full">
-                    No other videos found.
+                    {t("playback.noOtherVideos")}
                   </p>
                 )}
               </div>

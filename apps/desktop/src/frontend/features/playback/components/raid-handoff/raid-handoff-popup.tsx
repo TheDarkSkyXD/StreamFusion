@@ -1,4 +1,5 @@
 import { LuArrowRight, LuClock3 } from "react-icons/lu";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
@@ -12,6 +13,7 @@ export interface RaidHandoffPopupProps {
 }
 
 export function RaidHandoffPopup({ model, compact = false }: RaidHandoffPopupProps) {
+  const { t } = useTranslation();
   const reduceMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const { offer, participation } = model;
   const isCompact = compact || participation === "staying";
@@ -48,26 +50,26 @@ export function RaidHandoffPopup({ model, compact = false }: RaidHandoffPopupPro
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-white/60">
             <LuArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
-            Raid handoff
+            {t("playback.raidHandoff")}
           </div>
           <p className="truncate text-sm font-bold text-white">
-            We&apos;re raiding {offer.target.displayName}
+            {t("playback.raiding", { target: offer.target.displayName })}
           </p>
           <p className="truncate text-xs text-white/65">
             {model.audienceText ??
               (offer.launchAuthority.kind === "provider-go"
-                ? "Waiting for Twitch to launch the raid"
-                : "You will move when the countdown ends")}
+                ? t("playback.waitingForTwitchToLaunchTheRaid")
+                : t("playback.youWillMoveWhenTheCountdownEnds"))}
           </p>
         </div>
 
         {participation === "joining" ? (
           <Button size="sm" variant="secondary" onClick={model.stayHere}>
-            Stay here
+            {t("playback.stayHere")}
           </Button>
         ) : (
           <Button size="sm" variant={offer.platform} onClick={model.joinRaid}>
-            Join raid
+            {t("playback.joinRaid")}
           </Button>
         )}
       </div>
@@ -76,7 +78,7 @@ export function RaidHandoffPopup({ model, compact = false }: RaidHandoffPopupPro
         <div
           className="h-1.5 w-full bg-white/10"
           role="progressbar"
-          aria-label="Time until raid handoff"
+          aria-label={t("playback.timeUntilRaidHandoff")}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(model.progressPercent ?? 0)}
@@ -97,7 +99,7 @@ export function RaidHandoffPopup({ model, compact = false }: RaidHandoffPopupPro
             aria-hidden="true"
             className={cn("h-3.5 w-3.5", !reduceMotion && "animate-pulse")}
           />
-          Twitch will signal when the raid starts
+          {t("playback.twitchWillSignalWhenTheRaidStarts")}
         </div>
       )}
     </section>

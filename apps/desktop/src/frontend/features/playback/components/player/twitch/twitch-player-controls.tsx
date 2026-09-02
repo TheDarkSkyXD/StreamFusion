@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { LuMaximize, LuMinimize } from "react-icons/lu";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { formatDuration } from "@/lib/utils";
@@ -90,6 +91,7 @@ interface TwitchPlayerControlsProps {
 }
 
 export function TwitchPlayerControls(props: TwitchPlayerControlsProps) {
+  const { t } = useTranslation();
   const {
     isPlaying,
     isLoading,
@@ -230,7 +232,7 @@ export function TwitchPlayerControls(props: TwitchPlayerControlsProps) {
             {!duration || duration === Infinity ? (
               <div className="flex items-center gap-1.5 px-2 py-1 bg-red-600 rounded text-xs font-bold uppercase tracking-wider text-white ml-2 select-none">
                 <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                Live
+                {t("playback.live2")}
               </div>
             ) : (
               <div className="text-white text-2xl font-bold ml-2 select-none">
@@ -270,7 +272,7 @@ export function TwitchPlayerControls(props: TwitchPlayerControlsProps) {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>{isTheater ? "Exit Theater Mode (t)" : "Theater Mode (t)"}</p>
+                  <p>{isTheater ? t("playback.exitTheaterModeT") : t("playback.theaterModeT")}</p>
                 </TooltipContent>
               </Tooltip>
             )}
@@ -291,7 +293,7 @@ export function TwitchPlayerControls(props: TwitchPlayerControlsProps) {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>{isFullscreen ? "Exit Fullscreen (f)" : "Fullscreen (f)"}</p>
+                <p>{isFullscreen ? t("playback.exitFullscreenF") : t("playback.fullscreenF")}</p>
               </TooltipContent>
             </Tooltip>
           </div>

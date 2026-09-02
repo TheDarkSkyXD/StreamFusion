@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { lazy, Suspense, useState, type ReactNode } from "react";
 import { LuHistory as HistoryIcon, LuPlay, LuTrash2 } from "react-icons/lu";
 
@@ -64,6 +65,7 @@ const HistoryItemLink = ({
 };
 
 export function HistoryPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: history = [] } = useHistoryQuery();
   const { clearHistory, removeFromHistory } = useHistoryActions();
@@ -212,7 +214,7 @@ export function HistoryPage() {
     } catch (_error) {
       removeFromHistory(item.id);
       setSelectedClip(null);
-      setClipError("This item is no longer available.");
+      setClipError(t("mediaLibrary.historyItemUnavailable"));
     } finally {
       setClipLoading(false);
       setVerifyingItemId(null);
@@ -224,7 +226,7 @@ export function HistoryPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <HistoryIcon className="w-8 h-8 text-[var(--color-primary)]" />
-          <h1 className="text-3xl font-bold">Watch History</h1>
+          <h1 className="text-3xl font-bold">{t("mediaLibrary.watchHistory")}</h1>
         </div>
         {history.length > 0 && (
           <Button
@@ -234,7 +236,7 @@ export function HistoryPage() {
             className="flex items-center gap-2"
           >
             <LuTrash2 className="w-4 h-4" />
-            Clear History
+            {t("mediaLibrary.clearHistory")}
           </Button>
         )}
       </div>
@@ -242,8 +244,8 @@ export function HistoryPage() {
       {history.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-20 text-[var(--color-foreground-secondary)]">
           <HistoryIcon className="w-16 h-16 mb-4 opacity-20" />
-          <h2 className="text-xl font-semibold mb-2">No watch history yet</h2>
-          <p>Videos and clips you watch will appear here.</p>
+          <h2 className="text-xl font-semibold mb-2">{t("mediaLibrary.noWatchHistory")}</h2>
+          <p>{t("mediaLibrary.emptyHistory")}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -309,7 +311,7 @@ export function HistoryPage() {
                       removeFromHistory(item.id);
                     }}
                     className="absolute bottom-2 right-2 p-1.5 rounded-full bg-black/60 hover:bg-red-500 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Remove from history"
+                    title={t("mediaLibrary.removeFromHistory")}
                   >
                     <LuTrash2 className="w-3.5 h-3.5" />
                   </button>
@@ -373,7 +375,7 @@ export function HistoryPage() {
             channelName={selectedClip.channelSlug || selectedClip.channelName || ""}
             channelData={selectedClipChannelData}
             onPlaybackError={() => {
-              setClipError("Failed to play clip");
+              setClipError(t("playback.failedToPlayClip"));
               removeFromHistory(`${selectedClip.platform}-clip-${selectedClip.id}`);
             }}
           />

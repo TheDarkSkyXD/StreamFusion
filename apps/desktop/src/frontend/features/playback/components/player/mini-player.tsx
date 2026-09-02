@@ -3,6 +3,7 @@
  * Keeps one live-player surface mounted while moving it between the stream-page dock and mini mode.
  */
 import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import type React from "react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -77,6 +78,7 @@ function normalizeChannelName(value: string | undefined): string {
 }
 
 export function MiniPlayer() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const dockedConfig = useDockedPlayerConfig();
@@ -667,9 +669,9 @@ export function MiniPlayer() {
           className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-black/80"
           role="alert"
         >
-          <p className="text-white/70 text-sm">Stream unavailable</p>
+          <p className="text-white/70 text-sm">{t("playback.streamUnavailable")}</p>
           <Button size="sm" onClick={handlePlaybackRetry}>
-            Retry playback
+            {t("playback.retryPlayback")}
           </Button>
         </div>
       )}
@@ -695,7 +697,7 @@ export function MiniPlayer() {
                 {!isConfirmedOffline && (
                   <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
                 )}
-                {isConfirmedOffline ? "OFFLINE" : "LIVE"}
+                {isConfirmedOffline ? t("playback.offline") : t("playback.live")}
               </span>
             </div>
             <div className="flex items-center gap-1">
@@ -704,7 +706,7 @@ export function MiniPlayer() {
                   <button
                     type="button"
                     onClick={handleExpand}
-                    aria-label="Restore stream"
+                    aria-label={t("playback.restoreStream")}
                     className={cn(
                       "p-1.5 rounded-full bg-black/50 hover:bg-black/70 text-white transition-colors",
                       miniPlayerButtonClass
@@ -713,14 +715,16 @@ export function MiniPlayer() {
                     <LuMaximize2 size={16} />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent container={containerRef.current}>Expand</TooltipContent>
+                <TooltipContent container={containerRef.current}>
+                  {t("playback.expand")}
+                </TooltipContent>
               </Tooltip>
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
                     onClick={closePip}
-                    aria-label="Close mini player"
+                    aria-label={t("playback.closeMiniPlayer")}
                     className={cn(
                       "p-1.5 rounded-full bg-black/50 hover:bg-red-500/80 text-white transition-colors",
                       miniPlayerButtonClass
@@ -729,7 +733,9 @@ export function MiniPlayer() {
                     <LuX size={16} />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent container={containerRef.current}>Close</TooltipContent>
+                <TooltipContent container={containerRef.current}>
+                  {t("playback.close")}
+                </TooltipContent>
               </Tooltip>
             </div>
           </div>
@@ -765,7 +771,7 @@ export function MiniPlayer() {
                       <button
                         type="button"
                         onClick={togglePlay}
-                        aria-label={isPlaying ? "Pause" : "Play"}
+                        aria-label={isPlaying ? t("playback.pause") : t("playback.play")}
                         className={cn(
                           "p-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white transition-colors",
                           miniPlayerButtonClass
@@ -775,7 +781,7 @@ export function MiniPlayer() {
                       </button>
                     </TooltipTrigger>
                     <TooltipContent container={containerRef.current}>
-                      {isPlaying ? "Pause" : "Play"}
+                      {isPlaying ? t("playback.pause") : t("playback.play")}
                     </TooltipContent>
                   </Tooltip>
 
@@ -803,7 +809,7 @@ export function MiniPlayer() {
                           </button>
                         </TooltipTrigger>
                         <TooltipContent container={containerRef.current}>
-                          {isMuted ? "Unmute" : "Mute"}
+                          {isMuted ? t("playback.unmute") : t("playback.mute")}
                         </TooltipContent>
                       </Tooltip>
 
@@ -875,7 +881,10 @@ export function MiniPlayer() {
                 {/* Viewer count */}
                 {currentStream.viewerCount !== undefined && (
                   <span className="text-white/60 text-xs ml-auto">
-                    {currentStream.viewerCount.toLocaleString()} viewers
+                    {t("playback.viewerCount", {
+                      value: currentStream.viewerCount.toLocaleString(),
+                      defaultValue: "{{value}} viewers",
+                    })}
                   </span>
                 )}
               </div>

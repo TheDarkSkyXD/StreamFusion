@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "react-i18next";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ export function OfflineOverlay({
   onCheckAgain,
   compact = false,
 }: OfflineOverlayProps) {
+  const { t } = useTranslation();
   const name = displayName || channelName;
 
   return (
@@ -36,7 +38,7 @@ export function OfflineOverlay({
       {bannerUrl ? (
         <ProxiedImage
           src={bannerUrl}
-          alt="Offline banner"
+          alt={t("playback.offlineBanner")}
           className="absolute inset-0 w-full h-full object-cover"
         />
       ) : avatarUrl ? (
@@ -89,7 +91,9 @@ export function OfflineOverlay({
             </p>
           )}
           {!compact && categoryName && (
-            <p className="text-white/70 text-sm mb-8">Last streamed in {categoryName}</p>
+            <p className="text-white/70 text-sm mb-8">
+              {t("playback.lastStreamedIn")} {categoryName}
+            </p>
           )}
           {!compact && !categoryName && !lastStreamTitle && <div className="mb-8" />}
           <Button
@@ -98,7 +102,7 @@ export function OfflineOverlay({
             className="bg-white/10 border-white/30 hover:bg-white/20 backdrop-blur-sm"
             onClick={onCheckAgain}
           >
-            Check Again
+            {t("playback.checkAgain")}
           </Button>
         </div>
       </div>

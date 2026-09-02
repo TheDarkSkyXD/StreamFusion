@@ -1,4 +1,5 @@
 import type React from "react";
+import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useSeekPreview } from "@/features/playback/components/player/hooks/use-seek-preview";
@@ -34,6 +35,7 @@ export interface TwitchVideoPlayerProps {
 }
 
 export function TwitchVideoPlayer(props: TwitchVideoPlayerProps) {
+  const { t } = useTranslation();
   const {
     streamUrl,
     poster,
@@ -237,7 +239,7 @@ export function TwitchVideoPlayer(props: TwitchVideoPlayerProps) {
         />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center text-white z-0">
-          <p>No Stream Source</p>
+          <p>{t("playback.noStreamSource")}</p>
         </div>
       )}
 

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { LuCircle } from "react-icons/lu";
 
 import { ActiveRecordingDialog } from "@/features/playback/components/active-recording-dialog";
@@ -14,10 +15,7 @@ import {
 import { RecordingSessionControls } from "@/features/media-library/components/recording/recording-session-control";
 import { useStreamRecordingActions } from "@/features/media-library/data/use-stream-recording-actions";
 import { useStreamRecordingState } from "@/features/media-library/data/use-stream-recording-state";
-import {
-  formatCapturedDuration,
-  RECORDING_PHASE_LABELS,
-} from "@/features/media-library/utils/stream-recording-presentation";
+import { formatCapturedDuration } from "@/features/media-library/utils/stream-recording-presentation";
 import type { Platform } from "@shared/auth-types";
 import type { ActiveStreamRecording } from "@shared/stream-recording-types";
 
@@ -43,6 +41,7 @@ export function StreamRecordingControl({
   title,
   isPlayable,
 }: StreamRecordingControlProps) {
+  const { t } = useTranslation();
   const { start } = useStreamRecordingActions();
   const recordingState = useStreamRecordingState();
   const [pending, setPending] = useState(false);
@@ -58,7 +57,9 @@ export function StreamRecordingControl({
 
   if (isCurrentStreamRecording) {
     const detail = [
-      `${RECORDING_PHASE_LABELS[active.status]} ${formatCapturedDuration(active.capturedDurationSeconds)} captured`,
+      t("mediaLibrary.capturedDuration", {
+        duration: formatCapturedDuration(active.capturedDurationSeconds),
+      }),
       active.qualityLabel,
     ]
       .filter(Boolean)
@@ -101,14 +102,14 @@ export function StreamRecordingControl({
         ref={triggerRef}
         type="button"
         variant="destructive"
-        aria-label="Record stream"
+        aria-label={t("mediaLibrary.recordStream")}
         aria-busy={pending}
         disabled={pending}
         onClick={() => setSetupOpen(true)}
         className="gap-2 motion-reduce:transition-none"
       >
         <LuCircle aria-hidden="true" className="h-4 w-4 fill-current" />
-        {pending ? "Starting recording" : "Record"}
+        {pending ? t("mediaLibrary.startingRecording") : t("mediaLibrary.record")}
       </Button>
       <Dialog open={setupOpen} onOpenChange={(open) => !pending && setSetupOpen(open)}>
         <DialogContent
@@ -119,12 +120,14 @@ export function StreamRecordingControl({
           }}
         >
           <DialogHeader>
-            <DialogTitle>Record {channelName}</DialogTitle>
-            <DialogDescription>
-              Choose the recording quality. Next, choose where to save the MP4 file.
-            </DialogDescription>
+            <DialogTitle>{t("mediaLibrary.recordChannel", { channel: channelName })}</DialogTitle>
+            <DialogDescription>{t("mediaLibrary.chooseRecordingQuality")}</DialogDescription>
           </DialogHeader>
-          <div role="radiogroup" aria-label="Recording quality" className="grid gap-2">
+          <div
+            role="radiogroup"
+            aria-label={t("mediaLibrary.recordingQuality")}
+            className="grid gap-2"
+          >
             {RECORDING_QUALITIES.map((option, index) => {
               const selected = qualityIndex === index;
               return (
@@ -155,10 +158,10 @@ export function StreamRecordingControl({
           </div>
           <DialogFooter className="gap-2 sm:space-x-0">
             <Button type="button" variant="outline" onClick={() => setSetupOpen(false)}>
-              Cancel
+              {t("mediaLibrary.cancel")}
             </Button>
             <Button type="button" onClick={handleStart}>
-              Choose save location
+              {t("mediaLibrary.chooseSaveLocation")}
             </Button>
           </DialogFooter>
         </DialogContent>

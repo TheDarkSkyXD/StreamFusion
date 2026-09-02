@@ -1,4 +1,5 @@
 import type Hls from "hls.js";
+import { useTranslation } from "react-i18next";
 import type React from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useRenderCount } from "@/components/dev/use-render-count";
@@ -56,6 +57,7 @@ const ignoreQualityChange = () => {};
 
 export const KickLivePlayer = forwardRef<HTMLVideoElement, KickLivePlayerProps>(
   function KickLivePlayer(props, forwardedVideoRef) {
+    const { t } = useTranslation();
     useRenderCount("KickLivePlayer");
     const {
       streamUrl,
@@ -418,7 +420,7 @@ export const KickLivePlayer = forwardRef<HTMLVideoElement, KickLivePlayerProps>(
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-white z-0">
-            <p>No Stream Source</p>
+            <p>{t("playback.noStreamSource")}</p>
           </div>
         )}
 

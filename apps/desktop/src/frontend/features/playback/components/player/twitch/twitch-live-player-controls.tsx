@@ -1,4 +1,5 @@
 import { LuRefreshCw, LuShieldCheck } from "react-icons/lu";
+import { useTranslation } from "react-i18next";
 
 import type { AdBlockStatus } from "@shared/adblock-types";
 
@@ -16,6 +17,7 @@ interface TwitchLivePlayerControlsProps extends PlayerControlsProps {
 }
 
 export function TwitchLivePlayerControls(props: TwitchLivePlayerControlsProps) {
+  const { t } = useTranslation();
   const { adBlockStatus, onRefresh, onSeek, ...controlsProps } = props;
 
   const adBlockStatusButton = adBlockStatus?.isActive ? (
@@ -24,7 +26,9 @@ export function TwitchLivePlayerControls(props: TwitchLivePlayerControlsProps) {
         <Button
           variant="ghost"
           size="icon"
-          aria-label={adBlockStatus.isShowingAd ? "Blocking ads" : "Ad-block active"}
+          aria-label={
+            adBlockStatus.isShowingAd ? t("playback.blockingAds") : t("playback.adBlockActive")
+          }
           className={
             adBlockStatus.isShowingAd
               ? "text-green-500 hover:text-green-400 hover:bg-green-500/10 ml-1"
@@ -35,7 +39,9 @@ export function TwitchLivePlayerControls(props: TwitchLivePlayerControlsProps) {
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>{adBlockStatus.isShowingAd ? "Blocking Ads..." : "Ad-Block Active"}</p>
+        <p>
+          {adBlockStatus.isShowingAd ? t("playback.blockingAds2") : t("playback.adBlockActive2")}
+        </p>
       </TooltipContent>
     </Tooltip>
   ) : null;
@@ -53,7 +59,7 @@ export function TwitchLivePlayerControls(props: TwitchLivePlayerControlsProps) {
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>Refresh stream</p>
+        <p>{t("playback.refreshStream")}</p>
       </TooltipContent>
     </Tooltip>
   ) : null;

@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { memo } from "react";
 import { LuPlay } from "react-icons/lu";
 
@@ -26,6 +27,7 @@ export const ClipCard = memo(function ClipCard({
   channelName,
   channelData,
 }: ClipCardProps) {
+  const { t } = useTranslation();
   const categoryName = clip.category || clip.gameName;
 
   return (
@@ -49,7 +51,10 @@ export const ClipCard = memo(function ClipCard({
         </div>
 
         <div className="absolute bottom-2 left-2 bg-black/80 px-1.5 py-0.5 rounded text-xs text-white font-medium">
-          {formatViews(clip.views)} views
+          {t("playback.viewCount", {
+            value: formatViews(clip.views),
+            defaultValue: "{{value}} views",
+          })}
         </div>
 
         <div className="absolute bottom-2 right-2 bg-black/80 px-1.5 py-0.5 rounded text-xs text-white font-medium">

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { LuCircleAlert, LuCircleX, LuFileCheck2, LuPlay } from "react-icons/lu";
 
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ type RecoveryAction = "resume" | "finalize" | "dismiss";
 type ResumeUnavailableReason = "stream-unavailable" | "stream-changed";
 
 export function RecordingRecoveryDialog() {
+  const { t } = useTranslation();
   const state = useStreamRecordingState();
   const { resumeInterrupted, finalizeInterrupted, dismissInterrupted } =
     useStreamRecordingActions();
@@ -89,7 +91,7 @@ export function RecordingRecoveryDialog() {
       result = {
         success: false,
         code: "bridge-error",
-        error: error instanceof Error ? error.message : "Recording recovery failed",
+        error: error instanceof Error ? error.message : t("mediaLibrary.recordingRecoveryFailed"),
       };
     } finally {
       if (activeSessionIdRef.current === sessionId) setPending(null);
@@ -130,11 +132,8 @@ export function RecordingRecoveryDialog() {
         {confirmDismiss ? (
           <>
             <DialogHeader>
-              <DialogTitle>Dismiss recording recovery?</DialogTitle>
-              <DialogDescription>
-                StreamFusion will forget this recovery prompt. Your captured section files will
-                remain on disk and will not be deleted.
-              </DialogDescription>
+              <DialogTitle>{t("mediaLibrary.dismissRecordingRecovery")}</DialogTitle>
+              <DialogDescription>{t("mediaLibrary.dismissRecoveryDescription")}</DialogDescription>
             </DialogHeader>
             <DialogFooter className="gap-2 sm:space-x-0">
               <Button
@@ -147,7 +146,7 @@ export function RecordingRecoveryDialog() {
                   setConfirmDismiss(false);
                 }}
               >
-                Keep recovery
+                {t("mediaLibrary.keepRecovery")}
               </Button>
               <Button
                 ref={confirmDismissRef}
@@ -157,7 +156,9 @@ export function RecordingRecoveryDialog() {
                 aria-busy={pending === "dismiss"}
                 onClick={() => void runAction("dismiss")}
               >
-                {pending === "dismiss" ? "Dismissing" : "Dismiss recovery permanently"}
+                {pending === "dismiss"
+                  ? t("mediaLibrary.dismissing")
+                  : t("mediaLibrary.dismissRecoveryPermanently")}
               </Button>
             </DialogFooter>
           </>
@@ -168,13 +169,13 @@ export function RecordingRecoveryDialog() {
                 <LuCircleAlert className="h-5 w-5" aria-hidden="true" />
               </span>
               <div className="space-y-1.5">
-                <DialogTitle>Recording interrupted</DialogTitle>
+                <DialogTitle>{t("mediaLibrary.recordingInterrupted")}</DialogTitle>
                 <DialogDescription>
                   {finalizeOnly
                     ? missingStreamIdentity
-                      ? "StreamFusion found captured footage from an older session, but cannot verify that the same Stream is still live. Finalize the footage already saved."
-                      : "StreamFusion found finalization work from your last session. Finish checking the partial recording already saved."
-                    : "StreamFusion found captured footage from your last session. Check whether the same stream is available to resume, or finalize the footage already saved."}
+                      ? t("mediaLibrary.recoveryOldSession")
+                      : t("mediaLibrary.recoveryFinalizationWork")
+                    : t("mediaLibrary.recoveryLastSession")}
                 </DialogDescription>
               </div>
             </DialogHeader>
@@ -186,22 +187,34 @@ export function RecordingRecoveryDialog() {
               </p>
               <dl className="mt-4 grid gap-2 text-xs">
                 <div className="flex items-center justify-between gap-4">
-                  <dt className="text-[var(--color-foreground-muted)]">Captured</dt>
+                  <dt className="text-[var(--color-foreground-muted)]">
+                    {t("mediaLibrary.captured")}
+                  </dt>
                   <dd className="font-semibold text-white">
-                    {formatCapturedDuration(active.capturedDurationSeconds)} captured
+                    {t("mediaLibrary.capturedDuration", {
+                      duration: formatCapturedDuration(active.capturedDurationSeconds),
+                    })}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                  <dt className="text-[var(--color-foreground-muted)]">Quality</dt>
+                  <dt className="text-[var(--color-foreground-muted)]">
+                    {t("mediaLibrary.quality")}
+                  </dt>
                   <dd className="text-right font-semibold text-white">
-                    {selectedQuality} selected · {currentQuality} current
+                    {t("mediaLibrary.qualitySelectedCurrent", {
+                      selected: selectedQuality,
+                      current: currentQuality,
+                    })}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                  <dt className="text-[var(--color-foreground-muted)]">Gaps</dt>
+                  <dt className="text-[var(--color-foreground-muted)]">{t("mediaLibrary.gaps")}</dt>
                   <dd className="font-semibold text-amber-200">
-                    {gapCount} {gapCount === 1 ? "gap" : "gaps"}
-                    {active.hasOpenGap ? " · restart gap open" : ""}
+                    {t("mediaLibrary.gapCount", {
+                      count: gapCount,
+                      suffix: active.hasOpenGap ? t("mediaLibrary.restartGapOpen") : "",
+                      defaultValue: "{{count}} {{count, plural, one {gap} other {gaps}}}{{suffix}}",
+                    })}
                   </dd>
                 </div>
               </dl>
@@ -209,29 +222,29 @@ export function RecordingRecoveryDialog() {
 
             <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
               {pending === "resume"
-                ? "Checking stream availability"
+                ? t("mediaLibrary.checkingStreamAvailability")
                 : pending === "finalize"
-                  ? "Finalizing partial recording"
+                  ? t("mediaLibrary.finalizingPartialRecording")
                   : resumeUnavailable === "stream-changed"
-                    ? "A different Stream is live. Finalize the partial recording instead."
+                    ? t("mediaLibrary.differentStreamLive")
                     : resumeUnavailable === "stream-unavailable"
-                      ? "Stream unavailable. Finalize the partial recording instead."
+                      ? t("mediaLibrary.streamUnavailableFinalize")
                       : ""}
             </p>
 
             {resumeUnavailable ? (
               <p className="text-sm font-semibold text-amber-200">
                 {resumeUnavailable === "stream-changed"
-                  ? "A different Stream is now live on this Channel. It will not be appended to your captured footage; finalize the partial recording instead."
-                  : "Stream unavailable. Your captured footage is safe; finalize the partial recording instead."}
+                  ? t("mediaLibrary.differentStreamNotice")
+                  : t("mediaLibrary.streamUnavailableNotice")}
               </p>
             ) : null}
 
             {finalizeOnly ? (
               <p className="text-sm font-semibold text-amber-200">
                 {missingStreamIdentity
-                  ? "This recovery has no stable Stream identity. Use Finalize Partial to safely finish the saved recording."
-                  : "Finalization already started. Use Finalize Partial to safely finish the saved recording."}
+                  ? t("mediaLibrary.missingStreamIdentityNotice")
+                  : t("mediaLibrary.finalizationStartedNotice")}
               </p>
             ) : null}
 
@@ -245,7 +258,7 @@ export function RecordingRecoveryDialog() {
                 onClick={() => setConfirmDismiss(true)}
               >
                 <LuCircleX className="h-4 w-4" aria-hidden="true" />
-                Dismiss recovery
+                {t("mediaLibrary.dismissRecovery")}
               </Button>
               <Button
                 ref={finalizeRef}
@@ -257,7 +270,9 @@ export function RecordingRecoveryDialog() {
                 onClick={() => void runAction("finalize")}
               >
                 <LuFileCheck2 className="h-4 w-4" aria-hidden="true" />
-                {pending === "finalize" ? "Finalizing" : "Finalize Partial"}
+                {pending === "finalize"
+                  ? t("mediaLibrary.finalizing")
+                  : t("mediaLibrary.finalizePartial")}
               </Button>
               {finalizeOnly ? null : (
                 <Button
@@ -265,18 +280,18 @@ export function RecordingRecoveryDialog() {
                   type="button"
                   disabled={pending !== null || resumeUnavailable !== null}
                   aria-busy={pending === "resume"}
-                  aria-label="Check stream and resume recording"
+                  aria-label={t("mediaLibrary.checkStreamResume")}
                   className="gap-1.5"
                   onClick={() => void runAction("resume")}
                 >
                   <LuPlay className="h-4 w-4" aria-hidden="true" />
                   {pending === "resume"
-                    ? "Checking"
+                    ? t("mediaLibrary.checking")
                     : resumeUnavailable
                       ? resumeUnavailable === "stream-changed"
-                        ? "Different Stream"
-                        : "Stream Unavailable"
-                      : "Check & Resume"}
+                        ? t("mediaLibrary.differentStream")
+                        : t("mediaLibrary.streamUnavailable")
+                      : t("mediaLibrary.checkAndResume")}
                 </Button>
               )}
             </DialogFooter>

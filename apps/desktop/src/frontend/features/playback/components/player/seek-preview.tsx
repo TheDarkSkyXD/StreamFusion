@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 import { cn, formatDuration } from "@/lib/utils";
 
@@ -10,6 +11,7 @@ interface SeekPreviewProps {
 }
 
 export function SeekPreview({ time, position, previewImage, className }: SeekPreviewProps) {
+  const { t } = useTranslation();
   // Prevent overflow at edges (adjust thresholds based on preview width)
   const isNearLeftEdge = position < 0.1;
   const isNearRightEdge = position > 0.9;
@@ -38,7 +40,7 @@ export function SeekPreview({ time, position, previewImage, className }: SeekPre
               />
             ) : (
               <div className="flex items-center justify-center w-full h-full text-white/50 text-xs">
-                Preview unavailable
+                {t("playback.previewUnavailable")}
               </div>
             )}
           </div>

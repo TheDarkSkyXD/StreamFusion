@@ -1,4 +1,5 @@
 import Hls from "hls.js";
+import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useInterval } from "@/hooks/useInterval";
@@ -30,6 +31,7 @@ interface VideoStats {
 }
 
 export function VideoStatsOverlay({ hls, video, onClose }: VideoStatsOverlayProps) {
+  const { t } = useTranslation();
   const [stats, setStats] = useState<VideoStats | null>(null);
 
   // Generate stable IDs for the session
@@ -137,8 +139,8 @@ export function VideoStatsOverlay({ hls, video, onClose }: VideoStatsOverlayProp
       <table className="w-full text-left border-collapse text-white">
         <thead>
           <tr className="border-b border-white/20">
-            <th className="py-2 font-bold w-1/2 text-white">Name</th>
-            <th className="py-2 font-bold w-1/2 text-white">Value</th>
+            <th className="py-2 font-bold w-1/2 text-white">{t("playback.name")}</th>
+            <th className="py-2 font-bold w-1/2 text-white">{t("playback.value")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-transparent">

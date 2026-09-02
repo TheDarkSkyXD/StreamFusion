@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { showErrorToast } from "@/lib/error-toast";
@@ -27,37 +28,47 @@ async function shouldAddDuplicate(
   return requestDuplicateDownloadConfirmation(kind, title);
 }
 
-function showDownloadResult(result: { success: boolean; cancelled?: boolean; error?: string }) {
+function showDownloadResult(
+  result: { success: boolean; cancelled?: boolean; error?: string },
+  t: (key: "mediaLibrary.downloadAdded" | "mediaLibrary.couldNotStartDownload") => string
+) {
   if (result.success) {
-    toast.success("Added to Downloads");
+    toast.success(t("mediaLibrary.downloadAdded"));
     return;
   }
   if (result.cancelled) return;
-  showErrorToast("Couldn't start download", {
+  showErrorToast(t("mediaLibrary.couldNotStartDownload"), {
     description: result.error,
   });
 }
 
 export function useDownloadActions() {
-  const downloadClip = useCallback(async (request: ClipDownloadRequest) => {
-    if (!window.electronAPI?.downloads?.downloadClip) {
-      showErrorToast("Downloads are not available");
-      return;
-    }
-    if (!(await shouldAddDuplicate("clip", request.platform, request.clipId, request.title)))
-      return;
-    showDownloadResult(await window.electronAPI.downloads.downloadClip(request));
-  }, []);
+  const { t } = useTranslation();
+  const downloadClip = useCallback(
+    async (request: ClipDownloadRequest) => {
+      if (!window.electronAPI?.downloads?.downloadClip) {
+        showErrorToast(t("mediaLibrary.downloadsUnavailable"));
+        return;
+      }
+      if (!(await shouldAddDuplicate("clip", request.platform, request.clipId, request.title)))
+        return;
+      showDownloadResult(await window.electronAPI.downloads.downloadClip(request), t);
+    },
+    [t]
+  );
 
-  const downloadVideo = useCallback(async (request: VideoDownloadRequest) => {
-    if (!window.electronAPI?.downloads?.downloadVideo) {
-      showErrorToast("Downloads are not available");
-      return;
-    }
-    if (!(await shouldAddDuplicate("video", request.platform, request.videoId, request.title)))
-      return;
-    showDownloadResult(await window.electronAPI.downloads.downloadVideo(request));
-  }, []);
+  const downloadVideo = useCallback(
+    async (request: VideoDownloadRequest) => {
+      if (!window.electronAPI?.downloads?.downloadVideo) {
+        showErrorToast(t("mediaLibrary.downloadsUnavailable"));
+        return;
+      }
+      if (!(await shouldAddDuplicate("video", request.platform, request.videoId, request.title)))
+        return;
+      showDownloadResult(await window.electronAPI.downloads.downloadVideo(request), t);
+    },
+    [t]
+  );
 
   return { downloadClip, downloadVideo };
 }

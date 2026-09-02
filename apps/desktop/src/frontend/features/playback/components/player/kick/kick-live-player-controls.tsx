@@ -1,4 +1,5 @@
 import type React from "react";
+import { useTranslation } from "react-i18next";
 import { LuRadio } from "react-icons/lu";
 
 import { useRenderCount } from "../../../../../components/dev/use-render-count";
@@ -16,6 +17,7 @@ interface KickLivePlayerControlsProps extends PlayerControlsProps {
 const KICK_GREEN = "#53fc18";
 
 export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
+  const { t } = useTranslation();
   useRenderCount("KickLivePlayerControls");
 
   const { onSeek, onGoLive, progressBarRef, ...controlsProps } = props;
@@ -25,7 +27,9 @@ export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
   const liveBadge = (
     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-black/60 ml-2 select-none">
       <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: KICK_GREEN }} />
-      <span className="text-white text-sm font-bold uppercase tracking-wider">LIVE</span>
+      <span className="text-white text-sm font-bold uppercase tracking-wider">
+        {t("playback.live")}
+      </span>
     </div>
   );
 
@@ -42,7 +46,7 @@ export function KickLivePlayerControls(props: KickLivePlayerControlsProps) {
         }}
       >
         <LuRadio className="w-4 h-4 mr-1" />
-        Go Live
+        {t("playback.goLive")}
       </Button>
     ) : null;
 

@@ -1,4 +1,5 @@
 import type { Platform } from "@shared/auth-types";
+import { useTranslation } from "react-i18next";
 import { usePlaybackPositionStore } from "@/store/playback-position-store";
 
 interface VodProgressBarProps {
@@ -7,6 +8,7 @@ interface VodProgressBarProps {
 }
 
 export function VodProgressBar({ platform, videoId }: VodProgressBarProps) {
+  const { t } = useTranslation();
   const savedPosition = usePlaybackPositionStore(
     (state) => state.positions[`${platform}-${videoId}`]
   );
@@ -19,7 +21,7 @@ export function VodProgressBar({ platform, videoId }: VodProgressBarProps) {
   return (
     <div
       role="progressbar"
-      aria-label="Watch progress"
+      aria-label={t("playback.watchProgress")}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(percent)}

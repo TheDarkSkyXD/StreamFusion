@@ -23,6 +23,7 @@
  */
 
 import type Hls from "hls.js";
+import { useTranslation } from "react-i18next";
 import { useCallback, useRef, useState } from "react";
 
 import { logger } from "@/renderer/logging/logger";
@@ -89,6 +90,7 @@ export function PerformanceEnhancedPlayer({
   onError,
   onQualityChange,
 }: PerformanceEnhancedPlayerProps) {
+  const { t } = useTranslation();
   // Refs
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -214,6 +216,7 @@ function PerformanceIndicator({
   wasAutoAdjusted: boolean;
   effectiveType: string | null;
 }) {
+  const { t } = useTranslation();
   const healthColors = {
     good: "bg-green-500",
     low: "bg-yellow-500",
@@ -225,14 +228,14 @@ function PerformanceIndicator({
       {/* Buffer Health */}
       <div className="flex items-center gap-1">
         <div className={`w-2 h-2 rounded-full ${healthColors[bufferHealth]}`} />
-        <span className="opacity-70">Buffer</span>
+        <span className="opacity-70">{t("playback.buffer")}</span>
       </div>
 
       {/* Throttle Status */}
-      {isThrottled && <span className="text-yellow-400">⚡ Throttled</span>}
+      {isThrottled && <span className="text-yellow-400">{t("playback.throttled")}</span>}
 
       {/* Auto-adjusted Quality */}
-      {wasAutoAdjusted && <span className="text-blue-400">📊 Auto</span>}
+      {wasAutoAdjusted && <span className="text-blue-400">{t("playback.auto")}</span>}
 
       {/* Network Type */}
       {effectiveType && <span className="opacity-50">{effectiveType}</span>}

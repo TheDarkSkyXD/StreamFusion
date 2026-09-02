@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { LuMaximize, LuMinimize } from "react-icons/lu";
 
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
@@ -88,6 +89,7 @@ interface KickPlayerControlsProps {
 }
 
 export function KickPlayerControls(props: KickPlayerControlsProps) {
+  const { t } = useTranslation();
   const {
     isPlaying,
     isLoading,
@@ -178,7 +180,7 @@ export function KickPlayerControls(props: KickPlayerControlsProps) {
               style={{ backgroundColor: kickGreen }}
             >
               <span className="w-2 h-2 bg-black rounded-full animate-pulse" />
-              Live
+              {t("playback.live2")}
             </div>
           ) : (
             <div className="text-white text-2xl font-bold ml-2 select-none">
@@ -216,7 +218,7 @@ export function KickPlayerControls(props: KickPlayerControlsProps) {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Theater Mode (t)</p>
+                <p>{t("playback.theaterModeT")}</p>
               </TooltipContent>
             </Tooltip>
           )}
@@ -237,7 +239,7 @@ export function KickPlayerControls(props: KickPlayerControlsProps) {
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>{isFullscreen ? "Exit Fullscreen (f)" : "Fullscreen (f)"}</p>
+              <p>{isFullscreen ? t("playback.exitFullscreenF") : t("playback.fullscreenF")}</p>
             </TooltipContent>
           </Tooltip>
         </div>
