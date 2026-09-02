@@ -1,5 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { LuGripVertical, LuMessageSquare, LuVolume2, LuVolumeX, LuX } from "react-icons/lu";
 
 import { KickLivePlayer } from "@/features/playback/components/player/kick/kick-live-player";
@@ -55,6 +56,7 @@ export function StreamSlot({
   wcvEnabled = false,
   lazyMount = false,
 }: StreamSlotProps) {
+  const { t } = useTranslation();
   const toggleMute = useMultiStreamStore((state) => state.toggleMute);
   const setChatStream = useMultiStreamStore((state) => state.setChatStream);
   const setMultiChatView = useMultiStreamStore((state) => state.setMultiChatView);
@@ -273,7 +275,7 @@ export function StreamSlot({
             variant="secondary"
             className="h-8 w-8 cursor-move"
             {...dragHandleProps}
-            title="Drag to Move"
+            title={t("multistream.dragToMove")}
           >
             <LuGripVertical className="h-4 w-4" />
           </Button>
@@ -292,7 +294,7 @@ export function StreamSlot({
             setChatStream(streamId);
             setMultiChatView("tabs");
           }}
-          title="Show Chat"
+          title={t("multistream.showChat")}
         >
           <LuMessageSquare className="h-4 w-4" />
         </Button>
@@ -305,7 +307,7 @@ export function StreamSlot({
             e.stopPropagation();
             toggleMute(streamId);
           }}
-          title={isMuted ? "Unmute" : "Mute"}
+          title={isMuted ? t("multistream.unmute") : t("multistream.mute")}
         >
           {isMuted ? <LuVolumeX className="h-4 w-4" /> : <LuVolume2 className="h-4 w-4" />}
         </Button>
@@ -318,7 +320,7 @@ export function StreamSlot({
             e.stopPropagation();
             onRemove();
           }}
-          title="Remove Stream"
+          title={t("multistream.removeStream")}
         >
           <LuX className="h-4 w-4" />
         </Button>
@@ -328,10 +330,8 @@ export function StreamSlot({
       <div className="w-full h-full">
         {!playbackActive ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-b from-zinc-900 to-black px-4 text-center">
-            <p className="text-sm font-semibold text-white">Playback suspended</p>
-            <p className="text-xs text-white/60">
-              Activate this slot to swap it into the playback budget.
-            </p>
+            <p className="text-sm font-semibold text-white">{t("multistream.playbackSuspended")}</p>
+            <p className="text-xs text-white/60">{t("multistream.activateSlotHint")}</p>
             <Button
               size="sm"
               variant="secondary"
@@ -340,12 +340,12 @@ export function StreamSlot({
                 onActivate?.();
               }}
             >
-              Activate stream
+              {t("multistream.activateStream")}
             </Button>
           </div>
         ) : wcvEnabled === null ? (
           <div className="absolute inset-0 flex items-center justify-center bg-black text-sm text-white/60">
-            Loading stream...
+            {t("multistream.loadingStream")}
           </div>
         ) : wcvEnabled ? (
           // Slice 06: the WCV draws the video on top of this placeholder.
@@ -354,7 +354,7 @@ export function StreamSlot({
           <div ref={placeholderRef} className="absolute inset-0 bg-black">
             {!playback?.url && (
               <div className="absolute inset-0 z-10 flex items-center justify-center text-white/60 text-sm">
-                {isLoading ? "Loading stream..." : "Stream offline"}
+                {isLoading ? t("multistream.loadingStream") : t("multistream.streamOffline")}
               </div>
             )}
             {retryAffordance && (
@@ -362,7 +362,7 @@ export function StreamSlot({
                 className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/70"
                 role="alert"
               >
-                <p className="text-white text-sm mb-3">Stream crashed</p>
+                <p className="text-white text-sm mb-3">{t("multistream.streamCrashed")}</p>
                 <Button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -370,7 +370,7 @@ export function StreamSlot({
                   }}
                   variant="secondary"
                 >
-                  Click to retry
+                  {t("multistream.clickToRetry")}
                 </Button>
               </div>
             )}
@@ -388,7 +388,9 @@ export function StreamSlot({
                 />
               )}
               <p className="text-white/60 text-xs">
-                Loading {channelData?.displayName || channelName}…
+                {t("multistream.loadingChannel", {
+                  channel: channelData?.displayName || channelName,
+                })}
               </p>
             </div>
           </div>
@@ -430,7 +432,7 @@ export function StreamSlot({
                     borderTopColor: "transparent",
                   }}
                 />
-                <span className="text-white/70 text-sm mt-3">Loading stream...</span>
+                <span className="text-white/70 text-sm mt-3">{t("multistream.loadingStream")}</span>
               </div>
             ) : (
               // Offline state with banner/avatar background
@@ -439,7 +441,7 @@ export function StreamSlot({
                 {channelData?.bannerUrl ? (
                   <ProxiedImage
                     src={channelData.bannerUrl}
-                    alt="Offline banner"
+                    alt={t("multistream.offlineBanner")}
                     className="absolute inset-0 w-full h-full object-cover"
                   />
                 ) : channelData?.avatarUrl ? (
@@ -484,7 +486,9 @@ export function StreamSlot({
                     <p className="text-white text-lg font-bold mb-1 drop-shadow-lg">
                       {channelData?.displayName || channelName}
                     </p>
-                    <p className="text-white/70 text-sm mb-4">is currently offline</p>
+                    <p className="text-white/70 text-sm mb-4">
+                      {t("multistream.currentlyOffline")}
+                    </p>
                     <Button
                       size="sm"
                       variant="outline"
@@ -494,7 +498,7 @@ export function StreamSlot({
                         reload();
                       }}
                     >
-                      Retry
+                      {t("multistream.retry")}
                     </Button>
                   </div>
                 </div>
@@ -507,7 +511,7 @@ export function StreamSlot({
             className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-black/85 px-4 text-center"
             role="alert"
           >
-            <p className="text-sm font-bold text-white">Playback interrupted</p>
+            <p className="text-sm font-bold text-white">{t("multistream.playbackInterrupted")}</p>
             <Button
               variant="secondary"
               onClick={(event) => {
@@ -515,7 +519,7 @@ export function StreamSlot({
                 handleTwitchRetryClick();
               }}
             >
-              Retry playback
+              {t("multistream.retryPlayback")}
             </Button>
           </div>
         )}

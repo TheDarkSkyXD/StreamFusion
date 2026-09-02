@@ -20,6 +20,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { LuShield } from "react-icons/lu";
+import { useTranslation } from "react-i18next";
 
 import type { ModeratedTwitchChannel } from "@shared/twitch-api-types";
 import { useAuthStore } from "@/store/auth-store";
@@ -33,6 +34,7 @@ interface ChannelEntry {
 }
 
 export function ChannelList() {
+  const { t } = useTranslation();
   const twitchUser = useAuthStore((s) => s.twitchUser);
   const kickUser = useAuthStore((s) => s.kickUser);
   const [twitchChannels, setTwitchChannels] = useState<ModeratedTwitchChannel[]>([]);
@@ -89,12 +91,12 @@ export function ChannelList() {
 
   return (
     <section data-testid="mod-channel-list">
-      <h2 className="text-xl font-semibold mb-3 text-white">Your channels</h2>
+      <h2 className="text-xl font-semibold mb-3 text-white">{t("moderation.yourChannels")}</h2>
       {loading && entries.length === 0 ? (
-        <p className="text-sm text-neutral-400">Loading…</p>
+        <p className="text-sm text-neutral-400">{t("moderation.loading")}</p>
       ) : entries.length === 0 ? (
         <p className="text-neutral-400" data-testid="mod-channel-list-empty">
-          You don't moderate any channels yet.
+          {t("moderation.noChannels")}
         </p>
       ) : (
         <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3" data-testid="mod-channel-list-grid">

@@ -11,6 +11,8 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { toast } from "sonner";
 
 import type { TwitchBannedUser } from "@shared/twitch-api-types";
@@ -24,20 +26,20 @@ interface ChannelBannedListProps {
   refreshCounter?: number;
 }
 
-function formatRemaining(expiresAt: string | ""): string {
-  if (!expiresAt) return "Permanent";
+function formatRemaining(expiresAt: string | "", t: TFunction): string {
+  if (!expiresAt) return t("moderation.permanent");
   const end = Date.parse(expiresAt);
   if (!Number.isFinite(end)) return "";
   const remaining = end - Date.now();
-  if (remaining <= 0) return "expired";
+  if (remaining <= 0) return t("moderation.expired");
   const sec = Math.floor(remaining / 1000);
-  if (sec < 60) return `${sec}s left`;
+  if (sec < 60) return t("moderation.secondsLeft", { count: sec });
   const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m left`;
+  if (min < 60) return t("moderation.minutesLeft", { count: min });
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h left`;
+  if (hr < 24) return t("moderation.hoursLeft", { count: hr });
   const day = Math.floor(hr / 24);
-  return `${day}d left`;
+  return t("moderation.daysLeft", { count: day });
 }
 
 export function ChannelBannedList({
@@ -45,6 +47,7 @@ export function ChannelBannedList({
   broadcasterId,
   refreshCounter,
 }: ChannelBannedListProps) {
+  const { t } = useTranslation();
   const twitchUser = useAuthStore((s) => s.twitchUser);
   const [entries, setEntries] = useState<TwitchBannedUser[]>([]);
   const [loading, setLoading] = useState(false);
@@ -71,12 +74,12 @@ export function ChannelBannedList({
       setEntries((result.data as { data: TwitchBannedUser[] }).data);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      setError(`Network error: ${msg}`);
+      setError(t("moderation.networkError", { error: msg }));
       setEntries([]);
     } finally {
       setLoading(false);
     }
-  }, [isTwitch, broadcasterId, twitchUser]);
+  }, [isTwitch, broadcasterId, t, twitchUser]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `refreshCounter` is the re-fetch trigger; the body doesn't read it
   useEffect(() => {
@@ -103,11 +106,11 @@ export function ChannelBannedList({
         userId: row.user_id,
       });
       if (!result.ok) {
-        toast.error(`Couldn't unban — ${result.error.message}`);
+        toast.error(t("moderation.unbanFailed", { error: result.error.message }));
         return;
       }
       setEntries((prev) => prev.filter((e) => e.user_id !== row.user_id));
-      toast.success(`Unbanned ${row.user_name || row.user_login}`);
+      toast.success(t("moderation.unbannedUser", { user: row.user_name || row.user_login }));
     } finally {
       setRowBusy(row.user_id, false);
     }
@@ -116,25 +119,23 @@ export function ChannelBannedList({
   if (!isTwitch) {
     return (
       <section data-testid="channel-banned-list-kick">
-        <h2 className="text-xl font-semibold mb-3 text-white">Banned users</h2>
-        <p className="text-sm text-neutral-400">
-          Kick doesn't expose a public banned-users list endpoint.
-        </p>
+        <h2 className="text-xl font-semibold mb-3 text-white">{t("moderation.bannedUsers")}</h2>
+        <p className="text-sm text-neutral-400">{t("moderation.kickBannedUsersUnavailable")}</p>
       </section>
     );
   }
 
   return (
     <section data-testid="channel-banned-list">
-      <h2 className="text-xl font-semibold mb-3 text-white">Banned users</h2>
+      <h2 className="text-xl font-semibold mb-3 text-white">{t("moderation.bannedUsers")}</h2>
       {loading ? (
-        <p className="text-sm text-neutral-400">Loading…</p>
+        <p className="text-sm text-neutral-400">{t("moderation.loading")}</p>
       ) : error ? (
         <p className="text-sm text-red-300" data-testid="channel-banned-list-error">
           {error}
         </p>
       ) : entries.length === 0 ? (
-        <p className="text-sm text-neutral-400">No banned users.</p>
+        <p className="text-sm text-neutral-400">{t("moderation.noBannedUsers")}</p>
       ) : (
         <ul className="space-y-1" data-testid="channel-banned-list-results">
           {entries.map((row) => {
@@ -147,11 +148,11 @@ export function ChannelBannedList({
               >
                 <span className="font-medium">{row.user_login}</span>
                 <span className="text-xs text-[var(--color-foreground-muted)]">
-                  {formatRemaining(row.expires_at)}
+                  {formatRemaining(row.expires_at, t)}
                 </span>
                 {row.moderator_login ? (
                   <span className="text-xs text-[var(--color-foreground-muted)]">
-                    by {row.moderator_login}
+                    {t("moderation.bannedBy", { user: row.moderator_login })}
                   </span>
                 ) : null}
                 {row.reason ? (
@@ -166,7 +167,7 @@ export function ChannelBannedList({
                   data-testid={`unban-button-${row.user_id}`}
                   className="ml-auto rounded border border-[var(--color-border)] bg-white/5 px-2 py-1 text-xs text-white hover:bg-white/10 disabled:opacity-50"
                 >
-                  {rowBusy ? "Unbanning…" : "Unban"}
+                  {rowBusy ? t("moderation.unbanning") : t("moderation.unban")}
                 </button>
               </li>
             );

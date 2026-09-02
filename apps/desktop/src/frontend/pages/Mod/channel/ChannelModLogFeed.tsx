@@ -13,19 +13,24 @@
  */
 
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 import type { ModLogAction } from "@backend/services/mod-log-writer";
 import { useModLog } from "@/features/moderation/data/useModLog";
 import type { Platform } from "@shared/auth-types";
 
-const ACTION_OPTIONS: Array<{ value: "" | ModLogAction; label: string }> = [
-  { value: "", label: "All actions" },
-  { value: "ban", label: "Ban" },
-  { value: "timeout", label: "Timeout" },
-  { value: "unban", label: "Unban" },
-  { value: "delete", label: "Delete" },
-  { value: "clear", label: "Chat mode" },
-  { value: "raid", label: "Raid" },
+const ACTION_OPTIONS: Array<{
+  value: "" | ModLogAction;
+  labelKey: "allActions" | "ban" | "timeout" | "unban" | "delete" | "chatMode" | "raid";
+}> = [
+  { value: "", labelKey: "allActions" },
+  { value: "ban", labelKey: "ban" },
+  { value: "timeout", labelKey: "timeout" },
+  { value: "unban", labelKey: "unban" },
+  { value: "delete", labelKey: "delete" },
+  { value: "clear", labelKey: "chatMode" },
+  { value: "raid", labelKey: "raid" },
 ];
 
 const PAGE_INCREMENT = 50;
@@ -43,12 +48,12 @@ function formatTimestamp(ms: number): string {
   return `${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
 }
 
-function formatDuration(seconds: number | null | undefined): string {
+function formatDuration(seconds: number | null | undefined, t: TFunction): string {
   if (!seconds) return "";
-  if (seconds < 60) return `${seconds}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
-  return `${Math.floor(seconds / 86_400)}d`;
+  if (seconds < 60) return t("moderation.durationSeconds", { count: seconds });
+  if (seconds < 3600) return t("moderation.durationMinutes", { count: Math.floor(seconds / 60) });
+  if (seconds < 86_400) return t("moderation.durationHours", { count: Math.floor(seconds / 3600) });
+  return t("moderation.durationDays", { count: Math.floor(seconds / 86_400) });
 }
 
 export function ChannelModLogFeed({
@@ -57,6 +62,7 @@ export function ChannelModLogFeed({
   channelSlug,
   refreshCounter,
 }: ChannelModLogFeedProps) {
+  const { t } = useTranslation();
   const [actionFilter, setActionFilter] = useState<"" | ModLogAction>("");
   const [moderatorFilter, setModeratorFilter] = useState<string>("");
   const [limit, setLimit] = useState<number>(PAGE_INCREMENT);
@@ -77,11 +83,11 @@ export function ChannelModLogFeed({
 
   return (
     <section data-testid="channel-mod-log-feed">
-      <h2 className="text-xl font-semibold mb-3 text-white">Mod log</h2>
+      <h2 className="text-xl font-semibold mb-3 text-white">{t("moderation.modLog")}</h2>
       <div className="rounded border border-[var(--color-border)] bg-white/5">
         <div className="flex flex-wrap gap-2 p-2 border-b border-[var(--color-border)]">
           <select
-            aria-label="Filter by action"
+            aria-label={t("moderation.filterByAction")}
             data-testid="modlog-action-filter"
             value={actionFilter}
             onChange={(e) => {
@@ -92,13 +98,13 @@ export function ChannelModLogFeed({
           >
             {ACTION_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
-                {opt.label}
+                {t(`moderation.${opt.labelKey}`)}
               </option>
             ))}
           </select>
           <input
             type="text"
-            placeholder="Moderator username"
+            placeholder={t("moderation.moderatorUsername")}
             data-testid="modlog-moderator-filter"
             value={moderatorFilter}
             onChange={(e) => {
@@ -111,26 +117,26 @@ export function ChannelModLogFeed({
 
         <div className="p-2 max-h-[400px] overflow-y-auto">
           {result.state === "loading" ? (
-            <div className="text-sm text-neutral-400 p-2">Loading…</div>
+            <div className="text-sm text-neutral-400 p-2">{t("moderation.loading")}</div>
           ) : result.state === "error" ? (
             <div className="flex items-center justify-between gap-2 p-2 text-sm text-red-300">
-              <span>Moderation history couldn&apos;t be verified.</span>
+              <span>{t("moderation.historyNotVerified")}</span>
               {result.retryable ? (
                 <button
                   type="button"
                   className="rounded px-2 py-1 text-white hover:bg-white/10"
                   onClick={retry}
                 >
-                  Retry
+                  {t("moderation.retry")}
                 </button>
               ) : null}
             </div>
           ) : result.state === "verified-empty" ? (
-            <div className="text-sm text-neutral-400 p-2">No mod-log entries.</div>
+            <div className="text-sm text-neutral-400 p-2">{t("moderation.noModLogEntries")}</div>
           ) : (
             <div>
               {result.state === "partial" ? (
-                <p className="p-2 text-xs text-amber-200">Showing observed history only.</p>
+                <p className="p-2 text-xs text-amber-200">{t("moderation.observedHistoryOnly")}</p>
               ) : null}
               <ul className="space-y-1">
                 {entries.map((entry) => (
@@ -148,7 +154,7 @@ export function ChannelModLogFeed({
                     </span>
                     {entry.durationSeconds ? (
                       <span className="text-neutral-400">
-                        ({formatDuration(entry.durationSeconds)})
+                        ({formatDuration(entry.durationSeconds, t)})
                       </span>
                     ) : null}
                     {entry.reason ? (
@@ -169,7 +175,7 @@ export function ChannelModLogFeed({
               onClick={() => setLimit((n) => n + PAGE_INCREMENT)}
               className="text-xs bg-white/5 hover:bg-white/10 text-white rounded px-3 py-1 border border-[var(--color-border)]"
             >
-              Load more
+              {t("moderation.loadMore")}
             </button>
           </div>
         ) : null}

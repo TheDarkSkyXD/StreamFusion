@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import type { RetentionScope } from "@shared/mod-log-types";
@@ -23,6 +24,7 @@ interface RetentionCardProps {
 }
 
 export function RetentionCard({ scope, title }: RetentionCardProps) {
+  const { t } = useTranslation();
   const [days, setDays] = useState<string>("");
   const [forever, setForever] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
@@ -58,19 +60,19 @@ export function RetentionCard({ scope, title }: RetentionCardProps) {
     try {
       if (forever) {
         await window.electronAPI.retention.set(scope, null);
-        toast.success(`Retention saved for ${title}: Forever`);
+        toast.success(t("moderation.retentionSavedForever", { title }));
       } else {
         const parsed = parseInt(days, 10);
         if (!Number.isFinite(parsed) || parsed < 1) {
-          toast.error("Days must be a positive integer (or enable Forever)");
+          toast.error(t("moderation.positiveDaysError"));
           return;
         }
         await window.electronAPI.retention.set(scope, parsed);
-        toast.success(`Retention saved for ${title}: ${parsed} days`);
+        toast.success(t("moderation.retentionSavedDays", { title, count: parsed }));
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast.error(`Save failed: ${msg}`);
+      toast.error(t("moderation.saveFailed", { error: msg }));
     } finally {
       setSaving(false);
     }
@@ -90,10 +92,10 @@ export function RetentionCard({ scope, title }: RetentionCardProps) {
             value={days}
             disabled={forever}
             onChange={(e) => setDays(e.target.value)}
-            aria-label={`Retention days for ${title}`}
+            aria-label={t("moderation.retentionDaysFor", { title })}
             className="w-24 rounded border border-[var(--color-border)] bg-black/30 px-2 py-1 text-sm text-white disabled:opacity-50"
           />
-          days
+          {t("moderation.days")}
         </label>
         <label className="flex items-center gap-2 text-xs text-[var(--color-foreground-muted)]">
           <input
@@ -103,9 +105,9 @@ export function RetentionCard({ scope, title }: RetentionCardProps) {
               setForever(e.target.checked);
               if (e.target.checked) setDays("");
             }}
-            aria-label={`Forever toggle for ${title}`}
+            aria-label={t("moderation.foreverToggleFor", { title })}
           />
-          Forever
+          {t("moderation.forever")}
         </label>
         <button
           type="button"
@@ -113,7 +115,7 @@ export function RetentionCard({ scope, title }: RetentionCardProps) {
           disabled={saving}
           className="ml-auto rounded bg-[#9146FF] px-3 py-1 text-sm text-white hover:bg-[#9146FF]/90 disabled:opacity-50"
         >
-          {saving ? "Saving…" : "Save"}
+          {saving ? t("moderation.saving") : t("moderation.save")}
         </button>
       </div>
     </div>

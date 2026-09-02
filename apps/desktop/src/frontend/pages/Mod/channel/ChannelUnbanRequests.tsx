@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import type { TwitchUnbanRequest, TwitchUnbanRequestStatus } from "@shared/twitch-api-types";
@@ -18,17 +19,22 @@ interface ChannelUnbanRequestsProps {
   refreshCounter?: number;
 }
 
-const STATUS_OPTIONS: TwitchUnbanRequestStatus[] = [
-  "pending",
-  "approved",
-  "denied",
-  "acknowledged",
-  "canceled",
+const STATUS_OPTIONS: Array<{
+  value: TwitchUnbanRequestStatus;
+  labelKey:
+    "statusPending" | "statusApproved" | "statusDenied" | "statusAcknowledged" | "statusCanceled";
+}> = [
+  { value: "pending", labelKey: "statusPending" },
+  { value: "approved", labelKey: "statusApproved" },
+  { value: "denied", labelKey: "statusDenied" },
+  { value: "acknowledged", labelKey: "statusAcknowledged" },
+  { value: "canceled", labelKey: "statusCanceled" },
 ];
 
 type Pending = { requestId: string; status: "approved" | "denied" };
 
 export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelUnbanRequestsProps) {
+  const { t } = useTranslation();
   const twitchUser = useAuthStore((s) => s.twitchUser);
   const [statusFilter, setStatusFilter] = useState<TwitchUnbanRequestStatus>("pending");
   const [entries, setEntries] = useState<TwitchUnbanRequest[]>([]);
@@ -50,7 +56,7 @@ export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelU
         status: statusFilter,
       });
       if (!result.ok) {
-        setError(`Couldn't load unban requests — ${result.error.message}`);
+        setError(t("moderation.loadUnbanRequestsFailed", { error: result.error.message }));
         setEntries([]);
         return;
       }
@@ -58,7 +64,7 @@ export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelU
     } finally {
       setLoading(false);
     }
-  }, [broadcasterId, twitchUser, statusFilter]);
+  }, [broadcasterId, statusFilter, t, twitchUser]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `refreshCounter` is the re-fetch trigger; the body doesn't read it
   useEffect(() => {
@@ -89,12 +95,17 @@ export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelU
       });
       if (!result.ok) {
         toast.error(
-          `Couldn't ${pending.status === "approved" ? "approve" : "deny"} — ${result.error.message}`
+          t("moderation.resolveUnbanFailed", {
+            action: pending.status === "approved" ? t("moderation.approve") : t("moderation.deny"),
+            error: result.error.message,
+          })
         );
         return;
       }
       setEntries((prev) => prev.filter((e) => e.id !== pending.requestId));
-      toast.success(pending.status === "approved" ? "Unban approved" : "Unban denied");
+      toast.success(
+        pending.status === "approved" ? t("moderation.unbanApproved") : t("moderation.unbanDenied")
+      );
       cancelPending();
     } finally {
       setBusy(false);
@@ -104,30 +115,30 @@ export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelU
   return (
     <section data-testid="channel-unban-requests">
       <header className="mb-3 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-white">Pending unban requests</h2>
+        <h2 className="text-xl font-semibold text-white">{t("moderation.pendingUnbanRequests")}</h2>
         <select
-          aria-label="Status filter"
+          aria-label={t("moderation.statusFilter")}
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as TwitchUnbanRequestStatus)}
           data-testid="unban-requests-status-filter"
           className="rounded border border-[var(--color-border)] bg-black/30 px-2 py-1 text-sm text-white"
         >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>
-              {s}
+          {STATUS_OPTIONS.map((status) => (
+            <option key={status.value} value={status.value}>
+              {t(`moderation.${status.labelKey}`)}
             </option>
           ))}
         </select>
       </header>
 
       {loading ? (
-        <p className="text-sm text-neutral-400">Loading…</p>
+        <p className="text-sm text-neutral-400">{t("moderation.loading")}</p>
       ) : error ? (
         <p className="text-sm text-red-300" data-testid="channel-unban-requests-error">
           {error}
         </p>
       ) : entries.length === 0 ? (
-        <p className="text-sm text-neutral-400">No pending unban requests.</p>
+        <p className="text-sm text-neutral-400">{t("moderation.noPendingUnbanRequests")}</p>
       ) : (
         <ul className="space-y-2" data-testid="channel-unban-requests-results">
           {entries.map((row) => (
@@ -148,10 +159,10 @@ export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelU
               {pending && pending.requestId === row.id ? (
                 <div className="flex flex-col gap-2" data-testid={`unban-pending-${row.id}`}>
                   <textarea
-                    aria-label="Resolution text"
+                    aria-label={t("moderation.resolutionText")}
                     value={resolutionText}
                     onChange={(e) => setResolutionText(e.target.value)}
-                    placeholder="Optional resolution text"
+                    placeholder={t("moderation.optionalResolutionText")}
                     className="rounded border border-[var(--color-border)] bg-black/30 px-2 py-1 text-sm text-white"
                   />
                   <div className="flex gap-2">
@@ -163,10 +174,10 @@ export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelU
                       className="rounded bg-[#9146FF] px-3 py-1 text-xs text-white disabled:opacity-50"
                     >
                       {busy
-                        ? "Working…"
+                        ? t("moderation.working")
                         : pending.status === "approved"
-                          ? "Confirm approve"
-                          : "Confirm deny"}
+                          ? t("moderation.confirmApprove")
+                          : t("moderation.confirmDeny")}
                     </button>
                     <button
                       type="button"
@@ -174,7 +185,7 @@ export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelU
                       disabled={busy}
                       className="rounded border border-[var(--color-border)] bg-white/5 px-3 py-1 text-xs text-white"
                     >
-                      Cancel
+                      {t("moderation.cancel")}
                     </button>
                   </div>
                 </div>
@@ -186,7 +197,7 @@ export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelU
                     data-testid={`unban-approve-button-${row.id}`}
                     className="rounded bg-emerald-700 px-2 py-1 text-xs text-white hover:bg-emerald-600"
                   >
-                    Approve
+                    {t("moderation.approve")}
                   </button>
                   <button
                     type="button"
@@ -194,7 +205,7 @@ export function ChannelUnbanRequests({ broadcasterId, refreshCounter }: ChannelU
                     data-testid={`unban-deny-button-${row.id}`}
                     className="rounded bg-red-700 px-2 py-1 text-xs text-white hover:bg-red-600"
                   >
-                    Deny
+                    {t("moderation.deny")}
                   </button>
                 </div>
               )}

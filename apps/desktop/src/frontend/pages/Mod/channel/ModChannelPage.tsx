@@ -22,6 +22,7 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { LuArrowLeft, LuLockKeyhole, LuRefreshCw, LuShieldAlert } from "react-icons/lu";
+import { useTranslation } from "react-i18next";
 import { useChannelByUsername } from "@/features/discovery/data/queries/useChannels";
 import { useModerationAuthority } from "@/features/moderation/data/useModerationAuthority";
 import { useResolveTwitchChannel } from "@/features/moderation/data/useResolveTwitchChannel";
@@ -44,6 +45,7 @@ export interface ModChannelPageProps {
 }
 
 export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
+  const { t } = useTranslation();
   const [refreshCounter, setRefreshCounter] = useState(0);
   const twitchUser = useAuthStore((s) => s.twitchUser);
   const resolvedTwitch = useResolveTwitchChannel(platform === "twitch" ? channel : null);
@@ -89,7 +91,7 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
         <div className="flex items-center gap-3">
           <Link
             to="/mod"
-            aria-label="Back to moderation index"
+            aria-label={t("moderation.backToModerationIndex")}
             className="inline-flex h-9 w-9 items-center justify-center rounded border border-[var(--color-border)] bg-white/5 text-white hover:bg-white/10"
           >
             <LuArrowLeft size={18} />
@@ -111,25 +113,28 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
         <button
           type="button"
           onClick={() => setRefreshCounter((n) => n + 1)}
-          aria-label="Refresh moderation data"
+          aria-label={t("moderation.refreshData")}
           className="flex items-center gap-2 rounded border border-[var(--color-border)] bg-white/5 px-3 py-1.5 text-sm text-white hover:bg-white/10"
         >
           <LuRefreshCw size={16} />
-          Refresh
+          {t("moderation.refresh")}
         </button>
       </header>
 
       {isTwitchResolving || isKickResolving ? (
         <p className="text-sm text-neutral-400" data-testid="mod-channel-resolving">
-          Resolving channel…
+          {t("moderation.resolvingChannel")}
         </p>
       ) : twitchResolveFailed || kickResolveFailed ? (
         <p className="text-sm text-red-300" data-testid="mod-channel-resolve-failed">
-          Couldn&apos;t resolve {platform === "twitch" ? "Twitch" : "Kick"} channel "{channel}".
+          {t("moderation.resolveChannelFailed", {
+            platform: platform === "twitch" ? "Twitch" : "Kick",
+            channel,
+          })}
         </p>
       ) : moderationAuthority.state === "checking" ? (
         <p className="text-sm text-neutral-400" data-testid="mod-channel-authority-checking">
-          Verifying moderation access…
+          {t("moderation.verifyingAccess")}
         </p>
       ) : moderationAuthority.state === "hidden" ? (
         <section
@@ -138,11 +143,9 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
         >
           <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
             <LuLockKeyhole aria-hidden />
-            Moderation access required
+            {t("moderation.accessRequired")}
           </h2>
-          <p className="mt-2 text-sm text-neutral-400">
-            StreamFusion could not confirm moderation authority for this channel.
-          </p>
+          <p className="mt-2 text-sm text-neutral-400">{t("moderation.accessUnconfirmed")}</p>
         </section>
       ) : moderationAuthority.state === "unverifiable" ? (
         <section
@@ -151,7 +154,7 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
         >
           <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
             <LuShieldAlert aria-hidden />
-            Couldn&apos;t verify moderation access
+            {t("moderation.verifyAccessFailed")}
           </h2>
           <button
             type="button"
@@ -159,7 +162,7 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
             onClick={moderationAuthority.retry}
           >
             <LuRefreshCw aria-hidden />
-            Retry
+            {t("moderation.retry")}
           </button>
         </section>
       ) : moderationAuthority.state === "reconnect-required" ? (
@@ -169,29 +172,34 @@ export function ModChannelPage({ platform, channel }: ModChannelPageProps) {
         >
           <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
             <LuLockKeyhole aria-hidden />
-            Reconnect {platform === "twitch" ? "Twitch" : "Kick"}
+            {t("moderation.reconnect", {
+              platform: platform === "twitch" ? "Twitch" : "Kick",
+            })}
           </h2>
-          <p className="mt-2 text-sm text-neutral-400">
-            Add the missing permissions in one consent flow before loading moderation data.
-          </p>
+          <p className="mt-2 text-sm text-neutral-400">{t("moderation.missingPermissions")}</p>
           <button
             type="button"
             className="mt-3 inline-flex items-center gap-2 rounded bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/15"
             onClick={moderationAuthority.reconnect}
           >
             <LuRefreshCw aria-hidden />
-            Reconnect {platform === "twitch" ? "Twitch" : "Kick"}
+            {t("moderation.reconnect", {
+              platform: platform === "twitch" ? "Twitch" : "Kick",
+            })}
           </button>
         </section>
       ) : (
         <>
           <section data-testid="mod-channel-retention">
-            <h2 className="text-xl font-semibold mb-3 text-white">Retention</h2>
+            <h2 className="text-xl font-semibold mb-3 text-white">{t("moderation.retention")}</h2>
             <div className="space-y-3">
               {retentionScope ? (
-                <RetentionCard scope={retentionScope} title={`This channel (${displayName})`} />
+                <RetentionCard
+                  scope={retentionScope}
+                  title={t("moderation.thisChannel", { channel: displayName })}
+                />
               ) : null}
-              <RetentionCard scope="global" title="Global (default)" />
+              <RetentionCard scope="global" title={t("moderation.globalDefault")} />
             </div>
           </section>
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { LuLayoutGrid, LuMaximize, LuMessageSquare } from "react-icons/lu";
+import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 
 import { ChatPanel } from "@/features/chat/components/chat/ChatPanel";
@@ -14,6 +15,7 @@ import { useChannelByUsername } from "@/features/discovery/data/queries/useChann
 import { useMultiStreamStore } from "@/features/multistream/data/multistream-store";
 
 export function MultiStreamPage() {
+  const { t } = useTranslation();
   const streamIds = useMultiStreamStore(useShallow((state) => state.streams.map(({ id }) => id)));
   const streamChatIdentities = useMultiStreamStore(
     useShallow((state) =>
@@ -102,14 +104,14 @@ export function MultiStreamPage() {
     <div className="h-full flex flex-col overflow-hidden">
       {/* MultiStream Header / Toolbar */}
       <div className="h-14 border-b border-[var(--color-border)] flex items-center px-4 shrink-0 bg-[var(--color-background)] gap-4">
-        <h1 className="font-semibold text-lg mr-auto">MultiStream</h1>
+        <h1 className="font-semibold text-lg mr-auto">{t("multistream.multiStream")}</h1>
 
         <div className="flex items-center gap-2">
           <Button
             variant={layout === "grid" ? "secondary" : "ghost"}
             size="sm"
             onClick={() => setLayout("grid")}
-            title="Grid Layout"
+            title={t("multistream.gridLayout")}
           >
             <LuLayoutGrid className="h-4 w-4" />
           </Button>
@@ -118,7 +120,7 @@ export function MultiStreamPage() {
             size="sm"
             onClick={() => setLayout("focus")}
             disabled={streamIds.length === 0}
-            title="Focus Layout"
+            title={t("multistream.focusLayout")}
           >
             <LuMaximize className="h-4 w-4" />
           </Button>
@@ -137,7 +139,7 @@ export function MultiStreamPage() {
           disabled={streamIds.length === 0}
         >
           <LuMessageSquare className="h-4 w-4 mr-2" />
-          Chat
+          {t("multistream.chat")}
         </Button>
       </div>
 
@@ -161,21 +163,23 @@ export function MultiStreamPage() {
           >
             <div className="border-b border-[var(--color-border)] px-2 pt-2">
               <div className="flex items-center justify-between gap-2 px-1 pb-2">
-                <h2 className="font-semibold text-sm">MultiChat</h2>
+                <h2 className="font-semibold text-sm">{t("multistream.multiChat")}</h2>
                 <span
                   className="text-[11px] text-[var(--color-foreground-muted)]"
                   aria-live="polite"
                 >
                   {multiChatSessions.isLoading
-                    ? "Connecting"
+                    ? t("multistream.connecting")
                     : multiChatSessions.failedChannels.length > 0
-                      ? `${multiChatSessions.failedChannels.length} unavailable`
-                      : `${chatTabs.length} channels`}
+                      ? t("multistream.unavailableCount", {
+                          count: multiChatSessions.failedChannels.length,
+                        })
+                      : t("multistream.channelCount", { count: chatTabs.length })}
                 </span>
               </div>
               <div
                 role="tablist"
-                aria-label="MultiChat views"
+                aria-label={t("multistream.multiChatViews")}
                 className="chat-scrollbar flex gap-1 overflow-x-auto pb-2"
               >
                 <button
@@ -189,7 +193,7 @@ export function MultiStreamPage() {
                       : "shrink-0 rounded-md px-2.5 py-1.5 text-xs font-medium text-[var(--color-foreground-muted)] hover:bg-[var(--color-background-tertiary)] hover:text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
                   }
                 >
-                  Merged
+                  {t("multistream.merged")}
                 </button>
                 {chatTabs.map(({ streamId, channel }) => {
                   const isSelected = multiChatView === "tabs" && activeChatStream?.id === streamId;
@@ -243,7 +247,7 @@ export function MultiStreamPage() {
                 />
               ) : (
                 <p className="p-3 text-[var(--color-foreground-muted)] text-sm">
-                  Select a stream to view chat
+                  {t("multistream.selectStreamToViewChat")}
                 </p>
               )}
             </div>

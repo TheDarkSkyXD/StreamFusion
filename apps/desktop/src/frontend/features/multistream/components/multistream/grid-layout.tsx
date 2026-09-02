@@ -13,6 +13,7 @@ import {
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { useMultiStreamStore } from "@/features/multistream/data/multistream-store";
 
@@ -20,6 +21,7 @@ import { SortableStreamSlot } from "./sortable-stream-slot";
 import { StreamSlot } from "./stream-slot";
 
 export function MultiStreamGrid() {
+  const { t } = useTranslation();
   const streams = useMultiStreamStore((state) => state.streams);
   const removeStream = useMultiStreamStore((state) => state.removeStream);
   const layout = useMultiStreamStore((state) => state.layout);
@@ -111,8 +113,8 @@ export function MultiStreamGrid() {
   if (streams.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-[var(--color-foreground-muted)]">
-        <p className="text-xl mb-4">No active streams</p>
-        <p className="text-sm">Add a stream to get started</p>
+        <p className="text-xl mb-4">{t("multistream.noActiveStreams")}</p>
+        <p className="text-sm">{t("multistream.addStreamGetStarted")}</p>
       </div>
     );
   }

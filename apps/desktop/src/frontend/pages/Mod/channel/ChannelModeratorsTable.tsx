@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { TwitchChannelMember } from "@shared/twitch-api-types";
 import { useAuthStore } from "@/store/auth-store";
@@ -42,6 +43,7 @@ export function ChannelModeratorsTable({
   broadcasterId,
   refreshCounter,
 }: ChannelModeratorsTableProps) {
+  const { t } = useTranslation();
   const twitchUser = useAuthStore((s) => s.twitchUser);
   const setTwitchChannelModState = useModeratedChannelsStore((s) => s.setTwitchChannelModState);
   const [entries, setEntries] = useState<TwitchChannelMember[]>([]);
@@ -62,7 +64,7 @@ export function ChannelModeratorsTable({
         broadcasterId,
       });
       if (!result.ok) {
-        setError(`Couldn't load moderators — ${result.error.message}`);
+        setError(t("moderation.loadModeratorsFailed", { error: result.error.message }));
         setEntries([]);
         setHasMore(false);
         return;
@@ -73,7 +75,7 @@ export function ChannelModeratorsTable({
     } finally {
       setLoading(false);
     }
-  }, [broadcasterId]);
+  }, [broadcasterId, t]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `refreshCounter` is the re-fetch trigger; the body doesn't read it
   useEffect(() => {
@@ -88,7 +90,7 @@ export function ChannelModeratorsTable({
     try {
       const resolved = await resolveLogin(trimmed);
       if (!resolved) {
-        toast.error(`Couldn't find user "${trimmed}"`);
+        toast.error(t("moderation.findUserFailed", { user: trimmed }));
         return;
       }
       const result = await window.electronAPI.twitch.execute({
@@ -97,7 +99,7 @@ export function ChannelModeratorsTable({
         userId: resolved.id,
       });
       if (!result.ok) {
-        toast.error(`Couldn't add moderator — ${result.error.message}`);
+        toast.error(t("moderation.addModeratorFailed", { error: result.error.message }));
         return;
       }
       setEntries((prev) => [
@@ -111,7 +113,7 @@ export function ChannelModeratorsTable({
       if (resolved.id === twitchUser.id) {
         setTwitchChannelModState(broadcasterId, true);
       }
-      toast.success(`Added ${resolved.display_name} as moderator`);
+      toast.success(t("moderation.addedModerator", { user: resolved.display_name }));
       setAddInput("");
     } finally {
       setAdding(false);
@@ -127,14 +129,14 @@ export function ChannelModeratorsTable({
         userId: row.user_id,
       });
       if (!result.ok) {
-        toast.error(`Couldn't remove moderator — ${result.error.message}`);
+        toast.error(t("moderation.removeModeratorFailed", { error: result.error.message }));
         return;
       }
       setEntries((prev) => prev.filter((e) => e.user_id !== row.user_id));
       if (row.user_id === twitchUser?.id) {
         setTwitchChannelModState(broadcasterId, false);
       }
-      toast.success(`Removed ${row.user_name || row.user_login}`);
+      toast.success(t("moderation.removedUser", { user: row.user_name || row.user_login }));
     } finally {
       setRemoving((prev) => {
         const next = new Map(prev);
@@ -146,14 +148,14 @@ export function ChannelModeratorsTable({
 
   return (
     <section data-testid="channel-moderators-table">
-      <h2 className="text-xl font-semibold mb-3 text-white">Moderators</h2>
+      <h2 className="text-xl font-semibold mb-3 text-white">{t("moderation.moderators")}</h2>
       <div className="mb-3 flex gap-2">
         <input
           type="text"
-          aria-label="Add moderator by username"
+          aria-label={t("moderation.addModeratorByUsername")}
           value={addInput}
           onChange={(e) => setAddInput(e.target.value)}
-          placeholder="username"
+          placeholder={t("moderation.username")}
           disabled={adding}
           className="flex-1 rounded border border-[var(--color-border)] bg-black/30 px-2 py-1 text-sm text-white"
         />
@@ -164,17 +166,17 @@ export function ChannelModeratorsTable({
           data-testid="add-moderator-button"
           className="rounded bg-[#9146FF] px-3 py-1 text-sm text-white disabled:opacity-50"
         >
-          {adding ? "Adding…" : "Add"}
+          {adding ? t("moderation.adding") : t("moderation.add")}
         </button>
       </div>
       {loading ? (
-        <p className="text-sm text-neutral-400">Loading…</p>
+        <p className="text-sm text-neutral-400">{t("moderation.loading")}</p>
       ) : error ? (
         <p className="text-sm text-red-300" data-testid="channel-moderators-error">
           {error}
         </p>
       ) : entries.length === 0 ? (
-        <p className="text-sm text-neutral-400">No moderators yet.</p>
+        <p className="text-sm text-neutral-400">{t("moderation.noModerators")}</p>
       ) : (
         <ul className="space-y-1" data-testid="channel-moderators-results">
           {entries.map((row) => {
@@ -193,7 +195,7 @@ export function ChannelModeratorsTable({
                   data-testid={`remove-moderator-button-${row.user_id}`}
                   className="ml-auto rounded border border-[var(--color-border)] bg-white/5 px-2 py-1 text-xs text-white hover:bg-white/10 disabled:opacity-50"
                 >
-                  {rowBusy ? "Removing…" : "Remove"}
+                  {rowBusy ? t("moderation.removing") : t("moderation.remove")}
                 </button>
               </li>
             );
@@ -202,7 +204,7 @@ export function ChannelModeratorsTable({
       )}
       {hasMore ? (
         <p className="mt-2 text-xs text-[var(--color-foreground-muted)]">
-          Showing first 100 moderators.
+          {t("moderation.showingFirstModerators")}
         </p>
       ) : null}
     </section>

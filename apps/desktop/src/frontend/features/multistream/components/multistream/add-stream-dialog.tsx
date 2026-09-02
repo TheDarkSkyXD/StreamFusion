@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   LuCircleAlert,
   LuMonitorPlay,
@@ -32,9 +33,9 @@ import {
 
 type DialogTab = "search" | "favorites";
 
-const TABS: { id: DialogTab; label: string; icon: typeof LuSearch }[] = [
-  { id: "search", label: "Search", icon: LuSearch },
-  { id: "favorites", label: "Favorites", icon: LuStar },
+const TABS: { id: DialogTab; icon: typeof LuSearch }[] = [
+  { id: "search", icon: LuSearch },
+  { id: "favorites", icon: LuStar },
 ];
 
 function favoriteFromChannel(channel: UnifiedChannel): FavoriteStreamRef {
@@ -58,6 +59,7 @@ function favoriteFromStream(stream: UnifiedStream): FavoriteStreamRef {
 }
 
 export function AddStreamDialog() {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<DialogTab>("search");
   const [resetKey, setResetKey] = useState(0);
@@ -90,7 +92,7 @@ export function AddStreamDialog() {
 
     const streamId = `${nextPlatform}-${normalizedName}`;
     if (streams.some((stream) => stream.id === streamId)) {
-      setStatus(`${normalizedName} is already in this layout.`);
+      setStatus(t("multistream.alreadyInLayout", { channel: normalizedName }));
       if (refocusSearch) queueMicrotask(() => searchInputRef.current?.focus());
       return;
     }
@@ -135,7 +137,7 @@ export function AddStreamDialog() {
       <DialogTrigger asChild>
         <Button size="sm" className="gap-2 font-bold">
           <LuPlus className="h-4 w-4" />
-          Add Stream
+          {t("multistream.addStream")}
         </Button>
       </DialogTrigger>
 
@@ -143,16 +145,16 @@ export function AddStreamDialog() {
         <DialogHeader className="border-b border-[var(--color-border)] px-6 pb-5 pt-6">
           <DialogTitle className="flex items-center gap-2 text-xl text-white">
             <LuMonitorPlay className="h-5 w-5" />
-            Add Stream to Layout
+            {t("multistream.addStreamToLayout")}
           </DialogTitle>
           <DialogDescription className="pr-8 text-[var(--color-foreground-secondary)]">
-            Find a live channel or choose one from your saved favorites.
+            {t("multistream.description")}
           </DialogDescription>
         </DialogHeader>
 
         <div
           role="tablist"
-          aria-label="Add stream source"
+          aria-label={t("multistream.addStreamSource")}
           className="grid grid-cols-2 gap-1 border-b border-[var(--color-border)] bg-[var(--color-background-secondary)] p-1.5"
         >
           {TABS.map((tab) => {
@@ -180,7 +182,7 @@ export function AddStreamDialog() {
                 )}
               >
                 <Icon className="h-4 w-4" />
-                {tab.label}
+                {t(`multistream.${tab.id}`)}
               </button>
             );
           })}
@@ -196,7 +198,7 @@ export function AddStreamDialog() {
           >
             <div className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-foreground-secondary)]">
-                Live channel
+                {t("multistream.liveChannel")}
               </span>
               <UnifiedSearchInput
                 key={resetKey}
@@ -208,13 +210,13 @@ export function AddStreamDialog() {
                 liveOnlyChannels
                 isChannelFavorite={(channel) => isFavorite(favoriteFromChannel(channel))}
                 onToggleChannelFavorite={(channel) => toggleFavorite(favoriteFromChannel(channel))}
-                placeholder="Search live Twitch and Kick channels..."
+                placeholder={t("multistream.searchPlaceholder")}
                 inputClassName="h-11 rounded-lg border-[var(--color-border)] bg-[var(--color-background-secondary)] text-sm font-medium text-white focus:ring-2 focus:ring-[var(--color-ring)]"
                 className="w-full"
                 autoFocus
               />
               <p className="text-xs text-[var(--color-foreground-muted)]">
-                Select a result to add it. The star saves it for later.
+                {t("multistream.searchHint")}
               </p>
             </div>
           </section>
@@ -227,7 +229,7 @@ export function AddStreamDialog() {
             className="min-h-48"
           >
             {liveFavorites.isLoading && (
-              <div className="space-y-2" aria-label="Loading live favorites">
+              <div className="space-y-2" aria-label={t("multistream.loadingLiveFavorites")}>
                 {[0, 1, 2].map((item) => (
                   <div
                     key={item}
@@ -241,7 +243,7 @@ export function AddStreamDialog() {
               <div className="mb-3 flex items-center gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-3 text-sm">
                 <LuCircleAlert className="h-4 w-4 shrink-0 text-[var(--color-foreground-secondary)]" />
                 <p className="min-w-0 flex-1 text-[var(--color-foreground-secondary)]">
-                  Couldn&apos;t refresh every favorite.
+                  {t("multistream.refreshFavoritesError")}
                 </p>
                 <Button
                   type="button"
@@ -250,7 +252,7 @@ export function AddStreamDialog() {
                   className="gap-1.5"
                   onClick={retryFavoriteQueries}
                 >
-                  <LuRefreshCw className="h-3.5 w-3.5" /> Retry
+                  <LuRefreshCw className="h-3.5 w-3.5" /> {t("multistream.retry")}
                 </Button>
               </div>
             )}
@@ -260,9 +262,11 @@ export function AddStreamDialog() {
               liveFavorites.streams.length === 0 && (
                 <div className="flex min-h-48 flex-col items-center justify-center text-center">
                   <LuStar className="mb-3 h-6 w-6 text-[var(--color-foreground-muted)]" />
-                  <p className="text-sm font-semibold text-white">No live favorites</p>
+                  <p className="text-sm font-semibold text-white">
+                    {t("multistream.noLiveFavorites")}
+                  </p>
                   <p className="mt-1 max-w-xs text-xs text-[var(--color-foreground-muted)]">
-                    Star channels in Search. They&apos;ll appear here whenever they go live.
+                    {t("multistream.noLiveFavoritesHint")}
                   </p>
                 </div>
               )}
@@ -302,7 +306,9 @@ export function AddStreamDialog() {
                       <button
                         type="button"
                         aria-pressed="true"
-                        aria-label={`Remove ${stream.channelDisplayName} from favorites`}
+                        aria-label={t("multistream.removeFromFavorites", {
+                          channel: stream.channelDisplayName,
+                        })}
                         onClick={() => toggleFavorite(favorite)}
                         className="m-1.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-white transition-colors hover:bg-[var(--color-background-tertiary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]"
                       >
@@ -317,9 +323,7 @@ export function AddStreamDialog() {
         </div>
 
         <footer className="flex items-center justify-between border-t border-[var(--color-border)] px-6 py-3 text-xs text-[var(--color-foreground-muted)]">
-          <span>
-            {streams.length} {streams.length === 1 ? "stream" : "streams"}
-          </span>
+          <span>{t("multistream.streamCount", { count: streams.length })}</span>
           <span
             role="status"
             aria-live="polite"

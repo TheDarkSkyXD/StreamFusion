@@ -5,15 +5,17 @@
  */
 
 import { RetentionCard } from "./channel/RetentionCard";
+import { useTranslation } from "react-i18next";
 
 export function GlobalRetention() {
+  const { t } = useTranslation();
   return (
     <section data-testid="global-retention">
-      <h2 className="text-xl font-semibold mb-3 text-white">Global retention</h2>
+      <h2 className="text-xl font-semibold mb-3 text-white">{t("moderation.globalRetention")}</h2>
       <p className="mb-2 text-xs text-[var(--color-foreground-muted)]">
-        Default mod-log retention. Per-channel pages override this.
+        {t("moderation.defaultRetentionDescription")}
       </p>
-      <RetentionCard scope="global" title="Global (default)" />
+      <RetentionCard scope="global" title={t("moderation.globalDefault")} />
     </section>
   );
 }
