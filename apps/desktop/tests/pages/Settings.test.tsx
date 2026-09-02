@@ -140,6 +140,40 @@ beforeEach(() => {
   authErrorMock.clearError.mockReset();
 });
 
+async function openSettingsTab(
+  user: ReturnType<typeof userEvent.setup>,
+  groupName: string,
+  tabName: string
+): Promise<void> {
+  const group = screen.getByRole("button", { name: `${groupName} settings section` });
+  if (group.getAttribute("aria-expanded") !== "true") await user.click(group);
+  await user.click(screen.getByRole("link", { name: tabName }));
+}
+
+// Guards: settings categories expose one child list at a time and each child opens one labeled content body.
+describe("SettingsPage sidebar sections", () => {
+  it("opens a category and swaps the active settings body", async () => {
+    const user = userEvent.setup({ delay: null });
+    renderWithProviders(<SettingsPage />);
+
+    const viewing = screen.getByRole("button", { name: "Viewing settings section" });
+    const accounts = screen.getByRole("button", {
+      name: "Accounts & Network settings section",
+    });
+    expect(viewing).toHaveAttribute("aria-expanded", "true");
+    expect(accounts).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "Proxy" })).not.toBeInTheDocument();
+
+    await user.click(accounts);
+
+    expect(accounts).toHaveAttribute("aria-expanded", "true");
+    expect(viewing).toHaveAttribute("aria-expanded", "false");
+    await user.click(screen.getByRole("link", { name: "Proxy" }));
+    expect(screen.getByRole("region", { name: "Proxy settings" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Playback settings" })).not.toBeInTheDocument();
+  });
+});
+
 // Guards: a Twitch connection failure remains visible and dismissible from Integrations.
 // Guards: Settings mocks include every persisted preference group when the schema grows.
 describe("SettingsPage auth errors", () => {
@@ -152,7 +186,7 @@ describe("SettingsPage auth errors", () => {
     const user = userEvent.setup({ delay: null });
     renderWithProviders(<SettingsPage />);
 
-    await user.click(screen.getByText("Integrations"));
+    await openSettingsTab(user, "Accounts & Network", "Integrations");
 
     expect(screen.getByText("Twitch Connection Error")).toBeInTheDocument();
     expect(screen.getByText("Failed to connect to Twitch. Please try again.")).toBeInTheDocument();
@@ -223,7 +257,7 @@ describe("SettingsPage — Player controls tab (U9)", () => {
   async function openPlayerControlsTab() {
     const user = userEvent.setup({ delay: null });
     renderWithProviders(<SettingsPage />);
-    await user.click(screen.getByText("Player controls"));
+    await openSettingsTab(user, "Viewing", "Player controls");
     return user;
   }
 
@@ -271,7 +305,7 @@ describe("SettingsPage — Buffer tab (U10)", () => {
   async function openBufferTab() {
     const user = userEvent.setup({ delay: null });
     renderWithProviders(<SettingsPage />);
-    await user.click(screen.getByText("Buffer"));
+    await openSettingsTab(user, "Viewing", "Buffer");
     return user;
   }
 
@@ -346,7 +380,7 @@ describe("SettingsPage — Notifications tab", () => {
   async function openNotificationsTab() {
     const user = userEvent.setup({ delay: null });
     renderWithProviders(<SettingsPage />);
-    await user.click(screen.getByText("Notifications"));
+    await openSettingsTab(user, "Experience", "Notifications");
     return user;
   }
 
@@ -620,7 +654,7 @@ describe("SettingsPage — Proxy tab (U12)", () => {
     const mock = installProxyMock(overrides);
     const user = userEvent.setup({ delay: null });
     renderWithProviders(<SettingsPage />);
-    await user.click(screen.getByText("Proxy"));
+    await openSettingsTab(user, "Accounts & Network", "Proxy");
     // Let the mount `hasCredentials()` effect resolve so its state write doesn't
     // leak past the test as an act(...) warning.
     await waitFor(() => expect(mock.proxyApi.hasCredentials).toHaveBeenCalled());
@@ -852,7 +886,7 @@ describe("SettingsPage — API / Tokens tab (U14)", () => {
     const mock = installTokenStatusMock(byPlatform);
     const user = userEvent.setup({ delay: null });
     renderWithProviders(<SettingsPage />);
-    await user.click(screen.getByText("API / Tokens"));
+    await openSettingsTab(user, "Accounts & Network", "API / Tokens");
     // Both panels validate on mount — wait for the IPC to have been called.
     await waitFor(() => expect(mock.tokenStatus).toHaveBeenCalledWith("twitch"));
     await waitFor(() => expect(mock.tokenStatus).toHaveBeenCalledWith("kick"));
@@ -945,7 +979,7 @@ describe("SettingsPage — Updates tab (U15)", () => {
   async function openUpdatesTab() {
     const user = userEvent.setup({ delay: null });
     renderWithProviders(<SettingsPage />);
-    await user.click(screen.getByText("Updates"));
+    await openSettingsTab(user, "System & Support", "Updates");
     return user;
   }
 

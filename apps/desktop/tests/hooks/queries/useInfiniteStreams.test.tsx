@@ -8,6 +8,8 @@ import {
   useInfiniteTopStreams,
 } from "@/features/discovery/data/queries/useInfiniteStreams";
 import { installElectronAPIMock, fixtures } from "../../test-utils";
+import { DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
+import { useAuthStore } from "@/store/auth-store";
 
 function makeWrapper() {
   const client = new QueryClient({
@@ -24,6 +26,7 @@ let api: ReturnType<typeof installElectronAPIMock>;
 
 beforeEach(() => {
   api = installElectronAPIMock();
+  useAuthStore.setState({ initialized: true, preferences: DEFAULT_USER_PREFERENCES });
 });
 
 afterEach(() => {
@@ -107,6 +110,7 @@ describe("useInfiniteStreamsByCategory", () => {
   });
 });
 
+// Guards: Home never treats the interface language as a stream-content filter.
 // Guards: Home pages Twitch and Kick independently so one provider cursor is never sent to the other.
 // Guards: every fetched stream remains visible after merge; provider-page results are never sliced away.
 // Guards: one provider can fail without hiding usable streams from the other provider.
@@ -208,6 +212,27 @@ describe("useInfiniteTopStreams", () => {
     expect(
       vi.mocked(api.streams.getTop).mock.calls.filter(([request]) => request?.platform === "kick")
     ).toHaveLength(1);
+  });
+
+  it("loads live streams without waiting for or filtering by display-language preferences", async () => {
+    useAuthStore.setState({ initialized: false, preferences: null });
+    api.streams.getTop = vi.fn<typeof api.streams.getTop>(async (request = {}) => ({
+      success: true,
+      platform: request.platform,
+      providers: { [request.platform ?? "twitch"]: "complete" },
+      data: [fixtures.stream({ platform: request.platform ?? "twitch" })],
+    }));
+    const { result } = renderHook(() => useInfiniteTopStreams(), { wrapper: makeWrapper() });
+
+    await waitFor(() => expect(result.current.data).toHaveLength(2));
+    expect(api.streams.getTop).toHaveBeenCalledWith({
+      platform: "twitch",
+      limit: 12,
+    });
+    expect(api.streams.getTop).toHaveBeenCalledWith({
+      platform: "kick",
+      limit: 12,
+    });
   });
 
   it("keeps usable provider data when the other provider fails", async () => {

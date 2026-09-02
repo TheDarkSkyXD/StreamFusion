@@ -390,7 +390,7 @@ const SETTINGS_GROUPS: ReadonlyArray<{ label: string; tabs: readonly TabKey[] }>
   },
   {
     label: "System & Support",
-    tabs: ["updates", "diagnostics", "about"],
+    tabs: ["updates", "diagnostics", "logs", "report-bug", "about"],
   },
 ];
 
@@ -1162,7 +1162,7 @@ export function SettingsPage() {
 
         <nav
           aria-label="Settings navigation"
-          className="flex-1 space-y-4 overflow-y-auto px-3 pb-4 pt-2"
+          className="flex-1 space-y-3 overflow-y-auto px-3 pb-4 pt-2"
         >
           {SETTINGS_GROUPS.map((group) => {
             const visibleTabs = group.tabs.filter(
@@ -1170,27 +1170,66 @@ export function SettingsPage() {
                 (!DEV_ONLY_TABS.has(tab) || isDev) &&
                 (!searchMatches.active || searchMatches.tabs?.has(tab))
             );
-            if (visibleTabs.length === 0) return null;
+            const [firstVisibleTab] = visibleTabs;
+            if (!firstVisibleTab) return null;
+
+            const containsActiveTab = visibleTabs.some((tab) => tab === activeTab);
+            const isGroupOpen =
+              searchMatches.active || containsActiveTab || visibleTabs.length === 1;
+            const groupPanelId = `settings-group-${firstVisibleTab}`;
 
             return (
-              <div key={group.label} className="space-y-1">
-                <h2 className="px-2 pb-1 text-xs font-bold uppercase tracking-[0.12em] text-[var(--color-foreground-category)]">
-                  {group.label}
-                </h2>
-                {visibleTabs.map((tab) => {
-                  const meta = TAB_META[tab];
-                  return (
-                    <SidebarItem
-                      key={tab}
-                      tab={tab}
-                      icon={meta.icon}
-                      label={meta.label}
-                      isActive={activeTab === tab}
-                      onSelect={() => setPendingTab({ tab, from: urlActiveTab })}
-                    />
-                  );
-                })}
-              </div>
+              <section
+                key={group.label}
+                aria-label={`${group.label} settings`}
+                className="overflow-hidden rounded-xl border border-[#333333] bg-[#1a1a1a]"
+              >
+                <button
+                  type="button"
+                  aria-expanded={isGroupOpen}
+                  aria-controls={groupPanelId}
+                  aria-label={`${group.label} settings section`}
+                  onClick={() => {
+                    if (!containsActiveTab) navigateToTab(firstVisibleTab, false, true);
+                  }}
+                  className={cn(
+                    "flex min-h-10 w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs font-semibold tracking-wide transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-ring)] motion-reduce:transition-none",
+                    containsActiveTab
+                      ? "bg-[#252525] text-white"
+                      : "text-[#b2b2b2] hover:bg-[#252525] hover:text-white"
+                  )}
+                >
+                  <span>{group.label}</span>
+                  <LuChevronDown
+                    className={cn(
+                      "h-4 w-4 shrink-0 transition-transform duration-200 motion-reduce:transition-none",
+                      isGroupOpen ? "rotate-0" : "-rotate-90"
+                    )}
+                    aria-hidden
+                  />
+                </button>
+
+                {isGroupOpen && (
+                  <div
+                    id={groupPanelId}
+                    className="space-y-1 border-t border-[#333333] bg-[#0f0f0f] p-2"
+                  >
+                    {visibleTabs.map((tab) => {
+                      const meta = TAB_META[tab];
+                      return (
+                        <SidebarItem
+                          key={tab}
+                          tab={tab}
+                          icon={meta.icon}
+                          label={meta.label}
+                          isActive={activeTab === tab}
+                          onSelect={() => setPendingTab({ tab, from: urlActiveTab })}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
             );
           })}
 
@@ -1203,7 +1242,12 @@ export function SettingsPage() {
       </aside>
 
       {/* Main Content Area */}
-      <div ref={contentScrollerRef} className="flex-1 overflow-y-auto bg-[var(--color-background)]">
+      <div
+        ref={contentScrollerRef}
+        role="region"
+        aria-label={`${TAB_META[activeTab].label} settings`}
+        className="flex-1 overflow-y-auto bg-[var(--color-background)]"
+      >
         <div
           className={cn(
             "mx-auto w-full px-6 py-8 lg:px-10 lg:py-10",
@@ -2837,7 +2881,7 @@ function SidebarItem({
       className={cn(
         "group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)] focus-visible:ring-inset motion-reduce:transition-none",
         isActive
-          ? "bg-zinc-700 text-[var(--color-foreground)]"
+          ? "bg-[#404040] text-[var(--color-foreground)]"
           : "text-[var(--color-foreground-secondary)] hover:bg-[var(--color-background-tertiary)] hover:text-[var(--color-foreground)]"
       )}
     >
