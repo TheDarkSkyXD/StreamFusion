@@ -38,6 +38,7 @@ beforeEach(() => {
   useAuthStore.setState({
     twitchUser: null,
     twitchConnected: false,
+    twitchReconnectRequired: false,
     twitchLoading: false,
     kickUser: null,
     kickConnected: false,
@@ -56,6 +57,7 @@ beforeEach(() => {
 // Guards: profile dropdown trigger must expose an accessible name so keyboard, screen-reader, and runtime automation users can open the account menu
 // Guards: profile dropdown channel actions must navigate inside StreamFusion to the authenticated account's real platform channel instead of opening an external browser URL or using a stale display name
 // Guards: the profile language selector persists through the same preference path as Settings.
+// Guards: a linked Twitch identity stays visible and reconnectable while its authorization is degraded.
 describe("ProfileDropdown", () => {
   it("navigates to connected Twitch and Kick account channels inside the app", async () => {
     useAuthStore.setState({
@@ -97,5 +99,27 @@ describe("ProfileDropdown", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "Display language" }));
     await userEvent.click(screen.getByRole("option", { name: "Español (Spanish)" }));
     expect(updatePreferences).toHaveBeenCalledWith({ language: "es" });
+  });
+
+  it("keeps a linked Twitch identity visible while authorization needs reconnecting", async () => {
+    const loginTwitch = vi.fn(async () => undefined);
+    const logoutTwitch = vi.fn(async () => undefined);
+    useAuthStore.setState({
+      twitchUser,
+      twitchConnected: false,
+      twitchReconnectRequired: true,
+      isGuest: false,
+      loginTwitch,
+      logoutTwitch,
+    });
+
+    renderWithProviders(<ProfileDropdown />);
+    await userEvent.click(screen.getByRole("button", { name: "Open profile menu" }));
+
+    expect(screen.getAllByText("DarkSkyFullOfStars").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Connect Twitch" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Reconnect Twitch" }));
+    expect(loginTwitch).toHaveBeenCalledTimes(1);
+    expect(logoutTwitch).not.toHaveBeenCalled();
   });
 });

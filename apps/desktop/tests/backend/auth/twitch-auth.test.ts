@@ -79,6 +79,7 @@ beforeEach(() => {
   storageState.token = null;
   storageState.twitchUser = null;
   vi.clearAllMocks();
+  validateTokenMock.mockReset();
   twitchAuthService.cancelProactiveRefresh();
   twitchAuthService.setAuthLostHandler(() => undefined);
 });
@@ -89,6 +90,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// Guards: live-valid Twitch tokens remain authenticated when their stored scope list is partial or absent.
 describe("isAuthenticated", () => {
   it("returns false when no token and no user", () => {
     expect(twitchAuthService.isAuthenticated()).toBe(false);
@@ -149,7 +151,7 @@ describe("ensureValidToken", () => {
     expect(result).toBe(false);
   });
 
-  it("requires a reconnect when a validated token has an explicitly incomplete scope set", async () => {
+  it("keeps a live-valid session when the token predates newly requested app scopes", async () => {
     storageState.token = {
       accessToken: "at",
       expiresAt: Date.now() + 3600_000,
@@ -157,23 +159,25 @@ describe("ensureValidToken", () => {
     };
     const authLost = vi.fn();
     twitchAuthService.setAuthLostHandler(authLost);
+    validateTokenMock.mockResolvedValueOnce(true);
 
-    await expect(twitchAuthService.ensureValidToken()).resolves.toBe(false);
-    expect(validateTokenMock).not.toHaveBeenCalled();
-    expect(authLost).toHaveBeenCalledOnce();
+    await expect(twitchAuthService.ensureValidToken()).resolves.toBe(true);
+    expect(validateTokenMock).toHaveBeenCalledWith("twitch", "at");
+    expect(authLost).not.toHaveBeenCalled();
   });
 
-  it("requires a reconnect when a stored token omits its scope set", async () => {
+  it("validates a stored token even when its legacy record omits scopes", async () => {
     storageState.token = {
       accessToken: "at",
       expiresAt: Date.now() + 3600_000,
     };
     const authLost = vi.fn();
     twitchAuthService.setAuthLostHandler(authLost);
+    validateTokenMock.mockResolvedValueOnce(true);
 
-    await expect(twitchAuthService.ensureValidToken()).resolves.toBe(false);
-    expect(validateTokenMock).not.toHaveBeenCalled();
-    expect(authLost).toHaveBeenCalledOnce();
+    await expect(twitchAuthService.ensureValidToken()).resolves.toBe(true);
+    expect(validateTokenMock).toHaveBeenCalledWith("twitch", "at");
+    expect(authLost).not.toHaveBeenCalled();
   });
 
   it("refreshes when token is expired and returns true on success", async () => {

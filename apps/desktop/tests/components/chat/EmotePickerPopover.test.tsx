@@ -199,6 +199,7 @@ function installElectronAuthMock(scopes: string[] | string[][]) {
 
 // Guards: picker navigation, selection, and provider grouping must keep working while large emote sets are windowed to avoid live-stream CPU and memory spikes.
 // Guards: native emote pickers keep global emotes at the top of the provider list so they are visible at scrollTop=0.
+// Guards: Twitch feature reauthorization must never revoke the existing grant before replacement consent succeeds.
 describe("EmotePickerPopover", () => {
   it("renders nothing when closed", () => {
     const { container } = renderPicker({ isOpen: false });
@@ -451,10 +452,7 @@ describe("EmotePickerPopover", () => {
     await waitFor(() => {
       expect(auth.openTwitchLogin).toHaveBeenCalledTimes(1);
     });
-    expect(auth.logoutTwitch).toHaveBeenCalledTimes(1);
-    expect(auth.logoutTwitch.mock.invocationCallOrder[0]).toBeLessThan(
-      auth.openTwitchLogin.mock.invocationCallOrder[0]
-    );
+    expect(auth.logoutTwitch).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(toastMocks.warning).toHaveBeenCalledWith(
         "Twitch did not grant subscribed-channel emote access.",
@@ -503,13 +501,27 @@ describe("EmotePickerPopover", () => {
     await waitFor(() => {
       expect(auth.openTwitchLogin).toHaveBeenCalledTimes(1);
     });
-    expect(auth.logoutTwitch).toHaveBeenCalledTimes(1);
-    expect(auth.logoutTwitch.mock.invocationCallOrder[0]).toBeLessThan(
-      auth.openTwitchLogin.mock.invocationCallOrder[0]
-    );
+    expect(auth.logoutTwitch).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(mockState.loadGlobalEmotes).toHaveBeenCalledWith("twitch", { force: true });
     });
+  });
+
+  it("keeps the current Twitch grant when reauthorization fails", async () => {
+    const auth = installElectronAuthMock(["chat:read", "chat:edit"]);
+    auth.openTwitchLogin.mockRejectedValueOnce(new Error("Twitch login cancelled"));
+
+    renderPicker({ scope: "native", platform: "twitch", channelLabel: "CurrentStreamer" });
+
+    expect(await screen.findByTestId("twitch-user-emote-scope-notice")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reconnect" }));
+
+    await waitFor(() => {
+      expect(toastMocks.warning).toHaveBeenCalledWith("Could not reconnect Twitch.", {
+        description: "Twitch login cancelled",
+      });
+    });
+    expect(auth.logoutTwitch).not.toHaveBeenCalled();
   });
 
   it("does not show the Twitch reconnect notice when user-emote scope is granted", async () => {
