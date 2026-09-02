@@ -68,6 +68,7 @@
     "storybook:coverage": "node scripts/check-storybook-coverage.mjs",
     "architecture:features": "node scripts/migrate-source-layout.mjs --check && node scripts/migrate-renderer-features.mjs --check && node scripts/verify-feature-boundaries.mjs",
     "check:i18n-catalogs": "node scripts/check-i18n-catalogs.mjs",
+    "check:i18n-coverage": "node scripts/check-i18n-coverage.mjs",
     "parity:desktop:write": "node scripts/desktop-parity-inventory.mjs write",
     "parity:desktop:check": "node scripts/desktop-parity-inventory.mjs check",
     "reliability:boundaries": "node scripts/check-reliability-boundaries.mjs",
