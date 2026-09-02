@@ -551,6 +551,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
       currentModeratorPresentation,
       markMessageDeletedByModerator,
       promptReconnect,
+      t,
       twitchUser?.id,
     ]
   );
@@ -619,7 +620,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
         );
       })
       .catch(() => store.failGlobalProviderLoad("bttv"));
-  }, [enableBttvBadges]);
+  }, [enableBttvBadges, t]);
 
   useEffect(() => {
     if (!enableFfzBadges) return;
@@ -654,7 +655,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
         store.setGlobalProviderBadges("ffz", assignments);
       })
       .catch(() => store.failGlobalProviderLoad("ffz"));
-  }, [enableFfzBadges]);
+  }, [enableFfzBadges, t]);
 
   useEffect(() => {
     if (!channelId) return;
@@ -695,7 +696,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
     return () => {
       active = false;
     };
-  }, [channel, channelId, enableFfzBadges]);
+  }, [channel, channelId, enableFfzBadges, t]);
 
   // Initial Connection & Channel Joining
   useEffect(() => {
@@ -1386,7 +1387,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
         setPinDialogMessage(null);
       }
     },
-    [channelId, promptReconnect, twitchUser?.id]
+    [channelId, promptReconnect, t, twitchUser?.id]
   );
 
   // U19 — Chat-tab body. Keeps the existing pinned banner / mod strip /

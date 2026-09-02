@@ -50,7 +50,7 @@ export const MergedChatFeed = memo(function MergedChatFeed({
         <ChatMessage message={entry.message} embedded />
       </div>
     ),
-    [onSelectChannel]
+    [onSelectChannel, t]
   );
 
   if (messages.length === 0) {

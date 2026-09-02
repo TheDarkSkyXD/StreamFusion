@@ -670,7 +670,7 @@ export const KickChat: React.FC<KickChatProps> = ({
         });
       }
     },
-    [channel, chatroomId]
+    [channel, chatroomId, t]
   );
 
   const [activePoll, setActivePoll] = useState<KickPoll | null>(null);

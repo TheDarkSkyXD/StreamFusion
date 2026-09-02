@@ -572,6 +572,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = memo(
       assignedCosmeticBadges,
       message.badges,
       message.platform,
+      t,
     ]);
     const renderableBadges = useMemo(() => {
       const orderedBadges = [

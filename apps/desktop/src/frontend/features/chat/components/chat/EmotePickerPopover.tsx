@@ -1211,6 +1211,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
     nativeUserEmoteGroups,
     providerSourceTabs,
     handleProviderSourceTabClick,
+    t,
   ]);
 
   /* ----------------------------- handlers ---------------------------- */
@@ -1221,11 +1222,14 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
     [onSelect]
   );
 
-  const handleLockedEmoteClick = useCallback((emote: Emote) => {
-    toast.warning(t("chat.youMustSubscribeToThisChannelToUseThisEmote"), {
-      description: emote.name,
-    });
-  }, []);
+  const handleLockedEmoteClick = useCallback(
+    (emote: Emote) => {
+      toast.warning(t("chat.youMustSubscribeToThisChannelToUseThisEmote"), {
+        description: emote.name,
+      });
+    },
+    [t]
+  );
 
   const handleReconnectTwitch = useCallback(() => {
     void window.electronAPI.auth
@@ -1253,7 +1257,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
         const message = error instanceof Error ? error.message : "Try again from Settings.";
         toast.warning(t("chat.couldNotReconnectTwitch"), { description: message });
       });
-  }, [loadGlobalEmotes, refreshTwitchUserEmoteScopeStatus]);
+  }, [loadGlobalEmotes, refreshTwitchUserEmoteScopeStatus, t]);
 
   const setSectionRef = useCallback(
     (id: string) => (node: HTMLDivElement | null) => {

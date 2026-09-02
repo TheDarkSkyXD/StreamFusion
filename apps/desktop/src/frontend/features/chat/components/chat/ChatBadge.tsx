@@ -57,7 +57,7 @@ export const ChatBadge: React.FC<ChatBadgeProps> = memo(({ badge, platform = "ki
           platform: platform === "twitch" ? ("Twitch" as const) : ("Kick" as const),
         }
       : null;
-  }, [badge.imageUrl, badge.title, platform]);
+  }, [badge.imageUrl, badge.title, platform, t]);
 
   if (!badgeInfo) return null;
 

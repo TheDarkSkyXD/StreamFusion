@@ -426,7 +426,7 @@ export function useTimedText(
       video?.removeEventListener("enterpictureinpicture", enterPip);
       video?.removeEventListener("leavepictureinpicture", leavePip);
     };
-  }, [clearCues, clearNativeTrack, hls, usePersistedPreference, video]);
+  }, [clearCues, clearNativeTrack, hls, t, usePersistedPreference, video]);
 
   useEffect(() => {
     if (!hls) return;
