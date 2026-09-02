@@ -90,20 +90,18 @@ const FOLLOWING_TABS: Array<{
   { id: "channels", icon: LuUsers },
 ];
 
-function contentLabel(label: string, t: ReturnType<typeof useTranslation>["t"]): string {
+function contentLabelKey(label: FollowingTab) {
   switch (label) {
     case "videos":
-      return t("discovery.videos");
+      return "discovery.videos" as const;
     case "clips":
-      return t("discovery.clips");
+      return "discovery.clips" as const;
     case "categories":
-      return t("discovery.categories");
+      return "discovery.categories" as const;
     case "channels":
-      return t("discovery.channels");
+      return "discovery.channels" as const;
     case "live":
-      return t("discovery.live");
-    default:
-      return label;
+      return "discovery.live" as const;
   }
 }
 
@@ -770,7 +768,7 @@ export function FollowingPage() {
             }}
           >
             <SelectTrigger
-              aria-label={t("discovery.category.sortTab", { tab: contentLabel(activeTab, t) })}
+              aria-label={t("discovery.category.sortTab", { tab: t(contentLabelKey(activeTab)) })}
               className="h-9 min-w-[120px] bg-[var(--color-background-secondary)]"
             >
               <SelectValue />
@@ -805,7 +803,7 @@ export function FollowingPage() {
   const renderInfiniteScrollSentinel = (
     content: ReturnType<typeof getVisibleContent<FollowedContentItem>>,
     sentinelRef: RefObject<HTMLDivElement | null>,
-    label: string,
+    label: FollowingTab,
     hasMorePages = false,
     isFetchingMore = false
   ) => {
@@ -819,16 +817,16 @@ export function FollowingPage() {
       >
         <span className="whitespace-nowrap">
           {isFetchingMore
-            ? t("discovery.following.loadingMore", { label: contentLabel(label, t) })
+            ? t("discovery.following.loadingMore", { label: t(contentLabelKey(label)) })
             : hasMorePages
               ? t("discovery.following.showingLoaded", {
                   count: content.endIndex,
-                  label: contentLabel(label, t).toLocaleLowerCase(),
+                  label: t(contentLabelKey(label)).toLocaleLowerCase(),
                 })
               : t("discovery.following.showingOf", {
                   shown: content.endIndex,
                   total: content.total,
-                  label: contentLabel(label, t).toLocaleLowerCase(),
+                  label: t(contentLabelKey(label)).toLocaleLowerCase(),
                 })}
         </span>
       </div>
@@ -1039,7 +1037,7 @@ export function FollowingPage() {
                   )}
                 >
                   <Icon className="h-4 w-4" />
-                  {contentLabel(tab.id, t)}
+                  {t(contentLabelKey(tab.id))}
                 </button>
               );
             })}

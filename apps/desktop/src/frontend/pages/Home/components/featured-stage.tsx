@@ -132,7 +132,6 @@ function KickFeaturedChat({
   activeStream: UnifiedStream;
   identity: FeaturedStreamIdentity;
 }) {
-  const { t } = useTranslation();
   const channelQuery = useChannelByUsername(activeStream.channelName, "kick");
   const target = getFeaturedChatTarget({
     activeStream,
@@ -142,7 +141,7 @@ function KickFeaturedChat({
     retry: () => void channelQuery.refetch(),
   });
 
-  return renderFeaturedChatTarget(target, identity, t);
+  return <FeaturedChatTargetView target={target} identity={identity} />;
 }
 
 function getFeaturedChatTarget({
@@ -184,11 +183,14 @@ function getFeaturedChatTarget({
   };
 }
 
-function renderFeaturedChatTarget(
-  target: FeaturedChatTarget,
-  identity: FeaturedStreamIdentity,
-  t: ReturnType<typeof useTranslation>["t"]
-) {
+function FeaturedChatTargetView({
+  target,
+  identity,
+}: {
+  target: FeaturedChatTarget;
+  identity: FeaturedStreamIdentity;
+}) {
+  const { t } = useTranslation();
   switch (target.kind) {
     case "absent":
       return null;
