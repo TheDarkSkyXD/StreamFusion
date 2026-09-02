@@ -1,9 +1,27 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { open, mkdir, rename, unlink, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { basename, dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const MEBIBYTE = 1024 * 1024;
 const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const DISABLED_TRACE_CAPTURE = Object.freeze({ kind: "disabled" });
+const TRACE_READ_CHUNK_BYTES = 64 * 1024;
+const TRACE_COMPLETE_TIMEOUT_MS = 30_000;
+const CDP_REQUEST_TIMEOUT_MS = 30_000;
+const CDP_CLOSE_TIMEOUT_MS = 5_000;
+const TRACE_BUFFER_ARTIFACT_RATIO = 0.25;
+const TRACE_CATEGORIES = Object.freeze([
+  "toplevel",
+  "renderer.scheduler",
+  "devtools.timeline",
+  "disabled-by-default-devtools.timeline",
+  "v8",
+  "v8.execute",
+  "disabled-by-default-v8.cpu_profiler",
+  "blink",
+  "gpu",
+]);
 const DEFAULT_ROUTES = [
   "#/",
   "#/categories",
@@ -21,6 +39,7 @@ export const DEFAULT_SOAK_OPTIONS = Object.freeze({
   routeCycleMs: 0,
   routes: DEFAULT_ROUTES,
   outputPath: null,
+  traceCapture: DISABLED_TRACE_CAPTURE,
   maxResidentBytes: 1400 * MEBIBYTE,
   maxResidentGrowthBytes: 128 * MEBIBYTE,
   maxHeapGrowthBytes: 64 * MEBIBYTE,
@@ -30,6 +49,8 @@ export const DEFAULT_SOAK_OPTIONS = Object.freeze({
   maxRendererExceptions: 0,
   maxRateLimitedResponses: 0,
 });
+
+export const DEFAULT_TRACE_MAX_BYTES = 64 * MEBIBYTE;
 
 function parseFiniteNumber(value, flag) {
   const parsed = Number(value);
@@ -51,6 +72,8 @@ function parseNonNegativeNumber(value, flag) {
 
 export function parseSoakArguments(args) {
   const options = { ...DEFAULT_SOAK_OPTIONS, routes: [...DEFAULT_SOAK_OPTIONS.routes] };
+  let traceMaxBytes = DEFAULT_TRACE_MAX_BYTES;
+  let traceMaxWasProvided = false;
   for (let index = 0; index < args.length; index += 1) {
     const flag = args[index];
     const value = args[index + 1];
@@ -98,7 +121,23 @@ export function parseSoakArguments(args) {
         break;
       }
       case "--output":
-        options.outputPath = requireValue();
+        options.outputPath = resolveSoakOutputPath(requireValue());
+        break;
+      case "--trace":
+      case "--trace-on-failure": {
+        if (options.traceCapture.kind !== "disabled") {
+          throw new Error("--trace and --trace-on-failure are mutually exclusive");
+        }
+        options.traceCapture = {
+          kind: flag === "--trace" ? "always" : "on-failure",
+          outputPath: resolveSoakOutputPath(requireValue()),
+          maxBytes: traceMaxBytes,
+        };
+        break;
+      }
+      case "--trace-max-mb":
+        traceMaxBytes = parsePositiveNumber(requireValue(), flag) * MEBIBYTE;
+        traceMaxWasProvided = true;
         break;
       case "--max-memory-mb":
         options.maxResidentBytes = parsePositiveNumber(requireValue(), flag) * MEBIBYTE;
@@ -135,11 +174,28 @@ export function parseSoakArguments(args) {
   if (options.sampleIntervalMs > options.durationMs - options.warmupMs) {
     throw new Error("Sample interval must fit inside the post-warmup duration");
   }
+  if (traceMaxWasProvided && options.traceCapture.kind === "disabled") {
+    throw new Error("--trace-max-mb requires --trace or --trace-on-failure");
+  }
+  if (options.traceCapture.kind !== "disabled") {
+    options.traceCapture = { ...options.traceCapture, maxBytes: traceMaxBytes };
+    if (
+      options.outputPath &&
+      normalizePathForComparison(options.outputPath) ===
+        normalizePathForComparison(options.traceCapture.outputPath)
+    ) {
+      throw new Error("--output and trace output must use different paths");
+    }
+  }
   return options;
 }
 
 export function resolveSoakOutputPath(outputPath) {
   return isAbsolute(outputPath) ? outputPath : resolve(REPOSITORY_ROOT, outputPath);
+}
+
+function normalizePathForComparison(filePath) {
+  return process.platform === "win32" ? filePath.toLowerCase() : filePath;
 }
 
 function percentile(values, fraction) {
@@ -248,7 +304,9 @@ async function findStreamFusionTarget(endpoint, timeoutMs = 30_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const targets = await fetch(`${endpoint}/json/list`).then((response) => response.json());
+      const targets = await fetch(`${endpoint}/json/list`, {
+        signal: AbortSignal.timeout(Math.min(2_000, deadline - Date.now())),
+      }).then((response) => response.json());
       const target = targets.find((candidate) => candidate.title === "StreamFusion");
       if (target?.webSocketDebuggerUrl) return target;
     } catch {}
@@ -263,41 +321,389 @@ function createCdpClient(webSocketDebuggerUrl) {
   const listeners = new Set();
   let nextId = 1;
 
+  const rejectPending = (error) => {
+    for (const request of pending.values()) {
+      clearTimeout(request.timer);
+      request.reject(error);
+    }
+    pending.clear();
+  };
+
   socket.addEventListener("message", (event) => {
     const message = JSON.parse(event.data);
     if (message.id !== undefined) {
       const request = pending.get(message.id);
       if (!request) return;
       pending.delete(message.id);
+      clearTimeout(request.timer);
       if (message.error) request.reject(new Error(message.error.message));
       else request.resolve(message.result);
       return;
     }
     for (const listener of listeners) listener(message);
   });
+  socket.addEventListener("error", () => rejectPending(new Error("CDP connection failed")));
+  socket.addEventListener("close", () => rejectPending(new Error("CDP connection closed")));
 
   return {
     async open() {
       if (socket.readyState === WebSocket.OPEN) return;
+      if (socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
+        throw new Error("CDP connection closed before it opened");
+      }
       await new Promise((resolve, reject) => {
-        socket.addEventListener("open", resolve, { once: true });
-        socket.addEventListener("error", reject, { once: true });
+        let timer;
+        const cleanup = () => {
+          clearTimeout(timer);
+          socket.removeEventListener("open", onOpen);
+          socket.removeEventListener("error", onError);
+          socket.removeEventListener("close", onClose);
+        };
+        const onOpen = () => {
+          cleanup();
+          resolve();
+        };
+        const onError = () => {
+          cleanup();
+          reject(new Error("CDP connection failed before it opened"));
+        };
+        const onClose = () => {
+          cleanup();
+          reject(new Error("CDP connection closed before it opened"));
+        };
+        socket.addEventListener("open", onOpen, { once: true });
+        socket.addEventListener("error", onError, { once: true });
+        socket.addEventListener("close", onClose, { once: true });
+        timer = setTimeout(() => {
+          cleanup();
+          socket.close();
+          reject(new Error("Timed out opening the CDP connection"));
+        }, CDP_REQUEST_TIMEOUT_MS);
+        timer.unref?.();
       });
     },
     send(method, params = {}) {
+      if (socket.readyState !== WebSocket.OPEN) {
+        return Promise.reject(new Error(`Cannot send ${method} on a closed CDP connection`));
+      }
       const id = nextId++;
-      const response = new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
-      socket.send(JSON.stringify({ id, method, params }));
+      const response = new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error(`Timed out waiting for ${method}`));
+        }, CDP_REQUEST_TIMEOUT_MS);
+        timer.unref?.();
+        pending.set(id, { resolve, reject, timer });
+      });
+      try {
+        socket.send(JSON.stringify({ id, method, params }));
+      } catch (error) {
+        const request = pending.get(id);
+        pending.delete(id);
+        clearTimeout(request?.timer);
+        request?.reject(error);
+      }
       return response;
     },
     onEvent(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    close() {
-      socket.close();
+    async close() {
+      listeners.clear();
+      rejectPending(new Error("CDP connection closed"));
+      if (socket.readyState === WebSocket.CLOSED) return;
+      await new Promise((resolveClose) => {
+        const timer = setTimeout(resolveClose, CDP_CLOSE_TIMEOUT_MS);
+        timer.unref?.();
+        socket.addEventListener(
+          "close",
+          () => {
+            clearTimeout(timer);
+            resolveClose();
+          },
+          { once: true }
+        );
+        socket.close();
+      });
     },
   };
+}
+
+class TraceCaptureError extends Error {
+  constructor(stage, message) {
+    super(message);
+    this.stage = stage;
+  }
+}
+
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function createSettledTraceCaptureSession(outcome) {
+  const settled = Promise.resolve(outcome);
+  return {
+    finish() {
+      return settled;
+    },
+  };
+}
+
+function createCdpEventWaiter(client, method) {
+  let stopListening = () => {};
+  let timer;
+  const promise = new Promise((resolveEvent, rejectEvent) => {
+    stopListening = client.onEvent((message) => {
+      if (message.method !== method) return;
+      clearTimeout(timer);
+      stopListening();
+      resolveEvent(message.params ?? {});
+    });
+    timer = setTimeout(() => {
+      stopListening();
+      rejectEvent(new Error(`Timed out waiting for ${method}`));
+    }, TRACE_COMPLETE_TIMEOUT_MS);
+    timer.unref?.();
+  });
+  return {
+    promise,
+    cancel() {
+      clearTimeout(timer);
+      stopListening();
+    },
+  };
+}
+
+function shouldRetainTrace(policy, completion) {
+  if (policy.kind === "always") return true;
+  return completion.kind === "aborted" || completion.verdict === "fail";
+}
+
+async function closeRemoteStream(resources, client) {
+  if (resources.remoteStream.kind !== "open") return;
+  const handle = resources.remoteStream.handle;
+  resources.remoteStream = { kind: "closed" };
+  await client.send("IO.close", { handle });
+}
+
+async function closeLocalArtifact(resources) {
+  if (resources.artifact.kind !== "open") return;
+  const { file, path } = resources.artifact;
+  resources.artifact = { kind: "temporary", path };
+  await file.close();
+}
+
+async function removeTemporaryArtifact(resources) {
+  if (resources.artifact.kind !== "temporary") return;
+  const path = resources.artifact.path;
+  resources.artifact = { kind: "removed" };
+  try {
+    await unlink(path);
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+}
+
+async function cleanupTraceResources(resources, client) {
+  let cleanupError = null;
+  for (const cleanup of [
+    () => closeRemoteStream(resources, client),
+    () => closeLocalArtifact(resources),
+    () => removeTemporaryArtifact(resources),
+    () => client.close(),
+  ]) {
+    try {
+      await cleanup();
+    } catch (error) {
+      cleanupError ??= error;
+    }
+  }
+  return cleanupError;
+}
+
+async function finishTraceCapture(session, completion) {
+  const { policy, client, resources } = session;
+  let outcome = null;
+  let failure = null;
+  let stage = "stop";
+
+  try {
+    const tracingComplete = createCdpEventWaiter(client, "Tracing.tracingComplete");
+    const tracingCompleteResult = tracingComplete.promise.then(
+      (value) => ({ kind: "completed", value }),
+      (error) => ({ kind: "failed", error })
+    );
+    try {
+      await client.send("Tracing.end");
+    } catch (error) {
+      tracingComplete.cancel();
+      throw error;
+    }
+
+    const completedResult = await tracingCompleteResult;
+    if (completedResult.kind === "failed") throw completedResult.error;
+    const completed = completedResult.value;
+    if (typeof completed.stream !== "string" || completed.stream.length === 0) {
+      throw new Error("Tracing.tracingComplete did not include a stream handle");
+    }
+    resources.remoteStream = { kind: "open", handle: completed.stream };
+    const dataLossOccurred = completed.dataLossOccurred === true;
+
+    if (!shouldRetainTrace(policy, completion)) {
+      stage = "cleanup";
+      await closeRemoteStream(resources, client);
+      outcome = { kind: "discarded", reason: "soak-passed", dataLossOccurred };
+    } else {
+      stage = "write";
+      await mkdir(dirname(policy.outputPath), { recursive: true });
+      const temporaryPath = resolve(
+        dirname(policy.outputPath),
+        `.${basename(policy.outputPath)}.${process.pid}.${randomUUID()}.tmp`
+      );
+      const file = await open(temporaryPath, "wx");
+      resources.artifact = { kind: "open", path: temporaryPath, file };
+      let bytes = 0;
+
+      while (true) {
+        stage = "read";
+        const chunk = await client.send("IO.read", {
+          handle: completed.stream,
+          size: TRACE_READ_CHUNK_BYTES,
+        });
+        if (typeof chunk.data !== "string") {
+          throw new Error("IO.read returned an invalid trace chunk");
+        }
+        const buffer = Buffer.from(chunk.data, chunk.base64Encoded === true ? "base64" : "utf8");
+        if (bytes + buffer.length > policy.maxBytes) {
+          throw new TraceCaptureError(
+            "limit",
+            `Trace exceeded the ${policy.maxBytes}-byte artifact limit`
+          );
+        }
+        stage = "write";
+        await file.writeFile(buffer);
+        bytes += buffer.length;
+        if (chunk.eof === true) break;
+      }
+
+      stage = "cleanup";
+      await closeRemoteStream(resources, client);
+      await closeLocalArtifact(resources);
+      stage = "publish";
+      await rename(temporaryPath, policy.outputPath);
+      resources.artifact = { kind: "published", path: policy.outputPath };
+      outcome = {
+        kind: "saved",
+        outputPath: policy.outputPath,
+        bytes,
+        dataLossOccurred,
+      };
+    }
+  } catch (error) {
+    failure = {
+      stage: error instanceof TraceCaptureError ? error.stage : stage,
+      error,
+    };
+  }
+
+  const cleanupError = await cleanupTraceResources(resources, client);
+  if (!failure && cleanupError) failure = { stage: "cleanup", error: cleanupError };
+  if (failure) {
+    return {
+      kind: "failed",
+      stage: failure.stage,
+      message: errorMessage(failure.error),
+    };
+  }
+  return outcome;
+}
+
+export async function createTraceCaptureSession({ policy, client }) {
+  if (policy.kind === "disabled") {
+    return createSettledTraceCaptureSession({ kind: "disabled" });
+  }
+
+  let stage = "connect";
+  try {
+    await client.open();
+    stage = "start";
+    await client.send("Tracing.start", {
+      transferMode: "ReturnAsStream",
+      streamFormat: "json",
+      streamCompression: "none",
+      traceConfig: {
+        recordMode: "recordContinuously",
+        traceBufferSizeInKb: Math.max(
+          1,
+          Math.floor((policy.maxBytes * TRACE_BUFFER_ARTIFACT_RATIO) / 1024)
+        ),
+        includedCategories: TRACE_CATEGORIES,
+        enableSampling: true,
+      },
+    });
+  } catch (error) {
+    try {
+      await client.close();
+    } catch {}
+    return createSettledTraceCaptureSession({
+      kind: "failed",
+      stage,
+      message: errorMessage(error),
+    });
+  }
+
+  const session = {
+    policy,
+    client,
+    resources: {
+      remoteStream: { kind: "none" },
+      artifact: { kind: "none" },
+    },
+    state: { kind: "recording" },
+  };
+  return {
+    finish(completion) {
+      if (session.state.kind === "recording") {
+        session.state = {
+          kind: "finishing",
+          promise: finishTraceCapture(session, completion),
+        };
+      }
+      return session.state.promise;
+    },
+  };
+}
+
+async function openRunnerTraceCapture(policy, endpoint) {
+  if (policy.kind === "disabled") {
+    return createSettledTraceCaptureSession({ kind: "disabled" });
+  }
+
+  let client = null;
+  try {
+    const response = await fetch(`${endpoint}/json/version`, {
+      signal: AbortSignal.timeout(CDP_REQUEST_TIMEOUT_MS),
+    });
+    if (!response.ok) throw new Error(`Browser CDP discovery returned HTTP ${response.status}`);
+    const version = await response.json();
+    if (typeof version.webSocketDebuggerUrl !== "string") {
+      throw new Error("Browser CDP discovery did not return a WebSocket URL");
+    }
+    client = createCdpClient(version.webSocketDebuggerUrl);
+    return await createTraceCaptureSession({ policy, client });
+  } catch (error) {
+    if (client) {
+      try {
+        await client.close();
+      } catch {}
+    }
+    return createSettledTraceCaptureSession({
+      kind: "failed",
+      stage: "connect",
+      message: errorMessage(error),
+    });
+  }
 }
 
 async function evaluate(client, expression) {
@@ -381,7 +787,7 @@ const CLOSE_LEASE_EXPRESSION = `(async () => {
   delete window.__streamFusionPerformanceSoakLeaseId;
 })()`;
 
-export async function runPerformanceSoak(options) {
+async function collectPerformanceSoak(options) {
   const target = await findStreamFusionTarget(options.cdpEndpoint);
   const client = createCdpClient(target.webSocketDebuggerUrl);
   await client.open();
@@ -446,7 +852,7 @@ export async function runPerformanceSoak(options) {
       // The renderer may have exited while the soak was ending.
     }
     stopListening();
-    client.close();
+    await client.close();
   }
 
   const result = analyzeSoakSamples({
@@ -456,10 +862,34 @@ export async function runPerformanceSoak(options) {
     startedAt,
     endedAt: Date.now(),
   });
+  return result;
+}
+
+export async function runPerformanceSoak(options) {
+  const traceSession = await openRunnerTraceCapture(options.traceCapture, options.cdpEndpoint);
+  let runState;
+  try {
+    runState = { kind: "completed", result: await collectPerformanceSoak(options) };
+  } catch (error) {
+    runState = { kind: "aborted", error };
+  }
+
+  const completion =
+    runState.kind === "completed"
+      ? { kind: "completed", verdict: runState.result.verdict }
+      : { kind: "aborted" };
+  let traceCapture;
+  try {
+    traceCapture = await traceSession.finish(completion);
+  } catch (error) {
+    traceCapture = { kind: "failed", stage: "cleanup", message: errorMessage(error) };
+  }
+
+  if (runState.kind === "aborted") throw runState.error;
+  const result = { ...runState.result, traceCapture };
   if (options.outputPath) {
-    const outputPath = resolveSoakOutputPath(options.outputPath);
-    await mkdir(dirname(outputPath), { recursive: true });
-    await writeFile(outputPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
+    await mkdir(dirname(options.outputPath), { recursive: true });
+    await writeFile(options.outputPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
   }
   return result;
 }
@@ -468,7 +898,11 @@ async function main() {
   const options = parseSoakArguments(process.argv.slice(2));
   const result = await runPerformanceSoak(options);
   process.stdout.write(
-    `${JSON.stringify({ verdict: result.verdict, ...result.summary }, null, 2)}\n`
+    `${JSON.stringify(
+      { verdict: result.verdict, ...result.summary, traceCapture: result.traceCapture },
+      null,
+      2
+    )}\n`
   );
   if (result.verdict === "fail") process.exitCode = 1;
 }

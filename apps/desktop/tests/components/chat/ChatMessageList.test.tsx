@@ -305,7 +305,8 @@ function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
 }
 
 // Guards: empty state (no messages yet) must still render the virtuoso container so the layout doesn't collapse and the next message has somewhere to mount
-// Guards: per-channel message reads keep a busy multiview panel from re-rendering sibling ChatMessageList instances
+// Guards: one channel update renders its list once without restarting for virtual-index bookkeeping
+// Guards: a channel update does not render sibling lists
 // Guards: per-channel pause state renders the "Chat paused due to scroll" banner only for the panel the viewer scrolled
 // Guards: Twitch-style Pause Chat preferences add mouseover and Alt-key pause triggers without breaking scroll pause.
 // Guards: setPaused(channelKey, false) must fire on mount for the current channel so a reconnect doesn't strand the list in a paused state from the prior session
@@ -516,8 +517,8 @@ describe("ChatMessageList", () => {
     });
 
     const nextCounts = getRenderCounts();
-    expect(nextCounts[`ChatMessageList:${channelA}`]).toBeGreaterThan(
-      initialCounts[`ChatMessageList:${channelA}`]
+    expect(nextCounts[`ChatMessageList:${channelA}`]).toBe(
+      (initialCounts[`ChatMessageList:${channelA}`] ?? 0) + 1
     );
     expect(nextCounts[`ChatMessageList:${channelB}`]).toBe(
       initialCounts[`ChatMessageList:${channelB}`]

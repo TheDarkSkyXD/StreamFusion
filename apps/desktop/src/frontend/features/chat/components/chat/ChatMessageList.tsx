@@ -7,7 +7,6 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  useState,
 } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { useManagedTimeout } from "../../../../hooks/useManagedTimeout";
@@ -164,19 +163,19 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
     const pauseOnMouseover = pauseMode === "mouseover" || pauseMode === "mouseover-alt";
     const pauseOnAlt = pauseMode === "alt" || pauseMode === "mouseover-alt";
     const defaultItemHeight = estimateDefaultItemHeight(chatDisplay);
-    const [virtualIndexState, setVirtualIndexState] = useState(() => ({
+    const virtualIndexStateRef = useRef({
       messages,
       firstItemIndex: VIRTUOSO_FIRST_ITEM_INDEX_BASE,
-    }));
-    let firstItemIndex = virtualIndexState.firstItemIndex;
-    if (virtualIndexState.messages !== messages) {
-      firstItemIndex = advanceFirstItemIndex(
-        virtualIndexState.messages,
-        messages,
-        virtualIndexState.firstItemIndex
-      );
-      setVirtualIndexState({ messages, firstItemIndex });
-    }
+    });
+    const virtualIndexState = virtualIndexStateRef.current;
+    const firstItemIndex = advanceFirstItemIndex(
+      virtualIndexState.messages,
+      messages,
+      virtualIndexState.firstItemIndex
+    );
+    useLayoutEffect(() => {
+      virtualIndexStateRef.current = { messages, firstItemIndex };
+    }, [firstItemIndex, messages]);
     const newMessagesStartId = useMemo(() => {
       let sawHistoricalMessage = false;
 
