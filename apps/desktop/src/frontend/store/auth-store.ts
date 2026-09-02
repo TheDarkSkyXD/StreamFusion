@@ -11,6 +11,7 @@ import {
   invalidateFollowCachesAfterMutation,
   removePlatformAccountCaches,
 } from "@/features/discovery/data/queries/cache-invalidation";
+import { i18n } from "@/i18n";
 import { logger } from "@/renderer/logging/logger";
 import { hasCompleteDiscoveryCoverage } from "../../shared/discovery-types";
 import { STREAM_KEYS } from "../features/discovery/data/queries/useStreams";
@@ -172,7 +173,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             set({
               error: {
                 code: "TOKEN_EXPIRED",
-                message: "Your Twitch session has expired. Please reconnect your account.",
+                message: i18n.t("common.twitchSessionExpired"),
                 platform: "twitch",
               },
             });
@@ -208,7 +209,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             set({
               error: {
                 code: "TOKEN_EXPIRED",
-                message: "Your Kick authorization has expired. Please reconnect your account.",
+                message: i18n.t("common.kickAuthorizationExpired"),
                 platform: "kick",
               },
             });
@@ -247,7 +248,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             isGuest: !get().twitchUser && !get().kickUser,
             error: {
               code: "TOKEN_EXPIRED",
-              message: "Your Kick authorization has expired. Please reconnect your account.",
+              message: i18n.t("common.kickAuthorizationExpired"),
               platform: "kick",
             },
           });
@@ -302,7 +303,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             twitchReconnectRequired: true,
             error: {
               code: "TOKEN_EXPIRED",
-              message: "Your Twitch session has expired. Please reconnect your account.",
+              message: i18n.t("common.twitchSessionExpired"),
               platform: "twitch",
             },
           });
@@ -333,7 +334,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         set({
           error: {
             code: "UNKNOWN_ERROR",
-            message: "Failed to initialize authentication",
+            message: i18n.t("common.authInitializationFailed"),
           },
           initialized: true,
         });
@@ -407,7 +408,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       });
 
       // Parse error message and make it user-friendly
-      let errorMessage = "Failed to connect to Twitch. Please try again.";
+      let errorMessage: string = i18n.t("common.twitchConnectionFailed");
       let shouldShowError = true;
 
       if (error instanceof Error) {
@@ -417,15 +418,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           shouldShowError = false;
         } else if (msg.includes("state mismatch") || msg.includes("security")) {
           // This happens when clicking too fast - just reset and let them try again
-          errorMessage = "Connection interrupted. Please try again.";
+          errorMessage = i18n.t("common.connectionInterrupted");
         } else if (msg.includes("rate") || msg.includes("too many")) {
-          errorMessage = "Too many login attempts. Please wait a moment and try again.";
+          errorMessage = i18n.t("common.tooManyLoginAttempts");
         } else if (msg.includes("network") || msg.includes("fetch")) {
-          errorMessage = "Network error. Please check your connection and try again.";
+          errorMessage = i18n.t("common.networkError");
         } else if (msg.includes("not configured")) {
-          errorMessage = "Twitch authentication is not configured. Please check your .env file.";
+          errorMessage = i18n.t("common.twitchAuthNotConfigured");
         } else if (msg.includes("timeout")) {
-          errorMessage = "Login timed out. Please try again.";
+          errorMessage = i18n.t("common.loginTimedOut");
         }
       }
 
@@ -485,7 +486,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({
         error: {
           code: "UNKNOWN_ERROR",
-          message: "Failed to logout from Twitch",
+          message: i18n.t("common.twitchLogoutFailed"),
           platform: "twitch",
         },
         twitchLoading: false,
@@ -517,7 +518,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       });
 
       // Parse error message and make it user-friendly
-      let errorMessage = "Failed to connect to Kick. Please try again.";
+      let errorMessage: string = i18n.t("common.kickConnectionFailed");
       let shouldShowError = true;
 
       if (error instanceof Error) {
@@ -527,15 +528,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           shouldShowError = false;
         } else if (msg.includes("state mismatch") || msg.includes("security")) {
           // This happens when clicking too fast - just reset and let them try again
-          errorMessage = "Connection interrupted. Please try again.";
+          errorMessage = i18n.t("common.connectionInterrupted");
         } else if (msg.includes("rate") || msg.includes("too many")) {
-          errorMessage = "Too many login attempts. Please wait a moment and try again.";
+          errorMessage = i18n.t("common.tooManyLoginAttempts");
         } else if (msg.includes("network") || msg.includes("fetch")) {
-          errorMessage = "Network error. Please check your connection and try again.";
+          errorMessage = i18n.t("common.networkError");
         } else if (msg.includes("not configured")) {
-          errorMessage = "Kick authentication is not configured. Please check your .env file.";
+          errorMessage = i18n.t("common.kickAuthNotConfigured");
         } else if (msg.includes("timeout")) {
-          errorMessage = "Login timed out. Please try again.";
+          errorMessage = i18n.t("common.loginTimedOut");
         }
       }
 
@@ -592,7 +593,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       set({
         error: {
           code: "UNKNOWN_ERROR",
-          message: "Failed to logout from Kick",
+          message: i18n.t("common.kickLogoutFailed"),
           platform: "kick",
         },
         kickLoading: false,

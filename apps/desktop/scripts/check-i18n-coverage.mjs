@@ -21,7 +21,21 @@ const visibleAttributes = new Set([
   "placeholder",
   "title",
 ]);
+const presentationProperties = new Set([
+  "ariaLabel",
+  "description",
+  "emptyMessage",
+  "errorMessage",
+  "heading",
+  "label",
+  "message",
+  "placeholder",
+  "successMessage",
+  "title",
+  "tooltip",
+]);
 const allowedLiterals = new Set([
+  "<unserializable error>",
   "API",
   "AV1",
   "CPU",
@@ -48,10 +62,24 @@ async function collectSourceFiles(directory) {
     entries.map(async (entry) => {
       const path = join(directory, entry.name);
       if (entry.isDirectory()) {
-        if (entry.name === "dev" || entry.name === "dev-relay") return [];
+        if (
+          ["__fixtures__", "__tests__", "dev", "dev-relay", "fixtures", "tests"].includes(
+            entry.name
+          ) ||
+          path.replaceAll("\\", "/").endsWith("/i18n/locales")
+        ) {
+          return [];
+        }
         return collectSourceFiles(path);
       }
-      if (extname(entry.name) !== ".tsx" || entry.name.endsWith(".stories.tsx")) return [];
+      if (
+        ![".ts", ".tsx"].includes(extname(entry.name)) ||
+        entry.name.endsWith(".d.ts") ||
+        entry.name.includes(".stories.") ||
+        entry.name.includes(".test.")
+      ) {
+        return [];
+      }
       return [path];
     })
   );
@@ -77,6 +105,7 @@ function expressionLiterals(expression) {
   if (ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression)) {
     return [expression];
   }
+  if (ts.isTemplateExpression(expression)) return [expression];
   if (ts.isParenthesizedExpression(expression)) return expressionLiterals(expression.expression);
   if (ts.isConditionalExpression(expression)) {
     return [
@@ -95,6 +124,24 @@ function expressionLiterals(expression) {
     return [...expressionLiterals(expression.left), ...expressionLiterals(expression.right)];
   }
   return [];
+}
+
+function propertyName(node) {
+  if (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name)) return node.name.text;
+  return undefined;
+}
+
+function isVisibleNotificationCall(node) {
+  if (ts.isIdentifier(node.expression)) {
+    return ["notifySettingsSaved", "setError", "setSuccess", "showToast", "toast"].includes(
+      node.expression.text
+    );
+  }
+  return (
+    ts.isPropertyAccessExpression(node.expression) &&
+    ts.isIdentifier(node.expression.expression) &&
+    node.expression.expression.text === "toast"
+  );
 }
 
 function isInsideTechnicalText(node) {
@@ -116,7 +163,7 @@ for (const file of await collectSourceFiles(frontendDirectory)) {
     sourceText,
     ts.ScriptTarget.Latest,
     true,
-    ts.ScriptKind.TSX
+    extname(file) === ".tsx" ? ts.ScriptKind.TSX : ts.ScriptKind.TS
   );
 
   function record(node, value, kind) {
@@ -143,7 +190,7 @@ for (const file of await collectSourceFiles(frontendDirectory)) {
       !isInsideTechnicalText(node)
     ) {
       for (const literal of expressionLiterals(node.expression)) {
-        record(literal, literal.text, "expression");
+        record(literal, literal.text ?? literal.getText(sourceFile), "expression");
       }
     }
 
@@ -152,7 +199,33 @@ for (const file of await collectSourceFiles(frontendDirectory)) {
         record(node.initializer, node.initializer.text, `attribute:${node.name.text}`);
       } else if (node.initializer && ts.isJsxExpression(node.initializer)) {
         for (const literal of expressionLiterals(node.initializer.expression)) {
-          record(literal, literal.text, `attribute:${node.name.text}`);
+          record(
+            literal,
+            literal.text ?? literal.getText(sourceFile),
+            `attribute:${node.name.text}`
+          );
+        }
+      }
+    }
+
+    if (
+      ts.isPropertyAssignment(node) &&
+      presentationProperties.has(propertyName(node)) &&
+      !isInsideTechnicalText(node)
+    ) {
+      for (const literal of expressionLiterals(node.initializer)) {
+        record(
+          literal,
+          literal.text ?? literal.getText(sourceFile),
+          `property:${propertyName(node)}`
+        );
+      }
+    }
+
+    if (ts.isCallExpression(node) && isVisibleNotificationCall(node)) {
+      for (const argument of node.arguments) {
+        for (const literal of expressionLiterals(argument)) {
+          record(literal, literal.text ?? literal.getText(sourceFile), "notification");
         }
       }
     }

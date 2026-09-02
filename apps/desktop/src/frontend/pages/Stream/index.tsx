@@ -27,6 +27,7 @@ import {
   useStreamByChannel,
 } from "@/features/discovery/data/queries/useStreams";
 import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
+import { i18n } from "@/i18n";
 import { useStreamPlayback } from "@/features/playback/data/useStreamPlayback";
 import { logger } from "@/renderer/logging/logger";
 import { requirePlatform } from "@/features/playback/routes/route-boundaries";
@@ -509,7 +510,7 @@ export function StreamPage() {
       const exhaustedError: PlayerError = {
         ...error,
         code: "PLAYBACK_RECOVERY_EXHAUSTED",
-        message: "Playback stopped after two automatic recovery attempts",
+        message: i18n.t("common.playbackRecoveryExhausted"),
         shouldRefresh: false,
       };
       logger.error("Page:Stream", "Twitch playback recovery exhausted", {

@@ -1,4 +1,38 @@
 export const coreEn = {
+  common: {
+    copyError: "Copy error",
+    errorCopied: "Error copied",
+    copyErrorFailed: "Couldn't copy error",
+    following: "Following {{channel}}",
+    unfollowed: "Unfollowed {{channel}}",
+    addedToFollows: "Added to your {{platform}} follows.",
+    removedFromFollows: "Removed from your {{platform}} follows.",
+    reconnectKickToContinue: "Reconnect Kick to continue",
+    kickFollowAuthExpired:
+      "Kick authentication expired before the follow could be confirmed. Your follow is unchanged.",
+    kickUnfollowAuthExpired:
+      "Kick authentication expired before the unfollow could be confirmed. Your follow is unchanged.",
+    followUpdateFailed: "Couldn't update follow",
+    kickFollowUpdateFailed:
+      "Kick couldn't confirm the follow. Your follow is unchanged. Try again.",
+    kickUnfollowUpdateFailed:
+      "Kick couldn't confirm the unfollow. Your follow is unchanged. Try again.",
+    twitchSessionExpired: "Your Twitch session has expired. Please reconnect your account.",
+    kickAuthorizationExpired: "Your Kick authorization has expired. Please reconnect your account.",
+    authInitializationFailed: "Failed to initialize authentication",
+    twitchConnectionFailed: "Failed to connect to Twitch. Please try again.",
+    kickConnectionFailed: "Failed to connect to Kick. Please try again.",
+    connectionInterrupted: "Connection interrupted. Please try again.",
+    tooManyLoginAttempts: "Too many login attempts. Please wait a moment and try again.",
+    networkError: "Network error. Please check your connection and try again.",
+    twitchAuthNotConfigured:
+      "Twitch authentication is not configured. Please check your .env file.",
+    kickAuthNotConfigured: "Kick authentication is not configured. Please check your .env file.",
+    loginTimedOut: "Login timed out. Please try again.",
+    twitchLogoutFailed: "Failed to logout from Twitch",
+    kickLogoutFailed: "Failed to logout from Kick",
+    playbackRecoveryExhausted: "Playback stopped after two automatic recovery attempts",
+  },
   navigation: {
     home: "Home",
     following: "Following",

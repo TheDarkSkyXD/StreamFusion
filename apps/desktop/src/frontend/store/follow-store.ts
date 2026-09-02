@@ -7,6 +7,7 @@ import {
 } from "@/features/discovery/data/queries/cache-invalidation";
 import { queryClient } from "@/providers/query-provider";
 import { logger } from "@/renderer/logging/logger";
+import { i18n } from "@/i18n";
 import type { UnifiedChannel } from "../../shared/platform-types";
 import { channelsMatch } from "../lib/id-utils";
 import type {
@@ -56,13 +57,18 @@ function notifyConfirmedFollowAction(
   channel: Pick<UnifiedChannel, "platform" | "id" | "username" | "displayName">
 ): void {
   const displayName = channel.displayName || channel.username;
-  toast(action === "follow" ? `Following ${displayName}` : `Unfollowed ${displayName}`, {
-    id: `follow-action:${action}:${channel.platform}:${channel.username.toLowerCase()}`,
-    description:
-      action === "follow"
-        ? `Added to your ${channel.platform === "kick" ? "Kick" : "Twitch"} follows.`
-        : `Removed from your ${channel.platform === "kick" ? "Kick" : "Twitch"} follows.`,
-  });
+  toast(
+    i18n.t(action === "follow" ? "common.following" : "common.unfollowed", {
+      channel: displayName,
+    }),
+    {
+      id: `follow-action:${action}:${channel.platform}:${channel.username.toLowerCase()}`,
+      description: i18n.t(
+        action === "follow" ? "common.addedToFollows" : "common.removedFromFollows",
+        { platform: channel.platform === "kick" ? "Kick" : "Twitch" }
+      ),
+    }
+  );
 }
 
 function channelFromFollow(follow: LocalFollow): UnifiedChannel {
@@ -119,12 +125,16 @@ function applyTerminalAccountWrite(
     ),
   });
   if (status === "auth-paused") {
-    toast("Reconnect Kick to continue", {
-      description: `Kick authentication expired before the ${action} could be confirmed. Your follow is unchanged.`,
+    toast(i18n.t("common.reconnectKickToContinue"), {
+      description: i18n.t(
+        action === "follow" ? "common.kickFollowAuthExpired" : "common.kickUnfollowAuthExpired"
+      ),
     });
   } else {
-    toast("Couldn't update follow", {
-      description: `Kick couldn't confirm the ${action}. Your follow is unchanged. Try again.`,
+    toast(i18n.t("common.followUpdateFailed"), {
+      description: i18n.t(
+        action === "follow" ? "common.kickFollowUpdateFailed" : "common.kickUnfollowUpdateFailed"
+      ),
     });
   }
 }
