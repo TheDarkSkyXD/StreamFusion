@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import type { RefObject } from "react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   LuClapperboard,
   LuHeart,
@@ -80,15 +81,31 @@ const EMPTY_STREAM_LOOKUPS = {
 
 const FOLLOWING_TABS: Array<{
   id: FollowingTab;
-  label: string;
   icon: typeof LuRadio;
 }> = [
-  { id: "live", label: "Live", icon: LuRadio },
-  { id: "videos", label: "Videos", icon: LuPlay },
-  { id: "clips", label: "Clips", icon: LuClapperboard },
-  { id: "categories", label: "Categories", icon: LuTag },
-  { id: "channels", label: "Channels", icon: LuUsers },
+  { id: "live", icon: LuRadio },
+  { id: "videos", icon: LuPlay },
+  { id: "clips", icon: LuClapperboard },
+  { id: "categories", icon: LuTag },
+  { id: "channels", icon: LuUsers },
 ];
+
+function contentLabel(label: string, t: ReturnType<typeof useTranslation>["t"]): string {
+  switch (label) {
+    case "videos":
+      return t("discovery.videos");
+    case "clips":
+      return t("discovery.clips");
+    case "categories":
+      return t("discovery.categories");
+    case "channels":
+      return t("discovery.channels");
+    case "live":
+      return t("discovery.live");
+    default:
+      return label;
+  }
+}
 
 const FOLLOW_SYNC_PRESENTATION = {
   twitch: {
@@ -156,11 +173,12 @@ function formatFollowSyncFreshness(syncedAt: string): string {
 }
 
 function FollowingSyncStatus({ stamps }: { stamps: readonly FollowSyncStamp[] }) {
+  const { t } = useTranslation();
   if (stamps.length === 0) return null;
 
   return (
     <dl
-      aria-label="Follow synchronization status"
+      aria-label={t("shell.sidebar.sync")}
       className="flex max-w-full shrink-0 items-center divide-x divide-[var(--color-border)] self-start rounded-full border border-[var(--color-border)] bg-[var(--color-background-tertiary)] px-2.5 py-1.5 text-[11px] font-medium leading-none sm:ml-auto"
     >
       {stamps.map(({ platform, syncedAt }) => {
@@ -174,7 +192,7 @@ function FollowingSyncStatus({ stamps }: { stamps: readonly FollowSyncStamp[] })
             <Icon aria-hidden="true" className={cn("h-3 w-3 shrink-0", iconClassName)} size={12} />
             <dt className="whitespace-nowrap text-[var(--color-foreground-secondary)]">
               <span aria-hidden="true">{label}</span>
-              <span className="sr-only">{label} synced</span>
+              <span className="sr-only">{t("discovery.following.synced", { label })}</span>
             </dt>
             <dd className="whitespace-nowrap tabular-nums text-[var(--color-foreground)]">
               <time dateTime={syncedAt}>{formatFollowSyncFreshness(syncedAt)}</time>
@@ -187,6 +205,7 @@ function FollowingSyncStatus({ stamps }: { stamps: readonly FollowSyncStamp[] })
 }
 
 export function FollowingPage() {
+  const { t } = useTranslation();
   const canRenderContent = useAfterFirstPaint();
   const [activeTab, setActiveTab] = useState<FollowingTab>("live");
   const [filter, setFilter] = useState<Platform | "all">("all");
@@ -708,7 +727,9 @@ export function FollowingPage() {
       <div className="flex min-w-0 flex-wrap items-center gap-3">
         {activeTab === "clips" && (
           <div className="flex shrink-0 items-center gap-2 whitespace-nowrap text-sm">
-            <span className="shrink-0 font-bold text-[var(--color-foreground)]">Filter by:</span>
+            <span className="shrink-0 font-bold text-[var(--color-foreground)]">
+              {t("discovery.following.filterBy")}
+            </span>
             <Select
               value={clipTimeRange}
               onValueChange={(value) => {
@@ -717,23 +738,25 @@ export function FollowingPage() {
               }}
             >
               <SelectTrigger
-                aria-label="Filter clips by time range"
+                aria-label={t("discovery.category.filterClipsByTime")}
                 className="h-9 min-w-[120px] bg-[var(--color-background-secondary)]"
               >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent align="end">
-                <SelectItem value="day">Last Day</SelectItem>
-                <SelectItem value="week">Last Week</SelectItem>
-                <SelectItem value="month">Last Month</SelectItem>
-                <SelectItem value="all">All Time</SelectItem>
+                <SelectItem value="day">{t("discovery.category.lastDay")}</SelectItem>
+                <SelectItem value="week">{t("discovery.category.lastWeek")}</SelectItem>
+                <SelectItem value="month">{t("discovery.category.lastMonth")}</SelectItem>
+                <SelectItem value="all">{t("discovery.category.allTime")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
         )}
 
         <div className="flex shrink-0 items-center gap-2 whitespace-nowrap text-sm">
-          <span className="shrink-0 font-bold text-[var(--color-foreground)]">Sort by:</span>
+          <span className="shrink-0 font-bold text-[var(--color-foreground)]">
+            {t("discovery.following.sortBy")}
+          </span>
           <Select
             value={activeTab === "videos" ? videoSort : clipSort}
             onValueChange={(value) => {
@@ -747,14 +770,14 @@ export function FollowingPage() {
             }}
           >
             <SelectTrigger
-              aria-label={activeTab === "videos" ? "Sort videos" : "Sort clips"}
+              aria-label={t("discovery.category.sortTab", { tab: contentLabel(activeTab, t) })}
               className="h-9 min-w-[120px] bg-[var(--color-background-secondary)]"
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent align="end">
-              <SelectItem value="recent">Most Recent</SelectItem>
-              <SelectItem value="views">Views</SelectItem>
+              <SelectItem value="recent">{t("discovery.category.mostRecent")}</SelectItem>
+              <SelectItem value="views">{t("discovery.category.views")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -796,10 +819,17 @@ export function FollowingPage() {
       >
         <span className="whitespace-nowrap">
           {isFetchingMore
-            ? `Loading more ${label}…`
+            ? t("discovery.following.loadingMore", { label: contentLabel(label, t) })
             : hasMorePages
-              ? `Showing ${content.endIndex} loaded ${label}`
-              : `Showing ${content.endIndex} of ${content.total} ${label}`}
+              ? t("discovery.following.showingLoaded", {
+                  count: content.endIndex,
+                  label: contentLabel(label, t).toLocaleLowerCase(),
+                })
+              : t("discovery.following.showingOf", {
+                  shown: content.endIndex,
+                  total: content.total,
+                  label: contentLabel(label, t).toLocaleLowerCase(),
+                })}
         </span>
       </div>
     );
@@ -814,7 +844,7 @@ export function FollowingPage() {
       <p>{message}</p>
       {showBrowseButton && (
         <Link to="/" className="mt-4">
-          <Button variant="default">Browse Channels</Button>
+          <Button variant="default">{t("discovery.following.browseChannels")}</Button>
         </Link>
       )}
     </div>
@@ -855,7 +885,7 @@ export function FollowingPage() {
         </div>
         {isLive && (
           <span className="mt-1 px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 text-[10px] font-bold uppercase tracking-wider border border-red-500/20">
-            Live
+            {t("discovery.following.liveLabel")}
           </span>
         )}
       </Link>
@@ -866,8 +896,8 @@ export function FollowingPage() {
   const hasInitialLiveError =
     activeTab === "live" && liveChannels.length === 0 && Boolean(liveStreamsError);
   const noMatchMessage = searchQuery
-    ? `No matches for "${searchQuery}"`
-    : "Follow channels to see them here!";
+    ? t("discovery.following.noMatches", { query: searchQuery })
+    : t("discovery.following.empty");
 
   const renderLiveErrorState = () => (
     <div
@@ -878,16 +908,16 @@ export function FollowingPage() {
         <LuRefreshCw className="w-8 h-8 text-[var(--color-foreground-muted)]" aria-hidden="true" />
       </div>
       <h3 className="text-xl font-semibold text-[var(--color-foreground)]">
-        Couldn't load followed channels
+        {t("discovery.following.loadError")}
       </h3>
-      <p>Check your connection and try again.</p>
+      <p>{t("discovery.following.checkConnection")}</p>
       <Button
         variant="secondary"
         onClick={() => void refreshFollowingData()}
         disabled={manualSyncPending}
-        aria-label="Retry loading followed content"
+        aria-label={t("discovery.following.retryLoading")}
       >
-        Retry
+        {t("discovery.following.retry")}
       </Button>
     </div>
   );
@@ -897,10 +927,10 @@ export function FollowingPage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold flex items-center gap-3">
           <LuHeart className="fill-red-500 text-red-500" />
-          Following
+          {t("discovery.following.title")}
         </h1>
         <p className="text-[var(--color-foreground-secondary)]">
-          Channels you follow across Twitch and Kick
+          {t("discovery.following.description")}
         </p>
       </div>
 
@@ -918,7 +948,7 @@ export function FollowingPage() {
               className={filter === "all" ? "bg-white text-black hover:bg-white/90" : ""}
               size="sm"
             >
-              All
+              {t("discovery.following.all")}
             </Button>
             <Button
               variant={filter === "twitch" ? "default" : "secondary"}
@@ -953,7 +983,7 @@ export function FollowingPage() {
               <LuSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-foreground-muted)]" />
               <input
                 type="text"
-                placeholder="Search followed channels..."
+                placeholder={t("discovery.following.searchPlaceholder")}
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -973,12 +1003,14 @@ export function FollowingPage() {
               onClick={() => void refreshFollowingData()}
               disabled={manualSyncPending}
               aria-label={
-                manualRefreshFailed ? "Retry refreshing following data" : "Refresh following data"
+                manualRefreshFailed
+                  ? t("discovery.following.retryRefresh")
+                  : t("discovery.following.refresh")
               }
               title={
                 manualRefreshFailed
-                  ? "Some following data failed to refresh. Try again."
-                  : "Refresh following data"
+                  ? t("discovery.following.refreshFailed")
+                  : t("discovery.following.refresh")
               }
             >
               <LuRefreshCw
@@ -1007,7 +1039,7 @@ export function FollowingPage() {
                   )}
                 >
                   <Icon className="h-4 w-4" />
-                  {tab.label}
+                  {contentLabel(tab.id, t)}
                 </button>
               );
             })}
@@ -1020,7 +1052,7 @@ export function FollowingPage() {
         {activeTab === "live" && isLoading ? (
           <div
             role="status"
-            aria-label="Loading followed content"
+            aria-label={t("discovery.following.loading")}
             aria-busy="true"
             className="space-y-8"
           >
@@ -1050,7 +1082,7 @@ export function FollowingPage() {
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <h2 className="text-xl font-semibold flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                    Live Now
+                    {t("discovery.following.liveNow")}
                     <span className="text-sm font-normal text-[var(--color-foreground-muted)] ml-2">
                       ({liveChannels.length})
                     </span>
@@ -1062,8 +1094,8 @@ export function FollowingPage() {
               ) : (
                 renderEmptyState(
                   hasNoFollowedChannels
-                    ? "No followed channels found"
-                    : "No live followed channels found",
+                    ? t("discovery.following.noFollowedChannels")
+                    : t("discovery.following.noLiveFollowedChannels"),
                   noMatchMessage,
                   !searchQuery && hasNoFollowedChannels
                 )
@@ -1073,7 +1105,7 @@ export function FollowingPage() {
               (followedChannels.length > 0 ? (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <h2 className="text-xl font-semibold text-white">
-                    Channels
+                    {t("discovery.channels")}
                     <span className="text-sm font-normal text-[var(--color-foreground-muted)] ml-2">
                       ({followedChannels.length})
                     </span>
@@ -1083,14 +1115,18 @@ export function FollowingPage() {
                   </div>
                 </div>
               ) : (
-                renderEmptyState("No followed channels found", noMatchMessage, !searchQuery)
+                renderEmptyState(
+                  t("discovery.following.noFollowedChannels"),
+                  noMatchMessage,
+                  !searchQuery
+                )
               ))}
 
             {activeTab === "categories" &&
               (followedCategories.length > 0 ? (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <h2 className="text-xl font-semibold text-white">
-                    Categories
+                    {t("discovery.categories")}
                     <span className="text-sm font-normal text-[var(--color-foreground-muted)] ml-2">
                       ({followedCategories.length})
                     </span>
@@ -1098,16 +1134,16 @@ export function FollowingPage() {
                   <CategoryGrid
                     categories={followedCategories}
                     isLoading={isLoadingTopCategories && followedCategories.length === 0}
-                    emptyMessage="No followed categories found"
+                    emptyMessage={t("discovery.following.noFollowedCategories")}
                     imageLoading="eager"
                   />
                 </div>
               ) : (
                 renderEmptyState(
-                  "No followed categories found",
+                  t("discovery.following.noFollowedCategories"),
                   searchQuery
-                    ? `No matches for "${searchQuery}"`
-                    : "Live followed channels will group by category here."
+                    ? t("discovery.following.noMatches", { query: searchQuery })
+                    : t("discovery.following.groupByCategory")
                 )
               ))}
 
@@ -1115,7 +1151,7 @@ export function FollowingPage() {
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
                   <h2 className="text-xl font-semibold text-white">
-                    Videos
+                    {t("discovery.videos")}
                     <span className="text-sm font-normal text-[var(--color-foreground-muted)] ml-2">
                       ({followedVideos.length})
                     </span>
@@ -1154,10 +1190,10 @@ export function FollowingPage() {
                 ) : (
                   renderEmptyState(
                     followedChannelList.length > 0
-                      ? "No followed videos found"
-                      : "No followed channels found",
+                      ? t("discovery.following.noFollowedVideos")
+                      : t("discovery.following.noFollowedChannels"),
                     followedChannelList.length > 0
-                      ? "Recent videos from followed channels will show here."
+                      ? t("discovery.following.recentVideos")
                       : noMatchMessage,
                     !searchQuery && followedChannelList.length === 0
                   )
@@ -1169,7 +1205,7 @@ export function FollowingPage() {
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
                   <h2 className="text-xl font-semibold text-white">
-                    Clips
+                    {t("discovery.clips")}
                     <span className="text-sm font-normal text-[var(--color-foreground-muted)] ml-2">
                       ({followedClips.length})
                     </span>
@@ -1209,10 +1245,10 @@ export function FollowingPage() {
                 ) : (
                   renderEmptyState(
                     followedChannelList.length > 0
-                      ? "No followed clips found"
-                      : "No followed channels found",
+                      ? t("discovery.following.noFollowedClips")
+                      : t("discovery.following.noFollowedChannels"),
                     followedChannelList.length > 0
-                      ? "Recent clips from followed channels will show here."
+                      ? t("discovery.following.recentClips")
                       : noMatchMessage,
                     !searchQuery && followedChannelList.length === 0
                   )

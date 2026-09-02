@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import React, { useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { UnifiedStream } from "@shared/platform-types";
 import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
@@ -32,6 +33,7 @@ const STREAM_CARD_RENDER_STYLE = {
 // Memoize StreamCard to prevent re-renders when grid updates but individual stream hasn't changed
 export const StreamCard = React.memo(
   ({ stream, showCategory = true, isWatching = false }: StreamCardProps) => {
+    const { t } = useTranslation();
     const PlatformIcon = stream.platform === "twitch" ? TwitchIcon : KickIcon;
     const platformColor = stream.platform === "twitch" ? "text-[#9146FF]" : "text-[#53FC18]";
 
@@ -144,7 +146,7 @@ export const StreamCard = React.memo(
               className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
               fallback={
                 <div className="w-full h-full bg-[var(--color-background-tertiary)] flex items-center justify-center text-[var(--color-foreground-muted)]">
-                  No Thumbnail
+                  {t("discovery.noThumbnail")}
                 </div>
               }
             />
@@ -155,19 +157,22 @@ export const StreamCard = React.memo(
                   data-testid="watching-badge"
                   className="px-1.5 py-0.5 rounded bg-white text-black text-[10px] font-bold uppercase tracking-wider shadow-sm"
                 >
-                  Watching
+                  {t("discovery.watching")}
                 </div>
               )}
               {stream.isLive && (
                 <div className="px-1.5 py-0.5 rounded bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
-                  Live
+                  {t("discovery.live")}
                 </div>
               )}
             </div>
 
             {/* Viewer Count */}
             <div className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-black/80 text-white text-xs font-medium backdrop-blur-sm">
-              {formatViewerCount(stream.viewerCount)} viewers
+              {t("discovery.viewers", {
+                count: stream.viewerCount,
+                formattedCount: formatViewerCount(stream.viewerCount),
+              })}
             </div>
 
             <div

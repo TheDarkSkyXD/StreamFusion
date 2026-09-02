@@ -1,4 +1,5 @@
 import { type MouseEvent, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { LuHeart, LuHeartCrack } from "react-icons/lu";
 import { toast } from "sonner";
 
@@ -15,6 +16,7 @@ interface FollowButtonProps {
 }
 
 export function FollowButton({ channel, className, size = "sm" }: FollowButtonProps) {
+  const { t } = useTranslation();
   const {
     isFollowing: isFollowingStore,
     toggleFollow,
@@ -30,7 +32,10 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
   const [localPendingAction, setLocalPendingAction] = useState<"follow" | "unfollow" | null>(null);
   const pendingAction = accountPendingAction ?? localPendingAction;
   const isPending = pendingAction !== null;
-  const pendingLabel = pendingAction === "unfollow" ? "Unfollowing..." : "Following...";
+  const pendingLabel =
+    pendingAction === "unfollow"
+      ? t("discovery.following.unfollowing")
+      : t("discovery.following.following");
 
   const platform = channel.platform;
   // Account rows must use the authenticated write path because a local-only
@@ -56,16 +61,18 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       if (platform === "twitch" && /(reconnect|authorize)/i.test(message)) {
-        toast("Reconnect Twitch follow access", {
+        toast(t("discovery.following.reconnectTwitch"), {
           description: message,
         });
       } else if (platform === "twitch") {
-        toast("Twitch couldn't confirm the follow change", {
-          description: "Your Twitch follow is unchanged. Try again.",
+        toast(t("discovery.following.twitchFollowUnconfirmed"), {
+          description: t("discovery.following.twitchFollowUnchanged"),
         });
       } else {
-        toast("Couldn't update follow", {
-          description: `Your follow list was restored. Try ${channel.displayName || channel.username} again.`,
+        toast(t("discovery.following.updateFailed"), {
+          description: t("discovery.following.restored", {
+            channel: channel.displayName || channel.username,
+          }),
         });
       }
     } finally {
@@ -84,13 +91,13 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
     return "bg-primary text-primary-foreground";
   };
 
-  let title = "Follow";
+  let title: string = t("discovery.following.follow");
   if (isPending) title = pendingLabel;
-  else if (isManagedByAccount || isFollowing) title = "Unfollow";
+  else if (isManagedByAccount || isFollowing) title = t("discovery.following.unfollow");
   else if (platform === "twitch" && twitchConnected) {
-    title = "Follow with your Twitch account";
+    title = t("discovery.following.followWith", { platform: "Twitch" });
   } else if (platform === "kick" && kickConnected) {
-    title = "Follow with your Kick account";
+    title = t("discovery.following.followWith", { platform: "Kick" });
   }
 
   return (
@@ -114,7 +121,7 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
       ) : isManagedByAccount ? (
         <>
           <LuHeartCrack className="w-4 h-4" strokeWidth={3} />
-          <span>Unfollow</span>
+          <span>{t("discovery.following.unfollow")}</span>
         </>
       ) : isFollowing ? (
         isHovering ? (
@@ -125,7 +132,7 @@ export function FollowButton({ channel, className, size = "sm" }: FollowButtonPr
       ) : (
         <>
           <LuHeart className={cn("w-4 h-4", isHovering ? "fill-current" : "")} strokeWidth={3} />
-          <span>Follow</span>
+          <span>{t("discovery.following.follow")}</span>
         </>
       )}
     </Button>

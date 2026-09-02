@@ -2,6 +2,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
+import { i18n } from "@/i18n";
 import { useAuthStore } from "@/store/auth-store";
 
 import type { Platform } from "../../../../../shared/auth-types";
@@ -147,7 +148,7 @@ export function useInfiniteTopStreams() {
     isLoading: data.length === 0 && (twitch.isLoading || kick.isLoading),
     error:
       data.length === 0 && allProvidersFailed
-        ? new Error("Couldn't load live channels from Twitch or Kick")
+        ? new Error(i18n.t("discovery.loadStreamsError"))
         : null,
     hasNextPage,
     isFetchingNextPage,

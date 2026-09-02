@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { ClipCard } from "@/features/playback/components/related-content/ClipCard";
 import { ClipDialog } from "@/features/playback/components/related-content/ClipDialog";
@@ -69,6 +70,7 @@ export function CategoryMediaTab({
   timeRange,
   sort,
 }: CategoryMediaTabProps) {
+  const { t } = useTranslation();
   const { items, isLoading, failures, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useCategoryMedia({
       kind,
@@ -108,7 +110,7 @@ export function CategoryMediaTab({
     return (
       <div
         aria-busy="true"
-        aria-label={`Loading category ${kind}`}
+        aria-label={t("discovery.category.loadingMedia", { kind })}
         className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
       >
         {Array.from({ length: 8 }, (_, index) => (
@@ -122,13 +124,19 @@ export function CategoryMediaTab({
   }
 
   return (
-    <section aria-label={`Category ${kind}`} className="space-y-4">
+    <section
+      aria-label={t("discovery.category.tabFilters", { tab: t(`discovery.${kind}`) })}
+      className="space-y-4"
+    >
       {failures.map(({ platform, retry }) => {
         const platformLabel = platform === "twitch" ? "Twitch" : "Kick";
         const message =
           kind === "videos" && platform === "kick"
-            ? "Kick videos are unavailable for category browsing."
-            : `${platformLabel} ${kind} are temporarily unavailable.`;
+            ? t("discovery.category.kickVideosUnavailable")
+            : t("discovery.category.mediaUnavailable", {
+                platform: platformLabel,
+                kind: t(`discovery.${kind}`),
+              });
         return (
           <div
             key={platform}
@@ -141,7 +149,7 @@ export function CategoryMediaTab({
               onClick={() => void retry()}
               className="min-h-10 rounded-md bg-[var(--color-background-elevated)] px-4 font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
-              Retry {platformLabel}
+              {t("discovery.category.retryPlatform", { platform: platformLabel })}
             </button>
           </div>
         );
@@ -149,7 +157,7 @@ export function CategoryMediaTab({
 
       {items.length === 0 ? (
         <div className="py-12 text-center text-[var(--color-foreground-muted)]">
-          No {kind} found for this category.
+          {t("discovery.category.noMedia", { kind: t(`discovery.${kind}`) })}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -181,7 +189,11 @@ export function CategoryMediaTab({
 
       {hasNextPage && <div ref={loadMoreRef} aria-hidden="true" className="h-px" />}
       {isFetchingNextPage && (
-        <div role="status" className="flex justify-center py-4" aria-label={`Loading more ${kind}`}>
+        <div
+          role="status"
+          className="flex justify-center py-4"
+          aria-label={t("discovery.category.loadingMore", { kind: t(`discovery.${kind}`) })}
+        >
           <Skeleton className="h-4 w-32" />
         </div>
       )}

@@ -1,4 +1,6 @@
 import { LuExternalLink, LuPower } from "react-icons/lu";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 
 import { getPlatformColor } from "@/assets/platforms";
 import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
@@ -16,16 +18,16 @@ import { useKickAuth, useTwitchAuth } from "@/features/auth/data/useAuth";
 import type { Platform, PlatformUser } from "@shared/auth-types";
 import type { TwitchAuthPhase } from "@/store/auth-store";
 
-function twitchLoadingLabel(phase: TwitchAuthPhase): string {
+function twitchLoadingLabel(phase: TwitchAuthPhase, t: TFunction): string {
   switch (phase) {
     case "opening":
-      return "Opening Twitch authorization...";
+      return t("auth.openingTwitch");
     case "waiting":
-      return "Waiting for Twitch authorization...";
+      return t("auth.waitingTwitch");
     case "finishing":
-      return "Finishing Twitch connection...";
+      return t("auth.finishingTwitch");
     default:
-      return "Connecting...";
+      return t("auth.connecting");
   }
 }
 
@@ -35,6 +37,7 @@ function twitchLoadingLabel(phase: TwitchAuthPhase): string {
  * Displays cards for connecting/disconnecting platform accounts.
  */
 export function AccountConnect() {
+  const { t } = useTranslation();
   const twitch = useTwitchAuth();
   const kick = useKickAuth();
 
@@ -45,7 +48,7 @@ export function AccountConnect() {
         connected={twitch.connected}
         user={twitch.user}
         loading={twitch.loading}
-        loadingLabel={twitchLoadingLabel(twitch.authPhase)}
+        loadingLabel={twitchLoadingLabel(twitch.authPhase, t)}
         onConnect={twitch.login}
         onDisconnect={twitch.logout}
       />
@@ -85,6 +88,7 @@ function PlatformCard({
   disabled,
   message,
 }: PlatformCardProps) {
+  const { t } = useTranslation();
   const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
   const color = getPlatformColor(platform);
   const displayName = user ? ("displayName" in user ? user.displayName : user.username) : undefined;
@@ -112,14 +116,14 @@ function PlatformCard({
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500"></span>
               </span>
-              Connected
+              {t("auth.connected")}
             </div>
           )}
         </div>
         <CardDescription>
           {connected
-            ? `Connected as ${displayName ?? "User"}`
-            : `Connect your ${platformName} account to access features.`}
+            ? t("auth.connectedAs", { user: displayName ?? t("auth.user") })
+            : t("auth.connectAccountDescription", { platform: platformName })}
         </CardDescription>
       </CardHeader>
 
@@ -145,20 +149,22 @@ function PlatformCard({
               <div className="flex items-center gap-3">
                 <ProxiedImage
                   src={profileImageUrl}
-                  alt={displayName || "User"}
+                  alt={displayName || t("auth.user")}
                   className="h-12 w-12 rounded-full border border-border object-cover"
                   fallback={fallbackElement}
                 />
                 <div className="flex flex-col">
                   <span className="font-semibold">{displayName}</span>
-                  <span className="text-xs text-muted-foreground capitalize">{platform} User</span>
+                  <span className="text-xs text-muted-foreground capitalize">
+                    {t("auth.platformUser", { platform })}
+                  </span>
                 </div>
               </div>
             );
           })()
         ) : (
           <div className="flex h-12 items-center text-sm text-muted-foreground">
-            {message || "Access your followed channels and streams."}
+            {message || t("auth.accessFollowed")}
           </div>
         )}
       </CardContent>
@@ -174,7 +180,7 @@ function PlatformCard({
               className="w-full gap-2"
             >
               <LuPower className="h-4 w-4" />
-              {loading ? "Disconnecting..." : "Disconnect"}
+              {loading ? t("auth.disconnecting") : t("auth.disconnect")}
             </Button>
           </div>
         ) : (
@@ -192,7 +198,9 @@ function PlatformCard({
             onClick={disabled ? undefined : onConnect}
             disabled={loading || disabled}
           >
-            {loading ? (loadingLabel ?? "Connecting...") : `Connect ${platformName}`}
+            {loading
+              ? (loadingLabel ?? t("auth.connecting"))
+              : t("auth.connectWith", { platform: platformName })}
             {!loading && !disabled && <LuExternalLink className="h-4 w-4" />}
           </Button>
         )}

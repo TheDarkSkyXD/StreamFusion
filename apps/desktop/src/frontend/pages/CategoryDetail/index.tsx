@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import type { MouseEvent } from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { LuArrowLeft } from "react-icons/lu";
 
 import type { UnifiedCategory } from "@shared/platform-types";
@@ -49,17 +50,9 @@ const PAGE_SIZE = 30;
 const CATEGORY_ROUTE = "/categories/$platform/$categoryId" as const;
 const CATEGORY_SEARCH_KEYS = ["tab", "platform", "language", "tag", "sort", "otherId"] as const;
 
-const CATEGORY_TABS: Array<{ value: CategoryContentTab; label: string }> = [
-  { value: "live", label: "Live Streams" },
-  { value: "clips", label: "Clips" },
-  { value: "videos", label: "Videos" },
-];
+const CATEGORY_TABS: CategoryContentTab[] = ["live", "clips", "videos"];
 
-const PLATFORM_SCOPES: Array<{ value: CategoryPlatformScope; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "twitch", label: "Twitch" },
-  { value: "kick", label: "Kick" },
-];
+const PLATFORM_SCOPES: CategoryPlatformScope[] = ["all", "twitch", "kick"];
 
 function resetContentScroll() {
   const scrollArea = document.getElementById("main-content-scroll-area");
@@ -96,6 +89,7 @@ function selectedPlatformClasses(scope: CategoryPlatformScope) {
 }
 
 export function CategoryDetailPage() {
+  const { t } = useTranslation();
   const { platform: routePlatform, categoryId } = useParams({
     from: "/_app/categories/$platform/$categoryId",
   });
@@ -469,7 +463,7 @@ export function CategoryDetailPage() {
         className="text-[var(--color-foreground-muted)] hover:text-white flex items-center gap-2 transition-colors w-fit"
       >
         <LuArrowLeft size={20} />
-        Back to Categories
+        {t("discovery.category.backToCategories")}
       </Link>
 
       {isCategoryLoading ? (
@@ -500,13 +494,15 @@ export function CategoryDetailPage() {
           </div>
           <div className="flex-1 text-center md:text-left space-y-2 pb-2">
             <h1 className="text-4xl md:text-6xl font-black tracking-tight">
-              {category?.name ?? "Unknown Category"}
+              {category?.name ?? t("discovery.category.unknownCategory")}
             </h1>
             <div className="flex items-center justify-center md:justify-start gap-1.5 text-lg">
               <span className="font-bold text-[var(--color-primary)] text-xl">
                 {formatViewerCount(totalViewers)}
               </span>
-              <span className="text-[var(--color-foreground-secondary)]">watching live</span>
+              <span className="text-[var(--color-foreground-secondary)]">
+                {t("discovery.category.watchingLive")}
+              </span>
             </div>
           </div>
         </div>
@@ -514,14 +510,15 @@ export function CategoryDetailPage() {
 
       <div ref={categoryNavSentinelRef} aria-hidden="true" className="h-px" />
       <nav
-        aria-label="Category content"
+        aria-label={t("discovery.category.content")}
         className={`sticky top-0 z-30 -mt-px flex min-h-11 items-end gap-5 border-b border-[var(--color-border)] transition-colors duration-150 ${
           isCategoryNavStuck
             ? "bg-[var(--color-background-secondary)]"
             : "bg-[var(--color-background-primary)]"
         }`}
       >
-        {CATEGORY_TABS.map(({ value, label }) => {
+        {CATEGORY_TABS.map((value) => {
+          const label = t(`discovery.${value === "live" ? "liveStreams" : value}`);
           const isSelected = tab === value;
           return (
             <Link
@@ -551,10 +548,12 @@ export function CategoryDetailPage() {
         {!isKickOnlyCategory && (
           <div
             role="group"
-            aria-label="Platform"
+            aria-label={t("discovery.category.platform")}
             className="flex min-h-10 w-full items-stretch rounded-lg bg-[var(--color-background-tertiary)] p-1 sm:w-fit"
           >
-            {PLATFORM_SCOPES.map(({ value, label }) => {
+            {PLATFORM_SCOPES.map((value) => {
+              const label =
+                value === "all" ? t("discovery.all") : value === "twitch" ? "Twitch" : "Kick";
               const isSelected = platformScope === value;
               return (
                 <Link
@@ -593,10 +592,10 @@ export function CategoryDetailPage() {
         {tab !== "live" && (
           <div
             role="group"
-            aria-label="Category filters"
+            aria-label={t("discovery.category.filters")}
             className="flex min-w-0 flex-wrap items-center gap-3"
           >
-            <div role="group" aria-label="Category text filters">
+            <div role="group" aria-label={t("discovery.category.textFilters")}>
               <CategoryFilterBar
                 language={language}
                 onLanguageChange={(value) => {
@@ -613,30 +612,30 @@ export function CategoryDetailPage() {
             </div>
             <div
               role="group"
-              aria-label={`Category ${tab} filters`}
+              aria-label={t("discovery.category.tabFilters", { tab })}
               className="flex min-w-0 flex-wrap items-center gap-3 sm:ml-auto sm:justify-end"
             >
               {tab === "clips" && (
                 <label className="flex items-center gap-2 text-xs font-semibold text-[var(--color-foreground-secondary)]">
-                  <span>Time</span>
+                  <span>{t("discovery.category.time")}</span>
                   <Select value={clipTimeRange} onValueChange={updateClipTimeRange}>
                     <SelectTrigger
-                      aria-label="Filter clips by time range"
+                      aria-label={t("discovery.category.filterClipsByTime")}
                       className="h-8 min-w-[108px] px-2.5 text-xs"
                     >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="day">Last Day</SelectItem>
-                      <SelectItem value="week">Last Week</SelectItem>
-                      <SelectItem value="month">Last Month</SelectItem>
-                      <SelectItem value="all">All Time</SelectItem>
+                      <SelectItem value="day">{t("discovery.category.lastDay")}</SelectItem>
+                      <SelectItem value="week">{t("discovery.category.lastWeek")}</SelectItem>
+                      <SelectItem value="month">{t("discovery.category.lastMonth")}</SelectItem>
+                      <SelectItem value="all">{t("discovery.category.allTime")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </label>
               )}
               <label className="flex items-center gap-2 text-xs font-semibold text-[var(--color-foreground-secondary)]">
-                <span>Sort</span>
+                <span>{t("discovery.category.sort")}</span>
                 <Select
                   value={tab === "clips" ? clipSort : videoSort}
                   onValueChange={(value) =>
@@ -646,14 +645,14 @@ export function CategoryDetailPage() {
                   }
                 >
                   <SelectTrigger
-                    aria-label={`Sort Category ${tab}`}
+                    aria-label={t("discovery.category.sortTab", { tab })}
                     className="h-8 min-w-[112px] px-2.5 text-xs"
                   >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="views">Views</SelectItem>
-                    <SelectItem value="recent">Most Recent</SelectItem>
+                    <SelectItem value="views">{t("discovery.category.views")}</SelectItem>
+                    <SelectItem value="recent">{t("discovery.category.mostRecent")}</SelectItem>
                   </SelectContent>
                 </Select>
               </label>
@@ -669,13 +668,19 @@ export function CategoryDetailPage() {
               role="status"
               className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-4"
             >
-              <span>{currentPlatform === "twitch" ? "Twitch" : "Kick"} is unavailable.</span>
+              <span>
+                {t("discovery.category.unavailable", {
+                  platform: currentPlatform === "twitch" ? "Twitch" : "Kick",
+                })}
+              </span>
               <button
                 type="button"
                 onClick={() => void primaryQuery.refetch()}
                 className="min-h-10 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                Retry {currentPlatform === "twitch" ? "Twitch" : "Kick"}
+                {t("discovery.category.retryPlatform", {
+                  platform: currentPlatform === "twitch" ? "Twitch" : "Kick",
+                })}
               </button>
             </div>
           )}
@@ -689,8 +694,9 @@ export function CategoryDetailPage() {
                 className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-4"
               >
                 <span>
-                  {otherPlatform === "twitch" ? "Twitch" : "Kick"} streams are temporarily
-                  unavailable.
+                  {t("discovery.category.streamsUnavailable", {
+                    platform: otherPlatform === "twitch" ? "Twitch" : "Kick",
+                  })}
                 </span>
                 <button
                   type="button"
@@ -700,7 +706,9 @@ export function CategoryDetailPage() {
                   }}
                   className="min-h-10 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 >
-                  Retry {otherPlatform === "twitch" ? "Twitch" : "Kick"}
+                  {t("discovery.category.retryPlatform", {
+                    platform: otherPlatform === "twitch" ? "Twitch" : "Kick",
+                  })}
                 </button>
               </div>
             )}
@@ -710,13 +718,19 @@ export function CategoryDetailPage() {
               role="status"
               className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-4"
             >
-              <span>{platformScope === "twitch" ? "Twitch" : "Kick"} is unavailable.</span>
+              <span>
+                {t("discovery.category.unavailable", {
+                  platform: platformScope === "twitch" ? "Twitch" : "Kick",
+                })}
+              </span>
               <button
                 type="button"
                 onClick={() => void selectedQuery.refetch()}
                 className="min-h-10 rounded-md bg-white px-4 text-sm font-semibold text-black hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                Retry {platformScope === "twitch" ? "Twitch" : "Kick"}
+                {t("discovery.category.retryPlatform", {
+                  platform: platformScope === "twitch" ? "Twitch" : "Kick",
+                })}
               </button>
             </div>
           )}
@@ -730,10 +744,12 @@ export function CategoryDetailPage() {
                 isLoading={isStreamsLoading}
                 emptyMessage={
                   tagQuery && scopedMerged.length > 0
-                    ? `No streams in this category match "${tagQuery}".`
+                    ? t("discovery.category.noMatchingStreams", { tag: tagQuery })
                     : platformScope === "all"
-                      ? "No active streams found for this category."
-                      : `No live ${platformScope === "twitch" ? "Twitch" : "Kick"} streams found for this category.`
+                      ? t("discovery.category.noActiveStreams")
+                      : t("discovery.category.noLiveStreams", {
+                          platform: platformScope === "twitch" ? "Twitch" : "Kick",
+                        })
                 }
                 skeletons={8}
               />
@@ -742,12 +758,17 @@ export function CategoryDetailPage() {
                 <div className="relative h-14 flex items-center justify-center">
                   <div ref={sentinelRef} className="absolute inset-0" aria-hidden="true" />
                   {isFetchingNextPage && (
-                    <div role="status" aria-label="Loading more live streams">
+                    <div
+                      role="status"
+                      aria-label={t("discovery.category.loadingMore", { kind: "live streams" })}
+                    >
                       <div
                         aria-hidden="true"
                         className="animate-spin motion-reduce:animate-none rounded-full h-6 w-6 border-b-2 border-white"
                       />
-                      <span className="sr-only">Loading more live streams</span>
+                      <span className="sr-only">
+                        {t("discovery.category.loadingMore", { kind: "live streams" })}
+                      </span>
                     </div>
                   )}
                 </div>

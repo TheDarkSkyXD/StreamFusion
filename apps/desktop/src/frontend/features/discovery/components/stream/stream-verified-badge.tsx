@@ -1,4 +1,5 @@
 import { getBundledBadgeUrl } from "@/assets/platforms/kick/badges";
+import { useTranslation } from "react-i18next";
 import type { Platform } from "@shared/auth-types";
 
 const KICK_VERIFIED_BADGE_URL = getBundledBadgeUrl("verified");
@@ -12,7 +13,8 @@ export function StreamVerifiedBadge({
   platform,
   className = "h-3.5 w-3.5",
 }: StreamVerifiedBadgeProps) {
-  const label = platform === "twitch" ? "Twitch verified" : "Kick verified";
+  const { t } = useTranslation();
+  const label = t("discovery.verified", { platform: platform === "twitch" ? "Twitch" : "Kick" });
 
   if (platform === "kick" && KICK_VERIFIED_BADGE_URL) {
     return (

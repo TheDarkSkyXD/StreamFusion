@@ -1,4 +1,5 @@
 import { AlertCircle, LoaderCircle, Shield } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -10,44 +11,49 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { logger } from "@/renderer/logging/logger";
+import type { authEn } from "@/i18n/locales/en/auth";
 import { KICK_APP_SCOPES, TWITCH_APP_SCOPES } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 
-const SCOPE_DESCRIPTIONS: Record<string, string> = {
-  "user:read:email": "Read your Twitch account email",
-  "user:read:follows": "Read the channels you follow",
-  "user:read:subscriptions": "Read your channel subscriptions",
-  "user:read:emotes": "Load your subscribed-channel emotes",
-  "chat:read": "Read Twitch chat while signed in",
-  "chat:edit": "Send Twitch chat messages",
-  "user:read:moderated_channels": "See which channels you moderate",
-  "moderator:read:followers": "Verify channel follow relationships",
-  "moderator:read:blocked_terms": "Read channel blocked terms",
-  "moderator:read:chat_settings": "Read channel chat settings",
-  "moderator:read:moderators": "Read channel moderators",
-  "moderator:read:vips": "Read channel VIPs",
-  "moderator:manage:chat_messages": "Pin, unpin, and delete chat messages",
-  "moderator:manage:banned_users": "Time out, ban, and unban users",
-  "moderator:manage:warnings": "Warn users in chat",
-  "moderator:manage:shield_mode": "Toggle Shield Mode",
-  "channel:manage:raids": "Start and cancel raids",
-  "channel:manage:moderators": "Add and remove moderators",
-  "channel:manage:vips": "Add and remove VIPs",
-  "channel:manage:predictions": "Create, lock, and resolve predictions",
-  "channel:manage:polls": "Create and terminate polls",
-  "channel:edit:commercial": "Start commercial breaks",
-  "user:manage:whispers": "Send whispers",
-  "moderator:read:unban_requests": "Review unban requests",
-  "moderator:manage:unban_requests": "Approve or deny unban requests",
-  "user:read": "Read your Kick account",
-  "channel:read": "Read Kick channel details",
-  "moderation:chat_message:manage": "Delete Kick chat messages",
-  "moderation:ban": "Time out, ban, and unban Kick users",
-  "events:subscribe": "Receive Kick channel and moderation events",
+type ScopeDescriptionKey =
+  `auth.scopeDescriptions.${keyof typeof authEn.auth.scopeDescriptions & string}`;
+
+const SCOPE_DESCRIPTIONS: Record<string, ScopeDescriptionKey> = {
+  "user:read:email": "auth.scopeDescriptions.userReadEmail",
+  "user:read:follows": "auth.scopeDescriptions.userReadFollows",
+  "user:read:subscriptions": "auth.scopeDescriptions.userReadSubscriptions",
+  "user:read:emotes": "auth.scopeDescriptions.userReadEmotes",
+  "chat:read": "auth.scopeDescriptions.chatRead",
+  "chat:edit": "auth.scopeDescriptions.chatEdit",
+  "user:read:moderated_channels": "auth.scopeDescriptions.userReadModeratedChannels",
+  "moderator:read:followers": "auth.scopeDescriptions.moderatorReadFollowers",
+  "moderator:read:blocked_terms": "auth.scopeDescriptions.moderatorReadBlockedTerms",
+  "moderator:read:chat_settings": "auth.scopeDescriptions.moderatorReadChatSettings",
+  "moderator:read:moderators": "auth.scopeDescriptions.moderatorReadModerators",
+  "moderator:read:vips": "auth.scopeDescriptions.moderatorReadVips",
+  "moderator:manage:chat_messages": "auth.scopeDescriptions.moderatorManageChatMessages",
+  "moderator:manage:banned_users": "auth.scopeDescriptions.moderatorManageBannedUsers",
+  "moderator:manage:warnings": "auth.scopeDescriptions.moderatorManageWarnings",
+  "moderator:manage:shield_mode": "auth.scopeDescriptions.moderatorManageShieldMode",
+  "channel:manage:raids": "auth.scopeDescriptions.channelManageRaids",
+  "channel:manage:moderators": "auth.scopeDescriptions.channelManageModerators",
+  "channel:manage:vips": "auth.scopeDescriptions.channelManageVips",
+  "channel:manage:predictions": "auth.scopeDescriptions.channelManagePredictions",
+  "channel:manage:polls": "auth.scopeDescriptions.channelManagePolls",
+  "channel:edit:commercial": "auth.scopeDescriptions.channelEditCommercial",
+  "user:manage:whispers": "auth.scopeDescriptions.userManageWhispers",
+  "moderator:read:unban_requests": "auth.scopeDescriptions.moderatorReadUnbanRequests",
+  "moderator:manage:unban_requests": "auth.scopeDescriptions.moderatorManageUnbanRequests",
+  "user:read": "auth.scopeDescriptions.kickUserRead",
+  "channel:read": "auth.scopeDescriptions.kickChannelRead",
+  "moderation:chat_message:manage": "auth.scopeDescriptions.kickChatMessageManage",
+  "moderation:ban": "auth.scopeDescriptions.kickBan",
+  "events:subscribe": "auth.scopeDescriptions.kickEventsSubscribe",
 };
 
 export function ReconnectForModDialog() {
+  const { t } = useTranslation();
   const isOpen = useReconnectDialogStore((state) => state.isOpen);
   const platform = useReconnectDialogStore((state) => state.platform);
   const phase = useReconnectDialogStore((state) => state.phase);
@@ -105,9 +111,9 @@ export function ReconnectForModDialog() {
 
   const progressCopy =
     phase === "submitting"
-      ? `Waiting for ${platformLabel} authorization…`
+      ? t("auth.waitingForAuthorization", { platform: platformLabel })
       : phase === "revalidating"
-        ? "Revalidating permissions and moderation access…"
+        ? t("auth.revalidatingPermissions")
         : "";
 
   return (
@@ -124,11 +130,10 @@ export function ReconnectForModDialog() {
         <DialogHeader className="border-b border-[var(--color-border)] pb-4">
           <DialogTitle className="flex items-center gap-2 text-xl text-white">
             <Shield className="h-5 w-5 text-[var(--color-storm-primary)]" aria-hidden />
-            Reconnect {platformLabel}
+            {t("auth.reconnectPlatform", { platform: platformLabel })}
           </DialogTitle>
           <DialogDescription className="pt-2 text-[var(--color-foreground-muted)]">
-            StreamFusion needs the permissions below to verify moderation access and show the
-            Platform actions available in this channel.
+            {t("auth.moderationPermissionsDescription")}
           </DialogDescription>
         </DialogHeader>
 
@@ -141,7 +146,7 @@ export function ReconnectForModDialog() {
                 data-scope={scope}
               >
                 <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-storm-primary)]" />
-                <span>{SCOPE_DESCRIPTIONS[scope] ?? scope}</span>
+                <span>{SCOPE_DESCRIPTIONS[scope] ? t(SCOPE_DESCRIPTIONS[scope]) : scope}</span>
               </li>
             ))}
           </ul>
@@ -156,21 +161,25 @@ export function ReconnectForModDialog() {
           ) : phase === "failed" ? (
             <p className="flex items-center gap-2 text-red-300">
               <AlertCircle className="h-4 w-4" aria-hidden />
-              Reconnect failed · Retry
+              {t("auth.reconnectFailedRetry")}
             </p>
           ) : null}
         </div>
 
         <DialogFooter className="gap-2 pt-4">
           <Button variant="outline" onClick={close} disabled={busy}>
-            Not now
+            {t("auth.notNow")}
           </Button>
           <Button
             onClick={() => void handleReconnect()}
             disabled={busy}
             className="bg-[var(--color-storm-primary)] text-white hover:opacity-90"
           >
-            {busy ? "Reconnecting…" : phase === "failed" ? "Retry" : `Reconnect ${platformLabel}`}
+            {busy
+              ? t("auth.reconnecting")
+              : phase === "failed"
+                ? t("auth.retry")
+                : t("auth.reconnectPlatform", { platform: platformLabel })}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,5 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import React from "react";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { LuHistory, LuLayoutGrid, LuSearch, LuSparkles, LuStar, LuUser, LuX } from "react-icons/lu";
 
 import type { UnifiedCategory, UnifiedChannel } from "@shared/platform-types";
@@ -90,23 +92,19 @@ interface UnifiedSearchInputProps {
 
 type SearchTab = SearchHistoryScope;
 
-const SEARCH_TABS: { id: SearchTab; label: string }[] = [
-  { id: "channels", label: "Channels" },
-  { id: "categories", label: "Categories" },
-  { id: "streams", label: "Streams" },
-];
+const SEARCH_TABS: SearchTab[] = ["channels", "categories", "streams"];
 
 const ONE_LETTER_CHANNEL_TARGET = 5;
 
-function formatFollowerCount(count: number | undefined): string | null {
+function formatFollowerCount(count: number | undefined, t: TFunction): string | null {
   if (count === undefined || count === null) return null;
   if (count >= 1000000) {
-    return `${(count / 1000000).toFixed(1).replace(/\.0$/, "")}M followers`;
+    return `${(count / 1000000).toFixed(1).replace(/\.0$/, "")}M ${t("discovery.search.followers", { count })}`;
   }
   if (count >= 1000) {
-    return `${(count / 1000).toFixed(1).replace(/\.0$/, "")}K followers`;
+    return `${(count / 1000).toFixed(1).replace(/\.0$/, "")}K ${t("discovery.search.followers", { count })}`;
   }
-  return `${count} followers`;
+  return t("discovery.search.followers", { count });
 }
 
 // Helper to render category items. Extracted so each call can invoke
@@ -121,6 +119,7 @@ function CategoryItem({
   onClick: (c: UnifiedCategory, e: React.MouseEvent) => void;
   onSelectCategory?: (category: UnifiedCategory) => void;
 }) {
+  const { t } = useTranslation();
   const { linkPlatform, linkCategoryId, otherId } = useUnifiedCategoryLink(
     category.platform,
     category.id,
@@ -192,6 +191,7 @@ function ChannelItem({
   onToggleFavorite?: (channel: UnifiedChannel) => void;
   platform?: Platform;
 }) {
+  const { t } = useTranslation();
   const avatarFallback = (
     <div className="w-8 h-8 rounded-full bg-zinc-700 flex items-center justify-center">
       <span className="text-xs font-bold text-white uppercase">
@@ -200,7 +200,7 @@ function ChannelItem({
     </div>
   );
 
-  const followerText = formatFollowerCount(channel.followerCount);
+  const followerText = formatFollowerCount(channel.followerCount, t);
   const showPartnerBadge = channel.isPartner || channel.isVerified;
   const channelContent = (
     <>
@@ -229,7 +229,9 @@ function ChannelItem({
         <div className="flex items-center gap-2 text-xs text-zinc-400">
           {!platform && <span className="capitalize">{channel.platform}</span>}
           {followerText && <span>{followerText}</span>}
-          {channel.isLive && <span className="text-red-500 font-bold">• LIVE</span>}
+          {channel.isLive && (
+            <span className="text-red-500 font-bold">• {t("discovery.search.live")}</span>
+          )}
         </div>
       </div>
     </>
@@ -265,7 +267,11 @@ function ChannelItem({
         <button
           type="button"
           aria-pressed={isFavorite}
-          aria-label={`${isFavorite ? "Remove" : "Add"} ${channel.displayName} ${isFavorite ? "from" : "to"} favorites`}
+          aria-label={
+            isFavorite
+              ? t("discovery.search.removeFavorite", { channel: channel.displayName })
+              : t("discovery.search.addFavorite", { channel: channel.displayName })
+          }
           onMouseDown={(event) => event.preventDefault()}
           onClick={(event) => {
             event.preventDefault();
@@ -291,13 +297,15 @@ export function UnifiedSearchInput({
   showCategories = true,
   showSearchTabs = showCategories,
   liveOnlyChannels = false,
-  placeholder = "Search streams, channels, categories...",
+  placeholder,
   className,
   inputClassName,
   initialValue = "",
   inputRef: propInputRef,
   autoFocus,
 }: UnifiedSearchInputProps) {
+  const { t } = useTranslation();
+  const resolvedPlaceholder = placeholder ?? t("discovery.search.placeholder");
   const [searchQuery, setSearchQuery] = React.useState(initialValue);
   const [isFocused, setIsFocused] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<SearchTab>("channels");
@@ -308,8 +316,8 @@ export function UnifiedSearchInput({
   const visibleSearchTabs = React.useMemo(
     () =>
       showSearchTabs
-        ? SEARCH_TABS.filter((tab) => showCategories || tab.id !== "categories")
-        : SEARCH_TABS.filter((tab) => tab.id === "channels"),
+        ? SEARCH_TABS.filter((tab) => showCategories || tab !== "categories")
+        : SEARCH_TABS.filter((tab) => tab === "channels"),
     [showCategories, showSearchTabs]
   );
   const { history, addSearch, removeSearch } = useSearchHistory(activeTab);
@@ -647,7 +655,7 @@ export function UnifiedSearchInput({
         <input
           ref={inputRef}
           type="text"
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           className={cn(
             "w-full h-9 pl-10 pr-9 rounded-full bg-neutral-800 border border-neutral-700 text-sm font-bold text-white placeholder:text-neutral-300 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white transition-[border-color,box-shadow]",
             inputClassName
@@ -672,7 +680,7 @@ export function UnifiedSearchInput({
                 "p-1 transition-colors hover:text-white",
                 isFocused ? "text-white" : "text-[var(--color-foreground-muted)]"
               )}
-              title="Clear search"
+              title={t("discovery.search.clear")}
               type="button"
             >
               <LuX size={16} />
@@ -738,23 +746,23 @@ export function UnifiedSearchInput({
                 gridTemplateColumns: `repeat(${visibleSearchTabs.length}, minmax(0, 1fr))`,
               }}
               role="tablist"
-              aria-label="Search type"
+              aria-label={t("discovery.search.searchType")}
             >
               {visibleSearchTabs.map((tab) => (
                 <button
-                  key={tab.id}
+                  key={tab}
                   type="button"
                   role="tab"
-                  aria-selected={activeTab === tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  aria-selected={activeTab === tab}
+                  onClick={() => setActiveTab(tab)}
                   className={cn(
                     "h-8 rounded-lg px-2 text-xs font-bold transition-colors",
-                    activeTab === tab.id
+                    activeTab === tab
                       ? "bg-[var(--color-background-tertiary)] text-white"
                       : "text-[var(--color-foreground-muted)] hover:bg-[var(--color-background-secondary)] hover:text-white"
                   )}
                 >
-                  {tab.label}
+                  {t(`discovery.search.tabs.${tab}`)}
                 </button>
               ))}
             </div>
@@ -781,8 +789,8 @@ export function UnifiedSearchInput({
                   <button
                     onClick={() => removeSearch(term)}
                     className="flex size-8 shrink-0 items-center justify-center rounded text-white/70 transition-colors hover:bg-[var(--color-background-tertiary)] hover:text-white"
-                    title="Remove from history"
-                    aria-label={`Remove "${term}" from history`}
+                    title={t("discovery.search.removeHistory")}
+                    aria-label={t("discovery.search.removeTerm", { term })}
                     type="button"
                   >
                     <LuX size={20} strokeWidth={2.5} />
@@ -796,7 +804,7 @@ export function UnifiedSearchInput({
           {showChannelResults && filteredTopMatches.length > 0 && (
             <div className={cn("py-2", showHistory && "border-t border-[var(--color-border)]")}>
               <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-storm-primary)] uppercase tracking-wider flex items-center gap-2">
-                <LuSparkles size={12} /> Best Match
+                <LuSparkles size={12} /> {t("discovery.searchResults.bestMatch")}
               </h3>
               {filteredTopMatches.map((channel) => (
                 <ChannelItem
@@ -822,7 +830,8 @@ export function UnifiedSearchInput({
               )}
             >
               <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-foreground-muted)] uppercase tracking-wider flex items-center gap-2">
-                <LuUser size={12} /> {activeTab === "streams" ? "Streams" : "Channels"}
+                <LuUser size={12} />{" "}
+                {t(`discovery.search.tabs.${activeTab === "streams" ? "streams" : "channels"}`)}
               </h3>
               {filteredOtherMatches.map((channel) => (
                 <ChannelItem
@@ -867,7 +876,7 @@ export function UnifiedSearchInput({
           {showCategoryResults && (dedupedCategories.length > 0 || categoriesLoading) && (
             <div className={cn("py-2 border-t border-[var(--color-border)]")}>
               <h3 className="px-4 py-1.5 text-xs font-bold text-[var(--color-foreground-muted)] uppercase tracking-wider flex items-center gap-2">
-                <LuLayoutGrid size={12} /> Categories
+                <LuLayoutGrid size={12} /> {t("discovery.search.tabs.categories")}
               </h3>
               {dedupedCategories.map((category) => (
                 <CategoryItem
@@ -906,7 +915,7 @@ export function UnifiedSearchInput({
                 className="w-full py-2 text-sm font-bold text-[var(--color-storm-primary)] hover:underline flex items-center justify-center gap-1"
               >
                 <LuSearch size={14} />
-                {`See all results for "${searchQuery}"`}
+                {t("discovery.search.seeAll", { query: searchQuery })}
               </button>
             </div>
           )}

@@ -3,6 +3,7 @@ import { useMemo } from "react";
 
 import type { UnifiedClip, UnifiedVideo } from "@shared/platform-types";
 import { formatDuration } from "@/lib/utils";
+import { i18n } from "@/i18n";
 import type { CategoryPlatformScope } from "@/features/discovery/routes/category-detail-search";
 import type { Platform } from "@shared/auth-types";
 import type { CategoryMediaItem as IpcCategoryMediaItem } from "@shared/category-media-types";
@@ -160,7 +161,9 @@ function usePlatformCategoryMedia(
     ],
     queryFn: async ({ pageParam }): Promise<{ items: CategoryMediaItem[]; cursor?: string }> => {
       if (!hasUsableCategoryIdentity(source)) {
-        throw new Error(`Missing ${source.platform} category identity`);
+        throw new Error(
+          i18n.t("discovery.category.missingIdentity", { platform: source.platform })
+        );
       }
       // Let both Platform observers enter their loading state before either IPC
       // request resolves so the first combined paint cannot expose a half-feed.
@@ -198,7 +201,13 @@ function usePlatformCategoryMedia(
         !response.success ||
         (response.availability !== undefined && response.availability !== "available")
       ) {
-        throw new Error(response.error || `Failed to load ${source.platform} ${kind}`);
+        throw new Error(
+          response.error ||
+            i18n.t("discovery.category.mediaLoadFailed", {
+              platform: source.platform,
+              kind,
+            })
+        );
       }
 
       return {

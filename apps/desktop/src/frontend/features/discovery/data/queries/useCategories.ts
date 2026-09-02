@@ -8,6 +8,7 @@ import {
 import { useCallback, useMemo, useRef } from "react";
 
 import type { UnifiedCategory } from "../../../../../shared/platform-types";
+import { i18n } from "@/i18n";
 import {
   getEquivalentCategoryName,
   normalizeCategoryName,
@@ -381,7 +382,7 @@ export function useTopCategories(platform?: Platform, options: { enabled?: boole
       const cached = queryClient.getQueryData<UnifiedCategory[]>(queryKey);
       if (cached?.length) return cached;
       if (fullCatalog.length > 0) return fullCatalog;
-      throw new Error("Couldn’t load categories from Twitch or Kick");
+      throw new Error(i18n.t("discovery.loadCategoriesError"));
     },
     ...getQueryCacheOptions("categories"),
     refetchOnWindowFocus: false,
@@ -546,7 +547,7 @@ export function useInfiniteTopCategories() {
 
   return {
     data,
-    error: isError ? new Error("Couldn’t load categories from Twitch or Kick") : null,
+    error: isError ? new Error(i18n.t("discovery.loadCategoriesError")) : null,
     fetchNextPage,
     fetchStatus:
       twitchQuery.fetchStatus === "fetching" || kickQuery.fetchStatus === "fetching"

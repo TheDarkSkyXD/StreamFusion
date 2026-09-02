@@ -1,5 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { LuHeart, LuRefreshCw } from "react-icons/lu";
 import { toast } from "sonner";
 
@@ -44,6 +45,7 @@ function getActiveStreamRoute(pathname: string): { platform: string; channel: st
 }
 
 export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
+  const { t } = useTranslation();
   // Use individual selectors to prevent re-renders when unrelated state changes
   const twitchConnected = useAuthStore((state) => state.twitchConnected);
   const kickConnected = useAuthStore((state) => state.kickConnected);
@@ -75,8 +77,8 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
   );
   const hasConnectedPlatforms = connectedPlatforms.length > 0;
   const followSyncTitle = useMemo(() => {
-    if (!hasConnectedPlatforms) return "Connect Twitch or Kick to sync follows";
-    if (followSyncInProgress) return "Syncing follows";
+    if (!hasConnectedPlatforms) return t("shell.sidebar.connectToSync");
+    if (followSyncInProgress) return t("shell.sidebar.syncing");
 
     const oldestSynced = connectedPlatforms
       .map((platform) => ({ platform, syncedAt: followSyncLastSyncedAt[platform] }))
@@ -84,15 +86,20 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
       .sort((a, b) => new Date(a.syncedAt).getTime() - new Date(b.syncedAt).getTime())[0];
 
     if (!oldestSynced) {
-      return `Sync follows with ${connectedPlatforms.map((p) => PLATFORM_LABELS[p]).join(" and ")}`;
+      return t("shell.sidebar.syncWith", {
+        platforms: connectedPlatforms.map((p) => PLATFORM_LABELS[p]).join(" and "),
+      });
     }
 
     const syncedTime = new Intl.DateTimeFormat(undefined, {
       hour: "numeric",
       minute: "2-digit",
     }).format(new Date(oldestSynced.syncedAt));
-    return `${PLATFORM_LABELS[oldestSynced.platform]} last synced ${syncedTime}. Sync follows`;
-  }, [connectedPlatforms, followSyncInProgress, followSyncLastSyncedAt, hasConnectedPlatforms]);
+    return t("shell.sidebar.lastSynced", {
+      platform: PLATFORM_LABELS[oldestSynced.platform],
+      time: syncedTime,
+    });
+  }, [connectedPlatforms, followSyncInProgress, followSyncLastSyncedAt, hasConnectedPlatforms, t]);
 
   const handleSyncFollows = async () => {
     if (!hasConnectedPlatforms || followSyncInProgress) return;
@@ -100,15 +107,17 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     const result = await syncConnectedFollows();
     if (result.failed.length > 0) {
       const kickReason = result.failureReasons?.kick;
-      toast("Couldn't sync follows", {
+      toast(t("shell.sidebar.syncFailed"), {
         description:
           kickReason === "kick-web-account-mismatch"
-            ? "The Kick website is signed into a different account. Sign into the same Kick account and try again. Existing follows were preserved."
+            ? t("shell.sidebar.accountMismatch")
             : kickReason === "web-session-required"
-              ? "Kick website sign-in was not completed. Try Sync follows again when you're ready. Existing follows were preserved."
-              : `Failed to sync ${result.failed
-                  .map((platform) => PLATFORM_LABELS[platform])
-                  .join(" and ")}. Existing follows were preserved.`,
+              ? t("shell.sidebar.webSessionRequired")
+              : t("shell.sidebar.failedToSync", {
+                  platforms: result.failed
+                    .map((platform) => PLATFORM_LABELS[platform])
+                    .join(" and "),
+                }),
       });
     }
   };
@@ -117,7 +126,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     hasConnectedPlatforms ? (
       <button
         type="button"
-        aria-label="Sync follows"
+        aria-label={t("shell.sidebar.sync")}
         title={followSyncTitle}
         disabled={followSyncInProgress}
         onClick={handleSyncFollows}
@@ -287,7 +296,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     return (
       <div
         role="status"
-        aria-label="Loading followed channels"
+        aria-label={t("shell.sidebar.loading")}
         data-testid="sidebar-follows"
         data-loading="true"
         className={cn(
@@ -329,8 +338,8 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
           <div className="flex w-16 justify-center p-2" data-testid="sidebar-follows">
             <button
               type="button"
-              aria-label="Retry loading follows"
-              title="Couldn’t load follows. Try again"
+              aria-label={t("shell.sidebar.retry")}
+              title={t("shell.sidebar.retryTitle")}
               onClick={retryFailedQueries}
               className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-foreground-muted)] transition-colors hover:bg-[var(--color-background-tertiary)] hover:text-white"
             >
@@ -345,15 +354,17 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
           className="flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden"
           data-testid="sidebar-follows"
         >
-          <div className="px-3 py-2 font-bold text-white tracking-wider">Following</div>
+          <div className="px-3 py-2 font-bold text-white tracking-wider">
+            {t("shell.sidebar.following")}
+          </div>
           <div
             role="status"
             aria-live="polite"
             className="m-2 rounded-md border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-[var(--color-foreground)]"
           >
-            <p className="font-semibold text-white">Couldn’t load follows</p>
+            <p className="font-semibold text-white">{t("shell.sidebar.loadError")}</p>
             <p className="mt-1 text-[var(--color-foreground-muted)]">
-              Your follows were not changed. Check your connection and try again.
+              {t("discovery.following.checkConnection")}
             </p>
             <button
               type="button"
@@ -361,7 +372,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
               className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-white/10 px-2.5 py-1.5 font-semibold text-white transition-colors hover:bg-white/15"
             >
               <LuRefreshCw className="h-3.5 w-3.5" />
-              Try again
+              {t("shell.sidebar.retry")}
             </button>
           </div>
         </div>
@@ -384,7 +395,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
         data-testid="sidebar-follows"
       >
         <div className="px-3 py-2 font-bold text-white tracking-wider flex justify-between items-center">
-          <span className="text-base">Following</span>
+          <span className="text-base">{t("shell.sidebar.following")}</span>
           <div className="flex items-center gap-1.5">
             {renderSyncButton(false)}
             <span className="bg-[var(--color-background-tertiary)] text-[var(--color-foreground)] px-1.5 py-0.5 rounded text-xs">
@@ -394,7 +405,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
         </div>
         <div className="p-4 text-center text-[var(--color-foreground-muted)] text-xs">
           <LuHeart className="w-8 h-8 mx-auto mb-2 opacity-20" />
-          <p>Follow channels to see them here</p>
+          <p>{t("shell.sidebar.empty")}</p>
         </div>
       </div>
     );
@@ -407,7 +418,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
     >
       {!collapsed && (
         <div className="px-3 py-2 font-bold text-white tracking-wider flex justify-between items-center">
-          <span className="text-base">Following</span>
+          <span className="text-base">{t("shell.sidebar.following")}</span>
           <div className="flex items-center gap-1.5">
             {renderSyncButton(false)}
             <span className="bg-[var(--color-background-tertiary)] text-[var(--color-foreground)] px-1.5 py-0.5 rounded text-xs">
@@ -430,13 +441,13 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
               role="status"
               className="mb-2 flex items-center justify-between gap-2 rounded-md border border-amber-400/25 bg-amber-400/10 px-2 py-1.5 text-xs text-amber-100"
             >
-              <span>Some follows may be out of date.</span>
+              <span>{t("shell.sidebar.stale")}</span>
               <button
                 type="button"
                 onClick={retryFailedQueries}
                 className="shrink-0 rounded px-1.5 py-1 font-semibold text-white hover:bg-white/10"
               >
-                Retry
+                {t("shell.sidebar.retry")}
               </button>
             </div>
           )}
@@ -510,7 +521,10 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
                       <div className="mt-0.5 flex min-w-0 items-center text-xs font-bold">
                         <span
                           className="inline-flex shrink-0 items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[11px] font-extrabold leading-none tabular-nums text-white ring-1 ring-white/10"
-                          title={`${stream.viewerCount.toLocaleString()} viewers`}
+                          title={t("shell.sidebar.viewers", {
+                            count: stream.viewerCount,
+                            formattedCount: stream.viewerCount.toLocaleString(),
+                          })}
                         >
                           <span
                             className={cn(
@@ -587,7 +601,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
                             : "text-[var(--color-foreground-muted)]"
                         )}
                       >
-                        Offline
+                        {t("discovery.offline")}
                       </span>
                     </div>
                   )}
@@ -606,7 +620,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
               onClick={handleShowMore}
               className="text-xs font-bold text-[var(--color-primary)] text-left mr-auto cursor-pointer"
             >
-              Show More
+              {t("shell.sidebar.showMore")}
             </button>
           )}
           {visibleCount > 10 && (
@@ -614,7 +628,7 @@ export function SidebarFollows({ collapsed }: SidebarFollowsProps) {
               onClick={handleShowLess}
               className="text-xs font-bold text-[var(--color-primary)] text-right ml-auto cursor-pointer"
             >
-              Show Less
+              {t("shell.sidebar.showLess")}
             </button>
           )}
         </div>

@@ -8,7 +8,9 @@
  */
 
 import type React from "react";
+import type { TFunction } from "i18next";
 import { LuLock, LuLogIn, LuUser } from "react-icons/lu";
+import { useTranslation } from "react-i18next";
 
 import { useAuthStore } from "@/store/auth-store";
 
@@ -24,6 +26,7 @@ interface GuestBadgeProps {
  * Badge that indicates the user is in guest mode
  */
 export function GuestBadge({ size = "md", showIcon = true, className = "" }: GuestBadgeProps) {
+  const { t } = useTranslation();
   const isGuest = useAuthStore((state) => state.isGuest);
 
   if (!isGuest) return null;
@@ -45,7 +48,7 @@ export function GuestBadge({ size = "md", showIcon = true, className = "" }: Gue
       className={`inline-flex items-center rounded-full bg-[var(--color-background-tertiary)] text-[var(--color-foreground-muted)] font-medium ${sizeClasses[size]} ${className}`}
     >
       {showIcon && <LuUser size={iconSizes[size]} />}
-      Guest
+      {t("auth.guest")}
     </span>
   );
 }
@@ -70,46 +73,71 @@ export type GatedFeature =
 /**
  * Feature descriptions for login prompts
  */
-const featureDescriptions: Record<GatedFeature, { title: string; description: string }> = {
+type FeatureTranslationKey =
+  | "auth.sendChatMessages"
+  | "auth.moderateChat"
+  | "auth.syncFollows"
+  | "auth.followOnPlatform"
+  | "auth.channelPoints"
+  | "auth.subscriptions"
+  | "auth.predictions"
+  | "auth.polls"
+  | "auth.createClips"
+  | "auth.liveNotifications"
+  | "auth.featureDescriptions.chatSend"
+  | "auth.featureDescriptions.chatModerate"
+  | "auth.featureDescriptions.followSync"
+  | "auth.featureDescriptions.followPlatform"
+  | "auth.featureDescriptions.channelPoints"
+  | "auth.featureDescriptions.subscriptions"
+  | "auth.featureDescriptions.predictions"
+  | "auth.featureDescriptions.polls"
+  | "auth.featureDescriptions.clipsCreate"
+  | "auth.featureDescriptions.notificationsLive";
+
+const featureDescriptions: Record<
+  GatedFeature,
+  { title: FeatureTranslationKey; description: FeatureTranslationKey }
+> = {
   "chat:send": {
-    title: "Send Chat Messages",
-    description: "Connect your account to chat with the community.",
+    title: "auth.sendChatMessages",
+    description: "auth.featureDescriptions.chatSend",
   },
   "chat:moderate": {
-    title: "Moderate Chat",
-    description: "Connect your account to use moderation features.",
+    title: "auth.moderateChat",
+    description: "auth.featureDescriptions.chatModerate",
   },
   "follow:sync": {
-    title: "Sync Follows",
-    description: "Connect your account to sync your followed channels.",
+    title: "auth.syncFollows",
+    description: "auth.featureDescriptions.followSync",
   },
   "follow:platform": {
-    title: "Follow on Platform",
-    description: "Connect your account to follow channels directly on Twitch or Kick.",
+    title: "auth.followOnPlatform",
+    description: "auth.featureDescriptions.followPlatform",
   },
   "channel-points": {
-    title: "Channel Points",
-    description: "Connect your Twitch account to collect and use channel points.",
+    title: "auth.channelPoints",
+    description: "auth.featureDescriptions.channelPoints",
   },
   subscriptions: {
-    title: "Subscriptions",
-    description: "Connect your account to manage your subscriptions.",
+    title: "auth.subscriptions",
+    description: "auth.featureDescriptions.subscriptions",
   },
   predictions: {
-    title: "Predictions",
-    description: "Connect your account to participate in predictions.",
+    title: "auth.predictions",
+    description: "auth.featureDescriptions.predictions",
   },
   polls: {
-    title: "Polls",
-    description: "Connect your account to vote in polls.",
+    title: "auth.polls",
+    description: "auth.featureDescriptions.polls",
   },
   "clips:create": {
-    title: "Create Clips",
-    description: "Connect your account to create clips.",
+    title: "auth.createClips",
+    description: "auth.featureDescriptions.clipsCreate",
   },
   "notifications:live": {
-    title: "Live Notifications",
-    description: "Connect your account to get notified when channels go live.",
+    title: "auth.liveNotifications",
+    description: "auth.featureDescriptions.notificationsLive",
   },
 };
 
@@ -124,8 +152,9 @@ function requiresAuth(_feature: GatedFeature): boolean {
 /**
  * Get the description for a gated feature
  */
-function getFeatureDescription(feature: GatedFeature) {
-  return featureDescriptions[feature];
+function getFeatureDescription(feature: GatedFeature, t: TFunction) {
+  const description = featureDescriptions[feature];
+  return { title: t(description.title), description: t(description.description) };
 }
 
 // ========== Login Prompt ==========
@@ -150,13 +179,13 @@ function LoginPrompt({
   onLoginClick,
   className = "",
 }: LoginPromptProps) {
+  const { t } = useTranslation();
   const loginTwitch = useAuthStore((state) => state.loginTwitch);
   const loginKick = useAuthStore((state) => state.loginKick);
 
-  const featureInfo = feature ? getFeatureDescription(feature) : null;
-  const displayTitle = title || featureInfo?.title || "Login Required";
-  const displayDescription =
-    description || featureInfo?.description || "Connect your account to access this feature.";
+  const featureInfo = feature ? getFeatureDescription(feature, t) : null;
+  const displayTitle = title || featureInfo?.title || t("auth.loginRequired");
+  const displayDescription = description || featureInfo?.description || t("auth.connectForFeature");
 
   const handleLoginClick = () => {
     if (onLoginClick) {
@@ -171,7 +200,7 @@ function LoginPrompt({
         className={`inline-flex items-center gap-1.5 text-sm text-[var(--color-storm-primary)] hover:text-[var(--color-storm-primary-hover)] transition-colors ${className}`}
       >
         <LuLogIn size={14} />
-        <span>Login to {displayTitle.toLowerCase()}</span>
+        <span>{t("auth.loginTo", { title: displayTitle.toLowerCase() })}</span>
       </button>
     );
   }
@@ -198,7 +227,7 @@ function LoginPrompt({
               <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
                 <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z" />
               </svg>
-              Connect Twitch
+              {t("auth.connectTwitch")}
             </button>
             <button
               onClick={() => {
@@ -210,7 +239,7 @@ function LoginPrompt({
               <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
                 <path d="M9 3a1 1 0 0 1 1 1v3h1v-1a1 1 0 0 1 .883 -.993l.117 -.007h1v-1a1 1 0 0 1 .883 -.993l.117 -.007h6a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-1v1a1 1 0 0 1 -.883 .993l-.117 .007h-1v2h1a1 1 0 0 1 .993 .883l.007 .117v1h1a1 1 0 0 1 .993 .883l.007 .117v4a1 1 0 0 1 -1 1h-6a1 1 0 0 1 -1 -1v-1h-1a1 1 0 0 1 -.993 -.883l-.007 -.117v-1h-1v3a1 1 0 0 1 -.883 .993l-.117 .007h-5a1 1 0 0 1 -1 -1v-16a1 1 0 0 1 1 -1z" />
               </svg>
-              Connect Kick
+              {t("auth.connectKick")}
             </button>
           </div>
         </div>
@@ -260,6 +289,7 @@ interface GuestWelcomeBannerProps {
  * Welcome banner for guests with login CTA
  */
 function GuestWelcomeBanner({ onDismiss, className = "" }: GuestWelcomeBannerProps) {
+  const { t } = useTranslation();
   const isGuest = useAuthStore((state) => state.isGuest);
   const loginTwitch = useAuthStore((state) => state.loginTwitch);
   const loginKick = useAuthStore((state) => state.loginKick);
@@ -272,10 +302,9 @@ function GuestWelcomeBanner({ onDismiss, className = "" }: GuestWelcomeBannerPro
     >
       <div className="flex items-center justify-between gap-4">
         <div className="flex-1">
-          <h3 className="text-lg font-semibold text-white mb-1">Welcome to StreamFusion! 👋</h3>
+          <h3 className="text-lg font-semibold text-white mb-1">{t("auth.welcome")}</h3>
           <p className="text-sm text-[var(--color-foreground-muted)]">
-            Connect your Twitch or Kick account to unlock all features like chat, follows sync, and
-            more.
+            {t("auth.welcomeDescription")}
           </p>
         </div>
         <div className="flex-shrink-0 flex gap-2">
@@ -283,13 +312,13 @@ function GuestWelcomeBanner({ onDismiss, className = "" }: GuestWelcomeBannerPro
             onClick={loginTwitch}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-[#9146FF] hover:bg-[#772CE8] text-white transition-colors"
           >
-            Connect Twitch
+            {t("auth.connectTwitch")}
           </button>
           <button
             onClick={loginKick}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium bg-[#53FC18] hover:bg-[#45d414] text-black transition-colors"
           >
-            Connect Kick
+            {t("auth.connectKick")}
           </button>
         </div>
       </div>
@@ -297,7 +326,7 @@ function GuestWelcomeBanner({ onDismiss, className = "" }: GuestWelcomeBannerPro
         <button
           onClick={onDismiss}
           className="absolute top-2 right-2 p-1 rounded-full text-[var(--color-foreground-muted)] hover:text-white hover:bg-white/10 transition-colors"
-          aria-label="Dismiss"
+          aria-label={t("auth.dismiss")}
         >
           <svg
             width="16"

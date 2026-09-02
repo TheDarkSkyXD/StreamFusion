@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { LuSearch } from "react-icons/lu";
 
 import {
@@ -34,6 +35,7 @@ export function CategoryFilterBar({
   showViewerSort = true,
   compact = false,
 }: Props) {
+  const { t } = useTranslation();
   const [tagInput, setTagInput] = useState(tagQuery);
   const languageOptions = useMemo(
     () =>
@@ -54,13 +56,13 @@ export function CategoryFilterBar({
         onValueChange={(v) => onLanguageChange(v === ALL_LANGUAGES ? "" : v)}
       >
         <SelectTrigger
-          aria-label="Language"
+          aria-label={t("discovery.language")}
           className={compact ? "h-8 min-w-[132px] w-auto px-2.5 text-xs" : "min-w-[160px] w-auto"}
         >
-          <SelectValue placeholder="All languages" />
+          <SelectValue placeholder={t("discovery.allLanguages")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ALL_LANGUAGES}>All languages</SelectItem>
+          <SelectItem value={ALL_LANGUAGES}>{t("discovery.allLanguages")}</SelectItem>
           {languageOptions.map((opt) => (
             <SelectItem key={opt.code} value={opt.code}>
               {opt.name}
@@ -75,26 +77,26 @@ export function CategoryFilterBar({
           aria-hidden="true"
         />
         <input
-          aria-label="Tag"
+          aria-label={t("discovery.tag")}
           type="text"
           value={tagInput}
           onChange={(e) => {
             setTagInput(e.target.value);
             onTagQueryChange(e.target.value);
           }}
-          placeholder="Search tags…"
+          placeholder={t("discovery.searchTags")}
           className={`${compact ? "h-8 pl-8 pr-2.5 text-xs" : "h-9 pl-9 pr-3 text-sm"} w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background-tertiary)] shadow-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500`}
         />
       </div>
 
       {showViewerSort && (
         <Select value={sortOrder} onValueChange={(v) => onSortOrderChange(v as "desc" | "asc")}>
-          <SelectTrigger aria-label="Viewer sort" className="min-w-[160px] w-auto">
+          <SelectTrigger aria-label={t("discovery.viewerSort")} className="min-w-[160px] w-auto">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="desc">Most viewers</SelectItem>
-            <SelectItem value="asc">Fewest viewers</SelectItem>
+            <SelectItem value="desc">{t("discovery.mostViewers")}</SelectItem>
+            <SelectItem value="asc">{t("discovery.fewestViewers")}</SelectItem>
           </SelectContent>
         </Select>
       )}

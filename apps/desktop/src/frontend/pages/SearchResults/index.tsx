@@ -1,5 +1,6 @@
 import { Link, useSearch } from "@tanstack/react-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { LuClapperboard, LuPlay } from "react-icons/lu";
 
 import type { UnifiedChannel, UnifiedClip, UnifiedVideo } from "@shared/platform-types";
@@ -19,7 +20,7 @@ import {
   useSearchStreams,
   useSearchVideos,
 } from "@/features/discovery/data/queries/useSearch";
-import { cn, formatDuration } from "@/lib/utils";
+import { cn, formatDuration, formatViewerCount } from "@/lib/utils";
 import {
   isExactChannelSearchMatch,
   rankSearchChannels,
@@ -88,6 +89,7 @@ function InfiniteSearchSentinel({
 }
 
 function SearchVideoCard({ video }: { video: UnifiedVideo }) {
+  const { t } = useTranslation();
   const [thumbnailFailed, setThumbnailFailed] = React.useState(!video.thumbnailUrl.trim());
 
   if (thumbnailFailed) return null;
@@ -136,8 +138,11 @@ function SearchVideoCard({ video }: { video: UnifiedVideo }) {
               {video.channelDisplayName}
             </p>
             <p className="text-xs text-[var(--color-foreground-muted)] mt-1">
-              {(video.viewCount || 0).toLocaleString()} views •{" "}
-              {new Date(video.publishedAt).toLocaleDateString()}
+              {t("discovery.viewers", {
+                count: video.viewCount || 0,
+                formattedCount: formatViewerCount(video.viewCount || 0),
+              })}{" "}
+              • {new Date(video.publishedAt).toLocaleDateString()}
             </p>
           </div>
         </div>
@@ -148,6 +153,7 @@ function SearchVideoCard({ video }: { video: UnifiedVideo }) {
 
 // Platform-agnostic unified search
 export function SearchPage() {
+  const { t } = useTranslation();
   const search = useSearch({ from: "/_app/search" });
   const q = search.q;
   const [activeTab, setActiveTab] = React.useState<SearchTab>("all");
@@ -383,14 +389,14 @@ export function SearchPage() {
         } else if (selectedClip.platform === "twitch") {
           setClipPlaybackUrl(null);
         } else {
-          setClipError(result?.error || "Failed to load clip");
+          setClipError(result?.error || t("discovery.searchResults.clipPlaybackError"));
         }
       } catch (_error) {
         if (cancelled) return;
         if (selectedClip.platform === "twitch") {
           setClipPlaybackUrl(null);
         } else {
-          setClipError("Failed to load clip");
+          setClipError(t("discovery.searchResults.clipPlaybackError"));
         }
       } finally {
         if (!cancelled) setClipLoading(false);
@@ -401,7 +407,7 @@ export function SearchPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedClip]);
+  }, [selectedClip, t]);
 
   // Identify Best Matches from Filtered Results
   const { topMatches, otherMatches } = React.useMemo(() => {
@@ -456,9 +462,11 @@ export function SearchPage() {
             <path d="m21 21-4.3-4.3" />
           </svg>
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2">Search StreamFusion</h2>
+        <h2 className="text-2xl font-bold text-white mb-2">
+          {t("discovery.searchResults.emptyTitle")}
+        </h2>
         <p className="text-[var(--color-foreground-secondary)] max-w-sm">
-          Search for your favorite channels, streams, and categories across Twitch and Kick.
+          {t("discovery.searchResults.emptyDescription")}
         </p>
       </div>
     );
@@ -524,9 +532,11 @@ export function SearchPage() {
       <div className="space-y-4">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">
-            Search Results for "<span className="text-[var(--color-storm-primary)]">{q}</span>"
+            {t("discovery.searchResults.heading", { query: q })}
           </h1>
-          <p className="text-[var(--color-foreground-muted)]">Found {totalResults} results</p>
+          <p className="text-[var(--color-foreground-muted)]">
+            {t("discovery.searchResults.found", { count: totalResults })}
+          </p>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-[var(--color-background-secondary)]/30 p-4 rounded-xl border border-[var(--color-border)]">
@@ -558,6 +568,7 @@ export function SearchPage() {
             <div className="flex items-center gap-1 bg-black/20 p-1 rounded-lg border border-[var(--color-border)]">
               <button
                 onClick={() => setPlatformFilter("all")}
+                aria-label={t("discovery.all").toUpperCase()}
                 className={cn(
                   "px-3 py-1 text-xs font-bold rounded-md transition-colors",
                   platformFilter === "all"
@@ -565,7 +576,7 @@ export function SearchPage() {
                     : "text-[var(--color-foreground-muted)] hover:text-white"
                 )}
               >
-                ALL
+                {t("discovery.all")}
               </button>
               <button
                 onClick={() => setPlatformFilter("twitch")}
@@ -576,7 +587,7 @@ export function SearchPage() {
                     : "text-[var(--color-foreground-muted)] hover:text-[#9146FF]"
                 )}
               >
-                TWITCH
+                Twitch
               </button>
               <button
                 onClick={() => setPlatformFilter("kick")}
@@ -587,7 +598,7 @@ export function SearchPage() {
                     : "text-[var(--color-foreground-muted)] hover:text-[#53FC18]"
                 )}
               >
-                KICK
+                Kick
               </button>
             </div>
 
@@ -602,7 +613,7 @@ export function SearchPage() {
               )}
             >
               <div className={cn("w-2 h-2 rounded-full bg-current", liveOnly && "animate-pulse")} />
-              LIVE ONLY
+              {t("discovery.searchResults.liveOnly")}
             </button>
           </div>
         </div>
@@ -610,14 +621,14 @@ export function SearchPage() {
 
       {(activeTab === "videos" || activeTab === "clips") && (
         <p className="text-sm text-[var(--color-foreground-muted)]">
-          Recent content from matching channels.
+          {t("discovery.searchResults.recentContent")}
         </p>
       )}
 
       {activeLoading && (activeTab === "videos" || activeTab === "clips") && (
         <div
           className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-          aria-label={`Loading ${activeTab}`}
+          aria-label={t("discovery.category.loadingMedia", { kind: activeTab })}
         >
           {Array.from({ length: 6 }).map((_, index) => (
             <Skeleton key={`${activeTab}-loading-${index}`} className="aspect-video rounded-xl" />
@@ -629,7 +640,7 @@ export function SearchPage() {
       {showTopMatches && (
         <section>
           <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            Best Matches
+            {t("discovery.searchResults.bestMatches")}
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {visibleTopMatches.map((channel) => (
@@ -667,7 +678,7 @@ export function SearchPage() {
                 />
                 {channel.isLive && (
                   <span className="mt-1 px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 text-[10px] font-bold uppercase tracking-wider border border-red-500/20">
-                    Live
+                    {t("discovery.live")}
                   </span>
                 )}
               </Link>
@@ -679,7 +690,9 @@ export function SearchPage() {
       {/* CHANNELS SECTION */}
       {(showChannels || showChannelLoading) && (
         <section>
-          <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">Channels</h2>
+          <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+            {t("discovery.channels")}
+          </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {visibleOtherMatches.map((channel) => (
               <Link
@@ -716,7 +729,7 @@ export function SearchPage() {
                 />
                 {channel.isLive && (
                   <span className="mt-1 px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 text-[10px] font-bold uppercase tracking-wider border border-red-500/20">
-                    Live
+                    {t("discovery.live")}
                   </span>
                 )}
               </Link>
@@ -742,7 +755,7 @@ export function SearchPage() {
         <section>
           {!activeLoading && showCategories && (
             <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-              Categories
+              {t("discovery.categories")}
             </h2>
           )}
           {activeLoading && <Skeleton className="h-8 w-32 mb-4" />}
@@ -762,7 +775,9 @@ export function SearchPage() {
         (activeTab === "streams" && activeLoading)) && (
         <section>
           {!activeLoading && showStreams && (
-            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">Streams</h2>
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              {t("discovery.streams")}
+            </h2>
           )}
           {activeLoading && <Skeleton className="h-8 w-32 mb-4" />}
 
@@ -779,7 +794,7 @@ export function SearchPage() {
       {showVideos && (
         <section>
           <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <LuPlay className="w-5 h-5 text-[var(--color-storm-primary)]" /> Videos
+            <LuPlay className="w-5 h-5 text-[var(--color-storm-primary)]" /> {t("discovery.videos")}
           </h2>
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {visibleVideos.map((video: UnifiedVideo) => (
@@ -793,7 +808,7 @@ export function SearchPage() {
       {showClips && (
         <section>
           <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-            <LuClapperboard className="w-5 h-5 text-white" /> Clips
+            <LuClapperboard className="w-5 h-5 text-white" /> {t("discovery.clips")}
           </h2>
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
             {visibleClips.map((clip: UnifiedClip) => (
@@ -835,7 +850,10 @@ export function SearchPage() {
                         {clip.channelDisplayName}
                       </p>
                       <p className="text-xs text-[var(--color-foreground-muted)] mt-0.5">
-                        {(clip.viewCount || 0).toLocaleString()} views
+                        {t("discovery.viewers", {
+                          count: clip.viewCount || 0,
+                          formattedCount: formatViewerCount(clip.viewCount || 0),
+                        })}
                       </p>
                     </div>
                   </div>
@@ -867,10 +885,10 @@ export function SearchPage() {
       {activeQuerySettled && !activeHasResults && (
         <div className="text-center py-20 bg-[var(--color-background-secondary)]/30 rounded-2xl border border-[var(--color-border)] border-dashed">
           <p className="text-xl text-[var(--color-foreground-secondary)] font-medium">
-            No results found for "{q}"
+            {t("discovery.searchResults.noResults", { query: q })}
           </p>
           <p className="text-[var(--color-foreground-muted)] mt-2">
-            Try adjusting your filters or checking your spelling.
+            {t("discovery.searchResults.adjustFilters")}
           </p>
         </div>
       )}
@@ -885,7 +903,7 @@ export function SearchPage() {
             platform={selectedClip.platform}
             channelName={selectedClip.channelName}
             channelData={null}
-            onPlaybackError={() => setClipError("Failed to play clip")}
+            onPlaybackError={() => setClipError(t("discovery.searchResults.clipPlaybackFailed"))}
           />
         </React.Suspense>
       )}

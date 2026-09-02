@@ -2,6 +2,7 @@ import { type QueryClient, queryOptions, useQuery } from "@tanstack/react-query"
 import { useEffect, useRef } from "react";
 
 import { dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
+import { i18n } from "@/i18n";
 import { logger } from "@/renderer/logging/logger";
 
 import type { UnifiedChannel, UnifiedStream } from "../../../../../shared/platform-types";
@@ -31,7 +32,7 @@ const KICK_CHANNEL_STATUS_REFETCH_INTERVAL_MS = 10_000;
 
 class StreamStatusRateLimitError extends Error {
   constructor(readonly retryAfterMs: number) {
-    super("Stream status refresh paused for platform rate limit");
+    super(i18n.t("discovery.streamStatusRateLimited"));
     this.name = "StreamStatusRateLimitError";
   }
 }
@@ -85,7 +86,7 @@ export function useTopStreams(platform?: Platform, limit: number = 20) {
       if (!response.success) throw new Error(response.error);
       const complete = hasCompleteDiscoveryCoverage(response.providers, platform);
       if (!complete && response.data.length === 0) {
-        throw new Error("Stream providers are temporarily unavailable");
+        throw new Error(i18n.t("discovery.streamProvidersUnavailable"));
       }
       if (complete) {
         const persistence =
@@ -144,7 +145,7 @@ export function useFollowedStreams(
       }
       const complete = hasCompleteDiscoveryCoverage(response.providers, platform);
       if (!complete && response.data.length === 0) {
-        throw new Error("Followed stream providers are temporarily unavailable");
+        throw new Error(i18n.t("discovery.followedStreamProvidersUnavailable"));
       }
       const streams = dedupeStreamsByChannelIdentity(response.data as UnifiedStream[]);
       successfulResultRef.current = complete ? { data: streams, sourceIdentityKey } : undefined;

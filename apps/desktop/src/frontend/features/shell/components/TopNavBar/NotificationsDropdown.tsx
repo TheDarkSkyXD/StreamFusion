@@ -1,25 +1,28 @@
 import { useNavigate } from "@tanstack/react-router";
+import type { TFunction } from "i18next";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { LuBell, LuCheckCheck, LuX } from "react-icons/lu";
 
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { useNotificationStore } from "@/store/notification-store";
 
-function formatRelativeTime(timestamp: number): string {
+function formatRelativeTime(timestamp: number, t: TFunction): string {
   const elapsedMs = Math.max(0, Date.now() - timestamp);
   const elapsedMinutes = Math.floor(elapsedMs / 60_000);
 
-  if (elapsedMinutes < 1) return "Just now";
-  if (elapsedMinutes < 60) return `${elapsedMinutes} min ago`;
+  if (elapsedMinutes < 1) return t("shell.topNav.justNow");
+  if (elapsedMinutes < 60) return t("shell.topNav.minutesAgo", { count: elapsedMinutes });
 
   const elapsedHours = Math.floor(elapsedMinutes / 60);
-  if (elapsedHours < 24) return elapsedHours === 1 ? "1 hour ago" : `${elapsedHours} hours ago`;
+  if (elapsedHours < 24) return t("shell.topNav.hoursAgo", { count: elapsedHours });
 
   const elapsedDays = Math.floor(elapsedHours / 24);
-  return elapsedDays === 1 ? "1 day ago" : `${elapsedDays} days ago`;
+  return t("shell.topNav.daysAgo", { count: elapsedDays });
 }
 
 export function NotificationsDropdown() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = React.useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
@@ -58,7 +61,7 @@ export function NotificationsDropdown() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 rounded-full hover:bg-[var(--color-background-secondary)] transition-colors outline-none"
-        title="Notifications"
+        title={t("shell.topNav.notifications")}
       >
         <LuBell size={24} strokeWidth={3} className="text-white" />
         {unreadCount > 0 && (
@@ -71,7 +74,9 @@ export function NotificationsDropdown() {
       {isOpen && (
         <div className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-elevated)] shadow-xl p-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="px-3 py-2 border-b border-[var(--color-border)] mb-1 flex items-center justify-between gap-2 bg-[var(--color-background-elevated)] sticky top-0 z-10">
-            <span className="text-sm font-semibold text-white">Notifications</span>
+            <span className="text-sm font-semibold text-white">
+              {t("shell.topNav.notifications")}
+            </span>
             {unreadCount > 0 && (
               <button
                 type="button"
@@ -79,7 +84,7 @@ export function NotificationsDropdown() {
                 onClick={markAllRead}
               >
                 <LuCheckCheck size={14} />
-                Mark all read
+                {t("shell.topNav.markAllRead")}
               </button>
             )}
           </div>
@@ -91,7 +96,7 @@ export function NotificationsDropdown() {
                   className="text-[var(--color-foreground-muted)] mb-2 opacity-50"
                 />
                 <p className="text-sm text-[var(--color-foreground-secondary)]">
-                  No new notifications
+                  {t("shell.topNav.emptyNotifications")}
                 </p>
               </div>
             ) : (
@@ -115,11 +120,11 @@ export function NotificationsDropdown() {
                       >
                         {notif.channelDisplayName}
                       </span>{" "}
-                      is live
+                      {t("shell.topNav.liveNow")}
                     </p>
                     <div className="text-xs text-white truncate font-medium">{notif.title}</div>
                     <p className="text-[10px] text-white mt-1">
-                      {formatRelativeTime(notif.createdAt)}
+                      {formatRelativeTime(notif.createdAt, t)}
                     </p>
                   </div>
                   <button
@@ -128,7 +133,7 @@ export function NotificationsDropdown() {
                       dismissNotification(notif.id);
                     }}
                     className="absolute top-2 right-2 text-white hover:bg-[var(--color-background-elevated)] rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Dismiss"
+                    title={t("shell.topNav.dismiss")}
                   >
                     <LuX size={14} />
                   </button>
@@ -142,7 +147,7 @@ export function NotificationsDropdown() {
                 className="w-full text-xs text-center py-1.5 text-[var(--color-foreground-secondary)] hover:text-white hover:bg-[var(--color-background-tertiary)] rounded transition-colors"
                 onClick={clearNotifications}
               >
-                Clear all notifications
+                {t("shell.topNav.clearAll")}
               </button>
             </div>
           )}

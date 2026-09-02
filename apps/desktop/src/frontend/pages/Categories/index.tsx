@@ -1,5 +1,6 @@
 import type React from "react";
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { LuRefreshCw, LuSearch, LuTriangleAlert } from "react-icons/lu";
 
 import { VirtualizedCategoryGrid } from "@/features/discovery/components/discovery/virtualized-category-grid";
@@ -13,6 +14,7 @@ import {
 const MIN_REMOTE_CATEGORY_SEARCH_LENGTH = 2;
 
 export function CategoriesPage() {
+  const { t } = useTranslation();
   // Accumulate cursor pages while the virtualized grid keeps rendering only
   // the currently visible category cards.
   const {
@@ -74,11 +76,11 @@ export function CategoriesPage() {
     <div className="p-6 h-full flex flex-col overflow-hidden">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Categories</h1>
+          <h1 className="text-3xl font-bold mb-2">{t("discovery.categories")}</h1>
           <p className="text-[var(--color-foreground-secondary)]">
             {categories?.length
-              ? `${categories.length} categories from Twitch & Kick`
-              : "Browse streams by game or category"}
+              ? t("discovery.categoryCount", { count: categories.length })
+              : t("discovery.browseByCategory")}
           </p>
         </div>
 
@@ -89,8 +91,8 @@ export function CategoriesPage() {
           />
           <input
             type="text"
-            aria-label="Filter categories"
-            placeholder="Filter categories..."
+            aria-label={t("discovery.filterCategories")}
+            placeholder={t("discovery.filterCategoriesPlaceholder")}
             value={searchQuery}
             onChange={handleSearchChange}
             className="w-full h-10 pl-10 pr-4 rounded-lg bg-[var(--color-background-secondary)] border border-[var(--color-border)] text-sm text-[var(--color-foreground)] placeholder:text-[var(--color-foreground-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-transparent transition-colors"
@@ -106,10 +108,12 @@ export function CategoriesPage() {
           >
             <LuTriangleAlert className="mb-3 h-8 w-8 text-amber-300" aria-hidden="true" />
             <h2 className="text-lg font-semibold text-white">
-              {searchIsError ? "Couldn’t search categories" : "Couldn’t load categories"}
+              {searchIsError
+                ? t("discovery.searchCategoriesError")
+                : t("discovery.loadCategoriesError")}
             </h2>
             <p className="mt-2 text-sm text-[var(--color-foreground-secondary)]">
-              Twitch or Kick may be temporarily unavailable. Your saved browse data was not changed.
+              {t("discovery.categoriesErrorDescription")}
             </p>
             <button
               type="button"
@@ -117,7 +121,7 @@ export function CategoriesPage() {
               className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-[var(--color-primary-foreground)] transition-opacity hover:opacity-90"
             >
               <LuRefreshCw className="h-4 w-4" aria-hidden="true" />
-              Try again
+              {t("discovery.tryAgain")}
             </button>
           </div>
         ) : (
@@ -131,7 +135,9 @@ export function CategoriesPage() {
             scrollKey="categories-page"
             datasetKey={searchQuery.trim().toLowerCase() || "all"}
             emptyMessage={
-              searchQuery ? `No categories matching "${searchQuery}"` : "No categories found"
+              searchQuery
+                ? t("discovery.noMatchingCategories", { query: searchQuery })
+                : t("discovery.noCategories")
             }
           />
         )}

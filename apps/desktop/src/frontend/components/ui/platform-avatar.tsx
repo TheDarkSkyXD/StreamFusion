@@ -1,5 +1,6 @@
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 interface PlatformAvatarProps {
   src?: string | null;
@@ -22,6 +23,7 @@ export function PlatformAvatar({
   liveStatusType = "dot",
   disablePlatformBorder = false,
 }: PlatformAvatarProps) {
+  const { t } = useTranslation();
   const isLarge = size.includes("w-16") || size.includes("w-20") || size.includes("w-24");
   const badgeOffset = isLarge ? "-bottom-1 -right-1" : "-bottom-0.5 -right-0.5";
 
@@ -70,7 +72,7 @@ export function PlatformAvatar({
                 : "bg-[#53FC18] text-black !border-[#53FC18]"
             )}
           >
-            LIVE
+            {t("discovery.live")}
           </div>
         ) : (
           <div

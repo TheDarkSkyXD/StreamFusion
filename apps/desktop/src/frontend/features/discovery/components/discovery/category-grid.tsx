@@ -1,4 +1,5 @@
 import type { UnifiedCategory } from "@shared/platform-types";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 import { CategoryCard } from "./category-card";
@@ -21,6 +22,9 @@ export function CategoryGrid({
   skeletons = 12,
   imageLoading = "lazy",
 }: CategoryGridProps) {
+  const { t } = useTranslation();
+  const resolvedEmptyMessage =
+    emptyMessage === "No categories found" ? t("discovery.noCategories") : emptyMessage;
   if (isLoading) {
     return (
       <div className={cn("grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4", className)}>
@@ -35,7 +39,7 @@ export function CategoryGrid({
     return (
       <div className="col-span-full py-12 text-center text-[var(--color-foreground-muted)] animate-fade-in-up">
         <div className="text-4xl mb-4">🎮</div>
-        <p className="text-lg">{emptyMessage}</p>
+        <p className="text-lg">{resolvedEmptyMessage}</p>
       </div>
     );
   }

@@ -20,6 +20,7 @@ import { normalizeSearchQuery } from "../../utils/search/search-normalization";
 import { rankSearchChannels } from "../../utils/search/channel-search-contract";
 import type { SearchResultCollection } from "../../utils/search/search-result-validation";
 import { logger } from "../../../../renderer/logging/logger";
+import { i18n } from "@/i18n";
 
 import { useQueryCachePerformance } from "./cache-performance";
 import { getQueryCacheOptions } from "./cache-policy";
@@ -736,7 +737,7 @@ export function useSearchAll(
         });
         signal.throwIfAborted();
         if (response.success === false) {
-          throw new Error(response.error ?? "Search failed");
+          throw new Error(response.error ?? i18n.t("discovery.searchFailed"));
         }
         const fresh = response.data;
         const completion = response.providers;

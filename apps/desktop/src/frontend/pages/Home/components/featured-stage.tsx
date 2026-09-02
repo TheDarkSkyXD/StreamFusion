@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { UnifiedChannel, UnifiedStream } from "@shared/platform-types";
 import { ChatPanel, type ChatPanelProps } from "@/features/chat/components/chat/ChatPanel";
@@ -131,6 +132,7 @@ function KickFeaturedChat({
   activeStream: UnifiedStream;
   identity: FeaturedStreamIdentity;
 }) {
+  const { t } = useTranslation();
   const channelQuery = useChannelByUsername(activeStream.channelName, "kick");
   const target = getFeaturedChatTarget({
     activeStream,
@@ -140,7 +142,7 @@ function KickFeaturedChat({
     retry: () => void channelQuery.refetch(),
   });
 
-  return renderFeaturedChatTarget(target, identity);
+  return renderFeaturedChatTarget(target, identity, t);
 }
 
 function getFeaturedChatTarget({
@@ -182,7 +184,11 @@ function getFeaturedChatTarget({
   };
 }
 
-function renderFeaturedChatTarget(target: FeaturedChatTarget, identity: FeaturedStreamIdentity) {
+function renderFeaturedChatTarget(
+  target: FeaturedChatTarget,
+  identity: FeaturedStreamIdentity,
+  t: ReturnType<typeof useTranslation>["t"]
+) {
   switch (target.kind) {
     case "absent":
       return null;
@@ -192,10 +198,10 @@ function renderFeaturedChatTarget(target: FeaturedChatTarget, identity: Featured
       return (
         <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
           <p className="text-sm font-semibold text-[var(--color-foreground)]">
-            Chat is unavailable
+            {t("discovery.chatUnavailable")}
           </p>
           <Button variant="outline" size="sm" onClick={target.retry}>
-            Retry
+            {t("discovery.tryAgain")}
           </Button>
         </div>
       );

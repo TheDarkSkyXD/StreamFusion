@@ -1,4 +1,5 @@
 import { createElement, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { LiveNotificationToast } from "@/features/auth/components/LiveNotificationToast";
@@ -9,6 +10,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { useNotificationStore } from "@/store/notification-store";
 
 export function useLiveNotificationBridge(): void {
+  const { t } = useTranslation();
   useEffect(() => {
     const unsubscribeLive = window.electronAPI?.notifications?.onLiveNotification?.(
       (notification) => {
@@ -19,7 +21,7 @@ export function useLiveNotificationBridge(): void {
         if (preferences.toastAlerts) {
           toast(createElement(LiveNotificationToast, { notification }), {
             action: {
-              label: "Watch",
+              label: t("auth.watch"),
               onClick: () => {
                 void router.navigate({
                   to: LIVE_NOTIFICATION_STREAM_ROUTE,
@@ -50,5 +52,5 @@ export function useLiveNotificationBridge(): void {
       unsubscribeLive?.();
       unsubscribeOpen?.();
     };
-  }, []);
+  }, [t]);
 }

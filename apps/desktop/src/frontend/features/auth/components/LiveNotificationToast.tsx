@@ -1,4 +1,5 @@
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
+import { useTranslation } from "react-i18next";
 import type { LiveNotificationPayload } from "@shared/auth-types";
 
 interface LiveNotificationToastProps {
@@ -6,6 +7,7 @@ interface LiveNotificationToastProps {
 }
 
 export function LiveNotificationToast({ notification }: LiveNotificationToastProps) {
+  const { t } = useTranslation();
   return (
     <div className="flex min-w-0 items-start gap-3">
       <PlatformAvatar
@@ -17,7 +19,7 @@ export function LiveNotificationToast({ notification }: LiveNotificationToastPro
       />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-semibold leading-5 text-white">
-          {notification.channelDisplayName} is live
+          {notification.channelDisplayName} {t("shell.topNav.liveNow")}
         </div>
         <div className="whitespace-normal break-words text-xs font-medium leading-5 text-[#b2b2b2]">
           {notification.title}

@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import React, { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { UnifiedCategory } from "@shared/platform-types";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,6 +25,7 @@ const HOVER_PREFETCH_DELAY_MS = 150;
 // Memoize CategoryCard to prevent re-renders when grid updates but individual category hasn't changed
 export const CategoryCard = React.memo(
   ({ category, imageLoading = "lazy", imageFetchPriority }: CategoryCardProps) => {
+    const { t } = useTranslation();
     const queryClient = useQueryClient();
     const pointerIntentStartedRef = React.useRef(false);
     // Lazy-fetch stream count + (Twitch-only) tags. The virtualized grid only
@@ -100,7 +102,10 @@ export const CategoryCard = React.memo(
               {category.name}
             </h3>
             <p className="text-xs text-neutral-400 mt-1 truncate">
-              {formatViewerCount(category.viewerCount ?? 0)} viewers
+              {t("discovery.viewers", {
+                count: category.viewerCount ?? 0,
+                formattedCount: formatViewerCount(category.viewerCount ?? 0),
+              })}
             </p>
             <div
               data-testid="category-tags"

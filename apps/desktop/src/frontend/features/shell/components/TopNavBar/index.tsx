@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 import { LuMenu } from "react-icons/lu";
 
 import streamFusionLogo from "@/assets/brand/streamfusion-logo.png";
@@ -27,6 +28,7 @@ export const TopNavBar = memo(function TopNavBar({
   // re-render the nav chrome unnecessarily.
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
+  const { t } = useTranslation();
 
   return (
     <div
@@ -40,7 +42,9 @@ export const TopNavBar = memo(function TopNavBar({
         <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed, true)}
           className="p-2 -ml-2 rounded-md hover:bg-[var(--color-background-secondary)] transition-colors text-white"
-          title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={
+            sidebarCollapsed ? t("shell.topNav.expandSidebar") : t("shell.topNav.collapseSidebar")
+          }
         >
           <LuMenu size={20} strokeWidth={3} />
         </button>

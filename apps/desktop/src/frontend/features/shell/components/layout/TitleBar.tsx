@@ -7,6 +7,7 @@
 
 import type React from "react";
 import { LuCopy, LuMinus, LuSquare, LuX } from "react-icons/lu";
+import { useTranslation } from "react-i18next";
 
 import streamFusionLogo from "@/assets/brand/streamfusion-logo.png";
 import { useWindowControls } from "@/hooks";
@@ -17,6 +18,7 @@ interface TitleBarProps {
 }
 
 export function TitleBar({ className }: TitleBarProps) {
+  const { t } = useTranslation();
   const { isMaximized, minimize, maximize, close } = useWindowControls();
   const isMac = navigator.platform.toLowerCase().includes("mac");
 
@@ -39,13 +41,16 @@ export function TitleBar({ className }: TitleBarProps) {
       {/* Right side - Window controls (Windows/Linux only) */}
       {!isMac && (
         <div className="flex h-full" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
-          <WindowButton onClick={minimize} aria-label="Minimize">
+          <WindowButton onClick={minimize} aria-label={t("shell.titleBar.minimize")}>
             <LuMinus size={20} />
           </WindowButton>
-          <WindowButton onClick={maximize} aria-label={isMaximized ? "Restore" : "Maximize"}>
+          <WindowButton
+            onClick={maximize}
+            aria-label={isMaximized ? t("shell.titleBar.restore") : t("shell.titleBar.maximize")}
+          >
             {isMaximized ? <LuCopy size={18} className="rotate-180" /> : <LuSquare size={18} />}
           </WindowButton>
-          <WindowButton onClick={close} isClose aria-label="Close">
+          <WindowButton onClick={close} isClose aria-label={t("shell.titleBar.close")}>
             <LuX size={20} />
           </WindowButton>
         </div>

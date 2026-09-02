@@ -1,9 +1,12 @@
 import { WifiOff } from "lucide-react";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 
 import type { PlatformHealth } from "@backend/api/unified/platform-health";
 import { usePlatformHealth } from "@/features/settings/data/usePlatformHealth";
 
 export function PlatformHealthIndicator() {
+  const { t } = useTranslation();
   const { kick, twitch, anyDegraded, details = {} } = usePlatformHealth();
   const kickDisplayHealth = kick === "down" || details.kick != null ? kick : "healthy";
   const hasVisibleIssue = kickDisplayHealth !== "healthy" || twitch !== "healthy";
@@ -13,6 +16,7 @@ export function PlatformHealthIndicator() {
   const message = computeMessage(
     kickDisplayHealth,
     twitch,
+    t,
     details.kick?.summary,
     details.twitch?.summary
   );
@@ -26,34 +30,41 @@ export function PlatformHealthIndicator() {
       className={`inline-flex h-8 shrink-0 items-center gap-2 rounded-full border px-2.5 text-xs font-semibold ${platformColors(kickDisplayHealth, twitch)}`}
     >
       <WifiOff className="h-3.5 w-3.5" aria-hidden="true" />
-      <span className="hidden xl:inline">{compactLabel(kickDisplayHealth, twitch)}</span>
+      <span className="hidden xl:inline">{compactLabel(kickDisplayHealth, twitch, t)}</span>
     </div>
   );
 }
 
-function compactLabel(kick: PlatformHealth, twitch: PlatformHealth): string {
-  if (kick !== "healthy" && twitch !== "healthy") return "Platform issues";
-  if (twitch !== "healthy") return twitch === "down" ? "Twitch offline" : "Twitch degraded";
-  return kick === "down" ? "Kick offline" : "Kick degraded";
+function compactLabel(kick: PlatformHealth, twitch: PlatformHealth, t: TFunction): string {
+  if (kick !== "healthy" && twitch !== "healthy") return t("shell.platformHealth.issues");
+  if (twitch !== "healthy") {
+    return twitch === "down"
+      ? t("shell.platformHealth.twitchOffline")
+      : t("shell.platformHealth.twitchDegraded");
+  }
+  return kick === "down"
+    ? t("shell.platformHealth.kickOffline")
+    : t("shell.platformHealth.kickDegraded");
 }
 
 function computeMessage(
   kick: PlatformHealth,
   twitch: PlatformHealth,
+  t: TFunction,
   kickSummary?: string,
   twitchSummary?: string
 ): string {
   if (kick !== "healthy" && twitch !== "healthy") {
-    if (kick === "down" && twitch === "down") return "Kick and Twitch are unreachable. Retrying.";
+    if (kick === "down" && twitch === "down") return t("shell.platformHealth.bothUnreachable");
     if (kickSummary != null && twitchSummary != null) return `${kickSummary} ${twitchSummary}`;
-    return "Kick and Twitch are degraded. Some data may be cached or delayed.";
+    return t("shell.platformHealth.bothDegraded");
   }
   if (twitch !== "healthy") {
-    if (twitch === "down") return "Twitch is unreachable. Retrying.";
-    return twitchSummary ?? "Twitch is degraded. Some channels may not load.";
+    if (twitch === "down") return t("shell.platformHealth.twitchUnreachable");
+    return twitchSummary ?? t("shell.platformHealth.twitchDegradedMessage");
   }
-  if (kick === "down") return "Kick is unreachable. Retrying.";
-  return kickSummary ?? "Kick is degraded. Some Kick data may be cached or delayed.";
+  if (kick === "down") return t("shell.platformHealth.kickUnreachable");
+  return kickSummary ?? t("shell.platformHealth.kickDegradedMessage");
 }
 
 function platformColors(kick: PlatformHealth, twitch: PlatformHealth): string {

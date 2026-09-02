@@ -38,35 +38,30 @@ interface AppLayoutProps {
 }
 
 const navItems = [
-  { path: "/", label: "Home", translationKey: "home", icon: LuHouse },
+  { path: "/", translationKey: "home", icon: LuHouse },
   {
     path: "/following",
-    label: "Following",
     translationKey: "following",
     icon: LuHeart,
   },
   {
     path: "/categories",
-    label: "Categories",
     translationKey: "categories",
     icon: LuGrid3X3,
   },
   {
     path: "/multistream",
-    label: "MultiView",
     translationKey: "multiview",
     icon: LuLayoutDashboard,
   },
-  { path: "/history", label: "History", translationKey: "history", icon: LuHistory },
+  { path: "/history", translationKey: "history", icon: LuHistory },
   {
     path: "/downloads",
-    label: "Downloads",
     translationKey: "downloads",
     icon: LuDownload,
   },
   {
     path: "/settings",
-    label: "Settings",
     translationKey: "settings",
     icon: IoMdSettings,
   },

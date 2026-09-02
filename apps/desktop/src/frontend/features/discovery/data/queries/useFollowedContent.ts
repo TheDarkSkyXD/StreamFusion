@@ -2,6 +2,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import type { UnifiedChannel } from "@shared/platform-types";
 import { formatDuration } from "@/lib/utils";
+import { i18n } from "@/i18n";
 import { logger } from "@/renderer/logging/logger";
 import type { Platform } from "@shared/auth-types";
 
@@ -409,7 +410,7 @@ export function useFollowedClipPlayback(clip: FollowedContentItem | null) {
         return { url: null };
       }
 
-      throw new Error(response.error || "Failed to load clip");
+      throw new Error(response.error || i18n.t("discovery.searchResults.clipPlaybackError"));
     },
     enabled,
     retry: false,

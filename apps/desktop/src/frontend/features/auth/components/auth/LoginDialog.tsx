@@ -1,4 +1,5 @@
 import { LuLayoutTemplate, LuMessageSquare } from "react-icons/lu";
+import { useTranslation } from "react-i18next";
 
 import { getPlatformColor } from "@/assets/platforms";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ interface LoginDialogProps {
 }
 
 export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
+  const { t } = useTranslation();
   const twitch = useTwitchAuth();
   const kick = useKickAuth();
 
@@ -36,10 +38,10 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
       <DialogContent className="sm:max-w-md bg-[var(--color-background-elevated)] border-[var(--color-border)]">
         <DialogHeader>
           <DialogTitle className="text-center text-2xl font-bold text-white">
-            Welcome to StreamFusion
+            {t("auth.welcomeTitle")}
           </DialogTitle>
           <DialogDescription className="text-center text-[var(--color-foreground-muted)]">
-            Connect your accounts to access all features
+            {t("auth.connectAccounts")}
           </DialogDescription>
         </DialogHeader>
 
@@ -52,7 +54,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
           >
             {/* Twitch Icon would go here */}
             <LuMessageSquare className="h-5 w-5 fill-current" />
-            Continue with Twitch
+            {t("auth.continueWith", { platform: "Twitch" })}
           </Button>
 
           <Button
@@ -63,7 +65,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
           >
             {/* Kick Icon would go here */}
             <LuLayoutTemplate className="h-5 w-5 fill-current" />
-            Continue with Kick (Coming Soon)
+            {t("auth.comingSoon")}
           </Button>
 
           <div className="relative my-2">
@@ -72,7 +74,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-[var(--color-background-elevated)] px-2 text-[var(--color-foreground-muted)]">
-                Or continue as guest
+                {t("auth.continueGuest")}
               </span>
             </div>
           </div>
@@ -82,7 +84,7 @@ export function LoginDialog({ open, onOpenChange }: LoginDialogProps) {
             className="w-full text-[var(--color-foreground-secondary)] hover:text-white"
             onClick={() => onOpenChange(false)}
           >
-            Skip for now
+            {t("auth.skipForNow")}
           </Button>
         </div>
       </DialogContent>
