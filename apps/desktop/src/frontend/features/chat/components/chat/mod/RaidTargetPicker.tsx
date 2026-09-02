@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { useFollowStore } from "@/store/follow-store";
 
@@ -51,6 +52,7 @@ function raidTargetsFromStored(value: unknown): RaidTarget[] {
 }
 
 export function RaidTargetPicker({ selfBroadcasterId, disabled, onChange }: RaidTargetPickerProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<RaidTarget | null>(null);
   const [recent, setRecent] = useState<RaidTarget[]>([]);
@@ -100,7 +102,7 @@ export function RaidTargetPicker({ selfBroadcasterId, disabled, onChange }: Raid
   return (
     <div className="space-y-3" data-testid="raid-target-picker">
       <label className="block text-sm font-medium text-[#EFEFF1]">
-        Raid target
+        {t("chatModeration.raidTarget")}
         <input
           type="text"
           value={query}
@@ -114,8 +116,8 @@ export function RaidTargetPicker({ selfBroadcasterId, disabled, onChange }: Raid
             }
           }}
           disabled={disabled}
-          placeholder="Search your follows"
-          aria-label="Raid target search"
+          placeholder={t("chatModeration.searchFollows")}
+          aria-label={t("chatModeration.raidTargetSearch")}
           className="mt-1 w-full px-2 py-1.5 bg-white/5 border border-[var(--color-border)] rounded text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-purple-400 disabled:opacity-50"
         />
       </label>
@@ -148,13 +150,15 @@ export function RaidTargetPicker({ selfBroadcasterId, disabled, onChange }: Raid
         </ul>
       ) : (
         <p className="text-xs text-neutral-500" data-testid="raid-target-picker-empty">
-          No matches
+          {t("chatModeration.noMatches")}
         </p>
       )}
 
       {recent.length > 0 ? (
         <div data-testid="raid-target-picker-recent">
-          <p className="text-xs font-semibold text-neutral-400 mb-1">Recent</p>
+          <p className="text-xs font-semibold text-neutral-400 mb-1">
+            {t("chatModeration.recent")}
+          </p>
           <ul className="space-y-0.5">
             {recent.slice(0, RECENT_LIMIT).map((target) => (
               <li key={target.broadcasterId}>

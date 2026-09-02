@@ -11,6 +11,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { ModLogAction } from "@backend/services/mod-log-writer";
 import { useModLog } from "@/features/moderation/data/useModLog";
@@ -18,15 +19,18 @@ import type { Platform } from "@shared/auth-types";
 
 import { useOpenUserPopout } from "../UserPopout/UserPopoutProvider";
 
-const ACTION_OPTIONS: Array<{ value: "" | ModLogAction; label: string }> = [
-  { value: "", label: "All actions" },
-  { value: "ban", label: "Ban" },
-  { value: "timeout", label: "Timeout" },
-  { value: "unban", label: "Unban" },
-  { value: "delete", label: "Delete" },
-  { value: "clear", label: "Chat mode" },
-  { value: "raid", label: "Raid" },
-];
+const ACTION_OPTIONS = [
+  { value: "", labelKey: "chatModeration.allActions" },
+  { value: "ban", labelKey: "chatModeration.ban" },
+  { value: "timeout", labelKey: "chatModeration.timeout" },
+  { value: "unban", labelKey: "chatModeration.unban" },
+  { value: "delete", labelKey: "chatModeration.delete" },
+  { value: "clear", labelKey: "chatModeration.chatMode" },
+  { value: "raid", labelKey: "chatModeration.raid" },
+] as const satisfies ReadonlyArray<{
+  value: "" | ModLogAction;
+  labelKey: `chatModeration.${string}`;
+}>;
 
 const PAGE_INCREMENT = 50;
 
@@ -36,9 +40,9 @@ export interface ModLogTabProps {
   channelSlug: string;
 }
 
-function formatTimestamp(ms: number): string {
+function formatTimestamp(ms: number, language: string): string {
   const d = new Date(ms);
-  return `${d.toLocaleDateString()} ${d.toLocaleTimeString()}`;
+  return `${d.toLocaleDateString(language)} ${d.toLocaleTimeString(language)}`;
 }
 
 function formatDuration(seconds: number | null | undefined): string {
@@ -50,6 +54,7 @@ function formatDuration(seconds: number | null | undefined): string {
 }
 
 export function ModLogTab({ platform, channelId, channelSlug }: ModLogTabProps) {
+  const { i18n, t } = useTranslation();
   const [actionFilter, setActionFilter] = useState<"" | ModLogAction>("");
   const [moderatorFilter, setModeratorFilter] = useState<string>("");
   const [limit, setLimit] = useState<number>(PAGE_INCREMENT);
@@ -75,7 +80,7 @@ export function ModLogTab({ platform, channelId, channelSlug }: ModLogTabProps) 
     <div className="flex flex-col h-full w-full min-h-0">
       <div className="flex flex-wrap gap-2 p-2 border-b border-[var(--color-border)] bg-white/5">
         <select
-          aria-label="Filter by action"
+          aria-label={t("chatModeration.filterByAction")}
           data-testid="modlog-action-filter"
           value={actionFilter}
           onChange={(e) => {
@@ -86,13 +91,13 @@ export function ModLogTab({ platform, channelId, channelSlug }: ModLogTabProps) 
         >
           {ACTION_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
-              {opt.label}
+              {t(opt.labelKey)}
             </option>
           ))}
         </select>
         <input
           type="text"
-          placeholder="Moderator username"
+          placeholder={t("chatModeration.moderatorUsername")}
           data-testid="modlog-moderator-filter"
           value={moderatorFilter}
           onChange={(e) => {
@@ -105,22 +110,24 @@ export function ModLogTab({ platform, channelId, channelSlug }: ModLogTabProps) 
 
       <div className="flex-1 min-h-0 overflow-y-auto p-2">
         {result.state === "loading" ? (
-          <div className="text-sm text-neutral-400 p-2">Loading…</div>
+          <div className="text-sm text-neutral-400 p-2">{t("chatModeration.loading")}</div>
         ) : result.state === "error" ? (
           <div className="flex items-center justify-between gap-2 p-2 text-sm text-red-300">
-            <span>Moderation history couldn&apos;t be verified.</span>
+            <span>{t("chatModeration.historyUnavailable")}</span>
             {result.retryable ? (
               <button type="button" className="rounded px-2 py-1 text-white" onClick={retry}>
-                Retry
+                {t("chatModeration.retry")}
               </button>
             ) : null}
           </div>
         ) : result.state === "verified-empty" ? (
-          <div className="text-sm text-neutral-400 p-2">No mod-log entries.</div>
+          <div className="text-sm text-neutral-400 p-2">{t("chatModeration.noModLogEntries")}</div>
         ) : (
           <div>
             {result.state === "partial" ? (
-              <p className="p-2 text-xs text-amber-200">Showing observed history only.</p>
+              <p className="p-2 text-xs text-amber-200">
+                {t("chatModeration.observedHistoryOnly")}
+              </p>
             ) : null}
             <ul className="space-y-1">
               {entries.map((entry) => (
@@ -130,9 +137,16 @@ export function ModLogTab({ platform, channelId, channelSlug }: ModLogTabProps) 
                   data-action={entry.action}
                   className="text-xs text-neutral-200 border-b border-white/5 py-1 flex flex-wrap gap-2 items-baseline"
                 >
-                  <span className="text-neutral-500">{formatTimestamp(entry.createdAt)}</span>
+                  <span className="text-neutral-500">
+                    {formatTimestamp(entry.createdAt, i18n.resolvedLanguage ?? i18n.language)}
+                  </span>
                   <span className="text-purple-300 font-medium">{entry.moderatorUsername}</span>
-                  <span className="text-yellow-200">{entry.action}</span>
+                  <span className="text-yellow-200">
+                    {t(
+                      ACTION_OPTIONS.find((option) => option.value === entry.action)?.labelKey ??
+                        "chatModeration.allActions"
+                    )}
+                  </span>
                   <button
                     type="button"
                     data-testid="modlog-target-username"
@@ -172,7 +186,7 @@ export function ModLogTab({ platform, channelId, channelSlug }: ModLogTabProps) 
             onClick={() => setLimit((n) => n + PAGE_INCREMENT)}
             className="text-xs bg-white/5 hover:bg-white/10 text-white rounded px-3 py-1 border border-[var(--color-border)]"
           >
-            Load more
+            {t("chatModeration.loadMore")}
           </button>
         </div>
       ) : null}

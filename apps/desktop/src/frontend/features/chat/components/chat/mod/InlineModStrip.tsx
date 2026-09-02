@@ -24,6 +24,7 @@ import {
   LuTrash2,
   LuUserCheck,
 } from "react-icons/lu";
+import { useTranslation } from "react-i18next";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../../components/ui/tooltip";
 
 export type InlineModAction =
@@ -98,6 +99,7 @@ export function InlineModStrip({
   onActionClick,
   roomState,
 }: InlineModStripProps) {
+  const { t } = useTranslation();
   const isTwitch = platform === "twitch";
   const slowActive = roomState.slowMode !== null;
   const followersActive = roomState.followersOnly !== null;
@@ -111,11 +113,13 @@ export function InlineModStrip({
       className="flex items-center gap-1 px-3 py-1 border-b border-[var(--color-border)] bg-[var(--color-background-tertiary,#1a1a1a)]"
       data-testid="inline-mod-strip"
       role="toolbar"
-      aria-label="Chat moderation actions"
+      aria-label={t("chatModeration.toolbar")}
     >
       {/* Left group: chat-mode toggles. Same set across platforms. */}
       <StripButton
-        label={slowActive ? "Turn off slow mode" : "Turn on slow mode"}
+        label={
+          slowActive ? t("chatModeration.turnOffSlowMode") : t("chatModeration.turnOnSlowMode")
+        }
         active={slowActive}
         onClick={() => onActionClick({ kind: "slow-mode", currentlyActive: slowActive })}
         testId="inline-mod-strip-slow"
@@ -123,7 +127,11 @@ export function InlineModStrip({
         <LuClock className="w-4 h-4" />
       </StripButton>
       <StripButton
-        label={followersActive ? "Turn off followers-only mode" : "Turn on followers-only mode"}
+        label={
+          followersActive
+            ? t("chatModeration.turnOffFollowersMode")
+            : t("chatModeration.turnOnFollowersMode")
+        }
         active={followersActive}
         onClick={() =>
           onActionClick({
@@ -136,7 +144,11 @@ export function InlineModStrip({
         <LuUserCheck className="w-4 h-4" />
       </StripButton>
       <StripButton
-        label={subsActive ? "Turn off subscribers-only mode" : "Turn on subscribers-only mode"}
+        label={
+          subsActive
+            ? t("chatModeration.turnOffSubscribersMode")
+            : t("chatModeration.turnOnSubscribersMode")
+        }
         active={subsActive}
         onClick={() =>
           onActionClick({
@@ -149,7 +161,9 @@ export function InlineModStrip({
         <LuCrown className="w-4 h-4" />
       </StripButton>
       <StripButton
-        label={emoteActive ? "Turn off emote-only mode" : "Turn on emote-only mode"}
+        label={
+          emoteActive ? t("chatModeration.turnOffEmoteMode") : t("chatModeration.turnOnEmoteMode")
+        }
         active={emoteActive}
         onClick={() => onActionClick({ kind: "emote-only", currentlyActive: emoteActive })}
         testId="inline-mod-strip-emote"
@@ -161,7 +175,7 @@ export function InlineModStrip({
 
       {/* Right group: one-shots + Twitch-only toggles. */}
       <StripButton
-        label="Clear chat"
+        label={t("chatModeration.clearChat")}
         onClick={() => onActionClick({ kind: "clear" })}
         testId="inline-mod-strip-clear"
       >
@@ -170,7 +184,7 @@ export function InlineModStrip({
 
       {isTwitch && isBroadcaster ? (
         <StripButton
-          label="Start a raid"
+          label={t("chatModeration.startRaid")}
           onClick={() => onActionClick({ kind: "raid" })}
           testId="inline-mod-strip-raid"
         >
@@ -180,7 +194,11 @@ export function InlineModStrip({
 
       {isTwitch ? (
         <StripButton
-          label={uniqueActive ? "Turn off unique-chat mode" : "Turn on unique-chat mode"}
+          label={
+            uniqueActive
+              ? t("chatModeration.turnOffUniqueChat")
+              : t("chatModeration.turnOnUniqueChat")
+          }
           active={uniqueActive}
           onClick={() => onActionClick({ kind: "unique-chat", currentlyActive: uniqueActive })}
           testId="inline-mod-strip-unique"
@@ -191,7 +209,7 @@ export function InlineModStrip({
 
       {isTwitch && isBroadcaster ? (
         <StripButton
-          label="Run a commercial"
+          label={t("chatModeration.runCommercial")}
           onClick={() => onActionClick({ kind: "commercial" })}
           testId="inline-mod-strip-commercial"
         >
@@ -201,7 +219,11 @@ export function InlineModStrip({
 
       {isTwitch ? (
         <StripButton
-          label={shieldActive ? "Disable Shield Mode" : "Enable Shield Mode"}
+          label={
+            shieldActive
+              ? t("chatModeration.disableShieldMode")
+              : t("chatModeration.enableShieldMode")
+          }
           active={shieldActive}
           onClick={() => onActionClick({ kind: "shield", currentlyActive: shieldActive })}
           testId="inline-mod-strip-shield"

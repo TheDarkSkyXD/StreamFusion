@@ -76,6 +76,7 @@ async function collectSourceFiles(directory) {
         ![".ts", ".tsx"].includes(extname(entry.name)) ||
         entry.name.endsWith(".d.ts") ||
         entry.name.includes(".stories.") ||
+        entry.name.includes("story-fixtures") ||
         entry.name.includes(".test.")
       ) {
         return [];

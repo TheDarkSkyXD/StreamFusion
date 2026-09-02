@@ -1,19 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { TimeoutActionPolicy } from "@shared/timeout-moderation-types";
 
 interface DurationPreset {
-  label: string;
+  labelKey:
+    | "chatModeration.duration10Seconds"
+    | "chatModeration.duration1Minute"
+    | "chatModeration.duration10Minutes"
+    | "chatModeration.duration30Minutes"
+    | "chatModeration.duration24Hours"
+    | "chatModeration.duration7Days";
   seconds: number;
 }
 
 const DURATION_PRESETS: DurationPreset[] = [
-  { label: "10s", seconds: 10 },
-  { label: "1m", seconds: 60 },
-  { label: "10m", seconds: 600 },
-  { label: "30m", seconds: 1_800 },
-  { label: "24h", seconds: 86_400 },
-  { label: "7d", seconds: 604_800 },
+  { labelKey: "chatModeration.duration10Seconds", seconds: 10 },
+  { labelKey: "chatModeration.duration1Minute", seconds: 60 },
+  { labelKey: "chatModeration.duration10Minutes", seconds: 600 },
+  { labelKey: "chatModeration.duration30Minutes", seconds: 1_800 },
+  { labelKey: "chatModeration.duration24Hours", seconds: 86_400 },
+  { labelKey: "chatModeration.duration7Days", seconds: 604_800 },
 ];
 
 const TWITCH_POLICY: TimeoutActionPolicy = {
@@ -40,10 +47,6 @@ function toNativeDuration(
   return seconds % 60 === 0 ? seconds / 60 : null;
 }
 
-function validationMessage(policy: TimeoutActionPolicy): string {
-  return `Enter a whole number from ${policy.minDuration} to ${policy.maxDuration} ${policy.durationUnit}.`;
-}
-
 function parseCustomDuration(raw: string, policy: TimeoutActionPolicy): number | null {
   const value = Number(raw);
   return raw.trim().length > 0 &&
@@ -60,6 +63,16 @@ export function TimeoutDurationPicker({
   onChange,
   onValidationChange,
 }: TimeoutDurationPickerProps) {
+  const { t } = useTranslation();
+  const durationUnit = t(
+    policy.durationUnit === "seconds" ? "chatModeration.seconds" : "chatModeration.minutes"
+  );
+  const validationMessage = () =>
+    t("chatModeration.durationValidation", {
+      min: policy.minDuration,
+      max: policy.maxDuration,
+      unit: durationUnit,
+    });
   const presets = useMemo(
     () =>
       DURATION_PRESETS.flatMap((preset) => {
@@ -70,7 +83,7 @@ export function TimeoutDurationPicker({
       }),
     [policy.durationUnit, policy.maxDuration, policy.minDuration]
   );
-  const preferred = presets.find((preset) => preset.label === "10m") ?? presets[0];
+  const preferred = presets.find((preset) => preset.seconds === 600) ?? presets[0];
   const [selected, setSelected] = useState<number | "custom">(() => preferred?.value ?? "custom");
   const [customValue, setCustomValue] = useState("");
   const [customError, setCustomError] = useState<string | null>(null);
@@ -104,7 +117,7 @@ export function TimeoutDurationPicker({
     setSelected("custom");
     const parsed = parseCustomDuration(customValue, policy);
     const valid = parsed !== null;
-    setCustomError(valid ? null : validationMessage(policy));
+    setCustomError(valid ? null : validationMessage());
     onValidationChange?.(valid);
     if (parsed !== null) onChange(parsed);
   };
@@ -113,20 +126,22 @@ export function TimeoutDurationPicker({
     setCustomValue(raw);
     const value = parseCustomDuration(raw, policy);
     const valid = value !== null;
-    setCustomError(valid ? null : validationMessage(policy));
+    setCustomError(valid ? null : validationMessage());
     onValidationChange?.(valid);
     if (value !== null) onChange(value);
   };
 
   return (
     <fieldset className="space-y-2">
-      <legend className="mb-2 text-sm font-medium text-[#EFEFF1]">Duration</legend>
+      <legend className="mb-2 text-sm font-medium text-[#EFEFF1]">
+        {t("chatModeration.duration")}
+      </legend>
       <div className="flex flex-wrap gap-2" data-testid="timeout-duration-chips">
         {presets.map((preset) => {
           const isSelected = preset.value === selected;
           return (
             <button
-              key={preset.label}
+              key={preset.labelKey}
               type="button"
               onClick={() => selectPreset(preset.value)}
               disabled={disabled}
@@ -138,7 +153,7 @@ export function TimeoutDurationPicker({
                   : "bg-white/5 text-[#EFEFF1] hover:bg-white/10")
               }
             >
-              {preset.label}
+              {t(preset.labelKey)}
             </button>
           );
         })}
@@ -154,7 +169,7 @@ export function TimeoutDurationPicker({
               : "bg-white/5 text-[#EFEFF1] hover:bg-white/10")
           }
         >
-          Custom
+          {t("chatModeration.custom")}
         </button>
       </div>
       {selected === "custom" ? (
@@ -163,7 +178,7 @@ export function TimeoutDurationPicker({
             htmlFor="timeout-custom-duration"
             className="mb-1 block text-xs text-[var(--color-foreground-muted)]"
           >
-            Custom duration ({policy.durationUnit})
+            {t("chatModeration.customDuration", { unit: durationUnit })}
           </label>
           <input
             id="timeout-custom-duration"
@@ -174,7 +189,7 @@ export function TimeoutDurationPicker({
             max={policy.maxDuration}
             value={customValue}
             disabled={disabled}
-            aria-label={`Custom duration in ${policy.durationUnit}`}
+            aria-label={t("chatModeration.customDurationAria", { unit: durationUnit })}
             aria-invalid={customError ? "true" : "false"}
             aria-describedby={customError ? "timeout-custom-duration-error" : undefined}
             onChange={(event) => updateCustom(event.target.value)}
