@@ -8,6 +8,8 @@
  */
 
 import { AlertCircle, RefreshCw } from "lucide-react";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 
 import { useModLog } from "@/features/moderation/data/useModLog";
 import type { Platform } from "@shared/auth-types";
@@ -22,21 +24,23 @@ interface UserModHistoryProps {
   limit?: number;
 }
 
-function formatRelative(ts: number): string {
+function formatRelative(ts: number, t: TFunction): string {
   const diff = Math.max(0, Date.now() - ts);
   const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86_400)}d ago`;
+  if (seconds < 60) return t("chatModeration.secondsAgo", { count: seconds });
+  if (seconds < 3600) return t("chatModeration.minutesAgo", { count: Math.floor(seconds / 60) });
+  if (seconds < 86_400) return t("chatModeration.hoursAgo", { count: Math.floor(seconds / 3600) });
+  return t("chatModeration.daysAgo", { count: Math.floor(seconds / 86_400) });
 }
 
-function formatDuration(seconds: number | null | undefined): string {
+function formatDuration(seconds: number | null | undefined, t: TFunction): string {
   if (!seconds || seconds <= 0) return "";
-  if (seconds < 60) return ` (${seconds}s)`;
-  if (seconds < 3600) return ` (${Math.floor(seconds / 60)}m)`;
-  if (seconds < 86_400) return ` (${Math.floor(seconds / 3600)}h)`;
-  return ` (${Math.floor(seconds / 86_400)}d)`;
+  if (seconds < 60) return t("chatModeration.durationSecondsParenthesized", { count: seconds });
+  if (seconds < 3600)
+    return t("chatModeration.durationMinutesParenthesized", { count: Math.floor(seconds / 60) });
+  if (seconds < 86_400)
+    return t("chatModeration.durationHoursParenthesized", { count: Math.floor(seconds / 3600) });
+  return t("chatModeration.durationDaysParenthesized", { count: Math.floor(seconds / 86_400) });
 }
 
 export function UserModHistory({
@@ -47,6 +51,7 @@ export function UserModHistory({
   refreshCounter = 0,
   limit = 5,
 }: UserModHistoryProps) {
+  const { t } = useTranslation();
   const { result, entries, retry } = useModLog({
     platform,
     channelId,
@@ -62,7 +67,7 @@ export function UserModHistory({
         className="text-xs text-[var(--color-foreground-muted)] py-2"
         data-testid="user-mod-history-loading"
       >
-        Loading history…
+        {t("chatModeration.loadingHistory")}
       </div>
     );
   }
@@ -79,12 +84,12 @@ export function UserModHistory({
             onClick={retry}
           >
             <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-            Couldn’t load <span>·</span> Retry
+            {t("chatModeration.couldntLoadRetry")}
           </button>
         ) : (
           <p className="flex items-center gap-2 text-xs text-red-200">
             <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
-            Couldn’t load
+            {t("chatModeration.couldntLoad")}
           </p>
         )}
       </div>
@@ -96,7 +101,7 @@ export function UserModHistory({
         className="text-xs text-[var(--color-foreground-muted)] py-2"
         data-testid="user-mod-history-empty"
       >
-        No moderation actions available
+        {t("chatModeration.noModerationActions")}
       </div>
     );
   }
@@ -104,7 +109,7 @@ export function UserModHistory({
     <div>
       {result.state === "partial" ? (
         <p className="mb-2 text-xs text-amber-200" data-testid="user-mod-history-partial">
-          Showing observed history only
+          {t("chatModeration.showingObservedHistory")}
         </p>
       ) : null}
       <ul
@@ -117,19 +122,19 @@ export function UserModHistory({
             className="flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded border border-white/5 bg-white/5 px-2 py-1 text-xs"
           >
             <span className="text-[var(--color-foreground-muted)] whitespace-nowrap">
-              {formatRelative(entry.occurredAt)}
+              {formatRelative(entry.occurredAt, t)}
             </span>
             <span className="font-medium text-white">
               {entry.action}
-              {formatDuration(entry.durationSeconds)}
+              {formatDuration(entry.durationSeconds, t)}
             </span>
             <span className="text-[var(--color-foreground-muted)] truncate ml-auto">
-              by @{entry.moderatorUsername}
+              {t("chatModeration.moderatedBy", { username: entry.moderatorUsername })}
             </span>
             {entry.reason ? (
               <span
                 className="basis-full truncate text-[var(--color-foreground-muted)]"
-                aria-label={`Reason: ${entry.reason}`}
+                aria-label={t("chatModeration.reason", { reason: entry.reason })}
               >
                 {entry.reason}
               </span>

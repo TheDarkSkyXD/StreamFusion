@@ -1,5 +1,6 @@
 import type React from "react";
 import { type ReactNode, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 /** U19 — Identifiers for the three possible chat-panel tabs. The visible set
  *  is platform- and role-dependent: viewers see no strip at all; Twitch mods
@@ -7,10 +8,13 @@ import { type ReactNode, useState } from "react";
  *  chat/modlog. */
 export type ChatPanelTabId = "chat" | "modlog" | "engagement";
 
-const TAB_LABELS: Record<ChatPanelTabId, string> = {
-  chat: "Chat",
-  modlog: "Mod log",
-  engagement: "Engagement",
+const TAB_LABELS: Record<
+  ChatPanelTabId,
+  "chatModeration.chatTab" | "chatModeration.modLogTab" | "chatModeration.engagementTab"
+> = {
+  chat: "chatModeration.chatTab",
+  modlog: "chatModeration.modLogTab",
+  engagement: "chatModeration.engagementTab",
 };
 
 export interface ChatPanelTabsProps {
@@ -45,6 +49,7 @@ export const ChatPanelTabs: React.FC<ChatPanelTabsProps> = ({
   activeTab: controlledActiveTab,
   onTabChange,
 }) => {
+  const { t } = useTranslation();
   // Pick an initial tab that's actually visible. If the caller passes an
   // initialTab that got filtered out (e.g. broadcaster lost a role), fall
   // back to "chat", which is guaranteed to be present.
@@ -86,7 +91,7 @@ export const ChatPanelTabs: React.FC<ChatPanelTabsProps> = ({
                   : "text-neutral-400 hover:text-white"
               }`}
             >
-              <span>{TAB_LABELS[tab]}</span>
+              <span>{t(TAB_LABELS[tab])}</span>
               {typeof badge === "number" && badge > 0 ? (
                 <span className="bg-red-500 text-white rounded-full px-1.5 text-xs">{badge}</span>
               ) : null}

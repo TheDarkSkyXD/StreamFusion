@@ -1,5 +1,6 @@
 import { AlertCircle, CheckCircle2, Clock3, RefreshCw } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { ModActionConfirmDialog } from "@/features/chat/components/chat/mod/ModActionConfirmDialog";
 import { showModActionSuccessToast } from "@/features/chat/components/chat/mod/mod-action-toast";
@@ -47,6 +48,7 @@ export function StateAwareTimeoutAction({
   onOpenChange,
   targetPreview,
 }: StateAwareTimeoutActionProps) {
+  const { t } = useTranslation();
   const [snapshot, setSnapshot] = useState<SnapshotState>({ state: "checking" });
   const [activeSnapshot, setActiveSnapshot] = useState<
     Extract<TimeoutSnapshotResult, { state: "available" }> | undefined
@@ -185,7 +187,7 @@ export function StateAwareTimeoutAction({
       return;
     }
 
-    showModActionSuccessToast(`Timed out ${displayName}`);
+    showModActionSuccessToast(t("chatModeration.timedOutUser", { username: displayName }));
     await refreshAfterSuccess(bindingGeneration);
   };
 
@@ -207,7 +209,7 @@ export function StateAwareTimeoutAction({
       if (bindingGenerationRef.current !== bindingGeneration) return;
       setOutcome({
         state: "failure",
-        message: "The timeout could not be completed. Check your connection and try again.",
+        message: t("chatModeration.timeoutFailed"),
       });
     } finally {
       if (bindingGenerationRef.current === bindingGeneration) {
@@ -233,7 +235,9 @@ export function StateAwareTimeoutAction({
   const renderedTargetPreview = targetPreview ?? (
     <span>
       <span className="font-medium text-white">@{binding.targetUsername}</span>
-      <span className="ml-2 text-[var(--color-foreground-muted)]">in {binding.channelSlug}</span>
+      <span className="ml-2 text-[var(--color-foreground-muted)]">
+        {t("chatModeration.inChannel", { channel: binding.channelSlug })}
+      </span>
     </span>
   );
 
@@ -246,18 +250,18 @@ export function StateAwareTimeoutAction({
         <button
           type="button"
           onClick={openConfirmation}
-          aria-label="Timeout user"
+          aria-label={t("chatModeration.timeoutUser")}
           className="inline-flex h-9 items-center gap-2 rounded-md border border-amber-300/20 bg-amber-300/10 px-3 text-sm font-medium text-amber-100 hover:bg-amber-300/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200"
         >
           <Clock3 className="h-4 w-4" aria-hidden />
-          Timeout
+          {t("chatModeration.timeout")}
         </button>
       ) : presentation === "trigger" &&
         snapshot.state === "unavailable" &&
         snapshot.reason === "unverifiable" ? (
         <button
           type="button"
-          aria-label="Refresh moderation actions"
+          aria-label={t("chatModeration.refreshModerationActions")}
           onClick={() => {
             setRefreshNotice(null);
             void refreshSnapshot();
@@ -265,7 +269,7 @@ export function StateAwareTimeoutAction({
           className="inline-flex h-8 items-center gap-2 rounded-md px-2 text-xs text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
         >
           <RefreshCw className="h-4 w-4" aria-hidden />
-          Couldn&apos;t verify current actions · Retry
+          {t("chatModeration.couldntVerifyActionsRetry")}
         </button>
       ) : null}
 
@@ -287,20 +291,17 @@ export function StateAwareTimeoutAction({
           extraSlot={() => (
             <div className="space-y-2 text-sm text-[var(--color-foreground-muted)]" role="status">
               {snapshot.state === "checking" ? (
-                <p>Verifying current moderation state…</p>
+                <p>{t("chatModeration.verifyingModerationState")}</p>
               ) : (
                 <>
-                  <p>
-                    This timeout is unavailable because the current moderation state could not be
-                    verified.
-                  </p>
+                  <p>{t("chatModeration.timeoutUnavailable")}</p>
                   <button
                     type="button"
                     onClick={() => void refreshSnapshot()}
                     className="inline-flex h-8 items-center gap-2 rounded-md bg-white/10 px-3 text-xs font-medium text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
                     <RefreshCw className="h-4 w-4" aria-hidden />
-                    Retry verification
+                    {t("chatModeration.retryVerification")}
                   </button>
                 </>
               )}
@@ -338,7 +339,7 @@ export function StateAwareTimeoutAction({
                     htmlFor="timeout-reason"
                     className="mb-1 block text-sm font-medium text-white"
                   >
-                    Reason (optional)
+                    {t("chatModeration.reasonOptional")}
                   </label>
                   <textarea
                     id="timeout-reason"
@@ -364,18 +365,18 @@ export function StateAwareTimeoutAction({
                     onClick={() => void submit()}
                     className="mt-2 inline-flex h-8 items-center rounded-md bg-white/10 px-3 text-xs font-medium text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
-                    Retry timeout
+                    {t("chatModeration.retryTimeout")}
                   </button>
                 </div>
               ) : outcome.state === "refreshing" ? (
                 <p className="flex items-center gap-2 text-sm text-emerald-200" role="status">
                   <CheckCircle2 className="h-4 w-4" aria-hidden />
-                  Timeout applied. Refreshing moderation history…
+                  {t("chatModeration.timeoutAppliedRefreshing")}
                 </p>
               ) : outcome.state === "success" ? (
                 <p className="flex items-center gap-2 text-sm text-emerald-200" role="status">
                   <CheckCircle2 className="h-4 w-4" aria-hidden />
-                  Timeout applied and history refreshed.
+                  {t("chatModeration.timeoutAppliedRefreshed")}
                 </p>
               ) : outcome.state === "refresh-failure" ? (
                 <div
@@ -384,15 +385,14 @@ export function StateAwareTimeoutAction({
                 >
                   <p className="flex items-start gap-2 text-sm text-amber-100">
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                    Timeout applied, but moderation history could not be refreshed. Try refreshing
-                    again.
+                    {t("chatModeration.timeoutAppliedRefreshFailed")}
                   </p>
                   <button
                     type="button"
                     onClick={() => void refreshAfterSuccess(bindingGenerationRef.current)}
                     className="mt-2 inline-flex h-8 items-center rounded-md bg-white/10 px-3 text-xs font-medium text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
-                    Retry refresh
+                    {t("chatModeration.retryRefresh")}
                   </button>
                 </div>
               ) : null}

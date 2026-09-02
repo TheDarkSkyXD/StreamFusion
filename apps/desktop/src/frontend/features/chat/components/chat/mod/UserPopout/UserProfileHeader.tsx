@@ -1,5 +1,7 @@
 import { BadgeCheck, CalendarDays, Radio, UserRound } from "lucide-react";
+import type { TFunction } from "i18next";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -36,14 +38,14 @@ function formatAbsoluteDate(iso: string): string | null {
   return Number.isFinite(date.getTime()) ? ABSOLUTE_DATE_FORMATTER.format(date) : null;
 }
 
-function formatRelativeDate(iso: string): string {
+function formatRelativeDate(iso: string, t: TFunction): string {
   const days = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
-  if (days < 1) return "Today";
-  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
+  if (days < 1) return t("chatModeration.today");
+  if (days < 30) return t("chatModeration.daysAgo", { count: days });
   const years = Math.floor(days / 365);
-  if (years >= 1) return `${years} year${years === 1 ? "" : "s"} ago`;
+  if (years >= 1) return t("chatModeration.yearsAgo", { count: years });
   const months = Math.floor(days / 30);
-  return `${months} month${months === 1 ? "" : "s"} ago`;
+  return t("chatModeration.monthsAgo", { count: months });
 }
 
 function RetryValue({
@@ -55,6 +57,7 @@ function RetryValue({
   state?: string;
   onRetry: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
@@ -62,16 +65,17 @@ function RetryValue({
       className="rounded text-left text-white underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
       onClick={onRetry}
     >
-      {label} · Retry
+      {t("chatModeration.retryWithLabel", { label })}
     </button>
   );
 }
 
 function AvatarFallback({ displayName }: { displayName: string }) {
+  const { t } = useTranslation();
   return (
     <span
       role="img"
-      aria-label={`${displayName} avatar unavailable`}
+      aria-label={t("chatModeration.avatarUnavailable", { displayName })}
       className="flex h-full w-full items-center justify-center"
     >
       <UserRound className="h-8 w-8 text-white/60" aria-hidden />
@@ -86,12 +90,13 @@ function BadgeSection({
   badges: NonNullable<UserProfileHeaderProps["badges"]>;
   platform: "twitch" | "kick";
 }) {
+  const { t } = useTranslation();
   const [hoveredBadge, setHoveredBadge] = useState<string | null>(null);
   const platformLabel = platform === "kick" ? "Kick" : "Twitch";
   const sourceLabel =
     badges.state === "loading"
-      ? `${platformLabel} · Live chat`
-      : (badges.sourceLabel ?? `${platformLabel} · Live chat`);
+      ? t("chatModeration.sourceLabel", { platform: platformLabel })
+      : (badges.sourceLabel ?? t("chatModeration.sourceLabel", { platform: platformLabel }));
   return (
     <section className="mt-4 min-w-0" aria-labelledby="user-profile-badges-heading">
       <h3
@@ -99,21 +104,23 @@ function BadgeSection({
         className="flex items-center gap-1.5 text-xs text-[var(--color-foreground-muted)]"
       >
         <BadgeCheck className="h-3.5 w-3.5" aria-hidden />
-        Badges
+        {t("chatModeration.badges")}
       </h3>
       {badges.state === "loading" ? (
-        <p className="mt-2 text-xs text-[var(--color-foreground-muted)]">Badges loading…</p>
+        <p className="mt-2 text-xs text-[var(--color-foreground-muted)]">
+          {t("chatModeration.badgesLoading")}
+        </p>
       ) : badges.state === "failed" ? (
         <button
           type="button"
           className="mt-2 rounded text-xs text-white underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           onClick={badges.retry}
         >
-          Couldn’t load badges · Retry
+          {t("chatModeration.couldntLoadBadgesRetry")}
         </button>
       ) : badges.badges.length === 0 ? (
         <p className="mt-2 text-xs text-[var(--color-foreground-muted)]">
-          No badges on the latest message
+          {t("chatModeration.noBadgesLatestMessage")}
         </p>
       ) : (
         <div
@@ -130,7 +137,10 @@ function BadgeSection({
                     role="img"
                     tabIndex={0}
                     className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                    aria-label={`${badgeName}. Source: ${sourceLabel}`}
+                    aria-label={t("chatModeration.badgeSource", {
+                      name: badgeName,
+                      source: sourceLabel,
+                    })}
                     onPointerEnter={() => setHoveredBadge(badgeKey)}
                     onPointerLeave={() => setHoveredBadge(null)}
                     onPointerCancel={() => setHoveredBadge(null)}
@@ -145,8 +155,13 @@ function BadgeSection({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <span aria-hidden>{badgeName} · </span>
-                  <span>{sourceLabel}</span>
+                  <span>
+                    {t("chatModeration.badgeTooltip", {
+                      name: badgeName,
+                      source: sourceLabel,
+                      defaultValue: "{{name}} · {{source}}",
+                    })}
+                  </span>
                 </TooltipContent>
               </Tooltip>
             );
@@ -170,12 +185,13 @@ function DateValue({
   onRetry: () => void;
   onReconnect: () => void;
 }) {
+  const { t } = useTranslation();
   const [showRelativeTooltip, setShowRelativeTooltip] = useState(false);
 
   if (field.state === "loading")
     return (
-      <span aria-label="Loading" data-profile-state="loading">
-        Loading…
+      <span aria-label={t("chatModeration.loading")} data-profile-state="loading">
+        {t("chatModeration.loading")}
       </span>
     );
   if (field.state === "known") {
@@ -183,20 +199,22 @@ function DateValue({
     if (!absolute) {
       return (
         <RetryValue
-          label={kind === "account" ? "Couldn’t verify" : "Unavailable"}
+          label={
+            kind === "account" ? t("chatModeration.couldntVerify") : t("chatModeration.unavailable")
+          }
           state="failed"
           onRetry={onRetry}
         />
       );
     }
-    const relative = formatRelativeDate(field.value);
+    const relative = formatRelativeDate(field.value, t);
     return (
       <Tooltip open={showRelativeTooltip}>
         <TooltipTrigger asChild>
           <time
             dateTime={field.value}
             data-profile-state="known"
-            aria-label={`${absolute}. ${relative}`}
+            aria-label={t("chatModeration.relativeDateLabel", { absolute, relative })}
             tabIndex={0}
             onPointerEnter={() => setShowRelativeTooltip(true)}
             onPointerLeave={() => setShowRelativeTooltip(false)}
@@ -211,21 +229,25 @@ function DateValue({
   }
   if (field.state === "negative")
     return kind === "follow" ? (
-      <span data-profile-state="negative">Not following</span>
+      <span data-profile-state="negative">{t("chatModeration.notFollowing")}</span>
     ) : (
-      <RetryValue label="Couldn’t verify" state="failed" onRetry={onRetry} />
+      <RetryValue label={t("chatModeration.couldntVerify")} state="failed" onRetry={onRetry} />
     );
   if (field.state === "reconnect-required")
     return (
       <RetryValue
-        label={`Reconnect ${platform === "kick" ? "Kick" : "Twitch"}`}
+        label={t("chatModeration.reconnectPlatform", {
+          platform: platform === "kick" ? "Kick" : "Twitch",
+        })}
         state={field.state}
         onRetry={onReconnect}
       />
     );
   if (field.state === "unavailable")
-    return <RetryValue label="Unavailable" state={field.state} onRetry={onRetry} />;
-  return <RetryValue label="Couldn’t verify" state="failed" onRetry={onRetry} />;
+    return (
+      <RetryValue label={t("chatModeration.unavailable")} state={field.state} onRetry={onRetry} />
+    );
+  return <RetryValue label={t("chatModeration.couldntVerify")} state="failed" onRetry={onRetry} />;
 }
 
 export function UserProfileHeader({
@@ -240,6 +262,7 @@ export function UserProfileHeader({
   reconnect = retryFollow,
   badges,
 }: UserProfileHeaderProps) {
+  const { t } = useTranslation();
   const knownIdentity = identity.state === "known" ? identity.value : null;
   const username = knownIdentity?.username ?? fallbackUsername;
   const displayName = knownIdentity?.displayName ?? fallbackUsername;
@@ -249,7 +272,7 @@ export function UserProfileHeader({
         {knownIdentity?.avatarUrl ? (
           <ProxiedImage
             src={knownIdentity.avatarUrl}
-            alt={`${displayName} avatar`}
+            alt={t("chatModeration.avatarAlt", { displayName })}
             className="h-full w-full object-cover"
             fallback={<AvatarFallback displayName={displayName} />}
           />
@@ -261,16 +284,18 @@ export function UserProfileHeader({
         <h2 className="truncate text-lg font-semibold text-white">{displayName}</h2>
         <p className="mt-0.5 truncate text-xs text-[var(--color-foreground-muted)]">@{username}</p>
         {identity.state === "loading" ? (
-          <p className="mt-1 text-xs text-[var(--color-foreground-muted)]">Profile loading…</p>
+          <p className="mt-1 text-xs text-[var(--color-foreground-muted)]">
+            {t("chatModeration.profileLoading")}
+          </p>
         ) : identity.state !== "known" ? (
           <div className="mt-1 text-xs">
-            <RetryValue label="Profile unavailable" onRetry={retryIdentity} />
+            <RetryValue label={t("chatModeration.profileUnavailable")} onRetry={retryIdentity} />
           </div>
         ) : null}
         <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs">
           <dt className="flex items-center gap-1.5 text-[var(--color-foreground-muted)]">
             <CalendarDays className="h-3.5 w-3.5" aria-hidden />
-            Account created
+            {t("chatModeration.accountCreated")}
           </dt>
           <dd className="text-white">
             <DateValue
@@ -283,7 +308,7 @@ export function UserProfileHeader({
           </dd>
           <dt className="flex items-center gap-1.5 text-[var(--color-foreground-muted)]">
             <Radio className="h-3.5 w-3.5" aria-hidden />
-            Following since
+            {t("chatModeration.followingSince")}
           </dt>
           <dd className="text-white">
             <DateValue

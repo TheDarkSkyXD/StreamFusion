@@ -16,6 +16,7 @@
  */
 
 import { type ReactNode, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   LuArchive,
   LuBan,
@@ -38,6 +39,7 @@ import {
 } from "react-icons/lu";
 
 import { Button } from "@/components/ui/button";
+import type { chatModerationEn } from "@/i18n/locales/en/chatModeration";
 import {
   Dialog,
   DialogContent,
@@ -73,13 +75,15 @@ export type ModActionType =
 
 interface ModActionCopy {
   icon: ReactNode;
-  title: string;
-  description: string;
-  confirmLabel: string;
-  busyLabel: string;
+  titleKey: ChatModerationKey;
+  descriptionKey: ChatModerationKey;
+  confirmLabelKey: ChatModerationKey;
+  busyLabelKey: ChatModerationKey;
   /** Tailwind classes that paint the primary CTA. */
   confirmClass: string;
 }
+
+type ChatModerationKey = `chatModeration.${keyof typeof chatModerationEn.chatModeration & string}`;
 
 const TWITCH_PURPLE = "bg-[#9146FF] hover:bg-[#9146FF]/90 text-white";
 const DESTRUCTIVE_RED = "bg-red-600 hover:bg-red-600/90 text-white";
@@ -89,179 +93,162 @@ const RECOVERY_GREEN = "bg-emerald-600 hover:bg-emerald-600/90 text-white";
 const MOD_ACTION_COPY: Record<ModActionType, ModActionCopy> = {
   ban: {
     icon: <LuBan className="w-5 h-5 text-red-500" />,
-    title: "Ban user",
-    description:
-      "Permanently remove this user from chat. They can't send messages until you unban them.",
-    confirmLabel: "Ban user",
-    busyLabel: "Banning…",
+    titleKey: "chatModeration.banUserTitle",
+    descriptionKey: "chatModeration.banUserDescription",
+    confirmLabelKey: "chatModeration.banUser",
+    busyLabelKey: "chatModeration.banning",
     confirmClass: DESTRUCTIVE_RED,
   },
   timeout: {
     icon: <LuClock className="w-5 h-5 text-amber-500" />,
-    title: "Time out user",
-    description:
-      "Silence this user for a set duration. They rejoin chat automatically when the timer ends.",
-    confirmLabel: "Time out",
-    busyLabel: "Timing out…",
+    titleKey: "chatModeration.timeoutUserTitle",
+    descriptionKey: "chatModeration.timeoutUserDescription",
+    confirmLabelKey: "chatModeration.timeoutAction",
+    busyLabelKey: "chatModeration.timingOut",
     confirmClass: WARNING_AMBER,
   },
   warn: {
     icon: <LuTriangleAlert className="w-5 h-5 text-amber-500" />,
-    title: "Warn user",
-    description:
-      "Send this user an official Twitch warning. They'll see the reason and must acknowledge it before chatting again.",
-    confirmLabel: "Warn user",
-    busyLabel: "Warning...",
+    titleKey: "chatModeration.warnUserTitle",
+    descriptionKey: "chatModeration.warnUserDescription",
+    confirmLabelKey: "chatModeration.warnUser",
+    busyLabelKey: "chatModeration.warning",
     confirmClass: WARNING_AMBER,
   },
   unban: {
     icon: <LuRotateCcw className="w-5 h-5 text-emerald-500" />,
-    title: "Unban user",
-    description:
-      "Restore this user's ability to chat. Their previous timeout or ban will be lifted.",
-    confirmLabel: "Unban user",
-    busyLabel: "Unbanning…",
+    titleKey: "chatModeration.unbanUserTitle",
+    descriptionKey: "chatModeration.unbanUserDescription",
+    confirmLabelKey: "chatModeration.unbanUser",
+    busyLabelKey: "chatModeration.unbanning",
     confirmClass: RECOVERY_GREEN,
   },
   delete: {
     icon: <LuTrash2 className="w-5 h-5 text-red-500" />,
-    title: "Delete message",
-    description: "Remove this message from chat for everyone. The user is not warned or timed out.",
-    confirmLabel: "Delete message",
-    busyLabel: "Deleting…",
+    titleKey: "chatModeration.deleteMessageTitle",
+    descriptionKey: "chatModeration.deleteMessageDescription",
+    confirmLabelKey: "chatModeration.deleteMessage",
+    busyLabelKey: "chatModeration.deleting",
     confirmClass: DESTRUCTIVE_RED,
   },
   raid: {
     icon: <LuRadio className="w-5 h-5 text-[var(--color-storm-primary)]" />,
-    title: "Start raid",
-    description:
-      "Send your viewers to another channel when your stream ends. You can cancel before the raid lands.",
-    confirmLabel: "Start raid",
-    busyLabel: "Starting raid…",
+    titleKey: "chatModeration.startRaidTitle",
+    descriptionKey: "chatModeration.startRaidDescription",
+    confirmLabelKey: "chatModeration.startRaidAction",
+    busyLabelKey: "chatModeration.startingRaid",
     confirmClass: TWITCH_PURPLE,
   },
   clear: {
     icon: <LuEraser className="w-5 h-5 text-red-500" />,
-    title: "Clear chat",
-    description:
-      "Wipe every message currently visible in chat. The history is cleared for all viewers.",
-    confirmLabel: "Clear chat",
-    busyLabel: "Clearing…",
+    titleKey: "chatModeration.clearChatTitle",
+    descriptionKey: "chatModeration.clearChatDescription",
+    confirmLabelKey: "chatModeration.clearChat",
+    busyLabelKey: "chatModeration.clearing",
     confirmClass: DESTRUCTIVE_RED,
   },
   shield: {
     icon: <LuShield className="w-5 h-5 text-[var(--color-storm-primary)]" />,
-    title: "Enable Shield Mode",
-    description:
-      "Apply your strict moderation preset to lock chat down during a raid or harassment wave.",
-    confirmLabel: "Enable Shield Mode",
-    busyLabel: "Enabling…",
+    titleKey: "chatModeration.enableShieldModeTitle",
+    descriptionKey: "chatModeration.enableShieldModeDescription",
+    confirmLabelKey: "chatModeration.enableShieldMode",
+    busyLabelKey: "chatModeration.enabling",
     confirmClass: TWITCH_PURPLE,
   },
   shieldOff: {
     icon: <LuShield className="w-5 h-5 text-amber-500" />,
-    title: "Disable Shield Mode",
-    description: "Lift Shield Mode and return chat to its normal moderation settings.",
-    confirmLabel: "Disable Shield Mode",
-    busyLabel: "Disabling…",
+    titleKey: "chatModeration.disableShieldModeTitle",
+    descriptionKey: "chatModeration.disableShieldModeDescription",
+    confirmLabelKey: "chatModeration.disableShieldMode",
+    busyLabelKey: "chatModeration.disabling",
     confirmClass: WARNING_AMBER,
   },
   commercial: {
     icon: <LuMegaphone className="w-5 h-5 text-[var(--color-storm-primary)]" />,
-    title: "Start commercial",
-    description:
-      "Run an ad break on your channel. Viewers without a sub will see the ad immediately.",
-    confirmLabel: "Start commercial",
-    busyLabel: "Starting…",
+    titleKey: "chatModeration.startCommercialTitle",
+    descriptionKey: "chatModeration.startCommercialDescription",
+    confirmLabelKey: "chatModeration.startCommercial",
+    busyLabelKey: "chatModeration.starting",
     confirmClass: TWITCH_PURPLE,
   },
   uniqueChat: {
     icon: <LuFingerprint className="w-5 h-5 text-[var(--color-storm-primary)]" />,
-    title: "Enable Unique Chat",
-    description:
-      "Block users from posting messages identical to a recent one. Helpful against copy-paste spam.",
-    confirmLabel: "Enable Unique Chat",
-    busyLabel: "Enabling…",
+    titleKey: "chatModeration.enableUniqueChatTitle",
+    descriptionKey: "chatModeration.enableUniqueChatDescription",
+    confirmLabelKey: "chatModeration.enableUniqueChat",
+    busyLabelKey: "chatModeration.enabling",
     confirmClass: TWITCH_PURPLE,
   },
   addMod: {
     icon: <LuShieldCheck className="w-5 h-5 text-emerald-500" />,
-    title: "Make moderator",
-    description:
-      "Grant this user moderator privileges on your channel. They'll be able to time out, ban, and delete messages.",
-    confirmLabel: "Make moderator",
-    busyLabel: "Adding…",
+    titleKey: "chatModeration.addModeratorTitle",
+    descriptionKey: "chatModeration.addModeratorDescription",
+    confirmLabelKey: "chatModeration.makeModerator",
+    busyLabelKey: "chatModeration.adding",
     confirmClass: RECOVERY_GREEN,
   },
   removeMod: {
     icon: <LuShieldCheck className="w-5 h-5 text-amber-500" />,
-    title: "Remove moderator",
-    description:
-      "Revoke this user's moderator privileges. They'll lose access to all mod actions on your channel.",
-    confirmLabel: "Remove moderator",
-    busyLabel: "Removing…",
+    titleKey: "chatModeration.removeModeratorTitle",
+    descriptionKey: "chatModeration.removeModeratorDescription",
+    confirmLabelKey: "chatModeration.removeModerator",
+    busyLabelKey: "chatModeration.removing",
     confirmClass: WARNING_AMBER,
   },
   addVip: {
     icon: <LuStar className="w-5 h-5 text-pink-400" />,
-    title: "Make VIP",
-    description:
-      "Grant this user VIP status. They'll bypass slow / followers / subscribers-only mode and receive a VIP badge.",
-    confirmLabel: "Make VIP",
-    busyLabel: "Adding…",
+    titleKey: "chatModeration.addVipTitle",
+    descriptionKey: "chatModeration.addVipDescription",
+    confirmLabelKey: "chatModeration.makeVip",
+    busyLabelKey: "chatModeration.adding",
     confirmClass: TWITCH_PURPLE,
   },
   removeVip: {
     icon: <LuStar className="w-5 h-5 text-amber-500" />,
-    title: "Remove VIP",
-    description: "Revoke this user's VIP status. They'll lose the VIP badge and chat-mode bypass.",
-    confirmLabel: "Remove VIP",
-    busyLabel: "Removing…",
+    titleKey: "chatModeration.removeVipTitle",
+    descriptionKey: "chatModeration.removeVipDescription",
+    confirmLabelKey: "chatModeration.removeVip",
+    busyLabelKey: "chatModeration.removing",
     confirmClass: WARNING_AMBER,
   },
   predictionLock: {
     icon: <LuLock className="w-5 h-5 text-amber-500" />,
-    title: "Lock prediction",
-    description:
-      "Stop accepting new predictions. Viewers who already locked in stay in — you can resolve a winning outcome afterward.",
-    confirmLabel: "Lock prediction",
-    busyLabel: "Locking…",
+    titleKey: "chatModeration.lockPredictionTitle",
+    descriptionKey: "chatModeration.lockPredictionDescription",
+    confirmLabelKey: "chatModeration.lockPrediction",
+    busyLabelKey: "chatModeration.locking",
     confirmClass: WARNING_AMBER,
   },
   predictionResolve: {
     icon: <LuTrophy className="w-5 h-5 text-emerald-500" />,
-    title: "Resolve prediction",
-    description:
-      "Pay out channel points to viewers who picked the winning outcome. This cannot be undone.",
-    confirmLabel: "Resolve prediction",
-    busyLabel: "Resolving…",
+    titleKey: "chatModeration.resolvePredictionTitle",
+    descriptionKey: "chatModeration.resolvePredictionDescription",
+    confirmLabelKey: "chatModeration.resolvePrediction",
+    busyLabelKey: "chatModeration.resolving",
     confirmClass: RECOVERY_GREEN,
   },
   predictionCancel: {
     icon: <LuCircleX className="w-5 h-5 text-red-500" />,
-    title: "Cancel prediction",
-    description:
-      "End the prediction without picking a winner. All channel points are refunded to participants.",
-    confirmLabel: "Cancel prediction",
-    busyLabel: "Canceling…",
+    titleKey: "chatModeration.cancelPredictionTitle",
+    descriptionKey: "chatModeration.cancelPredictionDescription",
+    confirmLabelKey: "chatModeration.cancelPrediction",
+    busyLabelKey: "chatModeration.canceling",
     confirmClass: DESTRUCTIVE_RED,
   },
   pollTerminate: {
     icon: <LuSquare className="w-5 h-5 text-amber-500" />,
-    title: "Terminate poll",
-    description:
-      "End the poll right now and show the results. Voters can no longer change their vote.",
-    confirmLabel: "Terminate poll",
-    busyLabel: "Terminating…",
+    titleKey: "chatModeration.terminatePollTitle",
+    descriptionKey: "chatModeration.terminatePollDescription",
+    confirmLabelKey: "chatModeration.terminatePoll",
+    busyLabelKey: "chatModeration.terminating",
     confirmClass: WARNING_AMBER,
   },
   pollArchive: {
     icon: <LuArchive className="w-5 h-5 text-[var(--color-foreground-muted)]" />,
-    title: "Archive poll",
-    description:
-      "Hide this poll from chat. Already-cast votes remain in your history but the poll won't show up anywhere.",
-    confirmLabel: "Archive poll",
-    busyLabel: "Archiving…",
+    titleKey: "chatModeration.archivePollTitle",
+    descriptionKey: "chatModeration.archivePollDescription",
+    confirmLabelKey: "chatModeration.archivePoll",
+    busyLabelKey: "chatModeration.archiving",
     confirmClass: TWITCH_PURPLE,
   },
 };
@@ -299,6 +286,7 @@ export function ModActionConfirmDialog({
   extraSlot,
   confirmDisabled = false,
 }: ModActionConfirmDialogProps) {
+  const { t } = useTranslation();
   const copy = MOD_ACTION_COPY[actionType];
   const [extraData, setExtraData] = useState<unknown>(undefined);
 
@@ -331,10 +319,10 @@ export function ModActionConfirmDialog({
         <DialogHeader className="pb-4 border-b border-[var(--color-border)]">
           <DialogTitle className="flex items-center gap-2 text-xl text-white">
             {copy.icon}
-            {copy.title}
+            {t(copy.titleKey)}
           </DialogTitle>
           <DialogDescription className="text-[var(--color-foreground-muted)] pt-2">
-            {copy.description}
+            {t(copy.descriptionKey)}
           </DialogDescription>
         </DialogHeader>
 
@@ -358,21 +346,21 @@ export function ModActionConfirmDialog({
               className="mt-3 flex items-center gap-2 text-sm text-amber-200"
             >
               <LuLoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
-              {copy.busyLabel}
+              {t(copy.busyLabelKey)}
             </div>
           ) : null}
         </div>
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-            Cancel
+            {t("chatModeration.cancel")}
           </Button>
           <Button
             onClick={handleConfirm}
             disabled={busy || confirmDisabled}
             className={copy.confirmClass}
           >
-            {busy ? copy.busyLabel : copy.confirmLabel}
+            {busy ? t(copy.busyLabelKey) : t(copy.confirmLabelKey)}
           </Button>
         </DialogFooter>
       </DialogContent>

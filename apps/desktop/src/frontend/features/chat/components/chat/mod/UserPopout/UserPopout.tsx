@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { ChatMessage as ChatMessageRow } from "@/features/chat/components/chat/ChatMessage";
 import type { ChatSendEligibility } from "@/features/chat/components/chat/chat-send-eligibility";
 import {
@@ -121,6 +122,7 @@ export function UserPopout({
   open,
   onOpenChange,
 }: UserPopoutProps) {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const profileState = useUserProfile(userId, platform, channelId, username, channelSlug);
   const moderationAuthority = useModerationAuthority(platform, channelId, channelSlug);
@@ -224,27 +226,29 @@ export function UserPopout({
       : `https://www.twitch.tv/${externalUsername}`;
   const liveAnnouncement = [
     renderedIdentity.state === "failed"
-      ? "Profile identity could not be verified."
+      ? t("chatModeration.profileIdentityVerificationFailed")
       : renderedIdentity.state === "unavailable"
-        ? "Profile identity is unavailable."
+        ? t("chatModeration.profileIdentityUnavailable")
         : "",
     accountCreated.state === "failed"
-      ? "Account creation date could not be verified."
+      ? t("chatModeration.accountDateVerificationFailed")
       : accountCreated.state === "unavailable"
-        ? "Account creation date is unavailable."
+        ? t("chatModeration.accountDateUnavailable")
         : "",
     follow.state === "reconnect-required"
-      ? `Reconnect ${platformLabel} to verify the follow relationship.`
+      ? t("chatModeration.reconnectToVerifyFollow", { platform: platformLabel })
       : follow.state === "failed"
-        ? "Follow relationship could not be verified."
+        ? t("chatModeration.followVerificationFailed")
         : follow.state === "unavailable"
-          ? "Follow relationship is unavailable."
+          ? t("chatModeration.followUnavailable")
           : "",
-    channel.state === "failed" || channel.state === "unavailable" ? "Channel is unavailable." : "",
+    channel.state === "failed" || channel.state === "unavailable"
+      ? t("chatModeration.channelUnavailable")
+      : "",
     moderationAuthority.state === "reconnect-required"
-      ? `Reconnect ${platformLabel} to verify moderation permissions.`
+      ? t("chatModeration.reconnectToVerifyModeration", { platform: platformLabel })
       : moderationAuthority.state === "unverifiable"
-        ? "Moderation access could not be verified."
+        ? t("chatModeration.moderationVerificationFailed")
         : "",
   ]
     .filter(Boolean)
@@ -279,9 +283,14 @@ export function UserPopout({
         }}
       >
         <DialogHeader className="shrink-0 border-b border-[var(--color-border)] px-5 py-5 pr-14 text-left">
-          <DialogTitle className="sr-only">User profile: {username}</DialogTitle>
+          <DialogTitle className="sr-only">
+            {t("chatModeration.userProfile", { username })}
+          </DialogTitle>
           <DialogDescription className="sr-only">
-            Public {platformLabel} profile and recent messages for @{username}.
+            {t("chatModeration.publicProfileDescription", {
+              platform: platformLabel,
+              username,
+            })}
           </DialogDescription>
           <UserProfileHeader
             platform={platform}
@@ -302,10 +311,10 @@ export function UserPopout({
                 className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <X className="h-5 w-5" aria-hidden />
-                <span className="sr-only">Close</span>
+                <span className="sr-only">{t("chatModeration.close")}</span>
               </DialogClose>
             </TooltipTrigger>
-            <TooltipContent>Close</TooltipContent>
+            <TooltipContent>{t("chatModeration.close")}</TooltipContent>
           </Tooltip>
         </DialogHeader>
 
@@ -320,20 +329,20 @@ export function UserPopout({
               className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)]"
             >
               <MessageSquareText className="h-4 w-4" aria-hidden />
-              Recent in this chat
+              {t("chatModeration.recentInChat")}
             </h3>
             {recentMessages.length === 0 ? (
               <p
                 className="text-xs text-[var(--color-foreground-muted)]"
                 data-testid="user-popout-no-recent-messages"
               >
-                No recent messages in this chat
+                {t("chatModeration.noRecentMessages")}
               </p>
             ) : (
               <ul
                 className="space-y-1"
                 data-testid="user-popout-recent-messages"
-                aria-label="Recent messages in this chat"
+                aria-label={t("chatModeration.recentInChat")}
               >
                 {recentMessages.map((message, index) => (
                   <li
@@ -349,7 +358,10 @@ export function UserPopout({
                     <button
                       type="button"
                       className="m-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-[var(--color-foreground-muted)] hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                      aria-label={`Select message from ${message.displayName}: ${message.rawContent}`}
+                      aria-label={t("chatModeration.selectMessageFrom", {
+                        username: message.displayName,
+                        message: message.rawContent,
+                      })}
                       aria-pressed={selectedMessage?.id === message.id}
                       onClick={() => setSelectedSnapshot(message)}
                       onKeyDown={(event) => {
@@ -384,10 +396,10 @@ export function UserPopout({
                 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)]"
               >
                 <Shield className="h-4 w-4" aria-hidden />
-                Moderation history
+                {t("chatModeration.moderationHistory")}
               </h3>
               <p className="mb-3 mt-1 text-xs text-[var(--color-foreground-muted)]">
-                Platform actions available to StreamFusion
+                {t("chatModeration.platformActionsAvailable")}
               </p>
               <UserModHistory
                 platform={platform}
@@ -423,7 +435,7 @@ export function UserPopout({
                 }}
               >
                 <LayoutDashboard className="h-4 w-4" aria-hidden />
-                View all in Mod Dashboard
+                {t("chatModeration.viewAllModDashboard")}
               </button>
             </section>
           ) : moderationAuthority.state === "reconnect-required" ? (
@@ -437,16 +449,15 @@ export function UserPopout({
                 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)]"
               >
                 <Shield className="h-4 w-4" aria-hidden />
-                Moderation
+                {t("chatModeration.moderation")}
               </h3>
               <div className="mt-2 rounded-md border border-amber-300/20 bg-amber-300/5 p-3">
                 <p className="flex items-center gap-2 text-sm font-medium text-white">
                   <LockKeyhole className="h-4 w-4 text-amber-200" aria-hidden />
-                  Reconnect {platformLabel}
+                  {t("chatModeration.reconnectPlatform", { platform: platformLabel })}
                 </p>
                 <p className="mt-1 text-xs text-[var(--color-foreground-muted)]">
-                  Add the missing permissions in one {platformLabel} consent flow to verify
-                  moderation access and load available history.
+                  {t("chatModeration.missingPermissions", { platform: platformLabel })}
                 </p>
                 <button
                   type="button"
@@ -454,7 +465,7 @@ export function UserPopout({
                   onClick={moderationAuthority.reconnect}
                 >
                   <RefreshCw className="h-4 w-4" aria-hidden />
-                  Reconnect {platformLabel}
+                  {t("chatModeration.reconnectPlatform", { platform: platformLabel })}
                 </button>
               </div>
             </section>
@@ -469,7 +480,7 @@ export function UserPopout({
                 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-foreground-muted)]"
               >
                 <Shield className="h-4 w-4" aria-hidden />
-                Moderation
+                {t("chatModeration.moderation")}
               </h3>
               <button
                 type="button"
@@ -477,7 +488,7 @@ export function UserPopout({
                 onClick={moderationAuthority.retry}
               >
                 <RefreshCw className="h-4 w-4" aria-hidden />
-                Couldn’t verify · Retry
+                {t("chatModeration.couldntVerifyRetry")}
               </button>
             </section>
           ) : null}
@@ -505,7 +516,7 @@ export function UserPopout({
                 onClick={() => publicActions.onReply(selectedMessage)}
               >
                 <Reply className="h-4 w-4" aria-hidden />
-                Reply
+                {t("chatModeration.reply")}
               </button>
             ) : null}
             {copyableSelectedMessage && selectedVisibleContent !== null ? (
@@ -517,23 +528,23 @@ export function UserPopout({
                     .writeText(selectedVisibleContent)
                     .then(() => {
                       setCopyStatus("copied");
-                      toast.success("Message copied");
+                      toast.success(t("chatModeration.messageCopied"));
                     })
                     .catch(() => {
                       setCopyStatus("failed");
-                      toast.error("Couldn’t copy message");
+                      toast.error(t("chatModeration.couldntCopyMessage"));
                     });
                 }}
               >
                 <Copy className="h-4 w-4" aria-hidden />
-                Copy message
+                {t("chatModeration.copyMessage")}
               </button>
             ) : null}
             <span className="sr-only" aria-live="polite">
               {copyStatus === "copied"
-                ? "Message copied"
+                ? t("chatModeration.messageCopied")
                 : copyStatus === "failed"
-                  ? "Couldn’t copy message"
+                  ? t("chatModeration.couldntCopyMessage")
                   : ""}
             </span>
             {selectedVisibleContent !== null &&
@@ -545,7 +556,7 @@ export function UserPopout({
                 onClick={() => publicActions.onCopyToChat?.(selectedVisibleContent)}
               >
                 <MessageSquareText className="h-4 w-4" aria-hidden />
-                Copy message to chat
+                {t("chatModeration.copyMessageToChat")}
               </button>
             ) : null}
             <button
@@ -554,7 +565,7 @@ export function UserPopout({
               disabled
             >
               <Languages className="h-4 w-4" aria-hidden />
-              Translate · Coming Soon
+              {t("chatModeration.translateComingSoon")}
             </button>
             <button
               type="button"
@@ -567,24 +578,29 @@ export function UserPopout({
               }}
             >
               <Radio className="h-4 w-4" aria-hidden />
-              View Channel
+              {t("chatModeration.viewChannel")}
             </button>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   type="button"
                   className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                  aria-label={`Open ${externalDisplayName} on ${platformLabel}`}
+                  aria-label={t("chatModeration.openExternalProfile", {
+                    displayName: externalDisplayName,
+                    platform: platformLabel,
+                  })}
                   onClick={() => void window.electronAPI.openExternal(externalUrl)}
                 >
                   <ExternalLink className="h-4 w-4" aria-hidden />
                 </button>
               </TooltipTrigger>
-              <TooltipContent>Open on {platformLabel}</TooltipContent>
+              <TooltipContent>
+                {t("chatModeration.openOnPlatform", { platform: platformLabel })}
+              </TooltipContent>
             </Tooltip>
             {channel.state === "loading" ? (
               <span className="text-xs text-[var(--color-foreground-muted)]">
-                Verifying channel…
+                {t("chatModeration.verifyingChannel")}
               </span>
             ) : channel.state !== "known" ? (
               <button
@@ -592,7 +608,7 @@ export function UserPopout({
                 className="rounded text-xs text-white underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                 onClick={profileState.retryChannel}
               >
-                Couldn’t verify · Retry
+                {t("chatModeration.couldntVerifyRetry")}
               </button>
             ) : null}
           </div>
@@ -602,7 +618,7 @@ export function UserPopout({
               disabled={dialogLocked}
               className="h-9 rounded-md bg-[var(--color-background-tertiary)] px-4 text-sm font-medium text-white hover:bg-[var(--color-background-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Close
+              {t("chatModeration.close")}
             </button>
           </DialogClose>
         </DialogFooter>

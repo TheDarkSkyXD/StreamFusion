@@ -13,6 +13,7 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { modLogWriter } from "@backend/services/mod-log-writer";
@@ -46,6 +47,7 @@ function isTerminated(p: TwitchPoll | null | undefined): boolean {
 }
 
 export function EngagementPolls({ channelId }: EngagementPollsProps) {
+  const { t } = useTranslation();
   const twitchUser = useAuthStore((s) => s.twitchUser);
 
   const fetcher = useCallback(async (): Promise<{ data: TwitchPoll[] } | null> => {
@@ -83,12 +85,12 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
   const handleCreate = async () => {
     const title = formTitle.trim();
     if (title.length === 0) {
-      toast.error("Title is required");
+      toast.error(t("chatModeration.titleRequired"));
       return;
     }
     const cleaned = formChoices.map((t) => t.trim()).filter((t) => t.length > 0);
     if (cleaned.length < MIN_CHOICES) {
-      toast.error("At least 2 choices are required");
+      toast.error(t("chatModeration.minChoicesRequired", { count: MIN_CHOICES }));
       return;
     }
     setBusy(true);
@@ -101,7 +103,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
         duration: formDuration,
       });
       if (!result.ok) {
-        toast.error(`Could not create poll: ${result.error.message}`);
+        toast.error(t("chatModeration.couldNotCreatePoll", { error: result.error.message }));
         return;
       }
       modLogWriter.record({
@@ -116,7 +118,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
         moderatorUsername,
         reason: title,
       });
-      toast.success("Poll created");
+      toast.success(t("chatModeration.pollCreated"));
       setFormTitle("");
       setFormChoices(["", ""]);
       setFormDuration(DEFAULT_DURATION_S);
@@ -137,7 +139,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
         status: pending.kind === "terminate" ? "TERMINATED" : "ARCHIVED",
       });
       if (!result.ok) {
-        toast.error(`Action failed: ${result.error.message}`);
+        toast.error(t("chatModeration.actionFailed", { error: result.error.message }));
         return;
       }
       // Only the terminate path writes to mod_log per plan (action set:
@@ -156,7 +158,11 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
           reason: current.title,
         });
       }
-      toast.success(pending.kind === "terminate" ? "Poll terminated" : "Poll archived");
+      toast.success(
+        pending.kind === "terminate"
+          ? t("chatModeration.pollTerminated")
+          : t("chatModeration.pollArchived")
+      );
       setPending(null);
       refresh();
     } finally {
@@ -182,7 +188,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
       data-testid="engagement-polls"
     >
       <header className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-white">Polls</h3>
+        <h3 className="text-sm font-semibold text-white">{t("chatModeration.polls")}</h3>
         {current ? (
           <span
             className="text-xs uppercase tracking-wide text-[var(--color-foreground-muted)]"
@@ -197,11 +203,11 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
         <div className="flex flex-col gap-2" data-testid="poll-create-form">
           <input
             type="text"
-            aria-label="Poll title"
+            aria-label={t("chatModeration.pollTitle")}
             value={formTitle}
             onChange={(e) => setFormTitle(e.target.value.slice(0, MAX_TITLE))}
             maxLength={MAX_TITLE}
-            placeholder="Ask the chat…"
+            placeholder={t("chatModeration.askChat")}
             className="rounded border border-[var(--color-border)] bg-black/30 px-2 py-1 text-sm text-white"
           />
           <div className="flex flex-col gap-1">
@@ -209,14 +215,14 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
               <div key={idx} className="flex items-center gap-1">
                 <input
                   type="text"
-                  aria-label={`Choice ${idx + 1}`}
+                  aria-label={t("chatModeration.choice", { index: idx + 1 })}
                   value={value}
                   onChange={(e) => {
                     const next = [...formChoices];
                     next[idx] = e.target.value.slice(0, MAX_CHOICE_LEN);
                     setFormChoices(next);
                   }}
-                  placeholder={`Choice ${idx + 1}`}
+                  placeholder={t("chatModeration.choice", { index: idx + 1 })}
                   className="flex-1 rounded border border-[var(--color-border)] bg-black/30 px-2 py-1 text-sm text-white"
                 />
                 {formChoices.length > MIN_CHOICES ? (
@@ -225,7 +231,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
                     onClick={() => setFormChoices(formChoices.filter((_, i) => i !== idx))}
                     className="text-xs text-[var(--color-foreground-muted)] hover:text-white"
                   >
-                    Remove
+                    {t("chatModeration.remove")}
                   </button>
                 ) : null}
               </div>
@@ -236,15 +242,21 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
                 onClick={() => setFormChoices([...formChoices, ""])}
                 className="self-start text-xs text-[var(--color-storm-primary)] hover:underline"
               >
-                + Add choice
+                {t("chatModeration.addChoice")}
               </button>
             ) : null}
           </div>
 
           <div className="flex flex-col gap-1">
             <label className="text-xs text-[var(--color-foreground-muted)]">
-              Duration:{" "}
-              {formDuration < 60 ? `${formDuration}s` : `${Math.floor(formDuration / 60)}m`}
+              {t("chatModeration.durationWithValue", {
+                value:
+                  formDuration < 60
+                    ? t("chatModeration.durationSecondsShort", { count: formDuration })
+                    : t("chatModeration.durationMinutesShort", {
+                        count: Math.floor(formDuration / 60),
+                      }),
+              })}
             </label>
             <input
               type="range"
@@ -253,7 +265,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
               value={formDuration}
               onChange={(e) => setFormDuration(parseInt(e.target.value, 10))}
               className="w-full"
-              aria-label="Poll duration"
+              aria-label={t("chatModeration.pollDuration")}
             />
           </div>
 
@@ -263,7 +275,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
             disabled={busy}
             className="self-end rounded bg-[#9146FF] px-3 py-1 text-sm text-white hover:bg-[#9146FF]/90 disabled:opacity-50"
           >
-            {busy ? "Creating…" : "Create"}
+            {busy ? t("chatModeration.creating") : t("chatModeration.create")}
           </button>
         </div>
       ) : (
@@ -281,8 +293,12 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-white">{c.title}</span>
                     <span className="text-xs text-[var(--color-foreground-muted)]">
-                      {c.votes.toLocaleString()} votes
-                      {totalVotes > 0 ? ` · ${pct}%` : ""}
+                      {totalVotes > 0
+                        ? t("chatModeration.votesWithPercentage", {
+                            votes: t("chatModeration.votes", { count: c.votes }),
+                            percent: pct,
+                          })
+                        : t("chatModeration.votes", { count: c.votes })}
                     </span>
                   </div>
                 </li>
@@ -297,7 +313,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
                 onClick={() => setPending({ kind: "terminate" })}
                 className="rounded bg-amber-600 px-3 py-1 text-sm text-white hover:bg-amber-600/90"
               >
-                Terminate
+                {t("chatModeration.terminate")}
               </button>
             ) : null}
             {isTerminated(current) ? (
@@ -306,7 +322,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
                 onClick={() => setPending({ kind: "archive" })}
                 className="rounded bg-[#9146FF] px-3 py-1 text-sm text-white hover:bg-[#9146FF]/90"
               >
-                Archive
+                {t("chatModeration.archive")}
               </button>
             ) : null}
           </div>
@@ -320,7 +336,9 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
             if (!o) setPending(null);
           }}
           actionType={pending.kind === "terminate" ? "pollTerminate" : "pollArchive"}
-          targetPreview={<div className="font-medium">{current?.title ?? "(no poll)"}</div>}
+          targetPreview={
+            <div className="font-medium">{current?.title ?? t("chatModeration.noPoll")}</div>
+          }
           onConfirm={() => void runPending()}
           busy={busy}
         />

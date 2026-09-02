@@ -1,5 +1,6 @@
 import { useQueries } from "@tanstack/react-query";
 
+import { i18n } from "@/i18n";
 import type {
   AccountCreatedFieldState,
   ProfileFieldState,
@@ -28,7 +29,10 @@ export interface UserProfile {
 
 const PROFILE_TTL_MS = 5 * 60 * 1000;
 const loadingState = { state: "loading" } as const;
-const unavailableState = { state: "unavailable", message: "Unavailable" } as const;
+const unavailableState = {
+  state: "unavailable",
+  message: i18n.t("chatModeration.unavailable"),
+} as const;
 export type RenderFieldState<T> = ProfileFieldState<T> | typeof loadingState;
 export type RenderAccountCreatedState = AccountCreatedFieldState | typeof loadingState;
 
@@ -124,19 +128,27 @@ export function useUserProfile(
   const identity: RenderFieldState<PublicUserIdentity> = !enabled
     ? unavailableState
     : (identityQuery.data ??
-      (identityQuery.error ? { state: "failed", message: "Couldn’t verify" } : loadingState));
+      (identityQuery.error
+        ? { state: "failed", message: i18n.t("chatModeration.couldntVerify") }
+        : loadingState));
   const follow: RenderFieldState<string> = !enabled
     ? unavailableState
     : (followQuery.data ??
-      (followQuery.error ? { state: "failed", message: "Unavailable" } : loadingState));
+      (followQuery.error
+        ? { state: "failed", message: i18n.t("chatModeration.unavailable") }
+        : loadingState));
   const channel: RenderFieldState<PublicResolvedChannel> = !enabled
     ? unavailableState
     : (channelQuery.data ??
-      (channelQuery.error ? { state: "failed", message: "Unavailable" } : loadingState));
+      (channelQuery.error
+        ? { state: "failed", message: i18n.t("chatModeration.unavailable") }
+        : loadingState));
   const accountCreated: RenderAccountCreatedState = !enabled
     ? unavailableState
     : (accountCreatedQuery.data ??
-      (accountCreatedQuery.error ? { state: "failed", message: "Couldn’t verify" } : loadingState));
+      (accountCreatedQuery.error
+        ? { state: "failed", message: i18n.t("chatModeration.couldntVerify") }
+        : loadingState));
 
   const knownIdentity = identity.state === "known" ? identity.value : null;
   const profile = knownIdentity

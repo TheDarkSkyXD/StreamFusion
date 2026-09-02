@@ -16,6 +16,7 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { modLogWriter } from "@backend/services/mod-log-writer";
@@ -30,11 +31,15 @@ const MAX_TITLE = 45;
 const MIN_OUTCOMES = 2;
 const MAX_OUTCOMES = 10;
 const DEFAULT_DURATION_S = 120;
-const DURATION_TICKS: Array<{ value: number; label: string }> = [
-  { value: 30, label: "30s" },
-  { value: 60, label: "1m" },
-  { value: 300, label: "5m" },
-  { value: 1800, label: "30m" },
+const DURATION_TICKS: Array<{
+  value: number;
+  labelKey: "chatModeration.durationSecondsShort" | "chatModeration.durationMinutesShort";
+  count: number;
+}> = [
+  { value: 30, labelKey: "chatModeration.durationSecondsShort", count: 30 },
+  { value: 60, labelKey: "chatModeration.durationMinutesShort", count: 1 },
+  { value: 300, labelKey: "chatModeration.durationMinutesShort", count: 5 },
+  { value: 1800, labelKey: "chatModeration.durationMinutesShort", count: 30 },
 ];
 
 export interface EngagementPredictionsProps {
@@ -54,6 +59,7 @@ function isLocked(p: TwitchPrediction | null | undefined): boolean {
 }
 
 export function EngagementPredictions({ channelId }: EngagementPredictionsProps) {
+  const { t } = useTranslation();
   const twitchUser = useAuthStore((s) => s.twitchUser);
 
   const fetcher = useCallback(async (): Promise<{ data: TwitchPrediction[] } | null> => {
@@ -94,12 +100,12 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
   const handleCreate = async () => {
     const title = formTitle.trim();
     if (title.length === 0) {
-      toast.error("Title is required");
+      toast.error(t("chatModeration.titleRequired"));
       return;
     }
     const cleanedOutcomes = formOutcomes.map((t) => t.trim()).filter((t) => t.length > 0);
     if (cleanedOutcomes.length < MIN_OUTCOMES) {
-      toast.error("At least 2 outcomes are required");
+      toast.error(t("chatModeration.minOutcomesRequired", { count: MIN_OUTCOMES }));
       return;
     }
     setBusy(true);
@@ -112,7 +118,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
         predictionWindow: formDuration,
       });
       if (!result.ok) {
-        toast.error(`Could not create prediction: ${result.error.message}`);
+        toast.error(t("chatModeration.couldNotCreatePrediction", { error: result.error.message }));
         return;
       }
       modLogWriter.record({
@@ -127,7 +133,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
         moderatorUsername,
         reason: title,
       });
-      toast.success("Prediction created");
+      toast.success(t("chatModeration.predictionCreated"));
       setFormTitle("");
       setFormOutcomes(["", ""]);
       setFormDuration(DEFAULT_DURATION_S);
@@ -159,7 +165,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
         ...(pending.kind === "resolve" ? { winningOutcomeId: pending.outcomeId } : {}),
       });
       if (!result.ok) {
-        toast.error(`Action failed: ${result.error.message}`);
+        toast.error(t("chatModeration.actionFailed", { error: result.error.message }));
         return;
       }
       modLogWriter.record({
@@ -176,10 +182,10 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
       });
       toast.success(
         pending.kind === "lock"
-          ? "Prediction locked"
+          ? t("chatModeration.predictionLocked")
           : pending.kind === "cancel"
-            ? "Prediction canceled"
-            : `Resolved — ${pending.outcomeTitle} won`
+            ? t("chatModeration.predictionCanceled")
+            : t("chatModeration.predictionResolved", { outcome: pending.outcomeTitle })
       );
       setPending(null);
       refresh();
@@ -201,7 +207,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
       data-testid="engagement-predictions"
     >
       <header className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-white">Predictions</h3>
+        <h3 className="text-sm font-semibold text-white">{t("chatModeration.predictions")}</h3>
         {current ? (
           <span
             className="text-xs uppercase tracking-wide text-[var(--color-foreground-muted)]"
@@ -216,11 +222,11 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
         <div className="flex flex-col gap-2" data-testid="prediction-create-form">
           <input
             type="text"
-            aria-label="Prediction title"
+            aria-label={t("chatModeration.predictionTitle")}
             value={formTitle}
             onChange={(e) => setFormTitle(e.target.value.slice(0, MAX_TITLE))}
             maxLength={MAX_TITLE}
-            placeholder="What's happening?"
+            placeholder={t("chatModeration.whatsHappening")}
             className="rounded border border-[var(--color-border)] bg-black/30 px-2 py-1 text-sm text-white"
           />
           <div className="flex flex-col gap-1">
@@ -228,14 +234,14 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
               <div key={idx} className="flex items-center gap-1">
                 <input
                   type="text"
-                  aria-label={`Outcome ${idx + 1}`}
+                  aria-label={t("chatModeration.outcome", { index: idx + 1 })}
                   value={value}
                   onChange={(e) => {
                     const next = [...formOutcomes];
                     next[idx] = e.target.value.slice(0, 25);
                     setFormOutcomes(next);
                   }}
-                  placeholder={`Outcome ${idx + 1}`}
+                  placeholder={t("chatModeration.outcome", { index: idx + 1 })}
                   className="flex-1 rounded border border-[var(--color-border)] bg-black/30 px-2 py-1 text-sm text-white"
                 />
                 {formOutcomes.length > MIN_OUTCOMES ? (
@@ -244,7 +250,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
                     onClick={() => setFormOutcomes(formOutcomes.filter((_, i) => i !== idx))}
                     className="text-xs text-[var(--color-foreground-muted)] hover:text-white"
                   >
-                    Remove
+                    {t("chatModeration.remove")}
                   </button>
                 ) : null}
               </div>
@@ -255,15 +261,21 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
                 onClick={() => setFormOutcomes([...formOutcomes, ""])}
                 className="self-start text-xs text-[var(--color-storm-primary)] hover:underline"
               >
-                + Add outcome
+                {t("chatModeration.addOutcome")}
               </button>
             ) : null}
           </div>
 
           <div className="flex flex-col gap-1">
             <label className="text-xs text-[var(--color-foreground-muted)]">
-              Duration:{" "}
-              {formDuration < 60 ? `${formDuration}s` : `${Math.floor(formDuration / 60)}m`}
+              {t("chatModeration.durationWithValue", {
+                value:
+                  formDuration < 60
+                    ? t("chatModeration.durationSecondsShort", { count: formDuration })
+                    : t("chatModeration.durationMinutesShort", {
+                        count: Math.floor(formDuration / 60),
+                      }),
+              })}
             </label>
             <input
               type="range"
@@ -272,17 +284,17 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
               value={formDuration}
               onChange={(e) => setFormDuration(parseInt(e.target.value, 10))}
               className="w-full"
-              aria-label="Prediction duration"
+              aria-label={t("chatModeration.predictionDuration")}
             />
             <div className="flex justify-between text-[10px] text-[var(--color-foreground-muted)]">
-              {DURATION_TICKS.map((t) => (
+              {DURATION_TICKS.map((tick) => (
                 <button
-                  key={t.value}
+                  key={tick.value}
                   type="button"
-                  onClick={() => setFormDuration(t.value)}
+                  onClick={() => setFormDuration(tick.value)}
                   className="hover:text-white"
                 >
-                  {t.label}
+                  {t(tick.labelKey, { count: tick.count })}
                 </button>
               ))}
             </div>
@@ -294,7 +306,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
             disabled={busy}
             className="self-end rounded bg-[#9146FF] px-3 py-1 text-sm text-white hover:bg-[#9146FF]/90 disabled:opacity-50"
           >
-            {busy ? "Creating…" : "Create"}
+            {busy ? t("chatModeration.creating") : t("chatModeration.create")}
           </button>
         </div>
       ) : (
@@ -312,8 +324,16 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-white">{o.title}</span>
                     <span className="text-xs text-[var(--color-foreground-muted)]">
-                      {o.channel_points.toLocaleString()} pts · {o.users} viewers
-                      {totalPoints > 0 ? ` · ${pct}%` : ""}
+                      {totalPoints > 0
+                        ? t("chatModeration.pointsViewersWithPercentage", {
+                            points: o.channel_points.toLocaleString(),
+                            count: o.users,
+                            percent: pct,
+                          })
+                        : t("chatModeration.pointsAndViewers", {
+                            points: o.channel_points.toLocaleString(),
+                            count: o.users,
+                          })}
                     </span>
                   </div>
                   {isLocked(current) ? (
@@ -328,7 +348,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
                       }
                       className="mt-1 rounded bg-emerald-600 px-2 py-0.5 text-xs text-white hover:bg-emerald-600/90"
                     >
-                      Choose winner
+                      {t("chatModeration.chooseWinner")}
                     </button>
                   ) : null}
                 </li>
@@ -343,7 +363,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
                 onClick={() => setPending({ kind: "lock" })}
                 className="rounded bg-amber-600 px-3 py-1 text-sm text-white hover:bg-amber-600/90"
               >
-                Lock
+                {t("chatModeration.lock")}
               </button>
             ) : null}
             <button
@@ -351,7 +371,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
               onClick={() => setPending({ kind: "cancel" })}
               className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-600/90"
             >
-              Cancel
+              {t("chatModeration.cancel")}
             </button>
           </div>
         </div>
@@ -372,10 +392,12 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
           }
           targetPreview={
             <div>
-              <div className="font-medium">{current?.title ?? "(no prediction)"}</div>
+              <div className="font-medium">
+                {current?.title ?? t("chatModeration.noPrediction")}
+              </div>
               {pending.kind === "resolve" ? (
                 <div className="mt-1 text-xs text-[var(--color-foreground-muted)]">
-                  Winning outcome: <span className="text-white">{pending.outcomeTitle}</span>
+                  {t("chatModeration.resolvedOutcome", { outcome: pending.outcomeTitle })}
                 </div>
               ) : null}
             </div>
