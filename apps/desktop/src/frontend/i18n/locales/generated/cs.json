@@ -1468,7 +1468,7 @@
     "fps": "FPS",
     "skippedFrames": "Vynechané snímky",
     "bufferSize": "Velikost vyrovnávací paměti",
-    "latencyToBroadcaster": "Latency To Broadcaster",
+    "latencyToBroadcaster": "Latence vůči vysílajícímu",
     "playbackRate": "Rychlost přehrávání",
     "codecs": "Kodeky",
     "protocol": "Protokol",

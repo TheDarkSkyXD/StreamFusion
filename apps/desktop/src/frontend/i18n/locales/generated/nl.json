@@ -1747,7 +1747,7 @@
     "visualStyleForTheChatPredictionWidgetWhenAStreamerRunsAPredictio": "Visuele stijl voor de chatvoorspellingswidget wanneer een streamer een voorspelling uitvoert.",
     "nativeMatchesEachPlatformSOwnUiTwitchPurpleWithBubbleChartKickGr": "Native komt overeen met de eigen gebruikersinterface van elk platform (Twitch paars met bellendiagram; Kick groen/roze stipparen). Unified gebruikt het stormaccent van StreamFusion op beide platforms.",
     "selectStyle": "Selecteer stijl",
-    "nativePerPlatform": "Native (per platform)",
+    "nativePerPlatform": "Systeemeigen (per platform)",
     "unifiedStreamfusion": "Uniforme StreamFusion",
     "manageYourConnectedAccountsAndServices": "Beheer uw verbonden accounts en services.",
     "twitchConnectionError": "Twitch Verbindingsfout",

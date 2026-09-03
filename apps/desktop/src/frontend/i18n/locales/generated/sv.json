@@ -2112,7 +2112,7 @@
     "idle": "Inaktiv",
     "session": "Session",
     "thermal": "Termisk",
-    "nativeProcessMonitor": "Native process monitor",
+    "nativeProcessMonitor": "Inbyggd processövervakare",
     "electronMainProcess": "Elektronens huvudprocess",
     "collectionTime": "Samlingstid",
     "collectorCpu": "Samlar CPU",

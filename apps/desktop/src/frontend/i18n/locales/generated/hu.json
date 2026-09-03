@@ -1475,7 +1475,7 @@
     "latencyMode": "Késési mód",
     "renderSurface": "Felület renderelése",
     "backendVersion": "Háttér verzió",
-    "playSessionId": "Play Session ID",
+    "playSessionId": "Lejátszási munkamenet azonosítója",
     "servingId": "Kiszolgálási azonosító",
     "liveStreamAlt": "{{channel}} élő közvetítés"
   },

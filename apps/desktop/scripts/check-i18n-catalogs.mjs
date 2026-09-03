@@ -4,6 +4,11 @@ import { fileURLToPath } from "node:url";
 
 import ts from "typescript";
 
+import {
+  isUntranslatedEnglishProse,
+  protectedCatalogValuePattern,
+} from "./i18n-catalog-quality.mjs";
+
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const localeDirectory = join(scriptDirectory, "../src/frontend/i18n/locales");
 const generatedDirectory = join(localeDirectory, "generated");
@@ -25,8 +30,6 @@ const googleLanguageAliases = new Map([
 ]);
 const protectedPattern =
   /{{[^}]+}}|https?:\/\/[^\s"')]+|\b(?:Chromium DevTools|StreamFusion(?:['’]s)?|Twitch(?:['’]s)?|Kick(?:['’]s)?|7TV|BTTV|FFZ|OAuth|EventSub|Chromium|Discord|GitHub|Linux|Windows|macOS|HLS|HEVC|IRC|FPS|GIF|API|VIPs?)\b/g;
-const protectedValuePattern =
-  /https?:\/\/[^\s"')]+|\b(?:StreamFusion|Twitch|Kick|7TV|BTTV|FFZ|Chromium|Discord|GitHub|Windows|macOS)\b/g;
 let nextGoogleRequestAt = 0;
 
 function unwrapExpression(node) {
@@ -124,7 +127,7 @@ function interpolationVariables(value) {
 }
 
 function protectedValues(value) {
-  return [...value.matchAll(protectedValuePattern)].map((match) => match[0]).sort();
+  return [...value.matchAll(protectedCatalogValuePattern)].map((match) => match[0]).sort();
 }
 
 function protectText(value) {
@@ -241,7 +244,8 @@ async function generateCatalog(language, englishCatalog, sourceSnapshot) {
       (sourceSnapshot && sourceSnapshot.get(key) !== englishValue) ||
       interpolationVariables(value).join("\0") !==
         interpolationVariables(englishValue).join("\0") ||
-      protectedValues(value).join("\0") !== protectedValues(englishValue).join("\0")
+      protectedValues(value).join("\0") !== protectedValues(englishValue).join("\0") ||
+      isUntranslatedEnglishProse(englishValue, value)
     );
   });
 
@@ -286,6 +290,9 @@ function validateCatalog(language, englishCatalog, catalog) {
     }
     if (protectedValues(englishValue).join("\0") !== protectedValues(translatedValue).join("\0")) {
       errors.push(`${language} changes a protected URL or product name at ${key}`);
+    }
+    if (isUntranslatedEnglishProse(englishValue, translatedValue)) {
+      errors.push(`${language} keeps untranslated English prose at ${key}`);
     }
   }
   for (const key of translated.keys()) {

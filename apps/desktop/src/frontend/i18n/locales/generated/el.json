@@ -1468,7 +1468,7 @@
     "fps": "FPS",
     "skippedFrames": "Παράλειψη καρέ",
     "bufferSize": "Μέγεθος buffer",
-    "latencyToBroadcaster": "Latency To Broadcaster",
+    "latencyToBroadcaster": "Καθυστέρηση προς τον μεταδότη",
     "playbackRate": "Ρυθμός αναπαραγωγής",
     "codecs": "Κωδικοποιητές",
     "protocol": "Πρωτόκολλο",
