@@ -1,5 +1,12 @@
 export const DISPLAY_LANGUAGE_REGISTRY = [
   {
+    code: "en",
+    nativeLabel: "English",
+    englishLabel: "English",
+    direction: "ltr",
+    streamLanguage: "en",
+  },
+  {
     code: "ar",
     nativeLabel: "العربية",
     englishLabel: "Arabic",
@@ -54,13 +61,6 @@ export const DISPLAY_LANGUAGE_REGISTRY = [
     englishLabel: "Greek",
     direction: "ltr",
     streamLanguage: "el",
-  },
-  {
-    code: "en",
-    nativeLabel: "English",
-    englishLabel: "English",
-    direction: "ltr",
-    streamLanguage: "en",
   },
   {
     code: "es",

@@ -7,8 +7,13 @@ import {
 } from "@shared/display-language";
 
 // Guards: the display-language registry remains exactly the supported 50 unique canonical locales.
+// Guards: English remains first because it is the default display language.
 // Guards: regional tags and safe aliases preserve their intended locale and stream-language mapping.
 describe("display languages", () => {
+  it("lists the default English language first", () => {
+    expect(DISPLAY_LANGUAGE_REGISTRY[0].code).toBe("en");
+  });
+
   it("contains exactly 50 unique language codes", () => {
     const codes = DISPLAY_LANGUAGE_REGISTRY.map(({ code }) => code);
 
