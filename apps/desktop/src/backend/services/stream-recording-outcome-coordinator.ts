@@ -2,6 +2,7 @@ import type {
   StreamRecordingArtifactIdentity,
   StreamRecordingNotice,
 } from "@shared/stream-recording-types";
+import { nativeText, type NativeCopyKey } from "@shared/i18n/native-copy.generated";
 import type { StreamRecordingSessionStore } from "./stream-recording-session-store";
 
 export interface StreamRecordingDeliveryContext {
@@ -29,6 +30,7 @@ export function createStreamRecordingOutcomeCoordinator({
   scheduleClear,
   recordingFileActions,
   verifyArtifactIdentity,
+  getText = (key, values) => nativeText("en", key, values),
   noticeTtlMs = 10_000,
 }: {
   sessionStore: StreamRecordingSessionStore;
@@ -49,6 +51,7 @@ export function createStreamRecordingOutcomeCoordinator({
     path: string,
     identity: StreamRecordingArtifactIdentity
   ) => Promise<boolean>;
+  getText?: (key: NativeCopyKey, values?: Readonly<Record<string, string | number>>) => string;
   scheduleClear: (callback: () => void, delayMs: number) => unknown;
   noticeTtlMs?: number;
 }): StreamRecordingOutcomeCoordinator {
@@ -63,11 +66,13 @@ export function createStreamRecordingOutcomeCoordinator({
 
   async function ownedOutputPath(sessionId: string): Promise<{ path: string } | { error: string }> {
     const notice = getCurrentNotice(sessionId);
-    if (!notice || notice.outcome === "failed") return { error: "Recording outcome not found" };
+    if (!notice || notice.outcome === "failed") {
+      return { error: getText("recordingOutcomeNotFound") };
+    }
     if (!recordingFileActions.exists(notice.outputPath))
-      return { error: "Recording file not found" };
+      return { error: getText("recordingFileNotFound") };
     if (!(await verifyArtifactIdentity(notice.outputPath, notice.artifactIdentity))) {
-      return { error: "Recording file ownership could not be verified" };
+      return { error: getText("recordingOwnershipUnverified") };
     }
     return { path: notice.outputPath };
   }
@@ -95,16 +100,16 @@ export function createStreamRecordingOutcomeCoordinator({
         showNative({
           title:
             notice.outcome === "completed"
-              ? "Recording completed"
+              ? getText("recordingCompleted")
               : notice.outcome === "partial"
-                ? "Partial recording saved"
-                : "Recording failed",
+                ? getText("partialRecordingSaved")
+                : getText("recordingFailed"),
           body:
             notice.outcome === "completed"
-              ? `${notice.title} was saved.`
+              ? getText("recordingSavedBody", { title: notice.title })
               : notice.outcome === "partial"
-                ? `Some footage from ${notice.title} was saved.`
-                : `No playable recording was saved for ${notice.title}.`,
+                ? getText("partialRecordingSavedBody", { title: notice.title })
+                : getText("recordingFailedBody", { title: notice.title }),
           silent: !context.soundEnabled,
           onClick: () => {
             const current = sessionStore.getSnapshot().notice;
@@ -133,7 +138,7 @@ export function createStreamRecordingOutcomeCoordinator({
         const error = await recordingFileActions.openPath(owned.path);
         return error ? { success: false, error } : { success: true };
       } catch (error) {
-        return actionError(error, "Could not open the recording");
+        return actionError(error, getText("couldNotOpenRecording"));
       }
     },
     async show(sessionId) {
@@ -143,7 +148,7 @@ export function createStreamRecordingOutcomeCoordinator({
         recordingFileActions.showItemInFolder(owned.path);
         return { success: true };
       } catch (error) {
-        return actionError(error, "Could not show the recording in its folder");
+        return actionError(error, getText("couldNotShowRecording"));
       }
     },
     dismiss: (sessionId) => sessionStore.dismissNotice(sessionId),

@@ -70,6 +70,7 @@
     "generate:i18n-catalogs": "node scripts/check-i18n-catalogs.mjs --generate",
     "check:i18n-catalogs": "node scripts/check-i18n-catalogs.mjs",
     "check:i18n-coverage": "node scripts/check-i18n-coverage.mjs",
+    "check:i18n-native-copy": "node scripts/check-i18n-native-copy.mjs",
     "parity:desktop:write": "node scripts/desktop-parity-inventory.mjs write",
     "parity:desktop:check": "node scripts/desktop-parity-inventory.mjs check",
     "reliability:boundaries": "node scripts/check-reliability-boundaries.mjs",

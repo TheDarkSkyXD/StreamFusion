@@ -326,6 +326,7 @@ const defaults: ElectronStoreSchema = {
 
 export class StorageService {
   private store: Store<ElectronStoreSchema> | null = null;
+  private readonly preferenceListeners = new Set<(preferences: UserPreferences) => void>();
   private isEncryptionAvailable = false;
   // In-memory cache of decrypted auth tokens. Avoids a safeStorage.decryptString()
   // call (DPAPI on Windows) on every API call. Lifetime = process lifetime,
@@ -1043,7 +1044,13 @@ export class StorageService {
     };
     const updated = { ...current, ...normalizedUpdates };
     this.storeInstance.set("preferences", updated);
+    for (const listener of this.preferenceListeners) listener(updated);
     return updated;
+  }
+
+  onPreferencesChanged(listener: (preferences: UserPreferences) => void): () => void {
+    this.preferenceListeners.add(listener);
+    return () => this.preferenceListeners.delete(listener);
   }
 
   /**
@@ -1051,6 +1058,7 @@ export class StorageService {
    */
   resetPreferences(): void {
     this.storeInstance.set("preferences", DEFAULT_USER_PREFERENCES);
+    for (const listener of this.preferenceListeners) listener(DEFAULT_USER_PREFERENCES);
   }
 
   // ========== Window State Management (Electron Store) ==========

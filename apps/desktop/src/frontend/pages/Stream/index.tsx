@@ -882,7 +882,7 @@ export function StreamPage() {
                 displayName={overlayDisplayName}
                 avatarUrl={overlayAvatarUrl}
                 bannerUrl={overlayBannerUrl}
-                statusMessage="Unable to check stream status"
+                statusMessage={t("playback.unableToCheckStreamStatus")}
                 onCheckAgain={handleCheckAgain}
               />
             )}
@@ -894,7 +894,7 @@ export function StreamPage() {
                 displayName={overlayDisplayName}
                 avatarUrl={overlayAvatarUrl}
                 bannerUrl={overlayBannerUrl}
-                statusMessage="Unable to load stream"
+                statusMessage={t("playback.unableToLoadStream")}
                 onCheckAgain={handlePlaybackCheckAgain}
               />
             )}
@@ -908,7 +908,7 @@ export function StreamPage() {
                 bannerUrl={overlayBannerUrl}
                 categoryName={overlayCategoryName}
                 lastStreamTitle={overlayStreamTitle}
-                statusMessage="Playback interrupted"
+                statusMessage={t("playback.playbackInterrupted")}
                 onCheckAgain={handlePlaybackCheckAgain}
               />
             )}

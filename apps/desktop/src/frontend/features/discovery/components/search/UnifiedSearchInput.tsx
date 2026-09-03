@@ -17,7 +17,7 @@ import {
   type SearchHistoryScope,
   useSearchHistory,
 } from "@/features/discovery/data/useSearchHistory";
-import { cn, normalizeCategoryName, pickWinner } from "@/lib/utils";
+import { cn, formatCompactNumber, normalizeCategoryName, pickWinner } from "@/lib/utils";
 import {
   isExactChannelSearchMatch,
   rankSearchChannels,
@@ -98,13 +98,9 @@ const ONE_LETTER_CHANNEL_TARGET = 5;
 
 function formatFollowerCount(count: number | undefined, t: TFunction): string | null {
   if (count === undefined || count === null) return null;
-  if (count >= 1000000) {
-    return `${(count / 1000000).toFixed(1).replace(/\.0$/, "")}M ${t("discovery.search.followers", { count })}`;
-  }
-  if (count >= 1000) {
-    return `${(count / 1000).toFixed(1).replace(/\.0$/, "")}K ${t("discovery.search.followers", { count })}`;
-  }
-  return t("discovery.search.followers", { count });
+  return t(count === 1 ? "discovery.search.followers_one" : "discovery.search.followers_other", {
+    formattedCount: formatCompactNumber(count),
+  });
 }
 
 // Helper to render category items. Extracted so each call can invoke

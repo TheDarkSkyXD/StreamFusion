@@ -22,8 +22,10 @@ import {
   type UserPreferences,
 } from "@shared/auth-types";
 import { IPC_CHANNELS } from "@shared/ipc-channels";
+import { nativeText } from "@shared/i18n/native-copy.generated";
 import { KickLiveNotificationSource } from "./kick-live-notification-source";
 import { storageService } from "./storage-service";
+import { getNativeText } from "./native-copy";
 import type { MainRendererPort } from "@backend/ipc/main-renderer-port";
 import { TwitchLiveEventSubSource } from "./twitch-live-eventsub-source";
 
@@ -328,10 +330,12 @@ const appIconPath = path.join(__dirname, "../../assets/icons/icon.png");
 export function showLiveDesktopNotification(
   renderer: MainRendererPort,
   notification: LiveNotificationPayload,
-  options: { silent: boolean }
+  options: { silent: boolean; title?: string }
 ): void {
   const desktopNotification = new Notification({
-    title: `${notification.channelDisplayName} is live`,
+    title:
+      options.title ??
+      nativeText("en", "channelIsLive", { channel: notification.channelDisplayName }),
     body: notification.title,
     icon: appIconPath,
     silent: options.silent,
@@ -402,7 +406,14 @@ class AppLiveNotificationService {
           this.renderer?.send(IPC_CHANNELS.NOTIFICATION_LIVE_RECEIVED, notification);
         },
         showDesktop: (notification, options) => {
-          if (this.renderer) showLiveDesktopNotification(this.renderer, notification, options);
+          if (this.renderer) {
+            showLiveDesktopNotification(this.renderer, notification, {
+              ...options,
+              title: getNativeText("channelIsLive", {
+                channel: notification.channelDisplayName,
+              }),
+            });
+          }
         },
         desktopNotificationsSupported: () => Notification.isSupported(),
         now: () => Date.now(),

@@ -9,6 +9,7 @@
  */
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { kickChatService, kickPinToNormalized } from "../../../backend/services/chat/kick-chat";
 import { twitchChatService } from "../../../backend/services/chat/twitch-chat";
@@ -35,6 +36,11 @@ import { useReconnectDialogStore } from "../../store/reconnect-dialog-store";
 import { DEBUG_TOKENS } from "./tokens";
 
 let counter = 0;
+
+function platformFixtureText<const Value extends string>(value: Value): Value {
+  return value;
+}
+
 function uid(prefix: string): string {
   counter += 1;
   return `${prefix}-${Date.now()}-${counter}`;
@@ -87,7 +93,7 @@ function debugBadge(platform: ChatPlatform): ChatMessage["badges"][number] {
     setId: platform === "kick" ? "subscriber" : "vip",
     version: "1",
     imageUrl: DEBUG_BADGE_IMAGE,
-    title: platform === "kick" ? "Subscriber" : "VIP",
+    title: platform === "kick" ? platformFixtureText("Subscriber") : platformFixtureText("VIP"),
   };
 }
 
@@ -102,14 +108,10 @@ function moderatorPresentation(platform: ChatPlatform): NonNullable<ChatMessage[
         setId: "moderator",
         version: "1",
         imageUrl: DEBUG_BADGE_IMAGE,
-        title: "Moderator",
+        title: platformFixtureText("Moderator"),
       },
     ],
   };
-}
-
-function styleLabel(style: ModerationHighlightStyle): "Compact" | "Framed" {
-  return style === "compact" ? "Compact" : "Framed";
 }
 
 const GIFT_RECIPIENT_DISPLAY_NAMES = [
@@ -206,6 +208,7 @@ function PillButton({
 }
 
 export function ChatSimTool() {
+  const { t } = useTranslation();
   const [platform, setPlatform] = useState<ChatPlatform>(getInitialPlatform);
   const connectedChannels = useChatStore(
     (state) => state.connectionStatus[platform]?.channels ?? []
@@ -618,11 +621,11 @@ export function ChatSimTool() {
   const injectPollKick = () => {
     if (platform !== "kick") return;
     const poll: KickPoll = {
-      title: "Which game next?",
+      title: platformFixtureText("Which game next?"),
       options: [
-        { id: 1, label: "Marbles", votes: 18 },
-        { id: 2, label: "Just Chatting", votes: 41 },
-        { id: 3, label: "Slots", votes: 9 },
+        { id: 1, label: platformFixtureText("Marbles"), votes: 18 },
+        { id: 2, label: platformFixtureText("Just Chatting"), votes: 41 },
+        { id: 3, label: platformFixtureText("Slots"), votes: 9 },
       ],
       remaining: 30,
       duration: 60,
@@ -633,11 +636,11 @@ export function ChatSimTool() {
   const injectPollEndedKick = () => {
     if (platform !== "kick") return;
     const poll: KickPoll = {
-      title: "Which game next?",
+      title: platformFixtureText("Which game next?"),
       options: [
-        { id: 1, label: "Marbles", votes: 22 },
-        { id: 2, label: "Just Chatting", votes: 67 },
-        { id: 3, label: "Slots", votes: 11 },
+        { id: 1, label: platformFixtureText("Marbles"), votes: 22 },
+        { id: 2, label: platformFixtureText("Just Chatting"), votes: 67 },
+        { id: 3, label: platformFixtureText("Slots"), votes: 11 },
       ],
       remaining: 0,
       duration: 60,
@@ -655,11 +658,11 @@ export function ChatSimTool() {
   const injectPollTwitch = () => {
     if (platform !== "twitch") return;
     const poll: KickPoll = {
-      title: "Which game next?",
+      title: platformFixtureText("Which game next?"),
       options: [
-        { id: 1, label: "Marbles", votes: 18 },
-        { id: 2, label: "Just Chatting", votes: 41 },
-        { id: 3, label: "Slots", votes: 9 },
+        { id: 1, label: platformFixtureText("Marbles"), votes: 18 },
+        { id: 2, label: platformFixtureText("Just Chatting"), votes: 41 },
+        { id: 3, label: platformFixtureText("Slots"), votes: 9 },
       ],
       // Fresh poll — full window remaining so the widget's bar starts at
       // 100% and visibly drains over `duration` seconds.
@@ -672,11 +675,11 @@ export function ChatSimTool() {
   const injectPollEndedTwitch = () => {
     if (platform !== "twitch") return;
     const poll: KickPoll = {
-      title: "Which game next?",
+      title: platformFixtureText("Which game next?"),
       options: [
-        { id: 1, label: "Marbles", votes: 22 },
-        { id: 2, label: "Just Chatting", votes: 67 },
-        { id: 3, label: "Slots", votes: 11 },
+        { id: 1, label: platformFixtureText("Marbles"), votes: 22 },
+        { id: 2, label: platformFixtureText("Just Chatting"), votes: 67 },
+        { id: 3, label: platformFixtureText("Slots"), votes: 11 },
       ],
       remaining: 0,
       duration: 60,
@@ -704,12 +707,16 @@ export function ChatSimTool() {
       // Same sentinel for the slug fallback — empty matches no real slug, so
       // the multiview filter falls through to the channelId-empty escape hatch.
       channelSlug: "",
-      title: p === "twitch" ? "Who wins next game?" : "BroVBro - Golf it Overall",
+      title:
+        p === "twitch"
+          ? platformFixtureText("Who wins next game?")
+          : platformFixtureText("BroVBro - Golf it Overall"),
       status,
       outcomes: [
         {
           id: outcomeA,
-          title: p === "twitch" ? "Sodapoppin" : "BroVBro",
+          title:
+            p === "twitch" ? platformFixtureText("Sodapoppin") : platformFixtureText("BroVBro"),
           color: p === "twitch" ? "blue" : null,
           totalAmount: status === "RESOLVED" ? 2_400_000 : 979_100,
           userCount: status === "RESOLVED" ? 45 : 22,
@@ -720,7 +727,7 @@ export function ChatSimTool() {
         },
         {
           id: outcomeB,
-          title: p === "twitch" ? "EggsQc" : "OqaXex",
+          title: p === "twitch" ? platformFixtureText("EggsQc") : platformFixtureText("OqaXex"),
           color: p === "twitch" ? "pink" : null,
           totalAmount: status === "RESOLVED" ? 705_000 : 848_900,
           userCount: status === "RESOLVED" ? 17 : 19,
@@ -776,7 +783,10 @@ export function ChatSimTool() {
     enabled: boolean,
     enabledTitle: string,
     requiredPlatform: "Kick" | "Twitch"
-  ) => (enabled ? enabledTitle : `Switch platform to ${requiredPlatform}`);
+  ) =>
+    enabled ? enabledTitle : t("dev.chatSimulator.switchPlatform", { platform: requiredPlatform });
+  const styleLabel = (style: ModerationHighlightStyle) =>
+    t(style === "compact" ? "dev.chatSimulator.compact" : "dev.chatSimulator.framed");
 
   return (
     <div>
@@ -792,7 +802,7 @@ export function ChatSimTool() {
           htmlFor="chat-sim-platform"
           style={{ color: DEBUG_TOKENS.textSecondary, fontSize: 13 }}
         >
-          Platform
+          {t("dev.chatSimulator.platform")}
         </label>
         <select
           id="chat-sim-platform"
@@ -814,191 +824,219 @@ export function ChatSimTool() {
       </div>
 
       <section style={sectionStyle}>
-        <div style={sectionLabelStyle}>Messages</div>
+        <div style={sectionLabelStyle}>{t("dev.chatSimulator.messages")}</div>
         <div style={buttonRowStyle}>
-          <PillButton title={`Inject a random ${platform} chat message`} onClick={injectRandom}>
-            random
-          </PillButton>
           <PillButton
-            title="Inject a highlighted first-time chatter message"
-            onClick={injectFirstTime}
+            title={t("dev.chatSimulator.randomHint", { platform })}
+            onClick={injectRandom}
           >
-            first-time chatter
+            {t("dev.chatSimulator.random")}
+          </PillButton>
+          <PillButton title={t("dev.chatSimulator.firstTimeChatterHint")} onClick={injectFirstTime}>
+            {t("dev.chatSimulator.firstTimeChatter")}
           </PillButton>
           {isTwitch && (
-            <PillButton title="Inject a Twitch /me action message" onClick={injectAction}>
-              /me action
+            <PillButton title={t("dev.chatSimulator.actionHint")} onClick={injectAction}>
+              {t("dev.chatSimulator.action")}
             </PillButton>
           )}
-          <PillButton title="Inject a message with a mention fragment" onClick={injectMention}>
-            mention
+          <PillButton title={t("dev.chatSimulator.mentionHint")} onClick={injectMention}>
+            {t("dev.chatSimulator.mention")}
           </PillButton>
-          <PillButton title="Inject a long wrapping chat message" onClick={injectLong}>
-            long wrap
+          <PillButton title={t("dev.chatSimulator.longWrapHint")} onClick={injectLong}>
+            {t("dev.chatSimulator.longWrap")}
           </PillButton>
-          <PillButton
-            title="Inject a chat message from an extra-long username"
-            onClick={injectLongUsername}
-          >
-            long username
+          <PillButton title={t("dev.chatSimulator.longUsernameHint")} onClick={injectLongUsername}>
+            {t("dev.chatSimulator.longUsername")}
           </PillButton>
         </div>
       </section>
 
       <section style={sectionStyle}>
-        <div style={sectionLabelStyle}>Moderation</div>
+        <div style={sectionLabelStyle}>{t("dev.chatSimulator.moderation")}</div>
         <div style={buttonRowStyle}>
-          <PillButton
-            title="Clear the debug target chat and inject a clear notice"
-            onClick={injectClearAll}
-          >
-            clear all
+          <PillButton title={t("dev.chatSimulator.clearAllHint")} onClick={injectClearAll}>
+            {t("dev.chatSimulator.clearAll")}
           </PillButton>
           {(["compact", "cozy"] as const).map((style) => (
             <PillButton
               key={`deleted-${style}`}
-              title={`Show a ${styleLabel(style)} deleted-message highlight for ${platform}`}
+              title={t("dev.chatSimulator.deletedHint", {
+                style: styleLabel(style),
+                platform,
+              })}
               onClick={() => injectDeletedMessagePreview(style)}
             >
-              deleted {styleLabel(style).toLowerCase()}
+              {t("dev.chatSimulator.deleted", { style: styleLabel(style).toLocaleLowerCase() })}
             </PillButton>
           ))}
           {(["compact", "cozy"] as const).map((style) => (
             <PillButton
               key={`timeout-${style}`}
-              title={`Show a ${styleLabel(style)} timeout highlight with deleted rows for ${platform}`}
+              title={t("dev.chatSimulator.timeoutHint", {
+                style: styleLabel(style),
+                platform,
+              })}
               onClick={() => injectModerationActionPreview(style, 600)}
             >
-              timeout {styleLabel(style).toLowerCase()}
+              {t("dev.chatSimulator.timeout", { style: styleLabel(style).toLocaleLowerCase() })}
             </PillButton>
           ))}
           {(["compact", "cozy"] as const).map((style) => (
             <PillButton
               key={`ban-${style}`}
-              title={`Show a ${styleLabel(style)} ban highlight with deleted rows for ${platform}`}
+              title={t("dev.chatSimulator.banHint", {
+                style: styleLabel(style),
+                platform,
+              })}
               onClick={() => injectModerationActionPreview(style)}
             >
-              ban {styleLabel(style).toLowerCase()}
+              {t("dev.chatSimulator.ban", { style: styleLabel(style).toLocaleLowerCase() })}
             </PillButton>
           ))}
         </div>
       </section>
 
       <section style={sectionStyle}>
-        <div style={sectionLabelStyle}>Notices</div>
+        <div style={sectionLabelStyle}>{t("dev.chatSimulator.notices")}</div>
         <div style={buttonRowStyle}>
-          <PillButton title="Inject a subscription notice" onClick={injectSub}>
-            sub
-          </PillButton>
-          <PillButton title="Inject a 5 month resub notice" onClick={() => injectResub(5)}>
-            resub 5mo
-          </PillButton>
-          <PillButton title="Inject a 36 month resub notice" onClick={() => injectResub(36)}>
-            resub 3yr
-          </PillButton>
-          <PillButton title="Inject a gifted subscription notice" onClick={injectGiftSub}>
-            gift sub
+          <PillButton title={t("dev.chatSimulator.subscriptionHint")} onClick={injectSub}>
+            {t("dev.chatSimulator.subscription")}
           </PillButton>
           <PillButton
-            title="Inject a 50 mystery gifts notice"
+            title={t("dev.chatSimulator.resubFiveMonthsHint")}
+            onClick={() => injectResub(5)}
+          >
+            {t("dev.chatSimulator.resubFiveMonths")}
+          </PillButton>
+          <PillButton
+            title={t("dev.chatSimulator.resubThreeYearsHint")}
+            onClick={() => injectResub(36)}
+          >
+            {t("dev.chatSimulator.resubThreeYears")}
+          </PillButton>
+          <PillButton title={t("dev.chatSimulator.giftSubscriptionHint")} onClick={injectGiftSub}>
+            {t("dev.chatSimulator.giftSubscription")}
+          </PillButton>
+          <PillButton
+            title={t("dev.chatSimulator.mysteryGiftsHint")}
             onClick={() => injectMysteryGift(50)}
           >
-            50 mystery gifts
+            {t("dev.chatSimulator.mysteryGifts")}
           </PillButton>
-          <PillButton title="Inject a 1.2k viewer raid notice" onClick={() => injectRaid(1234)}>
-            raid 1.2k
+          <PillButton
+            title={t("dev.chatSimulator.raidViewersHint")}
+            onClick={() => injectRaid(1234)}
+          >
+            {t("dev.chatSimulator.raidViewers")}
           </PillButton>
         </div>
       </section>
 
       <section style={sectionStyle}>
-        <div style={sectionLabelStyle}>Outgoing raid handoff</div>
+        <div style={sectionLabelStyle}>{t("dev.chatSimulator.outgoingRaid")}</div>
         <div style={buttonRowStyle}>
           <PillButton
-            title="Show a Twitch outgoing raid offer for the current stream"
+            title={t("dev.chatSimulator.twitchOfferHint")}
             onClick={() => simulateOutgoingTwitchRaid("offer")}
           >
-            Twitch offer
+            {t("dev.chatSimulator.twitchOffer")}
           </PillButton>
           <PillButton
-            title="Launch the active simulated Twitch raid"
+            title={t("dev.chatSimulator.twitchGoHint")}
             onClick={() => simulateOutgoingTwitchRaid("go")}
           >
-            Twitch go
+            {t("dev.chatSimulator.twitchGo")}
           </PillButton>
           <PillButton
-            title="Cancel the active simulated Twitch raid"
+            title={t("dev.chatSimulator.twitchCancelHint")}
             onClick={() => simulateOutgoingTwitchRaid("cancel")}
           >
-            Twitch cancel
+            {t("dev.chatSimulator.twitchCancel")}
           </PillButton>
           <PillButton
-            title="Show a three-second Kick outgoing raid handoff"
+            title={t("dev.chatSimulator.kickShortDeadlineHint")}
             onClick={simulateOutgoingKickRaid}
           >
-            Kick short deadline
+            {t("dev.chatSimulator.kickShortDeadline")}
           </PillButton>
         </div>
       </section>
 
       <section style={sectionStyle}>
-        <div style={sectionLabelStyle}>Twitch-only</div>
+        <div style={sectionLabelStyle}>{t("dev.chatSimulator.twitchOnly")}</div>
         <div style={buttonRowStyle}>
           <PillButton
             onClick={injectPinnedTwitch}
             disabled={!isTwitch}
-            title={platformActionTitle(isTwitch, "Show a Twitch pinned message banner", "Twitch")}
+            title={platformActionTitle(
+              isTwitch,
+              t("dev.chatSimulator.showPinnedMessage", { platform: "Twitch" }),
+              "Twitch"
+            )}
           >
-            pin message
+            {t("dev.chatSimulator.pinMessage")}
           </PillButton>
           <PillButton
             onClick={injectPinnedClearTwitch}
             disabled={!isTwitch}
             title={platformActionTitle(
               isTwitch,
-              "Clear the Twitch pinned message banner",
+              t("dev.chatSimulator.clearPinnedMessage", { platform: "Twitch" }),
               "Twitch"
             )}
           >
-            clear pin
+            {t("dev.chatSimulator.clearPin")}
           </PillButton>
           <PillButton
             onClick={injectPollTwitch}
             disabled={!isTwitch}
-            title={platformActionTitle(isTwitch, "Show a live Twitch poll widget", "Twitch")}
+            title={platformActionTitle(
+              isTwitch,
+              t("dev.chatSimulator.showLivePoll", { platform: "Twitch" }),
+              "Twitch"
+            )}
           >
-            poll (live)
+            {t("dev.chatSimulator.livePoll")}
           </PillButton>
           <PillButton
             onClick={injectPollEndedTwitch}
             disabled={!isTwitch}
-            title={platformActionTitle(isTwitch, "Show an ended Twitch poll widget", "Twitch")}
+            title={platformActionTitle(
+              isTwitch,
+              t("dev.chatSimulator.showEndedPoll", { platform: "Twitch" }),
+              "Twitch"
+            )}
           >
-            poll (ended)
+            {t("dev.chatSimulator.endedPoll")}
           </PillButton>
           <PillButton
             onClick={injectPredictionTwitch}
             disabled={!isTwitch}
-            title={platformActionTitle(isTwitch, "Show a live Twitch prediction banner", "Twitch")}
+            title={platformActionTitle(
+              isTwitch,
+              t("dev.chatSimulator.showLivePrediction", { platform: "Twitch" }),
+              "Twitch"
+            )}
           >
-            prediction (live)
+            {t("dev.chatSimulator.livePrediction")}
           </PillButton>
           <PillButton
             onClick={injectPredictionEndedTwitch}
             disabled={!isTwitch}
             title={platformActionTitle(
               isTwitch,
-              "Show a resolved Twitch prediction banner",
+              t("dev.chatSimulator.showResolvedPrediction", { platform: "Twitch" }),
               "Twitch"
             )}
           >
-            prediction (ended)
+            {t("dev.chatSimulator.endedPrediction")}
           </PillButton>
         </div>
       </section>
 
       <section style={sectionStyle}>
-        <div style={sectionLabelStyle}>Mod actions (Twitch)</div>
+        <div style={sectionLabelStyle}>{t("dev.chatSimulator.modActions")}</div>
         <div
           style={{
             display: "flex",
@@ -1024,9 +1062,9 @@ export function ChatSimTool() {
               style={{ cursor: "pointer", accentColor: "#9146FF" }}
             />
             <span>
-              force mod role
+              {t("dev.chatSimulator.forceModRole")}
               <span style={{ color: DEBUG_TOKENS.textSecondary, marginLeft: 6, fontSize: 11 }}>
-                — shows Pin on hover + Unpin on banner
+                {t("dev.chatSimulator.forceModRoleHint")}
               </span>
             </span>
           </label>
@@ -1047,9 +1085,9 @@ export function ChatSimTool() {
               style={{ cursor: "pointer", accentColor: "#9146FF" }}
             />
             <span>
-              force mod scopes
+              {t("dev.chatSimulator.forceModScopes")}
               <span style={{ color: DEBUG_TOKENS.textSecondary, marginLeft: 6, fontSize: 11 }}>
-                — skips reconnect dialog; mutation still requires real token
+                {t("dev.chatSimulator.forceModScopesHint")}
               </span>
             </span>
           </label>
@@ -1062,13 +1100,13 @@ export function ChatSimTool() {
               color: DEBUG_TOKENS.textPrimary,
             }}
           >
-            <span style={{ minWidth: 110 }}>force resolved id</span>
+            <span style={{ minWidth: 110 }}>{t("dev.chatSimulator.forceResolvedId")}</span>
             <input
               type="text"
               value={forceResolvedId}
               onChange={(e) => setForceResolvedId(e.target.value.trim())}
-              placeholder="(empty = real Helix call)"
-              aria-label="Force resolved Twitch broadcaster id"
+              placeholder={t("dev.chatSimulator.forceResolvedIdPlaceholder")}
+              aria-label={t("dev.chatSimulator.forceResolvedIdLabel")}
               style={{
                 flex: 1,
                 background: DEBUG_TOKENS.surfaceRaised,
@@ -1087,7 +1125,7 @@ export function ChatSimTool() {
               marginLeft: 22,
             }}
           >
-            — bypass /users resolve on /mod/twitch/$login pages
+            {t("dev.chatSimulator.forceResolvedIdHint")}
           </div>
           <label
             style={{
@@ -1106,71 +1144,95 @@ export function ChatSimTool() {
               style={{ cursor: "pointer", accentColor: "#9146FF" }}
             />
             <span>
-              force broadcaster identity
+              {t("dev.chatSimulator.forceBroadcasterIdentity")}
               <span style={{ color: DEBUG_TOKENS.textSecondary, marginLeft: 6, fontSize: 11 }}>
-                — unlocks Moderators / VIPs / Engagement gates
+                {t("dev.chatSimulator.forceBroadcasterIdentityHint")}
               </span>
             </span>
           </label>
         </div>
         <div style={buttonRowStyle}>
           <PillButton
-            title="Open the reconnect dialog with Twitch moderator scopes missing"
+            title={t("dev.chatSimulator.showReconnectDialogHint")}
             onClick={() =>
               openReconnectDialog({
                 missingScopes: ["user:read:moderated_channels", "moderator:manage:chat_messages"],
               })
             }
           >
-            show reconnect dialog
+            {t("dev.chatSimulator.showReconnectDialog")}
           </PillButton>
         </div>
       </section>
 
       <section style={sectionStyle}>
-        <div style={sectionLabelStyle}>Kick-only</div>
+        <div style={sectionLabelStyle}>{t("dev.chatSimulator.kickOnly")}</div>
         <div style={buttonRowStyle}>
           <PillButton
             onClick={injectPinnedKick}
             disabled={!isKick}
-            title={platformActionTitle(isKick, "Show a Kick pinned message banner", "Kick")}
+            title={platformActionTitle(
+              isKick,
+              t("dev.chatSimulator.showPinnedMessage", { platform: "Kick" }),
+              "Kick"
+            )}
           >
-            pin message
+            {t("dev.chatSimulator.pinMessage")}
           </PillButton>
           <PillButton
             onClick={injectPinnedClearKick}
             disabled={!isKick}
-            title={platformActionTitle(isKick, "Clear the Kick pinned message banner", "Kick")}
+            title={platformActionTitle(
+              isKick,
+              t("dev.chatSimulator.clearPinnedMessage", { platform: "Kick" }),
+              "Kick"
+            )}
           >
-            clear pin
+            {t("dev.chatSimulator.clearPin")}
           </PillButton>
           <PillButton
             onClick={injectPollKick}
             disabled={!isKick}
-            title={platformActionTitle(isKick, "Show a live Kick poll widget", "Kick")}
+            title={platformActionTitle(
+              isKick,
+              t("dev.chatSimulator.showLivePoll", { platform: "Kick" }),
+              "Kick"
+            )}
           >
-            poll (live)
+            {t("dev.chatSimulator.livePoll")}
           </PillButton>
           <PillButton
             onClick={injectPollEndedKick}
             disabled={!isKick}
-            title={platformActionTitle(isKick, "Show an ended Kick poll widget", "Kick")}
+            title={platformActionTitle(
+              isKick,
+              t("dev.chatSimulator.showEndedPoll", { platform: "Kick" }),
+              "Kick"
+            )}
           >
-            poll (ended)
+            {t("dev.chatSimulator.endedPoll")}
           </PillButton>
           <PillButton
             onClick={injectPredictionKick}
             disabled={!isKick}
-            title={platformActionTitle(isKick, "Show a live Kick prediction banner", "Kick")}
+            title={platformActionTitle(
+              isKick,
+              t("dev.chatSimulator.showLivePrediction", { platform: "Kick" }),
+              "Kick"
+            )}
           >
-            prediction (live)
+            {t("dev.chatSimulator.livePrediction")}
           </PillButton>
           <PillButton
             onClick={injectPredictionEndedKick}
             disabled={!isKick}
-            title={platformActionTitle(isKick, "Show a resolved Kick prediction banner", "Kick")}
+            title={platformActionTitle(
+              isKick,
+              t("dev.chatSimulator.showResolvedPrediction", { platform: "Kick" }),
+              "Kick"
+            )}
           >
-            prediction (ended)
+            {t("dev.chatSimulator.endedPrediction")}
           </PillButton>
         </div>
       </section>

@@ -1,4 +1,5 @@
 import type React from "react";
+import { useTranslation } from "react-i18next";
 
 import { setNetworkStatusOverrideForDebug } from "@/features/settings/data/useNetworkStatus";
 
@@ -15,6 +16,7 @@ const buttonBase: React.CSSProperties = {
 };
 
 export function UiDebugTool() {
+  const { t } = useTranslation();
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <div
@@ -27,9 +29,11 @@ export function UiDebugTool() {
           border: `1px solid ${DEBUG_TOKENS.border}`,
         }}
       >
-        <strong style={{ color: DEBUG_TOKENS.textPrimary, fontSize: 12.5 }}>Network banner</strong>
+        <strong style={{ color: DEBUG_TOKENS.textPrimary, fontSize: 12.5 }}>
+          {t("dev.ui.networkBanner")}
+        </strong>
         <p style={{ margin: 0, color: DEBUG_TOKENS.textSecondary, fontSize: 12 }}>
-          Force the app shell into its offline banner state without changing your real adapter.
+          {t("dev.ui.networkBannerDescription")}
         </p>
       </div>
 
@@ -43,7 +47,7 @@ export function UiDebugTool() {
             color: DEBUG_TOKENS.warning,
           }}
         >
-          Show offline banner
+          {t("dev.ui.showOfflineBanner")}
         </button>
         <button
           type="button"
@@ -54,7 +58,7 @@ export function UiDebugTool() {
             color: DEBUG_TOKENS.textPrimary,
           }}
         >
-          Use real network state
+          {t("dev.ui.useRealNetworkState")}
         </button>
       </div>
     </div>

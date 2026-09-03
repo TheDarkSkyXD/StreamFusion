@@ -11,7 +11,7 @@ describe("formatTimeAgo", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-02T12:00:00.000Z"));
 
-    expect(formatTimeAgo("2026-08-02T17:00:00.000Z")).toBe("Just now");
+    expect(formatTimeAgo("2026-08-02T17:00:00.000Z")).toBe("now");
   });
 
   it("returns an invalid timestamp unchanged instead of rendering NaN seconds ago", () => {

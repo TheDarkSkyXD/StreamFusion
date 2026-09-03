@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { i18n } from "@/i18n";
+import { formatCompactNumber } from "@/lib/utils";
 /**
  * Viewer-side prediction widget — a read-only mirror of Twitch's community-
  * highlight prediction card. Captured live from https://www.twitch.tv/adinross
@@ -141,10 +141,10 @@ const CollapsedView: React.FC<CollapsedProps> = ({
   const leader = topOutcome(prediction);
   const { locksAtMs, windowMs } = predictionCountdown(prediction);
   const ctaLabel = isEnded
-    ? "View Result"
+    ? t("chat.viewResult")
     : prediction.platform === "twitch"
-      ? "See Details"
-      : "Predict";
+      ? t("chat.seeDetails")
+      : t("chat.predict");
 
   // Twitch shows two header layouts:
   //   1. Fresh / no top predictors → "Predict with Channel Points" / bold title
@@ -211,7 +211,7 @@ const CollapsedHeaderText: React.FC<{
   leader: UnifiedPredictionOutcome | null;
 }> = ({ prediction, style, isEnded, totalAmount, leader }) => {
   const { t } = useTranslation();
-  const subtitle = headerSubtitle(prediction, style);
+  const subtitle = headerSubtitle(t, prediction, style);
   const detail = isEnded
     ? endedTeaser(t, prediction, totalAmount)
     : detailTeaser(t, prediction, totalAmount, leader, style);
@@ -232,15 +232,15 @@ const CollapsedHeaderText: React.FC<{
   );
 };
 
-function headerSubtitle(prediction: UnifiedPrediction, style: Style): string {
-  if (prediction.status === "CANCELED") return "Refunded";
-  if (prediction.status === "RESOLVED") return "Result";
+function headerSubtitle(t: TFunction, prediction: UnifiedPrediction, style: Style): string {
+  if (prediction.status === "CANCELED") return t("chat.predictionRefunded");
+  if (prediction.status === "RESOLVED") return t("chat.predictionResult");
   if (prediction.status === "LOCKED") {
-    return style === "kick-native" ? "Predictions locked" : "Submissions closed";
+    return style === "kick-native" ? t("chat.predictionsLocked") : t("chat.submissionsClosed");
   }
-  if (style === "kick-native") return "Predict with KCP";
-  if (style === "unified") return "Open prediction";
-  return "Predict with Channel Points";
+  if (style === "kick-native") return t("chat.predictWithKcp");
+  if (style === "unified") return t("chat.openPrediction");
+  return t("chat.predictWithChannelPoints");
 }
 
 function detailTeaser(
@@ -272,17 +272,20 @@ function detailTeaser(
     return (
       <span className="inline-flex items-center gap-1.5">
         <ChannelPointsIcon size={14} />
-        <span className="text-white">{short(total)}</span>
         <span>
-          {t("chat.goTo")}
-          {topUser}
+          {others > 0
+            ? t(
+                others === 1
+                  ? "chat.predictionPointsToUserAndOthers_one"
+                  : "chat.predictionPointsToUserAndOthers_other",
+                {
+                  amount: short(total),
+                  user: topUser,
+                  otherCount: others,
+                }
+              )
+            : t("chat.predictionPointsToUser", { amount: short(total), user: topUser })}
         </span>
-        {others > 0 && (
-          <span>
-            {t("chat.and")}
-            {others} {t("chat.others")}
-          </span>
-        )}
       </span>
     );
   }
@@ -556,7 +559,7 @@ const ExpandedHeader: React.FC<{
   onDismiss?: () => void;
 }> = ({ prediction, style, onCollapse, onDismiss }) => {
   const { t } = useTranslation();
-  const subtitle = headerSubtitle(prediction, style);
+  const subtitle = headerSubtitle(t, prediction, style);
   return (
     <header className="flex items-start gap-2">
       <button
@@ -782,22 +785,8 @@ function topOutcome(prediction: UnifiedPrediction): UnifiedPredictionOutcome | n
   );
 }
 
-const compactNumberFormatters = new Map<string, Intl.NumberFormat>();
-
-function getCompactNumberFormatter(locale: string): Intl.NumberFormat {
-  const existing = compactNumberFormatters.get(locale);
-  if (existing) return existing;
-  const formatter = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
-  compactNumberFormatters.set(locale, formatter);
-  return formatter;
-}
-
 function short(n: number): string {
-  const locale = i18n.resolvedLanguage ?? i18n.language;
-  const compact = (value: number) => getCompactNumberFormatter(locale).format(value);
-  if (n >= 1_000_000) return `${compact(n / 1_000_000)}M`;
-  if (n >= 1_000) return `${compact(n / 1_000)}K`;
-  return n.toLocaleString(locale);
+  return formatCompactNumber(n);
 }
 
 function endedRelativeLabel(endedAt: string | null, t: TFunction): string {

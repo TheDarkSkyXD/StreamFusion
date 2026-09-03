@@ -7,29 +7,18 @@ export function formatTimeAgo(dateString: string): string {
     return dateString;
   }
 
-  const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (seconds <= 0) return "Just now";
-
-  let interval = seconds / 31536000;
-  if (interval > 1) return `${Math.floor(interval)} years ago`;
-
-  interval = seconds / 2592000;
-  if (interval > 1) return `${Math.floor(interval)} months ago`;
-
-  interval = seconds / 86400;
-  if (interval > 1) {
-    const days = Math.floor(interval);
-    if (days === 1) return "Yesterday";
-    return `${days} days ago`;
-  }
-
-  interval = seconds / 3600;
-  if (interval > 1) return `${Math.floor(interval)} hours ago`;
-
-  interval = seconds / 60;
-  if (interval > 1) return `${Math.floor(interval)} mins ago`;
-
-  return `${seconds} seconds ago`;
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  const formatter = getRelativeTimeFormatter(i18n.resolvedLanguage);
+  if (seconds < 60) return formatter.format(-seconds, "second");
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return formatter.format(-minutes, "minute");
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return formatter.format(-hours, "hour");
+  const days = Math.floor(hours / 24);
+  if (days < 30) return formatter.format(-days, "day");
+  const months = Math.floor(days / 30);
+  if (months < 12) return formatter.format(-months, "month");
+  return formatter.format(-Math.floor(months / 12), "year");
 }
 
 /**
@@ -39,11 +28,7 @@ export function formatViews(views: string | number): string {
   const num = typeof views === "string" ? parseInt(views.replace(/,/g, ""), 10) : views;
   if (Number.isNaN(num)) return String(views);
 
-  if (num >= 1000000) {
-    return `${(num / 1000000).toFixed(1).replace(/\.0$/, "")}M`;
-  }
-  if (num >= 1000) {
-    return `${(num / 1000).toFixed(1).replace(/\.0$/, "")}K`;
-  }
-  return num.toString();
+  return formatCompactNumber(num);
 }
+import { i18n } from "@/i18n";
+import { formatCompactNumber, getRelativeTimeFormatter } from "@/lib/utils";

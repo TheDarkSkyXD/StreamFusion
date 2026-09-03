@@ -8,6 +8,7 @@ import { type ClipDownloadService, createClipDownloadService } from "./clip-down
 import { downloadDirectFile } from "./direct-file-download-service";
 import { assertAllowedRendererMediaUrl } from "./download-media-source";
 import { getAvailableDestinationPath } from "./download-paths";
+import { getNativeText } from "./native-copy";
 import type { DownloadQueueService } from "./download-queue-service";
 import { chooseDefaultDownloadSavePath } from "./download-save-dialog";
 import { downloadHlsWithFfmpeg, resolveFfmpegPath } from "./ffmpeg-download-service";
@@ -62,9 +63,9 @@ export function getDefaultClipDownloadService(
       if (!mainWindow) return null;
       const result = await dialog.showMessageBox(mainWindow, {
         type: "question",
-        title: "Choose clip quality",
-        message: "Choose clip quality",
-        buttons: [...qualities.map((quality) => quality.quality), "Cancel"],
+        title: getNativeText("chooseClipQuality"),
+        message: getNativeText("chooseClipQuality"),
+        buttons: [...qualities.map((quality) => quality.quality), getNativeText("cancel")],
         defaultId: 0,
         cancelId: qualities.length,
       });
@@ -74,10 +75,11 @@ export function getDefaultClipDownloadService(
       const mainWindow = renderer.current();
       if (!mainWindow) return Promise.resolve(null);
       return chooseDefaultDownloadSavePath(mainWindow, {
-        dialogTitle: "Save clip",
+        dialogTitle: getNativeText("saveClip"),
         channelName: request.channelName,
         title: request.title,
         extension,
+        videoFilterName: getNativeText("mp4Video"),
       });
     },
     getAvailablePath: (requestedPath) => getAvailableDestinationPath(requestedPath, existsSync),

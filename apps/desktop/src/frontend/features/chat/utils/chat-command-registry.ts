@@ -89,7 +89,7 @@ export interface ParsedChatCommand {
 interface TwitchCommandOptions {
   readonly name: string;
   readonly usage: string;
-  readonly description: string;
+  readonly description: () => string;
   readonly roles?: readonly ChatCommandRole[];
   readonly scopes?: readonly TwitchAppScope[];
   readonly execution?: ChatCommandExecution;
@@ -99,7 +99,7 @@ interface TwitchCommandOptions {
 interface KickCommandOptions {
   readonly name: string;
   readonly usage: string;
-  readonly description: string;
+  readonly description: () => string;
   readonly roles?: readonly ChatCommandRole[];
   readonly execution?: ChatCommandExecution;
   readonly requiresPartnerChannel?: boolean;
@@ -115,7 +115,9 @@ function twitchCommand(options: TwitchCommandOptions): TwitchCommandDefinition {
     id: `twitch-${options.name}`,
     name: options.name,
     usage: options.usage,
-    description: options.description,
+    get description() {
+      return options.description();
+    },
     platform: "twitch",
     allowedRoles: options.roles ?? viewerRoles,
     requiredScopes: options.scopes ?? [],
@@ -129,7 +131,9 @@ function kickCommand(options: KickCommandOptions): KickCommandDefinition {
     id: `kick-${options.name}`,
     name: options.name,
     usage: options.usage,
-    description: options.description,
+    get description() {
+      return options.description();
+    },
     platform: "kick",
     allowedRoles: options.roles ?? viewerRoles,
     execution: options.execution ?? "platform-command",
@@ -142,33 +146,39 @@ function argumentsList(args: string): string[] {
   return args.trim() ? args.trim().split(/\s+/) : [];
 }
 
+const translate = i18n.t as (key: string, values?: Record<string, string | number>) => string;
+
+function commandError(key: string, values?: Record<string, string | number>): Error {
+  return new Error(translate(`chatCommand.${key}`, values));
+}
+
 function requiredUsername(args: string, command: string): { login: string; rest: string } {
   const [rawLogin, ...rest] = argumentsList(args);
   const login = rawLogin?.replace(/^@+/, "");
-  if (!login) throw new Error(`/${command} needs a username`);
+  if (!login) throw commandError("needsUsername", { command });
   if (!/^[a-zA-Z0-9_]{1,25}$/.test(login)) {
-    throw new Error(`/${command} needs a valid username`);
+    throw commandError("needsValidUsername", { command });
   }
   return { login, rest: rest.join(" ") };
 }
 
 function requiredMessage(args: string, command: string, maximum = 500): string {
   const message = args.trim();
-  if (!message) throw new Error(`/${command} needs a message`);
+  if (!message) throw commandError("needsMessage", { command });
   if (message.length > maximum) {
-    throw new Error(`/${command} message must be ${maximum} characters or fewer`);
+    throw commandError("messageTooLong", { command, maximum });
   }
   return message;
 }
 
 function noArguments(args: string, command: string): void {
-  if (args.trim()) throw new Error(`/${command} does not accept arguments`);
+  if (args.trim()) throw commandError("doesNotAcceptArguments", { command });
 }
 
 function boundedReason(reason: string, command: string, maximum = 500): string | undefined {
   if (!reason) return undefined;
   if (reason.length > maximum) {
-    throw new Error(`/${command} reason must be ${maximum} characters or fewer`);
+    throw commandError("reasonTooLong", { command, maximum });
   }
   return reason;
 }
@@ -177,7 +187,7 @@ function kickToggle(args: string, command: string): { enabled: boolean; rest: st
   const [rawMode, ...rest] = argumentsList(args);
   const mode = rawMode?.toLowerCase();
   if (mode !== "on" && mode !== "off") {
-    throw new Error(`/${command} needs "on" or "off"`);
+    throw commandError("needsOnOrOff", { command });
   }
   return { enabled: mode === "on", rest };
 }
@@ -185,7 +195,7 @@ function kickToggle(args: string, command: string): { enabled: boolean; rest: st
 function kickPositiveSeconds(rawValue: string | undefined, command: string): number {
   const seconds = Number(rawValue);
   if (!rawValue || !/^\d+$/.test(rawValue) || !Number.isSafeInteger(seconds) || seconds < 1) {
-    throw new Error(`/${command} needs a positive whole number of seconds`);
+    throw commandError("needsPositiveSeconds", { command });
   }
   return seconds;
 }
@@ -193,13 +203,13 @@ function kickPositiveSeconds(rawValue: string | undefined, command: string): num
 function kickTimeoutMinutes(rawValue: string | undefined): number {
   const seconds = kickPositiveSeconds(rawValue, "timeout");
   if (seconds % 60 !== 0 || seconds > 604_800) {
-    throw new Error("/timeout seconds must be a multiple of 60 between 60 and 604800");
+    throw commandError("timeoutSecondsRange");
   }
   return seconds / 60;
 }
 
-function kickChannelHandoff(explanation: string): KickCommandEffect {
-  return { kind: "local-notice", message: explanation };
+function kickChannelHandoff(key: string, values?: Record<string, string>): KickCommandEffect {
+  return { kind: "local-notice", message: translate(`chatCommand.${key}`, values) };
 }
 
 const TWITCH_CHAT_COLORS: Readonly<Record<string, string>> = {
@@ -225,7 +235,7 @@ function twitchChatColor(args: string): string {
   if (/^#[0-9a-f]{6}$/i.test(color)) return color.toUpperCase();
   const key = color.toLowerCase().replace(/[_-]/g, "");
   const namedColor = TWITCH_CHAT_COLORS[key];
-  if (!namedColor) throw new Error("/color needs a supported Twitch color or six-digit hex value");
+  if (!namedColor) throw commandError("unsupportedColor");
   return namedColor;
 }
 
@@ -251,22 +261,22 @@ function apiTargetCommand(
   });
 }
 
-function localTwitchNotice(message: string): TwitchCommandDefinition["compile"] {
-  return () => ({ kind: "local-notice", message });
+function localTwitchNotice(key: string): TwitchCommandDefinition["compile"] {
+  return () => ({ kind: "local-notice", message: translate(`chatCommand.${key}`) });
 }
 
 function followersMinutes(value: string | undefined): number {
   if (!value) return 0;
   const match = /^(\d+)(m|h|d|w|mo)?$/i.exec(value);
   if (!match) {
-    throw new Error("/followers duration must use minutes, hours, days, weeks, or months");
+    throw commandError("followersDurationUnits");
   }
   const amount = Number(match[1]);
   const unit = match[2]?.toLowerCase() ?? "m";
   const multiplier = { m: 1, h: 60, d: 1_440, w: 10_080, mo: 43_200 }[unit] ?? 1;
   const minutes = amount * multiplier;
   if (!Number.isSafeInteger(minutes) || minutes < 0 || minutes > 129_600) {
-    throw new Error("/followers duration must be between 0 and 129600 minutes");
+    throw commandError("followersDurationRange");
   }
   return minutes;
 }
@@ -283,9 +293,11 @@ function boundedInteger(
     parsed < options.minimum ||
     parsed > options.maximum
   ) {
-    throw new Error(
-      `/${options.command} duration must be between ${options.minimum} and ${options.maximum} seconds`
-    );
+    throw commandError("durationRange", {
+      command: options.command,
+      minimum: options.minimum,
+      maximum: options.maximum,
+    });
   }
   return parsed;
 }
@@ -308,7 +320,7 @@ function commercialLength(rawValue: string | undefined): CommercialLength {
     case 180:
       return value;
     default:
-      throw new Error("/commercial length must be 30, 60, 90, 120, 150, or 180 seconds");
+      throw commandError("commercialLength");
   }
 }
 
@@ -316,7 +328,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "mods",
     usage: "/mods",
-    description: i18n.t("chat.showThisChannelSModeratorsOnTwitch"),
+    description: () => i18n.t("chat.showThisChannelSModeratorsOnTwitch"),
     compile: (args) => {
       noArguments(args, "mods");
       return { kind: "channel-members", list: "moderators" };
@@ -325,7 +337,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "vips",
     usage: "/vips",
-    description: i18n.t("chat.showThisChannelSVIPsOnTwitch"),
+    description: () => i18n.t("chat.showThisChannelSVIPsOnTwitch"),
     compile: (args) => {
       noArguments(args, "vips");
       return { kind: "channel-members", list: "vips" };
@@ -334,7 +346,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "color",
     usage: "/color [color]",
-    description: i18n.t("chat.changeYourTwitchUsernameColor"),
+    description: () => i18n.t("chat.changeYourTwitchUsernameColor"),
     scopes: ["user:manage:chat_color"],
     compile: (args) => ({
       kind: "api",
@@ -344,7 +356,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "w",
     usage: "/w [username] [message]",
-    description: i18n.t("chat.whisperAnotherTwitchUser"),
+    description: () => i18n.t("chat.whisperAnotherTwitchUser"),
     scopes: ["user:manage:whispers"],
     compile: (args) => {
       const target = requiredUsername(args, "w");
@@ -361,21 +373,21 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "block",
     usage: "/block [username]",
-    description: i18n.t("chat.blockATwitchUser"),
+    description: () => i18n.t("chat.blockATwitchUser"),
     scopes: ["user:manage:blocked_users"],
     compile: apiTargetCommand("block"),
   }),
   twitchCommand({
     name: "unblock",
     usage: "/unblock [username]",
-    description: i18n.t("chat.unblockATwitchUser"),
+    description: () => i18n.t("chat.unblockATwitchUser"),
     scopes: ["user:manage:blocked_users"],
     compile: apiTargetCommand("unblock"),
   }),
   twitchCommand({
     name: "disconnect",
     usage: "/disconnect",
-    description: i18n.t("chat.leaveThisChannelSChat"),
+    description: () => i18n.t("chat.leaveThisChannelSChat"),
     compile: (args) => {
       noArguments(args, "disconnect");
       return { kind: "disconnect" };
@@ -384,14 +396,14 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "gift",
     usage: "/gift [quantity]",
-    description: i18n.t("chat.showGiftSubscriptionAvailability"),
+    description: () => i18n.t("chat.showGiftSubscriptionAvailability"),
     compile: (args) => {
       const [quantity, extra] = argumentsList(args);
       if (
         extra ||
         (quantity && (!/^\d+$/.test(quantity) || Number(quantity) < 1 || Number(quantity) > 100))
       ) {
-        throw new Error("/gift quantity must be between 1 and 100");
+        throw commandError("giftQuantity");
       }
       return {
         kind: "local-notice",
@@ -402,7 +414,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "vote",
     usage: "/vote",
-    description: i18n.t("chat.showPollVotingAvailability"),
+    description: () => i18n.t("chat.showPollVotingAvailability"),
     compile: (args) => {
       noArguments(args, "vote");
       return {
@@ -414,7 +426,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "timeout",
     usage: "/timeout [username] [seconds] [reason]",
-    description: i18n.t("chat.temporarilyTimeoutAUser"),
+    description: () => i18n.t("chat.temporarilyTimeoutAUser"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:banned_users"],
     compile: (args) => {
@@ -440,7 +452,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "ban",
     usage: "/ban [username] [reason]",
-    description: i18n.t("chat.permanentlyBanAUser"),
+    description: () => i18n.t("chat.permanentlyBanAUser"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:banned_users"],
     compile: (args) => {
@@ -459,7 +471,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "unban",
     usage: "/unban [username]",
-    description: i18n.t("chat.removeAChannelBanOrTimeout"),
+    description: () => i18n.t("chat.removeAChannelBanOrTimeout"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:banned_users"],
     compile: apiTargetCommand("unban"),
@@ -467,7 +479,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "clear",
     usage: "/clear",
-    description: i18n.t("chat.clearTheChannelSChatHistory"),
+    description: () => i18n.t("chat.clearTheChannelSChatHistory"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:chat_messages"],
     compile: (args) => {
@@ -478,12 +490,12 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "followers",
     usage: "/followers [30m|2h|2d|1w|3mo]",
-    description: i18n.t("chat.enableFollowersOnlyMode"),
+    description: () => i18n.t("chat.enableFollowersOnlyMode"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:chat_settings"],
     compile: (args) => {
       const [duration, extra] = argumentsList(args);
-      if (extra) throw new Error("/followers accepts one duration");
+      if (extra) throw commandError("acceptsOneDuration", { command: "followers" });
       return {
         kind: "api",
         action: {
@@ -496,7 +508,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "followersoff",
     usage: "/followersoff",
-    description: i18n.t("chat.disableFollowersOnlyMode"),
+    description: () => i18n.t("chat.disableFollowersOnlyMode"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:chat_settings"],
     compile: (args) => {
@@ -510,12 +522,12 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "slow",
     usage: "/slow [seconds]",
-    description: i18n.t("chat.enableSlowMode"),
+    description: () => i18n.t("chat.enableSlowMode"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:chat_settings"],
     compile: (args) => {
       const [duration, extra] = argumentsList(args);
-      if (extra) throw new Error("/slow accepts one duration");
+      if (extra) throw commandError("acceptsOneDuration", { command: "slow" });
       return {
         kind: "api",
         action: {
@@ -536,7 +548,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "slowoff",
     usage: "/slowoff",
-    description: i18n.t("chat.disableSlowMode"),
+    description: () => i18n.t("chat.disableSlowMode"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:chat_settings"],
     compile: (args) => {
@@ -549,18 +561,18 @@ const TWITCH_COMMAND_CATALOG = [
   }),
   ...(
     [
-      ["subscribers", "subscriber_mode", true, "Enable subscribers-only mode"],
-      ["subscribersoff", "subscriber_mode", false, "Disable subscribers-only mode"],
-      ["emoteonly", "emote_mode", true, "Enable emote-only mode"],
-      ["emoteonlyoff", "emote_mode", false, "Disable emote-only mode"],
-      ["uniquechat", "unique_chat_mode", true, "Require unique chat messages"],
-      ["uniquechatoff", "unique_chat_mode", false, "Disable unique chat mode"],
+      ["subscribers", "subscriber_mode", true, "enableSubscribersOnly"],
+      ["subscribersoff", "subscriber_mode", false, "disableSubscribersOnly"],
+      ["emoteonly", "emote_mode", true, "enableEmoteOnly"],
+      ["emoteonlyoff", "emote_mode", false, "disableEmoteOnly"],
+      ["uniquechat", "unique_chat_mode", true, "requireUniqueChat"],
+      ["uniquechatoff", "unique_chat_mode", false, "disableUniqueChat"],
     ] as const
-  ).map(([name, setting, enabled, description]) =>
+  ).map(([name, setting, enabled, descriptionKey]) =>
     twitchCommand({
       name,
       usage: `/${name}`,
-      description,
+      description: () => translate(`chatCommand.${descriptionKey}`),
       roles: moderatorRoles,
       scopes: ["moderator:manage:chat_settings"],
       compile: (args) => {
@@ -575,7 +587,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "pin",
     usage: "/pin [description]",
-    description: i18n.t("chat.sendAndPinAChatMessage"),
+    description: () => i18n.t("chat.sendAndPinAChatMessage"),
     roles: moderatorRoles,
     scopes: ["user:write:chat", "moderator:manage:chat_messages"],
     compile: (args) => ({
@@ -586,7 +598,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "announce",
     usage: "/announce [description]",
-    description: i18n.t("chat.sendAHighlightedAnnouncement"),
+    description: () => i18n.t("chat.sendAHighlightedAnnouncement"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:announcements"],
     compile: (args) => ({
@@ -597,7 +609,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "shoutout",
     usage: "/shoutout [username]",
-    description: i18n.t("chat.shoutOutAnotherChannel"),
+    description: () => i18n.t("chat.shoutOutAnotherChannel"),
     roles: moderatorRoles,
     scopes: ["moderator:manage:shoutouts"],
     compile: apiTargetCommand("shoutout"),
@@ -611,7 +623,7 @@ const TWITCH_COMMAND_CATALOG = [
     twitchCommand({
       name,
       usage: `/${name} [username]`,
-      description: i18n.t("chat.setAUserSValue0Status", { value0: name }),
+      description: () => i18n.t("chat.setAUserSValue0Status", { value0: name }),
       roles: moderatorRoles,
       scopes: ["moderator:manage:suspicious_users"],
       compile: (args) => ({
@@ -628,7 +640,7 @@ const TWITCH_COMMAND_CATALOG = [
     twitchCommand({
       name,
       usage: `/${name} [username]`,
-      description: i18n.t("chat.removeAUserSSuspiciousUserTreatment"),
+      description: () => i18n.t("chat.removeAUserSSuspiciousUserTreatment"),
       roles: moderatorRoles,
       compile: (args) => {
         requiredUsername(args, name);
@@ -644,7 +656,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "user",
     usage: "/user [username]",
-    description: i18n.t("chat.showTwitchUserCardAvailability"),
+    description: () => i18n.t("chat.showTwitchUserCardAvailability"),
     roles: moderatorRoles,
     compile: (args) => {
       requiredUsername(args, "user");
@@ -657,11 +669,9 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "requests",
     usage: "/requests",
-    description: i18n.t("chat.showChannelPointsRequestAvailability"),
+    description: () => i18n.t("chat.showChannelPointsRequestAvailability"),
     roles: moderatorRoles,
-    compile: localTwitchNotice(
-      "Twitch exposes the native Channel Points request command in its own chat."
-    ),
+    compile: localTwitchNotice("channelPointsInTwitch"),
   }),
   ...(
     [
@@ -674,7 +684,7 @@ const TWITCH_COMMAND_CATALOG = [
     twitchCommand({
       name,
       usage: `/${name}`,
-      description: i18n.t("chat.openValue0ManagementInStreamFusion", { value0: section }),
+      description: () => i18n.t("chat.openValue0ManagementInStreamFusion", { value0: section }),
       roles: moderatorRoles,
       compile: (_args, role) =>
         role === "broadcaster"
@@ -690,16 +700,16 @@ const TWITCH_COMMAND_CATALOG = [
   ),
   ...(
     [
-      ["mod", "add-moderator", "Add a channel moderator"],
-      ["unmod", "remove-moderator", "Remove a channel moderator"],
-      ["vip", "add-vip", "Add a channel VIP"],
-      ["unvip", "remove-vip", "Remove a channel VIP"],
+      ["mod", "add-moderator", "addModerator"],
+      ["unmod", "remove-moderator", "removeModerator"],
+      ["vip", "add-vip", "addVip"],
+      ["unvip", "remove-vip", "removeVip"],
     ] as const
-  ).map(([name, kind, description]) =>
+  ).map(([name, kind, descriptionKey]) =>
     twitchCommand({
       name,
       usage: `/${name} [username]`,
-      description,
+      description: () => translate(`chatCommand.${descriptionKey}`),
       roles: broadcasterRoles,
       scopes: [kind.includes("moderator") ? "channel:manage:moderators" : "channel:manage:vips"],
       compile: apiTargetCommand(kind, name),
@@ -708,27 +718,27 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "rules",
     usage: "/rules",
-    description: i18n.t("chat.showThisChannelSChatRules"),
+    description: () => i18n.t("chat.showThisChannelSChatRules"),
     roles: broadcasterRoles,
-    compile: localTwitchNotice("Twitch does not expose channel rules through its public API."),
+    compile: localTwitchNotice("rulesUnavailable"),
   }),
   twitchCommand({
     name: "sharedchat",
     usage: "/sharedchat",
-    description: i18n.t("chat.showSharedChatManagementAvailability"),
+    description: () => i18n.t("chat.showSharedChatManagementAvailability"),
     roles: broadcasterRoles,
-    compile: localTwitchNotice("Twitch exposes Shared Chat setup only in its own Stream Manager."),
+    compile: localTwitchNotice("sharedChatInStreamManager"),
   }),
   twitchCommand({
     name: "commercial",
     usage: "/commercial [30|60|90|120|150|180]",
-    description: i18n.t("chat.runACommercialBreak"),
+    description: () => i18n.t("chat.runACommercialBreak"),
     roles: broadcasterRoles,
     scopes: ["channel:edit:commercial"],
     compile: (args) => {
       const [rawLength, extra] = argumentsList(args);
       if (extra) {
-        throw new Error("/commercial length must be 30, 60, 90, 120, 150, or 180 seconds");
+        throw commandError("commercialLength");
       }
       const length = commercialLength(rawLength);
       return {
@@ -743,14 +753,14 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "goal",
     usage: "/goal",
-    description: i18n.t("chat.showCreatorGoalManagementAvailability"),
+    description: () => i18n.t("chat.showCreatorGoalManagementAvailability"),
     roles: broadcasterRoles,
-    compile: localTwitchNotice("Twitch does not provide a public API for changing creator goals."),
+    compile: localTwitchNotice("creatorGoalsUnavailable"),
   }),
   twitchCommand({
     name: "raid",
     usage: "/raid [channel]",
-    description: i18n.t("chat.startARaid"),
+    description: () => i18n.t("chat.startARaid"),
     roles: broadcasterRoles,
     scopes: ["channel:manage:raids"],
     compile: (args) => ({
@@ -761,7 +771,7 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "unraid",
     usage: "/unraid",
-    description: i18n.t("chat.cancelAPendingRaid"),
+    description: () => i18n.t("chat.cancelAPendingRaid"),
     roles: broadcasterRoles,
     scopes: ["channel:manage:raids"],
     compile: (args) => {
@@ -772,13 +782,13 @@ const TWITCH_COMMAND_CATALOG = [
   twitchCommand({
     name: "marker",
     usage: "/marker [description]",
-    description: i18n.t("chat.createAStreamMarker"),
+    description: () => i18n.t("chat.createAStreamMarker"),
     roles: broadcasterRoles,
     scopes: ["channel:manage:broadcast"],
     compile: (args) => {
       const description = args.trim();
       if (description.length > 140) {
-        throw new Error("/marker description must be 140 characters or fewer");
+        throw commandError("markerDescriptionTooLong");
       }
       return {
         kind: "api",
@@ -792,14 +802,14 @@ const TWITCH_LOCAL_COMMANDS = [
   twitchCommand({
     name: "help",
     usage: "/help [command]",
-    description: i18n.t("chat.showTheCommandsAvailableToYou"),
+    description: () => i18n.t("chat.showTheCommandsAvailableToYou"),
     execution: "local",
     compile: () => ({ kind: "help" }),
   }),
   twitchCommand({
     name: "me",
     usage: "/me [message]",
-    description: i18n.t("chat.sendAnActionMessage"),
+    description: () => i18n.t("chat.sendAnActionMessage"),
     scopes: ["chat:edit"],
     execution: "action-message",
     compile: (args) => ({ kind: "irc-action", message: requiredMessage(args, "me") }),
@@ -810,14 +820,14 @@ const KICK_LOCAL_COMMANDS = [
   kickCommand({
     name: "help",
     usage: "/help [command]",
-    description: i18n.t("chat.showTheCommandsAvailableToYou"),
+    description: () => i18n.t("chat.showTheCommandsAvailableToYou"),
     execution: "local",
     compile: () => ({ kind: "help" }),
   }),
   kickCommand({
     name: "me",
     usage: "/me [message]",
-    description: i18n.t("chat.sendAnActionMessage"),
+    description: () => i18n.t("chat.sendAnActionMessage"),
     execution: "action-message",
     compile: (args) => ({ kind: "action-message", message: requiredMessage(args, "me") }),
   }),
@@ -827,7 +837,7 @@ const KICK_COMMAND_CATALOG = [
   kickCommand({
     name: "ban",
     usage: "/ban [username] [reason]",
-    description: i18n.t("chat.permanentlyBanAUser"),
+    description: () => i18n.t("chat.permanentlyBanAUser"),
     roles: moderatorRoles,
     compile: (args) => {
       const target = requiredUsername(args, "ban");
@@ -843,7 +853,7 @@ const KICK_COMMAND_CATALOG = [
   kickCommand({
     name: "unban",
     usage: "/unban [username]",
-    description: i18n.t("chat.removeAChannelBanOrTimeout"),
+    description: () => i18n.t("chat.removeAChannelBanOrTimeout"),
     roles: moderatorRoles,
     compile: (args) => {
       const target = requiredUsername(args, "unban");
@@ -854,7 +864,7 @@ const KICK_COMMAND_CATALOG = [
   kickCommand({
     name: "timeout",
     usage: "/timeout [username] [seconds] [reason]",
-    description: i18n.t("chat.temporarilyPreventAUserFromChatting"),
+    description: () => i18n.t("chat.temporarilyPreventAUserFromChatting"),
     roles: moderatorRoles,
     compile: (args) => {
       const target = requiredUsername(args, "timeout");
@@ -872,68 +882,60 @@ const KICK_COMMAND_CATALOG = [
   kickCommand({
     name: "clear",
     usage: "/clear",
-    description: i18n.t("chat.clearAllCurrentChatMessages"),
+    description: () => i18n.t("chat.clearAllCurrentChatMessages"),
     roles: moderatorRoles,
     compile: (args) => {
       noArguments(args, "clear");
-      return kickChannelHandoff(
-        "Kick does not provide third-party apps a clear-all chat operation."
-      );
+      return kickChannelHandoff("kickClearUnavailable");
     },
   }),
   ...(
     [
-      ["mod", "Give a user the Moderator role"],
-      ["unmod", "Remove a user's Moderator role"],
+      ["mod", "giveModeratorRole"],
+      ["unmod", "removeModeratorRole"],
     ] as const
-  ).map(([name, description]) =>
+  ).map(([name, descriptionKey]) =>
     kickCommand({
       name,
       usage: `/${name} [username]`,
-      description,
+      description: () => translate(`chatCommand.${descriptionKey}`),
       roles: broadcasterRoles,
       compile: (args) => {
         const target = requiredUsername(args, name);
         noArguments(target.rest, name);
-        return kickChannelHandoff(
-          "Kick does not provide third-party apps a Moderator role mutation."
-        );
+        return kickChannelHandoff("kickModeratorMutationUnavailable");
       },
     })
   ),
   kickCommand({
     name: "user",
     usage: "/user [username]",
-    description: i18n.t("chat.showKickUserInformationAvailability"),
+    description: () => i18n.t("chat.showKickUserInformationAvailability"),
     roles: moderatorRoles,
     compile: (args) => {
       const target = requiredUsername(args, "user");
       noArguments(target.rest, "user");
-      return kickChannelHandoff(
-        "Kick exposes the moderation user card only in its first-party channel chat."
-      );
+      return kickChannelHandoff("kickUserCardInChat");
     },
   }),
   kickCommand({
     name: "slow",
     usage: "/slow [on|off] [seconds]",
-    description: i18n.t("chat.enableOrDisableSlowMode"),
+    description: () => i18n.t("chat.enableOrDisableSlowMode"),
     roles: moderatorRoles,
     compile: (args) => {
       const toggle = kickToggle(args, "slow");
       if (!toggle.enabled) {
-        if (toggle.rest.length > 0) throw new Error("/slow off does not accept a duration");
-        return kickChannelHandoff(
-          "Kick exposes slow-mode controls only in its first-party channel chat."
-        );
+        if (toggle.rest.length > 0) {
+          throw commandError("doesNotAcceptArguments", { command: "slow off" });
+        }
+        return kickChannelHandoff("kickSlowModeInChat");
       }
       if (toggle.rest.length !== 1) {
-        throw new Error("/slow on needs a positive whole number of seconds");
+        throw commandError("needsPositiveSeconds", { command: "slow on" });
       }
       kickPositiveSeconds(toggle.rest[0], "slow on");
-      return kickChannelHandoff(
-        "Kick exposes slow-mode controls only in its first-party channel chat."
-      );
+      return kickChannelHandoff("kickSlowModeInChat");
     },
   }),
   ...(
@@ -945,120 +947,115 @@ const KICK_COMMAND_CATALOG = [
     kickCommand({
       name,
       usage: `/${name} [on|off]`,
-      description: i18n.t("chat.enableOrDisableValue0Mode", { value0: mode }),
+      description: () => i18n.t("chat.enableOrDisableValue0Mode", { value0: mode }),
       roles: moderatorRoles,
       compile: (args) => {
         const toggle = kickToggle(args, name);
-        if (toggle.rest.length > 0) throw new Error(`/${name} accepts only "on" or "off"`);
-        return kickChannelHandoff(
-          `Kick exposes ${mode} controls only in its first-party channel chat.`
-        );
+        if (toggle.rest.length > 0) throw commandError("acceptsOnlyOnOrOff", { command: name });
+        return kickChannelHandoff("kickModeInChat", { mode });
       },
     })
   ),
   kickCommand({
     name: "subonly",
     usage: "/subonly [on|off]",
-    description: i18n.t("chat.enableOrDisableSubscribersOnlyMode"),
+    description: () => i18n.t("chat.enableOrDisableSubscribersOnlyMode"),
     roles: broadcasterRoles,
     compile: (args) => {
       const toggle = kickToggle(args, "subonly");
-      if (toggle.rest.length > 0) throw new Error('/subonly accepts only "on" or "off"');
-      return kickChannelHandoff(
-        "Kick exposes subscribers-only controls only in its first-party channel chat."
-      );
+      if (toggle.rest.length > 0) {
+        throw commandError("acceptsOnlyOnOrOff", { command: "subonly" });
+      }
+      return kickChannelHandoff("kickSubscribersOnlyInChat");
     },
   }),
   kickCommand({
     name: "title",
     usage: "/title [new title]",
-    description: i18n.t("chat.setTheCurrentStreamTitle"),
+    description: () => i18n.t("chat.setTheCurrentStreamTitle"),
     roles: moderatorRoles,
     compile: (args) => {
       requiredMessage(args, "title");
-      return kickChannelHandoff(
-        "Kick only documents programmatic title changes for the channel owner's token."
-      );
+      return kickChannelHandoff("kickTitleOwnerOnly");
     },
   }),
   kickCommand({
     name: "category",
     usage: "/category",
-    description: i18n.t("chat.showStreamCategoryControlsAvailability"),
+    description: () => i18n.t("chat.showStreamCategoryControlsAvailability"),
     roles: moderatorRoles,
     compile: (args) => {
       noArguments(args, "category");
-      return kickChannelHandoff("Kick's category command uses a first-party interactive selector.");
+      return kickChannelHandoff("kickCategorySelector");
     },
   }),
   kickCommand({
     name: "raid",
     usage: "/raid",
-    description: i18n.t("chat.showKickRaidControlsAvailability"),
+    description: () => i18n.t("chat.showKickRaidControlsAvailability"),
     roles: broadcasterRoles,
     compile: (args) => {
       noArguments(args, "raid");
-      return kickChannelHandoff("Kick does not provide third-party apps a raid operation.");
+      return kickChannelHandoff("kickRaidUnavailable");
     },
   }),
   ...(
     [
-      ["og", "Give a user the OG badge"],
-      ["unog", "Remove a user's OG badge"],
-      ["vip", "Give a user the VIP badge"],
-      ["unvip", "Remove a user's VIP badge"],
+      ["og", "giveOgBadge"],
+      ["unog", "removeOgBadge"],
+      ["vip", "giveVipBadge"],
+      ["unvip", "removeVipBadge"],
     ] as const
-  ).map(([name, description]) =>
+  ).map(([name, descriptionKey]) =>
     kickCommand({
       name,
       usage: `/${name} [username]`,
-      description,
+      description: () => translate(`chatCommand.${descriptionKey}`),
       roles: broadcasterRoles,
       compile: (args) => {
         const target = requiredUsername(args, name);
         noArguments(target.rest, name);
-        return kickChannelHandoff(
-          "Kick does not provide third-party apps an OG or VIP role mutation."
-        );
+        return kickChannelHandoff("kickBadgeMutationUnavailable");
       },
     })
   ),
   ...(
     [
-      ["poll", "Open poll creation"],
-      ["polldelete", "Delete the active poll"],
-      ["prediction", "Open prediction creation or management"],
+      ["poll", "openPollCreation"],
+      ["polldelete", "deleteActivePoll"],
+      ["prediction", "openPredictionManagement"],
     ] as const
-  ).map(([name, description]) =>
+  ).map(([name, descriptionKey]) =>
     kickCommand({
       name,
       usage: `/${name}`,
-      description,
+      description: () => translate(`chatCommand.${descriptionKey}`),
       roles: moderatorRoles,
       compile: (args) => {
         noArguments(args, name);
-        return kickChannelHandoff("Kick exposes this engagement workflow only in its own chat UI.");
+        return kickChannelHandoff("kickEngagementInChat");
       },
     })
   ),
   ...(
     [
-      ["multi", "Toggle Kick Partner Multistreaming"],
-      ["kpp", "Toggle Kick Partner Program income"],
+      ["multi", "togglePartnerMultistreaming"],
+      ["kpp", "togglePartnerIncome"],
     ] as const
-  ).map(([name, description]) =>
+  ).map(([name, descriptionKey]) =>
     kickCommand({
       name,
       usage: `/${name} [on|off]`,
-      description: i18n.t("chat.value0PartnerChannelsOnly", { value0: description }),
+      description: () =>
+        i18n.t("chat.value0PartnerChannelsOnly", {
+          value0: translate(`chatCommand.${descriptionKey}`),
+        }),
       roles: broadcasterRoles,
       requiresPartnerChannel: true,
       compile: (args) => {
         const toggle = kickToggle(args, name);
-        if (toggle.rest.length > 0) throw new Error(`/${name} accepts only "on" or "off"`);
-        return kickChannelHandoff(
-          "Kick Partner controls are available only in Kick's first-party UI."
-        );
+        if (toggle.rest.length > 0) throw commandError("acceptsOnlyOnOrOff", { command: name });
+        return kickChannelHandoff("kickPartnerControlsInUi");
       },
     })
   ),
@@ -1079,7 +1076,10 @@ export function compileTwitchCommand(
   role: ChatCommandRole
 ): TwitchCommandEffect {
   if (command.definition.platform !== "twitch") {
-    throw new Error(`/${command.definition.name} is not a Twitch command`);
+    throw commandError("notPlatformCommand", {
+      command: command.definition.name,
+      platform: "Twitch",
+    });
   }
   return command.definition.compile(command.args, role);
 }
@@ -1089,7 +1089,10 @@ export function compileKickCommand(
   role: ChatCommandRole
 ): KickCommandEffect {
   if (command.definition.platform !== "kick") {
-    throw new Error(`/${command.definition.name} is not a Kick command`);
+    throw commandError("notPlatformCommand", {
+      command: command.definition.name,
+      platform: "Kick",
+    });
   }
   return command.definition.compile(command.args, role);
 }
@@ -1148,7 +1151,7 @@ export function getCommandArgumentError(command: ParsedChatCommand): string | nu
     }
     return null;
   } catch (error) {
-    return error instanceof Error ? error.message : "This command has invalid arguments";
+    return error instanceof Error ? error.message : i18n.t("chatCommand.invalidArguments");
   }
 }
 

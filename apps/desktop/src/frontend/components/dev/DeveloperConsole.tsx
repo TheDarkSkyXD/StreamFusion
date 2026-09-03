@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { DEBUG_TOKENS } from "./tokens";
 import { UiDebugTool } from "./UiDebugTool";
@@ -122,13 +123,13 @@ type DeveloperConsoleToolId = "chat-sim" | "ui";
 
 interface DebugTool {
   id: DeveloperConsoleToolId;
-  label: string;
+  labelKey: "dev.console.chatSimulator" | "dev.console.ui";
   Component: React.ComponentType;
 }
 
 const TOOLS: DebugTool[] = [
-  { id: "chat-sim", label: "Chat Sim", Component: ChatSimTool },
-  { id: "ui", label: "UI", Component: UiDebugTool },
+  { id: "chat-sim", labelKey: "dev.console.chatSimulator", Component: ChatSimTool },
+  { id: "ui", labelKey: "dev.console.ui", Component: UiDebugTool },
 ];
 
 const STORAGE_KEY = "streamfusion-debug-panel";
@@ -260,6 +261,7 @@ function createInitialLayoutState(
 }
 
 function DeveloperConsoleImpl() {
+  const { t } = useTranslation();
   const [localPersisted] = useState(loadLocalPersisted);
   const durableStore = window.electronAPI?.store;
   const [layoutState, setLayoutState] = useState<DeveloperConsoleLayoutState>(() =>
@@ -417,8 +419,8 @@ function DeveloperConsoleImpl() {
             commitLayoutState((current) => ({ ...current, visibility: "expanded" }));
           })
         }
-        title="Show Developer Console"
-        aria-label="Show Developer Console"
+        title={t("dev.console.show")}
+        aria-label={t("dev.console.show")}
         style={{
           position: "fixed",
           left: layoutState.position.x,
@@ -456,7 +458,7 @@ function DeveloperConsoleImpl() {
             commitLayoutState((current) => ({ ...current, visibility: "expanded" }))
           )
         }
-        title="Click to expand · drag to move (Ctrl+Shift+D to hide)"
+        title={t("dev.console.expandHint")}
         style={{
           position: "fixed",
           left: layoutState.position.x,
@@ -529,7 +531,7 @@ function DeveloperConsoleImpl() {
             <BugIcon size={15} />
           </span>
           <strong style={{ fontSize: 13, fontWeight: 600, letterSpacing: 0.3 }}>
-            Developer Console
+            {t("dev.console.title")}
           </strong>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
@@ -539,8 +541,8 @@ function DeveloperConsoleImpl() {
             onClick={() => {
               window.location.hash = "#/settings?tab=diagnostics";
             }}
-            title="Open Diagnostics"
-            aria-label="Open Diagnostics"
+            title={t("dev.console.openDiagnostics")}
+            aria-label={t("dev.console.openDiagnostics")}
             style={{
               background: "transparent",
               color: DEBUG_TOKENS.accent,
@@ -570,8 +572,8 @@ function DeveloperConsoleImpl() {
             onClick={() => {
               window.location.hash = "#/mod";
             }}
-            title="Open /mod page (dev shortcut — the sidebar link is gated on moderating ≥1 channel)"
-            aria-label="Open mod page"
+            title={t("dev.console.openModPageHint")}
+            aria-label={t("dev.console.openModPage")}
             style={{
               background: "transparent",
               color: DEBUG_TOKENS.textSecondary,
@@ -599,8 +601,8 @@ function DeveloperConsoleImpl() {
             type="button"
             onMouseDown={(e) => e.stopPropagation()}
             onClick={() => window.electronAPI?.toggleDevTools()}
-            title="Toggle Chromium DevTools (F12)"
-            aria-label="Toggle DevTools"
+            title={t("dev.console.toggleDevTools")}
+            aria-label={t("dev.console.toggleDevToolsLabel")}
             style={{
               background: "transparent",
               color: DEBUG_TOKENS.textSecondary,
@@ -630,8 +632,8 @@ function DeveloperConsoleImpl() {
             onClick={() =>
               commitLayoutState((current) => ({ ...current, visibility: "collapsed" }))
             }
-            title="Collapse to circle (Ctrl+Shift+D to fully hide)"
-            aria-label="Collapse"
+            title={t("dev.console.collapseHint")}
+            aria-label={t("dev.console.collapse")}
             style={{
               background: "transparent",
               color: DEBUG_TOKENS.textSecondary,
@@ -668,15 +670,15 @@ function DeveloperConsoleImpl() {
           borderRadius: 8,
         }}
       >
-        {TOOLS.map((t) => {
-          const isActive = t.id === layoutState.activeId;
+        {TOOLS.map((tool) => {
+          const isActive = tool.id === layoutState.activeId;
           return (
             <button
-              key={t.id}
+              key={tool.id}
               type="button"
               role="tab"
               aria-selected={isActive}
-              onClick={() => commitLayoutState((current) => ({ ...current, activeId: t.id }))}
+              onClick={() => commitLayoutState((current) => ({ ...current, activeId: tool.id }))}
               style={{
                 flex: 1,
                 background: isActive ? DEBUG_TOKENS.surfaceRaised : "transparent",
@@ -697,7 +699,7 @@ function DeveloperConsoleImpl() {
                 if (!isActive) e.currentTarget.style.color = DEBUG_TOKENS.textSecondary;
               }}
             >
-              {t.label}
+              {t(tool.labelKey)}
             </button>
           );
         })}

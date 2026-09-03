@@ -4,6 +4,7 @@ import type {
   KickCommandEffect,
   KickModerationEffect,
 } from "./chat-command-registry";
+import { i18n } from "@/i18n";
 import {
   HANDLED_CHAT_COMMAND,
   localChatCommandResult,
@@ -24,7 +25,7 @@ export async function runKickCommandEffect(
   const effect: KickCommandEffect = definition.compile(args, dependencies.role);
   switch (effect.kind) {
     case "help":
-      throw new Error("Help is handled by the chat composer");
+      throw new Error(i18n.t("chatCommand.helpHandledByComposer"));
     case "action-message":
       await dependencies.sendAction(effect.message);
       return HANDLED_CHAT_COMMAND;

@@ -54,8 +54,8 @@ export const discoveryEn = {
       addFavorite: "Add {{channel}} to favorites",
       removeFavorite: "Remove {{channel}} from favorites",
       live: "LIVE",
-      followers_one: "{{count}} follower",
-      followers_other: "{{count}} followers",
+      followers_one: "{{formattedCount}} follower",
+      followers_other: "{{formattedCount}} followers",
     },
     category: {
       backToCategories: "Back to Categories",

@@ -5,6 +5,7 @@ vi.mock("@/renderer/logging/logger", () => ({
 }));
 
 import {
+  formatCompactNumber,
   formatDuration,
   formatLanguageLabel,
   formatUptime,
@@ -42,7 +43,7 @@ describe("formatViewerCount", () => {
     expect(formatViewerCount(1000)).toBe("1K");
     expect(formatViewerCount(1200)).toBe("1.2K");
     expect(formatViewerCount(25000)).toBe("25K");
-    expect(formatViewerCount(999999)).toBe("1000K");
+    expect(formatViewerCount(999999)).toBe("1M");
   });
 
   it("strips trailing .0 in K format", () => {
@@ -57,6 +58,10 @@ describe("formatViewerCount", () => {
 
   it("strips trailing .0 in M format", () => {
     expect(formatViewerCount(2000000)).toBe("2M");
+  });
+
+  it("uses locale-native compact notation", () => {
+    expect(formatCompactNumber(10000, "ja")).toBe("1万");
   });
 });
 

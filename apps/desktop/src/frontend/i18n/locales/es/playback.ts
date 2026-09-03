@@ -75,6 +75,14 @@ export const playbackEs = {
     refreshStream: "Actualizar Stream",
     blockingMidrollAds: "Bloqueando anuncios intermedios",
     playbackInterrupted: "Reproducción interrumpida",
+    unableToCheckStreamStatus: "No se pudo comprobar el estado de la transmisión",
+    unableToLoadStream: "No se pudo cargar la transmisión",
+    currentlyOffline: "no está transmitiendo en este momento",
+    decodedAudioRateChanged:
+      "La frecuencia de muestreo del audio decodificado cambió durante la captura.",
+    invalidAudioBatchSize: "El tamaño del lote de audio debe ser un número entero positivo.",
+    unsupportedAudioSampleRate:
+      "La captura de audio local requiere una frecuencia de reducción positiva.",
     automaticRecoveryCouldNotRestoreThisLiveStream:
       "La recuperación automática no pudo restaurar este Stream en directo.",
     noVideoDataReceived:
@@ -108,6 +116,8 @@ export const playbackEs = {
     raidHandoff: "Transferencia de raid",
     raidInvitationTo: "Invitación al raid de {{target}}",
     joiningRaidTo: "Uniéndote al raid de {{target}}",
+    raidAudienceJoining: "{{audience}} se unirán al raid",
+    raidAudienceWatching: "{{audience}} están viendo a {{target}} ahora",
     stayingCurrentStreamJoinTarget: "Te quedas en el Stream actual. Aún puedes unirte a {{target}}",
     secondsRemaining_one: "Queda {{count}} segundo",
     secondsRemaining_other: "Quedan {{count}} segundos",

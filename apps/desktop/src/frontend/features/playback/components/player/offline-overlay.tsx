@@ -26,7 +26,7 @@ export function OfflineOverlay({
   bannerUrl,
   categoryName,
   lastStreamTitle,
-  statusMessage = "is currently offline",
+  statusMessage,
   onCheckAgain,
   compact = false,
 }: OfflineOverlayProps) {
@@ -83,7 +83,7 @@ export function OfflineOverlay({
             {name}
           </p>
           <p className={cn("text-white/70", compact ? "text-xs mb-3" : "text-lg mb-4")}>
-            {statusMessage}
+            {statusMessage ?? t("playback.currentlyOffline")}
           </p>
           {!compact && lastStreamTitle && (
             <p className="text-white/90 text-base font-medium line-clamp-2 mb-2">

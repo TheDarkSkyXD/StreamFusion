@@ -37,6 +37,7 @@ describe("download save dialog", () => {
           channelName: "fpshero",
           title: "Ace",
           extension: "mp4",
+          videoFilterName: "MP4 video",
         },
         dependencies
       )
@@ -49,6 +50,7 @@ describe("download save dialog", () => {
           channelName: "speedrunpro",
           title: "Finals",
           extension: "mp4",
+          videoFilterName: "MP4 video",
         },
         dependencies
       )
@@ -77,6 +79,7 @@ describe("download save dialog", () => {
           channelName: "fpshero",
           title: "Ace",
           extension: "mp4",
+          videoFilterName: "MP4 video",
         },
         {
           getFallbackDirectory: () => path.resolve("fallback-downloads"),

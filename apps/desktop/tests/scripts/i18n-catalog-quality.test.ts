@@ -14,7 +14,9 @@ describe("i18n catalog quality", () => {
   });
 
   it("accepts translated prose and language-neutral short values", () => {
-    expect(isUntranslatedEnglishProse("Open logs folder", "Abrir carpeta de registros")).toBe(false);
+    expect(isUntranslatedEnglishProse("Open logs folder", "Abrir carpeta de registros")).toBe(
+      false
+    );
     expect(isUntranslatedEnglishProse("N/A", "N/A")).toBe(false);
     expect(isUntranslatedEnglishProse("1440p / 2K", "1440p / 2K")).toBe(false);
   });

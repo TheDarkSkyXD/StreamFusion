@@ -1,4 +1,5 @@
 import localAudioCaptureWorkletUrl from "./local-audio-capture-worklet.js?url&no-inline";
+import { i18n } from "@/i18n";
 
 const DEFAULT_TARGET_SAMPLE_RATE = 16_000;
 const DEFAULT_BATCH_SAMPLE_COUNT = 3_200;
@@ -392,7 +393,7 @@ export class LocalAudioCaptureController {
         mediaTime = chunk.mediaTime;
         resampler ??= new ContinuousMonoResampler(chunk.inputSampleRate, this.targetSampleRate);
         if (resampler.inputSampleRate !== chunk.inputSampleRate) {
-          throw new Error("Decoded audio sample rate changed during an active capture");
+          throw new Error(i18n.t("playback.decodedAudioRateChanged"));
         }
         batcher.push(resampler.push(chunk.channels));
       },
@@ -438,7 +439,7 @@ export class PcmBatcher {
     private readonly emit: (pcm: Float32Array) => void
   ) {
     if (!Number.isInteger(batchSampleCount) || batchSampleCount <= 0) {
-      throw new RangeError("PCM batch size must be a positive integer");
+      throw new RangeError(i18n.t("playback.invalidAudioBatchSize"));
     }
     this.pending = new Float32Array(batchSampleCount);
   }
@@ -482,7 +483,7 @@ export class ContinuousMonoResampler {
 
   constructor(inputSampleRate: number, outputSampleRate = DEFAULT_TARGET_SAMPLE_RATE) {
     if (inputSampleRate < outputSampleRate || outputSampleRate <= 0) {
-      throw new RangeError("Local audio capture only supports positive downsampling rates");
+      throw new RangeError(i18n.t("playback.unsupportedAudioSampleRate"));
     }
     this.inputSampleRate = inputSampleRate;
     this.outputSampleRate = outputSampleRate;

@@ -2,8 +2,13 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 import { logger } from "@/renderer/logging/logger";
+import { i18n } from "@/i18n";
 import type { Platform } from "../../shared/auth-types";
 import { getLanguageDisplayName } from "./languages";
+
+const compactNumberFormatters = new Map<string, Intl.NumberFormat>();
+const numberFormatters = new Map<string, Intl.NumberFormat>();
+const relativeTimeFormatters = new Map<string, Intl.RelativeTimeFormat>();
 
 /**
  * Merge class names with Tailwind CSS classes
@@ -17,15 +22,41 @@ export function cn(...inputs: ClassValue[]) {
  * Format viewer count to K/M format
  * e.g. 1200 -> 1.2K, 1500000 -> 1.5M
  */
+export function formatCompactNumber(count: number, locale = i18n.resolvedLanguage): string {
+  const formatterLocale = locale ?? "en";
+  let formatter = compactNumberFormatters.get(formatterLocale);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(formatterLocale, {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    });
+    compactNumberFormatters.set(formatterLocale, formatter);
+  }
+  return formatter.format(count);
+}
+
+export function formatLocalizedNumber(count: number, locale = i18n.resolvedLanguage): string {
+  const formatterLocale = locale ?? "en";
+  let formatter = numberFormatters.get(formatterLocale);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(formatterLocale);
+    numberFormatters.set(formatterLocale, formatter);
+  }
+  return formatter.format(count);
+}
+
+export function getRelativeTimeFormatter(locale = i18n.resolvedLanguage): Intl.RelativeTimeFormat {
+  const formatterLocale = locale ?? "en";
+  let formatter = relativeTimeFormatters.get(formatterLocale);
+  if (!formatter) {
+    formatter = new Intl.RelativeTimeFormat(formatterLocale, { numeric: "auto" });
+    relativeTimeFormatters.set(formatterLocale, formatter);
+  }
+  return formatter;
+}
+
 export function formatViewerCount(count: number | undefined | null): string {
-  if (!count) return "0";
-  if (count >= 1000000) {
-    return `${(count / 1000000).toFixed(1).replace(/\.0$/, "")}M`;
-  }
-  if (count >= 1000) {
-    return `${(count / 1000).toFixed(1).replace(/\.0$/, "")}K`;
-  }
-  return count.toString();
+  return formatCompactNumber(count ?? 0);
 }
 
 /**
@@ -39,7 +70,7 @@ export function formatRelativeTime(dateString: string, locale = "en"): string | 
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
   if (!locale.toLowerCase().startsWith("en")) {
-    const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+    const formatter = getRelativeTimeFormatter(locale);
     if (diffInSeconds < 60) return formatter.format(0, "second");
     const diffInMinutes = Math.floor(diffInSeconds / 60);
     if (diffInMinutes < 60) return formatter.format(-diffInMinutes, "minute");

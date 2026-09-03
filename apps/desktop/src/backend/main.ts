@@ -12,18 +12,8 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 
-import {
-  app,
-  BrowserWindow,
-  clipboard,
-  dialog,
-  globalShortcut,
-  Menu,
-  type MenuItemConstructorOptions,
-  protocol,
-  session,
-  shell,
-} from "electron";
+import { app, BrowserWindow, dialog, globalShortcut, protocol, session } from "electron";
+import { installApplicationMenu } from "./application-menu";
 import { configureAppIdentity } from "./app-identity";
 import { protocolHandler } from "./auth/protocol-handler";
 import { createDesktopIpcRuntime } from "./ipc-handlers";
@@ -46,7 +36,7 @@ import {
   initNetworkLogger,
   shutdownNetworkLogger,
 } from "./logging/network-logger";
-import { getCurrentNoisePath, initNoiseLogger, shutdownNoiseLogger } from "./logging/noise-logger";
+import { initNoiseLogger, shutdownNoiseLogger } from "./logging/noise-logger";
 import { diagnosticsRuntime } from "./diagnostics/diagnostics-runtime-singleton";
 import { diagnosticsObservability } from "./diagnostics/diagnostics-observability";
 import { redactObject } from "./logging/redactor";
@@ -72,6 +62,7 @@ import { openStartupRecoveryWindow } from "./startup/startup-recovery-window";
 import { beginStartupSession } from "./startup/startup-session-policy";
 import { windowManager } from "./window-manager";
 import { setMainLogSink } from "@shared/utils/cross-logger";
+import { nativeText } from "@shared/i18n/native-copy.generated";
 import {
   pruneStaleChromiumDiskCaches,
   resolveChromiumDiskCachePath,
@@ -366,8 +357,8 @@ function showStartupRecoveryOrExit(diagnosticId: string): void {
       error: recoveryError instanceof Error ? { name: recoveryError.name } : undefined,
     });
     dialog.showErrorBox(
-      "StreamFusion couldn’t start safely",
-      `Your saved data was not removed. Restart the app and include diagnostic ID ${diagnosticId} if this repeats.`
+      nativeText(app.getLocale(), "startupRecoveryHeading"),
+      nativeText(app.getLocale(), "startupRecoveryFallback", { diagnosticId })
     );
     app.exit(1);
   }
@@ -383,68 +374,6 @@ async function initializeReady(): Promise<void> {
       fetchMedia: (input, init) => fetch(input, init),
     });
   }
-
-  // Custom frameless window uses its own titlebar UI, but we still need a
-  // minimal application menu so OS-standard shortcuts (Copy/Paste, Reload,
-  // DevTools, Quit) keep working and the Help menu's log-folder/log-path
-  // affordances are reachable from the OS menu bar (macOS) / Alt menu (Win).
-  const viewMenu: MenuItemConstructorOptions = app.isPackaged
-    ? {
-        label: "View",
-        submenu: [
-          { role: "resetZoom" },
-          { role: "zoomIn" },
-          { role: "zoomOut" },
-          { type: "separator" },
-          { role: "togglefullscreen" },
-        ],
-      }
-    : { role: "viewMenu" };
-  const menu = Menu.buildFromTemplate([
-    { role: "fileMenu" },
-    { role: "editMenu" },
-    viewMenu,
-    { role: "windowMenu" },
-    {
-      role: "help",
-      submenu: [
-        {
-          label: "Open Logs Folder",
-          click: () => {
-            void shell.openPath(path.dirname(getCurrentLogPath()));
-          },
-        },
-        {
-          label: "Copy Log Path",
-          click: () => {
-            clipboard.writeText(getCurrentLogPath());
-          },
-        },
-        {
-          label: "Copy Noise Log Path",
-          click: () => {
-            try {
-              clipboard.writeText(getCurrentNoisePath());
-            } catch {
-              // Noise logger not initialized — silently skip rather than throw
-              // out of a menu click.
-            }
-          },
-        },
-        {
-          label: "Copy Network Log Path",
-          click: () => {
-            try {
-              clipboard.writeText(getCurrentNetworkPath());
-            } catch {
-              // Network logger not initialized — silently skip rather than throw.
-            }
-          },
-        },
-      ],
-    },
-  ]);
-  Menu.setApplicationMenu(menu);
 
   // Fire-and-forget prune of old session logs. Awaiting would gate window
   // creation on disk IO; surfacing failures via logger.warn is sufficient.
@@ -470,6 +399,13 @@ async function initializeReady(): Promise<void> {
   try {
     dbService.initialize();
     storageService.initialize();
+    let applicationMenuLanguage = storageService.getPreferences().language;
+    installApplicationMenu();
+    storageService.onPreferencesChanged((preferences) => {
+      if (preferences.language === applicationMenuLanguage) return;
+      applicationMenuLanguage = preferences.language;
+      installApplicationMenu();
+    });
   } catch (error) {
     const diagnosticId = randomUUID();
     startupRecoveryDiagnosticId = diagnosticId;

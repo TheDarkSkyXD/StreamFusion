@@ -10,6 +10,7 @@ import {
   KICK_LINKED_COMMAND_NAMES,
   TWITCH_LINKED_COMMAND_NAMES,
 } from "@/features/chat/utils/chat-command-registry";
+import { activateDisplayLanguage, i18n } from "@/i18n";
 import { describe, expect, it } from "vitest";
 
 // Guards: command lists retain viewer commands when moderator authority is added, and guests do not see account commands.
@@ -17,6 +18,7 @@ import { describe, expect, it } from "vitest";
 // Guards: malformed and unrecognized slash text cannot reach an ordinary chat send.
 // Guards: Kick's official 23-command catalog retains exact role and argument contracts.
 // Guards: unsupported provider workflows compile to renderer-local notices instead of external page handoffs.
+// Guards: command descriptions resolve when read so a display-language change cannot leave frozen English copy.
 describe("chat command registry", () => {
   const linkedNames = [
     "mods",
@@ -318,6 +320,28 @@ describe("chat command registry", () => {
     expect(getCommandsForAccess({ kind: "guest", platform: "twitch" })).toEqual([]);
   });
 
+  it("updates command descriptions after the display language changes", async () => {
+    await activateDisplayLanguage("en");
+    const english = getCommandsForAccess({
+      kind: "authenticated",
+      platform: "twitch",
+      role: "viewer",
+    }).find((command) => command.name === "mods")?.description;
+
+    try {
+      await activateDisplayLanguage("es");
+      const spanish = getCommandsForAccess({
+        kind: "authenticated",
+        platform: "twitch",
+        role: "viewer",
+      }).find((command) => command.name === "mods")?.description;
+      expect(spanish).not.toBe(english);
+      expect(i18n.resolvedLanguage).toBe("es");
+    } finally {
+      await activateDisplayLanguage("en");
+    }
+  });
+
   it("filters prefixes and replaces only the leading slash token", () => {
     const commands = getCommandsForAccess({
       kind: "authenticated",
@@ -488,12 +512,12 @@ describe("chat command registry", () => {
 
     expect(invalid.map((command) => command && getCommandArgumentError(command))).toEqual([
       "/slow on needs a positive whole number of seconds",
-      "/slow off does not accept a duration",
-      '/followonly needs "on" or "off"',
+      "/slow off does not accept arguments",
+      "/followonly needs “on” or “off”",
       "/category does not accept arguments",
       "/ban reason must be 100 characters or fewer",
       "/timeout seconds must be a multiple of 60 between 60 and 604800",
-      '/multi needs "on" or "off"',
+      "/multi needs “on” or “off”",
     ]);
   });
 

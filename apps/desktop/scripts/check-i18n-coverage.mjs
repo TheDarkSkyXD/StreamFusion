@@ -61,6 +61,9 @@ const allowedLiterals = new Set([
   "FFZ",
   "FFmpeg",
   "FPS",
+  "addMessage",
+  "addMessageBatched",
+  "flushBatch",
   "GIF",
   "GPU",
   "HLS",
@@ -84,9 +87,7 @@ async function collectSourceFiles(directory) {
       const path = join(directory, entry.name);
       if (entry.isDirectory()) {
         if (
-          ["__fixtures__", "__tests__", "dev", "dev-relay", "fixtures", "tests"].includes(
-            entry.name
-          ) ||
+          ["__fixtures__", "__tests__", "dev-relay", "fixtures", "tests"].includes(entry.name) ||
           path.replaceAll("\\", "/").endsWith("/i18n/locales")
         ) {
           return [];

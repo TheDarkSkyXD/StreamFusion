@@ -10,6 +10,7 @@ import { useAuthStore } from "@/store/auth-store";
 // Guards: the renderer waits for a complete locale catalog before exposing the application or changing document metadata.
 // Guards: right-to-left display languages update both i18next and the document direction.
 // Guards: concurrent requests for one lazy locale share one catalog import.
+// Guards: a failed lazy catalog import falls back to English instead of leaving the app blank.
 describe("DisplayLanguageSync", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
@@ -91,6 +92,33 @@ describe("DisplayLanguageSync", () => {
     } finally {
       DISPLAY_LANGUAGE_CATALOG_LOADERS.fr = originalLoader;
       i18n.removeResourceBundle("fr", "translation");
+    }
+  });
+
+  it("reveals the English fallback when a requested catalog fails to load", async () => {
+    i18n.removeResourceBundle("fr", "translation");
+    const originalLoader = DISPLAY_LANGUAGE_CATALOG_LOADERS.fr;
+    DISPLAY_LANGUAGE_CATALOG_LOADERS.fr = vi.fn(async () => {
+      throw new Error("catalog unavailable");
+    });
+    useAuthStore.setState({
+      initialized: true,
+      preferences: { ...DEFAULT_USER_PREFERENCES, language: "fr" },
+    });
+
+    try {
+      const { getByText } = render(
+        <DisplayLanguageSync>
+          <div>fallback application</div>
+        </DisplayLanguageSync>
+      );
+
+      await waitFor(() => expect(getByText("fallback application")).toBeInTheDocument());
+      expect(i18n.resolvedLanguage).toBe("en");
+      expect(document.documentElement.lang).toBe("en");
+      expect(document.documentElement.dir).toBe("ltr");
+    } finally {
+      DISPLAY_LANGUAGE_CATALOG_LOADERS.fr = originalLoader;
     }
   });
 });

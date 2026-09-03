@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import ts from "typescript";
+import { format, resolveConfig } from "prettier";
 
 import {
   isUntranslatedEnglishProse,
@@ -13,6 +14,7 @@ const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const localeDirectory = join(scriptDirectory, "../src/frontend/i18n/locales");
 const generatedDirectory = join(localeDirectory, "generated");
 const loaderPath = join(scriptDirectory, "../src/frontend/i18n/catalog-loaders.generated.ts");
+const nativeCopyPath = join(scriptDirectory, "../src/shared/i18n/native-copy.generated.ts");
 const registryPath = join(scriptDirectory, "../src/shared/display-language.ts");
 const sourceSnapshotPath = join(scriptDirectory, "i18n-source-snapshot.generated.json");
 const shouldGenerate = process.argv.includes("--generate");
@@ -236,6 +238,11 @@ async function generateCatalog(language, englishCatalog, sourceSnapshot) {
     value,
   }));
   const existing = flattenCatalog(catalog);
+  catalog = {};
+  for (const { key } of englishEntries) {
+    const value = existing.get(key);
+    if (typeof value === "string") setCatalogValue(catalog, key, value);
+  }
   const pending = englishEntries.filter(({ key, value: englishValue }) => {
     const value = existing.get(key);
     return (
@@ -255,8 +262,8 @@ async function generateCatalog(language, englishCatalog, sourceSnapshot) {
     batch.forEach(({ key }, translationIndex) => {
       setCatalogValue(catalog, key, translations[translationIndex]);
     });
-    await writeFile(path, `${JSON.stringify(catalog, null, 2)}\n`);
   }
+  await writeFile(path, `${JSON.stringify(catalog, null, 2)}\n`);
   return pending.length;
 }
 
@@ -314,6 +321,39 @@ function loaderSource() {
   return `import type { DisplayLanguage } from "@shared/display-language";\n\nimport type { TranslationCatalog } from "./locales/en";\n\ntype LazyDisplayLanguage = Exclude<DisplayLanguage, "en">;\ntype CatalogModule = { default: TranslationCatalog };\n\nexport const DISPLAY_LANGUAGE_CATALOG_LOADERS: Record<\n  LazyDisplayLanguage,\n  () => Promise<CatalogModule>\n> = {\n${entries}\n};\n`;
 }
 
+async function nativeCopySource(catalogs) {
+  const keys = Object.keys(catalogs.get("en").native ?? {});
+  const values = Object.fromEntries(
+    registeredLanguages.map((language) => [language, catalogs.get(language).native])
+  );
+  const source = `import { resolveDisplayLanguage, type DisplayLanguage } from "../display-language";
+
+export const NATIVE_COPY_KEYS = ${JSON.stringify(keys, null, 2)} as const;
+export type NativeCopyKey = (typeof NATIVE_COPY_KEYS)[number];
+
+export const NATIVE_COPY = ${JSON.stringify(values, null, 2)} as const satisfies Record<
+  DisplayLanguage,
+  Record<NativeCopyKey, string>
+>;
+
+export function nativeText(
+  language: unknown,
+  key: NativeCopyKey,
+  values: Readonly<Record<string, string | number>> = {}
+): string {
+  let text: string = NATIVE_COPY[resolveDisplayLanguage(language)][key];
+  for (const [name, value] of Object.entries(values)) {
+    text = text.replaceAll(\`{{\${name}}}\`, String(value));
+  }
+  return text;
+}
+`;
+  return format(source, {
+    ...(await resolveConfig(nativeCopyPath)),
+    filepath: nativeCopyPath,
+  });
+}
+
 const errors = [];
 if (registeredLanguages.length !== 50) {
   errors.push(
@@ -326,7 +366,14 @@ if (new Set(registeredLanguages).size !== registeredLanguages.length) {
 
 const englishCatalog = await sourceCatalog("en");
 const spanishCatalog = await sourceCatalog("es");
+const catalogs = new Map([
+  ["en", englishCatalog],
+  ["es", spanishCatalog],
+]);
 errors.push(...validateCatalog("es", englishCatalog, spanishCatalog));
+if (Object.keys(englishCatalog.native ?? {}).length > 40) {
+  errors.push("Native copy exceeds its 40-key bundle budget");
+}
 
 let sourceSnapshot;
 try {
@@ -380,6 +427,7 @@ for (const language of generatedLanguages) {
     continue;
   }
   const catalog = JSON.parse(await readFile(join(generatedDirectory, `${language}.json`), "utf8"));
+  catalogs.set(language, catalog);
   errors.push(...validateCatalog(language, englishCatalog, catalog));
 }
 for (const language of generatedFiles) {
@@ -394,6 +442,21 @@ try {
   if (error?.code !== "ENOENT") throw error;
 }
 if (actualLoader !== loaderSource()) errors.push("Generated catalog loader is stale");
+
+if (catalogs.size === registeredLanguages.length) {
+  const expectedNativeCopy = await nativeCopySource(catalogs);
+  if (shouldGenerate) {
+    await mkdir(dirname(nativeCopyPath), { recursive: true });
+    await writeFile(nativeCopyPath, expectedNativeCopy);
+  }
+  let actualNativeCopy = "";
+  try {
+    actualNativeCopy = await readFile(nativeCopyPath, "utf8");
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  if (actualNativeCopy !== expectedNativeCopy) errors.push("Generated native copy is stale");
+}
 
 if (errors.length) {
   console.error(errors.join("\n"));

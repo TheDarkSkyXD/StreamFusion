@@ -169,6 +169,7 @@ function resetHistoryMock() {
 // Guards: one-letter cross-platform autocomplete retrieves enough exact/prefix candidates to render at least five Channels rows, excluding Best Match.
 // Guards: one-letter autocomplete does not relax substring/fuzzy relevance when the expanded provider page has fewer than five strong Channels candidates.
 // Guards: search focus delegates page loading to the route preload owner.
+// Guards: compact follower counts appear exactly once in channel suggestions.
 describe("UnifiedSearchInput", () => {
   beforeEach(() => {
     resetSearchMock();
@@ -467,7 +468,13 @@ describe("UnifiedSearchInput", () => {
       displayName: "Creator Zero",
       followerCount: 0,
     };
-    searchMockState.channelsData = { pages: [{ data: [missing, realZero] }] };
+    const compact = {
+      ...makeChannels(1, "compact")[0],
+      username: "creatorcompact",
+      displayName: "Creator Compact",
+      followerCount: 1_000_000,
+    };
+    searchMockState.channelsData = { pages: [{ data: [missing, realZero, compact] }] };
 
     renderWithProviders(
       <UnifiedSearchInput initialValue="creator" platform="twitch" showCategories={false} />
@@ -476,8 +483,11 @@ describe("UnifiedSearchInput", () => {
 
     const zeroRow = screen.getByText("Creator Zero").closest("a, button");
     const missingRow = screen.getByText("Creator Missing").closest("a, button");
+    const compactRow = screen.getByText("Creator Compact").closest("a, button");
     expect(zeroRow).toHaveTextContent("0 followers");
     expect(missingRow).not.toHaveTextContent("followers");
+    expect(compactRow).toHaveTextContent("1M followers");
+    expect(compactRow).not.toHaveTextContent("1M 1,000,000 followers");
   });
 
   it("keeps the favorite action separate from the channel selection button", () => {

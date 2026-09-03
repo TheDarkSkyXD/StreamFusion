@@ -5,6 +5,7 @@ import { KickStreamResolver } from "../api/platforms/kick/kick-stream-resolver";
 import { TwitchStreamResolver } from "../api/platforms/twitch/twitch-stream-resolver";
 import { assertAllowedRendererMediaUrl } from "./download-media-source";
 import { getAvailableDestinationPath } from "./download-paths";
+import { getNativeText } from "./native-copy";
 import type { DownloadQueueService } from "./download-queue-service";
 import { chooseDefaultDownloadSavePath } from "./download-save-dialog";
 import { downloadHlsWithFfmpeg, resolveFfmpegPath } from "./ffmpeg-download-service";
@@ -65,10 +66,11 @@ export function getDefaultVideoDownloadService(
       const mainWindow = renderer.current();
       if (!mainWindow) return Promise.resolve(null);
       return chooseDefaultDownloadSavePath(mainWindow, {
-        dialogTitle: "Save video",
+        dialogTitle: getNativeText("saveVideo"),
         channelName: request.channelName,
         title: request.title,
         extension,
+        videoFilterName: getNativeText("mp4Video"),
       });
     },
     getAvailablePath: (requestedPath) => getAvailableDestinationPath(requestedPath, existsSync),

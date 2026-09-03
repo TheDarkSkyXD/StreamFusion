@@ -429,11 +429,24 @@ describe("storageService Kick web bearer", () => {
 });
 
 // Guards: canonical regional display languages survive the durable preference round-trip.
+// Guards: main-process consumers are notified when display-language preferences change.
 describe("storageService display-language preferences", () => {
   it("persists a regional display language", () => {
     storageService.updatePreferences({ language: "pt-PT" });
 
     expect(storageService.getPreferences().language).toBe("pt-PT");
+  });
+
+  it("notifies and can unsubscribe preference consumers", () => {
+    const listener = vi.fn();
+    const unsubscribe = storageService.onPreferencesChanged(listener);
+
+    storageService.updatePreferences({ language: "es" });
+    expect(listener).toHaveBeenCalledWith(expect.objectContaining({ language: "es" }));
+
+    unsubscribe();
+    storageService.updatePreferences({ language: "en" });
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 });
 

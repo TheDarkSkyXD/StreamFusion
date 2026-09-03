@@ -1819,7 +1819,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
             subscriberBlocker = await getSubscriberSendBlocker();
           } catch (err) {
             const errorMessage =
-              err instanceof Error ? err.message : "Failed to verify chat access";
+              err instanceof Error ? err.message : t("chatCommand.failedToVerifyAccess");
             setError(errorMessage);
             logger.error("UI:Chat:Input", "failed to verify subscriber eligibility", {
               error: err instanceof Error ? err.message : String(err),
@@ -1866,7 +1866,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
               return;
             }
 
-            const errorMessage = err instanceof Error ? err.message : "Failed to send message";
+            const errorMessage =
+              err instanceof Error ? err.message : t("chatCommand.failedToSendMessage");
             setError(errorMessage);
             logger.error("UI:Chat:Input", "failed to send quick emote", {
               error: err instanceof Error ? err.message : String(err),
@@ -1969,7 +1970,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
       } catch (err) {
         isSendingRef.current = false;
         setIsSending(false);
-        const errorMessage = err instanceof Error ? err.message : "Failed to verify chat access";
+        const errorMessage =
+          err instanceof Error ? err.message : t("chatCommand.failedToVerifyAccess");
         setError(errorMessage);
         logger.error("UI:Chat:Input", "failed to verify subscriber eligibility", {
           error: err instanceof Error ? err.message : String(err),
@@ -2063,7 +2065,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
       try {
         if (parsedCommand) {
-          if (!onProviderCommand) throw new Error("This command is not available in this chat");
+          if (!onProviderCommand) throw new Error(t("chatCommand.unavailableInChat"));
           const outcome = await onProviderCommand({
             command: parsedCommand.definition,
             args: parsedCommand.args,
@@ -2099,7 +2101,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
           return;
         }
 
-        const errorMessage = err instanceof Error ? err.message : "Failed to send message";
+        const errorMessage =
+          err instanceof Error ? err.message : t("chatCommand.failedToSendMessage");
         setError(errorMessage);
         logger.error("UI:Chat:Input", "failed to send message", {
           error: err instanceof Error ? err.message : String(err),

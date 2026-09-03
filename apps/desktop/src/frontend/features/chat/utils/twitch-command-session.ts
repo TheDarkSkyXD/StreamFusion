@@ -4,6 +4,8 @@ import type {
   TwitchChannelMember,
 } from "@shared/twitch-api-types";
 
+import { i18n } from "@/i18n";
+
 import type {
   ChatCommandRole,
   TwitchCommandDefinition,
@@ -35,14 +37,15 @@ interface TwitchCommandSessionDependencies {
 }
 
 function formatChannelMembers(list: "moderators" | "vips", page: TwitchChannelMembersPage): string {
-  const label = list === "moderators" ? "Moderators" : "VIPs";
+  const label = i18n.t(list === "moderators" ? "chatCommand.moderators" : "chatCommand.vips");
   if (page.data.length === 0) {
-    return list === "moderators"
-      ? "No moderators found for this channel."
-      : "No VIPs found for this channel.";
+    return i18n.t(list === "moderators" ? "chatCommand.noModerators" : "chatCommand.noVips");
   }
   const names = page.data.map((member) => member.user_name || member.user_login).join(", ");
-  return page.pagination.cursor ? `${label}: ${names} (showing first 100)` : `${label}: ${names}`;
+  return i18n.t(page.pagination.cursor ? "chatCommand.firstHundred" : "chatCommand.memberList", {
+    label,
+    names,
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -76,12 +79,12 @@ export async function runTwitchCommandEffect(
   );
   if (missingScopes.length > 0) {
     dependencies.requestReconnect(missingScopes);
-    throw new Error(`Reconnect Twitch to use /${definition.name}`);
+    throw new Error(i18n.t("chatCommand.reconnectTwitch", { command: definition.name }));
   }
 
   switch (effect.kind) {
     case "help":
-      throw new Error("Help is handled by the chat composer");
+      throw new Error(i18n.t("chatCommand.helpHandledByComposer"));
     case "irc-action":
       await dependencies.sendAction(effect.message);
       return HANDLED_CHAT_COMMAND;
@@ -93,13 +96,15 @@ export async function runTwitchCommandEffect(
       return HANDLED_CHAT_COMMAND;
     case "channel-members": {
       const result = await dependencies.readChannelMembers(effect.list);
-      const title = effect.list === "moderators" ? "Channel moderators" : "Channel VIPs";
+      const title = i18n.t(
+        effect.list === "moderators" ? "chatCommand.channelModerators" : "chatCommand.channelVips"
+      );
       if (result.ok) {
         if (!isChannelMembersPage(result.data)) {
           return localChatCommandResult({
             tone: "error",
             title,
-            body: "Twitch returned an unexpected member list.",
+            body: i18n.t("chatCommand.unexpectedMemberList"),
           });
         }
         return localChatCommandResult({

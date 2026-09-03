@@ -2,7 +2,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useAuthStore } from "@/store/auth-store";
-import { getDisplayLanguage, resolveDisplayLanguage } from "@shared/display-language";
+import {
+  DEFAULT_DISPLAY_LANGUAGE,
+  getDisplayLanguage,
+  resolveDisplayLanguage,
+} from "@shared/display-language";
 
 import { activateDisplayLanguage } from ".";
 
@@ -11,7 +15,7 @@ export function DisplayLanguageSync({ children }: { children?: ReactNode }) {
   const initialized = useAuthStore((state) => state.initialized);
   const { i18n } = useTranslation();
   const language = resolveDisplayLanguage(preferences?.language);
-  const [appliedLanguage, setAppliedLanguage] = useState(i18n.resolvedLanguage);
+  const [settledLanguage, setSettledLanguage] = useState(i18n.resolvedLanguage);
 
   useEffect(() => {
     if (!initialized) return;
@@ -23,9 +27,14 @@ export function DisplayLanguageSync({ children }: { children?: ReactNode }) {
         const definition = getDisplayLanguage(language);
         document.documentElement.lang = language;
         document.documentElement.dir = definition.direction;
-        setAppliedLanguage(language);
+        setSettledLanguage(language);
       } catch {
-        if (!cancelled) setAppliedLanguage(undefined);
+        await activateDisplayLanguage(DEFAULT_DISPLAY_LANGUAGE);
+        if (cancelled) return;
+        const definition = getDisplayLanguage(DEFAULT_DISPLAY_LANGUAGE);
+        document.documentElement.lang = DEFAULT_DISPLAY_LANGUAGE;
+        document.documentElement.dir = definition.direction;
+        setSettledLanguage(language);
       }
     };
     void applyLanguage();
@@ -34,7 +43,7 @@ export function DisplayLanguageSync({ children }: { children?: ReactNode }) {
     };
   }, [i18n, initialized, language]);
 
-  if (!initialized || appliedLanguage !== language) {
+  if (!initialized || settledLanguage !== language) {
     return <div className="h-full bg-[var(--color-background)]" aria-hidden="true" />;
   }
 

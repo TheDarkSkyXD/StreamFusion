@@ -8,6 +8,7 @@ import { KickStreamResolver } from "../api/platforms/kick/kick-stream-resolver";
 import { TwitchStreamResolver } from "../api/platforms/twitch/twitch-stream-resolver";
 import { buildDownloadFilename, getAvailableDestinationPath } from "./download-paths";
 import { resolveFfmpegPath, startHlsRecordingWithFfmpeg } from "./ffmpeg-download-service";
+import { getNativeText } from "./native-copy";
 import { storageService } from "./storage-service";
 import { createStreamRecordingOutcomeCoordinator } from "./stream-recording-outcome-coordinator";
 import { fetchStreamRecordingQualityCatalog } from "./stream-recording-quality-catalog";
@@ -63,6 +64,7 @@ export function getDefaultStreamRecordingService(
     },
     recordingFileActions,
     verifyArtifactIdentity: verifyStreamRecordingArtifactIdentity,
+    getText: getNativeText,
     // timer-allowlist: recording outcomes are intentionally transient and session-scoped
     scheduleClear: (callback, delayMs) => setTimeout(callback, delayMs),
   });
@@ -92,9 +94,9 @@ export function getDefaultStreamRecordingService(
       if (!mainWindow) return null;
       const result = await dialog.showMessageBox(mainWindow, {
         type: "question",
-        title: "Choose stream quality",
-        message: "Choose stream quality",
-        buttons: [...qualities.map((quality) => quality.quality), "Cancel"],
+        title: getNativeText("chooseStreamQuality"),
+        message: getNativeText("chooseStreamQuality"),
+        buttons: [...qualities.map((quality) => quality.quality), getNativeText("cancel")],
         defaultId: 0,
         cancelId: qualities.length,
       });
@@ -108,9 +110,9 @@ export function getDefaultStreamRecordingService(
         buildDownloadFilename(request.channelName, request.title, extension)
       );
       const result = await dialog.showSaveDialog(mainWindow, {
-        title: "Save stream recording",
+        title: getNativeText("saveStreamRecording"),
         defaultPath,
-        filters: [{ name: "MP4 Video", extensions: ["mp4"] }],
+        filters: [{ name: getNativeText("mp4Video"), extensions: ["mp4"] }],
       });
       return result.canceled ? null : (result.filePath ?? null);
     },

@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { ChatMessage, ChatPlatform } from "../../../shared/chat-types";
 import { buildChannelKey, useChatStore } from "../../store/chat-store";
@@ -206,6 +207,7 @@ function toneFps(fps: number): "success" | "warning" | "danger" {
 }
 
 export function PerfTool() {
+  const { t } = useTranslation();
   const [memory, setMemory] = useState<MemorySnapshot | null>(readMemory);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [intervalCount, setIntervalCount] = useState(0);
@@ -321,9 +323,9 @@ export function PerfTool() {
   return (
     <div>
       <section style={sectionStyle}>
-        <div style={sectionLabelStyle}>Runtime</div>
+        <div style={sectionLabelStyle}>{t("dev.performance.runtime")}</div>
         <Stat
-          label="Heap"
+          label={t("dev.performance.heap")}
           tone={memory ? heapTone : "default"}
           value={
             memory
@@ -333,18 +335,18 @@ export function PerfTool() {
         />
         {memory ? <HeapBar pct={usedPct} tone={heapTone} /> : null}
         <Stat
-          label="Frame"
+          label={t("dev.performance.frame")}
           tone={fpsTone}
           value={`${avgFrameMs.toFixed(1)} ms · ${fpsValue} fps`}
         />
-        <Stat label="Live intervals" value={intervalCount} />
+        <Stat label={t("dev.performance.liveIntervals")} value={intervalCount} />
       </section>
 
       <section style={sectionStyle}>
-        <div style={sectionLabelStyle}>Render counts</div>
+        <div style={sectionLabelStyle}>{t("dev.performance.renderCounts")}</div>
         {sortedNames.length === 0 ? (
           <div style={{ ...statRowStyle, color: DEBUG_TOKENS.textMuted, fontStyle: "italic" }}>
-            none registered
+            {t("dev.performance.noneRegistered")}
           </div>
         ) : (
           sortedNames.map((name) => <Stat key={name} label={name} value={counts[name]} />)
@@ -353,11 +355,11 @@ export function PerfTool() {
 
       {storeCounters && storeRates && (
         <section style={sectionStyle}>
-          <div style={sectionLabelStyle}>Chat store rate (per sec)</div>
+          <div style={sectionLabelStyle}>{t("dev.performance.chatStoreRate")}</div>
           <Stat label="addMessageBatched" value={storeRates.addMessageBatched ?? 0} />
           <Stat label="flushBatch" value={storeRates.flushBatch ?? 0} />
           <Stat label="addMessage" value={storeRates.addMessage ?? 0} />
-          <Stat label="setCalls (all)" value={storeRates.setCalls ?? 0} />
+          <Stat label={t("dev.performance.allSetCalls")} value={storeRates.setCalls ?? 0} />
         </section>
       )}
 
@@ -375,7 +377,7 @@ export function PerfTool() {
             e.currentTarget.style.borderColor = DEBUG_TOKENS.border;
           }}
         >
-          Reset counts
+          {t("dev.performance.resetCounts")}
         </button>
         <button
           type="button"
@@ -387,7 +389,9 @@ export function PerfTool() {
             borderColor: stressActive ? DEBUG_TOKENS.danger : DEBUG_TOKENS.border,
           }}
         >
-          {stressActive ? "Stop stress" : `Stress chat · ${STRESS_TOTAL}/30s`}
+          {stressActive
+            ? t("dev.performance.stopStress")
+            : t("dev.performance.stressChat", { total: STRESS_TOTAL })}
         </button>
       </div>
     </div>

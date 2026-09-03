@@ -76,6 +76,7 @@ function setTwitchUser() {
 }
 
 // Guards: status transitions (ACTIVE → LOCKED → RESOLVED / CANCELED) drive distinct UI — Voting locked / Winner / Refunded copy must each surface so viewers can tell what happened
+// Guards: localized top-predictor copy uses the singular form for exactly one additional predictor.
 // Guards: createdAt=null and LOCKED render a static / empty progress bar instead of throwing — guards the "no anchor / past window" edge cases the poller sometimes serves
 // Guards: ENDED_AUTO_DISMISS_MS (60s) must fire for RESOLVED, never for ACTIVE, and not bounce when the parent passes a fresh inline onAutoDismiss every render (P1-3 regression)
 // Guards: read-only contract — no vote form / deeplink in expanded state even when a Twitch user is signed in. The widget mirrors Twitch but never offers in-app voting
@@ -86,6 +87,29 @@ describe("PredictionBanner (read-only viewer widget)", () => {
     expect(screen.getByText("Who wins next game?")).toBeTruthy();
     expect(screen.getByLabelText("See Details")).toBeTruthy();
     expect(screen.queryByText(/Vote on twitch.tv/)).toBeNull();
+  });
+
+  it("renders one additional top predictor with singular grammar", () => {
+    const prediction = makePrediction();
+    render(
+      <PredictionBanner
+        prediction={{
+          ...prediction,
+          outcomes: [
+            {
+              ...prediction.outcomes[0],
+              topPredictors: [
+                { userId: "one", userName: "Alpha", amount: 900_000 },
+                { userId: "two", userName: "Beta", amount: 79_100 },
+              ],
+            },
+            prediction.outcomes[1],
+          ],
+        }}
+      />
+    );
+
+    expect(screen.getByText("1.8M go to Alpha and 1 other")).toBeInTheDocument();
   });
 
   it("renders Kick-native CTA label ('Predict') for Kick predictions", () => {

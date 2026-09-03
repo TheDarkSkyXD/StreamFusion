@@ -10,6 +10,7 @@ interface DownloadSavePathInput {
   channelName: string;
   title: string;
   extension: string;
+  videoFilterName: string;
 }
 
 interface DownloadSavePathDependencies {
@@ -37,7 +38,7 @@ export async function chooseDownloadSavePath(
       directory,
       buildDownloadFilename(input.channelName, input.title, input.extension)
     ),
-    filters: [{ name: "MP4 Video", extensions: ["mp4"] }],
+    filters: [{ name: input.videoFilterName, extensions: ["mp4"] }],
   });
 
   if (result.canceled || !result.filePath) return null;

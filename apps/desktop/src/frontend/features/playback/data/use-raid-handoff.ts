@@ -6,6 +6,8 @@ import { channelByUsernameQueryOptions } from "@/features/discovery/data/queries
 import { getStreamByChannelQueryOptions } from "@/features/discovery/data/queries/useStreams";
 import { preloadStreamExperience } from "@/features/playback/routes/stream-route-preload";
 import { useInterval } from "@/hooks/useInterval";
+import { i18n } from "@/i18n";
+import { formatLocalizedNumber } from "@/lib/utils";
 import {
   normalizeRaidChannelSlug,
   raidSourcesMatch,
@@ -200,10 +202,13 @@ function getRaidProgress(
 
 function formatRaidAudience(offer: RaidOffer): string | undefined {
   if (offer.audience.kind === "unknown") return undefined;
-  const count = new Intl.NumberFormat().format(offer.audience.count);
+  const audience = formatLocalizedNumber(offer.audience.count);
   return offer.audience.kind === "raid-party"
-    ? `${count} joining the raid`
-    : `${count} watching ${offer.target.displayName} now`;
+    ? i18n.t("playback.raidAudienceJoining", { audience })
+    : i18n.t("playback.raidAudienceWatching", {
+        audience,
+        target: offer.target.displayName,
+      });
 }
 
 function raidSourceIdentity(source: RaidSource): string {
