@@ -58,6 +58,7 @@ beforeEach(() => {
 // Guards: profile dropdown channel actions must navigate inside StreamFusion to the authenticated account's real platform channel instead of opening an external browser URL or using a stale display name
 // Guards: the profile language selector persists through the same preference path as Settings.
 // Guards: a linked Twitch identity stays visible, and reconnect appears only when authorization is degraded.
+// Guards: stacked profile avatars reserve fixed square geometry in the top nav and dropdown header.
 describe("ProfileDropdown", () => {
   it("navigates to connected Twitch and Kick account channels inside the app", async () => {
     useAuthStore.setState({
@@ -97,8 +98,37 @@ describe("ProfileDropdown", () => {
     renderWithProviders(<ProfileDropdown />);
     await userEvent.click(screen.getByRole("button", { name: "Open profile menu" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Display language" }));
-    await userEvent.click(screen.getByRole("option", { name: "Español (Spanish)" }));
-    expect(updatePreferences).toHaveBeenCalledWith({ language: "es" });
+    await userEvent.click(screen.getByRole("option", { name: "Français (French)" }));
+    expect(updatePreferences).toHaveBeenCalledWith({ language: "fr" });
+  });
+
+  it("reserves fixed square avatar geometry for both stacked placements", async () => {
+    useAuthStore.setState({
+      twitchUser,
+      twitchConnected: true,
+      kickUser,
+      kickConnected: true,
+      isGuest: false,
+    });
+
+    const { container } = renderWithProviders(<ProfileDropdown />);
+    const triggerStack = container.querySelector<HTMLElement>('[data-avatar-stack-size="sm"]');
+    expect(triggerStack).toHaveStyle({
+      height: "28px",
+      width: "40px",
+    });
+    expect(triggerStack?.closest("button")?.parentElement).toHaveClass("shrink-0");
+
+    await userEvent.click(screen.getByRole("button", { name: "Open profile menu" }));
+    const headerStack = container.querySelector<HTMLElement>('[data-avatar-stack-size="md"]');
+    expect(headerStack).toHaveStyle({
+      height: "36px",
+      width: "52px",
+    });
+    expect(headerStack).toHaveClass("shrink-0");
+    for (const image of headerStack?.querySelectorAll("img") ?? []) {
+      expect(image).toHaveStyle({ height: "36px", width: "36px" });
+    }
   });
 
   it("keeps a linked Twitch identity visible while authorization needs reconnecting", async () => {

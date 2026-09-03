@@ -74,7 +74,7 @@ export function RecordingGlobalIndicator({
     : null;
 
   return (
-    <div className="relative">
+    <div className="relative shrink-0">
       <button
         ref={triggerRef}
         type="button"
@@ -88,11 +88,11 @@ export function RecordingGlobalIndicator({
         aria-controls={detailsId}
         aria-haspopup="dialog"
         onClick={() => setOpen((current) => !current)}
-        className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-background-tertiary)] px-3 text-xs font-bold text-white transition-colors hover:bg-[var(--color-background-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white motion-reduce:transition-none"
+        className="inline-flex h-9 max-w-48 items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-background-tertiary)] px-3 text-xs font-bold text-white transition-colors hover:bg-[var(--color-background-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white motion-reduce:transition-none"
       >
         <span
           aria-hidden="true"
-          className={`h-2 w-2 rounded-full motion-reduce:animate-none ${
+          className={`h-2 w-2 shrink-0 rounded-full motion-reduce:animate-none ${
             state.phase === "recording"
               ? "animate-pulse bg-[var(--color-storm-primary)]"
               : isWarning
@@ -100,8 +100,8 @@ export function RecordingGlobalIndicator({
                 : "bg-zinc-400"
           }`}
         />
-        <span>{phaseLabel}</span>
-        <span className="text-white/70">{capturedDuration}</span>
+        <span className="truncate">{phaseLabel}</span>
+        <span className="shrink-0 text-white/70">{capturedDuration}</span>
       </button>
 
       {open ? (

@@ -27,10 +27,12 @@ export function PlatformHealthIndicator() {
       aria-live="polite"
       aria-label={message}
       title={message}
-      className={`inline-flex h-8 shrink-0 items-center gap-2 rounded-full border px-2.5 text-xs font-semibold ${platformColors(kickDisplayHealth, twitch)}`}
+      className={`inline-flex h-8 max-w-40 shrink-0 items-center gap-2 rounded-full border px-2.5 text-xs font-semibold ${platformColors(kickDisplayHealth, twitch)}`}
     >
-      <WifiOff className="h-3.5 w-3.5" aria-hidden="true" />
-      <span className="hidden xl:inline">{compactLabel(kickDisplayHealth, twitch, t)}</span>
+      <WifiOff className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      <span className="hidden truncate xl:inline">
+        {compactLabel(kickDisplayHealth, twitch, t)}
+      </span>
     </div>
   );
 }

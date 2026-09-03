@@ -1,0 +1,61 @@
+import type { DisplayLanguage } from "@shared/display-language";
+
+import type { TranslationCatalog } from "./locales/en";
+
+type LazyDisplayLanguage = Exclude<DisplayLanguage, "en">;
+type CatalogModule = { default: TranslationCatalog };
+
+export const DISPLAY_LANGUAGE_CATALOG_LOADERS: Record<
+  LazyDisplayLanguage,
+  () => Promise<CatalogModule>
+> = {
+  ar: () => import("./locales/generated/ar.json"),
+  bg: () => import("./locales/generated/bg.json"),
+  bn: () => import("./locales/generated/bn.json"),
+  ca: () => import("./locales/generated/ca.json"),
+  cs: () => import("./locales/generated/cs.json"),
+  da: () => import("./locales/generated/da.json"),
+  de: () => import("./locales/generated/de.json"),
+  el: () => import("./locales/generated/el.json"),
+  es: () => import("./locales/es").then(({ es }) => ({ default: es })),
+  et: () => import("./locales/generated/et.json"),
+  fa: () => import("./locales/generated/fa.json"),
+  fi: () => import("./locales/generated/fi.json"),
+  fil: () => import("./locales/generated/fil.json"),
+  fr: () => import("./locales/generated/fr.json"),
+  gu: () => import("./locales/generated/gu.json"),
+  he: () => import("./locales/generated/he.json"),
+  hi: () => import("./locales/generated/hi.json"),
+  hr: () => import("./locales/generated/hr.json"),
+  hu: () => import("./locales/generated/hu.json"),
+  id: () => import("./locales/generated/id.json"),
+  it: () => import("./locales/generated/it.json"),
+  ja: () => import("./locales/generated/ja.json"),
+  ko: () => import("./locales/generated/ko.json"),
+  lt: () => import("./locales/generated/lt.json"),
+  lv: () => import("./locales/generated/lv.json"),
+  ml: () => import("./locales/generated/ml.json"),
+  mr: () => import("./locales/generated/mr.json"),
+  ms: () => import("./locales/generated/ms.json"),
+  nl: () => import("./locales/generated/nl.json"),
+  nb: () => import("./locales/generated/nb.json"),
+  pl: () => import("./locales/generated/pl.json"),
+  "pt-BR": () => import("./locales/generated/pt-BR.json"),
+  "pt-PT": () => import("./locales/generated/pt-PT.json"),
+  ro: () => import("./locales/generated/ro.json"),
+  ru: () => import("./locales/generated/ru.json"),
+  sk: () => import("./locales/generated/sk.json"),
+  sl: () => import("./locales/generated/sl.json"),
+  sr: () => import("./locales/generated/sr.json"),
+  sv: () => import("./locales/generated/sv.json"),
+  sw: () => import("./locales/generated/sw.json"),
+  ta: () => import("./locales/generated/ta.json"),
+  te: () => import("./locales/generated/te.json"),
+  th: () => import("./locales/generated/th.json"),
+  tr: () => import("./locales/generated/tr.json"),
+  uk: () => import("./locales/generated/uk.json"),
+  ur: () => import("./locales/generated/ur.json"),
+  vi: () => import("./locales/generated/vi.json"),
+  "zh-CN": () => import("./locales/generated/zh-CN.json"),
+  "zh-TW": () => import("./locales/generated/zh-TW.json"),
+};

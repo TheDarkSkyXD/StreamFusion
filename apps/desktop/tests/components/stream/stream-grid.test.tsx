@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { fixtures, renderWithProviders, routerMock, screen } from "../../test-utils";
-import { i18n } from "@/i18n";
+import { activateDisplayLanguage } from "@/i18n";
 
 vi.mock("@tanstack/react-router", () => routerMock());
 
@@ -35,7 +35,7 @@ describe("StreamGrid", () => {
   });
 
   it("localizes the default empty state", async () => {
-    await i18n.changeLanguage("es");
+    await activateDisplayLanguage("es");
     renderWithProviders(<StreamGrid streams={[]} />);
     expect(screen.getByText("No se encontraron transmisiones")).toBeInTheDocument();
   });

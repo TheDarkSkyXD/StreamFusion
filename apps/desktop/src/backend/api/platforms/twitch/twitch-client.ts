@@ -36,6 +36,35 @@ export type { PaginationOptions, PaginatedResult, PaginationEndReason, TwitchCli
 export type TwitchFollowedStreamAccess =
   { kind: "guest" } | { kind: "ready" } | { kind: "unavailable" };
 
+const TWITCH_STREAM_LANGUAGES: ReadonlySet<string> = new Set([
+  "ar",
+  "cs",
+  "da",
+  "de",
+  "el",
+  "en",
+  "es",
+  "fi",
+  "fr",
+  "he",
+  "hu",
+  "id",
+  "it",
+  "ja",
+  "ko",
+  "nl",
+  "no",
+  "pl",
+  "pt",
+  "ru",
+  "sv",
+  "th",
+  "tr",
+  "uk",
+  "vi",
+  "zh",
+]);
+
 function mergeCategoryViewerCounts(
   result: PaginatedResult<UnifiedCategory>,
   countsById: Record<string, number>
@@ -189,11 +218,15 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
   async getTopStreams(
     options: (PaginationOptions & { gameId?: string; language?: string }) | TopStreamsOptions = {}
   ): Promise<PageResult<UnifiedStream>> {
+    const requestedLanguage = options.language?.trim().toLowerCase();
+    if (requestedLanguage && !TWITCH_STREAM_LANGUAGES.has(requestedLanguage)) {
+      return { data: [] };
+    }
     const normalized: PaginationOptions & { gameId?: string; language?: string } = {
       first: "first" in options ? options.first : (options as TopStreamsOptions).limit,
       after: "after" in options ? options.after : (options as TopStreamsOptions).cursor,
       gameId: "gameId" in options ? options.gameId : (options as TopStreamsOptions).categoryId,
-      language: options.language,
+      language: requestedLanguage,
     };
     try {
       return await GqlClient.gqlGetTopStreams(normalized);

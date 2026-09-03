@@ -6,7 +6,11 @@ import { i18n } from "@/i18n";
 import { useAuthStore } from "@/store/auth-store";
 
 import type { Platform } from "../../../../../shared/auth-types";
-import type { DisplayLanguage } from "../../../../../shared/display-language";
+import {
+  getDisplayLanguage,
+  type DisplayLanguage,
+  type StreamLanguage,
+} from "../../../../../shared/display-language";
 
 import { useQueryCachePerformance } from "./cache-performance";
 import { getQueryCacheOptions } from "./cache-policy";
@@ -17,17 +21,18 @@ const TOP_STREAM_PLATFORMS = ["twitch", "kick"] as const satisfies readonly Plat
 
 function useInfiniteTopStreamsByPlatform(
   platform: Platform,
-  language: DisplayLanguage,
+  displayLanguage: DisplayLanguage,
+  streamLanguage: StreamLanguage,
   enabled: boolean
 ) {
-  const queryKey = STREAM_KEYS.topInfinite(platform, TOP_STREAMS_PAGE_SIZE, language);
+  const queryKey = STREAM_KEYS.topInfinite(platform, TOP_STREAMS_PAGE_SIZE, displayLanguage);
   return useInfiniteQuery({
     queryKey,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam, signal }) => {
       const response = await window.electronAPI.streams.getTop({
         platform,
-        language,
+        language: streamLanguage,
         limit: TOP_STREAMS_PAGE_SIZE,
         ...(pageParam === undefined ? {} : { cursor: pageParam }),
       });
@@ -49,8 +54,9 @@ export function useInfiniteTopStreams() {
   const initialized = useAuthStore((state) => state.initialized);
   const preferences = useAuthStore((state) => state.preferences);
   const language = preferences?.language ?? "en";
-  const twitch = useInfiniteTopStreamsByPlatform("twitch", language, initialized);
-  const kick = useInfiniteTopStreamsByPlatform("kick", language, initialized);
+  const streamLanguage = getDisplayLanguage(language).streamLanguage;
+  const twitch = useInfiniteTopStreamsByPlatform("twitch", language, streamLanguage, initialized);
+  const kick = useInfiniteTopStreamsByPlatform("kick", language, streamLanguage, initialized);
   const loadMoreInFlight = useRef<Promise<void> | null>(null);
   const twitchPages = twitch.data?.pages;
   const kickPages = kick.data?.pages;

@@ -1,32 +1,46 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
-import {
-  DISPLAY_LANGUAGE_REGISTRY,
-  type DisplayLanguage,
-  type DisplayLanguageDefinition,
-} from "@shared/display-language";
+import { DEFAULT_DISPLAY_LANGUAGE, type DisplayLanguage } from "@shared/display-language";
 
+import { DISPLAY_LANGUAGE_CATALOG_LOADERS } from "./catalog-loaders.generated";
 import { en } from "./locales/en";
-import { es } from "./locales/es";
 
-export function resolveDisplayLanguage(value: unknown): DisplayLanguage {
-  if (typeof value !== "string") return "en";
-  const normalized = value.trim().toLowerCase().split("-")[0];
-  return DISPLAY_LANGUAGE_REGISTRY.find(({ code }) => code === normalized)?.code ?? "en";
-}
-
-export function getDisplayLanguage(value: DisplayLanguage): DisplayLanguageDefinition {
-  return (
-    DISPLAY_LANGUAGE_REGISTRY.find(({ code }) => code === value) ?? DISPLAY_LANGUAGE_REGISTRY[0]
-  );
-}
+const catalogLoads = new Map<DisplayLanguage, Promise<void>>();
+let languageActivation = Promise.resolve();
 
 void i18n.use(initReactI18next).init({
-  resources: { en: { translation: en }, es: { translation: es } },
-  lng: "en",
-  fallbackLng: "en",
+  resources: { en: { translation: en } },
+  lng: DEFAULT_DISPLAY_LANGUAGE,
+  fallbackLng: DEFAULT_DISPLAY_LANGUAGE,
   interpolation: { escapeValue: false },
 });
 
-export { en, es, i18n };
+export async function prepareDisplayLanguage(language: DisplayLanguage): Promise<void> {
+  if (i18n.hasResourceBundle(language, "translation")) return;
+
+  const existingLoad = catalogLoads.get(language);
+  if (existingLoad) return existingLoad;
+
+  if (language === "en") return;
+  const load = DISPLAY_LANGUAGE_CATALOG_LOADERS[language]()
+    .then(({ default: catalog }) => {
+      i18n.addResourceBundle(language, "translation", catalog, true, true);
+    })
+    .finally(() => {
+      catalogLoads.delete(language);
+    });
+  catalogLoads.set(language, load);
+  return load;
+}
+
+export function activateDisplayLanguage(language: DisplayLanguage): Promise<void> {
+  const activation = languageActivation.then(async () => {
+    await prepareDisplayLanguage(language);
+    if (i18n.resolvedLanguage !== language) await i18n.changeLanguage(language);
+  });
+  languageActivation = activation.catch(() => undefined);
+  return activation;
+}
+
+export { en, i18n };

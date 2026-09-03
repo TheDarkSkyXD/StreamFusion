@@ -1,4 +1,4 @@
-import { fireEvent, waitFor } from "@testing-library/react";
+import { act, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -12,7 +12,7 @@ import {
 } from "@shared/auth-types";
 import { HOME_CAROUSEL_INTERVAL_DEFAULT_MS, useAppStore } from "@/store/app-store";
 import { useFollowStore } from "@/store/follow-store";
-import { i18n } from "@/i18n";
+import { activateDisplayLanguage } from "@/i18n";
 
 import {
   installElectronAPIMock,
@@ -1057,7 +1057,7 @@ describe("SettingsPage display language", () => {
     renderWithProviders(<SettingsPage />);
     expect(screen.getByRole("button", { name: "Viewing settings section" })).toBeInTheDocument();
 
-    await i18n.changeLanguage("es");
+    await act(() => activateDisplayLanguage("es"));
 
     await waitFor(() => {
       expect(
@@ -1065,6 +1065,6 @@ describe("SettingsPage display language", () => {
       ).toBeInTheDocument();
     });
 
-    await i18n.changeLanguage("en");
+    await act(() => activateDisplayLanguage("en"));
   });
 });

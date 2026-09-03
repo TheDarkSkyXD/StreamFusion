@@ -34,6 +34,7 @@ import { TopNavBar } from "@/features/shell/components/TopNavBar";
 
 // Guards: the global menu sends explicit collapse intent instead of toggling against stale state.
 // Guards: moderation stays inside channel-scoped routes rather than leaking into global navigation.
+// Guards: the top-nav action track sizes to content and never asks the profile control to shrink.
 describe("TopNavBar", () => {
   beforeEach(() => {
     setSidebarCollapsed.mockClear();
@@ -48,5 +49,11 @@ describe("TopNavBar", () => {
   it("does not render the moderation link in global nav", () => {
     renderWithProviders(<TopNavBar />);
     expect(screen.queryByTestId("mod-nav-link")).not.toBeInTheDocument();
+  });
+
+  it("reserves an intrinsic-width action track", () => {
+    const { container } = renderWithProviders(<TopNavBar />);
+
+    expect(container.firstElementChild).toHaveClass("grid-cols-[250px_minmax(0,1fr)_max-content]");
   });
 });

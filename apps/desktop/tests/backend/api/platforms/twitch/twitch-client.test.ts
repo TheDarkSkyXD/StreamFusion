@@ -123,6 +123,7 @@ vi.mock("@backend/api/unified/registry", () => ({
 import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
 import { twitchAuthService } from "@backend/auth/twitch-auth";
 
+// Guards: Twitch never broadens an unsupported language filter into unfiltered top streams.
 describe("TwitchClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -153,6 +154,13 @@ describe("TwitchClient", () => {
   });
 
   describe("getTopStreams", () => {
+    it("returns an empty result for a language Twitch cannot filter exactly", async () => {
+      const result = await twitchClient.getTopStreams({ language: "bg" });
+
+      expect(result).toEqual({ data: [] });
+      expect(mockGqlGetTopStreams).not.toHaveBeenCalled();
+    });
+
     it("delegates to GQL on success", async () => {
       const streams = { data: [{ id: "s1" }], cursor: "next" };
       mockGqlGetTopStreams.mockResolvedValueOnce(streams);

@@ -428,6 +428,15 @@ describe("storageService Kick web bearer", () => {
   });
 });
 
+// Guards: canonical regional display languages survive the durable preference round-trip.
+describe("storageService display-language preferences", () => {
+  it("persists a regional display language", () => {
+    storageService.updatePreferences({ language: "pt-PT" });
+
+    expect(storageService.getPreferences().language).toBe("pt-PT");
+  });
+});
+
 describe("storageService.getPreferences - buffer defaults migration", () => {
   it("migrates the exact legacy latency-first buffer defaults to the stable defaults", () => {
     storageService.updatePreferences({

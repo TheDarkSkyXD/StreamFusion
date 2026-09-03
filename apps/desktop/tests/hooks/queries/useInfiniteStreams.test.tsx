@@ -9,6 +9,7 @@ import {
 } from "@/features/discovery/data/queries/useInfiniteStreams";
 import { installElectronAPIMock, fixtures } from "../../test-utils";
 import { DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
+import { STREAM_KEYS } from "@/features/discovery/data/queries/useStreams";
 import { useAuthStore } from "@/store/auth-store";
 
 function makeWrapper() {
@@ -110,7 +111,7 @@ describe("useInfiniteStreamsByCategory", () => {
   });
 });
 
-// Guards: Home waits for the display language and scopes every provider request and cache entry to it.
+// Guards: Home keeps cache identity on the display locale while provider requests use its mapped stream language.
 // Guards: Home pages Twitch and Kick independently so one provider cursor is never sent to the other.
 // Guards: every fetched stream remains visible after merge; provider-page results are never sliced away.
 // Guards: one provider can fail without hiding usable streams from the other provider.
@@ -223,7 +224,7 @@ describe("useInfiniteTopStreams", () => {
     ).toHaveLength(1);
   });
 
-  it("waits for preferences and reloads both providers for the selected display language", async () => {
+  it("waits for preferences and maps a regional display locale for both providers", async () => {
     useAuthStore.setState({ initialized: false, preferences: null });
     api.streams.getTop = vi.fn<typeof api.streams.getTop>(async (request = {}) => ({
       success: true,
@@ -239,21 +240,29 @@ describe("useInfiniteTopStreams", () => {
     act(() => {
       useAuthStore.setState({
         initialized: true,
-        preferences: { ...DEFAULT_USER_PREFERENCES, language: "es" },
+        preferences: { ...DEFAULT_USER_PREFERENCES, language: "pt-BR" },
       });
     });
 
     await waitFor(() => expect(result.current.data).toHaveLength(2));
     expect(api.streams.getTop).toHaveBeenCalledWith({
       platform: "twitch",
-      language: "es",
+      language: "pt",
       limit: 12,
     });
     expect(api.streams.getTop).toHaveBeenCalledWith({
       platform: "kick",
-      language: "es",
+      language: "pt",
       limit: 12,
     });
+    expect(STREAM_KEYS.topInfinite("twitch", 12, "pt-BR")).toEqual([
+      "streams",
+      "top",
+      "infinite",
+      "twitch",
+      12,
+      "pt-BR",
+    ]);
   });
 
   it("continues a provider until it finds a stream in the selected language", async () => {

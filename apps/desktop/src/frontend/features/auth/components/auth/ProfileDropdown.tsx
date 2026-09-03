@@ -8,7 +8,8 @@ import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useAuthStatus, useUserInfo } from "@/features/auth/data/useAuth";
 import { useAuthStore } from "@/store/auth-store";
 import { DisplayLanguageSelect } from "@/components/settings/DisplayLanguageSelect";
-import { resolveDisplayLanguage } from "@/i18n";
+
+import { PROFILE_AVATAR_GEOMETRY } from "./profile-avatar-geometry";
 
 const kickMenuItemClass =
   "flex h-12 w-full items-center gap-4 px-4 py-1 text-left text-base font-normal leading-6 text-white transition-colors hover:bg-[var(--color-background-tertiary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ring)]";
@@ -30,7 +31,6 @@ function KickLogoutIcon({ className }: { className?: string }) {
   );
 }
 
-// Stacked Avatar Component for multi-platform
 function StackedAvatars({
   twitchAvatar,
   kickAvatar,
@@ -44,21 +44,26 @@ function StackedAvatars({
   kickName?: string;
   size?: "sm" | "md";
 }) {
-  const dimensions = size === "sm" ? "w-7 h-7" : "w-9 h-9";
-  const offset = size === "sm" ? "translate-x-3" : "translate-x-4";
-  const containerWidth = size === "sm" ? "w-10" : "w-12";
+  const geometry = PROFILE_AVATAR_GEOMETRY[size];
 
   return (
-    <div className={`relative ${containerWidth} h-8 flex items-center`}>
+    <div
+      className="relative flex shrink-0 items-center"
+      data-avatar-stack-size={size}
+      data-avatar-stack-width={geometry.stackedWidth}
+      style={{ height: geometry.diameter, width: geometry.stackedWidth }}
+    >
       {/* Kick avatar (behind) */}
-      <div className={`absolute ${offset} z-0`}>
+      <div className="absolute z-0" style={{ left: geometry.offset }}>
         <ProxiedImage
           src={kickAvatar}
           alt={kickName || "Kick"}
-          className={`${dimensions} rounded-full ring-2 ring-[#53FC18] shadow-md`}
+          className="rounded-full ring-2 ring-[#53FC18] shadow-md"
+          style={{ height: geometry.diameter, width: geometry.diameter }}
           fallback={
             <div
-              className={`${dimensions} rounded-full bg-[#53FC18]/20 ring-2 ring-[#53FC18] flex items-center justify-center shadow-md`}
+              className="flex items-center justify-center rounded-full bg-[#53FC18]/20 ring-2 ring-[#53FC18] shadow-md"
+              style={{ height: geometry.diameter, width: geometry.diameter }}
             >
               <span className="text-[#53FC18] text-xs font-bold">K</span>
             </div>
@@ -66,14 +71,16 @@ function StackedAvatars({
         />
       </div>
       {/* Twitch avatar (front) */}
-      <div className="absolute z-10">
+      <div className="absolute left-0 z-10">
         <ProxiedImage
           src={twitchAvatar}
           alt={twitchName || "Twitch"}
-          className={`${dimensions} rounded-full ring-2 ring-[#9146FF] shadow-md`}
+          className="rounded-full ring-2 ring-[#9146FF] shadow-md"
+          style={{ height: geometry.diameter, width: geometry.diameter }}
           fallback={
             <div
-              className={`${dimensions} rounded-full bg-[#9146FF]/20 ring-2 ring-[#9146FF] flex items-center justify-center shadow-md`}
+              className="flex items-center justify-center rounded-full bg-[#9146FF]/20 ring-2 ring-[#9146FF] shadow-md"
+              style={{ height: geometry.diameter, width: geometry.diameter }}
             >
               <span className="text-[#9146FF] text-xs font-bold">T</span>
             </div>
@@ -96,14 +103,14 @@ function SingleAvatar({
   platform: "twitch" | "kick";
   size?: "sm" | "md";
 }) {
-  const dimensions = size === "sm" ? "w-8 h-8" : "w-10 h-10";
+  const diameter = size === "sm" ? 32 : 40;
   const ringColor = platform === "twitch" ? "ring-[#9146FF]" : "ring-[#53FC18]";
   const bgColor = platform === "twitch" ? "bg-[#9146FF]/20" : "bg-[#53FC18]/20";
   const textColor = platform === "twitch" ? "text-[#9146FF]" : "text-[#53FC18]";
 
   const fallbackElement = (
     <div
-      className={`${dimensions} rounded-full ${bgColor} ring-2 ${ringColor} flex items-center justify-center`}
+      className={`flex size-full items-center justify-center rounded-full ${bgColor} ring-2 ${ringColor}`}
     >
       <span className={`${textColor} text-xs font-bold`}>{platform[0].toUpperCase()}</span>
     </div>
@@ -114,12 +121,14 @@ function SingleAvatar({
   // specific profile-image objects — ProxiedImage's onError → fallback path
   // handles both cleanly, where a raw <img> would show a broken-image icon.
   return (
-    <ProxiedImage
-      src={avatar}
-      alt={name || platform}
-      className={`${dimensions} rounded-full ring-2 ${ringColor}`}
-      fallback={fallbackElement}
-    />
+    <div className="shrink-0" style={{ height: diameter, width: diameter }}>
+      <ProxiedImage
+        src={avatar}
+        alt={name || platform}
+        className={`size-full rounded-full ring-2 ${ringColor}`}
+        fallback={fallbackElement}
+      />
+    </div>
   );
 }
 
@@ -229,7 +238,7 @@ export function ProfileDropdown() {
     }
 
     return (
-      <div className="w-8 h-8 rounded-full bg-[var(--color-background-tertiary)] flex items-center justify-center">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-background-tertiary)]">
         <User size={16} className="text-[var(--color-foreground-secondary)]" />
       </div>
     );
@@ -272,17 +281,17 @@ export function ProfileDropdown() {
     }
 
     return (
-      <div className="w-10 h-10 rounded-full bg-[var(--color-background-tertiary)] flex items-center justify-center">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-background-tertiary)]">
         <User size={20} className="text-[var(--color-foreground-secondary)]" />
       </div>
     );
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative shrink-0" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-1 py-1 rounded-full hover:bg-[var(--color-background-secondary)] transition-colors outline-none"
+        className="flex items-center gap-2 rounded-full px-1 py-1 outline-none transition-colors hover:bg-[var(--color-background-secondary)]"
         type="button"
         aria-label={t("profile.open")}
         aria-expanded={isOpen}
@@ -295,7 +304,7 @@ export function ProfileDropdown() {
           {/* Header */}
           <div className="px-4 py-3 border-b border-[var(--color-border)] mb-1 flex items-center gap-4">
             {renderDropdownAvatar()}
-            <div className="flex flex-col overflow-hidden">
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-medium text-white truncate">{displayName}</p>
                 {!hasAnyUser && (
@@ -326,7 +335,7 @@ export function ProfileDropdown() {
                 {twitchUser ? (
                   <div className="flex h-12 items-center justify-between px-4 py-1 bg-[var(--color-background-secondary)]/50 group">
                     <div className="flex items-center gap-3">
-                      <div className="relative">
+                      <div className="relative shrink-0">
                         <ProxiedImage
                           src={twitchUser.profileImageUrl}
                           alt={twitchUser.displayName}
@@ -391,7 +400,7 @@ export function ProfileDropdown() {
                 {kick.connected && kickUser ? (
                   <div className="flex h-12 items-center justify-between px-4 py-1 bg-[var(--color-background-secondary)]/50 group">
                     <div className="flex items-center gap-3">
-                      <div className="relative">
+                      <div className="relative shrink-0">
                         <ProxiedImage
                           src={kickUser.profilePic}
                           alt={kickUser.username}
@@ -507,7 +516,7 @@ export function ProfileDropdown() {
                 </label>
                 <DisplayLanguageSelect
                   id="profile-display-language"
-                  value={resolveDisplayLanguage(preferences.language)}
+                  value={preferences.language}
                   onChange={(language) => void updatePreferences({ language })}
                 />
               </div>

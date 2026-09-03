@@ -2,8 +2,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useAuthStore } from "@/store/auth-store";
+import { getDisplayLanguage, resolveDisplayLanguage } from "@shared/display-language";
 
-import { getDisplayLanguage, resolveDisplayLanguage } from ".";
+import { activateDisplayLanguage } from ".";
 
 export function DisplayLanguageSync({ children }: { children?: ReactNode }) {
   const preferences = useAuthStore((state) => state.preferences);
@@ -14,13 +15,18 @@ export function DisplayLanguageSync({ children }: { children?: ReactNode }) {
 
   useEffect(() => {
     if (!initialized) return;
-    const definition = getDisplayLanguage(language);
-    document.documentElement.lang = language;
-    document.documentElement.dir = definition.direction;
     let cancelled = false;
     const applyLanguage = async () => {
-      if (i18n.resolvedLanguage !== language) await i18n.changeLanguage(language);
-      if (!cancelled) setAppliedLanguage(language);
+      try {
+        await activateDisplayLanguage(language);
+        if (cancelled) return;
+        const definition = getDisplayLanguage(language);
+        document.documentElement.lang = language;
+        document.documentElement.dir = definition.direction;
+        setAppliedLanguage(language);
+      } catch {
+        if (!cancelled) setAppliedLanguage(undefined);
+      }
     };
     void applyLanguage();
     return () => {

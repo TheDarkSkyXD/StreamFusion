@@ -33,7 +33,7 @@ export const TopNavBar = memo(function TopNavBar({
   return (
     <div
       className={cn(
-        "h-14 grid grid-cols-[250px_1fr_250px] items-center px-4 bg-[var(--color-background)] border-b border-[var(--color-border)]",
+        "grid h-14 grid-cols-[250px_minmax(0,1fr)_max-content] items-center border-b border-[var(--color-border)] bg-[var(--color-background)] px-4",
         className
       )}
     >
@@ -63,7 +63,7 @@ export const TopNavBar = memo(function TopNavBar({
       </div>
 
       {/* Right side - Notifications + User */}
-      <div className="flex items-center justify-end gap-4 ml-4">
+      <div className="ml-4 flex items-center justify-end gap-4">
         {showPlatformHealth && <PlatformHealthIndicator />}
         <RecordingGlobalIndicator />
 

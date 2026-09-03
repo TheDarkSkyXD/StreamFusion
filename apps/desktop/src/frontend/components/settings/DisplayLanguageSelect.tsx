@@ -1,7 +1,10 @@
 import { useTranslation } from "react-i18next";
 
-import { DISPLAY_LANGUAGE_REGISTRY, type DisplayLanguage } from "@shared/display-language";
-import { resolveDisplayLanguage } from "@/i18n";
+import {
+  DISPLAY_LANGUAGE_REGISTRY,
+  resolveDisplayLanguage,
+  type DisplayLanguage,
+} from "@shared/display-language";
 import {
   Select,
   SelectContent,

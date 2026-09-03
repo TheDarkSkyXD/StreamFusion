@@ -85,7 +85,6 @@ import {
 } from "@shared/auth-types";
 import type { CheckFrequency, TokenStatusResult } from "@shared/ipc-channels";
 import { useAdBlockStore } from "@/store/adblock-store";
-import { resolveDisplayLanguage } from "@/i18n";
 import {
   HOME_CAROUSEL_INTERVAL_MAX_MS,
   HOME_CAROUSEL_INTERVAL_MIN_MS,
@@ -1574,7 +1573,7 @@ export function SettingsPage() {
                       </div>
                       <DisplayLanguageSelect
                         id="settings-display-language"
-                        value={resolveDisplayLanguage(preferences.language)}
+                        value={preferences.language}
                         onChange={(language) => void updatePreferences({ language })}
                       />
                     </div>
