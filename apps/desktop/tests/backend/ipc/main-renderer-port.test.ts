@@ -65,6 +65,22 @@ describe("MainRendererPort", () => {
     expect(second.webContents.send).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps a recovered renderer trusted when Electron retains a detached prior frame", () => {
+    const port = new MainRendererPortController();
+    const window = createWindow(1);
+    Object.assign(window.webContents, {
+      isCrashed: vi.fn(() => false),
+      mainFrame: {
+        isDestroyed: vi.fn(() => false),
+        detached: true,
+      },
+    });
+
+    port.bind(window as unknown as BrowserWindow);
+
+    expect(port.trustedSender()).toBe(window.webContents as unknown as WebContents);
+  });
+
   it("detaches once when either the window or its web contents closes", () => {
     const port = new MainRendererPortController();
     const window = createWindow(1);
