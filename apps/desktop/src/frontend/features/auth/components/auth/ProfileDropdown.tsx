@@ -300,7 +300,7 @@ export function ProfileDropdown() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-[318px] rounded-md border border-[var(--color-border)] bg-[var(--color-background-elevated)] p-2 shadow-[0_4px_16px_rgba(0,0,0,0.4),0_1px_4px_rgba(0,0,0,0.3)] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute end-0 top-full mt-2 w-[318px] rounded-md border border-[var(--color-border)] bg-[var(--color-background-elevated)] p-2 shadow-[0_4px_16px_rgba(0,0,0,0.4),0_1px_4px_rgba(0,0,0,0.3)] z-50 animate-in fade-in slide-in-from-top-2 duration-200">
           {/* Header */}
           <div className="px-4 py-3 border-b border-[var(--color-border)] mb-1 flex items-center gap-4">
             {renderDropdownAvatar()}

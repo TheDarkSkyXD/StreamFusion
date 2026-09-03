@@ -59,6 +59,7 @@ beforeEach(() => {
 // Guards: the profile language selector persists through the same preference path as Settings.
 // Guards: a linked Twitch identity stays visible, and reconnect appears only when authorization is degraded.
 // Guards: stacked profile avatars reserve fixed square geometry in the top nav and dropdown header.
+// Guards: the account menu stays inside the viewport when a right-to-left language moves its trigger to the left edge.
 describe("ProfileDropdown", () => {
   it("navigates to connected Twitch and Kick account channels inside the app", async () => {
     useAuthStore.setState({
@@ -128,6 +129,20 @@ describe("ProfileDropdown", () => {
     expect(headerStack).toHaveClass("shrink-0");
     for (const image of headerStack?.querySelectorAll("img") ?? []) {
       expect(image).toHaveStyle({ height: "36px", width: "36px" });
+    }
+  });
+
+  it("anchors the account menu to the logical inline end", async () => {
+    document.documentElement.dir = "rtl";
+    try {
+      renderWithProviders(<ProfileDropdown />);
+      await userEvent.click(screen.getByRole("button", { name: "Open profile menu" }));
+
+      const menu = screen.getByRole("combobox", { name: "Display language" }).closest(".absolute");
+      expect(menu).toHaveClass("end-0");
+      expect(menu).not.toHaveClass("right-0");
+    } finally {
+      document.documentElement.dir = "ltr";
     }
   });
 
