@@ -47,7 +47,7 @@ export class MainRendererPortController implements MainRendererPort {
     if (!window || window.webContents.isDestroyed()) return null;
     if (window.webContents.isCrashed?.()) return null;
     const { mainFrame } = window.webContents;
-    if (mainFrame && (mainFrame.isDestroyed() || mainFrame.detached)) return null;
+    if (mainFrame && mainFrame.isDestroyed()) return null;
     return window.webContents;
   }
 
