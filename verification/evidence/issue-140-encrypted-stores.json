@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "issue": 140,
+  "ticketId": "B03",
+  "mobileSourceCommit": "e57a360d876e8e626a2d390a04a4925e253c1486",
+  "observedAt": "2026-09-04T23:46:29.111Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "observedMainCommit": "9547f50466aa0d141bfc5bd14ec27a9985c79cfe",
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "pass"
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Workspace lint, typecheck, build, package policy, Desktop parity inventory, Android export, dependency audit, and registry signature audit passed.",
+        "Core 42, evidence 9, launcher 15, Mobile 44, Relay 7, Desktop 7454, and Worker 21 tests passed.",
+        "Mobile architecture proof passed with 7 allowed and 16 forbidden import cases.",
+        "The commit hook's isolated Electron preview smoke test passed without using the primary profile or database."
+      ]
+    },
+    "api30-storage": {
+      "result": "pass",
+      "profile": "StreamFusion Issue 140 API30",
+      "apiLevel": 30,
+      "display": "1080x2340@440dpi",
+      "coldBootSeconds": 40,
+      "rootOption3OpenSeconds": 23.5,
+      "observations": [
+        "Literal root npm start option 3 opened Expo Go on a freshly cleared sandbox; the Android bundle completed in 1.757 seconds.",
+        "Expo Go reported that encrypted storage requires the StreamFusion development client and that no Product data was written.",
+        "Fresh-sandbox inspection found no StreamFusion Product or Cache database, sidecar, backup, quarantine, or SecureStore key artifact.",
+        "The final development-client run reported SQLCipher 4.7.0 community, Product schema 2, Cache schema 1, and 8/8 native storage checks passed.",
+        "Mobile MCP reported zero crashes."
+      ]
+    },
+    "migration-recovery": {
+      "result": "pass",
+      "observations": [
+        "The native proof injected an invalid schema-2 statement after creating an oldest-supported schema-1 Product Store.",
+        "The transaction did not advance user_version, the failed database and sidecars were quarantined, and the separately encrypted pre-migration backup restored schema 1 with its marker intact.",
+        "A subsequent normal migration reached Product schema 2; deliberate Product corruption then recovered through the encrypted backup and reported recoveredProductStore.",
+        "Missing Product keys preserve the encrypted file and require recovery; recovery failure never silently deletes Product data."
+      ]
+    },
+    "backup-exclusion": {
+      "result": "pass",
+      "observations": [
+        "Expo prebuild generated SQLCipher support and android:allowBackup=false.",
+        "The installed development-client package flags omitted ALLOW_BACKUP.",
+        "SecureStore uses this-device-only accessibility and its generated Android backup rules exclude SecureStore data.",
+        "Product, Cache, and pre-migration backup keys were three distinct SecureStore values."
+      ]
+    },
+    "offline-proof": {
+      "result": "pass",
+      "observations": [
+        "The native proof wrote a Product marker, closed the SQLCipher connection, reopened it without invoking a transport, and read the marker successfully.",
+        "Raw Product and Cache database headers were non-SQLite ciphertext and the Product file did not contain the plaintext marker.",
+        "Opening the Product database with a different key failed closed.",
+        "Cache proof removed expired rows before LRU budget eviction, stayed within the byte target, and clearing Cache preserved Product state."
+      ]
+    }
+  },
+  "containment": {
+    "expoGo": "SQLCipher is checked in memory before persistent open; unavailable native support leaves no database or secret artifacts.",
+    "productKeyMissing": "preserve the Product database and require explicit recovery",
+    "migrationFailure": "rollback, quarantine failed artifacts, restore encrypted backup, and require recovery before retry",
+    "integrityFailure": "quarantine Product artifacts and restore the encrypted backup when healthy",
+    "cache": "disposable and isolated from Product data",
+    "proofCleanup": "finally closes connections and removes proof databases, sidecars, quarantines, backups, and secrets"
+  },
+  "androidParityRecord": {
+    "delivery": "direct enabling foundation",
+    "progress": "verified",
+    "freshness": "current",
+    "blockers": [],
+    "developmentException": null
+  }
+}

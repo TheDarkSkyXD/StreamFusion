@@ -159,6 +159,153 @@
           "https://github.com/TheDarkSkyXD/StreamFusion/issues/139"
         ]
       }
+    ],
+    "encrypted-product-and-cache-stores": [
+      {
+        "id": "change-gate",
+        "sourceCommit": "e57a360d876e8e626a2d390a04a4925e253c1486",
+        "apkDigest": null,
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-140-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-change-gate"
+        },
+        "device": {
+          "kind": "none",
+          "profile": null,
+          "apiLevel": null
+        },
+        "artifacts": [
+          {
+            "id": "encrypted-stores-report",
+            "path": "verification/evidence/issue-140-encrypted-stores.json",
+            "sha256": "sha256:2c948c730dd04c94d73ccedca8333d1e695017c67b3795fedf1f421de1fb3873",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-04T23:46:29.111Z",
+        "expiresAt": "2026-09-05T23:46:29.111Z",
+        "links": ["https://github.com/TheDarkSkyXD/StreamFusion/issues/140"]
+      },
+      {
+        "id": "api30-storage",
+        "sourceCommit": "e57a360d876e8e626a2d390a04a4925e253c1486",
+        "apkDigest": "sha256:06590040e3122a49430f206319bc46f0a7977b6690a192ea4d2c39dcd85cec8c",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-140-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-mobile-mcp-development-client"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 140 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "encrypted-stores-report",
+            "path": "verification/evidence/issue-140-encrypted-stores.json",
+            "sha256": "sha256:2c948c730dd04c94d73ccedca8333d1e695017c67b3795fedf1f421de1fb3873",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-04T23:46:29.111Z",
+        "expiresAt": "2026-09-05T23:46:29.111Z",
+        "links": ["https://github.com/TheDarkSkyXD/StreamFusion/issues/140"]
+      },
+      {
+        "id": "migration-recovery",
+        "sourceCommit": "e57a360d876e8e626a2d390a04a4925e253c1486",
+        "apkDigest": "sha256:06590040e3122a49430f206319bc46f0a7977b6690a192ea4d2c39dcd85cec8c",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-140-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-mobile-mcp-development-client"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 140 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "encrypted-stores-report",
+            "path": "verification/evidence/issue-140-encrypted-stores.json",
+            "sha256": "sha256:2c948c730dd04c94d73ccedca8333d1e695017c67b3795fedf1f421de1fb3873",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-04T23:46:29.111Z",
+        "expiresAt": "2026-09-05T23:46:29.111Z",
+        "links": ["https://github.com/TheDarkSkyXD/StreamFusion/issues/140"]
+      },
+      {
+        "id": "backup-exclusion",
+        "sourceCommit": "e57a360d876e8e626a2d390a04a4925e253c1486",
+        "apkDigest": "sha256:06590040e3122a49430f206319bc46f0a7977b6690a192ea4d2c39dcd85cec8c",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-140-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-android-manifest-and-package"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 140 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "encrypted-stores-report",
+            "path": "verification/evidence/issue-140-encrypted-stores.json",
+            "sha256": "sha256:2c948c730dd04c94d73ccedca8333d1e695017c67b3795fedf1f421de1fb3873",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-04T23:46:29.111Z",
+        "expiresAt": "2026-09-05T23:46:29.111Z",
+        "links": ["https://github.com/TheDarkSkyXD/StreamFusion/issues/140"]
+      },
+      {
+        "id": "offline-proof",
+        "sourceCommit": "e57a360d876e8e626a2d390a04a4925e253c1486",
+        "apkDigest": "sha256:06590040e3122a49430f206319bc46f0a7977b6690a192ea4d2c39dcd85cec8c",
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-140-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-mobile-mcp-development-client"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "StreamFusion Issue 140 API30",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "encrypted-stores-report",
+            "path": "verification/evidence/issue-140-encrypted-stores.json",
+            "sha256": "sha256:2c948c730dd04c94d73ccedca8333d1e695017c67b3795fedf1f421de1fb3873",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-04T23:46:29.111Z",
+        "expiresAt": "2026-09-05T23:46:29.111Z",
+        "links": ["https://github.com/TheDarkSkyXD/StreamFusion/issues/140"]
+      }
     ]
   }
 }
