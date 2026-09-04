@@ -35,6 +35,18 @@ Always clean an unmanaged `launch` run when the pass ends:
 node .agents/skills/verify-streamfusion/scripts/control.mjs cleanup --run $verifyRun
 ```
 
+## Run the automated smoke test
+
+Run the compiled Electron smoke test from the repository root:
+
+```powershell
+npm run test:e2e
+```
+
+The test launches an isolated preview build with a fresh signed-out profile. It checks the window, app shell, preload bridge, renderer logs, and SQLite database. The test then stops Electron and removes the disposable profile.
+
+`npm install` configures `.githooks/pre-commit` to run this test before each commit. The hook first rejects tracked or untracked files that are not staged, so the working tree matches the index under test. A failed check rejects the commit. Git's `--no-verify` option can bypass local hooks.
+
 ## Start a fixed-port session
 
 Use a fixed port only when an external Chrome DevTools Protocol client requires it:
@@ -63,11 +75,12 @@ the playbooks as scenario references when their selectors still match the source
 
 ## Test boundary
 
-| Check | Owner |
-| --- | --- |
-| Components, pages, hooks, stores, and main-process services | `npm --prefix apps/desktop test` |
-| Real Electron window, router, preload bridge, and SQLite startup | Project verification controller |
-| Manual fixed-port debugging | `npm --prefix apps/desktop run dev:mcp` |
+| Check                                                                  | Owner                                     |
+| ---------------------------------------------------------------------- | ----------------------------------------- |
+| Components, pages, hooks, stores, and main-process services            | `npm --prefix apps/desktop test`          |
+| Automated compiled Electron launch, preload bridge, and SQLite startup | `npm run test:e2e`                        |
+| Feature routes and user flows                                          | Project verification controller playbooks |
+| Manual fixed-port debugging                                            | `npm --prefix apps/desktop run dev:mcp`   |
 
 If a selector fails, run `doctor` before changing the playbook. A healthy process with a
 stale selector is documentation drift. An unhealthy process needs a clean relaunch.

@@ -4,7 +4,9 @@ import test from "node:test";
 
 import {
   createVerificationLaunchPlan,
+  isVerificationHealthy,
   runManagedVerificationSession,
+  runVerificationSmoke,
   waitForChildExitOrSignal,
 } from "./control-launch-plan.mjs";
 
@@ -158,4 +160,66 @@ test("SIGINT completes the managed wait and cleanup runs once", async () => {
   queueMicrotask(() => signals.emit("SIGINT"));
   assert.deepEqual(await session, { code: 130, signal: "SIGINT" });
   assert.equal(cleanupCount, 1);
+});
+
+// Guards: smoke verification must clean its isolated run after healthy, unhealthy, and failed inspections.
+test("the smoke check returns the inspection result and always cleans up", async () => {
+  for (const outcome of [
+    { inspection: { healthy: true } },
+    { inspection: { healthy: false } },
+    { error: new Error("inspection failed") },
+  ]) {
+    const state = { id: "smoke-run" };
+    let cleanupCount = 0;
+    const smoke = runVerificationSmoke(
+      {},
+      {
+        launch: async () => ({ state }),
+        inspect: async (received) => {
+          assert.equal(received, state);
+          if (outcome.error) throw outcome.error;
+          return outcome.inspection;
+        },
+        cleanup: async (received) => {
+          cleanupCount += 1;
+          assert.equal(received, state);
+        },
+      },
+    );
+
+    if (outcome.error) await assert.rejects(smoke, /inspection failed/);
+    else assert.equal(await smoke, outcome.inspection);
+    assert.equal(cleanupCount, 1);
+  }
+});
+
+// Guards: the E2E health check must reject a missing app shell and uncaught renderer errors.
+test("verification health requires the app shell and clean renderer logs", () => {
+  const healthy = {
+    processAlive: true,
+    portOwned: true,
+    page: {
+      title: "StreamFusion",
+      bridgeAvailable: true,
+      bodyReady: true,
+      sidebarReady: true,
+    },
+    accountStorageErrors: [],
+    uncaughtErrors: [],
+    currentVersion: "1.0.0",
+    launchedVersion: "1.0.0",
+  };
+
+  assert.equal(isVerificationHealthy(healthy), true);
+  assert.equal(
+    isVerificationHealthy({
+      ...healthy,
+      page: { ...healthy.page, sidebarReady: false },
+    }),
+    false,
+  );
+  assert.equal(
+    isVerificationHealthy({ ...healthy, uncaughtErrors: ["TypeError: boom"] }),
+    false,
+  );
 });

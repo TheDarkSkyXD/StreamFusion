@@ -1,0 +1,13 @@
+#!/bin/sh
+
+if ! git diff --quiet --ignore-submodules --; then
+  echo "pre-commit: stage or stash tracked changes before running E2E" >&2
+  exit 1
+fi
+
+if test -n "$(git ls-files --others --exclude-standard)"; then
+  echo "pre-commit: stage or remove untracked files before running E2E" >&2
+  exit 1
+fi
+
+exec npm run test:e2e

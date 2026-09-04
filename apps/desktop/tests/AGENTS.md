@@ -45,7 +45,7 @@ npm run test:coverage     # With coverage report
 
 `npm test` is the deterministic suite. It includes Node, jsdom, mocked integrations, loopback-server tests, temporary-file tests, and other tests that do not require a host binary, a public service, or long wall-clock delays. Host-dependent contracts use the `.system.test.ts` or `.system.test.tsx` suffix and run through `npm run test:system`.
 
-E2E is **not** part of `npm test`. It's interactive — see `tests/e2e/README.md`.
+E2E is **not** part of `npm test`. `npm run test:e2e` runs the automated compiled Electron smoke check. Feature playbooks remain interactive; see `tests/e2e/README.md`.
 
 ---
 

@@ -65,9 +65,41 @@ test("the root workspace owns npm policy and application startup", () => {
   assert.deepEqual(rootPackage.workspaces, ["apps/*", "packages/*"]);
 
   assert.equal(rootPackage.scripts.start, "node scripts/start-picker.mjs");
+  assert.equal(rootPackage.scripts.prepare, "npm run install:hooks");
+  assert.equal(
+    rootPackage.scripts["install:hooks"],
+    "git config --local core.hooksPath .githooks",
+  );
+  assert.match(
+    rootPackage.scripts["install:dependencies"],
+    /npm run install:hooks/,
+  );
   assert.equal(
     rootPackage.scripts["e2e:preview"],
     "node .agents/skills/verify-streamfusion/scripts/control.mjs session --mode preview --",
+  );
+  assert.equal(
+    rootPackage.scripts["test:e2e"],
+    "node .agents/skills/verify-streamfusion/scripts/control.mjs smoke --mode preview --fresh",
+  );
+  assert.equal(
+    readFileSync(".githooks/pre-commit", "utf8"),
+    [
+      "#!/bin/sh",
+      "",
+      "if ! git diff --quiet --ignore-submodules --; then",
+      '  echo "pre-commit: stage or stash tracked changes before running E2E" >&2',
+      "  exit 1",
+      "fi",
+      "",
+      'if test -n "$(git ls-files --others --exclude-standard)"; then',
+      '  echo "pre-commit: stage or remove untracked files before running E2E" >&2',
+      "  exit 1",
+      "fi",
+      "",
+      "exec npm run test:e2e",
+      "",
+    ].join("\n"),
   );
   assert.equal(
     rootPackage.scripts.desktop,

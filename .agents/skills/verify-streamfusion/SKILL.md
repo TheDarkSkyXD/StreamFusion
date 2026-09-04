@@ -32,6 +32,8 @@ Use preview only when you need proof of the compiled Electron artifact. The root
 
 For automation, run `launch --mode preview` and use the returned run file with the existing controller commands. Use `session --mode preview` when you want automatic cleanup. Arguments after `--` go to Electron. The controller rejects `--user-data-dir` and `--remote-debugging-port` because it owns the isolated profile and CDP port.
 
+Use `smoke --mode preview --fresh` for the automated compiled-app gate. It starts signed out, checks the live window, preload bridge, and SQLite database, then cleans up and exits with a pass or fail status.
+
 ```powershell
 node .agents/skills/verify-streamfusion/scripts/control.mjs launch --mode preview --id preview-proof
 node .agents/skills/verify-streamfusion/scripts/control.mjs session --mode preview -- --disable-gpu

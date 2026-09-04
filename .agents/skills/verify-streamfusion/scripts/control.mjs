@@ -11,7 +11,9 @@ import { fileURLToPath } from "node:url";
 
 import {
   createVerificationLaunchPlan,
+  isVerificationHealthy,
   runManagedVerificationSession,
+  runVerificationSmoke,
 } from "./control-launch-plan.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -463,8 +465,12 @@ async function launch(options, electronArgs = [], { managed = false } = {}) {
   await mkdir(profileDir, { recursive: true });
   await mkdir(artifactRoot, { recursive: true });
   await mkdir(evidenceDir, { recursive: true });
-  const databaseSeed = await seedLiveDatabase(options, profileDir);
-  const accountStorageSeed = await seedLiveAccountStorage(options, profileDir);
+  const databaseSeed = options.fresh
+    ? null
+    : await seedLiveDatabase(options, profileDir);
+  const accountStorageSeed = options.fresh
+    ? null
+    : await seedLiveAccountStorage(options, profileDir);
 
   const outputFd = openSync(logFile, "a");
   const child = spawn(plan.command, plan.args, {
@@ -579,7 +585,7 @@ async function doctor(options) {
   const target = await getAppTarget(state.port);
   const page = await evaluate(
     state,
-    `({ title: document.title, url: location.href, bridgeAvailable: Boolean(window.electronAPI), bodyReady: Boolean(document.body?.innerText) })`,
+    `({ title: document.title, url: location.href, bridgeAvailable: Boolean(window.electronAPI), bodyReady: Boolean(document.body?.innerText), sidebarReady: Boolean(document.querySelector('aside')) })`,
   );
   const ownership =
     process.platform === "win32"
@@ -602,14 +608,15 @@ async function doctor(options) {
     .filter((line) => /Failed to decrypt token/i.test(line))
     .slice(-20);
   const result = {
-    healthy:
-      isProcessAlive(state.pid) &&
-      ownership.belongsToLaunch &&
-      page.title === "StreamFusion" &&
-      page.bridgeAvailable &&
-      page.bodyReady &&
-      accountStorageErrors.length === 0 &&
-      currentVersion === state.packageVersion,
+    healthy: isVerificationHealthy({
+      processAlive: isProcessAlive(state.pid),
+      portOwned: ownership.belongsToLaunch,
+      page,
+      accountStorageErrors,
+      uncaughtErrors,
+      currentVersion,
+      launchedVersion: state.packageVersion,
+    }),
     launcherPid: state.pid,
     port: state.port,
     portOwnership: ownership,
@@ -628,6 +635,7 @@ async function doctor(options) {
   };
   json(result);
   if (!result.healthy) process.exitCode = 1;
+  return result;
 }
 
 async function interact(command, options) {
@@ -810,6 +818,7 @@ async function inspectDatabase(options) {
   await writeFile(output, `${JSON.stringify(result, null, 2)}\n`, "utf8");
   json({ ...result, output });
   if (!result.healthy) process.exitCode = 1;
+  return result;
 }
 
 async function stopProcessTree(pid) {
@@ -869,7 +878,8 @@ function usage() {
   return `StreamFusion verification controller
 
 Commands:
-  launch [--mode dev:electron|preview] [--id ID] [--port PORT] [--database PATH] [--storage PATH] [-- ELECTRON_ARGS]
+  launch [--mode dev:electron|preview] [--fresh] [--id ID] [--port PORT] [--database PATH] [--storage PATH] [-- ELECTRON_ARGS]
+  smoke --mode preview [--fresh] [--id ID] [--port PORT] [--database PATH] [--storage PATH] [-- ELECTRON_ARGS]
   session --mode preview [--id ID] [--port PORT] [--database PATH] [--storage PATH] [-- ELECTRON_ARGS]
   doctor --run RUN_JSON
   database --run RUN_JSON [--output RELATIVE_PATH]
@@ -886,6 +896,16 @@ Commands:
 `;
 }
 
+async function launchManagedVerification({ options, electronArgs }) {
+  const launched = await launch(options, electronArgs, { managed: true });
+  json(launched.report);
+  return launched;
+}
+
+async function cleanupManagedVerification(state) {
+  json(await cleanup({ run: state.runFile }));
+}
+
 async function main() {
   const { command, options, electronArgs } = parseArguments(
     process.argv.slice(2),
@@ -899,23 +919,32 @@ async function main() {
     json(launched.report);
     return;
   }
+  if (command === "smoke") {
+    const result = await runVerificationSmoke(
+      { options, electronArgs },
+      {
+        launch: launchManagedVerification,
+        inspect: async (state) => {
+          const health = await doctor({ run: state.runFile });
+          const database = await inspectDatabase({
+            run: state.runFile,
+            output: "smoke-database.json",
+          });
+          return { healthy: health.healthy && database.healthy };
+        },
+        cleanup: cleanupManagedVerification,
+      },
+    );
+    json({ command: "smoke", ...result });
+    process.exitCode = result.healthy ? 0 : 1;
+    return;
+  }
   if (command === "session") {
     const result = await runManagedVerificationSession(
       { options, electronArgs },
       {
-        launch: async ({
-          options: launchOptions,
-          electronArgs: launchArgs,
-        }) => {
-          const launched = await launch(launchOptions, launchArgs, {
-            managed: true,
-          });
-          json(launched.report);
-          return launched;
-        },
-        cleanup: async (state) => {
-          json(await cleanup({ run: state.runFile }));
-        },
+        launch: launchManagedVerification,
+        cleanup: cleanupManagedVerification,
       },
     );
     process.exitCode = result.code;

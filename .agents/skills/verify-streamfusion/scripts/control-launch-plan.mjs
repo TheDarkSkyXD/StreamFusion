@@ -147,3 +147,38 @@ export async function runManagedVerificationSession(
     if (launched) await cleanup(launched.state);
   }
 }
+
+export async function runVerificationSmoke(
+  request,
+  { launch, inspect, cleanup },
+) {
+  let launched;
+  try {
+    launched = await launch(request);
+    return await inspect(launched.state);
+  } finally {
+    if (launched) await cleanup(launched.state);
+  }
+}
+
+export function isVerificationHealthy({
+  processAlive,
+  portOwned,
+  page,
+  accountStorageErrors,
+  uncaughtErrors,
+  currentVersion,
+  launchedVersion,
+}) {
+  return (
+    processAlive &&
+    portOwned &&
+    page.title === "StreamFusion" &&
+    page.bridgeAvailable &&
+    page.bodyReady &&
+    page.sidebarReady &&
+    accountStorageErrors.length === 0 &&
+    uncaughtErrors.length === 0 &&
+    currentVersion === launchedVersion
+  );
+}
