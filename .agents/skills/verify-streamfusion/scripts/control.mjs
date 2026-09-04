@@ -312,8 +312,16 @@ function elementExpression({ role, name, action, value, key }) {
       disabled: Boolean(element.disabled || element.getAttribute('aria-disabled') === 'true'),
       value: 'value' in element ? element.value : undefined,
     };
-    if (${JSON.stringify(action)} === 'click') element.click();
+    const focusElement = () => {
+      if (typeof element.focus !== 'function') return;
+      element.focus();
+    };
+    if (${JSON.stringify(action)} === 'click') {
+      focusElement();
+      element.click();
+    }
     if (${JSON.stringify(action)} === 'fill') {
+      focusElement();
       const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value')?.set;
       if (!setter) throw new Error('Target does not accept text');
       setter.call(element, ${JSON.stringify(value)});
@@ -321,7 +329,7 @@ function elementExpression({ role, name, action, value, key }) {
       element.dispatchEvent(new Event('change', { bubbles: true }));
     }
     if (${JSON.stringify(action)} === 'press') {
-      element.focus();
+      focusElement();
       element.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, bubbles: true }));
       element.dispatchEvent(new KeyboardEvent('keyup', { key: ${JSON.stringify(key)}, bubbles: true }));
     }
