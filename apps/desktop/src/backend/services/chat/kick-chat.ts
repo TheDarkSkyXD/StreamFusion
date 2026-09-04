@@ -6,6 +6,7 @@
  */
 
 import Pusher from "pusher-js";
+import type { ChatConnection as CoreChatConnection } from "@streamfusion/core/chat";
 import { createCancellableSleep, type CancellableSleep } from "@shared/utils/sleep";
 // Cross-logger: imported by renderer chat components — avoids dragging
 // electron-log into the renderer bundle.
@@ -250,7 +251,24 @@ const TRANSIENT_WS_CODES = new Set([1006, 1001]);
 
 // ========== KickChatService Class ==========
 
-export class KickChatService extends EventEmitter implements TypedEventEmitter {
+export class KickChatService
+  extends EventEmitter
+  implements
+    TypedEventEmitter,
+    CoreChatConnection<
+      ChatServiceEvents,
+      [options?: KickChatOptions],
+      [channel: string, chatroomId: number, broadcasterUserId?: number],
+      [
+        channel: string,
+        message: string,
+        sender?: { id: number; username: string; slug: string; color?: string },
+        localFragments?: ContentFragment[],
+        localReplyTo?: ReplyInfo,
+      ],
+      [channel: string, options?: LeaveChannelOptions]
+    >
+{
   private pusher: Pusher | null = null;
   private channels: Map<string, ChannelInfo> = new Map(); // slug -> ChannelInfo
   private connectionState: ChatConnectionState = "disconnected";

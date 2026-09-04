@@ -9,7 +9,11 @@ import {
 } from "@backend/api/unified/platform-health";
 import type { UnifiedStream } from "@shared/platform-types";
 import { logger } from "@backend/logging/logger";
-import { isChannelEligibleForLiveNotification } from "@/features/auth/utils/live-notification-preferences";
+import {
+  isFollowEligibleForLiveNotification,
+  liveNotificationChannelKey,
+  resolveLiveNotificationDecision,
+} from "@streamfusion/core/follows";
 import {
   type DesktopNotificationPermissionStatus,
   type LiveNotificationCoverageIssue,
@@ -231,7 +235,7 @@ export class LiveNotificationService {
     this.liveByChannel.set(key, true);
 
     const userPreferences = this.deps.getPreferences();
-    const isEligible = isChannelEligibleForLiveNotification({
+    const isEligible = isFollowEligibleForLiveNotification({
       preferences: userPreferences.notifications,
       channel: {
         platform: observation.platform,
@@ -244,11 +248,17 @@ export class LiveNotificationService {
     if (options.silent || wasLive || !isEligible) return;
 
     const createdAt = this.deps.now();
-    const graceMs = userPreferences.notifications.restartGracePeriodMinutes * 60 * 1_000;
     const lastNotifiedAt = this.lastNotifiedAtByChannel.get(key);
-    if (graceMs > 0 && lastNotifiedAt !== undefined && createdAt - lastNotifiedAt < graceMs) {
-      return;
-    }
+    const decision = resolveLiveNotificationDecision({
+      preferences: userPreferences.notifications,
+      silentSync: false,
+      wasLive: false,
+      eligible: true,
+      systemNotificationsSupported: this.deps.desktopNotificationsSupported(),
+      nowMs: createdAt,
+      ...(lastNotifiedAt === undefined ? {} : { lastNotifiedAtMs: lastNotifiedAt }),
+    });
+    if (decision.kind === "ignore") return;
 
     const notification: LiveNotificationPayload = {
       id: `${observation.platform}:${observation.channelId || observation.channelName}:${createdAt}`,
@@ -260,16 +270,10 @@ export class LiveNotificationService {
       title: observation.title,
       createdAt,
     };
-    const preferences = userPreferences.notifications;
-
     this.deps.emitInApp(notification);
     this.lastNotifiedAtByChannel.set(key, createdAt);
-    if (
-      preferences.enabled &&
-      preferences.liveAlerts &&
-      this.deps.desktopNotificationsSupported()
-    ) {
-      this.deps.showDesktop(notification, { silent: !preferences.sound });
+    if (decision.systemNotification) {
+      this.deps.showDesktop(notification, decision.systemNotification);
     }
   }
 
@@ -530,11 +534,19 @@ class AppLiveNotificationService {
 export const liveNotificationService = new AppLiveNotificationService();
 
 function channelKey(stream: Pick<UnifiedStream, "platform" | "channelId" | "channelName">): string {
-  return `${stream.platform}:${stream.channelId || stream.channelName.toLowerCase()}`;
+  return liveNotificationChannelKey({
+    platform: stream.platform,
+    id: stream.channelId,
+    username: stream.channelName,
+  });
 }
 
 function followKey(follow: Pick<LocalFollow, "platform" | "channelId" | "channelName">): string {
-  return `${follow.platform}:${follow.channelId || follow.channelName.toLowerCase()}`;
+  return liveNotificationChannelKey({
+    platform: follow.platform,
+    id: follow.channelId,
+    username: follow.channelName,
+  });
 }
 
 function normalizedChannelName(channelName: string): string {

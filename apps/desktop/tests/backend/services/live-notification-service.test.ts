@@ -149,7 +149,7 @@ function createService(
 
 // Guards: Live Notification startup must seed current live state silently so opening StreamFusion never bursts desktop or in-app alerts.
 describe("LiveNotificationService", () => {
-  it("includes guest Kick follows in notification candidates even when account follows are inactive", () => {
+  it("includes signed-out Guest Follows when no platform-account rows are active", () => {
     const guestKickFollow = follow({
       id: "guest-kick-row",
       platform: "kick",
@@ -161,9 +161,9 @@ describe("LiveNotificationService", () => {
     const getActive = vi
       .spyOn(storageService, "getActiveFollowsByPlatform")
       .mockImplementation(() => []);
-    const getGuest = vi.spyOn(storageService, "getGuestFollowsByPlatform").mockImplementation((platform) =>
-      platform === "kick" ? [guestKickFollow] : []
-    );
+    const getGuest = vi
+      .spyOn(storageService, "getGuestFollowsByPlatform")
+      .mockImplementation((platform) => (platform === "kick" ? [guestKickFollow] : []));
 
     expect(getLiveNotificationFollows()).toEqual([guestKickFollow]);
     getActive.mockRestore();
@@ -179,7 +179,7 @@ describe("LiveNotificationService", () => {
     expect(showDesktop).not.toHaveBeenCalled();
   });
 
-  it("emits an in-app notification when a followed channel transitions from offline to online", async () => {
+  it("delivers a signed-out Guest Follow offline-to-online alert through presenter spies", async () => {
     const source = vi
       .fn<LiveNotificationSource>()
       .mockResolvedValueOnce([])
@@ -200,9 +200,9 @@ describe("LiveNotificationService", () => {
           tags: [],
         },
       ]);
-    const { service, emitInApp } = createService({
+    const { service, emitInApp, showDesktop } = createService({
       source,
-      userPreferences: preferences({ enabled: false }),
+      follows: [follow({ source: "guest" })],
     });
 
     await service.start();
@@ -218,6 +218,43 @@ describe("LiveNotificationService", () => {
       title: "We are live",
       createdAt: 1_000,
     });
+    expect(showDesktop).toHaveBeenCalledWith(expect.objectContaining({ channelId: "123" }), {
+      silent: false,
+    });
+  });
+
+  it("suppresses signed-out Guest Follow alerts when Live Notifications are globally disabled", async () => {
+    const source = vi
+      .fn<LiveNotificationSource>()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "stream-1",
+          platform: "twitch",
+          channelId: "123",
+          channelName: "alpha",
+          channelDisplayName: "Alpha",
+          channelAvatar: "https://example.com/alpha.png",
+          title: "Muted globally",
+          viewerCount: 42,
+          thumbnailUrl: "",
+          isLive: true,
+          startedAt: "2026-07-01T00:00:00.000Z",
+          language: "en",
+          tags: [],
+        },
+      ]);
+    const { service, emitInApp, showDesktop } = createService({
+      source,
+      follows: [follow({ source: "guest" })],
+      userPreferences: preferences({ liveAlerts: false }),
+    });
+
+    await service.start();
+    await service.pollOnce();
+
+    expect(emitInApp).not.toHaveBeenCalled();
+    expect(showDesktop).not.toHaveBeenCalled();
   });
 
   it("emits an in-app notification when a followed Kick channel transitions from offline to online", async () => {
@@ -662,7 +699,7 @@ describe("LiveNotificationService", () => {
     });
   });
 
-  it("respects guest follow, platform, and per-channel notification preferences", async () => {
+  it("respects a signed-out Guest Follow per-channel disable", async () => {
     const source = vi
       .fn<LiveNotificationSource>()
       .mockResolvedValueOnce([])
@@ -700,7 +737,7 @@ describe("LiveNotificationService", () => {
     expect(showDesktop).not.toHaveBeenCalled();
   });
 
-  it("does not duplicate notifications while a channel remains continuously live", async () => {
+  it("dedupes a signed-out Guest Follow while its channel remains continuously live", async () => {
     const liveStream = {
       id: "stream-1",
       platform: "twitch" as const,
@@ -771,7 +808,7 @@ describe("LiveNotificationService", () => {
     );
   });
 
-  it("suppresses restart notifications inside the configured grace period", async () => {
+  it("suppresses signed-out Guest Follow restarts inside the configured grace period", async () => {
     const liveStream = {
       id: "stream-1",
       platform: "twitch" as const,

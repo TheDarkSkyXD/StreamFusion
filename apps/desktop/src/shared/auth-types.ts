@@ -7,7 +7,11 @@
 // ========== Platform Types ==========
 
 import type { Platform } from "@streamfusion/core/platform";
-import type { FollowSource as CoreFollowSource } from "@streamfusion/core/follows";
+import {
+  DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+  type FollowSource as CoreFollowSource,
+  type LiveNotificationPreferences,
+} from "@streamfusion/core/follows";
 import type { DisplayLanguage } from "./display-language";
 
 export type { Platform };
@@ -339,18 +343,7 @@ export type VideoQuality =
 export type ChatPosition = "right" | "left" | "hidden";
 export type ChatSize = "small" | "medium" | "large";
 
-export interface NotificationPreferences {
-  enabled: boolean;
-  liveAlerts: boolean;
-  twitch: boolean;
-  kick: boolean;
-  guestFollows: boolean;
-  toastAlerts: boolean;
-  sound: boolean;
-  favoriteChannelsOnly: boolean;
-  restartGracePeriodMinutes: 0 | 5 | 15 | 30;
-  perChannelNotifications: Record<string, boolean>;
-}
+export type NotificationPreferences = LiveNotificationPreferences;
 
 export interface ChatPreferences {
   position: ChatPosition;
@@ -706,18 +699,7 @@ export interface AuthError {
 
 // ========== Default Values ==========
 
-export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
-  enabled: true,
-  liveAlerts: true,
-  twitch: true,
-  kick: true,
-  guestFollows: true,
-  toastAlerts: true,
-  sound: true,
-  favoriteChannelsOnly: false,
-  restartGracePeriodMinutes: 0,
-  perChannelNotifications: {},
-};
+export const DEFAULT_NOTIFICATION_PREFERENCES = DEFAULT_LIVE_NOTIFICATION_PREFERENCES;
 
 export const DEFAULT_CHAT_PREFERENCES: ChatPreferences = {
   position: "right",

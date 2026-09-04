@@ -6,6 +6,7 @@
  */
 
 import tmi from "tmi.js";
+import type { ChatConnection as CoreChatConnection } from "@streamfusion/core/chat";
 // Cross-logger: imported by renderer chat components — avoids dragging
 // electron-log into the renderer bundle.
 import { logger } from "@shared/utils/cross-logger";
@@ -73,7 +74,18 @@ const CONNECTION_TIMEOUT_MS = 30000; // 30 second timeout for initial connection
 
 // ========== TwitchChatService Class ==========
 
-export class TwitchChatService extends EventEmitter implements TypedEventEmitter {
+export class TwitchChatService
+  extends EventEmitter
+  implements
+    TypedEventEmitter,
+    CoreChatConnection<
+      ChatServiceEvents,
+      [options?: TwitchChatOptions],
+      [channel: string, broadcasterId?: string],
+      [channel: string, message: string, localFragments?: ContentFragment[]],
+      [channel: string]
+    >
+{
   private client: tmi.Client | null = null;
   private channels: Set<string> = new Set();
   private connectionState: ChatConnectionState = "disconnected";

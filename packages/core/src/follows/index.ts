@@ -13,6 +13,21 @@ export {
   resolveFollowMutation,
   selectActiveFollowCollection,
 } from "../use-cases/follow-policy.ts";
+export {
+  DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
+  getLiveNotificationPreferences,
+  isFollowEligibleForLiveNotification,
+  isPerChannelLiveNotificationEnabled,
+  liveNotificationChannelKey,
+  resolveLiveNotificationDecision,
+  setPerChannelLiveNotificationPreference,
+} from "../use-cases/live-notification-policy.ts";
+export type {
+  LiveNotificationChannel,
+  LiveNotificationDecision,
+  LiveNotificationPreferences,
+  LiveNotificationRestartGraceMinutes,
+} from "../use-cases/live-notification-policy.ts";
 export type {
   AccountFollowSyncPlan,
   ActiveFollowCollection,

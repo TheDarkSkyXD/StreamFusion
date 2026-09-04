@@ -13,6 +13,18 @@ import {
 } from "../foundations/contract-schema.ts";
 import type { Platform } from "../platform/index.ts";
 
+export type { ChatConnection } from "../capabilities/chat.ts";
+export {
+  CHAT_DISABLED_REASON,
+  CHAT_RECONNECTING_REASON,
+  resolveAccountAgeRequirement,
+  resolveChatSendEligibility,
+} from "../use-cases/chat-send-policy.ts";
+export type {
+  ChatSendEligibility,
+  ViewerRequirementState,
+} from "../use-cases/chat-send-policy.ts";
+
 export type { SerializedTimestamp };
 export { toSerializedTimestamp } from "../foundations/contract-schema.ts";
 
@@ -150,6 +162,146 @@ export type ChatMessage = {
   readonly banInfo?: ChatBanInfo;
 };
 
+export type ChatConnectionState =
+  "disconnected" | "connecting" | "connected" | "reconnecting";
+
+export type ChatConnectionStatus = {
+  readonly platform: Platform;
+  readonly state: ChatConnectionState;
+  readonly channels: readonly string[];
+  readonly isAuthenticated: boolean;
+  readonly error?: string;
+  readonly connectedAt?: SerializedTimestamp;
+};
+
+export type ChatMessageDeletion = {
+  readonly platform: Platform;
+  readonly channel: string;
+  readonly messageId: string;
+  readonly deletedByUsername?: string;
+  readonly deletedByUser?: ChatUserPresentation;
+  readonly timestamp: SerializedTimestamp;
+};
+
+export type ChatUserNotice = {
+  readonly id: string;
+  readonly platform: Platform;
+  readonly channel: string;
+  readonly type:
+    | "sub"
+    | "resub"
+    | "subgift"
+    | "submysterygift"
+    | "raid"
+    | "ritual"
+    | "bitsbadgetier";
+  readonly userId: string;
+  readonly username: string;
+  readonly displayName: string;
+  readonly color?: string;
+  readonly message?: string;
+  readonly systemMessage: string;
+  readonly timestamp: SerializedTimestamp;
+  readonly subPlan?: string;
+  readonly subPlanName?: string;
+  readonly months?: number;
+  readonly cumulativeMonths?: number;
+  readonly recipientId?: string;
+  readonly recipientUsername?: string;
+  readonly recipientDisplayName?: string;
+  readonly giftCount?: number;
+  readonly viewerCount?: number;
+};
+
+export type ChatClear = {
+  readonly platform: Platform;
+  readonly channel: string;
+  readonly targetUserId?: string;
+  readonly targetUsername?: string;
+  readonly bannedByUsername?: string;
+  readonly duration?: number;
+  readonly isClearAll: boolean;
+  readonly timestamp: SerializedTimestamp;
+};
+
+export type ChatRoomStatePatch = {
+  readonly platform: Platform;
+  readonly channel: string;
+  readonly channelId: string;
+  readonly patch: {
+    readonly slowMode?: number | null;
+    readonly followersOnly?: number | null;
+    readonly subscribersOnly?: boolean;
+    readonly emoteOnly?: boolean;
+    readonly uniqueChat?: boolean;
+    readonly shieldMode?: boolean;
+    readonly accountAge?: number | null;
+  };
+  readonly reason: "ws" | "fetch";
+};
+
+export type ChatModeratorState = {
+  readonly platform: "twitch";
+  readonly channel: string;
+  readonly channelId: string;
+  readonly isModerator: boolean;
+  readonly reason: "ws";
+};
+
+export type ViewerChatSendRestriction =
+  | {
+      readonly platform: "twitch";
+      readonly channel: string;
+      readonly channelId: string;
+      readonly restriction: "verification";
+      readonly requirement: "phone" | "email" | "account";
+    }
+  | {
+      readonly platform: "twitch";
+      readonly channel: string;
+      readonly channelId: string;
+      readonly restriction: "banned";
+    };
+
+export type ChatConnectionFailure = {
+  readonly message: string;
+};
+
+export type ChatEvent =
+  | { readonly kind: "message"; readonly message: ChatMessage }
+  | { readonly kind: "user-notice"; readonly notice: ChatUserNotice }
+  | { readonly kind: "chat-cleared"; readonly clear: ChatClear }
+  | {
+      readonly kind: "connection-state-changed";
+      readonly status: ChatConnectionStatus;
+    }
+  | {
+      readonly kind: "message-deleted";
+      readonly deletion: ChatMessageDeletion;
+    }
+  | {
+      readonly kind: "viewer-send-restricted";
+      readonly restriction: ViewerChatSendRestriction;
+    }
+  | { readonly kind: "room-state-changed"; readonly room: ChatRoomStatePatch }
+  | {
+      readonly kind: "moderator-state-changed";
+      readonly moderator: ChatModeratorState;
+    }
+  | { readonly kind: "failure"; readonly failure: ChatConnectionFailure };
+
+export interface ChatConnectionEvents {
+  message: (message: ChatMessage) => void;
+  userNotice: (notice: ChatUserNotice) => void;
+  clearChat: (clear: ChatClear) => void;
+  connectionStateChange: (status: ChatConnectionStatus) => void;
+  messageDeleted: (deletion: ChatMessageDeletion) => void;
+  viewerSendRestriction: (restriction: ViewerChatSendRestriction) => void;
+  roomState: (room: ChatRoomStatePatch) => void;
+  moderatorState: (moderator: ChatModeratorState) => void;
+  error: (failure: ChatConnectionFailure) => void;
+}
+
 const BADGE_KEYS = [
   "setId",
   "version",
@@ -215,9 +367,54 @@ const MESSAGE_KEYS = [
   "bits",
   "banInfo",
 ] as const;
+const USER_NOTICE_KEYS = [
+  "id",
+  "platform",
+  "channel",
+  "type",
+  "userId",
+  "username",
+  "displayName",
+  "color",
+  "message",
+  "systemMessage",
+  "timestamp",
+  "subPlan",
+  "subPlanName",
+  "months",
+  "cumulativeMonths",
+  "recipientId",
+  "recipientUsername",
+  "recipientDisplayName",
+  "giftCount",
+  "viewerCount",
+] as const;
+const CHAT_CLEAR_KEYS = [
+  "platform",
+  "channel",
+  "targetUserId",
+  "targetUsername",
+  "bannedByUsername",
+  "duration",
+  "isClearAll",
+  "timestamp",
+] as const;
+const ROOM_STATE_PATCH_KEYS = [
+  "slowMode",
+  "followersOnly",
+  "subscribersOnly",
+  "emoteOnly",
+  "uniqueChat",
+  "shieldMode",
+  "accountAge",
+] as const;
 
 export const chatMessageSchema: ContractSchema<ChatMessage> = {
   is: isChatMessage,
+};
+
+export const chatEventSchema: ContractSchema<ChatEvent> = {
+  is: isChatEvent,
 };
 
 function isPlatform(value: unknown): value is Platform {
@@ -402,4 +599,242 @@ function isChatMessage(value: unknown): value is ChatMessage {
     isOptional(value.bits, isNonNegativeNumber) &&
     isOptional(value.banInfo, isChatBanInfo)
   );
+}
+
+function isChatUserNotice(value: unknown): value is ChatUserNotice {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, USER_NOTICE_KEYS) &&
+    isString(value.id) &&
+    isPlatform(value.platform) &&
+    isString(value.channel) &&
+    (value.type === "sub" ||
+      value.type === "resub" ||
+      value.type === "subgift" ||
+      value.type === "submysterygift" ||
+      value.type === "raid" ||
+      value.type === "ritual" ||
+      value.type === "bitsbadgetier") &&
+    isString(value.userId) &&
+    isString(value.username) &&
+    isString(value.displayName) &&
+    isOptional(value.color, isString) &&
+    isOptional(value.message, isString) &&
+    isString(value.systemMessage) &&
+    isSerializedTimestamp(value.timestamp) &&
+    isOptional(value.subPlan, isString) &&
+    isOptional(value.subPlanName, isString) &&
+    isOptional(value.months, isNonNegativeNumber) &&
+    isOptional(value.cumulativeMonths, isNonNegativeNumber) &&
+    isOptional(value.recipientId, isString) &&
+    isOptional(value.recipientUsername, isString) &&
+    isOptional(value.recipientDisplayName, isString) &&
+    isOptional(value.giftCount, isNonNegativeNumber) &&
+    isOptional(value.viewerCount, isNonNegativeNumber)
+  );
+}
+
+function isChatClear(value: unknown): value is ChatClear {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, CHAT_CLEAR_KEYS) &&
+    isPlatform(value.platform) &&
+    isString(value.channel) &&
+    isOptional(value.targetUserId, isString) &&
+    isOptional(value.targetUsername, isString) &&
+    isOptional(value.bannedByUsername, isString) &&
+    isOptional(value.duration, isNonNegativeNumber) &&
+    isBoolean(value.isClearAll) &&
+    isSerializedTimestamp(value.timestamp)
+  );
+}
+
+function isNullableNonNegativeNumber(value: unknown): value is number | null {
+  return value === null || isNonNegativeNumber(value);
+}
+
+function isChatRoomStatePatch(value: unknown): value is ChatRoomStatePatch {
+  if (!isRecord(value) || !isRecord(value.patch)) return false;
+
+  return (
+    hasOnlyKeys(value, [
+      "platform",
+      "channel",
+      "channelId",
+      "patch",
+      "reason",
+    ]) &&
+    isPlatform(value.platform) &&
+    isString(value.channel) &&
+    isString(value.channelId) &&
+    hasOnlyKeys(value.patch, ROOM_STATE_PATCH_KEYS) &&
+    isOptional(value.patch.slowMode, isNullableNonNegativeNumber) &&
+    isOptional(value.patch.followersOnly, isNullableNonNegativeNumber) &&
+    isOptional(value.patch.subscribersOnly, isBoolean) &&
+    isOptional(value.patch.emoteOnly, isBoolean) &&
+    isOptional(value.patch.uniqueChat, isBoolean) &&
+    isOptional(value.patch.shieldMode, isBoolean) &&
+    isOptional(value.patch.accountAge, isNullableNonNegativeNumber) &&
+    (value.reason === "ws" || value.reason === "fetch")
+  );
+}
+
+function isChatModeratorState(value: unknown): value is ChatModeratorState {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, [
+      "platform",
+      "channel",
+      "channelId",
+      "isModerator",
+      "reason",
+    ]) &&
+    value.platform === "twitch" &&
+    isString(value.channel) &&
+    isString(value.channelId) &&
+    isBoolean(value.isModerator) &&
+    value.reason === "ws"
+  );
+}
+
+function isConnectionState(value: unknown): value is ChatConnectionState {
+  return (
+    value === "disconnected" ||
+    value === "connecting" ||
+    value === "connected" ||
+    value === "reconnecting"
+  );
+}
+
+function isChatConnectionStatus(value: unknown): value is ChatConnectionStatus {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, [
+      "platform",
+      "state",
+      "channels",
+      "isAuthenticated",
+      "error",
+      "connectedAt",
+    ]) &&
+    isPlatform(value.platform) &&
+    isConnectionState(value.state) &&
+    isStringArray(value.channels) &&
+    isBoolean(value.isAuthenticated) &&
+    isOptional(value.error, isString) &&
+    isOptional(value.connectedAt, isSerializedTimestamp)
+  );
+}
+
+function isChatMessageDeletion(value: unknown): value is ChatMessageDeletion {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, [
+      "platform",
+      "channel",
+      "messageId",
+      "deletedByUsername",
+      "deletedByUser",
+      "timestamp",
+    ]) &&
+    isPlatform(value.platform) &&
+    isString(value.channel) &&
+    isString(value.messageId) &&
+    isOptional(value.deletedByUsername, isString) &&
+    isOptional(value.deletedByUser, isChatUserPresentation) &&
+    isSerializedTimestamp(value.timestamp)
+  );
+}
+
+function isViewerChatSendRestriction(
+  value: unknown,
+): value is ViewerChatSendRestriction {
+  if (
+    !isRecord(value) ||
+    value.platform !== "twitch" ||
+    !isString(value.channel) ||
+    !isString(value.channelId)
+  ) {
+    return false;
+  }
+
+  if (value.restriction === "banned") {
+    return hasOnlyKeys(value, [
+      "platform",
+      "channel",
+      "channelId",
+      "restriction",
+    ]);
+  }
+  return (
+    value.restriction === "verification" &&
+    hasOnlyKeys(value, [
+      "platform",
+      "channel",
+      "channelId",
+      "restriction",
+      "requirement",
+    ]) &&
+    (value.requirement === "phone" ||
+      value.requirement === "email" ||
+      value.requirement === "account")
+  );
+}
+
+function isChatConnectionFailure(
+  value: unknown,
+): value is ChatConnectionFailure {
+  return (
+    isRecord(value) &&
+    hasOnlyKeys(value, ["message"]) &&
+    isString(value.message)
+  );
+}
+
+function isChatEvent(value: unknown): value is ChatEvent {
+  if (!isRecord(value) || !isString(value.kind)) return false;
+
+  switch (value.kind) {
+    case "message":
+      return (
+        hasOnlyKeys(value, ["kind", "message"]) && isChatMessage(value.message)
+      );
+    case "user-notice":
+      return (
+        hasOnlyKeys(value, ["kind", "notice"]) && isChatUserNotice(value.notice)
+      );
+    case "chat-cleared":
+      return hasOnlyKeys(value, ["kind", "clear"]) && isChatClear(value.clear);
+    case "connection-state-changed":
+      return (
+        hasOnlyKeys(value, ["kind", "status"]) &&
+        isChatConnectionStatus(value.status)
+      );
+    case "message-deleted":
+      return (
+        hasOnlyKeys(value, ["kind", "deletion"]) &&
+        isChatMessageDeletion(value.deletion)
+      );
+    case "viewer-send-restricted":
+      return (
+        hasOnlyKeys(value, ["kind", "restriction"]) &&
+        isViewerChatSendRestriction(value.restriction)
+      );
+    case "room-state-changed":
+      return (
+        hasOnlyKeys(value, ["kind", "room"]) && isChatRoomStatePatch(value.room)
+      );
+    case "moderator-state-changed":
+      return (
+        hasOnlyKeys(value, ["kind", "moderator"]) &&
+        isChatModeratorState(value.moderator)
+      );
+    case "failure":
+      return (
+        hasOnlyKeys(value, ["kind", "failure"]) &&
+        isChatConnectionFailure(value.failure)
+      );
+    default:
+      return false;
+  }
 }

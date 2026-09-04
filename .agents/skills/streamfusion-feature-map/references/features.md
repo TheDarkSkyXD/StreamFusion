@@ -45,7 +45,8 @@ The watch path resolves provider content, plays HLS media, exposes controls, tra
 Each stream can open Platform chat, render badges and third-party emotes, send eligible messages, replay VOD chat, and expose polls, predictions, pins, and room state where supported.
 
 - Feature: `apps/desktop/src/frontend/features/chat/`
-- Contracts: `apps/desktop/src/shared/chat-types.ts`, `ipc-channels.ts`, `electron-api-types.ts`
+- Core contracts and policy: `@streamfusion/core/chat` owns normalized messages and events, the `ChatConnection` port, and Chat Send Eligibility.
+- Desktop contracts: `apps/desktop/src/shared/chat-types.ts`, `ipc-channels.ts`, `electron-api-types.ts`
 - IPC: `chat-handlers.ts`, `chat-eligibility-handlers.ts`, `chat-replay-handlers.ts`, `kick-chat-handlers.ts`, `twitch-api-handlers.ts`
 - Services: `apps/desktop/src/backend/services/chat/`, `services/emotes/`, `chat-replay-service.ts`
 - Platform capabilities: Twitch Helix polls, predictions, moderation and EventSub. Kick predictions, pin mutations, chat endpoints, and Pusher chat.
@@ -60,7 +61,8 @@ Users can authenticate independently with Twitch and Kick, follow channels, reta
 - IPC: `auth-handlers.ts`, `storage-handlers.ts`, `token-status-handlers.ts`, `twitch-api-handlers.ts`
 - Auth core: `apps/desktop/src/backend/auth/`
 - Follow services: Twitch and Kick follow write services, Kick follow identity resolution, and metadata refresh
-- Notifications: `live-notification-service.ts`, provider notification sources, `use-live-notification-bridge.ts`
+- Notification policy: `@streamfusion/core/follows` owns Follow eligibility, preference defaults, restart grace, deduplication inputs, and delivery decisions.
+- Notification adapters: `live-notification-service.ts`, provider notification sources, `use-live-notification-bridge.ts`, and Electron `Notification` presentation
 - State: `auth-store.ts`, `follow-store.ts`, `notification-store.ts`
 - Worker: `apps/worker/src/index.ts` handles Kick token exchange, refresh, and rate limits only
 - Tests: auth, follow, notification, storage, and worker tests

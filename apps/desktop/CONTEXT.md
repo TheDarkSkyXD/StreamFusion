@@ -83,7 +83,7 @@ The Platform-neutral wrapper around an authenticated session: owns single-flight
 _Avoid_: AuthService, AuthClient, OAuth2Client.
 
 **ChatConnection**:
-The Platform-neutral lifecycle seam every chat adapter implements: `connect | disconnect | on | sendMessage | joinChannel | leaveChannel`. Defined in `shared/chat-types.ts` alongside `ChatServiceEvents`. Renderer components and hooks hold a `ChatConnection`, never the concrete `TwitchChatService` / `KickChatService` class. Constructed via `chatFactory.open(platform, options)`.
+The Platform-neutral lifecycle seam every chat adapter implements: `connect | disconnect | on | sendMessage | joinChannel | leaveChannel`. Defined in `@streamfusion/core/chat`; Desktop supplies provider-specific argument and event types while its Twitch and Kick services retain the sockets, credentials, commands, and reconnect behavior.
 _Avoid_: ChatService, ChatClient, IRCConnection (Twitch-only flavour).
 
 **Chat Send Eligibility**:
