@@ -85,6 +85,7 @@ function deferred<T>() {
 // Guards: Kick full search should parallelize independent category/channel/stream work where possible.
 // Guards: stale full search cancellation stops queued live hydration and reaches category enumeration.
 // Guards: channel suggestions skip the live-directory crawl unless empty, continued, or live-only lacks a live candidate.
+// Guards: close live-only searches reuse the first Kick live-directory page while retaining query-specific matches.
 // Guards: an explicit Kick search is_banned signal remains visible as a machine-readable suspended channel.
 // Guards: a positively resolved Kick search account is classified active independently from live/offline state.
 describe("search-endpoints", () => {
@@ -452,6 +453,54 @@ describe("search-endpoints", () => {
 
       expect(getPublicTopStreams).toHaveBeenCalledTimes(1);
       expect(result.data.find((channel) => channel.username === "creator")?.isLive).toBe(true);
+    });
+
+    it("reuses the first live directory page across close live-only searches", async () => {
+      mockFetch
+        .mockResolvedValueOnce(jsonResponse({ channels: [] }))
+        .mockResolvedValueOnce(jsonResponse({ channels: [] }));
+      vi.mocked(getPublicTopStreams).mockResolvedValue({
+        data: [
+          {
+            id: "stream-alpha",
+            platform: "kick",
+            channelId: "alpha-id",
+            channelName: "alpha",
+            channelDisplayName: "Alpha",
+            channelAvatar: "",
+            title: "Live",
+            viewerCount: 100,
+            thumbnailUrl: "",
+            isLive: true,
+            startedAt: "",
+            language: "en",
+            tags: [],
+          },
+          {
+            id: "stream-bravo",
+            platform: "kick",
+            channelId: "bravo-id",
+            channelName: "bravo",
+            channelDisplayName: "Bravo",
+            channelAvatar: "",
+            title: "Live",
+            viewerCount: 200,
+            thumbnailUrl: "",
+            isLive: true,
+            startedAt: "",
+            language: "en",
+            tags: [],
+          },
+        ],
+      });
+      const client = createMockClient({ isAuthenticated: vi.fn(() => false) });
+
+      const alpha = await searchChannels(client, "alpha", { liveOnly: true });
+      const bravo = await searchChannels(client, "bravo", { liveOnly: true });
+
+      expect(alpha.data.map((channel) => channel.username)).toEqual(["alpha"]);
+      expect(bravo.data.map((channel) => channel.username)).toEqual(["bravo"]);
+      expect(getPublicTopStreams).toHaveBeenCalledTimes(1);
     });
 
     it("preserves public verified metadata without a live-directory fallback", async () => {
