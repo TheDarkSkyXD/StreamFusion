@@ -12,10 +12,11 @@
 
 import { logger } from "@backend/logging/logger";
 import {
-  type AuthToken,
-  type Platform,
-  type TwitchUser,
-} from "../../shared/auth-types";
+  createOAuth2Session,
+  type OAuth2RefreshOutcome,
+  type OAuth2Session,
+} from "@streamfusion/core/auth";
+import { type AuthToken, type Platform, type TwitchUser } from "../../shared/auth-types";
 import {
   TWITCH_API_BASE,
   type TwitchApiResponse,
@@ -25,21 +26,6 @@ import { storageService } from "../services/storage-service";
 
 import { getOAuthConfig } from "./oauth-config";
 import { TokenRefreshError, tokenExchangeService } from "./token-exchange";
-
-// ========== Types ==========
-
-export interface TwitchAuthSession {
-  createdAt: number;
-}
-
-// Single-flight refresh guard. When a quiet token expiry leaves N concurrent
-// IPC requests pending and they all hit 401 at once, each caller would
-// otherwise kick off its own refresh — multiplying load on the Twitch auth
-// endpoint, burning 401-retry budget, and potentially racing rotated refresh
-// tokens. While a refresh is in flight, subsequent callers `await` the same
-// promise. The new token is persisted to storage inside the promise chain so
-// waiters see the fresh token via `storageService.getToken` after they resume.
-let _refreshInFlight: Promise<AuthToken | null> | null = null;
 
 // Schedule the next proactive refresh five minutes before expiry. The
 // reactive paths (TwitchRequestor's pre-call check + 401 retry) already
@@ -65,19 +51,66 @@ const TRANSIENT_BACKOFF_MS = [
   60 * 60 * 1000, // 1h — and every subsequent attempt
 ];
 
+function createTwitchOAuth2Session(): OAuth2Session<AuthToken> {
+  return createOAuth2Session<AuthToken>({
+    credentials: {
+      load: async () => storageService.getToken("twitch"),
+      save: async (credential) => {
+        storageService.saveToken("twitch", credential);
+      },
+      clear: async () => {
+        storageService.clearToken("twitch");
+      },
+    },
+    refresher: {
+      refresh: async ({ credential, refreshToken }) => {
+        try {
+          const exchangedToken = await tokenExchangeService.refreshToken({
+            platform: "twitch",
+            refreshToken,
+          });
+          return {
+            kind: "refreshed",
+            credential: {
+              ...exchangedToken,
+              scope: exchangedToken.scope ?? credential.scope,
+              authFlow: exchangedToken.authFlow ?? credential.authFlow,
+            },
+          };
+        } catch (cause) {
+          if (cause instanceof TokenRefreshError && cause.isPermanent()) {
+            return { kind: "auth-lost", reason: "refresh-rejected", cause };
+          }
+          return { kind: "transient-failure", cause };
+        }
+      },
+    },
+    missingCredential: "auth-lost",
+    missingRefreshToken: "auth-lost",
+  });
+}
+
 // ========== Twitch Auth Service Class ==========
 
 class TwitchAuthService {
   private readonly platform: Platform = "twitch";
+  private readonly oauth2Session = createTwitchOAuth2Session();
   private refreshTimeoutId: NodeJS.Timeout | null = null;
   private consecutiveRefreshFailures = 0;
   private authLostHandler: (() => void) | null = null;
 
+  constructor() {
+    this.oauth2Session.onAuthLost(() => {
+      this.cancelProactiveRefresh();
+      this.consecutiveRefreshFailures = 0;
+      this.notifyAuthLost();
+    });
+  }
+
   /**
    * Register a callback fired exactly once when the refresh chain dies
-   * permanently (invalid_grant from Twitch, or 5 consecutive transient
-   * failures over ~58 minutes of backoff). The renderer subscribes through
-   * IPC and flips the auth-store to a "please reconnect" state.
+   * permanently after Twitch rejects the refresh credential. The renderer
+   * subscribes through IPC and flips the auth-store to a reconnect state.
    */
   setAuthLostHandler(handler: () => void): void {
     this.authLostHandler = handler;
@@ -85,95 +118,84 @@ class TwitchAuthService {
 
   /**
    * Refresh the access token using the refresh token. Concurrent callers share
-   * a single in-flight refresh — see `_refreshInFlight` above.
+   * the portable session's single in-flight refresh.
    */
   async refreshToken(): Promise<AuthToken | null> {
-    if (_refreshInFlight) {
-      return _refreshInFlight;
-    }
-    _refreshInFlight = this._performRefresh();
-    try {
-      return await _refreshInFlight;
-    } finally {
-      _refreshInFlight = null;
-    }
+    return this.handleRefreshOutcome(await this.oauth2Session.refresh());
   }
 
-  private async _performRefresh(): Promise<AuthToken | null> {
-    const currentToken = storageService.getToken(this.platform);
+  private handleRefreshOutcome(outcome: OAuth2RefreshOutcome<AuthToken>): AuthToken | null {
+    switch (outcome.kind) {
+      case "refreshed": {
+        logger.debug("Auth:Twitch", "Twitch token refreshed successfully");
 
-    if (!currentToken?.refreshToken) {
-      logger.warn("Auth:Twitch", "No refresh token available for Twitch");
-      this.invalidateAuth();
-      return null;
-    }
+        // Successful refresh — reset the transient-failure counter and chain
+        // the next proactive refresh against the freshly-rotated expiry.
+        this.consecutiveRefreshFailures = 0;
+        this.scheduleProactiveRefresh();
 
-    try {
-      const exchangedToken = await tokenExchangeService.refreshToken({
-        platform: this.platform,
-        refreshToken: currentToken.refreshToken,
-      });
-      const newToken: AuthToken = {
-        ...exchangedToken,
-        scope: exchangedToken.scope ?? currentToken.scope,
-        authFlow: exchangedToken.authFlow ?? currentToken.authFlow,
-      };
+        return outcome.credential;
+      }
+      case "auth-lost": {
+        const refreshError = outcome.cause instanceof TokenRefreshError ? outcome.cause : null;
 
-      // Save the new token
-      storageService.saveToken(this.platform, newToken);
-
-      logger.debug("Auth:Twitch", "Twitch token refreshed successfully");
-
-      // Successful refresh — reset the transient-failure counter and chain
-      // the next proactive refresh against the freshly-rotated expiry.
-      this.consecutiveRefreshFailures = 0;
-      this.scheduleProactiveRefresh();
-
-      return newToken;
-    } catch (error) {
-      const refreshError = error instanceof TokenRefreshError ? error : null;
-      const permanent = refreshError?.isPermanent() === true;
-
-      if (refreshError && permanent) {
         logger.warn(
           "Auth:Twitch",
-          "Twitch refresh token rejected by Twitch; clearing stored credentials and prompting re-login",
+          outcome.reason === "refresh-rejected"
+            ? "Twitch refresh token rejected by Twitch; clearing stored credentials and prompting re-login"
+            : "No Twitch refresh credential is available",
           {
-            error: {
-              name: refreshError.name,
-              message: refreshError.message,
-              status: refreshError.status,
-              code: refreshError.code,
-              stack: refreshError.stack,
-            },
+            ...(refreshError
+              ? {
+                  error: {
+                    name: refreshError.name,
+                    message: refreshError.message,
+                    status: refreshError.status,
+                    code: refreshError.code,
+                    stack: refreshError.stack,
+                  },
+                }
+              : {}),
           }
         );
-        this.invalidateAuth();
         return null;
       }
 
-      this.consecutiveRefreshFailures += 1;
+      case "transient-failure": {
+        this.consecutiveRefreshFailures += 1;
 
-      // Capped exponential backoff. Once we reach the last slot we stay
-      // there — keep retrying every hour forever. The session is only
-      // ever invalidated by a permanent rejection above, never by
-      // network problems alone.
-      const slot = Math.min(this.consecutiveRefreshFailures - 1, TRANSIENT_BACKOFF_MS.length - 1);
-      const backoffMs = TRANSIENT_BACKOFF_MS[slot];
-      logger.warn(
-        "Auth:Twitch",
-        `Twitch token refresh failed (attempt ${this.consecutiveRefreshFailures}). Retrying in ${Math.round(backoffMs / 1000)}s.`,
-        {
-          attempt: this.consecutiveRefreshFailures,
-          backoffMs,
-          error:
-            error instanceof Error
-              ? { name: error.name, message: error.message, stack: error.stack }
-              : String(error),
-        }
-      );
-      this.scheduleRefreshIn(backoffMs);
-      return null;
+        // Capped exponential backoff. Once we reach the last slot we stay
+        // there — keep retrying every hour forever. The session is only
+        // ever invalidated by a permanent rejection above, never by
+        // network problems alone.
+        const slot = Math.min(this.consecutiveRefreshFailures - 1, TRANSIENT_BACKOFF_MS.length - 1);
+        const backoffMs = TRANSIENT_BACKOFF_MS[slot];
+        logger.warn(
+          "Auth:Twitch",
+          `Twitch token refresh failed (attempt ${this.consecutiveRefreshFailures}). Retrying in ${Math.round(backoffMs / 1000)}s.`,
+          {
+            attempt: this.consecutiveRefreshFailures,
+            backoffMs,
+            error:
+              outcome.cause instanceof Error
+                ? {
+                    name: outcome.cause.name,
+                    message: outcome.cause.message,
+                    stack: outcome.cause.stack,
+                  }
+                : String(outcome.cause),
+          }
+        );
+        this.scheduleRefreshIn(backoffMs);
+        return null;
+      }
+      case "unavailable":
+        logger.warn("Auth:Twitch", "No Twitch credential is available to refresh");
+        return null;
+      default: {
+        const exhaustive: never = outcome;
+        return exhaustive;
+      }
     }
   }
 
@@ -186,11 +208,7 @@ class TwitchAuthService {
    * prompt while still degrading authenticated features. The user record
    * is only fully cleared when the user explicitly logs out via logout().
    */
-  private invalidateAuth(): void {
-    this.cancelProactiveRefresh();
-    this.consecutiveRefreshFailures = 0;
-    storageService.clearToken(this.platform);
-    // Intentionally NOT clearing the TwitchUser here — see method docstring.
+  private notifyAuthLost(): void {
     const handler = this.authLostHandler;
     if (handler) {
       try {

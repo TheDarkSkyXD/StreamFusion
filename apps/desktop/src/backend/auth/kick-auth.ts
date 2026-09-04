@@ -14,6 +14,11 @@ import { EventEmitter } from "node:events";
 import { session } from "electron";
 
 import { logger } from "@shared/utils/cross-logger";
+import {
+  createOAuth2Session,
+  type OAuth2RefreshOutcome,
+  type OAuth2Session,
+} from "@streamfusion/core/auth";
 import type { AuthToken, KickUser, Platform } from "../../shared/auth-types";
 import { clearPersistedKickWebBearer } from "../api/platforms/kick/kick-web-credential";
 import { KICK_API_BASE } from "../api/platforms/kick/kick-types";
@@ -94,76 +99,61 @@ async function clearKickSessionCookies(): Promise<void> {
   logger.debug("Auth:Kick", "Cleared Kick session cookies from default partition");
 }
 
+function createKickOAuth2Session(): OAuth2Session<AuthToken> {
+  return createOAuth2Session<AuthToken>({
+    credentials: {
+      load: async () => storageService.getToken("kick"),
+      save: async (credential) => {
+        storageService.saveToken("kick", credential);
+      },
+      clear: async () => {
+        storageService.clearToken("kick");
+      },
+    },
+    refresher: {
+      refresh: async ({ credential, refreshToken }) => {
+        try {
+          const newToken = await tokenExchangeService.refreshToken({
+            platform: "kick",
+            refreshToken,
+          });
+          const refreshedToken: AuthToken = {
+            ...newToken,
+            refreshToken: newToken.refreshToken ?? credential.refreshToken,
+            scope: newToken.scope ?? credential.scope,
+          };
+          if (!hasCanonicalKickScopes(refreshedToken.scope)) {
+            return {
+              kind: "transient-failure",
+              cause: new Error("Kick token is missing required application scopes"),
+            };
+          }
+          return { kind: "refreshed", credential: refreshedToken };
+        } catch (cause) {
+          if (cause instanceof TokenRefreshError && cause.isPermanent()) {
+            return { kind: "auth-lost", reason: "refresh-rejected", cause };
+          }
+          return { kind: "transient-failure", cause };
+        }
+      },
+    },
+  });
+}
+
 // ========== Kick Auth Service Class ==========
 
 class KickAuthService extends EventEmitter {
   private readonly platform: Platform = "kick";
-
-  /** Deduplicates concurrent refresh calls — set while a refresh is in flight */
-  private refreshPromise: Promise<AuthToken | null> | null = null;
+  private readonly oauth2Session = createKickOAuth2Session();
   private refreshTimeoutId: NodeJS.Timeout | null = null;
   private consecutiveRefreshFailures = 0;
 
-  /**
-   * Internal token refresh implementation.
-   * Clears only OAuth and emits 'session-expired' on permanent OAuth failure.
-   */
-  private async _doRefresh(): Promise<AuthToken | null> {
-    const currentToken = storageService.getToken(this.platform);
-
-    if (!currentToken?.refreshToken) {
-      logger.warn("Auth:Kick", "No refresh token available for Kick");
-      return null;
-    }
-
-    try {
-      const newToken = await tokenExchangeService.refreshToken({
-        platform: this.platform,
-        refreshToken: currentToken.refreshToken,
-      });
-
-      const refreshedToken: AuthToken = {
-        ...newToken,
-        refreshToken: newToken.refreshToken ?? currentToken.refreshToken,
-        scope: newToken.scope ?? currentToken.scope,
-      };
-      if (!hasCanonicalKickScopes(refreshedToken.scope)) {
-        throw new Error("Kick token is missing required application scopes");
-      }
-      storageService.saveToken(this.platform, refreshedToken);
-      this.consecutiveRefreshFailures = 0;
-      this.scheduleProactiveRefresh();
-      logger.debug("Auth:Kick", "Kick token refreshed successfully");
-      return refreshedToken;
-    } catch (error) {
-      const permanent = error instanceof TokenRefreshError && error.isPermanent();
-      logger[permanent ? "error" : "warn"]("Auth:Kick", "Kick token refresh failed", {
-        error:
-          error instanceof Error
-            ? {
-                name: error.name,
-                ...(error instanceof TokenRefreshError
-                  ? { status: error.status, code: error.code, permanent }
-                  : { permanent: false }),
-              }
-            : { permanent: false },
-      });
-
-      if (!permanent) {
-        this.consecutiveRefreshFailures += 1;
-        const slot = Math.min(this.consecutiveRefreshFailures - 1, TRANSIENT_BACKOFF_MS.length - 1);
-        this.scheduleRefreshIn(TRANSIENT_BACKOFF_MS[slot]);
-        return null;
-      }
-
-      // OAuth and kick.com website auth are independent credential families.
-      // A rejected OAuth refresh must not destroy a still-valid chat session.
+  constructor() {
+    super();
+    this.oauth2Session.onAuthLost(() => {
       this.cancelProactiveRefresh();
-      storageService.clearToken(this.platform);
       this.emit("session-expired");
-      logger.warn("Auth:Kick", "Kick OAuth authorization was rejected");
-      return null;
-    }
+    });
   }
 
   /**
@@ -172,13 +162,46 @@ class KickAuthService extends EventEmitter {
    * refresh-token rotation is never triggered more than once at a time.
    */
   async refreshToken(): Promise<AuthToken | null> {
-    if (this.refreshPromise) {
-      return this.refreshPromise;
+    const outcome = await this.oauth2Session.refresh();
+    return this.handleRefreshOutcome(outcome);
+  }
+
+  private handleRefreshOutcome(outcome: OAuth2RefreshOutcome<AuthToken>): AuthToken | null {
+    if (outcome.kind === "refreshed") {
+      this.consecutiveRefreshFailures = 0;
+      this.scheduleProactiveRefresh();
+      logger.debug("Auth:Kick", "Kick token refreshed successfully");
+      return outcome.credential;
     }
-    this.refreshPromise = this._doRefresh().finally(() => {
-      this.refreshPromise = null;
+
+    if (outcome.kind === "unavailable") {
+      logger.warn("Auth:Kick", "No refresh token available for Kick");
+      return null;
+    }
+
+    const permanent = outcome.kind === "auth-lost";
+    const cause = outcome.cause;
+    logger[permanent ? "error" : "warn"]("Auth:Kick", "Kick token refresh failed", {
+      error:
+        cause instanceof Error
+          ? {
+              name: cause.name,
+              ...(cause instanceof TokenRefreshError
+                ? { status: cause.status, code: cause.code, permanent }
+                : { permanent: false }),
+            }
+          : { permanent: false },
     });
-    return this.refreshPromise;
+
+    if (outcome.kind === "transient-failure") {
+      this.consecutiveRefreshFailures += 1;
+      const slot = Math.min(this.consecutiveRefreshFailures - 1, TRANSIENT_BACKOFF_MS.length - 1);
+      this.scheduleRefreshIn(TRANSIENT_BACKOFF_MS[slot]);
+      return null;
+    }
+
+    logger.warn("Auth:Kick", "Kick OAuth authorization was rejected");
+    return null;
   }
 
   private scheduleRefreshIn(delayMs: number): void {

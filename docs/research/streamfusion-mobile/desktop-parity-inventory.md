@@ -758,8 +758,20 @@ ID: `platform-account-auth`.
 
 ### Verification
 
+- `apps/desktop/tests/backend/auth/device-code-flow.test.ts`
+- `apps/desktop/tests/backend/auth/kick-auth.test.ts`
+- `apps/desktop/tests/backend/auth/token-exchange.test.ts`
+- `apps/desktop/tests/backend/auth/token-status.test.ts`
+- `apps/desktop/tests/backend/auth/twitch-auth-refresh.test.ts`
+- `apps/desktop/tests/backend/auth/twitch-auth.test.ts`
+- `apps/desktop/tests/backend/ipc/handlers/auth-handlers.test.ts`
+- `apps/desktop/tests/backend/ipc/handlers/auth-security-boundary.test.ts`
+- `apps/desktop/tests/backend/ipc/handlers/token-status-handlers.test.ts`
 - `apps/desktop/tests/components/auth/LoginDialog.test.tsx`
 - `apps/desktop/tests/hooks/useAuth.test.tsx`
+- `apps/desktop/tests/services/twitch-auth-restart.integration.test.ts`
+- `apps/worker/tests/index.test.ts`
+- `packages/core/tests/auth.test.mjs`
 
 ## Playback: Control playback quality, volume, fullscreen, mini player, and picture-in-picture behavior.
 

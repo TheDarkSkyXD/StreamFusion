@@ -48,4 +48,4 @@ export {
   tokenExchangeService,
 } from "./token-exchange";
 // Twitch Auth Service
-export { type TwitchAuthSession, twitchAuthService } from "./twitch-auth";
+export { twitchAuthService } from "./twitch-auth";

@@ -79,7 +79,7 @@ A Platform-neutral DTO produced by adapters: `UnifiedStream`, `UnifiedChannel`, 
 _Avoid_: Common type, normalised type.
 
 **OAuth2Session**:
-The Platform-neutral wrapper around an authenticated session: owns single-flight refresh dedup, auth-lost emission, and storage I/O around tokens. Constructed by `createOAuth2Session({ platform })`. Platform-specific lifecycle (Twitch's proactive refresh scheduler, Kick's Cloudflare cookie purge) wraps it from the outside, not from within.
+The Platform-neutral wrapper around an authenticated session: owns single-flight refresh dedup, auth-lost emission, and credential storage through capability ports. Constructed by `createOAuth2Session({ credentials, refresher })`. Platform-specific lifecycle (Twitch's proactive refresh scheduler, Kick's Cloudflare cookie purge) wraps it from the outside, not from within.
 _Avoid_: AuthService, AuthClient, OAuth2Client.
 
 **ChatConnection**:

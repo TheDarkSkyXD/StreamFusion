@@ -4,17 +4,17 @@ OAuth 2.1 authentication system for Kick and Twitch. Kick uses a browser-window 
 
 ## File Inventory
 
-| File                       | Role                                                                                                                                                                |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `oauth-config.ts`          | Platform configs (endpoints, scopes), PKCE helpers (`generatePkceChallenge`), URL builder, `PROTOCOL_SCHEME` constant                                               |
-| `auth-window.ts`           | Electron `BrowserWindow` manager for OAuth popups; Kick-specific two-phase load (kick.com sign-in → id.kick.com OAuth)                                              |
-| `oauth-callback-server.ts` | Ephemeral `http.createServer` on `localhost:8765` that captures `?code=&state=` from the redirect; serves a branded success/error page                              |
-| `token-exchange.ts`        | Posts Kick code + PKCE verifier and refresh token to the Worker; refreshes Twitch directly as a public client; revokes and validates directly                       |
-| `kick-auth.ts`             | `KickAuthService` — single-flight refresh, proactive startup/resume rotation, transient backoff, explicit logout, `fetchCurrentUser`                                |
-| `twitch-auth.ts`           | `TwitchAuthService` — single-flight refresh guard, proactive timer (`scheduleProactiveRefresh`), exponential backoff on transient failures, `onSystemResume` re-arm |
-| `device-code-flow.ts`      | Twitch Device Code Grant (TV-style): request device code → poll `/oauth2/token` with managed interval until authorized or expired                                   |
-| `protocol-handler.ts`      | Registers `streamfusion://` with the OS; parses `streamfusion://auth/{platform}/callback?code=…`; fallback / future use only                                        |
-| `index.ts`                 | Barrel re-export of every public type and singleton                                                                                                                 |
+| File                       | Role                                                                                                                                          |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `oauth-config.ts`          | Platform configs (endpoints, scopes), PKCE helpers (`generatePkceChallenge`), URL builder, `PROTOCOL_SCHEME` constant                         |
+| `auth-window.ts`           | Electron `BrowserWindow` manager for OAuth popups; Kick-specific two-phase load (kick.com sign-in → id.kick.com OAuth)                        |
+| `oauth-callback-server.ts` | Ephemeral `http.createServer` on `localhost:8765` that captures `?code=&state=` from the redirect; serves a branded success/error page        |
+| `token-exchange.ts`        | Posts Kick code + PKCE verifier and refresh token to the Worker; refreshes Twitch directly as a public client; revokes and validates directly |
+| `kick-auth.ts`             | Kick `OAuth2Session` adapter, proactive startup/resume rotation, transient backoff, explicit logout, and `fetchCurrentUser`                   |
+| `twitch-auth.ts`           | Twitch `OAuth2Session` adapter, proactive timer (`scheduleProactiveRefresh`), transient backoff, and `onSystemResume` re-arm                  |
+| `device-code-flow.ts`      | Twitch Device Code Grant (TV-style): request device code → poll `/oauth2/token` with managed interval until authorized or expired             |
+| `protocol-handler.ts`      | Registers `streamfusion://` with the OS; parses `streamfusion://auth/{platform}/callback?code=…`; fallback / future use only                  |
+| `index.ts`                 | Barrel re-export of every public type and singleton                                                                                           |
 
 ## Auth Flows
 
@@ -65,9 +65,9 @@ tokenExchangeService.refreshToken({ platform, refreshToken })
   → Twitch: POST https://id.twitch.tv/oauth2/token with client_id, refresh_token, and grant_type
 ```
 
-**Single-flight guard** — both `kickAuthService.refreshToken()` and `twitchAuthService.refreshToken()` deduplicate concurrent callers to one in-flight promise. This prevents Kick's OAuth 2.1 refresh-token rotation from being triggered twice simultaneously.
+**Single-flight guard.** `@streamfusion/core/auth` owns one in-flight refresh per `OAuth2Session`. Both Desktop services delegate to it. This prevents Kick's OAuth 2.1 refresh-token rotation from being triggered twice simultaneously.
 
-**Twitch backoff** — transient refresh failures back off at 30s → 2m → 10m → 45m → 1h (repeating). Only `invalid_grant` / `invalid_request` / `invalid_client` / `unauthorized_client` or non-408/429 4xx cause `invalidateAuth()` (clears token; preserves TwitchUser for "Reconnect &lt;name&gt;" UX).
+**Twitch backoff.** Transient refresh failures back off at 30s → 2m → 10m → 45m → 1h (repeating). Only `invalid_grant` / `invalid_request` / `invalid_client` / `unauthorized_client` or non-408/429 4xx produce Core's auth-lost outcome. That clears the token and preserves TwitchUser for "Reconnect &lt;name&gt;" UX.
 
 **Kick rotation and backoff** — the backend refreshes before access-token expiry, re-arms on system resume, and retries transient failures at 30s → 2m → 10m → 45m → 1h (repeating). A confirmed permanent OAuth rejection clears only the OAuth envelope and emits `"session-expired"`; it preserves the Kick identity, website cookies, and encrypted website bearer. Only explicit logout clears both OAuth and website chat authentication.
 
@@ -88,7 +88,7 @@ tokenExchangeService.refreshToken({ platform, refreshToken })
 
 **Kick opening auth and waiting for its callback are separate operations.** `authWindowManager.openAuthWindow` (sync, opens window) is paired with `oauthCallbackServer.waitForCallback` (async, returns code) in the Kick IPC flow. Twitch login uses Device Code Grant instead.
 
-**Token storage lives in `storageService`, not here.** Auth services read/write tokens via `storageService.{get,save,clear}Token`; this module never accesses the file system directly.
+**Token storage is a capability.** Each Desktop `OAuth2Session` adapter maps the portable credential store to `storageService.{get,save,clear}Token`; neither Core nor the auth services access the file system directly.
 
 **`TokenRefreshError` is the error boundary.** `token-exchange.ts` throws `TokenRefreshError(message, httpStatus, oauthCode)` on refresh failure. Callers use `.isPermanent()` to decide between backoff-retry and session invalidation.
 
@@ -104,6 +104,8 @@ tokenExchangeService.refreshToken({ platform, refreshToken })
 ## Related Context
 
 - `apps/worker/src/index.ts` — Cloudflare Worker that holds Kick secrets and proxies Kick token exchange and refresh.
+- `packages/core/src/auth/index.ts` contains portable `OAuth2Session` state, single-flight refresh, and auth-lost semantics.
+- `packages/core/src/capabilities/auth.ts` contains portable credential storage and refresh ports.
 - `backend/services/storage-service.ts` — persistent token and user storage (electron-store or similar).
 - `backend/services/web-contents-ready.ts` — `waitForWebContentsCondition` used by the Kick two-phase flow.
 - `shared/auth-types.ts` — `Platform`, `AuthToken`, `KickUser`, `TwitchUser` type definitions.
