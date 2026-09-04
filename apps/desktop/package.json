@@ -149,7 +149,7 @@
     "@types/tmi.js": "^1.8.6",
     "@types/ws": "^8.18.1",
     "@typescript/native": "npm:typescript@7.0.2",
-    "@vitejs/plugin-react": "^5.2.0",
+    "@vitejs/plugin-react": "^6.1.0",
     "@vitest/coverage-v8": "^4.1.10",
     "autoprefixer": "^10.5.4",
     "cross-env": "^10.1.0",
