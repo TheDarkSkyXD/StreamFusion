@@ -114,12 +114,6 @@ vi.mock("@backend/api/platforms/twitch/endpoints/video-endpoints", () => ({
   getVideoById: vi.fn(async () => null),
 }));
 
-vi.mock("@backend/api/unified/registry", () => ({
-  clients: {
-    register: vi.fn(),
-  },
-}));
-
 import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
 import { twitchAuthService } from "@backend/auth/twitch-auth";
 
@@ -172,9 +166,8 @@ describe("TwitchClient", () => {
 
     it("falls back to Helix on GQL failure", async () => {
       mockGqlGetTopStreams.mockRejectedValueOnce(new Error("GQL down"));
-      const { getTopStreams } = await import(
-        "@backend/api/platforms/twitch/endpoints/stream-endpoints"
-      );
+      const { getTopStreams } =
+        await import("@backend/api/platforms/twitch/endpoints/stream-endpoints");
       (getTopStreams as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         data: [{ id: "helix-s1" }],
       });
@@ -217,9 +210,8 @@ describe("TwitchClient", () => {
 
     it("falls back to Helix on GQL failure", async () => {
       mockGqlGetStreamByLogin.mockRejectedValueOnce(new Error("GQL error"));
-      const { getStreamByLogin } = await import(
-        "@backend/api/platforms/twitch/endpoints/stream-endpoints"
-      );
+      const { getStreamByLogin } =
+        await import("@backend/api/platforms/twitch/endpoints/stream-endpoints");
       (getStreamByLogin as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         id: "helix-s1",
       });
@@ -243,9 +235,8 @@ describe("TwitchClient", () => {
 
   describe("searchChannels", () => {
     it("uses Helix when authenticated so search results can paginate channels", async () => {
-      const { searchChannels } = await import(
-        "@backend/api/platforms/twitch/endpoints/search-endpoints"
-      );
+      const { searchChannels } =
+        await import("@backend/api/platforms/twitch/endpoints/search-endpoints");
       (searchChannels as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         data: [{ id: "helix-c1" }],
         cursor: "next",
@@ -272,9 +263,8 @@ describe("TwitchClient", () => {
     });
 
     it("falls back to GQL when authenticated Helix search fails", async () => {
-      const { searchChannels } = await import(
-        "@backend/api/platforms/twitch/endpoints/search-endpoints"
-      );
+      const { searchChannels } =
+        await import("@backend/api/platforms/twitch/endpoints/search-endpoints");
       (searchChannels as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Helix error"));
       const channels = { data: [{ id: "gql-c1" }], cursor: "next" };
       mockGqlSearchChannels.mockResolvedValueOnce(channels);
@@ -285,9 +275,8 @@ describe("TwitchClient", () => {
     });
 
     it("does not retry Helix after both search transports fail", async () => {
-      const { searchChannels } = await import(
-        "@backend/api/platforms/twitch/endpoints/search-endpoints"
-      );
+      const { searchChannels } =
+        await import("@backend/api/platforms/twitch/endpoints/search-endpoints");
       (searchChannels as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Helix error"));
       mockGqlSearchChannels.mockRejectedValueOnce(new Error("GQL error"));
 
@@ -338,9 +327,8 @@ describe("TwitchClient", () => {
   // Guards: authenticated Twitch category search preserves Helix results while adding aggregate viewer counts.
   describe("searchCategories", () => {
     it("hydrates authenticated Helix results with aggregate viewer counts", async () => {
-      const { searchCategories } = await import(
-        "@backend/api/platforms/twitch/endpoints/search-endpoints"
-      );
+      const { searchCategories } =
+        await import("@backend/api/platforms/twitch/endpoints/search-endpoints");
       const helixResult = {
         data: [
           {
@@ -373,9 +361,8 @@ describe("TwitchClient", () => {
     });
 
     it("returns unchanged Helix results when viewer count hydration fails", async () => {
-      const { searchCategories } = await import(
-        "@backend/api/platforms/twitch/endpoints/search-endpoints"
-      );
+      const { searchCategories } =
+        await import("@backend/api/platforms/twitch/endpoints/search-endpoints");
       const helixResult = {
         data: [
           {
@@ -410,9 +397,8 @@ describe("TwitchClient", () => {
     });
 
     it("falls back once to GQL when authenticated Helix search fails", async () => {
-      const { searchCategories } = await import(
-        "@backend/api/platforms/twitch/endpoints/search-endpoints"
-      );
+      const { searchCategories } =
+        await import("@backend/api/platforms/twitch/endpoints/search-endpoints");
       (searchCategories as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
         new Error("Helix error")
       );

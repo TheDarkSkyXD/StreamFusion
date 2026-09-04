@@ -12,6 +12,7 @@ const resolverMocks = vi.hoisted(() => ({ twitch: vi.fn(), kick: vi.fn() }));
 
 vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
   twitchClient: {
+    platform: "twitch",
     getTopStreams: vi.fn(),
     getStreamByLogin: vi.fn(),
     isAuthenticated: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
 
 vi.mock("@backend/api/platforms/kick/kick-client", () => ({
   kickClient: {
+    platform: "kick",
     getTopStreams: vi.fn(),
     getStreamsByCategory: vi.fn(),
     getStreamBySlug: vi.fn(),
@@ -49,14 +51,6 @@ vi.mock("@backend/api/platforms/kick/kick-stream-resolver", () => {
     },
   };
 });
-vi.mock("@backend/api/unified/registry", () => ({
-  clients: {
-    for: vi.fn(),
-    all: vi.fn(),
-    register: vi.fn(),
-  },
-}));
-
 vi.mock("@backend/services/storage-service", () => ({
   storageService: {
     getActiveFollowsByPlatform: vi.fn(),
@@ -77,12 +71,11 @@ import { logger } from "@backend/logging/logger";
 import { kickClient } from "@backend/api/platforms/kick/kick-client";
 import { isKickRateLimitError } from "@backend/api/platforms/kick/kick-error-classification";
 import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
-import { clients } from "@backend/api/unified/registry";
 import { registerStreamHandlers } from "@backend/ipc/handlers/stream-handlers";
 import { dbService } from "@backend/services/database-service";
 import { storageService } from "@backend/services/storage-service";
 import type { UnifiedStream } from "@shared/platform-types";
-import type { IPlatformReader } from "@backend/api/unified/platform-reader";
+import type { IPlatformReader } from "@streamfusion/core/discovery";
 import type { LocalFollow } from "@shared/auth-types";
 
 type StreamListResult = {
@@ -127,7 +120,10 @@ function channel(id: string, username: string) {
   };
 }
 
-function reader(platform: "twitch" | "kick", result: UnifiedStream[] | Error): IPlatformReader {
+function reader(
+  platform: "twitch" | "kick",
+  result: UnifiedStream[] | Error
+): IPlatformReader<UnifiedStream> {
   return {
     platform,
     isAuthenticated: () => false,
@@ -157,6 +153,8 @@ const databaseLifecycle = createIsolatedDatabaseTestLifecycle(
   "streamfusion-stream-handlers-"
 );
 
+let topReaders: Readonly<Record<"twitch" | "kick", IPlatformReader<UnifiedStream>>>;
+
 function getHandler(channel: typeof IPC_CHANNELS.STREAMS_GET_TOP): Handler<StreamListResult>;
 function getHandler(
   channel: typeof IPC_CHANNELS.STREAMS_GET_BY_CATEGORY
@@ -183,7 +181,11 @@ beforeEach(() => {
   vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([]);
   vi.mocked(storageService.getKickFollowedStreamsCache).mockReturnValue(undefined);
   vi.mocked(kickClient.getStreamsByBroadcasterIds).mockResolvedValue([]);
-  registerStreamHandlers();
+  topReaders = {
+    twitch: reader("twitch", []),
+    kick: reader("kick", []),
+  };
+  registerStreamHandlers({ readers: topReaders });
 });
 
 afterEach(() => {
@@ -203,6 +205,7 @@ describe("registerStreamHandlers", () => {
 
 // Guards: raw top-stream payloads are validated before platform adapters are selected.
 // Guards: a cross-platform page size applies after merging, not independently to each provider.
+// Guards: top-stream discovery uses the explicitly composed Core reader ports for both Platforms.
 describe("STREAMS_GET_TOP", () => {
   it("rejects invalid payloads before selecting a platform client", async () => {
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_TOP);
@@ -214,17 +217,15 @@ describe("STREAMS_GET_TOP", () => {
       error: "Invalid top-stream request",
       providers: { twitch: "failed", kick: "failed" },
     });
-    expect(clients.for).not.toHaveBeenCalled();
-    expect(clients.all).not.toHaveBeenCalled();
+    expect(topReaders.twitch.getTopStreams).not.toHaveBeenCalled();
+    expect(topReaders.kick.getTopStreams).not.toHaveBeenCalled();
   });
 
   it("returns single platform result when platform is specified", async () => {
-    const twitchReader = reader("twitch", [stream("1", "twitch", 100)]);
-    vi.mocked(twitchReader.getTopStreams).mockResolvedValue({
+    vi.mocked(topReaders.twitch.getTopStreams).mockResolvedValue({
       data: [stream("1", "twitch", 100)],
       cursor: "c1",
     });
-    vi.mocked(clients.for).mockReturnValue(twitchReader);
 
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_TOP);
     const result = await handler({}, { platform: "twitch" });
@@ -232,12 +233,22 @@ describe("STREAMS_GET_TOP", () => {
     expect(result.success).toBe(true);
     expect(result.data).toEqual([expect.objectContaining({ id: "1", viewerCount: 100 })]);
     expect(result.cursor).toBe("c1");
+    expect(topReaders.twitch.getTopStreams).toHaveBeenCalledWith({
+      limit: 20,
+      cursor: undefined,
+      categoryId: undefined,
+      language: undefined,
+    });
+    expect(topReaders.kick.getTopStreams).not.toHaveBeenCalled();
   });
 
   it("merges and sorts by viewerCount when both platforms requested", async () => {
-    const twitchReader = reader("twitch", [stream("t1", "twitch", 50)]);
-    const kickReader = reader("kick", [stream("k1", "kick", 200)]);
-    vi.mocked(clients.all).mockReturnValue([twitchReader, kickReader]);
+    vi.mocked(topReaders.twitch.getTopStreams).mockResolvedValue({
+      data: [stream("t1", "twitch", 50)],
+    });
+    vi.mocked(topReaders.kick.getTopStreams).mockResolvedValue({
+      data: [stream("k1", "kick", 200)],
+    });
 
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_TOP);
     const result = await handler({}, {});
@@ -248,12 +259,12 @@ describe("STREAMS_GET_TOP", () => {
   });
 
   it("applies the requested limit after merging both platforms", async () => {
-    const twitchReader = reader("twitch", [
-      stream("t1", "twitch", 300),
-      stream("t2", "twitch", 100),
-    ]);
-    const kickReader = reader("kick", [stream("k1", "kick", 200), stream("k2", "kick", 50)]);
-    vi.mocked(clients.all).mockReturnValue([twitchReader, kickReader]);
+    vi.mocked(topReaders.twitch.getTopStreams).mockResolvedValue({
+      data: [stream("t1", "twitch", 300), stream("t2", "twitch", 100)],
+    });
+    vi.mocked(topReaders.kick.getTopStreams).mockResolvedValue({
+      data: [stream("k1", "kick", 200), stream("k2", "kick", 50)],
+    });
 
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_TOP);
     const result = await handler({}, { limit: 2 });
@@ -262,9 +273,10 @@ describe("STREAMS_GET_TOP", () => {
   });
 
   it("returns partial results when one platform throws", async () => {
-    const twitchReader = reader("twitch", new Error("twitch down"));
-    const kickReader = reader("kick", [stream("k1", "kick", 200)]);
-    vi.mocked(clients.all).mockReturnValue([twitchReader, kickReader]);
+    vi.mocked(topReaders.twitch.getTopStreams).mockRejectedValue(new Error("twitch down"));
+    vi.mocked(topReaders.kick.getTopStreams).mockResolvedValue({
+      data: [stream("k1", "kick", 200)],
+    });
 
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_TOP);
     const result = await handler({}, {});
@@ -774,9 +786,7 @@ describe("STREAMS_GET_FOLLOWED", () => {
     vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) =>
       platform === "kick" ? [follow("xqc", "12345")] : []
     );
-    vi.mocked(kickClient.getChannelsByBroadcasterIds).mockResolvedValue([
-      channel("12345", "xqc"),
-    ]);
+    vi.mocked(kickClient.getChannelsByBroadcasterIds).mockResolvedValue([channel("12345", "xqc")]);
     vi.mocked(kickClient.getPublicChannel).mockResolvedValue(null);
     vi.mocked(kickClient.getStreamsByBroadcasterIds).mockResolvedValue([
       {

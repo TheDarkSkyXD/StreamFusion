@@ -2,6 +2,7 @@ import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { z } from "zod";
 
 import { logger } from "@backend/logging/logger";
+import type { IPlatformReader } from "@streamfusion/core/discovery";
 import { dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
 import type { Platform } from "../../../shared/auth-types";
 import {
@@ -10,10 +11,8 @@ import {
   type StreamPlaybackRequest,
 } from "../../../shared/ipc-channels";
 import { isKickRateLimitError } from "../../api/platforms/kick/kick-error-classification";
-import type { IPlatformReader } from "../../api/unified/platform-reader";
 import type { UnifiedStream } from "../../../shared/platform-types";
 import type { DiscoveryResult } from "../../../shared/discovery-types";
-import { clients } from "../../api/unified/registry";
 import { getPlatformHealth } from "../../api/unified/platform-health";
 import { storageService } from "../../services/storage-service";
 import {
@@ -71,6 +70,10 @@ function parseStreamPlaybackRequest(value: unknown): StreamPlaybackRequest | nul
 }
 
 type FollowedStreamResponse = DiscoveryResult<UnifiedStream[]>;
+
+export interface StreamHandlerDependencies {
+  readonly readers: Readonly<Record<Platform, IPlatformReader<UnifiedStream>>>;
+}
 
 const followedStreamResponses = new Map<
   string,
@@ -131,7 +134,7 @@ function collapseFollowedStreamRequest(
   return request;
 }
 
-export function registerStreamHandlers(): void {
+export function registerStreamHandlers({ readers }: StreamHandlerDependencies): void {
   followedStreamResponses.clear();
   followedStreamRequests.clear();
   /**
@@ -150,14 +153,10 @@ export function registerStreamHandlers(): void {
     }
     const params = parsedRequest.data;
 
-    // Loading both adapters registers them with the shared platform registry.
-    await Promise.all([
-      import("../../api/platforms/twitch/twitch-client"),
-      import("../../api/platforms/kick/kick-client"),
-    ]);
-
     try {
-      const fetchOne = async (reader: IPlatformReader): Promise<StreamProviderOutcome> => {
+      const fetchOne = async (
+        reader: IPlatformReader<UnifiedStream>
+      ): Promise<StreamProviderOutcome> => {
         try {
           const result = await reader.getTopStreams({
             limit: params.limit ?? 20,
@@ -188,7 +187,7 @@ export function registerStreamHandlers(): void {
         }
       };
 
-      const targets = params.platform ? [clients.for(params.platform)] : clients.all();
+      const targets = params.platform ? [readers[params.platform]] : [readers.twitch, readers.kick];
       const results = await Promise.all(targets.map((reader) => fetchOne(reader)));
       return settleStreamProviders(
         targets.map((reader) => reader.platform),

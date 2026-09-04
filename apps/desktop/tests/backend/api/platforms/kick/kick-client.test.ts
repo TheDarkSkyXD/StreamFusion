@@ -70,10 +70,6 @@ vi.mock("@backend/services/third-party-cookie-stripper", () => ({
   purgeStoredThirdPartyCookies: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@backend/api/unified/registry", () => ({
-  clients: { register: vi.fn() },
-}));
-
 vi.mock("@backend/api/platforms/kick/endpoints/category-endpoints", () => ({
   getTopCategories: vi.fn(),
   searchCategories: vi.fn(),

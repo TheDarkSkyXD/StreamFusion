@@ -7,9 +7,9 @@
  */
 
 import { logger } from "@backend/logging/logger";
+import type { IPlatformReader, PageResult, TopStreamsOptions } from "@streamfusion/core/discovery";
 import type { Platform, TwitchUser } from "../../../../shared/auth-types";
 import { twitchAuthService } from "../../../auth/twitch-auth";
-import type { IPlatformReader, PageResult, TopStreamsOptions } from "../../unified/platform-reader";
 import type {
   UnifiedCategory,
   UnifiedChannel,
@@ -17,7 +17,6 @@ import type {
   UnifiedStream,
   UnifiedVideo,
 } from "../../../../shared/platform-types";
-import { clients } from "../../unified/registry";
 import * as StreamEndpoints from "./endpoints/stream-endpoints";
 import * as UserEndpoints from "./endpoints/user-endpoints";
 import * as GqlClient from "./twitch-gql-client";
@@ -80,7 +79,7 @@ function mergeCategoryViewerCounts(
 
 // ========== Twitch API Client Class ==========
 
-class TwitchClient extends TwitchRequestor implements IPlatformReader {
+class TwitchClient extends TwitchRequestor implements IPlatformReader<UnifiedStream> {
   readonly platform: Platform = "twitch";
 
   isAuthenticated(): boolean {
@@ -535,5 +534,3 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader {
 // ========== Export Singleton ==========
 
 export const twitchClient = new TwitchClient();
-
-clients.register(twitchClient);

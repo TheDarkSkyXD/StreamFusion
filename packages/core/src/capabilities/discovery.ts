@@ -28,3 +28,24 @@ export type DiscoveryPageResult<TItem> =
 export interface DiscoveryPageSource<TItem> {
   loadPage(request: DiscoveryPageRequest): Promise<DiscoveryPageResult<TItem>>;
 }
+
+export interface PageOptions {
+  readonly limit?: number;
+  readonly cursor?: string;
+}
+
+export interface PageResult<TItem> {
+  readonly data: TItem[];
+  readonly cursor?: string;
+}
+
+export interface TopStreamsOptions extends PageOptions {
+  readonly categoryId?: string;
+  readonly language?: string;
+}
+
+export interface TopStreamReader<TPlatform, TStream> {
+  readonly platform: TPlatform;
+  isAuthenticated(): boolean;
+  getTopStreams(options?: TopStreamsOptions): Promise<PageResult<TStream>>;
+}

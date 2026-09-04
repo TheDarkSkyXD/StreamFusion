@@ -12,6 +12,11 @@ const registerCategoryHandlers = vi.hoisted(() => vi.fn());
 const registerConnectivityHandlers = vi.hoisted(() => vi.fn());
 const registerDownloadHandlers = vi.hoisted(() => vi.fn());
 const registerLocalCaptionHandlers = vi.hoisted(() => vi.fn());
+const registerStreamHandlers = vi.hoisted(() => vi.fn());
+const startKickFollowMetadataRefresh = vi.hoisted(() => vi.fn());
+const stopKickFollowMetadataRefresh = vi.hoisted(() => vi.fn());
+const twitchClient = vi.hoisted(() => ({ platform: "twitch" as const }));
+const kickClient = vi.hoisted(() => ({ platform: "kick" as const }));
 
 vi.mock("@backend/logging/log-paths", () => ({ getBugReportsDir: () => "bug-reports" }));
 vi.mock("@backend/logging/logger", () => ({
@@ -34,6 +39,13 @@ vi.mock("@backend/ipc/handlers/download-handlers", () => ({ registerDownloadHand
 vi.mock("@backend/ipc/handlers/local-caption-handlers", () => ({
   registerLocalCaptionHandlers,
 }));
+vi.mock("@backend/ipc/handlers/stream-handlers", () => ({ registerStreamHandlers }));
+vi.mock("@backend/services/kick-follow-metadata-refresh", () => ({
+  startKickFollowMetadataRefresh,
+  stopKickFollowMetadataRefresh,
+}));
+vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({ twitchClient }));
+vi.mock("@backend/api/platforms/kick/kick-client", () => ({ kickClient }));
 
 import { isIpcFeature, loadIpcFeature } from "@backend/ipc/lazy-feature-loader";
 import { registerFeatureRollback } from "@backend/ipc/feature-registration-transaction";
@@ -67,6 +79,7 @@ function createWindow(): BrowserWindow {
 // Guards: every feature retries after a transient registration failure instead of remaining poisoned.
 // Guards: registration failures identify the feature and root error in the durable log.
 // Guards: unknown feature names fail validation before they can select an implementation import.
+// Guards: the Streams composition root injects both concrete Platform adapters explicitly.
 describe("lazy IPC feature loader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -80,6 +93,15 @@ describe("lazy IPC feature loader", () => {
     await loadIpcFeature(IPC_FEATURES.CATEGORIES, featureContext);
     await loadIpcFeature(IPC_FEATURES.CATEGORIES, featureContext);
     expect(registerCategoryHandlers).toHaveBeenCalledOnce();
+  });
+
+  it("composes the Streams handler with Twitch and Kick readers", async () => {
+    await loadIpcFeature(IPC_FEATURES.STREAMS, featureContext);
+
+    expect(registerStreamHandlers).toHaveBeenCalledWith({
+      readers: { twitch: twitchClient, kick: kickClient },
+    });
+    expect(startKickFollowMetadataRefresh).toHaveBeenCalledOnce();
   });
 
   it("retries Downloads after a failed registration", async () => {

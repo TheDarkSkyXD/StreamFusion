@@ -447,6 +447,10 @@ ID: `home-live-discovery`.
 
 ### Verification
 
+- `apps/desktop/tests/backend/api/platforms/kick/kick-client.test.ts`
+- `apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts`
+- `apps/desktop/tests/backend/ipc/handlers/stream-handlers.test.ts`
+- `apps/desktop/tests/backend/ipc/lazy-feature-loader.test.ts`
 - `apps/desktop/tests/hooks/queries/useStreams.test.tsx`
 - `apps/desktop/tests/pages/Home.test.tsx`
 

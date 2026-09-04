@@ -10,6 +10,7 @@ import {
   type Stream,
   type Video,
 } from "../content/index.ts";
+import type { TopStreamReader } from "../capabilities/discovery.ts";
 import type { Platform } from "../platform/index.ts";
 import { normalizeSearchTokens } from "../use-cases/discovery-rules.ts";
 
@@ -18,6 +19,9 @@ export type {
   DiscoveryPageRequest,
   DiscoveryPageResult,
   DiscoveryPageSource,
+  PageOptions,
+  PageResult,
+  TopStreamsOptions,
 } from "../capabilities/discovery.ts";
 export {
   compactSearchIdentity,
@@ -54,6 +58,11 @@ export type {
   ProgressiveDiscoveryRequest,
   ProgressiveDiscoveryResult,
 } from "../use-cases/progressive-discovery.ts";
+
+export type IPlatformReader<TStream = Stream> = TopStreamReader<
+  Platform,
+  TStream
+>;
 
 export const SEARCH_RESULT_TYPES = [
   "all",

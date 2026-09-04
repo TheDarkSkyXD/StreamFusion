@@ -8,6 +8,7 @@
  */
 
 import { logger } from "@backend/logging/logger";
+import type { IPlatformReader, PageResult, TopStreamsOptions } from "@streamfusion/core/discovery";
 import {
   readResponseTextWithinLimit,
   ResponseBodyTooLargeError,
@@ -20,13 +21,11 @@ import {
   purgeStoredThirdPartyCookies,
   registerThirdPartyCookieStripper,
 } from "../../../services/third-party-cookie-stripper";
-import type { IPlatformReader, PageResult, TopStreamsOptions } from "../../unified/platform-reader";
 import type {
   UnifiedCategory,
   UnifiedChannel,
   UnifiedStream,
 } from "../../../../shared/platform-types";
-import { clients } from "../../unified/registry";
 
 import { isPlatformHealthy, recordPlatformLocalNetError } from "../../unified/platform-health";
 // Import endpoints
@@ -130,7 +129,7 @@ const _IMAGE_NEG_CACHE_TTL_MS = 10 * 60 * 1000;
 
 // ========== Kick API Client Class ==========
 
-class KickClient implements KickRequestor, IPlatformReader {
+class KickClient implements KickRequestor, IPlatformReader<UnifiedStream> {
   readonly platform: Platform = "kick";
   readonly baseUrl = KICK_API_BASE;
 
@@ -843,5 +842,3 @@ class KickClient implements KickRequestor, IPlatformReader {
 }
 
 export const kickClient = new KickClient();
-
-clients.register(kickClient);

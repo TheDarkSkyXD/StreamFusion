@@ -202,13 +202,17 @@ const featureLoaders = {
     const [
       { registerStreamHandlers },
       { startKickFollowMetadataRefresh, stopKickFollowMetadataRefresh },
+      { twitchClient },
+      { kickClient },
     ] = await Promise.all([
       import("./handlers/stream-handlers"),
       import("../services/kick-follow-metadata-refresh"),
+      import("../api/platforms/twitch/twitch-client"),
+      import("../api/platforms/kick/kick-client"),
     ]);
     startKickFollowMetadataRefresh();
     registerLoadedFeatureCleanup("kick-follow-metadata", stopKickFollowMetadataRefresh);
-    registerStreamHandlers();
+    registerStreamHandlers({ readers: { twitch: twitchClient, kick: kickClient } });
   },
   [IPC_FEATURES.STORAGE]: async ({ renderer }) => {
     const { registerStorageHandlers } = await import("./handlers/storage-handlers");

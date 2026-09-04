@@ -31,7 +31,11 @@
       "persistence": [],
       "verification": [
         "apps/desktop/tests/pages/Home.test.tsx",
-        "apps/desktop/tests/hooks/queries/useStreams.test.tsx"
+        "apps/desktop/tests/hooks/queries/useStreams.test.tsx",
+        "apps/desktop/tests/backend/ipc/lazy-feature-loader.test.ts",
+        "apps/desktop/tests/backend/ipc/handlers/stream-handlers.test.ts",
+        "apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts",
+        "apps/desktop/tests/backend/api/platforms/kick/kick-client.test.ts"
       ]
     },
     {
@@ -69,9 +73,7 @@
         "platform-endpoint:twitch:category-endpoints",
         "platform-endpoint:kick:category-endpoints"
       ],
-      "state": [
-        "state-store:features/discovery/data/category-language-preference-store"
-      ],
+      "state": ["state-store:features/discovery/data/category-language-preference-store"],
       "persistence": [
         "apps/desktop/src/frontend/features/discovery/data/category-language-preference-store.ts"
       ],
