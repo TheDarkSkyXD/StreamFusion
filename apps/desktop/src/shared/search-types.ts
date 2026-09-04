@@ -1,26 +1,21 @@
 import type { Platform } from "./auth-types";
+import type {
+  SearchIntent as CoreSearchIntent,
+  SearchLimits as CoreSearchLimits,
+  ProgressiveDiscoveryEndReason,
+  SearchResultType as CoreSearchResultType,
+} from "@streamfusion/core/discovery";
 
-export type SearchResultType = "all" | "channels" | "streams" | "categories" | "videos" | "clips";
-
-export interface SearchLimits {
-  resultLimit: number;
-}
-
-export interface SearchIntent {
-  query: string;
-  platform?: Platform;
-  resultType: SearchResultType;
-  liveOnly: boolean;
-  limits: SearchLimits;
-}
+export type SearchResultType = CoreSearchResultType;
+export type SearchLimits = CoreSearchLimits;
+export type SearchIntent = CoreSearchIntent;
 
 export interface SearchAllRequest extends SearchIntent {
   sessionId: string;
   platform: Platform;
 }
 
-export type StreamSearchEndReason =
-  "exhausted" | "repeated-cursor" | "empty-page" | "safety-limit" | "rate-limited" | "cancelled";
+export type StreamSearchEndReason = ProgressiveDiscoveryEndReason;
 
 export interface SearchStreamsRequest {
   sessionId: string;
