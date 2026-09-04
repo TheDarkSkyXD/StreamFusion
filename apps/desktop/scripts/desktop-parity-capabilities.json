@@ -45,8 +45,18 @@
       "outcome": "See followed live streams, follow channels, and synchronize account follows into the local list.",
       "entry": ["/following", "Follow controls"],
       "renderer": ["renderer-feature:discovery", "route:/following", "renderer-feature:auth"],
-      "electronBoundary": ["ipc-feature:auth", "ipc-feature:storage"],
-      "mainProcess": ["ipc-handler:auth-handlers", "ipc-handler:storage-handlers"],
+      "electronBoundary": [
+        "ipc-feature:auth",
+        "ipc-feature:channels",
+        "ipc-feature:storage",
+        "ipc-feature:streams"
+      ],
+      "mainProcess": [
+        "ipc-handler:auth-handlers",
+        "ipc-handler:channel-handlers",
+        "ipc-handler:storage-handlers",
+        "ipc-handler:stream-handlers"
+      ],
       "platformBranches": [
         "platform-endpoint:twitch:follow-endpoints",
         "platform-endpoint:kick:follow-endpoints"
@@ -54,8 +64,19 @@
       "state": ["state-store:store/follow-store"],
       "persistence": ["apps/desktop/src/backend/services/storage-service.ts"],
       "verification": [
+        "packages/core/tests/follows.test.mjs",
         "apps/desktop/tests/pages/Following.test.tsx",
-        "apps/desktop/tests/hooks/queries/useLiveFavoriteStreams.test.tsx"
+        "apps/desktop/tests/hooks/queries/useLiveFavoriteStreams.test.tsx",
+        "apps/desktop/tests/store/follow-store.test.ts",
+        "apps/desktop/tests/backend/ipc/handlers/auth-handlers.test.ts",
+        "apps/desktop/tests/backend/ipc/handlers/auth-security-boundary.test.ts",
+        "apps/desktop/tests/backend/ipc/handlers/channel-handlers.test.ts",
+        "apps/desktop/tests/backend/ipc/handlers/storage-handlers.test.ts",
+        "apps/desktop/tests/backend/services/storage-service.test.ts",
+        "apps/desktop/tests/backend/ipc/handlers/stream-handlers.test.ts",
+        "apps/desktop/tests/backend/ipc/lazy-feature-loader.test.ts",
+        "apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts",
+        "apps/desktop/tests/backend/api/platforms/kick/kick-client.test.ts"
       ]
     },
     {

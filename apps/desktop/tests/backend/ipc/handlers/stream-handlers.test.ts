@@ -188,6 +188,7 @@ beforeEach(() => {
   };
   registerStreamHandlers({
     readers: topReaders,
+    followedReaders: { twitch: twitchClient, kick: kickClient },
     categoryReaders: { twitch: twitchClient, kick: kickClient },
   });
 });

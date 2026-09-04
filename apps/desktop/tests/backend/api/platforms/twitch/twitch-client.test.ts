@@ -116,9 +116,11 @@ vi.mock("@backend/api/platforms/twitch/endpoints/video-endpoints", () => ({
 }));
 
 import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
+import * as TwitchUserEndpoints from "@backend/api/platforms/twitch/endpoints/user-endpoints";
 import { twitchAuthService } from "@backend/auth/twitch-auth";
 
 // Guards: Twitch never broadens an unsupported language filter into unfiltered top streams.
+// Guards: Twitch account-follow reads expose an authoritative portable snapshot and contain provider failure.
 describe("TwitchClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -127,6 +129,41 @@ describe("TwitchClient", () => {
   describe("platform", () => {
     it("is twitch", () => {
       expect(twitchClient.platform).toBe("twitch");
+    });
+  });
+
+  describe("readAccountFollows", () => {
+    it("returns an authoritative portable snapshot", async () => {
+      const follows = [
+        {
+          id: "1",
+          platform: "twitch" as const,
+          username: "followed",
+          displayName: "Followed",
+          avatarUrl: "",
+          isLive: false,
+          isVerified: false,
+          isPartner: false,
+        },
+      ];
+      vi.mocked(TwitchUserEndpoints.getAllFollowedChannels).mockResolvedValueOnce(follows);
+
+      await expect(twitchClient.readAccountFollows()).resolves.toEqual({
+        kind: "available",
+        follows,
+        authoritative: true,
+      });
+    });
+
+    it("preserves local state by tagging provider failure as unavailable", async () => {
+      vi.mocked(TwitchUserEndpoints.getAllFollowedChannels).mockRejectedValueOnce(
+        new Error("offline")
+      );
+
+      await expect(twitchClient.readAccountFollows()).resolves.toEqual({
+        kind: "unavailable",
+        reason: "offline",
+      });
     });
   });
 

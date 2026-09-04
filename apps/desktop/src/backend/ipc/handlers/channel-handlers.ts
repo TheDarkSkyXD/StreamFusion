@@ -2,6 +2,7 @@ import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@backend/logging/logger";
 import type { ChannelReader } from "@streamfusion/core/discovery";
+import type { FollowedChannelReader } from "@streamfusion/core/follows";
 import type { ChannelRef } from "@streamfusion/core/platform";
 import { dedupeChannelsByIdentity } from "@/lib/id-utils";
 import {
@@ -15,13 +16,15 @@ import { storageService } from "../../services/storage-service";
 import { buildKickFollowedChannelSnapshot } from "../../services/kick-follow-identity-service";
 import type { KickFollowMetadataClient } from "../../services/kick-follow-identity-service";
 
-interface TwitchChannelReader extends ChannelReader<Platform, UnifiedChannel, ChannelRef> {
+interface TwitchChannelReader
+  extends
+    ChannelReader<"twitch", UnifiedChannel, ChannelRef>,
+    FollowedChannelReader<"twitch", UnifiedChannel> {
   isAuthenticated(): boolean;
-  getAllFollowedChannels(): Promise<UnifiedChannel[]>;
 }
 
 interface KickChannelReader
-  extends ChannelReader<Platform, UnifiedChannel, ChannelRef>, KickFollowMetadataClient {
+  extends ChannelReader<"kick", UnifiedChannel, ChannelRef>, KickFollowMetadataClient {
   getOfficialChannelAccountStatus(slug: string): Promise<"active" | "unavailable" | "not_found">;
 }
 

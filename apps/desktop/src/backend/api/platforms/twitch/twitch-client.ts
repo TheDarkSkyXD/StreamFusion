@@ -9,6 +9,12 @@
 import { logger } from "@backend/logging/logger";
 import { clipSchema, videoSchema } from "@streamfusion/core/content";
 import type {
+  AccountFollowReader,
+  AccountFollowReadResult,
+  FollowedChannelReader,
+  FollowedStreamReader,
+} from "@streamfusion/core/follows";
+import type {
   ChannelRef,
   ChannelReader,
   ChannelSearchOptions,
@@ -214,9 +220,12 @@ class TwitchClient
     CategoryStreamReader<Platform, UnifiedStream>,
     DiscoverySearchReader<Platform, UnifiedStream, UnifiedChannel, UnifiedCategory, AbortSignal>,
     VideoReader<Platform, UnifiedVideo, UnifiedChannel, AbortSignal>,
-    ClipReader<Platform, UnifiedClip, UnifiedChannel, AbortSignal>
+    ClipReader<Platform, UnifiedClip, UnifiedChannel, AbortSignal>,
+    AccountFollowReader<"twitch", UnifiedChannel>,
+    FollowedChannelReader<"twitch", UnifiedChannel>,
+    FollowedStreamReader<"twitch", UnifiedStream, PaginationOptions>
 {
-  readonly platform: Platform = "twitch";
+  readonly platform = "twitch" as const;
 
   isAuthenticated(): boolean {
     return twitchAuthService.isAuthenticated();
@@ -280,6 +289,21 @@ class TwitchClient
    */
   async getAllFollowedChannels(): Promise<UnifiedChannel[]> {
     return UserEndpoints.getAllFollowedChannels(this);
+  }
+
+  async readAccountFollows(): Promise<AccountFollowReadResult<UnifiedChannel>> {
+    try {
+      return {
+        kind: "available",
+        follows: await this.getAllFollowedChannels(),
+        authoritative: true,
+      };
+    } catch (error) {
+      return {
+        kind: "unavailable",
+        reason: error instanceof Error ? error.message : "twitch-follow-fetch-failed",
+      };
+    }
   }
 
   /**

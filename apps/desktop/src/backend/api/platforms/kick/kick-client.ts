@@ -10,6 +10,13 @@
 import { logger } from "@backend/logging/logger";
 import { clipSchema, videoSchema } from "@streamfusion/core/content";
 import type {
+  AccountFollowReader,
+  AccountFollowReadOptions,
+  AccountFollowReadResult,
+  FollowedChannelReader,
+  FollowedStreamReader,
+} from "@streamfusion/core/follows";
+import type {
   CategoryClipOptions,
   CategoryContentOptions,
   CategoryContentResult,
@@ -299,9 +306,12 @@ class KickClient
     DiscoverySearchReader<Platform, UnifiedStream, UnifiedChannel, UnifiedCategory, AbortSignal>,
     VideoReader<Platform, UnifiedVideo, UnifiedChannel, AbortSignal>,
     ClipReader<Platform, UnifiedClip, UnifiedChannel, AbortSignal>,
+    AccountFollowReader<"kick", UnifiedChannel>,
+    FollowedChannelReader<"kick", UnifiedChannel>,
+    FollowedStreamReader<"kick", UnifiedStream, PaginationOptions>,
     KickRequestor
 {
-  readonly platform: Platform = "kick";
+  readonly platform = "kick" as const;
   readonly baseUrl = KICK_API_BASE;
 
   /**
@@ -973,6 +983,21 @@ class KickClient
   async getAllFollowedChannels(): Promise<UnifiedChannel[]> {
     const result = await FollowEndpoints.getAllFollowedChannels();
     return result.status === "ok" ? result.channels : [];
+  }
+
+  async readAccountFollows(
+    options: AccountFollowReadOptions = {}
+  ): Promise<AccountFollowReadResult<UnifiedChannel>> {
+    const result = await FollowEndpoints.getAllFollowedChannels({
+      allowBrowserWindowFallback: options.allowInteractiveFallback === true,
+    });
+    return result.status === "ok"
+      ? {
+          kind: "available",
+          follows: result.channels,
+          authoritative: result.canPruneAbsent,
+        }
+      : { kind: "unavailable", reason: result.reason };
   }
 
   // ========== Search ==========

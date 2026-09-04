@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { logger } from "@backend/logging/logger";
 import type { CategoryStreamReader, IPlatformReader } from "@streamfusion/core/discovery";
+import type { FollowedStreamReader } from "@streamfusion/core/follows";
 import { dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
 import type { Platform } from "../../../shared/auth-types";
 import {
@@ -11,7 +12,7 @@ import {
   type StreamPlaybackRequest,
 } from "../../../shared/ipc-channels";
 import { isKickRateLimitError } from "../../api/platforms/kick/kick-error-classification";
-import type { UnifiedStream } from "../../../shared/platform-types";
+import type { UnifiedChannel, UnifiedStream } from "../../../shared/platform-types";
 import type { DiscoveryResult } from "../../../shared/discovery-types";
 import { getPlatformHealth } from "../../api/unified/platform-health";
 import { storageService } from "../../services/storage-service";
@@ -73,6 +74,26 @@ type FollowedStreamResponse = DiscoveryResult<UnifiedStream[]>;
 
 export interface StreamHandlerDependencies {
   readonly readers: Readonly<Record<Platform, IPlatformReader<UnifiedStream>>>;
+  readonly followedReaders: {
+    readonly twitch: IPlatformReader<UnifiedStream> &
+      FollowedStreamReader<"twitch", UnifiedStream, { first?: number; after?: string }> & {
+        getFollowedStreamAccess(): Promise<
+          { kind: "guest" } | { kind: "ready" } | { kind: "unavailable" }
+        >;
+        getStreamsByLogins(logins: string[]): Promise<{ data: UnifiedStream[] }>;
+      };
+    readonly kick: IPlatformReader<UnifiedStream> &
+      FollowedStreamReader<"kick", UnifiedStream, { limit?: number; cursor?: string }> & {
+        getChannelsByBroadcasterIds(ids: number[]): Promise<UnifiedChannel[]>;
+        getPublicChannel(slug: string): Promise<UnifiedChannel | null>;
+        getStreamsByBroadcasterIds(ids: number[]): Promise<UnifiedStream[]>;
+        getPublicStreamBySlug(
+          slug: string,
+          staggerOffsetMs?: number,
+          signal?: AbortSignal
+        ): Promise<UnifiedStream | null>;
+      };
+  };
   readonly categoryReaders: Readonly<
     Record<Platform, CategoryStreamReader<Platform, UnifiedStream>>
   >;
@@ -139,6 +160,7 @@ function collapseFollowedStreamRequest(
 
 export function registerStreamHandlers({
   readers,
+  followedReaders,
   categoryReaders,
 }: StreamHandlerDependencies): void {
   followedStreamResponses.clear();
@@ -348,10 +370,7 @@ export function registerStreamHandlers({
       } satisfies FollowedStreamResponse;
     }
     const params: FollowedStreamsRequest = parsedRequest.data;
-    const [{ twitchClient }, { kickClient }] = await Promise.all([
-      import("../../api/platforms/twitch/twitch-client"),
-      import("../../api/platforms/kick/kick-client"),
-    ]);
+    const { twitch: twitchClient, kick: kickClient } = followedReaders;
 
     return collapseFollowedStreamRequest(params, async () => {
       try {

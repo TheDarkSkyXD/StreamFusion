@@ -342,12 +342,16 @@ ID: `followed-streams-and-sync`.
 ### Electron boundary
 
 - `ipc-feature:auth` in `apps/desktop/src/shared/ipc-channels.ts`.
+- `ipc-feature:channels` in `apps/desktop/src/shared/ipc-channels.ts`.
 - `ipc-feature:storage` in `apps/desktop/src/shared/ipc-channels.ts`.
+- `ipc-feature:streams` in `apps/desktop/src/shared/ipc-channels.ts`.
 
 ### Main-process evidence
 
 - `ipc-handler:auth-handlers` in `apps/desktop/src/backend/ipc/handlers/auth-handlers.ts`.
+- `ipc-handler:channel-handlers` in `apps/desktop/src/backend/ipc/handlers/channel-handlers.ts`.
 - `ipc-handler:storage-handlers` in `apps/desktop/src/backend/ipc/handlers/storage-handlers.ts`.
+- `ipc-handler:stream-handlers` in `apps/desktop/src/backend/ipc/handlers/stream-handlers.ts`.
 
 ### Platform branches
 
@@ -364,8 +368,19 @@ ID: `followed-streams-and-sync`.
 
 ### Verification
 
+- `apps/desktop/tests/backend/api/platforms/kick/kick-client.test.ts`
+- `apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts`
+- `apps/desktop/tests/backend/ipc/handlers/auth-handlers.test.ts`
+- `apps/desktop/tests/backend/ipc/handlers/auth-security-boundary.test.ts`
+- `apps/desktop/tests/backend/ipc/handlers/channel-handlers.test.ts`
+- `apps/desktop/tests/backend/ipc/handlers/storage-handlers.test.ts`
+- `apps/desktop/tests/backend/ipc/handlers/stream-handlers.test.ts`
+- `apps/desktop/tests/backend/ipc/lazy-feature-loader.test.ts`
+- `apps/desktop/tests/backend/services/storage-service.test.ts`
 - `apps/desktop/tests/hooks/queries/useLiveFavoriteStreams.test.tsx`
 - `apps/desktop/tests/pages/Following.test.tsx`
+- `apps/desktop/tests/store/follow-store.test.ts`
+- `packages/core/tests/follows.test.mjs`
 
 ## Settings: Configure general behavior, chat behavior, and theme preferences.
 

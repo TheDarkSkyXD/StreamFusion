@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { app } from "electron";
+import type { FollowSource } from "@streamfusion/core/follows";
 
 import { logger } from "@shared/utils/cross-logger";
 import {
@@ -31,7 +32,7 @@ import type {
  * Pre-2026-05-29 schemas used "account" and "local" as separate sources; the
  * migration in `init()` collapses them to the row's platform value.
  */
-export type FollowSource = "guest" | Platform;
+export type { FollowSource } from "@streamfusion/core/follows";
 
 export type PendingFollowAction = "follow" | "unfollow";
 export type PendingFollowWriteStatus = "pending" | "retrying" | "auth-paused" | "failed";

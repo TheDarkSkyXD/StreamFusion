@@ -52,6 +52,8 @@ const featureLoaders = {
       { twitchAuthService },
       { kickFollowWriteService },
       { attachKickFollowWriteService },
+      { twitchClient },
+      { kickClient },
     ] = await Promise.all([
       import("electron"),
       import("./handlers/auth-handlers"),
@@ -60,6 +62,8 @@ const featureLoaders = {
       import("../auth/twitch-auth"),
       import("../services/kick-follow-write-service"),
       import("./handlers/storage-handlers"),
+      import("../api/platforms/twitch/twitch-client"),
+      import("../api/platforms/kick/kick-client"),
       ensureConfiguredProxy(context),
     ]);
     attachKickFollowWriteService(kickFollowWriteService, renderer);
@@ -75,7 +79,9 @@ const featureLoaders = {
     registerLoadedFeatureCleanup("auth-resume-listener", () => {
       powerMonitor.removeListener("resume", handleSystemResume);
     });
-    registerAuthHandlers(renderer);
+    registerAuthHandlers(renderer, {
+      followReaders: { twitch: twitchClient, kick: kickClient },
+    });
   },
   [IPC_FEATURES.BUG_REPORTS]: async () => {
     const { registerBugReportHandlers } = await import("./handlers/bug-report-handlers");
@@ -226,6 +232,7 @@ const featureLoaders = {
     registerLoadedFeatureCleanup("kick-follow-metadata", stopKickFollowMetadataRefresh);
     registerStreamHandlers({
       readers: { twitch: twitchClient, kick: kickClient },
+      followedReaders: { twitch: twitchClient, kick: kickClient },
       categoryReaders: { twitch: twitchClient, kick: kickClient },
     });
   },

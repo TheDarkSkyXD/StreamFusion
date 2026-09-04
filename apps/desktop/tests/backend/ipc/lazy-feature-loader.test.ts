@@ -7,6 +7,7 @@ import type { MainRendererPort } from "@backend/ipc/main-renderer-port";
 const disposeLocalCaptionRuntime = vi.hoisted(() => vi.fn());
 const ensurePlaybackRuntime = vi.hoisted(() => vi.fn());
 const getLocalCaptionRuntime = vi.hoisted(() => vi.fn(() => ({ modelStore: {}, supervisor: {} })));
+const registerAuthHandlers = vi.hoisted(() => vi.fn());
 const registerAdBlockHandlers = vi.hoisted(() => vi.fn());
 const registerCategoryHandlers = vi.hoisted(() => vi.fn());
 const registerConnectivityHandlers = vi.hoisted(() => vi.fn());
@@ -17,9 +18,15 @@ const registerStreamHandlers = vi.hoisted(() => vi.fn());
 const registerVideoHandlers = vi.hoisted(() => vi.fn());
 const startKickFollowMetadataRefresh = vi.hoisted(() => vi.fn());
 const stopKickFollowMetadataRefresh = vi.hoisted(() => vi.fn());
+const attachKickFollowWriteService = vi.hoisted(() => vi.fn());
+const resumePendingWrites = vi.hoisted(() => vi.fn());
+const scheduleKickRefresh = vi.hoisted(() => vi.fn());
+const scheduleTwitchRefresh = vi.hoisted(() => vi.fn());
+const powerMonitor = vi.hoisted(() => ({ on: vi.fn(), removeListener: vi.fn() }));
 const twitchClient = vi.hoisted(() => ({ platform: "twitch" as const }));
 const kickClient = vi.hoisted(() => ({ platform: "kick" as const }));
 
+vi.mock("electron", () => ({ powerMonitor }));
 vi.mock("@backend/logging/log-paths", () => ({ getBugReportsDir: () => "bug-reports" }));
 vi.mock("@backend/logging/logger", () => ({
   logger: { debug: vi.fn(), error: vi.fn(), info: vi.fn(), warn: vi.fn() },
@@ -32,6 +39,20 @@ vi.mock("@backend/services/captions/local-caption-runtime", () => ({
   disposeLocalCaptionRuntime,
   getLocalCaptionRuntime,
 }));
+vi.mock("@backend/ipc/handlers/auth-handlers", () => ({ registerAuthHandlers }));
+vi.mock("@backend/auth/auth-window", () => ({
+  authWindowManager: { closeAllAuthWindows: vi.fn() },
+}));
+vi.mock("@backend/auth/kick-auth", () => ({
+  kickAuthService: { onSystemResume: vi.fn(), scheduleProactiveRefresh: scheduleKickRefresh },
+}));
+vi.mock("@backend/auth/twitch-auth", () => ({
+  twitchAuthService: { onSystemResume: vi.fn(), scheduleProactiveRefresh: scheduleTwitchRefresh },
+}));
+vi.mock("@backend/services/kick-follow-write-service", () => ({
+  kickFollowWriteService: { resumePendingWrites },
+}));
+vi.mock("@backend/ipc/handlers/storage-handlers", () => ({ attachKickFollowWriteService }));
 vi.mock("@backend/ipc/handlers/adblock-handlers", () => ({ registerAdBlockHandlers }));
 vi.mock("@backend/ipc/handlers/category-handlers", () => ({ registerCategoryHandlers }));
 vi.mock("@backend/ipc/handlers/connectivity-handlers", () => ({
@@ -107,9 +128,22 @@ describe("lazy IPC feature loader", () => {
 
     expect(registerStreamHandlers).toHaveBeenCalledWith({
       readers: { twitch: twitchClient, kick: kickClient },
+      followedReaders: { twitch: twitchClient, kick: kickClient },
       categoryReaders: { twitch: twitchClient, kick: kickClient },
     });
     expect(startKickFollowMetadataRefresh).toHaveBeenCalledOnce();
+  });
+
+  it("composes Auth follow sync with Twitch and Kick account readers", async () => {
+    await loadIpcFeature(IPC_FEATURES.AUTH, featureContext);
+
+    expect(registerAuthHandlers).toHaveBeenCalledWith(featureContext.renderer, {
+      followReaders: { twitch: twitchClient, kick: kickClient },
+    });
+    expect(attachKickFollowWriteService).toHaveBeenCalledWith(
+      expect.anything(),
+      featureContext.renderer
+    );
   });
 
   it("composes the Search handler with Twitch and Kick readers", async () => {

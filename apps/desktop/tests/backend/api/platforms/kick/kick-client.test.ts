@@ -141,6 +141,7 @@ function jsonResponse(body: unknown, status = 200, headers: Record<string, strin
 // Guards: official Kick reads use bounded retries, response sizes, and caller cancellation.
 // Guards: authentication refresh is attempted only once and updates the retried request.
 // Guards: canceled Electron requests do not create outage signals or error-log noise.
+// Guards: Kick account-follow reads preserve authority and failure tags through the portable Core port.
 describe("KickClient", () => {
   let kickClient: typeof import("@backend/api/platforms/kick/kick-client").kickClient;
 
@@ -594,6 +595,37 @@ describe("KickClient", () => {
       const result = await kickClient.getFollowedChannels();
 
       expect(result.data).toEqual([]);
+    });
+
+    it("reads account follows through the portable tagged contract", async () => {
+      const { getAllFollowedChannels } =
+        await import("@backend/api/platforms/kick/endpoints/follow-endpoints");
+      vi.mocked(getAllFollowedChannels).mockResolvedValueOnce({
+        status: "ok",
+        canPruneAbsent: false,
+        channels: [],
+      });
+
+      await expect(
+        kickClient.readAccountFollows({ allowInteractiveFallback: true })
+      ).resolves.toEqual({ kind: "available", follows: [], authoritative: false });
+      expect(getAllFollowedChannels).toHaveBeenCalledWith({
+        allowBrowserWindowFallback: true,
+      });
+    });
+
+    it("tags an unavailable account-follow read without converting it to empty", async () => {
+      const { getAllFollowedChannels } =
+        await import("@backend/api/platforms/kick/endpoints/follow-endpoints");
+      vi.mocked(getAllFollowedChannels).mockResolvedValueOnce({
+        status: "error",
+        reason: "rate-limited",
+      });
+
+      await expect(kickClient.readAccountFollows()).resolves.toEqual({
+        kind: "unavailable",
+        reason: "rate-limited",
+      });
     });
   });
 

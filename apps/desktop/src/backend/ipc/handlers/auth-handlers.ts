@@ -2,6 +2,7 @@ import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { z } from "zod";
 
 import { logger, type Logger } from "@backend/logging/logger";
+import { planAccountFollowSync, type AccountFollowReader } from "@streamfusion/core/follows";
 import type { UnifiedChannel } from "@shared/platform-types";
 import { createManagedInterval } from "@shared/utils/managed-interval";
 import type { AuthToken, LocalFollow, Platform, TwitchUser } from "../../../shared/auth-types";
@@ -281,10 +282,19 @@ export async function syncKickFollowsAfterLogin(
   try {
     const initialViewer = storage.getKickUser?.() ?? null;
     const result = await getFollows();
-    if (result.status === "error") {
-      return { status: "error", reason: result.reason };
+    const syncPlan = planAccountFollowSync(
+      result.status === "ok"
+        ? {
+            kind: "available",
+            follows: result.channels,
+            authoritative: result.canPruneAbsent,
+          }
+        : { kind: "unavailable", reason: result.reason }
+    );
+    if (syncPlan.kind === "preserve") {
+      return { status: "error", reason: syncPlan.reason };
     }
-    let kickFollows = result.channels.map(
+    let kickFollows = syncPlan.follows.map(
       (channel) =>
         ({
           platform: "kick",
@@ -294,7 +304,7 @@ export async function syncKickFollowsAfterLogin(
           profileImage: channel.avatarUrl,
         }) as Omit<LocalFollow, "id" | "followedAt">
     );
-    let pruneAbsent = result.canPruneAbsent;
+    let pruneAbsent = syncPlan.pruneAbsent;
     if (storage.getPendingFollowWritesByPlatform) {
       const knownSlugs = new Set(kickFollows.map((follow) => follow.channelName.toLowerCase()));
       for (const pending of storage.getPendingFollowWritesByPlatform("kick")) {
@@ -363,13 +373,23 @@ export async function syncTwitchFollowsAfterLogin(
   getFollows: () => Promise<UnifiedChannel[]>,
   storage: Pick<typeof storageService, "upsertSyncedFollows"> = storageService
 ): Promise<FollowSyncOutcome> {
-  let channels: UnifiedChannel[];
+  let readResult:
+    | { kind: "available"; follows: UnifiedChannel[]; authoritative: true }
+    | { kind: "unavailable"; reason: string };
   try {
-    channels = await getFollows();
+    readResult = {
+      kind: "available",
+      follows: await getFollows(),
+      authoritative: true,
+    };
   } catch {
-    return { status: "error", reason: "twitch-follow-fetch-failed" };
+    readResult = { kind: "unavailable", reason: "twitch-follow-fetch-failed" };
   }
-  const twitchFollows = channels.map((channel): Omit<LocalFollow, "id" | "followedAt"> => ({
+  const syncPlan = planAccountFollowSync(readResult);
+  if (syncPlan.kind === "preserve") {
+    return { status: "error", reason: syncPlan.reason };
+  }
+  const twitchFollows = syncPlan.follows.map((channel): Omit<LocalFollow, "id" | "followedAt"> => ({
     platform: "twitch",
     channelId: channel.id,
     channelName: channel.username,
@@ -379,7 +399,7 @@ export async function syncTwitchFollowsAfterLogin(
   const { accountCount, pendingCount, addedCount, removedCount } = storage.upsertSyncedFollows(
     "twitch",
     twitchFollows,
-    { pruneAbsent: true }
+    { pruneAbsent: syncPlan.pruneAbsent }
   );
   return { status: "ok", count: accountCount, pendingCount, addedCount, removedCount };
 }
@@ -465,7 +485,17 @@ export async function performTwitchDeviceCodeLogin(
   return user;
 }
 
-export function registerAuthHandlers(renderer: MainRendererPort): void {
+export interface AuthHandlerDependencies {
+  readonly followReaders: {
+    readonly twitch: AccountFollowReader<"twitch", UnifiedChannel>;
+    readonly kick: AccountFollowReader<"kick", UnifiedChannel>;
+  };
+}
+
+export function registerAuthHandlers(
+  renderer: MainRendererPort,
+  { followReaders }: AuthHandlerDependencies
+): void {
   const authHandlersStartedAt = Date.now();
   let twitchLoginInFlight: Promise<{ success: boolean; error?: string }> | null = null;
 
@@ -493,9 +523,12 @@ export function registerAuthHandlers(renderer: MainRendererPort): void {
       let addedCount = 0;
       let removedCount = 0;
       if (platform === "twitch") {
-        const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
+        const readPlan = planAccountFollowSync(await followReaders.twitch.readAccountFollows());
+        if (readPlan.kind === "preserve") {
+          return { status: "error", reason: readPlan.reason };
+        }
         const outcome = await syncTwitchFollowsAfterLogin(
-          () => twitchClient.getAllFollowedChannels(),
+          () => Promise.resolve([...readPlan.follows]),
           storageService
         );
         if (outcome.status === "error") {
@@ -513,19 +546,27 @@ export function registerAuthHandlers(renderer: MainRendererPort): void {
           pendingCount,
         });
       } else if (platform === "kick") {
-        // Call FollowEndpoints directly rather than kickClient.getAllFollowedChannels()
-        // so we get the tagged result. A transient Cloudflare 403 / auth failure
+        // The injected reader preserves whether a snapshot is authoritative.
+        // A transient Cloudflare 403 / auth failure
         // must NOT trigger clearAccountFollows — that would silently wipe the
         // user's prior synced follows. See A1 in
         // docs/plans/2026-05-21-001-feat-kick-account-follows-import-plan.md.
-        const { getAllFollowedChannels } =
-          await import("../../api/platforms/kick/endpoints/follow-endpoints");
         const { getKickAccountFollowState, getKickAccountFollowStates } =
           await import("../../api/platforms/kick/kick-public-profile-reader");
+        const readPlan = planAccountFollowSync(
+          await followReaders.kick.readAccountFollows({
+            allowInteractiveFallback: options.allowKickBrowserWindowFallback === true,
+          })
+        );
+        if (readPlan.kind === "preserve") {
+          return reportKickFollowSyncFailure({ status: "error", reason: readPlan.reason });
+        }
         const outcome = await syncKickFollowsAfterLogin(
           () =>
-            getAllFollowedChannels({
-              allowBrowserWindowFallback: options.allowKickBrowserWindowFallback === true,
+            Promise.resolve({
+              status: "ok" as const,
+              channels: [...readPlan.follows],
+              canPruneAbsent: readPlan.pruneAbsent,
             }),
           storageService,
           options.resumeKickPendingWrites

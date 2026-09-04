@@ -221,6 +221,17 @@ afterAll(() => {
 // Guards: transient Twitch validation and refresh failures never erase the persisted session.
 // Guards: an expired restored session refreshes through Twitch auth and the rotated token survives another backend restart.
 describe("Twitch auth restart persistence", () => {
+  const unusedFollowReaders = {
+    twitch: {
+      platform: "twitch" as const,
+      readAccountFollows: async () => ({ kind: "unavailable" as const, reason: "not-used" }),
+    },
+    kick: {
+      platform: "kick" as const,
+      readAccountFollows: async () => ({ kind: "unavailable" as const, reason: "not-used" }),
+    },
+  };
+
   it("preserves a recoverable unmarked Twitch session when cold-start handlers register", async () => {
     const legacyToken: AuthToken = {
       accessToken: fakeToken.accessToken,
@@ -242,7 +253,8 @@ describe("Twitch auth restart persistence", () => {
           isDestroyed: () => false,
           send: vi.fn(),
         },
-      } as never)
+      } as never),
+      { followReaders: unusedFollowReaders }
     );
 
     expect(processBStorage.getToken("twitch")).toEqual(legacyToken);
@@ -267,7 +279,8 @@ describe("Twitch auth restart persistence", () => {
           isDestroyed: () => false,
           send: vi.fn(),
         },
-      } as never)
+      } as never),
+      { followReaders: unusedFollowReaders }
     );
 
     const getStatusHandler = registeredIpcHandlers.get(IPC_CHANNELS.AUTH_GET_STATUS);

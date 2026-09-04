@@ -7,6 +7,7 @@
 // ========== Platform Types ==========
 
 import type { Platform } from "@streamfusion/core/platform";
+import type { FollowSource as CoreFollowSource } from "@streamfusion/core/follows";
 import type { DisplayLanguage } from "./display-language";
 
 export type { Platform };
@@ -197,7 +198,7 @@ export type PlatformUser = TwitchUser | KickUser;
  * Legacy "account" and "local" values are migrated at DB init to the
  * platform name — see `database-service.ts#init()`.
  */
-export type FollowSource = "guest" | Platform;
+export type FollowSource = CoreFollowSource;
 
 export interface LocalFollow {
   id: string; // Unique identifier (generated)

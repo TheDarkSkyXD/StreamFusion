@@ -12,6 +12,7 @@ const publicSubpaths = new Set([
   "platform",
   "content",
   "discovery",
+  "follows",
   "auth",
   "chat",
   "reliability",

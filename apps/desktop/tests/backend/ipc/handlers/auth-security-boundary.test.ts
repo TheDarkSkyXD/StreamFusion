@@ -177,7 +177,33 @@ beforeEach(() => {
       mocks.windowListeners.set(event, listener);
     }),
   });
-  registerAuthHandlers(createMainRendererPortMock(authWindow));
+  registerAuthHandlers(createMainRendererPortMock(authWindow), {
+    followReaders: {
+      twitch: {
+        platform: "twitch",
+        readAccountFollows: async () => ({
+          kind: "available",
+          follows: await mocks.getTwitchFollows(),
+          authoritative: true,
+        }),
+      },
+      kick: {
+        platform: "kick",
+        readAccountFollows: async (options = {}) => {
+          const result = await mocks.getKickFollows({
+            allowBrowserWindowFallback: options.allowInteractiveFallback === true,
+          });
+          return result.status === "ok"
+            ? {
+                kind: "available" as const,
+                follows: result.channels,
+                authoritative: result.canPruneAbsent,
+              }
+            : { kind: "unavailable" as const, reason: result.reason };
+        },
+      },
+    },
+  });
 });
 
 // Guards: generic token storage remains Kick-only and rejects untrusted renderer origins without exposing a credential.

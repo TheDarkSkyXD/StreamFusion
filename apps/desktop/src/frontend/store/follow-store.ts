@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { toast } from "sonner";
+import { resolveFollowMutation } from "@streamfusion/core/follows";
 
 import {
   applyAuthoritativeFollowCaches,
@@ -472,14 +473,16 @@ export const useFollowStore = create<FollowState>()((set, get) => ({
     get().pendingAccountActions.find((pending) => channelsMatch(pending.channel, channel))
       ?.action ?? null,
   toggleFollow: (channel, options) => {
-    const { isFollowing, followAccountChannel, followChannel, unfollowChannel } = get();
-    if (isFollowing(channel)) {
-      return unfollowChannel(channel);
-    }
-    if (options?.accountPlatform === channel.platform) {
-      return followAccountChannel(channel);
-    }
-    return followChannel(channel);
+    const state = get();
+    const mutation = resolveFollowMutation({
+      platform: channel.platform,
+      currentSource: state.getFollowSource(channel),
+      accountAuthenticated: options?.accountPlatform === channel.platform,
+    });
+    if (mutation.action === "unfollow") return state.unfollowChannel(channel);
+    return mutation.target === "account"
+      ? state.followAccountChannel(channel)
+      : state.followChannel(channel);
   },
 
   // When a canonical channel arrives for a row previously written with an

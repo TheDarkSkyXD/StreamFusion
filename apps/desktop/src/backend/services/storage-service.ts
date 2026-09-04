@@ -9,6 +9,7 @@
 
 import { safeStorage } from "electron";
 import Store from "electron-store";
+import { selectActiveFollowCollection } from "@streamfusion/core/follows";
 
 import { logger } from "@shared/utils/cross-logger";
 import {
@@ -784,14 +785,14 @@ export class StorageService {
    * DB but `hasToken` returns false, so we correctly hide them.
    */
   getActiveFollowsByPlatform(platform: Platform): LocalFollow[] {
-    if (!this.hasToken(platform)) {
-      return dbService.getFollowsByPlatformAndSource(platform, "guest");
-    }
-    if (platform === "kick" && !this.areKickAccountFollowsVerified()) {
-      return [];
-    }
-    const platformFollows = dbService.getFollowsByPlatformAndSource(platform, platform);
-    return platformFollows;
+    const selection = selectActiveFollowCollection({
+      platform,
+      authenticated: this.hasToken(platform),
+      accountCollectionAvailable: platform !== "kick" || this.areKickAccountFollowsVerified(),
+    });
+    return selection.kind === "source"
+      ? dbService.getFollowsByPlatformAndSource(platform, selection.source)
+      : [];
   }
 
   /**

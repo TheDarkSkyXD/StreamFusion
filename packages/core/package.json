@@ -22,6 +22,10 @@
       "types": "./src/discovery/index.ts",
       "default": "./src/discovery/index.ts"
     },
+    "./follows": {
+      "types": "./src/follows/index.ts",
+      "default": "./src/follows/index.ts"
+    },
     "./auth": {
       "types": "./src/auth/index.ts",
       "default": "./src/auth/index.ts"
