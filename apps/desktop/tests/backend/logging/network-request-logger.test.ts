@@ -52,6 +52,7 @@ function fingerprint(url: string): string {
 }
 
 // Guards: a retryable HLS segment transport failure is diagnostic noise, not a terminal playback error
+// Guards: equivalent Kick playlist 404 retries produce one actionable error instead of flooding the terminal
 describe("installNetworkRequestLogger", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -177,6 +178,38 @@ describe("installNetworkRequestLogger", () => {
       "Network:Request",
       "Twitch live manifest unavailable",
       expect.objectContaining({ statusCode: 404, kind: "playlist" })
+    );
+  });
+
+  it("coalesces a rapid Kick playlist 404 retry storm", () => {
+    const { session, webRequest } = makeSession();
+    installNetworkRequestLogger(session as unknown as Electron.Session);
+
+    const onCompleted = listenerAt<Electron.OnCompletedListenerDetails>(webRequest.onCompleted);
+    for (let retry = 0; retry < 20; retry += 1) {
+      onCompleted({
+        id: 100 + retry,
+        url: `https://fa723fc1b171.us-west-2.playback.live-video.net/api/video/us-west-2.196233775518.channel.hxxZzH3odZEN.m3u8?retry=${retry}`,
+        method: "GET",
+        resourceType: "xhr",
+        referrer: "http://localhost:5173/",
+        timestamp: 1000 + retry * 600,
+        fromCache: false,
+        statusCode: 404,
+        statusLine: "HTTP/2 404",
+        error: "",
+      });
+    }
+
+    expect(loggerMock.error).toHaveBeenCalledTimes(1);
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      "Network:Request",
+      "stream request failed with HTTP status",
+      expect.objectContaining({
+        host: "fa723fc1b171.us-west-2.playback.live-video.net",
+        kind: "playlist",
+        statusCode: 404,
+      })
     );
   });
 
