@@ -14,11 +14,22 @@ import type { TopStreamReader } from "../capabilities/discovery.ts";
 import type { Platform } from "../platform/index.ts";
 import { normalizeSearchTokens } from "../use-cases/discovery-rules.ts";
 
+export type { ChannelRef } from "../platform/index.ts";
+
 export type {
   DiscoveryCancellationSignal,
   DiscoveryPageRequest,
   DiscoveryPageResult,
   DiscoveryPageSource,
+  CategoryReader,
+  CategoryStreamReader,
+  CategoryStreamsOptions,
+  ChannelReader,
+  ChannelLookupOptions,
+  ChannelSearchOptions,
+  DiscoverySearchReader,
+  DiscoverySearchOptions,
+  DiscoverySearchResult,
   PageOptions,
   PageResult,
   TopStreamsOptions,

@@ -1,6 +1,11 @@
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@backend/logging/logger";
+import type {
+  ChannelReader,
+  ChannelRef,
+  DiscoverySearchReader,
+} from "@streamfusion/core/discovery";
 import { createProgressiveClipSearch } from "@backend/search/progressive-clip-search";
 import {
   focusedRecentContentSources,
@@ -19,8 +24,12 @@ import {
 } from "@backend/search/search-session-manager";
 import { rankSearchChannels } from "@/features/discovery/utils/search/channel-search-contract";
 import type { SearchResultCollection } from "@/features/discovery/utils/search/search-result-validation";
-import type { UnifiedChannel } from "../../../shared/platform-types";
-import type { Platform } from "../../../shared/auth-types";
+import type {
+  UnifiedCategory,
+  UnifiedChannel,
+  UnifiedStream,
+} from "../../../shared/platform-types";
+import type { Platform, TwitchUser } from "../../../shared/auth-types";
 import type {
   SearchStreamsRequest,
   SearchStreamsResponse,
@@ -30,6 +39,30 @@ import type {
 import type { DiscoveryProviderCompletion, DiscoveryResult } from "../../../shared/discovery-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { storageService } from "../../services/storage-service";
+
+interface SearchReader
+  extends
+    ChannelReader<Platform, UnifiedChannel, ChannelRef>,
+    DiscoverySearchReader<Platform, UnifiedStream, UnifiedChannel, UnifiedCategory, AbortSignal> {}
+
+interface TwitchSearchReader extends SearchReader {
+  isAuthenticated(): boolean;
+  getUsersByLogin(logins: string[]): Promise<TwitchUser[]>;
+  getFollowerCounts(userIds: string[]): Promise<Map<string, number>>;
+}
+
+interface KickSearchReader extends SearchReader {
+  isAuthenticated(): boolean;
+  getChannelsBySlugs(slugs: string[]): Promise<UnifiedChannel[]>;
+  getOfficialChannelAccountStatus(slug: string): Promise<"active" | "unavailable" | "not_found">;
+}
+
+export interface SearchHandlerDependencies {
+  readonly readers: {
+    readonly twitch: TwitchSearchReader;
+    readonly kick: KickSearchReader;
+  };
+}
 
 function failedProviders(platform?: Platform): DiscoveryProviderCompletion {
   return platform ? { [platform]: "failed" } : { twitch: "failed", kick: "failed" };
@@ -75,11 +108,9 @@ const twitchChannelDataCache = new Map<
  * Returns a Map of username -> enriched channel data with fresh avatars and follower counts
  */
 async function verifyAndEnrichTwitchChannels(
-  channels: UnifiedChannel[]
+  channels: UnifiedChannel[],
+  reader: TwitchSearchReader
 ): Promise<Map<string, UnifiedChannel>> {
-  const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-  const { getFollowerCounts } = await import("../../api/platforms/twitch/endpoints/user-endpoints");
-
   const enrichedChannels = new Map<string, UnifiedChannel>();
 
   // GQL search (used by twitchClient.searchChannels) already returns avatar,
@@ -87,7 +118,7 @@ async function verifyAndEnrichTwitchChannels(
   // enrichment path below requires a user token, so calling it without auth
   // throws "Not authenticated with Twitch" for every search keystroke. Short-
   // circuit and pass channels through unchanged when we don't have auth.
-  if (!twitchClient.isAuthenticated()) {
+  if (!reader.isAuthenticated()) {
     for (const channel of channels) {
       enrichedChannels.set(channel.username.toLowerCase(), channel);
     }
@@ -129,14 +160,14 @@ async function verifyAndEnrichTwitchChannels(
       for (let i = 0; i < loginsToFetch.length; i += batchSize) {
         const batch = loginsToFetch.slice(i, i + batchSize);
         const logins = batch.map((item) => item.login);
-        const users = await twitchClient.getUsersByLogin(logins);
+        const users = await reader.getUsersByLogin(logins);
 
         // Create a map of login -> user data for quick lookup
         const userMap = new Map(users.map((u) => [u.login.toLowerCase(), u]));
 
         // Fetch follower counts for all users in this batch
         const userIds = users.map((u) => u.id);
-        const followerCounts = await getFollowerCounts(twitchClient, userIds);
+        const followerCounts = await reader.getFollowerCounts(userIds);
 
         for (const { login, originalChannel } of batch) {
           const loginLower = login.toLowerCase();
@@ -218,12 +249,9 @@ function hasCasedKickDisplayName(channel: UnifiedChannel): boolean {
  * only costs us avatars+follower counts in the initial dropdown for logged-out users.
  */
 async function verifyAndEnrichKickChannels(
-  channels: UnifiedChannel[]
+  channels: UnifiedChannel[],
+  reader: KickSearchReader
 ): Promise<Map<string, UnifiedChannel>> {
-  const { kickClient } = await import("../../api/platforms/kick/kick-client");
-  const { getChannelsBySlugs } =
-    await import("../../api/platforms/kick/endpoints/channel-endpoints");
-
   const enrichedChannels = new Map<string, UnifiedChannel>();
   const slugsToFetch: { slug: string; originalChannel: UnifiedChannel }[] = [];
   const now = Date.now();
@@ -265,7 +293,7 @@ async function verifyAndEnrichKickChannels(
   }
 
   // Unauthenticated: pass through. Frontend hover/mount hooks will lazy-load.
-  if (!kickClient.isAuthenticated()) {
+  if (!reader.isAuthenticated()) {
     for (const { slug, originalChannel } of slugsToFetch) {
       enrichedChannels.set(slug.toLowerCase(), originalChannel);
     }
@@ -274,7 +302,7 @@ async function verifyAndEnrichKickChannels(
 
   try {
     const slugs = slugsToFetch.map((item) => item.slug);
-    const fetched = await getChannelsBySlugs(kickClient, slugs);
+    const fetched = await reader.getChannelsBySlugs(slugs);
     const fetchedBySlug = new Map(fetched.map((c) => [c.username.toLowerCase(), c]));
 
     for (const { slug, originalChannel } of slugsToFetch) {
@@ -341,13 +369,14 @@ async function verifyAndEnrichKickChannels(
 async function filterVerifiedChannels(
   channels: UnifiedChannel[],
   platform: Platform,
+  readers: SearchHandlerDependencies["readers"],
   exactQuery?: string
 ): Promise<UnifiedChannel[]> {
   if (channels.length === 0) return [];
 
   if (platform === "twitch") {
     // For Twitch, we enrich channels with fresh avatar URLs during verification
-    const enrichedChannelsMap = await verifyAndEnrichTwitchChannels(channels);
+    const enrichedChannelsMap = await verifyAndEnrichTwitchChannels(channels, readers.twitch);
     // Return enriched channels as an array (preserves order of original channels that exist)
     return channels.flatMap((channel) => {
       const enriched = enrichedChannelsMap.get(channel.username.toLowerCase());
@@ -355,14 +384,13 @@ async function filterVerifiedChannels(
     });
   } else if (platform === "kick") {
     // For Kick, we enrich channels with avatar URLs during verification
-    const enrichedChannelsMap = await verifyAndEnrichKickChannels(channels);
+    const enrichedChannelsMap = await verifyAndEnrichKickChannels(channels, readers.kick);
     // Return enriched channels as an array (preserves order of original channels that exist)
     const enrichedChannels = channels.flatMap((channel) => {
       const enriched = enrichedChannelsMap.get(channel.username.toLowerCase());
       return enriched ? [enriched] : [];
     });
 
-    const { kickClient } = await import("../../api/platforms/kick/kick-client");
     const normalizedExactQuery = exactQuery?.trim().toLowerCase();
     const classifiedChannels = await Promise.all(
       enrichedChannels.map(async (channel) => {
@@ -378,7 +406,7 @@ async function filterVerifiedChannels(
         }
 
         try {
-          const authoritativeStatus = await kickClient.getOfficialChannelAccountStatus(
+          const authoritativeStatus = await readers.kick.getOfficialChannelAccountStatus(
             classifiedChannel.username
           );
           if (authoritativeStatus === "not_found") return null;
@@ -402,7 +430,7 @@ async function filterVerifiedChannels(
   return channels;
 }
 
-export function registerSearchHandlers(): void {
+export function registerSearchHandlers({ readers }: SearchHandlerDependencies): void {
   const activeBroadSearches = new Map<string, AbortController>();
   const streamSearches = {
     twitch: createProgressiveStreamSearch({
@@ -560,9 +588,6 @@ export function registerSearchHandlers(): void {
         after?: string;
       }
     ) => {
-      const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-      const { kickClient } = await import("../../api/platforms/kick/kick-client");
-
       try {
         const kickUser = storageService.getKickUser();
         const twitchUser = storageService.getTwitchUser();
@@ -582,9 +607,9 @@ export function registerSearchHandlers(): void {
         if (!params.platform || params.platform === "twitch") {
           searchPromises.push(
             (async () => {
-              const result = await twitchClient.searchChannels(params.query, {
-                first: params.limit || 50,
-                after: params.after,
+              const result = await readers.twitch.searchChannels(params.query, {
+                limit: params.limit || 50,
+                cursor: params.after,
                 liveOnly: params.liveOnly,
               });
 
@@ -601,7 +626,7 @@ export function registerSearchHandlers(): void {
 
               // Always enrich to get avatars and follower counts
               if (shouldEnrich) {
-                channels = await filterVerifiedChannels(channels, "twitch");
+                channels = await filterVerifiedChannels(channels, "twitch", readers);
               }
 
               return { platform: "twitch" as Platform, data: channels, cursor: result.cursor };
@@ -628,7 +653,7 @@ export function registerSearchHandlers(): void {
                 query: params.query,
                 after: params.after,
               });
-              const result = await kickClient.searchChannels(params.query, {
+              const result = await readers.kick.searchChannels(params.query, {
                 limit: params.limit || 50,
                 cursor: params.after,
                 liveOnly: params.liveOnly,
@@ -655,7 +680,7 @@ export function registerSearchHandlers(): void {
 
               // Always enrich to get avatars and follower counts
               if (shouldEnrich) {
-                channels = await filterVerifiedChannels(channels, "kick", normalizedQuery);
+                channels = await filterVerifiedChannels(channels, "kick", readers, normalizedQuery);
               }
 
               logger.debug("IPC:Search", "Kick final channels", {
@@ -737,9 +762,6 @@ export function registerSearchHandlers(): void {
         requestId?: string;
       }
     ): Promise<DiscoveryResult<SearchResultCollection>> => {
-      const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-      const { kickClient } = await import("../../api/platforms/kick/kick-client");
-
       const controller = new AbortController();
       if (params.requestId) {
         activeBroadSearches.set(params.requestId, controller);
@@ -776,22 +798,15 @@ export function registerSearchHandlers(): void {
           searchTasks.push(
             (async () => {
               try {
-                const channelSearch = twitchChannelsSeeded
-                  ? Promise.resolve({ data: twitchChannelSeeds })
-                  : twitchClient.searchChannels(params.query, {
-                      first: params.limit || 10,
-                      liveOnly: false,
-                    });
-                const categorySearch = channelFirstOnly
-                  ? Promise.resolve({ data: [] })
-                  : twitchClient.searchCategories(params.query, { first: params.limit || 10 });
-                const [channelResult, categoryResult] = await Promise.all([
-                  channelSearch,
-                  categorySearch,
-                ]);
+                const searchResult = await readers.twitch.searchDiscovery(params.query, {
+                  limit: params.limit || 10,
+                  includeCategories: !channelFirstOnly,
+                  ...(twitchChannelsSeeded ? { channelSeeds: twitchChannelSeeds } : {}),
+                  signal: controller.signal,
+                });
 
                 // Filter channels - validate and remove invalid/own accounts
-                let validChannels = channelResult.data.filter(isValidChannel);
+                let validChannels = searchResult.channels.filter(isValidChannel);
                 if (twitchUser) {
                   validChannels = validChannels.filter((c) => {
                     const matchesUser = c.username.toLowerCase() === twitchUser.login.toLowerCase();
@@ -805,10 +820,11 @@ export function registerSearchHandlers(): void {
                 // Verify channels exist via Twitch API (filters deleted accounts)
                 const verifiedTwitchChannels = twitchChannelsSeeded
                   ? validChannels
-                  : await filterVerifiedChannels(validChannels, "twitch");
+                  : await filterVerifiedChannels(validChannels, "twitch", readers);
                 results.channels.push(...verifiedTwitchChannels);
 
-                results.categories.push(...categoryResult.data);
+                results.categories.push(...searchResult.categories);
+                results.streams.push(...searchResult.streams);
                 providers.twitch = "complete";
               } catch (err) {
                 providers.twitch = "failed";
@@ -827,84 +843,48 @@ export function registerSearchHandlers(): void {
           searchTasks.push(
             (async () => {
               try {
-                if (channelFirstOnly) {
-                  const channelResult = kickChannelsSeeded
-                    ? { data: kickChannelSeeds }
-                    : await kickClient.searchChannels(params.query);
-                  let channels: UnifiedChannel[] = channelResult.data
-                    .map((c): UnifiedChannel => ({ ...c, platform: "kick" }))
-                    .filter(isValidChannel);
-
-                  if (kickUser) {
-                    channels = channels.filter((c) => {
-                      const matchesUser = c.username.toLowerCase() === kickUser.slug.toLowerCase();
-                      if (matchesUser) {
-                        return normalizedQuery === kickUser.slug.toLowerCase();
-                      }
-                      return true;
-                    });
-                  }
-
-                  const verifiedKickChannels = kickChannelsSeeded
-                    ? channels
-                    : await filterVerifiedChannels(channels, "kick", normalizedQuery);
-                  results.channels.push(...verifiedKickChannels);
-                  providers.kick = "complete";
-                  return;
-                }
-
-                const searchResult = await kickClient.search(params.query, {
-                  channelSeeds: kickChannelsSeeded ? kickChannelSeeds : undefined,
+                const searchResult = await readers.kick.searchDiscovery(params.query, {
+                  limit: params.limit || 10,
+                  includeCategories: !channelFirstOnly,
+                  ...(kickChannelsSeeded ? { channelSeeds: kickChannelSeeds } : {}),
                   signal: controller.signal,
                 });
 
-                if (searchResult.channels) {
-                  // Filter out invalid/deleted channels
-                  let channels: UnifiedChannel[] = searchResult.channels
-                    .map((c): UnifiedChannel => ({ ...c, platform: "kick" }))
-                    .filter(isValidChannel);
-
-                  if (kickUser) {
-                    channels = channels.filter((c) => {
-                      const matchesUser = c.username.toLowerCase() === kickUser.slug.toLowerCase();
-                      if (matchesUser) {
-                        return normalizedQuery === kickUser.slug.toLowerCase();
-                      }
-                      return true;
-                    });
-                  }
-
-                  // Enrich Kick channels; exact not-found is the only deletion signal.
-                  const verifiedKickChannels = kickChannelsSeeded
-                    ? channels
-                    : await filterVerifiedChannels(channels, "kick", normalizedQuery);
-                  results.channels.push(...verifiedKickChannels);
+                let channels: UnifiedChannel[] = searchResult.channels
+                  .map((channel): UnifiedChannel => ({ ...channel, platform: "kick" }))
+                  .filter(isValidChannel);
+                if (kickUser) {
+                  channels = channels.filter((channel) => {
+                    const matchesUser =
+                      channel.username.toLowerCase() === kickUser.slug.toLowerCase();
+                    return !matchesUser || normalizedQuery === kickUser.slug.toLowerCase();
+                  });
                 }
+                const verifiedKickChannels = kickChannelsSeeded
+                  ? channels
+                  : await filterVerifiedChannels(channels, "kick", readers, normalizedQuery);
+                results.channels.push(...verifiedKickChannels);
 
-                if (searchResult.streams) {
-                  let streams = searchResult.streams.map((s) => ({
-                    ...s,
+                let streams = searchResult.streams.map((stream) => ({
+                  ...stream,
+                  platform: "kick" as const,
+                }));
+
+                if (kickUser) {
+                  streams = streams.filter((stream) => {
+                    const matchesUser =
+                      stream.channelName.toLowerCase() === kickUser.slug.toLowerCase();
+                    return !matchesUser || normalizedQuery === kickUser.slug.toLowerCase();
+                  });
+                }
+                results.streams.push(...streams);
+
+                results.categories.push(
+                  ...searchResult.categories.map((category) => ({
+                    ...category,
                     platform: "kick" as const,
-                  }));
-
-                  if (kickUser) {
-                    streams = streams.filter((s) => {
-                      const matchesUser =
-                        s.channelName.toLowerCase() === kickUser.slug.toLowerCase();
-                      if (matchesUser) {
-                        return normalizedQuery === kickUser.slug.toLowerCase();
-                      }
-                      return true;
-                    });
-                  }
-                  results.streams.push(...streams);
-                }
-
-                if (searchResult.categories) {
-                  results.categories.push(
-                    ...searchResult.categories.map((c) => ({ ...c, platform: "kick" as const }))
-                  );
-                }
+                  }))
+                );
                 providers.kick = "complete";
               } catch (err) {
                 providers.kick = "failed";

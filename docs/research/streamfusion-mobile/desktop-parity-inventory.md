@@ -158,6 +158,11 @@ ID: `category-discovery`.
 
 ### Verification
 
+- `apps/desktop/tests/backend/api/platforms/kick/kick-client.test.ts`
+- `apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts`
+- `apps/desktop/tests/backend/ipc/handlers/category-handlers.test.ts`
+- `apps/desktop/tests/backend/ipc/handlers/stream-handlers.test.ts`
+- `apps/desktop/tests/backend/ipc/lazy-feature-loader.test.ts`
 - `apps/desktop/tests/pages/Categories.test.tsx`
 - `apps/desktop/tests/pages/CategoryDetail.test.tsx`
 - `apps/desktop/tests/store/category-language-preference-store.test.ts`
@@ -449,6 +454,7 @@ ID: `home-live-discovery`.
 
 - `apps/desktop/tests/backend/api/platforms/kick/kick-client.test.ts`
 - `apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts`
+- `apps/desktop/tests/backend/ipc/handlers/channel-handlers.test.ts`
 - `apps/desktop/tests/backend/ipc/handlers/stream-handlers.test.ts`
 - `apps/desktop/tests/backend/ipc/lazy-feature-loader.test.ts`
 - `apps/desktop/tests/hooks/queries/useStreams.test.tsx`
@@ -854,6 +860,10 @@ ID: `search`.
 
 ### Verification
 
+- `apps/desktop/tests/backend/api/platforms/kick/kick-client.test.ts`
+- `apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts`
+- `apps/desktop/tests/backend/ipc/handlers/search-handlers.test.ts`
+- `apps/desktop/tests/backend/ipc/lazy-feature-loader.test.ts`
 - `apps/desktop/tests/components/TopNavBar/SearchBar.router.integration.test.tsx`
 - `apps/desktop/tests/pages/SearchResults.test.tsx`
 

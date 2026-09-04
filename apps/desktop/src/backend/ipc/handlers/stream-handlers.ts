@@ -2,7 +2,7 @@ import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { z } from "zod";
 
 import { logger } from "@backend/logging/logger";
-import type { IPlatformReader } from "@streamfusion/core/discovery";
+import type { CategoryStreamReader, IPlatformReader } from "@streamfusion/core/discovery";
 import { dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
 import type { Platform } from "../../../shared/auth-types";
 import {
@@ -73,6 +73,9 @@ type FollowedStreamResponse = DiscoveryResult<UnifiedStream[]>;
 
 export interface StreamHandlerDependencies {
   readonly readers: Readonly<Record<Platform, IPlatformReader<UnifiedStream>>>;
+  readonly categoryReaders: Readonly<
+    Record<Platform, CategoryStreamReader<Platform, UnifiedStream>>
+  >;
 }
 
 const followedStreamResponses = new Map<
@@ -134,7 +137,10 @@ function collapseFollowedStreamRequest(
   return request;
 }
 
-export function registerStreamHandlers({ readers }: StreamHandlerDependencies): void {
+export function registerStreamHandlers({
+  readers,
+  categoryReaders,
+}: StreamHandlerDependencies): void {
   followedStreamResponses.clear();
   followedStreamRequests.clear();
   /**
@@ -234,20 +240,15 @@ export function registerStreamHandlers({ readers }: StreamHandlerDependencies): 
     const params = parsedRequest.data;
     const categoryId = params.categoryId ?? "";
 
-    const [{ twitchClient }, { kickClient }] = await Promise.all([
-      import("../../api/platforms/twitch/twitch-client"),
-      import("../../api/platforms/kick/kick-client"),
-    ]);
-
     try {
       const results: StreamProviderOutcome[] = [];
 
       const fetchTwitch = async () => {
         try {
-          const result = await twitchClient.getTopStreams({
-            first: params.limit ?? 20,
-            after: params.cursor,
-            gameId: categoryId,
+          const result = await categoryReaders.twitch.getStreamsByCategory(categoryId, {
+            limit: params.limit ?? 20,
+            cursor: params.cursor,
+            categoryName: params.categoryName,
             language: params.language,
           });
           results.push({
@@ -274,7 +275,7 @@ export function registerStreamHandlers({ readers }: StreamHandlerDependencies): 
 
       const fetchKick = async () => {
         try {
-          const result = await kickClient.getStreamsByCategory(categoryId, {
+          const result = await categoryReaders.kick.getStreamsByCategory(categoryId, {
             limit: params.limit ?? 20,
             cursor: params.cursor,
             categoryName: params.categoryName,
@@ -284,7 +285,7 @@ export function registerStreamHandlers({ readers }: StreamHandlerDependencies): 
             platform: "kick",
             status: "complete",
             data: result.data,
-            cursor: result.cursor ?? result.nextPage?.toString(),
+            cursor: result.cursor,
           });
         } catch (err) {
           logger.warn("IPC:Stream", "Failed to fetch Kick streams by category", {

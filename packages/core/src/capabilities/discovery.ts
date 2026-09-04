@@ -49,3 +49,74 @@ export interface TopStreamReader<TPlatform, TStream> {
   isAuthenticated(): boolean;
   getTopStreams(options?: TopStreamsOptions): Promise<PageResult<TStream>>;
 }
+
+export interface ChannelLookupOptions {
+  readonly freshness?: "default" | "refresh";
+}
+
+export interface ChannelSearchOptions extends PageOptions {
+  readonly liveOnly?: boolean;
+}
+
+export interface ChannelReader<TPlatform, TChannel, TChannelRef> {
+  readonly platform: TPlatform;
+  resolveChannel(
+    ref: TChannelRef,
+    options?: ChannelLookupOptions,
+  ): Promise<TChannel | null>;
+  searchChannels(
+    query: string,
+    options?: ChannelSearchOptions,
+  ): Promise<PageResult<TChannel>>;
+}
+
+export interface CategoryReader<TPlatform, TCategory> {
+  readonly platform: TPlatform;
+  getTopCategories(options?: PageOptions): Promise<PageResult<TCategory>>;
+  getAllCategories(): Promise<TCategory[]>;
+  getCategoryById(id: string): Promise<TCategory | null>;
+  searchCategories(
+    query: string,
+    options?: PageOptions,
+  ): Promise<PageResult<TCategory>>;
+}
+
+export interface CategoryStreamsOptions extends PageOptions {
+  readonly categoryName?: string;
+  readonly language?: string;
+}
+
+export interface CategoryStreamReader<TPlatform, TStream> {
+  readonly platform: TPlatform;
+  getStreamsByCategory(
+    categoryId: string,
+    options?: CategoryStreamsOptions,
+  ): Promise<PageResult<TStream>>;
+}
+
+export interface DiscoverySearchOptions<TChannel, TSignal> {
+  readonly channelSeeds?: readonly TChannel[];
+  readonly includeCategories?: boolean;
+  readonly limit?: number;
+  readonly signal?: TSignal;
+}
+
+export interface DiscoverySearchResult<TStream, TChannel, TCategory> {
+  readonly streams: readonly TStream[];
+  readonly channels: readonly TChannel[];
+  readonly categories: readonly TCategory[];
+}
+
+export interface DiscoverySearchReader<
+  TPlatform,
+  TStream,
+  TChannel,
+  TCategory,
+  TSignal,
+> {
+  readonly platform: TPlatform;
+  searchDiscovery(
+    query: string,
+    options?: DiscoverySearchOptions<TChannel, TSignal>,
+  ): Promise<DiscoverySearchResult<TStream, TChannel, TCategory>>;
+}

@@ -8,7 +8,20 @@
  */
 
 import { logger } from "@backend/logging/logger";
-import type { IPlatformReader, PageResult, TopStreamsOptions } from "@streamfusion/core/discovery";
+import type {
+  ChannelLookupOptions,
+  ChannelRef,
+  ChannelReader,
+  CategoryReader,
+  CategoryStreamReader,
+  CategoryStreamsOptions,
+  DiscoverySearchReader,
+  DiscoverySearchOptions,
+  DiscoverySearchResult,
+  IPlatformReader,
+  PageResult,
+  TopStreamsOptions,
+} from "@streamfusion/core/discovery";
 import {
   readResponseTextWithinLimit,
   ResponseBodyTooLargeError,
@@ -129,7 +142,15 @@ const _IMAGE_NEG_CACHE_TTL_MS = 10 * 60 * 1000;
 
 // ========== Kick API Client Class ==========
 
-class KickClient implements KickRequestor, IPlatformReader<UnifiedStream> {
+class KickClient
+  implements
+    IPlatformReader<UnifiedStream>,
+    ChannelReader<Platform, UnifiedChannel, ChannelRef>,
+    CategoryReader<Platform, UnifiedCategory>,
+    CategoryStreamReader<Platform, UnifiedStream>,
+    DiscoverySearchReader<Platform, UnifiedStream, UnifiedChannel, UnifiedCategory, AbortSignal>,
+    KickRequestor
+{
   readonly platform: Platform = "kick";
   readonly baseUrl = KICK_API_BASE;
 
@@ -613,6 +634,15 @@ class KickClient implements KickRequestor, IPlatformReader<UnifiedStream> {
       : ChannelEndpoints.getChannel(this, slug);
   }
 
+  async resolveChannel(
+    ref: ChannelRef,
+    options: ChannelLookupOptions = {}
+  ): Promise<UnifiedChannel | null> {
+    return options.freshness === "refresh"
+      ? this.getChannel(ref.value, { freshChatroomSettings: true })
+      : this.getChannel(ref.value);
+  }
+
   async getOfficialChannelAccountStatus(slug: string) {
     return ChannelEndpoints.getOfficialKickChannelAccountStatus(this, slug);
   }
@@ -706,7 +736,7 @@ class KickClient implements KickRequestor, IPlatformReader<UnifiedStream> {
    */
   async getStreamsByCategory(
     categoryId: string,
-    options: PaginationOptions & { categoryName?: string; language?: string } = {}
+    options: CategoryStreamsOptions = {}
   ): Promise<PaginatedResult<UnifiedStream>> {
     return StreamEndpoints.getStreamsByCategory(this, categoryId, options);
   }
@@ -805,6 +835,28 @@ class KickClient implements KickRequestor, IPlatformReader<UnifiedStream> {
     options: { channelSeeds?: UnifiedChannel[]; signal?: AbortSignal } = {}
   ): Promise<Awaited<ReturnType<typeof SearchEndpoints.search>>> {
     return SearchEndpoints.search(this, query, options);
+  }
+
+  async searchDiscovery(
+    query: string,
+    options: DiscoverySearchOptions<UnifiedChannel, AbortSignal> = {}
+  ): Promise<DiscoverySearchResult<UnifiedStream, UnifiedChannel, UnifiedCategory>> {
+    if (options.includeCategories === false) {
+      const channels = options.channelSeeds
+        ? [...options.channelSeeds]
+        : (await this.searchChannels(query, { limit: options.limit })).data;
+      return { channels, categories: [], streams: [] };
+    }
+
+    const result = await this.search(query, {
+      ...(options.channelSeeds ? { channelSeeds: [...options.channelSeeds] } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+    return {
+      channels: result.channels,
+      categories: result.categories,
+      streams: result.streams,
+    };
   }
 
   // ========== Videos ==========

@@ -595,4 +595,53 @@ describe("KickClient", () => {
       expect(result.data).toEqual([]);
     });
   });
+
+  describe("Core discovery port contracts", () => {
+    it("resolves a normalized channel reference with requested freshness", async () => {
+      const { getChannel } =
+        await import("@backend/api/platforms/kick/endpoints/channel-endpoints");
+      vi.mocked(getChannel).mockResolvedValueOnce(null);
+
+      await kickClient.resolveChannel(
+        { kind: "slug", value: "streamer" },
+        { freshness: "refresh" }
+      );
+
+      expect(getChannel).toHaveBeenCalledWith(kickClient, "streamer", {
+        freshChatroomSettings: true,
+      });
+    });
+
+    it("delegates normalized category-stream pagination", async () => {
+      const { getStreamsByCategory } =
+        await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
+      vi.mocked(getStreamsByCategory).mockResolvedValueOnce({ data: [] });
+
+      await kickClient.getStreamsByCategory("category-1", {
+        limit: 12,
+        cursor: "next",
+        categoryName: "Game",
+        language: "en",
+      });
+
+      expect(getStreamsByCategory).toHaveBeenCalledWith(kickClient, "category-1", {
+        limit: 12,
+        cursor: "next",
+        categoryName: "Game",
+        language: "en",
+      });
+    });
+
+    it("uses channel-only discovery without starting broad search", async () => {
+      const { search, searchChannels } =
+        await import("@backend/api/platforms/kick/endpoints/search-endpoints");
+      vi.mocked(searchChannels).mockResolvedValueOnce({ data: [] });
+
+      await expect(
+        kickClient.searchDiscovery("g", { limit: 8, includeCategories: false })
+      ).resolves.toEqual({ channels: [], categories: [], streams: [] });
+      expect(searchChannels).toHaveBeenCalledWith(kickClient, "g", { limit: 8 });
+      expect(search).not.toHaveBeenCalled();
+    });
+  });
 });

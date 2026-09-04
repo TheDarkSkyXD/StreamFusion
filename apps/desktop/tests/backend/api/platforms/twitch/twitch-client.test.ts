@@ -85,6 +85,7 @@ vi.mock("@backend/api/platforms/twitch/endpoints/user-endpoints", () => ({
   getUser: vi.fn(async () => null),
   getUsersById: vi.fn(async () => []),
   getUsersByLogin: vi.fn(async () => []),
+  getFollowerCounts: vi.fn(async () => new Map()),
   getFollowedChannels: vi.fn(async () => ({ data: [] })),
   getAllFollowedChannels: vi.fn(async () => []),
 }));
@@ -502,6 +503,65 @@ describe("TwitchClient", () => {
       const result = await twitchClient.getStreamsByUserIds(["u1"]);
 
       expect(result.data).toEqual([]);
+    });
+  });
+
+  describe("Core discovery port contracts", () => {
+    it("resolves channel slugs and stable IDs through the normalized reference", async () => {
+      const channel = {
+        id: "1",
+        platform: "twitch" as const,
+        username: "streamer",
+        displayName: "Streamer",
+        avatarUrl: "",
+        isLive: false,
+        isVerified: false,
+        isPartner: false,
+      };
+      const byLogin = vi.spyOn(twitchClient, "getChannelByLogin").mockResolvedValue(channel);
+      const byId = vi.spyOn(twitchClient, "getChannelsById").mockResolvedValue([channel]);
+
+      await expect(
+        twitchClient.resolveChannel({ kind: "slug", value: "streamer" })
+      ).resolves.toEqual(channel);
+      await expect(twitchClient.resolveChannel({ kind: "id", value: "1" })).resolves.toEqual(
+        channel
+      );
+      expect(byLogin).toHaveBeenCalledWith("streamer");
+      expect(byId).toHaveBeenCalledWith(["1"]);
+    });
+
+    it("maps normalized category pagination to top-stream discovery", async () => {
+      const getTopStreams = vi.spyOn(twitchClient, "getTopStreams").mockResolvedValue({ data: [] });
+
+      await twitchClient.getStreamsByCategory("game-1", {
+        limit: 12,
+        cursor: "next",
+        categoryName: "Game",
+        language: "en",
+      });
+
+      expect(getTopStreams).toHaveBeenCalledWith({
+        categoryId: "game-1",
+        limit: 12,
+        cursor: "next",
+        language: "en",
+      });
+    });
+
+    it("returns a normalized broad-search collection", async () => {
+      const searchChannels = vi
+        .spyOn(twitchClient, "searchChannels")
+        .mockResolvedValue({ data: [] });
+      const searchCategories = vi
+        .spyOn(twitchClient, "searchCategories")
+        .mockResolvedValue({ data: [] });
+
+      await expect(
+        twitchClient.searchDiscovery("game", { limit: 8, includeCategories: true })
+      ).resolves.toEqual({ channels: [], categories: [], streams: [] });
+      expect(searchChannels).toHaveBeenCalledWith("game", { limit: 8, liveOnly: false });
+      expect(searchCategories).toHaveBeenCalledWith("game", { limit: 8 });
     });
   });
 });

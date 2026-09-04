@@ -9,7 +9,7 @@ vi.mock("electron", () => ({
 vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
   twitchClient: {
     getTopCategories: vi.fn(),
-    getAllTopCategories: vi.fn(),
+    getAllCategories: vi.fn(),
     getCategoryById: vi.fn(),
     searchCategories: vi.fn(),
   },
@@ -80,7 +80,7 @@ function getHandler(channel: string): Handler {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  registerCategoryHandlers();
+  registerCategoryHandlers({ readers: { twitch: twitchClient, kick: kickClient } });
 });
 
 describe("registerCategoryHandlers", () => {
@@ -119,10 +119,10 @@ describe("CATEGORIES_GET_TOP", () => {
       providers: { twitch: "complete" },
     });
     expect(twitchClient.getTopCategories).toHaveBeenCalledWith({
-      first: 12,
-      after: "twitch-page-1",
+      limit: 12,
+      cursor: "twitch-page-1",
     });
-    expect(twitchClient.getAllTopCategories).not.toHaveBeenCalled();
+    expect(twitchClient.getAllCategories).not.toHaveBeenCalled();
   });
 
   it("uses the bounded Kick page contract when a limit is requested", async () => {
@@ -181,30 +181,30 @@ describe("CATEGORIES_GET_TOP", () => {
   });
 
   it("shares in-flight exhaustive requests across simultaneous consumers", async () => {
-    const twitchRequest = deferred<Awaited<ReturnType<typeof twitchClient.getAllTopCategories>>>();
+    const twitchRequest = deferred<Awaited<ReturnType<typeof twitchClient.getAllCategories>>>();
     const kickRequest = deferred<Awaited<ReturnType<typeof kickClient.getAllCategories>>>();
     const twitchCats = [category("1", "Just Chatting", "twitch")];
     const kickCats = [category("2", "Slots", "kick")];
-    vi.mocked(twitchClient.getAllTopCategories).mockReturnValue(twitchRequest.promise);
+    vi.mocked(twitchClient.getAllCategories).mockReturnValue(twitchRequest.promise);
     vi.mocked(kickClient.getAllCategories).mockReturnValue(kickRequest.promise);
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
 
     const first = handler({}, {});
     const second = handler({}, {});
-    await vi.waitFor(() => expect(twitchClient.getAllTopCategories).toHaveBeenCalled());
+    await vi.waitFor(() => expect(twitchClient.getAllCategories).toHaveBeenCalled());
     await new Promise((resolve) => setTimeout(resolve, 0));
     twitchRequest.resolve(twitchCats);
     kickRequest.resolve(kickCats);
 
     await expect(first).resolves.toMatchObject({ data: [...twitchCats, ...kickCats] });
     await expect(second).resolves.toMatchObject({ data: [...twitchCats, ...kickCats] });
-    expect(twitchClient.getAllTopCategories).toHaveBeenCalledTimes(1);
+    expect(twitchClient.getAllCategories).toHaveBeenCalledTimes(1);
     expect(kickClient.getAllCategories).toHaveBeenCalledTimes(1);
   });
 
   it("returns only Twitch categories when platform=twitch", async () => {
     const cats = [category("1", "Just Chatting", "twitch")];
-    vi.mocked(twitchClient.getAllTopCategories).mockResolvedValue(cats);
+    vi.mocked(twitchClient.getAllCategories).mockResolvedValue(cats);
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
     const result = await handler({}, { platform: "twitch" });
@@ -231,13 +231,13 @@ describe("CATEGORIES_GET_TOP", () => {
       data: cats,
       providers: { kick: "complete" },
     });
-    expect(twitchClient.getAllTopCategories).not.toHaveBeenCalled();
+    expect(twitchClient.getAllCategories).not.toHaveBeenCalled();
   });
 
   it("returns combined categories from both platforms when no platform specified", async () => {
     const twitchCats = [category("1", "Just Chatting", "twitch")];
     const kickCats = [category("2", "Slots", "kick")];
-    vi.mocked(twitchClient.getAllTopCategories).mockResolvedValue(twitchCats);
+    vi.mocked(twitchClient.getAllCategories).mockResolvedValue(twitchCats);
     vi.mocked(kickClient.getAllCategories).mockResolvedValue(kickCats);
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
@@ -249,7 +249,7 @@ describe("CATEGORIES_GET_TOP", () => {
 
   it("returns partial results when one platform fails in combined mode", async () => {
     const twitchCats = [category("1", "Just Chatting", "twitch")];
-    vi.mocked(twitchClient.getAllTopCategories).mockResolvedValue(twitchCats);
+    vi.mocked(twitchClient.getAllCategories).mockResolvedValue(twitchCats);
     vi.mocked(kickClient.getAllCategories).mockRejectedValue(new Error("Kick down"));
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
@@ -262,15 +262,15 @@ describe("CATEGORIES_GET_TOP", () => {
 
   it("starts both platform requests before either settles and keeps partial results", async () => {
     const twitchCats = [category("1", "Just Chatting", "twitch")];
-    const twitchRequest = deferred<Awaited<ReturnType<typeof twitchClient.getAllTopCategories>>>();
+    const twitchRequest = deferred<Awaited<ReturnType<typeof twitchClient.getAllCategories>>>();
     const kickRequest = deferred<never>();
-    vi.mocked(twitchClient.getAllTopCategories).mockReturnValue(twitchRequest.promise);
+    vi.mocked(twitchClient.getAllCategories).mockReturnValue(twitchRequest.promise);
     vi.mocked(kickClient.getAllCategories).mockReturnValue(kickRequest.promise);
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
     const resultPromise = handler({}, {});
 
-    await vi.waitFor(() => expect(twitchClient.getAllTopCategories).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(twitchClient.getAllCategories).toHaveBeenCalledOnce());
     const kickStartedWhileTwitchWasPending = vi.mocked(kickClient.getAllCategories).mock.calls
       .length;
 
@@ -288,7 +288,7 @@ describe("CATEGORIES_GET_TOP", () => {
   });
 
   it("returns error when single-platform Twitch fetch fails", async () => {
-    vi.mocked(twitchClient.getAllTopCategories).mockRejectedValue(new Error("fail"));
+    vi.mocked(twitchClient.getAllCategories).mockRejectedValue(new Error("fail"));
 
     const handler = getHandler(IPC_CHANNELS.CATEGORIES_GET_TOP);
     const result = await handler({}, { platform: "twitch" });
@@ -418,6 +418,7 @@ describe("CATEGORIES_SEARCH", () => {
     expect(result.success).toBe(true);
     expect(result.data).toEqual([category("1", "Slots", "kick")]);
     expect(twitchClient.searchCategories).not.toHaveBeenCalled();
+    expect(kickClient.searchCategories).toHaveBeenCalledWith("slots", { limit: 20 });
   });
 
   it("returns a failed provider result instead of disguising a Twitch failure as empty data", async () => {

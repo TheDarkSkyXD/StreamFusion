@@ -14,6 +14,7 @@ vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
   twitchClient: {
     platform: "twitch",
     getTopStreams: vi.fn(),
+    getStreamsByCategory: vi.fn(),
     getStreamByLogin: vi.fn(),
     isAuthenticated: vi.fn(),
     getFollowedStreamAccess: vi.fn(),
@@ -185,7 +186,10 @@ beforeEach(() => {
     twitch: reader("twitch", []),
     kick: reader("kick", []),
   };
-  registerStreamHandlers({ readers: topReaders });
+  registerStreamHandlers({
+    readers: topReaders,
+    categoryReaders: { twitch: twitchClient, kick: kickClient },
+  });
 });
 
 afterEach(() => {
@@ -298,12 +302,12 @@ describe("STREAMS_GET_BY_CATEGORY", () => {
       error: "Invalid category-stream request",
       providers: { twitch: "failed", kick: "failed" },
     });
-    expect(twitchClient.getTopStreams).not.toHaveBeenCalled();
+    expect(twitchClient.getStreamsByCategory).not.toHaveBeenCalled();
     expect(kickClient.getStreamsByCategory).not.toHaveBeenCalled();
   });
 
   it("fetches from both platforms when no platform specified", async () => {
-    vi.mocked(twitchClient.getTopStreams).mockResolvedValue({
+    vi.mocked(twitchClient.getStreamsByCategory).mockResolvedValue({
       data: [stream("t1", "twitch", 50)],
       cursor: "tc",
     });
@@ -321,7 +325,7 @@ describe("STREAMS_GET_BY_CATEGORY", () => {
   });
 
   it("fetches only Twitch when platform=twitch", async () => {
-    vi.mocked(twitchClient.getTopStreams).mockResolvedValue({
+    vi.mocked(twitchClient.getStreamsByCategory).mockResolvedValue({
       data: [stream("t1", "twitch", 50)],
       cursor: "tc",
     });
@@ -332,6 +336,12 @@ describe("STREAMS_GET_BY_CATEGORY", () => {
     expect(result.success).toBe(true);
     expect(result.platform).toBe("twitch");
     expect(kickClient.getStreamsByCategory).not.toHaveBeenCalled();
+    expect(twitchClient.getStreamsByCategory).toHaveBeenCalledWith("123", {
+      limit: 20,
+      cursor: undefined,
+      categoryName: undefined,
+      language: undefined,
+    });
   });
 
   it("fetches only Kick when platform=kick", async () => {
@@ -344,11 +354,11 @@ describe("STREAMS_GET_BY_CATEGORY", () => {
 
     expect(result.success).toBe(true);
     expect(result.platform).toBe("kick");
-    expect(twitchClient.getTopStreams).not.toHaveBeenCalled();
+    expect(twitchClient.getStreamsByCategory).not.toHaveBeenCalled();
   });
 
   it("reports a failed provider when a single-platform fetch fails", async () => {
-    vi.mocked(twitchClient.getTopStreams).mockRejectedValue(new Error("fail"));
+    vi.mocked(twitchClient.getStreamsByCategory).mockRejectedValue(new Error("fail"));
 
     const handler = getHandler(IPC_CHANNELS.STREAMS_GET_BY_CATEGORY);
     const result = await handler({}, { categoryId: "123", platform: "twitch" });

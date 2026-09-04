@@ -83,13 +83,21 @@ const featureLoaders = {
   },
   [IPC_FEATURES.CATEGORIES]: async (context) => {
     await ensureConfiguredProxy(context);
-    const { registerCategoryHandlers } = await import("./handlers/category-handlers");
-    registerCategoryHandlers();
+    const [{ registerCategoryHandlers }, { twitchClient }, { kickClient }] = await Promise.all([
+      import("./handlers/category-handlers"),
+      import("../api/platforms/twitch/twitch-client"),
+      import("../api/platforms/kick/kick-client"),
+    ]);
+    registerCategoryHandlers({ readers: { twitch: twitchClient, kick: kickClient } });
   },
   [IPC_FEATURES.CHANNELS]: async (context) => {
     await ensureConfiguredProxy(context);
-    const { registerChannelHandlers } = await import("./handlers/channel-handlers");
-    registerChannelHandlers();
+    const [{ registerChannelHandlers }, { twitchClient }, { kickClient }] = await Promise.all([
+      import("./handlers/channel-handlers"),
+      import("../api/platforms/twitch/twitch-client"),
+      import("../api/platforms/kick/kick-client"),
+    ]);
+    registerChannelHandlers({ readers: { twitch: twitchClient, kick: kickClient } });
   },
   [IPC_FEATURES.CHAT]: async (context) => {
     await ensureConfiguredProxy(context);
@@ -177,8 +185,12 @@ const featureLoaders = {
   },
   [IPC_FEATURES.SEARCH]: async (context) => {
     await ensureConfiguredProxy(context);
-    const { registerSearchHandlers } = await import("./handlers/search-handlers");
-    registerSearchHandlers();
+    const [{ registerSearchHandlers }, { twitchClient }, { kickClient }] = await Promise.all([
+      import("./handlers/search-handlers"),
+      import("../api/platforms/twitch/twitch-client"),
+      import("../api/platforms/kick/kick-client"),
+    ]);
+    registerSearchHandlers({ readers: { twitch: twitchClient, kick: kickClient } });
   },
   [IPC_FEATURES.SLOTS]: async (context) => {
     const { renderer } = context;
@@ -212,7 +224,10 @@ const featureLoaders = {
     ]);
     startKickFollowMetadataRefresh();
     registerLoadedFeatureCleanup("kick-follow-metadata", stopKickFollowMetadataRefresh);
-    registerStreamHandlers({ readers: { twitch: twitchClient, kick: kickClient } });
+    registerStreamHandlers({
+      readers: { twitch: twitchClient, kick: kickClient },
+      categoryReaders: { twitch: twitchClient, kick: kickClient },
+    });
   },
   [IPC_FEATURES.STORAGE]: async ({ renderer }) => {
     const { registerStorageHandlers } = await import("./handlers/storage-handlers");

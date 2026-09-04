@@ -1,6 +1,7 @@
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@backend/logging/logger";
+import type { CategoryReader } from "@streamfusion/core/discovery";
 import type { Platform } from "../../../shared/auth-types";
 import type { DiscoveryResult } from "../../../shared/discovery-types";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
@@ -12,18 +13,9 @@ interface CategoryPage {
 }
 
 const categoryRequests = new Map<string, Promise<CategoryPage>>();
-let twitchClientModule: Promise<typeof import("../../api/platforms/twitch/twitch-client")> | null =
-  null;
-let kickClientModule: Promise<typeof import("../../api/platforms/kick/kick-client")> | null = null;
 
-function loadTwitchClient() {
-  twitchClientModule ??= import("../../api/platforms/twitch/twitch-client");
-  return twitchClientModule;
-}
-
-function loadKickClient() {
-  kickClientModule ??= import("../../api/platforms/kick/kick-client");
-  return kickClientModule;
+export interface CategoryHandlerDependencies {
+  readonly readers: Readonly<Record<Platform, CategoryReader<Platform, UnifiedCategory>>>;
 }
 
 function shareCategoryRequest(
@@ -42,7 +34,7 @@ function shareCategoryRequest(
   return request;
 }
 
-export function registerCategoryHandlers(): void {
+export function registerCategoryHandlers({ readers }: CategoryHandlerDependencies): void {
   /**
    * Get top categories from one or both platforms
    *
@@ -64,14 +56,13 @@ export function registerCategoryHandlers(): void {
         // Single platform request
         if (params.platform === "twitch") {
           try {
-            const { twitchClient } = await loadTwitchClient();
             if (params.limit !== undefined || params.cursor !== undefined) {
               const result = await shareCategoryRequest(
                 `twitch:${params.limit ?? "default"}:${params.cursor ?? "first"}`,
                 () =>
-                  twitchClient.getTopCategories({
-                    first: params.limit,
-                    after: params.cursor,
+                  readers.twitch.getTopCategories({
+                    limit: params.limit,
+                    cursor: params.cursor,
                   })
               );
               return {
@@ -85,7 +76,7 @@ export function registerCategoryHandlers(): void {
             const { data: twitchCategories } = await shareCategoryRequest(
               "twitch:all",
               async () => ({
-                data: await twitchClient.getAllTopCategories(),
+                data: await readers.twitch.getAllCategories(),
               })
             );
             return {
@@ -111,12 +102,11 @@ export function registerCategoryHandlers(): void {
 
         if (params.platform === "kick") {
           try {
-            const { kickClient } = await loadKickClient();
             if (params.limit !== undefined || params.cursor !== undefined) {
               const result = await shareCategoryRequest(
                 `kick:${params.limit ?? "default"}:${params.cursor ?? "first"}`,
                 () =>
-                  kickClient.getTopCategories({
+                  readers.kick.getTopCategories({
                     limit: params.limit,
                     cursor: params.cursor,
                   })
@@ -130,7 +120,7 @@ export function registerCategoryHandlers(): void {
               };
             }
             const { data: kickCategories } = await shareCategoryRequest("kick:all", async () => ({
-              data: await kickClient.getAllCategories(),
+              data: await readers.kick.getAllCategories(),
             }));
             return {
               success: true,
@@ -155,13 +145,9 @@ export function registerCategoryHandlers(): void {
 
         // Both platforms - fetch both and return combined
         // De-duplication happens in useCategories hook (Twitch priority, Slots exception)
-        const [{ twitchClient }, { kickClient }] = await Promise.all([
-          loadTwitchClient(),
-          loadKickClient(),
-        ]);
         const [twitchResult, kickResult] = await Promise.all([
           shareCategoryRequest("twitch:all", async () => ({
-            data: await twitchClient.getAllTopCategories(),
+            data: await readers.twitch.getAllCategories(),
           }))
             .then((result) => ({ data: result.data, status: "complete" as const }))
             .catch((err) => {
@@ -174,7 +160,7 @@ export function registerCategoryHandlers(): void {
               return { data: [] as UnifiedCategory[], status: "failed" as const };
             }),
           shareCategoryRequest("kick:all", async () => ({
-            data: await kickClient.getAllCategories(),
+            data: await readers.kick.getAllCategories(),
           }))
             .then((result) => ({ data: result.data, status: "complete" as const }))
             .catch((err) => {
@@ -228,13 +214,7 @@ export function registerCategoryHandlers(): void {
       try {
         let category = null;
 
-        if (params.platform === "twitch") {
-          const { twitchClient } = await loadTwitchClient();
-          category = await twitchClient.getCategoryById(params.categoryId);
-        } else if (params.platform === "kick") {
-          const { kickClient } = await loadKickClient();
-          category = await kickClient.getCategoryById(params.categoryId);
-        }
+        category = await readers[params.platform].getCategoryById(params.categoryId);
 
         return { success: true, data: category };
       } catch (error) {
@@ -312,14 +292,10 @@ export function registerCategoryHandlers(): void {
       }
     ) => {
       try {
-        const [twitchModule, kickModule] = await Promise.all([
-          !params.platform || params.platform === "twitch"
-            ? loadTwitchClient()
-            : Promise.resolve(null),
-          (!params.platform || params.platform === "kick") && !params.after
-            ? loadKickClient()
-            : Promise.resolve(null),
-        ]);
+        const twitchReader =
+          !params.platform || params.platform === "twitch" ? readers.twitch : null;
+        const kickReader =
+          (!params.platform || params.platform === "kick") && !params.after ? readers.kick : null;
         const searchPromises: Promise<{
           platform: Platform;
           data: UnifiedCategory[];
@@ -327,13 +303,12 @@ export function registerCategoryHandlers(): void {
           status: "complete" | "failed";
         }>[] = [];
 
-        if (twitchModule) {
-          const { twitchClient } = twitchModule;
+        if (twitchReader) {
           searchPromises.push(
-            twitchClient
+            twitchReader
               .searchCategories(params.query, {
-                first: params.limit || 20,
-                after: params.after,
+                limit: params.limit || 20,
+                cursor: params.after,
               })
               .then((result) => ({
                 platform: "twitch" as Platform,
@@ -354,11 +329,10 @@ export function registerCategoryHandlers(): void {
         }
 
         // Kick categories don't support cursor pagination — only fetch on first page
-        if (kickModule) {
-          const { kickClient } = kickModule;
+        if (kickReader) {
           searchPromises.push(
-            kickClient
-              .searchCategories(params.query)
+            kickReader
+              .searchCategories(params.query, { limit: params.limit || 20 })
               .then((result) => ({
                 platform: "kick" as Platform,
                 data: result.data,

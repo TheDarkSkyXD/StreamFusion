@@ -7,7 +7,21 @@
  */
 
 import { logger } from "@backend/logging/logger";
-import type { IPlatformReader, PageResult, TopStreamsOptions } from "@streamfusion/core/discovery";
+import type {
+  ChannelRef,
+  ChannelReader,
+  ChannelSearchOptions,
+  CategoryReader,
+  CategoryStreamReader,
+  CategoryStreamsOptions,
+  DiscoverySearchReader,
+  DiscoverySearchOptions,
+  DiscoverySearchResult,
+  IPlatformReader,
+  PageOptions,
+  PageResult,
+  TopStreamsOptions,
+} from "@streamfusion/core/discovery";
 import type { Platform, TwitchUser } from "../../../../shared/auth-types";
 import { twitchAuthService } from "../../../auth/twitch-auth";
 import type {
@@ -77,9 +91,37 @@ function mergeCategoryViewerCounts(
   };
 }
 
+function toTwitchPageOptions(options: PageOptions | PaginationOptions): PaginationOptions {
+  const first = "limit" in options ? options.limit : "first" in options ? options.first : undefined;
+  const after =
+    "cursor" in options ? options.cursor : "after" in options ? options.after : undefined;
+  return {
+    ...(first === undefined ? {} : { first }),
+    ...(after === undefined ? {} : { after }),
+  };
+}
+
+function toTwitchChannelSearchOptions(
+  options: ChannelSearchOptions | (PaginationOptions & { liveOnly?: boolean })
+): PaginationOptions & { liveOnly?: boolean } {
+  const page = toTwitchPageOptions(options);
+  return {
+    ...page,
+    ...(options.liveOnly === undefined ? {} : { liveOnly: options.liveOnly }),
+  };
+}
+
 // ========== Twitch API Client Class ==========
 
-class TwitchClient extends TwitchRequestor implements IPlatformReader<UnifiedStream> {
+class TwitchClient
+  extends TwitchRequestor
+  implements
+    IPlatformReader<UnifiedStream>,
+    ChannelReader<Platform, UnifiedChannel, ChannelRef>,
+    CategoryReader<Platform, UnifiedCategory>,
+    CategoryStreamReader<Platform, UnifiedStream>,
+    DiscoverySearchReader<Platform, UnifiedStream, UnifiedChannel, UnifiedCategory, AbortSignal>
+{
   readonly platform: Platform = "twitch";
 
   isAuthenticated(): boolean {
@@ -120,6 +162,10 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader<UnifiedStr
    */
   async getUsersByLogin(logins: string[]): Promise<TwitchUser[]> {
     return UserEndpoints.getUsersByLogin(this, logins);
+  }
+
+  async getFollowerCounts(userIds: string[]): Promise<Map<string, number>> {
+    return UserEndpoints.getFollowerCounts(this, userIds);
   }
 
   // ========== Followed Channels ==========
@@ -240,6 +286,18 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader<UnifiedStr
     }
   }
 
+  async getStreamsByCategory(
+    categoryId: string,
+    options: CategoryStreamsOptions = {}
+  ): Promise<PageResult<UnifiedStream>> {
+    return this.getTopStreams({
+      categoryId,
+      limit: options.limit,
+      cursor: options.cursor,
+      language: options.language,
+    });
+  }
+
   /**
    * Get a specific stream by user login
    * Uses GQL - no API key needed
@@ -280,6 +338,11 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader<UnifiedStr
     return ChannelEndpoints.getChannelsById(this, ids);
   }
 
+  async resolveChannel(ref: ChannelRef): Promise<UnifiedChannel | null> {
+    if (ref.kind === "slug") return this.getChannelByLogin(ref.value);
+    return (await this.getChannelsById([ref.value]))[0] ?? null;
+  }
+
   /**
    * Search for channels
    * Authenticated searches prefer Helix because it supports real cursor
@@ -288,12 +351,13 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader<UnifiedStr
    */
   async searchChannels(
     query: string,
-    options: PaginationOptions & { liveOnly?: boolean } = {}
+    options: ChannelSearchOptions | (PaginationOptions & { liveOnly?: boolean }) = {}
   ): Promise<PaginatedResult<UnifiedChannel>> {
+    const normalized = toTwitchChannelSearchOptions(options);
     if (this.isAuthenticated()) {
       try {
         const SearchEndpoints = await import("./endpoints/search-endpoints");
-        return await SearchEndpoints.searchChannels(this, query, options);
+        return await SearchEndpoints.searchChannels(this, query, normalized);
       } catch (error) {
         logger.warn("Twitch:Client", "Helix searchChannels failed, falling back to GQL", {
           error:
@@ -304,7 +368,7 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader<UnifiedStr
       }
     }
 
-    return GqlClient.gqlSearchChannels(query, options);
+    return GqlClient.gqlSearchChannels(query, normalized);
   }
 
   // ========== Categories/Games (GQL) ==========
@@ -314,10 +378,11 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader<UnifiedStr
    * Uses GQL - no API key needed
    */
   async getTopCategories(
-    options: PaginationOptions = {}
+    options: PageOptions | PaginationOptions = {}
   ): Promise<PaginatedResult<UnifiedCategory>> {
+    const normalized = toTwitchPageOptions(options);
     try {
-      return await GqlClient.gqlGetTopCategories(options);
+      return await GqlClient.gqlGetTopCategories(normalized);
     } catch (error) {
       logger.warn("Twitch:Client", "GQL getTopCategories failed, falling back to Helix", {
         error:
@@ -326,7 +391,7 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader<UnifiedStr
             : String(error),
       });
       const CategoryEndpoints = await import("./endpoints/category-endpoints");
-      return CategoryEndpoints.getTopCategories(this, options);
+      return CategoryEndpoints.getTopCategories(this, normalized);
     }
   }
 
@@ -349,6 +414,10 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader<UnifiedStr
     }
   }
 
+  async getAllCategories(): Promise<UnifiedCategory[]> {
+    return this.getAllTopCategories();
+  }
+
   /**
    * Search for categories/games. Prefer the documented Helix endpoint when a
    * token exists; logged-out callers use public GQL. Do not retry a failed
@@ -356,13 +425,14 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader<UnifiedStr
    */
   async searchCategories(
     query: string,
-    options: PaginationOptions = {}
+    options: PageOptions | PaginationOptions = {}
   ): Promise<PaginatedResult<UnifiedCategory>> {
+    const normalized = toTwitchPageOptions(options);
     if (this.isAuthenticated()) {
       const SearchEndpoints = await import("./endpoints/search-endpoints");
       let helixResult: PaginatedResult<UnifiedCategory>;
       try {
-        helixResult = await SearchEndpoints.searchCategories(this, query, options);
+        helixResult = await SearchEndpoints.searchCategories(this, query, normalized);
       } catch (error) {
         logger.warn("Twitch:Client", "Helix searchCategories failed, falling back to GQL", {
           error:
@@ -370,7 +440,7 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader<UnifiedStr
               ? { name: error.name, message: error.message, stack: error.stack }
               : String(error),
         });
-        return GqlClient.gqlSearchCategories(query, options);
+        return GqlClient.gqlSearchCategories(query, normalized);
       }
 
       try {
@@ -389,7 +459,7 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader<UnifiedStr
       }
     }
 
-    return GqlClient.gqlSearchCategories(query, options);
+    return GqlClient.gqlSearchCategories(query, normalized);
   }
 
   /**
@@ -409,6 +479,24 @@ class TwitchClient extends TwitchRequestor implements IPlatformReader<UnifiedStr
       const CategoryEndpoints = await import("./endpoints/category-endpoints");
       return CategoryEndpoints.getCategoryById(this, id);
     }
+  }
+
+  async searchDiscovery(
+    query: string,
+    options: DiscoverySearchOptions<UnifiedChannel, AbortSignal> = {}
+  ): Promise<DiscoverySearchResult<UnifiedStream, UnifiedChannel, UnifiedCategory>> {
+    const channels = options.channelSeeds
+      ? { data: options.channelSeeds }
+      : await this.searchChannels(query, { limit: options.limit, liveOnly: false });
+    const categories =
+      options.includeCategories === false
+        ? { data: [] }
+        : await this.searchCategories(query, { limit: options.limit });
+    return {
+      channels: channels.data,
+      categories: categories.data,
+      streams: [],
+    };
   }
 
   /**

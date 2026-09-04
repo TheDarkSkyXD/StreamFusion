@@ -8,18 +8,24 @@ vi.mock("electron", () => ({
 
 vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
   twitchClient: {
+    platform: "twitch" as const,
     searchChannels: vi.fn(),
     searchCategories: vi.fn(),
+    searchDiscovery: vi.fn(),
     isAuthenticated: vi.fn(),
     getUsersByLogin: vi.fn(),
+    getFollowerCounts: vi.fn(),
   },
 }));
 
 vi.mock("@backend/api/platforms/kick/kick-client", () => ({
   kickClient: {
+    platform: "kick" as const,
     searchChannels: vi.fn(),
     search: vi.fn(),
+    searchDiscovery: vi.fn(),
     isAuthenticated: vi.fn(),
+    getChannelsBySlugs: vi.fn(),
     getOfficialChannelAccountStatus: vi.fn(),
   },
 }));
@@ -144,7 +150,48 @@ beforeEach(() => {
   vi.mocked(twitchClient.isAuthenticated).mockReturnValue(false);
   vi.mocked(kickClient.isAuthenticated).mockReturnValue(false);
   vi.mocked(kickClient.getOfficialChannelAccountStatus).mockResolvedValue("unavailable");
-  registerSearchHandlers();
+  vi.mocked(twitchClient.getFollowerCounts).mockImplementation((userIds) =>
+    getFollowerCounts(twitchClient as never, userIds)
+  );
+  vi.mocked(kickClient.getChannelsBySlugs).mockImplementation((slugs) =>
+    getChannelsBySlugs(kickClient as never, slugs)
+  );
+  vi.mocked(twitchClient.searchDiscovery).mockImplementation(async (query, options = {}) => ({
+    channels: options.channelSeeds
+      ? [...options.channelSeeds]
+      : (
+          await twitchClient.searchChannels(query, {
+            first: options.limit,
+            liveOnly: false,
+          })
+        ).data,
+    categories:
+      options.includeCategories === false
+        ? []
+        : (await twitchClient.searchCategories(query, { first: options.limit })).data,
+    streams: [],
+  }));
+  vi.mocked(kickClient.searchDiscovery).mockImplementation(async (query, options = {}) => {
+    if (options.includeCategories === false) {
+      return {
+        channels: options.channelSeeds
+          ? [...options.channelSeeds]
+          : (await kickClient.searchChannels(query)).data,
+        categories: [],
+        streams: [],
+      };
+    }
+    const result = await kickClient.search(query, {
+      ...(options.channelSeeds ? { channelSeeds: [...options.channelSeeds] } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+    return {
+      channels: result.channels ?? [],
+      categories: result.categories ?? [],
+      streams: result.streams ?? [],
+    };
+  });
+  registerSearchHandlers({ readers: { twitch: twitchClient, kick: kickClient } });
 });
 // Guards: search IPC keeps platform failures isolated and returns partial results instead of blocking the UI.
 // Guards: full search starts Twitch and Kick work in parallel so the search results page waits for the slower platform, not both in sequence.
@@ -869,6 +916,18 @@ describe("SEARCH_ALL", () => {
     expect(Array.isArray(result.data.streams)).toBe(true);
     expect(Array.isArray(result.data.videos)).toBe(true);
     expect(Array.isArray(result.data.clips)).toBe(true);
+    expect(twitchClient.searchDiscovery).toHaveBeenCalledWith(
+      "chan",
+      expect.objectContaining({ limit: 10, includeCategories: true })
+    );
+    expect(kickClient.searchDiscovery).toHaveBeenCalledWith(
+      "chan",
+      expect.objectContaining({
+        limit: 10,
+        includeCategories: true,
+        signal: expect.any(AbortSignal),
+      })
+    );
   });
 
   it("keeps an explicitly suspended Kick account visible in full-search channels", async () => {

@@ -10,8 +10,7 @@ vi.mock("electron", () => ({
 
 vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
   twitchClient: {
-    getChannelsById: vi.fn(),
-    getChannelByLogin: vi.fn(),
+    resolveChannel: vi.fn(),
     isAuthenticated: vi.fn(),
     getAllFollowedChannels: vi.fn(),
   },
@@ -19,7 +18,7 @@ vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
 
 vi.mock("@backend/api/platforms/kick/kick-client", () => ({
   kickClient: {
-    getChannel: vi.fn(),
+    resolveChannel: vi.fn(),
     getChannelsByBroadcasterIds: vi.fn(),
     getOfficialChannelAccountStatus: vi.fn(),
     getPublicChannel: vi.fn(),
@@ -79,7 +78,7 @@ beforeEach(() => {
   vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([]);
   vi.mocked(storageService.getKickUser).mockReturnValue(null);
   vi.mocked(kickClient.getOfficialChannelAccountStatus).mockResolvedValue("unavailable");
-  registerChannelHandlers();
+  registerChannelHandlers({ readers: { twitch: twitchClient, kick: kickClient } });
 });
 afterEach(() => {
   databaseLifecycle.dispose();
@@ -99,17 +98,17 @@ describe("CHANNELS_GET_BY_ID", () => {
       isVerified: false,
       isPartner: false,
     } satisfies UnifiedChannel;
-    vi.mocked(twitchClient.getChannelsById).mockResolvedValue([channel]);
+    vi.mocked(twitchClient.resolveChannel).mockResolvedValue(channel);
 
     const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_BY_ID);
     const result = await handler({}, { platform: "twitch", channelId: "123" });
 
     expect(result).toEqual({ success: true, data: channel });
-    expect(twitchClient.getChannelsById).toHaveBeenCalledWith(["123"]);
+    expect(twitchClient.resolveChannel).toHaveBeenCalledWith({ kind: "id", value: "123" });
   });
 
   it("returns null data when Twitch channel not found", async () => {
-    vi.mocked(twitchClient.getChannelsById).mockResolvedValue([]);
+    vi.mocked(twitchClient.resolveChannel).mockResolvedValue(null);
 
     const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_BY_ID);
     const result = await handler({}, { platform: "twitch", channelId: "999" });
@@ -128,17 +127,17 @@ describe("CHANNELS_GET_BY_ID", () => {
       isVerified: false,
       isPartner: false,
     } satisfies UnifiedChannel;
-    vi.mocked(kickClient.getChannel).mockResolvedValue(channel);
+    vi.mocked(kickClient.resolveChannel).mockResolvedValue(channel);
 
     const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_BY_ID);
     const result = await handler({}, { platform: "kick", channelId: "456" });
 
     expect(result).toEqual({ success: true, data: channel });
-    expect(kickClient.getChannel).toHaveBeenCalledWith("456");
+    expect(kickClient.resolveChannel).toHaveBeenCalledWith({ kind: "id", value: "456" });
   });
 
   it("returns error envelope on failure", async () => {
-    vi.mocked(twitchClient.getChannelsById).mockRejectedValue(new Error("API down"));
+    vi.mocked(twitchClient.resolveChannel).mockRejectedValue(new Error("API down"));
 
     const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_BY_ID);
     const result = await handler({}, { platform: "twitch", channelId: "123" });
@@ -168,13 +167,16 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
       isVerified: false,
       isPartner: false,
     } satisfies UnifiedChannel;
-    vi.mocked(twitchClient.getChannelByLogin).mockResolvedValue(channel);
+    vi.mocked(twitchClient.resolveChannel).mockResolvedValue(channel);
 
     const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_BY_USERNAME);
     const result = await handler({}, { platform: "twitch", username: "testuser" });
 
     expect(result).toEqual({ success: true, data: channel });
-    expect(twitchClient.getChannelByLogin).toHaveBeenCalledWith("testuser");
+    expect(twitchClient.resolveChannel).toHaveBeenCalledWith({
+      kind: "slug",
+      value: "testuser",
+    });
   });
 
   it("repairs a stale Twitch follow login through its stable channel ID", async () => {
@@ -188,7 +190,7 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
       isVerified: false,
       isPartner: false,
     } satisfies UnifiedChannel;
-    vi.mocked(twitchClient.getChannelByLogin).mockResolvedValue(null);
+    vi.mocked(twitchClient.resolveChannel).mockResolvedValueOnce(null);
     vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
       {
         id: "twitch-row-1",
@@ -201,12 +203,16 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
         source: "twitch",
       },
     ]);
-    vi.mocked(twitchClient.getChannelsById).mockResolvedValue([renamedChannel]);
+    vi.mocked(twitchClient.resolveChannel).mockResolvedValueOnce(renamedChannel);
 
     const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_BY_USERNAME);
     const result = await handler({}, { platform: "twitch", username: "old-login" });
 
     expect(result).toEqual({ success: true, data: renamedChannel });
+    expect(twitchClient.resolveChannel).toHaveBeenNthCalledWith(2, {
+      kind: "id",
+      value: "123",
+    });
     expect(storageService.updateLocalFollow).toHaveBeenCalledWith("twitch-row-1", {
       channelName: "new-login",
       displayName: "New Login",
@@ -215,7 +221,7 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
   });
 
   it("does not send a legacy Twitch login to the ID lookup", async () => {
-    vi.mocked(twitchClient.getChannelByLogin).mockResolvedValue(null);
+    vi.mocked(twitchClient.resolveChannel).mockResolvedValue(null);
     vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
       {
         id: "twitch-row-1",
@@ -233,7 +239,7 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
     const result = await handler({}, { platform: "twitch", username: "old-login" });
 
     expect(result).toEqual({ success: true, data: null });
-    expect(twitchClient.getChannelsById).not.toHaveBeenCalled();
+    expect(twitchClient.resolveChannel).toHaveBeenCalledOnce();
   });
 
   it("fetches Kick channel by slug", async () => {
@@ -247,7 +253,7 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
       isVerified: false,
       isPartner: false,
     } satisfies UnifiedChannel;
-    vi.mocked(kickClient.getChannel).mockResolvedValue(channel);
+    vi.mocked(kickClient.resolveChannel).mockResolvedValue(channel);
 
     const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_BY_USERNAME);
     const result = await handler({}, { platform: "kick", username: "kickuser" });
@@ -256,7 +262,10 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
       success: true,
       data: expect.objectContaining({ ...channel, accountStatus: "active" }),
     });
-    expect(kickClient.getChannel).toHaveBeenCalledWith("kickuser");
+    expect(kickClient.resolveChannel).toHaveBeenCalledWith(
+      { kind: "slug", value: "kickuser" },
+      undefined
+    );
     expect(storageService.upsertSyncedFollows).not.toHaveBeenCalled();
   });
 
@@ -272,7 +281,7 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
       isVerified: false,
       isPartner: false,
     } satisfies UnifiedChannel;
-    vi.mocked(kickClient.getChannel).mockResolvedValue(channel);
+    vi.mocked(kickClient.resolveChannel).mockResolvedValue(channel);
     vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
       {
         id: "kick-row-henny",
@@ -300,7 +309,7 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
   });
 
   it("classifies a positively resolved offline Kick channel as active", async () => {
-    vi.mocked(kickClient.getChannel).mockResolvedValue({
+    vi.mocked(kickClient.resolveChannel).mockResolvedValue({
       id: "456",
       platform: "kick",
       username: "offline-kick",
@@ -325,7 +334,7 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
   });
 
   it("returns explicit Kick search suspension without losing stable identity", async () => {
-    vi.mocked(kickClient.getChannel).mockResolvedValue({
+    vi.mocked(kickClient.resolveChannel).mockResolvedValue({
       id: "456",
       platform: "kick",
       username: "suspended-creator",
@@ -370,7 +379,7 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
   });
 
   it("preserves a cached Kick channel as unavailable when direct lookup fails", async () => {
-    vi.mocked(kickClient.getChannel).mockRejectedValue(new Error("Kick API error: 503"));
+    vi.mocked(kickClient.resolveChannel).mockRejectedValue(new Error("Kick API error: 503"));
     vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
       {
         id: "kick-row-outage",
@@ -400,7 +409,7 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
   });
 
   it("removes a slug-only cached Kick follow after authoritative not_found", async () => {
-    vi.mocked(kickClient.getChannel).mockResolvedValue(null);
+    vi.mocked(kickClient.resolveChannel).mockResolvedValue(null);
     vi.mocked(kickClient.getOfficialChannelAccountStatus).mockResolvedValue("not_found");
     vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
       {
@@ -434,7 +443,7 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
       isVerified: false,
       isPartner: false,
     } satisfies UnifiedChannel;
-    vi.mocked(kickClient.getChannel).mockResolvedValue(null);
+    vi.mocked(kickClient.resolveChannel).mockResolvedValue(null);
     vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
       {
         id: "kick-row-1",
@@ -474,7 +483,7 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
       isVerified: false,
       isPartner: false,
     } satisfies UnifiedChannel;
-    vi.mocked(kickClient.getChannel).mockResolvedValue(null);
+    vi.mocked(kickClient.resolveChannel).mockResolvedValue(null);
     vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
       {
         id: "kick-row-legacy",
@@ -511,7 +520,7 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
       isVerified: false,
       isPartner: false,
     } satisfies UnifiedChannel;
-    vi.mocked(kickClient.getChannel).mockResolvedValue(null);
+    vi.mocked(kickClient.resolveChannel).mockResolvedValue(null);
     vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([
       {
         id: "kick-row-legacy",
@@ -567,7 +576,7 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
       isPartner: false,
       kickUserId: "15132726",
     } satisfies UnifiedChannel;
-    vi.mocked(kickClient.getChannel).mockResolvedValue(channel);
+    vi.mocked(kickClient.resolveChannel).mockResolvedValue(channel);
     vi.mocked(storageService.getKickUser).mockReturnValue({
       id: 15132726,
       username: "AnonSociety",
@@ -593,7 +602,7 @@ describe("CHANNELS_GET_BY_USERNAME", () => {
   });
 
   it("returns error envelope on failure", async () => {
-    vi.mocked(kickClient.getChannel).mockRejectedValue(new Error("not found"));
+    vi.mocked(kickClient.resolveChannel).mockRejectedValue(new Error("not found"));
 
     const handler = getHandler(IPC_CHANNELS.CHANNELS_GET_BY_USERNAME);
     const result = await handler({}, { platform: "kick", username: "x" });
