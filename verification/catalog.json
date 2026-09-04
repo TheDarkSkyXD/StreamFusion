@@ -2,5 +2,163 @@
   "schemaVersion": 1,
   "policyVersion": 1,
   "verifierVersion": "1.0.0",
-  "capabilities": {}
+  "capabilities": {
+    "app-shell-and-navigation": [
+      {
+        "id": "change-gate",
+        "sourceCommit": "1702ddbc42e120ab415d3e76e4745958262fd195",
+        "apkDigest": null,
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-139-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-change-gate"
+        },
+        "device": {
+          "kind": "none",
+          "profile": null,
+          "apiLevel": null
+        },
+        "artifacts": [
+          {
+            "id": "adaptive-shell-report",
+            "path": "verification/evidence/issue-139-adaptive-shell.json",
+            "sha256": "sha256:9c1d9993499630211edb143d710dfd07ed5f946628dc484e3890a98e67f9c65d",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-04T22:18:09.513Z",
+        "expiresAt": "2026-09-05T22:18:09.513Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/139"
+        ]
+      },
+      {
+        "id": "api30-emulator",
+        "sourceCommit": "1702ddbc42e120ab415d3e76e4745958262fd195",
+        "apkDigest": null,
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-139-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-mobile-mcp"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "Medium Phone",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "adaptive-shell-report",
+            "path": "verification/evidence/issue-139-adaptive-shell.json",
+            "sha256": "sha256:9c1d9993499630211edb143d710dfd07ed5f946628dc484e3890a98e67f9c65d",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-04T22:18:09.513Z",
+        "expiresAt": "2026-09-05T22:18:09.513Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/139"
+        ]
+      },
+      {
+        "id": "tablet-emulator",
+        "sourceCommit": "1702ddbc42e120ab415d3e76e4745958262fd195",
+        "apkDigest": null,
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-139-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-mobile-mcp"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "Pixel Tablet",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "adaptive-shell-report",
+            "path": "verification/evidence/issue-139-adaptive-shell.json",
+            "sha256": "sha256:9c1d9993499630211edb143d710dfd07ed5f946628dc484e3890a98e67f9c65d",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-04T22:18:09.513Z",
+        "expiresAt": "2026-09-05T22:18:09.513Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/139"
+        ]
+      },
+      {
+        "id": "foldable-emulator",
+        "sourceCommit": "1702ddbc42e120ab415d3e76e4745958262fd195",
+        "apkDigest": null,
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-139-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-mobile-mcp"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "7.6in Foldable",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "adaptive-shell-report",
+            "path": "verification/evidence/issue-139-adaptive-shell.json",
+            "sha256": "sha256:9c1d9993499630211edb143d710dfd07ed5f946628dc484e3890a98e67f9c65d",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-04T22:18:09.513Z",
+        "expiresAt": "2026-09-05T22:18:09.513Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/139"
+        ]
+      },
+      {
+        "id": "accessibility",
+        "sourceCommit": "1702ddbc42e120ab415d3e76e4745958262fd195",
+        "apkDigest": null,
+        "verifierVersion": "1.0.0",
+        "testVersion": "issue-139-v1",
+        "environment": {
+          "gate": "change",
+          "retention": "development",
+          "name": "local-mobile-mcp"
+        },
+        "device": {
+          "kind": "emulator",
+          "profile": "Phone, tablet, and foldable matrix",
+          "apiLevel": 30
+        },
+        "artifacts": [
+          {
+            "id": "adaptive-shell-report",
+            "path": "verification/evidence/issue-139-adaptive-shell.json",
+            "sha256": "sha256:9c1d9993499630211edb143d710dfd07ed5f946628dc484e3890a98e67f9c65d",
+            "mediaType": "application/json"
+          }
+        ],
+        "result": "pass",
+        "observedAt": "2026-09-04T22:18:09.513Z",
+        "expiresAt": "2026-09-05T22:18:09.513Z",
+        "links": [
+          "https://github.com/TheDarkSkyXD/StreamFusion/issues/139"
+        ]
+      }
+    ]
+  }
 }

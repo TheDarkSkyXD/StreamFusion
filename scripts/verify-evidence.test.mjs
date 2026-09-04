@@ -82,7 +82,7 @@ async function fixtureOptions(root, catalog) {
   };
 }
 
-test("accepts the checked-in empty evidence catalog", async () => {
+test("accepts the checked-in evidence catalog", async () => {
   const catalog = JSON.parse(
     await readFile("verification/catalog.json", "utf8"),
   );
@@ -91,6 +91,13 @@ test("accepts the checked-in empty evidence catalog", async () => {
 
 test("runs the same verifier command with explicit CI artifact paths", async () => {
   await withFixture(async (root) => {
+    const catalog = JSON.parse(
+      await readFile("verification/catalog.json", "utf8"),
+    );
+    const recordCount = Object.values(catalog.capabilities).reduce(
+      (total, records) => total + records.length,
+      0,
+    );
     const result = spawnSync(
       process.execPath,
       [
@@ -106,7 +113,10 @@ test("runs the same verifier command with explicit CI artifact paths", async () 
     );
 
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /0 verified, 0 resumed, 0 total/);
+    assert.match(
+      result.stdout,
+      new RegExp(`${recordCount} verified, 0 resumed, ${recordCount} total`),
+    );
     assert.equal(
       JSON.parse(await readFile(path.join(root, "public.json"), "utf8"))
         .schemaVersion,

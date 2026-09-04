@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "issue": 139,
+  "capabilityId": "app-shell-and-navigation",
+  "mobileSourceCommit": "1702ddbc42e120ab415d3e76e4745958262fd195",
+  "observedAt": "2026-09-04T22:18:09.513Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "observedMainCommit": "9547f50466aa0d141bfc5bd14ec27a9985c79cfe",
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "pass"
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Workspace lint and typecheck passed.",
+        "Core 42, evidence 9, launcher 15, Mobile 32, Relay 7, Desktop 7449, and Worker 21 tests passed.",
+        "Mobile architecture proof passed with 7 allowed and 16 forbidden cases.",
+        "Workspace build, package policy, Desktop parity check, Android export, dependency audit, and registry signature audit passed."
+      ]
+    },
+    "api30-emulator": {
+      "result": "pass",
+      "profile": "Medium Phone",
+      "hardwareProfileId": "medium_phone",
+      "apiLevel": 30,
+      "display": "1080x2400@420dpi",
+      "coldBootSeconds": 42.8,
+      "rootOption3OpenSeconds": 15.3,
+      "observations": [
+        "Literal root npm start option 3 opened Expo Go and the StreamFusion shell.",
+        "Portrait used the five-item bottom navigation and landscape adapted to the labeled rail.",
+        "Search and More retained separate nested histories; Android Back popped only the active history.",
+        "The corrected landscape rail displayed all five destinations without clipping.",
+        "Expo Go reported zero crashes."
+      ]
+    },
+    "tablet-emulator": {
+      "result": "pass",
+      "profile": "Pixel Tablet",
+      "hardwareProfileId": "pixel_tablet",
+      "apiLevel": 30,
+      "display": "2560x1600@320dpi",
+      "coldBootSeconds": 34.6,
+      "rootOption3OpenSeconds": 17.4,
+      "observations": [
+        "The labeled rail and all five destinations were visible in both orientations.",
+        "The More Settings detail survived orientation change and Android Back returned to the More root.",
+        "Expo Go reported zero crashes."
+      ]
+    },
+    "foldable-emulator": {
+      "result": "pass",
+      "profile": "7.6in Foldable",
+      "hardwareProfileId": "7.6in Foldable",
+      "apiLevel": 30,
+      "display": "1768x2208@420dpi",
+      "hinge": "enabled at x=884",
+      "coldBootSeconds": 37.623,
+      "rootOption3OpenSeconds": 14.7,
+      "observations": [
+        "The run used Android's foldable hardware profile rather than resizing a phone.",
+        "The rail remained complete through portrait and landscape changes.",
+        "Search and More retained independent nested histories; Android Back popped only the active history.",
+        "Expo Go termination and recent-project relaunch returned to the ready shell.",
+        "Expo Go reported zero crashes before and after relaunch."
+      ]
+    },
+    "accessibility": {
+      "result": "pass",
+      "apiLevel": 30,
+      "minimumTouchTargetDp": 48,
+      "fontScale": 2,
+      "observations": [
+        "Mobile MCP exposed semantic tab roles, selected state, labels, and hints for Search, Following, Watch, Activity, and More.",
+        "Stable selectors included app-shell-ready, navigation-bottom, navigation-rail, nav-search, nav-following, nav-watch, nav-activity, nav-more, shell-back, and route-specific screen selectors.",
+        "Navigation and header controls met or exceeded the 48dp target on observed profiles.",
+        "At 200 percent font scale, navigation labels, controls, and route content remained reachable and readable."
+      ]
+    }
+  },
+  "containment": {
+    "hardwareBackAtRoot": "delegated to Android",
+    "hardwareBackInNestedRoute": "pops only the active destination",
+    "unsupportedPersistenceBoundary": "process-death restoration remains owned by B04",
+    "animation": "none, so reduced-motion preference requires no fallback"
+  },
+  "androidParityRecord": {
+    "delivery": "direct",
+    "progress": "verified",
+    "freshness": "current",
+    "blockers": [],
+    "developmentException": null
+  }
+}
