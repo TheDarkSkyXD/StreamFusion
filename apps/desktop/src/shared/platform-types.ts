@@ -5,62 +5,37 @@
  * Both Twitch and Kick API clients should return data conforming to these types.
  */
 
+import type {
+  Category as CoreCategory,
+  Channel as CoreChannel,
+  Clip as CoreClip,
+  SocialLink as CoreSocialLink,
+  Stream as CoreStream,
+  Video as CoreVideo,
+} from "@streamfusion/core/content";
 import type { Platform } from "./auth-types";
 import type { ChannelAccountStatus } from "./channel-account-status-types";
 import type { SubscriberBadge } from "./chat-types";
 
-// ========== Stream Types ==========
+type Mutable<T> = { -readonly [TKey in keyof T]: T[TKey] };
 
-export interface UnifiedStream {
-  id: string;
-  platform: Platform;
-  channelId: string;
-  channelName: string;
-  channelDisplayName: string;
-  channelAvatar: string;
-  channelIsVerified?: boolean;
-  title: string;
-  viewerCount: number;
-  thumbnailUrl: string;
-  isLive: boolean;
-  startedAt: string | null; // ISO date string, or null if unknown
-  language: string;
+export type UnifiedStream = Omit<Mutable<CoreStream>, "startedAt" | "tags"> & {
+  startedAt: string | null;
   tags: string[];
-  isMature?: boolean;
-  categoryId?: string;
-  categoryName?: string;
-}
+};
 
-// ========== Channel Types ==========
-
-export interface UnifiedChannel {
-  id: string;
-  platform: Platform;
-  username: string; // login/slug
-  displayName: string;
-  avatarUrl: string;
-  bannerUrl?: string;
-  bio?: string;
-  isLive: boolean;
-  isVerified: boolean;
-  isPartner: boolean;
+export type UnifiedChannel = Omit<
+  Mutable<CoreChannel>,
+  "createdAt" | "lastLiveAt" | "socialLinks"
+> & {
+  createdAt?: string;
+  lastLiveAt?: string;
+  socialLinks?: SocialLink[];
   /**
    * Account availability, independent from isLive. Required on authoritative
    * Kick channel responses; omitted on providers that do not classify it.
    */
   accountStatus?: ChannelAccountStatus;
-  followerCount?: number;
-  subscriberCount?: number;
-  viewCount?: number;
-  createdAt?: string;
-  /** End timestamp of the newest trustworthy prior stream; never a stream start timestamp. */
-  lastLiveAt?: string;
-  socialLinks?: SocialLink[];
-  // Category info - represents the last set category for the channel
-  categoryId?: string;
-  categoryName?: string;
-  // Stream title - represents the last set stream title
-  lastStreamTitle?: string;
   // Kick-specific: chatroom ID for Pusher WebSocket subscription
   chatroomId?: number;
   // Kick-specific: legacy channel/db ID used by web-only channel endpoints.
@@ -75,7 +50,7 @@ export interface UnifiedChannel {
   // Sourced from data.chatroom on the v2 channel-resolve payload; used to seed
   // useRoomStateStore on channel mount. Absent for Twitch channels.
   chatroomSettings?: KickChatroomSettings;
-}
+};
 
 /**
  * Kick chatroom mode settings — initial-fetch shape, normalized.
@@ -97,20 +72,12 @@ export interface KickChatroomSettings {
   accountAge?: { enabled: boolean; minDuration: number | null };
 }
 
-export interface SocialLink {
-  platform: string;
-  url: string;
-}
+export type SocialLink = Mutable<CoreSocialLink>;
 
 // ========== Category/Game Types ==========
 
-export interface UnifiedCategory {
-  id: string;
-  platform: Platform;
-  name: string;
-  boxArtUrl: string;
+export type UnifiedCategory = Omit<Mutable<CoreCategory>, "tags"> & {
   igdbId?: string;
-  viewerCount?: number; // Total viewers for the category (if available)
   // Curated tags ("FPS", "Casual", "IRL", …). Kick surfaces these in
   // /private/v1/categories; Twitch doesn't include any on /games/top, so for
   // Twitch-only entries this is empty until the per-card lazy fetch fills it.
@@ -122,7 +89,7 @@ export interface UnifiedCategory {
   // on both platforms — lets CategoryDetail skip a brittle runtime name-search.
   crossPlatformId?: string;
   crossPlatformName?: string;
-}
+};
 
 // ========== User Types ==========
 
@@ -147,84 +114,16 @@ export interface UnifiedFollow {
   notifications: boolean;
 }
 
-// ========== Chat Types ==========
-
-export interface UnifiedChatMessage {
-  id: string;
-  platform: Platform;
-  channelId: string;
-  userId: string;
-  username: string;
-  displayName: string;
-  avatarUrl?: string;
-  message: string;
-  parsedMessage: ParsedMessagePart[];
-  badges: ChatBadge[];
-  color?: string;
-  timestamp: Date;
-  isAction: boolean;
-  isFirstMessage: boolean;
-  isSubscriber: boolean;
-  isModerator: boolean;
-  isBroadcaster: boolean;
-  isVip: boolean;
-}
-
-export type ParsedMessagePart =
-  | { type: "text"; content: string }
-  | { type: "emote"; id: string; name: string; url: string }
-  | { type: "mention"; username: string }
-  | { type: "link"; url: string };
-
-export interface ChatBadge {
-  id: string;
-  name: string;
-  imageUrl: string;
-}
-
-// ========== Video/VOD Types ==========
-
-export interface UnifiedVideo {
-  id: string;
-  platform: Platform;
-  channelId: string;
-  channelName: string;
-  channelDisplayName: string;
-  channelAvatar: string;
-  title: string;
-  description?: string;
-  thumbnailUrl: string;
-  duration: number; // seconds
-  viewCount: number;
+export type UnifiedVideo = Omit<Mutable<CoreVideo>, "publishedAt"> & {
   publishedAt: string;
-  url: string;
-  /** Verified public content URL, separate from playback media. */
-  shareUrl?: string;
-  type: "archive" | "highlight" | "upload";
-}
+};
 
-// ========== Clip Types ==========
-
-export interface UnifiedClip {
-  id: string;
-  platform: Platform;
-  channelId: string;
-  channelName: string;
-  channelDisplayName: string;
-  channelAvatar: string;
-  title: string;
-  thumbnailUrl: string;
-  clipUrl: string;
-  /** Verified public content URL, separate from playback media. */
-  shareUrl?: string;
+export type UnifiedClip = Omit<Mutable<CoreClip>, "categoryId" | "categoryName" | "createdAt"> & {
   embedUrl: string;
-  duration: number; // seconds
-  viewCount: number;
   createdAt: string;
-  creatorName: string;
   gameId?: string;
   gameName?: string;
-}
+};
 
 // ========== Search Results ==========
 

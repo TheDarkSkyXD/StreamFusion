@@ -5,25 +5,22 @@
  * Twitch and Kick platforms.
  */
 
-// ========== Platform Types ==========
+import type {
+  ChatBadge as CoreChatBadge,
+  ChatHighlightKind as CoreChatHighlightKind,
+  ChatMessageType as CoreChatMessageType,
+  ChatUserPresentation as CoreChatUserPresentation,
+  ContentFragment as CoreContentFragment,
+  ReplyInfo as CoreReplyInfo,
+} from "@streamfusion/core/chat";
+import type { Platform } from "@streamfusion/core/platform";
 
-export type ChatPlatform = "twitch" | "kick";
+export type ChatPlatform = Platform;
 export type TwitchVerificationRequirement = "phone" | "email" | "account";
 
 // ========== Badge Types ==========
 
-export interface ChatBadge {
-  /** Badge set identifier (e.g., 'subscriber', 'moderator') */
-  setId: string;
-  /** Badge version within the set (e.g., '0', '3', '12') */
-  version: string;
-  /** URL to the badge image */
-  imageUrl: string;
-  /** Alt text / title for the badge */
-  title: string;
-  /** Optional badge tile color supplied by a third-party provider. */
-  backgroundColor?: string;
-}
+export type ChatBadge = CoreChatBadge;
 
 export interface SubscriberBadge {
   id: number;
@@ -105,13 +102,9 @@ export interface TwitchBadgeCatalog {
   channel: TwitchBadgeCatalogSection;
 }
 
-export interface ChatUserPresentation {
-  userId: string;
-  username: string;
-  displayName: string;
-  color?: string;
+export type ChatUserPresentation = Omit<CoreChatUserPresentation, "badges"> & {
   badges: ChatBadge[];
-}
+};
 
 export interface RetainedDeletedMessage {
   id: string;
@@ -163,57 +156,10 @@ export interface EmotePosition {
 
 // ========== Message Types ==========
 
-export type MessageType =
-  "message" | "action" | "system" | "notice" | "subscription" | "raid" | "bits" | "ban";
-
-export type ChatHighlightKind =
-  | "first-time-chat"
-  | "highlighted-message"
-  | "subscription"
-  | "resub"
-  | "gifted-sub"
-  | "raid"
-  | "ritual"
-  | "bits"
-  | "cheer";
-
-/** A fragment of message content */
-export type ContentFragment =
-  | { type: "text"; content: string }
-  | {
-      type: "emote";
-      id: string;
-      name: string;
-      url: string;
-      provider?: "twitch" | "kick" | "bttv" | "ffz" | "7tv";
-      /** Provider logical 1x geometry and density sources, when known. */
-      width?: number;
-      height?: number;
-      url1x?: string;
-      url2x?: string;
-      url4x?: string;
-      isAnimated?: boolean;
-      /** Zero-width / overlay emote — stacks on the preceding emote when the
-       *  viewer's `overlayEmotes` pref is on. Populated from the matched `Emote`
-       *  record; native Twitch/Kick emotes are never zero-width (U3). */
-      isZeroWidth?: boolean;
-    }
-  | { type: "mention"; username: string }
-  | { type: "link"; url: string; text: string }
-  | { type: "cheermote"; id: string; name: string; url: string; bits: number };
-
-export interface ReplyInfo {
-  /** ID of the message being replied to */
-  parentMessageId: string;
-  /** User ID of the parent message author */
-  parentUserId: string;
-  /** Username of the parent message author */
-  parentUsername: string;
-  /** Display name of the parent message author */
-  parentDisplayName: string;
-  /** Content of the parent message (may be truncated) */
-  parentMessageBody: string;
-}
+export type MessageType = CoreChatMessageType;
+export type ChatHighlightKind = CoreChatHighlightKind;
+export type ContentFragment = CoreContentFragment;
+export type ReplyInfo = CoreReplyInfo;
 
 export interface ChatMessage {
   /** Unique message identifier */
