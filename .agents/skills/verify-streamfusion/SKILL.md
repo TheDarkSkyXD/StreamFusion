@@ -11,7 +11,7 @@ Read [`features/README.md`](features/README.md) before choosing a recipe. Run ev
 
 ## Launch
 
-The controller invokes `apps/desktop/scripts/start-dev.js`, the launcher behind `npm --prefix apps/desktop run dev:mcp`. It selects an unused CDP port, passes an isolated `--user-data-dir`, and sets StreamFusion's development artifact root so logs and Platform health telemetry stay inside the disposable run.
+The controller runs `npm start` from `apps/desktop`. Its non-interactive start picker uses option 1, Electron, and forwards the selected CDP port to the development launcher. It supplies the disposable profile through both Electron's `--user-data-dir` switch and StreamFusion's development-only profile override so Chromium and the app use the same isolated directory. This also runs the repository's `start:checked` typecheck and lint gates before Electron starts. StreamFusion's development artifact root is redirected so logs and Platform health telemetry stay inside the disposable run.
 
 PowerShell:
 
@@ -22,11 +22,11 @@ $verifyRun = $launch.runFile
 $verifyEvidence = $launch.evidenceDir
 ```
 
-The launch is ready only when the command returns `ready: true`, `title: "StreamFusion"`, and a renderer URL. The controller waits for the main build, preload build, renderer server, Electron process, and CDP page target. Launch output is retained at `$verifyEvidence/launch.log`.
+The launch is ready only when the command returns `ready: true`, `title: "StreamFusion"`, `launcher.mode: "dev:electron"`, and a renderer URL. The controller waits for the checked start command, main build, preload build, renderer server, Electron process, and CDP page target. Launch output, including the `npm start` and `start:checked` command headers, is retained at `$verifyEvidence/launch.log`.
 
 Do not attach to a developer's existing port 9222 or 9236 instance. Do not use `electron .`, `electron-vite preview`, or a packaged build for normal feature proof.
 
-The controller creates a WAL-consistent SQLite snapshot of `streamfusion.db` and copies the account-bearing Electron profile state into the disposable profile before launch. The account snapshot includes `streamfusion-storage.json`, Chromium's `Local State` encryption key, and a consistent `Network/Cookies` snapshot. This gives verification the user's current local follows, history, preferences, authenticated Twitch and Kick accounts, and Kick website session without allowing local writes to modify the live profile. Pass `--database <path>` or `--storage <path>` to seed from another profile. `--storage` also selects the source profile for encryption state and cookies. A missing artifact starts fresh.
+The controller creates a WAL-consistent SQLite snapshot of `.streamfusion-dev-user-data/streamfusion.db` and copies the account-bearing Electron state from `.streamfusion-dev-user-data/` into the disposable profile before launch. The account snapshot includes `streamfusion-storage.json`, Chromium's `Local State` encryption key, and a consistent `Network/Cookies` snapshot. This gives verification the user's current local follows, history, preferences, authenticated Twitch and Kick accounts, and Kick website session without allowing local writes to modify the source profile. Pass `--database <path>` or `--storage <path>` to seed from another profile. `--storage` also selects the source profile for encryption state and cookies. A missing artifact starts fresh.
 
 ## Doctor
 
@@ -100,4 +100,4 @@ Each launch gets its own CDP port, Electron `userData` directory, and scratch pr
 node .agents/skills/verify-streamfusion/scripts/control.mjs help
 ```
 
-It has no package dependency. It launches the repository's development script, speaks CDP through Node's built-in WebSocket client, writes proof artifacts, checks process ownership, and removes only the run it created.
+It has no package dependency. It launches `npm start` option 1, speaks CDP through Node's built-in WebSocket client, writes proof artifacts, checks process ownership, and removes only the run it created.

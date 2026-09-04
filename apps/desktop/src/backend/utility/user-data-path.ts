@@ -1,5 +1,6 @@
 interface ResolveUserDataPathOptions {
   argv: readonly string[];
+  configuredDevelopmentUserDataPath?: string;
   defaultPath: string;
   developmentPath: string;
   isProduction: boolean;
@@ -21,11 +22,14 @@ function findUserDataDirOverride(argv: readonly string[]): string | undefined {
 
 export function resolveUserDataPath({
   argv,
+  configuredDevelopmentUserDataPath,
   defaultPath,
   developmentPath,
   isProduction,
 }: ResolveUserDataPathOptions): string {
-  const override = findUserDataDirOverride(argv);
+  const override =
+    findUserDataDirOverride(argv) ||
+    (!isProduction ? configuredDevelopmentUserDataPath?.trim() : undefined);
 
   if (override) return override;
   return isProduction ? defaultPath : developmentPath;

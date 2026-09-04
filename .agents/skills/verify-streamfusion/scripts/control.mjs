@@ -334,25 +334,30 @@ function getGitRevision() {
   }
 }
 
+function npmLaunchCommand(arguments_) {
+  if (process.platform !== "win32") {
+    return { command: "npm", arguments: arguments_ };
+  }
+
+  const npmCli = path.join(
+    path.dirname(process.execPath),
+    "node_modules",
+    "npm",
+    "bin",
+    "npm-cli.js",
+  );
+  if (!existsSync(npmCli)) {
+    throw new Error(`Could not find the npm CLI beside Node: ${npmCli}`);
+  }
+  return { command: process.execPath, arguments: [npmCli, ...arguments_] };
+}
+
 function defaultLiveDatabasePath() {
   return path.join(defaultLiveProfilePath(), "streamfusion.db");
 }
 
 function defaultLiveProfilePath() {
-  if (process.platform === "win32" && process.env.APPDATA) {
-    return path.join(process.env.APPDATA, "StreamFusion (Dev)");
-  }
-  if (process.platform === "darwin") {
-    return path.join(
-      process.env.HOME ?? "",
-      "Library",
-      "Application Support",
-      "StreamFusion (Dev)",
-    );
-  }
-  const configRoot =
-    process.env.XDG_CONFIG_HOME || path.join(process.env.HOME ?? "", ".config");
-  return path.join(configRoot, "StreamFusion (Dev)");
+  return path.join(repoRoot, ".streamfusion-dev-user-data");
 }
 
 async function seedLiveDatabase(options, profileDir) {
@@ -422,7 +427,13 @@ async function seedLiveAccountStorage(options, profileDir) {
     path.join(sourceProfile, "Network", "Cookies"),
     path.join(profileDir, "Network", "Cookies"),
   );
-  return { source, destination, encryptionState, cookies, authenticatedPlatforms };
+  return {
+    source,
+    destination,
+    encryptionState,
+    cookies,
+    authenticatedPlatforms,
+  };
 }
 
 async function launch(options) {
@@ -453,23 +464,25 @@ async function launch(options) {
   const databaseSeed = await seedLiveDatabase(options, profileDir);
   const accountStorageSeed = await seedLiveAccountStorage(options, profileDir);
 
+  const npmArguments = [
+    "start",
+    "--",
+    `--remote-debugging-port=${port}`,
+    `--user-data-dir=${profileDir}`,
+  ];
+  const npmLaunch = npmLaunchCommand(npmArguments);
   const outputFd = openSync(logFile, "a");
-  const child = spawn(
-    process.execPath,
-    [
-      "scripts/start-dev.js",
-      "--",
-      `--remote-debugging-port=${port}`,
-      `--user-data-dir=${profileDir}`,
-    ],
-    {
-      cwd: desktopRoot,
-      detached: true,
-      windowsHide: true,
-      env: { ...process.env, STREAMFUSION_DEV_ARTIFACT_ROOT: artifactRoot },
-      stdio: ["ignore", outputFd, outputFd],
+  const child = spawn(npmLaunch.command, npmLaunch.arguments, {
+    cwd: desktopRoot,
+    detached: true,
+    windowsHide: true,
+    env: {
+      ...process.env,
+      STREAMFUSION_DEV_ARTIFACT_ROOT: artifactRoot,
+      STREAMFUSION_DEV_USER_DATA_DIR: profileDir,
     },
-  );
+    stdio: ["ignore", outputFd, outputFd],
+  });
   closeSync(outputFd);
   child.unref();
 
@@ -488,6 +501,11 @@ async function launch(options) {
     logFile,
     databaseSeed,
     accountStorageSeed,
+    launcher: {
+      command: "npm start",
+      selection: 1,
+      mode: "dev:electron",
+    },
     packageVersion: packageJson.version,
     gitRevision: getGitRevision(),
     launchedAt: new Date().toISOString(),
@@ -600,11 +618,11 @@ async function doctor(options) {
     page,
     packageVersion: currentVersion,
     launchedVersion: state.packageVersion,
+    launcher: state.launcher,
     gitRevision: state.gitRevision,
-    authentication:
-      !state.accountStorageSeed
-        ? "No development account store was available; this run started signed out"
-        : `Seeded development account state for: ${state.accountStorageSeed.authenticatedPlatforms.join(", ") || "no authenticated platforms"}`,
+    authentication: !state.accountStorageSeed
+      ? "No development account store was available; this run started signed out"
+      : `Seeded development account state for: ${state.accountStorageSeed.authenticatedPlatforms.join(", ") || "no authenticated platforms"}`,
     accountStorageErrors,
     uncaughtErrors,
     evidenceDir: state.evidenceDir,

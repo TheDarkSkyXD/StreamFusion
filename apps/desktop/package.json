@@ -42,7 +42,7 @@
     "dev:electron": "node scripts/start-dev.js",
     "dev:mcp": "node scripts/start-dev.js -- --remote-debugging-port=9222",
     "build": "electron-vite build",
-    "start": "npm run start:checked",
+    "start": "npm run start:checked --",
     "start:checked": "npm run typecheck && npm run lint && node scripts/start-picker.js",
     "preview": "electron-vite preview",
     "dist": "npm run rebuild-deps && npm run build && electron-builder --publish never",

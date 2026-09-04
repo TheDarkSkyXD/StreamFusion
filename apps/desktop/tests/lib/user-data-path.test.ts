@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { resolveUserDataPath } from "@backend/utility/user-data-path";
 
 // Guards: explicit launch profiles override the automatic development and packaged locations
+// Guards: development automation can isolate state after Electron consumes its user-data switch
 // Guards: packaged launches keep Electron's production user-data directory
 // Guards: development launches use the project-local user-data directory
 describe("resolveUserDataPath", () => {
@@ -28,10 +29,23 @@ describe("resolveUserDataPath", () => {
     ).toBe("C:\\packaged-proof");
   });
 
+  it("accepts a configured development user-data directory", () => {
+    expect(
+      resolveUserDataPath({
+        argv: ["electron.exe", "."],
+        configuredDevelopmentUserDataPath: "C:\\proof-profile",
+        defaultPath: "C:\\StreamFusion",
+        developmentPath: "C:\\repo\\.streamfusion-dev-user-data",
+        isProduction: false,
+      })
+    ).toBe("C:\\proof-profile");
+  });
+
   it("keeps Electron's default user-data directory in production", () => {
     expect(
       resolveUserDataPath({
         argv: ["StreamFusion.exe"],
+        configuredDevelopmentUserDataPath: "C:\\proof-profile",
         defaultPath: "C:\\StreamFusion",
         developmentPath: "C:\\repo\\.streamfusion-dev-user-data",
         isProduction: true,

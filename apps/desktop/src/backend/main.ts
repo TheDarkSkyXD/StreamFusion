@@ -100,6 +100,7 @@ configureAppIdentity(app, { platform: process.platform, isPackaged: app.isPackag
 const defaultUserDataPath = app.getPath("userData");
 const userDataPath = resolveUserDataPath({
   argv: process.argv,
+  configuredDevelopmentUserDataPath: process.env.STREAMFUSION_DEV_USER_DATA_DIR,
   defaultPath: defaultUserDataPath,
   developmentPath: path.join(projectRoot, ".streamfusion-dev-user-data"),
   isProduction,
