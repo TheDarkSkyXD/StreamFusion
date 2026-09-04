@@ -16,7 +16,7 @@
     "bundle:android": "expo export --platform android --output-dir dist",
     "build:android:development": "node scripts/build-android-development.mjs",
     "config:android": "expo config --type public --json",
-    "lint": "eslint app/ scripts/ tests/ eslint.config.mjs",
+    "lint": "eslint app/ scripts/ tests/ vendor/ metro.config.js eslint.config.mjs",
     "test": "node --test tests/*.test.mjs && node scripts/verify-architecture.mjs",
     "typecheck": "tsc --noEmit"
   },
@@ -29,6 +29,7 @@
     "expo-router": "57.0.13",
     "expo-splash-screen": "57.0.6",
     "expo-status-bar": "57.0.1",
+    "query-string": "9.5.0",
     "react": "19.2.3",
     "react-native": "0.86.2",
     "react-native-reanimated": "4.5.1",
