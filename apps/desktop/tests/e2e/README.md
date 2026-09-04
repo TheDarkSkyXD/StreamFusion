@@ -21,7 +21,15 @@ The controller starts a disposable profile on an unused Chrome DevTools Protocol
 It seeds SQLite from the development profile without writing to the live database. Read
 `.agents/skills/verify-streamfusion/SKILL.md` for the drive, evidence, and cleanup rules.
 
-Always clean the run when the pass ends:
+## Prove the compiled artifact
+
+Use the normal controller launch for development proof. It remains the default E2E path.
+
+Use `E2E Preview` only when you need to prove the compiled Electron artifact. Close other StreamFusion development instances first because they share the compiled output and may lock the source profile. Run `npm start`, choose `4) E2E Preview`, and keep the terminal open while the managed session runs. Closing the Electron window or pressing Ctrl+C cleans the disposable run directory. The controller keeps evidence in `.scratch/verify-streamfusion/evidence/<run-id>/`.
+
+For automation, use `node .agents/skills/verify-streamfusion/scripts/control.mjs launch --mode preview`. Use `node .agents/skills/verify-streamfusion/scripts/control.mjs session --mode preview -- --disable-gpu` for a managed foreground run. Do not pass `--user-data-dir` or `--remote-debugging-port`. The controller supplies both switches.
+
+Always clean an unmanaged `launch` run when the pass ends:
 
 ```powershell
 node .agents/skills/verify-streamfusion/scripts/control.mjs cleanup --run $verifyRun

@@ -6,6 +6,7 @@ export const START_PROMPT = [
   "  1) Electron",
   "  2) Browser",
   "  3) Mobile (Expo Go)",
+  "  4) E2E Preview",
   "",
   "Choose a start mode [1]: ",
 ].join("\n");
@@ -14,6 +15,7 @@ export const START_TARGETS = Object.freeze([
   Object.freeze({ answer: "1", name: "electron", script: "desktop" }),
   Object.freeze({ answer: "2", name: "browser", script: "browser" }),
   Object.freeze({ answer: "3", name: "mobile", script: "mobile" }),
+  Object.freeze({ answer: "4", name: "e2e-preview", script: "e2e:preview" }),
 ]);
 
 export async function chooseStartTarget({ interactive, ask }) {

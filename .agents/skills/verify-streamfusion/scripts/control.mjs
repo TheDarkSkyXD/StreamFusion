@@ -9,6 +9,11 @@ import process from "node:process";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 
+import {
+  createVerificationLaunchPlan,
+  runManagedVerificationSession,
+} from "./control-launch-plan.mjs";
+
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..", "..", "..", "..");
 const desktopRoot = path.join(repoRoot, "apps", "desktop");
@@ -27,11 +32,20 @@ const requiredDatabaseTables = [
 function parseArguments(argv) {
   const [command, ...tokens] = argv;
   const options = {};
+  const electronArgs = [];
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
+    if (token === "--") {
+      electronArgs.push(...tokens.slice(index + 1));
+      break;
+    }
     if (!token.startsWith("--"))
       throw new Error(`Unexpected argument: ${token}`);
-    const key = token.slice(2);
+    const [key, inlineValue] = token.slice(2).split("=", 2);
+    if (inlineValue !== undefined) {
+      options[key] = inlineValue;
+      continue;
+    }
     const value = tokens[index + 1];
     if (!value || value.startsWith("--")) options[key] = true;
     else {
@@ -39,7 +53,7 @@ function parseArguments(argv) {
       index += 1;
     }
   }
-  return { command, options };
+  return { command, options, electronArgs };
 }
 
 function requireOption(options, name) {
@@ -334,24 +348,6 @@ function getGitRevision() {
   }
 }
 
-function npmLaunchCommand(arguments_) {
-  if (process.platform !== "win32") {
-    return { command: "npm", arguments: arguments_ };
-  }
-
-  const npmCli = path.join(
-    path.dirname(process.execPath),
-    "node_modules",
-    "npm",
-    "bin",
-    "npm-cli.js",
-  );
-  if (!existsSync(npmCli)) {
-    throw new Error(`Could not find the npm CLI beside Node: ${npmCli}`);
-  }
-  return { command: process.execPath, arguments: [npmCli, ...arguments_] };
-}
-
 function defaultLiveDatabasePath() {
   return path.join(defaultLiveProfilePath(), "streamfusion.db");
 }
@@ -436,7 +432,7 @@ async function seedLiveAccountStorage(options, profileDir) {
   };
 }
 
-async function launch(options) {
+async function launch(options, electronArgs = [], { managed = false } = {}) {
   await assertKnownPortsAreFree();
   await assertNoActiveVerificationRun();
   const id =
@@ -458,33 +454,32 @@ async function launch(options) {
   const artifactRoot = path.join(runDir, "dev-artifacts");
   const runFile = path.join(runDir, "run.json");
   const logFile = path.join(evidenceDir, "launch.log");
+  const plan = createVerificationLaunchPlan({
+    mode: options.mode,
+    port,
+    profileDir,
+    electronArgs,
+  });
   await mkdir(profileDir, { recursive: true });
   await mkdir(artifactRoot, { recursive: true });
   await mkdir(evidenceDir, { recursive: true });
   const databaseSeed = await seedLiveDatabase(options, profileDir);
   const accountStorageSeed = await seedLiveAccountStorage(options, profileDir);
 
-  const npmArguments = [
-    "start",
-    "--",
-    `--remote-debugging-port=${port}`,
-    `--user-data-dir=${profileDir}`,
-  ];
-  const npmLaunch = npmLaunchCommand(npmArguments);
   const outputFd = openSync(logFile, "a");
-  const child = spawn(npmLaunch.command, npmLaunch.arguments, {
+  const child = spawn(plan.command, plan.args, {
     cwd: desktopRoot,
     detached: true,
     windowsHide: true,
     env: {
-      ...process.env,
+      ...plan.env,
       STREAMFUSION_DEV_ARTIFACT_ROOT: artifactRoot,
       STREAMFUSION_DEV_USER_DATA_DIR: profileDir,
     },
     stdio: ["ignore", outputFd, outputFd],
   });
   closeSync(outputFd);
-  child.unref();
+  if (!managed) child.unref();
 
   const packageJson = JSON.parse(
     await readFile(path.join(desktopRoot, "package.json"), "utf8"),
@@ -501,11 +496,7 @@ async function launch(options) {
     logFile,
     databaseSeed,
     accountStorageSeed,
-    launcher: {
-      command: "npm start",
-      selection: 1,
-      mode: "dev:electron",
-    },
+    launcher: plan.launcher,
     packageVersion: packageJson.version,
     gitRevision: getGitRevision(),
     launchedAt: new Date().toISOString(),
@@ -513,8 +504,16 @@ async function launch(options) {
   await writeFile(runFile, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 
   try {
-    const target = await waitForTarget(port, child.pid);
-    json({ ...state, title: target.title, url: target.url, ready: true });
+    const target = await waitForTarget(
+      port,
+      child.pid,
+      plan.readinessTimeoutMs,
+    );
+    return {
+      state,
+      child,
+      report: { ...state, title: target.title, url: target.url, ready: true },
+    };
   } catch (error) {
     await stopProcessTree(child.pid);
     await removeRunScratch(state);
@@ -858,19 +857,20 @@ async function cleanup(options) {
     }
   }
   const runDir = await removeRunScratch(state);
-  json({
+  return {
     cleaned: true,
     runDir,
     evidenceDir: state.evidenceDir,
     evidenceExists: existsSync(state.evidenceDir),
-  });
+  };
 }
 
 function usage() {
   return `StreamFusion verification controller
 
 Commands:
-  launch [--id ID] [--port PORT] [--database PATH] [--storage PATH]
+  launch [--mode dev:electron|preview] [--id ID] [--port PORT] [--database PATH] [--storage PATH] [-- ELECTRON_ARGS]
+  session --mode preview [--id ID] [--port PORT] [--database PATH] [--storage PATH] [-- ELECTRON_ARGS]
   doctor --run RUN_JSON
   database --run RUN_JSON [--output RELATIVE_PATH]
   click --run RUN_JSON --role ROLE --name NAME
@@ -887,12 +887,40 @@ Commands:
 }
 
 async function main() {
-  const { command, options } = parseArguments(process.argv.slice(2));
+  const { command, options, electronArgs } = parseArguments(
+    process.argv.slice(2),
+  );
   if (!command || command === "help" || command === "--help") {
     process.stdout.write(usage());
     return;
   }
-  if (command === "launch") return launch(options);
+  if (command === "launch") {
+    const launched = await launch(options, electronArgs);
+    json(launched.report);
+    return;
+  }
+  if (command === "session") {
+    const result = await runManagedVerificationSession(
+      { options, electronArgs },
+      {
+        launch: async ({
+          options: launchOptions,
+          electronArgs: launchArgs,
+        }) => {
+          const launched = await launch(launchOptions, launchArgs, {
+            managed: true,
+          });
+          json(launched.report);
+          return launched;
+        },
+        cleanup: async (state) => {
+          json(await cleanup({ run: state.runFile }));
+        },
+      },
+    );
+    process.exitCode = result.code;
+    return;
+  }
   if (command === "doctor") return doctor(options);
   if (command === "database") return inspectDatabase(options);
   if (["click", "fill", "press"].includes(command))
@@ -903,7 +931,7 @@ async function main() {
   if (command === "screenshot") return screenshot(options);
   if (command === "evaluate") return rawEvaluate(options);
   if (command === "logs") return logs(options);
-  if (command === "cleanup") return cleanup(options);
+  if (command === "cleanup") return json(await cleanup(options));
   throw new Error(`Unknown command: ${command}`);
 }
 

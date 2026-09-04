@@ -66,6 +66,10 @@ test("the root workspace owns npm policy and application startup", () => {
 
   assert.equal(rootPackage.scripts.start, "node scripts/start-picker.mjs");
   assert.equal(
+    rootPackage.scripts["e2e:preview"],
+    "node .agents/skills/verify-streamfusion/scripts/control.mjs session --mode preview --",
+  );
+  assert.equal(
     rootPackage.scripts.desktop,
     "npm run --workspace streamfusion dev:electron --",
   );

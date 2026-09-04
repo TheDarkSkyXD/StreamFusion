@@ -37,6 +37,7 @@
   "scripts": {
     "preinstall": "node scripts/require-npm.mjs",
     "start": "node scripts/start-picker.mjs",
+    "e2e:preview": "node .agents/skills/verify-streamfusion/scripts/control.mjs session --mode preview --",
     "desktop": "npm run --workspace streamfusion dev:electron --",
     "browser": "npm run --workspace streamfusion dev --",
     "mobile": "npm run --workspace @streamfusion/mobile android --",
@@ -60,9 +61,9 @@
     "lint:release-age": "node scripts/validate-lockfile-release-age.mjs",
     "verify:evidence": "node scripts/verify-evidence.mjs --resume",
     "test:evidence": "node --test scripts/verify-evidence.test.mjs",
-    "test": "npm run --workspace @streamfusion/core test && npm run test:evidence && node --test scripts/start-picker.test.mjs && npm run --workspace @streamfusion/mobile test && npm run --workspace @streamfusion/integration-relay test && npm run --workspace streamfusion test && npm run --workspace streamfusion-worker test",
-    "test:all": "npm run --workspace @streamfusion/core test && npm run test:evidence && node --test scripts/start-picker.test.mjs && npm run --workspace @streamfusion/mobile test && npm run --workspace @streamfusion/integration-relay test && npm run --workspace streamfusion test:all && npm run --workspace streamfusion-worker test",
-    "test:package-policy": "node --test scripts/start-picker.test.mjs scripts/package-policy.test.mjs scripts/validate-lockfile-release-age.test.mjs",
+    "test": "npm run --workspace @streamfusion/core test && npm run test:evidence && node --test scripts/start-picker.test.mjs .agents/skills/verify-streamfusion/scripts/control-launch-plan.test.mjs && npm run --workspace @streamfusion/mobile test && npm run --workspace @streamfusion/integration-relay test && npm run --workspace streamfusion test && npm run --workspace streamfusion-worker test",
+    "test:all": "npm run --workspace @streamfusion/core test && npm run test:evidence && node --test scripts/start-picker.test.mjs .agents/skills/verify-streamfusion/scripts/control-launch-plan.test.mjs && npm run --workspace @streamfusion/mobile test && npm run --workspace @streamfusion/integration-relay test && npm run --workspace streamfusion test:all && npm run --workspace streamfusion-worker test",
+    "test:package-policy": "node --test scripts/start-picker.test.mjs scripts/package-policy.test.mjs scripts/validate-lockfile-release-age.test.mjs .agents/skills/verify-streamfusion/scripts/control-launch-plan.test.mjs",
     "test:release-policy": "node --test scripts/release-policy.test.mjs scripts/merge-artifacts.test.mjs scripts/release-workflow.test.mjs",
     "typecheck": "npm run --workspace @streamfusion/core typecheck && npm run --workspace @streamfusion/mobile typecheck && npm run --workspace @streamfusion/integration-relay typecheck && npm run --workspace streamfusion typecheck && npm run --workspace streamfusion-worker typecheck",
     "perf:soak": "npm run --workspace streamfusion perf:soak"

@@ -24,6 +24,19 @@ $verifyEvidence = $launch.evidenceDir
 
 The launch is ready only when the command returns `ready: true`, `title: "StreamFusion"`, `launcher.mode: "dev:electron"`, and a renderer URL. The controller waits for the checked start command, main build, preload build, renderer server, Electron process, and CDP page target. Launch output, including the `npm start` and `start:checked` command headers, is retained at `$verifyEvidence/launch.log`.
 
+## Preview proof
+
+Normal verification uses `launch` without `--mode`. It remains the default because it proves the development path.
+
+Use preview only when you need proof of the compiled Electron artifact. The root picker starts a managed foreground session. Choose `4) E2E Preview` after running `npm start`. The session runs `electron-vite preview`, waits for the Electron process to end, and removes the disposable run directory. Evidence remains in `.scratch/verify-streamfusion/evidence/<run-id>/`.
+
+For automation, run `launch --mode preview` and use the returned run file with the existing controller commands. Use `session --mode preview` when you want automatic cleanup. Arguments after `--` go to Electron. The controller rejects `--user-data-dir` and `--remote-debugging-port` because it owns the isolated profile and CDP port.
+
+```powershell
+node .agents/skills/verify-streamfusion/scripts/control.mjs launch --mode preview --id preview-proof
+node .agents/skills/verify-streamfusion/scripts/control.mjs session --mode preview -- --disable-gpu
+```
+
 Do not attach to a developer's existing port 9222 or 9236 instance. Do not use `electron .`, `electron-vite preview`, or a packaged build for normal feature proof.
 
 The controller creates a WAL-consistent SQLite snapshot of `.streamfusion-dev-user-data/streamfusion.db` and copies the account-bearing Electron state from `.streamfusion-dev-user-data/` into the disposable profile before launch. The account snapshot includes `streamfusion-storage.json`, Chromium's `Local State` encryption key, and a consistent `Network/Cookies` snapshot. This gives verification the user's current local follows, history, preferences, authenticated Twitch and Kick accounts, and Kick website session without allowing local writes to modify the source profile. Pass `--database <path>` or `--storage <path>` to seed from another profile. `--storage` also selects the source profile for encryption state and cookies. A missing artifact starts fresh.

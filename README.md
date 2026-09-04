@@ -85,7 +85,7 @@ Ensure you have the following installed:
 
 ### Running Locally
 
-To choose Electron, Browser, or Mobile development mode:
+To choose Electron, Browser, Mobile, or an E2E Preview session:
 
 ```bash
 npm start
@@ -96,7 +96,10 @@ build, install, and start the Android development client on a connected device o
 emulator. Mobile source, Expo configuration, generated Android files, tests, assets,
 and dependency declarations stay under `apps/mobile`.
 
-
+Choose `4) E2E Preview` to build and run the compiled Electron artifact in an isolated
+verification session. It is opt-in. Normal development proof remains the default. See
+[the Electron E2E guide](apps/desktop/tests/e2e/README.md) for controller commands and
+evidence rules.
 
 ## 🤝 Contributing
 
