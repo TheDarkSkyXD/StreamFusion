@@ -15,6 +15,16 @@ The Android Expo entry points delegate to one Mobile composition root. That root
 - Import enforcement: `apps/mobile/eslint.config.mjs` and `apps/mobile/scripts/verify-architecture.mjs`
 - Runtime contract: `apps/mobile/CONTEXT.md`
 
+## Android product shell and navigation
+
+The Android shell presents the same five destinations through compact bottom navigation or a labeled rail at wider window sizes. Each destination owns an in-session history; lifecycle restoration remains a separate persistence concern.
+
+- Route entry: `apps/mobile/app/index.tsx`
+- Composition root: `apps/mobile/src/composition/mobile-runtime.tsx`
+- Shell UI and navigation state: `apps/mobile/src/features/shell/`
+- Dark Theater primitives: `apps/mobile/src/design/tokens.ts`
+- Tests: `apps/mobile/tests/shell-navigation.test.ts`
+
 ## Product shell and navigation
 
 The shell owns window chrome, global navigation, route loading, recovery, notifications, and global dialogs.

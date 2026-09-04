@@ -2,7 +2,7 @@ import { PLATFORMS } from "@streamfusion/core/platform";
 
 import { createExpoAppMetadataReader } from "@mobile/adapters/expo-app-metadata-reader";
 import { createDevelopmentClientController } from "@mobile/features/development/development-client-controller";
-import { DevelopmentClientScreen } from "@mobile/features/development/development-client-screen";
+import { AppShell } from "@mobile/features/shell/app-shell";
 import { createVolatilePersistenceProbe } from "@mobile/persistence/volatile-runtime-probe";
 import { createFetchRuntimeProbe } from "@mobile/transport/fetch-runtime-probe";
 
@@ -13,5 +13,5 @@ const developmentClientController = createDevelopmentClientController({
 });
 
 export function MobileRuntime() {
-  return <DevelopmentClientScreen model={developmentClientController.read()} />;
+  return <AppShell developmentStatus={developmentClientController.read()} />;
 }
