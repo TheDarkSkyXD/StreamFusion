@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 
 import { useMultiStreamStore } from "@/features/multistream/data/multistream-store";
 
+import { AspectAwareStreamGrid } from "./adaptive-stream-grid";
 import { SortableStreamSlot } from "./sortable-stream-slot";
 import { StreamSlot } from "./stream-slot";
 
@@ -120,20 +121,36 @@ export function MultiStreamGrid() {
   }
 
   // Layout Logic
-  let gridClass = "grid gap-1 h-full w-full";
+  let gridClass = "h-full w-full";
 
   if (layout === "focus" && focusedStreamId) {
     // Focus layout handled mainly via logic below
     gridClass = "flex flex-col h-full w-full";
-  } else {
-    // Grid Setup
-    const count = streams.length;
-    if (count === 1) gridClass += " grid-cols-1 grid-rows-1";
-    else if (count === 2) gridClass += " grid-cols-2 grid-rows-1";
-    else if (count <= 4) gridClass += " grid-cols-2 grid-rows-2";
-    else if (count <= 6) gridClass += " grid-cols-3 grid-rows-2";
-    else gridClass += " grid-cols-3 auto-rows-[minmax(180px,1fr)] overflow-y-auto";
   }
+
+  const sortableSlots = streams.map((stream, index) => (
+    <SortableStreamSlot
+      key={stream.id}
+      id={stream.id}
+      platform={stream.platform}
+      channelName={stream.channelName}
+      isMuted={stream.isMuted}
+      onRemove={() => removeStream(stream.id)}
+      onFocus={() => {
+        if (stream.isMuted) {
+          toggleMute(stream.id);
+          streams.forEach((candidate) => {
+            if (candidate.id !== stream.id && !candidate.isMuted) toggleMute(candidate.id);
+          });
+        }
+      }}
+      isFocused={false}
+      playbackActive={index < playbackBudget}
+      onActivate={() => reorderStreams(index, 0)}
+      wcvEnabled={wcvEnabled}
+    />
+  ));
+  const focusedStream = streams.find((stream) => stream.id === focusedStreamId);
 
   return (
     <div className={gridClass}>
@@ -142,22 +159,21 @@ export function MultiStreamGrid() {
         <>
           {/* Main Focus Stream */}
           <div className="flex-[3] min-h-0 bg-black">
-            {streams
-              .filter((s) => s.id === focusedStreamId)
-              .map((stream) => (
+            <AspectAwareStreamGrid>
+              {focusedStream && (
                 <StreamSlot
-                  key={stream.id}
-                  streamId={stream.id}
-                  platform={stream.platform}
-                  channelName={stream.channelName}
-                  isMuted={stream.isMuted}
-                  onRemove={() => removeStream(stream.id)}
+                  streamId={focusedStream.id}
+                  platform={focusedStream.platform}
+                  channelName={focusedStream.channelName}
+                  isMuted={focusedStream.isMuted}
+                  onRemove={() => removeStream(focusedStream.id)}
                   onFocus={() => {}}
                   isFocused={true}
                   playbackActive
                   wcvEnabled={wcvEnabled}
                 />
-              ))}
+              )}
+            </AspectAwareStreamGrid>
           </div>
           {/* Side Bar for others */}
           <div className="flex-1 min-h-[150px] flex overflow-x-auto overflow-y-hidden border-t border-[var(--color-border)] bg-[var(--color-background-secondary)] p-1 gap-1">
@@ -188,28 +204,7 @@ export function MultiStreamGrid() {
         // Grid Mode with wrapped DndContext
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={streams.map((s) => s.id)} strategy={rectSortingStrategy}>
-            {streams.map((stream, index) => (
-              <SortableStreamSlot
-                key={stream.id}
-                id={stream.id}
-                platform={stream.platform}
-                channelName={stream.channelName}
-                isMuted={stream.isMuted}
-                onRemove={() => removeStream(stream.id)}
-                onFocus={() => {
-                  if (stream.isMuted) {
-                    toggleMute(stream.id);
-                    streams.forEach((s) => {
-                      if (s.id !== stream.id && !s.isMuted) toggleMute(s.id);
-                    });
-                  }
-                }}
-                isFocused={focusedStreamId === stream.id && false}
-                playbackActive={index < playbackBudget}
-                onActivate={() => reorderStreams(index, 0)}
-                wcvEnabled={wcvEnabled}
-              />
-            ))}
+            <AspectAwareStreamGrid>{sortableSlots}</AspectAwareStreamGrid>
           </SortableContext>
         </DndContext>
       )}

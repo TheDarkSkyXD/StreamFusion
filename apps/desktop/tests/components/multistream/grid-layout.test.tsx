@@ -48,6 +48,12 @@ vi.mock("@/features/multistream/components/multistream/sortable-stream-slot", ()
   ),
 }));
 
+vi.mock("@/features/multistream/components/multistream/adaptive-stream-grid", () => ({
+  AspectAwareStreamGrid: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="aspect-aware-grid">{children}</div>
+  ),
+}));
+
 vi.mock("@/features/multistream/components/multistream/stream-slot", () => ({
   StreamSlot: () => <div data-testid="slot">slot</div>,
 }));
@@ -76,6 +82,40 @@ describe("MultiStreamGrid", () => {
     };
     renderWithProviders(<MultiStreamGrid />);
     expect(screen.getAllByTestId("sortable-slot")).toHaveLength(2);
+    expect(screen.getByTestId("aspect-aware-grid")).toBeInTheDocument();
+  });
+
+  // Guards: a single Multiview stream also uses the aspect stage instead of stretching into a tall letterboxed player.
+  it("keeps a single stream in an aspect-correct player frame", () => {
+    mockState = {
+      streams: [{ id: "s1", platform: "twitch", channelName: "ninja" }],
+      layout: "grid",
+      focusedStreamId: null,
+      playbackBudget: 4,
+    };
+
+    renderWithProviders(<MultiStreamGrid />);
+
+    expect(screen.getByTestId("sortable-slot")).toBeInTheDocument();
+    expect(screen.getByTestId("aspect-aware-grid")).toBeInTheDocument();
+  });
+
+  // Guards: focus mode constrains the primary stream while retaining the existing aspect-video side rail.
+  it("keeps the focused stream in the adaptive aspect stage", () => {
+    mockState = {
+      streams: [
+        { id: "s1", platform: "twitch", channelName: "ninja" },
+        { id: "s2", platform: "kick", channelName: "xqc" },
+      ],
+      layout: "focus",
+      focusedStreamId: "s1",
+      playbackBudget: 4,
+    };
+
+    renderWithProviders(<MultiStreamGrid />);
+
+    expect(screen.getByTestId("aspect-aware-grid")).toBeInTheDocument();
+    expect(screen.getAllByTestId("slot")).toHaveLength(2);
   });
 
   it("partial-loading: all N slots mount independently while the playback budget admits decoders", () => {

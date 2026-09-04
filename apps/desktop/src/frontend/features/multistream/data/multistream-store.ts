@@ -360,7 +360,18 @@ export const useMultiStreamStore = create<MultiStreamState>()(
       isFavorite: (favorite) =>
         get().favoriteStreams.some((candidate) => favoriteStreamsMatch(candidate, favorite)),
 
-      setLayout: (layout) => set({ layout }),
+      setLayout: (layout) =>
+        set((state) => {
+          if (layout === "grid") return { layout };
+          const focusedStreamId = state.streams.some(
+            (stream) => stream.id === state.focusedStreamId
+          )
+            ? state.focusedStreamId
+            : (state.streams[0]?.id ?? null);
+          return focusedStreamId
+            ? { layout: "focus", focusedStreamId }
+            : { layout: "grid", focusedStreamId: null };
+        }),
       setFocusedStream: (focusedStreamId) =>
         set({ focusedStreamId, layout: focusedStreamId ? "focus" : "grid" }),
 

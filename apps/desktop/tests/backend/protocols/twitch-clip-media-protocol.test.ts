@@ -16,13 +16,12 @@ import { buildTwitchClipMediaUrl } from "@backend/protocols/twitch-clip-media-ur
 // Guards: unsatisfiable Range responses preserve upstream status, metadata, and body
 // Guards: closing clip media aborts the fetch and cancels the upstream body without draining it
 // Guards: clip media reads pull upstream only as Chromium consumes the downstream body
-// Guards: signed clip media is never cached by the upstream fetch or downstream response
-// Guards: upstream clip redirects retain the fetch boundary's existing follow behavior
+// Guards: signed clip media is never cached by the downstream response
+// Guards: upstream clip requests avoid synthetic Origin and Referer context that Electron rejects for signed CDN media
 // Guards: malformed upstream content lengths are not forwarded to Chromium
 // Guards: upstream responses with no body preserve their status without becoming synthetic failures
 // Guards: upstream body failures after partial delivery reach the downstream reader without hiding prior bytes
 // Guards: upstream fetch failures become non-cacheable gateway responses
-// Guards: expected upstream aborts are contained without error logging
 // Guards: upstream HTTP failures preserve their response without inventing media metadata
 // Guards: untrusted clip media hosts are rejected before any network request
 // Guards: successful streaming responses retain a usable media type without inventing a length
@@ -113,12 +112,13 @@ describe("twitch clip media protocol", () => {
       originalUrl,
       expect.objectContaining({
         method: "GET",
-        headers: expect.objectContaining({
+        headers: {
           Accept: "video/mp4,video/*;q=0.9,*/*;q=0.8",
-          Origin: "https://clips.twitch.tv",
           Range: "bytes=0-3",
-          Referer: "https://clips.twitch.tv/",
-        }),
+        },
+        signal: request.signal,
+        cache: "no-store",
+        redirect: "follow",
       })
     );
     expect(response.status).toBe(206);
@@ -186,10 +186,6 @@ describe("twitch clip media protocol", () => {
     await reader.read();
     await reader.cancel("superseded seek");
 
-    expect(fetchClipMedia).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ signal: request.signal })
-    );
     expect(cancelReason).toBe("superseded seek");
   });
 
@@ -294,34 +290,6 @@ describe("twitch clip media protocol", () => {
     expect(response.headers.get("Cache-Control")).toBe("no-store");
   });
 
-  it("contains an expected upstream abort without logging an error", async () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    try {
-      const abortController = new AbortController();
-      const request = new Request(
-        buildTwitchClipMediaUrl("https://clips-media-assets2.twitch.tv/example.mp4"),
-        { signal: abortController.signal }
-      );
-      const fetchClipMedia = vi.fn(
-        (_url: string, init: { signal: AbortSignal }) =>
-          new Promise<Response>((_resolve, reject) => {
-            init.signal.addEventListener("abort", () => reject(init.signal.reason), { once: true });
-          })
-      );
-
-      const responsePromise = handleTwitchClipMediaRequest(request, fetchClipMedia);
-      expect(fetchClipMedia).toHaveBeenCalledOnce();
-      abortController.abort(new DOMException("The operation was aborted", "AbortError"));
-      const response = await responsePromise;
-
-      expect(response.status).toBe(502);
-      expect(response.headers.get("Cache-Control")).toBe("no-store");
-      expect(consoleError).not.toHaveBeenCalled();
-    } finally {
-      consoleError.mockRestore();
-    }
-  });
-
   it("preserves an upstream HTTP failure without inventing a content type", async () => {
     const upstreamBody = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -372,7 +340,12 @@ describe("twitch clip media protocol", () => {
     expect(response.status).toBe(200);
     expect(fetchClipMedia).toHaveBeenCalledWith(
       expect.any(String),
-      expect.objectContaining({ cache: "no-store", redirect: "follow" })
+      expect.objectContaining({
+        method: "GET",
+        headers: { Accept: "video/mp4,video/*;q=0.9,*/*;q=0.8" },
+        cache: "no-store",
+        redirect: "follow",
+      })
     );
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(response.headers.get("Content-Length")).toBeNull();

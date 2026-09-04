@@ -41,6 +41,7 @@ const playerMocks = vi.hoisted(() => ({
     onCleanPresentedFrame?: () => void;
     recoveryManagedExternally?: boolean;
   },
+  kickProps: null as null | { className?: string },
 }));
 
 vi.mock("@/features/playback/components/player/twitch/twitch-live-player", () => ({
@@ -60,7 +61,14 @@ vi.mock("@/features/playback/components/player/twitch/twitch-live-player", () =>
 }));
 
 vi.mock("@/features/playback/components/player/kick/kick-live-player", () => ({
-  KickLivePlayer: () => <div data-testid="kick-live-player">player</div>,
+  KickLivePlayer: (props: { className?: string }) => {
+    playerMocks.kickProps = props;
+    return (
+      <div data-testid="kick-live-player" className={props.className}>
+        player
+      </div>
+    );
+  },
 }));
 
 vi.mock("@/components/ui/proxied-image", () => ({
@@ -74,12 +82,14 @@ import { StreamSlot } from "@/features/multistream/components/multistream/stream
 // Guards: cross-slot isolation — each StreamSlot owns its own playback hook (useStreamPlayback) and its own onError. One slot's failed HLS init must not blank the sibling slot; this is enforced by per-slot mounting (verified by the slot rendering its overlay locally without unmounting the player on the other slot)
 // Note: the multistream grid mounts multiple StreamSlots independently — slot isolation is locked at the grid level (grid-layout.test.tsx) and at the slot level (offline overlay verified here)
 // Guards: StreamSlot tests never start raid-handoff provider transports or real WebSockets.
+// Guards: Multiview players keep pointer hit testing enabled so movement anywhere reveals controls; host actions stay above the player overlay.
 describe("StreamSlot", () => {
   afterEach(() => {
     vi.useRealTimers();
     playerMocks.playbackRevision = 1;
     playerMocks.reload.mockReset();
     playerMocks.twitchProps = null;
+    playerMocks.kickProps = null;
   });
 
   it("renders the Twitch live player for twitch streams", () => {
@@ -95,6 +105,8 @@ describe("StreamSlot", () => {
       />
     );
     expect(screen.getByTestId("tw-live-player")).toBeInTheDocument();
+    expect(playerMocks.twitchProps?.className ?? "").not.toContain("pointer-events-none");
+    expect(screen.getByRole("button", { name: "Mute" }).parentElement).toHaveClass("z-50");
   });
 
   it("renders the Kick live player for kick streams", () => {
@@ -110,6 +122,7 @@ describe("StreamSlot", () => {
       />
     );
     expect(screen.getByTestId("kick-live-player")).toBeInTheDocument();
+    expect(playerMocks.kickProps?.className ?? "").not.toContain("pointer-events-none");
   });
 
   // Guards: slots beyond the playback budget keep controls but do not mount a decoder until activated.

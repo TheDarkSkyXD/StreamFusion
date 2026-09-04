@@ -418,9 +418,15 @@ describe("multistream-store clearStreams", () => {
 });
 
 describe("multistream-store layout", () => {
-  it("setLayout changes the layout mode", () => {
+  // Guards: entering focus layout always selects a real stream so the toolbar action cannot render the grid unchanged.
+  it("setLayout selects the first stream when entering focus mode", () => {
+    useMultiStreamStore.getState().addStream("kick", "a");
+    useMultiStreamStore.getState().addStream("twitch", "b");
+
     useMultiStreamStore.getState().setLayout("focus");
+
     expect(useMultiStreamStore.getState().layout).toBe("focus");
+    expect(useMultiStreamStore.getState().focusedStreamId).toBe("kick-a");
   });
 
   it("setFocusedStream switches to focus layout", () => {

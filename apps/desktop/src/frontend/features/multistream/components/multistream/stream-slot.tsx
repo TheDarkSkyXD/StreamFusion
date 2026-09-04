@@ -268,7 +268,7 @@ export function StreamSlot({
       </div>
 
       {/* Slot Controls (Top Right) */}
-      <div className="absolute top-2 right-2 z-20 flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute top-2 right-2 z-50 flex items-center space-x-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none">
         {dragHandleProps && (
           <Button
             size="icon"
@@ -401,7 +401,6 @@ export function StreamSlot({
               streamUrl={playback.url}
               autoPlay={true}
               muted={isMuted}
-              className="pointer-events-none"
               channelName={channelName}
               onRefresh={reload}
             />
@@ -412,7 +411,6 @@ export function StreamSlot({
               channelName={channelName}
               autoPlay={true}
               muted={isMuted}
-              className={twitchRecoveryError ? undefined : "pointer-events-none"}
               onRefresh={reload}
               onError={twitchRecovery.handleError}
               onCleanPresentedFrame={twitchRecovery.markPlaybackHealthy}
