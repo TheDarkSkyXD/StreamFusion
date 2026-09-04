@@ -46,6 +46,31 @@ function listenerAt<T>(fn: ReturnType<typeof vi.fn>): Listener<T> {
 
 const signedPlaylistUrl =
   "https://fa723fc1b171.use21.playlist.live-video.net/v1/playlist/Cp0F5ra5zQbiktfvf6ezdYSBEletOK1PLhh54khJkwiRzswmlwbtC7YizjoprBvX2e-2ohv83BZvTRXwTPwp5k3Dxp6quScYuXd4VuW6DAjSFy4jKrj2DBq9Llj2-y2NR0ylcDlEZCteQ5Uhf1mVCjUc97uIzJyHEcqcgmQxtCAjufovcx8fL748MKkepvt2ITP8JAIt3sml3YlTXg836z8aB7A91t64T6wwt0wPNq3snl15S1gEgdQnWov5MEH2MgdcpSLheaOPEjwh1IcIohZpzILvCvLnxyoPcfpbmMzh7BYa6hrX4liGXpIRNSLHdRyz3c_5n4rB_Gxvs371VDUK5o6cAqxYYwhxgP1goY9QlctAiiwJiJyowuTjHVCaE8YIDF01n3jLYrjEmUVJV967qqESLdG3fQel6je8u67pZerm7tvK9ZqFy0E5VRYhoSCTdaL54qOFwBLI_9S--R_At_XuFD352qUQvGUpIKKpKaNzXAeGJchuWucmnb1-2MZqMGo-9KBW_DBnu3kV0f2lGFCANFy8fezxjsIYSKMXE-uhKIhCr2K6se1mDDTWa085tbEOP-K4ysuT0pIpD7-ad6Jc5joj7puhDRZMHXY4K_WAF1uho8gjq_w4ocPwNLYFeD-7ergJlL4CSOejOk4nj0b3f582VojM_JPHBAkoJgG4_Be2zZvSXZWdHexTkhQIBE53xbCyryZsxLRlb2FWSf-mxviR4G25lLcDD_qKrusE95CHp8Mdz_watcSxL6zqVgpYDeuUXQ_WsQAl-ZsuwpcT9eRKl3hsGzPOzKaAWTWdZXiW9Ynn3sV3Fo7AvOpAUFnDnqJhVnz85taax0Ss_aKpuy4LJ3SefLX0TFT6AiugXUkUonU_4MdnybRqGgzd5lWppUjoVdl7ldsgASoJdXMtZWFzdC0yMKgP.m3u8";
+const kickPlaylistUrl =
+  "https://fa723fc1b171.us-west-2.playback.live-video.net/api/video/us-west-2.196233775518.channel.hxxZzH3odZEN.m3u8";
+
+function completePlaylist(
+  onCompleted: Listener<Electron.OnCompletedListenerDetails>,
+  {
+    id,
+    statusCode,
+    timestamp,
+    url = kickPlaylistUrl,
+  }: { id: number; statusCode: number; timestamp: number; url?: string }
+): void {
+  onCompleted({
+    id,
+    url,
+    method: "GET",
+    resourceType: "xhr",
+    referrer: "http://localhost:5173/",
+    timestamp,
+    fromCache: false,
+    statusCode,
+    statusLine: `HTTP/2 ${statusCode}`,
+    error: "",
+  });
+}
 
 function fingerprint(url: string): string {
   return createHash("sha256").update(url).digest("hex").slice(0, 16);
@@ -53,6 +78,8 @@ function fingerprint(url: string): string {
 
 // Guards: a retryable HLS segment transport failure is diagnostic noise, not a terminal playback error
 // Guards: equivalent Kick playlist 404 retries produce one actionable error instead of flooding the terminal
+// Guards: Kick playlist retry suppression stays isolated by exact path and Electron session
+// Guards: a quiet period or successful load makes the next Kick playlist 404 actionable again
 describe("installNetworkRequestLogger", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -187,17 +214,11 @@ describe("installNetworkRequestLogger", () => {
 
     const onCompleted = listenerAt<Electron.OnCompletedListenerDetails>(webRequest.onCompleted);
     for (let retry = 0; retry < 20; retry += 1) {
-      onCompleted({
+      completePlaylist(onCompleted, {
         id: 100 + retry,
-        url: `https://fa723fc1b171.us-west-2.playback.live-video.net/api/video/us-west-2.196233775518.channel.hxxZzH3odZEN.m3u8?retry=${retry}`,
-        method: "GET",
-        resourceType: "xhr",
-        referrer: "http://localhost:5173/",
+        url: `${kickPlaylistUrl}?retry=${retry}`,
         timestamp: 1000 + retry * 600,
-        fromCache: false,
         statusCode: 404,
-        statusLine: "HTTP/2 404",
-        error: "",
       });
     }
 
@@ -211,6 +232,67 @@ describe("installNetworkRequestLogger", () => {
         statusCode: 404,
       })
     );
+  });
+
+  it("keeps different Kick playlist paths as separate failures", () => {
+    const { session, webRequest } = makeSession();
+    installNetworkRequestLogger(session as unknown as Electron.Session);
+
+    const onCompleted = listenerAt<Electron.OnCompletedListenerDetails>(webRequest.onCompleted);
+    completePlaylist(onCompleted, { id: 120, statusCode: 404, timestamp: 1000 });
+    completePlaylist(onCompleted, {
+      id: 121,
+      statusCode: 404,
+      timestamp: 1100,
+      url: `${kickPlaylistUrl.replace("hxxZzH3odZEN", "otherChannel")}?retry=1`,
+    });
+
+    expect(loggerMock.error).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps Kick playlist failures separate between sessions", () => {
+    const first = makeSession();
+    const second = makeSession();
+    installNetworkRequestLogger(first.session as unknown as Electron.Session);
+    installNetworkRequestLogger(second.session as unknown as Electron.Session);
+
+    completePlaylist(listenerAt(first.webRequest.onCompleted), {
+      id: 130,
+      statusCode: 404,
+      timestamp: 1000,
+    });
+    completePlaylist(listenerAt(second.webRequest.onCompleted), {
+      id: 131,
+      statusCode: 404,
+      timestamp: 1100,
+    });
+
+    expect(loggerMock.error).toHaveBeenCalledTimes(2);
+  });
+
+  it("logs a new Kick playlist failure after a 30-second quiet period", () => {
+    const { session, webRequest } = makeSession();
+    installNetworkRequestLogger(session as unknown as Electron.Session);
+
+    const onCompleted = listenerAt<Electron.OnCompletedListenerDetails>(webRequest.onCompleted);
+    completePlaylist(onCompleted, { id: 140, statusCode: 404, timestamp: 1000 });
+    completePlaylist(onCompleted, { id: 141, statusCode: 404, timestamp: 26_000 });
+    completePlaylist(onCompleted, { id: 142, statusCode: 404, timestamp: 50_000 });
+    completePlaylist(onCompleted, { id: 143, statusCode: 404, timestamp: 80_000 });
+
+    expect(loggerMock.error).toHaveBeenCalledTimes(2);
+  });
+
+  it("logs a Kick playlist failure again after that playlist succeeds", () => {
+    const { session, webRequest } = makeSession();
+    installNetworkRequestLogger(session as unknown as Electron.Session);
+
+    const onCompleted = listenerAt<Electron.OnCompletedListenerDetails>(webRequest.onCompleted);
+    completePlaylist(onCompleted, { id: 150, statusCode: 404, timestamp: 1000 });
+    completePlaylist(onCompleted, { id: 151, statusCode: 200, timestamp: 1100 });
+    completePlaylist(onCompleted, { id: 152, statusCode: 404, timestamp: 1200 });
+
+    expect(loggerMock.error).toHaveBeenCalledTimes(2);
   });
 
   it("does not register duplicate listeners for the same session", () => {

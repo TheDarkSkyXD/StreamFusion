@@ -53,6 +53,10 @@ type RequestStart = {
   url: string;
 };
 
+type RecentPlaylistFailure = {
+  lastSeenAt: number;
+};
+
 export type DevtoolsNetworkRequestHint = {
   generatedInitiator?: string;
   generatedInitiatorColumn?: number;
@@ -72,6 +76,7 @@ export type DevtoolsNetworkRequestHint = {
 
 const installedSessions = new WeakSet<Session>();
 const requestStartsBySession = new WeakMap<Session, Map<number, RequestStart>>();
+const recentKickPlaylist404sBySession = new WeakMap<Session, Map<string, RecentPlaylistFailure>>();
 const devtoolsHintsByFingerprint = new Map<string, DevtoolsNetworkRequestHint>();
 
 const STREAM_HOST_PARTS = [
@@ -87,6 +92,8 @@ const STREAM_HOST_PARTS = [
 
 const STREAM_PATH_PATTERN = /\.(m3u8|mp4|m4s|ts|aac|vtt|key)(?:$|[?#])/i;
 const PLAYLIST_PATH_PATTERN = /\.m3u8(?:$|[?#])/i;
+const KICK_PLAYLIST_HOST_PARTS = ["playback.live-video.net", "playlist.live-video.net"];
+const KICK_PLAYLIST_404_QUIET_PERIOD_MS = 30_000;
 const SLOW_STREAM_REQUEST_MS = 2500;
 const MAX_TRACKED_REQUESTS = 5000;
 const CURL_HEADER_ALLOWLIST = new Set([
@@ -138,6 +145,62 @@ function isUnavailableTwitchLiveManifest(rawUrl: string, statusCode: number): bo
     url?.hostname.toLowerCase() === "usher.ttvnw.net" &&
     /^\/api\/(?:v2\/)?channel\/(?:hls\/)?[^/]+\.m3u8$/i.test(url.pathname)
   );
+}
+
+function kickPlaylistIdentity(rawUrl: string): string | null {
+  const url = safeUrl(rawUrl);
+  if (
+    url == null ||
+    !["http:", "https:"].includes(url.protocol) ||
+    !KICK_PLAYLIST_HOST_PARTS.some(
+      (host) => url.hostname === host || url.hostname.endsWith(`.${host}`)
+    ) ||
+    !PLAYLIST_PATH_PATTERN.test(url.pathname)
+  ) {
+    return null;
+  }
+
+  return urlFingerprint(`${url.origin}${url.pathname}`);
+}
+
+function trimRecentPlaylistFailures(failures: Map<string, RecentPlaylistFailure>): void {
+  if (failures.size <= MAX_TRACKED_REQUESTS) return;
+
+  let oldestIdentity: string | undefined;
+  let oldestSeenAt = Number.POSITIVE_INFINITY;
+  for (const [identity, failure] of failures) {
+    if (failure.lastSeenAt < oldestSeenAt) {
+      oldestIdentity = identity;
+      oldestSeenAt = failure.lastSeenAt;
+    }
+  }
+  if (oldestIdentity !== undefined) failures.delete(oldestIdentity);
+}
+
+function isRepeatedKickPlaylist404(targetSession: Session, details: CompleteDetails): boolean {
+  const identity = kickPlaylistIdentity(details.url);
+  if (identity == null) return false;
+
+  const recentFailures = recentKickPlaylist404sBySession.get(targetSession);
+  if (details.statusCode < 400) {
+    recentFailures?.delete(identity);
+    return false;
+  }
+  if (details.statusCode !== 404) return false;
+
+  const previousFailure = recentFailures?.get(identity);
+  const timeSincePreviousFailure =
+    previousFailure == null
+      ? Number.POSITIVE_INFINITY
+      : details.timestamp - previousFailure.lastSeenAt;
+  const isRepeated =
+    timeSincePreviousFailure >= 0 && timeSincePreviousFailure < KICK_PLAYLIST_404_QUIET_PERIOD_MS;
+
+  const failures = recentFailures ?? new Map<string, RecentPlaylistFailure>();
+  failures.set(identity, { lastSeenAt: details.timestamp });
+  recentKickPlaylist404sBySession.set(targetSession, failures);
+  trimRecentPlaylistFailures(failures);
+  return isRepeated;
 }
 
 function requestName(rawUrl: string): string {
@@ -309,9 +372,12 @@ export function installNetworkRequestLogger(targetSession: Session): void {
         logger.info("Network:Request", "Twitch live manifest unavailable", meta);
         return;
       }
+      if (isRepeatedKickPlaylist404(targetSession, details)) return;
       logger.error("Network:Request", "stream request failed with HTTP status", meta);
       return;
     }
+
+    isRepeatedKickPlaylist404(targetSession, details);
 
     if (elapsed !== undefined && elapsed >= SLOW_STREAM_REQUEST_MS) {
       logger.warn("Network:Request", "stream request slow", meta);
