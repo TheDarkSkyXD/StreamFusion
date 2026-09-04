@@ -4,6 +4,17 @@ This map groups code by user outcome. Paths are repository-relative. Read the li
 
 Renderer capability code lives under `apps/desktop/src/frontend/features/<feature>/`. Each feature owns `components`, `data`, `routes`, and `utils`. `apps/desktop/src/frontend/routes/router.tsx` composes the feature route exports.
 
+## Android runtime foundation
+
+The Android Expo entry points delegate to one Mobile composition root. That root injects public core contracts and Mobile-owned transport, adapter, persistence, and native implementations into feature controllers.
+
+- Routes: `apps/mobile/app/`
+- Composition root: `apps/mobile/src/composition/mobile-runtime.tsx`
+- Feature UI and controllers: `apps/mobile/src/features/`
+- Mobile capabilities and implementations: `apps/mobile/src/capabilities/`, `src/transport/`, `src/adapters/`, `src/persistence/`, and `src/native/`
+- Import enforcement: `apps/mobile/eslint.config.mjs` and `apps/mobile/scripts/verify-architecture.mjs`
+- Runtime contract: `apps/mobile/CONTEXT.md`
+
 ## Product shell and navigation
 
 The shell owns window chrome, global navigation, route loading, recovery, notifications, and global dialogs.
