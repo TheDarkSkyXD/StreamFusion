@@ -30,8 +30,6 @@ export interface PlayerError {
   shouldRefresh?: boolean;
 }
 
-export type { Platform } from "@streamfusion/core/platform";
-
 export interface StreamPlayback {
   url: string;
   format: "hls" | "dash" | "mp4";

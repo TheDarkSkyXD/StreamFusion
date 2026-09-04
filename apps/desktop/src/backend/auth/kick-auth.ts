@@ -19,7 +19,8 @@ import {
   type OAuth2RefreshOutcome,
   type OAuth2Session,
 } from "@streamfusion/core/auth";
-import type { AuthToken, KickUser, Platform } from "../../shared/auth-types";
+import type { AuthToken, KickUser } from "../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { clearPersistedKickWebBearer } from "../api/platforms/kick/kick-web-credential";
 import { KICK_API_BASE } from "../api/platforms/kick/kick-types";
 import { storageService } from "../services/storage-service";

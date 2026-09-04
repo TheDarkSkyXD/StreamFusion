@@ -1,5 +1,5 @@
 import type { UnifiedStream } from "@shared/platform-types";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { StreamGrid } from "@/features/discovery/components/stream/stream-grid";

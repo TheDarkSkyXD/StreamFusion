@@ -1,4 +1,4 @@
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type { TimeoutActionBinding, TimeoutActionPolicy } from "@shared/timeout-moderation-types";
 import { createCancellableSleep, type CancellableSleep } from "@shared/utils/sleep";
 

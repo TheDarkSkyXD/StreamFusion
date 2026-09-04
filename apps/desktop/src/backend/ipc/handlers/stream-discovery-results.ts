@@ -1,5 +1,5 @@
-import type { Platform } from "../../../shared/auth-types";
-import type { DiscoveryProviderStatus, DiscoveryResult } from "../../../shared/discovery-types";
+import { Platform } from "@streamfusion/core/platform";
+import { DiscoveryProviderStatus, DiscoveryResult } from "@streamfusion/core/discovery";
 import type { UnifiedStream } from "../../../shared/platform-types";
 import { settleDiscoveryProviders } from "@streamfusion/core/discovery";
 

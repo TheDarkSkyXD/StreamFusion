@@ -6,7 +6,8 @@
  */
 
 import { logger } from "@shared/utils/cross-logger";
-import { type AuthToken, KICK_APP_SCOPES, type Platform } from "../../shared/auth-types";
+import { type AuthToken, KICK_APP_SCOPES } from "../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { KICK_API_BASE } from "../api/platforms/kick/kick-types";
 import { hasCanonicalKickScopes } from "./kick-scope-validation";
 import { getOAuthConfig, type PkceChallenge } from "./oauth-config";

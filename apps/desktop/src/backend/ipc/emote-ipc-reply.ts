@@ -2,8 +2,12 @@ import { randomUUID } from "node:crypto";
 
 import { logger } from "@backend/logging/logger";
 import { BoundedReadError } from "@backend/reliability/bounded-json-read";
-import type { Platform } from "@shared/auth-types";
-import type { AppErrorCode, IpcReply, RetryAdvice } from "@shared/reliability-types";
+import { Platform } from "@streamfusion/core/platform";
+import {
+  AppErrorCode,
+  Result as IpcReply,
+  RetryDecision as RetryAdvice,
+} from "@streamfusion/core/reliability";
 
 function classifyBoundedRead(error: BoundedReadError): {
   code: AppErrorCode;

@@ -10,8 +10,8 @@ import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
 import type { ClipSearchSource } from "@backend/search/progressive-clip-search";
 import type { StreamDirectorySource } from "@backend/search/progressive-stream-search";
 import type { VideoSearchSource } from "@backend/search/progressive-video-search";
-import { rankSearchChannels } from "@/features/discovery/utils/search/channel-search-contract";
-import type { Platform } from "@shared/auth-types";
+import { rankSearchChannels } from "@streamfusion/core/discovery";
+import { Platform } from "@streamfusion/core/platform";
 
 const MATCHED_LIVE_CHANNEL_LIMIT = 20;
 

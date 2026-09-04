@@ -46,15 +46,10 @@ import {
 } from "@/features/discovery/data/queries/useStreams";
 import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 import { useDebounce } from "@/hooks/useDebounce";
-import {
-  dedupeChannelsByIdentity,
-  dedupeStreamsByChannelIdentity,
-  getChannelKey,
-  getChannelNameKey,
-  getStreamKey,
-} from "@/lib/id-utils";
+import { dedupeChannelsByIdentity, dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
+import { getChannelKey, getChannelNameKey, getStreamKey } from "@streamfusion/core/platform";
 import { cn, normalizeCategoryName } from "@/lib/utils";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
 import { usePipStore } from "@/store/pip-store";

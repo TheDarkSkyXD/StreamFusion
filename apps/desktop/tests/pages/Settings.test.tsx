@@ -3,13 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_BUFFER_PREFERENCES,
-  DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_PLAYBACK_PREFERENCES,
   DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
 } from "@shared/auth-types";
+import { DEFAULT_LIVE_NOTIFICATION_PREFERENCES as DEFAULT_NOTIFICATION_PREFERENCES } from "@streamfusion/core/follows";
 import { HOME_CAROUSEL_INTERVAL_DEFAULT_MS, useAppStore } from "@/store/app-store";
 import { useFollowStore } from "@/store/follow-store";
 import { activateDisplayLanguage } from "@/i18n";

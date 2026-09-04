@@ -6,9 +6,9 @@ import type {
   KickAccountFollowWriteSnapshot,
   KickAccountFollowWriteResult,
   LocalFollow,
-  Platform,
   UserPreferences,
 } from "../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { KickFollowWriteService } from "../../services/kick-follow-write-service";
 import { storageService } from "../../services/storage-service";

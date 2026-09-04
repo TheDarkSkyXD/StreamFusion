@@ -18,11 +18,8 @@ import type React from "react";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { BsChevronDown } from "react-icons/bs";
 import { useInterval } from "@/hooks/useInterval";
-import type {
-  ChatBadge as ChatBadgeType,
-  ContentFragment,
-  NormalizedPinnedMessage,
-} from "../../../../../shared/chat-types";
+import type { NormalizedPinnedMessage } from "../../../../../shared/chat-types";
+import { ChatBadge as ChatBadgeType, ContentFragment } from "@streamfusion/core/chat";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 import { ChatBadge } from "./ChatBadge";
 import { ChatEmote } from "./ChatEmote";

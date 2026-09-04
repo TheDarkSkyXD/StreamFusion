@@ -15,7 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import type { ModLogAction } from "@backend/services/mod-log-writer";
 import { logger } from "@/renderer/logging/logger";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type { ModerationHistoryResult, ModLogEntry } from "@shared/mod-log-types";
 import { MOD_LOG_QUERY_KEYS } from "./mod-log-query-keys";
 

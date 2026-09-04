@@ -181,12 +181,6 @@ const moves = [
     "features/auth/data/use-live-notification-bridge.ts",
   ],
   ["auth", "hooks/useRequireModScopes.ts", "features/auth/data/useRequireModScopes.ts"],
-  [
-    "auth",
-    "lib/live-notification-preferences.ts",
-    "features/auth/utils/live-notification-preferences.ts",
-  ],
-
   ["multistream", "pages/MultiStream", "features/multistream/components/MultiStreamPage"],
   ["multistream", "components/multistream", "features/multistream/components/multistream"],
   ["multistream", "store/multistream-store.ts", "features/multistream/data/multistream-store.ts"],

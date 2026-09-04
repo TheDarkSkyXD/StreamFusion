@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import type { ReplyInfo } from "../../../../../shared/chat-types";
+import { ReplyInfo } from "@streamfusion/core/chat";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 import { TwitchReplyArrowIcon } from "./ChatReplyButton";
 

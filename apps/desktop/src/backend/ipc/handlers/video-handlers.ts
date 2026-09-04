@@ -2,7 +2,7 @@ import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@backend/logging/logger";
 import type { CategoryContentResult, ClipReader, VideoReader } from "@streamfusion/core/discovery";
-import type { Platform } from "../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type {
   CategoryClipsRequest,
   CategoryMediaItem,

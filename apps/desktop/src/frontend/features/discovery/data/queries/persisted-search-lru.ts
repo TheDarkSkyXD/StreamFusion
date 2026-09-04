@@ -8,14 +8,14 @@ import type {
   UnifiedVideo,
 } from "@shared/platform-types";
 import { logger } from "@/renderer/logging/logger";
-import { normalizeSearchQuery } from "@/features/discovery/utils/search/search-normalization";
+import { normalizeSearchQuery } from "@streamfusion/core/discovery";
 import {
   normalizeUnifiedCategory,
   normalizeUnifiedChannel,
   normalizeUnifiedClip,
   normalizeUnifiedVideo,
 } from "@/features/discovery/utils/search/search-result-validation";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 export type PersistedSearchKind = "categories" | "channels" | "clips" | "videos";
 export type PersistedSearchItem = UnifiedCategory | UnifiedChannel | UnifiedClip | UnifiedVideo;

@@ -1,4 +1,4 @@
-import type { ChatPlatform } from "./chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 
 export const RAID_CONTRACT_PROFILES = {
   twitch: {

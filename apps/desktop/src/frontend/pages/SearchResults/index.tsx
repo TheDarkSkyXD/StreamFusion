@@ -21,10 +21,7 @@ import {
   useSearchVideos,
 } from "@/features/discovery/data/queries/useSearch";
 import { cn, formatDuration, formatViewerCount } from "@/lib/utils";
-import {
-  isExactChannelSearchMatch,
-  rankSearchChannels,
-} from "@/features/discovery/utils/search/channel-search-contract";
+import { isExactChannelSearchMatch, rankSearchChannels } from "@streamfusion/core/discovery";
 
 /* CATEGORIES SECTION */
 type SearchTab = "all" | "channels" | "streams" | "videos" | "clips" | "categories";

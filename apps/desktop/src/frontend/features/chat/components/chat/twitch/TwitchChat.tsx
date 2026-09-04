@@ -34,7 +34,6 @@ import { useManagedTimeout } from "../../../../../hooks/useManagedTimeout";
 import { useRequireModScopes } from "../../../../auth/data/useRequireModScopes";
 import type {
   ChatConnectionStatus,
-  ChatHighlightKind,
   ChatMessage,
   ChatUserPresentation,
   ClearChat,
@@ -45,6 +44,7 @@ import type {
   RetainedDeletedMessage,
   UserNotice,
 } from "../../../../../../shared/chat-types";
+import { ChatHighlightKind } from "@streamfusion/core/chat";
 import { useAuthStore } from "../../../../../store/auth-store";
 import { useChatCosmeticsStore } from "../../../../../store/chat-cosmetics-store";
 import { buildChannelKey, useChatStore } from "../../../../../store/chat-store";
@@ -62,7 +62,7 @@ import type {
 } from "../../../utils/chat-command-registry";
 import { runTwitchCommandEffect } from "../../../utils/twitch-command-session";
 import { ChatMessageList } from "../ChatMessageList";
-import { type ChatSendEligibility, resolveChatSendEligibility } from "../chat-send-eligibility";
+import { type ChatSendEligibility, resolveChatSendEligibility } from "@streamfusion/core/chat";
 import { type ChatPanelTabId, ChatPanelTabs } from "../mod/ChatPanelTabs";
 import { type InlineModAction, InlineModStrip } from "../mod/InlineModStrip";
 import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";

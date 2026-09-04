@@ -4,7 +4,7 @@ import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import { LuChevronLeft, LuChevronRight, LuClock3, LuX } from "react-icons/lu";
 import { selectVisibleChatReplayMessages } from "../../routes/chat-replay-window";
 import { isAllowedPlatformImageUrl } from "../../../../lib/proxied-image-url";
-import type { Platform } from "../../../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type {
   ChatReplayBadge,
   ChatReplayFragment,

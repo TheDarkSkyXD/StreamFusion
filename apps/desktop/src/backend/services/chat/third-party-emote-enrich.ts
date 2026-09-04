@@ -24,7 +24,7 @@
  * the emote text isn't present in any text fragment for the helper to find.
  */
 
-import type { ContentFragment } from "../../../shared/chat-types";
+import { ContentFragment } from "@streamfusion/core/chat";
 import type { Emote } from "../emotes/emote-types";
 
 const THIRD_PARTY_PROVIDERS = new Set<Emote["provider"]>(["7tv", "bttv", "ffz"]);

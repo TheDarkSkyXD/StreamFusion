@@ -1,5 +1,5 @@
 import type { UnifiedChannel } from "@shared/platform-types";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 export type RecentContentSearchEndReason = "exhausted" | "safety-limit" | "rate-limited";
 export interface RecentContentSearchProfile {

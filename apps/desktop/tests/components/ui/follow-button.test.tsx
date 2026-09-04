@@ -1,7 +1,7 @@
 import { fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { FollowSource } from "@shared/auth-types";
+import { FollowSource } from "@streamfusion/core/follows";
 
 import { fixtures, renderWithProviders, screen } from "../../test-utils";
 

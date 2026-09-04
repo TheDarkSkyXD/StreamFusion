@@ -1,4 +1,5 @@
 import type React from "react";
+import type { Platform } from "@streamfusion/core/platform";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -12,7 +13,7 @@ import { usePictureInPicture } from "../hooks/use-picture-in-picture";
 import { usePlayerKeyboard } from "../hooks/use-player-keyboard";
 import { useResumePlayback } from "../hooks/use-resume-playback";
 import { useVolume } from "../hooks/use-volume";
-import type { Platform, PlayerError, QualityLevel } from "../types";
+import type { PlayerError, QualityLevel } from "../types";
 
 import { TwitchPlayerControls } from "./twitch-player-controls";
 

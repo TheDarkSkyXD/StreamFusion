@@ -6,9 +6,9 @@ import { i18n } from "@/i18n";
 import { logger } from "@/renderer/logging/logger";
 
 import type { UnifiedChannel, UnifiedStream } from "../../../../../shared/platform-types";
-import type { Platform } from "../../../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type { DisplayLanguage } from "../../../../../shared/display-language";
-import { hasCompleteDiscoveryCoverage } from "../../../../../shared/discovery-types";
+import { hasCompleteDiscoveryCoverage } from "@streamfusion/core/discovery";
 
 import { useQueryCachePerformance } from "./cache-performance";
 import { getQueryCacheOptions } from "./cache-policy";

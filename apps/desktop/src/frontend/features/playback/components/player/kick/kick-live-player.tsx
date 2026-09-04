@@ -2,6 +2,7 @@ import type Hls from "hls.js";
 import { useTranslation } from "react-i18next";
 import type React from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import type { Platform } from "@streamfusion/core/platform";
 import { useRenderCount } from "@/components/dev/use-render-count";
 import { KickLoadingSpinner } from "@/components/ui/loading-spinner";
 import { logger } from "@/renderer/logging/logger";
@@ -20,7 +21,6 @@ import { useVolume } from "../hooks/use-volume";
 import { CaptionOverlay } from "../caption-overlay";
 import {
   LOCAL_LIVE_CAPTION_TRACK,
-  type Platform,
   type PlayerError,
   type QualityLevel,
 } from "../types";

@@ -16,7 +16,7 @@ import type React from "react";
 import { useCallback, useRef } from "react";
 import type { Emote } from "../../../../../../backend/services/emotes/emote-types";
 import { useChannelByUsername } from "../../../../discovery/data/queries/useChannels";
-import type { ChatPlatform } from "../../../../../../shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { SevenTVIcon } from "../../../../../components/icons/PlatformIcons";
 import { EmotePickerPopover } from "../EmotePickerPopover";
 

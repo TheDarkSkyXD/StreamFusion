@@ -41,17 +41,16 @@ import {
 import type { KickChatSendError } from "../../../../../backend/services/chat/kick-chat";
 import type { Emote } from "../../../../../backend/services/emotes/emote-types";
 import { useChatRoomState } from "../../data/useChatRoomState";
-import { channelsMatch } from "../../../../lib/id-utils";
+import { channelsMatch } from "@streamfusion/core/platform";
 import type {
   ChatMessage,
-  ChatPlatform,
-  ContentFragment,
-  ReplyInfo,
   SubscriberEligibilityRequest,
   SubscriberEligibilityResult,
   TwitchVerificationRequirement,
   ViewerChatSendRestrictionEvent,
 } from "../../../../../shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
+import { ContentFragment, ReplyInfo } from "@streamfusion/core/chat";
 import { useAuthStore } from "../../../../store/auth-store";
 import { useEmoteStore } from "../../../../store/emote-store";
 import { useFollowStore } from "../../../../store/follow-store";
@@ -66,8 +65,8 @@ import { CommandResultCard } from "./CommandResultCard";
 import { ChatComposerReplyPreview } from "./ChatReply";
 import { ContextualEmoteRow } from "./ContextualEmoteRow";
 import { getContextualEmoteMatch, useContextualEmoteMode } from "./contextual-emote-mode";
-import { type ChatSendEligibility, resolveChatSendEligibility } from "./chat-send-eligibility";
-import type { ViewerRequirementState } from "./chat-send-eligibility";
+import { type ChatSendEligibility, resolveChatSendEligibility } from "@streamfusion/core/chat";
+import { ViewerRequirementState } from "@streamfusion/core/chat";
 import { InfoBanner } from "./InfoBanner";
 import { NativeEmoteButton } from "./input/NativeEmoteButton";
 import { QuickEmoteActionBar } from "./input/QuickEmoteActionBar";

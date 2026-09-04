@@ -59,14 +59,14 @@ import { useAppVersion, useAppVersionInfo, useUpdater } from "@/hooks";
 import { useAfterFirstPaint } from "@/hooks/useAfterFirstPaint";
 import { useAuthError } from "@/features/auth/data/useAuth";
 import {
-  getNotificationPreferences,
-  isPerChannelNotificationEnabled,
-  setPerChannelNotificationPreference,
-} from "@/features/auth/utils/live-notification-preferences";
+  getLiveNotificationPreferences as getNotificationPreferences,
+  isPerChannelLiveNotificationEnabled as isPerChannelNotificationEnabled,
+  setPerChannelLiveNotificationPreference as setPerChannelNotificationPreference,
+} from "@streamfusion/core/follows";
 import { notifySettingsSaved } from "@/features/settings/utils/settings-toast";
 import { translateSettings } from "@/features/settings/utils/settings-translation";
 import { cn } from "@/lib/utils";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import {
   type BufferPreferences,
   DEFAULT_BUFFER_PREFERENCES,
@@ -76,13 +76,13 @@ import {
   DEFAULT_PREDICTION_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
   type LiveNotificationCoverageStatus,
-  type NotificationPreferences,
   type PlaybackAdvancedPlayerType,
   type PlaybackAdvancedPreferences,
   type PlayerControlsPreferences,
   type PredictionPreferences,
   type VideoQuality,
 } from "@shared/auth-types";
+import { LiveNotificationPreferences as NotificationPreferences } from "@streamfusion/core/follows";
 import type { CheckFrequency, TokenStatusResult } from "@shared/ipc-channels";
 import { useAdBlockStore } from "@/store/adblock-store";
 import {

@@ -1,6 +1,6 @@
 import { createPreloadableRoute } from "@/routes/preloadable-route";
 import { preloadChatPanel } from "@/pages/Stream/preload-chat-panel";
-import type { ChatPlatform } from "@shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 
 let streamPageModulePromise: Promise<typeof import("../../../pages/Stream")> | undefined;
 const loadStreamPageModule = () => (streamPageModulePromise ??= import("../../../pages/Stream"));

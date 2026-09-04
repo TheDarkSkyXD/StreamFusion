@@ -9,7 +9,8 @@ import {
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
   type TimestampFormat,
 } from "@shared/auth-types";
-import type { ChatBadge, ChatMessage as ChatMessageType } from "@shared/chat-types";
+import type { ChatMessage as ChatMessageType } from "@shared/chat-types";
+import { ChatBadge } from "@streamfusion/core/chat";
 import { useAuthStore } from "@/store/auth-store";
 import { useChatCosmeticsStore } from "@/store/chat-cosmetics-store";
 

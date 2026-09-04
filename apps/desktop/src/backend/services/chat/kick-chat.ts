@@ -14,16 +14,14 @@ import { logger } from "@shared/utils/cross-logger";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
 // ... imports
 import type {
-  ChatBadge,
   ChatConnectionState,
   ChatConnectionStatus,
   ChatServiceEvents,
-  ContentFragment,
   KickPinnedMessage,
   KickPoll,
   NormalizedPinnedMessage,
-  ReplyInfo,
 } from "../../../shared/chat-types";
+import { ChatBadge, ContentFragment, ReplyInfo } from "@streamfusion/core/chat";
 import { buildChannelKey, useChatStore } from "../../../frontend/store/chat-store";
 // Type-only import: lets us reference the KickSendResult shape without pulling
 // kick-send-window's main-only deps (electron / better-sqlite3 via the

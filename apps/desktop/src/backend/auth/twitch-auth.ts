@@ -16,7 +16,8 @@ import {
   type OAuth2RefreshOutcome,
   type OAuth2Session,
 } from "@streamfusion/core/auth";
-import { type AuthToken, type Platform, type TwitchUser } from "../../shared/auth-types";
+import { AuthToken, TwitchUser } from "../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import {
   TWITCH_API_BASE,
   type TwitchApiResponse,

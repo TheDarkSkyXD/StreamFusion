@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { selectedModerationDevelopmentFixture } from "@/dev-relay/moderation-browser-fixtures";
 import { useTimeout } from "@/hooks/useTimeout";
-import { KICK_APP_SCOPES, type Platform, TWITCH_APP_SCOPES } from "@shared/auth-types";
+import { KICK_APP_SCOPES, TWITCH_APP_SCOPES } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { useAuthStore } from "@/store/auth-store";
 import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
 import {

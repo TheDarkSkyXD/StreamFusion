@@ -1,7 +1,8 @@
 import { kickChatService } from "@backend/services/chat/kick-chat";
 import { substituteThirdPartyEmotes } from "@backend/services/chat/third-party-emote-enrich";
 import { twitchChatService } from "@backend/services/chat/twitch-chat";
-import type { ChatMessage, ChatPlatform } from "@shared/chat-types";
+import type { ChatMessage } from "@shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { buildChannelKey, useChatStore } from "@/store/chat-store";
 import { useEmoteStore } from "@/store/emote-store";
 

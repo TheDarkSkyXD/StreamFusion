@@ -5,11 +5,8 @@ import type {
   DeletedMessageDisplayMode,
   ModerationHighlightStyle,
 } from "../../../../../shared/auth-types";
-import type {
-  ChatMessage,
-  ChatPlatform,
-  ChatUserPresentation,
-} from "../../../../../shared/chat-types";
+import type { ChatMessage, ChatUserPresentation } from "../../../../../shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { ChatBadge } from "./ChatBadge";
 import { DeletedMessageHighlightCompact } from "./DeletedMessageHighlightCompact";
 import { DeletedMessageHighlightCozy } from "./DeletedMessageHighlightCozy";

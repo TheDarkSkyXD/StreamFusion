@@ -36,7 +36,8 @@ import type {
   TopStreamsOptions,
   VideoReader,
 } from "@streamfusion/core/discovery";
-import type { Platform, TwitchUser } from "../../../../shared/auth-types";
+import type { TwitchUser } from "../../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { twitchAuthService } from "../../../auth/twitch-auth";
 import type {
   UnifiedCategory,

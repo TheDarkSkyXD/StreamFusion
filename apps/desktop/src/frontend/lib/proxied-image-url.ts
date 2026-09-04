@@ -1,4 +1,4 @@
-import type { Platform } from "../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { buildDevBrowserMediaUrl } from "./dev-browser-media-url";
 
 export const KICK_IMAGE_SCHEME = "kick-image";

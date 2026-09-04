@@ -45,11 +45,8 @@
 // electron-log into the renderer bundle.
 import { logger } from "@shared/utils/cross-logger";
 import { createManagedInterval } from "@shared/utils/managed-interval";
-import type {
-  ChatBadge,
-  ContentFragment,
-  NormalizedPinnedMessage,
-} from "../../../shared/chat-types";
+import type { NormalizedPinnedMessage } from "../../../shared/chat-types";
+import { ChatBadge, ContentFragment } from "@streamfusion/core/chat";
 import { twitchChatService } from "./twitch-chat";
 
 // Twitch's chat-message fragments come back as plain text — twitch.tv parses

@@ -1,7 +1,8 @@
 import type { CSSProperties } from "react";
 
 import type { TimestampFormat } from "@shared/auth-types";
-import type { ChatPlatform, SevenTvPaint } from "@shared/chat-types";
+import type { SevenTvPaint } from "@shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 
 function deterministicUsernameColor(username: string): string {
   let hash = 0;

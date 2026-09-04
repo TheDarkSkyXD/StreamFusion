@@ -1,6 +1,6 @@
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type { CategoryMediaItem } from "@shared/category-media-types";
 
 import {

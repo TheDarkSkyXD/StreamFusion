@@ -6,21 +6,18 @@
  */
 
 import type {
-  ChatBadge as CoreChatBadge,
-  ChatHighlightKind as CoreChatHighlightKind,
-  ChatMessageType as CoreChatMessageType,
+  ChatBadge,
+  ChatHighlightKind,
+  ChatMessageType as MessageType,
   ChatUserPresentation as CoreChatUserPresentation,
-  ContentFragment as CoreContentFragment,
-  ReplyInfo as CoreReplyInfo,
+  ContentFragment,
+  ReplyInfo,
 } from "@streamfusion/core/chat";
-import type { Platform } from "@streamfusion/core/platform";
+import type { Platform as ChatPlatform } from "@streamfusion/core/platform";
 
-export type ChatPlatform = Platform;
 export type TwitchVerificationRequirement = "phone" | "email" | "account";
 
 // ========== Badge Types ==========
-
-export type ChatBadge = CoreChatBadge;
 
 export interface SubscriberBadge {
   id: number;
@@ -155,11 +152,6 @@ export interface EmotePosition {
 }
 
 // ========== Message Types ==========
-
-export type MessageType = CoreChatMessageType;
-export type ChatHighlightKind = CoreChatHighlightKind;
-export type ContentFragment = CoreContentFragment;
-export type ReplyInfo = CoreReplyInfo;
 
 export interface ChatMessage {
   /** Unique message identifier */

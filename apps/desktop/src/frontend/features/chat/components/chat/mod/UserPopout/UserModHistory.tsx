@@ -12,7 +12,7 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
 import { useModLog } from "@/features/moderation/data/useModLog";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 interface UserModHistoryProps {
   platform: Platform;

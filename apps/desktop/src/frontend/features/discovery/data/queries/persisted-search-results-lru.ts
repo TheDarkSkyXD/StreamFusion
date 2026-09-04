@@ -7,7 +7,7 @@ import type {
   UnifiedStream,
   UnifiedVideo,
 } from "@shared/platform-types";
-import { normalizeSearchQuery } from "@/features/discovery/utils/search/search-normalization";
+import { normalizeSearchQuery } from "@streamfusion/core/discovery";
 import {
   isValidUnifiedCategory,
   isValidUnifiedChannel,
@@ -16,7 +16,7 @@ import {
   isValidUnifiedVideo,
   type SearchResultCollection,
 } from "@/features/discovery/utils/search/search-result-validation";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 export interface PersistedSearchResultEntry {
   query: string;

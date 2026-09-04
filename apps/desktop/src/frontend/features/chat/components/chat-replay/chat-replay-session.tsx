@@ -4,7 +4,7 @@ import { LuMessageSquareText, LuX } from "react-icons/lu";
 import type { ChatReplayPlaybackStore } from "../../data/chat-replay-playback-store";
 import { useChatReplayPlaybackSnapshot } from "../../data/chat-replay-playback-store";
 import { useChatReplay } from "../../data/use-chat-replay";
-import type { Platform } from "../../../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type { ChatReplayWindowRequest } from "../../../../../shared/chat-replay-types";
 import { ChatReplayRail } from "./chat-replay-rail";
 

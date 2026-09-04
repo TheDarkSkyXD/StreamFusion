@@ -19,9 +19,9 @@ import { useTranslation } from "react-i18next";
 
 import type React from "react";
 import { useChatRoomState } from "../../data/useChatRoomState";
-import type { ChatPlatform } from "../../../../../shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
-import type { ViewerRequirementState } from "./chat-send-eligibility";
+import { ViewerRequirementState } from "@streamfusion/core/chat";
 
 /**
  * Convert a seconds count to a compact human-readable interval.

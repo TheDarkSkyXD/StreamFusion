@@ -25,7 +25,7 @@ import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useLiveFavoriteStreams } from "@/features/discovery/data/queries/useLiveFavoriteStreams";
 import { STREAM_KEYS } from "@/features/discovery/data/queries/useStreams";
 import { cn } from "@/lib/utils";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import {
   type FavoriteStreamRef,
   useMultiStreamStore,

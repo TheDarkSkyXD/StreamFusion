@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { Platform } from "../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type { PlatformHealth } from "../api/unified/platform-health";
 import { onPlatformHealthChanged } from "../api/unified/platform-health";
 import { getTelemetryDir } from "./log-paths";

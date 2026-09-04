@@ -1,15 +1,6 @@
 import { channelsMatch, streamsMatchChannelIdentity } from "@streamfusion/core/platform";
 import type { UnifiedChannel, UnifiedStream } from "@shared/platform-types";
 
-export {
-  channelsMatch,
-  getChannelKey,
-  getChannelNameKey,
-  getStreamElementKey,
-  getStreamKey,
-  streamsMatchChannelIdentity,
-} from "@streamfusion/core/platform";
-
 function channelMetadataScore(channel: UnifiedChannel): number {
   let score = 0;
   if (channel.id) score += 1;

@@ -79,9 +79,9 @@ import { createStreamRecordingSessionStore } from "@backend/services/stream-reco
 import {
   DEFAULT_BUFFER_PREFERENCES,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
-  DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
 } from "@shared/auth-types";
+import { DEFAULT_LIVE_NOTIFICATION_PREFERENCES as DEFAULT_NOTIFICATION_PREFERENCES } from "@streamfusion/core/follows";
 import type { DownloadQueueSnapshot } from "@shared/download-types";
 import type { StreamRecordingJournalV2 } from "@shared/stream-recording-types";
 import type { LocalFollow } from "@shared/auth-types";

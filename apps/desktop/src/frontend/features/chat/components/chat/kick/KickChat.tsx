@@ -35,7 +35,6 @@ import { useIsKickMod } from "../../../../moderation/data/useIsKickMod";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../../../../shared/auth-types";
 import type {
   ChatConnectionStatus,
-  ChatHighlightKind,
   ChatMessage,
   ClearChat,
   KickPoll,
@@ -44,6 +43,7 @@ import type {
   RetainedDeletedMessage,
   UserNotice,
 } from "../../../../../../shared/chat-types";
+import { ChatHighlightKind } from "@streamfusion/core/chat";
 import { useAuthStore } from "../../../../../store/auth-store";
 import { buildChannelKey, useChatStore } from "../../../../../store/chat-store";
 import {
@@ -68,7 +68,7 @@ import {
   resolveAccountAgeRequirement,
   type ChatSendEligibility,
   resolveChatSendEligibility,
-} from "../chat-send-eligibility";
+} from "@streamfusion/core/chat";
 import { type ChatPanelTabId, ChatPanelTabs } from "../mod/ChatPanelTabs";
 import { type InlineModAction, InlineModStrip } from "../mod/InlineModStrip";
 import { ModActionConfirmDialog, type ModActionType } from "../mod/ModActionConfirmDialog";

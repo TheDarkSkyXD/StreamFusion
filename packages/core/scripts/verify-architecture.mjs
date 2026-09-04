@@ -4,7 +4,6 @@ import {
   mkdirSync,
   readdirSync,
   rmSync,
-  rmdirSync,
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -24,7 +23,6 @@ const proofLayers = [
   "use-cases",
   "platform",
   "testing",
-  "migration-shims",
 ];
 
 function proofDirectory(layer) {
@@ -47,15 +45,6 @@ function clearProofDirectories() {
     for (const fileName of readdirSync(directory)) {
       if (fileName.startsWith("architecture-proof-")) {
         rmSync(path.join(directory, fileName), { force: true });
-      }
-    }
-    if (layer === "migration-shims") {
-      try {
-        rmdirSync(directory);
-      } catch (error) {
-        if (error?.code !== "ENOTEMPTY") {
-          throw error;
-        }
       }
     }
   }
@@ -91,11 +80,6 @@ try {
     "testing",
     "architecture-proof-target.ts",
     "export const testingProof = true;\n",
-  );
-  const migrationShim = writeProof(
-    "migration-shims",
-    "architecture-proof-target.ts",
-    "export const migrationProof = true;\n",
   );
 
   const platformProofDirectory = proofDirectory("platform");
@@ -204,15 +188,6 @@ try {
         "platform",
         "architecture-proof-forbidden-testing.ts",
         `import "${importPath(platformProofDirectory, testing)}";\n`,
-      ),
-    },
-    {
-      name: "forbidden migration-shim import",
-      allowed: false,
-      file: writeProof(
-        "platform",
-        "architecture-proof-forbidden-migration.ts",
-        `import "${importPath(platformProofDirectory, migrationShim)}";\n`,
       ),
     },
   ];

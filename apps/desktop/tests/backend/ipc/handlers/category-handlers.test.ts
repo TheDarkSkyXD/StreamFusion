@@ -39,7 +39,7 @@ import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
 import { gqlGetGameMetadata } from "@backend/api/platforms/twitch/twitch-gql-client";
 import { registerCategoryHandlers } from "@backend/ipc/handlers/category-handlers";
 import type { UnifiedCategory } from "@shared/platform-types";
-import type { DiscoveryResult } from "@shared/discovery-types";
+import { DiscoveryResult } from "@streamfusion/core/discovery";
 
 type CategoryTopResult = DiscoveryResult<UnifiedCategory[]>;
 

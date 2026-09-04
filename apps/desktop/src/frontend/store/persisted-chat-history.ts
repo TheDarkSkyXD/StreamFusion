@@ -1,4 +1,5 @@
-import type { ChatMessage, ChatPlatform } from "../../shared/chat-types";
+import type { ChatMessage } from "../../shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { buildChannelKey, useChatStore } from "./chat-store";
 
 type SerializedChatMessage = Omit<ChatMessage, "timestamp"> & { timestamp: string };

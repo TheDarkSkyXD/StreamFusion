@@ -6,7 +6,8 @@ import {
   DEFAULT_USER_PREFERENCES,
   type UserPreferences,
 } from '@shared/auth-types';
-import type { ChatConnectionStatus, ChatMessage, ChatPlatform } from '@shared/chat-types';
+import type { ChatConnectionStatus, ChatMessage } from '@shared/chat-types';
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { useAuthStore } from '@/store/auth-store';
 import { buildChannelKey, DEFAULT_BATCHING_INTERVAL_MS, useChatStore } from '@/store/chat-store';
 

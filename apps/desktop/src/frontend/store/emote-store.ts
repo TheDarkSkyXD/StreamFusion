@@ -11,7 +11,8 @@ import { persist } from "zustand/middleware";
 import { logger } from "@/renderer/logging/logger";
 import { emoteManager } from "../../backend/services/emotes";
 import type { Emote, EmoteProvider } from "../../backend/services/emotes/emote-types";
-import type { ChatDisplayPreferences, Platform } from "../../shared/auth-types";
+import type { ChatDisplayPreferences } from "../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 /**
  * Single-flight dedup for per-platform global emote fetches. Module-scoped

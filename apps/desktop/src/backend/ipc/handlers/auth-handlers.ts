@@ -5,7 +5,8 @@ import { logger, type Logger } from "@backend/logging/logger";
 import { planAccountFollowSync, type AccountFollowReader } from "@streamfusion/core/follows";
 import type { UnifiedChannel } from "@shared/platform-types";
 import { createManagedInterval } from "@shared/utils/managed-interval";
-import type { AuthToken, LocalFollow, Platform, TwitchUser } from "../../../shared/auth-types";
+import type { AuthToken, LocalFollow, TwitchUser } from "../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import {
   type AuthStatus,
   type AuthSyncFollowsResult,

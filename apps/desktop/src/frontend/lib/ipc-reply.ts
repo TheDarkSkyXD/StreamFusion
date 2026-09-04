@@ -1,4 +1,4 @@
-import type { IpcReply, SafeAppError } from "@shared/reliability-types";
+import { Result as IpcReply, SafeAppError } from "@streamfusion/core/reliability";
 
 export class IpcReplyError extends Error {
   constructor(readonly detail: SafeAppError) {

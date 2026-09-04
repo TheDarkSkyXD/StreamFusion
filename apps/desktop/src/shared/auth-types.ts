@@ -8,13 +8,11 @@
 
 import type { Platform } from "@streamfusion/core/platform";
 import {
-  DEFAULT_LIVE_NOTIFICATION_PREFERENCES,
-  type FollowSource as CoreFollowSource,
-  type LiveNotificationPreferences,
+  DEFAULT_LIVE_NOTIFICATION_PREFERENCES as DEFAULT_NOTIFICATION_PREFERENCES,
+  type FollowSource,
+  type LiveNotificationPreferences as NotificationPreferences,
 } from "@streamfusion/core/follows";
 import type { DisplayLanguage } from "./display-language";
-
-export type { Platform };
 
 /** Public client ID for StreamFusion's registered Twitch Device Code app. */
 export const TWITCH_APP_CLIENT_ID = "blckgzwqbwms1gmz9l4dup88k7kqk5";
@@ -202,8 +200,6 @@ export type PlatformUser = TwitchUser | KickUser;
  * Legacy "account" and "local" values are migrated at DB init to the
  * platform name — see `database-service.ts#init()`.
  */
-export type FollowSource = CoreFollowSource;
-
 export interface LocalFollow {
   id: string; // Unique identifier (generated)
   platform: Platform;
@@ -342,8 +338,6 @@ export type VideoQuality =
   "auto" | "highest" | "1440p" | "2k" | "1080p" | "720p" | "480p" | "360p" | "160p";
 export type ChatPosition = "right" | "left" | "hidden";
 export type ChatSize = "small" | "medium" | "large";
-
-export type NotificationPreferences = LiveNotificationPreferences;
 
 export interface ChatPreferences {
   position: ChatPosition;
@@ -698,8 +692,6 @@ export interface AuthError {
 }
 
 // ========== Default Values ==========
-
-export const DEFAULT_NOTIFICATION_PREFERENCES = DEFAULT_LIVE_NOTIFICATION_PREFERENCES;
 
 export const DEFAULT_CHAT_PREFERENCES: ChatPreferences = {
   position: "right",

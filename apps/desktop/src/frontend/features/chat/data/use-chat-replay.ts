@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { Platform } from "../../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type {
   ChatReplayWindowRequest,
   ChatReplayWindowResult,

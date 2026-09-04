@@ -12,11 +12,11 @@ import { logger } from "@shared/utils/cross-logger";
 import type {
   BadgeSet,
   BadgeVersion,
-  ChatBadge,
   TwitchBadgeCatalog,
   TwitchBadgeCatalogSection,
   TwitchBadgeCatalogSource,
 } from "../../../shared/chat-types";
+import { ChatBadge } from "@streamfusion/core/chat";
 
 // ========== Types ==========
 

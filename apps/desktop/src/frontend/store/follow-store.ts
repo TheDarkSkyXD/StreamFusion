@@ -10,15 +10,15 @@ import { queryClient } from "@/providers/query-provider";
 import { logger } from "@/renderer/logging/logger";
 import { i18n } from "@/i18n";
 import type { UnifiedChannel } from "../../shared/platform-types";
-import { channelsMatch } from "../lib/id-utils";
+import { channelsMatch } from "@streamfusion/core/platform";
 import type {
   AccountFollowWriteRequest,
   KickAccountFollowWriteSnapshot,
-  FollowSource,
   KickAccountFollowWriteChangedEvent,
   LocalFollow,
-  Platform,
 } from "../../shared/auth-types";
+import { FollowSource } from "@streamfusion/core/follows";
+import { Platform } from "@streamfusion/core/platform";
 
 // Per-channel mutation guard. Module-scoped because it's a write-side gate,
 // not state that drives UI re-renders. Mirrors the auth-store pattern of

@@ -20,14 +20,14 @@ import {
   DEFAULT_USER_PREFERENCES,
 } from "../../../shared/auth-types";
 import type {
-  ChatHighlightKind,
   ChatMessage,
-  ChatPlatform,
   KickPinnedMessage,
   KickPoll,
   NormalizedPinnedMessage,
   UnifiedPrediction,
 } from "../../../shared/chat-types";
+import { ChatHighlightKind } from "@streamfusion/core/chat";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { useAuthStore } from "../../store/auth-store";
 import { buildChannelKey, useChatStore } from "../../store/chat-store";
 import { useDevModOverrideStore } from "../../store/dev-mod-override-store";

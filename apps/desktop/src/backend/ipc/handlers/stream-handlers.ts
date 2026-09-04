@@ -5,7 +5,7 @@ import { logger } from "@backend/logging/logger";
 import type { CategoryStreamReader, IPlatformReader } from "@streamfusion/core/discovery";
 import type { FollowedStreamReader } from "@streamfusion/core/follows";
 import { dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
-import type { Platform } from "../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import {
   IPC_CHANNELS,
   type FollowedStreamsRequest,
@@ -13,7 +13,7 @@ import {
 } from "../../../shared/ipc-channels";
 import { isKickRateLimitError } from "../../api/platforms/kick/kick-error-classification";
 import type { UnifiedChannel, UnifiedStream } from "../../../shared/platform-types";
-import type { DiscoveryResult } from "../../../shared/discovery-types";
+import { DiscoveryResult } from "@streamfusion/core/discovery";
 import { getPlatformHealth } from "../../api/unified/platform-health";
 import { storageService } from "../../services/storage-service";
 import {

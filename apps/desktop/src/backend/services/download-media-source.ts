@@ -1,4 +1,4 @@
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 type RendererMediaKind = "clip" | "video";
 

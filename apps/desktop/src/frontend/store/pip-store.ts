@@ -4,7 +4,7 @@
  */
 import { create } from "zustand";
 
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 export interface PipStreamInfo {
   platform: Platform;

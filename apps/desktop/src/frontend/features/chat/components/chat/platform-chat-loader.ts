@@ -3,7 +3,7 @@ import {
   shutdownLoadedChatServices,
 } from "@backend/services/chat/chat-service-loader";
 import { registerAppShutdownTask } from "@/features/shell/utils/app-shutdown-registry";
-import type { ChatPlatform } from "@shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 
 let kickChatComponentPromise:
   Promise<{ default: typeof import("./kick/KickChat").KickChat }> | undefined;

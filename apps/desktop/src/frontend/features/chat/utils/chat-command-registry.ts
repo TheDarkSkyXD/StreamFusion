@@ -1,6 +1,6 @@
 import { i18n } from "@/i18n";
 import type { TwitchAppScope } from "@shared/auth-types";
-import type { ChatPlatform } from "@shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import type { TwitchSlashCommandAction } from "@shared/twitch-api-types";
 
 export type ChatCommandRole = "viewer" | "moderator" | "broadcaster";

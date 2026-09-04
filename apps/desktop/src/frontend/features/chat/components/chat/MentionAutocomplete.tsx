@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProxiedImage } from "@/components/ui/proxied-image";
-import type { ChatPlatform } from "../../../../../shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { getMentionSuggestions, type RecentChatter } from "./mention-suggestions";
 
 interface MentionAutocompleteProps {

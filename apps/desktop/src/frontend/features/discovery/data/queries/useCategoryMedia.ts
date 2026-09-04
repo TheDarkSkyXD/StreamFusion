@@ -5,7 +5,7 @@ import type { UnifiedClip, UnifiedVideo } from "@shared/platform-types";
 import { formatDuration } from "@/lib/utils";
 import { i18n } from "@/i18n";
 import type { CategoryPlatformScope } from "@/features/discovery/routes/category-detail-search";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type { CategoryMediaItem as IpcCategoryMediaItem } from "@shared/category-media-types";
 
 import { getQueryCacheOptions } from "./cache-policy";

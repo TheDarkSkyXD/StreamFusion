@@ -4,7 +4,7 @@ import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useSearchStreams } from "@/features/discovery/data/queries/useSearch";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type { SearchStreamsRequest } from "@shared/search-types";
 import { fixtures, installElectronAPIMock } from "../../test-utils";
 

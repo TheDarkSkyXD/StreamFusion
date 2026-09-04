@@ -29,7 +29,8 @@ import {
   type ChatRoomStateEventSource,
 } from "@backend/services/chat/chat-service-loader";
 import { logger } from "@/renderer/logging/logger";
-import type { ChatConnectionStatus, ChatPlatform, RoomStatePatchEvent } from "@shared/chat-types";
+import type { ChatConnectionStatus, RoomStatePatchEvent } from "@shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import type { TwitchChatSettings } from "@shared/twitch-api-types";
 import {
   DEFAULT_ROOM_STATE,

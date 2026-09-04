@@ -17,21 +17,23 @@ import {
   type BufferPreferences,
   type CaptionPreferences,
   DEFAULT_CAPTION_PREFERENCES,
-  DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
   DEFAULT_WINDOW_BOUNDS,
   type EncryptedToken,
-  type FollowSource,
   type KickUser,
   type LocalFollow,
-  type NotificationPreferences,
-  type Platform,
   type TwitchUser,
   type TwitchPlaylistProxyPreferences,
   type TwitchPlaylistProxySource,
   type UserPreferences,
 } from "../../shared/auth-types";
+import {
+  DEFAULT_LIVE_NOTIFICATION_PREFERENCES as DEFAULT_NOTIFICATION_PREFERENCES,
+  type FollowSource,
+  type LiveNotificationPreferences as NotificationPreferences,
+} from "@streamfusion/core/follows";
+import { Platform } from "@streamfusion/core/platform";
 import { resolveDisplayLanguage } from "../../shared/display-language";
 import type { DownloadQueueSnapshot } from "../../shared/download-types";
 import type { StreamRecordingJournalV2 } from "../../shared/stream-recording-types";

@@ -1,12 +1,12 @@
 import type { Emote, EmoteProvider } from "../../../../../backend/services/emotes/emote-types";
 import { DEFAULT_USER_PREFERENCES, type UserPreferences } from "../../../../../shared/auth-types";
 import type {
-  ChatBadge,
   ChatKnownUser,
   ChatMessage,
   NormalizedPinnedMessage,
   UnifiedPrediction,
 } from "../../../../../shared/chat-types";
+import { ChatBadge } from "@streamfusion/core/chat";
 import { useAuthStore } from "../../../../store/auth-store";
 import { buildChannelKey, useChatStore } from "../../../../store/chat-store";
 import { useEmoteStore } from "../../../../store/emote-store";

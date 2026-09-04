@@ -4,7 +4,7 @@ import type { StreamPlayback } from "@/features/playback/components/player/types
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { useNetworkStatus } from "@/features/settings/data/useNetworkStatus";
 import { logger } from "@/renderer/logging/logger";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type { StreamPlaybackRequestIntent } from "@shared/ipc-channels";
 
 // Maximum reload attempts before giving up (prevents infinite loops)

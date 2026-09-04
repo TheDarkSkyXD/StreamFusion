@@ -110,11 +110,6 @@ export default tseslint.config(
           pattern: "src/testing",
           partialMatch: false,
         },
-        {
-          type: "migration-shim",
-          pattern: "src/migration-shims",
-          partialMatch: false,
-        },
       ],
     },
     rules: {
@@ -202,10 +197,6 @@ export default tseslint.config(
             {
               group: ["@streamfusion/core/testing", "**/testing/**"],
               message: "Production core code must not import test support.",
-            },
-            {
-              group: ["**/migration-shim/**", "**/migration-shims/**"],
-              message: "Production core code must not import migration shims.",
             },
           ],
         },

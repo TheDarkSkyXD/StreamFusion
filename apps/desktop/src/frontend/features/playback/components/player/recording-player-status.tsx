@@ -4,7 +4,7 @@ import {
   formatCapturedDuration,
   RECORDING_PHASE_LABEL_KEYS,
 } from "@/features/media-library/utils/stream-recording-presentation";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 export interface RecordingPlayerStatusProps {
   platform: Platform;

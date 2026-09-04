@@ -6,13 +6,11 @@ import {
   type ChatDisplayPreferences,
   DEFAULT_BUFFER_PREFERENCES,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
-  DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_PLAYBACK_ADVANCED_PREFERENCES,
   DEFAULT_PLAYER_CONTROLS_PREFERENCES,
   DEFAULT_PREDICTION_PREFERENCES,
   DEFAULT_PROXY_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
-  type NotificationPreferences,
   type PlaybackPreferences,
   type PlaybackAdvancedPreferences,
   type PlayerControlsPreferences,
@@ -24,6 +22,10 @@ import {
   type UserPreferences,
   type VideoQuality,
 } from "@shared/auth-types";
+import {
+  DEFAULT_LIVE_NOTIFICATION_PREFERENCES as DEFAULT_NOTIFICATION_PREFERENCES,
+  type LiveNotificationPreferences as NotificationPreferences,
+} from "@streamfusion/core/follows";
 
 // Guards: Twitch OAuth scope constants are the canonical connect/reconnect list,
 // so duplicates or a mod subset outside the app set would cause repeated consent prompts.

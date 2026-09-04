@@ -1,4 +1,5 @@
-import type { ChatConnectionStatus, ChatPlatform, RoomStatePatchEvent } from "@shared/chat-types";
+import type { ChatConnectionStatus, RoomStatePatchEvent } from "@shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 
 type KickChatModule = typeof import("./kick-chat");
 type TwitchChatModule = typeof import("./twitch-chat");

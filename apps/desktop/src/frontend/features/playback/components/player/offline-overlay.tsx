@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { cn } from "@/lib/utils";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 interface OfflineOverlayProps {
   platform: Platform;

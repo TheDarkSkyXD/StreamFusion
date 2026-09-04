@@ -50,10 +50,10 @@ import type {
   LiveNotificationCoverageStatus,
   LiveNotificationPayload,
   LocalFollow,
-  Platform,
   TwitchUser,
   UserPreferences,
 } from "../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type {
   SubscriberEligibilityRequest,
   SubscriberEligibilityResult,
@@ -76,7 +76,7 @@ import type {
   DownloadQueueSnapshot,
   VideoDownloadRequest,
 } from "../../shared/download-types";
-import type { DiscoveryResult } from "../../shared/discovery-types";
+import { DiscoveryResult } from "@streamfusion/core/discovery";
 import type {
   DiagnosticsLeaseOpened,
   DiagnosticsSnapshot,
@@ -84,7 +84,7 @@ import type {
   DiagnosticsView,
   RendererPerformanceSummary,
 } from "../../shared/diagnostics-types";
-import type { IpcReply } from "../../shared/reliability-types";
+import { Result as IpcReply } from "@streamfusion/core/reliability";
 import type {
   SearchClipsRequest,
   SearchStreamsRequest,

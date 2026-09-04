@@ -16,11 +16,11 @@ vi.mock("sonner", () => ({
 import { useLiveNotificationBridge } from "@/features/auth/data/use-live-notification-bridge";
 import { resolveProxiedImageSrc } from "@/lib/proxied-image-url";
 import {
-  DEFAULT_NOTIFICATION_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
   type LiveNotificationCoverageStatus,
   type LiveNotificationPayload,
 } from "@shared/auth-types";
+import { DEFAULT_LIVE_NOTIFICATION_PREFERENCES as DEFAULT_NOTIFICATION_PREFERENCES } from "@streamfusion/core/follows";
 import { useAuthStore } from "@/store/auth-store";
 import { useNotificationStore } from "@/store/notification-store";
 import { installElectronAPIMock } from "../test-utils";

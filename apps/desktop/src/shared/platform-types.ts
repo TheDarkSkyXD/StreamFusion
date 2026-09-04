@@ -13,7 +13,7 @@ import type {
   Stream as CoreStream,
   Video as CoreVideo,
 } from "@streamfusion/core/content";
-import type { Platform } from "./auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type { ChannelAccountStatus } from "./channel-account-status-types";
 import type { SubscriberBadge } from "./chat-types";
 

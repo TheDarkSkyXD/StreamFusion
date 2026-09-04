@@ -1,6 +1,7 @@
 import type Hls from "hls.js";
 import { useTranslation } from "react-i18next";
 import type React from "react";
+import type { Platform } from "@streamfusion/core/platform";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useSeekPreview } from "@/features/playback/components/player/hooks/use-seek-preview";
@@ -17,7 +18,7 @@ import { usePlayerKeyboard } from "../hooks/use-player-keyboard";
 import { useResumePlayback } from "../hooks/use-resume-playback";
 import { useTimedText } from "../hooks/use-timed-text";
 import { useVolume } from "../hooks/use-volume";
-import type { Platform, PlayerError, QualityLevel } from "../types";
+import type { PlayerError, QualityLevel } from "../types";
 import { CaptionOverlay } from "../caption-overlay";
 import type { VideoPlaybackSnapshot } from "@shared/chat-replay-types";
 

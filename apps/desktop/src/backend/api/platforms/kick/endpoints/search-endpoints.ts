@@ -1,5 +1,5 @@
 import { logger } from "@backend/logging/logger";
-import { compactSearchIdentity } from "@/features/discovery/utils/search/search-normalization";
+import { compactSearchIdentity } from "@streamfusion/core/discovery";
 import type {
   UnifiedCategory,
   UnifiedChannel,

@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/card";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useKickAuth, useTwitchAuth } from "@/features/auth/data/useAuth";
-import type { Platform, PlatformUser } from "@shared/auth-types";
+import type { PlatformUser } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type { TwitchAuthPhase } from "@/store/auth-store";
 
 function twitchLoadingLabel(phase: TwitchAuthPhase, t: TFunction): string {

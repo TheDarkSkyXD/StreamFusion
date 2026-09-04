@@ -24,7 +24,7 @@ import {
   cancelSearchSession,
   isSearchCancelled,
 } from "@backend/search/search-session-manager";
-import { rankSearchChannels } from "@/features/discovery/utils/search/channel-search-contract";
+import { rankSearchChannels } from "@streamfusion/core/discovery";
 import type { SearchResultCollection } from "@/features/discovery/utils/search/search-result-validation";
 import type {
   UnifiedCategory,
@@ -33,14 +33,15 @@ import type {
   UnifiedStream,
   UnifiedVideo,
 } from "../../../shared/platform-types";
-import type { Platform, TwitchUser } from "../../../shared/auth-types";
+import type { TwitchUser } from "../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type {
   SearchStreamsRequest,
   SearchStreamsResponse,
   SearchVideosRequest,
   SearchVideosResponse,
 } from "../../../shared/search-types";
-import type { DiscoveryProviderCompletion, DiscoveryResult } from "../../../shared/discovery-types";
+import { DiscoveryProviderCompletion, DiscoveryResult } from "@streamfusion/core/discovery";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { storageService } from "../../services/storage-service";
 

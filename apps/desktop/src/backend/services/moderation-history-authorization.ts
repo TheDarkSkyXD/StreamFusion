@@ -1,9 +1,5 @@
-import {
-  type AuthToken,
-  KICK_APP_SCOPES,
-  type Platform,
-  TWITCH_APP_SCOPES,
-} from "../../shared/auth-types";
+import { type AuthToken, KICK_APP_SCOPES, TWITCH_APP_SCOPES } from "../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { kickClient } from "../api/platforms/kick/kick-client";
 import { getKickChannelViewerRole } from "../api/platforms/kick/kick-send-window";
 import { getModeratedChannelsResult } from "../api/platforms/twitch/twitch-helix-moderation";

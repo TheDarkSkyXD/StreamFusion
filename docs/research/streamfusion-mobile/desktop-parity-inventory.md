@@ -523,7 +523,6 @@ ID: `live-chat`.
 - `apps/desktop/tests/backend/services/chat/twitch-chat.test.ts`
 - `apps/desktop/tests/components/chat/ChatPanel.test.tsx`
 - `apps/desktop/tests/components/chat/KickChat.test.tsx`
-- `apps/desktop/tests/components/chat/chat-send-eligibility.test.ts`
 - `packages/core/tests/chat.test.mjs`
 
 ## Playback: Open and watch live Twitch and Kick streams.
@@ -726,7 +725,6 @@ ID: `notifications`.
 - `apps/desktop/tests/App.live-notification-router.integration.test.tsx`
 - `apps/desktop/tests/backend/services/live-notification-service.test.ts`
 - `apps/desktop/tests/hooks/use-live-notification-bridge.test.tsx`
-- `apps/desktop/tests/lib/live-notification-preferences.test.ts`
 - `packages/core/tests/notifications.test.mjs`
 
 ## Accounts: Connect, validate, refresh, and disconnect Twitch and Kick accounts.

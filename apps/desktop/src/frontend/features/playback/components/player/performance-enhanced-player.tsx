@@ -27,7 +27,7 @@ import { useTranslation } from "react-i18next";
 import { useCallback, useRef, useState } from "react";
 
 import { logger } from "@/renderer/logging/logger";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 import { useAdaptiveQuality } from "./hooks/use-adaptive-quality";
 import { type ThrottleAction, useBackgroundThrottle } from "./hooks/use-background-throttle";

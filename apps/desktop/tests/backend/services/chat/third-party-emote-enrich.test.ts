@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { substituteThirdPartyEmotes } from "@backend/services/chat/third-party-emote-enrich";
 import type { Emote } from "@backend/services/emotes/emote-types";
-import type { ContentFragment } from "@shared/chat-types";
+import { ContentFragment } from "@streamfusion/core/chat";
 
 function emote(name: string, provider: Emote["provider"], opts: Partial<Emote> = {}): Emote {
   return {

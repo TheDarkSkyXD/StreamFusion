@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { ChatBadge } from "@shared/chat-types";
+import { ChatBadge } from "@streamfusion/core/chat";
 import type { PublicUserIdentity } from "@shared/user-profile-types";
 
 import type { RenderAccountCreatedState, RenderFieldState } from "./useUserProfile";

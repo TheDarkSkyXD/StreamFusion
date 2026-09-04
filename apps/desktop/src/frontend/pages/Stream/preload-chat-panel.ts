@@ -1,4 +1,4 @@
-import type { ChatPlatform } from "@shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 
 export function preloadChatPanel(platform?: ChatPlatform): Promise<unknown> {
   return Promise.all([

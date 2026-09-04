@@ -4,7 +4,7 @@ import { dedupeChannelsByIdentity } from "@/lib/id-utils";
 import { logger } from "@/renderer/logging/logger";
 
 import type { UnifiedChannel } from "../../../../../shared/platform-types";
-import type { Platform } from "../../../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 import { useQueryCachePerformance } from "./cache-performance";
 import { getQueryCacheOptions } from "./cache-policy";

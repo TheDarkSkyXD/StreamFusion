@@ -2,8 +2,8 @@ import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@backend/logging/logger";
 import type { CategoryReader } from "@streamfusion/core/discovery";
-import type { Platform } from "../../../shared/auth-types";
-import type { DiscoveryResult } from "../../../shared/discovery-types";
+import { Platform } from "@streamfusion/core/platform";
+import { DiscoveryResult } from "@streamfusion/core/discovery";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { UnifiedCategory } from "../../../shared/platform-types";
 

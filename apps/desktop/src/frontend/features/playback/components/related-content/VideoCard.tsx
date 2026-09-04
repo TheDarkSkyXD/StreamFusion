@@ -7,7 +7,7 @@ import type { UnifiedChannel } from "@shared/platform-types";
 import { Card, CardContent } from "@/components/ui/card";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { ProxiedImage } from "@/components/ui/proxied-image";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 import { VodProgressBar } from "../vod-progress-bar";
 

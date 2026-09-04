@@ -20,7 +20,7 @@
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@backend/logging/logger";
-import type { Platform } from "../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { IPC_CHANNELS, type TokenStatusResult } from "../../../shared/ipc-channels";
 import { tokenExchangeService } from "../../auth";
 import { storageService } from "../../services/storage-service";

@@ -4,7 +4,7 @@
  * Exports brand assets for all supported platforms.
  */
 
-import type { Platform } from "../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 export * from "./kick";
 // Platform-specific exports

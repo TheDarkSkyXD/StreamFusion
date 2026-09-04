@@ -1,5 +1,5 @@
 import type { UnifiedCategory } from "@shared/platform-types";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 import { savePersistedSnapshot } from "./persisted-snapshot";
 

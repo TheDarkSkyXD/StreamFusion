@@ -1,8 +1,8 @@
 import type { UnifiedStream } from "@shared/platform-types";
 import { filterRankAndDeduplicateStreams } from "@backend/search/search-match-contract";
 import type { SearchRequestConsumer } from "@backend/search/search-request-budget";
-import type { Platform } from "@shared/auth-types";
-import type { StreamSearchEndReason } from "@shared/search-types";
+import { Platform } from "@streamfusion/core/platform";
+import { ProgressiveDiscoveryEndReason as StreamSearchEndReason } from "@streamfusion/core/discovery";
 import streamSearchBudgetProfile from "./stream-search-budget-profile.json";
 
 export interface StreamDirectoryPage {

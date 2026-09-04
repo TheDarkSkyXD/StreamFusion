@@ -12,11 +12,10 @@ import {
 } from "../../../../../shared/auth-types";
 import type {
   ChatCosmeticBadge,
-  ChatHighlightKind,
   ChatMessage as ChatMessageType,
-  ChatPlatform,
-  ContentFragment,
 } from "../../../../../shared/chat-types";
+import { ChatHighlightKind, ContentFragment } from "@streamfusion/core/chat";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { useAuthStore } from "../../../../store/auth-store";
 import { useChatCosmeticsStore } from "../../../../store/chat-cosmetics-store";
 import { useChatDisplay } from "../../../settings/data/use-chat-display";

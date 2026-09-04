@@ -6,7 +6,7 @@
 
 import { net } from "electron";
 
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { runBoundedJsonRead } from "@backend/reliability/bounded-json-read";
 import {
   sevenTvGlobalSetSchema,

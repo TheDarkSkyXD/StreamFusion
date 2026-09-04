@@ -1,4 +1,4 @@
-import type { ChatPlatform } from "../../../../../shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { buildChannelKey, useChatStore } from "../../../../store/chat-store";
 import { getMentionRange, type MentionRange } from "../../utils/mention-completion";
 

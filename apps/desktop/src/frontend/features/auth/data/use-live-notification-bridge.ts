@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 import { LiveNotificationToast } from "@/features/auth/components/LiveNotificationToast";
 import { LIVE_NOTIFICATION_STREAM_ROUTE } from "@/features/auth/routes";
-import { getNotificationPreferences } from "@/features/auth/utils/live-notification-preferences";
+import { getLiveNotificationPreferences as getNotificationPreferences } from "@streamfusion/core/follows";
 import { router } from "@/routes/router";
 import { useAuthStore } from "@/store/auth-store";
 import { useNotificationStore } from "@/store/notification-store";

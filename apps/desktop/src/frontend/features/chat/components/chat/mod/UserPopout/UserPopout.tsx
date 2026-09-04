@@ -17,7 +17,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { ChatMessage as ChatMessageRow } from "@/features/chat/components/chat/ChatMessage";
-import type { ChatSendEligibility } from "@/features/chat/components/chat/chat-send-eligibility";
+import { ChatSendEligibility } from "@streamfusion/core/chat";
 import {
   Dialog,
   DialogClose,

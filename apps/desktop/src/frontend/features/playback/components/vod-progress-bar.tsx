@@ -1,4 +1,4 @@
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { useTranslation } from "react-i18next";
 import { usePlaybackPositionStore } from "@/store/playback-position-store";
 

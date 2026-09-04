@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  channelsMatch,
-  dedupeChannelsByIdentity,
-  dedupeStreamsByChannelIdentity,
-} from "@/lib/id-utils";
+import { dedupeChannelsByIdentity, dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
+import { channelsMatch } from "@streamfusion/core/platform";
 
 describe("channelsMatch", () => {
   it("returns false across platforms even when id and username both match", () => {

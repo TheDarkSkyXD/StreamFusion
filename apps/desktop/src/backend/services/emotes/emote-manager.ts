@@ -10,7 +10,7 @@
 // and crash at module load with `__dirname is not defined`.
 import { logger } from "@shared/utils/cross-logger";
 import { createManagedInterval } from "@shared/utils/managed-interval";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
 import type { Emote, EmoteManagerConfig, EmoteProvider, EmoteProviderService } from "./emote-types";
 import { DEFAULT_EMOTE_CONFIG } from "./emote-types";

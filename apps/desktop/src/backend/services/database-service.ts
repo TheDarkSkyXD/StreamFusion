@@ -9,7 +9,8 @@ import {
   firstValidKickBroadcasterUserId,
   getKickBroadcasterUserIdFromAvatar,
 } from "@/lib/kick-channel-identity";
-import type { LocalFollow, Platform } from "../../shared/auth-types";
+import type { LocalFollow } from "../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type {
   ModLogCoverageRecord,
   ModLogEntry,
@@ -32,8 +33,6 @@ import type {
  * Pre-2026-05-29 schemas used "account" and "local" as separate sources; the
  * migration in `init()` collapses them to the row's platform value.
  */
-export type { FollowSource } from "@streamfusion/core/follows";
-
 export type PendingFollowAction = "follow" | "unfollow";
 export type PendingFollowWriteStatus = "pending" | "retrying" | "auth-paused" | "failed";
 

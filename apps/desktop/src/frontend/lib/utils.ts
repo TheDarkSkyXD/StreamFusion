@@ -3,7 +3,7 @@ import { twMerge } from "tailwind-merge";
 
 import { logger } from "@/renderer/logging/logger";
 import { i18n } from "@/i18n";
-import type { Platform } from "../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { getLanguageDisplayName } from "./languages";
 
 const compactNumberFormatters = new Map<string, Intl.NumberFormat>();

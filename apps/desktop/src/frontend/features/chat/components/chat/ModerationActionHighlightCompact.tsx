@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Ban } from "lucide-react";
 import type React from "react";
 import { memo } from "react";
-import type { ChatPlatform } from "../../../../../shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { ChatEventHighlightCard } from "./ChatEventHighlightCard";
 
 interface ModerationActionHighlightCompactProps {

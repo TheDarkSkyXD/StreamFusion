@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { IpcReply, SafeAppError } from "../reliability-types";
+import { Result as IpcReply, SafeAppError } from "@streamfusion/core/reliability";
 
 export const safeAppErrorSchema = z
   .object({

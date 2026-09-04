@@ -13,17 +13,17 @@ import {
 } from "@/features/discovery/data/queries/cache-invalidation";
 import { i18n } from "@/i18n";
 import { logger } from "@/renderer/logging/logger";
-import { hasCompleteDiscoveryCoverage } from "../../shared/discovery-types";
+import { hasCompleteDiscoveryCoverage } from "@streamfusion/core/discovery";
 import { STREAM_KEYS } from "../features/discovery/data/queries/useStreams";
 import { queryClient } from "../providers/query-provider";
 import type {
   AuthErrorCode,
   KickUser,
   LocalFollow,
-  Platform,
   TwitchUser,
   UserPreferences,
 } from "../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type { AuthStatus } from "../../shared/ipc-channels";
 import { useFollowStore } from "./follow-store";
 

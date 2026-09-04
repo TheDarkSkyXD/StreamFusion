@@ -18,12 +18,9 @@ import {
   useSearchHistory,
 } from "@/features/discovery/data/useSearchHistory";
 import { cn, formatCompactNumber, normalizeCategoryName, pickWinner } from "@/lib/utils";
-import {
-  isExactChannelSearchMatch,
-  rankSearchChannels,
-} from "@/features/discovery/utils/search/channel-search-contract";
+import { isExactChannelSearchMatch, rankSearchChannels } from "@streamfusion/core/discovery";
 import { preloadSearchPage } from "@/features/discovery/routes/search-page";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 interface UnifiedSearchInputProps {
   /**

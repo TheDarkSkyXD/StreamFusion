@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { UnifiedStream } from "@shared/platform-types";
-import { getStreamElementKey } from "@/lib/id-utils";
+import { getStreamElementKey } from "@streamfusion/core/platform";
 import { cn } from "@/lib/utils";
 
 import { StreamCard } from "./stream-card";

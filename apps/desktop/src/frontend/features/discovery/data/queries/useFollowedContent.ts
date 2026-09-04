@@ -4,7 +4,7 @@ import type { UnifiedChannel } from "@shared/platform-types";
 import { formatDuration } from "@/lib/utils";
 import { i18n } from "@/i18n";
 import { logger } from "@/renderer/logging/logger";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 import { useQueryCachePerformance } from "./cache-performance";
 import { getQueryCacheOptions } from "./cache-policy";

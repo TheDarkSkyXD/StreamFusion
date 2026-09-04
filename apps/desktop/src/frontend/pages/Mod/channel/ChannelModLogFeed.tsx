@@ -18,7 +18,7 @@ import type { TFunction } from "i18next";
 
 import type { ModLogAction } from "@backend/services/mod-log-writer";
 import { useModLog } from "@/features/moderation/data/useModLog";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 const ACTION_OPTIONS: Array<{
   value: "" | ModLogAction;

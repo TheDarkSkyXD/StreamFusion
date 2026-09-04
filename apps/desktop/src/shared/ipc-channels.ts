@@ -10,11 +10,11 @@ import type {
   KickAccountFollowWriteRequest,
   KickUser,
   LocalFollow,
-  Platform,
   ProxyPreferences,
   TwitchUser,
   UserPreferences,
 } from "./auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type { SubscriberEligibilityRequest } from "./chat-types";
 import type {
   CancelChatReplayWindowRequest,

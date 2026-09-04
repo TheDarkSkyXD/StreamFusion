@@ -5,7 +5,7 @@ import { dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
 import { i18n } from "@/i18n";
 import { useAuthStore } from "@/store/auth-store";
 
-import type { Platform } from "../../../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import {
   getDisplayLanguage,
   type DisplayLanguage,

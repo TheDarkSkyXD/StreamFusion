@@ -7,12 +7,8 @@
 
 import crypto from "node:crypto";
 
-import {
-  KICK_APP_SCOPES,
-  type Platform,
-  TWITCH_APP_CLIENT_ID,
-  TWITCH_APP_SCOPES,
-} from "../../shared/auth-types";
+import { KICK_APP_SCOPES, TWITCH_APP_CLIENT_ID, TWITCH_APP_SCOPES } from "../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 // ========== Environment Variables ==========
 // These should be set in .env file

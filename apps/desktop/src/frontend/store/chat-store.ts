@@ -3,14 +3,14 @@ import { subscribeWithSelector } from "zustand/middleware";
 
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../shared/auth-types";
 import type {
-  ChatBadge,
   ChatConnectionStatus,
   ChatKnownUser,
   ChatKnownUserRole,
   ChatMessage,
-  ChatPlatform,
   ChatUserPresentation,
 } from "../../shared/chat-types";
+import { ChatBadge } from "@streamfusion/core/chat";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { useAuthStore } from "./auth-store";
 
 /**

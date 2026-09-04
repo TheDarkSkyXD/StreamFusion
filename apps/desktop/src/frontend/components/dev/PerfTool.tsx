@@ -6,7 +6,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ChatMessage, ChatPlatform } from "../../../shared/chat-types";
+import type { ChatMessage } from "../../../shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { buildChannelKey, useChatStore } from "../../store/chat-store";
 
 import { getActiveIntervalCount, installIntervalTracker } from "./interval-tracker";

@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { UnifiedChannel } from "@shared/platform-types";
-import type { FollowSource, LocalFollow } from "@shared/auth-types";
+import type { LocalFollow } from "@shared/auth-types";
+import { FollowSource } from "@streamfusion/core/follows";
 import { useFollowStore } from "@/store/follow-store";
 
 const toastMock = vi.hoisted(() => vi.fn());

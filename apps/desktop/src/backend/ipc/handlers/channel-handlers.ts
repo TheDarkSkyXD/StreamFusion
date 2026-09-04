@@ -9,7 +9,8 @@ import {
   firstValidKickBroadcasterUserId,
   getKickBroadcasterUserIdFromAvatar,
 } from "@/lib/kick-channel-identity";
-import type { KickUser, Platform } from "../../../shared/auth-types";
+import type { KickUser } from "../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import type { UnifiedChannel } from "../../../shared/platform-types";
 import { storageService } from "../../services/storage-service";

@@ -18,18 +18,9 @@ import {
 } from "../../frontend/features/discovery/utils/search/search-result-validation";
 
 export {
-  rankChannelMatch,
-  rankClipMatch,
-  rankStreamMatch,
-  rankVideoMatch,
-} from "@streamfusion/core/discovery";
-export type { SearchMatchRank } from "@streamfusion/core/discovery";
-export {
   filterRankAndDeduplicateCategories,
   mergeExactCrossPlatformCategories,
-  rankCategoryMatch,
 } from "../../frontend/features/discovery/utils/search/category-search-contract";
-export { normalizeSearchTokens } from "@streamfusion/core/discovery";
 export {
   isValidUnifiedCategory,
   isValidUnifiedChannel,

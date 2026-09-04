@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo } from "react";
 
-import type { Platform } from "../../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { useAuthStore } from "../../../store/auth-store";
 
 // ========== Main Auth Hook ==========

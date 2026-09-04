@@ -36,7 +36,7 @@ import type {
 // `@backend/logging/logger` here would drag `electron-log/main` into the
 // renderer bundle and crash boot with `__dirname is not defined`.
 import { logger } from "@shared/utils/cross-logger";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type {
   ModerationHistoryResult,
   ModLogEntry,

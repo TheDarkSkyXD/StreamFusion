@@ -7,12 +7,14 @@ import {
   isValidUnifiedChannel,
   isValidUnifiedCategory,
   isValidUnifiedStream,
-  normalizeSearchTokens,
   mergeExactCrossPlatformCategories,
-  rankChannelMatch,
-  rankCategoryMatch,
-  rankStreamMatch,
 } from "@backend/search/search-match-contract";
+import {
+  normalizeSearchTokens,
+  rankCategoryMatch,
+  rankChannelMatch,
+  rankStreamMatch,
+} from "@streamfusion/core/discovery";
 
 // Guards: submitted search normalizes user-visible query syntax consistently before deciding eligibility
 describe("search match contract", () => {

@@ -3,7 +3,8 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RecentChattersPanel } from "@/features/chat/components/chat/RecentChattersPanel";
-import type { ChatBadge, ChatKnownUser, ChatMessage } from "@shared/chat-types";
+import type { ChatKnownUser, ChatMessage } from "@shared/chat-types";
+import { ChatBadge } from "@streamfusion/core/chat";
 import { DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
 import { useAuthStore } from "@/store/auth-store";
 import { useChatStore } from "@/store/chat-store";

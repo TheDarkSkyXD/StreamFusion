@@ -5,14 +5,13 @@
  * unified ChatMessage format.
  */
 
-import type {
+import type { ChatMessage, EmotePosition } from "../../../shared/chat-types";
+import {
   ChatBadge,
-  ChatMessage,
   ContentFragment,
-  EmotePosition,
-  MessageType,
+  ChatMessageType as MessageType,
   ReplyInfo,
-} from "../../../shared/chat-types";
+} from "@streamfusion/core/chat";
 
 // ========== Types ==========
 

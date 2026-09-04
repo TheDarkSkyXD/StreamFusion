@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { IpcMainInvokeEvent } from "electron";
 import type { IpcChannel } from "../../shared/ipc-channels";
 import type { StructuralSchema } from "../../shared/feature-loader-contract";
-import type { IpcReply } from "../../shared/reliability-types";
+import { Result as IpcReply } from "@streamfusion/core/reliability";
 import { registerTrustedIpcHandler } from "./register-trusted-ipc-handler";
 import { configureTrustedIpcMain } from "./trusted-ipc-main";
 import { getMainRendererDocumentUrl } from "./trusted-document-url";

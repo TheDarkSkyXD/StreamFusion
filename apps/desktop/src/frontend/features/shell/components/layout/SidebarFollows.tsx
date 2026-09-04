@@ -10,15 +10,10 @@ import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useFollowedChannels } from "@/features/discovery/data/queries/useChannels";
 import { useFollowedStreams } from "@/features/discovery/data/queries/useStreams";
-import {
-  dedupeChannelsByIdentity,
-  dedupeStreamsByChannelIdentity,
-  getChannelKey,
-  getChannelNameKey,
-  getStreamKey,
-} from "@/lib/id-utils";
+import { dedupeChannelsByIdentity, dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
+import { getChannelKey, getChannelNameKey, getStreamKey } from "@streamfusion/core/platform";
 import { cn, formatViewerCount } from "@/lib/utils";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
 import { usePipStore } from "@/store/pip-store";

@@ -7,15 +7,17 @@
 
 import { getBundledBadgeUrl } from "../../../frontend/assets/platforms/kick/badges";
 import type {
-  ChatBadge,
   ChatMessage,
   ClearChat,
-  ContentFragment,
   MessageDeletion,
-  MessageType,
   SubscriberBadge,
   UserNotice,
 } from "../../../shared/chat-types";
+import {
+  ChatBadge,
+  ContentFragment,
+  ChatMessageType as MessageType,
+} from "@streamfusion/core/chat";
 import {
   RAID_CONTRACT_PROFILES,
   isValidRaidChannelSlug,

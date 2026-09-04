@@ -21,7 +21,7 @@ import {
   type ChatPauseMode,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
 } from "@shared/auth-types";
-import type { ChatPlatform } from "@shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { useAuthStore } from "@/store/auth-store";
 
 /**

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { BadgeResolver } from "@backend/services/chat/badge-resolver";
-import type { ChatBadge, TwitchBadgeCatalog } from "@shared/chat-types";
+import type { TwitchBadgeCatalog } from "@shared/chat-types";
+import { ChatBadge } from "@streamfusion/core/chat";
 
 // Guards: BadgeResolver cache identity — same badge set + same broadcasterId returns the SAME array reference (React render stability); different broadcasterId or set/version returns a different reference (no stale-channel bleed); clearCache drops the memo. Reference-equality matters because consumers use it as a React key signal.
 // Guards: Twitch channel badge fetches keep every subscriber version so subscriber/0 and subscriber/12 resolve to the watched channel's images.

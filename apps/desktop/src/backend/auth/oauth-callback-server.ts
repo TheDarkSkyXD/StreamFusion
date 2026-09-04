@@ -10,7 +10,7 @@ import http from "node:http";
 import { URL } from "node:url";
 
 import { logger } from "@backend/logging/logger";
-import type { Platform } from "../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 // ========== Types ==========
 

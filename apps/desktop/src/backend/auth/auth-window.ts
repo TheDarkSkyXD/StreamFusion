@@ -13,7 +13,7 @@ import {
   persistKickWebBearerCandidate,
 } from "@backend/api/platforms/kick/kick-web-credential";
 import { sleep } from "@shared/utils/sleep";
-import type { Platform } from "../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { waitForWebContentsCondition } from "../services/web-contents-ready";
 import {
   buildAuthorizationUrl,

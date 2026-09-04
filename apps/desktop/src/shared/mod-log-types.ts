@@ -7,7 +7,7 @@
  * pull `better-sqlite3` into the renderer bundle).
  */
 
-import type { Platform } from "./auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 export type ModLogProvenance =
   | "twitch-eventsub"

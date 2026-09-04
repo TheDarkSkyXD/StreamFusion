@@ -21,10 +21,10 @@ import {
   type LiveNotificationCoverageStatus,
   type LiveNotificationPayload,
   type LocalFollow,
-  type Platform,
   TWITCH_APP_CLIENT_ID,
   type UserPreferences,
 } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { IPC_CHANNELS } from "@shared/ipc-channels";
 import { nativeText } from "@shared/i18n/native-copy.generated";
 import { KickLiveNotificationSource } from "./kick-live-notification-source";

@@ -43,7 +43,8 @@ import {
 } from "@backend/reliability/bounded-response-body";
 import { sleep } from "@shared/utils/sleep";
 import { session } from "electron";
-import type { KickUser, Platform } from "../../../../shared/auth-types";
+import type { KickUser } from "../../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { kickAuthService } from "../../../auth/kick-auth";
 import {
   purgeStoredThirdPartyCookies,

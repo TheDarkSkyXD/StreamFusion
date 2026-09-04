@@ -1,21 +1,13 @@
-import type { Platform } from "./auth-types";
+import type { Platform } from "@streamfusion/core/platform";
 import type {
-  SearchIntent as CoreSearchIntent,
-  SearchLimits as CoreSearchLimits,
-  ProgressiveDiscoveryEndReason,
-  SearchResultType as CoreSearchResultType,
+  SearchIntent,
+  ProgressiveDiscoveryEndReason as StreamSearchEndReason,
 } from "@streamfusion/core/discovery";
-
-export type SearchResultType = CoreSearchResultType;
-export type SearchLimits = CoreSearchLimits;
-export type SearchIntent = CoreSearchIntent;
 
 export interface SearchAllRequest extends SearchIntent {
   sessionId: string;
   platform: Platform;
 }
-
-export type StreamSearchEndReason = ProgressiveDiscoveryEndReason;
 
 export interface SearchStreamsRequest {
   sessionId: string;

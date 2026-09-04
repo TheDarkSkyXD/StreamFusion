@@ -63,7 +63,7 @@ import { registerSearchHandlers } from "@backend/ipc/handlers/search-handlers";
 import type { UnifiedChannel } from "@shared/platform-types";
 import { storageService } from "@backend/services/storage-service";
 import type { SearchResultCollection } from "@/features/discovery/utils/search/search-result-validation";
-import type { DiscoveryResult } from "@shared/discovery-types";
+import { DiscoveryResult } from "@streamfusion/core/discovery";
 
 type SearchAllResult = DiscoveryResult<SearchResultCollection>;
 type SearchAllSuccess = Extract<SearchAllResult, { success: true }>;

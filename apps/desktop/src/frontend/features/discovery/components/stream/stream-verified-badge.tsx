@@ -1,6 +1,6 @@
 import { getBundledBadgeUrl } from "@/assets/platforms/kick/badges";
 import { useTranslation } from "react-i18next";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 const KICK_VERIFIED_BADGE_URL = getBundledBadgeUrl("verified");
 

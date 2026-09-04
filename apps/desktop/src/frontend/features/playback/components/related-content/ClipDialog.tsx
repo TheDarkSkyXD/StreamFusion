@@ -25,7 +25,7 @@ import { useHistoryActions } from "@/features/media-library/data/useHistoryQuery
 import { useDownloadActions } from "@/features/media-library/data/use-download-actions";
 import { useShareAction } from "@/features/playback/data/use-share-action";
 import { logger } from "@/renderer/logging/logger";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 import type { VideoOrClip } from "./types";
 import { formatTimeAgo, formatViews } from "./utils";

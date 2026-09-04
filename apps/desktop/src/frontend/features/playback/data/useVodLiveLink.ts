@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import type { UnifiedStream } from "@shared/platform-types";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 export const VOD_LIVE_LINK_KEYS = {
   byChannel: (username: string, platform: Platform) =>

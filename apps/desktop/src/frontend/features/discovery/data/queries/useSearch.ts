@@ -13,11 +13,11 @@ import type {
   UnifiedStream,
   UnifiedVideo,
 } from "../../../../../shared/platform-types";
-import type { Platform } from "../../../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type { SearchPlatformError, SearchPlatformStatus } from "../../../../../shared/search-types";
 import { sleep } from "@shared/utils/sleep";
-import { normalizeSearchQuery } from "../../utils/search/search-normalization";
-import { rankSearchChannels } from "../../utils/search/channel-search-contract";
+import { normalizeSearchQuery } from "@streamfusion/core/discovery";
+import { rankSearchChannels } from "@streamfusion/core/discovery";
 import type { SearchResultCollection } from "../../utils/search/search-result-validation";
 import { logger } from "../../../../renderer/logging/logger";
 import { i18n } from "@/i18n";

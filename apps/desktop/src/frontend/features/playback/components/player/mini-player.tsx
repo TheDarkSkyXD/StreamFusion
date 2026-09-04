@@ -23,7 +23,7 @@ import { useStreamByChannel } from "@/features/discovery/data/queries/useStreams
 import { useStreamPlayback } from "@/features/playback/data/useStreamPlayback";
 import { cn } from "@/lib/utils";
 import { logger } from "@/renderer/logging/logger";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { useAdBlockStore } from "@/store/adblock-store";
 import { usePipStore } from "@/store/pip-store";
 import { useVolumeStore } from "@/store/volume-store";

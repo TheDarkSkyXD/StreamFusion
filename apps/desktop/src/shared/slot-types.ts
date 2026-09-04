@@ -5,7 +5,7 @@
  * single-sourced.
  */
 
-import type { Platform } from "./auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 /**
  * SlotPresence is the user-attention state of a StreamSlot:

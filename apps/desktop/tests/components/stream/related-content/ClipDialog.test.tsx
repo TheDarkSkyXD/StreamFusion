@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { UnifiedChannel } from "@shared/platform-types";
 import { ClipDialog } from "@/features/playback/components/related-content/ClipDialog";
 import type { VideoOrClip } from "@/features/playback/components/related-content/types";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import type React from "react";
 import { installElectronAPIMock } from "../../../test-utils";
 

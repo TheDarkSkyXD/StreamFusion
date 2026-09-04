@@ -1,4 +1,4 @@
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 export type PlatformCrashBackoffReason = "gpu-process-gone" | "network-service-gone";
 

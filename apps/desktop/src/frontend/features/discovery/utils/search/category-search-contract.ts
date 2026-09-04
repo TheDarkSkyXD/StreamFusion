@@ -1,16 +1,11 @@
 import type { UnifiedCategory } from "../../../../../shared/platform-types";
 
-import { rankAndDeduplicateCategories, rankCategoryMatch } from "@streamfusion/core/discovery";
-import { normalizeSearchTokens } from "./search-normalization";
+import { normalizeSearchTokens, rankAndDeduplicateCategories } from "@streamfusion/core/discovery";
 import { normalizeUnifiedCategory } from "./search-result-validation";
-
-export type { CategorySearchMatchRank } from "@streamfusion/core/discovery";
 
 function normalizedPhrase(value: string): string {
   return normalizeSearchTokens(value).join(" ");
 }
-
-export { rankCategoryMatch };
 
 export function filterRankAndDeduplicateCategories(
   values: readonly unknown[],

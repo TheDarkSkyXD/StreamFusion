@@ -5,7 +5,7 @@ import type { UnifiedChannel, UnifiedStream } from "@shared/platform-types";
 import { prewarmViewportImages } from "@/lib/viewport-image-prewarm";
 import { logger } from "@/renderer/logging/logger";
 import { isValidUnifiedStream } from "@/features/discovery/utils/search/search-result-validation";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
 import { hydratePersistedChatHistory } from "@/store/persisted-chat-history";

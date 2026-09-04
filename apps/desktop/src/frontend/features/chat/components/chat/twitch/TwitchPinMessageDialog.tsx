@@ -24,7 +24,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ProxiedImage } from "@/components/ui/proxied-image";
-import type { ChatMessage, ContentFragment } from "@shared/chat-types";
+import type { ChatMessage } from "@shared/chat-types";
+import { ContentFragment } from "@streamfusion/core/chat";
 import { ChatEmote } from "../ChatEmote";
 import { formatMentionLabel } from "../mention-label";
 

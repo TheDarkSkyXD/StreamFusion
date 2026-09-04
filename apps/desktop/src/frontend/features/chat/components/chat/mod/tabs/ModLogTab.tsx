@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 
 import type { ModLogAction } from "@backend/services/mod-log-writer";
 import { useModLog } from "@/features/moderation/data/useModLog";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 import { useOpenUserPopout } from "../UserPopout/UserPopoutProvider";
 

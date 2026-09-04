@@ -1,4 +1,4 @@
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 export const MOD_LOG_QUERY_KEYS = {
   all: ["modLog"] as const,

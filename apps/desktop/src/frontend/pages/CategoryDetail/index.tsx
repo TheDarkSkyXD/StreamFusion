@@ -27,7 +27,7 @@ import {
   useCategoryLanguagePreferenceStore,
 } from "@/features/discovery/data/category-language-preference-store";
 import { useDebounce } from "@/hooks/useDebounce";
-import { getStreamElementKey } from "@/lib/id-utils";
+import { getStreamElementKey } from "@streamfusion/core/platform";
 import { formatViewerCount, getEquivalentCategoryName, normalizeCategoryName } from "@/lib/utils";
 import type {
   CategoryContentTab,
@@ -35,7 +35,7 @@ import type {
   CategoryPlatformScope,
 } from "@/features/discovery/routes/category-detail-search";
 import { validateCategoryDetailSearch } from "@/features/discovery/routes/category-detail-search";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 import { CategoryMediaTab } from "./components/CategoryMediaTab";
 

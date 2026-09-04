@@ -1,7 +1,7 @@
 import type React from "react";
 import { memo } from "react";
 import { ImHammer2 } from "react-icons/im";
-import type { ChatPlatform } from "../../../../../shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { ChatHighlightCard } from "./ChatHighlightCard";
 
 interface ModeratorHighlightProps {

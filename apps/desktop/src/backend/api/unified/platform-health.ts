@@ -9,7 +9,7 @@
  */
 
 import { logger } from "@shared/utils/cross-logger";
-import type { Platform } from "../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 export type PlatformHealth = "healthy" | "degraded" | "down";
 

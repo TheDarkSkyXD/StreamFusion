@@ -1,5 +1,5 @@
 import { IPC_FEATURES, type IpcFeature } from "./ipc-channels";
-import type { IpcReply, SafeAppError } from "./reliability-types";
+import { Result as IpcReply, SafeAppError } from "@streamfusion/core/reliability";
 
 export interface StructuralSchema<T> {
   safeParse(

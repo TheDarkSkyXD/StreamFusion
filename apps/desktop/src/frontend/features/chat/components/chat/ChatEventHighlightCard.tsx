@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type React from "react";
 import { memo } from "react";
-import type { ChatPlatform } from "../../../../../shared/chat-types";
+import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import type { chatEn } from "@/i18n/locales/en/chat";
 
 type ChatTranslationKey = `chat.${keyof typeof chatEn.chat}`;

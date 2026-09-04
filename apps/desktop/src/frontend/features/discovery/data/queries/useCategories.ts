@@ -15,7 +15,7 @@ import {
   pickWinner,
 } from "../../../../lib/utils";
 import { logger } from "../../../../renderer/logging/logger";
-import type { Platform } from "../../../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 import { useQueryCachePerformance } from "./cache-performance";
 import { getQueryCacheOptions } from "./cache-policy";

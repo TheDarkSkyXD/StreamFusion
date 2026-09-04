@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LocalFollow, Platform } from "@shared/auth-types";
+import type { LocalFollow } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { IPC_CHANNELS } from "@shared/ipc-channels";
 import { createIsolatedDatabaseTestLifecycle } from "../../../helpers/database-test-lifecycle";
 

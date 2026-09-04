@@ -1,4 +1,4 @@
-import type { Platform } from "./auth-types";
+import { Platform } from "@streamfusion/core/platform";
 
 export interface TimeoutActionBinding {
   platform: Platform;

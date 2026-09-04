@@ -1,8 +1,8 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import type { UnifiedChannel, UnifiedStream } from "@shared/platform-types";
-import { channelsMatch } from "@/lib/id-utils";
-import type { Platform } from "@shared/auth-types";
+import { channelsMatch } from "@streamfusion/core/platform";
+import { Platform } from "@streamfusion/core/platform";
 
 import { measureCacheInvalidationDispatch } from "./cache-performance";
 import { CHANNEL_KEYS } from "./useChannels";

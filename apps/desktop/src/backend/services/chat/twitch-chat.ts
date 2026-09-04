@@ -14,15 +14,14 @@ import { createCancellableSleep, type CancellableSleep } from "@shared/utils/sle
 import type { TwitchUser } from "../../../shared/auth-types";
 import { EventEmitter } from "../../../shared/browser-event-emitter";
 import type {
-  ChatBadge,
   ChatConnectionState,
   ChatConnectionStatus,
   ChatMessage,
   ChatServiceEvents,
-  ContentFragment,
   ModeratorStateEvent,
   UserNotice,
 } from "../../../shared/chat-types";
+import { ChatBadge, ContentFragment } from "@streamfusion/core/chat";
 import { buildChannelKey, useChatStore } from "../../../frontend/store/chat-store";
 import { badgeResolver } from "./badge-resolver";
 import {

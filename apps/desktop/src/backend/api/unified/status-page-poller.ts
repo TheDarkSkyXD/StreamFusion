@@ -1,5 +1,5 @@
 import { createManagedInterval } from "@shared/utils/managed-interval";
-import type { Platform } from "../../../shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { logger } from "../../logging/logger";
 import {
   onPlatformHealthChanged,

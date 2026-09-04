@@ -16,7 +16,7 @@ import {
   parseKickChatMessage,
 } from "@backend/services/chat/kick-parser";
 import { parseTwitchMessage, type TwitchTags } from "@backend/services/chat/twitch-parser";
-import type { ContentFragment } from "@shared/chat-types";
+import { ContentFragment } from "@streamfusion/core/chat";
 
 function emoteFragments(fragments: ContentFragment[]) {
   return fragments.filter((f): f is Extract<ContentFragment, { type: "emote" }> => f.type === "emote");

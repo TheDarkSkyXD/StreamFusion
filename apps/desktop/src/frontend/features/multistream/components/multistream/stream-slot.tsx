@@ -15,7 +15,7 @@ import { useChannelByUsername } from "@/features/discovery/data/queries/useChann
 import { useStreamPlayback } from "@/features/playback/data/useStreamPlayback";
 import { cn } from "@/lib/utils";
 import { logger } from "@/renderer/logging/logger";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { useMultiStreamStore } from "@/features/multistream/data/multistream-store";
 import type { RaidSource, RaidTarget } from "@shared/raid-handoff-types";
 

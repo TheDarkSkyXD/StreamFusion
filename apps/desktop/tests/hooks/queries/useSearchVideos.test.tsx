@@ -13,7 +13,7 @@ import {
   savePersistedSearchPage,
 } from "@/features/discovery/data/queries/persisted-search-lru";
 import { useSearchVideos } from "@/features/discovery/data/queries/useSearch";
-import type { Platform } from "@shared/auth-types";
+import { Platform } from "@streamfusion/core/platform";
 import { installElectronAPIMock } from "../../test-utils";
 
 type BaseApi = ReturnType<typeof installElectronAPIMock>;
