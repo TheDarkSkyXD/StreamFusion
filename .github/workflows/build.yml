@@ -151,6 +151,8 @@ jobs:
           profile: pixel_2
           script: |
             test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = "30"
+            timeout 300 sh -c 'until adb shell service check package 2>/dev/null | grep -q "found"; do sleep 2; done'
+            timeout 300 sh -c 'until adb shell cmd package list packages >/dev/null 2>&1; do sleep 2; done'
             adb install --no-streaming apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
             adb shell monkey -p com.thedarkskyxd.streamfusion.dev -c android.intent.category.LAUNCHER 1
             timeout 30 sh -c 'until adb shell pidof com.thedarkskyxd.streamfusion.dev; do sleep 1; done'

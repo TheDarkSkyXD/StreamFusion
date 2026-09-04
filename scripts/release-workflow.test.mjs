@@ -22,8 +22,20 @@ test("the build workflow is CI-only and cannot publish a GitHub release", () => 
   assert.match(source, /rebuild-deps:\$\{\{ matrix\.arch \}\}/);
   assert.match(source, /package:\$\{\{ matrix\.arch \}\}/);
   assert.doesNotMatch(source, /npm (?:exec|run).* -- --(?:arch|dry-run)/);
-  assert.doesNotMatch(source, /npm --prefix apps\/desktop (?:ci|audit|rebuild)/);
+  assert.doesNotMatch(
+    source,
+    /npm --prefix apps\/desktop (?:ci|audit|rebuild)/,
+  );
   assert.doesNotMatch(source, /pnpm\/action-setup|\bpnpm\b/);
+
+  const packageServiceReady = source.indexOf("service check package");
+  const developmentApkInstall = source.indexOf(
+    "adb install --no-streaming apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk",
+  );
+  assert.ok(packageServiceReady >= 0);
+  assert.ok(developmentApkInstall > packageServiceReady);
+  assert.match(source, /timeout 300 sh -c .*service check package/);
+  assert.match(source, /timeout 300 sh -c .*cmd package list packages/);
 });
 
 test("one release workflow handles tagged and manual releases with fail-closed gates", () => {
@@ -45,7 +57,10 @@ test("one release workflow handles tagged and manual releases with fail-closed g
     /package:\$\{\{ matrix\.platform \}\}:\$\{\{ matrix\.arch \}\}:signed/,
   );
   assert.doesNotMatch(source, /npm (?:exec|run).* -- --(?:arch|dry-run)/);
-  assert.doesNotMatch(source, /npm --prefix apps\/desktop (?:ci|audit|rebuild)/);
+  assert.doesNotMatch(
+    source,
+    /npm --prefix apps\/desktop (?:ci|audit|rebuild)/,
+  );
   assert.doesNotMatch(source, /pnpm\/action-setup|\bpnpm\b/);
   assert.match(source, /macos-15-intel/);
   assert.match(source, /macos-15/);
