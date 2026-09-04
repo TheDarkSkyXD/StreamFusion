@@ -41,7 +41,7 @@ node .agents/skills/verify-streamfusion/scripts/control.mjs session --mode previ
 
 Do not attach to a developer's existing port 9222 or 9236 instance. Do not use `electron .`, `electron-vite preview`, or a packaged build for normal feature proof.
 
-The controller creates a WAL-consistent SQLite snapshot of `.streamfusion-dev-user-data/streamfusion.db` and copies the account-bearing Electron state from `.streamfusion-dev-user-data/` into the disposable profile before launch. The account snapshot includes `streamfusion-storage.json`, Chromium's `Local State` encryption key, and a consistent `Network/Cookies` snapshot. This gives verification the user's current local follows, history, preferences, authenticated Twitch and Kick accounts, and Kick website session without allowing local writes to modify the source profile. Pass `--database <path>` or `--storage <path>` to seed from another profile. `--storage` also selects the source profile for encryption state and cookies. A missing artifact starts fresh.
+The controller creates a WAL-consistent SQLite snapshot of `.streamfusion-dev-user-data/streamfusion.db` and copies the account-bearing Electron state from `.streamfusion-dev-user-data/` into the disposable profile before launch. The account snapshot includes `streamfusion-storage.json`, Chromium's `Local State` encryption key, and, when Chromium is not holding an exclusive lock, a consistent `Network/Cookies` snapshot. A locked cookie database is reported in `accountStorageWarnings` without discarding the account store, encryption state, or database snapshot. This gives verification the user's current local follows, history, preferences, authenticated Twitch and Kick accounts, and usually the Kick website session without allowing local writes to modify the source profile. Pass `--database <path>` or `--storage <path>` to seed from another profile. `--storage` also selects the source profile for encryption state and cookies. A missing artifact starts fresh.
 
 ## Doctor
 
@@ -51,7 +51,7 @@ Run doctor before driving the app and whenever a selector, route, or screenshot 
 node .agents/skills/verify-streamfusion/scripts/control.mjs doctor --run $verifyRun
 ```
 
-Require `healthy: true`. Doctor checks the recorded launcher PID, the process tree that owns the CDP port, the StreamFusion window title and URL, the preload `electronAPI`, rendered body content, package version, launch revision, uncaught error patterns, and account-token decryption failures in the launch log. Doctor also reports which authenticated Platform entries were present in the copied account store. Authentication is not required for the baseline recipes. A feature that writes account state, follows, chat messages, moderation actions, downloads, or recordings must add its own authenticated precondition.
+Require `healthy: true`. Doctor checks the recorded launcher PID, the process tree that owns the CDP port, the StreamFusion window title and URL, the preload `electronAPI`, rendered body content, package version, launch revision, uncaught error patterns, and account-token decryption failures in the launch log. Doctor also reports which authenticated Platform entries were present in the copied account store and any non-fatal account snapshot warnings. Authentication is not required for the baseline recipes. A feature that writes account state, follows, chat messages, moderation actions, downloads, or recordings must add its own authenticated precondition.
 
 Inspect the isolated database after doctor succeeds:
 
@@ -71,9 +71,10 @@ node .agents/skills/verify-streamfusion/scripts/control.mjs wait --run $verifyRu
 node .agents/skills/verify-streamfusion/scripts/control.mjs element --run $verifyRun --role button --name "Focus Layout"
 node .agents/skills/verify-streamfusion/scripts/control.mjs click --run $verifyRun --role button --name "Add Stream"
 node .agents/skills/verify-streamfusion/scripts/control.mjs wait --run $verifyRun --text "Add Stream to Layout"
+node .agents/skills/verify-streamfusion/scripts/control.mjs hover --run $verifyRun --selector "video" --index 0
 ```
 
-Other supported commands are `fill`, `press`, `snapshot`, `screenshot`, `evaluate`, and `logs`. Run the helper with `help` for exact arguments. Prefer `click`, `fill`, and `press`. Use `evaluate` only for a read-only assertion or when the feature map names a direct route as the user entry point. Do not mutate stores or invoke internal setters as proof.
+Other supported commands are `fill`, `press`, `hover`, `snapshot`, `screenshot`, `evaluate`, and `logs`. Run the helper with `help` for exact arguments. Prefer `click`, `fill`, `press`, and `hover`. Use `evaluate` only for a read-only assertion or when the feature map names a direct route as the user entry point. Do not mutate stores or invoke internal setters as proof.
 
 Network-backed features may show a success, empty, offline, or provider-error state. Record which state appeared. An error state proves graceful failure only. It does not prove successful provider data or playback.
 

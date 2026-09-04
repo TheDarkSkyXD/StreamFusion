@@ -298,12 +298,13 @@ function elementExpression({ role, name, action, value, key }) {
         element.getAttribute('title') ||
         element.getAttribute('placeholder') ||
         element.textContent || '').trim().replace(/\\s+/g, ' ');
-    const element = Array.from(document.querySelectorAll('a,button,input,textarea,select,h1,h2,h3,h4,h5,h6,[role]'))
-      .find((candidate) =>
+    const candidates = Array.from(document.querySelectorAll('a,button,input,textarea,select,h1,h2,h3,h4,h5,h6,[role]'))
+      .filter((candidate) =>
         implicitRole(candidate) === wantedRole &&
         accessibleName(candidate).toLowerCase() === wantedName.toLowerCase() &&
         candidate.getClientRects().length > 0
       );
+    const element = candidates.find((candidate) => accessibleName(candidate) === wantedName) || candidates[0];
     if (!element) throw new Error('No visible ' + wantedRole + ' named "' + wantedName + '"');
     const before = {
       url: location.href,
@@ -429,15 +430,23 @@ async function seedLiveAccountStorage(options, profileDir) {
     path.join(sourceProfile, "Local State"),
     path.join(profileDir, "Local State"),
   );
-  const cookies = await snapshotSqliteIfPresent(
-    path.join(sourceProfile, "Network", "Cookies"),
-    path.join(profileDir, "Network", "Cookies"),
-  );
+  let cookies = null;
+  let cookieSnapshotWarning = null;
+  try {
+    cookies = await snapshotSqliteIfPresent(
+      path.join(sourceProfile, "Network", "Cookies"),
+      path.join(profileDir, "Network", "Cookies"),
+    );
+  } catch (error) {
+    cookieSnapshotWarning =
+      error instanceof Error ? error.message : String(error);
+  }
   return {
     source,
     destination,
     encryptionState,
     cookies,
+    cookieSnapshotWarning,
     authenticatedPlatforms,
   };
 }
@@ -615,6 +624,9 @@ async function doctor(options) {
     .split(/\r?\n/)
     .filter((line) => /Failed to decrypt token/i.test(line))
     .slice(-20);
+  const accountStorageWarnings = state.accountStorageSeed?.cookieSnapshotWarning
+    ? [state.accountStorageSeed.cookieSnapshotWarning]
+    : [];
   const result = {
     healthy: isVerificationHealthy({
       processAlive: isProcessAlive(state.pid),
@@ -637,6 +649,7 @@ async function doctor(options) {
     authentication: !state.accountStorageSeed
       ? "No development account store was available; this run started signed out"
       : `Seeded development account state for: ${state.accountStorageSeed.authenticatedPlatforms.join(", ") || "no authenticated platforms"}`,
+    accountStorageWarnings,
     accountStorageErrors,
     uncaughtErrors,
     evidenceDir: state.evidenceDir,
@@ -661,6 +674,49 @@ async function interact(command, options) {
     }),
   );
   await appendAction(state, command, result);
+  json(result);
+}
+
+async function hover(options) {
+  const state = await readState(requireOption(options, "run"));
+  const selector = requireOption(options, "selector");
+  const index = options.index ? Number(options.index) : 0;
+  if (!Number.isInteger(index) || index < 0) {
+    throw new Error("--index must be a non-negative integer");
+  }
+
+  const target = await evaluate(
+    state,
+    `(() => {
+      const selector = ${JSON.stringify(selector)};
+      const index = ${JSON.stringify(index)};
+      const element = document.querySelectorAll(selector)[index];
+      if (!element) throw new Error('No element matched selector "' + selector + '" at index ' + index);
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) throw new Error('Hover target has no visible bounds');
+      return {
+        selector,
+        index,
+        tagName: element.tagName,
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+        width: rect.width,
+        height: rect.height,
+      };
+    })()`,
+  );
+
+  await cdpCall(state.port, "Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    x: target.x,
+    y: target.y,
+  });
+  const result = {
+    ...target,
+    action: "hover",
+    urlAfterAction: await evaluate(state, "location.href"),
+  };
+  await appendAction(state, "hover", result);
   json(result);
 }
 
@@ -894,6 +950,7 @@ Commands:
   click --run RUN_JSON --role ROLE --name NAME
   fill --run RUN_JSON --role ROLE --name NAME --value VALUE
   press --run RUN_JSON --role ROLE --name NAME --key KEY
+  hover --run RUN_JSON --selector CSS_SELECTOR [--index INDEX]
   element --run RUN_JSON --role ROLE --name NAME
   wait --run RUN_JSON [--text TEXT] [--hash HASH] [--timeout MS]
   snapshot --run RUN_JSON [--output RELATIVE_PATH]
@@ -962,6 +1019,7 @@ async function main() {
   if (command === "database") return inspectDatabase(options);
   if (["click", "fill", "press"].includes(command))
     return interact(command, options);
+  if (command === "hover") return hover(options);
   if (command === "element") return inspectElement(options);
   if (command === "wait") return wait(options);
   if (command === "snapshot") return snapshot(options);
