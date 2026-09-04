@@ -45,7 +45,14 @@ test("the Android build supports API 30 and custom development clients", () => {
 });
 
 test("local Android commands stay owned by the Mobile workspace", () => {
-  assert.equal(packageManifest.scripts.android, "node scripts/run-android.mjs");
+  assert.equal(
+    packageManifest.scripts.android,
+    "node scripts/start-expo-go.mjs",
+  );
+  assert.equal(
+    packageManifest.scripts["android:native"],
+    "node scripts/run-android.mjs",
+  );
   assert.match(
     packageManifest.scripts["build:android:development"],
     /build-android-development/,

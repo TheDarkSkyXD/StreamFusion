@@ -10,8 +10,9 @@
   },
   "scripts": {
     "preinstall": "node ../../scripts/require-npm.mjs",
-    "start": "expo start --dev-client",
-    "android": "node scripts/run-android.mjs",
+    "start": "expo start --go",
+    "android": "node scripts/start-expo-go.mjs",
+    "android:native": "node scripts/run-android.mjs",
     "prebuild:android": "expo prebuild --platform android --no-install",
     "bundle:android": "expo export --platform android --output-dir dist",
     "build:android:development": "node scripts/build-android-development.mjs",
@@ -21,17 +22,17 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "expo": "57.0.15",
-    "expo-build-properties": "57.0.13",
-    "expo-constants": "57.0.11",
-    "expo-dev-client": "57.0.14",
-    "expo-linking": "57.0.6",
-    "expo-router": "57.0.13",
-    "expo-splash-screen": "57.0.6",
+    "expo": "57.0.17",
+    "expo-build-properties": "57.0.15",
+    "expo-constants": "57.0.15",
+    "expo-dev-client": "57.0.16",
+    "expo-linking": "57.0.8",
+    "expo-router": "57.0.17",
+    "expo-splash-screen": "57.0.8",
     "expo-status-bar": "57.0.1",
     "query-string": "9.5.0",
     "react": "19.2.3",
-    "react-native": "0.86.2",
+    "react-native": "0.86.3",
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "5.7.0",
     "react-native-screens": "4.26.0",
@@ -40,7 +41,7 @@
   "devDependencies": {
     "@types/react": "19.2.18",
     "eslint": "9.39.5",
-    "eslint-config-expo": "57.0.1",
+    "eslint-config-expo": "57.0.2",
     "prettier": "3.9.6",
     "typescript": "6.0.3"
   }

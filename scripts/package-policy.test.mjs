@@ -77,7 +77,15 @@ test("the root workspace owns npm policy and application startup", () => {
     rootPackage.scripts.mobile,
     "npm run --workspace @streamfusion/mobile android --",
   );
-  assert.equal(mobilePackage.scripts.android, "node scripts/run-android.mjs");
+  assert.equal(
+    rootPackage.scripts["mobile:native"],
+    "npm run --workspace @streamfusion/mobile android:native --",
+  );
+  assert.equal(mobilePackage.scripts.android, "node scripts/start-expo-go.mjs");
+  assert.equal(
+    mobilePackage.scripts["android:native"],
+    "node scripts/run-android.mjs",
+  );
   assert.equal(
     rootPackage.scripts.relay,
     "npm run --workspace @streamfusion/integration-relay dev",

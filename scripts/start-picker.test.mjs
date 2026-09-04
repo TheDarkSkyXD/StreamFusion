@@ -13,7 +13,7 @@ import {
 test("the picker exposes Electron, Browser, and Mobile", () => {
   assert.match(START_PROMPT, /1\) Electron/);
   assert.match(START_PROMPT, /2\) Browser/);
-  assert.match(START_PROMPT, /3\) Mobile/);
+  assert.match(START_PROMPT, /3\) Mobile \(Expo Go\)/);
   assert.deepEqual(
     START_TARGETS.map(({ name, script }) => ({ name, script })),
     [
