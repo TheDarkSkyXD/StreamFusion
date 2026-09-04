@@ -25,6 +25,18 @@ The Android shell presents the same five destinations through compact bottom nav
 - Dark Theater primitives: `apps/mobile/src/design/tokens.ts`
 - Tests: `apps/mobile/tests/shell-navigation.test.ts`
 
+## Android encrypted persistence
+
+The Android runtime keeps durable Product state and disposable provider cache state in separate SQLCipher databases. Each database and the pre-migration Product backup has a distinct SecureStore key. Product migration failures and integrity failures preserve quarantine artifacts and recover from the encrypted backup when possible; Cache eviction removes expired entries before enforcing its LRU byte budget.
+
+- Capability contracts: `apps/mobile/src/capabilities/persistence.ts`
+- Store orchestration and recovery: `apps/mobile/src/persistence/store-runtime.ts`
+- SQLCipher and file lifecycle adapter: `apps/mobile/src/persistence/sqlite-encrypted-driver.ts`
+- Product/Cache schemas: `apps/mobile/src/persistence/migrations.ts`
+- SecureStore and random bridges: `apps/mobile/src/native/expo-secure-secret-store.ts`, `apps/mobile/src/native/expo-secure-random-source.ts`
+- Diagnostics UI: `apps/mobile/src/features/development/persistence-controller.ts`, `apps/mobile/src/features/shell/app-shell.tsx`
+- Tests: `apps/mobile/tests/persistence.test.ts`, `apps/mobile/tests/scaffold.test.mjs`
+
 ## Product shell and navigation
 
 The shell owns window chrome, global navigation, route loading, recovery, notifications, and global dialogs.

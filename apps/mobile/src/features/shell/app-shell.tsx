@@ -20,6 +20,7 @@ import {
   mobileSpacing,
 } from "@mobile/design/tokens";
 import type { DevelopmentClientViewModel } from "@mobile/features/development/development-client-controller";
+import type { PersistenceViewModel } from "@mobile/features/development/persistence-controller";
 
 import { DestinationIcon } from "./destination-icon";
 import {
@@ -48,8 +49,12 @@ const previewRoutes: Readonly<
 
 export function AppShell({
   developmentStatus,
+  onRunPersistenceProof,
+  persistenceStatus,
 }: {
   readonly developmentStatus: DevelopmentClientViewModel;
+  readonly onRunPersistenceProof: () => Promise<void>;
+  readonly persistenceStatus: PersistenceViewModel;
 }) {
   const [navigation, dispatch] = useReducer(
     shellNavigationReducer,
@@ -83,10 +88,7 @@ export function AppShell({
   );
 
   return (
-    <KeyboardAvoidingView
-      style={styles.app}
-      testID="development-client-ready"
-    >
+    <KeyboardAvoidingView style={styles.app} testID="development-client-ready">
       <View
         accessibilityLabel="StreamFusion app shell"
         style={[
@@ -100,13 +102,17 @@ export function AppShell({
         ]}
         testID="app-shell-ready"
       >
-        <View style={placement === "rail" ? styles.railLayout : styles.phoneLayout}>
+        <View
+          style={placement === "rail" ? styles.railLayout : styles.phoneLayout}
+        >
           {placement === "rail" ? navigationView : null}
           <View style={styles.workspace}>
             <ShellHeader dispatch={dispatch} state={navigation} />
             <ShellScreen
               developmentStatus={developmentStatus}
               dispatch={dispatch}
+              onRunPersistenceProof={onRunPersistenceProof}
+              persistenceStatus={persistenceStatus}
               state={navigation}
             />
           </View>
@@ -136,7 +142,10 @@ function ShellHeader({
           accessibilityHint={`Returns to ${SHELL_ROUTES[state.activeDestination].title}`}
           accessibilityLabel="Back"
           accessibilityRole="button"
-          android_ripple={{ color: mobileColors.surfaceRaised, borderless: true }}
+          android_ripple={{
+            color: mobileColors.surfaceRaised,
+            borderless: true,
+          }}
           onPress={() => dispatch({ type: "back" })}
           style={styles.headerAction}
           testID="shell-back"
@@ -180,10 +189,14 @@ function ShellHeader({
 function ShellScreen({
   developmentStatus,
   dispatch,
+  onRunPersistenceProof,
+  persistenceStatus,
   state,
 }: {
   readonly developmentStatus: DevelopmentClientViewModel;
   readonly dispatch: (action: ShellNavigationAction) => void;
+  readonly onRunPersistenceProof: () => Promise<void>;
+  readonly persistenceStatus: PersistenceViewModel;
   readonly state: ShellNavigationState;
 }) {
   const route = getActiveShellRoute(state);
@@ -203,7 +216,11 @@ function ShellScreen({
     >
       <View style={styles.contentColumn}>
         <View style={styles.intro}>
-          <Text accessibilityRole="header" selectable style={styles.screenTitle}>
+          <Text
+            accessibilityRole="header"
+            selectable
+            style={styles.screenTitle}
+          >
             {route.title}
           </Text>
           <Text selectable style={styles.screenSummary}>
@@ -221,10 +238,80 @@ function ShellScreen({
           <NestedRouteState destination={state.activeDestination} />
         )}
         {route.id === "more/diagnostics" ? (
-          <DevelopmentStatus model={developmentStatus} />
+          <>
+            <PersistenceStatus
+              model={persistenceStatus}
+              onRunProof={onRunPersistenceProof}
+            />
+            <DevelopmentStatus model={developmentStatus} />
+          </>
         ) : null}
       </View>
     </ScrollView>
+  );
+}
+
+function PersistenceStatus({
+  model,
+  onRunProof,
+}: {
+  readonly model: PersistenceViewModel;
+  readonly onRunProof: () => Promise<void>;
+}) {
+  return (
+    <View
+      accessibilityLabel="Encrypted storage status"
+      style={styles.statusPanel}
+    >
+      <Text selectable style={styles.stateLabel}>
+        PRODUCT AND CACHE STORES
+      </Text>
+      <Text
+        selectable
+        style={styles.cardTitle}
+        testID="persistence-status-title"
+      >
+        {model.title}
+      </Text>
+      <Text
+        selectable
+        style={styles.cardBody}
+        testID="persistence-status-detail"
+      >
+        {model.detail}
+      </Text>
+      {model.proofDetail ? (
+        <Text
+          selectable
+          style={styles.cardBody}
+          testID="persistence-proof-result"
+        >
+          {model.proofDetail}
+        </Text>
+      ) : null}
+      {model.canRunProof ? (
+        <Pressable
+          accessibilityHint="Runs isolated encryption, migration, recovery, cache, and backup checks"
+          accessibilityLabel="Run native storage checks"
+          accessibilityRole="button"
+          accessibilityState={{ disabled: model.proofRunning }}
+          android_ripple={{ color: mobileColors.surfaceRaised }}
+          disabled={model.proofRunning}
+          onPress={() => void onRunProof()}
+          style={({ pressed }) => [
+            styles.proofButton,
+            pressed ? styles.pressed : null,
+          ]}
+          testID="run-persistence-proof"
+        >
+          <Text selectable style={styles.proofButtonLabel}>
+            {model.proofRunning
+              ? "Running checks"
+              : "Run native storage checks"}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -333,7 +420,10 @@ function DevelopmentStatus({
   readonly model: DevelopmentClientViewModel;
 }) {
   return (
-    <View accessibilityLabel="Development runtime status" style={styles.statusPanel}>
+    <View
+      accessibilityLabel="Development runtime status"
+      style={styles.statusPanel}
+    >
       <Text selectable style={styles.stateLabel}>
         DEVELOPMENT RUNTIME
       </Text>
@@ -360,7 +450,9 @@ function PrimaryNavigation({
     <View
       accessibilityLabel="Primary navigation"
       accessibilityRole="tablist"
-      style={placement === "rail" ? styles.navigationRail : styles.navigationBottom}
+      style={
+        placement === "rail" ? styles.navigationRail : styles.navigationBottom
+      }
       testID={`navigation-${placement}`}
     >
       {SHELL_DESTINATIONS.map((destination) => {
@@ -374,7 +466,10 @@ function PrimaryNavigation({
             accessibilityLabel={destination.label}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
-            android_ripple={{ color: mobileColors.surfaceRaised, borderless: false }}
+            android_ripple={{
+              color: mobileColors.surfaceRaised,
+              borderless: false,
+            }}
             key={destination.id}
             onPress={() =>
               dispatch({ type: "select", destination: destination.id })
@@ -511,6 +606,21 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.76,
+  },
+  proofButton: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: mobileColors.textPrimary,
+    borderRadius: mobileRadii.medium,
+    justifyContent: "center",
+    minHeight: mobileSizing.minimumTouchTarget,
+    paddingHorizontal: mobileSpacing.medium,
+  },
+  proofButtonLabel: {
+    color: mobileColors.background,
+    fontSize: 14,
+    fontWeight: "700",
+    lineHeight: 20,
   },
   statePanel: {
     backgroundColor: mobileColors.surface,

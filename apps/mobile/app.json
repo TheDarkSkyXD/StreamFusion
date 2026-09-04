@@ -7,11 +7,26 @@
     "scheme": "streamfusion-development",
     "newArchEnabled": true,
     "android": {
+      "allowBackup": false,
       "package": "com.thedarkskyxd.streamfusion.dev",
       "versionCode": 1
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
+        }
+      ],
+      [
+        "expo-sqlite",
+        {
+          "android": {
+            "useSQLCipher": true
+          }
+        }
+      ],
       [
         "expo-build-properties",
         {

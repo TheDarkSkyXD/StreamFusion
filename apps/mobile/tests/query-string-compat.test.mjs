@@ -75,3 +75,27 @@ test("Metro redirects only Expo Router query-string imports", () => {
     },
   );
 });
+
+test("Metro resolves public core subpaths inside a mapped Android workspace", () => {
+  const resolution = config.resolver.resolveRequest(
+    {
+      originModulePath: path.join(
+        mobileDirectory,
+        "src",
+        "composition",
+        "mobile-runtime.tsx",
+      ),
+      resolveRequest() {
+        throw new Error("workspace package fallback must not run");
+      },
+    },
+    "@streamfusion/core/platform",
+    "android",
+  );
+
+  assert.equal(
+    resolution.filePath,
+    path.resolve(mobileDirectory, "../../packages/core/src/platform/index.ts"),
+  );
+  assert.equal(resolution.type, "sourceFile");
+});

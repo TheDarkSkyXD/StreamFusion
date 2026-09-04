@@ -2,7 +2,12 @@ import { PLATFORMS } from "@streamfusion/core/platform";
 
 import { createExpoAppMetadataReader } from "@mobile/adapters/expo-app-metadata-reader";
 import { createDevelopmentClientController } from "@mobile/features/development/development-client-controller";
+import { usePersistenceController } from "@mobile/features/development/persistence-controller";
 import { AppShell } from "@mobile/features/shell/app-shell";
+import { createExpoSecureRandomSource } from "@mobile/native/expo-secure-random-source";
+import { createExpoSecureSecretStore } from "@mobile/native/expo-secure-secret-store";
+import { createSqliteEncryptedDatabaseDriver } from "@mobile/persistence/sqlite-encrypted-driver";
+import { createMobileStoreRuntime } from "@mobile/persistence/store-runtime";
 import { createVolatilePersistenceProbe } from "@mobile/persistence/volatile-runtime-probe";
 import { createFetchRuntimeProbe } from "@mobile/transport/fetch-runtime-probe";
 
@@ -12,6 +17,20 @@ const developmentClientController = createDevelopmentClientController({
   supportedPlatforms: PLATFORMS,
 });
 
+const persistenceRuntime = createMobileStoreRuntime({
+  backupExcluded: true,
+  databaseDriver: createSqliteEncryptedDatabaseDriver(),
+  random: createExpoSecureRandomSource(),
+  secretStore: createExpoSecureSecretStore(),
+});
+
 export function MobileRuntime() {
-  return <AppShell developmentStatus={developmentClientController.read()} />;
+  const persistence = usePersistenceController(persistenceRuntime);
+  return (
+    <AppShell
+      developmentStatus={developmentClientController.read()}
+      onRunPersistenceProof={persistence.runProof}
+      persistenceStatus={persistence.model}
+    />
+  );
 }

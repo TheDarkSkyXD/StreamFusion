@@ -44,6 +44,37 @@ test("the Android build supports API 30 and custom development clients", () => {
   assert.equal(easManifest.build.development.autoIncrement, false);
 });
 
+test("the Android build enables SQLCipher and excludes all app data from backup", () => {
+  const sqlitePlugin = appManifest.expo.plugins.find(
+    (plugin) => Array.isArray(plugin) && plugin[0] === "expo-sqlite",
+  );
+  const secureStorePlugin = appManifest.expo.plugins.find(
+    (plugin) => Array.isArray(plugin) && plugin[0] === "expo-secure-store",
+  );
+
+  assert.equal(appManifest.expo.android.allowBackup, false);
+  assert.equal(sqlitePlugin?.[1]?.android?.useSQLCipher, true);
+  assert.equal(secureStorePlugin?.[1]?.configureAndroidBackup, true);
+  assert.equal(packageManifest.dependencies["expo-crypto"], "57.0.2");
+  assert.equal(packageManifest.dependencies["expo-file-system"], "57.0.2");
+  assert.equal(packageManifest.dependencies["expo-secure-store"], "57.0.2");
+  assert.equal(packageManifest.dependencies["expo-sqlite"], "57.0.2");
+});
+
+test("SQLCipher is proven in memory before a persistent database is opened", () => {
+  const driverSource = readFileSync(
+    "src/persistence/sqlite-encrypted-driver.ts",
+    "utf8",
+  );
+  const probe = driverSource.indexOf('openDatabaseAsync(":memory:"');
+  const persistentOpen = driverSource.indexOf(
+    "openDatabaseAsync(databaseName)",
+  );
+
+  assert.ok(probe >= 0);
+  assert.ok(persistentOpen > probe);
+});
+
 test("local Android commands stay owned by the Mobile workspace", () => {
   assert.equal(
     packageManifest.scripts.android,
