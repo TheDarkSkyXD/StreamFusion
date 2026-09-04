@@ -1,19 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { UnifiedChannel } from "@shared/platform-types";
+import type { UnifiedChannel, UnifiedClip, UnifiedVideo } from "@shared/platform-types";
 import { filterRankAndDeduplicateVideos } from "@backend/search/search-match-contract";
 
 const clients = vi.hoisted(() => ({
   twitch: {
+    platform: "twitch" as const,
+    resolveChannel: vi.fn(),
     searchChannels: vi.fn(),
-    getVideosByChannel: vi.fn(),
-    getClipsByChannel: vi.fn(),
+    readChannelVideos: vi.fn(),
+    readCategoryVideos: vi.fn(),
+    readChannelClips: vi.fn(),
+    readCategoryClips: vi.fn(),
     getStreamsByLogins: vi.fn(),
   },
   kick: {
+    platform: "kick" as const,
+    resolveChannel: vi.fn(),
     searchChannels: vi.fn(),
-    getVideos: vi.fn(),
-    getClips: vi.fn(),
+    readChannelVideos: vi.fn(),
+    readCategoryVideos: vi.fn(),
+    readChannelClips: vi.fn(),
+    readCategoryClips: vi.fn(),
     getStreamBySlug: vi.fn(),
   },
 }));
@@ -21,7 +29,9 @@ const clients = vi.hoisted(() => ({
 vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({ twitchClient: clients.twitch }));
 vi.mock("@backend/api/platforms/kick/kick-client", () => ({ kickClient: clients.kick }));
 
-import { focusedRecentContentSources } from "@backend/search/focused-search-sources";
+import { createFocusedRecentContentSources } from "@backend/search/focused-search-sources";
+
+const focusedRecentContentSources = createFocusedRecentContentSources(clients);
 
 function channel(id: string, platform: "twitch" | "kick"): UnifiedChannel {
   return {
@@ -58,12 +68,11 @@ describe("focused recent content sources", () => {
         options()
       );
 
-      expect(clients[platform].searchChannels).toHaveBeenCalledWith(
-        "creator",
-        platform === "twitch"
-          ? { first: 50, after: "incoming", liveOnly: false }
-          : { limit: 50, cursor: "incoming", liveOnly: false }
-      );
+      expect(clients[platform].searchChannels).toHaveBeenCalledWith("creator", {
+        limit: 50,
+        cursor: "incoming",
+        liveOnly: false,
+      });
       expect(result.data).toHaveLength(12);
       expect(result.cursor).toBe("channels-next");
     }
@@ -72,26 +81,46 @@ describe("focused recent content sources", () => {
   it("forwards Twitch and Kick VOD and clip cursors", async () => {
     const twitch = channel("t", "twitch");
     const kick = channel("k", "kick");
-    clients.twitch.getVideosByChannel.mockResolvedValue({ data: [], cursor: "tv-next" });
-    clients.twitch.getClipsByChannel.mockResolvedValue({ data: [], cursor: "tc-next" });
-    clients.kick.getVideos.mockResolvedValue({
-      data: [
-        {
-          id: "kick-video",
-          platform: "kick",
-          channelName: "",
-          title: "Recent broadcast",
-          thumbnailUrl: "https://example.com/kick-video.webp",
-          duration: "01:00:00",
-          views: "100",
-          date: "2026-08-24T00:00:00.000Z",
-          url: "https://kick.com/video/kick-video",
-        },
-      ],
+    const kickVideo: UnifiedVideo = {
+      id: "kick-video",
+      platform: "kick",
+      channelId: "k",
+      channelName: "creator_k",
+      channelDisplayName: "Creator k",
+      channelAvatar: "",
+      title: "Recent broadcast",
+      thumbnailUrl: "https://example.com/kick-video.webp",
+      duration: 3_600,
+      viewCount: 100,
+      publishedAt: "2026-08-24T00:00:00.000Z",
+      url: "https://kick.com/video/kick-video",
+      shareUrl: "https://kick.com/video/kick-video",
+      type: "archive",
+    };
+    const kickClip: UnifiedClip = {
+      id: "kick-clip",
+      platform: "kick",
+      channelId: "k",
+      channelName: "creator_k",
+      channelDisplayName: "Creator k",
+      channelAvatar: "",
+      title: "Recent clip",
+      thumbnailUrl: "https://example.com/kick-clip.webp",
+      clipUrl: "https://kick.com/clip/kick-clip",
+      embedUrl: "https://kick.com/clip/kick-clip",
+      duration: 30,
+      viewCount: 10,
+      createdAt: "2026-08-24T00:00:00.000Z",
+      creatorName: "viewer",
+    };
+    clients.twitch.readChannelVideos.mockResolvedValue({ data: [], cursor: "tv-next" });
+    clients.twitch.readChannelClips.mockResolvedValue({ data: [], cursor: "tc-next" });
+    clients.kick.readChannelVideos.mockResolvedValue({
+      data: [kickVideo],
       cursor: "kv-next",
     });
-    clients.kick.getClips.mockResolvedValue({
-      data: [{ id: "kick-clip", channelName: "" }],
+    clients.kick.readChannelClips.mockResolvedValue({
+      data: [kickClip],
       cursor: "kc-next",
     });
 
@@ -119,5 +148,10 @@ describe("focused recent content sources", () => {
       channelDisplayName: "Creator k",
     });
     expect(filterRankAndDeduplicateVideos(kickVideos.data, "creator_k")).toHaveLength(1);
+    expect(clients.kick.readChannelVideos).toHaveBeenCalledWith(kick, {
+      limit: 50,
+      cursor: "incoming",
+      signal: expect.any(AbortSignal),
+    });
   });
 });

@@ -84,6 +84,7 @@
         "apps/desktop/tests/store/category-language-preference-store.test.ts",
         "apps/desktop/tests/backend/ipc/lazy-feature-loader.test.ts",
         "apps/desktop/tests/backend/ipc/handlers/category-handlers.test.ts",
+        "apps/desktop/tests/backend/ipc/video-handlers.test.ts",
         "apps/desktop/tests/backend/ipc/handlers/stream-handlers.test.ts",
         "apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts",
         "apps/desktop/tests/backend/api/platforms/kick/kick-client.test.ts"
@@ -108,6 +109,7 @@
         "apps/desktop/tests/components/TopNavBar/SearchBar.router.integration.test.tsx",
         "apps/desktop/tests/backend/ipc/lazy-feature-loader.test.ts",
         "apps/desktop/tests/backend/ipc/handlers/search-handlers.test.ts",
+        "apps/desktop/tests/backend/search/focused-search-sources.test.ts",
         "apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts",
         "apps/desktop/tests/backend/api/platforms/kick/kick-client.test.ts"
       ]
@@ -165,7 +167,10 @@
       "persistence": ["apps/desktop/src/backend/services/storage-service.ts"],
       "verification": [
         "apps/desktop/tests/pages/Video.test.tsx",
-        "apps/desktop/tests/components/player/vod-seek-controls.test.tsx"
+        "apps/desktop/tests/components/player/vod-seek-controls.test.tsx",
+        "apps/desktop/tests/backend/ipc/video-handlers.test.ts",
+        "apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts",
+        "apps/desktop/tests/backend/api/platforms/kick/kick-client.test.ts"
       ]
     },
     {

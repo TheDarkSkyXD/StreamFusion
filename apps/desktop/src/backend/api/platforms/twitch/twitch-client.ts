@@ -7,6 +7,7 @@
  */
 
 import { logger } from "@backend/logging/logger";
+import { clipSchema, videoSchema } from "@streamfusion/core/content";
 import type {
   ChannelRef,
   ChannelReader,
@@ -14,6 +15,12 @@ import type {
   CategoryReader,
   CategoryStreamReader,
   CategoryStreamsOptions,
+  CategoryClipOptions,
+  CategoryContentOptions,
+  CategoryContentResult,
+  CategoryRef,
+  ChannelContentOptions,
+  ClipReader,
   DiscoverySearchReader,
   DiscoverySearchOptions,
   DiscoverySearchResult,
@@ -21,6 +28,7 @@ import type {
   PageOptions,
   PageResult,
   TopStreamsOptions,
+  VideoReader,
 } from "@streamfusion/core/discovery";
 import type { Platform, TwitchUser } from "../../../../shared/auth-types";
 import { twitchAuthService } from "../../../auth/twitch-auth";
@@ -34,7 +42,7 @@ import type {
 import * as StreamEndpoints from "./endpoints/stream-endpoints";
 import * as UserEndpoints from "./endpoints/user-endpoints";
 import * as GqlClient from "./twitch-gql-client";
-import { transformTwitchVideo } from "./twitch-transformers";
+import { transformTwitchClip, transformTwitchVideo } from "./twitch-transformers";
 import { TwitchRequestor } from "./twitch-requestor";
 import type {
   PaginatedResult,
@@ -78,6 +86,64 @@ const TWITCH_STREAM_LANGUAGES: ReadonlySet<string> = new Set([
   "zh",
 ]);
 
+function normalizedTimestamp(value: string): string {
+  const timestamp = new Date(value);
+  return Number.isNaN(timestamp.valueOf()) ? value : timestamp.toISOString();
+}
+
+function normalizeVideoForCore(video: UnifiedVideo): UnifiedVideo | null {
+  const normalized = {
+    ...video,
+    publishedAt: normalizedTimestamp(video.publishedAt),
+  };
+  const portable = {
+    id: normalized.id,
+    platform: normalized.platform,
+    channelId: normalized.channelId,
+    channelName: normalized.channelName,
+    channelDisplayName: normalized.channelDisplayName,
+    channelAvatar: normalized.channelAvatar,
+    title: normalized.title,
+    description: normalized.description,
+    thumbnailUrl: normalized.thumbnailUrl,
+    duration: normalized.duration,
+    viewCount: normalized.viewCount,
+    publishedAt: normalized.publishedAt,
+    url: normalized.url,
+    shareUrl: normalized.shareUrl,
+    type: normalized.type,
+    categoryId: normalized.categoryId,
+    categoryName: normalized.categoryName,
+  };
+  return videoSchema.is(portable) ? normalized : null;
+}
+
+function normalizeClipForCore(clip: UnifiedClip): UnifiedClip | null {
+  const normalized = {
+    ...clip,
+    createdAt: normalizedTimestamp(clip.createdAt),
+  };
+  const portable = {
+    id: normalized.id,
+    platform: normalized.platform,
+    channelId: normalized.channelId,
+    channelName: normalized.channelName,
+    channelDisplayName: normalized.channelDisplayName,
+    channelAvatar: normalized.channelAvatar,
+    title: normalized.title,
+    thumbnailUrl: normalized.thumbnailUrl,
+    clipUrl: normalized.clipUrl,
+    shareUrl: normalized.shareUrl,
+    duration: normalized.duration,
+    viewCount: normalized.viewCount,
+    createdAt: normalized.createdAt,
+    creatorName: normalized.creatorName,
+    categoryId: normalized.categoryId,
+    categoryName: normalized.categoryName,
+  };
+  return clipSchema.is(portable) ? normalized : null;
+}
+
 function mergeCategoryViewerCounts(
   result: PaginatedResult<UnifiedCategory>,
   countsById: Record<string, number>
@@ -111,6 +177,32 @@ function toTwitchChannelSearchOptions(
   };
 }
 
+function orderCategoryVideos(
+  videos: readonly UnifiedVideo[],
+  options: CategoryContentOptions
+): UnifiedVideo[] {
+  const unique = [...new Map(videos.map((video) => [video.id, video])).values()];
+  const direction = options.direction === "ascending" ? 1 : -1;
+  unique.sort((left, right) => {
+    const difference =
+      options.sort === "popular"
+        ? left.viewCount - right.viewCount
+        : Date.parse(left.publishedAt) - Date.parse(right.publishedAt);
+    return difference * direction;
+  });
+  const representedChannels = new Set<string>();
+  const firstByChannel: UnifiedVideo[] = [];
+  const remaining: UnifiedVideo[] = [];
+  for (const video of unique) {
+    if (representedChannels.has(video.channelId)) remaining.push(video);
+    else {
+      representedChannels.add(video.channelId);
+      firstByChannel.push(video);
+    }
+  }
+  return [...firstByChannel, ...remaining];
+}
+
 // ========== Twitch API Client Class ==========
 
 class TwitchClient
@@ -120,7 +212,9 @@ class TwitchClient
     ChannelReader<Platform, UnifiedChannel, ChannelRef>,
     CategoryReader<Platform, UnifiedCategory>,
     CategoryStreamReader<Platform, UnifiedStream>,
-    DiscoverySearchReader<Platform, UnifiedStream, UnifiedChannel, UnifiedCategory, AbortSignal>
+    DiscoverySearchReader<Platform, UnifiedStream, UnifiedChannel, UnifiedCategory, AbortSignal>,
+    VideoReader<Platform, UnifiedVideo, UnifiedChannel, AbortSignal>,
+    ClipReader<Platform, UnifiedClip, UnifiedChannel, AbortSignal>
 {
   readonly platform: Platform = "twitch";
 
@@ -520,6 +614,129 @@ class TwitchClient
     return GqlClient.gqlGetVideosByChannel(channelLogin, options);
   }
 
+  async readChannelVideos(
+    channel: UnifiedChannel,
+    options: ChannelContentOptions<AbortSignal> = {}
+  ): Promise<PageResult<UnifiedVideo>> {
+    options.signal?.throwIfAborted();
+    const result = await this.getVideosByChannel(channel.username, {
+      first: options.limit,
+      after: options.cursor,
+    });
+    options.signal?.throwIfAborted();
+    return {
+      data: result.data.flatMap((video) => {
+        const normalized = normalizeVideoForCore(video);
+        return normalized ? [normalized] : [];
+      }),
+      cursor: result.cursor,
+    };
+  }
+
+  async readCategoryVideos(
+    category: CategoryRef,
+    options: CategoryContentOptions = {}
+  ): Promise<CategoryContentResult<UnifiedVideo>> {
+    const channelCursor = options.cursor?.startsWith("channels:")
+      ? options.cursor.slice("channels:".length)
+      : undefined;
+    const nativePage = channelCursor
+      ? { data: [], cursor: undefined }
+      : await this.getVideosByGame(category.id, {
+          first: options.limit,
+          after: options.cursor,
+          sort: options.sort === "popular" ? "views" : "time",
+        });
+
+    if (nativePage.data.length > 0) {
+      const users = await this.getUsersById([
+        ...new Set(nativePage.data.map((video) => video.user_id)),
+      ]);
+      const usersById = new Map(users.map((user) => [user.id, user]));
+      return {
+        kind: "available",
+        data: nativePage.data
+          .flatMap((video) => {
+            const normalized = normalizeVideoForCore({
+              ...transformTwitchVideo(video),
+              channelAvatar: usersById.get(video.user_id)?.profileImageUrl || "",
+              categoryId: video.game_id || category.id,
+              categoryName: video.game_name || category.name,
+              language: video.language,
+            });
+            return normalized ? [normalized] : [];
+          })
+          .filter((video) => video.isLive !== true),
+        cursor: nativePage.cursor,
+      };
+    }
+
+    const limit = options.limit ?? 20;
+    const streams = await this.getStreamsByCategory(category.id, {
+      limit: Math.min(limit, 24),
+      cursor: channelCursor,
+      categoryName: category.name,
+      language: options.language,
+    });
+    const channels = [
+      ...new Map(streams.data.map((stream) => [stream.channelId, stream])).values(),
+    ];
+    const perChannelLimit = Math.min(
+      Math.max(Math.ceil(limit / Math.max(channels.length, 1)), 1),
+      5
+    );
+    const pages: PageResult<UnifiedVideo>[] = [];
+    for (let index = 0; index < channels.length; index += 4) {
+      pages.push(
+        ...(await Promise.all(
+          channels
+            .slice(index, index + 4)
+            .map((channel) =>
+              this.getVideosByChannel(channel.channelName, { first: perChannelLimit })
+            )
+        ))
+      );
+    }
+    const pageVideos = pages.flatMap((page) => page.data);
+    const gamesByVideoId =
+      pageVideos.length > 0
+        ? await this.getVideosGameData(pageVideos.map((video) => video.id))
+        : {};
+    const videos = pages.flatMap((page, index) => {
+      const channel = channels[index];
+      return page.data.flatMap((video) => {
+        const game = gamesByVideoId[video.id];
+        const normalized = normalizeVideoForCore({
+          ...video,
+          channelId: channel.channelId,
+          channelName: channel.channelName,
+          channelDisplayName: channel.channelDisplayName,
+          channelAvatar: channel.channelAvatar,
+          categoryId: game?.id || video.categoryId,
+          categoryName: game?.name || video.categoryName,
+          language: channel.language,
+        });
+        return normalized ? [normalized] : [];
+      });
+    });
+    const requestedName = category.name?.trim().toLowerCase();
+    const matchingVideos = videos.filter(
+      (video) =>
+        video.isLive !== true &&
+        (video.categoryId === category.id ||
+          (Boolean(requestedName) && video.categoryName?.trim().toLowerCase() === requestedName))
+    );
+
+    return {
+      kind: "available",
+      data: orderCategoryVideos(matchingVideos, options),
+      cursor:
+        streams.cursor && streams.cursor !== channelCursor
+          ? `channels:${streams.cursor}`
+          : undefined,
+    };
+  }
+
   /** Get videos by native Twitch game/category ID through Helix. */
   async getVideosByGame(
     gameId: string,
@@ -580,6 +797,59 @@ class TwitchClient
     options: PaginationOptions & { filter?: string } = {}
   ): Promise<PaginatedResult<UnifiedClip>> {
     return GqlClient.gqlGetClipsByChannel(channelLogin, options);
+  }
+
+  async readChannelClips(
+    channel: UnifiedChannel,
+    options: ChannelContentOptions<AbortSignal> = {}
+  ): Promise<PageResult<UnifiedClip>> {
+    options.signal?.throwIfAborted();
+    const result = await this.getClipsByChannel(channel.username, {
+      first: options.limit,
+      after: options.cursor,
+    });
+    options.signal?.throwIfAborted();
+    return {
+      data: result.data.flatMap((clip) => {
+        const normalized = normalizeClipForCore(clip);
+        return normalized ? [normalized] : [];
+      }),
+      cursor: result.cursor,
+    };
+  }
+
+  async readCategoryClips(
+    category: CategoryRef,
+    options: CategoryClipOptions = {}
+  ): Promise<CategoryContentResult<UnifiedClip>> {
+    if (options.sort === "recent") {
+      return {
+        kind: "unsupported",
+        reason: "Twitch Helix Category Clips does not support Most Recent ordering",
+      };
+    }
+    const result = await this.getClipsByGame(category.id, {
+      first: options.limit,
+      after: options.cursor,
+    });
+    const users = await this.getUsersById([
+      ...new Set(result.data.map((clip) => clip.broadcaster_id)),
+    ]);
+    const usersById = new Map(users.map((user) => [user.id, user]));
+    return {
+      kind: "available",
+      data: result.data.flatMap((clip) => {
+        const normalized = normalizeClipForCore({
+          ...transformTwitchClip(clip),
+          channelName: usersById.get(clip.broadcaster_id)?.login || clip.broadcaster_name,
+          channelAvatar: usersById.get(clip.broadcaster_id)?.profileImageUrl || "",
+          categoryId: clip.game_id || category.id,
+          categoryName: category.name,
+        });
+        return normalized ? [normalized] : [];
+      }),
+      cursor: result.cursor,
+    };
   }
 
   /** Get clips by native Twitch game/category ID through Helix. */

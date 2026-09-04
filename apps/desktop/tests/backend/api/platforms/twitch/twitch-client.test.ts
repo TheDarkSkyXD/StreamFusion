@@ -507,6 +507,216 @@ describe("TwitchClient", () => {
   });
 
   describe("Core discovery port contracts", () => {
+    it("reads normalized channel Videos and Clips through cursor-preserving ports", async () => {
+      const channel = {
+        id: "1",
+        platform: "twitch" as const,
+        username: "streamer",
+        displayName: "Streamer",
+        avatarUrl: "",
+        isLive: false,
+        isVerified: false,
+        isPartner: false,
+      };
+      mockGqlGetVideosByChannel.mockResolvedValueOnce({ data: [], cursor: "videos-next" });
+      mockGqlGetClipsByChannel.mockResolvedValueOnce({ data: [], cursor: "clips-next" });
+
+      await expect(
+        twitchClient.readChannelVideos(channel, { limit: 12, cursor: "videos-in" })
+      ).resolves.toEqual({ data: [], cursor: "videos-next" });
+      await expect(
+        twitchClient.readChannelClips(channel, { limit: 8, cursor: "clips-in" })
+      ).resolves.toEqual({ data: [], cursor: "clips-next" });
+      expect(mockGqlGetVideosByChannel).toHaveBeenCalledWith("streamer", {
+        first: 12,
+        after: "videos-in",
+      });
+      expect(mockGqlGetClipsByChannel).toHaveBeenCalledWith("streamer", {
+        first: 8,
+        after: "clips-in",
+      });
+    });
+
+    it("normalizes native Category Videos and keeps provider enrichment Desktop-owned", async () => {
+      vi.spyOn(twitchClient, "getVideosByGame").mockResolvedValueOnce({
+        data: [
+          {
+            id: "video-1",
+            stream_id: null,
+            user_id: "channel-1",
+            user_login: "streamer",
+            user_name: "Streamer",
+            title: "Category VOD",
+            description: "",
+            created_at: "2026-01-01T00:00:00Z",
+            published_at: "2026-01-01T00:00:00Z",
+            url: "https://twitch.tv/videos/video-1",
+            thumbnail_url: "https://thumb/%{width}x%{height}.jpg",
+            viewable: "public",
+            view_count: 42,
+            language: "en",
+            type: "archive",
+            duration: "1h2m3s",
+            muted_segments: null,
+            game_id: "509658",
+            game_name: "Just Chatting",
+          },
+        ],
+        cursor: "next",
+      });
+      vi.spyOn(twitchClient, "getUsersById").mockResolvedValueOnce([
+        {
+          id: "channel-1",
+          login: "streamer",
+          displayName: "Streamer",
+          profileImageUrl: "https://avatar.jpg",
+          createdAt: "2020-01-01T00:00:00Z",
+          broadcasterType: "",
+        },
+      ]);
+
+      const result = await twitchClient.readCategoryVideos(
+        { id: "509658", name: "Just Chatting" },
+        { limit: 12, cursor: "in", sort: "popular", language: "en" }
+      );
+
+      expect(result).toEqual({
+        kind: "available",
+        data: [
+          expect.objectContaining({
+            id: "video-1",
+            platform: "twitch",
+            duration: 3_723,
+            viewCount: 42,
+            categoryId: "509658",
+            categoryName: "Just Chatting",
+            channelAvatar: "https://avatar.jpg",
+            language: "en",
+          }),
+        ],
+        cursor: "next",
+      });
+      expect(twitchClient.getVideosByGame).toHaveBeenCalledWith("509658", {
+        first: 12,
+        after: "in",
+        sort: "views",
+      });
+    });
+
+    it("uses live streams only to discover channels and never returns them as Category Videos", async () => {
+      vi.spyOn(twitchClient, "getVideosByGame").mockResolvedValueOnce({ data: [] });
+      vi.spyOn(twitchClient, "getStreamsByCategory").mockResolvedValueOnce({
+        data: [
+          {
+            id: "live-stream-1",
+            platform: "twitch",
+            channelId: "channel-1",
+            channelName: "streamer",
+            channelDisplayName: "Streamer",
+            channelAvatar: "https://avatar.jpg",
+            title: "Currently live",
+            viewerCount: 50_000,
+            thumbnailUrl: "https://live-thumb.jpg",
+            isLive: true,
+            startedAt: "2026-09-04T16:00:00.000Z",
+            language: "en",
+            tags: [],
+          },
+        ],
+        cursor: "streams-next",
+      });
+      vi.spyOn(twitchClient, "getVideosByChannel").mockResolvedValueOnce({
+        data: [
+          {
+            id: "archived-vod-1",
+            platform: "twitch",
+            channelId: "channel-1",
+            channelName: "streamer",
+            channelDisplayName: "Streamer",
+            channelAvatar: "https://avatar.jpg",
+            title: "Archived VOD",
+            thumbnailUrl: "https://vod-thumb.jpg",
+            duration: 3_600,
+            viewCount: 10_000,
+            publishedAt: "2026-09-03T12:00:00.000Z",
+            url: "https://twitch.tv/videos/archived-vod-1",
+            type: "archive",
+          },
+          {
+            id: "in-progress-recording",
+            platform: "twitch",
+            channelId: "channel-1",
+            channelName: "streamer",
+            channelDisplayName: "Streamer",
+            channelAvatar: "https://avatar.jpg",
+            title: "Current live recording",
+            thumbnailUrl: "https://live-thumb.jpg",
+            duration: 120,
+            viewCount: 50_000,
+            publishedAt: "2026-09-04T16:00:00.000Z",
+            url: "https://twitch.tv/videos/in-progress-recording",
+            type: "archive",
+            isLive: true,
+          },
+          {
+            id: "unrelated-vod",
+            platform: "twitch",
+            channelId: "channel-1",
+            channelName: "streamer",
+            channelDisplayName: "Streamer",
+            channelAvatar: "https://avatar.jpg",
+            title: "Unrelated archived VOD",
+            thumbnailUrl: "https://unrelated-thumb.jpg",
+            duration: 7_200,
+            viewCount: 20_000,
+            publishedAt: "2026-09-02T12:00:00.000Z",
+            url: "https://twitch.tv/videos/unrelated-vod",
+            type: "archive",
+          },
+        ],
+      });
+      vi.spyOn(twitchClient, "getVideosGameData").mockResolvedValueOnce({
+        "archived-vod-1": { id: "509658", name: "Just Chatting" },
+        "in-progress-recording": { id: "509658", name: "Just Chatting" },
+        "unrelated-vod": { id: "21779", name: "League of Legends" },
+      });
+
+      const result = await twitchClient.readCategoryVideos(
+        { id: "509658", name: "Just Chatting" },
+        { limit: 20, sort: "recent" }
+      );
+
+      expect(result).toMatchObject({
+        kind: "available",
+        data: [{ id: "archived-vod-1", title: "Archived VOD" }],
+        cursor: "channels:streams-next",
+      });
+      if (result.kind === "available") {
+        expect(result.data.every((video) => video.isLive !== true)).toBe(true);
+        expect(result.data.map((video) => video.id)).not.toContain("live-stream-1");
+        expect(result.data.map((video) => video.id)).not.toContain("in-progress-recording");
+        expect(result.data.map((video) => video.id)).not.toContain("unrelated-vod");
+      }
+      expect(twitchClient.getVideosByChannel).toHaveBeenCalledWith("streamer", { first: 5 });
+      expect(twitchClient.getVideosGameData).toHaveBeenCalledWith([
+        "archived-vod-1",
+        "in-progress-recording",
+        "unrelated-vod",
+      ]);
+    });
+
+    it("returns typed unsupported availability before calling Twitch Category Clips", async () => {
+      const getClipsByGame = vi.spyOn(twitchClient, "getClipsByGame");
+
+      await expect(
+        twitchClient.readCategoryClips({ id: "509658", name: "Just Chatting" }, { sort: "recent" })
+      ).resolves.toEqual({
+        kind: "unsupported",
+        reason: "Twitch Helix Category Clips does not support Most Recent ordering",
+      });
+      expect(getClipsByGame).not.toHaveBeenCalled();
+    });
+
     it("resolves channel slugs and stable IDs through the normalized reference", async () => {
       const channel = {
         id: "1",

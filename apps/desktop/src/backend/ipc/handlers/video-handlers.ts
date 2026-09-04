@@ -1,6 +1,7 @@
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 
 import { logger } from "@backend/logging/logger";
+import type { CategoryContentResult, ClipReader, VideoReader } from "@streamfusion/core/discovery";
 import type { Platform } from "../../../shared/auth-types";
 import type {
   CategoryClipsRequest,
@@ -11,7 +12,7 @@ import type {
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
 import { KickStreamResolver } from "../../api/platforms/kick/kick-stream-resolver";
 import { TwitchStreamResolver } from "../../api/platforms/twitch/twitch-stream-resolver";
-import type { UnifiedClip } from "../../../shared/platform-types";
+import type { UnifiedClip, UnifiedVideo } from "../../../shared/platform-types";
 
 type KickClip = Awaited<
   ReturnType<
@@ -23,7 +24,15 @@ type KickVideo = Awaited<
     typeof import("../../api/platforms/kick/endpoints/video-endpoints").getVideosByChannelSlug
   >
 >["data"][number];
-type CategoryVideo = CategoryMediaItem & { channelDisplayName: string };
+type RecordedContentReader = Pick<
+  VideoReader<Platform, UnifiedVideo, unknown, AbortSignal>,
+  "platform" | "readCategoryVideos"
+> &
+  Pick<ClipReader<Platform, UnifiedClip, unknown, AbortSignal>, "readCategoryClips">;
+
+export interface VideoHandlerDependencies {
+  readonly readers: Readonly<Record<Platform, RecordedContentReader>>;
+}
 
 // Instances
 const twitchResolver = new TwitchStreamResolver();
@@ -75,6 +84,70 @@ function formatSeconds(seconds: number): string {
   }
 
   return `${mins}:${formattedSecs}`;
+}
+
+function toCategoryMediaItem(
+  item: UnifiedVideo | UnifiedClip,
+  request: CategoryVideosRequest | CategoryClipsRequest
+): CategoryMediaItem {
+  const isClip = "clipUrl" in item;
+  const publishedAt = isClip ? item.createdAt : item.publishedAt;
+  const categoryId = item.categoryId || (isClip ? item.gameId : undefined) || request.categoryId;
+  const categoryName =
+    item.categoryName || (isClip ? item.gameName : undefined) || request.categoryName || "";
+  return {
+    id: item.id,
+    title: item.title,
+    duration: formatSeconds(item.duration),
+    views: String(item.viewCount),
+    date: publishedAt,
+    created_at: publishedAt,
+    thumbnailUrl: item.thumbnailUrl,
+    platform: item.platform,
+    channelId: item.channelId,
+    channelName: item.channelName,
+    channelAvatar: item.channelAvatar,
+    gameId: categoryId,
+    gameName: categoryName,
+    category: categoryName,
+    creatorName: isClip ? item.creatorName : undefined,
+    embedUrl: isClip ? item.embedUrl : undefined,
+    url: isClip ? item.clipUrl : item.url,
+    shareUrl: item.shareUrl,
+    source: isClip ? undefined : item.source,
+    isLive: isClip ? undefined : item.isLive,
+    isSubOnly: isClip ? undefined : item.isSubOnly,
+    language: item.language,
+    vodId: isClip ? item.vodId : undefined,
+  };
+}
+
+function toCategoryMediaResult(
+  result: CategoryContentResult<UnifiedVideo | UnifiedClip>,
+  request: CategoryVideosRequest | CategoryClipsRequest
+): CategoryMediaResult {
+  if (result.kind === "unsupported") {
+    return {
+      success: false,
+      availability: "unsupported",
+      errorCode: "unsupported",
+      error: result.reason,
+    };
+  }
+  if (result.kind === "invalid") {
+    return {
+      success: false,
+      availability: "unavailable",
+      errorCode: "invalid-request",
+      error: result.reason,
+    };
+  }
+  return {
+    success: true,
+    availability: "available",
+    data: result.data.map((item) => toCategoryMediaItem(item, request)),
+    cursor: result.cursor,
+  };
 }
 
 function isHandledKickVodPlaybackError(platform: Platform, error: unknown): boolean {
@@ -654,104 +727,36 @@ export async function handleGetClipsByChannel(params: ClipsGetByChannelParams) {
   }
 }
 
-export function registerVideoHandlers(): void {
+export function registerVideoHandlers({ readers }: VideoHandlerDependencies): void {
   ipcMain.handle(
     IPC_CHANNELS.CLIPS_GET_BY_CATEGORY,
     async (_event, request: CategoryClipsRequest): Promise<CategoryMediaResult> => {
-      if (request.platform === "twitch") {
-        if (request.sort === "date") {
-          return {
-            success: false,
-            availability: "unsupported",
-            errorCode: "unsupported",
-            error: "Twitch Helix Category Clips does not support Most Recent ordering",
-          };
-        }
-
-        try {
-          const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-          const result = await twitchClient.getClipsByGame(request.categoryId, {
-            first: request.limit,
-            after: request.cursor,
-          });
-          const users = await twitchClient.getUsersById([
-            ...new Set(result.data.map((clip) => clip.broadcaster_id)),
-          ]);
-          const usersById = new Map(users.map((user) => [user.id, user]));
-          return {
-            success: true,
-            availability: "available",
-            data: result.data.map((clip) => ({
-              id: clip.id,
-              title: clip.title,
-              duration: formatSeconds(clip.duration),
-              views: String(clip.view_count),
-              date: clip.created_at,
-              created_at: clip.created_at,
-              thumbnailUrl: clip.thumbnail_url,
-              platform: "twitch",
-              channelId: clip.broadcaster_id,
-              channelName: usersById.get(clip.broadcaster_id)?.login || clip.broadcaster_name,
-              channelAvatar: usersById.get(clip.broadcaster_id)?.profileImageUrl || "",
-              gameId: clip.game_id,
-              gameName: request.categoryName || "",
-              category: request.categoryName || "",
-              creatorName: clip.creator_name,
-              embedUrl: clip.embed_url,
-              url: clip.url,
-              shareUrl: clip.url,
-              language: clip.language,
-              vodId: clip.video_id,
-            })),
-            cursor: result.cursor,
-          };
-        } catch (error) {
-          return {
-            success: false,
-            availability: "unavailable",
-            errorCode: "upstream-error",
-            error: error instanceof Error ? error.message : "Failed to fetch Twitch Category Clips",
-          };
-        }
-      }
-      if (!request.categorySlug) {
-        return {
-          success: false,
-          availability: "unavailable",
-          errorCode: "invalid-request",
-          error: "Kick Category Clips require a category slug",
-        };
-      }
-
       try {
-        const { kickClient } = await import("../../api/platforms/kick/kick-client");
-        const result = await kickClient.getClipsByCategory(request.categorySlug, {
-          limit: request.limit,
-          cursor: request.cursor,
-          sort: request.sort,
-          timeRange: request.timeRange,
-        });
-        const canonicalId = request.categoryId.trim();
-        const canonicalName = request.categoryName?.trim().toLowerCase();
-        const clips = result.data.filter((clip) => {
-          const clipId = clip.gameId?.trim();
-          const clipName = (clip.gameName || clip.category || "").trim().toLowerCase();
-          return (
-            (canonicalId && clipId === canonicalId) || (canonicalName && clipName === canonicalName)
-          );
-        });
-        return {
-          success: true,
-          availability: "available",
-          data: clips,
-          cursor: result.cursor,
-        };
+        const result = await readers[request.platform].readCategoryClips(
+          {
+            id: request.categoryId,
+            name: request.categoryName,
+            slug: request.categorySlug,
+          },
+          {
+            limit: request.limit,
+            cursor: request.cursor,
+            sort: request.sort === "date" ? "recent" : "popular",
+            direction: request.direction === "asc" ? "ascending" : "descending",
+            language: request.language,
+            timeRange: request.timeRange,
+          }
+        );
+        return toCategoryMediaResult(result, request);
       } catch (error) {
         return {
           success: false,
           availability: "unavailable",
           errorCode: "upstream-error",
-          error: error instanceof Error ? error.message : "Failed to fetch Kick Category Clips",
+          error:
+            error instanceof Error
+              ? error.message
+              : `Failed to fetch ${request.platform} Category Clips`,
         };
       }
     }
@@ -760,235 +765,31 @@ export function registerVideoHandlers(): void {
   ipcMain.handle(
     IPC_CHANNELS.VIDEOS_GET_BY_CATEGORY,
     async (_event, request: CategoryVideosRequest): Promise<CategoryMediaResult> => {
-      if (request.platform === "kick") {
-        try {
-          const { kickClient } = await import("../../api/platforms/kick/kick-client");
-          const channelCursor = request.cursor?.startsWith("channels:")
-            ? request.cursor.slice("channels:".length)
-            : undefined;
-          const streams = await kickClient.getStreamsByCategory(request.categoryId, {
-            limit: 24,
-            categoryName: request.categoryName,
-            cursor: channelCursor,
-          });
-          const channels = [
-            ...new Map(streams.data.map((stream) => [stream.channelName, stream])).values(),
-          ];
-          const videos: CategoryVideo[] = [];
-          const perChannelLimit = Math.min(request.limit ?? 20, 5);
-
-          for (let index = 0; index < channels.length; index += 4) {
-            const batch = channels.slice(index, index + 4);
-            const pages = await Promise.all(
-              batch.map((channel) =>
-                kickClient.getVideos(channel.channelName, {
-                  limit: perChannelLimit,
-                  sort: request.sort,
-                })
-              )
-            );
-            pages.forEach((page, pageIndex) => {
-              const channel = batch[pageIndex];
-              page.data.forEach((video) => {
-                videos.push({
-                  ...video,
-                  channelId: channel.channelId,
-                  channelName: video.channelName || channel.channelName,
-                  channelDisplayName: channel.channelDisplayName,
-                  channelAvatar:
-                    (typeof video.channelAvatar === "string" ? video.channelAvatar : "") ||
-                    channel.channelAvatar,
-                  thumbnailUrl: typeof video.thumbnailUrl === "string" ? video.thumbnailUrl : "",
-                  gameId: request.categoryId,
-                  gameName: video.category || request.categoryName || "",
-                });
-              });
-            });
-          }
-
-          const canonicalName = request.categoryName?.trim().toLowerCase();
-          const matchingVideos = videos.filter(
-            (video) =>
-              !(video.isLive === true && video.duration === "0:00") &&
-              Boolean(canonicalName) &&
-              video.category.trim().toLowerCase() === canonicalName
-          );
-          const uniqueVideos = [
-            ...new Map(matchingVideos.map((video) => [video.id, video])).values(),
-          ];
-          const direction = request.direction === "asc" ? 1 : -1;
-          uniqueVideos.sort((left, right) => {
-            const difference =
-              request.sort === "views"
-                ? Number(left.views.replaceAll(",", "")) - Number(right.views.replaceAll(",", ""))
-                : Date.parse(left.created_at) - Date.parse(right.created_at);
-            return difference * direction;
-          });
-
-          const representedChannels = new Set<string>();
-          const firstVideoByChannel: CategoryVideo[] = [];
-          const remainingVideos: CategoryVideo[] = [];
-          uniqueVideos.forEach((video) => {
-            if (representedChannels.has(video.channelId)) {
-              remainingVideos.push(video);
-              return;
-            }
-
-            representedChannels.add(video.channelId);
-            firstVideoByChannel.push(video);
-          });
-
-          return {
-            success: true,
-            availability: "available",
-            data: [...firstVideoByChannel, ...remainingVideos],
-            cursor:
-              streams.cursor && streams.cursor !== channelCursor
-                ? `channels:${streams.cursor}`
-                : undefined,
-          };
-        } catch (error) {
-          return {
-            success: false,
-            availability: "unavailable",
-            errorCode: "upstream-error",
-            error: error instanceof Error ? error.message : "Failed to fetch Kick Category Videos",
-          };
-        }
-      }
-
       try {
-        const { twitchClient } = await import("../../api/platforms/twitch/twitch-client");
-        const isChannelPage = request.cursor?.startsWith("channels:") ?? false;
-        const result = isChannelPage
-          ? { data: [], cursor: undefined }
-          : await twitchClient.getVideosByGame(request.categoryId, {
-              first: request.limit,
-              after: request.cursor,
-              sort: request.sort === "date" ? "time" : "views",
-            });
-
-        if (result.data.length === 0) {
-          const limit = request.limit ?? 20;
-          const channelCursor = isChannelPage
-            ? request.cursor?.slice("channels:".length)
-            : undefined;
-          const streams = await twitchClient.getTopStreams({
-            first: Math.min(limit, 24),
-            gameId: request.categoryId,
+        const result = await readers[request.platform].readCategoryVideos(
+          {
+            id: request.categoryId,
+            name: request.categoryName,
+            slug: request.categorySlug,
+          },
+          {
+            limit: request.limit,
+            cursor: request.cursor,
+            sort: request.sort === "date" ? "recent" : "popular",
+            direction: request.direction === "asc" ? "ascending" : "descending",
             language: request.language,
-            after: channelCursor,
-          });
-          const channels = [
-            ...new Map(streams.data.map((stream) => [stream.channelId, stream])).values(),
-          ];
-          const perChannelLimit = Math.min(Math.max(Math.ceil(limit / channels.length), 1), 5);
-          const videos: CategoryVideo[] = [];
-
-          for (let index = 0; index < channels.length; index += 4) {
-            const batch = channels.slice(index, index + 4);
-            const pages = await Promise.all(
-              batch.map((channel) =>
-                twitchClient.getVideosByChannel(channel.channelName, {
-                  first: perChannelLimit,
-                })
-              )
-            );
-            pages.forEach((page, pageIndex) => {
-              const channel = batch[pageIndex];
-              page.data.forEach((video) => {
-                videos.push({
-                  id: video.id,
-                  title: video.title,
-                  duration: formatDurationSeconds(video.duration),
-                  views: String(video.viewCount),
-                  date: video.publishedAt,
-                  created_at: video.publishedAt,
-                  thumbnailUrl: video.thumbnailUrl,
-                  platform: "twitch" as const,
-                  channelId: channel.channelId,
-                  channelName: channel.channelName,
-                  channelDisplayName: channel.channelDisplayName,
-                  channelAvatar: channel.channelAvatar,
-                  gameId: request.categoryId,
-                  gameName: request.categoryName || "",
-                  category: request.categoryName || "",
-                  url: video.url,
-                  shareUrl: video.shareUrl || video.url,
-                  language: channel.language,
-                });
-              });
-            });
           }
-
-          const uniqueVideos = [...new Map(videos.map((video) => [video.id, video])).values()];
-          const direction = request.direction === "asc" ? 1 : -1;
-          uniqueVideos.sort((left, right) => {
-            const difference =
-              request.sort === "views"
-                ? Number(left.views) - Number(right.views)
-                : Date.parse(left.created_at) - Date.parse(right.created_at);
-            return difference * direction;
-          });
-          const representedChannels = new Set<string>();
-          const firstVideoByChannel: CategoryVideo[] = [];
-          const remainingVideos: CategoryVideo[] = [];
-          uniqueVideos.forEach((video) => {
-            if (representedChannels.has(video.channelId)) {
-              remainingVideos.push(video);
-            } else {
-              representedChannels.add(video.channelId);
-              firstVideoByChannel.push(video);
-            }
-          });
-
-          return {
-            success: true,
-            availability: "available",
-            data: [...firstVideoByChannel, ...remainingVideos],
-            cursor:
-              streams.cursor && streams.cursor !== channelCursor
-                ? `channels:${streams.cursor}`
-                : undefined,
-          };
-        }
-
-        const users = await twitchClient.getUsersById([
-          ...new Set(result.data.map((video) => video.user_id)),
-        ]);
-        const usersById = new Map(users.map((user) => [user.id, user]));
-        return {
-          success: true,
-          availability: "available",
-          data: result.data.map((video) => ({
-            id: video.id,
-            title: video.title,
-            duration: video.duration,
-            views: String(video.view_count),
-            date: video.published_at,
-            created_at: video.published_at,
-            thumbnailUrl: video.thumbnail_url
-              .replace("%{width}", "320")
-              .replace("%{height}", "180"),
-            platform: "twitch",
-            channelId: video.user_id,
-            channelName: video.user_login,
-            channelAvatar: usersById.get(video.user_id)?.profileImageUrl || "",
-            gameId: video.game_id || request.categoryId,
-            gameName: video.game_name || request.categoryName || "",
-            category: video.game_name || request.categoryName || "",
-            url: video.url,
-            shareUrl: video.url,
-            language: video.language,
-          })),
-          cursor: result.cursor,
-        };
+        );
+        return toCategoryMediaResult(result, request);
       } catch (error) {
         return {
           success: false,
           availability: "unavailable",
           errorCode: "upstream-error",
-          error: error instanceof Error ? error.message : "Failed to fetch Twitch Category Videos",
+          error:
+            error instanceof Error
+              ? error.message
+              : `Failed to fetch ${request.platform} Category Videos`,
         };
       }
     }

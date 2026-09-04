@@ -14,6 +14,7 @@ const registerDownloadHandlers = vi.hoisted(() => vi.fn());
 const registerLocalCaptionHandlers = vi.hoisted(() => vi.fn());
 const registerSearchHandlers = vi.hoisted(() => vi.fn());
 const registerStreamHandlers = vi.hoisted(() => vi.fn());
+const registerVideoHandlers = vi.hoisted(() => vi.fn());
 const startKickFollowMetadataRefresh = vi.hoisted(() => vi.fn());
 const stopKickFollowMetadataRefresh = vi.hoisted(() => vi.fn());
 const twitchClient = vi.hoisted(() => ({ platform: "twitch" as const }));
@@ -42,6 +43,7 @@ vi.mock("@backend/ipc/handlers/local-caption-handlers", () => ({
 }));
 vi.mock("@backend/ipc/handlers/search-handlers", () => ({ registerSearchHandlers }));
 vi.mock("@backend/ipc/handlers/stream-handlers", () => ({ registerStreamHandlers }));
+vi.mock("@backend/ipc/handlers/video-handlers", () => ({ registerVideoHandlers }));
 vi.mock("@backend/services/kick-follow-metadata-refresh", () => ({
   startKickFollowMetadataRefresh,
   stopKickFollowMetadataRefresh,
@@ -114,6 +116,14 @@ describe("lazy IPC feature loader", () => {
     await loadIpcFeature(IPC_FEATURES.SEARCH, featureContext);
 
     expect(registerSearchHandlers).toHaveBeenCalledWith({
+      readers: { twitch: twitchClient, kick: kickClient },
+    });
+  });
+
+  it("composes the Videos handler with Twitch and Kick readers", async () => {
+    await loadIpcFeature(IPC_FEATURES.VIDEOS, featureContext);
+
+    expect(registerVideoHandlers).toHaveBeenCalledWith({
       readers: { twitch: twitchClient, kick: kickClient },
     });
   });

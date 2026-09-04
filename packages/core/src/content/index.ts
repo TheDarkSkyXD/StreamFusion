@@ -88,6 +88,8 @@ export type Video = {
   readonly url: string;
   readonly shareUrl?: string;
   readonly type: "archive" | "highlight" | "upload";
+  readonly categoryId?: string;
+  readonly categoryName?: string;
 };
 
 export type Clip = {
@@ -176,6 +178,8 @@ const VIDEO_KEYS = [
   "url",
   "shareUrl",
   "type",
+  "categoryId",
+  "categoryName",
 ] as const;
 
 const CLIP_KEYS = [
@@ -301,7 +305,9 @@ function isVideo(value: unknown): value is Video {
     isOptional(value.shareUrl, isString) &&
     (value.type === "archive" ||
       value.type === "highlight" ||
-      value.type === "upload")
+      value.type === "upload") &&
+    isOptional(value.categoryId, isString) &&
+    isOptional(value.categoryName, isString)
   );
 }
 

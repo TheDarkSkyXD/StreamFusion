@@ -1,4 +1,10 @@
 import type { UnifiedChannel, UnifiedClip, UnifiedVideo } from "@shared/platform-types";
+import type {
+  ChannelReader,
+  ChannelRef,
+  ClipReader,
+  VideoReader,
+} from "@streamfusion/core/discovery";
 import { kickClient } from "@backend/api/platforms/kick/kick-client";
 import { twitchClient } from "@backend/api/platforms/twitch/twitch-client";
 import type { ClipSearchSource } from "@backend/search/progressive-clip-search";
@@ -9,85 +15,12 @@ import type { Platform } from "@shared/auth-types";
 
 const MATCHED_LIVE_CHANNEL_LIMIT = 20;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function textValue(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-function numberValue(value: unknown): number {
-  const parsed = typeof value === "number" ? value : Number.parseInt(textValue(value), 10);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function durationSeconds(value: unknown, sourceDurationMs?: unknown): number {
-  if (typeof sourceDurationMs === "number" && Number.isFinite(sourceDurationMs)) {
-    return Math.max(0, Math.round(sourceDurationMs / 1_000));
-  }
-  if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, value);
-  const parts = textValue(value).split(":").map(Number);
-  if (parts.some((part) => !Number.isFinite(part))) return 0;
-  return parts.reduce((total, part) => total * 60 + part, 0);
-}
-
-function normalizeKickVideos(channel: UnifiedChannel, values: readonly unknown[]): UnifiedVideo[] {
-  return values.flatMap((value) => {
-    if (!isRecord(value)) return [];
-    const publishedAt = textValue(value.sourceCreatedAt || value.created_at || value.date);
-    const url = textValue(value.shareUrl || value.url || value.source);
-    return [
-      {
-        ...value,
-        id: textValue(value.id),
-        platform: "kick",
-        channelId: channel.id,
-        channelName: channel.username,
-        channelDisplayName: channel.displayName,
-        channelAvatar: channel.avatarUrl,
-        title: textValue(value.title),
-        thumbnailUrl: textValue(value.thumbnailUrl),
-        duration: durationSeconds(value.duration, value.sourceDurationMs),
-        viewCount: numberValue(value.viewCount ?? value.views),
-        publishedAt,
-        url,
-        shareUrl: textValue(value.shareUrl) || url,
-        type: "archive",
-      },
-    ];
-  });
-}
-
-function normalizeKickClips(channel: UnifiedChannel, values: readonly unknown[]): UnifiedClip[] {
-  return values.flatMap((value) => {
-    if (!isRecord(value)) return [];
-    const clipUrl = textValue(value.url || value.shareUrl || value.embedUrl);
-    const embedUrl = textValue(value.embedUrl || value.url);
-    return [
-      {
-        ...value,
-        id: textValue(value.id),
-        platform: "kick",
-        channelId: channel.id,
-        channelName: channel.username,
-        channelDisplayName: channel.displayName,
-        channelAvatar: channel.avatarUrl,
-        title: textValue(value.title),
-        thumbnailUrl: textValue(value.thumbnailUrl),
-        clipUrl,
-        embedUrl,
-        duration: durationSeconds(value.duration),
-        viewCount: numberValue(value.viewCount ?? value.views),
-        createdAt: textValue(value.createdAt || value.created_at || value.date),
-        creatorName: textValue(value.creatorName),
-      },
-    ];
-  });
-}
+type RecentContentReader = ChannelReader<Platform, UnifiedChannel, ChannelRef> &
+  VideoReader<Platform, UnifiedVideo, UnifiedChannel, AbortSignal> &
+  ClipReader<Platform, UnifiedClip, UnifiedChannel, AbortSignal>;
 
 async function searchMatchedChannels(
-  platform: Platform,
+  reader: Pick<RecentContentReader, "searchChannels">,
   query: string,
   options: { cursor?: string; limit: number; signal: AbortSignal; consumeRequest: () => void },
   liveOnly: boolean = false
@@ -95,10 +28,11 @@ async function searchMatchedChannels(
   options.signal.throwIfAborted();
   options.consumeRequest();
   const limit = liveOnly ? Math.min(options.limit, MATCHED_LIVE_CHANNEL_LIMIT) : options.limit;
-  const result =
-    platform === "twitch"
-      ? await twitchClient.searchChannels(query, { first: limit, after: options.cursor, liveOnly })
-      : await kickClient.searchChannels(query, { limit, cursor: options.cursor, liveOnly });
+  const result = await reader.searchChannels(query, {
+    limit,
+    cursor: options.cursor,
+    liveOnly,
+  });
   options.signal.throwIfAborted();
   return {
     data: rankSearchChannels(result.data, query),
@@ -106,7 +40,7 @@ async function searchMatchedChannels(
   };
 }
 
-function recentContentSources(platform: Platform): {
+function recentContentSources(reader: RecentContentReader): {
   videos: VideoSearchSource;
   clips: ClipSearchSource;
 } {
@@ -118,7 +52,7 @@ function recentContentSources(platform: Platform): {
       signal: AbortSignal;
       consumeRequest: () => void;
     }
-  ) => searchMatchedChannels(platform, query, options);
+  ) => searchMatchedChannels(reader, query, options);
 
   return {
     videos: {
@@ -126,20 +60,14 @@ function recentContentSources(platform: Platform): {
       async fetchVideos(channel, options) {
         options.signal.throwIfAborted();
         options.consumeRequest();
-        const result =
-          platform === "twitch"
-            ? await twitchClient.getVideosByChannel(channel.username, {
-                first: options.limit,
-                after: options.cursor,
-              })
-            : await kickClient.getVideos(channel.username, {
-                limit: options.limit,
-                cursor: options.cursor,
-                signal: options.signal,
-              });
+        const result = await reader.readChannelVideos(channel, {
+          limit: options.limit,
+          cursor: options.cursor,
+          signal: options.signal,
+        });
         options.signal.throwIfAborted();
         return {
-          data: platform === "kick" ? normalizeKickVideos(channel, result.data) : result.data,
+          data: result.data,
           cursor: result.cursor,
         };
       },
@@ -149,20 +77,14 @@ function recentContentSources(platform: Platform): {
       async fetchClips(channel, options) {
         options.signal.throwIfAborted();
         options.consumeRequest();
-        const result =
-          platform === "twitch"
-            ? await twitchClient.getClipsByChannel(channel.username, {
-                first: options.limit,
-                after: options.cursor,
-              })
-            : await kickClient.getClips(channel.username, {
-                limit: options.limit,
-                cursor: options.cursor,
-                signal: options.signal,
-              });
+        const result = await reader.readChannelClips(channel, {
+          limit: options.limit,
+          cursor: options.cursor,
+          signal: options.signal,
+        });
         options.signal.throwIfAborted();
         return {
-          data: platform === "kick" ? normalizeKickClips(channel, result.data) : result.data,
+          data: result.data,
           cursor: result.cursor,
         };
       },
@@ -170,10 +92,14 @@ function recentContentSources(platform: Platform): {
   };
 }
 
-export const focusedRecentContentSources = {
-  twitch: recentContentSources("twitch"),
-  kick: recentContentSources("kick"),
-} satisfies Record<Platform, { videos: VideoSearchSource; clips: ClipSearchSource }>;
+export function createFocusedRecentContentSources(
+  readers: Readonly<Record<Platform, RecentContentReader>>
+): Record<Platform, { videos: VideoSearchSource; clips: ClipSearchSource }> {
+  return {
+    twitch: recentContentSources(readers.twitch),
+    kick: recentContentSources(readers.kick),
+  };
+}
 
 async function hydrateMatchedStreams(
   platform: Platform,
@@ -182,7 +108,7 @@ async function hydrateMatchedStreams(
   consumeRequest: () => void
 ) {
   const channels = await searchMatchedChannels(
-    platform,
+    platform === "twitch" ? twitchClient : kickClient,
     query,
     {
       limit: MATCHED_LIVE_CHANNEL_LIMIT,

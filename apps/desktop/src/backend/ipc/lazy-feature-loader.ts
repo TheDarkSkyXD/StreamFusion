@@ -262,8 +262,12 @@ const featureLoaders = {
   },
   [IPC_FEATURES.VIDEOS]: async (context) => {
     await ensureConfiguredProxy(context);
-    const { registerVideoHandlers } = await import("./handlers/video-handlers");
-    registerVideoHandlers();
+    const [{ registerVideoHandlers }, { twitchClient }, { kickClient }] = await Promise.all([
+      import("./handlers/video-handlers"),
+      import("../api/platforms/twitch/twitch-client"),
+      import("../api/platforms/kick/kick-client"),
+    ]);
+    registerVideoHandlers({ readers: { twitch: twitchClient, kick: kickClient } });
   },
 } satisfies Record<IpcFeature, FeatureLoader>;
 

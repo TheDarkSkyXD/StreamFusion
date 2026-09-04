@@ -39,6 +39,72 @@ export interface PageResult<TItem> {
   readonly cursor?: string;
 }
 
+export type ContentSort = "recent" | "popular";
+export type ContentDirection = "ascending" | "descending";
+export type ClipTimeRange = "day" | "week" | "month" | "all";
+
+export interface CategoryRef {
+  readonly id: string;
+  readonly name?: string;
+  readonly slug?: string;
+}
+
+export interface ChannelContentOptions<
+  TSignal = DiscoveryCancellationSignal,
+> extends PageOptions {
+  readonly sort?: ContentSort;
+  readonly signal?: TSignal;
+}
+
+export interface CategoryContentOptions extends PageOptions {
+  readonly sort?: ContentSort;
+  readonly direction?: ContentDirection;
+  readonly language?: string;
+}
+
+export interface CategoryClipOptions extends CategoryContentOptions {
+  readonly timeRange?: ClipTimeRange;
+}
+
+export type CategoryContentResult<TItem> =
+  | {
+      readonly kind: "available";
+      readonly data: TItem[];
+      readonly cursor?: string;
+    }
+  | {
+      readonly kind: "unsupported";
+      readonly reason: string;
+    }
+  | {
+      readonly kind: "invalid";
+      readonly reason: string;
+    };
+
+export interface VideoReader<TPlatform, TVideo, TChannel, TSignal> {
+  readonly platform: TPlatform;
+  readChannelVideos(
+    channel: TChannel,
+    options?: ChannelContentOptions<TSignal>,
+  ): Promise<PageResult<TVideo>>;
+  readCategoryVideos(
+    category: CategoryRef,
+    options?: CategoryContentOptions,
+  ): Promise<CategoryContentResult<TVideo>>;
+}
+
+export interface ClipReader<TPlatform, TClip, TChannel, TSignal> {
+  readonly platform: TPlatform;
+  readChannelClips(
+    channel: TChannel,
+    options?: ChannelContentOptions<TSignal>,
+  ): Promise<PageResult<TClip>>;
+  readCategoryClips(
+    category: CategoryRef,
+    options?: CategoryClipOptions,
+  ): Promise<CategoryContentResult<TClip>>;
+}
+
 export interface TopStreamsOptions extends PageOptions {
   readonly categoryId?: string;
   readonly language?: string;

@@ -163,6 +163,7 @@ ID: `category-discovery`.
 - `apps/desktop/tests/backend/ipc/handlers/category-handlers.test.ts`
 - `apps/desktop/tests/backend/ipc/handlers/stream-handlers.test.ts`
 - `apps/desktop/tests/backend/ipc/lazy-feature-loader.test.ts`
+- `apps/desktop/tests/backend/ipc/video-handlers.test.ts`
 - `apps/desktop/tests/pages/Categories.test.tsx`
 - `apps/desktop/tests/pages/CategoryDetail.test.tsx`
 - `apps/desktop/tests/store/category-language-preference-store.test.ts`
@@ -864,6 +865,7 @@ ID: `search`.
 - `apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts`
 - `apps/desktop/tests/backend/ipc/handlers/search-handlers.test.ts`
 - `apps/desktop/tests/backend/ipc/lazy-feature-loader.test.ts`
+- `apps/desktop/tests/backend/search/focused-search-sources.test.ts`
 - `apps/desktop/tests/components/TopNavBar/SearchBar.router.integration.test.tsx`
 - `apps/desktop/tests/pages/SearchResults.test.tsx`
 
@@ -943,6 +945,9 @@ ID: `vod-and-clip-playback`.
 
 ### Verification
 
+- `apps/desktop/tests/backend/api/platforms/kick/kick-client.test.ts`
+- `apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts`
+- `apps/desktop/tests/backend/ipc/video-handlers.test.ts`
 - `apps/desktop/tests/components/player/vod-seek-controls.test.tsx`
 - `apps/desktop/tests/pages/Video.test.tsx`
 

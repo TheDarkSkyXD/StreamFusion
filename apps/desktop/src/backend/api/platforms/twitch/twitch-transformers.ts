@@ -25,6 +25,11 @@ import type {
   TwitchApiVideo,
 } from "./twitch-types";
 
+function normalizedTimestamp(value: string): string {
+  const timestamp = new Date(value);
+  return Number.isNaN(timestamp.valueOf()) ? value : timestamp.toISOString();
+}
+
 /**
  * Transform Twitch user to unified user
  */
@@ -212,7 +217,7 @@ export function transformTwitchVideo(video: TwitchApiVideo): UnifiedVideo {
     thumbnailUrl,
     duration: durationSeconds,
     viewCount: video.view_count,
-    publishedAt: video.published_at,
+    publishedAt: normalizedTimestamp(video.published_at),
     url: video.url,
     shareUrl: video.url,
     type: video.type,
@@ -222,7 +227,7 @@ export function transformTwitchVideo(video: TwitchApiVideo): UnifiedVideo {
 /**
  * Transform Twitch clip to unified clip
  */
-function transformTwitchClip(clip: TwitchApiClip): UnifiedClip {
+export function transformTwitchClip(clip: TwitchApiClip): UnifiedClip {
   return {
     id: clip.id,
     platform: "twitch",
@@ -237,9 +242,12 @@ function transformTwitchClip(clip: TwitchApiClip): UnifiedClip {
     embedUrl: clip.embed_url,
     duration: clip.duration,
     viewCount: clip.view_count,
-    createdAt: clip.created_at,
+    createdAt: normalizedTimestamp(clip.created_at),
     creatorName: clip.creator_name,
     gameId: clip.game_id,
+    categoryId: clip.game_id,
+    language: clip.language,
+    vodId: clip.video_id,
   };
 }
 

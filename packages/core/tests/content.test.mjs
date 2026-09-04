@@ -27,6 +27,25 @@ test("normalized content contracts survive JSON serialization", () => {
   }
 });
 
+test("normalized recorded content retains portable category identity", () => {
+  assert.equal(
+    videoSchema.is({
+      ...content.video,
+      categoryId: "509658",
+      categoryName: "Just Chatting",
+    }),
+    true,
+  );
+  assert.equal(
+    clipSchema.is({
+      ...content.clip,
+      categoryId: "509658",
+      categoryName: "Just Chatting",
+    }),
+    true,
+  );
+});
+
 test("content schemas reject non-serialized timestamps", () => {
   assert.equal(
     streamSchema.is({ ...content.stream, startedAt: new Date() }),
@@ -59,4 +78,6 @@ test("content schemas reject provider and presentation leakage", () => {
     clipSchema.is({ ...content.clip, embedUrl: "https://player.example" }),
     false,
   );
+  assert.equal(videoSchema.is({ ...content.video, language: "en" }), false);
+  assert.equal(clipSchema.is({ ...content.clip, vodId: "video-1" }), false);
 });

@@ -92,6 +92,7 @@ vi.mock("@shared/utils/managed-interval", () => ({
 
 vi.mock("@backend/api/platforms/kick/endpoints/clip-endpoints", () => ({
   getClipsByChannelSlug: vi.fn(),
+  getClipsByCategorySlug: vi.fn(),
 }));
 
 vi.mock("@backend/api/platforms/kick/endpoints/follow-endpoints", () => ({
@@ -597,6 +598,158 @@ describe("KickClient", () => {
   });
 
   describe("Core discovery port contracts", () => {
+    it("normalizes channel Videos and Clips without leaking raw provider fields", async () => {
+      const channel = {
+        id: "channel-1",
+        platform: "kick" as const,
+        username: "streamer",
+        displayName: "Streamer",
+        avatarUrl: "https://avatar.jpg",
+        isLive: false,
+        isVerified: false,
+        isPartner: false,
+        categoryId: "15",
+        categoryName: "Just Chatting",
+      };
+      const getVideos = vi.spyOn(kickClient, "getVideos").mockResolvedValueOnce({
+        data: [
+          {
+            id: "video-1",
+            uuid: "provider-only-uuid",
+            slug: "video-1",
+            title: "Recent broadcast",
+            duration: "1:02:03",
+            views: "1,234",
+            date: "2026-01-01T00:00:00Z",
+            created_at: "2026-01-01T00:00:00Z",
+            sourceCreatedAt: "2026-01-01T00:00:00Z",
+            sourceEndedAt: undefined,
+            sourceDurationMs: undefined,
+            thumbnailUrl: "https://video-thumb.jpg",
+            source: "https://vod.m3u8",
+            url: "https://kick.com/video/video-1",
+            shareUrl: "https://kick.com/video/video-1",
+            platform: "kick",
+            isLive: false,
+            isSubOnly: false,
+            channelName: "streamer",
+            channelSlug: "streamer",
+            channelAvatar: "https://avatar.jpg",
+            category: "Just Chatting",
+            language: "en",
+          },
+        ],
+        cursor: "videos-next",
+      });
+      const getClips = vi.spyOn(kickClient, "getClips").mockResolvedValueOnce({
+        data: [
+          {
+            id: "clip-1",
+            title: "Recent clip",
+            duration: "0:30",
+            views: "42",
+            date: "1/1/2026",
+            created_at: "2026-01-01T00:00:00Z",
+            creatorName: "Clipper",
+            embedUrl: "https://clip.mp4",
+            url: "https://kick.com/streamer/clips/clip-1",
+            shareUrl: "https://kick.com/streamer/clips/clip-1",
+            gameName: "Just Chatting",
+            isLive: false,
+            thumbnailUrl: "https://clip-thumb.jpg",
+            vodId: "vod-1",
+            channelSlug: "streamer",
+          },
+        ],
+        cursor: "clips-next",
+      });
+
+      const videos = await kickClient.readChannelVideos(channel, {
+        limit: 12,
+        cursor: "videos-in",
+        sort: "popular",
+      });
+      const clips = await kickClient.readChannelClips(channel, {
+        limit: 8,
+        cursor: "clips-in",
+        sort: "recent",
+      });
+
+      expect(videos).toEqual({
+        data: [
+          expect.objectContaining({
+            id: "video-1",
+            platform: "kick",
+            channelId: "channel-1",
+            duration: 3_723,
+            viewCount: 1_234,
+            categoryId: "15",
+            categoryName: "Just Chatting",
+          }),
+        ],
+        cursor: "videos-next",
+      });
+      expect(videos.data[0]).not.toHaveProperty("uuid");
+      expect(clips).toEqual({
+        data: [
+          expect.objectContaining({
+            id: "clip-1",
+            platform: "kick",
+            channelId: "channel-1",
+            duration: 30,
+            viewCount: 42,
+            vodId: "vod-1",
+          }),
+        ],
+        cursor: "clips-next",
+      });
+      expect(getVideos).toHaveBeenCalledWith("streamer", {
+        limit: 12,
+        cursor: "videos-in",
+        sort: "views",
+      });
+      expect(getClips).toHaveBeenCalledWith("streamer", {
+        limit: 8,
+        cursor: "clips-in",
+        sort: "date",
+      });
+    });
+
+    it("honors channel discovery cancellation before provider transport", async () => {
+      const controller = new AbortController();
+      controller.abort();
+      const getVideos = vi.spyOn(kickClient, "getVideos");
+
+      await expect(
+        kickClient.readChannelVideos(
+          {
+            id: "channel-1",
+            platform: "kick",
+            username: "streamer",
+            displayName: "Streamer",
+            avatarUrl: "",
+            isLive: false,
+            isVerified: false,
+            isPartner: false,
+          },
+          { signal: controller.signal }
+        )
+      ).rejects.toMatchObject({ name: "AbortError" });
+      expect(getVideos).not.toHaveBeenCalled();
+    });
+
+    it("returns typed invalid availability for Category Clips without a slug", async () => {
+      const getClipsByCategory = vi.spyOn(kickClient, "getClipsByCategory");
+
+      await expect(
+        kickClient.readCategoryClips({ id: "15", name: "Just Chatting" })
+      ).resolves.toEqual({
+        kind: "invalid",
+        reason: "Kick Category Clips require a category slug",
+      });
+      expect(getClipsByCategory).not.toHaveBeenCalled();
+    });
+
     it("resolves a normalized channel reference with requested freshness", async () => {
       const { getChannel } =
         await import("@backend/api/platforms/kick/endpoints/channel-endpoints");

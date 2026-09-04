@@ -4,11 +4,13 @@ import { logger } from "@backend/logging/logger";
 import type {
   ChannelReader,
   ChannelRef,
+  ClipReader,
   DiscoverySearchReader,
+  VideoReader,
 } from "@streamfusion/core/discovery";
 import { createProgressiveClipSearch } from "@backend/search/progressive-clip-search";
 import {
-  focusedRecentContentSources,
+  createFocusedRecentContentSources,
   focusedStreamSources,
 } from "@backend/search/focused-search-sources";
 import {
@@ -27,7 +29,9 @@ import type { SearchResultCollection } from "@/features/discovery/utils/search/s
 import type {
   UnifiedCategory,
   UnifiedChannel,
+  UnifiedClip,
   UnifiedStream,
+  UnifiedVideo,
 } from "../../../shared/platform-types";
 import type { Platform, TwitchUser } from "../../../shared/auth-types";
 import type {
@@ -43,6 +47,8 @@ import { storageService } from "../../services/storage-service";
 interface SearchReader
   extends
     ChannelReader<Platform, UnifiedChannel, ChannelRef>,
+    VideoReader<Platform, UnifiedVideo, UnifiedChannel, AbortSignal>,
+    ClipReader<Platform, UnifiedClip, UnifiedChannel, AbortSignal>,
     DiscoverySearchReader<Platform, UnifiedStream, UnifiedChannel, UnifiedCategory, AbortSignal> {}
 
 interface TwitchSearchReader extends SearchReader {
@@ -432,6 +438,7 @@ async function filterVerifiedChannels(
 
 export function registerSearchHandlers({ readers }: SearchHandlerDependencies): void {
   const activeBroadSearches = new Map<string, AbortController>();
+  const focusedRecentContentSources = createFocusedRecentContentSources(readers);
   const streamSearches = {
     twitch: createProgressiveStreamSearch({
       sources: { twitch: focusedStreamSources.twitch },

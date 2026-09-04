@@ -116,13 +116,19 @@ export interface UnifiedFollow {
 
 export type UnifiedVideo = Omit<Mutable<CoreVideo>, "publishedAt"> & {
   publishedAt: string;
+  source?: string;
+  isLive?: boolean;
+  isSubOnly?: boolean;
+  language?: string;
 };
 
-export type UnifiedClip = Omit<Mutable<CoreClip>, "categoryId" | "categoryName" | "createdAt"> & {
+export type UnifiedClip = Omit<Mutable<CoreClip>, "createdAt"> & {
   embedUrl: string;
   createdAt: string;
   gameId?: string;
   gameName?: string;
+  language?: string;
+  vodId?: string;
 };
 
 // ========== Search Results ==========
