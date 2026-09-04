@@ -104,7 +104,7 @@ describe("start picker", () => {
       readFileSync(resolve(__dirname, "../../package.json"), "utf8")
     ) as { scripts: Record<string, string> };
 
-    expect(desktopPackage.scripts.start).toBe("npm run start:checked");
+    expect(desktopPackage.scripts.start).toBe("npm run start:checked --");
     expect(desktopPackage.scripts.dev).toBe(
       "cross-env STREAMFUSION_BROWSER_DEV=1 node scripts/start-dev.js"
     );
