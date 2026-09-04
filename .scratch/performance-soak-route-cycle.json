@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "verdict": "fail",
+  "startedAt": "2026-08-31T16:48:33.969Z",
+  "endedAt": "2026-08-31T16:49:29.514Z",
+  "options": {
+    "cdpEndpoint": "http://127.0.0.1:9237",
+    "durationMs": 50000,
+    "sampleIntervalMs": 2000,
+    "warmupMs": 5000,
+    "routeCycleMs": 12000,
+    "routes": [
+      "#/categories",
+      "#/multistream",
+      "#/search?q=xqc"
+    ],
+    "outputPath": ".scratch/performance-soak-route-cycle.json",
+    "maxResidentBytes": 1468006400,
+    "maxResidentGrowthBytes": 134217728,
+    "maxHeapGrowthBytes": 67108864,
+    "maxProcessCount": 7,
+    "maxCpuP95Percent": 15,
+    "maxFrameP95Ms": 20,
+    "maxRendererExceptions": 0,
+    "maxRateLimitedResponses": 0
+  },
+  "summary": {
+    "durationMs": 55545,
+    "sampleCount": 8,
+    "stableSampleCount": 7,
+    "residentMemory": {
+      "minBytes": 1129738240,
+      "maxBytes": 1324249088,
+      "growthBytes": 124182528
+    },
+    "rendererHeap": {
+      "minBytes": 71409646,
+      "maxBytes": 83424637,
+      "growthBytes": -1160111
+    },
+    "processCount": {
+      "min": 5,
+      "max": 5
+    },
+    "cpuP95Percent": 6.868498230420253,
+    "frameP95Ms": 3000,
+    "frameSampleTimeoutCount": 7,
+    "rendererExceptionCount": 0,
+    "rateLimitedResponseCount": 0
+  },
+  "failures": [
+    "frame-p95",
+    "frame-sample-timeout"
+  ],
+  "events": [],
+  "samples": [
+    {
+      "observedAtMs": 1788194916045,
+      "route": "#/categories",
+      "cpuPercent": 0.5051119375941592,
+      "residentMemoryBytes": 1126014976,
+      "processCount": 5,
+      "rendererHeapBytes": 73633869,
+      "frameP95Ms": 3000,
+      "frameMaxMs": 3000,
+      "frameSampleTimedOut": true,
+      "visibilityState": "hidden",
+      "videoCount": 0,
+      "playingVideoCount": 0,
+      "domNodeCount": 941
+    },
+    {
+      "observedAtMs": 1788194921519,
+      "route": "#/categories",
+      "cpuPercent": 0.280794250563622,
+      "residentMemoryBytes": 1129738240,
+      "processCount": 5,
+      "rendererHeapBytes": 74697382,
+      "frameP95Ms": 3000,
+      "frameMaxMs": 3000,
+      "frameSampleTimedOut": true,
+      "visibilityState": "hidden",
+      "videoCount": 0,
+      "playingVideoCount": 0,
+      "domNodeCount": 941
+    },
+    {
+      "observedAtMs": 1788194929596,
+      "route": "#/multistream",
+      "cpuPercent": 6.67566327459875,
+      "residentMemoryBytes": 1211736064,
+      "processCount": 5,
+      "rendererHeapBytes": 83424637,
+      "frameP95Ms": 3000,
+      "frameMaxMs": 3000,
+      "frameSampleTimedOut": true,
+      "visibilityState": "hidden",
+      "videoCount": 3,
+      "playingVideoCount": 1,
+      "domNodeCount": 1018
+    },
+    {
+      "observedAtMs": 1788194935520,
+      "route": "#/multistream",
+      "cpuPercent": 0.07131232212576358,
+      "residentMemoryBytes": 1312251904,
+      "processCount": 5,
+      "rendererHeapBytes": 77369833,
+      "frameP95Ms": 3000,
+      "frameMaxMs": 3000,
+      "frameSampleTimedOut": true,
+      "visibilityState": "hidden",
+      "videoCount": 3,
+      "playingVideoCount": 0,
+      "domNodeCount": 1018
+    },
+    {
+      "observedAtMs": 1788194943576,
+      "route": "#/search?q=xqc",
+      "cpuPercent": 1.4471091099243338,
+      "residentMemoryBytes": 1238470656,
+      "processCount": 5,
+      "rendererHeapBytes": 71409646,
+      "frameP95Ms": 3000,
+      "frameMaxMs": 3000,
+      "frameSampleTimedOut": true,
+      "visibilityState": "hidden",
+      "videoCount": 0,
+      "playingVideoCount": 0,
+      "domNodeCount": 828
+    },
+    {
+      "observedAtMs": 1788194949518,
+      "route": "#/search?q=xqc",
+      "cpuPercent": 0.3659834056617055,
+      "residentMemoryBytes": 1241923584,
+      "processCount": 5,
+      "rendererHeapBytes": 71519698,
+      "frameP95Ms": 3000,
+      "frameMaxMs": 3000,
+      "frameSampleTimedOut": true,
+      "visibilityState": "hidden",
+      "videoCount": 0,
+      "playingVideoCount": 0,
+      "domNodeCount": 828
+    },
+    {
+      "observedAtMs": 1788194957597,
+      "route": "#/categories",
+      "cpuPercent": 0.018363678741215857,
+      "residentMemoryBytes": 1253920768,
+      "processCount": 5,
+      "rendererHeapBytes": 73537271,
+      "frameP95Ms": 3000,
+      "frameMaxMs": 3000,
+      "frameSampleTimedOut": true,
+      "visibilityState": "hidden",
+      "videoCount": 0,
+      "playingVideoCount": 0,
+      "domNodeCount": 941
+    },
+    {
+      "observedAtMs": 1788194965606,
+      "route": "#/multistream",
+      "cpuPercent": 6.868498230420253,
+      "residentMemoryBytes": 1324249088,
+      "processCount": 5,
+      "rendererHeapBytes": 78526757,
+      "frameP95Ms": 3000,
+      "frameMaxMs": 3000,
+      "frameSampleTimedOut": true,
+      "visibilityState": "hidden",
+      "videoCount": 3,
+      "playingVideoCount": 0,
+      "domNodeCount": 1017
+    }
+  ]
+}

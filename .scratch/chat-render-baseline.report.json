@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "verdict": "pass",
+  "startedAt": "2026-09-02T01:59:30.654Z",
+  "endedAt": "2026-09-02T01:59:40.668Z",
+  "options": {
+    "cdpEndpoint": "http://127.0.0.1:9222",
+    "durationMs": 10000,
+    "sampleIntervalMs": 2000,
+    "warmupMs": 0,
+    "routeCycleMs": 0,
+    "routes": [
+      "#/",
+      "#/categories",
+      "#/following",
+      "#/multistream",
+      "#/search?q=xqc",
+      "#/settings?tab=diagnostics"
+    ],
+    "outputPath": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\chat-render-baseline.report.json",
+    "traceCapture": {
+      "kind": "always",
+      "outputPath": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\chat-render-baseline.trace.json",
+      "maxBytes": 134217728
+    },
+    "maxResidentBytes": 4294967296,
+    "maxResidentGrowthBytes": 4294967296,
+    "maxHeapGrowthBytes": 4294967296,
+    "maxProcessCount": 50,
+    "maxCpuP95Percent": 100,
+    "maxFrameP95Ms": 1000,
+    "maxRendererExceptions": 100,
+    "maxRateLimitedResponses": 100
+  },
+  "summary": {
+    "durationMs": 10014,
+    "sampleCount": 4,
+    "stableSampleCount": 4,
+    "residentMemory": {
+      "minBytes": 929464320,
+      "maxBytes": 990085120,
+      "growthBytes": 60620800
+    },
+    "rendererHeap": {
+      "minBytes": 65069040,
+      "maxBytes": 73933470,
+      "growthBytes": 8864430
+    },
+    "processCount": {
+      "min": 6,
+      "max": 6
+    },
+    "cpuP95Percent": 10.46795481603069,
+    "frameP95Ms": 16.80000000000291,
+    "frameSampleTimeoutCount": 0,
+    "rendererExceptionCount": 0,
+    "rateLimitedResponseCount": 0
+  },
+  "failures": [],
+  "events": [],
+  "samples": [
+    {
+      "observedAtMs": 1788314370818,
+      "route": "#/",
+      "cpuPercent": 10.46795481603069,
+      "residentMemoryBytes": 929464320,
+      "processCount": 6,
+      "rendererHeapBytes": 65069040,
+      "frameP95Ms": 16.80000000000291,
+      "frameMaxMs": 16.80000000000291,
+      "frameSampleTimedOut": false,
+      "visibilityState": "visible",
+      "videoCount": 1,
+      "playingVideoCount": 1,
+      "domNodeCount": 1518
+    },
+    {
+      "observedAtMs": 1788314373314,
+      "route": "#/",
+      "cpuPercent": 2.2736845676358355,
+      "residentMemoryBytes": 957456384,
+      "processCount": 6,
+      "rendererHeapBytes": 65369924,
+      "frameP95Ms": 16.80000000000291,
+      "frameMaxMs": 16.80000000000291,
+      "frameSampleTimedOut": false,
+      "visibilityState": "visible",
+      "videoCount": 1,
+      "playingVideoCount": 1,
+      "domNodeCount": 1478
+    },
+    {
+      "observedAtMs": 1788314375806,
+      "route": "#/",
+      "cpuPercent": 2.420422101776306,
+      "residentMemoryBytes": 969609216,
+      "processCount": 6,
+      "rendererHeapBytes": 72441878,
+      "frameP95Ms": 16.700000000004366,
+      "frameMaxMs": 16.799999999995634,
+      "frameSampleTimedOut": false,
+      "visibilityState": "visible",
+      "videoCount": 1,
+      "playingVideoCount": 1,
+      "domNodeCount": 1484
+    },
+    {
+      "observedAtMs": 1788314378321,
+      "route": "#/",
+      "cpuPercent": 1.9379019113852,
+      "residentMemoryBytes": 990085120,
+      "processCount": 6,
+      "rendererHeapBytes": 73933470,
+      "frameP95Ms": 16.700000000004366,
+      "frameMaxMs": 16.799999999995634,
+      "frameSampleTimedOut": false,
+      "visibilityState": "visible",
+      "videoCount": 1,
+      "playingVideoCount": 1,
+      "domNodeCount": 1466
+    }
+  ],
+  "traceCapture": {
+    "kind": "saved",
+    "outputPath": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\chat-render-baseline.trace.json",
+    "bytes": 49111113,
+    "dataLossOccurred": false
+  }
+}
