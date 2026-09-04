@@ -25,7 +25,16 @@ interface PublicSearchCacheEntry {
   result: Promise<unknown | null>;
 }
 
+interface PublicLiveDirectoryPageCacheEntry {
+  expiresAt: number;
+  result: Promise<PaginatedResult<UnifiedStream>>;
+}
+
 const publicSearchCache = new Map<string, PublicSearchCacheEntry>();
+const publicLiveDirectoryPageCache = new Map<
+  string | undefined,
+  PublicLiveDirectoryPageCacheEntry
+>();
 
 export type ChannelSearchOptions = PaginationOptions & {
   after?: string;
@@ -179,8 +188,36 @@ function fetchPublicSearchPayload(searchQuery: string): Promise<unknown | null> 
   return result;
 }
 
+function fetchPublicLiveDirectoryPage(
+  cursor: string | undefined
+): Promise<PaginatedResult<UnifiedStream>> {
+  const now = Date.now();
+  for (const [key, entry] of publicLiveDirectoryPageCache) {
+    if (entry.expiresAt <= now) publicLiveDirectoryPageCache.delete(key);
+  }
+
+  const cached = publicLiveDirectoryPageCache.get(cursor);
+  if (cached && cached.expiresAt > now) return cached.result;
+
+  const result = getPublicTopStreams({
+    limit: LIVE_SEARCH_PAGE_SIZE,
+    cursor,
+  }).catch((error: unknown) => {
+    if (publicLiveDirectoryPageCache.get(cursor)?.result === result) {
+      publicLiveDirectoryPageCache.delete(cursor);
+    }
+    throw error;
+  });
+  publicLiveDirectoryPageCache.set(cursor, {
+    expiresAt: now + PUBLIC_SEARCH_CACHE_TTL_MS,
+    result,
+  });
+  return result;
+}
+
 export function resetPublicSearchCacheForTests(): void {
   publicSearchCache.clear();
+  publicLiveDirectoryPageCache.clear();
 }
 
 function publicSearchChannels(payload: unknown): PublicSearchRecord[] {
@@ -441,10 +478,7 @@ export async function searchChannels(
       let matchesFound = 0;
 
       for (let page = 0; page < LIVE_SEARCH_MAX_PAGES_PER_REQUEST; page++) {
-        const streamPage = await getPublicTopStreams({
-          limit: LIVE_SEARCH_PAGE_SIZE,
-          cursor,
-        });
+        const streamPage = await fetchPublicLiveDirectoryPage(cursor);
 
         logger.debug("Kick:Endpoints:Search", "Step 4: Live stream page to filter", {
           page,
