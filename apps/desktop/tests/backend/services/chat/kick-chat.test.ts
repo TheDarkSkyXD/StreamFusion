@@ -124,6 +124,7 @@ afterEach(() => {
 
 function makeReconnectPusher(initialState: "connected" | "disconnected" | "failed") {
   const handlers = new Map<string, Set<(...args: unknown[]) => void>>();
+  const channels = new Map<string, ReturnType<typeof makeFakePusherChannel>>();
   const pusher = {
     connection: {
       state: initialState,
@@ -138,15 +139,43 @@ function makeReconnectPusher(initialState: "connected" | "disconnected" | "faile
       unbind_all: vi.fn(() => handlers.clear()),
     },
     disconnect: vi.fn(),
-    subscribe: vi.fn(() => ({ bind: vi.fn(), unbind_all: vi.fn() })),
+    subscribe: vi.fn((name: string) => {
+      const channel = makeFakePusherChannel();
+      channels.set(name, channel);
+      return channel;
+    }),
+    unsubscribe: vi.fn((name: string) => {
+      channels.delete(name);
+    }),
     __emitConnection(event: string, ...args: unknown[]) {
       if (event === "connected" || event === "disconnected" || event === "failed") {
         this.connection.state = event;
       }
       for (const listener of handlers.get(event) ?? []) listener(...args);
     },
+    __emitChannel(name: string, event: string, ...args: unknown[]) {
+      channels.get(name)?.emit(event, ...args);
+    },
+    __getChannel(name: string) {
+      return channels.get(name);
+    },
   };
   return pusher;
+}
+
+function makeFakePusherChannel() {
+  const handlers = new Map<string, Set<(...args: unknown[]) => void>>();
+  return {
+    bind: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+      const listeners = handlers.get(event) ?? new Set();
+      listeners.add(handler);
+      handlers.set(event, listeners);
+    }),
+    unbind_all: vi.fn(() => handlers.clear()),
+    emit(event: string, ...args: unknown[]) {
+      for (const listener of handlers.get(event) ?? []) listener(...args);
+    },
+  };
 }
 
 describe("KickChatService reconnect lifecycle", () => {
@@ -294,6 +323,121 @@ describe("KickChatService reconnect lifecycle", () => {
     expect(initialPusher.disconnect).toHaveBeenCalledOnce();
     expect(replacementPusher.subscribe).toHaveBeenCalledWith("chatrooms.123.v2");
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+// Guards: a failed Kick room subscription retries only that desired room while healthy rooms stay active.
+// Guards: a room becomes active only after Pusher acknowledges its current subscription attempt.
+// Guards: leaving or shutting down cancels a failed room's pending retry.
+// Guards: acknowledgements from replaced Pusher channel objects cannot revive stale subscription state.
+describe("KickChatService room subscription recovery", () => {
+  async function connectWith(pusher: ReturnType<typeof makeReconnectPusher>) {
+    vi.mocked(Pusher).mockImplementationOnce(function makePusher() {
+      return pusher as unknown as Pusher;
+    });
+    const service = new KickChatService();
+    const connecting = service.connect();
+    pusher.__emitConnection("connected");
+    await connecting;
+    return service;
+  }
+
+  it("retries only the failed room and activates it after acknowledgement", async () => {
+    vi.useFakeTimers();
+    const pusher = makeReconnectPusher("disconnected");
+    const service = await connectWith(pusher);
+    const messages: ChatMessage[] = [];
+    service.on("message", (message) => messages.push(message));
+    await service.joinChannel("healthy", 111, 1);
+    await service.joinChannel("flaky", 222, 2);
+
+    pusher.__emitChannel("chatrooms.111.v2", "pusher:subscription_succeeded");
+    pusher.__emitChannel("chatrooms.222.v2", "pusher:subscription_error", {
+      status: 503,
+    });
+
+    expect(service.getConnectionStatus().channels).toEqual(["healthy"]);
+    pusher.subscribe.mockClear();
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(pusher.subscribe).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(pusher.subscribe.mock.calls.map(([name]) => name)).toEqual([
+      "chatrooms.222.v2",
+      "chatrooms.222",
+    ]);
+
+    pusher.__emitChannel("chatrooms.222.v2", "pusher:subscription_succeeded");
+    pusher.__emitChannel("chatrooms.222.v2", "App\\Events\\ChatMessageEvent", {
+      id: "recovered-message",
+      chatroom_id: 222,
+      content: "recovered",
+      type: "message",
+      created_at: "2026-09-05T12:00:00Z",
+      sender: {
+        id: 7,
+        username: "RecoveredUser",
+        slug: "recovered-user",
+        identity: { color: "#53FC18", badges: [] },
+      },
+    } satisfies KickChatMessageEvent);
+
+    expect(service.getConnectionStatus().channels).toEqual(["healthy", "flaky"]);
+    expect(messages).toEqual([
+      expect.objectContaining({ id: "recovered-message", channel: "flaky" }),
+    ]);
+  });
+
+  it("cancels a failed room retry when that room leaves", async () => {
+    vi.useFakeTimers();
+    const pusher = makeReconnectPusher("disconnected");
+    const service = await connectWith(pusher);
+    await service.joinChannel("flaky", 222, 2);
+    pusher.__emitChannel("chatrooms.222.v2", "pusher:subscription_error", {
+      status: 503,
+    });
+    expect(vi.getTimerCount()).toBe(1);
+    pusher.subscribe.mockClear();
+
+    await service.leaveChannel("flaky");
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(pusher.subscribe).not.toHaveBeenCalled();
+    expect(service.isInChannel("flaky")).toBe(false);
+  });
+
+  it("cancels failed room retries during final shutdown", async () => {
+    vi.useFakeTimers();
+    const pusher = makeReconnectPusher("disconnected");
+    const service = await connectWith(pusher);
+    await service.joinChannel("flaky", 222, 2);
+    pusher.__emitChannel("chatrooms.222.v2", "pusher:subscription_error", {
+      status: 503,
+    });
+    expect(vi.getTimerCount()).toBe(1);
+    pusher.subscribe.mockClear();
+
+    await service.forceShutdown();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(pusher.subscribe).not.toHaveBeenCalled();
+    expect(service.getConnectionStatus()).toMatchObject({ state: "disconnected", channels: [] });
+  });
+
+  it("ignores a late acknowledgement from a replaced subscription attempt", async () => {
+    vi.useFakeTimers();
+    const pusher = makeReconnectPusher("disconnected");
+    const service = await connectWith(pusher);
+    await service.joinChannel("flaky", 222, 2);
+    const staleChannel = pusher.__getChannel("chatrooms.222.v2");
+    if (!staleChannel) throw new Error("Expected the first room subscription");
+    pusher.__emitChannel("chatrooms.222.v2", "pusher:subscription_error", {
+      status: 503,
+    });
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    staleChannel.emit("pusher:subscription_succeeded");
+
+    expect(service.getConnectionStatus().channels).toEqual([]);
   });
 });
 

@@ -86,6 +86,8 @@ function makeFakeTmiClient(): typeof fakeClient {
 // Guards: soft and final teardown do not ask tmi.js to disconnect a socket that is already closed.
 // Guards: a null token refresh falls back to anonymous recovery without dropping tracked Twitch rooms.
 // Guards: a successful token refresh uses the new credential while recovering every tracked Twitch room.
+// Guards: a soft identity reset retains all desired rooms and the replacement socket rejoins each room once.
+// Guards: the last room release cancels restoration on a replacement Twitch socket.
 describe("TwitchChatService connect() single-flight", () => {
   beforeEach(() => {
     fakeClient = Object.assign(new EventEmitter(), {
@@ -331,6 +333,67 @@ describe("TwitchChatService connect() single-flight", () => {
       channels: ["first-channel", "second-channel"],
       joinedChannels: ["first-channel", "second-channel"],
       refreshCalls: 1,
+    });
+  });
+
+  it("restores every desired channel once after a soft identity reset", async () => {
+    const service = new TwitchChatService();
+    const initialConnect = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await initialConnect;
+    await service.joinChannel("first-channel");
+    await service.joinChannel("second-channel");
+
+    await service.disconnect();
+
+    const replacementClient = Object.assign(new EventEmitter(), {
+      connect: vi.fn(() => Promise.resolve(["irc-ws.chat.twitch.tv", 443])),
+      disconnect: vi.fn(() => Promise.resolve()),
+      readyState: vi.fn(() => "OPEN" as const),
+      join: vi.fn((channel: string) => Promise.resolve([`#${channel}`])),
+    });
+    ClientCtor.mockImplementationOnce(function makeReplacementClient() {
+      return replacementClient;
+    });
+    const replacementConnect = service.connect({ anonymous: true });
+    replacementClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await replacementConnect;
+
+    expect(service.getConnectionStatus().channels).toEqual(["first-channel", "second-channel"]);
+    expect(replacementClient.join.mock.calls).toEqual([["first-channel"], ["second-channel"]]);
+  });
+
+  it("cancels channel restoration when the last release wins the replacement race", async () => {
+    const service = new TwitchChatService();
+    service.acquire("first-channel");
+    service.acquire("second-channel");
+    const initialConnect = service.connect({ anonymous: true });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await initialConnect;
+    await service.joinChannel("first-channel");
+    await service.joinChannel("second-channel");
+    await service.disconnect();
+
+    const replacementClient = Object.assign(new EventEmitter(), {
+      connect: vi.fn(() => Promise.resolve(["irc-ws.chat.twitch.tv", 443])),
+      disconnect: vi.fn(() => Promise.resolve()),
+      readyState: vi.fn(() => "OPEN" as const),
+      join: vi.fn((channel: string) => Promise.resolve([`#${channel}`])),
+      part: vi.fn((channel: string) => Promise.resolve([`#${channel}`])),
+    });
+    ClientCtor.mockImplementationOnce(function makeReplacementClient() {
+      return replacementClient;
+    });
+    const replacementConnect = service.connect({ anonymous: true });
+    await service.release("first-channel");
+    replacementClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await service.release("second-channel");
+    await replacementConnect;
+
+    expect(replacementClient.join).not.toHaveBeenCalled();
+    expect(service.getConnectionStatus()).toMatchObject({
+      state: "disconnected",
+      channels: [],
     });
   });
 
