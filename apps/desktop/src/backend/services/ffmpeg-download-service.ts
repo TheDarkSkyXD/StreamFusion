@@ -72,6 +72,14 @@ function parseTimeSeconds(value: string): number {
   return Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds);
 }
 
+function parseFfmpegDurationSeconds(line: string): number | null {
+  const match = line.match(/Duration:\s*(\d+:\d{2}:\d{2}(?:\.\d+)?)/);
+  if (!match) return null;
+
+  const durationSeconds = parseTimeSeconds(match[1]);
+  return Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds : null;
+}
+
 function parseOutputBytes(line: string): number | null {
   const match = line.match(/size=\s*(\d+(?:\.\d+)?)\s*([kmgt]?i?b)?/i);
   if (!match) return null;
@@ -104,7 +112,9 @@ export function parseFfmpegProgress(
   if (!match && outputBytes === null) return null;
   const transferredSeconds = match ? parseTimeSeconds(match[1]) : 0;
   return {
-    percent: durationSeconds ? (transferredSeconds / durationSeconds) * 100 : null,
+    percent: durationSeconds
+      ? Math.min(100, Math.max(0, (transferredSeconds / durationSeconds) * 100))
+      : null,
     transferredSeconds,
     totalSeconds: durationSeconds,
     ...(outputBytes !== null ? { outputBytes } : {}),
@@ -158,6 +168,20 @@ async function runFfmpeg({
 }): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const child = spawnProcess(ffmpegPath, args, { windowsHide: true });
+    let stderrBuffer = "";
+    let effectiveDurationSeconds = durationSeconds;
+    const processStderrRecord = (record: string) => {
+      if (effectiveDurationSeconds === null) {
+        effectiveDurationSeconds = parseFfmpegDurationSeconds(record);
+      }
+      const progress = parseFfmpegProgress(record, effectiveDurationSeconds);
+      if (progress) onProgress(progress);
+    };
+    const flushStderr = () => {
+      if (!stderrBuffer) return;
+      processStderrRecord(stderrBuffer);
+      stderrBuffer = "";
+    };
     const abort = () => {
       child.kill("SIGTERM");
       reject(new Error("Download cancelled"));
@@ -168,11 +192,13 @@ async function runFfmpeg({
     }
     signal.addEventListener("abort", abort, { once: true });
     child.stderr.on("data", (chunk) => {
-      const progress = parseFfmpegProgress(String(chunk), durationSeconds);
-      if (progress) onProgress(progress);
+      const records = `${stderrBuffer}${String(chunk)}`.split(/\r\n|\r|\n/);
+      stderrBuffer = records.pop() ?? "";
+      for (const record of records) processStderrRecord(record);
     });
     child.on("close", (code) => {
       signal.removeEventListener("abort", abort);
+      flushStderr();
       if (code === 0) resolve();
       else reject(new Error(`ffmpeg exited with code ${code}`));
     });

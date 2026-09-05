@@ -266,15 +266,19 @@ function DownloadRow({
           </span>
         </div>
 
-        <Progress value={progress} className="h-2" />
+        <Progress
+          value={progress}
+          indeterminate={progress === undefined && job.status === "downloading"}
+          aria-label={job.title}
+          aria-valuetext={progress === undefined ? formatTransfer(job, t) : undefined}
+          className="h-2"
+        />
         <div className="mt-2 flex flex-wrap justify-between gap-x-4 gap-y-1 text-xs text-[var(--color-foreground-secondary)]">
           <span className="min-w-0 truncate">
             {job.error ?? job.statusMessage ?? formatTransfer(job, t)}
           </span>
           <span className="shrink-0 tabular-nums">
-            {progress === undefined
-              ? t("mediaLibrary.progressUnavailable")
-              : Math.round(progress) + "%"}
+            {progress === undefined ? t(STATUS_LABEL_KEYS[job.status]) : Math.round(progress) + "%"}
           </span>
         </div>
         {(job.error || job.statusMessage) && job.progress.transferredBytes > 0 ? (

@@ -73,7 +73,17 @@
   --animate-fade-in: fade-in 0.2s ease-in-out;
   --animate-slide-up: slide-up 0.2s ease-out;
   --animate-pulse-soft: pulse-soft 2s ease-in-out infinite;
+  --animate-download-progress: download-progress 1.4s ease-in-out infinite;
   --animate-slide-and-fade-in: slide-and-fade-in 0.2s ease-in-out forwards;
+}
+
+@keyframes download-progress {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
 }
 
 @keyframes slide-and-fade-in {
