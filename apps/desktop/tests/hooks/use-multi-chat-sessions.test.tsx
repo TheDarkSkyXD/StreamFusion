@@ -55,6 +55,17 @@ function deferred<T>() {
   return Promise.withResolvers<T>();
 }
 
+const platforms: ReadonlyArray<MultiChatChannel["platform"]> = ["twitch", "kick"];
+const decorationCases: ReadonlyArray<{
+  platform: MultiChatChannel["platform"];
+  stage: "global" | "channel";
+}> = [
+  { platform: "twitch", stage: "global" },
+  { platform: "twitch", stage: "channel" },
+  { platform: "kick", stage: "global" },
+  { platform: "kick", stage: "channel" },
+];
+
 function Workspace({
   channels,
   enabled = true,
@@ -88,6 +99,8 @@ beforeEach(() => {
     service.joinChannel.mockResolvedValue(undefined);
     service.release.mockResolvedValue(undefined);
   }
+  mocks.loadGlobalEmotes.mockResolvedValue(undefined);
+  mocks.loadChannelEmotes.mockResolvedValue(undefined);
   queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
@@ -106,6 +119,9 @@ afterEach(async () => {
 // Guards: workspace membership changes retain existing channel ownership and routing.
 // Guards: cancelled startup cannot reconnect or join after removal, and pending JOIN finishes before release.
 // Guards: removed sessions cannot overwrite failures belonging to current workspace membership.
+// Guards: optional global emotes cannot delay Twitch or Kick room membership.
+// Guards: disposal releases acquired rooms without waiting for optional global or channel emotes.
+// Guards: optional emote failures do not mark a live chat session as failed.
 describe("useMultiChatSessions", () => {
   it.each(["twitch", "kick"] as const)(
     "retains %s sessions across addition, reorder, and removal",
@@ -185,6 +201,55 @@ describe("useMultiChatSessions", () => {
     expect(mocks.twitch.release).toHaveBeenCalledExactlyOnceWith("first");
   });
 
+  it.each(platforms)("starts %s JOIN while global emotes are still loading", async (platform) => {
+    const channel = createMultiChatChannel(platform, "first");
+    seed(channel);
+    const globalEmotes = deferred<void>();
+    mocks.loadGlobalEmotes.mockReturnValueOnce(globalEmotes.promise);
+    const service = mocks[platform];
+    renderWithProviders(<Workspace channels={[channel]} />, { queryClient });
+    await waitFor(() => expect(mocks.loadGlobalEmotes).toHaveBeenCalledWith(platform));
+    await act(async () => {});
+    const joinedWhileGlobalEmotesPending = service.joinChannel.mock.calls.length === 1;
+    await act(async () => globalEmotes.resolve());
+    await waitFor(() => expect(service.joinChannel).toHaveBeenCalledOnce());
+    expect(joinedWhileGlobalEmotesPending).toBe(true);
+  });
+
+  it.each(decorationCases)(
+    "releases $platform promptly while $stage emotes are still loading",
+    async ({ platform, stage }) => {
+      const channel = createMultiChatChannel(platform, "first");
+      seed(channel);
+      const decoration = deferred<void>();
+      const loadEmotes = stage === "global" ? mocks.loadGlobalEmotes : mocks.loadChannelEmotes;
+      loadEmotes.mockReturnValueOnce(decoration.promise);
+      const service = mocks[platform];
+      const view = renderWithProviders(<Workspace channels={[channel]} />, { queryClient });
+      await waitFor(() => expect(loadEmotes).toHaveBeenCalledOnce());
+      view.rerender(<Workspace channels={[]} />);
+      await act(async () => {});
+      const releasedWhileDecorationPending = service.release.mock.calls.length === 1;
+      await act(async () => decoration.resolve());
+      await waitFor(() => expect(service.release).toHaveBeenCalledExactlyOnceWith("first"));
+      expect(releasedWhileDecorationPending).toBe(true);
+    }
+  );
+
+  it.each(decorationCases)(
+    "does not mark $platform failed when $stage emotes reject",
+    async ({ platform, stage }) => {
+      const channel = createMultiChatChannel(platform, "first");
+      seed(channel);
+      const loadEmotes = stage === "global" ? mocks.loadGlobalEmotes : mocks.loadChannelEmotes;
+      loadEmotes.mockRejectedValueOnce(new Error(`${stage} emotes unavailable`));
+      renderWithProviders(<Workspace channels={[channel]} />, { queryClient });
+      await waitFor(() => expect(loadEmotes).toHaveBeenCalledOnce());
+      await act(async () => {});
+      expect(screen.getByRole("status")).toHaveTextContent('"failedChannels":[]');
+    }
+  );
+
   it("waits for pending JOIN even when channel decorations fail first", async () => {
     const channel = createMultiChatChannel("twitch", "first");
     seed(channel);
@@ -192,7 +257,7 @@ describe("useMultiChatSessions", () => {
     mocks.twitch.joinChannel.mockReturnValueOnce(joining.promise);
     mocks.loadChannelEmotes.mockRejectedValueOnce(new Error("emotes unavailable"));
     const view = renderWithProviders(<Workspace channels={[channel]} />, { queryClient });
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(channel.key));
+    await waitFor(() => expect(mocks.loadChannelEmotes).toHaveBeenCalledOnce());
     view.rerender(<Workspace channels={[]} />);
     await act(async () => {});
     expect(mocks.twitch.release).not.toHaveBeenCalled();
