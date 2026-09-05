@@ -39,6 +39,7 @@ beforeEach(() => {
 
 // Guards: persisted download jobs replace the old placeholder rows after the main-process queue loads
 // Guards: live queue updates replace the visible jobs and release the IPC listener on unmount
+// Guards: unknown download totals show activity and transferred bytes until live percentages arrive
 // Guards: a newer queue push cannot be overwritten by an older initial IPC snapshot
 // Guards: an empty persisted queue has an explicit first-download state instead of a blank page
 // Guards: queue load failures remain distinct from empty state and can be retried in place
@@ -47,6 +48,44 @@ beforeEach(() => {
 // Guards: interrupted paused and waiting jobs can be removed without advertising unsupported resume or file actions
 // Guards: persisted waiting and failure detail remains visible instead of collapsing to a generic status
 describe("DownloadsPage", () => {
+  it("shows unknown-size download activity and switches to measured live progress", async () => {
+    let pushQueue: ((snapshot: { jobs: DownloadJob[] }) => void) | undefined;
+    vi.mocked(downloads.onQueueChanged).mockImplementation((callback: typeof pushQueue) => {
+      pushQueue = callback;
+      return vi.fn();
+    });
+    vi.mocked(downloads.getQueue).mockResolvedValue({
+      jobs: [
+        downloadJob({ progress: { percent: null, transferredBytes: 1024, totalBytes: null } }),
+      ],
+    });
+    renderWithProviders(<DownloadsPage />);
+    await screen.findByText("Friday Night Finals");
+
+    const progress = screen.getByRole("progressbar", { name: "Friday Night Finals" });
+    expect(progress).not.toHaveAttribute("aria-valuenow");
+    expect(progress).toHaveAttribute("aria-valuetext", expect.stringContaining("1.0 KB"));
+    expect(progress.firstElementChild).toHaveClass("animate-download-progress");
+    expect(screen.queryByText("Progress unavailable")).not.toBeInTheDocument();
+
+    for (const percent of [20, 65, 100]) {
+      act(() => {
+        pushQueue?.({
+          jobs: [
+            downloadJob({
+              status: percent === 100 ? "completed" : "downloading",
+              progress: { percent, transferredBytes: percent * 1024, totalBytes: 100 * 1024 },
+            }),
+          ],
+        });
+      });
+      const updatedProgress = screen.getByRole("progressbar", { name: "Friday Night Finals" });
+      expect(updatedProgress).toHaveAttribute("aria-valuenow", String(percent));
+      expect(updatedProgress.firstElementChild).not.toHaveClass("animate-download-progress");
+      expect(screen.getByText(`${percent}%`)).toBeInTheDocument();
+    }
+  });
+
   it("loads and renders real queue jobs with their status and progress", async () => {
     vi.mocked(downloads.getQueue).mockResolvedValue({ jobs: [downloadJob()] });
 

@@ -4,28 +4,54 @@ import { describe, expect, it, vi } from "vitest";
 import {
   downloadHlsWithFfmpeg,
   FfmpegUnavailableError,
+  type FfmpegProgress,
   parseFfmpegProgress,
   resolveFfmpegPath,
   type SpawnProcess,
   startHlsRecordingWithFfmpeg,
 } from "@backend/services/ffmpeg-download-service";
 
-function createProcess({ code = 0, stderr = "" }: { code?: number; stderr?: string }) {
+function createProcess({ code = 0, stderr = "" }: { code?: number; stderr?: string | string[] }) {
   const child = new EventEmitter() as EventEmitter & {
     stderr: EventEmitter;
     stdin: { write: (chunk: string) => unknown };
-    kill: ReturnType<typeof vi.fn>;
+    kill: (signal?: NodeJS.Signals | number) => unknown;
   };
   child.stderr = new EventEmitter();
   child.stdin = { write: vi.fn(() => true) };
-  child.kill = vi.fn();
+  child.kill = vi.fn((_signal?: NodeJS.Signals | number) => true);
   queueMicrotask(() => {
-    if (stderr) child.stderr.emit("data", Buffer.from(stderr));
+    for (const chunk of Array.isArray(stderr) ? stderr : [stderr]) {
+      if (chunk) child.stderr.emit("data", Buffer.from(chunk));
+    }
     child.emit("close", code);
   });
   return child;
 }
 
+async function captureDownloadProgress({
+  stderr,
+  durationSeconds = null,
+}: {
+  stderr: string | string[];
+  durationSeconds?: number | null;
+}): Promise<FfmpegProgress[]> {
+  const progress: FfmpegProgress[] = [];
+  await downloadHlsWithFfmpeg({
+    ffmpegPath: "ffmpeg",
+    inputUrl: "https://cdn.example/vod.m3u8",
+    destinationPath: "D:\\Videos\\vod.mp4",
+    durationSeconds,
+    signal: new AbortController().signal,
+    onProgress: (update) => progress.push(update),
+    spawnProcess: vi.fn<SpawnProcess>(() => createProcess({ stderr })),
+  });
+  return progress;
+}
+
+// Guards: download progress reassembles fragmented stderr records and handles every coalesced record.
+// Guards: inferred duration ignores unknown metadata and never replaces a supplied duration.
+// Guards: download percentages stay between zero and 100.
 // Guards: recording shutdown waits for child close even when stdin fails synchronously or asynchronously.
 describe("ffmpeg download service", () => {
   it("resolves a bundled ffmpeg-static path before PATH fallback", () => {
@@ -73,6 +99,87 @@ describe("ffmpeg download service", () => {
       transferredSeconds: 30,
       totalSeconds: 60,
       outputBytes: 13_107_200,
+    });
+  });
+
+  it("reassembles fragmented stderr records before reporting progress", async () => {
+    const progress = await captureDownloadProgress({
+      stderr: [
+        "  Duration: 00:01",
+        ":00.00, start: 0.000000, bitrate: N/A\r",
+        "\nframe=1 time=00:00",
+        ":30.00 bitrate=1\r",
+        "\n",
+      ],
+    });
+
+    expect(progress).toEqual([
+      {
+        percent: 50,
+        transferredSeconds: 30,
+        totalSeconds: 60,
+      },
+    ]);
+  });
+
+  it("reports every progress record coalesced into one stderr chunk", async () => {
+    const progress = await captureDownloadProgress({
+      stderr:
+        "Duration: 00:00:40.00, start: 0.000000, bitrate: N/A\n" +
+        "frame=1 time=00:00:10.00 bitrate=1\rframe=2 time=00:00:20.00 bitrate=1\r",
+    });
+
+    expect(progress).toEqual([
+      {
+        percent: 25,
+        transferredSeconds: 10,
+        totalSeconds: 40,
+      },
+      {
+        percent: 50,
+        transferredSeconds: 20,
+        totalSeconds: 40,
+      },
+    ]);
+  });
+
+  it("keeps progress indeterminate when FFmpeg reports an unknown duration", async () => {
+    const progress = await captureDownloadProgress({
+      stderr:
+        "Duration: N/A, start: 0.000000, bitrate: N/A\n" + "frame=1 time=00:00:10.00 bitrate=1\r",
+    });
+
+    expect(progress).toEqual([
+      {
+        percent: null,
+        transferredSeconds: 10,
+        totalSeconds: null,
+      },
+    ]);
+  });
+
+  it("keeps a supplied duration when FFmpeg reports a different duration", async () => {
+    const progress = await captureDownloadProgress({
+      durationSeconds: 120,
+      stderr:
+        "Duration: 00:01:00.00, start: 0.000000, bitrate: N/A\n" +
+        "frame=1 time=00:00:30.00 bitrate=1\r",
+    });
+
+    expect(progress).toEqual([
+      {
+        percent: 25,
+        transferredSeconds: 30,
+        totalSeconds: 120,
+      },
+    ]);
+  });
+
+  it("clamps progress to 100 percent when FFmpeg time exceeds the duration", () => {
+    expect(parseFfmpegProgress("frame=1 time=00:02:00.00 bitrate=1", 60)).toEqual({
+      percent: 100,
+      transferredSeconds: 120,
+      totalSeconds: 60,
     });
   });
 
