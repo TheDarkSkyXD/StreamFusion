@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "issue": 141,
+  "ticketId": "B04",
+  "mobileSourceCommit": "f63f80b4ee6559ce59ca1ffdb13f4af25400ccff",
+  "observedAt": "2026-09-05T02:00:38.415Z",
+  "result": "pass",
+  "desktopBaseline": {
+    "observedMainCommit": "13292007618fa5429b54b1f8ff9d8511434b5cf9",
+    "inventory": "docs/research/streamfusion-mobile/desktop-parity-inventory.md",
+    "check": "pass"
+  },
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "Workspace lint and typecheck passed; Core 46, evidence 9, launcher/control 15, Mobile 55, Relay 7, Desktop 7,454, and Worker 21 tests passed.",
+        "The exact final candidate added one bounded cancellation regression, so its scoped Mobile gate passed 26 Node tests, 30 Vitest tests, lint, typecheck, and the 7-allowed/16-forbidden architecture proof.",
+        "Workspace build, 40 package-policy tests, Desktop parity inventory, Android export, and the commit hook's isolated Electron preview smoke passed.",
+        "Node 24 initially rejected direct gradlew.bat spawning with EINVAL. The development-build wrapper now invokes the batch file through ComSpec, owns the same short Windows drive lease as the native launcher, forwards termination signals, preserves build errors, and releases the lease after completion or cancellation.",
+        "The fixed root wrapper was invoked from the original F: worktree, compiled consistently through its temporary R: mapping, released R:, and completed 540 Gradle tasks in 10 minutes 2 seconds. An intentional bounded cancellation test completed in 77 milliseconds and proved signal forwarding plus mapping and lock cleanup."
+      ]
+    },
+    "api30-emulator": {
+      "result": "pass",
+      "profile": "StreamFusion Issue 141 API30",
+      "apiLevel": 30,
+      "display": "1080x2280@440dpi",
+      "coldBootSeconds": 35.664,
+      "rootOption3OpenSeconds": 16.6,
+      "observations": [
+        "The first literal root npm start option 3 attempt booted the fresh task AVD but failed after about 56 seconds because Expo Go was not installed; it was not counted as a successful launch.",
+        "After provisioning the cached Expo Go 57.0.9 APK, the second literal root option 3 run opened Expo Go in 16.6 seconds, bundled in 8.566 seconds, and exposed the five-destination shell through Mobile MCP in about 25.2 seconds.",
+        "Expo Go safely reported native encrypted storage unavailable and offered retry without creating a second shell or crashing.",
+        "The API 30 development client reported SQLCipher 4.7.0 community, Product schema 2, Cache schema 1, and 8/8 isolated native storage checks passed.",
+        "A stable local storage event appeared once, opened its detail and allowlisted Diagnostics destination, marked read, reset unread when deliberately re-ingested, and returned to one row after Mark all read.",
+        "Three repeated warm Activity links each produced one Activity detail, one shell, and one navigation tree; Android Back returned to the same Activity root. Malformed and unknown links were contained without an unmatched route.",
+        "Mobile MCP and Android log inspection reported zero crashes, no active package notification, and no OS notification or remote push was sent."
+      ]
+    },
+    "process-death": {
+      "result": "pass",
+      "observations": [
+        "Force-stop from Activity detail followed by development-client reopen restored the exact detail; Back returned to Activity with one read event and zero unread.",
+        "Watch and Activity retained independent histories across destination switches. A second force-stop restored the active Twitch Watch target, and switching to Activity recovered its independent root and read state.",
+        "Early actions and app-link intents are queued until hydration, restoration writes are serialized and visibly retryable, history trails are capped at 20, and only own allowlisted route identifiers restore.",
+        "Development-only Diagnostics triggers prepared corrupt JSON and an unsupported version-2 snapshot. Each native force-stop reopen showed its distinct fallback notice, reset navigation to Search, preserved Activity Product data, and kept a single shell."
+      ]
+    },
+    "reboot": {
+      "result": "pass",
+      "observations": [
+        "The task AVD reached boot_completed 35.664 seconds after adb reboot.",
+        "After re-establishing the development-server bridge, the app reopened in 27.567 seconds and restored Activity with exactly one read event, zero unread, and one shell.",
+        "No playback session was automatically started during restoration."
+      ]
+    },
+    "offline-proof": {
+      "result": "pass",
+      "observations": [
+        "Wi-Fi and cellular data were disabled, airplane mode was set, and Android reported Active default network: none.",
+        "The development client still fetched JavaScript only through adb reverse on tcp:8082; this proves offline Product-data behavior and does not claim a standalone packaged offline startup.",
+        "With external transport unavailable, force-stop and reopen recovered the encrypted Activity row and read state without storage-unavailable UI or a crash.",
+        "ProductStore database-boundary validation skips malformed or out-of-range persisted timestamps without making the remaining Activity list unavailable."
+      ]
+    }
+  },
+  "containment": {
+    "remotePush": "not implemented or invoked by B04; native FCM delivery remains owned by N01",
+    "expoGo": "native storage unavailability is contained with generic retryable UI and no Product write",
+    "deepLinks": "only strict streamfusion schemes and allowlisted Activity or Watch destinations are accepted; unsafe and unknown inputs are dropped",
+    "restoration": "versioned exact-shape snapshots restore bounded independent histories; corruption and unsupported versions clear and fall back to Search",
+    "activity": "stable event identity deduplicates to one row; deliberate re-ingest resets readAt to null; malformed persisted rows are skipped",
+    "developmentProof": "corruption preparation controls are guarded by __DEV__ and are absent from production builds"
+  },
+  "androidParityRecords": {
+    "app-shell-and-navigation": {
+      "delivery": "direct",
+      "progress": "verified",
+      "freshness": "current",
+      "blockers": [],
+      "developmentException": null
+    },
+    "notifications": {
+      "delivery": "direct enabling tracer",
+      "progress": "verified",
+      "freshness": "current",
+      "blockers": [
+        "Native FCM registration and presentation remain owned by N01"
+      ],
+      "developmentException": null
+    }
+  }
+}
