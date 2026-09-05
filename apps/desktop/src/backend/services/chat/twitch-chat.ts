@@ -1235,7 +1235,13 @@ export class TwitchChatService
     if (!this.isAnonymous && this.tokenFetcher) {
       try {
         const fresh = await this.tokenFetcher();
-        if (fresh) this.accessToken = fresh;
+        if (!this.isActive || this.reconnectGeneration !== capturedGeneration) return;
+        if (fresh) {
+          this.accessToken = fresh;
+        } else {
+          this.accessToken = null;
+          this.isAnonymous = true;
+        }
       } catch (err) {
         logger.warn("Chat:Twitch", "Token refresh before reconnect failed", {
           error:
