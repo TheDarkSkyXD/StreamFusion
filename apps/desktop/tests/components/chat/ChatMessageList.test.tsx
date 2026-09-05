@@ -174,6 +174,18 @@ vi.mock("react-virtuoso", async () => {
             <button
               type="button"
               onClick={() => {
+                const wheel = new Event("wheel") as WheelEvent;
+                Object.defineProperty(wheel, "deltaY", { value: -8 });
+                scroller.dispatchEvent(wheel);
+                scroller.scrollTop = 892;
+                scroller.dispatchEvent(new Event("scroll"));
+              }}
+            >
+              tiny wheel up
+            </button>
+            <button
+              type="button"
+              onClick={() => {
                 scroller.scrollTop = 600;
                 atBottomStateChange?.(false);
               }}
@@ -315,6 +327,7 @@ function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
 // Guards: height-only growth of the visible newest row keeps a following view pinned through measured alignment and a bounded residual-gap correction
 // Guards: passive height growth has one scroll authority and at most one paint-coalesced bottom commit
 // Guards: wheel-up intent during the pause debounce must stop Virtuoso auto-follow so sending plus scrolling cannot snap back to bottom
+// Guards: a tiny wheel movement that remains within the bottom threshold must keep live follow armed without a Virtuoso bottom-state transition
 // Guards: upward scroller movement from scrollbar dragging or page-key scrolling must stop later height growth from snapping chat back to bottom
 // Guards: click-to-reply is only exposed when the platform orchestrator opts the list into reply behavior
 // Guards: inline Unban is exposed only for senders known to be banned or timed out; missing unban state must not show it for ordinary users
@@ -781,6 +794,26 @@ describe("ChatMessageList", () => {
 
     expect(virtuosoScrollToIndexCalls).toHaveLength(0);
     expect(virtuosoScrollerScrollTopWrites).toHaveLength(0);
+  });
+
+  it("keeps live follow armed after a tiny wheel-up remains within the bottom threshold", async () => {
+    vi.useFakeTimers();
+    const { getByText, queryByRole } = render(<ChatMessageList channelKey={channelA} />);
+
+    fireEvent.click(getByText("tiny wheel up"));
+    virtuosoScrollerScrollTopWrites.length = 0;
+
+    virtuosoScrollerHeight.current = 1236;
+    act(() => {
+      virtuosoTotalListHeightChangedCallbacks.at(-1)?.(1236);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+
+    expect(virtuosoScrollerScrollTopWrites).toEqual([936]);
+    expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
+    expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
   });
 
   it.each([
