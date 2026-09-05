@@ -92,7 +92,9 @@ export const MergedChatFeed = memo(function MergedChatFeed({
           <button
             type="button"
             onClick={scrollToBottom}
-            aria-label={t("chat.chatPausedDueToScroll")}
+            aria-label={t("chat.scrollToLiveChatPausedDueToScrollValue0", {
+              value0: t("chat.newMessages"),
+            })}
             className="pointer-events-auto inline-flex max-w-full min-w-0 items-center justify-center gap-[5px] rounded-full border border-white/20 bg-[#2d2d2d] px-[18px] py-1.5 text-xs font-semibold whitespace-nowrap text-white shadow-lg transition-colors hover:bg-[#2d2d2d]/90 focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#2d2d2d] focus-visible:outline-none motion-reduce:transition-none"
           >
             <svg

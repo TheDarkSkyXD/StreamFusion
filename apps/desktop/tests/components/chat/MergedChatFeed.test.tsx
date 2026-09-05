@@ -81,13 +81,14 @@ describe("MergedChatFeed", () => {
       <MergedChatFeed channels={[channel]} onSelectChannel={() => undefined} />
     );
 
-    expect(queryByRole("button", { name: "Chat paused due to scroll" })).not.toBeInTheDocument();
+    expect(queryByRole("button", { name: /scroll to live/i })).not.toBeInTheDocument();
 
     act(() => {
       virtuosoAtBottomStateChangeCallbacks.at(-1)?.(false);
     });
 
-    const returnToLiveButton = getByRole("button", { name: "Chat paused due to scroll" });
+    const returnToLiveButton = getByRole("button", { name: /scroll to live/i });
+    expect(returnToLiveButton).toHaveTextContent("Chat paused due to scroll");
     fireEvent.click(returnToLiveButton);
 
     expect(virtuosoScrollToIndex).toHaveBeenCalledOnce();
@@ -102,6 +103,6 @@ describe("MergedChatFeed", () => {
       virtuosoAtBottomStateChangeCallbacks.at(-1)?.(true);
     });
 
-    expect(queryByRole("button", { name: "Chat paused due to scroll" })).not.toBeInTheDocument();
+    expect(queryByRole("button", { name: /scroll to live/i })).not.toBeInTheDocument();
   });
 });
