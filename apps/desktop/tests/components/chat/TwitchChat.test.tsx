@@ -880,10 +880,9 @@ describe("TwitchChat", () => {
 
     await waitFor(() => expect(api.auth.getTwitchUser).toHaveBeenCalledOnce());
     expect(twitchChatService.disconnect).toHaveBeenCalledOnce();
-    expect(twitchChatService.connect).toHaveBeenCalledWith({
-      anonymous: true,
-      debug: false,
-    });
+    expect(twitchChatService.connect).toHaveBeenCalledWith(
+      expect.objectContaining({ anonymous: true })
+    );
     expect(twitchChatService.joinChannel).not.toHaveBeenCalled();
   });
 

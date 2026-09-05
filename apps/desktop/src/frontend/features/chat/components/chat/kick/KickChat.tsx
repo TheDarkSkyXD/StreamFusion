@@ -963,58 +963,6 @@ export const KickChat: React.FC<KickChatProps> = ({
     }
   }, [channel, channelKey, subscriberBadges]);
 
-  // Mid-session auth-identity swap. The primary connect effect above runs
-  // once on mount with the auth state at that moment and doesn't react to
-  // sign-in / sign-out via the ProfileDropdown. Without this effect, a
-  // fresh sign-in keeps using the anonymous Pusher subscription, so the
-  // optimistic-echo path can't attach a sender identity and the send window
-  // keeps running under the old session cookies; the reverse leaves an
-  // authenticated socket alive after logout. We track the last seen value
-  // in a ref so the very first render — which is always handled by the
-  // primary effect — is a no-op here.
-  const lastAuthRef = useRef(isAuthenticated);
-  useEffect(() => {
-    if (lastAuthRef.current === isAuthenticated) return;
-    lastAuthRef.current = isAuthenticated;
-    if (!channel || !chatroomId) return;
-
-    let cancelled = false;
-    void (async () => {
-      try {
-        // Hard reset: sets `this.pusher = null` inside the service so the
-        // subsequent connect() creates a fresh Pusher client with the new
-        // identity rather than returning early on its "already connected"
-        // check. activeUsers is untouched, so the refcount stays intact.
-        await kickChatService.disconnect();
-        if (cancelled) return;
-
-        const kickToken = isAuthenticated ? await window.electronAPI.auth.getToken("kick") : null;
-        if (cancelled) return;
-
-        await kickChatService.connect({
-          debug: import.meta.env.DEV,
-        });
-        if (cancelled) return;
-
-        const parsedBroadcasterId = Number(channelId);
-        const broadcasterUserId = Number.isFinite(parsedBroadcasterId)
-          ? parsedBroadcasterId
-          : undefined;
-        await kickChatService.joinChannel(channel, chatroomId, broadcasterUserId);
-      } catch (err) {
-        if (!cancelled) {
-          logger.error("UI:Chat:Kick", "failed to swap Kick chat identity", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, channel, chatroomId, channelId]);
-
   const bannerChannelRef = useRef(channel);
   useEffect(() => {
     if (bannerChannelRef.current === channel) return;

@@ -966,27 +966,27 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
         await twitchChatService.disconnect();
         if (cancelled) return;
 
-        if (isAuthenticated) {
-          const accessToken = await window.electronAPI.auth.getValidTwitchToken();
-          const twitchUser = await window.electronAPI.auth.getTwitchUser();
-          if (cancelled || !accessToken || !twitchUser) return;
+        const [accessToken, twitchUser] = isAuthenticated
+          ? await Promise.all([
+              window.electronAPI.auth.getValidTwitchToken(),
+              window.electronAPI.auth.getTwitchUser(),
+            ])
+          : [null, null];
+        if (cancelled) return;
+
+        if (accessToken && twitchUser) {
           await twitchChatService.connect({
             accessToken,
             user: twitchUser,
             tokenFetcher: () => window.electronAPI.auth.getValidTwitchToken(),
           });
-          if (cancelled) return;
-          await twitchChatService.joinChannel(channel, twitchUser.id);
-          if (!cancelled) setDisconnectedChannel(null);
         } else {
           await twitchChatService.connect({
             anonymous: true,
             debug: import.meta.env.DEV,
           });
-          if (cancelled) return;
-          await twitchChatService.joinChannel(channel);
-          if (!cancelled) setDisconnectedChannel(null);
         }
+        if (!cancelled) setDisconnectedChannel(null);
       } catch (err) {
         if (!cancelled) {
           logger.error("UI:Chat:Twitch", "failed to swap Twitch chat identity", {
