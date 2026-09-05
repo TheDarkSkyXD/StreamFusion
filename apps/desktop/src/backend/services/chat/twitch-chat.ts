@@ -257,6 +257,19 @@ export class TwitchChatService
       this.reconnectAttempts = 0;
       this.setConnectionState("connected");
       this.log("Connected to Twitch IRC");
+
+      for (const channel of [...this.channels]) {
+        if (
+          !this.isActive ||
+          connectionId !== this.currentConnectionId ||
+          this.client !== attemptClient
+        ) {
+          break;
+        }
+        if (this.channels.has(channel)) {
+          await this.rejoinTrackedChannel(channel, attemptClient, connectionId);
+        }
+      }
     } catch (error) {
       if (attemptClient) await this.disposeConnectionAttempt(attemptClient);
       // Only handle error if this is still the active connection attempt
@@ -300,7 +313,6 @@ export class TwitchChatService
 
       if (this.client === client) {
         this.client = null;
-        this.channels.clear();
         this.setConnectionState("disconnected");
         this.log("Disconnected from Twitch IRC");
       }
@@ -550,12 +562,30 @@ export class TwitchChatService
     }
   }
 
-  private async rejoinTrackedChannel(channel: string): Promise<void> {
-    if (!this.client || this.connectionState !== "connected") {
-      throw new Error("Not connected to Twitch IRC");
+  private async rejoinTrackedChannel(
+    channel: string,
+    client: tmi.Client,
+    connectionId: number
+  ): Promise<void> {
+    if (
+      !this.isActive ||
+      this.currentConnectionId !== connectionId ||
+      this.client !== client ||
+      this.connectionState !== "connected" ||
+      !this.channels.has(channel)
+    ) {
+      return;
     }
 
-    await this.client.join(channel);
+    await client.join(channel);
+    if (
+      !this.isActive ||
+      this.currentConnectionId !== connectionId ||
+      this.client !== client ||
+      !this.channels.has(channel)
+    ) {
+      return;
+    }
     this.refreshOwnModeratorState(channel);
     this.emitConnectionStatus();
     this.log(`Rejoined channel: ${channel}`);
@@ -1256,13 +1286,6 @@ export class TwitchChatService
 
     try {
       await this.connect({ anonymous: this.isAnonymous, debug: this.debugMode });
-      if (
-        this.isActive &&
-        this.reconnectGeneration === capturedGeneration &&
-        this.connectionState === "connected"
-      ) {
-        for (const channel of this.channels) await this.rejoinTrackedChannel(channel);
-      }
     } catch (error) {
       logger.error("Chat:Twitch", "Reconnection failed", {
         error:

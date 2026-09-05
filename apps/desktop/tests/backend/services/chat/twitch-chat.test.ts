@@ -87,7 +87,7 @@ function makeFakeTmiClient(): typeof fakeClient {
 // Guards: a null token refresh falls back to anonymous recovery without dropping tracked Twitch rooms.
 // Guards: a successful token refresh uses the new credential while recovering every tracked Twitch room.
 // Guards: a soft identity reset retains all desired rooms and the replacement socket rejoins each room once.
-// Guards: the last room release cancels restoration on a replacement Twitch socket.
+// Guards: the last room release cancels remaining restoration while a replacement JOIN is pending.
 describe("TwitchChatService connect() single-flight", () => {
   beforeEach(() => {
     fakeClient = Object.assign(new EventEmitter(), {
@@ -373,24 +373,34 @@ describe("TwitchChatService connect() single-flight", () => {
     await service.joinChannel("first-channel");
     await service.joinChannel("second-channel");
     await service.disconnect();
+    await service.release("first-channel");
 
+    let finishJoin!: () => void;
     const replacementClient = Object.assign(new EventEmitter(), {
       connect: vi.fn(() => Promise.resolve(["irc-ws.chat.twitch.tv", 443])),
       disconnect: vi.fn(() => Promise.resolve()),
       readyState: vi.fn(() => "OPEN" as const),
-      join: vi.fn((channel: string) => Promise.resolve([`#${channel}`])),
+      join: vi.fn(
+        () =>
+          new Promise<[string]>((resolve) => {
+            finishJoin = () => resolve(["#second-channel"]);
+          })
+      ),
       part: vi.fn((channel: string) => Promise.resolve([`#${channel}`])),
     });
     ClientCtor.mockImplementationOnce(function makeReplacementClient() {
       return replacementClient;
     });
     const replacementConnect = service.connect({ anonymous: true });
-    await service.release("first-channel");
     replacementClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await Promise.resolve();
+    expect(replacementClient.join).toHaveBeenCalledWith("second-channel");
+
     await service.release("second-channel");
+    finishJoin();
     await replacementConnect;
 
-    expect(replacementClient.join).not.toHaveBeenCalled();
+    expect(replacementClient.join).toHaveBeenCalledTimes(1);
     expect(service.getConnectionStatus()).toMatchObject({
       state: "disconnected",
       channels: [],

@@ -195,6 +195,27 @@ interface KickChatOptions {
   debug?: boolean;
 }
 
+type PusherChannel = ReturnType<Pusher["subscribe"]>;
+
+type KickSubscription =
+  | { readonly kind: "idle" }
+  | {
+      readonly kind: "subscribing";
+      readonly channel: PusherChannel;
+      readonly legacyChannel: PusherChannel;
+      readonly attempt: number;
+    }
+  | {
+      readonly kind: "waiting-to-retry";
+      readonly retry: CancellableSleep;
+      readonly nextAttempt: number;
+    }
+  | {
+      readonly kind: "subscribed";
+      readonly channel: PusherChannel;
+      readonly legacyChannel: PusherChannel;
+    };
+
 interface ChannelInfo {
   /** Channel slug (username) */
   slug: string;
@@ -205,8 +226,7 @@ interface ChannelInfo {
    *  (which addresses by chatroomId). Distinct from chatroomId — they're
    *  different numbers on most channels. */
   broadcasterUserId?: number;
-  /** Pusher channel subscription (using ReturnType to avoid type conflicts) */
-  pusherChannel?: ReturnType<Pusher["subscribe"]>;
+  subscription: KickSubscription;
 }
 
 type TypedEventEmitter = {
@@ -350,6 +370,9 @@ export class KickChatService
       const staleClient = this.pusher;
       if (staleClient) {
         this.cancelConnectionWaits(staleClient);
+        for (const membership of this.channels.values()) {
+          this.resetTrackedSubscription(membership);
+        }
         staleClient.connection.unbind_all();
         this.disconnectPusherSafe(staleClient);
       }
@@ -379,8 +402,10 @@ export class KickChatService
       }
 
       if (this.pusher === client) {
-        for (const [slug, info] of [...this.channels]) {
-          this.subscribeTrackedChannel(slug, info.chatroomId, info.broadcasterUserId);
+        for (const membership of [...this.channels.values()]) {
+          if (membership.subscription.kind === "idle") {
+            this.subscribeTrackedChannel(membership);
+          }
         }
       }
     } catch (error) {
@@ -490,7 +515,14 @@ export class KickChatService
     this.clearReconnectTimer();
     this.reconnectGeneration += 1;
     const client = this.pusher;
-    if (!client) return;
+    for (const membership of this.channels.values()) {
+      this.resetTrackedSubscription(membership);
+    }
+    if (!client) {
+      this.channels.clear();
+      this.setConnectionState("disconnected");
+      return;
+    }
 
     this.cancelConnectionWaits(client);
 
@@ -601,10 +633,14 @@ export class KickChatService
     this.reconnectAttempts = 0;
 
     const { dropChannel } = useChatStore.getState();
-    for (const channel of this.channels.keys()) {
+    for (const [channel, membership] of this.channels) {
       dropChannel(buildChannelKey("kick", channel));
+      this.resetTrackedSubscription(membership);
     }
     this.channelUsers.clear();
+    this.channels.clear();
+    this.isModerator.clear();
+    this.channelBadges.clear();
 
     const client = this.pusher;
     if (!client) {
@@ -619,25 +655,12 @@ export class KickChatService
       // Unbind ALL connection handlers
       client.connection.unbind_all();
 
-      // unbind_all() drops the per-channel handler closures (local
-      // memory, no socket frame). The matching pusher.unsubscribe()
-      // calls were removed because they raced pusher.disconnect();
-      // the server cleans up channels on socket close.
-      for (const [_slug, info] of this.channels) {
-        if (info.pusherChannel) {
-          info.pusherChannel.unbind_all();
-        }
-      }
-
       this.disconnectPusherSafe(client);
     } catch {
       // Ignore disconnect errors
     }
 
     this.pusher = null;
-    this.channels.clear();
-    this.isModerator.clear();
-    this.channelBadges.clear();
     this.setConnectionState("disconnected");
     this.log("Kick chat service shutdown complete");
 
@@ -690,13 +713,21 @@ export class KickChatService
 
     try {
       this.log(`Subscribing to chatroom ${chatroomId}...`);
-      this.subscribeTrackedChannel(normalizedChannel, chatroomId, broadcasterUserId);
+      const membership: ChannelInfo = {
+        slug: normalizedChannel,
+        chatroomId,
+        broadcasterUserId,
+        subscription: { kind: "idle" },
+      };
+      this.channels.set(normalizedChannel, membership);
+      this.subscribeTrackedChannel(membership);
 
       // NOTE: Channel badges should be set by caller via setChannelBadges()
 
       this.emitConnectionStatus();
       this.log(`Joined channel: ${normalizedChannel} (chatroom: ${chatroomId})`);
     } catch (error) {
+      this.channels.delete(normalizedChannel);
       logger.error("Chat:Kick", "Failed to join channel", {
         channel: normalizedChannel,
         error:
@@ -708,25 +739,145 @@ export class KickChatService
     }
   }
 
-  private subscribeTrackedChannel(
-    channel: string,
-    chatroomId: number,
-    broadcasterUserId?: number
-  ): void {
-    if (!this.pusher) throw new Error("Not connected to Kick Pusher");
+  private subscribeTrackedChannel(membership: ChannelInfo, attempt = 0): void {
+    const client = this.pusher;
+    if (!client) throw new Error("Not connected to Kick Pusher");
 
-    const previous = this.channels.get(channel);
-    previous?.pusherChannel?.unbind_all();
-
-    const pusherChannel = this.pusher.subscribe(`chatrooms.${chatroomId}.v2`);
-    this.pusher.subscribe(`chatrooms.${chatroomId}`);
-    this.channels.set(channel, {
-      slug: channel,
-      chatroomId,
-      broadcasterUserId,
-      pusherChannel,
+    const channel = client.subscribe(`chatrooms.${membership.chatroomId}.v2`);
+    const legacyChannel = client.subscribe(`chatrooms.${membership.chatroomId}`);
+    membership.subscription = {
+      kind: "subscribing",
+      channel,
+      legacyChannel,
+      attempt,
+    };
+    this.setupChannelEventHandlers(channel, membership.slug, membership.chatroomId);
+    channel.bind("pusher:subscription_succeeded", () => {
+      this.handleTrackedSubscriptionSucceeded(membership, client, channel);
     });
-    this.setupChannelEventHandlers(pusherChannel, channel, chatroomId);
+    channel.bind("pusher:subscription_error", (error: unknown) => {
+      this.handleTrackedSubscriptionError(membership, client, channel, error);
+    });
+
+    if (channel.subscribed) {
+      this.handleTrackedSubscriptionSucceeded(membership, client, channel);
+    } else if (!channel.subscriptionPending) {
+      this.handleTrackedSubscriptionError(
+        membership,
+        client,
+        channel,
+        new Error("Kick subscription authorization failed before handlers were installed")
+      );
+    }
+  }
+
+  private handleTrackedSubscriptionSucceeded(
+    membership: ChannelInfo,
+    client: Pusher,
+    channel: PusherChannel
+  ): void {
+    if (this.channels.get(membership.slug) !== membership || this.pusher !== client) return;
+    const subscription = membership.subscription;
+    if (subscription.kind !== "subscribing" || subscription.channel !== channel) return;
+
+    membership.subscription = {
+      kind: "subscribed",
+      channel,
+      legacyChannel: subscription.legacyChannel,
+    };
+    this.emitConnectionStatus();
+    this.log(`Subscription succeeded for ${membership.slug}`);
+  }
+
+  private handleTrackedSubscriptionError(
+    membership: ChannelInfo,
+    client: Pusher,
+    channel: PusherChannel,
+    error: unknown
+  ): void {
+    if (this.channels.get(membership.slug) !== membership || this.pusher !== client) return;
+    const subscription = membership.subscription;
+    if (
+      (subscription.kind !== "subscribing" && subscription.kind !== "subscribed") ||
+      subscription.channel !== channel
+    ) {
+      return;
+    }
+
+    const delay =
+      RECONNECT_DELAYS_MS[
+        Math.min(
+          subscription.kind === "subscribing" ? subscription.attempt : 0,
+          RECONNECT_DELAYS_MS.length - 1
+        )
+      ];
+    const nextAttempt = subscription.kind === "subscribing" ? subscription.attempt + 1 : 1;
+    this.clearInstalledSubscription(membership, client, true);
+    const retry = createCancellableSleep(delay);
+    membership.subscription = {
+      kind: "waiting-to-retry",
+      retry,
+      nextAttempt,
+    };
+    this.emitConnectionStatus();
+    logger.error("Chat:Kick", "Subscription error", {
+      channel: membership.slug,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
+
+    void retry.result.then((result) => {
+      if (!result.ok) return;
+      if (!this.isActive || this.channels.get(membership.slug) !== membership) return;
+      const current = membership.subscription;
+      if (current.kind !== "waiting-to-retry" || current.retry !== retry) return;
+      if (
+        this.pusher !== client ||
+        this.connectionState !== "connected" ||
+        client.connection.state !== "connected"
+      ) {
+        membership.subscription = { kind: "idle" };
+        return;
+      }
+      membership.subscription = { kind: "idle" };
+      this.subscribeTrackedChannel(membership, current.nextAttempt);
+    });
+  }
+
+  private clearInstalledSubscription(
+    membership: ChannelInfo,
+    client: Pusher | null,
+    unsubscribe: boolean
+  ): void {
+    const subscription = membership.subscription;
+    if (subscription.kind !== "subscribing" && subscription.kind !== "subscribed") return;
+
+    subscription.channel.unbind_all();
+    subscription.legacyChannel.unbind_all();
+    if (unsubscribe && client && canSendPusherFrames(client)) {
+      client.unsubscribe(`chatrooms.${membership.chatroomId}.v2`);
+      client.unsubscribe(`chatrooms.${membership.chatroomId}`);
+    }
+  }
+
+  private resetTrackedSubscription(membership: ChannelInfo): void {
+    this.cancelTrackedSubscription(membership, this.pusher, false);
+  }
+
+  private cancelTrackedSubscription(
+    membership: ChannelInfo,
+    client: Pusher | null,
+    unsubscribe: boolean
+  ): void {
+    const subscription = membership.subscription;
+    if (subscription.kind === "waiting-to-retry") {
+      subscription.retry.cancel();
+    } else {
+      this.clearInstalledSubscription(membership, client, unsubscribe);
+    }
+    membership.subscription = { kind: "idle" };
   }
 
   /**
@@ -740,24 +891,7 @@ export class KickChatService
       return;
     }
 
-    if (this.pusher && channelInfo.pusherChannel) {
-      // setupChannelEventHandlers() binds 14 event handlers on the Pusher
-      // channel object. unsubscribe() removes the subscription but Pusher
-      // retains the callbacks in its internal registry, leaking closures
-      // (with references to this, channelSlug, the emitter) on every
-      // channel switch. unbind_all() drops them.
-      channelInfo.pusherChannel.unbind_all();
-
-      // Skip unsubscribe if a concurrent disconnect put the socket in
-      // CLOSING / CLOSED — pusher-js would log "WebSocket is already in
-      // CLOSING or CLOSED state". Server cleans channels up on close.
-      if (!options.skipPusherUnsubscribe && canSendPusherFrames(this.pusher)) {
-        const v2ChannelName = `chatrooms.${channelInfo.chatroomId}.v2`;
-        const baseChannelName = `chatrooms.${channelInfo.chatroomId}`;
-        this.pusher.unsubscribe(v2ChannelName);
-        this.pusher.unsubscribe(baseChannelName);
-      }
-    }
+    this.cancelTrackedSubscription(channelInfo, this.pusher, !options.skipPusherUnsubscribe);
 
     this.channels.delete(normalizedChannel);
     this.isModerator.delete(normalizedChannel);
@@ -874,7 +1008,9 @@ export class KickChatService
     return {
       platform: "kick",
       state: this.connectionState,
-      channels: Array.from(this.channels.keys()),
+      channels: Array.from(this.channels.values())
+        .filter((membership) => membership.subscription.kind === "subscribed")
+        .map((membership) => membership.slug),
       isAuthenticated: this.connectionState === "connected",
     };
   }
@@ -883,7 +1019,7 @@ export class KickChatService
    * Check if connected to a specific channel
    */
   isInChannel(channel: string): boolean {
-    return this.channels.has(this.normalizeChannel(channel));
+    return this.channels.get(this.normalizeChannel(channel))?.subscription.kind === "subscribed";
   }
 
   /**
@@ -995,13 +1131,30 @@ export class KickChatService
   private setupConnectionHandlers(client: Pusher): void {
     client.connection.bind("connected", () => {
       if (this.pusher !== client) return;
+      this.clearReconnectTimer();
       this.log("Pusher connected");
       this.setConnectionState("connected");
       this.reconnectAttempts = 0;
+      for (const membership of this.channels.values()) {
+        if (membership.subscription.kind === "idle") {
+          this.subscribeTrackedChannel(membership);
+        }
+      }
     });
 
     client.connection.bind("disconnected", () => {
       if (this.pusher !== client) return;
+      for (const membership of this.channels.values()) {
+        const subscription = membership.subscription;
+        if (subscription.kind === "subscribed") {
+          membership.subscription = {
+            kind: "subscribing",
+            channel: subscription.channel,
+            legacyChannel: subscription.legacyChannel,
+            attempt: 0,
+          };
+        }
+      }
       this.log("Pusher disconnected");
       this.handleDisconnect();
     });
@@ -1159,21 +1312,6 @@ export class KickChatService
         channelId: String(chatroomId),
         patch,
         reason: "ws",
-      });
-    });
-
-    // Subscription states
-    pusherChannel.bind("pusher:subscription_succeeded", () => {
-      this.log(`Subscription succeeded for ${channelSlug}`);
-    });
-
-    pusherChannel.bind("pusher:subscription_error", (error: unknown) => {
-      logger.error("Chat:Kick", "Subscription error", {
-        channel: channelSlug,
-        error:
-          error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : String(error),
       });
     });
   }

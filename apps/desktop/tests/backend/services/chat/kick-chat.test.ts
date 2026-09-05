@@ -48,7 +48,13 @@ interface InternalChannelInfo {
   slug: string;
   chatroomId: number;
   broadcasterUserId?: number;
-  pusherChannel?: { unbind_all: () => void };
+  subscription:
+    | { kind: "idle" }
+    | {
+        kind: "subscribed";
+        channel: { unbind_all: () => void };
+        legacyChannel: { unbind_all: () => void };
+      };
 }
 
 interface ServiceInternals {
@@ -71,7 +77,7 @@ interface ServiceInternals {
       bind?: (...args: unknown[]) => void;
       unbind?: (...args: unknown[]) => void;
     };
-    subscribe?: (name: string) => { bind: (...args: unknown[]) => void };
+    subscribe?: (name: string) => ReturnType<typeof makeFakePusherChannel>;
     unsubscribe?: (name: string) => void;
   } | null;
   connectionState: string;
@@ -81,6 +87,26 @@ function makeService(): { service: KickChatService; internals: ServiceInternals 
   const service = new KickChatService();
   const internals = service as unknown as ServiceInternals;
   return { service, internals };
+}
+
+function makeInternalChannelInfo(
+  slug: string,
+  chatroomId: number,
+  broadcasterUserId?: number,
+  channel?: { unbind_all: () => void }
+): InternalChannelInfo {
+  return {
+    slug,
+    chatroomId,
+    broadcasterUserId,
+    subscription: channel
+      ? {
+          kind: "subscribed",
+          channel,
+          legacyChannel: { unbind_all: vi.fn() },
+        }
+      : { kind: "idle" },
+  };
 }
 
 function makeChatMessage(id: string, channel: string): ChatMessage {
@@ -125,6 +151,7 @@ afterEach(() => {
 function makeReconnectPusher(initialState: "connected" | "disconnected" | "failed") {
   const handlers = new Map<string, Set<(...args: unknown[]) => void>>();
   const channels = new Map<string, ReturnType<typeof makeFakePusherChannel>>();
+  const synchronousFailures = new Set<string>();
   const pusher = {
     connection: {
       state: initialState,
@@ -141,6 +168,9 @@ function makeReconnectPusher(initialState: "connected" | "disconnected" | "faile
     disconnect: vi.fn(),
     subscribe: vi.fn((name: string) => {
       const channel = makeFakePusherChannel();
+      if (synchronousFailures.delete(name)) {
+        channel.subscriptionPending = false;
+      }
       channels.set(name, channel);
       return channel;
     }),
@@ -159,13 +189,19 @@ function makeReconnectPusher(initialState: "connected" | "disconnected" | "faile
     __getChannel(name: string) {
       return channels.get(name);
     },
+    __failNextSubscriptionSynchronously(name: string) {
+      synchronousFailures.add(name);
+    },
   };
   return pusher;
 }
 
 function makeFakePusherChannel() {
   const handlers = new Map<string, Set<(...args: unknown[]) => void>>();
-  return {
+  const channel = {
+    subscribed: false,
+    subscriptionPending: true,
+    subscriptionCancelled: false,
     bind: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
       const listeners = handlers.get(event) ?? new Set();
       listeners.add(handler);
@@ -173,9 +209,17 @@ function makeFakePusherChannel() {
     }),
     unbind_all: vi.fn(() => handlers.clear()),
     emit(event: string, ...args: unknown[]) {
+      if (event === "pusher:subscription_succeeded") {
+        channel.subscribed = true;
+        channel.subscriptionPending = false;
+      } else if (event === "pusher:subscription_error") {
+        channel.subscribed = false;
+        channel.subscriptionPending = false;
+      }
       for (const listener of handlers.get(event) ?? []) listener(...args);
     },
   };
+  return channel;
 }
 
 describe("KickChatService reconnect lifecycle", () => {
@@ -330,6 +374,9 @@ describe("KickChatService reconnect lifecycle", () => {
 // Guards: a room becomes active only after Pusher acknowledges its current subscription attempt.
 // Guards: leaving or shutting down cancels a failed room's pending retry.
 // Guards: acknowledgements from replaced Pusher channel objects cannot revive stale subscription state.
+// Guards: a room retry that expires offline resumes when the current Pusher client reconnects.
+// Guards: synchronous Pusher authorization failure is observed even when it fires before handlers bind.
+// Guards: the current Pusher channel can acknowledge its automatic resubscription after reconnecting.
 describe("KickChatService room subscription recovery", () => {
   async function connectWith(pusher: ReturnType<typeof makeReconnectPusher>) {
     vi.mocked(Pusher).mockImplementationOnce(function makePusher() {
@@ -352,6 +399,7 @@ describe("KickChatService room subscription recovery", () => {
     await service.joinChannel("flaky", 222, 2);
 
     pusher.__emitChannel("chatrooms.111.v2", "pusher:subscription_succeeded");
+    pusher.__emitChannel("chatrooms.222.v2", "pusher:subscription_succeeded");
     pusher.__emitChannel("chatrooms.222.v2", "pusher:subscription_error", {
       status: 503,
     });
@@ -439,6 +487,54 @@ describe("KickChatService room subscription recovery", () => {
 
     expect(service.getConnectionStatus().channels).toEqual([]);
   });
+
+  it("resumes an expired room retry when the current Pusher client reconnects", async () => {
+    vi.useFakeTimers();
+    const pusher = makeReconnectPusher("disconnected");
+    const service = await connectWith(pusher);
+    await service.joinChannel("flaky", 222, 2);
+    pusher.__emitChannel("chatrooms.222.v2", "pusher:subscription_error", {
+      status: 503,
+    });
+    pusher.connection.state = "disconnected";
+    await vi.advanceTimersByTimeAsync(5_000);
+    pusher.subscribe.mockClear();
+
+    pusher.__emitConnection("connected");
+
+    expect(pusher.subscribe.mock.calls.map(([name]) => name)).toEqual([
+      "chatrooms.222.v2",
+      "chatrooms.222",
+    ]);
+  });
+
+  it("retries when Pusher reports authorization failure before handlers bind", async () => {
+    vi.useFakeTimers();
+    const pusher = makeReconnectPusher("disconnected");
+    pusher.__failNextSubscriptionSynchronously("chatrooms.222.v2");
+    const service = await connectWith(pusher);
+
+    await service.joinChannel("flaky", 222, 2);
+
+    expect(service.getConnectionStatus().channels).toEqual([]);
+    expect(vi.getTimerCount()).toBe(1);
+  });
+
+  it("accepts acknowledgement after the current Pusher client reconnects", async () => {
+    vi.useFakeTimers();
+    const pusher = makeReconnectPusher("disconnected");
+    const service = await connectWith(pusher);
+    await service.joinChannel("flaky", 222, 2);
+    pusher.__emitChannel("chatrooms.222.v2", "pusher:subscription_succeeded");
+
+    pusher.__emitConnection("disconnected");
+    expect(service.getConnectionStatus().channels).toEqual([]);
+    pusher.__emitConnection("connected");
+    pusher.__emitChannel("chatrooms.222.v2", "pusher:subscription_succeeded");
+
+    expect(service.getConnectionStatus().channels).toEqual(["flaky"]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });
 
 describe("KickChatService channel-scoped release eviction", () => {
@@ -446,12 +542,7 @@ describe("KickChatService channel-scoped release eviction", () => {
     const { service, internals } = makeService();
     const channelKey = seedKickBucket("xqc");
     const pusherChannel = { unbind_all: vi.fn() };
-    internals.channels.set("xqc", {
-      slug: "xqc",
-      chatroomId: 1,
-      broadcasterUserId: 2,
-      pusherChannel,
-    });
+    internals.channels.set("xqc", makeInternalChannelInfo("xqc", 1, 2, pusherChannel));
 
     service.acquire("xqc");
     service.acquire("xqc");
@@ -478,12 +569,7 @@ describe("KickChatService channel-scoped release eviction", () => {
       disconnect: vi.fn(),
     };
     (service as unknown as { pusher: typeof pusher }).pusher = pusher;
-    internals.channels.set("xqc", {
-      slug: "xqc",
-      chatroomId: 1,
-      broadcasterUserId: 2,
-      pusherChannel: { unbind_all: vi.fn() },
-    });
+    internals.channels.set("xqc", makeInternalChannelInfo("xqc", 1, 2, { unbind_all: vi.fn() }));
     service.acquire("xqc");
 
     await service.forceShutdown();
@@ -514,11 +600,7 @@ describe("KickChatService.sendMessage", () => {
 
   it("sends the chatroom id and content through the page-context transport", async () => {
     const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", {
-      slug: "ac7ionman",
-      chatroomId: 999_111,
-      broadcasterUserId: 42,
-    });
+    internals.channels.set("ac7ionman", makeInternalChannelInfo("ac7ionman", 999_111, 42));
     await service.sendMessage("ac7ionman", "hello");
     expect(kickChatApi.sendMessage).toHaveBeenCalledWith(999_111, "hello", "ac7ionman");
     const [firstArg] = kickChatApi.sendMessage.mock.calls[0]!;
@@ -527,11 +609,7 @@ describe("KickChatService.sendMessage", () => {
 
   it("rejects the 11th concurrent send before transport while 10 sends are pending", async () => {
     const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", {
-      slug: "ac7ionman",
-      chatroomId: 999_111,
-      broadcasterUserId: 42,
-    });
+    internals.channels.set("ac7ionman", makeInternalChannelInfo("ac7ionman", 999_111, 42));
     const pendingSends: Array<{
       resolve: (result: { ok: true; messageId: string }) => void;
     }> = [];
@@ -556,11 +634,7 @@ describe("KickChatService.sendMessage", () => {
 
   it("restores capacity after a failed send and counts each successful send once", async () => {
     const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", {
-      slug: "ac7ionman",
-      chatroomId: 999_111,
-      broadcasterUserId: 42,
-    });
+    internals.channels.set("ac7ionman", makeInternalChannelInfo("ac7ionman", 999_111, 42));
 
     kickChatApi.sendMessage.mockRejectedValueOnce(new Error("transport failed"));
     await expect(service.sendMessage("ac7ionman", "failed-message")).rejects.toThrow(
@@ -580,11 +654,7 @@ describe("KickChatService.sendMessage", () => {
 
   it("surfaces auth-expired as an actionable error with reconnect hint", async () => {
     const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", {
-      slug: "ac7ionman",
-      chatroomId: 999_111,
-      broadcasterUserId: 42,
-    });
+    internals.channels.set("ac7ionman", makeInternalChannelInfo("ac7ionman", 999_111, 42));
     kickChatApi.sendMessage.mockResolvedValueOnce({
       ok: false,
       kind: "auth-expired",
@@ -595,11 +665,7 @@ describe("KickChatService.sendMessage", () => {
 
   it("optimistic echo uses pre-rendered fragments when provided (emote images, not raw text)", async () => {
     const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", {
-      slug: "ac7ionman",
-      chatroomId: 999_111,
-      broadcasterUserId: 42,
-    });
+    internals.channels.set("ac7ionman", makeInternalChannelInfo("ac7ionman", 999_111, 42));
     const messages: ChatMessage[] = [];
     service.on("message", (m) => messages.push(m));
     const fragments = [
@@ -628,11 +694,7 @@ describe("KickChatService.sendMessage", () => {
   // Guards: local Kick reply echoes must render with the same replyTo row as incoming Kick/Twitch replies.
   it("optimistic echo includes local reply metadata when provided", async () => {
     const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", {
-      slug: "ac7ionman",
-      chatroomId: 999_111,
-      broadcasterUserId: 42,
-    });
+    internals.channels.set("ac7ionman", makeInternalChannelInfo("ac7ionman", 999_111, 42));
     const messages: ChatMessage[] = [];
     service.on("message", (m) => messages.push(m));
     const replyTo = {
@@ -660,11 +722,7 @@ describe("KickChatService.sendMessage", () => {
 
   it("optimistic echo falls back to a single text fragment when fragments are omitted", async () => {
     const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", {
-      slug: "ac7ionman",
-      chatroomId: 999_111,
-      broadcasterUserId: 42,
-    });
+    internals.channels.set("ac7ionman", makeInternalChannelInfo("ac7ionman", 999_111, 42));
     const messages: ChatMessage[] = [];
     service.on("message", (m) => messages.push(m));
     await service.sendMessage("ac7ionman", "hi", { id: 7, username: "me", slug: "me" });
@@ -674,11 +732,7 @@ describe("KickChatService.sendMessage", () => {
 
   it("optimistic echo uses a deterministic username color and marks its provenance", async () => {
     const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", {
-      slug: "ac7ionman",
-      chatroomId: 999_111,
-      broadcasterUserId: 42,
-    });
+    internals.channels.set("ac7ionman", makeInternalChannelInfo("ac7ionman", 999_111, 42));
     const messages: ChatMessage[] = [];
     service.on("message", (message) => messages.push(message));
 
@@ -692,11 +746,7 @@ describe("KickChatService.sendMessage", () => {
 
   it("optimistic echo reuses authoritative Pusher color even when the sender has no badges", async () => {
     const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", {
-      slug: "ac7ionman",
-      chatroomId: 999_111,
-      broadcasterUserId: 42,
-    });
+    internals.channels.set("ac7ionman", makeInternalChannelInfo("ac7ionman", 999_111, 42));
     const messages: ChatMessage[] = [];
     service.on("message", (message) => messages.push(message));
     internals.handleChatMessage(
@@ -723,11 +773,7 @@ describe("KickChatService.sendMessage", () => {
 
   it("optimistic echo does not synthesize a moderator badge for the signed-in Kick user", async () => {
     const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", {
-      slug: "ac7ionman",
-      chatroomId: 999_111,
-      broadcasterUserId: 42,
-    });
+    internals.channels.set("ac7ionman", makeInternalChannelInfo("ac7ionman", 999_111, 42));
     const messages: ChatMessage[] = [];
     service.on("message", (m) => messages.push(m));
 
@@ -747,11 +793,7 @@ describe("KickChatService.sendMessage", () => {
 
   it("optimistic echo strips stale cached moderator badges but keeps ordinary badges", async () => {
     const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", {
-      slug: "ac7ionman",
-      chatroomId: 999_111,
-      broadcasterUserId: 42,
-    });
+    internals.channels.set("ac7ionman", makeInternalChannelInfo("ac7ionman", 999_111, 42));
     const messages: ChatMessage[] = [];
     service.on("message", (m) => messages.push(m));
     const cachedPresentation = new Map<
@@ -788,11 +830,7 @@ describe("KickChatService.sendMessage", () => {
 
   it("incoming broadcaster messages drop Kick moderator badges before rendering and caching", () => {
     const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", {
-      slug: "ac7ionman",
-      chatroomId: 999_111,
-      broadcasterUserId: 7,
-    });
+    internals.channels.set("ac7ionman", makeInternalChannelInfo("ac7ionman", 999_111, 7));
     const messages: ChatMessage[] = [];
     service.on("message", (m) => messages.push(m));
     const event: KickChatMessageEvent = {
@@ -833,11 +871,7 @@ describe("KickChatService.sendMessage", () => {
 
   it("surfaces rate-limited cleanly", async () => {
     const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", {
-      slug: "ac7ionman",
-      chatroomId: 999_111,
-      broadcasterUserId: 42,
-    });
+    internals.channels.set("ac7ionman", makeInternalChannelInfo("ac7ionman", 999_111, 42));
     kickChatApi.sendMessage.mockResolvedValueOnce({
       ok: false,
       kind: "rate-limited",
@@ -861,7 +895,7 @@ describe("KickChatService send-window retention", () => {
     const { service, internals } = makeService();
     internals.pusher = {
       connection: { state: "connected" },
-      subscribe: vi.fn(() => ({ bind: vi.fn() })),
+      subscribe: vi.fn(() => makeFakePusherChannel()),
     };
     internals.connectionState = "connected";
     await service.joinChannel("ac7ionman", 999_111, 42);
@@ -894,11 +928,7 @@ describe("KickChatService send-window retention", () => {
 
   it("leaveChannel does not release composer-owned send-window retention", async () => {
     const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", {
-      slug: "ac7ionman",
-      chatroomId: 999_111,
-      broadcasterUserId: 42,
-    });
+    internals.channels.set("ac7ionman", makeInternalChannelInfo("ac7ionman", 999_111, 42));
     internals.pusher = {
       connection: { state: "connected" },
       unsubscribe: vi.fn(),
@@ -910,12 +940,8 @@ describe("KickChatService send-window retention", () => {
 
   it("leaveChannel that leaves other channels active does NOT dispose", async () => {
     const { service, internals } = makeService();
-    internals.channels.set("ac7ionman", {
-      slug: "ac7ionman",
-      chatroomId: 999_111,
-      broadcasterUserId: 42,
-    });
-    internals.channels.set("xqc", { slug: "xqc", chatroomId: 1, broadcasterUserId: 2 });
+    internals.channels.set("ac7ionman", makeInternalChannelInfo("ac7ionman", 999_111, 42));
+    internals.channels.set("xqc", makeInternalChannelInfo("xqc", 1, 2));
     internals.pusher = {
       connection: { state: "connected" },
       unsubscribe: vi.fn(),
@@ -987,12 +1013,10 @@ describe("KickChatService teardown does not race the Pusher socket close", () =>
     chatroomId: number,
     pusherChannel: { unbind_all: () => void }
   ): void {
-    internals.channels.set(slug, {
+    internals.channels.set(
       slug,
-      chatroomId,
-      broadcasterUserId: chatroomId + 1,
-      pusherChannel,
-    });
+      makeInternalChannelInfo(slug, chatroomId, chatroomId + 1, pusherChannel)
+    );
   }
 
   it.each(["disconnect", "forceShutdown"] as const)(
