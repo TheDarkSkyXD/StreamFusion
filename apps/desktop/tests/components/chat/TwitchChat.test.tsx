@@ -380,6 +380,8 @@ const fakePrediction = {
 // Guards: Twitch singleton message events from a previous channel are ignored after route-switch so old channel badges/messages cannot leak into the new channel bucket.
 // Guards: Twitch chat force-refreshes the active channel's badge catalog so custom subscriber badge updates appear without restarting the app.
 // Guards: restored Twitch sessions hand IRC the guarded token bridge at startup and re-query it before reconnecting, without publishing chat.
+// Guards: Twitch auth changes replace transport identity without rejoining only the visible room.
+// Guards: an incomplete authenticated Twitch identity falls back to anonymous chat instead of leaving the shared service disconnected.
 // Guards: anonymous Twitch chat loads non-forced global emotes before joining so the guest quick-emote row is populated.
 // Guards: Twitch channel.moderate delete notifications attach the deleting moderator to retained deleted-message rows; IRC CLEARMSG alone cannot provide that actor.
 // Guards: the full-width composer footer paints above the message scroller so chat text cannot show behind its quick-emote row or padding.
@@ -505,6 +507,7 @@ describe("TwitchChat", () => {
     mockModScopes.loading = false;
     promptReconnectMock.mockReset();
     vi.mocked(twitchChatService.connect).mockClear();
+    vi.mocked(twitchChatService.disconnect).mockClear();
     vi.mocked(twitchChatService.sendMessage).mockClear();
     vi.mocked(twitchChatService.sendAction).mockClear();
     vi.mocked(twitchChatService.leaveChannel).mockClear();
@@ -826,6 +829,62 @@ describe("TwitchChat", () => {
     await expect(tokenFetcher()).resolves.toBe(restoredAccessToken);
     expect(api.auth.getValidTwitchToken).toHaveBeenCalledTimes(2);
     expect(twitchChatService.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("replaces Twitch identity without rejoining only the visible channel", async () => {
+    const api = installElectronAPIMock();
+    const restoredUser: Awaited<ReturnType<typeof api.auth.getTwitchUser>> = {
+      id: "restored-user-id",
+      login: "restored_login",
+      displayName: "Restored User",
+      profileImageUrl: "",
+      createdAt: "2020-01-01T00:00:00.000Z",
+      broadcasterType: "",
+    };
+    const view = render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    await waitFor(() =>
+      expect(twitchChatService.joinChannel).toHaveBeenCalledWith("ninja", "ninja-id")
+    );
+    vi.mocked(twitchChatService.connect).mockClear();
+    vi.mocked(twitchChatService.disconnect).mockClear();
+    vi.mocked(twitchChatService.joinChannel).mockClear();
+    api.auth.getValidTwitchToken = vi.fn(async () => "restored-token");
+    api.auth.getTwitchUser = vi.fn<typeof api.auth.getTwitchUser>(async () => restoredUser);
+
+    mockAuthState.twitchConnected = true;
+    view.rerender(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+    await waitFor(() => expect(twitchChatService.disconnect).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(twitchChatService.connect).toHaveBeenCalledWith(
+        expect.objectContaining({ accessToken: "restored-token", user: restoredUser })
+      )
+    );
+    expect(twitchChatService.joinChannel).not.toHaveBeenCalled();
+  });
+
+  it("falls back to anonymous Twitch chat when restored identity is incomplete", async () => {
+    const api = installElectronAPIMock();
+    const view = render(<TwitchChat channel="ninja" channelId="ninja-id" />);
+    await waitFor(() =>
+      expect(twitchChatService.joinChannel).toHaveBeenCalledWith("ninja", "ninja-id")
+    );
+    vi.mocked(twitchChatService.connect).mockClear();
+    vi.mocked(twitchChatService.disconnect).mockClear();
+    vi.mocked(twitchChatService.joinChannel).mockClear();
+    api.auth.getValidTwitchToken = vi.fn(async () => null);
+    api.auth.getTwitchUser = vi.fn(async () => null);
+
+    mockAuthState.twitchConnected = true;
+    view.rerender(<TwitchChat channel="ninja" channelId="ninja-id" />);
+
+    await waitFor(() => expect(api.auth.getTwitchUser).toHaveBeenCalledOnce());
+    expect(twitchChatService.disconnect).toHaveBeenCalledOnce();
+    expect(twitchChatService.connect).toHaveBeenCalledWith({
+      anonymous: true,
+      debug: false,
+    });
+    expect(twitchChatService.joinChannel).not.toHaveBeenCalled();
   });
 
   it("force-refreshes active Twitch channel badges on an interval", () => {

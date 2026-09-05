@@ -279,6 +279,7 @@ function renderKickChat(ui: ReactElement, queryClient?: QueryClient) {
 // Guards: persisted Kick history restoration finishes before connection markers or remote history can mutate the channel bucket.
 // Guards: history that resolves after a channel switch cannot mutate the prior channel's messages, pin, or moderator state.
 // Guards: unavailable recent history cannot disconnect or withhold live Kick chat.
+// Guards: Kick auth changes update composer identity without resetting the public chat socket or its rooms.
 // Guards: viewers still observe ban UI without writing moderator-only history records.
 // Guards: Kick slash commands keep official moderation execution and local-only notices wired through the composer.
 describe("KickChat", () => {
@@ -338,6 +339,7 @@ describe("KickChat", () => {
     primePersistedChatHistoryIntentAsyncMock.mockResolvedValue(false);
     savePersistedChatHistoryMock.mockClear();
     vi.mocked(kickChatService.connect).mockClear();
+    vi.mocked(kickChatService.disconnect).mockClear();
     vi.mocked(kickChatService.joinChannel).mockClear();
     vi.mocked(kickChatService.acquireSendWindowRetention).mockClear();
     vi.mocked(kickChatService.releaseSendWindowRetention).mockClear();
@@ -365,6 +367,37 @@ describe("KickChat", () => {
     renderKickChat(<KickChat channel="xqc" chatroomId={12345} />);
     expect(screen.getByTestId("message-list")).toBeInTheDocument();
     expect(screen.getByTestId("chat-input")).toBeInTheDocument();
+  });
+
+  it("does not reset public Kick chat when auth changes", async () => {
+    const view = renderKickChat(
+      <KickChat channel="xqc" channelId="411439" kickChannelId="668" chatroomId={12345} />
+    );
+    await waitFor(() =>
+      expect(kickChatService.joinChannel).toHaveBeenCalledWith("xqc", 12345, 411439)
+    );
+    vi.mocked(kickChatService.connect).mockClear();
+    vi.mocked(kickChatService.disconnect).mockClear();
+    vi.mocked(kickChatService.joinChannel).mockClear();
+
+    await act(async () => {
+      mockAuthState.kickConnected = true;
+      view.rerender(
+        <KickChat channel="xqc" channelId="411439" kickChannelId="668" chatroomId={12345} />
+      );
+      await Promise.resolve();
+    });
+    await act(async () => {
+      mockAuthState.kickConnected = false;
+      view.rerender(
+        <KickChat channel="xqc" channelId="411439" kickChannelId="668" chatroomId={12345} />
+      );
+      await Promise.resolve();
+    });
+
+    expect(kickChatService.disconnect).not.toHaveBeenCalled();
+    expect(kickChatService.connect).not.toHaveBeenCalled();
+    expect(kickChatService.joinChannel).not.toHaveBeenCalled();
   });
 
   it("exposes Partner commands only to the signed-in owner of a Partner channel", () => {
