@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import type tmi from "tmi.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // vi.mock is hoisted above imports, so the client constructor it references must
@@ -83,6 +84,8 @@ function makeFakeTmiClient(): typeof fakeClient {
 // Guards: a rapid remount waits for final-release teardown before opening its replacement Twitch connection.
 // Guards: concurrent soft and hard shutdown calls share one physical Twitch disconnect.
 // Guards: soft and final teardown do not ask tmi.js to disconnect a socket that is already closed.
+// Guards: a null token refresh falls back to anonymous recovery without dropping tracked Twitch rooms.
+// Guards: a successful token refresh uses the new credential while recovering every tracked Twitch room.
 describe("TwitchChatService connect() single-flight", () => {
   beforeEach(() => {
     fakeClient = Object.assign(new EventEmitter(), {
@@ -115,6 +118,56 @@ describe("TwitchChatService connect() single-flight", () => {
       pausedChannels: new Set(),
     });
   });
+
+  async function reconnectAfterRefresh(token: string | null) {
+    vi.useFakeTimers();
+    const tokenFetcher = vi.fn(async () => token);
+    const identities: Array<tmi.Options["identity"]> = [];
+    const replacementClient = Object.assign(new EventEmitter(), {
+      connect: vi.fn(() => Promise.resolve(["irc-ws.chat.twitch.tv", 443])),
+      disconnect: vi.fn(() => Promise.resolve()),
+      readyState: vi.fn(() => "OPEN" as const),
+      join: vi.fn((channel: string) => Promise.resolve([`#${channel}`])),
+    });
+    ClientCtor.mockImplementation(function createTransport(options: tmi.Options) {
+      identities.push(options.identity);
+      return identities.length === 1 ? fakeClient : replacementClient;
+    });
+
+    const service = new TwitchChatService();
+    service.on("error", () => {});
+    const opening = service.connect({
+      accessToken: "original-token",
+      tokenFetcher,
+      user: {
+        id: "user-1",
+        login: "tester",
+        displayName: "Tester",
+        profileImageUrl: "",
+        createdAt: "",
+        broadcasterType: "",
+      },
+    });
+    fakeClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await opening;
+    await service.joinChannel("first-channel");
+    await service.joinChannel("second-channel");
+
+    fakeClient.emit("disconnected", "network unavailable");
+    await vi.advanceTimersByTimeAsync(5_000);
+    replacementClient.emit("connected", "irc-ws.chat.twitch.tv", 443);
+    await vi.advanceTimersByTimeAsync(0);
+
+    const replacementIdentity = identities[1];
+    return {
+      identitySupplied: replacementIdentity !== undefined,
+      usedRefreshedToken: replacementIdentity?.password === "oauth:refreshed-token",
+      isAuthenticated: service.getConnectionStatus().isAuthenticated,
+      channels: service.getConnectionStatus().channels,
+      joinedChannels: replacementClient.join.mock.calls.map(([channel]) => channel),
+      refreshCalls: tokenFetcher.mock.calls.length,
+    };
+  }
 
   it("a concurrent second connect() rides the in-flight attempt instead of building a competing client", async () => {
     vi.useFakeTimers();
@@ -253,6 +306,32 @@ describe("TwitchChatService connect() single-flight", () => {
     expect(ClientCtor).toHaveBeenCalledTimes(1);
     expect(service.isServiceActive()).toBe(false);
     expect(service.getConnectionStatus().state).toBe("disconnected");
+  });
+
+  it("uses a refreshed token while recovering every tracked channel", async () => {
+    const observed = await reconnectAfterRefresh("refreshed-token");
+
+    expect(observed).toEqual({
+      identitySupplied: true,
+      usedRefreshedToken: true,
+      isAuthenticated: true,
+      channels: ["first-channel", "second-channel"],
+      joinedChannels: ["first-channel", "second-channel"],
+      refreshCalls: 1,
+    });
+  });
+
+  it("falls back to anonymous recovery when token refresh returns null", async () => {
+    const observed = await reconnectAfterRefresh(null);
+
+    expect(observed).toEqual({
+      identitySupplied: false,
+      usedRefreshedToken: false,
+      isAuthenticated: false,
+      channels: ["first-channel", "second-channel"],
+      joinedChannels: ["first-channel", "second-channel"],
+      refreshCalls: 1,
+    });
   });
 
   // Guards: replacement Twitch sockets must rejoin every desired IRC channel retained across an outage.
