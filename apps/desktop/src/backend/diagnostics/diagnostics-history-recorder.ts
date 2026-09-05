@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { existsSync, statSync } from "node:fs";
 
+import { historyRangePreset } from "../../shared/diagnostics-types";
 import type {
   CollectionGap,
   DiagnosticsActivityReport,
@@ -19,6 +20,8 @@ import type {
 
 const RAW_RETENTION_MS = 60 * 60_000;
 const MINUTE_RETENTION_MS = 7 * 24 * 60 * 60_000;
+const HOUR_RETENTION_MS = 90 * 24 * 60 * 60_000;
+const HOUR_MS = 60 * 60_000;
 const MAX_STORAGE_BYTES = 64 * 1024 * 1024;
 const MAX_CONTRIBUTORS = 8;
 const MAX_CONTEXT_ROWS = 12;
@@ -71,17 +74,16 @@ function minuteAt(atMs: number): number {
   return Math.floor(atMs / 60_000) * 60_000;
 }
 
-function historyRangeMs(range: DiagnosticsHistoryQuery["range"]): number {
-  return range === "1h" ? 60 * 60_000 : range === "24h" ? 24 * 60 * 60_000 : MINUTE_RETENTION_MS;
+function hourAt(atMs: number): number {
+  return Math.floor(atMs / HOUR_MS) * HOUR_MS;
 }
 
-function resolutionFor(range: DiagnosticsHistoryQuery["range"]): {
-  readonly name: "raw" | "5m" | "30m";
-  readonly bucketMs: number;
-} {
-  if (range === "1h") return { name: "raw", bucketMs: 10_000 };
-  if (range === "24h") return { name: "5m", bucketMs: 5 * 60_000 };
-  return { name: "30m", bucketMs: 30 * 60_000 };
+type ResourceSummaryTable = "resource_raw" | "resource_minute" | "resource_hour";
+
+function summaryResolution(table: ResourceSummaryTable): "raw" | "minute" | "hour" {
+  if (table === "resource_raw") return "raw";
+  if (table === "resource_minute") return "minute";
+  return "hour";
 }
 
 function finite(value: number): number {
@@ -104,6 +106,7 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
   #lastMemoryBytes: number | null = null;
   #lastCpuPercent: number | null = null;
   #lastObservedAtMs: number | null = null;
+  #startedAtMs = 0;
   #lastPrunedAtMs = 0;
   #memoryBaseline: { atMs: number; bytes: number } | null = null;
   readonly #incidentTimes = new Map<string, number>();
@@ -125,6 +128,7 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
 
   start(instanceId: string, atMs: number): void {
     this.#instanceId = instanceId;
+    this.#startedAtMs = atMs;
     let openedDatabase: Database.Database | null = null;
     try {
       const db = new Database(this.#path);
@@ -144,25 +148,48 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
         CREATE TABLE IF NOT EXISTS activity_raw (observed_at_ms INTEGER NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL, count INTEGER NOT NULL, failures INTEGER NOT NULL, PRIMARY KEY(observed_at_ms, name));
         CREATE TABLE IF NOT EXISTS renderer_evidence (observed_at_ms INTEGER PRIMARY KEY, route TEXT NOT NULL, heap_used_bytes INTEGER, dom_node_count INTEGER NOT NULL, chat_events INTEGER NOT NULL, active_stream_slots INTEGER NOT NULL, active_video_elements INTEGER NOT NULL);
         CREATE TABLE IF NOT EXISTS resource_minute (started_at_ms INTEGER PRIMARY KEY, cpu_sum REAL NOT NULL, resident_sum REAL NOT NULL, sample_count INTEGER NOT NULL, observed_duration_ms INTEGER NOT NULL, gap_duration_ms INTEGER NOT NULL, maximum_cpu REAL NOT NULL, maximum_cpu_at_ms INTEGER NOT NULL, maximum_resident_bytes INTEGER NOT NULL, maximum_resident_at_ms INTEGER NOT NULL, first_observed_at_ms INTEGER NOT NULL, last_observed_at_ms INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS resource_hour (started_at_ms INTEGER PRIMARY KEY, cpu_sum REAL NOT NULL, resident_sum REAL NOT NULL, sample_count INTEGER NOT NULL, observed_duration_ms INTEGER NOT NULL, gap_duration_ms INTEGER NOT NULL, maximum_cpu REAL NOT NULL, maximum_cpu_at_ms INTEGER NOT NULL, maximum_resident_bytes INTEGER NOT NULL, maximum_resident_at_ms INTEGER NOT NULL, first_observed_at_ms INTEGER NOT NULL, last_observed_at_ms INTEGER NOT NULL);
         CREATE TABLE IF NOT EXISTS minute_contributor (started_at_ms INTEGER NOT NULL, observation_id TEXT NOT NULL, pid INTEGER NOT NULL, started_process_at_ms INTEGER NOT NULL, display_name TEXT NOT NULL, category TEXT NOT NULL, first_observed_at_ms INTEGER NOT NULL, last_observed_at_ms INTEGER NOT NULL, cpu_sum REAL NOT NULL, sample_count INTEGER NOT NULL, maximum_cpu REAL NOT NULL, maximum_cpu_at_ms INTEGER NOT NULL, first_resident_bytes INTEGER NOT NULL, last_resident_bytes INTEGER NOT NULL, maximum_resident_bytes INTEGER NOT NULL, maximum_resident_at_ms INTEGER NOT NULL, PRIMARY KEY(started_at_ms, observation_id));
+        CREATE TABLE IF NOT EXISTS hour_contributor (started_at_ms INTEGER NOT NULL, observation_id TEXT NOT NULL, pid INTEGER NOT NULL, started_process_at_ms INTEGER NOT NULL, display_name TEXT NOT NULL, category TEXT NOT NULL, first_observed_at_ms INTEGER NOT NULL, last_observed_at_ms INTEGER NOT NULL, cpu_sum REAL NOT NULL, sample_count INTEGER NOT NULL, maximum_cpu REAL NOT NULL, maximum_cpu_at_ms INTEGER NOT NULL, first_resident_bytes INTEGER NOT NULL, last_resident_bytes INTEGER NOT NULL, maximum_resident_bytes INTEGER NOT NULL, maximum_resident_at_ms INTEGER NOT NULL, PRIMARY KEY(started_at_ms, observation_id));
         CREATE TABLE IF NOT EXISTS activity_minute (started_at_ms INTEGER NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL, first_observed_at_ms INTEGER NOT NULL, last_observed_at_ms INTEGER NOT NULL, count INTEGER NOT NULL, failures INTEGER NOT NULL, PRIMARY KEY(started_at_ms, name));
+        CREATE TABLE IF NOT EXISTS activity_hour (started_at_ms INTEGER NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL, first_observed_at_ms INTEGER NOT NULL, last_observed_at_ms INTEGER NOT NULL, count INTEGER NOT NULL, failures INTEGER NOT NULL, PRIMARY KEY(started_at_ms, name));
+        CREATE TABLE IF NOT EXISTS renderer_hour (started_at_ms INTEGER PRIMARY KEY, observed_at_ms INTEGER NOT NULL, route TEXT NOT NULL, heap_used_bytes INTEGER, dom_node_count INTEGER NOT NULL, chat_events INTEGER NOT NULL, active_stream_slots INTEGER NOT NULL, active_video_elements INTEGER NOT NULL);
         CREATE TABLE IF NOT EXISTS process_instance (observation_id TEXT PRIMARY KEY, pid INTEGER NOT NULL, started_at_ms INTEGER NOT NULL, display_name TEXT NOT NULL, category TEXT NOT NULL, first_observed_at_ms INTEGER NOT NULL, last_observed_at_ms INTEGER NOT NULL, exited_at_ms INTEGER);
         CREATE TABLE IF NOT EXISTS collection_gap (started_at_ms INTEGER NOT NULL, ended_at_ms INTEGER NOT NULL, cause TEXT NOT NULL, sources TEXT NOT NULL, PRIMARY KEY(started_at_ms, ended_at_ms));
         CREATE TABLE IF NOT EXISTS incident (incident_id TEXT PRIMARY KEY, kind TEXT NOT NULL, observed_at_ms INTEGER NOT NULL, label TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS resource_raw_at ON resource_raw(observed_at_ms);
         CREATE INDEX IF NOT EXISTS resource_minute_at ON resource_minute(started_at_ms);
+        CREATE INDEX IF NOT EXISTS resource_hour_at ON resource_hour(started_at_ms);
         CREATE INDEX IF NOT EXISTS raw_contributor_at ON raw_contributor(observed_at_ms);
         CREATE INDEX IF NOT EXISTS minute_contributor_at ON minute_contributor(started_at_ms);
+        CREATE INDEX IF NOT EXISTS hour_contributor_at ON hour_contributor(started_at_ms);
         CREATE INDEX IF NOT EXISTS activity_raw_at ON activity_raw(observed_at_ms);
         CREATE INDEX IF NOT EXISTS activity_minute_at ON activity_minute(started_at_ms);
+        CREATE INDEX IF NOT EXISTS activity_hour_at ON activity_hour(started_at_ms);
         CREATE INDEX IF NOT EXISTS process_instance_at ON process_instance(last_observed_at_ms);
         CREATE INDEX IF NOT EXISTS incident_at ON incident(observed_at_ms);
       `);
+      this.#backfillHourlySummaries(db);
+      const priorSession = this.#prepare(
+        db,
+        `SELECT instance_id instanceId, stopped_at_ms stoppedAtMs, clean,
+          (SELECT MAX(last_observed_at_ms) FROM resource_minute
+            WHERE last_observed_at_ms >= runtime_instance.started_at_ms) lastObservedAtMs
+        FROM runtime_instance WHERE instance_id <> ?
+        ORDER BY COALESCE(stopped_at_ms, lastObservedAtMs, started_at_ms) DESC LIMIT 1`
+      ).get(instanceId) as
+        | {
+            instanceId: string;
+            stoppedAtMs: number | null;
+            clean: number | null;
+            lastObservedAtMs: number | null;
+          }
+        | undefined;
       const uncleanInstances = asRows<{ instanceId: string }>(
         this.#prepare(
           db,
-          "SELECT instance_id instanceId FROM runtime_instance WHERE stopped_at_ms IS NULL"
-        ).all()
+          "SELECT instance_id instanceId FROM runtime_instance WHERE stopped_at_ms IS NULL AND instance_id <> ?"
+        ).all(instanceId)
       );
       this.#prepare(
         db,
@@ -176,9 +203,23 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
           "Previous app session ended unexpectedly"
         );
       }
+      const previousEndedAtMs =
+        priorSession?.clean === 1 ? priorSession.stoppedAtMs : priorSession?.lastObservedAtMs;
+      if (
+        previousEndedAtMs !== null &&
+        previousEndedAtMs !== undefined &&
+        previousEndedAtMs < atMs
+      ) {
+        this.#prepare(db, "INSERT OR IGNORE INTO collection_gap VALUES (?, ?, ?, ?)").run(
+          previousEndedAtMs,
+          atMs,
+          "app-closed",
+          JSON.stringify(["collector"])
+        );
+      }
       this.#prepare(
         db,
-        "INSERT OR REPLACE INTO runtime_instance(instance_id, started_at_ms, stopped_at_ms, clean) VALUES (?, ?, NULL, NULL)"
+        "INSERT OR IGNORE INTO runtime_instance(instance_id, started_at_ms, stopped_at_ms, clean) VALUES (?, ?, NULL, NULL)"
       ).run(instanceId, atMs);
       this.#db = db;
       this.#lastObservedAtMs = (
@@ -229,9 +270,13 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
           sample.point.processCount,
           durationMs
         );
-        this.#prepare(
-          db,
-          `INSERT INTO resource_minute VALUES (?,
+        for (const aggregate of [
+          { table: "resource_minute", startedAtMs },
+          { table: "resource_hour", startedAtMs: hourAt(sample.observedAtMs) },
+        ] as const) {
+          this.#prepare(
+            db,
+            `INSERT INTO ${aggregate.table} VALUES (?,
           ?,
           ?,
           1,
@@ -258,18 +303,19 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
           excluded.first_observed_at_ms),
           last_observed_at_ms = MAX(last_observed_at_ms,
           excluded.last_observed_at_ms)`
-        ).run(
-          startedAtMs,
-          finite(sample.point.cpuPercent),
-          finite(sample.point.residentMemoryBytes),
-          durationMs,
-          finite(sample.point.cpuPercent),
-          sample.observedAtMs,
-          finite(sample.point.residentMemoryBytes),
-          sample.observedAtMs,
-          sample.observedAtMs,
-          sample.observedAtMs
-        );
+          ).run(
+            aggregate.startedAtMs,
+            finite(sample.point.cpuPercent),
+            finite(sample.point.residentMemoryBytes),
+            durationMs,
+            finite(sample.point.cpuPercent),
+            sample.observedAtMs,
+            finite(sample.point.residentMemoryBytes),
+            sample.observedAtMs,
+            sample.observedAtMs,
+            sample.observedAtMs
+          );
+        }
         const byCpu = [...sample.processes].sort(
           (left, right) => right.currentCpuPercent - left.currentCpuPercent
         );
@@ -298,9 +344,13 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
             finite(process.currentCpuPercent),
             finite(process.residentBytes)
           );
-          this.#prepare(
-            db,
-            `INSERT INTO minute_contributor VALUES (?,
+          for (const aggregate of [
+            { table: "minute_contributor", startedAtMs },
+            { table: "hour_contributor", startedAtMs: hourAt(sample.observedAtMs) },
+          ] as const) {
+            this.#prepare(
+              db,
+              `INSERT INTO ${aggregate.table} VALUES (?,
           ?,
           ?,
           ?,
@@ -328,23 +378,24 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
           maximum_resident_bytes = MAX(maximum_resident_bytes,
           excluded.maximum_resident_bytes),
           maximum_resident_at_ms = CASE WHEN excluded.maximum_resident_bytes >= maximum_resident_bytes THEN excluded.maximum_resident_at_ms ELSE maximum_resident_at_ms END`
-          ).run(
-            startedAtMs,
-            process.observationId,
-            process.pid,
-            process.startedAtMs,
-            process.displayName,
-            process.category,
-            sample.observedAtMs,
-            sample.observedAtMs,
-            finite(process.currentCpuPercent),
-            finite(process.currentCpuPercent),
-            sample.observedAtMs,
-            finite(process.residentBytes),
-            finite(process.residentBytes),
-            finite(process.residentBytes),
-            sample.observedAtMs
-          );
+            ).run(
+              aggregate.startedAtMs,
+              process.observationId,
+              process.pid,
+              process.startedAtMs,
+              process.displayName,
+              process.category,
+              sample.observedAtMs,
+              sample.observedAtMs,
+              finite(process.currentCpuPercent),
+              finite(process.currentCpuPercent),
+              sample.observedAtMs,
+              finite(process.residentBytes),
+              finite(process.residentBytes),
+              finite(process.residentBytes),
+              sample.observedAtMs
+            );
+          }
           this.#prepare(
             db,
             `INSERT INTO process_instance VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
@@ -387,7 +438,8 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
             "UPDATE process_instance SET exited_at_ms = ? WHERE exited_at_ms IS NULL"
           ).run(sample.observedAtMs);
         }
-        if (sample.activity) this.#writeActivity(db, sample.activity, startedAtMs);
+        if (sample.activity)
+          this.#writeActivity(db, sample.activity, startedAtMs, hourAt(sample.observedAtMs));
         for (const gap of sample.gaps)
           this.#prepare(db, "INSERT OR IGNORE INTO collection_gap VALUES (?, ?, ?, ?)").run(
             gap.startedAtMs,
@@ -409,13 +461,15 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
 
   queryHistory(query: Omit<DiagnosticsHistoryQuery, "leaseId">): DiagnosticsHistorySeries {
     const db = this.#db;
-    const rangeMs = historyRangeMs(query.range);
-    const requested = { startAtMs: Math.max(0, query.endAtMs - rangeMs), endAtMs: query.endAtMs };
-    const { name: configuredResolution, bucketMs } = resolutionFor(query.range);
+    const preset = historyRangePreset(query.range);
+    const requested = {
+      startAtMs: Math.max(0, query.endAtMs - preset.durationMs),
+      endAtMs: query.endAtMs,
+    };
     if (!db)
       return {
         range: query.range,
-        resolution: configuredResolution,
+        resolution: preset.resolution,
         requested,
         available: { oldestAtMs: null, newestAtMs: null },
         recorder: this.#publicState(),
@@ -424,27 +478,52 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
         gaps: [],
       };
     try {
-      const rawCutoff = (this.#lastObservedAtMs ?? query.endAtMs) - RAW_RETENTION_MS;
-      const olderSummary = this.#prepare(
-        db,
-        "SELECT 1 FROM resource_minute WHERE started_at_ms >= ? AND started_at_ms + 60000 <= ? LIMIT 1"
-      ).get(minuteAt(requested.startAtMs), rawCutoff);
-      const useMinuteFallback = query.range === "1h" && olderSummary !== undefined;
-      const table = query.range === "1h" && !useMinuteFallback ? "resource_raw" : "resource_minute";
-      const effectiveBucketMs = useMinuteFallback ? 60_000 : bucketMs;
+      const latestObservedAtMs = Math.max(
+        this.#startedAtMs,
+        this.#lastObservedAtMs ??
+          (
+            this.#prepare(db, "SELECT MAX(last_observed_at_ms) atMs FROM resource_hour").get() as {
+              atMs: number | null;
+            }
+          ).atMs ??
+          query.endAtMs
+      );
+      const table: ResourceSummaryTable =
+        requested.startAtMs >= latestObservedAtMs - RAW_RETENTION_MS
+          ? "resource_raw"
+          : requested.startAtMs >= latestObservedAtMs - MINUTE_RETENTION_MS
+            ? "resource_minute"
+            : "resource_hour";
+      const effectiveBucketMs =
+        table === "resource_hour"
+          ? Math.max(HOUR_MS, preset.bucketMs)
+          : table === "resource_minute"
+            ? Math.max(60_000, preset.bucketMs)
+            : preset.bucketMs;
+      const resolution =
+        table === "resource_hour" && preset.bucketMs < HOUR_MS
+          ? "hour"
+          : table === "resource_minute" && preset.bucketMs < 60_000
+            ? "minute"
+            : preset.resolution;
+      const sourceStartAtMs =
+        table === "resource_hour"
+          ? hourAt(requested.startAtMs)
+          : table === "resource_minute"
+            ? minuteAt(requested.startAtMs)
+            : requested.startAtMs;
       const rows = asRows<AggregateRow>(
         this.#prepare(db, this.#aggregateSql(table)).all(
           effectiveBucketMs,
           effectiveBucketMs,
-          requested.startAtMs,
+          sourceStartAtMs,
           requested.endAtMs,
           effectiveBucketMs
         )
       );
-      const resolution = useMinuteFallback ? "minute" : configuredResolution;
       const availability = this.#prepare(
         db,
-        "SELECT MIN(first_observed_at_ms) oldestAtMs, MAX(last_observed_at_ms) newestAtMs FROM resource_minute"
+        "SELECT MIN(first_observed_at_ms) oldestAtMs, MAX(last_observed_at_ms) newestAtMs FROM resource_hour"
       ).get() as { oldestAtMs: number | null; newestAtMs: number | null } | undefined;
       const incidents = asRows<DiagnosticsHistoryIncident>(
         this.#prepare(
@@ -480,7 +559,7 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
       this.#markFailure(query.endAtMs, error);
       return {
         range: query.range,
-        resolution: configuredResolution,
+        resolution: preset.resolution,
         requested,
         available: { oldestAtMs: null, newestAtMs: null },
         recorder: this.#publicState(),
@@ -505,47 +584,77 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
           "SELECT 1 present FROM resource_raw WHERE observed_at_ms BETWEEN ? AND ? LIMIT 1"
         ).get(resolved.startedAtMs, resolved.endedAtMs) as { present?: number } | undefined
       )?.present === 1;
-    const raw =
+    const latestObservedAtMs = Math.max(
+      this.#startedAtMs,
+      this.#lastObservedAtMs ?? resolved.endedAtMs
+    );
+    const resourceTable: ResourceSummaryTable =
       rawAvailable &&
       (selection.kind === "incident" ||
-        resolved.startedAtMs >= (this.#lastObservedAtMs ?? 0) - RAW_RETENTION_MS);
-    const contributorTable = raw ? "raw_contributor" : "minute_contributor";
-    const activityTable = raw ? "activity_raw" : "activity_minute";
-    const bucket = this.#bucketForContext(db, resolved, raw);
+        resolved.startedAtMs >= latestObservedAtMs - RAW_RETENTION_MS)
+        ? "resource_raw"
+        : resolved.startedAtMs >= latestObservedAtMs - MINUTE_RETENTION_MS
+          ? "resource_minute"
+          : "resource_hour";
+    const contributorTable =
+      resourceTable === "resource_raw"
+        ? "raw_contributor"
+        : resourceTable === "resource_minute"
+          ? "minute_contributor"
+          : "hour_contributor";
+    const activityTable =
+      resourceTable === "resource_raw"
+        ? "activity_raw"
+        : resourceTable === "resource_minute"
+          ? "activity_minute"
+          : "activity_hour";
+    const bucket = this.#bucketForContext(db, resolved, resourceTable);
     if (!bucket) return null;
     const detailSelection = resolved;
+    const detailStartedAtMs =
+      resourceTable === "resource_hour"
+        ? hourAt(detailSelection.startedAtMs)
+        : resourceTable === "resource_minute"
+          ? minuteAt(detailSelection.startedAtMs)
+          : detailSelection.startedAtMs;
     const contributors = asRows<DiagnosticsHistoricalContributor>(
       this.#prepare(db, this.#contributorSql(contributorTable)).all(
-        detailSelection.startedAtMs,
+        detailStartedAtMs,
         detailSelection.endedAtMs,
         MAX_CONTEXT_ROWS
       )
     );
     const activity = asRows<DiagnosticsHistoricalActivity>(
       this.#prepare(db, this.#activitySql(activityTable)).all(
-        detailSelection.startedAtMs,
+        detailStartedAtMs,
         detailSelection.endedAtMs,
         MAX_CONTEXT_ROWS
       )
     );
     const incident =
       selection.kind === "incident" ? this.#incidentById(db, selection.incidentId) : null;
+    const rendererTable = resourceTable === "resource_hour" ? "renderer_hour" : "renderer_evidence";
     const renderer =
       (this.#prepare(
         db,
-        `SELECT route, heap_used_bytes heapUsedBytes, dom_node_count domNodeCount, chat_events chatEvents, active_stream_slots activeStreamSlots, active_video_elements activeVideoElements, observed_at_ms observedAtMs FROM renderer_evidence WHERE observed_at_ms BETWEEN ? AND ? ORDER BY observed_at_ms DESC LIMIT 1`
+        `SELECT route, heap_used_bytes heapUsedBytes, dom_node_count domNodeCount, chat_events chatEvents, active_stream_slots activeStreamSlots, active_video_elements activeVideoElements, observed_at_ms observedAtMs FROM ${rendererTable} WHERE observed_at_ms BETWEEN ? AND ? ORDER BY observed_at_ms DESC LIMIT 1`
       ).get(Math.max(0, detailSelection.startedAtMs - 30_000), detailSelection.endedAtMs) as
         DiagnosticsHistoricalRendererEvidence | undefined) ?? null;
-    const minimumBucketMs = raw ? 10_000 : 60_000;
+    const minimumBucketMs =
+      resourceTable === "resource_raw"
+        ? 10_000
+        : resourceTable === "resource_minute"
+          ? 60_000
+          : HOUR_MS;
     const sampleBucketMs = Math.max(
       minimumBucketMs,
       Math.ceil(durationMs / 359 / minimumBucketMs) * minimumBucketMs
     );
     const samples = asRows<DiagnosticsHistoryBucket>(
-      this.#prepare(db, this.#aggregateSql(raw ? "resource_raw" : "resource_minute")).all(
+      this.#prepare(db, this.#aggregateSql(resourceTable)).all(
         sampleBucketMs,
         sampleBucketMs,
-        resolved.startedAtMs,
+        detailStartedAtMs,
         resolved.endedAtMs,
         sampleBucketMs
       )
@@ -561,13 +670,13 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
       selection,
       bucket,
       samples,
-      detailResolution: raw ? "raw" : "minute",
+      detailResolution: summaryResolution(resourceTable),
       contributors,
       activity,
       renderer,
       incident,
       detailComplete:
-        raw &&
+        resourceTable === "resource_raw" &&
         maximumProcessCount <= MAX_CONTRIBUTORS / 2 &&
         bucket.observedDurationMs >= durationMs * 0.9 &&
         contributors.length < MAX_CONTEXT_ROWS &&
@@ -579,6 +688,10 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
     const db = this.#db;
     if (!db || !this.#instanceId) return;
     try {
+      this.#prepare(
+        db,
+        "UPDATE process_instance SET exited_at_ms = ? WHERE exited_at_ms IS NULL"
+      ).run(atMs);
       this.#prepare(
         db,
         "UPDATE runtime_instance SET stopped_at_ms = ?, clean = ? WHERE instance_id = ?"
@@ -593,10 +706,60 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
     }
   }
 
+  #backfillHourlySummaries(db: Database.Database): void {
+    db.exec(`
+      INSERT OR IGNORE INTO resource_hour
+      WITH eligible AS (
+        SELECT CAST(started_at_ms / ${HOUR_MS} AS INTEGER) * ${HOUR_MS} hour,
+          * FROM resource_minute
+      ), ranked AS (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY hour ORDER BY maximum_cpu DESC, maximum_cpu_at_ms ASC) cpu_rank,
+          ROW_NUMBER() OVER (PARTITION BY hour ORDER BY maximum_resident_bytes DESC, maximum_resident_at_ms ASC) memory_rank
+        FROM eligible
+      ) SELECT hour, SUM(cpu_sum), SUM(resident_sum), SUM(sample_count), SUM(observed_duration_ms),
+        SUM(gap_duration_ms), MAX(maximum_cpu), MIN(CASE WHEN cpu_rank = 1 THEN maximum_cpu_at_ms END),
+        MAX(maximum_resident_bytes), MIN(CASE WHEN memory_rank = 1 THEN maximum_resident_at_ms END),
+        MIN(first_observed_at_ms), MAX(last_observed_at_ms)
+      FROM ranked GROUP BY hour;
+
+      INSERT OR IGNORE INTO hour_contributor
+      WITH eligible AS (
+        SELECT CAST(started_at_ms / ${HOUR_MS} AS INTEGER) * ${HOUR_MS} hour,
+          * FROM minute_contributor
+      ), ranked AS (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY hour, observation_id ORDER BY first_observed_at_ms ASC) first_rank,
+          ROW_NUMBER() OVER (PARTITION BY hour, observation_id ORDER BY last_observed_at_ms DESC) last_rank,
+          ROW_NUMBER() OVER (PARTITION BY hour, observation_id ORDER BY maximum_cpu DESC, maximum_cpu_at_ms ASC) cpu_rank,
+          ROW_NUMBER() OVER (PARTITION BY hour, observation_id ORDER BY maximum_resident_bytes DESC, maximum_resident_at_ms ASC) memory_rank
+        FROM eligible
+      ) SELECT hour, observation_id, MIN(pid), MIN(started_process_at_ms), MIN(display_name), MIN(category),
+        MIN(first_observed_at_ms), MAX(last_observed_at_ms), SUM(cpu_sum), SUM(sample_count), MAX(maximum_cpu),
+        MIN(CASE WHEN cpu_rank = 1 THEN maximum_cpu_at_ms END),
+        MIN(CASE WHEN first_rank = 1 THEN first_resident_bytes END),
+        MIN(CASE WHEN last_rank = 1 THEN last_resident_bytes END), MAX(maximum_resident_bytes),
+        MIN(CASE WHEN memory_rank = 1 THEN maximum_resident_at_ms END)
+      FROM ranked GROUP BY hour, observation_id;
+
+      INSERT OR IGNORE INTO activity_hour
+      SELECT CAST(started_at_ms / ${HOUR_MS} AS INTEGER) * ${HOUR_MS}, name, MIN(kind),
+        MIN(first_observed_at_ms), MAX(last_observed_at_ms), SUM(count), SUM(failures)
+      FROM activity_minute GROUP BY CAST(started_at_ms / ${HOUR_MS} AS INTEGER), name;
+
+      INSERT OR IGNORE INTO renderer_hour
+      WITH ranked AS (
+        SELECT CAST(observed_at_ms / ${HOUR_MS} AS INTEGER) * ${HOUR_MS} hour, *,
+          ROW_NUMBER() OVER (PARTITION BY CAST(observed_at_ms / ${HOUR_MS} AS INTEGER) ORDER BY observed_at_ms DESC) latest_rank
+        FROM renderer_evidence
+      ) SELECT hour, observed_at_ms, route, heap_used_bytes, dom_node_count, chat_events,
+        active_stream_slots, active_video_elements FROM ranked WHERE latest_rank = 1;
+    `);
+  }
+
   #writeActivity(
     db: Database.Database,
     activity: DiagnosticsActivityReport,
-    startedAtMs: number
+    startedAtMs: number,
+    hourStartedAtMs: number
   ): void {
     this.#prepare(db, "INSERT OR REPLACE INTO renderer_evidence VALUES (?, ?, ?, ?, ?, ?, ?)").run(
       activity.observedAtMs,
@@ -615,6 +778,25 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
       { name: `Route ${activity.route}`, kind: "renderer", count: 1 },
       { name: "Chat operations", kind: "renderer", count: activity.chatEvents },
     ];
+    this.#prepare(
+      db,
+      `INSERT INTO renderer_hour VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(started_at_ms) DO UPDATE SET observed_at_ms = excluded.observed_at_ms,
+        route = excluded.route, heap_used_bytes = excluded.heap_used_bytes,
+        dom_node_count = excluded.dom_node_count, chat_events = excluded.chat_events,
+        active_stream_slots = excluded.active_stream_slots,
+        active_video_elements = excluded.active_video_elements
+      WHERE excluded.observed_at_ms >= renderer_hour.observed_at_ms`
+    ).run(
+      hourStartedAtMs,
+      activity.observedAtMs,
+      activity.route,
+      activity.heapUsedBytes,
+      activity.domNodeCount,
+      activity.chatEvents,
+      activity.activeStreamSlots,
+      activity.activeVideoElements
+    );
     for (const row of rows) {
       this.#prepare(db, "INSERT OR REPLACE INTO activity_raw VALUES (?, ?, ?, ?, 0)").run(
         activity.observedAtMs,
@@ -622,18 +804,23 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
         row.kind,
         row.count
       );
-      this.#prepare(
-        db,
-        `INSERT INTO activity_minute VALUES (?, ?, ?, ?, ?, ?, 0)
+      for (const aggregate of [
+        { table: "activity_minute", startedAtMs },
+        { table: "activity_hour", startedAtMs: hourStartedAtMs },
+      ] as const) {
+        this.#prepare(
+          db,
+          `INSERT INTO ${aggregate.table} VALUES (?, ?, ?, ?, ?, ?, 0)
         ON CONFLICT(started_at_ms, name) DO UPDATE SET last_observed_at_ms = excluded.last_observed_at_ms, count = count + excluded.count`
-      ).run(
-        startedAtMs,
-        row.name,
-        row.kind,
-        activity.observedAtMs,
-        activity.observedAtMs,
-        row.count
-      );
+        ).run(
+          aggregate.startedAtMs,
+          row.name,
+          row.kind,
+          activity.observedAtMs,
+          activity.observedAtMs,
+          row.count
+        );
+      }
     }
   }
 
@@ -696,7 +883,9 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
   #prune(db: Database.Database, atMs: number): void {
     const rawCutoff = atMs - RAW_RETENTION_MS - 60_000;
     const minuteCutoff = atMs - MINUTE_RETENTION_MS;
-    this.#prepare(db, "DELETE FROM incident WHERE observed_at_ms < ?").run(minuteCutoff);
+    this.#prepare(db, "DELETE FROM incident WHERE observed_at_ms < ?").run(
+      atMs - HOUR_RETENTION_MS
+    );
     this.#prepare(
       db,
       "DELETE FROM incident WHERE incident_id IN (SELECT incident_id FROM incident ORDER BY observed_at_ms DESC LIMIT -1 OFFSET ?)"
@@ -710,13 +899,27 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
     for (const [table, column] of [
       ["renderer_evidence", "observed_at_ms"],
       ["resource_minute", "started_at_ms"],
+      ["resource_hour", "started_at_ms"],
       ["minute_contributor", "started_at_ms"],
+      ["hour_contributor", "started_at_ms"],
       ["activity_minute", "started_at_ms"],
+      ["activity_hour", "started_at_ms"],
+      ["renderer_hour", "started_at_ms"],
       ["collection_gap", "ended_at_ms"],
-      ["process_instance", "last_observed_at_ms"],
     ] as const)
-      this.#prepare(db, `DELETE FROM ${table} WHERE ${column} < ?`).run(minuteCutoff);
-    this.#prepare(db, "DELETE FROM runtime_instance WHERE stopped_at_ms < ?").run(minuteCutoff);
+      this.#prepare(db, `DELETE FROM ${table} WHERE ${column} < ?`).run(
+        table.includes("hour") || table === "collection_gap"
+          ? atMs - HOUR_RETENTION_MS
+          : minuteCutoff
+      );
+    this.#prepare(
+      db,
+      "DELETE FROM process_instance WHERE last_observed_at_ms < ? AND exited_at_ms IS NOT NULL"
+    ).run(atMs - HOUR_RETENTION_MS);
+    this.#prepare(
+      db,
+      "DELETE FROM runtime_instance WHERE stopped_at_ms < ? AND stopped_at_ms IS NOT NULL"
+    ).run(atMs - HOUR_RETENTION_MS);
     const pages = db.pragma("page_count") as readonly { page_count?: number }[];
     if ((pages[0]?.page_count ?? 0) >= this.#maximumPages * 0.9) {
       const oldestIncident = this.#prepare(
@@ -744,7 +947,7 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
     db.pragma("wal_checkpoint(PASSIVE)");
   }
 
-  #aggregateSql(table: "resource_raw" | "resource_minute"): string {
+  #aggregateSql(table: ResourceSummaryTable): string {
     if (table === "resource_raw")
       return `WITH eligible AS (SELECT CAST(observed_at_ms / ? AS INTEGER) * ? bucket,
           observed_at_ms,
@@ -784,7 +987,7 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
           sample_count,
           observed_duration_ms,
           gap_duration_ms
-        FROM resource_minute
+        FROM ${table}
         WHERE started_at_ms BETWEEN ? AND ?),
           ranked AS (SELECT *,
           ROW_NUMBER() OVER (PARTITION BY bucket
@@ -814,15 +1017,20 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
   #bucketForContext(
     db: Database.Database,
     selection: Extract<DiagnosticsHistorySelection, { kind: "bucket" }>,
-    raw: boolean
+    table: ResourceSummaryTable
   ): DiagnosticsHistoryBucket | null {
-    const table = raw ? "resource_raw" : "resource_minute";
     const bucketMs = Number.MAX_SAFE_INTEGER;
+    const startedAtMs =
+      table === "resource_hour"
+        ? hourAt(selection.startedAtMs)
+        : table === "resource_minute"
+          ? minuteAt(selection.startedAtMs)
+          : selection.startedAtMs;
     const rows = asRows<AggregateRow>(
       this.#prepare(db, this.#aggregateSql(table)).all(
         bucketMs,
         bucketMs,
-        selection.startedAtMs,
+        startedAtMs,
         selection.endedAtMs,
         bucketMs
       )
@@ -876,7 +1084,7 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
           ROW_NUMBER() OVER (PARTITION BY observation_id
         ORDER BY maximum_resident_bytes DESC,
           maximum_resident_at_ms ASC) memory_rank
-        FROM minute_contributor
+        FROM ${table}
         WHERE started_at_ms BETWEEN ? AND ?) SELECT mc.observation_id observationId,
           mc.display_name displayName,
           mc.category category,
@@ -910,7 +1118,7 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
   #activitySql(table: string): string {
     return table === "activity_raw"
       ? `SELECT kind, name, MIN(observed_at_ms) firstObservedAtMs, MAX(observed_at_ms) lastObservedAtMs, SUM(count) count, SUM(failures) failures FROM activity_raw WHERE observed_at_ms BETWEEN ? AND ? GROUP BY name ORDER BY count DESC LIMIT ?`
-      : `SELECT kind, name, MIN(first_observed_at_ms) firstObservedAtMs, MAX(last_observed_at_ms) lastObservedAtMs, SUM(count) count, SUM(failures) failures FROM activity_minute WHERE started_at_ms BETWEEN ? AND ? GROUP BY name ORDER BY count DESC LIMIT ?`;
+      : `SELECT kind, name, MIN(first_observed_at_ms) firstObservedAtMs, MAX(last_observed_at_ms) lastObservedAtMs, SUM(count) count, SUM(failures) failures FROM ${table} WHERE started_at_ms BETWEEN ? AND ? GROUP BY name ORDER BY count DESC LIMIT ?`;
   }
 
   #incidentSelection(
@@ -963,7 +1171,7 @@ export class SqliteDiagnosticsHistoryRecorder implements DiagnosticsHistoryRecor
     return {
       ...this.#state,
       rawRetentionMs: RAW_RETENTION_MS,
-      summaryRetentionMs: MINUTE_RETENTION_MS,
+      summaryRetentionMs: HOUR_RETENTION_MS,
       samplingIntervalMs: 5_000,
       databaseBytes,
     };

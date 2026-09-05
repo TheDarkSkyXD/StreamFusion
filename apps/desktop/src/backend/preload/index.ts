@@ -81,6 +81,7 @@ import type {
   DiagnosticsLeaseOpened,
   DiagnosticsActivityReport,
   DiagnosticsHistoryContext,
+  DiagnosticsHistoryRange,
   DiagnosticsHistorySeries,
   DiagnosticsSnapshot,
   DiagnosticsSnapshotChanged,
@@ -267,9 +268,16 @@ const electronAPI = {
       invokeIpc(IPC_CHANNELS.DIAGNOSTICS_REPORT_RENDERER, summary),
     reportActivity: (report: DiagnosticsActivityReport): Promise<IpcReply<null>> =>
       invokeIpc(IPC_CHANNELS.DIAGNOSTICS_REPORT_ACTIVITY, report),
-    queryResourceHistory: (request: { leaseId: string; range: "1h" | "24h" | "7d"; endAtMs: number }): Promise<IpcReply<DiagnosticsHistorySeries>> =>
+    queryResourceHistory: (request: {
+      leaseId: string;
+      range: DiagnosticsHistoryRange;
+      endAtMs: number;
+    }): Promise<IpcReply<DiagnosticsHistorySeries>> =>
       invokeIpc(IPC_CHANNELS.DIAGNOSTICS_QUERY_RESOURCE_HISTORY, request),
-    queryResourceContext: (request: { leaseId: string; selection: import("../../shared/diagnostics-types").DiagnosticsHistorySelection }): Promise<IpcReply<DiagnosticsHistoryContext>> =>
+    queryResourceContext: (request: {
+      leaseId: string;
+      selection: import("../../shared/diagnostics-types").DiagnosticsHistorySelection;
+    }): Promise<IpcReply<DiagnosticsHistoryContext>> =>
       invokeIpc(IPC_CHANNELS.DIAGNOSTICS_QUERY_RESOURCE_CONTEXT, request),
     onSnapshotChanged: (callback: (event: DiagnosticsSnapshotChanged) => void): (() => void) => {
       const handler = (_event: Electron.IpcRendererEvent, value: unknown) => {

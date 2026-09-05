@@ -15,9 +15,13 @@ const INSTANCE = "00000000-0000-4000-8000-000000000001";
 const directories: string[] = [];
 const recorders: SqliteDiagnosticsHistoryRecorder[] = [];
 
-function open(path = ":memory:", atMs = BASE): SqliteDiagnosticsHistoryRecorder {
+function open(
+  path = ":memory:",
+  atMs = BASE,
+  instanceId = INSTANCE
+): SqliteDiagnosticsHistoryRecorder {
   const recorder = new SqliteDiagnosticsHistoryRecorder(path);
-  recorder.start(INSTANCE, atMs);
+  recorder.start(instanceId, atMs);
   recorders.push(recorder);
   return recorder;
 }
@@ -90,7 +94,43 @@ afterEach(() => {
 // Guards: incident evidence remains available after the normal raw retention window.
 // Guards: bounded storage recovers after pressure, and RAM-heavy contributors and gradual growth remain visible.
 // Guards: a full recent hour keeps fine resolution and its newest peak across unaligned bucket boundaries.
+// Guards: clean restarts preserve historical evidence, append new observations, and expose closed intervals without fake samples.
+// Guards: hourly history preserves peak timestamps and chronological RAM through ninety-day retention.
+// Guards: a later interrupted session does not turn an earlier running interval into an app-closed gap.
 describe("diagnostics historical evidence", () => {
+  it("keeps closed gaps separate across clean and interrupted sessions", () => {
+    const directory = mkdtempSync(join(tmpdir(), "streamfusion-diag-evidence-"));
+    directories.push(directory);
+    const path = join(directory, "history.sqlite");
+    const first = open(path);
+    record(first, BASE, 2, 100 * MB);
+    first.stop(BASE + MINUTE, true);
+    const second = open(path, BASE + HOUR, "00000000-0000-4000-8000-000000000002");
+    record(second, BASE + HOUR, 4, 120 * MB);
+    record(second, BASE + HOUR + 5 * MINUTE, 12, 180 * MB);
+    second.stop(BASE + HOUR + 6 * MINUTE, false);
+    const third = open(path, BASE + 2 * HOUR, "00000000-0000-4000-8000-000000000003");
+    record(third, BASE + 2 * HOUR, 2, 130 * MB);
+    const history = third.queryHistory({ range: "24h", endAtMs: BASE + 2 * HOUR });
+    expect(history.gaps.filter((gap) => gap.cause === "app-closed")).toEqual([
+      {
+        startedAtMs: BASE + MINUTE,
+        endedAtMs: BASE + HOUR,
+        cause: "app-closed",
+        sources: ["collector"],
+      },
+      {
+        startedAtMs: BASE + HOUR + 5 * MINUTE,
+        endedAtMs: BASE + 2 * HOUR,
+        cause: "app-closed",
+        sources: ["collector"],
+      },
+    ]);
+    expect(
+      history.buckets.some((bucket) => bucket.maximumCpuAtMs === BASE + HOUR + 5 * MINUTE)
+    ).toBe(true);
+  });
+
   it("keeps a full recent hour at fine resolution including its latest boundary peak", () => {
     const recorder = open();
     for (let seconds = 0; seconds <= 7_205; seconds += 5)
@@ -206,7 +246,7 @@ describe("diagnostics historical evidence", () => {
     expect(context?.contributors.every((process) => process.exitedAtMs === null)).toBe(true);
   });
 
-  it("keeps seven days of summaries while pruning older evidence", () => {
+  it("shows seven days while preserving older evidence in hourly history", () => {
     const recorder = open();
     for (let day = 0; day <= 8; day++) {
       record(recorder, BASE + day * DAY + 15_000, day === 0 ? 99 : 10 + day, (200 + day) * MB);
@@ -215,11 +255,125 @@ describe("diagnostics historical evidence", () => {
     expect(history.recorder.kind).toBe("ready");
     expect(history.buckets.length).toBeGreaterThanOrEqual(7);
     expect(Math.max(...history.buckets.map((bucket) => bucket.maximumCpuPercent))).toBe(18);
-    expect(history.available.oldestAtMs).toBeGreaterThanOrEqual(BASE + DAY);
+    expect(history.available.oldestAtMs).toBe(BASE + 15_000);
     expect(history.available.newestAtMs).toBe(BASE + 8 * DAY + 15_000);
     expect(
       recorder.queryContext({ kind: "bucket", startedAtMs: BASE, endedAtMs: BASE + MINUTE })
+    ).toMatchObject({ detailResolution: "hour", bucket: { maximumCpuPercent: 99 } });
+  });
+
+  it("preserves old evidence through two clean restarts and resumes without filling closed time", () => {
+    const directory = mkdtempSync(join(tmpdir(), "streamfusion-diag-evidence-"));
+    directories.push(directory);
+    const path = join(directory, "restart.sqlite");
+    const original = open(path);
+    record(original, BASE, 2, 100 * MB);
+    record(original, BASE + 15_000, 90, 500 * MB);
+    record(original, BASE + 45_000, 3, 120 * MB, [processAt(BASE + 45_000, 3, 120 * MB)], {
+      observedAtMs: BASE + 45_000,
+      route: "/",
+      heapUsedBytes: 60 * MB,
+      domNodeCount: 123,
+      chatEvents: 4,
+      activeStreamSlots: 1,
+      activeVideoElements: 2,
+    });
+    original.stop(BASE + MINUTE, true);
+    const reopened = open(path, BASE + 60 * DAY, "00000000-0000-4000-8000-000000000002");
+    record(reopened, BASE + 60 * DAY + 5_000, 2, 160 * MB, [
+      processAt(BASE + 60 * DAY + 5_000, 2, 160 * MB, 101),
+    ]);
+    const selection = { kind: "bucket", startedAtMs: BASE, endedAtMs: BASE + HOUR } as const;
+    const oldDetail = reopened.queryContext(selection);
+    expect(oldDetail).toMatchObject({
+      detailResolution: "hour",
+      bucket: {
+        maximumCpuPercent: 90,
+        maximumCpuAtMs: BASE + 15_000,
+        maximumResidentBytes: 500 * MB,
+      },
+    });
+    expect(oldDetail?.contributors[0]).toMatchObject({
+      pid: 100,
+      firstResidentBytes: 100 * MB,
+      lastResidentBytes: 120 * MB,
+      maximumCpuAtMs: BASE + 15_000,
+    });
+    expect(oldDetail?.contributors[0].exitedAtMs).toBe(BASE + MINUTE);
+    expect(oldDetail?.renderer).toMatchObject({
+      route: "/",
+      heapUsedBytes: 60 * MB,
+      domNodeCount: 123,
+    });
+    reopened.stop(BASE + 60 * DAY + MINUTE, true);
+    const secondReopen = open(path, BASE + 61 * DAY, "00000000-0000-4000-8000-000000000003");
+    record(secondReopen, BASE + 61 * DAY + 5_000, 1, 100 * MB);
+    const history = secondReopen.queryHistory({ range: "90d", endAtMs: BASE + 61 * DAY + MINUTE });
+    expect(history.recorder.kind).toBe("ready");
+    expect(history.available).toEqual({ oldestAtMs: BASE, newestAtMs: BASE + 61 * DAY + 5_000 });
+    expect(Math.max(...history.buckets.map((bucket) => bucket.maximumCpuPercent))).toBe(90);
+    expect(history.gaps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          cause: "app-closed",
+          startedAtMs: BASE + MINUTE,
+          endedAtMs: BASE + 60 * DAY,
+        }),
+        expect.objectContaining({
+          cause: "app-closed",
+          startedAtMs: BASE + 60 * DAY + MINUTE,
+          endedAtMs: BASE + 61 * DAY,
+        }),
+      ])
+    );
+    expect(
+      history.buckets.some(
+        (bucket) => bucket.startedAtMs > BASE + DAY && bucket.endedAtMs < BASE + 59 * DAY
+      )
+    ).toBe(false);
+    expect(history.buckets.every((bucket) => bucket.sampleCount > 0)).toBe(true);
+  });
+
+  it("bounds ninety days of history while retaining peaks in the thirty-day view", () => {
+    const recorder = open();
+    for (let day = 0; day <= 92; day++) {
+      record(
+        recorder,
+        BASE + day * DAY + 15_000,
+        day === 0 ? 99 : day === 75 ? 88 : 2,
+        (200 + day) * MB
+      );
+      record(recorder, BASE + day * DAY + 20_000, 1, 100 * MB);
+    }
+    const ninety = recorder.queryHistory({ range: "90d", endAtMs: BASE + 92 * DAY + MINUTE });
+    const month = recorder.queryHistory({ range: "30d", endAtMs: BASE + 92 * DAY + MINUTE });
+    expect(ninety.recorder.kind).toBe("ready");
+    expect(ninety.buckets.length).toBeGreaterThanOrEqual(89);
+    expect(ninety.buckets.length).toBeLessThanOrEqual(361);
+    expect(Math.max(...ninety.buckets.map((bucket) => bucket.maximumCpuPercent))).toBe(88);
+    expect(month.buckets.find((bucket) => bucket.maximumCpuPercent === 88)?.maximumCpuAtMs).toBe(
+      BASE + 75 * DAY + 15_000
+    );
+    expect(ninety.available.oldestAtMs).toBeGreaterThanOrEqual(BASE + 2 * DAY);
+    expect(
+      recorder.queryContext({ kind: "bucket", startedAtMs: BASE, endedAtMs: BASE + HOUR })
     ).toBeNull();
+  });
+
+  it("offers short windows and real time without including peaks outside the chosen duration", () => {
+    const recorder = open();
+    record(recorder, BASE, 95, 200 * MB);
+    record(recorder, BASE + 20 * MINUTE, 20, 100 * MB);
+    record(recorder, BASE + 21 * MINUTE, 2, 100 * MB);
+    for (const range of ["realtime", "5m", "30m", "1h", "24h"] as const) {
+      const history = recorder.queryHistory({ range, endAtMs: BASE + 22 * MINUTE });
+      expect(history.recorder.kind).toBe("ready");
+      expect(history.range).toBe(range);
+      expect(history.buckets.length).toBeLessThanOrEqual(361);
+      expect(Math.max(...history.buckets.map((bucket) => bucket.maximumCpuPercent))).toBe(
+        range === "realtime" || range === "5m" ? 20 : 95
+      );
+    }
   });
 
   it("keeps chronological endpoints and winning timestamps across several retained minutes", () => {

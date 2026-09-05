@@ -23,9 +23,13 @@ export type DiagnosticsHistoryTimelineSlot =
     };
 
 function historyBucketDurationMs(series: DiagnosticsHistorySeries): number {
+  if (series.resolution === "1s") return 1_000;
   if (series.resolution === "minute") return 60_000;
+  if (series.resolution === "hour") return 60 * 60_000;
   if (series.resolution === "5m") return 5 * 60_000;
   if (series.resolution === "30m") return 30 * 60_000;
+  if (series.resolution === "2h") return 2 * 60 * 60_000;
+  if (series.resolution === "8h") return 8 * 60 * 60_000;
   return 10_000;
 }
 

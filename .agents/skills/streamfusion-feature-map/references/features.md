@@ -139,7 +139,7 @@ Authenticated moderators can choose a managed channel, review engagement and ret
 
 Settings controls appearance and behavior, auth, chat preferences, proxy and ad-blocking options, local captions, logs, updates, diagnostics, bug reports, and destructive storage actions.
 
-Diagnostics → Resources includes local CPU/RAM history for an hour, a day, or seven days, with fixed historical periods and inline process/activity evidence. Collection continues off-page; persisted minute summaries and bounded fine incident windows survive restart. CPU/RAM peaks retain their observed timestamps. Gaps and recorder failures are visible; evidence is associated activity, not proof of causation. No export is required to investigate a period.
+Diagnostics → Resources includes local CPU/RAM history for real time, five minutes, 30 minutes, one hour, 24 hours, seven days, 30 days, and 90 days, with fixed historical periods and inline process/activity evidence. Collection continues off-page; persisted minute summaries, 90-day hourly summaries, and bounded fine incident windows survive restart. Reopening resumes collection and shows the closed interval as a gap. CPU/RAM peaks retain their observed timestamps. Gaps and recorder failures are visible; evidence is associated activity, not proof of causation. No export is required to investigate a period.
 
 - Route: `/settings`
 - Feature: `apps/desktop/src/frontend/features/settings/`

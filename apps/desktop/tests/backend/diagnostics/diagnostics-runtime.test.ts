@@ -9,6 +9,11 @@ import type { ProcessIoSnapshot } from "@backend/diagnostics/process-io-sampler"
 import { diagnosticsSnapshotSchema } from "@shared/ipc-contracts/diagnostics-contracts";
 
 const OVERVIEW = { tab: "overview", windowMinutes: 15 } as const;
+const REALTIME_RESOURCES = {
+  tab: "resources",
+  windowMinutes: 15,
+  resourceHistoryRange: "realtime",
+} as const;
 
 function metric(overrides: Partial<ElectronProcessMetric> = {}): ElectronProcessMetric {
   return {
@@ -96,7 +101,7 @@ function createHarness(initialMetrics: readonly ElectronProcessMetric[] = [metri
 }
 
 // Guards: the production Diagnostics route gets an immediate real observation rather than prototype values.
-// Guards: visible consumers share one one-second cadence and cleanup restores the thirty-second baseline.
+// Guards: only the Real time Resources range gets one-second collection and publication.
 // Guards: Windows process I/O rates are aggregated by Electron PID and warming state is not mislabeled unsupported.
 // Guards: source failure preserves the last observation as stale instead of inventing zero activity.
 // Guards: the serialized snapshot rejects extra fields and unsupported values carrying invented data.
@@ -159,13 +164,13 @@ describe("DiagnosticsRuntime", () => {
     const first = await harness.runtime.openLease({
       ownerId: 7,
       documentInstanceId: "document-a",
-      view: OVERVIEW,
+      view: REALTIME_RESOURCES,
       publish,
     });
     const duplicate = await harness.runtime.openLease({
       ownerId: 7,
       documentInstanceId: "document-a",
-      view: OVERVIEW,
+      view: REALTIME_RESOURCES,
       publish,
     });
 
@@ -178,30 +183,34 @@ describe("DiagnosticsRuntime", () => {
     expect(harness.runtime.closeLease(7, first.leaseId)).toBe(false);
   });
 
-  it("samples visible resources every second without publishing renderer snapshots every second", async () => {
+  it("keeps ordinary views at five seconds and publishes Real time Resources every second", async () => {
     const harness = createHarness();
     await harness.runtime.start();
     const publish = vi.fn();
-    await harness.runtime.openLease({
+    const lease = await harness.runtime.openLease({
       ownerId: 7,
       documentInstanceId: "document-a",
-      view: { tab: "resources", windowMinutes: 15 },
+      view: OVERVIEW,
       publish,
     });
+    expect(harness.timerDelays.at(-1)).toBe(5_000);
+    expect(harness.ioIntervals.at(-1)).toBeNull();
 
-    for (let second = 1; second < 5; second += 1) {
-      harness.advance(1_000);
-      await harness.runtime.sampleNow();
-    }
-    expect(publish).not.toHaveBeenCalled();
+    expect(harness.runtime.configureLease(7, lease.leaseId, REALTIME_RESOURCES)).not.toBeNull();
+    expect(harness.timerDelays.at(-1)).toBe(1_000);
+    expect(harness.ioIntervals.at(-1)).toBe(1_000);
 
     harness.advance(1_000);
     await harness.runtime.sampleNow();
     expect(publish).toHaveBeenCalledTimes(1);
     expect(publish.mock.calls[0]?.[1]).toMatchObject({
-      observedAtMs: 15_000,
-      view: { tab: "resources", windowMinutes: 15 },
+      observedAtMs: 11_000,
+      view: REALTIME_RESOURCES,
     });
+
+    expect(harness.runtime.configureLease(7, lease.leaseId, OVERVIEW)).not.toBeNull();
+    expect(harness.timerDelays.at(-1)).toBe(5_000);
+    expect(harness.ioIntervals.at(-1)).toBeNull();
   });
 
   it("reports Windows process I/O as temporarily unavailable while its collector warms", async () => {

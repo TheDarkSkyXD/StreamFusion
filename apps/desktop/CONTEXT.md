@@ -199,7 +199,7 @@ A canonical observation of resource measurements for the StreamFusion app, a Pro
 _Avoid_: Metric row, process log, performance snapshot.
 
 **ResourceHistory**:
-Bounded local evidence collected while the app runs, including when Diagnostics is closed. A dedicated SQLite recorder retains recent fine samples for an hour, minute summaries for seven days, and up to 32 five-minute before/after incident windows. Summaries preserve sampled CPU/RAM maxima and their original timestamps. Diagnostics queries fixed time ranges and displays contributing processes, renderer activity, gaps, and storage status directly on the page. Historical process identity survives exit and confers no recovery authority.
+Bounded local evidence collected while the app runs, including when Diagnostics is closed. A dedicated SQLite recorder retains recent fine samples for an hour, minute summaries for seven days, hourly summaries for 90 days, and up to 32 five-minute before/after incident windows. Summaries preserve sampled CPU/RAM maxima and their original timestamps. Diagnostics offers real time, five minutes, 30 minutes, one hour, 24 hours, seven days, 30 days, and 90 days, with contributing processes, renderer activity, gaps, and storage status directly on the page. Closing the app preserves history; reopening resumes collection and marks the closed interval as a gap. Historical process identity survives exit and confers no recovery authority.
 _Avoid_: Log history, continuous profiler, proof of causation.
 
 **CollectionGap**:

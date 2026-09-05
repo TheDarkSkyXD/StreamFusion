@@ -6,6 +6,7 @@ z.config({ jitless: true });
 
 import { ipcReplySchema } from "./reliability-contracts";
 import { IPC_CHANNELS } from "../ipc-channels";
+import { HISTORY_RANGE_PRESETS } from "../diagnostics-types";
 import type {
   DiagnosticFailure,
   DiagnosticLogObservation,
@@ -13,6 +14,7 @@ import type {
   DiagnosticsLeaseOpened,
   DiagnosticsActivityReport,
   DiagnosticsHistoryContext,
+  DiagnosticsHistoryRange,
   DiagnosticsHistorySeries,
   DiagnosticsSnapshot,
   DiagnosticsSnapshotChanged,
@@ -109,6 +111,12 @@ const diagnosticsViewSchema = z
       "developer-tools",
     ]),
     windowMinutes: z.union([z.literal(5), z.literal(15), z.literal(30), z.literal(60)]),
+    resourceHistoryRange: z
+      .string()
+      .refine((range): range is DiagnosticsHistoryRange =>
+        HISTORY_RANGE_PRESETS.some((preset) => preset.id === range)
+      )
+      .optional(),
   })
   .strict() satisfies z.ZodType<DiagnosticsView>;
 
@@ -244,7 +252,11 @@ const diagnosticsActivityReportSchema = z
   })
   .strict() satisfies z.ZodType<DiagnosticsActivityReport>;
 
-const historyRangeSchema = z.enum(["1h", "24h", "7d"]);
+const historyRangeSchema = z
+  .string()
+  .refine((range): range is DiagnosticsHistoryRange =>
+    HISTORY_RANGE_PRESETS.some((preset) => preset.id === range)
+  );
 const historyTimestampMs = z.number().int().safe().nonnegative();
 const historySelectionSchema = z.discriminatedUnion("kind", [
   z
@@ -310,7 +322,7 @@ const historyRecorderSchema = z.discriminatedUnion("kind", [
 const historySeriesSchema = z
   .object({
     range: historyRangeSchema,
-    resolution: z.enum(["raw", "minute", "5m", "30m"]),
+    resolution: z.enum(["1s", "raw", "minute", "hour", "5m", "30m", "2h", "8h"]),
     requested: z.object({ startAtMs: timestampMs, endAtMs: timestampMs }).strict(),
     available: z
       .object({ oldestAtMs: timestampMs.nullable(), newestAtMs: timestampMs.nullable() })
@@ -324,7 +336,7 @@ const historySeriesSchema = z
           .object({
             startedAtMs: timestampMs,
             endedAtMs: timestampMs,
-            cause: z.enum(["suspend", "clock-jump", "source-failure", "budget-shed"]),
+            cause: z.enum(["suspend", "clock-jump", "source-failure", "budget-shed", "app-closed"]),
             sources: z.array(diagnosticSourceSchema).max(9),
           })
           .strict()
@@ -337,7 +349,7 @@ const historyContextSchema = z
     selection: historySelectionSchema,
     bucket: historyBucketSchema,
     samples: z.array(historyBucketSchema).max(360),
-    detailResolution: z.enum(["raw", "minute"]),
+    detailResolution: z.enum(["raw", "minute", "hour"]),
     contributors: z
       .array(
         z

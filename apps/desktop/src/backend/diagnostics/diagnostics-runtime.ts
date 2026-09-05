@@ -1,3 +1,4 @@
+import { historyRangePreset } from "../../shared/diagnostics-types";
 import type {
   CollectionGap,
   DiagnosticsActivityReport,
@@ -293,7 +294,11 @@ export class DiagnosticsRuntime {
         lease.ownerId === input.ownerId && lease.documentInstanceId === input.documentInstanceId
     );
     if (existing) {
+      const cadenceChanged =
+        this.#isRealtimeResourcesLease(existing) !==
+        (input.view.tab === "resources" && input.view.resourceHistoryRange === "realtime");
       existing.view = input.view;
+      if (cadenceChanged) this.#rescheduleForCadenceChange();
       return { leaseId: existing.leaseId, snapshot: this.snapshot(input.view) };
     }
 
@@ -315,7 +320,11 @@ export class DiagnosticsRuntime {
   ): DiagnosticsSnapshot | null {
     const lease = this.#leases.get(leaseId);
     if (!lease || lease.ownerId !== ownerId) return null;
+    const cadenceChanged =
+      this.#isRealtimeResourcesLease(lease) !==
+      (view.tab === "resources" && view.resourceHistoryRange === "realtime");
     lease.view = view;
+    if (cadenceChanged) this.#rescheduleForCadenceChange();
     return this.snapshot(view);
   }
 
@@ -952,20 +961,31 @@ export class DiagnosticsRuntime {
     const observedAtMs = this.#lastSample?.observedAtMs;
     if (observedAtMs === undefined) return;
     for (const lease of this.#leases.values()) {
-      if (observedAtMs - lease.lastPublishedAtMs < VISIBLE_PUBLISH_INTERVAL_MS) continue;
+      const publishIntervalMs = this.#isRealtimeResourcesLease(lease)
+        ? historyRangePreset("realtime").publishIntervalMs
+        : VISIBLE_PUBLISH_INTERVAL_MS;
+      if (observedAtMs - lease.lastPublishedAtMs < publishIntervalMs) continue;
       lease.lastPublishedAtMs = observedAtMs;
       lease.publish(lease.leaseId, this.snapshot(lease.view));
     }
   }
 
   #currentIntervalMs(): number {
-    return this.#leases.size > 0 ? VISIBLE_INTERVAL_MS : BASELINE_INTERVAL_MS;
+    return [...this.#leases.values()].some((lease) => this.#isRealtimeResourcesLease(lease))
+      ? VISIBLE_INTERVAL_MS
+      : BASELINE_INTERVAL_MS;
+  }
+
+  #isRealtimeResourcesLease(lease: DiagnosticsLease): boolean {
+    return lease.view.tab === "resources" && lease.view.resourceHistoryRange === "realtime";
   }
 
   #rescheduleForCadenceChange(): void {
     if (!this.#started) return;
     this.#dependencies.setProcessIoSamplingInterval(
-      this.#leases.size > 0 ? VISIBLE_INTERVAL_MS : null
+      [...this.#leases.values()].some((lease) => this.#isRealtimeResourcesLease(lease))
+        ? VISIBLE_INTERVAL_MS
+        : null
     );
     if (this.#timer) this.#dependencies.clearTimer(this.#timer);
     this.#timer = null;

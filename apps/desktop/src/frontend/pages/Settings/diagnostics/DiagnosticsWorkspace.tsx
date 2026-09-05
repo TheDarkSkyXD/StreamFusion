@@ -30,6 +30,7 @@ import { useDiagnosticsResourceHistory } from "@/features/settings/data/use-diag
 import { translateSettings } from "@/features/settings/utils/settings-translation";
 import { i18n } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { HISTORY_RANGE_PRESETS, historyRangePreset } from "@shared/diagnostics-types";
 import type {
   DiagnosticSourceStatus,
   DiagnosticFailure,
@@ -807,21 +808,8 @@ function OverviewTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
   );
 }
 
-const HISTORY_RANGES = [
-  { value: "1h", label: "1 hour" },
-  { value: "24h", label: "24 hours" },
-  { value: "7d", label: "7 days" },
-] as const satisfies readonly { readonly value: DiagnosticsHistoryRange; readonly label: string }[];
-
 function historyRangeDurationMs(range: DiagnosticsHistoryRange): number {
-  switch (range) {
-    case "1h":
-      return 60 * 60_000;
-    case "24h":
-      return 24 * 60 * 60_000;
-    case "7d":
-      return 7 * 24 * 60 * 60_000;
-  }
+  return historyRangePreset(range).durationMs;
 }
 
 function formatHistoryTime(timestampMs: number, precise = false): string {
@@ -900,11 +888,13 @@ function HistoryTimeline({
               const detail = slot.cause
                 ? `Collection gap: ${slot.cause}`
                 : "No retained observation";
+              const label = `${detail}, ${formatHistoryTime(slot.startedAtMs)} to ${formatHistoryTime(slot.endedAtMs)}`;
               return (
                 <span
                   key={slot.startedAtMs}
                   className="h-full min-w-0 flex-1 bg-[repeating-linear-gradient(135deg,transparent,transparent_2px,rgba(163,163,163,0.22)_2px,rgba(163,163,163,0.22)_3px)]"
-                  aria-label={`${detail}, ${formatHistoryTime(slot.startedAtMs)} to ${formatHistoryTime(slot.endedAtMs)}`}
+                  aria-label={label}
+                  title={label}
                   role="img"
                 />
               );
@@ -941,7 +931,8 @@ function HistoryTimeline({
         )}
       </div>
       <p className="mt-2 text-[11px] text-[var(--color-foreground-secondary)]">
-        Striped columns have no retained observations. Bars show sampled peaks; select one for coverage.
+        Striped columns have no retained observations. Bars show sampled peaks; select one for
+        coverage.
       </p>
     </section>
   );
@@ -997,8 +988,12 @@ function ResourceHistoryDetail({
               {detail.detailComplete ? "Complete period detail" : "Partial period detail"}
             </span>
             <span>
-              {detail.detailResolution === "raw" ? "Fine samples" : "Minute summaries"}:{" "}
-              {detail.samples.length}
+              {detail.detailResolution === "raw"
+                ? "Fine samples"
+                : detail.detailResolution === "minute"
+                  ? "Minute summaries"
+                  : "Hourly summaries"}
+              : {detail.samples.length}
             </span>
             <span>
               CPU peak: {detail.bucket.maximumCpuPercent.toFixed(1)}% at{" "}
@@ -1164,11 +1159,14 @@ function ResourceHistoryDetail({
 function ResourceHistoryPanel({
   leaseId,
   snapshot,
+  range,
+  onRangeChange,
 }: {
   readonly leaseId: string | null;
   readonly snapshot: DiagnosticsSnapshot;
+  readonly range: DiagnosticsHistoryRange;
+  readonly onRangeChange: (range: DiagnosticsHistoryRange) => void;
 }) {
-  const [range, setRange] = useState<DiagnosticsHistoryRange>("1h");
   const [live, setLive] = useState(true);
   const [pausedEndAtMs, setPausedEndAtMs] = useState(snapshot.observedAtMs);
   const [selection, setSelection] = useState<DiagnosticsHistorySelection | null>(null);
@@ -1202,7 +1200,7 @@ function ResourceHistoryPanel({
     );
   };
   const zoomToSelectedPeak = (peakAtMs: number): void => {
-    setRange("1h");
+    onRangeChange("1h");
     setLive(false);
     setPausedEndAtMs(Math.min(snapshot.observedAtMs, peakAtMs + 30 * 60_000));
     setSelection(null);
@@ -1218,22 +1216,22 @@ function ResourceHistoryPanel({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] p-4">
         <div
           role="group"
-          className="flex rounded-lg border border-[var(--color-border)] p-1"
+          className="flex max-w-full flex-wrap rounded-lg border border-[var(--color-border)] p-1"
           aria-label="Resource history range"
         >
-          {HISTORY_RANGES.map((option) => (
+          {HISTORY_RANGE_PRESETS.map((option) => (
             <button
-              key={option.value}
+              key={option.id}
               type="button"
               aria-label={option.label}
-              aria-pressed={range === option.value}
+              aria-pressed={range === option.id}
               onClick={() => {
-                setRange(option.value);
+                onRangeChange(option.id);
                 setSelection(null);
               }}
               className={cn(
                 "rounded-md px-2.5 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
-                range === option.value
+                range === option.id
                   ? "bg-[var(--color-background-tertiary)] text-white"
                   : "text-[var(--color-foreground-secondary)] hover:text-white"
               )}
@@ -1348,18 +1346,35 @@ function ResourceHistoryPanel({
               ? null
               : ` to ${formatHistoryTime(series.available.newestAtMs)}`}
             <span className="ml-4">
-              {series.resolution === "raw"
-                ? "10s peak buckets"
-                : series.resolution === "minute"
-                  ? "1 minute summaries"
-                  : `${series.resolution} peak buckets`}{" "}
-              · Collected every 5s (1s with Diagnostics open)
+              {series.resolution === "1s"
+                ? "1 second peak buckets"
+                : series.resolution === "raw"
+                  ? "10s peak buckets"
+                  : series.resolution === "minute"
+                    ? "1 minute summaries"
+                    : `${series.resolution} peak buckets`}{" "}
+              · Collected every 5s (1s in Real time)
             </span>
             <span className="ml-4">{formatBytes(series.recorder.databaseBytes)} retained</span>
             {series.recorder.kind === "ready" ? null : (
               <span className="ml-4 text-amber-200">Recorder error: {series.recorder.reason}</span>
             )}
           </div>
+          <p className="border-t border-[var(--color-border)] px-4 py-3 text-xs text-[var(--color-foreground-secondary)]">
+            History stays on this device after closing. Recording resumes when reopened. Fine detail
+            1h · minute summaries 7d · hourly summaries 90d.
+          </p>
+          {(() => {
+            const closedGaps = series.gaps.filter((gap) => gap.cause === "app-closed");
+            const latestClosedGap = closedGaps.at(-1);
+            return latestClosedGap ? (
+              <p className="border-t border-[var(--color-border)] px-4 py-3 text-xs text-amber-200">
+                App closed: {formatHistoryTime(latestClosedGap.startedAtMs)} to{" "}
+                {formatHistoryTime(latestClosedGap.endedAtMs)}
+                {closedGaps.length > 1 ? ` (${closedGaps.length} closed intervals)` : ""}
+              </p>
+            ) : null;
+          })()}
           {series.incidents.length > 0 ? (
             <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] p-4">
               {series.incidents.map((incident) => {
@@ -1418,9 +1433,13 @@ function ResourceHistoryPanel({
 function ResourcesTab({
   leaseId,
   snapshot,
+  range,
+  onRangeChange,
 }: {
   readonly leaseId: string | null;
   readonly snapshot: DiagnosticsSnapshot;
+  readonly range: DiagnosticsHistoryRange;
+  readonly onRangeChange: (range: DiagnosticsHistoryRange) => void;
 }) {
   if (snapshot.detail.tab !== "resources") return null;
   const { collection, footprint, host } = snapshot.overview;
@@ -1442,7 +1461,12 @@ function ResourcesTab({
   const nativeStatus = snapshot.sourceStatuses["electron-processes"];
   return (
     <div className="space-y-4">
-      <ResourceHistoryPanel leaseId={leaseId} snapshot={snapshot} />
+      <ResourceHistoryPanel
+        leaseId={leaseId}
+        snapshot={snapshot}
+        range={range}
+        onRangeChange={onRangeChange}
+      />
       <Panel
         title={translateSettings({ key: "settings.resourceMonitor" })}
         icon={<LuActivity />}
@@ -2216,13 +2240,24 @@ function DeveloperToolsTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
 function WorkspaceContent({
   leaseId,
   snapshot,
+  range,
+  onRangeChange,
 }: {
   readonly leaseId: string | null;
   readonly snapshot: DiagnosticsSnapshot;
+  readonly range: DiagnosticsHistoryRange;
+  readonly onRangeChange: (range: DiagnosticsHistoryRange) => void;
 }) {
   if (snapshot.view.tab === "overview") return <OverviewTab snapshot={snapshot} />;
   if (snapshot.view.tab === "resources")
-    return <ResourcesTab leaseId={leaseId} snapshot={snapshot} />;
+    return (
+      <ResourcesTab
+        leaseId={leaseId}
+        snapshot={snapshot}
+        range={range}
+        onRangeChange={onRangeChange}
+      />
+    );
   if (snapshot.view.tab === "io") return <IoTab snapshot={snapshot} />;
   if (snapshot.view.tab === "traces") return <TracesTab snapshot={snapshot} />;
   if (snapshot.view.tab === "logs-reports") {
@@ -2262,13 +2297,18 @@ export function DiagnosticsWorkspace({
   useTranslation();
   const tabs = getTabs();
   const [activeTab, setActiveTab] = useState<DiagnosticsTab>("overview");
+  const [resourceHistoryRange, setResourceHistoryRange] =
+    useState<DiagnosticsHistoryRange>("realtime");
   const previousTabRef = useRef(activeTab);
   const [windowsByTab, setWindowsByTab] =
     useState<Readonly<Record<WindowedDiagnosticsTab, DiagnosticsWindowMinutes>>>(
       DEFAULT_WINDOWS_BY_TAB
     );
   const windowMinutes = usesWindowControl(activeTab) ? windowsByTab[activeTab] : 15;
-  const view = useMemo(() => ({ tab: activeTab, windowMinutes }), [activeTab, windowMinutes]);
+  const view = useMemo(
+    () => ({ tab: activeTab, windowMinutes, resourceHistoryRange }),
+    [activeTab, resourceHistoryRange, windowMinutes]
+  );
   const diagnostics = useDiagnosticsWorkspace(view);
 
   useEffect(() => {
@@ -2378,7 +2418,12 @@ export function DiagnosticsWorkspace({
                   {diagnostics.diagnosticId}.
                 </div>
               ) : null}
-              <WorkspaceContent leaseId={diagnostics.leaseId} snapshot={diagnostics.snapshot} />
+              <WorkspaceContent
+                leaseId={diagnostics.leaseId}
+                snapshot={diagnostics.snapshot}
+                range={resourceHistoryRange}
+                onRangeChange={setResourceHistoryRange}
+              />
             </div>
           ) : (
             <div

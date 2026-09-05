@@ -69,9 +69,98 @@ export type DiagnosticsTab =
 
 export type DiagnosticsWindowMinutes = 5 | 15 | 30 | 60;
 
+export type DiagnosticsHistoryResolution =
+  "1s" | "raw" | "minute" | "hour" | "5m" | "30m" | "2h" | "8h";
+
+interface DiagnosticsHistoryRangePresetShape {
+  readonly id: string;
+  readonly label: string;
+  readonly durationMs: number;
+  readonly bucketMs: number;
+  readonly resolution: DiagnosticsHistoryResolution;
+  readonly publishIntervalMs: number;
+}
+
+export const HISTORY_RANGE_PRESETS = [
+  {
+    id: "realtime",
+    label: "Real time",
+    durationMs: 5 * 60_000,
+    bucketMs: 1_000,
+    resolution: "1s",
+    publishIntervalMs: 1_000,
+  },
+  {
+    id: "5m",
+    label: "5 minutes",
+    durationMs: 5 * 60_000,
+    bucketMs: 10_000,
+    resolution: "raw",
+    publishIntervalMs: 5_000,
+  },
+  {
+    id: "30m",
+    label: "30 minutes",
+    durationMs: 30 * 60_000,
+    bucketMs: 10_000,
+    resolution: "raw",
+    publishIntervalMs: 5_000,
+  },
+  {
+    id: "1h",
+    label: "1 hour",
+    durationMs: 60 * 60_000,
+    bucketMs: 10_000,
+    resolution: "raw",
+    publishIntervalMs: 5_000,
+  },
+  {
+    id: "24h",
+    label: "24 hours",
+    durationMs: 24 * 60 * 60_000,
+    bucketMs: 5 * 60_000,
+    resolution: "5m",
+    publishIntervalMs: 5_000,
+  },
+  {
+    id: "7d",
+    label: "7 days",
+    durationMs: 7 * 24 * 60 * 60_000,
+    bucketMs: 30 * 60_000,
+    resolution: "30m",
+    publishIntervalMs: 5_000,
+  },
+  {
+    id: "30d",
+    label: "30 days",
+    durationMs: 30 * 24 * 60 * 60_000,
+    bucketMs: 2 * 60 * 60_000,
+    resolution: "2h",
+    publishIntervalMs: 5_000,
+  },
+  {
+    id: "90d",
+    label: "90 days",
+    durationMs: 90 * 24 * 60 * 60_000,
+    bucketMs: 8 * 60 * 60_000,
+    resolution: "8h",
+    publishIntervalMs: 5_000,
+  },
+] as const satisfies readonly DiagnosticsHistoryRangePresetShape[];
+
+export type DiagnosticsHistoryRange = (typeof HISTORY_RANGE_PRESETS)[number]["id"];
+export type DiagnosticsHistoryRangePreset = (typeof HISTORY_RANGE_PRESETS)[number];
+
+export function historyRangePreset(range: DiagnosticsHistoryRange): DiagnosticsHistoryRangePreset {
+  const preset = HISTORY_RANGE_PRESETS.find((candidate) => candidate.id === range);
+  if (!preset) throw new Error(`Unknown diagnostics history range: ${range}`);
+  return preset;
+}
+
 export interface DiagnosticsView {
   readonly tab: DiagnosticsTab;
   readonly windowMinutes: DiagnosticsWindowMinutes;
+  readonly resourceHistoryRange?: DiagnosticsHistoryRange;
 }
 
 export interface SystemFootprint {
@@ -117,7 +206,7 @@ export interface ResourcePoint {
 export interface CollectionGap {
   readonly startedAtMs: number;
   readonly endedAtMs: number;
-  readonly cause: "suspend" | "clock-jump" | "source-failure" | "budget-shed";
+  readonly cause: "suspend" | "clock-jump" | "source-failure" | "budget-shed" | "app-closed";
   readonly sources: readonly DiagnosticSource[];
 }
 
@@ -223,9 +312,6 @@ export interface DiagnosticsActivityReport {
   readonly activeVideoElements: number;
 }
 
-export type DiagnosticsHistoryRange = "1h" | "24h" | "7d";
-export type DiagnosticsHistoryResolution = "raw" | "minute" | "5m" | "30m";
-
 export interface DiagnosticsHistoryQuery {
   readonly leaseId: string;
   readonly range: DiagnosticsHistoryRange;
@@ -326,7 +412,7 @@ export interface DiagnosticsHistoryContext {
   readonly selection: DiagnosticsHistorySelection;
   readonly bucket: DiagnosticsHistoryBucket;
   readonly samples: readonly DiagnosticsHistoryBucket[];
-  readonly detailResolution: "raw" | "minute";
+  readonly detailResolution: "raw" | "minute" | "hour";
   readonly contributors: readonly DiagnosticsHistoricalContributor[];
   readonly activity: readonly DiagnosticsHistoricalActivity[];
   readonly renderer: DiagnosticsHistoricalRendererEvidence | null;
