@@ -430,6 +430,15 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
         previousScrollerScrollTopRef.current = currentScrollTop;
 
         const bottomGap = scroller.scrollHeight - currentScrollTop - scroller.clientHeight;
+        if (bottomGap < CHAT_AT_BOTTOM_THRESHOLD_PX) {
+          returningToLiveRef.current = false;
+          userScrolledUpRef.current = false;
+          pendingPauseRef.current = false;
+          pauseTimer.clear();
+          setPaused(channelKey, hasActiveInputPause());
+          return;
+        }
+
         const hasExplicitScrollIntent =
           pointerScrollIntentRef.current || keyboardScrollIntentRef.current;
         if (
@@ -442,7 +451,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
           scheduleScrollPause();
         }
       },
-      [scheduleScrollPause]
+      [channelKey, hasActiveInputPause, pauseTimer, scheduleScrollPause, setPaused]
     );
 
     const scrollerCallbackRef = useCallback(
