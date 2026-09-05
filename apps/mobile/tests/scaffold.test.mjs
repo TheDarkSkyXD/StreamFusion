@@ -31,6 +31,14 @@ test("the development client is Android-only and distinct from production", () =
   assert.equal(existsSync("ios"), false);
 });
 
+test("native app links stay in the single Mobile runtime", () => {
+  assert.match(
+    readFileSync("app/+native-intent.ts", "utf8"),
+    /redirectSystemPath\(\): null/u,
+  );
+  assert.equal(existsSync("app/[...path].tsx"), false);
+});
+
 test("the Android build supports API 30 and custom development clients", () => {
   const buildProperties = appManifest.expo.plugins.find(
     (plugin) => Array.isArray(plugin) && plugin[0] === "expo-build-properties",
@@ -76,6 +84,11 @@ test("SQLCipher is proven in memory before a persistent database is opened", () 
 });
 
 test("local Android commands stay owned by the Mobile workspace", () => {
+  const developmentBuildSource = readFileSync(
+    "scripts/build-android-development.mjs",
+    "utf8",
+  );
+
   assert.equal(
     packageManifest.scripts.android,
     "node scripts/start-expo-go.mjs",
@@ -95,6 +108,10 @@ test("local Android commands stay owned by the Mobile workspace", () => {
   assert.equal(
     packageManifest.scripts["prebuild:android"],
     "expo prebuild --platform android --no-install",
+  );
+  assert.match(developmentBuildSource, /process\.env\.ComSpec/u);
+  assert.ok(
+    developmentBuildSource.includes('".\\\\gradlew.bat app:assembleDebug"'),
   );
 });
 

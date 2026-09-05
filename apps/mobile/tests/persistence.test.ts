@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import type { SecureSecretStore } from "@mobile/capabilities/persistence";
+import type {
+  ActivityRepository,
+  SecureSecretStore,
+} from "@mobile/capabilities/persistence";
+import {
+  markActivityReadSafely,
+  markAllActivityReadSafely,
+  recordActivitySafely,
+} from "@mobile/features/activity/activity-operations";
 import { persistenceViewModel } from "@mobile/features/development/persistence-controller";
 import { CacheStore } from "@mobile/persistence/cache-store";
 import {
@@ -15,6 +23,7 @@ import {
   productMigrations,
   readSchemaVersion,
 } from "@mobile/persistence/migrations";
+import { ProductStore } from "@mobile/persistence/product-store";
 import { createMobileStoreRuntime } from "@mobile/persistence/store-runtime";
 
 class MigrationDatabase implements StoreDatabase {
@@ -74,6 +83,97 @@ class CacheRecordingDatabase extends MigrationDatabase {
   }
 }
 
+interface ActivityRow {
+  id: string;
+  kind: string;
+  payload: string;
+  occurred_at: number;
+  read_at: number | null;
+}
+
+class ActivityMemoryDatabase extends MigrationDatabase {
+  readonly rows = new Map<string, ActivityRow>();
+
+  override first<T>(
+    source: string,
+    parameters: DatabaseValue[] = [],
+  ): Promise<T | null> {
+    if (source.includes("FROM activity_items WHERE id = ?")) {
+      return Promise.resolve(
+        (this.rows.get(String(parameters[0])) ?? null) as T | null,
+      );
+    }
+    return super.first<T>(source);
+  }
+
+  override query<T>(source: string): Promise<T[]> {
+    if (!source.includes("FROM activity_items")) return Promise.resolve([]);
+    return Promise.resolve(
+      [...this.rows.values()].sort(
+        (left, right) =>
+          right.occurred_at - left.occurred_at ||
+          left.id.localeCompare(right.id),
+      ) as T[],
+    );
+  }
+
+  override run(
+    source: string,
+    parameters: DatabaseValue[] = [],
+  ): Promise<DatabaseRunResult> {
+    if (source.includes("INSERT INTO activity_items")) {
+      const [id, kind, payload, occurredAt, readAt] = parameters;
+      this.rows.set(String(id), {
+        id: String(id),
+        kind: String(kind),
+        payload: String(payload),
+        occurred_at: Number(occurredAt),
+        read_at: readAt === null ? null : Number(readAt),
+      });
+      return Promise.resolve({ changes: 1, lastInsertRowId: 0 });
+    }
+    if (source.includes("SET read_at = ? WHERE id = ?")) {
+      const row = this.rows.get(String(parameters[1]));
+      if (!row || row.read_at !== null)
+        return Promise.resolve({ changes: 0, lastInsertRowId: 0 });
+      row.read_at = Number(parameters[0]);
+      return Promise.resolve({ changes: 1, lastInsertRowId: 0 });
+    }
+    if (source.includes("SET read_at = ? WHERE read_at IS NULL")) {
+      let changes = 0;
+      for (const row of this.rows.values()) {
+        if (row.read_at !== null) continue;
+        row.read_at = Number(parameters[0]);
+        changes += 1;
+      }
+      return Promise.resolve({ changes, lastInsertRowId: 0 });
+    }
+    if (source.includes("DELETE FROM activity_items")) {
+      return Promise.resolve({
+        changes: this.rows.delete(String(parameters[0])) ? 1 : 0,
+        lastInsertRowId: 0,
+      });
+    }
+    return Promise.resolve({ changes: 0, lastInsertRowId: 0 });
+  }
+}
+
+function activityItem(overrides: Partial<ActivityItem> = {}): ActivityItem {
+  return {
+    schemaVersion: 1,
+    eventId: "device:ready:v1",
+    kind: "system",
+    event: "device-health",
+    source: "local",
+    occurredAt: "2026-09-01T00:00:00.000Z" as SerializedTimestamp,
+    readAt: null,
+    title: "Ready",
+    body: "Local device is ready.",
+    destination: { kind: "diagnostics" },
+    ...overrides,
+  } as ActivityItem;
+}
+
 function memorySecrets(
   initial: Readonly<Record<string, string>> = {},
 ): SecureSecretStore & { readonly values: Map<string, string> } {
@@ -103,6 +203,75 @@ const random = {
 };
 
 describe("encrypted store policy", () => {
+  it("contains rejected Activity mutations for retryable UI state", async () => {
+    const unavailable: ActivityRepository = {
+      list: () => Promise.resolve([]),
+      markAllRead: () => Promise.reject(new Error("unavailable")),
+      markRead: () => Promise.reject(new Error("unavailable")),
+      record: () => Promise.reject(new Error("unavailable")),
+    };
+    const timestamp = "2026-09-02T00:00:00.000Z" as SerializedTimestamp;
+    await expect(
+      markActivityReadSafely(unavailable, "event:1", timestamp),
+    ).resolves.toEqual({ kind: "failed" });
+    await expect(
+      markAllActivityReadSafely(unavailable, timestamp),
+    ).resolves.toEqual({ kind: "failed" });
+    await expect(
+      recordActivitySafely(unavailable, activityItem()),
+    ).resolves.toEqual({ kind: "failed" });
+  });
+
+  it("deduplicates Activity events, preserves occurrence, and resets unread state", async () => {
+    const database = new ActivityMemoryDatabase();
+    const store = new ProductStore(database);
+    await expect(store.recordActivity(activityItem())).resolves.toMatchObject({
+      kind: "created",
+    });
+    await store.markActivityRead(
+      "device:ready:v1",
+      "2026-09-02T00:00:00.000Z" as SerializedTimestamp,
+    );
+    await expect(
+      store.recordActivity(
+        activityItem({
+          occurredAt: "2026-09-03T00:00:00.000Z" as SerializedTimestamp,
+          title: "Ready again",
+        }),
+      ),
+    ).resolves.toMatchObject({
+      kind: "reconciled",
+      item: {
+        occurredAt: "2026-09-01T00:00:00.000Z",
+        readAt: null,
+        title: "Ready again",
+      },
+    });
+    await expect(store.listActivity()).resolves.toHaveLength(1);
+  });
+
+  it("skips malformed persisted Activity timestamps without failing the list", async () => {
+    const database = new ActivityMemoryDatabase();
+    database.rows.set("corrupt", {
+      id: "corrupt",
+      kind: "system",
+      payload: JSON.stringify(activityItem({ eventId: "corrupt" })),
+      occurred_at: Number.POSITIVE_INFINITY,
+      read_at: 9e20,
+    });
+    database.rows.set("valid", {
+      id: "valid",
+      kind: "system",
+      payload: JSON.stringify(activityItem({ eventId: "valid" })),
+      occurred_at: Date.parse("2026-09-01T00:00:00.000Z"),
+      read_at: null,
+    });
+
+    await expect(
+      new ProductStore(database).listActivity(),
+    ).resolves.toMatchObject([{ eventId: "valid" }]);
+  });
+
   it("applies Product migrations transactionally and idempotently", async () => {
     const database = new MigrationDatabase();
     await expect(

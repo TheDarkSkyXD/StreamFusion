@@ -230,6 +230,14 @@ export function createMobileStoreRuntime(
   let initializePromise: Promise<PersistenceRuntimeState> | undefined;
   let stores: OpenStoreSet | undefined;
 
+  async function requireProductStore(): Promise<ProductStore> {
+    const state = await (initializePromise ??= initialize());
+    if (state.kind !== "ready" || !stores) {
+      throw new Error("The encrypted Product Store is unavailable.");
+    }
+    return stores.product;
+  }
+
   async function openStores(
     productMigrationSet: readonly StoreMigration[] = configuredProductMigrations,
     maximumCacheBytes = DEFAULT_CACHE_MAXIMUM_BYTES,
@@ -377,6 +385,50 @@ export function createMobileStoreRuntime(
   }
 
   return {
+    productState: {
+      activity: {
+        async list(filter) {
+          return (await requireProductStore()).listActivity(filter);
+        },
+        async markAllRead(readAt) {
+          return (await requireProductStore()).markAllActivityRead(readAt);
+        },
+        async markRead(eventId, readAt) {
+          return (await requireProductStore()).markActivityRead(
+            eventId,
+            readAt,
+          );
+        },
+        async record(item) {
+          return (await requireProductStore()).recordActivity(item, now());
+        },
+      },
+      shellRestoration: {
+        async clear() {
+          await (
+            await requireProductStore()
+          ).deleteSetting("shell-navigation.v1");
+        },
+        async read() {
+          return (
+            (
+              await (
+                await requireProductStore()
+              ).getSetting("shell-navigation.v1")
+            )?.value ?? null
+          );
+        },
+        async write(value, updatedAt) {
+          await (
+            await requireProductStore()
+          ).setSetting({
+            key: "shell-navigation.v1",
+            updatedAt,
+            value,
+          });
+        },
+      },
+    },
     async close() {
       const open = stores;
       stores = undefined;

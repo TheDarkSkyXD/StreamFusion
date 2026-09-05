@@ -4,10 +4,13 @@ import { mobileSizing } from "@mobile/design/tokens";
 import {
   canNavigateBack,
   createInitialShellNavigationState,
+  getActiveShellLocation,
   getActiveShellRoute,
   getShellNavigationPlacement,
   MORE_ROUTE_IDS,
+  restoreShellNavigationState,
   SHELL_DESTINATIONS,
+  serializeShellNavigationState,
   shellNavigationReducer,
 } from "@mobile/features/shell/shell-navigation";
 
@@ -37,11 +40,11 @@ describe("adaptive app shell", () => {
     let state = createInitialShellNavigationState();
     state = shellNavigationReducer(state, {
       type: "navigate",
-      route: "search/result-preview",
+      location: { route: "search/result-preview" },
     });
     state = shellNavigationReducer(state, {
       type: "navigate",
-      route: "more/settings",
+      location: { route: "more/settings" },
     });
     state = shellNavigationReducer(state, {
       type: "select",
@@ -49,7 +52,7 @@ describe("adaptive app shell", () => {
     });
 
     expect(getActiveShellRoute(state).id).toBe("search/result-preview");
-    expect(state.histories.more.trail).toEqual(["more/settings"]);
+    expect(state.histories.more.trail).toEqual([{ route: "more/settings" }]);
     expect(canNavigateBack(state)).toBe(true);
   });
 
@@ -57,7 +60,7 @@ describe("adaptive app shell", () => {
     let state = createInitialShellNavigationState();
     state = shellNavigationReducer(state, {
       type: "navigate",
-      route: "search/result-preview",
+      location: { route: "search/result-preview" },
     });
     state = shellNavigationReducer(state, { type: "back" });
 
@@ -70,7 +73,7 @@ describe("adaptive app shell", () => {
     let state = createInitialShellNavigationState();
     state = shellNavigationReducer(state, {
       type: "navigate",
-      route: "following/channel-preview",
+      location: { route: "following/channel-preview" },
     });
     state = shellNavigationReducer(state, {
       type: "select",
@@ -85,6 +88,102 @@ describe("adaptive app shell", () => {
       destination: "following",
     });
     expect(state.rootScrollRequests.following).toBe(1);
+  });
+
+  it("restores allowlisted locations and all independent histories", () => {
+    let state = createInitialShellNavigationState();
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: {
+        route: "watch/session-preview",
+        target: {
+          kind: "channel",
+          platform: "twitch",
+          channelId: "channel-1",
+          channelLogin: "proofstreamer",
+        },
+      },
+    });
+    state = shellNavigationReducer(state, {
+      type: "navigate",
+      location: { route: "more/diagnostics" },
+    });
+
+    const restored = restoreShellNavigationState(
+      serializeShellNavigationState(state),
+    );
+    expect(restored.kind).toBe("restored");
+    expect(restored.state.activeDestination).toBe("more");
+    expect(restored.state.histories.watch.trail).toHaveLength(1);
+    expect(getActiveShellLocation(restored.state)).toEqual({
+      route: "more/diagnostics",
+    });
+  });
+
+  it("caps each destination history at the restoration limit", () => {
+    let state = createInitialShellNavigationState();
+    for (let index = 0; index < 25; index += 1) {
+      state = shellNavigationReducer(state, {
+        type: "navigate",
+        location: {
+          route: "activity/alert-preview",
+          eventId: `event:${index}`,
+        },
+      });
+    }
+    expect(state.histories.activity.trail).toHaveLength(20);
+    expect(
+      restoreShellNavigationState(serializeShellNavigationState(state)).kind,
+    ).toBe("restored");
+  });
+
+  it("fails closed on corrupt, unsupported, and non-allowlisted restoration", () => {
+    expect(restoreShellNavigationState("not-json")).toMatchObject({
+      kind: "fallback",
+      reason: "corrupt",
+      state: { activeDestination: "search" },
+    });
+    expect(
+      restoreShellNavigationState(
+        JSON.stringify({
+          version: 2,
+          activeDestination: "more",
+          histories: {},
+        }),
+      ),
+    ).toMatchObject({ kind: "fallback", reason: "unsupported" });
+    expect(
+      restoreShellNavigationState(
+        JSON.stringify({
+          version: 1,
+          activeDestination: "watch",
+          histories: {
+            search: [],
+            following: [],
+            watch: [{ route: "https://example.com" }],
+            activity: [],
+            more: [],
+          },
+        }),
+      ),
+    ).toMatchObject({ kind: "fallback", reason: "corrupt" });
+    expect(
+      restoreShellNavigationState(
+        JSON.stringify({
+          version: 1,
+          activeDestination: "activity",
+          histories: {
+            search: [],
+            following: [],
+            watch: [],
+            activity: [
+              { route: "activity/alert-preview", eventId: "unsafe/id" },
+            ],
+            more: [],
+          },
+        }),
+      ),
+    ).toMatchObject({ kind: "fallback", reason: "corrupt" });
   });
 
   it("keeps Home first and Accounts or maintenance last under More", () => {

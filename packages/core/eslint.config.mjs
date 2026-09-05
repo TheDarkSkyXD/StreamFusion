@@ -15,6 +15,7 @@ const publicSubpaths = [
   "follows",
   "auth",
   "chat",
+  "activity",
   "reliability",
   "relay",
 ];

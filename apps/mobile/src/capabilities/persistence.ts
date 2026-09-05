@@ -1,3 +1,8 @@
+import type {
+  ActivityItem,
+  SerializedTimestamp,
+} from "@streamfusion/core/activity";
+
 export type PersistenceUnavailableReason =
   | "secure-store-unavailable"
   | "sqlcipher-unavailable"
@@ -37,9 +42,38 @@ export interface PersistenceProofResult {
 }
 
 export interface MobilePersistenceRuntime {
+  readonly productState: MobileProductState;
   close(): Promise<void>;
   initialize(): Promise<PersistenceRuntimeState>;
   runProof(): Promise<PersistenceProofResult>;
+}
+
+export type ActivityFilter = "all" | "channels" | "jobs";
+
+export interface ActivityWriteResult {
+  readonly item: ActivityItem;
+  readonly kind: "created" | "reconciled";
+}
+
+export interface ActivityRepository {
+  list(filter?: ActivityFilter): Promise<readonly ActivityItem[]>;
+  markAllRead(readAt: SerializedTimestamp): Promise<number>;
+  markRead(
+    eventId: string,
+    readAt: SerializedTimestamp,
+  ): Promise<ActivityItem | null>;
+  record(item: ActivityItem): Promise<ActivityWriteResult>;
+}
+
+export interface ShellRestorationRepository {
+  clear(): Promise<void>;
+  read(): Promise<string | null>;
+  write(value: string, updatedAt: number): Promise<void>;
+}
+
+export interface MobileProductState {
+  readonly activity: ActivityRepository;
+  readonly shellRestoration: ShellRestorationRepository;
 }
 
 export interface SecureSecretStore {

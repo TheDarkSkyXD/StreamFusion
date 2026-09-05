@@ -3,22 +3,49 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const mobileRoot = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-);
-const expoCli = fileURLToPath(import.meta.resolve("expo/bin/cli"));
-const gradleRoot = path.join(mobileRoot, "android");
-const gradleExecutable = path.join(
-  gradleRoot,
-  process.platform === "win32" ? "gradlew.bat" : "gradlew",
-);
+import {
+  acquireWindowsDrive,
+  createMappedAndroidEnvironment,
+  runWithDriveLease,
+} from "./run-android.mjs";
 
-function run(command, args, cwd) {
+const scriptPath = fileURLToPath(import.meta.url);
+const mobileRoot = path.resolve(path.dirname(scriptPath), "..");
+const repositoryRoot = path.resolve(mobileRoot, "../..");
+
+export function runBuildCommand(
+  command,
+  args,
+  cwd,
+  environment = process.env,
+  signals = process,
+) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd, stdio: "inherit" });
-    child.once("error", reject);
+    const child = spawn(command, args, {
+      cwd,
+      env: environment,
+      stdio: "inherit",
+    });
+    const forwardSignal = (signal) => {
+      try {
+        child.kill(signal);
+      } catch {
+        return;
+      }
+    };
+    const removeSignalHandlers = () => {
+      signals.off("SIGINT", forwardSignal);
+      signals.off("SIGTERM", forwardSignal);
+    };
+
+    signals.on("SIGINT", forwardSignal);
+    signals.on("SIGTERM", forwardSignal);
+    child.once("error", (error) => {
+      removeSignalHandlers();
+      reject(error);
+    });
     child.once("exit", (code) => {
+      removeSignalHandlers();
       if (code === 0) {
         resolve();
         return;
@@ -28,26 +55,88 @@ function run(command, args, cwd) {
   });
 }
 
-await run(
-  process.execPath,
-  [expoCli, "prebuild", "--platform", "android", "--no-install"],
-  mobileRoot,
-);
+async function buildAndroid(root, expoCli, environment = process.env) {
+  const gradleRoot = path.join(root, "android");
+  const gradleExecutable = path.join(
+    gradleRoot,
+    process.platform === "win32" ? "gradlew.bat" : "gradlew",
+  );
 
-if (!existsSync(gradleExecutable)) {
-  throw new Error(`Expo prebuild did not create ${gradleExecutable}`);
+  await runBuildCommand(
+    process.execPath,
+    [expoCli, "prebuild", "--platform", "android", "--no-install"],
+    root,
+    environment,
+  );
+
+  if (!existsSync(gradleExecutable)) {
+    throw new Error(`Expo prebuild did not create ${gradleExecutable}`);
+  }
+
+  const gradleCommand =
+    process.platform === "win32"
+      ? (process.env.ComSpec ?? "C:\\Windows\\System32\\cmd.exe")
+      : gradleExecutable;
+  const gradleArguments =
+    process.platform === "win32"
+      ? ["/d", "/s", "/c", ".\\gradlew.bat app:assembleDebug"]
+      : ["app:assembleDebug"];
+
+  await runBuildCommand(
+    gradleCommand,
+    gradleArguments,
+    gradleRoot,
+    environment,
+  );
 }
 
-await run(gradleExecutable, ["app:assembleDebug"], gradleRoot);
+async function main() {
+  if (process.platform === "win32") {
+    const lease = acquireWindowsDrive(repositoryRoot);
+    const mappedRepositoryRoot = `${lease.drive}:\\`;
+    const mappedMobileRoot = path.win32.join(
+      mappedRepositoryRoot,
+      "apps",
+      "mobile",
+    );
+    const mappedExpoCli = path.win32.join(
+      mappedRepositoryRoot,
+      "node_modules",
+      "expo",
+      "bin",
+      "cli",
+    );
+    await runWithDriveLease(lease, () =>
+      buildAndroid(
+        mappedMobileRoot,
+        mappedExpoCli,
+        createMappedAndroidEnvironment(lease),
+      ),
+    );
+  } else {
+    await buildAndroid(
+      mobileRoot,
+      fileURLToPath(import.meta.resolve("expo/bin/cli")),
+    );
+  }
 
-console.log(
-  path.join(
-    gradleRoot,
-    "app",
-    "build",
-    "outputs",
-    "apk",
-    "debug",
-    "app-debug.apk",
-  ),
-);
+  console.log(
+    path.join(
+      mobileRoot,
+      "android",
+      "app",
+      "build",
+      "outputs",
+      "apk",
+      "debug",
+      "app-debug.apk",
+    ),
+  );
+}
+
+if (path.resolve(process.argv[1] ?? "") === scriptPath) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

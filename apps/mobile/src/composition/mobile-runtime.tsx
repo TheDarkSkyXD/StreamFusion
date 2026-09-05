@@ -1,5 +1,6 @@
 import { PLATFORMS } from "@streamfusion/core/platform";
 
+import { createExpoAppLinkSource } from "@mobile/adapters/expo-app-link-adapter";
 import { createExpoAppMetadataReader } from "@mobile/adapters/expo-app-metadata-reader";
 import { createDevelopmentClientController } from "@mobile/features/development/development-client-controller";
 import { usePersistenceController } from "@mobile/features/development/persistence-controller";
@@ -24,13 +25,24 @@ const persistenceRuntime = createMobileStoreRuntime({
   secretStore: createExpoSecureSecretStore(),
 });
 
+const appLinks = createExpoAppLinkSource();
+
 export function MobileRuntime() {
   const persistence = usePersistenceController(persistenceRuntime);
   return (
     <AppShell
+      activityRepository={persistenceRuntime.productState.activity}
+      appLinks={appLinks}
       developmentStatus={developmentClientController.read()}
+      onPrepareRestorationProof={async (kind) => {
+        await persistenceRuntime.productState.shellRestoration.write(
+          kind === "corrupt" ? "not-json" : JSON.stringify({ version: 2 }),
+          Date.now(),
+        );
+      }}
       onRunPersistenceProof={persistence.runProof}
       persistenceStatus={persistence.model}
+      shellRestoration={persistenceRuntime.productState.shellRestoration}
     />
   );
 }

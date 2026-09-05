@@ -15,6 +15,7 @@ const publicSubpaths = [
   "follows",
   "auth",
   "chat",
+  "activity",
   "reliability",
   "relay",
   "testing",
@@ -27,6 +28,7 @@ const contractSuites = {
   follows: "packages/core/tests/follows.test.mjs",
   auth: "packages/core/tests/auth.test.mjs",
   chat: "packages/core/tests/chat.test.mjs",
+  activity: "packages/core/tests/activity.test.mjs",
   reliability: "packages/core/tests/reliability.test.mjs",
   relay: "apps/integration-relay/tests/envelopes.test.ts",
 };

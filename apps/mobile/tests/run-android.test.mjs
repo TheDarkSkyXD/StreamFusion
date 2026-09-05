@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { createRequire } from "node:module";
 import test from "node:test";
 
+import { runBuildCommand } from "../scripts/build-android-development.mjs";
 import {
   acquireWindowsDrive,
   createMappedAndroidEnvironment,
@@ -247,4 +249,28 @@ test("the drive is released after normal completion and child failure", async ()
     assert.equal(harness.driveMappings.has("S"), false);
     assert.equal(harness.driveLocks.has("S"), false);
   }
+});
+
+test("a cancelled development build forwards the signal and releases its drive", async () => {
+  const harness = createDriveHarness();
+  const lease = acquireWindowsDrive("F:\\StreamFusion", harness.overrides);
+  const signals = new EventEmitter();
+
+  const operation = () => {
+    const running = runBuildCommand(
+      process.execPath,
+      ["-e", "setInterval(() => {}, 1000)"],
+      process.cwd(),
+      process.env,
+      signals,
+    );
+    setTimeout(() => signals.emit("SIGTERM", "SIGTERM"), 50);
+    return running;
+  };
+
+  await assert.rejects(runWithDriveLease(lease, operation), /exited with code/u);
+  assert.equal(harness.driveMappings.has("S"), false);
+  assert.equal(harness.driveLocks.has("S"), false);
+  assert.equal(signals.listenerCount("SIGINT"), 0);
+  assert.equal(signals.listenerCount("SIGTERM"), 0);
 });

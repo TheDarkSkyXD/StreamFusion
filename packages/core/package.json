@@ -34,6 +34,10 @@
       "types": "./src/chat/index.ts",
       "default": "./src/chat/index.ts"
     },
+    "./activity": {
+      "types": "./src/activity/index.ts",
+      "default": "./src/activity/index.ts"
+    },
     "./reliability": {
       "types": "./src/reliability/index.ts",
       "default": "./src/reliability/index.ts"
