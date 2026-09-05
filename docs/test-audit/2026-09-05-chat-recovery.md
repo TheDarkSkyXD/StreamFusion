@@ -4,7 +4,7 @@ Tested revision: `a023d8e`. Date: September 5, 2026.
 
 The remaining recovery checks found three user-visible failure modes: hidden rooms disappear after account loss, a failed Kick room subscription stays stranded, and optional emotes block MultiView chat startup. A separate adapter probe found that Twitch retains stale credentials when its token refresher returns null. The 310-second network outage recovered every chat automatically.
 
-This is a verification report. These newly reproduced defects remain open; this follow-up changes no application code.
+The original observations below describe the unfixed baseline. The four recovery defects were subsequently repaired in `637389c5`, `d0957df`, `85de539`, and `7405c0e`. The [fix verification report](2026-09-05-chat-recovery-fixes.md) records the repeated checks and their limits.
 
 ## Surface and evidence
 
