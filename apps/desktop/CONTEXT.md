@@ -199,8 +199,8 @@ A canonical observation of resource measurements for the StreamFusion app, a Pro
 _Avoid_: Metric row, process log, performance snapshot.
 
 **ResourceHistory**:
-The bounded, current-session sequence of ResourceSamples. It preserves observed timestamps and CollectionGaps rather than inventing samples between observations.
-_Avoid_: Metrics database, log history, persisted telemetry.
+Bounded local evidence collected while the app runs, including when Diagnostics is closed. A dedicated SQLite recorder retains recent fine samples for an hour, minute summaries for seven days, and up to 32 five-minute before/after incident windows. Summaries preserve sampled CPU/RAM maxima and their original timestamps. Diagnostics queries fixed time ranges and displays contributing processes, renderer activity, gaps, and storage status directly on the page. Historical process identity survives exit and confers no recovery authority.
+_Avoid_: Log history, continuous profiler, proof of causation.
 
 **CollectionGap**:
 An interval where a diagnostic source could not produce a trustworthy ResourceSample, such as during system sleep. It represents unknown activity, not zero activity.

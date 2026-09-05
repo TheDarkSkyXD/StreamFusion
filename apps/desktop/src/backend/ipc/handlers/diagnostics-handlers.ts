@@ -46,6 +46,39 @@ export function registerDiagnosticsHandlers(
   });
 
   registry.handle({
+    channel: IPC_CHANNELS.DIAGNOSTICS_REPORT_ACTIVITY,
+    contract: diagnosticsIpcContracts[IPC_CHANNELS.DIAGNOSTICS_REPORT_ACTIVITY],
+    failureResponse: internalError(),
+    createFailureResponse: internalError,
+    execute: (event, request) => {
+      diagnosticsRuntime.reportRendererActivity(event.sender.id, request);
+      return { kind: "ok", value: null } as const;
+    },
+  });
+
+  registry.handle({
+    channel: IPC_CHANNELS.DIAGNOSTICS_QUERY_RESOURCE_HISTORY,
+    contract: diagnosticsIpcContracts[IPC_CHANNELS.DIAGNOSTICS_QUERY_RESOURCE_HISTORY],
+    failureResponse: internalError(),
+    createFailureResponse: internalError,
+    execute: (event, request) => {
+      const value = diagnosticsRuntime.queryResourceHistory(event.sender.id, request.leaseId, { range: request.range, endAtMs: request.endAtMs });
+      return value ? ({ kind: "ok", value } as const) : internalError();
+    },
+  });
+
+  registry.handle({
+    channel: IPC_CHANNELS.DIAGNOSTICS_QUERY_RESOURCE_CONTEXT,
+    contract: diagnosticsIpcContracts[IPC_CHANNELS.DIAGNOSTICS_QUERY_RESOURCE_CONTEXT],
+    failureResponse: internalError(),
+    createFailureResponse: internalError,
+    execute: (event, request) => {
+      const value = diagnosticsRuntime.queryResourceContext(event.sender.id, request.leaseId, request.selection);
+      return value ? ({ kind: "ok", value } as const) : internalError();
+    },
+  });
+
+  registry.handle({
     channel: IPC_CHANNELS.DIAGNOSTICS_CONFIGURE_LEASE,
     contract: diagnosticsIpcContracts[IPC_CHANNELS.DIAGNOSTICS_CONFIGURE_LEASE],
     failureResponse: internalError(),

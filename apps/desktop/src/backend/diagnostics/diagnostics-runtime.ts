@@ -1,5 +1,10 @@
 import type {
   CollectionGap,
+  DiagnosticsActivityReport,
+  DiagnosticsHistoryContext,
+  DiagnosticsHistoryQuery,
+  DiagnosticsHistorySelection,
+  DiagnosticsHistorySeries,
   DiagnosticCapability,
   DiagnosticPlatform,
   DiagnosticSource,
@@ -16,11 +21,16 @@ import type {
   ResourcePoint,
   SystemFootprint,
 } from "../../shared/diagnostics-types";
+import {
+  SqliteDiagnosticsHistoryRecorder,
+  type DiagnosticsHistoryRecorder,
+} from "./diagnostics-history-recorder";
 import type { ObservabilitySnapshot } from "./diagnostics-observability";
 import type { CpuSpeedLimitReading } from "./cpu-speed-limit-source";
 import type { ProcessIoSnapshot } from "./process-io-sampler";
 
-const BASELINE_INTERVAL_MS = 30_000;
+const BASELINE_INTERVAL_MS = 5_000;
+const PROCESS_MONITOR_LOG_INTERVAL_MS = 30_000;
 const VISIBLE_INTERVAL_MS = 1_000;
 const VISIBLE_PUBLISH_INTERVAL_MS = 5_000;
 const HISTORY_RETENTION_MS = 60 * 60 * 1_000;
@@ -80,6 +90,7 @@ interface RuntimeDependencies {
   readonly refreshProcessIoProcessSet: () => void;
   readonly writeProcessMonitorLine: (line: string) => void;
   readonly getObservabilitySnapshot?: (sinceMs: number) => ObservabilitySnapshot;
+  readonly diagnosticsHistoryPath?: () => string;
 }
 
 interface DiagnosticsLease {
@@ -222,6 +233,8 @@ export class DiagnosticsRuntime {
   readonly #processIoTotals = new Map<string, ProcessIoTotals>();
   readonly #gaps: CollectionGap[] = [];
   readonly #rendererPerformance = new Map<number, RendererPerformanceSummary>();
+  readonly #rendererActivity = new Map<number, DiagnosticsActivityReport>();
+  #historyRecorder: DiagnosticsHistoryRecorder | null = null;
 
   #timer: ReturnType<typeof setTimeout> | null = null;
   #started = false;
@@ -231,6 +244,7 @@ export class DiagnosticsRuntime {
   #lastCpuUsage: CpuUsage;
   #lastSampleMonotonicMs: number;
   #lastLogAtMs = 0;
+  #lastRecordedRendererActivityAtMs = 0;
   #lastProcessPidSet = "";
   #activeProcessKeys = new Set<string>();
   #processStarts = 0;
@@ -246,6 +260,12 @@ export class DiagnosticsRuntime {
   async start(): Promise<void> {
     if (this.#started) return;
     this.#started = true;
+    if (this.#dependencies.diagnosticsHistoryPath) {
+      this.#historyRecorder = new SqliteDiagnosticsHistoryRecorder(
+        this.#dependencies.diagnosticsHistoryPath()
+      );
+      this.#historyRecorder.start(this.#instanceId, this.#dependencies.nowMs());
+    }
     await this.sampleNow();
     this.#scheduleNext();
   }
@@ -257,6 +277,8 @@ export class DiagnosticsRuntime {
     this.#timer = null;
     this.#leases.clear();
     this.#dependencies.setProcessIoSamplingInterval(null);
+    this.#historyRecorder?.stop(this.#dependencies.nowMs(), true);
+    this.#historyRecorder = null;
   }
 
   async openLease(input: {
@@ -314,10 +336,38 @@ export class DiagnosticsRuntime {
     }
     if (changed) this.#rescheduleForCadenceChange();
     this.#rendererPerformance.delete(ownerId);
+    this.#rendererActivity.delete(ownerId);
   }
 
   reportRendererPerformance(ownerId: number, summary: RendererPerformanceSummary): void {
     this.#rendererPerformance.set(ownerId, summary);
+  }
+
+  reportRendererActivity(ownerId: number, report: DiagnosticsActivityReport): void {
+    if (Math.abs(this.#dependencies.nowMs() - report.observedAtMs) > 60_000) return;
+    this.#rendererActivity.set(ownerId, report);
+  }
+
+  queryResourceHistory(
+    ownerId: number,
+    leaseId: string,
+    query: Omit<DiagnosticsHistoryQuery, "leaseId">
+  ): DiagnosticsHistorySeries | null {
+    const lease = this.#leases.get(leaseId);
+    return !lease || lease.ownerId !== ownerId
+      ? null
+      : (this.#historyRecorder?.queryHistory(query) ?? null);
+  }
+
+  queryResourceContext(
+    ownerId: number,
+    leaseId: string,
+    selection: DiagnosticsHistorySelection
+  ): DiagnosticsHistoryContext | null {
+    const lease = this.#leases.get(leaseId);
+    return !lease || lease.ownerId !== ownerId
+      ? null
+      : (this.#historyRecorder?.queryContext(selection) ?? null);
   }
 
   async refresh(ownerId: number, leaseId: string): Promise<DiagnosticsSnapshot | null> {
@@ -462,6 +512,14 @@ export class DiagnosticsRuntime {
     let latest: RendererPerformanceSummary | undefined;
     for (const summary of this.#rendererPerformance.values()) {
       if (!latest || summary.observedAtMs > latest.observedAtMs) latest = summary;
+    }
+    return latest;
+  }
+
+  #latestRendererActivity(): DiagnosticsActivityReport | null {
+    let latest: DiagnosticsActivityReport | null = null;
+    for (const activity of this.#rendererActivity.values()) {
+      if (!latest || activity.observedAtMs > latest.observedAtMs) latest = activity;
     }
     return latest;
   }
@@ -638,9 +696,55 @@ export class DiagnosticsRuntime {
       point,
       processes,
     };
+    const activity = this.#latestRendererActivity();
+    const freshActivity =
+      activity && activity.observedAtMs > this.#lastRecordedRendererActivityAtMs ? activity : null;
+    if (freshActivity) this.#lastRecordedRendererActivityAtMs = freshActivity.observedAtMs;
+    this.#historyRecorder?.record({
+      instanceId: this.#instanceId,
+      observedAtMs,
+      point,
+      observedDurationMs: elapsedMs,
+      processes,
+      activity: freshActivity,
+      gaps: this.#gaps.filter((gap) => gap.endedAtMs >= observedAtMs - BASELINE_INTERVAL_MS * 2),
+    });
+    const completedCollectionDurationMs = Math.max(
+      0,
+      this.#dependencies.monotonicMs() - startedAtMonotonicMs
+    );
+    const completedCollectionCpu = this.#dependencies.processCpuUsage(sampleStartCpu);
+    const committedSample = this.#lastSample;
+    if (committedSample) {
+      this.#lastSample = {
+        ...committedSample,
+        footprint: {
+          ...committedSample.footprint,
+          collectionDurationMs: createReadyValue(
+            "collector",
+            observedAtMs,
+            completedCollectionDurationMs
+          ),
+          collectorCpuPercent: createReadyValue(
+            "collector",
+            observedAtMs,
+            finiteNonnegative(
+              ((completedCollectionCpu.user + completedCollectionCpu.system) /
+                1_000 /
+                Math.max(1, completedCollectionDurationMs) /
+                this.#dependencies.cpuCount) *
+                100
+            )
+          ),
+        },
+      };
+    }
     this.#sequence += 1;
 
-    if (observedAtMs - this.#lastLogAtMs >= BASELINE_INTERVAL_MS || this.#lastLogAtMs === 0) {
+    if (
+      observedAtMs - this.#lastLogAtMs >= PROCESS_MONITOR_LOG_INTERVAL_MS ||
+      this.#lastLogAtMs === 0
+    ) {
       this.#lastLogAtMs = observedAtMs;
       this.#dependencies.writeProcessMonitorLine(
         `rss=${formatMegabytes(residentMemoryBytes)}MB cpu=${Math.round(cpuPercent)}% procs=${processes.length}`

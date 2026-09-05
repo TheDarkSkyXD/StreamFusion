@@ -413,6 +413,9 @@ export const IPC_CHANNELS = {
   DIAGNOSTICS_CLOSE_LEASE: "diagnostics:close-lease",
   DIAGNOSTICS_REFRESH: "diagnostics:refresh",
   DIAGNOSTICS_REPORT_RENDERER: "diagnostics:report-renderer",
+  DIAGNOSTICS_REPORT_ACTIVITY: "diagnostics:report-activity",
+  DIAGNOSTICS_QUERY_RESOURCE_HISTORY: "diagnostics:query-resource-history",
+  DIAGNOSTICS_QUERY_RESOURCE_CONTEXT: "diagnostics:query-resource-context",
   DIAGNOSTICS_SNAPSHOT_CHANGED: "diagnostics:snapshot-changed",
 
   // ========== Bug Reports ==========
@@ -500,6 +503,12 @@ export interface IpcPayloads {
   [IPC_CHANNELS.DIAGNOSTICS_CLOSE_LEASE]: { leaseId: string };
   [IPC_CHANNELS.DIAGNOSTICS_REFRESH]: { leaseId: string };
   [IPC_CHANNELS.DIAGNOSTICS_REPORT_RENDERER]: import("./diagnostics-types").RendererPerformanceSummary;
+  [IPC_CHANNELS.DIAGNOSTICS_REPORT_ACTIVITY]: import("./diagnostics-types").DiagnosticsActivityReport;
+  [IPC_CHANNELS.DIAGNOSTICS_QUERY_RESOURCE_HISTORY]: import("./diagnostics-types").DiagnosticsHistoryQuery;
+  [IPC_CHANNELS.DIAGNOSTICS_QUERY_RESOURCE_CONTEXT]: {
+    leaseId: string;
+    selection: import("./diagnostics-types").DiagnosticsHistorySelection;
+  };
 
   // Generic storage
   [IPC_CHANNELS.STORE_GET]: { key: string };

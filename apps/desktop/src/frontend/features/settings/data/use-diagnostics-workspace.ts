@@ -17,6 +17,7 @@ export function useDiagnosticsWorkspace(view: DiagnosticsView) {
     kind: "loading",
     snapshot: null,
   });
+  const [leaseId, setLeaseId] = useState<string | null>(null);
   const leaseIdRef = useRef<string | null>(null);
   const initialViewRef = useRef(view);
 
@@ -44,6 +45,7 @@ export function useDiagnosticsWorkspace(view: DiagnosticsView) {
           return;
         }
         leaseIdRef.current = reply.value.leaseId;
+        setLeaseId(reply.value.leaseId);
         setState({ kind: "ready", snapshot: reply.value.snapshot });
       });
 
@@ -52,6 +54,7 @@ export function useDiagnosticsWorkspace(view: DiagnosticsView) {
       removeSnapshotListener();
       const leaseId = leaseIdRef.current;
       leaseIdRef.current = null;
+      setLeaseId(null);
       if (leaseId) void window.electronAPI.diagnostics.closeLease(leaseId);
     };
   }, []);
@@ -92,5 +95,5 @@ export function useDiagnosticsWorkspace(view: DiagnosticsView) {
     }
   }, []);
 
-  return { ...state, refresh };
+  return { ...state, leaseId, refresh };
 }

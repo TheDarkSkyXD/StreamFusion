@@ -1,5 +1,6 @@
 import os from "node:os";
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 
 import { app, powerMonitor } from "electron";
 
@@ -52,6 +53,7 @@ export const diagnosticsRuntime = new DiagnosticsRuntime({
   refreshProcessIoProcessSet: () => processIoSampler.refreshProcessSet(),
   writeProcessMonitorLine: (line) => logger.info("ProcessMonitor", line),
   getObservabilitySnapshot: (sinceMs) => diagnosticsObservability.snapshot(sinceMs),
+  diagnosticsHistoryPath: () => path.join(app.getPath("userData"), "diagnostics-history.sqlite"),
 });
 
 function publishCpuSpeedLimit(percent: number, nativeEvent: boolean): void {

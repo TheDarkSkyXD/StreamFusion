@@ -1,79 +1,68 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  bucketDiagnosticsResourceHistory,
-  resourceHistoryBarHeight,
-  resourceWindow,
-} from "@/pages/Settings/diagnostics/diagnostics-resource-history";
-import type { ResourcePoint } from "@shared/diagnostics-types";
+import { historyTimelineSlots } from "@/pages/Settings/diagnostics/diagnostics-resource-history";
+import type { DiagnosticsHistorySeries } from "@shared/diagnostics-types";
 
-function point(observedAtMs: number, overrides: Partial<ResourcePoint> = {}): ResourcePoint {
-  return {
-    observedAtMs,
-    cpuPercent: 10,
-    residentMemoryBytes: 100,
-    processCount: 2,
-    readBytesPerSecond: 1_000,
-    writeBytesPerSecond: 500,
-    ...overrides,
-  };
-}
+const series: DiagnosticsHistorySeries = {
+  range: "1h",
+  resolution: "raw",
+  requested: { startAtMs: 60_000, endAtMs: 100_000 },
+  available: { oldestAtMs: 60_000, newestAtMs: 100_000 },
+  recorder: {
+    kind: "ready",
+    lastFailureAtMs: null,
+    rawRetentionMs: 60 * 60_000,
+    summaryRetentionMs: 7 * 24 * 60 * 60_000,
+    samplingIntervalMs: 5_000,
+    databaseBytes: 0,
+  },
+  buckets: [
+    {
+      startedAtMs: 70_000,
+      endedAtMs: 80_000,
+      averageCpuPercent: 1,
+      maximumCpuPercent: 92,
+      maximumCpuAtMs: 74_000,
+      averageResidentBytes: 100,
+      maximumResidentBytes: 250,
+      maximumResidentAtMs: 74_000,
+      sampleCount: 1,
+      observedDurationMs: 5_000,
+      gapDurationMs: 0,
+    },
+    {
+      startedAtMs: 90_000,
+      endedAtMs: 100_000,
+      averageCpuPercent: 2,
+      maximumCpuPercent: 3,
+      maximumCpuAtMs: 92_000,
+      averageResidentBytes: 110,
+      maximumResidentBytes: 120,
+      maximumResidentAtMs: 92_000,
+      sampleCount: 1,
+      observedDurationMs: 5_000,
+      gapDurationMs: 0,
+    },
+  ],
+  incidents: [],
+  gaps: [
+    {
+      startedAtMs: 80_000,
+      endedAtMs: 90_000,
+      cause: "source-failure",
+      sources: ["electron-processes"],
+    },
+  ],
+};
 
-// Guards: resource bars stay anchored to T3 Code's fixed time buckets instead of sliding every second.
-// Guards: tooltip aggregates preserve CPU average, CPU peak, and observed read/write bytes.
-describe("diagnostics resource history", () => {
-  it("uses the same fixed bucket cadence for every selectable window", () => {
-    expect(resourceWindow(5)).toEqual({ windowMs: 300_000, bucketMs: 15_000 });
-    expect(resourceWindow(15)).toEqual({ windowMs: 900_000, bucketMs: 30_000 });
-    expect(resourceWindow(30)).toEqual({ windowMs: 1_800_000, bucketMs: 60_000 });
-    expect(resourceWindow(60)).toEqual({ windowMs: 3_600_000, bucketMs: 120_000 });
-  });
-
-  it("updates one anchored bucket until the next boundary", () => {
-    const first = bucketDiagnosticsResourceHistory(
-      [point(30_100), point(31_100, { cpuPercent: 20 })],
-      15,
-      31_100
-    );
-    const updated = bucketDiagnosticsResourceHistory(
-      [point(30_100), point(31_100, { cpuPercent: 20 }), point(59_900)],
-      15,
-      59_900
-    );
-    const crossed = bucketDiagnosticsResourceHistory(
-      [point(30_100), point(59_900), point(60_000)],
-      15,
-      60_000
-    );
-
-    expect(first.map((bucket) => bucket.startedAtMs)).toEqual([30_000]);
-    expect(updated.map((bucket) => bucket.startedAtMs)).toEqual([30_000]);
-    expect(crossed.map((bucket) => bucket.startedAtMs)).toEqual([30_000, 60_000]);
-  });
-
-  it("aggregates tooltip values without turning missing I/O into fake activity", () => {
-    const [bucket] = bucketDiagnosticsResourceHistory(
-      [
-        point(30_100, { cpuPercent: 10, readBytesPerSecond: null, writeBytesPerSecond: null }),
-        point(31_100, { cpuPercent: 30, readBytesPerSecond: 2_000, writeBytesPerSecond: 500 }),
-      ],
-      15,
-      31_100
-    );
-
-    expect(bucket).toMatchObject({
-      startedAtMs: 30_000,
-      endedAtMs: 60_000,
-      avgCpuPercent: 20,
-      maxCpuPercent: 30,
-      ioReadBytes: 2_000,
-      ioWriteBytes: 500,
-    });
-  });
-
-  it("matches T3 Code's minimum visible bar behavior", () => {
-    expect(resourceHistoryBarHeight({ value: 0, max: 100, minimumVisiblePercent: 2 })).toBe(0);
-    expect(resourceHistoryBarHeight({ value: 1, max: 100, minimumVisiblePercent: 2 })).toBe(2);
-    expect(resourceHistoryBarHeight({ value: 50, max: 100, minimumVisiblePercent: 2 })).toBe(50);
+// Guards: the history chart must preserve the requested timeline and render absent data as explicit gaps.
+describe("diagnostics history timeline", () => {
+  it("keeps missing intervals in the fixed axis and retains observed peak buckets", () => {
+    expect(historyTimelineSlots(series)).toEqual([
+      { kind: "gap", startedAtMs: 60_000, endedAtMs: 70_000, cause: null },
+      { kind: "observed", bucket: series.buckets[0] },
+      { kind: "gap", startedAtMs: 80_000, endedAtMs: 90_000, cause: "source-failure" },
+      { kind: "observed", bucket: series.buckets[1] },
+    ]);
   });
 });

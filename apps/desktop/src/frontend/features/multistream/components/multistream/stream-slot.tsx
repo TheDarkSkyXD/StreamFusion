@@ -246,6 +246,7 @@ export function StreamSlot({
   return (
     <div
       ref={slotRootRef}
+      data-diagnostics-stream-slot
       className={cn(
         "relative w-full h-full bg-black group border-2 transition-colors",
         isFocused

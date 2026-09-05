@@ -10,6 +10,7 @@ import { QueryProvider } from "@/providers/query-provider";
 import { router } from "@/routes/router";
 import { useDownloadDuplicateConfirmationStore } from "@/store/download-duplicate-confirmation-store";
 import { DisplayLanguageSync } from "@/i18n/DisplayLanguageSync";
+import { useRendererActivityReporter } from "@/features/settings/data/diagnostics/renderer-activity-reporter";
 
 const DeveloperConsole = import.meta.env.DEV
   ? lazy(() =>
@@ -35,6 +36,7 @@ function App() {
   // wait on graceful chat-socket teardowns.
   useAppShutdown();
   useLiveNotificationBridge();
+  useRendererActivityReporter();
 
   return (
     <RecoveryBoundary name="StreamFusion" level="app">

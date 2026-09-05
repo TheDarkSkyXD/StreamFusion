@@ -32,10 +32,14 @@ describe("useDiagnosticsWorkspace", () => {
       closeLease: vi.fn(),
       refresh: vi.fn(),
       reportRenderer: vi.fn(),
+      reportActivity: vi.fn(),
+      queryResourceHistory: vi.fn(),
+      queryResourceContext: vi.fn(),
       onSnapshotChanged: vi.fn(() => () => undefined),
     };
 
-    const { useDiagnosticsWorkspace } = await import("@/features/settings/data/use-diagnostics-workspace");
+    const { useDiagnosticsWorkspace } =
+      await import("@/features/settings/data/use-diagnostics-workspace");
     renderHook(() => useDiagnosticsWorkspace({ tab: "overview", windowMinutes: 15 }), {
       reactStrictMode: true,
     });

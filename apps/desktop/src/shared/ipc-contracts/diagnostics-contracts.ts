@@ -11,6 +11,9 @@ import type {
   DiagnosticLogObservation,
   DiagnosticValue,
   DiagnosticsLeaseOpened,
+  DiagnosticsActivityReport,
+  DiagnosticsHistoryContext,
+  DiagnosticsHistorySeries,
   DiagnosticsSnapshot,
   DiagnosticsSnapshotChanged,
   DiagnosticsView,
@@ -226,6 +229,169 @@ const rendererPerformanceSummarySchema = z
   })
   .strict() satisfies z.ZodType<RendererPerformanceSummary>;
 
+const diagnosticsActivityReportSchema = z
+  .object({
+    observedAtMs: timestampMs,
+    route: z
+      .string()
+      .regex(/^\/[a-zA-Z0-9/_-]*$/)
+      .max(160),
+    heapUsedBytes: finiteNonnegative.nullable(),
+    domNodeCount: z.number().int().nonnegative(),
+    chatEvents: z.number().int().nonnegative(),
+    activeStreamSlots: z.number().int().nonnegative(),
+    activeVideoElements: z.number().int().nonnegative(),
+  })
+  .strict() satisfies z.ZodType<DiagnosticsActivityReport>;
+
+const historyRangeSchema = z.enum(["1h", "24h", "7d"]);
+const historyTimestampMs = z.number().int().safe().nonnegative();
+const historySelectionSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("bucket"),
+      startedAtMs: historyTimestampMs,
+      endedAtMs: historyTimestampMs,
+    })
+    .strict()
+    .refine(
+      (selection) =>
+        selection.endedAtMs > selection.startedAtMs &&
+        selection.endedAtMs - selection.startedAtMs <= 7 * 24 * 60 * 60_000
+    ),
+  z.object({ kind: z.literal("incident"), incidentId: z.string().min(1).max(128) }).strict(),
+]);
+const historyBucketSchema = z
+  .object({
+    startedAtMs: timestampMs,
+    endedAtMs: timestampMs,
+    averageCpuPercent: finiteNonnegative,
+    maximumCpuPercent: finiteNonnegative,
+    maximumCpuAtMs: timestampMs,
+    averageResidentBytes: finiteNonnegative,
+    maximumResidentBytes: finiteNonnegative,
+    maximumResidentAtMs: timestampMs,
+    sampleCount: z.number().int().nonnegative(),
+    observedDurationMs: finiteNonnegative,
+    gapDurationMs: finiteNonnegative,
+  })
+  .strict();
+const historyIncidentSchema = z
+  .object({
+    incidentId: z.string().min(1).max(128),
+    kind: z.enum(["cpu-spike", "memory-growth", "collection-gap", "unclean-exit"]),
+    observedAtMs: timestampMs,
+    label: boundedText,
+  })
+  .strict();
+const historyRecorderSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("ready"),
+      lastFailureAtMs: z.null(),
+      rawRetentionMs: finiteNonnegative,
+      summaryRetentionMs: finiteNonnegative,
+      samplingIntervalMs: finiteNonnegative,
+      databaseBytes: finiteNonnegative,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.enum(["degraded", "unavailable"]),
+      reason: boundedText,
+      lastFailureAtMs: timestampMs.nullable(),
+      rawRetentionMs: finiteNonnegative,
+      summaryRetentionMs: finiteNonnegative,
+      samplingIntervalMs: finiteNonnegative,
+      databaseBytes: finiteNonnegative,
+    })
+    .strict(),
+]);
+const historySeriesSchema = z
+  .object({
+    range: historyRangeSchema,
+    resolution: z.enum(["raw", "minute", "5m", "30m"]),
+    requested: z.object({ startAtMs: timestampMs, endAtMs: timestampMs }).strict(),
+    available: z
+      .object({ oldestAtMs: timestampMs.nullable(), newestAtMs: timestampMs.nullable() })
+      .strict(),
+    recorder: historyRecorderSchema,
+    buckets: z.array(historyBucketSchema).max(361),
+    incidents: z.array(historyIncidentSchema).max(32),
+    gaps: z
+      .array(
+        z
+          .object({
+            startedAtMs: timestampMs,
+            endedAtMs: timestampMs,
+            cause: z.enum(["suspend", "clock-jump", "source-failure", "budget-shed"]),
+            sources: z.array(diagnosticSourceSchema).max(9),
+          })
+          .strict()
+      )
+      .max(128),
+  })
+  .strict() satisfies z.ZodType<DiagnosticsHistorySeries>;
+const historyContextSchema = z
+  .object({
+    selection: historySelectionSchema,
+    bucket: historyBucketSchema,
+    samples: z.array(historyBucketSchema).max(360),
+    detailResolution: z.enum(["raw", "minute"]),
+    contributors: z
+      .array(
+        z
+          .object({
+            observationId: opaqueId,
+            displayName: z.string().min(1).max(96),
+            category: z.enum(["main", "renderer", "gpu", "utility", "managed-runtime", "other"]),
+            pid: z.number().int().positive(),
+            startedAtMs: timestampMs,
+            firstObservedAtMs: timestampMs,
+            lastObservedAtMs: timestampMs,
+            exitedAtMs: timestampMs.nullable(),
+            averageCpuPercent: finiteNonnegative,
+            maximumCpuPercent: finiteNonnegative,
+            maximumCpuAtMs: timestampMs,
+            firstResidentBytes: finiteNonnegative,
+            lastResidentBytes: finiteNonnegative,
+            maximumResidentBytes: finiteNonnegative,
+            maximumResidentAtMs: timestampMs,
+          })
+          .strict()
+      )
+      .max(12),
+    activity: z
+      .array(
+        z
+          .object({
+            kind: z.enum(["renderer", "operation", "warning"]),
+            name: boundedText,
+            firstObservedAtMs: timestampMs,
+            lastObservedAtMs: timestampMs,
+            count: z.number().int().nonnegative(),
+            failures: z.number().int().nonnegative(),
+          })
+          .strict()
+      )
+      .max(12),
+    renderer: z
+      .object({
+        route: boundedText,
+        heapUsedBytes: finiteNonnegative.nullable(),
+        domNodeCount: z.number().int().nonnegative(),
+        chatEvents: z.number().int().nonnegative(),
+        activeStreamSlots: z.number().int().nonnegative(),
+        activeVideoElements: z.number().int().nonnegative(),
+        observedAtMs: timestampMs,
+      })
+      .strict()
+      .nullable(),
+    incident: historyIncidentSchema.nullable(),
+    detailComplete: z.boolean(),
+  })
+  .strict() satisfies z.ZodType<DiagnosticsHistoryContext>;
+
 const sourceStatusesSchema = z
   .object({
     "electron-processes": diagnosticSourceStatusSchema,
@@ -379,6 +545,20 @@ export const diagnosticsIpcContracts = {
   [IPC_CHANNELS.DIAGNOSTICS_REPORT_RENDERER]: {
     request: rendererPerformanceSummarySchema,
     response: ipcReplySchema(z.null()),
+  },
+  [IPC_CHANNELS.DIAGNOSTICS_REPORT_ACTIVITY]: {
+    request: diagnosticsActivityReportSchema,
+    response: ipcReplySchema(z.null()),
+  },
+  [IPC_CHANNELS.DIAGNOSTICS_QUERY_RESOURCE_HISTORY]: {
+    request: leaseRequestSchema
+      .extend({ range: historyRangeSchema, endAtMs: historyTimestampMs })
+      .strict(),
+    response: ipcReplySchema(historySeriesSchema),
+  },
+  [IPC_CHANNELS.DIAGNOSTICS_QUERY_RESOURCE_CONTEXT]: {
+    request: leaseRequestSchema.extend({ selection: historySelectionSchema }).strict(),
+    response: ipcReplySchema(historyContextSchema),
   },
 } as const;
 

@@ -212,6 +212,128 @@ export interface RendererPerformanceSummary {
   readonly chatStoreCallsPerSecond: number;
 }
 
+/** Renderer-safe, always-on evidence. Values are counters or normalized labels only. */
+export interface DiagnosticsActivityReport {
+  readonly observedAtMs: number;
+  readonly route: string;
+  readonly heapUsedBytes: number | null;
+  readonly domNodeCount: number;
+  readonly chatEvents: number;
+  readonly activeStreamSlots: number;
+  readonly activeVideoElements: number;
+}
+
+export type DiagnosticsHistoryRange = "1h" | "24h" | "7d";
+export type DiagnosticsHistoryResolution = "raw" | "minute" | "5m" | "30m";
+
+export interface DiagnosticsHistoryQuery {
+  readonly leaseId: string;
+  readonly range: DiagnosticsHistoryRange;
+  readonly endAtMs: number;
+}
+
+export interface DiagnosticsHistoryBucket {
+  readonly startedAtMs: number;
+  readonly endedAtMs: number;
+  readonly averageCpuPercent: number;
+  readonly maximumCpuPercent: number;
+  readonly maximumCpuAtMs: number;
+  readonly averageResidentBytes: number;
+  readonly maximumResidentBytes: number;
+  readonly maximumResidentAtMs: number;
+  readonly sampleCount: number;
+  readonly observedDurationMs: number;
+  readonly gapDurationMs: number;
+}
+
+export interface DiagnosticsHistoryIncident {
+  readonly incidentId: string;
+  readonly kind: "cpu-spike" | "memory-growth" | "collection-gap" | "unclean-exit";
+  readonly observedAtMs: number;
+  readonly label: string;
+}
+
+export interface DiagnosticsHistorySeries {
+  readonly range: DiagnosticsHistoryRange;
+  readonly resolution: DiagnosticsHistoryResolution;
+  readonly requested: { readonly startAtMs: number; readonly endAtMs: number };
+  readonly available: { readonly oldestAtMs: number | null; readonly newestAtMs: number | null };
+  readonly recorder:
+    | {
+        readonly kind: "ready";
+        readonly lastFailureAtMs: null;
+        readonly rawRetentionMs: number;
+        readonly summaryRetentionMs: number;
+        readonly samplingIntervalMs: number;
+        readonly databaseBytes: number;
+      }
+    | {
+        readonly kind: "degraded" | "unavailable";
+        readonly reason: string;
+        readonly lastFailureAtMs: number | null;
+        readonly rawRetentionMs: number;
+        readonly summaryRetentionMs: number;
+        readonly samplingIntervalMs: number;
+        readonly databaseBytes: number;
+      };
+  readonly buckets: readonly DiagnosticsHistoryBucket[];
+  readonly incidents: readonly DiagnosticsHistoryIncident[];
+  readonly gaps: readonly CollectionGap[];
+}
+
+export type DiagnosticsHistorySelection =
+  | { readonly kind: "bucket"; readonly startedAtMs: number; readonly endedAtMs: number }
+  | { readonly kind: "incident"; readonly incidentId: string };
+
+export interface DiagnosticsHistoricalContributor {
+  readonly observationId: string;
+  readonly displayName: string;
+  readonly category: ProcessCategory;
+  readonly pid: number;
+  readonly startedAtMs: number;
+  readonly firstObservedAtMs: number;
+  readonly lastObservedAtMs: number;
+  readonly exitedAtMs: number | null;
+  readonly averageCpuPercent: number;
+  readonly maximumCpuPercent: number;
+  readonly maximumCpuAtMs: number;
+  readonly firstResidentBytes: number;
+  readonly lastResidentBytes: number;
+  readonly maximumResidentBytes: number;
+  readonly maximumResidentAtMs: number;
+}
+
+export interface DiagnosticsHistoricalActivity {
+  readonly kind: "renderer" | "operation" | "warning";
+  readonly name: string;
+  readonly firstObservedAtMs: number;
+  readonly lastObservedAtMs: number;
+  readonly count: number;
+  readonly failures: number;
+}
+
+export interface DiagnosticsHistoricalRendererEvidence {
+  readonly route: string;
+  readonly heapUsedBytes: number | null;
+  readonly domNodeCount: number;
+  readonly chatEvents: number;
+  readonly activeStreamSlots: number;
+  readonly activeVideoElements: number;
+  readonly observedAtMs: number;
+}
+
+export interface DiagnosticsHistoryContext {
+  readonly selection: DiagnosticsHistorySelection;
+  readonly bucket: DiagnosticsHistoryBucket;
+  readonly samples: readonly DiagnosticsHistoryBucket[];
+  readonly detailResolution: "raw" | "minute";
+  readonly contributors: readonly DiagnosticsHistoricalContributor[];
+  readonly activity: readonly DiagnosticsHistoricalActivity[];
+  readonly renderer: DiagnosticsHistoricalRendererEvidence | null;
+  readonly incident: DiagnosticsHistoryIncident | null;
+  readonly detailComplete: boolean;
+}
+
 export interface DiagnosticsOverview {
   readonly footprint: SystemFootprint;
   readonly host: HostState;

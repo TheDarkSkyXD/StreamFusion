@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import {
   LuActivity,
   LuBug,
+  LuChevronLeft,
+  LuChevronRight,
   LuCopy,
   LuCpu,
   LuDatabase,
@@ -10,6 +12,8 @@ import {
   LuGauge,
   LuHardDrive,
   LuMemoryStick,
+  LuPause,
+  LuPlay,
   LuRadio,
   LuRefreshCw,
   LuShieldCheck,
@@ -21,8 +25,8 @@ import { toast } from "sonner";
 import { BugReportSection } from "@/features/settings/components/settings/BugReportSection";
 import { LogsSection } from "@/features/settings/components/settings/LogsSection";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDiagnosticsWorkspace } from "@/features/settings/data/use-diagnostics-workspace";
+import { useDiagnosticsResourceHistory } from "@/features/settings/data/use-diagnostics-resource-history";
 import { translateSettings } from "@/features/settings/utils/settings-translation";
 import { i18n } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -33,13 +37,14 @@ import type {
   DiagnosticsTab,
   DiagnosticsWindowMinutes,
   DiagnosticValue,
+  DiagnosticsHistoryBucket,
+  DiagnosticsHistoryRange,
+  DiagnosticsHistorySelection,
+  DiagnosticsHistorySeries,
   ProcessObservation,
 } from "@shared/diagnostics-types";
 
-import {
-  bucketDiagnosticsResourceHistory,
-  resourceHistoryBarHeight,
-} from "./diagnostics-resource-history";
+import { historyTimelineSlots, resourceHistoryBarHeight } from "./diagnostics-resource-history";
 
 function getTabs(): ReadonlyArray<{
   id: DiagnosticsTab;
@@ -465,112 +470,6 @@ function StatusRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ResourceChart({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
-  const history =
-    snapshot.detail.tab === "resources" || snapshot.detail.tab === "processes"
-      ? snapshot.detail.history
-      : [];
-  const buckets = bucketDiagnosticsResourceHistory(
-    history,
-    snapshot.view.windowMinutes,
-    snapshot.observedAtMs
-  );
-  const maxCpu = Math.max(1, ...buckets.map((bucket) => bucket.avgCpuPercent));
-  const maxIo = Math.max(1, ...buckets.map((bucket) => bucket.ioReadBytes + bucket.ioWriteBytes));
-  return (
-    <div>
-      <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-[var(--color-foreground-secondary)]">
-        <span>
-          <span className="mr-2 inline-block h-1.5 w-3 rounded-full bg-violet-300" />
-          {translateSettings({ key: "settings.cpuAverage" })}
-        </span>
-        <span>
-          <span className="mr-2 inline-block h-1.5 w-3 rounded-full bg-emerald-200" />
-          {translateSettings({ key: "settings.iOReads" })}
-        </span>
-        <span>
-          <span className="mr-2 inline-block h-1.5 w-3 rounded-full bg-violet-500" />
-          {translateSettings({ key: "settings.iOWrites" })}
-        </span>
-      </div>
-      <div
-        className="flex h-32 items-end gap-1 overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] px-2 pb-2 pt-3"
-        role="img"
-        aria-label={translateSettings({
-          key: "settings.resourceHistoryForTheSelectedValueMinuteWindowWithValueTimeBucke",
-          options: { value1: snapshot.view.windowMinutes, value2: buckets.length },
-        })}
-      >
-        {buckets.length === 0 ? (
-          <p className="m-auto text-sm text-[var(--color-foreground-secondary)]">
-            {translateSettings({ key: "settings.waitingForResourceHistory" })}
-          </p>
-        ) : (
-          buckets.map((bucket) => {
-            const cpuHeight = resourceHistoryBarHeight({
-              value: bucket.avgCpuPercent,
-              max: maxCpu,
-              minimumVisiblePercent: 2,
-            });
-            const readHeight = resourceHistoryBarHeight({
-              value: bucket.ioReadBytes,
-              max: maxIo,
-              minimumVisiblePercent: 1,
-            });
-            const writeHeight = resourceHistoryBarHeight({
-              value: bucket.ioWriteBytes,
-              max: maxIo,
-              minimumVisiblePercent: 1,
-            });
-            return (
-              <Tooltip key={bucket.startedAtMs}>
-                <TooltipTrigger asChild>
-                  <div
-                    className="grid h-full min-w-1 flex-1 grid-cols-3 items-end gap-px outline-none focus-visible:ring-1 focus-visible:ring-white"
-                    data-resource-bucket={bucket.startedAtMs}
-                    tabIndex={0}
-                  >
-                    <span
-                      className="block rounded-t-sm bg-violet-300/85"
-                      style={{ height: `${cpuHeight}%` }}
-                    />
-                    <span
-                      className="block rounded-t-sm bg-emerald-200"
-                      style={{ height: `${readHeight}%` }}
-                    />
-                    <span
-                      className="block rounded-t-sm bg-violet-500/85"
-                      style={{ height: `${writeHeight}%` }}
-                    />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="top" className="space-y-0.5 text-left text-xs tabular-nums">
-                  <div>
-                    {translateSettings({ key: "settings.cpuAvg" })}
-                    {bucket.avgCpuPercent.toFixed(1)}%
-                  </div>
-                  <div>
-                    {translateSettings({ key: "settings.cpuPeak" })}
-                    {bucket.maxCpuPercent.toFixed(1)}%
-                  </div>
-                  <div>
-                    {translateSettings({ key: "settings.read" })}
-                    {formatBytes(bucket.ioReadBytes)}
-                  </div>
-                  <div>
-                    {translateSettings({ key: "settings.write" })}
-                    {formatBytes(bucket.ioWriteBytes)}
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            );
-          })
-        )}
-      </div>
-    </div>
-  );
-}
-
 interface ProcessTreeEntry {
   readonly depth: number;
   readonly process: ProcessObservation;
@@ -908,7 +807,621 @@ function OverviewTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
   );
 }
 
-function ResourcesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
+const HISTORY_RANGES = [
+  { value: "1h", label: "1 hour" },
+  { value: "24h", label: "24 hours" },
+  { value: "7d", label: "7 days" },
+] as const satisfies readonly { readonly value: DiagnosticsHistoryRange; readonly label: string }[];
+
+function historyRangeDurationMs(range: DiagnosticsHistoryRange): number {
+  switch (range) {
+    case "1h":
+      return 60 * 60_000;
+    case "24h":
+      return 24 * 60 * 60_000;
+    case "7d":
+      return 7 * 24 * 60 * 60_000;
+  }
+}
+
+function formatHistoryTime(timestampMs: number, precise = false): string {
+  return new Date(timestampMs).toLocaleString(i18n.resolvedLanguage ?? i18n.language, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    ...(precise ? { second: "2-digit" as const } : {}),
+  });
+}
+
+function formatHistoryInput(timestampMs: number): string {
+  const date = new Date(timestampMs);
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function formatSignedBytes(bytes: number): string {
+  if (bytes === 0) return "No change";
+  return `${bytes > 0 ? "+" : "−"}${formatBytes(Math.abs(bytes))}`;
+}
+
+function historyCoverage(bucket: DiagnosticsHistoryBucket): string {
+  const periodDurationMs = Math.max(1, bucket.endedAtMs - bucket.startedAtMs);
+  return `${Math.min(100, (bucket.observedDurationMs / periodDurationMs) * 100).toFixed(0)}%`;
+}
+
+function HistoryTimeline({
+  heading,
+  history,
+  selection,
+  onSelect,
+  value,
+  colorClassName,
+}: {
+  readonly heading:
+    "CPU timeline" | "RAM timeline" | "Incident CPU timeline" | "Incident RAM timeline";
+  readonly history: DiagnosticsHistorySeries;
+  readonly selection: DiagnosticsHistorySelection | null;
+  readonly onSelect: (bucket: DiagnosticsHistoryBucket) => void;
+  readonly value: (bucket: DiagnosticsHistoryBucket) => number;
+  readonly colorClassName: string;
+}) {
+  const slots = historyTimelineSlots(history);
+  const observed = slots.flatMap((slot) => (slot.kind === "observed" ? [slot.bucket] : []));
+  const maximum = Math.max(1, ...observed.map(value));
+  const cpu = heading.includes("CPU");
+  const unit = cpu ? "% peak" : "RAM peak";
+  return (
+    <section className="min-w-0" aria-labelledby={`diagnostics-${heading.replace(" ", "-")}`}>
+      <div className="flex items-baseline justify-between gap-3">
+        <h4
+          id={`diagnostics-${heading.replace(" ", "-")}`}
+          className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]"
+        >
+          {heading} ({unit})
+        </h4>
+        <span className="text-[11px] tabular-nums text-[var(--color-foreground-secondary)]">
+          {formatHistoryTime(history.requested.startAtMs)} to{" "}
+          {formatHistoryTime(history.requested.endAtMs)}
+        </span>
+      </div>
+      <div className="mt-2 flex justify-between text-[11px] tabular-nums text-[var(--color-foreground-secondary)]">
+        <span>0</span>
+        <span>Scale maximum: {cpu ? `${maximum.toFixed(1)}%` : formatBytes(maximum)}</span>
+      </div>
+      <div className="mt-1 flex h-24 w-full items-end overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-2">
+        {slots.length === 0 ? (
+          <p className="m-auto text-sm text-[var(--color-foreground-secondary)]">
+            No recorded samples yet.
+          </p>
+        ) : (
+          slots.map((slot) => {
+            if (slot.kind === "gap") {
+              const detail = slot.cause
+                ? `Collection gap: ${slot.cause}`
+                : "No retained observation";
+              return (
+                <span
+                  key={slot.startedAtMs}
+                  className="h-full min-w-0 flex-1 bg-[repeating-linear-gradient(135deg,transparent,transparent_2px,rgba(163,163,163,0.22)_2px,rgba(163,163,163,0.22)_3px)]"
+                  aria-label={`${detail}, ${formatHistoryTime(slot.startedAtMs)} to ${formatHistoryTime(slot.endedAtMs)}`}
+                  role="img"
+                />
+              );
+            }
+            const { bucket } = slot;
+            const selected =
+              selection?.kind === "bucket" && selection.startedAtMs === bucket.startedAtMs;
+            const height = resourceHistoryBarHeight({
+              value: value(bucket),
+              max: maximum,
+              minimumVisiblePercent: 3,
+            });
+            return (
+              <button
+                key={bucket.startedAtMs}
+                type="button"
+                className={cn(
+                  "flex h-full min-w-0 flex-1 items-end outline-none focus-visible:ring-2 focus-visible:ring-white",
+                  selected && "ring-1 ring-white"
+                )}
+                aria-label={`${heading} peak ${value(bucket).toFixed(1)}, observed ${formatHistoryTime(bucket.startedAtMs, true)} to ${formatHistoryTime(bucket.endedAtMs, true)}`}
+                title={`${formatHistoryTime(bucket.startedAtMs)} · ${cpu ? `${value(bucket).toFixed(1)}%` : formatBytes(value(bucket))} peak · ${historyCoverage(bucket)} coverage`}
+                aria-pressed={selected}
+                data-diagnostics-bucket-start={bucket.startedAtMs}
+                onClick={() => onSelect(bucket)}
+              >
+                <span
+                  className={cn("block w-full rounded-sm", colorClassName)}
+                  style={{ height: `${height}%` }}
+                />
+              </button>
+            );
+          })
+        )}
+      </div>
+      <p className="mt-2 text-[11px] text-[var(--color-foreground-secondary)]">
+        Striped columns have no retained observations. Bars show sampled peaks; select one for coverage.
+      </p>
+    </section>
+  );
+}
+
+function ResourceHistoryDetail({
+  history,
+  selection,
+  context,
+  onSelect,
+}: {
+  readonly history: DiagnosticsHistorySeries;
+  readonly selection: DiagnosticsHistorySelection | null;
+  readonly context: ReturnType<typeof useDiagnosticsResourceHistory>["context"];
+  readonly onSelect: (bucket: DiagnosticsHistoryBucket) => void;
+}) {
+  const detail = context.value;
+  const selectedLabel =
+    selection?.kind === "bucket"
+      ? formatHistoryTime(selection.startedAtMs)
+      : (detail?.incident?.label ?? "Choose an observed period or incident.");
+  const coverage = detail ? historyCoverage(detail.bucket) : null;
+  const maxContributorCpu = Math.max(
+    1,
+    ...(detail?.contributors.map((contributor) => contributor.maximumCpuPercent) ?? [])
+  );
+  const maxContributorRam = Math.max(
+    1,
+    ...(detail?.contributors.map((contributor) => contributor.maximumResidentBytes) ?? [])
+  );
+
+  return (
+    <section
+      className="border-t border-[var(--color-border)] p-4"
+      aria-labelledby="selected-period-evidence"
+    >
+      <h4 id="selected-period-evidence" className="text-sm font-bold text-white">
+        Selected period evidence
+      </h4>
+      <p className="mt-1 text-xs text-[var(--color-foreground-secondary)]">{selectedLabel}</p>
+      {context.kind === "loading" ? (
+        <p className="mt-4 text-sm text-[var(--color-foreground-secondary)]">Loading evidence…</p>
+      ) : context.kind === "error" ? (
+        <p role="alert" className="mt-4 text-sm text-amber-200">
+          No retained observations are available for this selected period. Diagnostic ID:{" "}
+          {context.diagnosticId}
+        </p>
+      ) : detail ? (
+        <div className="mt-4 space-y-4">
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-[var(--color-foreground-secondary)]">
+            <span>Coverage: {coverage}</span>
+            <span>
+              {detail.detailComplete ? "Complete period detail" : "Partial period detail"}
+            </span>
+            <span>
+              {detail.detailResolution === "raw" ? "Fine samples" : "Minute summaries"}:{" "}
+              {detail.samples.length}
+            </span>
+            <span>
+              CPU peak: {detail.bucket.maximumCpuPercent.toFixed(1)}% at{" "}
+              {formatHistoryTime(detail.bucket.maximumCpuAtMs, true)}
+            </span>
+            <span>
+              RAM peak: {formatBytes(detail.bucket.maximumResidentBytes)} at{" "}
+              {formatHistoryTime(detail.bucket.maximumResidentAtMs, true)}
+            </span>
+            {detail.incident ? <span>Incident: {detail.incident.label}</span> : null}
+          </div>
+          {detail.incident && detail.samples.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {(["cpu", "ram"] as const).map((metric) => (
+                <HistoryTimeline
+                  key={metric}
+                  heading={metric === "cpu" ? "Incident CPU timeline" : "Incident RAM timeline"}
+                  history={{
+                    ...history,
+                    resolution: detail.detailResolution,
+                    requested: {
+                      startAtMs: detail.bucket.startedAtMs,
+                      endAtMs: detail.bucket.endedAtMs,
+                    },
+                    buckets: detail.samples,
+                  }}
+                  selection={selection}
+                  onSelect={onSelect}
+                  value={(bucket) =>
+                    metric === "cpu" ? bucket.maximumCpuPercent : bucket.maximumResidentBytes
+                  }
+                  colorClassName={metric === "cpu" ? "bg-violet-300" : "bg-cyan-300"}
+                />
+              ))}
+            </div>
+          ) : null}
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
+              CPU and RAM contributors
+            </p>
+            {detail.contributors.length === 0 ? (
+              <p className="mt-2 text-sm text-[var(--color-foreground-secondary)]">
+                No process contributors were retained for this period.
+              </p>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {detail.contributors.map((contributor) => (
+                  <div
+                    key={contributor.observationId}
+                    className="rounded-md bg-[var(--color-background-secondary)] p-3"
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
+                      <span className="font-semibold text-white">{contributor.displayName}</span>
+                      <span className="text-xs text-[var(--color-foreground-secondary)]">
+                        {contributor.category} · PID {contributor.pid}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-[2.5rem_1fr_auto] items-center gap-2 text-xs">
+                      <span className="text-[var(--color-foreground-secondary)]">CPU</span>
+                      <span className="h-2 overflow-hidden rounded-full bg-[var(--color-background-tertiary)]">
+                        <span
+                          className="block h-full rounded-full bg-violet-300"
+                          style={{
+                            width: `${Math.max(2, (contributor.maximumCpuPercent / maxContributorCpu) * 100)}%`,
+                          }}
+                        />
+                      </span>
+                      <span className="tabular-nums text-white">
+                        {contributor.maximumCpuPercent.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="mt-1 grid grid-cols-[2.5rem_1fr_auto] items-center gap-2 text-xs">
+                      <span className="text-[var(--color-foreground-secondary)]">RAM</span>
+                      <span className="h-2 overflow-hidden rounded-full bg-[var(--color-background-tertiary)]">
+                        <span
+                          className="block h-full rounded-full bg-cyan-300"
+                          style={{
+                            width: `${Math.max(2, (contributor.maximumResidentBytes / maxContributorRam) * 100)}%`,
+                          }}
+                        />
+                      </span>
+                      <span className="tabular-nums text-white">
+                        {formatBytes(contributor.maximumResidentBytes)}
+                      </span>
+                    </div>
+                    <div className="mt-2 space-y-1 text-[11px] text-[var(--color-foreground-secondary)]">
+                      <p>
+                        RAM: {formatBytes(contributor.firstResidentBytes)} to{" "}
+                        {formatBytes(contributor.lastResidentBytes)} (
+                        {formatSignedBytes(
+                          contributor.lastResidentBytes - contributor.firstResidentBytes
+                        )}
+                        )
+                      </p>
+                      <p>
+                        CPU peak at {formatHistoryTime(contributor.maximumCpuAtMs, true)}; RAM peak
+                        at {formatHistoryTime(contributor.maximumResidentAtMs, true)}
+                      </p>
+                      <p>
+                        Process started {formatHistoryTime(contributor.startedAtMs, true)}; observed{" "}
+                        {formatHistoryTime(contributor.firstObservedAtMs, true)} to{" "}
+                        {formatHistoryTime(contributor.lastObservedAtMs, true)}
+                        {contributor.exitedAtMs === null
+                          ? ". Still present at the last observation."
+                          : `. Exited ${formatHistoryTime(contributor.exitedAtMs, true)}.`}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
+              Activity evidence
+            </p>
+            <p className="mt-1 text-xs text-[var(--color-foreground-secondary)]">
+              Correlated activity is evidence, not proof that it caused a resource change.
+            </p>
+            {detail.activity.length === 0 ? (
+              <p className="mt-2 text-sm text-[var(--color-foreground-secondary)]">
+                No recorded renderer or operation activity for this period.
+              </p>
+            ) : (
+              <ul className="mt-2 space-y-1 text-sm text-[var(--color-foreground-secondary)]">
+                {detail.activity.map((activity) => (
+                  <li key={`${activity.kind}-${activity.name}`}>
+                    {activity.name}: {activity.count}{" "}
+                    {activity.name === "Chat operations" ? "calls" : "observations"}
+                    {activity.failures > 0 ? `, ${activity.failures} failures` : ""}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {detail.renderer ? (
+              <p className="mt-2 text-xs text-[var(--color-foreground-secondary)]">
+                Renderer activity: {detail.renderer.route},{" "}
+                {detail.renderer.heapUsedBytes === null
+                  ? "heap unavailable"
+                  : `${formatBytes(detail.renderer.heapUsedBytes)} heap`}
+                ,{detail.renderer.domNodeCount} DOM nodes, {detail.renderer.chatEvents} chat
+                operations,
+                {detail.renderer.activeStreamSlots} stream slots,{" "}
+                {detail.renderer.activeVideoElements} video elements. Recorded{" "}
+                {formatHistoryTime(detail.renderer.observedAtMs)}.
+              </p>
+            ) : (
+              <p className="mt-2 text-xs text-[var(--color-foreground-secondary)]">
+                No renderer evidence was retained for this period.
+              </p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <p className="mt-4 text-sm text-[var(--color-foreground-secondary)]">
+          Select a timeline bar or incident to inspect recorded evidence.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function ResourceHistoryPanel({
+  leaseId,
+  snapshot,
+}: {
+  readonly leaseId: string | null;
+  readonly snapshot: DiagnosticsSnapshot;
+}) {
+  const [range, setRange] = useState<DiagnosticsHistoryRange>("1h");
+  const [live, setLive] = useState(true);
+  const [pausedEndAtMs, setPausedEndAtMs] = useState(snapshot.observedAtMs);
+  const [selection, setSelection] = useState<DiagnosticsHistorySelection | null>(null);
+  const endAtMs = live ? snapshot.observedAtMs : pausedEndAtMs;
+  const { history, context } = useDiagnosticsResourceHistory({
+    leaseId,
+    range,
+    endAtMs,
+    selection,
+  });
+  const series = history.value;
+  const selectedContext = context.value;
+
+  const chooseBucket = (bucket: DiagnosticsHistoryBucket): void => {
+    setPausedEndAtMs(endAtMs);
+    setLive(false);
+    setSelection({ kind: "bucket", startedAtMs: bucket.startedAtMs, endedAtMs: bucket.endedAtMs });
+  };
+  const chooseIncident = (incidentId: string): void => {
+    setPausedEndAtMs(endAtMs);
+    setLive(false);
+    setSelection({ kind: "incident", incidentId });
+  };
+  const movePeriod = (direction: -1 | 1): void => {
+    setLive(false);
+    setSelection(null);
+    setPausedEndAtMs(
+      direction === -1
+        ? Math.max(historyRangeDurationMs(range), endAtMs - historyRangeDurationMs(range))
+        : Math.min(snapshot.observedAtMs, endAtMs + historyRangeDurationMs(range))
+    );
+  };
+  const zoomToSelectedPeak = (peakAtMs: number): void => {
+    setRange("1h");
+    setLive(false);
+    setPausedEndAtMs(Math.min(snapshot.observedAtMs, peakAtMs + 30 * 60_000));
+    setSelection(null);
+  };
+
+  return (
+    <Panel
+      title="Resource history"
+      eyebrow="Recorded CPU and memory evidence"
+      icon={<LuActivity />}
+      iconClassName="text-cyan-300"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] p-4">
+        <div
+          role="group"
+          className="flex rounded-lg border border-[var(--color-border)] p-1"
+          aria-label="Resource history range"
+        >
+          {HISTORY_RANGES.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              aria-label={option.label}
+              aria-pressed={range === option.value}
+              onClick={() => {
+                setRange(option.value);
+                setSelection(null);
+              }}
+              className={cn(
+                "rounded-md px-2.5 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white",
+                range === option.value
+                  ? "bg-[var(--color-background-tertiary)] text-white"
+                  : "text-[var(--color-foreground-secondary)] hover:text-white"
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-1">
+          <label className="sr-only" htmlFor="diagnostics-history-end-at">
+            End time for resource history
+          </label>
+          <input
+            id="diagnostics-history-end-at"
+            aria-label="End time for resource history"
+            type="datetime-local"
+            value={formatHistoryInput(endAtMs)}
+            max={formatHistoryInput(snapshot.observedAtMs)}
+            onChange={(event) => {
+              const selectedEndAtMs = new Date(event.currentTarget.value).getTime();
+              if (!Number.isFinite(selectedEndAtMs)) return;
+              setLive(false);
+              setPausedEndAtMs(Math.max(0, Math.min(snapshot.observedAtMs, selectedEndAtMs)));
+              setSelection(null);
+            }}
+            className="h-8 rounded-md border border-[var(--color-border)] bg-[var(--color-background-secondary)] px-2 text-xs text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label="Previous period"
+            onClick={() => movePeriod(-1)}
+          >
+            <LuChevronLeft className="h-4 w-4" aria-hidden />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label="Next period"
+            disabled={live}
+            onClick={() => movePeriod(1)}
+          >
+            <LuChevronRight className="h-4 w-4" aria-hidden />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            aria-label={live ? "Pause live updates" : "Resume live updates"}
+            onClick={() => {
+              if (live) {
+                setPausedEndAtMs(endAtMs);
+                setLive(false);
+                return;
+              }
+              setLive(true);
+              setSelection(null);
+            }}
+          >
+            {live ? (
+              <LuPause className="mr-2 h-4 w-4" aria-hidden />
+            ) : (
+              <LuPlay className="mr-2 h-4 w-4" aria-hidden />
+            )}
+            {live ? "Pause" : "Resume"}
+          </Button>
+        </div>
+      </div>
+      {history.kind === "loading" && series ? (
+        <p role="status" className="px-4 pt-2 text-xs text-[var(--color-foreground-secondary)]">
+          Updating recorded range…
+        </p>
+      ) : null}
+      {history.kind === "error" ? (
+        <p
+          role="alert"
+          className="border-b border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100"
+        >
+          Unable to load resource history. Diagnostic ID: {history.diagnosticId}
+        </p>
+      ) : null}
+      {series ? (
+        <>
+          {series.buckets.length === 0 ? (
+            <p className="px-4 pt-4 text-sm text-[var(--color-foreground-secondary)]">
+              No retained observations in this period.
+            </p>
+          ) : null}
+          <div className="grid gap-4 p-4 md:grid-cols-2">
+            <HistoryTimeline
+              heading="CPU timeline"
+              history={series}
+              selection={selection}
+              onSelect={chooseBucket}
+              value={(bucket) => bucket.maximumCpuPercent}
+              colorClassName="bg-violet-300"
+            />
+            <HistoryTimeline
+              heading="RAM timeline"
+              history={series}
+              selection={selection}
+              onSelect={chooseBucket}
+              value={(bucket) => bucket.maximumResidentBytes}
+              colorClassName="bg-cyan-300"
+            />
+          </div>
+          <div className="border-t border-[var(--color-border)] px-4 py-3 text-xs text-[var(--color-foreground-secondary)]">
+            Available:{" "}
+            {series.available.oldestAtMs === null
+              ? "No retained data"
+              : formatHistoryTime(series.available.oldestAtMs)}
+            {series.available.newestAtMs === null
+              ? null
+              : ` to ${formatHistoryTime(series.available.newestAtMs)}`}
+            <span className="ml-4">
+              {series.resolution === "raw"
+                ? "10s peak buckets"
+                : series.resolution === "minute"
+                  ? "1 minute summaries"
+                  : `${series.resolution} peak buckets`}{" "}
+              · Collected every 5s (1s with Diagnostics open)
+            </span>
+            <span className="ml-4">{formatBytes(series.recorder.databaseBytes)} retained</span>
+            {series.recorder.kind === "ready" ? null : (
+              <span className="ml-4 text-amber-200">Recorder error: {series.recorder.reason}</span>
+            )}
+          </div>
+          {series.incidents.length > 0 ? (
+            <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] p-4">
+              {series.incidents.map((incident) => {
+                const timestamp = formatHistoryTime(incident.observedAtMs);
+                return (
+                  <Button
+                    key={incident.incidentId}
+                    size="sm"
+                    variant="secondary"
+                    aria-label={`Incident ${incident.label} ${timestamp}`}
+                    onClick={() => chooseIncident(incident.incidentId)}
+                  >
+                    {incident.label}
+                    <span className="ml-2 font-normal opacity-70">{timestamp}</span>
+                  </Button>
+                );
+              })}
+            </div>
+          ) : null}
+          <ResourceHistoryDetail
+            history={series}
+            selection={selection}
+            context={context}
+            onSelect={chooseBucket}
+          />
+          {selectedContext ? (
+            <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] px-4 py-3">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => zoomToSelectedPeak(selectedContext.bucket.maximumCpuAtMs)}
+              >
+                Zoom to CPU peak (1 hour)
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => zoomToSelectedPeak(selectedContext.bucket.maximumResidentAtMs)}
+              >
+                Zoom to RAM peak (1 hour)
+              </Button>
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <p className="p-5 text-sm text-[var(--color-foreground-secondary)]">
+          {history.kind === "loading"
+            ? "Loading resource history…"
+            : "Waiting for resource history."}
+        </p>
+      )}
+    </Panel>
+  );
+}
+
+function ResourcesTab({
+  leaseId,
+  snapshot,
+}: {
+  readonly leaseId: string | null;
+  readonly snapshot: DiagnosticsSnapshot;
+}) {
   if (snapshot.detail.tab !== "resources") return null;
   const { collection, footprint, host } = snapshot.overview;
   const rows = snapshot.detail.processes;
@@ -929,6 +1442,7 @@ function ResourcesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
   const nativeStatus = snapshot.sourceStatuses["electron-processes"];
   return (
     <div className="space-y-4">
+      <ResourceHistoryPanel leaseId={leaseId} snapshot={snapshot} />
       <Panel
         title={translateSettings({ key: "settings.resourceMonitor" })}
         icon={<LuActivity />}
@@ -1080,15 +1594,12 @@ function ResourcesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
         </div>
       </Panel>
       <Panel
-        title={translateSettings({ key: "settings.resourceTimelineAndLiveProcessTree" })}
+        title={translateSettings({ key: "settings.liveProcessTree" })}
         eyebrow={translateSettings({ key: "settings.currentActivityAndProcessHierarchy" })}
         icon={<LuGauge />}
         iconClassName="text-amber-300"
       >
-        <div className="p-4">
-          <ResourceChart snapshot={snapshot} />
-        </div>
-        <div className="border-y border-[var(--color-border)] bg-[var(--color-background-secondary)] px-5 py-3">
+        <div className="border-b border-[var(--color-border)] bg-[var(--color-background-secondary)] px-5 py-3">
           <p className="text-sm font-bold text-white">
             {translateSettings({ key: "settings.liveProcessTree" })}
           </p>
@@ -1125,9 +1636,6 @@ function ResourcesTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
             label={translateSettings({ key: "settings.processes" })}
             value={String(rows.length)}
           />
-        </div>
-        <div className="border-t border-[var(--color-border)] p-4">
-          <ResourceChart snapshot={snapshot} />
         </div>
         <ProcessHistoryTable rows={rows} />
       </Panel>
@@ -1705,9 +2213,16 @@ function DeveloperToolsTab({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
   );
 }
 
-function WorkspaceContent({ snapshot }: { snapshot: DiagnosticsSnapshot }) {
+function WorkspaceContent({
+  leaseId,
+  snapshot,
+}: {
+  readonly leaseId: string | null;
+  readonly snapshot: DiagnosticsSnapshot;
+}) {
   if (snapshot.view.tab === "overview") return <OverviewTab snapshot={snapshot} />;
-  if (snapshot.view.tab === "resources") return <ResourcesTab snapshot={snapshot} />;
+  if (snapshot.view.tab === "resources")
+    return <ResourcesTab leaseId={leaseId} snapshot={snapshot} />;
   if (snapshot.view.tab === "io") return <IoTab snapshot={snapshot} />;
   if (snapshot.view.tab === "traces") return <TracesTab snapshot={snapshot} />;
   if (snapshot.view.tab === "logs-reports") {
@@ -1863,7 +2378,7 @@ export function DiagnosticsWorkspace({
                   {diagnostics.diagnosticId}.
                 </div>
               ) : null}
-              <WorkspaceContent snapshot={diagnostics.snapshot} />
+              <WorkspaceContent leaseId={diagnostics.leaseId} snapshot={diagnostics.snapshot} />
             </div>
           ) : (
             <div

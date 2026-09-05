@@ -147,7 +147,7 @@ describe("DiagnosticsRuntime", () => {
     });
     expect(snapshot.overview.collection).toMatchObject({ processStarts: 2, processExits: 0 });
     expect(snapshot.sourceStatuses["electron-processes"].kind).toBe("ready");
-    expect(harness.timerDelays).toEqual([30_000]);
+    expect(harness.timerDelays).toEqual([5_000]);
     expect(harness.logLines[0]).toContain("rss=192MB cpu=20% procs=2");
     expect(diagnosticsSnapshotSchema.safeParse(snapshot).success).toBe(true);
   });
@@ -173,7 +173,7 @@ describe("DiagnosticsRuntime", () => {
     expect(harness.timerDelays.at(-1)).toBe(1_000);
     expect(harness.ioIntervals).toEqual([1_000]);
     expect(harness.runtime.closeLease(7, first.leaseId)).toBe(true);
-    expect(harness.timerDelays.at(-1)).toBe(30_000);
+    expect(harness.timerDelays.at(-1)).toBe(5_000);
     expect(harness.ioIntervals).toEqual([1_000, null]);
     expect(harness.runtime.closeLease(7, first.leaseId)).toBe(false);
   });
