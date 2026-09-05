@@ -208,11 +208,11 @@ describe("useMultiChatSessions", () => {
     mocks.loadGlobalEmotes.mockReturnValueOnce(globalEmotes.promise);
     const service = mocks[platform];
     renderWithProviders(<Workspace channels={[channel]} />, { queryClient });
-    await waitFor(() => expect(mocks.loadGlobalEmotes).toHaveBeenCalledWith(platform));
     await act(async () => {});
+    expect(mocks.loadGlobalEmotes).toHaveBeenCalledWith(platform);
     const joinedWhileGlobalEmotesPending = service.joinChannel.mock.calls.length === 1;
     await act(async () => globalEmotes.resolve());
-    await waitFor(() => expect(service.joinChannel).toHaveBeenCalledOnce());
+    expect(service.joinChannel).toHaveBeenCalledOnce();
     expect(joinedWhileGlobalEmotesPending).toBe(true);
   });
 
@@ -226,12 +226,13 @@ describe("useMultiChatSessions", () => {
       loadEmotes.mockReturnValueOnce(decoration.promise);
       const service = mocks[platform];
       const view = renderWithProviders(<Workspace channels={[channel]} />, { queryClient });
-      await waitFor(() => expect(loadEmotes).toHaveBeenCalledOnce());
+      await act(async () => {});
+      expect(loadEmotes).toHaveBeenCalledOnce();
       view.rerender(<Workspace channels={[]} />);
       await act(async () => {});
       const releasedWhileDecorationPending = service.release.mock.calls.length === 1;
       await act(async () => decoration.resolve());
-      await waitFor(() => expect(service.release).toHaveBeenCalledExactlyOnceWith("first"));
+      expect(service.release).toHaveBeenCalledExactlyOnceWith("first");
       expect(releasedWhileDecorationPending).toBe(true);
     }
   );
@@ -244,7 +245,8 @@ describe("useMultiChatSessions", () => {
       const loadEmotes = stage === "global" ? mocks.loadGlobalEmotes : mocks.loadChannelEmotes;
       loadEmotes.mockRejectedValueOnce(new Error(`${stage} emotes unavailable`));
       renderWithProviders(<Workspace channels={[channel]} />, { queryClient });
-      await waitFor(() => expect(loadEmotes).toHaveBeenCalledOnce());
+      await act(async () => {});
+      expect(loadEmotes).toHaveBeenCalledOnce();
       await act(async () => {});
       expect(screen.getByRole("status")).toHaveTextContent('"failedChannels":[]');
     }

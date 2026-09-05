@@ -31,6 +31,37 @@ function sessionIdentity({ chat, channel }: ResolvedMultiChatChannel): string {
   return JSON.stringify([chat.key, channel.id, channel.chatroomId, channel.kickUserId]);
 }
 
+function loadOptionalChatDecorations({ chat, channel }: ResolvedMultiChatChannel): void {
+  void (async () => {
+    ensureEmoteProvidersInitialized();
+    const emotes = useEmoteStore.getState();
+    emotes.applyProviderPrefs(
+      useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES
+    );
+
+    if (chat.platform === "twitch") {
+      await Promise.all([initializeTwitchEmotes(), emotes.loadGlobalEmotes("twitch")]);
+      await emotes.loadChannelEmotes(channel.id, chat.channel, "twitch");
+      return;
+    }
+
+    const token = await window.electronAPI.auth.getToken("kick");
+    if (token) initializeKickEmotes(token.accessToken);
+    await emotes.loadGlobalEmotes("kick");
+    await emotes.loadChannelEmotes(
+      String(channel.chatroomId),
+      chat.channel,
+      "kick",
+      channel.kickUserId
+    );
+  })().catch((error: unknown) => {
+    logger.warn("UI:Chat:MultiView", "optional chat decorations failed", {
+      channel: chat.key,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
+}
+
 function retainChatSession(
   { chat, channel }: ResolvedMultiChatChannel,
   previousRelease: Promise<void> | undefined,
@@ -54,11 +85,6 @@ function retainChatSession(
       if (cancellation.signal.aborted) return;
       service.acquire(chat.channel);
       acquired = true;
-      ensureEmoteProvidersInitialized();
-      const emotes = useEmoteStore.getState();
-      emotes.applyProviderPrefs(
-        useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES
-      );
 
       if (chat.platform === "twitch") {
         const [accessToken, twitchUser] = await Promise.all([
@@ -76,36 +102,23 @@ function retainChatSession(
             : { anonymous: true, debug: import.meta.env.DEV }
         );
         if (cancellation.signal.aborted) return;
-        await Promise.all([initializeTwitchEmotes(), emotes.loadGlobalEmotes("twitch")]);
-        if (cancellation.signal.aborted) return;
+        loadOptionalChatDecorations({ chat, channel });
         joining = twitchChatService.joinChannel(chat.channel, channel.id);
-        await Promise.all([joining, emotes.loadChannelEmotes(channel.id, chat.channel, "twitch")]);
+        await joining;
       } else {
-        const token = await window.electronAPI.auth.getToken("kick");
-        if (cancellation.signal.aborted) return;
         await kickChatService.connect({ debug: import.meta.env.DEV });
-        if (cancellation.signal.aborted) return;
-        if (token) initializeKickEmotes(token.accessToken);
-        await emotes.loadGlobalEmotes("kick");
         if (cancellation.signal.aborted) return;
         if (!channel.chatroomId) {
           throw new Error(`Kick chatroom is unavailable for ${chat.channel}`);
         }
+        loadOptionalChatDecorations({ chat, channel });
         const broadcasterId = Number(channel.id);
         joining = kickChatService.joinChannel(
           chat.channel,
           channel.chatroomId,
           Number.isFinite(broadcasterId) ? broadcasterId : undefined
         );
-        await Promise.all([
-          joining,
-          emotes.loadChannelEmotes(
-            String(channel.chatroomId),
-            chat.channel,
-            "kick",
-            channel.kickUserId
-          ),
-        ]);
+        await joining;
       }
     } catch (error) {
       if (cancellation.signal.aborted) return;
