@@ -194,7 +194,6 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
 
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const scrollerRef = useRef<HTMLElement | null>(null);
-    const bottomCommitFrameRef = useRef<number | null>(null);
     const returnToLiveFrameRef = useRef<number | null>(null);
     const previousScrollerScrollTopRef = useRef(0);
     const pointerScrollIntentRef = useRef(false);
@@ -497,11 +496,11 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
       });
     }, []);
 
-    const settleResidualBottomGap = useCallback((reportedListHeight?: number) => {
+    const settleResidualBottomGap = useCallback(() => {
       const scroller = scrollerRef.current;
       if (!scroller) return;
 
-      const scrollHeight = Math.max(scroller.scrollHeight, reportedListHeight ?? 0);
+      const scrollHeight = scroller.scrollHeight;
       const bottomGap = scrollHeight - scroller.scrollTop - scroller.clientHeight;
       if (bottomGap > BOTTOM_FOLLOW_RESIDUAL_GAP_PX) {
         scroller.scrollTop = Math.max(0, scrollHeight - scroller.clientHeight);
@@ -518,47 +517,17 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
       );
     }, [hasActiveInputPause]);
 
-    const scheduleBottomCommit = useCallback(
-      (reportedListHeight: number) => {
-        if (bottomCommitFrameRef.current !== null) {
-          window.cancelAnimationFrame(bottomCommitFrameRef.current);
-        }
-
-        bottomCommitFrameRef.current = window.requestAnimationFrame(() => {
-          bottomCommitFrameRef.current = null;
-          if (!shouldAutoFollowBottom()) return;
-
-          settleResidualBottomGap(reportedListHeight);
-        });
-      },
-      [settleResidualBottomGap, shouldAutoFollowBottom]
-    );
-
     useEffect(() => {
       return () => {
-        if (bottomCommitFrameRef.current !== null) {
-          window.cancelAnimationFrame(bottomCommitFrameRef.current);
-        }
         if (returnToLiveFrameRef.current !== null) {
           window.cancelAnimationFrame(returnToLiveFrameRef.current);
         }
       };
     }, []);
 
-    // Height notifications are the sole passive bottom-follow authority. Letting
-    // Virtuoso follow too makes it seek to its estimate before this exact commit.
-    const handleTotalListHeightChanged = useCallback(
-      (totalListHeight: number) => {
-        if (!shouldAutoFollowBottom()) return;
-
-        scheduleBottomCommit(totalListHeight);
-      },
-      [scheduleBottomCommit, shouldAutoFollowBottom]
-    );
-
     const itemContent = useCallback(
       (_index: number, message: ChatMessageType) => (
-        <>
+        <div className="flow-root">
           {message.id === newMessagesStartId && <NewMessagesDivider platform={message.platform} />}
           <MemoizedChatMessage
             key={message.id}
@@ -573,7 +542,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
             selfUserId={selfUserId}
             currentChannelContext={currentChannelContext}
           />
-        </>
+        </div>
       ),
       [
         newMessagesStartId,
@@ -641,7 +610,10 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
       trimChannelToMessageLimit,
     ]);
 
-    const followOutput = useCallback(() => false, []);
+    const followOutput = useCallback(
+      (): "auto" | false => (shouldAutoFollowBottom() ? "auto" : false),
+      [shouldAutoFollowBottom]
+    );
 
     return (
       <div className="relative flex-1 h-full min-h-0 min-w-0 overflow-x-hidden">
@@ -651,13 +623,12 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = memo(
           itemContent={itemContent}
           computeItemKey={computeItemKey}
           firstItemIndex={firstItemIndex}
-          followOutput={followOutput}
+          followOutput={isPaused ? false : followOutput}
           initialTopMostItemIndex={CHAT_INITIAL_LOCATION}
           atBottomThreshold={CHAT_AT_BOTTOM_THRESHOLD_PX}
           overscan={CHAT_LIST_OVERSCAN_PX}
           increaseViewportBy={CHAT_LIST_INCREASE_VIEWPORT_BY}
           atBottomStateChange={handleAtBottomStateChange}
-          totalListHeightChanged={handleTotalListHeightChanged}
           scrollerRef={scrollerCallbackRef}
           defaultItemHeight={defaultItemHeight}
           style={{

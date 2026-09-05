@@ -38,6 +38,7 @@ const virtuosoScrollToIndexCalls = vi.hoisted<
     behavior?: "auto" | "smooth";
   }>
 >(() => []);
+const virtuosoFollowOutputDisabled = vi.hoisted<boolean[]>(() => []);
 const virtuosoScrollerHeight = vi.hoisted(() => ({ current: 1200 }));
 const virtuosoScrollerScrollTopWrites = vi.hoisted<number[]>(() => []);
 const virtuosoScrollers = vi.hoisted<HTMLElement[]>(() => []);
@@ -87,7 +88,7 @@ vi.mock("react-virtuoso", async () => {
           itemContent: (i: number, m: unknown) => React.ReactNode;
           atBottomStateChange?: (atBottom: boolean) => void;
           totalListHeightChanged?: (height: number) => void;
-          followOutput?: (isAtBottom: boolean) => "auto" | boolean;
+          followOutput?: false | ((isAtBottom: boolean) => "auto" | boolean);
           scrollerRef?: (el: HTMLElement | null) => void;
           initialTopMostItemIndex?: number;
           firstItemIndex?: number;
@@ -120,9 +121,10 @@ vi.mock("react-virtuoso", async () => {
         virtuosoLayoutProps.push({ className, style });
         virtuosoTotalListHeightChangedCallbacks.push(totalListHeightChanged);
         virtuosoAtBottomStateChangeCallbacks.push(atBottomStateChange);
-        if (followOutput) {
-          virtuosoFollowOutputCallbacks.push(followOutput);
-        }
+        virtuosoFollowOutputDisabled.push(followOutput === false);
+        virtuosoFollowOutputCallbacks.push(
+          typeof followOutput === "function" ? followOutput : () => false
+        );
         const scroller = document.createElement("div");
         Object.defineProperty(scroller, "scrollHeight", {
           get: () => virtuosoScrollerHeight.current,
@@ -324,8 +326,8 @@ function setChatDisplay(overrides: Partial<ChatDisplayPreferences>) {
 // Guards: setPaused(channelKey, false) must fire on mount for the current channel so a reconnect doesn't strand the list in a paused state from the prior session
 // Guards: rapid chat updates must not mutate Virtuoso's initial scroll index and flash/jump the visible list
 // Guards: virtualized row estimates follow persisted compact, cozy, and loose message spacing so unmeasured rows do not overlap or jump
-// Guards: height-only growth of the visible newest row keeps a following view pinned through measured alignment and a bounded residual-gap correction
-// Guards: passive height growth has one scroll authority and at most one paint-coalesced bottom commit
+// Guards: live follow stays enabled through passive row growth and switches off when the viewer pauses
+// Guards: trimming retained history keeps native follow active without competing DOM scroll writes that flash an empty list
 // Guards: wheel-up intent during the pause debounce must stop Virtuoso auto-follow so sending plus scrolling cannot snap back to bottom
 // Guards: a tiny wheel movement that remains within the bottom threshold must keep live follow armed without a Virtuoso bottom-state transition
 // Guards: upward scroller movement from scrollbar dragging or page-key scrolling must stop later height growth from snapping chat back to bottom
@@ -344,6 +346,7 @@ describe("ChatMessageList", () => {
     virtuosoTotalListHeightChangedCallbacks.length = 0;
     virtuosoAtBottomStateChangeCallbacks.length = 0;
     virtuosoFollowOutputCallbacks.length = 0;
+    virtuosoFollowOutputDisabled.length = 0;
     virtuosoScrollToIndexCalls.length = 0;
     virtuosoScrollerHeight.current = 1200;
     virtuosoScrollerScrollTopWrites.length = 0;
@@ -555,14 +558,12 @@ describe("ChatMessageList", () => {
     expect(virtuosoInitialIndexes.at(-1)).toBe(initialTopMostItemIndex);
   });
 
-  it("keeps virtual continuity and live follow through passive front trims and remeasurement", async () => {
-    vi.useFakeTimers();
+  it("preserves history indices while letting native follow settle front trims", () => {
     setChatDisplay({ messageLimit: 20 });
     const seeded = Array.from({ length: 30 }, (_, index) =>
       message(`seed-${index}`, "alpha", `Seed ${index}`)
     );
     useChatStore.setState({ messagesByChannel: { [channelA]: seeded } });
-
     const { queryByRole } = render(<ChatMessageList channelKey={channelA} />);
     const firstItemIndexBeforeTrim = virtuosoFirstItemIndexes.at(-1);
 
@@ -571,133 +572,14 @@ describe("ChatMessageList", () => {
     });
 
     expect(useChatStore.getState().messagesByChannel[channelA]).toHaveLength(11);
-    expect.soft(virtuosoFirstItemIndexes.at(-1)).toBe((firstItemIndexBeforeTrim ?? 0) + 20);
-
-    const scroller = virtuosoScrollers.at(-1);
-    expect(scroller).toBeDefined();
-    virtuosoScrollerHeight.current = 1272;
-    if (scroller) {
-      scroller.scrollTop = 500;
-      virtuosoScrollerScrollTopWrites.length = 0;
-      scroller.dispatchEvent(new Event("scroll"));
-    }
-    virtuosoScrollToIndexCalls.length = 0;
-    act(() => {
-      virtuosoTotalListHeightChangedCallbacks.at(-1)?.(1272);
-    });
-
-    expect.soft(virtuosoFollowOutputCallbacks.at(-1)?.(false)).toBe(false);
-    expect.soft(virtuosoScrollToIndexCalls).toEqual([]);
-    expect.soft(virtuosoScrollerScrollTopWrites).toEqual([]);
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(250);
-    });
-
-    expect.soft(virtuosoScrollerScrollTopWrites).toEqual([972]);
-    expect.soft(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
-    expect
-      .soft(queryByRole("button", { name: /chat paused due to scroll/i }))
-      .not.toBeInTheDocument();
-  });
-
-  it("realigns when the visible newest row grows after measurement without a child mutation", async () => {
-    vi.useFakeTimers();
-    act(() => {
-      useChatStore.getState().addMessage(message("seed", "alpha", "Seed"));
-    });
-    render(<ChatMessageList channelKey={channelA} />);
-    const onHeightChanged = virtuosoTotalListHeightChangedCallbacks.at(-1);
-    expect(onHeightChanged).toBeTypeOf("function");
-    virtuosoScrollToIndexCalls.length = 0;
-    expect(virtuosoScrollerScrollTopWrites).toHaveLength(0);
-
-    virtuosoScrollerHeight.current = 1272;
-    act(() => {
-      virtuosoAtBottomStateChangeCallbacks.at(-1)?.(false);
-      onHeightChanged?.(1272);
-    });
-
-    expect(virtuosoFollowOutputCallbacks.at(-1)?.(true)).toBe(false);
-    expect(virtuosoScrollToIndexCalls).toEqual([]);
+    expect(virtuosoFirstItemIndexes.at(-1)).toBe((firstItemIndexBeforeTrim ?? 0) + 20);
+    expect(virtuosoFollowOutputCallbacks.at(-1)?.(false)).toBe("auto");
+    expect(virtuosoTotalListHeightChangedCallbacks.at(-1)).toBeUndefined();
     expect(virtuosoScrollerScrollTopWrites).toEqual([]);
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(20);
-    });
-
-    expect(virtuosoScrollerScrollTopWrites).toEqual([972]);
+    expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
   });
 
-  it("uses one coalesced direct commit as the only passive bottom-follow authority", () => {
-    const pendingFrames = new Map<number, FrameRequestCallback>();
-    let nextFrameId = 1;
-    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
-      const frameId = nextFrameId++;
-      pendingFrames.set(frameId, callback);
-      return frameId;
-    });
-    vi.spyOn(window, "cancelAnimationFrame").mockImplementation((frameId) => {
-      pendingFrames.delete(frameId);
-    });
-    act(() => {
-      useChatStore.getState().addMessage(message("seed", "alpha", "Seed"));
-    });
-    render(<ChatMessageList channelKey={channelA} />);
-    const onHeightChanged = virtuosoTotalListHeightChangedCallbacks.at(-1);
-    expect(onHeightChanged).toBeTypeOf("function");
-    expect(virtuosoFollowOutputCallbacks.at(-1)?.(false)).toBe(false);
-    virtuosoScrollToIndexCalls.length = 0;
-    virtuosoScrollerScrollTopWrites.length = 0;
-
-    act(() => {
-      onHeightChanged?.(1236);
-      onHeightChanged?.(1272);
-    });
-
-    expect(virtuosoScrollToIndexCalls).toEqual([]);
-    expect(virtuosoScrollerScrollTopWrites).toEqual([]);
-    expect(pendingFrames.size).toBe(1);
-
-    virtuosoScrollerHeight.current = 1272;
-    act(() => {
-      pendingFrames.values().next().value?.(0);
-    });
-
-    expect(virtuosoScrollToIndexCalls).toEqual([]);
-    expect(virtuosoScrollerScrollTopWrites).toEqual([972]);
-  });
-
-  it("uses the reported list height when the scroller height lags remeasurement", () => {
-    let commitFrame: FrameRequestCallback | undefined;
-    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
-      commitFrame = callback;
-      return 1;
-    });
-    act(() => {
-      useChatStore.getState().addMessage(message("seed", "alpha", "Seed"));
-    });
-    render(<ChatMessageList channelKey={channelA} />);
-    const onHeightChanged = virtuosoTotalListHeightChangedCallbacks.at(-1);
-    expect(onHeightChanged).toBeTypeOf("function");
-    expect(virtuosoScrollerHeight.current).toBe(1200);
-    virtuosoScrollToIndexCalls.length = 0;
-    virtuosoScrollerScrollTopWrites.length = 0;
-
-    act(() => {
-      onHeightChanged?.(1272);
-    });
-
-    expect(virtuosoScrollToIndexCalls).toEqual([]);
-    expect(virtuosoScrollerScrollTopWrites).toEqual([]);
-    virtuosoScrollerHeight.current = 1272;
-    act(() => {
-      commitFrame?.(0);
-    });
-    expect(virtuosoScrollerScrollTopWrites).toEqual([972]);
-  });
-
-  it("settles passive hydration at newest, then never yanks after the viewer scrolls up", async () => {
+  it("keeps native follow after hydration until the viewer scrolls up", async () => {
     vi.useFakeTimers();
     const { getByRole, getByText, queryByRole } = render(<ChatMessageList channelKey={channelA} />);
 
@@ -716,13 +598,10 @@ describe("ChatMessageList", () => {
     fireEvent.click(getByText("hydrate away from bottom"));
     virtuosoScrollToIndexCalls.length = 0;
     virtuosoScrollerScrollTopWrites.length = 0;
-    act(() => {
-      virtuosoTotalListHeightChangedCallbacks.at(-1)?.(1272);
-    });
 
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
     expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
-    expect(virtuosoFollowOutputCallbacks.at(-1)?.(false)).toBe(false);
+    expect(virtuosoFollowOutputCallbacks.at(-1)?.(false)).toBe("auto");
     expect(virtuosoScrollToIndexCalls).toEqual([]);
     expect(virtuosoScrollerScrollTopWrites).toEqual([]);
 
@@ -730,7 +609,7 @@ describe("ChatMessageList", () => {
       await vi.advanceTimersByTimeAsync(20);
     });
 
-    expect(virtuosoScrollerScrollTopWrites).toEqual([972]);
+    expect(virtuosoScrollerScrollTopWrites).toEqual([]);
 
     fireEvent.click(getByText("drag scrollbar up"));
     await act(async () => {
@@ -742,6 +621,7 @@ describe("ChatMessageList", () => {
     });
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(true);
     expect(scrollToBottomControl).toBeVisible();
+    expect(virtuosoFollowOutputDisabled.at(-1)).toBe(true);
     expect(virtuosoFollowOutputCallbacks.at(-1)?.(false)).toBe(false);
 
     virtuosoScrollToIndexCalls.length = 0;
@@ -750,9 +630,6 @@ describe("ChatMessageList", () => {
       useChatStore.getState().addMessage(message("second-live", "alpha", "Second live"));
     });
     virtuosoScrollerHeight.current = 1344;
-    act(() => {
-      virtuosoTotalListHeightChangedCallbacks.at(-1)?.(1344);
-    });
 
     expect(getByText("Second live")).toBeInTheDocument();
     expect(virtuosoScrollToIndexCalls).toHaveLength(0);
@@ -772,14 +649,14 @@ describe("ChatMessageList", () => {
 
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
     expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
-    expect(virtuosoFollowOutputCallbacks.at(-1)?.(true)).toBe(false);
+    expect(virtuosoFollowOutputCallbacks.at(-1)?.(true)).toBe("auto");
   });
 
   it("disables all auto-follow immediately on wheel-up intent before pause debounce completes", () => {
     const { getByText } = render(<ChatMessageList channelKey={channelA} />);
     const followOutput = virtuosoFollowOutputCallbacks.at(-1);
     expect(followOutput).toBeTypeOf("function");
-    expect(followOutput?.(true)).toBe(false);
+    expect(followOutput?.(true)).toBe("auto");
 
     fireEvent.click(getByText("wheel up"));
 
@@ -788,9 +665,6 @@ describe("ChatMessageList", () => {
     virtuosoScrollerScrollTopWrites.length = 0;
 
     virtuosoScrollerHeight.current = 1272;
-    act(() => {
-      virtuosoTotalListHeightChangedCallbacks.at(-1)?.(1272);
-    });
 
     expect(virtuosoScrollToIndexCalls).toHaveLength(0);
     expect(virtuosoScrollerScrollTopWrites).toHaveLength(0);
@@ -804,14 +678,11 @@ describe("ChatMessageList", () => {
     virtuosoScrollerScrollTopWrites.length = 0;
 
     virtuosoScrollerHeight.current = 1236;
-    act(() => {
-      virtuosoTotalListHeightChangedCallbacks.at(-1)?.(1236);
-    });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(250);
     });
 
-    expect(virtuosoScrollerScrollTopWrites).toEqual([936]);
+    expect(virtuosoFollowOutputCallbacks.at(-1)?.(false)).toBe("auto");
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
     expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
   });
@@ -903,9 +774,6 @@ describe("ChatMessageList", () => {
       virtuosoScrollerScrollTopWrites.length = 0;
 
       virtuosoScrollerHeight.current = 1272;
-      act(() => {
-        virtuosoTotalListHeightChangedCallbacks.at(-1)?.(1272);
-      });
 
       expect(virtuosoScrollToIndexCalls).toHaveLength(0);
       expect(virtuosoScrollerScrollTopWrites).toHaveLength(0);
@@ -951,9 +819,6 @@ describe("ChatMessageList", () => {
     fireEvent.click(getByText("hydrate away from bottom"));
     virtuosoScrollToIndexCalls.length = 0;
     virtuosoScrollerScrollTopWrites.length = 0;
-    act(() => {
-      virtuosoTotalListHeightChangedCallbacks.at(-1)?.(1272);
-    });
 
     expect(virtuosoScrollToIndexCalls).toEqual([]);
     expect(virtuosoScrollerScrollTopWrites).toEqual([]);
@@ -962,8 +827,8 @@ describe("ChatMessageList", () => {
       await vi.advanceTimersByTimeAsync(20);
     });
 
-    expect(virtuosoScrollerScrollTopWrites).toEqual([972]);
-    expect(virtuosoFollowOutputCallbacks.at(-1)?.(false)).toBe(false);
+    expect(virtuosoScrollerScrollTopWrites).toEqual([]);
+    expect(virtuosoFollowOutputCallbacks.at(-1)?.(false)).toBe("auto");
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(true);
     expect(useChatStore.getState().pausedChannels.has(kickChannel)).toBe(false);
     expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
@@ -1031,7 +896,7 @@ describe("ChatMessageList", () => {
 
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
     expect(queryByRole("button", { name: /chat paused due to scroll/i })).not.toBeInTheDocument();
-    expect(virtuosoFollowOutputCallbacks.at(-1)?.(true)).toBe(false);
+    expect(virtuosoFollowOutputCallbacks.at(-1)?.(true)).toBe("auto");
   });
 
   it("settles a residual bottom gap after the return-to-live trim commits", async () => {
@@ -1101,7 +966,7 @@ describe("ChatMessageList", () => {
     expect(virtuosoScrollToIndexCalls).toEqual([{ index: "LAST", align: "end", behavior: "auto" }]);
   });
 
-  it("keeps settling live growth after return-to-live is clicked but before bottom confirms", async () => {
+  it("includes live growth in the requested return-to-live scroll before bottom confirms", async () => {
     vi.useFakeTimers();
     const { getByRole, getByText, queryByRole } = render(<ChatMessageList channelKey={channelA} />);
 
@@ -1123,9 +988,6 @@ describe("ChatMessageList", () => {
     act(() => {
       useChatStore.getState().addMessage(message("live-during-return", "alpha", "New live"));
     });
-    act(() => {
-      virtuosoTotalListHeightChangedCallbacks.at(-1)?.(1272);
-    });
 
     expect(virtuosoScrollToIndexCalls).toEqual([]);
     expect(virtuosoScrollerScrollTopWrites).toEqual([]);
@@ -1145,7 +1007,7 @@ describe("ChatMessageList", () => {
 
     expect(useChatStore.getState().pausedChannels.has(channelA)).toBe(false);
     expect(queryByRole("button", { name: /scroll to live/i })).not.toBeInTheDocument();
-    expect(virtuosoFollowOutputCallbacks.at(-1)?.(true)).toBe(false);
+    expect(virtuosoFollowOutputCallbacks.at(-1)?.(true)).toBe("auto");
   });
 
   it("renders an accessible width-safe scroll-to-live control above chat chrome", async () => {
@@ -1192,9 +1054,6 @@ describe("ChatMessageList", () => {
     act(() => {
       useChatStore.getState().addMessage(message("live-while-paused", "alpha", "New live"));
       virtuosoScrollerHeight.current = 1272;
-    });
-    act(() => {
-      virtuosoTotalListHeightChangedCallbacks.at(-1)?.(1272);
     });
 
     const scrollToBottomControl = getByRole("button", {
