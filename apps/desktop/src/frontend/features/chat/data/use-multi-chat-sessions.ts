@@ -22,11 +22,141 @@ interface ResolvedMultiChatChannel {
   readonly channel: UnifiedChannel;
 }
 
+interface RetainedChatSession {
+  readonly channelKey: string;
+  readonly dispose: () => Promise<void>;
+}
+
+function sessionIdentity({ chat, channel }: ResolvedMultiChatChannel): string {
+  return JSON.stringify([chat.key, channel.id, channel.chatroomId, channel.kickUserId]);
+}
+
+function retainChatSession(
+  { chat, channel }: ResolvedMultiChatChannel,
+  previousRelease: Promise<void> | undefined,
+  reportFailure: (channelKey: string) => void
+): RetainedChatSession {
+  const cancellation = new AbortController();
+  const service = chat.platform === "twitch" ? twitchChatService : kickChatService;
+  const unregisterRoute = registerChatMessageRoute({
+    platform: chat.platform,
+    channel: chat.channel,
+    emoteChannelId:
+      chat.platform === "kick" ? String(channel.chatroomId ?? chat.channel) : channel.id,
+  });
+  let acquired = false;
+  let joining: Promise<void> | undefined;
+  let disposal: Promise<void> | undefined;
+
+  const startup = (async () => {
+    try {
+      await previousRelease;
+      if (cancellation.signal.aborted) return;
+      service.acquire(chat.channel);
+      acquired = true;
+      ensureEmoteProvidersInitialized();
+      const emotes = useEmoteStore.getState();
+      emotes.applyProviderPrefs(
+        useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES
+      );
+
+      if (chat.platform === "twitch") {
+        const [accessToken, twitchUser] = await Promise.all([
+          window.electronAPI.auth.getValidTwitchToken(),
+          window.electronAPI.auth.getTwitchUser(),
+        ]);
+        if (cancellation.signal.aborted) return;
+        await twitchChatService.connect(
+          accessToken && twitchUser
+            ? {
+                accessToken,
+                user: twitchUser,
+                tokenFetcher: () => window.electronAPI.auth.getValidTwitchToken(),
+              }
+            : { anonymous: true, debug: import.meta.env.DEV }
+        );
+        if (cancellation.signal.aborted) return;
+        await Promise.all([initializeTwitchEmotes(), emotes.loadGlobalEmotes("twitch")]);
+        if (cancellation.signal.aborted) return;
+        joining = twitchChatService.joinChannel(chat.channel, channel.id);
+        await Promise.all([joining, emotes.loadChannelEmotes(channel.id, chat.channel, "twitch")]);
+      } else {
+        const token = await window.electronAPI.auth.getToken("kick");
+        if (cancellation.signal.aborted) return;
+        await kickChatService.connect({ debug: import.meta.env.DEV });
+        if (cancellation.signal.aborted) return;
+        if (token) initializeKickEmotes(token.accessToken);
+        await emotes.loadGlobalEmotes("kick");
+        if (cancellation.signal.aborted) return;
+        if (!channel.chatroomId) {
+          throw new Error(`Kick chatroom is unavailable for ${chat.channel}`);
+        }
+        const broadcasterId = Number(channel.id);
+        joining = kickChatService.joinChannel(
+          chat.channel,
+          channel.chatroomId,
+          Number.isFinite(broadcasterId) ? broadcasterId : undefined
+        );
+        await Promise.all([
+          joining,
+          emotes.loadChannelEmotes(
+            String(channel.chatroomId),
+            chat.channel,
+            "kick",
+            channel.kickUserId
+          ),
+        ]);
+      }
+    } catch (error) {
+      if (cancellation.signal.aborted) return;
+      logger.error("UI:Chat:MultiView", "failed to start multi-chat session", {
+        channel: chat.key,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      reportFailure(chat.key);
+    }
+  })();
+
+  return {
+    channelKey: chat.key,
+    dispose() {
+      if (disposal) return disposal;
+      cancellation.abort();
+      unregisterRoute();
+      disposal = startup.then(async () => {
+        await Promise.allSettled([joining]);
+        if (acquired) await service.release(chat.channel);
+      });
+      return disposal;
+    },
+  };
+}
+
+function retireChatSession(
+  session: RetainedChatSession,
+  pendingReleases: Map<string, Promise<void>>
+): void {
+  const release = session.dispose().catch((error: unknown) => {
+    logger.error("UI:Chat:MultiView", "failed to release multi-chat session", {
+      channel: session.channelKey,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
+  pendingReleases.set(session.channelKey, release);
+  void release.then(() => {
+    if (pendingReleases.get(session.channelKey) === release) {
+      pendingReleases.delete(session.channelKey);
+    }
+  });
+}
+
 export function useMultiChatSessions(
   channels: readonly MultiChatChannel[],
   enabled: boolean
 ): { isLoading: boolean; failedChannels: readonly string[] } {
   const [failedSessionKeys, setFailedSessionKeys] = useState<readonly string[]>([]);
+  const sessionsRef = useRef(new Map<string, RetainedChatSession>());
+  const pendingReleasesRef = useRef(new Map<string, Promise<void>>());
   const queries = useQueries({
     queries: channels.map((channel) => ({
       ...channelByUsernameQueryOptions(channel.channel, channel.platform),
@@ -41,143 +171,45 @@ export function useMultiChatSessions(
   useLayoutEffect(() => {
     resolvedRef.current = resolved;
   }, [resolved]);
-  const sessionSignature = resolved
-    .map(({ chat, channel }) =>
-      [chat.key, channel.id, channel.chatroomId ?? "", channel.kickUserId ?? ""].join(":")
-    )
-    .join("|");
+  const sessionSignature = resolved.map(sessionIdentity).sort().join("|");
 
   useEffect(() => {
-    if (!enabled || resolvedRef.current.length === 0) {
-      setFailedSessionKeys([]);
-      return;
-    }
-    setFailedSessionKeys([]);
-    let cancelled = false;
-    const sessions = resolvedRef.current;
-    const unregisterRoutes = sessions.map(({ chat, channel }) =>
-      registerChatMessageRoute({
-        platform: chat.platform,
-        channel: chat.channel,
-        emoteChannelId:
-          chat.platform === "kick" ? String(channel.chatroomId ?? chat.channel) : channel.id,
-      })
-    );
-
-    for (const { chat } of sessions) {
-      if (chat.platform === "twitch") twitchChatService.acquire(chat.channel);
-      else kickChatService.acquire(chat.channel);
-    }
-
-    const start = async () => {
-      ensureEmoteProvidersInitialized();
-      const emotes = useEmoteStore.getState();
-      emotes.applyProviderPrefs(
-        useAuthStore.getState().preferences?.chatDisplay ?? DEFAULT_CHAT_DISPLAY_PREFERENCES
-      );
-
-      const twitchSessions = sessions.filter(({ chat }) => chat.platform === "twitch");
-      const kickSessions = sessions.filter(({ chat }) => chat.platform === "kick");
-
-      const markFailed = (keys: readonly string[]) => {
-        if (cancelled || keys.length === 0) return;
-        setFailedSessionKeys((current) => [...new Set([...current, ...keys])]);
-      };
-
-      const startTwitch = async () => {
-        if (twitchSessions.length === 0) return;
-        try {
-          const [accessToken, twitchUser] = await Promise.all([
-            window.electronAPI.auth.getValidTwitchToken(),
-            window.electronAPI.auth.getTwitchUser(),
-          ]);
-          await twitchChatService.connect(
-            accessToken && twitchUser
-              ? {
-                  accessToken,
-                  user: twitchUser,
-                  tokenFetcher: () => window.electronAPI.auth.getValidTwitchToken(),
-                }
-              : { anonymous: true, debug: import.meta.env.DEV }
-          );
-          await Promise.all([initializeTwitchEmotes(), emotes.loadGlobalEmotes("twitch")]);
-          if (cancelled) return;
-          const results = await Promise.allSettled(
-            twitchSessions.map(async ({ chat, channel }) => {
-              await Promise.all([
-                twitchChatService.joinChannel(chat.channel, channel.id),
-                emotes.loadChannelEmotes(channel.id, chat.channel, "twitch"),
-              ]);
-            })
-          );
-          markFailed(
-            twitchSessions.flatMap(({ chat }, index) =>
-              results[index]?.status === "rejected" ? [chat.key] : []
-            )
-          );
-        } catch (error) {
-          logger.error("UI:Chat:MultiView", "failed to start Twitch multi-chat sessions", {
-            error: error instanceof Error ? error.message : String(error),
-          });
-          markFailed(twitchSessions.map(({ chat }) => chat.key));
-        }
-      };
-
-      const startKick = async () => {
-        if (kickSessions.length === 0) return;
-        try {
-          const token = await window.electronAPI.auth.getToken("kick");
-          await kickChatService.connect({ debug: import.meta.env.DEV });
-          if (token) initializeKickEmotes(token.accessToken);
-          await emotes.loadGlobalEmotes("kick");
-          if (cancelled) return;
-          const results = await Promise.allSettled(
-            kickSessions.map(async ({ chat, channel }) => {
-              if (!channel.chatroomId) {
-                throw new Error(`Kick chatroom is unavailable for ${chat.channel}`);
-              }
-              const broadcasterId = Number(channel.id);
-              await Promise.all([
-                kickChatService.joinChannel(
-                  chat.channel,
-                  channel.chatroomId,
-                  Number.isFinite(broadcasterId) ? broadcasterId : undefined
-                ),
-                emotes.loadChannelEmotes(
-                  String(channel.chatroomId),
-                  chat.channel,
-                  "kick",
-                  channel.kickUserId
-                ),
-              ]);
-            })
-          );
-          markFailed(
-            kickSessions.flatMap(({ chat }, index) =>
-              results[index]?.status === "rejected" ? [chat.key] : []
-            )
-          );
-        } catch (error) {
-          logger.error("UI:Chat:MultiView", "failed to start Kick multi-chat sessions", {
-            error: error instanceof Error ? error.message : String(error),
-          });
-          markFailed(kickSessions.map(({ chat }) => chat.key));
-        }
-      };
-
-      await Promise.all([startTwitch(), startKick()]);
-    };
-
-    void start();
-
+    const sessions = sessionsRef.current;
+    const pendingReleases = pendingReleasesRef.current;
     return () => {
-      cancelled = true;
-      unregisterRoutes.forEach((unregister) => unregister());
-      for (const { chat } of sessions) {
-        if (chat.platform === "twitch") void twitchChatService.release(chat.channel);
-        else void kickChatService.release(chat.channel);
-      }
+      for (const session of sessions.values()) retireChatSession(session, pendingReleases);
+      sessions.clear();
     };
+  }, []);
+
+  useEffect(() => {
+    const sessions = sessionsRef.current;
+    const desired = new Map(
+      (enabled ? resolvedRef.current : []).map((session) => [sessionIdentity(session), session])
+    );
+    const changedChannels = new Set<string>();
+
+    for (const [identity, session] of sessions) {
+      if (desired.has(identity)) continue;
+      sessions.delete(identity);
+      changedChannels.add(session.channelKey);
+      retireChatSession(session, pendingReleasesRef.current);
+    }
+    for (const [identity, resolvedSession] of desired) {
+      if (sessions.has(identity)) continue;
+      changedChannels.add(resolvedSession.chat.key);
+      sessions.set(
+        identity,
+        retainChatSession(
+          resolvedSession,
+          pendingReleasesRef.current.get(resolvedSession.chat.key),
+          (channelKey) => setFailedSessionKeys((current) => [...new Set([...current, channelKey])])
+        )
+      );
+    }
+    if (changedChannels.size > 0) {
+      setFailedSessionKeys((current) => current.filter((key) => !changedChannels.has(key)));
+    }
   }, [enabled, sessionSignature]);
 
   return useMemo(

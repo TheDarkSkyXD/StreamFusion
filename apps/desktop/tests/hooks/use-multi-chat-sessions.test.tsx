@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { act, cleanup, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -147,7 +148,10 @@ describe("useMultiChatSessions", () => {
     await waitFor(() => expect(mocks.twitch.joinChannel).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("status")).toHaveTextContent('"isLoading":true');
     await act(async () => {
-      lookup.resolve({ data: fixtures.channel({ id: "second", username: "second" }), error: null });
+      lookup.resolve({
+        success: true,
+        data: fixtures.channel({ id: "second", username: "second" }),
+      });
     });
     await waitFor(() => expect(mocks.twitch.joinChannel).toHaveBeenCalledTimes(2));
     expect(mocks.twitch.release).not.toHaveBeenCalled();
@@ -159,6 +163,7 @@ describe("useMultiChatSessions", () => {
     const token = deferred<string | null>();
     window.electronAPI.auth.getValidTwitchToken = vi.fn(() => token.promise);
     const view = renderWithProviders(<Workspace channels={[channel]} />, { queryClient });
+    await waitFor(() => expect(window.electronAPI.auth.getValidTwitchToken).toHaveBeenCalled());
     view.rerender(<Workspace channels={[]} />);
     await act(async () => token.resolve(null));
     expect(mocks.twitch.connect).not.toHaveBeenCalled();
@@ -180,6 +185,21 @@ describe("useMultiChatSessions", () => {
     expect(mocks.twitch.release).toHaveBeenCalledExactlyOnceWith("first");
   });
 
+  it("waits for pending JOIN even when channel decorations fail first", async () => {
+    const channel = createMultiChatChannel("twitch", "first");
+    seed(channel);
+    const joining = deferred<void>();
+    mocks.twitch.joinChannel.mockReturnValueOnce(joining.promise);
+    mocks.loadChannelEmotes.mockRejectedValueOnce(new Error("emotes unavailable"));
+    const view = renderWithProviders(<Workspace channels={[channel]} />, { queryClient });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(channel.key));
+    view.rerender(<Workspace channels={[]} />);
+    await act(async () => {});
+    expect(mocks.twitch.release).not.toHaveBeenCalled();
+    await act(async () => joining.resolve());
+    expect(mocks.twitch.release).toHaveBeenCalledExactlyOnceWith("first");
+  });
+
   it("waits for an old channel release before rejoining that channel", async () => {
     const channel = createMultiChatChannel("twitch", "first");
     seed(channel);
@@ -194,6 +214,43 @@ describe("useMultiChatSessions", () => {
     expect(mocks.twitch.joinChannel).toHaveBeenCalledOnce();
     await act(async () => release.resolve());
     expect(mocks.twitch.joinChannel).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["twitch", "kick"] as const)(
+    "does not join %s after removal during connection",
+    async (platform) => {
+      const channel = createMultiChatChannel(platform, "first");
+      seed(channel);
+      const connection = deferred<void>();
+      const service = mocks[platform];
+      service.connect.mockReturnValueOnce(connection.promise);
+      const view = renderWithProviders(<Workspace channels={[channel]} />, { queryClient });
+      await waitFor(() => expect(service.connect).toHaveBeenCalledOnce());
+      view.rerender(<Workspace channels={[]} />);
+      await act(async () => connection.resolve());
+      expect(service.joinChannel).not.toHaveBeenCalled();
+      expect(service.release).toHaveBeenCalledExactlyOnceWith("first");
+    }
+  );
+
+  it("releases each acquired session once across StrictMode, disabling, and unmount", async () => {
+    const channel = createMultiChatChannel("twitch", "first");
+    seed(channel);
+    const workspace = (enabled: boolean) => (
+      <StrictMode>
+        <Workspace channels={[channel]} enabled={enabled} />
+      </StrictMode>
+    );
+    const view = renderWithProviders(workspace(true), { queryClient });
+    await waitFor(() => expect(mocks.twitch.joinChannel).toHaveBeenCalledOnce());
+    view.rerender(workspace(false));
+    await waitFor(() => expect(mocks.twitch.release).toHaveBeenCalledOnce());
+    view.rerender(workspace(true));
+    await waitFor(() => expect(mocks.twitch.joinChannel).toHaveBeenCalledTimes(2));
+    view.unmount();
+    await act(async () => {});
+    expect(mocks.twitch.acquire.mock.calls).toEqual([["first"], ["first"]]);
+    expect(mocks.twitch.release.mock.calls).toEqual([["first"], ["first"]]);
   });
 
   it("keeps current failures while ignoring removed startup failures", async () => {
