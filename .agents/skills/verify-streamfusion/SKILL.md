@@ -41,7 +41,7 @@ node .agents/skills/verify-streamfusion/scripts/control.mjs session --mode previ
 
 Do not attach to a developer's existing port 9222 or 9236 instance. Do not use `electron .`, `electron-vite preview`, or a packaged build for normal feature proof.
 
-The controller creates a WAL-consistent SQLite snapshot of `.streamfusion-dev-user-data/streamfusion.db` and copies the account-bearing Electron state from `.streamfusion-dev-user-data/` into the disposable profile before launch. The account snapshot includes `streamfusion-storage.json`, Chromium's `Local State` encryption key, and, when Chromium is not holding an exclusive lock, a consistent `Network/Cookies` snapshot. A locked cookie database is reported in `accountStorageWarnings` without discarding the account store, encryption state, or database snapshot. This gives verification the user's current local follows, history, preferences, authenticated Twitch and Kick accounts, and usually the Kick website session without allowing local writes to modify the source profile. Pass `--database <path>` or `--storage <path>` to seed from another profile. `--storage` also selects the source profile for encryption state and cookies. A missing artifact starts fresh.
+The controller creates a WAL-consistent SQLite snapshot of `.streamfusion-dev-user-data/streamfusion.db` and copies only preferences, the last active tab, and window bounds from `streamfusion-storage.json`. Credentials, cached account identities, encryption keys, and browser cookies are never copied: rotating a copied refresh token can invalidate the source account's session. Pass `--database <path>` or `--storage <path>` to select another seed source; the same credential exclusion applies. A missing artifact starts fresh. Authenticated verification requires a dedicated test account signed into the disposable instance.
 
 ## Doctor
 
@@ -51,7 +51,7 @@ Run doctor before driving the app and whenever a selector, route, or screenshot 
 node .agents/skills/verify-streamfusion/scripts/control.mjs doctor --run $verifyRun
 ```
 
-Require `healthy: true`. Doctor checks the recorded launcher PID, the process tree that owns the CDP port, the StreamFusion window title and URL, the preload `electronAPI`, rendered body content, package version, launch revision, uncaught error patterns, and account-token decryption failures in the launch log. Doctor also reports which authenticated Platform entries were present in the copied account store and any non-fatal account snapshot warnings. Authentication is not required for the baseline recipes. A feature that writes account state, follows, chat messages, moderation actions, downloads, or recordings must add its own authenticated precondition.
+Require `healthy: true`. Doctor checks the recorded launcher PID, the process tree that owns the CDP port, the StreamFusion window title and URL, the preload `electronAPI`, rendered body content, package version, launch revision, uncaught error patterns, and account-token decryption failures in the launch log. Seeded runs report no copied authenticated platforms. Authentication is not required for the baseline recipes. A feature that writes account state, follows, chat messages, moderation actions, downloads, or recordings must add its own authenticated precondition.
 
 Inspect the isolated database after doctor succeeds:
 
@@ -106,7 +106,7 @@ Cleanup terminates the recorded launcher process tree by PID, waits for its CDP 
 
 ## Isolation
 
-Each launch gets its own CDP port, Electron `userData` directory, and scratch project root. The launch reads the live development database, account store, encryption state, and cookie database once to seed isolated copies. Local database, preference, cookie, and token-refresh writes stay inside the disposable profile. StreamFusion's development compiler still writes shared build output under `apps/desktop/out`, so the controller refuses a second verification run and the common developer CDP ports 9222 and 9236. Close other dev instances before launching. Never reuse a run ID. Account-backed and provider mutation recipes should still use a dedicated test account because OAuth credentials and website cookies can authorize writes to remote Platform state.
+Each launch gets its own CDP port, Electron `userData` directory, and scratch project root. The launch snapshots the live development database and copies only preferences, window bounds, and the last active tab from account storage. It never copies OAuth credentials, account identities, encryption state, or browser cookies, including when `--storage` is supplied. Twitch device-code refresh tokens are single-use; refreshing a copied credential can invalidate the original account. Authenticate a dedicated test account inside the isolated run when a recipe needs authentication. StreamFusion's development compiler still writes shared build output under `apps/desktop/out`, so the controller refuses a second verification run and the common developer CDP ports 9222 and 9236. Close other dev instances before launching. Never reuse a run ID. Account-backed and provider mutation recipes should still use a dedicated test account because OAuth credentials and website cookies can authorize writes to remote Platform state.
 
 ## Helpers
 

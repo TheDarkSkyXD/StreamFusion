@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -68,6 +68,21 @@ function loadLayout(
 }
 
 type Split = ReturnType<typeof layoutRects>["splits"][number];
+type DragTarget = { id: WidgetId | "workspace"; edge: DockEdge };
+
+interface DragGesture {
+  id: WidgetId;
+  x: number;
+  y: number;
+  active: boolean;
+  offsetX: number;
+  offsetY: number;
+  ghostWidth: number;
+}
+
+function dragTransform(gesture: DragGesture, point: { x: number; y: number }) {
+  return `translate3d(${point.x - gesture.offsetX}px, ${point.y - gesture.offsetY}px, 0)`;
+}
 
 function DockSeparator({
   split,
@@ -165,10 +180,16 @@ export function ModWorkspace({ platform, storageKey, widgets }: ModWorkspaceProp
   const [layout, setLayout] = useState<DockLayout>(() => loadLayout(storageKey, platform, widgets));
   const [resizeRoot, setResizeRoot] = useState<DockNode | null>(null);
   const [dragging, setDragging] = useState<WidgetId | null>(null);
-  const [over, setOver] = useState<{ id: WidgetId | "workspace"; edge: DockEdge } | null>(null);
+  const [over, setOver] = useState<DragTarget | null>(null);
+  const overRef = useRef<DragTarget | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [storageError, setStorageError] = useState(false);
-  const dragGesture = useRef<{ id: WidgetId; x: number; y: number; active: boolean } | null>(null);
+  const dragGesture = useRef<DragGesture | null>(null);
+  const dragGhost = useRef<HTMLDivElement>(null);
+  const dragFrame = useRef<number | null>(null);
+  const pendingDragPoint = useRef<{ x: number; y: number } | null>(null);
+  const dragPoint = useRef<{ x: number; y: number } | null>(null);
+  const pointerCapture = useRef<{ element: HTMLDivElement; pointerId: number } | null>(null);
   const container = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
@@ -200,6 +221,10 @@ export function ModWorkspace({ platform, storageKey, widgets }: ModWorkspaceProp
     size.height
   );
   const originalGeometry = dragging ? layoutRects(root, size.width, size.height) : geometry;
+  const geometryRef = useRef(geometry);
+  useLayoutEffect(() => {
+    geometryRef.current = geometry;
+  }, [geometry]);
   const move = (source: WidgetId, target: WidgetId | "workspace", edge: DockEdge) => {
     if (!canDockWidget(source, target, edge)) return;
     commit({
@@ -210,15 +235,38 @@ export function ModWorkspace({ platform, storageKey, widgets }: ModWorkspaceProp
           : dockWidget(layout.root, source, target, edge),
     });
     setDragging(null);
+    overRef.current = null;
     setOver(null);
     const title = widgets.find((widget) => widget.id === source)?.title ?? source;
     setAnnouncement(t("moderation.workspace.moved", { defaultValue: "{{title}} moved", title }));
   };
-  const cancelDrag = () => {
-    dragGesture.current = null;
-    setDragging(null);
-    setOver(null);
-  };
+  const cancelDragFrame = useCallback(() => {
+    if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current);
+    dragFrame.current = null;
+    pendingDragPoint.current = null;
+  }, []);
+  const releaseDragCapture = useCallback(() => {
+    const capture = pointerCapture.current;
+    pointerCapture.current = null;
+    if (!capture) return;
+    try {
+      capture.element.releasePointerCapture(capture.pointerId);
+    } catch {
+      // Pointer capture can already be released by the browser during cancellation.
+    }
+  }, []);
+  const cancelDrag = useCallback(
+    (releaseCapture = true) => {
+      cancelDragFrame();
+      if (releaseCapture) releaseDragCapture();
+      dragGesture.current = null;
+      dragPoint.current = null;
+      setDragging(null);
+      overRef.current = null;
+      setOver(null);
+    },
+    [cancelDragFrame, releaseDragCapture]
+  );
   const targetAt = (clientX: number, clientY: number, source: WidgetId) => {
     const bounds = container.current?.getBoundingClientRect();
     if (!bounds) return null;
@@ -230,7 +278,7 @@ export function ModWorkspace({ platform, storageKey, widgets }: ModWorkspaceProp
     const outerEdge = edges[edgeDistances.indexOf(outerDistance)];
     if (outerDistance < 32 && canDockWidget(source, "workspace", outerEdge))
       return { id: "workspace" as const, edge: outerEdge };
-    const target = geometry.widgets.find(
+    const target = geometryRef.current.widgets.find(
       (rect) =>
         rect.id !== source &&
         x >= rect.x &&
@@ -252,17 +300,41 @@ export function ModWorkspace({ platform, storageKey, widgets }: ModWorkspaceProp
             : "bottom";
     return canDockWidget(source, target.id, edge) ? { id: target.id, edge } : null;
   };
+  const queueDragFrame = (clientX: number, clientY: number) => {
+    pendingDragPoint.current = { x: clientX, y: clientY };
+    if (dragFrame.current !== null) return;
+    dragFrame.current = requestAnimationFrame(() => {
+      dragFrame.current = null;
+      const point = pendingDragPoint.current;
+      pendingDragPoint.current = null;
+      const gesture = dragGesture.current;
+      if (!point || !gesture?.active) return;
+      dragPoint.current = point;
+      if (dragGhost.current) dragGhost.current.style.transform = dragTransform(gesture, point);
+      const target = targetAt(point.x, point.y, gesture.id);
+      if (overRef.current?.id === target?.id && overRef.current?.edge === target?.edge) return;
+      overRef.current = target;
+      setOver(target);
+    });
+  };
+  useEffect(
+    () => () => {
+      cancelDragFrame();
+      releaseDragCapture();
+    },
+    [cancelDragFrame, releaseDragCapture]
+  );
   useEffect(() => {
     if (!dragging) return;
     const escape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      dragGesture.current = null;
-      setDragging(null);
-      setOver(null);
+      cancelDrag();
     };
     window.addEventListener("keydown", escape);
     return () => window.removeEventListener("keydown", escape);
-  }, [dragging]);
+  }, [cancelDrag, dragging]);
+
+  const draggedWidget = widgets.find((widget) => widget.id === dragging);
 
   return (
     <div
@@ -367,23 +439,23 @@ export function ModWorkspace({ platform, storageKey, widgets }: ModWorkspaceProp
               gesture.active = true;
               setDragging(gesture.id);
             }
-            const target = targetAt(event.clientX, event.clientY, gesture.id);
-            setOver((current) =>
-              current?.id === target?.id && current?.edge === target?.edge ? current : target
-            );
+            queueDragFrame(event.clientX, event.clientY);
           }}
           onPointerUp={(event) => {
             const gesture = dragGesture.current;
             if (!gesture) return;
+            cancelDragFrame();
             const target = gesture.active
               ? targetAt(event.clientX, event.clientY, gesture.id)
               : null;
-            event.currentTarget.releasePointerCapture(event.pointerId);
             if (target) move(gesture.id, target.id, target.edge);
             cancelDrag();
           }}
-          onPointerCancel={cancelDrag}
-          onLostPointerCapture={cancelDrag}
+          onPointerCancel={() => cancelDrag()}
+          onLostPointerCapture={() => {
+            pointerCapture.current = null;
+            cancelDrag(false);
+          }}
         >
           {widgets
             .filter((widget) => visible.includes(widget.id))
@@ -428,13 +500,30 @@ export function ModWorkspace({ platform, storageKey, widgets }: ModWorkspaceProp
                         )
                           return;
                         event.preventDefault();
-                        container.current?.setPointerCapture(event.pointerId);
+                        const canvas = container.current;
+                        canvas?.setPointerCapture(event.pointerId);
+                        if (canvas)
+                          pointerCapture.current = { element: canvas, pointerId: event.pointerId };
+                        const bounds =
+                          event.currentTarget.parentElement?.parentElement?.getBoundingClientRect() ?? {
+                            left: event.clientX,
+                            top: event.clientY,
+                            width: 240,
+                          };
+                        const ghostWidth = Math.max(200, Math.min(320, bounds.width));
                         dragGesture.current = {
                           id: widget.id,
                           x: event.clientX,
                           y: event.clientY,
                           active: false,
+                          offsetX: Math.max(
+                            12,
+                            Math.min(ghostWidth - 12, event.clientX - bounds.left)
+                          ),
+                          offsetY: Math.max(0, Math.min(40, event.clientY - bounds.top)),
+                          ghostWidth,
                         };
+                        dragPoint.current = { x: event.clientX, y: event.clientY };
                       }}
                     >
                       {widget.icon}
@@ -586,6 +675,25 @@ export function ModWorkspace({ platform, storageKey, widgets }: ModWorkspaceProp
             ))}
         </div>
       </div>
+      {dragging && dragGesture.current && (
+        <div
+          ref={dragGhost}
+          className="mod-workspace-drag-ghost"
+          data-testid="mod-workspace-drag-ghost"
+          aria-hidden="true"
+          style={{
+            width: dragGesture.current.ghostWidth,
+            transform: dragTransform(
+              dragGesture.current,
+              dragPoint.current ?? { x: dragGesture.current.x, y: dragGesture.current.y }
+            ),
+          }}
+        >
+          <span className="mod-workspace-drag-ghost-icon">{draggedWidget?.icon}</span>
+          <span className="mod-workspace-drag-ghost-title">{draggedWidget?.title ?? dragging}</span>
+          <GripVertical size={14} className="mod-workspace-grip" />
+        </div>
+      )}
       <span className="sr-only" role="status" aria-live="polite">
         {announcement}
       </span>

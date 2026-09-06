@@ -445,6 +445,7 @@ interface PerformTwitchDeviceCodeLoginDependencies extends TwitchDeviceCodeLogin
   saveToken: (platform: Platform, token: AuthToken) => void;
   scheduleProactiveRefresh: () => void;
   fetchCurrentUser: () => Promise<TwitchUser | null>;
+  clearTwitchUser: () => void;
   saveTwitchUser: (user: TwitchUser) => void;
   afterAuthenticated: () => Promise<void>;
   onStatusChange?: (
@@ -462,6 +463,7 @@ export async function performTwitchDeviceCodeLogin(
     dependencies,
     dependencies.onStatusChange
   );
+  dependencies.clearTwitchUser();
   dependencies.saveToken("twitch", token);
   logger.info("Auth:Twitch", "Twitch authentication stage", {
     stage: "token-persisted",
@@ -475,15 +477,87 @@ export async function performTwitchDeviceCodeLogin(
     identityPresent: user !== null,
     elapsedMs: Date.now() - startedAt,
   });
-  if (user) {
-    dependencies.saveTwitchUser(user);
+  if (!user) {
+    throw new Error(
+      "Twitch authentication succeeded, but account details could not be loaded. Please try again."
+    );
   }
+  dependencies.saveTwitchUser(user);
   await dependencies.afterAuthenticated();
   logger.info("Auth:Twitch", "Twitch authentication stage", {
     stage: "renderer-notified",
     elapsedMs: Date.now() - startedAt,
   });
   return user;
+}
+
+interface ResolveAuthStatusDependencies {
+  getTwitchUser: () => TwitchUser | null;
+  getTwitchToken: () => AuthToken | null;
+  getKickUser: () => AuthStatus["kick"]["user"];
+  hasUsableToken: (platform: Platform) => boolean;
+  isTokenExpired: (platform: Platform) => boolean;
+  fetchMissingTwitchUser: () => Promise<TwitchUser | null>;
+}
+
+export function createTwitchIdentitySingleFlight(
+  getCurrentAccessToken: () => string | null,
+  fetchCurrentUser: (accessToken: string) => Promise<TwitchUser | null>
+): () => Promise<TwitchUser | null> {
+  let inFlight: { accessToken: string; promise: Promise<TwitchUser | null> } | null = null;
+  return () => {
+    const accessToken = getCurrentAccessToken();
+    if (!accessToken) return Promise.resolve(null);
+    if (!inFlight || inFlight.accessToken !== accessToken) {
+      const requestedAccessToken = accessToken;
+      const promise = fetchCurrentUser(requestedAccessToken)
+        .then((user) => (getCurrentAccessToken() === requestedAccessToken ? user : null))
+        .finally(() => {
+          if (inFlight?.accessToken === requestedAccessToken) {
+            inFlight = null;
+          }
+        });
+      inFlight = { accessToken: requestedAccessToken, promise };
+    }
+    return inFlight.promise;
+  };
+}
+
+export async function resolveAuthStatus(
+  dependencies: ResolveAuthStatusDependencies
+): Promise<AuthStatus> {
+  let twitchUser = dependencies.getTwitchUser();
+  const twitchToken = dependencies.getTwitchToken();
+  const kickUser = dependencies.getKickUser();
+  let twitchHasToken = dependencies.hasUsableToken("twitch");
+  const kickHasToken = dependencies.hasUsableToken("kick");
+  let twitchExpired = !twitchHasToken || dependencies.isTokenExpired("twitch");
+  const kickExpired = !kickHasToken || dependencies.isTokenExpired("kick");
+
+  if (!twitchUser && twitchHasToken && !twitchExpired) {
+    twitchUser = await dependencies.fetchMissingTwitchUser();
+    if (dependencies.getTwitchToken()?.accessToken !== twitchToken?.accessToken) {
+      twitchUser = dependencies.getTwitchUser();
+      twitchHasToken = dependencies.hasUsableToken("twitch");
+      twitchExpired = !twitchHasToken || dependencies.isTokenExpired("twitch");
+    }
+  }
+
+  return {
+    twitch: {
+      connected: !!twitchUser && twitchHasToken && !twitchExpired,
+      user: twitchUser,
+      hasToken: twitchHasToken,
+      isExpired: twitchExpired,
+    },
+    kick: {
+      connected: !!kickUser && kickHasToken && !kickExpired,
+      user: kickUser,
+      hasToken: kickHasToken,
+      isExpired: kickExpired,
+    },
+    isGuest: !twitchUser && !kickUser,
+  };
 }
 
 export interface AuthHandlerDependencies {
@@ -499,6 +573,10 @@ export function registerAuthHandlers(
 ): void {
   const authHandlersStartedAt = Date.now();
   let twitchLoginInFlight: Promise<{ success: boolean; error?: string }> | null = null;
+  const fetchMissingTwitchUserOnce = createTwitchIdentitySingleFlight(
+    () => storageService.getToken("twitch")?.accessToken ?? null,
+    (accessToken) => twitchAuthService.fetchCurrentUser(accessToken)
+  );
 
   function safeSend(channel: string, ...args: unknown[]): void {
     if (!renderer.send(channel as (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS], ...args)) {
@@ -801,7 +879,7 @@ export function registerAuthHandlers(
   });
 
   // ========== Auth - Status ==========
-  ipcMain.handle(IPC_CHANNELS.AUTH_GET_STATUS, (event): AuthStatus => {
+  ipcMain.handle(IPC_CHANNELS.AUTH_GET_STATUS, async (event): Promise<AuthStatus> => {
     if (!isAllowedSender(event)) {
       return {
         twitch: { connected: false, user: null, hasToken: false, isExpired: true },
@@ -809,28 +887,14 @@ export function registerAuthHandlers(
         isGuest: true,
       };
     }
-    const twitchUser = storageService.getTwitchUser();
-    const kickUser = storageService.getKickUser();
-    const twitchHasToken = storageService.hasUsableToken("twitch");
-    const kickHasToken = storageService.hasUsableToken("kick");
-    const twitchExpired = !twitchHasToken || storageService.isTokenExpired("twitch");
-    const kickExpired = !kickHasToken || storageService.isTokenExpired("kick");
-
-    return {
-      twitch: {
-        connected: !!twitchUser && twitchHasToken && !twitchExpired,
-        user: twitchUser,
-        hasToken: twitchHasToken,
-        isExpired: twitchExpired,
-      },
-      kick: {
-        connected: !!kickUser && kickHasToken && !kickExpired,
-        user: kickUser,
-        hasToken: kickHasToken,
-        isExpired: kickExpired,
-      },
-      isGuest: !twitchUser && !kickUser,
-    };
+    return await resolveAuthStatus({
+      getTwitchUser: () => storageService.getTwitchUser(),
+      getTwitchToken: () => storageService.getToken("twitch"),
+      getKickUser: () => storageService.getKickUser(),
+      hasUsableToken: (platform) => storageService.hasUsableToken(platform),
+      isTokenExpired: (platform) => storageService.isTokenExpired(platform),
+      fetchMissingTwitchUser: fetchMissingTwitchUserOnce,
+    });
   });
 
   ipcMain.handle(IPC_CHANNELS.AUTH_SYNC_FOLLOWS, async (event, payload: unknown) => {
@@ -1040,7 +1104,11 @@ export function registerAuthHandlers(
             ),
           saveToken: (platform, token) => storageService.saveToken(platform, token),
           scheduleProactiveRefresh: () => twitchAuthService.scheduleProactiveRefresh(),
-          fetchCurrentUser: () => twitchAuthService.fetchCurrentUser(),
+          fetchCurrentUser: () => {
+            const token = storageService.getToken("twitch");
+            return token ? twitchAuthService.fetchCurrentUser(token.accessToken) : Promise.resolve(null);
+          },
+          clearTwitchUser: () => storageService.clearTwitchUser(),
           saveTwitchUser: (user) => storageService.saveTwitchUser(user),
           afterAuthenticated: async () => {
             reconcileLiveNotificationsAfterFollowSync(syncFollowsOnLogin("twitch"));

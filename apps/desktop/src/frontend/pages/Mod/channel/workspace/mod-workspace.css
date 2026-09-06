@@ -158,6 +158,45 @@
   border: 2px solid var(--mod-focus);
   pointer-events: none;
 }
+.mod-workspace-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  display: flex;
+  height: 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  color: var(--mod-focus);
+  background: #252529;
+  border: 1px solid var(--mod-focus);
+  border-radius: 3px;
+  box-shadow:
+    0 4px 16px #0006,
+    0 1px 4px #0005;
+  contain: layout paint style;
+  will-change: transform;
+}
+.mod-workspace-drag-ghost-icon {
+  display: flex;
+  flex: 0 0 auto;
+}
+.mod-workspace-drag-ghost-icon > svg {
+  width: 16px;
+  height: 16px;
+}
+.mod-workspace-drag-ghost-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .mod-workspace-separator {
   position: absolute;
   touch-action: none;

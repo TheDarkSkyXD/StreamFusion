@@ -333,6 +333,7 @@ describe("fetchCurrentUser", () => {
   });
 
   it("uses provided accessToken instead of stored one", async () => {
+    storageState.token = { accessToken: "explicit-token" };
     const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
       jsonResponse({
         data: [
@@ -355,6 +356,107 @@ describe("fetchCurrentUser", () => {
     expect(call0).toBeDefined();
     const headers = call0![1].headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer explicit-token");
+  });
+
+  it("does not save a fetched user when the Twitch token rotated during the request", async () => {
+    storageState.token = { accessToken: "old-token" };
+    let finishFetch: (response: Response) => void = () => undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          await new Promise<Response>((resolve) => {
+            finishFetch = resolve;
+          })
+      )
+    );
+
+    const fetchUser = twitchAuthService.fetchCurrentUser("old-token");
+    storageState.token = { accessToken: "new-token" };
+    finishFetch(
+      jsonResponse({
+        data: [
+          {
+            id: "old-user",
+            login: "old",
+            display_name: "Old",
+            profile_image_url: "",
+            created_at: "",
+            broadcaster_type: "",
+          },
+        ],
+      })
+    );
+
+    await expect(fetchUser).resolves.toBeNull();
+    expect(storageService.saveTwitchUser).not.toHaveBeenCalled();
+    expect(storageState.twitchUser).toBeNull();
+  });
+
+  it("does not save a fetched user when logout clears the Twitch token during the request", async () => {
+    storageState.token = { accessToken: "current-token" };
+    let finishFetch: (response: Response) => void = () => undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          await new Promise<Response>((resolve) => {
+            finishFetch = resolve;
+          })
+      )
+    );
+
+    const fetchUser = twitchAuthService.fetchCurrentUser("current-token");
+    storageState.token = null;
+    finishFetch(
+      jsonResponse({
+        data: [
+          {
+            id: "stale-user",
+            login: "stale",
+            display_name: "Stale",
+            profile_image_url: "",
+            created_at: "",
+            broadcaster_type: "",
+          },
+        ],
+      })
+    );
+
+    await expect(fetchUser).resolves.toBeNull();
+    expect(storageService.saveTwitchUser).not.toHaveBeenCalled();
+    expect(storageState.twitchUser).toBeNull();
+  });
+
+  it("does not refresh the current token after an old implicit user fetch returns 401", async () => {
+    storageState.token = {
+      accessToken: "old-token",
+      refreshToken: "old-refresh",
+    };
+    let finishFetch: (response: Response) => void = () => undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          await new Promise<Response>((resolve) => {
+            finishFetch = resolve;
+          })
+      )
+    );
+
+    const fetchUser = twitchAuthService.fetchCurrentUser();
+    storageState.token = {
+      accessToken: "new-token",
+      refreshToken: "new-refresh",
+    };
+    finishFetch(jsonResponse({}, false, 401));
+
+    await expect(fetchUser).resolves.toBeNull();
+    expect(refreshTokenMock).not.toHaveBeenCalled();
+    expect(storageState.token).toEqual({
+      accessToken: "new-token",
+      refreshToken: "new-refresh",
+    });
   });
 
   it("returns null when API returns empty data array", async () => {

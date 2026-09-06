@@ -72,6 +72,14 @@ describe("ModWorkspace", () => {
     const handle = source.querySelector('[data-drag-handle="true"]');
     if (!(handle instanceof HTMLDivElement)) throw new Error(`${sourceTitle} is not draggable`);
     vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 1200, 800));
+    vi.spyOn(source, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(
+        numericStyle(source, "left"),
+        numericStyle(source, "top"),
+        numericStyle(source, "width"),
+        numericStyle(source, "height")
+      )
+    );
     return { canvas, source, handle };
   }
 
@@ -189,6 +197,52 @@ describe("ModWorkspace", () => {
     expect(screen.getByTestId("chat-content")).toBe(chatContent);
     expect(mounts.mock.calls.filter(([id]) => id === "video")).toHaveLength(1);
     expect(mounts.mock.calls.filter(([id]) => id === "chat")).toHaveLength(1);
+  });
+
+  it("moves a lightweight drag ghost once per animation frame and cancels pending work", async () => {
+    renderWorkspace();
+    await screen.findAllByRole("separator");
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextFrame = 0;
+    const requestFrame = vi.fn((callback: FrameRequestCallback) => {
+      const frame = ++nextFrame;
+      frames.set(frame, callback);
+      return frame;
+    });
+    const cancelFrame = vi.fn((frame: number) => frames.delete(frame));
+    vi.stubGlobal("requestAnimationFrame", requestFrame);
+    vi.stubGlobal("cancelAnimationFrame", cancelFrame);
+    const { canvas, source, handle } = preparePointerDrag("Chat");
+    const sourceLeft = numericStyle(source, "left");
+
+    fireEvent.pointerDown(handle, { button: 0, clientX: 1050, clientY: 20, pointerId: 17 });
+    fireEvent.pointerMove(canvas, { clientX: 500, clientY: 260, pointerId: 17 });
+    fireEvent.pointerMove(canvas, { clientX: 560, clientY: 280, pointerId: 17 });
+    fireEvent.pointerMove(canvas, { clientX: 620, clientY: 300, pointerId: 17 });
+
+    const ghost = screen.getByTestId("mod-workspace-drag-ghost");
+    expect(ghost).toHaveAttribute("aria-hidden", "true");
+    expect(ghost).toHaveTextContent("Chat");
+    expect(ghost).not.toContainElement(screen.getByTestId("chat-content"));
+    expect(requestFrame).toHaveBeenCalledTimes(1);
+    const firstFrame = frames.get(1);
+    if (!firstFrame) throw new Error("Drag animation frame was not scheduled");
+    frames.delete(1);
+    firstFrame(16);
+
+    expect(ghost).toHaveStyle({
+      transform: `translate3d(${620 - (1050 - sourceLeft)}px, 280px, 0)`,
+    });
+
+    fireEvent.pointerMove(canvas, { clientX: 700, clientY: 320, pointerId: 17 });
+    expect(requestFrame).toHaveBeenCalledTimes(2);
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(cancelFrame).toHaveBeenCalledWith(2);
+    expect(screen.queryByTestId("mod-workspace-drag-ghost")).not.toBeInTheDocument();
+    expect(releasePointerCapture).toHaveBeenCalledWith(17);
+    expect(source).toHaveStyle({ opacity: "1" });
+    expect(localStorage.getItem(storageKey)).toBeNull();
   });
 
   it("rejects a top drop for Mod Actions without changing content, geometry, or persistence", async () => {

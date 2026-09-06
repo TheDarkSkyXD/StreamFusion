@@ -8,6 +8,7 @@ import path from "node:path";
 import process from "node:process";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
+import { createVerificationAccountSeed } from "./account-seed.mjs";
 
 import {
   createVerificationLaunchPlan,
@@ -385,25 +386,6 @@ async function seedLiveDatabase(options, profileDir) {
   return { source, destination };
 }
 
-async function copyIfPresent(source, destination) {
-  if (!existsSync(source)) return null;
-  await mkdir(path.dirname(destination), { recursive: true });
-  await writeFile(destination, await readFile(source));
-  return { source, destination };
-}
-
-async function snapshotSqliteIfPresent(source, destination) {
-  if (!existsSync(source)) return null;
-  await mkdir(path.dirname(destination), { recursive: true });
-  const database = new DatabaseSync(source, { readOnly: true });
-  try {
-    database.prepare("VACUUM INTO ?").run(destination);
-  } finally {
-    database.close();
-  }
-  return { source, destination };
-}
-
 async function seedLiveAccountStorage(options, profileDir) {
   const source = path.resolve(
     typeof options.storage === "string"
@@ -414,40 +396,16 @@ async function seedLiveAccountStorage(options, profileDir) {
 
   const serialized = await readFile(source, "utf8");
   const stored = JSON.parse(serialized);
-  const authTokens =
-    stored && typeof stored === "object" && !Array.isArray(stored)
-      ? stored.authTokens
-      : null;
-  const authenticatedPlatforms =
-    authTokens && typeof authTokens === "object" && !Array.isArray(authTokens)
-      ? ["twitch", "kick"].filter((platform) => platform in authTokens)
-      : [];
-
   const destination = path.join(profileDir, "streamfusion-storage.json");
-  await writeFile(destination, serialized, "utf8");
-  const sourceProfile = path.dirname(source);
-  const encryptionState = await copyIfPresent(
-    path.join(sourceProfile, "Local State"),
-    path.join(profileDir, "Local State"),
+  await writeFile(
+    destination,
+    JSON.stringify(createVerificationAccountSeed(stored)),
+    "utf8",
   );
-  let cookies = null;
-  let cookieSnapshotWarning = null;
-  try {
-    cookies = await snapshotSqliteIfPresent(
-      path.join(sourceProfile, "Network", "Cookies"),
-      path.join(profileDir, "Network", "Cookies"),
-    );
-  } catch (error) {
-    cookieSnapshotWarning =
-      error instanceof Error ? error.message : String(error);
-  }
   return {
     source,
     destination,
-    encryptionState,
-    cookies,
-    cookieSnapshotWarning,
-    authenticatedPlatforms,
+    authenticatedPlatforms: [],
   };
 }
 
@@ -648,7 +606,7 @@ async function doctor(options) {
     gitRevision: state.gitRevision,
     authentication: !state.accountStorageSeed
       ? "No development account store was available; this run started signed out"
-      : `Seeded development account state for: ${state.accountStorageSeed.authenticatedPlatforms.join(", ") || "no authenticated platforms"}`,
+      : "Seeded development preferences; credentials and browser sessions were not copied",
     accountStorageWarnings,
     accountStorageErrors,
     uncaughtErrors,

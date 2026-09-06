@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  createTwitchIdentitySingleFlight,
   FOLLOWS_REFRESH_INTERVAL_MS,
   KICK_STARTUP_FOLLOW_REFRESH_GRACE_MS,
   performTwitchDeviceCodeLogin,
   persistInitialAuthToken,
   reconcileKickMissingFollowRows,
   reportKickFollowSyncFailure,
+  resolveAuthStatus,
   shouldDeferKickStartupFollowRefresh,
   syncKickFollowsAfterLogin,
   syncTwitchFollowsAfterLogin,
@@ -216,20 +218,22 @@ describe("reconcileKickMissingFollowRows", () => {
 });
 
 describe("performTwitchDeviceCodeLogin", () => {
+  const user = {
+    id: "u1",
+    login: "streamer",
+    displayName: "Streamer",
+    profileImageUrl: "https://example.com/avatar.png",
+    createdAt: "2026-01-01T00:00:00Z",
+    broadcasterType: "" as const,
+  };
+
   it("runs the direct device flow and persists the authenticated Twitch account", async () => {
     const token = {
       accessToken: "at",
       refreshToken: "rt",
       authFlow: "device-code" as const,
     };
-    const user = {
-      id: "u1",
-      login: "streamer",
-      displayName: "Streamer",
-      profileImageUrl: "https://example.com/avatar.png",
-      createdAt: "2026-01-01T00:00:00Z",
-      broadcasterType: "" as const,
-    };
+    const clearTwitchUser = vi.fn();
     const saveToken = vi.fn();
     const saveTwitchUser = vi.fn();
     const scheduleProactiveRefresh = vi.fn();
@@ -253,10 +257,12 @@ describe("performTwitchDeviceCodeLogin", () => {
       saveToken,
       scheduleProactiveRefresh,
       fetchCurrentUser: vi.fn(async () => user),
+      clearTwitchUser,
       saveTwitchUser,
       afterAuthenticated,
     });
 
+    expect(clearTwitchUser).toHaveBeenCalledTimes(1);
     expect(saveToken).toHaveBeenCalledWith("twitch", token);
     expect(scheduleProactiveRefresh).toHaveBeenCalledTimes(1);
     expect(saveTwitchUser).toHaveBeenCalledWith(user);
@@ -271,6 +277,7 @@ describe("performTwitchDeviceCodeLogin", () => {
       authFlow: "device-code" as const,
     };
     const closePopup = vi.fn();
+    const clearTwitchUser = vi.fn();
     const saveToken = vi.fn(() => {
       expect(closePopup).toHaveBeenCalledTimes(1);
     });
@@ -298,18 +305,207 @@ describe("performTwitchDeviceCodeLogin", () => {
       saveToken,
       scheduleProactiveRefresh: vi.fn(),
       fetchCurrentUser: vi.fn(async () => await userRefresh),
+      clearTwitchUser,
       saveTwitchUser: vi.fn(),
       afterAuthenticated,
     });
 
     await vi.waitFor(() => {
       expect(closePopup).toHaveBeenCalledTimes(1);
+      expect(clearTwitchUser).toHaveBeenCalledTimes(1);
       expect(saveToken).toHaveBeenCalledTimes(1);
     });
     expect(afterAuthenticated).not.toHaveBeenCalled();
 
     finishUserRefresh(null);
-    await expect(login).resolves.toBeNull();
+    await expect(login).rejects.toThrow("account details could not be loaded");
+    expect(afterAuthenticated).not.toHaveBeenCalled();
+  });
+
+  it("does not report callback success when Twitch account details fail to load", async () => {
+    const afterAuthenticated = vi.fn(async () => {});
+
+    await expect(
+      performTwitchDeviceCodeLogin({
+        scopes: ["chat:read"],
+        requestDeviceCode: vi.fn(async () => ({
+          deviceCode: "dc",
+          userCode: "ABCD-EFGH",
+          verificationUri: "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH",
+          expiresIn: 900,
+          interval: 5,
+        })),
+        openVerificationWindow: vi.fn(async () => ({
+          closed: new Promise<void>(() => undefined),
+          close: vi.fn(),
+          navigate: vi.fn(async () => undefined),
+        })),
+        pollForToken: vi.fn(async () => ({
+          accessToken: "at",
+          refreshToken: "rt",
+          authFlow: "device-code" as const,
+        })),
+        saveToken: vi.fn(),
+        scheduleProactiveRefresh: vi.fn(),
+        fetchCurrentUser: vi.fn(async () => null),
+        clearTwitchUser: vi.fn(),
+        saveTwitchUser: vi.fn(),
+        afterAuthenticated,
+      })
+    ).rejects.toThrow("account details could not be loaded");
+    expect(afterAuthenticated).not.toHaveBeenCalled();
+  });
+});
+
+// Guards: Twitch status recovers a token-present session when account identity is missing after login.
+// Guards: concurrent Twitch status calls share one identity recovery instead of racing duplicate Helix user reads.
+describe("resolveAuthStatus", () => {
+  const twitchUser = {
+    id: "u1",
+    login: "streamer",
+    displayName: "Streamer",
+    profileImageUrl: "https://example.com/avatar.png",
+    createdAt: "2026-01-01T00:00:00Z",
+    broadcasterType: "" as const,
+  };
+
+  it("fetches missing Twitch identity before reporting a usable token as connected", async () => {
+    const status = await resolveAuthStatus({
+      getTwitchUser: () => null,
+      getTwitchToken: () => ({ accessToken: "current" }),
+      getKickUser: () => null,
+      hasUsableToken: (platform) => platform === "twitch",
+      isTokenExpired: () => false,
+      fetchMissingTwitchUser: vi.fn(async () => twitchUser),
+    });
+
+    expect(status.twitch).toEqual({
+      connected: true,
+      user: twitchUser,
+      hasToken: true,
+      isExpired: false,
+    });
+    expect(status.isGuest).toBe(false);
+  });
+
+  it("does not reuse a stale Twitch identity when recovery still cannot load the account", async () => {
+    const status = await resolveAuthStatus({
+      getTwitchUser: () => null,
+      getTwitchToken: () => ({ accessToken: "current" }),
+      getKickUser: () => null,
+      hasUsableToken: (platform) => platform === "twitch",
+      isTokenExpired: () => false,
+      fetchMissingTwitchUser: vi.fn(async () => null),
+    });
+
+    expect(status.twitch).toEqual({
+      connected: false,
+      user: null,
+      hasToken: true,
+      isExpired: false,
+    });
+    expect(status.isGuest).toBe(true);
+  });
+
+  it("does not attempt Twitch identity recovery for expired or missing tokens", async () => {
+    const fetchMissingTwitchUser = vi.fn(async () => twitchUser);
+
+    await resolveAuthStatus({
+      getTwitchUser: () => null,
+      getTwitchToken: () => null,
+      getKickUser: () => null,
+      hasUsableToken: () => false,
+      isTokenExpired: () => true,
+      fetchMissingTwitchUser,
+    });
+
+    expect(fetchMissingTwitchUser).not.toHaveBeenCalled();
+  });
+
+  it("single-flights concurrent missing-user recovery calls", async () => {
+    let resolveRecovery: (value: typeof twitchUser) => void = () => undefined;
+    const recovery = new Promise<typeof twitchUser>((resolve) => {
+      resolveRecovery = resolve;
+    });
+    const fetchCurrentUser = vi.fn(async () => await recovery);
+    const fetchOnce = createTwitchIdentitySingleFlight(() => "current", fetchCurrentUser);
+
+    const first = fetchOnce();
+    const second = fetchOnce();
+    resolveRecovery(twitchUser);
+
+    await expect(Promise.all([first, second])).resolves.toEqual([twitchUser, twitchUser]);
+    expect(fetchCurrentUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("discards an old token recovery result after a new token becomes current", async () => {
+    let currentToken = "old";
+    let resolveOldRecovery: (value: typeof twitchUser) => void = () => undefined;
+    const oldRecovery = new Promise<typeof twitchUser>((resolve) => {
+      resolveOldRecovery = resolve;
+    });
+    const fetchCurrentUser = vi.fn(async (accessToken: string) => {
+      if (accessToken === "old") return await oldRecovery;
+      return { ...twitchUser, id: "u2", login: "new-streamer", displayName: "New Streamer" };
+    });
+    const fetchOnce = createTwitchIdentitySingleFlight(() => currentToken, fetchCurrentUser);
+
+    const oldStatus = resolveAuthStatus({
+      getTwitchUser: () => null,
+      getTwitchToken: () => ({ accessToken: currentToken }),
+      getKickUser: () => null,
+      hasUsableToken: (platform) => platform === "twitch",
+      isTokenExpired: () => false,
+      fetchMissingTwitchUser: fetchOnce,
+    });
+    currentToken = "new";
+    const newStatus = await resolveAuthStatus({
+      getTwitchUser: () => null,
+      getTwitchToken: () => ({ accessToken: currentToken }),
+      getKickUser: () => null,
+      hasUsableToken: (platform) => platform === "twitch",
+      isTokenExpired: () => false,
+      fetchMissingTwitchUser: fetchOnce,
+    });
+    resolveOldRecovery(twitchUser);
+
+    await expect(oldStatus).resolves.toMatchObject({
+      twitch: { connected: false, user: null, hasToken: true, isExpired: false },
+      isGuest: true,
+    });
+    expect(newStatus.twitch.user).toMatchObject({ id: "u2", login: "new-streamer" });
+    expect(fetchCurrentUser).toHaveBeenCalledTimes(2);
+    expect(fetchCurrentUser).toHaveBeenNthCalledWith(1, "old");
+    expect(fetchCurrentUser).toHaveBeenNthCalledWith(2, "new");
+  });
+
+  it("does not revive Twitch status when logout clears the token during identity recovery", async () => {
+    let currentToken: string | null = "current";
+    let resolveRecovery: (value: typeof twitchUser) => void = () => undefined;
+    const recovery = new Promise<typeof twitchUser>((resolve) => {
+      resolveRecovery = resolve;
+    });
+    const fetchOnce = createTwitchIdentitySingleFlight(
+      () => currentToken,
+      vi.fn(async () => await recovery)
+    );
+
+    const status = resolveAuthStatus({
+      getTwitchUser: () => null,
+      getTwitchToken: () => (currentToken ? { accessToken: currentToken } : null),
+      getKickUser: () => null,
+      hasUsableToken: (platform) => platform === "twitch" && currentToken !== null,
+      isTokenExpired: () => false,
+      fetchMissingTwitchUser: fetchOnce,
+    });
+    currentToken = null;
+    resolveRecovery(twitchUser);
+
+    await expect(status).resolves.toEqual({
+      twitch: { connected: false, user: null, hasToken: false, isExpired: true },
+      kick: { connected: false, user: null, hasToken: false, isExpired: true },
+      isGuest: true,
+    });
   });
 });
 

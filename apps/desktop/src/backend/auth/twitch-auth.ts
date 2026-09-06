@@ -397,6 +397,7 @@ class TwitchAuthService {
    * Fetch the current authenticated user's information
    */
   async fetchCurrentUser(accessToken?: string): Promise<TwitchUser | null> {
+    const explicitAccessToken = accessToken !== undefined;
     const token = accessToken ?? storageService.getToken(this.platform)?.accessToken;
 
     if (!token) {
@@ -405,6 +406,8 @@ class TwitchAuthService {
     }
 
     try {
+      const tokenIsCurrent = (): boolean =>
+        storageService.getToken(this.platform)?.accessToken === token;
       const config = getOAuthConfig(this.platform);
       const response = await fetch(`${TWITCH_API_BASE}/users`, {
         headers: {
@@ -412,9 +415,13 @@ class TwitchAuthService {
           "Client-Id": config.clientId,
         },
       });
+      if (!tokenIsCurrent()) {
+        logger.debug("Auth:Twitch", "Discarding Twitch user response for a stale token");
+        return null;
+      }
 
       if (!response.ok) {
-        if (response.status === 401) {
+        if (response.status === 401 && !explicitAccessToken) {
           logger.debug("Auth:Twitch", "Token expired, attempting refresh");
           const refreshed = await this.refreshToken();
           if (refreshed) {
@@ -432,8 +439,11 @@ class TwitchAuthService {
 
       const apiUser = data.data[0];
       const user = this.transformUser(apiUser);
+      if (!tokenIsCurrent()) {
+        logger.debug("Auth:Twitch", "Discarding Twitch user fetched for a stale token");
+        return null;
+      }
 
-      // Update stored user data
       storageService.saveTwitchUser(user);
 
       return user;

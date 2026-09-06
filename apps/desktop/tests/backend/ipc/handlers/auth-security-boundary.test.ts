@@ -11,9 +11,11 @@ const mocks = vi.hoisted(() => ({
   hasToken: vi.fn(),
   isTokenExpired: vi.fn(),
   saveTwitchUser: vi.fn(),
+  clearTwitchUser: vi.fn(),
   saveKickUser: vi.fn(),
   ensureKickToken: vi.fn(),
   ensureTwitchToken: vi.fn(),
+  fetchTwitchUser: vi.fn(),
   disposeKickSendWindow: vi.fn(),
   kickLogout: vi.fn(),
   twitchLogout: vi.fn(),
@@ -87,7 +89,7 @@ vi.mock("@backend/auth", () => ({
     logout: mocks.twitchLogout,
     refreshToken: mocks.refreshTwitchToken,
     getValidAccessToken: mocks.getValidTwitchToken,
-    fetchCurrentUser: vi.fn(),
+    fetchCurrentUser: mocks.fetchTwitchUser,
   },
   validateOAuthConfig: vi.fn(() => []),
 }));
@@ -110,7 +112,7 @@ vi.mock("@backend/services/storage-service", () => ({
     isTokenExpired: mocks.isTokenExpired,
     getTwitchUser: vi.fn(() => null),
     saveTwitchUser: mocks.saveTwitchUser,
-    clearTwitchUser: vi.fn(),
+    clearTwitchUser: mocks.clearTwitchUser,
     getKickUser: vi.fn(() => null),
     saveKickUser: mocks.saveKickUser,
     clearKickUser: vi.fn(),
@@ -146,9 +148,11 @@ beforeEach(() => {
   mocks.hasToken.mockReset().mockReturnValue(false);
   mocks.isTokenExpired.mockReset().mockReturnValue(false);
   mocks.saveTwitchUser.mockReset();
+  mocks.clearTwitchUser.mockReset();
   mocks.saveKickUser.mockReset();
   mocks.ensureKickToken.mockReset();
   mocks.ensureTwitchToken.mockReset().mockResolvedValue(false);
+  mocks.fetchTwitchUser.mockReset().mockResolvedValue(null);
   mocks.disposeKickSendWindow.mockReset();
   mocks.kickLogout.mockReset();
   mocks.twitchLogout.mockReset();
@@ -268,13 +272,26 @@ describe("auth IPC credential boundary", () => {
   });
 
   it("collapses concurrent Twitch login requests into one device flow", async () => {
+    const user = {
+      id: "u1",
+      login: "streamer",
+      displayName: "Streamer",
+      profileImageUrl: "https://example.com/avatar.png",
+      createdAt: "2026-01-01T00:00:00Z",
+      broadcasterType: "" as const,
+    };
+    const token = { accessToken: "at", refreshToken: "rt", authFlow: "device-code" as const };
     let resolveLogin: (() => void) | undefined;
     mocks.runTwitchDeviceCodeLogin.mockImplementation(
       () =>
-        new Promise<void>((resolve) => {
-          resolveLogin = resolve;
+        new Promise<typeof token>((resolve) => {
+          resolveLogin = () => resolve(token);
         })
     );
+    mocks.saveToken.mockImplementation((_platform: unknown, savedToken: unknown) => {
+      mocks.getToken.mockReturnValue(savedToken);
+    });
+    mocks.fetchTwitchUser.mockResolvedValue(user);
     const openTwitch = handler(IPC_CHANNELS.AUTH_OPEN_TWITCH);
 
     const first = openTwitch(allowedEvent);
@@ -286,6 +303,8 @@ describe("auth IPC credential boundary", () => {
       { success: true },
       { success: true },
     ]);
+    expect(mocks.clearTwitchUser).toHaveBeenCalledBefore(mocks.saveToken);
+    expect(mocks.saveTwitchUser).toHaveBeenCalledWith(user);
   });
 
   it("returns Kick credentials only to an allowed sender and never returns Twitch credentials", async () => {
