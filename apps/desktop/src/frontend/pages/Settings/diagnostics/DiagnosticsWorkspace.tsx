@@ -812,14 +812,23 @@ function historyRangeDurationMs(range: DiagnosticsHistoryRange): number {
   return historyRangePreset(range).durationMs;
 }
 
+const historyTimeFormatters = new Map<string, Intl.DateTimeFormat>();
+
 function formatHistoryTime(timestampMs: number, precise = false): string {
-  return new Date(timestampMs).toLocaleString(i18n.resolvedLanguage ?? i18n.language, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    ...(precise ? { second: "2-digit" as const } : {}),
-  });
+  const locale = i18n.resolvedLanguage ?? i18n.language;
+  const formatterKey = `${locale}:${precise ? "precise" : "standard"}`;
+  let formatter = historyTimeFormatters.get(formatterKey);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      ...(precise ? { second: "2-digit" as const } : {}),
+    });
+    historyTimeFormatters.set(formatterKey, formatter);
+  }
+  return formatter.format(timestampMs);
 }
 
 function formatHistoryInput(timestampMs: number): string {

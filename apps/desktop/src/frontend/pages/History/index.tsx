@@ -9,6 +9,7 @@ import {
 } from "@/features/playback/components/related-content/types";
 import { VodProgressBar } from "@/features/playback/components/vod-progress-bar";
 import { Button } from "@/components/ui/button";
+import { ProxiedImage } from "@/components/ui/proxied-image";
 import { useChannelByUsername } from "@/features/discovery/data/queries/useChannels";
 import { useHistoryActions, useHistoryQuery } from "@/features/media-library/data/useHistoryQuery";
 import { resolveProxiedImageSrc } from "@/lib/proxied-image-url";
@@ -250,7 +251,7 @@ export function HistoryPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {history.map((item) => {
-            const thumbnail = resolveProxiedImageSrc(item.thumbnail);
+            const thumbnail = resolveProxiedImageSrc(item.thumbnail) ? item.thumbnail : null;
             return (
               <div
                 key={item.id}
@@ -258,18 +259,19 @@ export function HistoryPage() {
               >
                 {/* Thumbnail Container */}
                 <div className="relative aspect-video bg-black/50">
-                  {thumbnail ? (
-                    <img
-                      src={thumbnail}
-                      alt={item.title}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-zinc-800">
-                      <LuPlay className="w-8 h-8 text-white/20" />
-                    </div>
-                  )}
+                  <ProxiedImage
+                    src={thumbnail}
+                    alt={item.title}
+                    className="w-full h-full object-cover"
+                    fallback={
+                      <div
+                        className="w-full h-full flex items-center justify-center bg-zinc-800"
+                        data-testid="history-thumbnail-fallback"
+                      >
+                        <LuPlay className="w-8 h-8 text-white/20" />
+                      </div>
+                    }
+                  />
 
                   {/* Overlay on hover */}
                   <div className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">

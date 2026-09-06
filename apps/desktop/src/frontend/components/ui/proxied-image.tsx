@@ -151,7 +151,7 @@ export function ProxiedImage({
     [proxy, src]
   );
   const imgRef = useRef<HTMLImageElement | null>(null);
-  const seenSrcRef = useRef<string | null>(null);
+  const seenSrcRef = useRef<string | null>(resolvedSrc);
   const [isLoaded, setIsLoaded] = useState(false);
   const [retryAttempt, setRetryAttempt] = useState(0);
   const isKickProxy = resolvedSrc?.startsWith(`${KICK_IMAGE_SCHEME}://`) ?? false;
@@ -180,7 +180,8 @@ export function ProxiedImage({
   // the animate-pulse placeholder forever (no fresh onLoad would fire to
   // recover, since the image is already complete).
   useEffect(() => {
-    if (seenSrcRef.current !== null && seenSrcRef.current !== resolvedSrc) {
+    if (seenSrcRef.current !== resolvedSrc) {
+      kickRetryTimer.clear();
       setIsLoaded(false);
       setRetryAttempt(0);
       // Re-seed against the skip-list on src change so a previously-broken
@@ -189,7 +190,7 @@ export function ProxiedImage({
       setHasError(resolvedSrc !== null && !isKickProxy && brokenUrls.has(resolvedSrc));
     }
     seenSrcRef.current = resolvedSrc;
-  }, [isKickProxy, resolvedSrc]);
+  }, [isKickProxy, kickRetryTimer, resolvedSrc]);
 
   // Kick protocol failures can be transient (the dedicated Electron network
   // session may time out while the same real CDN object remains healthy).
@@ -197,12 +198,12 @@ export function ProxiedImage({
   // it as broken for the entire session. Permanent 4xx responses are already
   // negative-cached in the main process, so these retries remain cheap.
   useEffect(() => {
-    if (!hasError || !isKickProxy) {
+    if (!hasError || !isKickProxy || retryAttempt >= KICK_RETRY_DELAYS_MS.length) {
       kickRetryTimer.clear();
       return;
     }
 
-    const delay = KICK_RETRY_DELAYS_MS[Math.min(retryAttempt, KICK_RETRY_DELAYS_MS.length - 1)];
+    const delay = KICK_RETRY_DELAYS_MS[retryAttempt];
     kickRetryTimer.start(delay);
     return kickRetryTimer.clear;
   }, [hasError, isKickProxy, kickRetryTimer, retryAttempt]);

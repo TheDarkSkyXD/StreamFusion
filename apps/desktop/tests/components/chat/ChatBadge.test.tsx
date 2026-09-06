@@ -8,6 +8,7 @@ import { renderWithProviders } from "../../test-utils";
 // Guards: role and cosmetic badges retain deferred loading while subscription badges are prioritized (regression 67fdc95)
 // Guards: mounted subscription badges load eagerly in virtualized live chat (regression 67fdc95)
 // Guards: Kick subscription badges use the Electron image proxy in both the row and tooltip (regression 67fdc95)
+// Guards: a failed tooltip badge image renders the badge-title initial instead of a broken image.
 describe("ChatBadge", () => {
   it("loading: renders nothing when no imageUrl is provided (badge metadata pending)", () => {
     const { container } = renderWithProviders(<ChatBadge badge={{ title: "mod" }} />);
@@ -97,5 +98,21 @@ describe("ChatBadge", () => {
     fireEvent.mouseEnter(img, { clientX: 10, clientY: 10 });
     // The tooltip portal renders another copy of the badge title and an img.
     expect(screen.getAllByAltText("Verified").length).toBeGreaterThan(1);
+  });
+
+  it("replaces a failed tooltip image with the badge-title initial", () => {
+    renderWithProviders(
+      <ChatBadge
+        badge={{ imageUrl: "https://x.test/verified.png", title: "Verified" }}
+        platform="twitch"
+      />
+    );
+    fireEvent.mouseEnter(screen.getByAltText("Verified"), { clientX: 10, clientY: 10 });
+
+    const tooltipImage = screen.getAllByAltText("Verified")[1];
+    fireEvent.error(tooltipImage);
+
+    expect(screen.getAllByAltText("Verified")).toHaveLength(1);
+    expect(screen.getByText("V")).toBeInTheDocument();
   });
 });

@@ -54,6 +54,8 @@ import { useAuthStore } from "@/store/auth-store";
 import { useFollowStore } from "@/store/follow-store";
 import { usePipStore } from "@/store/pip-store";
 
+import { FollowingChannelGrid } from "./following-channel-grid";
+
 type FollowingTab = "live" | "videos" | "clips" | "categories" | "channels";
 type FollowSyncStamp = Readonly<{
   platform: Extract<Platform, "twitch" | "kick">;
@@ -447,9 +449,7 @@ export function FollowingPage() {
     !isLoading;
   useChannelByUsername(shouldResolveKickSearchSlug ? debouncedSearchQuery : "", "kick");
 
-  const shouldLoadFollowedCategories =
-    canRenderContent &&
-    (activeTab === "categories" || liveChannels.some((stream) => Boolean(stream.categoryName)));
+  const shouldLoadFollowedCategories = canRenderContent && activeTab === "categories";
   const {
     data: topCategories,
     isLoading: isLoadingTopCategories,
@@ -688,11 +688,12 @@ export function FollowingPage() {
   }, [canRenderContent, liveChannels, topCategories]);
 
   useEffect(() => {
+    if (activeTab !== "categories") return;
     followedCategories.slice(0, CATEGORY_THUMBNAIL_PRELOAD_LIMIT).forEach((category) => {
       const thumbnailUrl = getCategoryThumbnailUrl(category);
       if (thumbnailUrl) preloadCategoryThumbnail(thumbnailUrl);
     });
-  }, [followedCategories]);
+  }, [activeTab, followedCategories]);
 
   const getContentChannel = useCallback(
     (item: FollowedContentItem) => {
@@ -1043,7 +1044,13 @@ export function FollowingPage() {
         </div>
       </div>
 
-      <div ref={contentScrollRef} className="space-y-8 flex-1 overflow-y-auto pr-2 pb-10">
+      <div
+        ref={contentScrollRef}
+        className={cn(
+          "flex-1 min-h-0 pr-2",
+          activeTab === "channels" ? "overflow-hidden" : "space-y-8 overflow-y-auto pb-10"
+        )}
+      >
         {activeTab === "live" && isLoading ? (
           <div
             role="status"
@@ -1098,16 +1105,19 @@ export function FollowingPage() {
 
             {activeTab === "channels" &&
               (followedChannels.length > 0 ? (
-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex h-full min-h-0 flex-col gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <h2 className="text-xl font-semibold text-white">
                     {t("discovery.channels")}
                     <span className="text-sm font-normal text-[var(--color-foreground-muted)] ml-2">
                       ({followedChannels.length})
                     </span>
                   </h2>
-                  <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4 pt-2">
-                    {followedChannels.map(renderChannelCard)}
-                  </div>
+                  <FollowingChannelGrid
+                    key={`${filter}:${searchQuery}`}
+                    items={followedChannels}
+                    getItemKey={({ channel }) => `${channel.platform}-${channel.id}`}
+                    renderItem={renderChannelCard}
+                  />
                 </div>
               ) : (
                 renderEmptyState(

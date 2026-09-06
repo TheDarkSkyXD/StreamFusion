@@ -2,12 +2,14 @@ import { useTranslation } from "react-i18next";
 import type React from "react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ProxiedImage } from "@/components/ui/proxied-image";
 
 interface BadgeTooltipProps {
   show: boolean;
   mousePos: { x: number; y: number } | null;
   badgeInfo: {
     src: string;
+    originalSrc?: string;
     title: string;
     platform?: string;
     owner?: { username: string };
@@ -84,8 +86,8 @@ export const BadgeTooltip: React.FC<BadgeTooltipProps> = ({ show, mousePos, badg
     >
       {/* Badge Icon - Large */}
       <div className="mb-3">
-        <img
-          src={badgeInfo.src}
+        <ProxiedImage
+          src={badgeInfo.originalSrc ?? badgeInfo.src}
           alt={badgeInfo.title}
           className="w-16 h-16 object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.1)]"
         />

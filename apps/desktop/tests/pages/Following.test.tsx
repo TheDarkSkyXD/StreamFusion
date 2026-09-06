@@ -75,10 +75,7 @@ vi.mock("@/store/auth-store", () => ({
 
 vi.mock("@/store/follow-store", () => ({
   useFollowStore: <T,>(
-    selector?: (state: {
-      localFollows: unknown[];
-      isHydrated: boolean;
-    }) => T
+    selector?: (state: { localFollows: unknown[]; isHydrated: boolean }) => T
   ) => {
     const state = {
       localFollows: storeState.localFollows,
@@ -274,7 +271,8 @@ function createDeferredRefresh() {
 // Guards: Videos and Clips tab filters are forwarded into followed-content queries
 // Guards: Videos and Clips tabs limit large followed-content lists behind an infinite-scroll sentinel so the page does not render every card at once
 // Guards: Categories tab uses the shared category-card grid rather than custom summary cards
-// Guards: Categories tab warms category data and first-batch thumbnails before tab activation so followed category cards do not cold-load
+// Guards: Categories tab loads its catalog and warms first-batch thumbnails only while that tab is active.
+// Guards: Channels virtualizes large follow lists so opening the tab does not mount every channel card.
 // Guards: delayed startup keeps live refresh active but defers exact snapshot identity work until auth, follows, and the first paint are ready
 // Guards: first useful paint derives the deduped cached live count without mounting cards, skeletons, or a false empty state
 // Guards: Live-tab startup does not prepare the full followed-channel collection for disabled Videos and Clips queries
@@ -1220,7 +1218,7 @@ describe("FollowingPage", () => {
     expect(screen.getByTestId("category-grid")).toHaveTextContent("Just Chatting");
   });
 
-  it("prefetches followed categories and warms category thumbnails before opening the Categories tab", async () => {
+  it("loads followed categories and warms thumbnails when the Categories tab opens", async () => {
     const preloadedUrls: string[] = [];
     class MockImage {
       decoding = "";
@@ -1270,15 +1268,61 @@ describe("FollowingPage", () => {
 
     expect(useTopCategoriesMock).toHaveBeenLastCalledWith(
       undefined,
+      expect.objectContaining({ enabled: false })
+    );
+    expect(preloadedUrls).toEqual([]);
+
+    fireEvent.click(screen.getByRole("button", { name: /^categories$/i }));
+
+    expect(useTopCategoriesMock).toHaveBeenLastCalledWith(
+      undefined,
       expect.objectContaining({ enabled: true })
     );
     await waitFor(() =>
       expect(preloadedUrls).toContain("https://static-cdn.jtvnw.net/ttv-boxart/509658-285x380.jpg")
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /^categories$/i }));
-
     expect(screen.getByTestId("category-grid")).toHaveAttribute("data-image-loading", "eager");
+  });
+
+  it("virtualizes large followed-channel lists through scrolling, filtering, resize, and keyboard focus", () => {
+    storeState.localFollows = Array.from({ length: 672 }, (_, index) =>
+      fixtures.channel({
+        id: `channel-${index}`,
+        username: `channel${index}`,
+        displayName: `Channel ${index}`,
+      })
+    );
+    useFollowedStreamsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    } as unknown as ReturnType<typeof useFollowedStreams>);
+
+    renderWithProviders(<FollowingPage />);
+    fireEvent.click(screen.getByRole("button", { name: /^channels$/i }));
+
+    const grid = screen.getByTestId("following-channel-grid");
+    Object.defineProperty(grid, "clientHeight", { configurable: true, value: 500 });
+    expect(grid).toBeInTheDocument();
+    expect(screen.getAllByText("Channel 0")).not.toHaveLength(0);
+    expect(screen.getAllByRole("heading", { level: 3 }).length).toBeLessThan(672);
+
+    const linksBeforeFocus = grid.querySelectorAll("a");
+    fireEvent.focus(linksBeforeFocus[linksBeforeFocus.length - 1]);
+    expect(grid.querySelectorAll("a").length).toBeGreaterThan(linksBeforeFocus.length);
+
+    grid.scrollTop = 100_000;
+    fireEvent.scroll(grid);
+    expect(screen.getAllByText("Channel 671")).not.toHaveLength(0);
+
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1600 });
+    fireEvent(window, new Event("resize"));
+    expect(screen.getAllByText("Channel 671")).not.toHaveLength(0);
+
+    fireEvent.change(screen.getByPlaceholderText(/search followed channels/i), {
+      target: { value: "Channel 0" },
+    });
+    expect(screen.getAllByText("Channel 0")).not.toHaveLength(0);
   });
 
   it("shows recent videos from followed channels on the Videos tab", () => {

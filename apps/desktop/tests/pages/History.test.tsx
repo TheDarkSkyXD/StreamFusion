@@ -97,6 +97,7 @@ import { HistoryPage } from "@/pages/History";
 
 // Guards: history verifies stale videos/clips before opening, plays clips inline, and opens stream entries on Home by default.
 // Guards: empty history stays distinct from populated history and clear-all remains confirm-gated.
+// Guards: failed proxied history thumbnails render the play fallback instead of a silent proxy placeholder.
 describe("HistoryPage", () => {
   beforeEach(() => {
     removeFromHistory.mockReset();
@@ -204,8 +205,7 @@ describe("HistoryPage", () => {
   });
 
   it("never requests persisted provider thumbnails from their raw CDN URLs", () => {
-    const twitchProcessingThumbnail =
-      "https://vod-secure.twitch.tv/_404/404_processing_90x60.png";
+    const twitchProcessingThumbnail = "https://vod-secure.twitch.tv/_404/404_processing_90x60.png";
     const kickThumbnail =
       "https://images.kick.com/video_thumbnails/DsuAwCgUc9Bh/lB7LKqQzyR6s/720.webp";
     mockHistory = [
@@ -240,6 +240,26 @@ describe("HistoryPage", () => {
     );
     expect(document.querySelector(`img[src="${twitchProcessingThumbnail}"]`)).toBeNull();
     expect(document.querySelector(`img[src="${kickThumbnail}"]`)).toBeNull();
+  });
+
+  it("shows the play fallback when a proxied history thumbnail fails", () => {
+    mockHistory = [
+      {
+        id: "kick-video-broken-thumbnail",
+        originalId: "v-kick",
+        title: "Broken Kick VOD",
+        platform: "kick",
+        type: "video",
+        channelName: "kick-channel",
+        thumbnail: "https://images.kick.com/broken.webp",
+        timestamp: Date.now(),
+      },
+    ];
+
+    renderWithProviders(<HistoryPage />);
+    fireEvent.error(screen.getByRole("img", { name: "Broken Kick VOD" }));
+
+    expect(screen.getByTestId("history-thumbnail-fallback")).toBeInTheDocument();
   });
 
   it("opens playable clip history items in the clip dialog", async () => {

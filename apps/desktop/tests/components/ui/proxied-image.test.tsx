@@ -7,6 +7,8 @@ import { ProxiedImage, _resetProxiedImageBrokenUrls } from "@/components/ui/prox
 // Guards: Twitch profile avatars must use the custom protocol immediately so upstream CDN 403s do not hit the renderer console.
 // Guards: proxied image placeholders and errors must render the fallback initial instead of a broken image.
 // Guards: a transient Kick proxy failure must retry in place so a mounted VOD card can recover without a page refresh.
+// Guards: mounted Kick images stop retrying after the bounded backoff schedule is exhausted.
+// Guards: changing src cancels stale retries and clears the previous source's failure state.
 describe("ProxiedImage", () => {
   beforeEach(() => {
     installElectronAPIMock();
@@ -165,6 +167,54 @@ describe("ProxiedImage", () => {
 
       const retryImage = screen.getByRole("img", { name: "Kick VOD retry" });
       expect(retryImage.getAttribute("src")).toContain("retry=1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops retrying a mounted Kick image after the retry schedule is exhausted", async () => {
+    vi.useFakeTimers();
+    try {
+      render(<ProxiedImage src="https://images.kick.com/exhausted.webp" alt="Exhausted" />);
+
+      for (const delay of [1000, 3000, 10_000, 30_000]) {
+        fireEvent.error(screen.getByRole("img", { name: "Exhausted" }));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(delay);
+        });
+      }
+
+      const lastImage = screen.getByRole("img", { name: "Exhausted" });
+      expect(lastImage).toHaveAttribute("src", expect.stringContaining("retry=4"));
+      fireEvent.error(lastImage);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+
+      expect(screen.queryByRole("img", { name: "Exhausted" })).toBeNull();
+      expect(screen.getByText("E")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("recovers with a fresh source without running the previous source retry", async () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender } = render(
+        <ProxiedImage src="https://images.kick.com/old.webp" alt="Changing" />
+      );
+      fireEvent.error(screen.getByRole("img", { name: "Changing" }));
+
+      rerender(<ProxiedImage src="https://images.kick.com/fresh.webp" alt="Changing" />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+
+      const freshImage = screen.getByRole("img", { name: "Changing" });
+      expect(freshImage.getAttribute("src")).not.toContain("retry=");
+      expect(freshImage.getAttribute("src")).toContain("kick-image://image?u=");
     } finally {
       vi.useRealTimers();
     }

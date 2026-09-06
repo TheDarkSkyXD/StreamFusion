@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LiveNotificationPayload } from "@shared/auth-types";
+import { installElectronAPIMock } from "./test-utils";
 
 vi.mock("@/features/auth/components/auth/AuthProvider", () => ({
   AuthProvider: ({ children }: { children: ReactNode }) => children,
@@ -73,15 +74,12 @@ let openNotification: ((notification: LiveNotificationPayload) => void) | undefi
 beforeEach(() => {
   openNotification = undefined;
   vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
-  window.electronAPI = {
-    notifications: {
-      onLiveNotification: vi.fn(() => vi.fn()),
-      onOpenLiveNotification: vi.fn((callback: (notification: LiveNotificationPayload) => void) => {
-        openNotification = callback;
-        return vi.fn();
-      }),
-    },
-  } as unknown as typeof window.electronAPI;
+  const api = installElectronAPIMock();
+  api.notifications.onLiveNotification = vi.fn(() => vi.fn());
+  api.notifications.onOpenLiveNotification = vi.fn((callback) => {
+    openNotification = callback;
+    return vi.fn();
+  });
 });
 
 afterEach(() => {
@@ -90,7 +88,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// Guards: the app-level live-notification bridge owns a valid router and opens the requested Stream without an outside-provider warning.
+// Guards: notification clicks open the requested Stream with the full app bridge and without an outside-provider warning.
 describe("App live-notification routing", () => {
   it("opens a Stream when the main process reports a notification click", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);

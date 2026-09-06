@@ -1,3 +1,4 @@
+import { act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fireEvent, fixtures, renderWithProviders, routerMock, screen } from "../test-utils";
@@ -98,6 +99,7 @@ describe("CategoriesPage", () => {
     useInfiniteTopCategoriesMock.mockReturnValue({
       data: [fixtures.category({ id: "c1", name: "Just Chatting" })],
       isLoading: false,
+      hasNextPage: true,
     } as ReturnType<typeof useInfiniteTopCategories>);
 
     renderWithProviders(<CategoriesPage />);
@@ -146,14 +148,44 @@ describe("CategoriesPage", () => {
       fetchNextPage: vi.fn(),
     } as unknown as ReturnType<typeof useSearchCategories>);
 
+    vi.useFakeTimers();
     renderWithProviders(<CategoriesPage />);
     fireEvent.change(screen.getByPlaceholderText(/filter categories/i), {
       target: { value: "later" },
     });
 
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+
     expect(screen.getByText("Later Match")).toBeInTheDocument();
     expect(screen.queryByText(/no categories matching/i)).not.toBeInTheDocument();
     expect(useSearchCategoriesMock).toHaveBeenLastCalledWith("later", undefined, 20, true);
+    vi.useRealTimers();
+  });
+
+  it("keeps local filtering immediate while deferring remote category search", () => {
+    vi.useFakeTimers();
+    useInfiniteTopCategoriesMock.mockReturnValue({
+      data: [fixtures.category({ id: "c1", name: "Just Chatting" })],
+      isLoading: false,
+    } as ReturnType<typeof useInfiniteTopCategories>);
+    renderWithProviders(<CategoriesPage />);
+
+    fireEvent.change(screen.getByPlaceholderText(/filter categories/i), {
+      target: { value: "just" },
+    });
+
+    expect(screen.getByText("Just Chatting")).toBeInTheDocument();
+    expect(useSearchCategoriesMock).toHaveBeenLastCalledWith("", undefined, 20, false);
+    expect(screen.queryByRole("button", { name: /load-more-categories/i })).toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+
+    expect(useSearchCategoriesMock).toHaveBeenLastCalledWith("just", undefined, 20, true);
+    vi.useRealTimers();
   });
 
   it("error: shows a retryable failure instead of the generic empty copy", () => {

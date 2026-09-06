@@ -91,10 +91,6 @@ vi.mock("@/features/discovery/data/queries/useCategories", () => ({
   }),
 }));
 
-vi.mock("@/components/ui/proxied-image", () => ({
-  ProxiedImage: ({ alt }: { alt: string }) => <div>{alt}</div>,
-}));
-
 vi.mock("@/features/discovery/routes/search-page", () => ({
   preloadSearchPage: routeMockState.preloadSearchPage,
 }));
@@ -170,6 +166,7 @@ function resetHistoryMock() {
 // Guards: one-letter autocomplete does not relax substring/fuzzy relevance when the expanded provider page has fewer than five strong Channels candidates.
 // Guards: search focus delegates page loading to the route preload owner.
 // Guards: compact follower counts appear exactly once in channel suggestions.
+// Guards: failed category preview images render the category icon fallback instead of a broken image.
 describe("UnifiedSearchInput", () => {
   beforeEach(() => {
     resetSearchMock();
@@ -583,6 +580,25 @@ describe("UnifiedSearchInput", () => {
     expect(screen.queryByText("GAME 0")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Categories" }));
     expect(screen.getByText("GAME 0")).toBeInTheDocument();
+  });
+
+  it("shows the category icon fallback when a category preview image fails", () => {
+    searchMockState.categoriesData = {
+      pages: [
+        {
+          data: [{ ...makeCategories(1, "broken")[0], boxArtUrl: "https://cdn.test/broken.jpg" }],
+        },
+      ],
+    };
+
+    renderWithProviders(<UnifiedSearchInput initialValue="broken" />);
+    fireEvent.focus(screen.getByRole("textbox"));
+    fireEvent.click(screen.getByRole("tab", { name: "Categories" }));
+
+    fireEvent.error(screen.getByRole("img", { name: "BROKEN 0" }));
+
+    expect(screen.queryByRole("img", { name: "BROKEN 0" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("category-preview-fallback")).toBeInTheDocument();
   });
 
   it("renders a platform partner badge beside verified channel suggestions", () => {

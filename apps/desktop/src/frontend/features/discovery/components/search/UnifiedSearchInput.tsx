@@ -123,17 +123,19 @@ function CategoryItem({
   const style = { contentVisibility: "auto", containIntrinsicSize: "48px" } as const;
   const content = (
     <>
-      {category.boxArtUrl ? (
-        <img
-          src={category.boxArtUrl}
-          alt={category.name}
-          className="w-6 h-8 rounded object-cover"
-        />
-      ) : (
-        <div className="w-6 h-8 rounded bg-zinc-700 flex items-center justify-center">
-          <LuLayoutGrid size={14} className="text-white/50" />
-        </div>
-      )}
+      <ProxiedImage
+        src={category.boxArtUrl}
+        alt={category.name}
+        className="w-6 h-8 rounded object-cover"
+        fallback={
+          <div
+            className="w-6 h-8 rounded bg-zinc-700 flex items-center justify-center"
+            data-testid="category-preview-fallback"
+          >
+            <LuLayoutGrid size={14} className="text-white/50" />
+          </div>
+        }
+      />
       <div className="flex-1 min-w-0">
         <p className="font-bold text-sm text-[var(--color-foreground)] group-hover:text-[var(--color-storm-primary)] truncate">
           {category.name}

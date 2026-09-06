@@ -46,7 +46,6 @@ export function useDiagnosticsWorkspace(view: DiagnosticsView) {
         }
         leaseIdRef.current = reply.value.leaseId;
         setLeaseId(reply.value.leaseId);
-        setState({ kind: "ready", snapshot: reply.value.snapshot });
       });
 
     return () => {
@@ -60,7 +59,6 @@ export function useDiagnosticsWorkspace(view: DiagnosticsView) {
   }, []);
 
   useEffect(() => {
-    const leaseId = leaseIdRef.current;
     if (!leaseId) return;
     let cancelled = false;
     void window.electronAPI.diagnostics.configureLease({ leaseId, view }).then((reply) => {
@@ -78,7 +76,7 @@ export function useDiagnosticsWorkspace(view: DiagnosticsView) {
     return () => {
       cancelled = true;
     };
-  }, [view]);
+  }, [leaseId, view]);
 
   const refresh = useCallback(async () => {
     const leaseId = leaseIdRef.current;

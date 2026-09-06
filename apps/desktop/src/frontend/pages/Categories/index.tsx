@@ -6,12 +6,14 @@ import { LuRefreshCw, LuSearch, LuTriangleAlert } from "react-icons/lu";
 import { VirtualizedCategoryGrid } from "@/features/discovery/components/discovery/virtualized-category-grid";
 import { useInfiniteTopCategories } from "@/features/discovery/data/queries/useCategories";
 import { useSearchCategories } from "@/features/discovery/data/queries/useSearch";
+import { useDebounce } from "@/hooks/useDebounce";
 import {
   filterRankAndDeduplicateCategories,
   mergeExactCrossPlatformCategories,
 } from "@/features/discovery/utils/search/category-search-contract";
 
 const MIN_REMOTE_CATEGORY_SEARCH_LENGTH = 2;
+const REMOTE_CATEGORY_SEARCH_DEBOUNCE_MS = 250;
 
 export function CategoriesPage() {
   const { t } = useTranslation();
@@ -28,12 +30,19 @@ export function CategoriesPage() {
   } = useInfiniteTopCategories();
   const [searchQuery, setSearchQuery] = useState("");
   const normalizedSearchQuery = searchQuery.trim();
-  const shouldSearchRemotely = normalizedSearchQuery.length >= MIN_REMOTE_CATEGORY_SEARCH_LENGTH;
-  const remoteSearch = useSearchCategories(
+  const debouncedSearchQuery = useDebounce(
     normalizedSearchQuery,
+    REMOTE_CATEGORY_SEARCH_DEBOUNCE_MS
+  );
+  const shouldSearchRemotely = normalizedSearchQuery.length >= MIN_REMOTE_CATEGORY_SEARCH_LENGTH;
+  const remoteSearchIsCurrent = debouncedSearchQuery === normalizedSearchQuery;
+  const remoteSearchEnabled = shouldSearchRemotely && remoteSearchIsCurrent;
+  const remoteSearchPending = shouldSearchRemotely && !remoteSearchIsCurrent;
+  const remoteSearch = useSearchCategories(
+    debouncedSearchQuery,
     undefined,
     20,
-    shouldSearchRemotely
+    remoteSearchEnabled
   );
 
   const localCategories = useMemo(() => {
@@ -51,22 +60,29 @@ export function CategoriesPage() {
       ),
     [normalizedSearchQuery, remoteSearch.data]
   );
-  const filteredCategories = shouldSearchRemotely
+  const filteredCategories = remoteSearchEnabled
     ? remoteSearch.data
       ? remoteCategories
       : localCategories
     : localCategories;
   const searchIsLoading =
-    shouldSearchRemotely && remoteSearch.isLoading && localCategories.length === 0;
-  const searchIsError =
-    shouldSearchRemotely && remoteSearch.isError && localCategories.length === 0;
-  const searchHasNextPage = shouldSearchRemotely ? remoteSearch.hasNextPage : hasNextPage;
-  const searchIsFetchingNextPage = shouldSearchRemotely
-    ? remoteSearch.isFetchingNextPage
-    : isFetchingNextPage;
-  const loadMore = shouldSearchRemotely
-    ? () => void remoteSearch.fetchNextPage()
-    : () => void fetchNextPage();
+    remoteSearchEnabled && remoteSearch.isLoading && localCategories.length === 0;
+  const searchIsError = remoteSearchEnabled && remoteSearch.isError && localCategories.length === 0;
+  const searchHasNextPage = remoteSearchPending
+    ? false
+    : remoteSearchEnabled
+      ? remoteSearch.hasNextPage
+      : hasNextPage;
+  const searchIsFetchingNextPage = remoteSearchPending
+    ? false
+    : remoteSearchEnabled
+      ? remoteSearch.isFetchingNextPage
+      : isFetchingNextPage;
+  const loadMore = remoteSearchPending
+    ? () => undefined
+    : remoteSearchEnabled
+      ? () => void remoteSearch.fetchNextPage()
+      : () => void fetchNextPage();
 
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);

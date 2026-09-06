@@ -53,6 +53,7 @@ export const ChatBadge: React.FC<ChatBadgeProps> = memo(({ badge, platform = "ki
     return src
       ? {
           src,
+          originalSrc: badge.imageUrl,
           title: badge.title || t("chat.badge"),
           platform: platform === "twitch" ? ("Twitch" as const) : ("Kick" as const),
         }
