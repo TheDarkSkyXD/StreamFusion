@@ -38,6 +38,7 @@ import type {
   TwitchEventSubConnectionState,
   TwitchEventSubEventType,
   TwitchEventSubMessage,
+  TwitchEventSubSubscriptionFailure,
 } from "./twitch-eventsub-types";
 
 // TODO(streamfusion): consolidate the Twitch anonymous Client-Id into a
@@ -61,7 +62,8 @@ export interface TwitchEventSubClient {
   subscribe<E>(
     eventType: TwitchEventSubEventType,
     channelId: string,
-    listener: (event: NotificationPayload<E>) => void
+    listener: (event: NotificationPayload<E>) => void,
+    onSubscriptionFailure?: (failure: TwitchEventSubSubscriptionFailure) => void
   ): () => void;
   /** Observable: subscribe to connection-state changes. */
   onConnectionStateChange(listener: (state: TwitchEventSubConnectionState) => void): () => void;
@@ -89,7 +91,7 @@ function pairKey(eventType: TwitchEventSubEventType, channelId: string): string 
 }
 
 function subscriptionVersion(eventType: TwitchEventSubEventType): string {
-  return eventType === "channel.moderate" ? "2" : "1";
+  return eventType === "channel.moderate" || eventType.startsWith("automod.message.") ? "2" : "1";
 }
 
 function subscriptionCondition(
@@ -97,7 +99,7 @@ function subscriptionCondition(
   channelId: string,
   broadcasterUserId: string
 ): Record<string, string> {
-  if (eventType === "channel.moderate") {
+  if (eventType === "channel.moderate" || eventType.startsWith("automod.message.")) {
     return {
       broadcaster_user_id: channelId,
       moderator_user_id: broadcasterUserId,
@@ -107,12 +109,82 @@ function subscriptionCondition(
   return { broadcaster_user_id: channelId };
 }
 
+function subscriptionFailure(
+  eventType: TwitchEventSubEventType,
+  channelId: string,
+  status: number | null
+): TwitchEventSubSubscriptionFailure {
+  if (status === 401) {
+    return {
+      eventType,
+      channelId,
+      status,
+      code: "unauthorized",
+      message: "Twitch EventSub authentication failed.",
+    };
+  }
+  if (status === 403) {
+    return {
+      eventType,
+      channelId,
+      status,
+      code: "forbidden",
+      message: "Twitch denied this EventSub subscription.",
+    };
+  }
+  if (status === 409) {
+    return {
+      eventType,
+      channelId,
+      status,
+      code: "conflict",
+      message: "Twitch already has an EventSub subscription for this feed.",
+    };
+  }
+  if (status === 429) {
+    return {
+      eventType,
+      channelId,
+      status,
+      code: "rate-limited",
+      message: "Twitch rate limited this EventSub subscription.",
+    };
+  }
+  return {
+    eventType,
+    channelId,
+    status,
+    code: "unavailable",
+    message: "Twitch EventSub subscription failed.",
+  };
+}
+
+function statusFromSubscriptionRequestError(error: unknown): number | null {
+  if (typeof error === "object" && error !== null && "status" in error) {
+    const status = (error as { status?: unknown }).status;
+    if (typeof status === "number" && Number.isInteger(status) && status >= 100 && status <= 599) {
+      return status;
+    }
+  }
+
+  if (error instanceof Error && error.message === "Authentication failed") return 401;
+
+  return null;
+}
+
+function isTerminalSubscriptionStatus(status: number): boolean {
+  return status === 401 || status === 403 || status === 409 || status === 429;
+}
+
+type SubscriptionPostResult = { ok: true; data: unknown } | { ok: false; status: number };
+
 type SubEntry = {
   eventType: TwitchEventSubEventType;
   channelId: string;
   refcount: number;
   /** Listener bag — typed loosely; cast at dispatch. */
   listeners: Set<(payload: NotificationPayload<unknown>) => void>;
+  failureListeners: Set<(failure: TwitchEventSubSubscriptionFailure) => void>;
   /** Twitch-assigned subscription id, set after the Helix POST resolves. */
   subscriptionId: string | null;
   /** Revocations received before their matching Helix POST response resolves. */
@@ -195,7 +267,8 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   subscribe<E>(
     eventType: TwitchEventSubEventType,
     channelId: string,
-    listener: (event: NotificationPayload<E>) => void
+    listener: (event: NotificationPayload<E>) => void,
+    onSubscriptionFailure?: (failure: TwitchEventSubSubscriptionFailure) => void
   ): () => void {
     const key = pairKey(eventType, channelId);
     let entry = this.subs.get(key);
@@ -205,6 +278,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         channelId,
         refcount: 0,
         listeners: new Set(),
+        failureListeners: new Set(),
         subscriptionId: null,
         revokedSubscriptionIds: new Set(),
         posting: false,
@@ -214,6 +288,18 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     }
     entry.refcount += 1;
     entry.listeners.add(listener as (payload: NotificationPayload<unknown>) => void);
+    if (onSubscriptionFailure) {
+      entry.failureListeners.add(onSubscriptionFailure);
+      if (entry.terminalFailureStatus) {
+        queueMicrotask(() => {
+          if (entry.failureListeners.has(onSubscriptionFailure)) {
+            onSubscriptionFailure(
+              subscriptionFailure(entry.eventType, entry.channelId, entry.terminalFailureStatus)
+            );
+          }
+        });
+      }
+    }
 
     // Drive the connection state machine.
     if (this._state === "idle") {
@@ -227,7 +313,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     // For "connecting" / "reconnecting" — the welcome handler will flush
     // pending subs once we land on "connected".
 
-    return () => this.removeListener(eventType, channelId, listener);
+    return () => this.removeListener(eventType, channelId, listener, onSubscriptionFailure);
   }
 
   onConnectionStateChange(listener: (state: TwitchEventSubConnectionState) => void): () => void {
@@ -277,12 +363,16 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   private removeListener(
     eventType: TwitchEventSubEventType,
     channelId: string,
-    listener: (event: NotificationPayload<never>) => void
+    listener: (event: NotificationPayload<never>) => void,
+    onSubscriptionFailure?: (failure: TwitchEventSubSubscriptionFailure) => void
   ): void {
     const key = pairKey(eventType, channelId);
     const entry = this.subs.get(key);
     if (!entry) return;
     entry.listeners.delete(listener as unknown as (payload: NotificationPayload<unknown>) => void);
+    if (onSubscriptionFailure) {
+      entry.failureListeners.delete(onSubscriptionFailure);
+    }
     entry.refcount = Math.max(0, entry.refcount - 1);
     if (entry.refcount > 0) return;
 
@@ -632,21 +722,22 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     };
     try {
       const accessToken = await this.getSubscriptionAccessToken();
-      let res = await this.postSubscriptionRequest(body, accessToken);
-      if (res.status === 401) {
+      let result = await this.postSubscriptionRequest(body, accessToken);
+      if (!result.ok && result.status === 401) {
         const freshToken = await this.tokenFetcher?.();
         if (freshToken && freshToken !== this.accessToken) {
           this.accessToken = freshToken;
-          res = await this.postSubscriptionRequest(body, freshToken);
+          result = await this.postSubscriptionRequest(body, freshToken);
         }
       }
 
-      if (!res.ok) {
-        if (res.status === 403 || res.status === 409 || res.status === 429) {
-          entry.terminalFailureStatus = res.status;
+      if (!result.ok) {
+        if (isTerminalSubscriptionStatus(result.status)) {
+          entry.terminalFailureStatus = result.status;
         }
+        this.notifySubscriptionFailure(entry, result.status);
         logger.warn("Twitch:EventSub", "subscription POST failed", {
-          status: res.status,
+          status: result.status,
           eventType: entry.eventType,
           channelId: entry.channelId,
         });
@@ -654,7 +745,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
       }
       const parsed = z
         .object({ data: z.array(z.object({ id: z.string().optional() })).optional() })
-        .parse(await res.json());
+        .parse(result.data);
       const subId = parsed.data?.[0]?.id ?? null;
       const wasRevoked = subId ? entry.revokedSubscriptionIds.delete(subId) : false;
       if (wasRevoked) {
@@ -673,6 +764,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
         });
       }
     } catch (err) {
+      this.notifySubscriptionFailure(entry, null);
       logger.warn("Twitch:EventSub", "subscription POST threw", {
         error:
           err instanceof Error
@@ -682,6 +774,22 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     } finally {
       entry.revokedSubscriptionIds.clear();
       entry.posting = false;
+    }
+  }
+
+  private notifySubscriptionFailure(entry: SubEntry, status: number | null): void {
+    const failure = subscriptionFailure(entry.eventType, entry.channelId, status);
+    for (const fn of entry.failureListeners) {
+      try {
+        fn(failure);
+      } catch (err) {
+        logger.warn("Twitch:EventSub", "subscription failure listener threw", {
+          error:
+            err instanceof Error
+              ? { name: err.name, message: err.message, stack: err.stack }
+              : String(err),
+        });
+      }
     }
   }
 
@@ -702,22 +810,24 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     return this.accessToken;
   }
 
-  private postSubscriptionRequest(body: unknown, accessToken: string): Promise<Response> {
+  private async postSubscriptionRequest(
+    body: unknown,
+    accessToken: string
+  ): Promise<SubscriptionPostResult> {
     if (this.subscriptionRequestor) {
-      return this.subscriptionRequestor
-        .request("/eventsub/subscriptions", {
+      try {
+        const data = await this.subscriptionRequestor.request("/eventsub/subscriptions", {
           method: "POST",
           body: JSON.stringify(body),
-        })
-        .then(
-          (data) =>
-            ({ ok: true, status: 200, json: async () => data }) as Pick<
-              Response,
-              "ok" | "status" | "json"
-            > as Response
-        );
+        });
+        return { ok: true, data };
+      } catch (error) {
+        const status = statusFromSubscriptionRequestError(error);
+        if (status !== null) return { ok: false, status };
+        throw error;
+      }
     }
-    return fetch(HELIX_SUBSCRIPTIONS_URL, {
+    const response = await fetch(HELIX_SUBSCRIPTIONS_URL, {
       method: "POST",
       headers: {
         "Client-Id": this.clientId,
@@ -726,6 +836,8 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
       },
       body: JSON.stringify(body),
     });
+    if (!response.ok) return { ok: false, status: response.status };
+    return { ok: true, data: await response.json() };
   }
 
   private async deleteSubscription(subscriptionId: string): Promise<void> {

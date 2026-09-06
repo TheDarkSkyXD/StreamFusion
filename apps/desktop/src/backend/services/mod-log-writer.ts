@@ -42,27 +42,13 @@ import type {
   ModLogEntry,
   ModLogInsertResult,
 } from "@shared/mod-log-types";
+import type { ModLogAction } from "@shared/mod-action-filters";
 
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
 
-export type ModLogAction =
-  | "ban"
-  | "timeout"
-  | "unban"
-  | "delete"
-  | "clear"
-  | "shield"
-  | "raid"
-  | "commercial"
-  | "uniqueChat"
-  | "prediction-start"
-  | "prediction-lock"
-  | "prediction-resolve"
-  | "prediction-cancel"
-  | "poll-start"
-  | "poll-terminate";
+export type { ModLogAction };
 
 export type ModLogSource = "local" | "eventsub" | "irc" | "pusher" | "bootstrap";
 
@@ -122,6 +108,12 @@ interface HelixBannedResponse {
 }
 
 const HELIX_BOOTSTRAP_PAGE_CAP = 20;
+
+interface UserTargetModerateSubevent {
+  userId: string;
+  userLogin: string;
+  reason: string | null;
+}
 
 // ---------------------------------------------------------------------------
 // Service
@@ -283,11 +275,8 @@ class ModLogWriter {
         return;
       }
       case "unban": {
-        // The shape of event.unban is unverified — fall back to a generic
-        // `{ user_id, user_login }` read on the raw event payload.
-        const sub = (event as Record<string, unknown>).unban as
-          { user_id?: string; user_login?: string; user_name?: string } | undefined;
-        if (!sub?.user_id || !sub?.user_login) {
+        const sub = readUserTargetSubevent(event, "unban");
+        if (!sub) {
           return this.warnUnknown("unban-missing-payload");
         }
         await this.record({
@@ -295,8 +284,8 @@ class ModLogWriter {
           channelId,
           channelSlug,
           action: "unban",
-          targetUserId: sub.user_id,
-          targetUsername: sub.user_login,
+          targetUserId: sub.userId,
+          targetUsername: sub.userLogin,
           moderatorUserId,
           moderatorUsername,
           durationSeconds: null,
@@ -329,9 +318,32 @@ class ModLogWriter {
         });
         return;
       }
-      default:
-        this.warnUnknown(action);
+      default: {
+        const userTargetAction = getUserTargetEventSubAction(action);
+        if (!userTargetAction) {
+          this.warnUnknown(action);
+          return;
+        }
+        const sub = readUserTargetSubevent(event, action);
+        if (!sub) return this.warnUnknown(`${action}-missing-payload`);
+        await this.record({
+          platform: "twitch",
+          channelId,
+          channelSlug,
+          action: userTargetAction,
+          targetUserId: sub.userId,
+          targetUsername: sub.userLogin,
+          moderatorUserId,
+          moderatorUsername,
+          durationSeconds: null,
+          reason: sub.reason,
+          occurredAt,
+          observedAt,
+          providerEventId,
+          source: "eventsub",
+        });
         return;
+      }
     }
   }
 
@@ -473,6 +485,44 @@ class ModLogWriter {
 
 function dedupKey(channelId: string, action: string, targetUserId: string): string {
   return `${channelId}|${action}|${targetUserId}`;
+}
+
+function readUserTargetSubevent(
+  event: ChannelModerateEvent,
+  action: string
+): UserTargetModerateSubevent | null {
+  const subevent = event[action];
+  if (!isRecord(subevent)) return null;
+  const userId = subevent.user_id;
+  const userLogin = subevent.user_login;
+  if (typeof userId !== "string" || !userId.trim()) return null;
+  if (typeof userLogin !== "string" || !userLogin.trim()) return null;
+  return {
+    userId,
+    userLogin,
+    reason: typeof subevent.reason === "string" ? subevent.reason : null,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getUserTargetEventSubAction(action: string): ModLogAction | null {
+  switch (action) {
+    case "mod":
+    case "unmod":
+    case "vip":
+    case "unvip":
+    case "warn":
+    case "raid":
+    case "unraid":
+    case "shoutout":
+    case "untimeout":
+      return action;
+    default:
+      return null;
+  }
 }
 
 function provenanceFor(

@@ -127,12 +127,21 @@ Users can download clips and videos, record live streams, recover interrupted re
 
 Authenticated moderators can choose a managed channel, review engagement and retention, inspect moderation history, and perform provider-supported moderation actions.
 
+Channel pages are live workspaces with stable video/chat hosts and persisted panel layouts.
+Twitch pins an AutoMod Queue beside Mod Actions; Kick pins Retention. Mod Actions moves
+only left/right of its pinned neighbor, and chat can dock along the full outer right edge.
+Authenticated broadcasters can open their own workspace while individual tool scopes are checked.
+The Mod Actions menu selects Twitch's action categories before database pagination.
+
 - Routes: `/mod`, `/mod/twitch/$channel`, `/mod/kick/$channel`
 - Feature: `apps/desktop/src/frontend/features/moderation/`
 - IPC: `modlog-handlers.ts`, `timeout-moderation-handlers.ts`, `twitch-api-handlers.ts`
 - Platform operations: Twitch Helix moderation modules and Kick mod mutation adapters
 - State: `features/moderation/data/moderated-channels-store.ts`, `store/dev-mod-override-store.ts`
 - Persistence: `mod-log-writer.ts`, moderation authorization and retention services
+- Workspace: `pages/Mod/channel/workspace/`, renderer localStorage `streamfusion:mod-layout:v1:*`
+- AutoMod: main-owned `twitch-eventsub-feed-service.ts` subscribes to real held/resolved events;
+  `AutoModQueue.tsx` manages live rows through the typed Twitch command boundary
 - Tests: Mod page and component suites, moderation hooks, IPC, services, and provider adapters
 
 ## Settings, diagnostics, captions, and maintenance

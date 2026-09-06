@@ -521,7 +521,12 @@ export interface IpcPayloads {
   // Auth tokens
   [IPC_CHANNELS.AUTH_TOKEN_STATUS]: { platform: Platform };
   [IPC_CHANNELS.TWITCH_API_EXECUTE]: TwitchApiCommand;
-  [IPC_CHANNELS.TWITCH_EVENTSUB_START]: { feedId: string; userId: string; channelId: string };
+  [IPC_CHANNELS.TWITCH_EVENTSUB_START]: {
+    feedId: string;
+    userId: string;
+    channelId: string;
+    eventTypes?: Array<"channel.moderate" | "automod.message.hold" | "automod.message.update">;
+  };
   [IPC_CHANNELS.TWITCH_EVENTSUB_STOP]: { feedId: string };
   [IPC_CHANNELS.AUTH_GET_TOKEN]: { platform: "kick" };
   [IPC_CHANNELS.AUTH_SAVE_TOKEN]: { platform: "kick"; token: AuthToken };

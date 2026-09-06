@@ -200,11 +200,11 @@ function notificationEnvelope(
   channelId: string,
   event: Record<string, unknown>
 ) {
-  const version = type === "channel.moderate" ? "2" : "1";
-  const condition =
-    type === "channel.moderate"
-      ? { broadcaster_user_id: channelId, moderator_user_id: SELF_ID }
-      : { broadcaster_user_id: channelId };
+  const usesModeratorCondition = type === "channel.moderate" || type.startsWith("automod.message.");
+  const version = usesModeratorCondition ? "2" : "1";
+  const condition = usesModeratorCondition
+    ? { broadcaster_user_id: channelId, moderator_user_id: SELF_ID }
+    : { broadcaster_user_id: channelId };
 
   return {
     metadata: {
@@ -252,11 +252,16 @@ function revocationEnvelope(subscriptionId: string, type: "channel.moderate", ch
   };
 }
 
-function getClient(opts?: { url?: string; tokenFetcher?: () => Promise<string | null> }) {
+function getClient(opts?: {
+  url?: string;
+  tokenFetcher?: () => Promise<string | null>;
+  subscriptionRequestor?: { request(endpoint: string, options?: RequestInit): Promise<unknown> };
+}) {
   return getTwitchEventSubClient(TOKEN, SELF_ID, {
     wsEndpoint: opts?.url ?? WS_URL,
     webSocketCtor: MockWebSocket as unknown as typeof WebSocket,
     tokenFetcher: opts?.tokenFetcher,
+    subscriptionRequestor: opts?.subscriptionRequestor,
   });
 }
 
@@ -324,6 +329,23 @@ describe("TwitchEventSubClient — connection + subscription lifecycle", () => {
     });
     expect(call.headers.Authorization).toBe(`Bearer ${TOKEN}`);
     expect(call.headers["Client-Id"]).toBeTruthy();
+  });
+
+  it("uses AutoMod Message v2 conditions with the authenticated moderator user id", async () => {
+    const client = getClient();
+    client.subscribe("automod.message.hold", "chan-1", () => {});
+    const ws = MockWebSocket.instances[0]!;
+    ws._open();
+    ws._emit(welcomeEnvelope("sess-automod", 10));
+    await flushMicrotasks();
+
+    expect(fetchCalls).toHaveLength(1);
+    expect(fetchCalls[0]!.body).toEqual({
+      type: "automod.message.hold",
+      version: "2",
+      condition: { broadcaster_user_id: "chan-1", moderator_user_id: SELF_ID },
+      transport: { method: "websocket", session_id: "sess-automod" },
+    });
   });
 
   it("uses the configured client id for subscription POSTs", async () => {
@@ -429,6 +451,64 @@ describe("TwitchEventSubClient — connection + subscription lifecycle", () => {
     ]);
   });
 
+  it("reports terminal subscription failures to that subscription listener", async () => {
+    fetchOverride = (call) => {
+      if (call.method === "POST") {
+        return new Response(JSON.stringify({ message: "missing scope" }), { status: 403 });
+      }
+      return new Response(null, { status: 204 });
+    };
+    const client = getClient();
+    const onFailure = vi.fn();
+    client.subscribe("automod.message.update", "chan-1", () => {}, onFailure);
+    const ws = MockWebSocket.instances[0]!;
+    ws._open();
+    ws._emit(welcomeEnvelope("sess-fail", 10));
+    await flushMicrotasks();
+
+    expect(onFailure).toHaveBeenCalledWith({
+      eventType: "automod.message.update",
+      channelId: "chan-1",
+      status: 403,
+      code: "forbidden",
+      message: "Twitch denied this EventSub subscription.",
+    });
+  });
+
+  it("reports server subscription failures without quarantining the subscription", async () => {
+    vi.useFakeTimers();
+    fetchOverride = (call) => {
+      if (call.method === "POST") {
+        return new Response(JSON.stringify({ message: "upstream unavailable" }), { status: 500 });
+      }
+      return new Response(null, { status: 204 });
+    };
+    const client = getClient();
+    const onFailure = vi.fn();
+    client.subscribe("automod.message.update", "chan-1", () => {}, onFailure);
+    const ws1 = MockWebSocket.instances[0]!;
+    ws1._open();
+    ws1._emit(welcomeEnvelope("sess-server-fail", 10));
+    await flushMicrotasks();
+
+    expect(onFailure).toHaveBeenCalledWith({
+      eventType: "automod.message.update",
+      channelId: "chan-1",
+      status: 500,
+      code: "unavailable",
+      message: "Twitch EventSub subscription failed.",
+    });
+
+    ws1._serverClose(1006);
+    await vi.advanceTimersByTimeAsync(5_001);
+    const ws2 = MockWebSocket.instances[1]!;
+    ws2._open();
+    ws2._emit(welcomeEnvelope("sess-server-retry", 10));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchCalls.filter((call) => call.method === "POST")).toHaveLength(2);
+  });
+
   it("multiple subscribers to the same (eventType, channelId) reuse one upstream sub", async () => {
     const client = getClient();
     client.subscribe("channel.moderate", "chan-1", () => {});
@@ -509,6 +589,103 @@ describe("TwitchEventSubClient — connection + subscription lifecycle", () => {
     const deletes = fetchCalls.filter((call) => call.method === "DELETE");
     expect(deletes).toHaveLength(1);
     expect(deletes[0]!.url).toContain("id=late-sub");
+  });
+
+  it("reports status-bearing subscription requestor failures to that subscription listener", async () => {
+    const failures: unknown[] = [];
+    const request = vi.fn(async () => {
+      const error = new Error("missing required scope") as Error & { status?: number };
+      error.status = 403;
+      throw error;
+    });
+
+    const client = getClient({ subscriptionRequestor: { request } });
+    client.subscribe(
+      "automod.message.hold",
+      "chan-1",
+      () => {},
+      (failure) => {
+        failures.push(failure);
+      }
+    );
+    const ws = MockWebSocket.instances[0]!;
+    ws._open();
+    ws._emit(welcomeEnvelope());
+    await flushMicrotasks();
+
+    expect(request).toHaveBeenCalledWith(
+      "/eventsub/subscriptions",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(failures).toEqual([
+      {
+        eventType: "automod.message.hold",
+        channelId: "chan-1",
+        status: 403,
+        code: "forbidden",
+        message: "Twitch denied this EventSub subscription.",
+      },
+    ]);
+  });
+
+  it("reports network subscription requestor failures as unavailable", async () => {
+    const failures: unknown[] = [];
+    const request = vi.fn(async () => {
+      throw new Error("socket hang up");
+    });
+
+    const client = getClient({ subscriptionRequestor: { request } });
+    client.subscribe(
+      "automod.message.hold",
+      "chan-1",
+      () => {},
+      (failure) => {
+        failures.push(failure);
+      }
+    );
+    const ws = MockWebSocket.instances[0]!;
+    ws._open();
+    ws._emit(welcomeEnvelope());
+    await flushMicrotasks();
+
+    expect(failures).toEqual([
+      {
+        eventType: "automod.message.hold",
+        channelId: "chan-1",
+        status: null,
+        code: "unavailable",
+        message: "Twitch EventSub subscription failed.",
+      },
+    ]);
+  });
+
+  it("replays terminal subscription failures to later subscribers", async () => {
+    fetchOverride = (call) => {
+      if (call.method === "POST") {
+        return new Response(JSON.stringify({ message: "missing scope" }), { status: 403 });
+      }
+      return new Response(null, { status: 204 });
+    };
+    const client = getClient();
+    const firstFailure = vi.fn();
+    client.subscribe("automod.message.update", "chan-1", () => {}, firstFailure);
+    const ws = MockWebSocket.instances[0]!;
+    ws._open();
+    ws._emit(welcomeEnvelope("sess-replay-fail", 10));
+    await flushMicrotasks();
+
+    const secondFailure = vi.fn();
+    client.subscribe("automod.message.update", "chan-1", () => {}, secondFailure);
+    await flushMicrotasks();
+
+    expect(fetchCalls.filter((call) => call.method === "POST")).toHaveLength(1);
+    expect(secondFailure).toHaveBeenCalledWith({
+      eventType: "automod.message.update",
+      channelId: "chan-1",
+      status: 403,
+      code: "forbidden",
+      message: "Twitch denied this EventSub subscription.",
+    });
   });
 
   it("no-more-listeners closes the WS", async () => {

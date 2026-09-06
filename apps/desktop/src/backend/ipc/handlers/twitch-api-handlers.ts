@@ -376,6 +376,14 @@ const commandSchema = z.discriminatedUnion("operation", [
     .strict(),
   z
     .object({
+      operation: z.literal("manage-held-automod"),
+      moderatorId: z.string().trim().min(1).max(64),
+      messageId: z.string().trim().min(1).max(256),
+      action: z.enum(["ALLOW", "DENY"]),
+    })
+    .strict(),
+  z
+    .object({
       operation: z.literal("resolve-unban-request"),
       broadcasterId: z.string().trim().min(1).max(64),
       moderatorId: z.string().trim().min(1).max(64),
@@ -420,6 +428,11 @@ export function registerTwitchApiHandlers({
       feedId: z.string().trim().min(1).max(128),
       userId: z.string().trim().min(1).max(64),
       channelId: z.string().trim().min(1).max(64),
+      eventTypes: z
+        .array(z.enum(["channel.moderate", "automod.message.hold", "automod.message.update"]))
+        .min(1)
+        .max(3)
+        .optional(),
     })
     .strict();
   const stopSchema = z.object({ feedId: z.string().trim().min(1).max(128) }).strict();
@@ -438,12 +451,13 @@ export function registerTwitchApiHandlers({
         error: { code: "invalid-input", message: "The EventSub request is invalid." },
       } satisfies TwitchApiResult;
     }
-    const { feedId, userId, channelId } = parsed.data;
+    const { feedId, userId, channelId, eventTypes } = parsed.data;
     const ownerId = event.sender.id;
     return eventSub.start({
       feedId,
       userId,
       channelId,
+      eventTypes,
       onEvent: (eventPayload) => {
         renderer.sendToOwner(ownerId, IPC_CHANNELS.TWITCH_EVENTSUB_EVENT, {
           feedId,

@@ -2,8 +2,20 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/features/chat/components/chat/twitch/TwitchChat", () => ({
-  TwitchChat: ({ channel, showComposer }: { channel: string; showComposer?: boolean }) => (
-    <div data-testid="twitch-chat" data-show-composer={String(showComposer)}>
+  TwitchChat: ({
+    channel,
+    showComposer,
+    presentation,
+  }: {
+    channel: string;
+    showComposer?: boolean;
+    presentation?: string;
+  }) => (
+    <div
+      data-testid="twitch-chat"
+      data-show-composer={String(showComposer)}
+      data-presentation={presentation}
+    >
       tw:{channel}
     </div>
   ),
@@ -15,17 +27,20 @@ vi.mock("@/features/chat/components/chat/kick/KickChat", () => ({
     channelId,
     kickChannelId,
     showComposer,
+    presentation,
   }: {
     channel: string;
     channelId?: string;
     kickChannelId?: string;
     showComposer?: boolean;
+    presentation?: string;
   }) => (
     <div
       data-testid="kick-chat"
       data-channel-id={channelId}
       data-kick-channel-id={kickChannelId}
       data-show-composer={String(showComposer)}
+      data-presentation={presentation}
     >
       kk:{channel}
     </div>
@@ -79,6 +94,19 @@ describe("ChatPanel", () => {
       "false"
     );
   });
+
+  it.each(["twitch", "kick"] as const)(
+    "forwards workspace presentation to %s chat so the child can omit duplicate chrome",
+    async (platform) => {
+      render(
+        <ChatPanel initialPlatform={platform} initialChannel="some" presentation="workspace" />
+      );
+      expect(await screen.findByTestId(`${platform}-chat`)).toHaveAttribute(
+        "data-presentation",
+        "workspace"
+      );
+    }
+  );
 });
 
 // U19 — ChatPanelTabs is the shell that wraps the chat body. The role-gated

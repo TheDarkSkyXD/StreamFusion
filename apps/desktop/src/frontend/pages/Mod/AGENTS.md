@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Standalone moderation admin console at `/mod`. Broadcasters and moderators manage channels
-at rest (not mid-stream). Covers: channel enumeration, mod-log browsing, banned-user list,
+Moderation console at `/mod`, with a live channel workspace inspired by Twitch Mod View.
+Broadcasters and moderators use docked live video, chat, mod-log browsing, banned-user list,
 unban requests, mod/VIP roster, engagement display (predictions/polls), retention settings.
 
 Out of scope: in-chat mod actions (`src/frontend/features/chat/components/chat/mod/`), stream management,
@@ -31,14 +31,23 @@ Key files under `channel/`:
 
 - Twitch channel ID must be a numeric string resolved via `useResolveTwitchChannel`
   (login → numeric id). `ModChannelPage` blocks rendering until resolved.
-- Kick channel ID is a lowercased slug.
+- Kick route parameters are lowercased slugs. Resolve the canonical broadcaster user ID
+  for mod-log queries and keep the slug in the retention scope.
 - Retention scope keys: `"global"` | `"channel:{twitchNumericId}"` | `"channel:kick:{slug}"`.
   Changing the scope format orphans saved settings.
 - `refreshCounter` (integer prop, bumped by Refresh button) is the sole re-fetch trigger.
   Sections must not independently poll or set their own intervals.
 - All Helix mutations require per-row busy state to prevent double-submits.
-- `ChannelBannedList` for Kick must render an informational note — not an empty list.
-- No component in this tree may import from `src/frontend/features/chat/components/chat/`.
+- `ChannelBannedList` used on Kick renders an informational note. The live workspace
+  does not offer unsupported Kick tools in its dock.
+- The workspace may compose the public `ChatPanel` and live player components. Do not clone
+  chat internals or import its internal moderation panels directly.
+- An authenticated broadcaster can open their own resolved workspace while scope checks
+  run. Remote Twitch admin tools remain gated by verified authority.
+- AutoMod Queue is Twitch-only and receives real held/resolved events through the main-owned
+  EventSub feed. Do not invent historical queue entries or claim a complete history.
+- AutoMod and Retention are pinned. Mod Actions can dock only to the left or right of the
+  platform's pinned panel. Chat can dock against the outer workspace edge at full height.
 
 ## Patterns
 
@@ -55,7 +64,7 @@ Key files under `channel/`:
 - Never bypass the `HelixModResult` discriminated union with a cast or `any`.
 - Never assume Kick supports the same feature set as Twitch (banned list, unban requests,
   mod/VIP management, and engagement are Twitch-only).
-- Never add `UserPopoutProvider` — this is a standalone admin surface with no live chat.
+- Let the public chat component own its providers and connection lifecycle.
 
 ## Platform Coverage
 

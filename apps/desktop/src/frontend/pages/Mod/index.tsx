@@ -14,7 +14,7 @@
  */
 
 import { useCallback } from "react";
-import { LuRefreshCw } from "react-icons/lu";
+import { LuRefreshCw, LuShieldCheck } from "react-icons/lu";
 import { useTranslation } from "react-i18next";
 
 import { useAuthStore } from "@/store/auth-store";
@@ -36,21 +36,31 @@ export function ModPage() {
   }, []);
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto p-6 gap-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">{t("moderation.moderation")}</h1>
+    <div className="h-full overflow-y-auto bg-[#0e0e10] p-4 font-[Inter] text-sm text-[#efeff1] sm:p-5">
+      <header className="flex min-h-11 items-center justify-between rounded-md border border-[#303034] bg-[#18181b] px-3">
+        <div className="flex items-center gap-2">
+          <LuShieldCheck className="text-[#bf94ff]" size={18} aria-hidden="true" />
+          <div>
+            <h1 className="text-sm font-semibold text-white">{t("moderation.moderation")}</h1>
+            <p className="text-xs text-[#adadb8]">
+              {t("moderation.yourChannels", { defaultValue: "Your channels" })}
+            </p>
+          </div>
+        </div>
         <button
           type="button"
           onClick={() => void triggerRefresh()}
           aria-label={t("moderation.refreshData")}
-          className="flex items-center gap-2 rounded border border-[var(--color-border)] bg-white/5 px-3 py-1.5 text-sm text-white hover:bg-white/10"
+          className="flex h-8 items-center gap-2 rounded-md bg-[#9147ff] px-3 text-xs font-semibold text-white hover:bg-[#772ce8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#bf94ff]"
         >
           <LuRefreshCw size={16} />
           {t("moderation.refresh")}
         </button>
       </header>
-      <ChannelList />
-      <GlobalRetention />
+      <main className="mx-auto grid w-full max-w-6xl gap-2 pt-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <ChannelList />
+        <GlobalRetention />
+      </main>
     </div>
   );
 }

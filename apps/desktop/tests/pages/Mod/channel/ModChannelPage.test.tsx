@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   installElectronAPIMock,
+  fireEvent,
   renderWithProviders,
   routerMock,
   screen,
@@ -18,6 +19,8 @@ const moderationState = vi.hoisted(() => ({
   } as
     | { state: "authorized"; role: "broadcaster"; refresh: () => void }
     | { state: "hidden" }
+    | { state: "checking" }
+    | { state: "unverifiable"; retry: () => void }
     | {
         state: "reconnect-required";
         role: "moderator";
@@ -62,7 +65,7 @@ vi.mock("@/store/auth-store", () => {
   return { useAuthStore: useStore };
 });
 
-// Child sections — keep this test focused on the shell wiring.
+// Child sections keep this test focused on the shell wiring.
 vi.mock("@/pages/Mod/channel/ChannelModLogFeed", () => ({
   ChannelModLogFeed: ({ channelId, channelSlug }: { channelId: string; channelSlug: string }) => (
     <div data-testid="channel-mod-log-feed-stub" data-channel-slug={channelSlug}>
@@ -91,7 +94,9 @@ vi.mock("@/pages/Mod/channel/ChannelEngagement", () => ({
   ),
 }));
 vi.mock("@/pages/Mod/channel/ChannelUnbanRequests", () => ({
-  ChannelUnbanRequests: () => null,
+  ChannelUnbanRequests: ({ broadcasterId }: { broadcasterId: string }) => (
+    <div data-testid="channel-unban-requests-stub">{broadcasterId}</div>
+  ),
 }));
 vi.mock("@/pages/Mod/channel/ChannelModeratorsTable", () => ({
   ChannelModeratorsTable: () => null,
@@ -104,11 +109,50 @@ vi.mock("@/pages/Mod/channel/RetentionCard", () => ({
     <div data-testid={`retention-stub-${scope}`}>{title}</div>
   ),
 }));
+vi.mock("@/pages/Mod/channel/workspace/ModLivePanels", () => ({
+  ModVideoPanel: ({
+    platform,
+    channel,
+    channelId,
+  }: {
+    platform: string;
+    channel: string;
+    channelId: string;
+  }) => (
+    <div data-testid="mod-video-panel-boundary" data-platform={platform} data-channel={channel}>
+      {channelId}
+    </div>
+  ),
+  ModChatPanel: ({
+    platform,
+    channel,
+    channelId,
+  }: {
+    platform: string;
+    channel: string;
+    channelId: string;
+  }) => (
+    <div data-testid="mod-chat-panel-boundary" data-platform={platform} data-channel={channel}>
+      {channelId}
+    </div>
+  ),
+}));
+vi.mock("@/pages/Mod/channel/workspace/AutoModQueue", () => ({
+  AutoModQueue: ({ channelId, channel }: { channelId: string; channel: string }) => (
+    <div data-testid="automod-queue-boundary" data-channel={channel}>
+      {channelId}
+    </div>
+  ),
+}));
 
 import { ModChannelPage } from "@/pages/Mod/channel/ModChannelPage";
 
+// Guards: canonical Twitch and Kick identities reach media, history, retention, and AutoMod boundaries.
+// Guards: own-channel workspaces survive authority checks while other channels remain permission-gated.
+// Guards: platform-specific tools cannot leak into unsupported Kick or non-owner Twitch workspaces.
 describe("ModChannelPage", () => {
   beforeEach(() => {
+    localStorage.clear();
     moderationState.value = {
       state: "authorized",
       role: "broadcaster",
@@ -140,20 +184,33 @@ describe("ModChannelPage", () => {
     expect(screen.getByTestId("mod-channel-resolving")).toBeInTheDocument();
   });
 
-  it("renders Twitch sections after resolve (own-broadcaster path enables engagement)", async () => {
+  // Guards: the live workspace keeps default tools mounted and reveals optional Twitch tools on demand.
+  // Guards: each media host receives the resolved canonical channel identity.
+  it("renders the Twitch workspace with canonical media identities and reveals docked tools", async () => {
     twitchExecute.mockResolvedValue({
       ok: true,
       data: { id: "111", login: "me", displayName: "Me" },
     });
     renderWithProviders(<ModChannelPage platform="twitch" channel="me" />);
-    await waitFor(() =>
-      expect(screen.getByTestId("retention-stub-channel:111")).toBeInTheDocument()
-    );
-    expect(screen.getByTestId("retention-stub-global")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("mod-workspace")).toBeInTheDocument());
     expect(screen.getByTestId("channel-mod-log-feed-stub").textContent).toBe("111");
-    expect(screen.getByTestId("channel-banned-list-stub").getAttribute("data-platform")).toBe(
+    expect(screen.getByTestId("mod-video-panel-boundary")).toHaveTextContent("111");
+    expect(screen.getByTestId("mod-chat-panel-boundary")).toHaveTextContent("111");
+    expect(screen.getByTestId("automod-queue-boundary")).toHaveTextContent("111");
+    expect(screen.getByTestId("automod-queue-boundary")).toHaveAttribute("data-channel", "me");
+    expect(screen.queryByTestId("retention-stub-channel:111")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retention" }));
+    expect(screen.getByTestId("retention-stub-channel:111")).toBeInTheDocument();
+    expect(screen.getByTestId("retention-stub-global")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Banned users" }));
+    expect(screen.getByTestId("channel-banned-list-stub")).toHaveAttribute(
+      "data-platform",
       "twitch"
     );
+
+    fireEvent.click(screen.getByRole("button", { name: "Active engagement" }));
     expect(screen.getByTestId("channel-engagement-stub")).toBeInTheDocument();
   });
 
@@ -163,10 +220,41 @@ describe("ModChannelPage", () => {
       data: { id: "999", login: "someone", displayName: "Someone" },
     });
     renderWithProviders(<ModChannelPage platform="twitch" channel="someone" />);
-    await waitFor(() =>
-      expect(screen.getByTestId("retention-stub-channel:999")).toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.getByTestId("mod-workspace")).toBeInTheDocument());
+    expect(screen.getByTestId("automod-queue-boundary")).toHaveTextContent("999");
+    expect(screen.getByRole("button", { name: "Pending unban requests" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Banned users" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Active engagement" })).not.toBeInTheDocument();
     expect(screen.queryByTestId("channel-engagement-stub")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Pending unban requests" }));
+    expect(screen.getByTestId("channel-unban-requests-stub")).toHaveTextContent("999");
+  });
+
+  // Guards: owners retain video, chat, history, and retention while scope verification is pending.
+  // Guards: unverified owner access cannot expose Twitch moderation endpoints.
+  it("keeps the own Twitch workspace available while authority checking or unverifiable", async () => {
+    twitchExecute.mockResolvedValue({
+      ok: true,
+      data: { id: "111", login: "me", displayName: "Me" },
+    });
+    moderationState.value = { state: "checking" };
+    const { rerender } = renderWithProviders(<ModChannelPage platform="twitch" channel="me" />);
+
+    await waitFor(() => expect(screen.getByTestId("mod-workspace")).toBeInTheDocument());
+    expect(screen.getByTestId("mod-channel-authority-checking")).toBeInTheDocument();
+    expect(screen.getByTestId("mod-video-panel-boundary")).toHaveTextContent("111");
+    expect(screen.getByTestId("channel-mod-log-feed-stub")).toHaveTextContent("111");
+    expect(screen.getByTestId("automod-queue-boundary")).toHaveTextContent("111");
+    expect(screen.queryByRole("button", { name: "Banned users" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Active engagement" })).not.toBeInTheDocument();
+
+    const retry = vi.fn();
+    moderationState.value = { state: "unverifiable", retry };
+    rerender(<ModChannelPage platform="twitch" channel="me" />);
+    expect(screen.getByTestId("mod-workspace")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledTimes(1);
   });
 
   // Guards: the dashboard uses Kick broadcaster user_id for moderation and the stable slug for retention.
@@ -174,17 +262,41 @@ describe("ModChannelPage", () => {
     renderWithProviders(<ModChannelPage platform="kick" channel="Xqc" />);
     // No resolving state.
     expect(screen.queryByTestId("mod-channel-resolving")).not.toBeInTheDocument();
-    expect(screen.getByTestId("retention-stub-channel:kick:xqc")).toBeInTheDocument();
+    expect(screen.getByTestId("mod-workspace")).toBeInTheDocument();
     expect(screen.getByTestId("channel-mod-log-feed-stub").textContent).toBe("123456");
     expect(screen.getByTestId("channel-mod-log-feed-stub")).toHaveAttribute(
       "data-channel-slug",
       "Xqc"
     );
-    expect(screen.getByTestId("channel-banned-list-stub").getAttribute("data-platform")).toBe(
-      "kick"
-    );
-    // No engagement for Kick.
+    expect(screen.getByTestId("retention-stub-channel:kick:xqc")).toBeInTheDocument();
+    expect(screen.getByTestId("retention-stub-global")).toBeInTheDocument();
+    expect(screen.queryByTestId("automod-queue-boundary")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Banned users" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("channel-banned-list-stub")).not.toBeInTheDocument();
     expect(screen.queryByTestId("channel-engagement-stub")).not.toBeInTheDocument();
+  });
+
+  // Guards: a Kick owner's canonical identity keeps the workspace available when reconnect is required.
+  it("keeps the own Kick workspace available during reconnect without remote Twitch tools", async () => {
+    const reconnect = vi.fn();
+    authState.kickUser = { id: 123456, username: "owner", slug: "xqc" };
+    moderationState.value = {
+      state: "reconnect-required",
+      role: "moderator",
+      missingScopes: ["moderator:read:chatters"],
+      reconnect,
+    };
+
+    renderWithProviders(<ModChannelPage platform="kick" channel="XQC" />);
+
+    expect(screen.getByTestId("mod-workspace")).toBeInTheDocument();
+    expect(screen.getByTestId("mod-channel-reconnect-required")).toBeInTheDocument();
+    expect(screen.getByTestId("mod-video-panel-boundary")).toHaveTextContent("123456");
+    expect(screen.getByTestId("mod-chat-panel-boundary")).toHaveTextContent("123456");
+    expect(screen.getByTestId("retention-stub-channel:kick:xqc")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reconnect Kick" }));
+    expect(reconnect).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Banned users" })).not.toBeInTheDocument();
   });
 
   it("shows resolve-failed when Twitch /users returns 404", async () => {
@@ -206,6 +318,19 @@ describe("ModChannelPage", () => {
     expect(await screen.findByTestId("mod-channel-authority-hidden")).toBeInTheDocument();
     expect(screen.queryByTestId("channel-mod-log-feed-stub")).not.toBeInTheDocument();
     expect(screen.queryByTestId("retention-stub-global")).not.toBeInTheDocument();
+  });
+
+  it("keeps another Twitch channel gated while authority is checking", async () => {
+    moderationState.value = { state: "checking" };
+    twitchExecute.mockResolvedValue({
+      ok: true,
+      data: { id: "999", login: "someone", displayName: "Someone" },
+    });
+
+    renderWithProviders(<ModChannelPage platform="twitch" channel="someone" />);
+
+    expect(await screen.findByTestId("mod-channel-authority-checking")).toBeInTheDocument();
+    expect(screen.queryByTestId("mod-workspace")).not.toBeInTheDocument();
   });
 
   it("offers one platform reconnect without mounting dashboard data", async () => {

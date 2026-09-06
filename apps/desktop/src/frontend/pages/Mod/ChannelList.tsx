@@ -19,7 +19,7 @@
 
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { LuShield } from "react-icons/lu";
+import { LuChevronRight, LuShield } from "react-icons/lu";
 import { useTranslation } from "react-i18next";
 
 import type { ModeratedTwitchChannel } from "@shared/twitch-api-types";
@@ -90,32 +90,45 @@ export function ChannelList() {
   }
 
   return (
-    <section data-testid="mod-channel-list">
-      <h2 className="text-xl font-semibold mb-3 text-white">{t("moderation.yourChannels")}</h2>
+    <section
+      data-testid="mod-channel-list"
+      className="overflow-hidden rounded-md border border-[#303034] bg-[#18181b]"
+    >
+      <header className="flex h-10 items-center justify-between border-b border-[#303034] bg-[#252529] px-3">
+        <h2 className="text-sm font-semibold text-white">{t("moderation.yourChannels")}</h2>
+        <span className="text-xs text-[#adadb8]">{entries.length}</span>
+      </header>
       {loading && entries.length === 0 ? (
-        <p className="text-sm text-neutral-400">{t("moderation.loading")}</p>
+        <p className="p-3 text-xs text-[#adadb8]" role="status">
+          {t("moderation.loading")}
+        </p>
       ) : entries.length === 0 ? (
-        <p className="text-neutral-400" data-testid="mod-channel-list-empty">
+        <p className="p-3 text-xs text-[#adadb8]" data-testid="mod-channel-list-empty">
           {t("moderation.noChannels")}
         </p>
       ) : (
-        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3" data-testid="mod-channel-list-grid">
+        <ul
+          className="grid grid-cols-1 gap-2 p-2 sm:grid-cols-2"
+          data-testid="mod-channel-list-grid"
+        >
           {entries.map((e) => (
             <li key={`${e.platform}:${e.channelParam}`}>
               <Link
                 to={e.platform === "twitch" ? "/mod/twitch/$channel" : "/mod/kick/$channel"}
                 params={{ channel: e.channelParam }}
                 data-testid={`mod-channel-card-${e.platform}-${e.channelParam}`}
-                className="flex items-center gap-3 rounded border border-[var(--color-border)] bg-white/5 p-3 hover:bg-white/10"
+                className="group flex min-h-14 items-center gap-2 rounded-md border border-[#303034] bg-[#0e0e10] px-3 py-2 hover:border-[#5c4d79] hover:bg-[#202024] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#bf94ff]"
               >
                 <LuShield
-                  className={`h-5 w-5 ${
+                  className={`h-4 w-4 ${
                     e.platform === "twitch" ? "text-[#9146FF]" : "text-[#53FC18]"
                   }`}
                 />
-                <span className="flex-1 text-sm font-medium text-white">{e.displayName}</span>
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
+                  {e.displayName}
+                </span>
                 <span
-                  className={`rounded px-2 py-0.5 text-xs font-bold ${
+                  className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${
                     e.platform === "twitch"
                       ? "bg-[#9146FF]/20 text-[#9146FF]"
                       : "bg-[#53FC18]/20 text-[#53FC18]"
@@ -123,6 +136,10 @@ export function ChannelList() {
                 >
                   {e.platform === "twitch" ? "Twitch" : "Kick"}
                 </span>
+                <LuChevronRight
+                  className="h-4 w-4 text-[#777780] group-hover:text-[#bf94ff]"
+                  aria-hidden="true"
+                />
               </Link>
             </li>
           ))}

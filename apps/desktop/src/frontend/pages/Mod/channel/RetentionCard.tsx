@@ -80,12 +80,12 @@ export function RetentionCard({ scope, title }: RetentionCardProps) {
 
   return (
     <div
-      className="rounded border border-[var(--color-border)] bg-white/5 p-3"
+      className="rounded-md border border-[#303034] bg-[#0e0e10] p-2.5"
       data-testid={`retention-card-${scope}`}
     >
-      <div className="mb-2 text-sm font-medium text-white">{title}</div>
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-xs text-[var(--color-foreground-muted)]">
+      <div className="mb-2 text-xs font-semibold text-white">{title}</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-1.5 text-xs text-[#adadb8]">
           <input
             type="number"
             min={1}
@@ -93,11 +93,11 @@ export function RetentionCard({ scope, title }: RetentionCardProps) {
             disabled={forever}
             onChange={(e) => setDays(e.target.value)}
             aria-label={t("moderation.retentionDaysFor", { title })}
-            className="w-24 rounded border border-[var(--color-border)] bg-black/30 px-2 py-1 text-sm text-white disabled:opacity-50"
+            className="h-8 w-20 rounded-md border border-[#3d3d43] bg-[#18181b] px-2 text-sm text-white outline-none focus:border-[var(--mod-focus,#bf94ff)] disabled:opacity-50"
           />
           {t("moderation.days")}
         </label>
-        <label className="flex items-center gap-2 text-xs text-[var(--color-foreground-muted)]">
+        <label className="flex h-8 items-center gap-1.5 rounded-md border border-[#3d3d43] bg-[#18181b] px-2 text-xs text-[#efeff1]">
           <input
             type="checkbox"
             checked={forever}
@@ -113,7 +113,7 @@ export function RetentionCard({ scope, title }: RetentionCardProps) {
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="ml-auto rounded bg-[#9146FF] px-3 py-1 text-sm text-white hover:bg-[#9146FF]/90 disabled:opacity-50"
+          className="ml-auto h-8 rounded-md bg-[var(--mod-accent,#9147ff)] px-3 text-xs font-semibold text-[var(--mod-on-accent,#fff)] hover:brightness-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--mod-focus,#bf94ff)] disabled:opacity-50"
         >
           {saving ? t("moderation.saving") : t("moderation.save")}
         </button>

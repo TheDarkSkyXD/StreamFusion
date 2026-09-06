@@ -744,6 +744,24 @@ export function createTwitchApiService(requestor: TwitchRequestPort): TwitchApiS
           return { ok: true, data: response };
         }
 
+        if (command.operation === "manage-held-automod") {
+          const actor = await getCurrentUser(requestor);
+          const response = await requestDecoded(
+            requestor,
+            emptyResponseSchema,
+            "/moderation/automod/message",
+            {
+              method: "POST",
+              body: JSON.stringify({
+                user_id: actor.id,
+                msg_id: command.messageId,
+                action: command.action,
+              }),
+            }
+          );
+          return { ok: true, data: response };
+        }
+
         if (
           command.operation === "add-moderator" ||
           command.operation === "remove-moderator" ||

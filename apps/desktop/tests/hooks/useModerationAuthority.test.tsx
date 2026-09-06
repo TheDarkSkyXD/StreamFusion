@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -65,6 +66,7 @@ beforeEach(() => {
 // Guards: authority is a discriminated Platform result, never badge-derived Set membership.
 // Guards: stale, failed, partial, and token-validation failures fail closed.
 // Guards: only a complete fresh negative can classify an authenticated account as an ordinary viewer.
+// Guards: a same-channel live role refresh must not send an already-authorized workspace back through checking.
 describe("useModerationAuthority", () => {
   it.each(["twitch", "kick"] as const)("hides moderation for a %s guest", (platform) => {
     const { result } = renderHook(() => useModerationAuthority(platform, "channel-1", "streamer"));
@@ -224,8 +226,32 @@ describe("useModerationAuthority", () => {
     await waitFor(() => expect(result.current.state).toBe("reconnect-required"));
     if (result.current.state !== "reconnect-required") throw new Error("expected reconnect");
     expect(result.current.missingScopes).toEqual(
-      TWITCH_APP_SCOPES.filter((scope) => scope !== "chat:read")
+      TWITCH_APP_SCOPES.filter(
+        (scope) => scope !== "chat:read" && scope !== "moderator:manage:automod"
+      )
     );
+  });
+
+  it("keeps Twitch moderation authorized when an old valid token is missing only AutoMod scope", async () => {
+    const checkedAt = Date.now();
+    useAuthStore.setState({ twitchUser: twitchUser() });
+    useModeratedChannelsStore.setState({
+      twitchModeratedChannelIds: new Set(["channel-1"]),
+      hydratedAt: checkedAt,
+      hydrating: false,
+      twitchAuthority: { state: "complete", checkedAt },
+    });
+    tokenStatus.mockResolvedValue({
+      platform: "twitch",
+      connected: true,
+      valid: true,
+      userId: "moderator-1",
+      scopes: TWITCH_APP_SCOPES.filter((scope) => scope !== "moderator:manage:automod"),
+    });
+
+    const { result } = renderHook(() => useModerationAuthority("twitch", "channel-1", "streamer"));
+
+    await waitFor(() => expect(result.current.state).toBe("authorized"));
   });
 
   it("treats live token-status failure as unverifiable rather than missing scopes", async () => {
@@ -259,6 +285,46 @@ describe("useModerationAuthority", () => {
     await waitFor(() => expect(result.current.state).toBe("authorized"));
   });
 
+  it("does not re-check Kick own-broadcaster scopes when chat refreshes the same channel role snapshot", async () => {
+    const states: string[] = [];
+    useAuthStore.setState({ kickUser: kickUser() });
+    tokenStatus.mockResolvedValue({
+      platform: "kick",
+      connected: true,
+      valid: true,
+      userId: "42",
+      scopes: [...KICK_APP_SCOPES],
+    });
+
+    const { result } = renderHook(() => {
+      const authority = useModerationAuthority("kick", "42", "modbob");
+      useEffect(() => {
+        states.push(authority.state);
+      }, [authority.state]);
+      return authority;
+    });
+
+    await waitFor(() => expect(result.current.state).toBe("authorized"));
+    expect(tokenStatus).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      useModeratedChannelsStore.getState().setKickAuthorityResult("modbob", {
+        state: "complete",
+        isModerator: true,
+        checkedAt: Date.now(),
+        source: "kick-channel-me",
+      });
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.state).toBe("authorized");
+    expect(tokenStatus).toHaveBeenCalledTimes(1);
+    expect(states.slice(states.indexOf("authorized") + 1)).not.toContain("checking");
+  });
   it("uses a fresh Kick channel-me result for moderator authority and ignores badge hints", async () => {
     useAuthStore.setState({ kickUser: kickUser() });
     tokenStatus.mockResolvedValue({

@@ -480,6 +480,7 @@ const electronAPI = {
         feedId: string;
         userId: string;
         channelId: string;
+        eventTypes?: Array<"channel.moderate" | "automod.message.hold" | "automod.message.update">;
       }): Promise<TwitchApiResult> => invokeIpc(IPC_CHANNELS.TWITCH_EVENTSUB_START, params),
       stop: (feedId: string): Promise<boolean> =>
         invokeIpc(IPC_CHANNELS.TWITCH_EVENTSUB_STOP, { feedId }),

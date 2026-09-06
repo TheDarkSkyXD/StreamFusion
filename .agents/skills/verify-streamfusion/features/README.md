@@ -41,3 +41,4 @@ Each feature file has one user-visible description and exactly four H2 sections.
 - [Watch a stream](./watch-stream.md) covers opening a Twitch or Kick Channel and observing player, offline, and chat states.
 - [MultiStream](./multistream.md) covers empty layout controls and the Add Stream dialog.
 - [Settings](./settings.md) covers settings navigation, account controls, and version information.
+- [Moderation](./moderation.md) covers live docking, pinned tools, filters, and AutoMod permission states.

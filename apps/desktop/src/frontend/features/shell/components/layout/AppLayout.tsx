@@ -76,6 +76,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const currentPipStream = usePipStore((state) => state.currentStream);
   const { isOnline, isChecking, retryInSeconds } = useNetworkStatus();
   const location = useLocation();
+  const isModWorkspace = /^\/mod\/(twitch|kick)\/[^/]+\/?$/.test(location.pathname);
   const shouldRenderPersistentPlayer = Boolean(currentPipStream);
 
   return (
@@ -86,59 +87,61 @@ export function AppLayout({ children }: AppLayoutProps) {
           <TitleBar />
 
           {/* Top Navigation Bar (search, user info) */}
-          {!isTheaterModeActive && <TopNavBar showPlatformHealth={isOnline} />}
+          {!isTheaterModeActive && !isModWorkspace && <TopNavBar showPlatformHealth={isOnline} />}
 
           {/* Main Layout */}
           <div className="flex-1 flex overflow-hidden">
             {/* Sidebar */}
-            <aside
-              className={cn(
-                "flex flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-background-secondary)] transition-[width] duration-300 ease-out",
-                sidebarCollapsed ? "w-16" : "w-56",
-                isTheaterModeActive && "hidden"
-              )}
-            >
-              {/* Navigation */}
-              <nav className="shrink-0 py-4">
-                <ul className="space-y-1 px-2">
-                  {navItems.map((item) => {
-                    const isActive = location.pathname === item.path;
-                    const Icon = item.icon;
+            {!isModWorkspace && (
+              <aside
+                className={cn(
+                  "flex flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-background-secondary)] transition-[width] duration-300 ease-out",
+                  sidebarCollapsed ? "w-16" : "w-56",
+                  isTheaterModeActive && "hidden"
+                )}
+              >
+                {/* Navigation */}
+                <nav className="shrink-0 py-4">
+                  <ul className="space-y-1 px-2">
+                    {navItems.map((item) => {
+                      const isActive = location.pathname === item.path;
+                      const Icon = item.icon;
 
-                    return (
-                      <li key={item.path}>
-                        <Link
-                          to={item.path}
-                          preload="intent"
-                          className={cn(
-                            "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
-                            isActive
-                              ? "bg-zinc-700 text-white"
-                              : "text-white hover:bg-[var(--color-background-tertiary)] hover:text-white",
-                            sidebarCollapsed && "justify-center px-2"
-                          )}
-                        >
-                          <Icon size={20} />
-                          {!sidebarCollapsed && (
-                            <span>{t(`navigation.${item.translationKey}`)}</span>
-                          )}
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </nav>
+                      return (
+                        <li key={item.path}>
+                          <Link
+                            to={item.path}
+                            preload="intent"
+                            className={cn(
+                              "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
+                              isActive
+                                ? "bg-zinc-700 text-white"
+                                : "text-white hover:bg-[var(--color-background-tertiary)] hover:text-white",
+                              sidebarCollapsed && "justify-center px-2"
+                            )}
+                          >
+                            <Icon size={20} />
+                            {!sidebarCollapsed && (
+                              <span>{t(`navigation.${item.translationKey}`)}</span>
+                            )}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </nav>
 
-              <div className="mx-3 my-1 h-px bg-[var(--color-border)] opacity-50" />
+                <div className="mx-3 my-1 h-px bg-[var(--color-border)] opacity-50" />
 
-              {/* Followed Channels */}
-              <RecoveryBoundary name="Following sidebar" resetKey={location.pathname}>
-                <SidebarFollows collapsed={sidebarCollapsed} />
-              </RecoveryBoundary>
-            </aside>
+                {/* Followed Channels */}
+                <RecoveryBoundary name="Following sidebar" resetKey={location.pathname}>
+                  <SidebarFollows collapsed={sidebarCollapsed} />
+                </RecoveryBoundary>
+              </aside>
+            )}
 
             {/* Main Content */}
-            <main id="main-content-scroll-area" className="flex-1 overflow-auto">
+            <main id="main-content-scroll-area" className="min-w-0 flex-1 overflow-auto">
               {children}
             </main>
           </div>

@@ -200,6 +200,37 @@ describe("Twitch API service", () => {
     );
   });
 
+  it("derives the Manage Held AutoMod user_id from the authenticated Twitch token", async () => {
+    const request = vi.fn().mockImplementation(async (path: string) => {
+      if (path === "/users") {
+        return {
+          data: [{ id: "token-user", login: "moderator", display_name: "Moderator" }],
+        };
+      }
+      return null;
+    });
+    const service = createTwitchApiService({ request });
+
+    await expect(
+      service.execute({
+        operation: "manage-held-automod",
+        moderatorId: "renderer-spoof",
+        messageId: "held-message-1",
+        action: "ALLOW",
+      })
+    ).resolves.toEqual({ ok: true, data: null });
+
+    expect(request).toHaveBeenNthCalledWith(1, "/users");
+    expect(request).toHaveBeenNthCalledWith(2, "/moderation/automod/message", {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: "token-user",
+        msg_id: "held-message-1",
+        action: "ALLOW",
+      }),
+    });
+  });
+
   it("maps poll and prediction mutations to fixed Worker-relative paths", async () => {
     const request = vi.fn().mockResolvedValue({ data: [{ id: "result" }] });
     const service = createTwitchApiService({ request });

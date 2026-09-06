@@ -13,6 +13,9 @@ import {
 import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
 
 export const MODERATION_AUTHORITY_FRESH_MS = 5 * 60_000;
+const TWITCH_COMMON_MODERATION_SCOPES = TWITCH_APP_SCOPES.filter(
+  (scope) => scope !== "moderator:manage:automod"
+);
 
 type ConfirmedRole = "broadcaster" | "moderator";
 type AuthoritySource =
@@ -62,7 +65,7 @@ interface ScopeCheck {
 }
 
 function canonicalScopes(platform: Platform): readonly string[] {
-  return platform === "twitch" ? TWITCH_APP_SCOPES : KICK_APP_SCOPES;
+  return platform === "twitch" ? TWITCH_COMMON_MODERATION_SCOPES : KICK_APP_SCOPES;
 }
 
 function mapTwitchFailureReason(
@@ -245,8 +248,10 @@ export function useModerationAuthority(
     authorityProof ? authorityExpiryDelay : null
   );
 
+  const authorityState = authority.state;
+
   useEffect(() => {
-    if (authority.state !== "confirmed" || !scopeSubject) return;
+    if (authorityState !== "confirmed" || !scopeSubject) return;
     if (developmentFixture === "reconnect") {
       setScopeCheck({
         key: scopeKey,
@@ -289,7 +294,7 @@ export function useModerationAuthority(
     return () => {
       cancelled = true;
     };
-  }, [authority, developmentFixture, forceModScopes, platform, scopeKey, scopeSubject]);
+  }, [authorityState, developmentFixture, forceModScopes, platform, scopeKey, scopeSubject]);
 
   const retryAuthority = useCallback(async () => {
     if (platform === "twitch") {

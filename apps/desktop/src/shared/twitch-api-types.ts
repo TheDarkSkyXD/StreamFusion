@@ -245,6 +245,12 @@ export type TwitchApiCommand =
     }
   | { operation: "unban-user"; broadcasterId: string; moderatorId: string; userId: string }
   | {
+      operation: "manage-held-automod";
+      moderatorId: string;
+      messageId: string;
+      action: "ALLOW" | "DENY";
+    }
+  | {
       operation: "add-moderator" | "remove-moderator" | "add-vip" | "remove-vip";
       broadcasterId: string;
       userId: string;

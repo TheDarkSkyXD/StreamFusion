@@ -58,11 +58,11 @@ function installBridge(): void {
       .filter((row) => {
         if (row.channelId !== filters.channelId) return false;
         if (filters.targetUserId && row.targetUserId !== filters.targetUserId) return false;
-        if (filters.action && row.action !== filters.action) return false;
-        if (
-          filters.moderatorUsername &&
-          row.moderatorUsername !== filters.moderatorUsername
-        )
+        if (filters.actions !== undefined && !filters.actions.includes(row.action)) return false;
+        if (filters.actions === undefined && filters.action && row.action !== filters.action) {
+          return false;
+        }
+        if (filters.moderatorUsername && row.moderatorUsername !== filters.moderatorUsername)
           return false;
         return true;
       })
@@ -114,7 +114,7 @@ function baseRecord(overrides: Partial<Parameters<typeof modLogWriter.record>[0]
 }
 
 function eventSubBan(
-  overrides: Partial<ChannelModerateEvent> = {},
+  overrides: Partial<ChannelModerateEvent> = {}
 ): NotificationPayload<ChannelModerateEvent> {
   return {
     subscription: {
@@ -170,19 +170,17 @@ describe("ModLogWriter.record", () => {
         channelId: "c1",
         action: "ban",
         targetUserId: "u-bad",
-      }),
+      })
     );
   });
 
   it("dedups when same key arrives from a different source within ±2s", async () => {
     const t = 1_700_000_000_000;
-    const firstId = await modLogWriter.record(
-      baseRecord({ source: "local", occurredAt: t }),
-    );
+    const firstId = await modLogWriter.record(baseRecord({ source: "local", occurredAt: t }));
     expect(firstId).not.toBeNull();
 
     const secondId = await modLogWriter.record(
-      baseRecord({ source: "eventsub", occurredAt: t + 1_500 }),
+      baseRecord({ source: "eventsub", occurredAt: t + 1_500 })
     );
     expect(secondId).toBeNull();
     expect(bridge.insert).toHaveBeenCalledTimes(1);
@@ -191,9 +189,7 @@ describe("ModLogWriter.record", () => {
   it("does NOT dedup when the two records share the same source", async () => {
     const t = 1_700_000_000_000;
     const a = await modLogWriter.record(baseRecord({ source: "local", occurredAt: t }));
-    const b = await modLogWriter.record(
-      baseRecord({ source: "local", occurredAt: t + 500 }),
-    );
+    const b = await modLogWriter.record(baseRecord({ source: "local", occurredAt: t + 500 }));
     expect(a).not.toBeNull();
     expect(b).not.toBeNull();
     expect(bridge.insert).toHaveBeenCalledTimes(2);
@@ -202,9 +198,7 @@ describe("ModLogWriter.record", () => {
   it("does NOT dedup when the records are >2s apart", async () => {
     const t = 1_700_000_000_000;
     const a = await modLogWriter.record(baseRecord({ source: "local", occurredAt: t }));
-    const b = await modLogWriter.record(
-      baseRecord({ source: "eventsub", occurredAt: t + 5_000 }),
-    );
+    const b = await modLogWriter.record(baseRecord({ source: "eventsub", occurredAt: t + 5_000 }));
     expect(a).not.toBeNull();
     expect(b).not.toBeNull();
     expect(bridge.insert).toHaveBeenCalledTimes(2);
@@ -214,7 +208,7 @@ describe("ModLogWriter.record", () => {
     const t = 1_700_000_000_000;
     await modLogWriter.record(baseRecord({ action: "ban", source: "local", occurredAt: t }));
     await modLogWriter.record(
-      baseRecord({ action: "timeout", source: "eventsub", occurredAt: t + 100 }),
+      baseRecord({ action: "timeout", source: "eventsub", occurredAt: t + 100 })
     );
     expect(bridge.insert).toHaveBeenCalledTimes(2);
   });
@@ -258,7 +252,7 @@ describe("ModLogWriter.ingestEventSubModerate", () => {
         moderatorUsername: "modA",
         reason: "spam",
         durationSeconds: null,
-      }),
+      })
     );
   });
 
@@ -295,8 +289,48 @@ describe("ModLogWriter.ingestEventSubModerate", () => {
     });
     expect(bridge.insert).toHaveBeenCalledTimes(1);
     expect(bridge.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "timeout", durationSeconds: 600 }),
+      expect.objectContaining({ action: "timeout", durationSeconds: 600 })
     );
+  });
+
+  it("retains user-targeted EventSub role actions when Twitch includes the action object", async () => {
+    await modLogWriter.ingestEventSubModerate(
+      eventSubBan({
+        action: "mod",
+        ban: undefined,
+        mod: {
+          user_id: "u-new-mod",
+          user_login: "newmod",
+          user_name: "NewMod",
+        },
+      })
+    );
+
+    expect(bridge.insert).toHaveBeenCalledTimes(1);
+    expect(bridge.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "mod",
+        targetUserId: "u-new-mod",
+        targetUsername: "newmod",
+        provenance: "twitch-eventsub",
+      })
+    );
+  });
+
+  it("skips supported user-targeted EventSub actions when the target object is absent", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await modLogWriter.ingestEventSubModerate(
+      eventSubBan({
+        action: "vip",
+        ban: undefined,
+      })
+    );
+
+    expect(bridge.insert).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      "[mod-log-writer] ignoring unknown channel.moderate sub-action: vip-missing-payload"
+    );
+    warn.mockRestore();
   });
 
   it("warns and skips an unknown sub-action key", async () => {
@@ -375,7 +409,7 @@ describe("ModLogWriter.bootstrapFromHelix", () => {
           },
         ],
         pagination: {},
-      }),
+      })
     );
 
     const inserted = await modLogWriter.bootstrapFromHelix({
@@ -445,9 +479,7 @@ describe("ModLogWriter.bootstrapFromHelix", () => {
 
   it("returns 0 and warns on 401 (no throw)", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const fetchImpl = vi.fn(
-      async () => new Response("unauthorized", { status: 401 }),
-    );
+    const fetchImpl = vi.fn(async () => new Response("unauthorized", { status: 401 }));
 
     const inserted = await modLogWriter.bootstrapFromHelix({
       channelId: "c1",
@@ -477,7 +509,7 @@ describe("ModLogWriter.bootstrapFromHelix", () => {
           },
         ],
         pagination: {},
-      }),
+      })
     );
 
     const firstInsert = await modLogWriter.bootstrapFromHelix({

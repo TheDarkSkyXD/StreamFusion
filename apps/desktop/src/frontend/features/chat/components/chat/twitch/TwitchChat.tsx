@@ -87,6 +87,7 @@ export interface TwitchChatProps {
   /** Channel ID (broadcaster ID) */
   channelId?: string;
   showComposer?: boolean;
+  presentation?: "standalone" | "workspace";
 }
 
 /** U13/U15 — widened mod-action state. `messageScoped` covers U11's hover
@@ -176,6 +177,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
   channel,
   channelId,
   showComposer = true,
+  presentation = "standalone",
 }) => {
   const { t } = useTranslation();
   useRenderCount("TwitchChat");
@@ -1694,45 +1696,68 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
       }}
     >
       <div className="flex flex-col h-full w-full bg-gradient-to-b from-[#141414] to-[#171717]">
-        <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between flex-shrink-0">
-          <h2 className="font-semibold flex items-center gap-2">
-            <span className="text-white">{t("chat.chat")}</span>
-          </h2>
-          <RecentChattersButton
-            panelId={recentChattersPanelId}
-            open={showRecentChatters}
-            onClick={() => setShowRecentChatters((open) => !open)}
-          />
-        </div>
-        <div className="relative min-h-0 flex-1">
-          <ChatPanelTabs
-            visibleTabs={visibleTabs}
-            activeTab={activePanelTab}
-            onTabChange={setActivePanelTab}
-          >
-            {{
-              chat: chatBody,
-              modlog: channelId ? (
-                <ModLogTab platform="twitch" channelId={channelId} channelSlug={channel} />
-              ) : (
-                <div className="p-4 text-neutral-400">{t("chat.noChannelSelected")}</div>
-              ),
-              engagement: channelId ? (
-                <EngagementTab channelId={channelId} />
-              ) : (
-                <div className="p-4 text-neutral-400">{t("chat.noChannelSelected")}</div>
-              ),
-            }}
-          </ChatPanelTabs>
-          {showRecentChatters ? (
-            <RecentChattersPanel
-              key={channelKey}
-              id={recentChattersPanelId}
-              channelKey={channelKey}
-              onClose={() => setShowRecentChatters(false)}
-            />
-          ) : null}
-        </div>
+        {presentation === "workspace" ? (
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            <div className="flex h-8 shrink-0 items-center justify-end border-b border-[var(--color-border)] px-2">
+              <RecentChattersButton
+                panelId={recentChattersPanelId}
+                open={showRecentChatters}
+                onClick={() => setShowRecentChatters((open) => !open)}
+              />
+            </div>
+            <div className="min-h-0 flex-1">{chatBody}</div>
+            {showRecentChatters ? (
+              <RecentChattersPanel
+                key={channelKey}
+                id={recentChattersPanelId}
+                channelKey={channelKey}
+                onClose={() => setShowRecentChatters(false)}
+              />
+            ) : null}
+          </div>
+        ) : (
+          <div className="relative min-h-0 flex-1">
+            <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between flex-shrink-0">
+              <h2 className="font-semibold flex items-center gap-2">
+                <span className="text-white">{t("chat.chat")}</span>
+              </h2>
+              <RecentChattersButton
+                panelId={recentChattersPanelId}
+                open={showRecentChatters}
+                onClick={() => setShowRecentChatters((open) => !open)}
+              />
+            </div>
+            <div className="relative min-h-0 flex-1">
+              <ChatPanelTabs
+                visibleTabs={visibleTabs}
+                activeTab={activePanelTab}
+                onTabChange={setActivePanelTab}
+              >
+                {{
+                  chat: chatBody,
+                  modlog: channelId ? (
+                    <ModLogTab platform="twitch" channelId={channelId} channelSlug={channel} />
+                  ) : (
+                    <div className="p-4 text-neutral-400">{t("chat.noChannelSelected")}</div>
+                  ),
+                  engagement: channelId ? (
+                    <EngagementTab channelId={channelId} />
+                  ) : (
+                    <div className="p-4 text-neutral-400">{t("chat.noChannelSelected")}</div>
+                  ),
+                }}
+              </ChatPanelTabs>
+              {showRecentChatters ? (
+                <RecentChattersPanel
+                  key={channelKey}
+                  id={recentChattersPanelId}
+                  channelKey={channelKey}
+                  onClose={() => setShowRecentChatters(false)}
+                />
+              ) : null}
+            </div>
+          </div>
+        )}
 
         {/* U11/U13/U15 — Generic mod-action confirm dialog. Branches on the
          *  pendingModAction `kind` so message-scoped actions (Timeout/Ban/...) and

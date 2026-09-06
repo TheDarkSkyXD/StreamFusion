@@ -13,9 +13,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import type { ModLogAction } from "@backend/services/mod-log-writer";
 import { logger } from "@/renderer/logging/logger";
 import { Platform } from "@streamfusion/core/platform";
+import type { ModLogAction } from "@shared/mod-action-filters";
 import type { ModerationHistoryResult, ModLogEntry } from "@shared/mod-log-types";
 import { MOD_LOG_QUERY_KEYS } from "./mod-log-query-keys";
 
@@ -27,6 +27,7 @@ export interface UseModLogOptions {
   channelSlug: string;
   targetUserId?: string;
   action?: ModLogAction;
+  actions?: readonly string[];
   moderatorUsername?: string;
   limit?: number;
   /** Re-queries when this counter changes. Default = 0. */
@@ -45,6 +46,7 @@ export function useModLog(opts: UseModLogOptions): {
     channelSlug,
     targetUserId,
     action,
+    actions,
     moderatorUsername,
     limit,
     refreshCounter = 0,
@@ -56,6 +58,7 @@ export function useModLog(opts: UseModLogOptions): {
       channelSlug,
       targetUserId,
       action,
+      actions ? [...actions] : undefined,
       moderatorUsername,
       limit,
       refreshCounter,
@@ -68,6 +71,7 @@ export function useModLog(opts: UseModLogOptions): {
           channelSlug,
           targetUserId,
           action,
+          actions,
           moderatorUsername,
           limit,
         });

@@ -222,7 +222,11 @@ export class TwitchRequestor {
             typeof response.data.message === "string"
               ? response.data.message
               : undefined;
-          throw new Error(message || `Twitch API error: ${response.status}`);
+          const error = new Error(message || `Twitch API error: ${response.status}`) as Error & {
+            status?: number;
+          };
+          error.status = response.status;
+          throw error;
         }
 
         recordPlatformSuccess("twitch");

@@ -124,6 +124,17 @@ components:
 
 # Design System: StreamFusion
 
+## Moderation workspace
+
+The `/mod` pages intentionally follow Twitch Mod View at the user's request. Use Inter at
+14px, #0e0e10 canvas, #18181b panel bodies, #252529 headers, 8px gutters, compact controls,
+and platform focus/drop indicators, purple for Twitch and green for Kick. Channel workspaces
+use a narrow tool dock and resizable separators. Pin AutoMod Queue on Twitch and Retention
+on Kick. Mod Actions docks only beside that panel. Chat can dock at the outer right edge.
+Keep video and chat mounted
+while rearranging panels. At narrow widths, stack panels with internal scrolling.
+Show only tools supported by the selected platform and the verified moderation role.
+
 ## 1. Overview
 
 **Creative North Star: "The Dark Theater"**
@@ -135,6 +146,7 @@ The system is dark by conviction, not by trend. Streamers broadcast against blac
 StreamFusion rejects: the gamer aesthetic (no neon, no RGB glow, no angular esports energy); the Twitch/Kick visual language (this is its own product, not a reskin); generic SaaS blandness (this is a media app, not a dashboard); and Electron jank (native speed, no layout shifts, no web-page-in-a-window artifacts).
 
 **Key Characteristics:**
+
 - Dark tonal layering with four deliberate surface steps
 - Crimson accent used sparingly for live states and critical actions
 - Platform colors (Twitch purple, Kick green) as contextual accents, never the identity

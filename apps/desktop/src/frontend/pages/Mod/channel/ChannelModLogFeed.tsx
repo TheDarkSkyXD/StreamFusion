@@ -16,22 +16,13 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 
-import type { ModLogAction } from "@backend/services/mod-log-writer";
 import { useModLog } from "@/features/moderation/data/useModLog";
 import { Platform } from "@streamfusion/core/platform";
-
-const ACTION_OPTIONS: Array<{
-  value: "" | ModLogAction;
-  labelKey: "allActions" | "ban" | "timeout" | "unban" | "delete" | "chatMode" | "raid";
-}> = [
-  { value: "", labelKey: "allActions" },
-  { value: "ban", labelKey: "ban" },
-  { value: "timeout", labelKey: "timeout" },
-  { value: "unban", labelKey: "unban" },
-  { value: "delete", labelKey: "delete" },
-  { value: "clear", labelKey: "chatMode" },
-  { value: "raid", labelKey: "raid" },
-];
+import {
+  ALL_MOD_ACTION_FILTER_IDS,
+  ModActionFilterMenu,
+  selectedModLogActions,
+} from "./ModActionFilterMenu";
 
 const PAGE_INCREMENT = 50;
 
@@ -41,6 +32,7 @@ export interface ChannelModLogFeedProps {
   channelSlug: string;
   /** Optional bump to force a re-fetch (refresh button). */
   refreshCounter?: number;
+  presentation?: "standalone" | "embedded";
 }
 
 function formatTimestamp(ms: number, locale: string): string {
@@ -61,71 +53,78 @@ export function ChannelModLogFeed({
   channelId,
   channelSlug,
   refreshCounter,
+  presentation = "standalone",
 }: ChannelModLogFeedProps) {
   const { i18n, t } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language;
-  const [actionFilter, setActionFilter] = useState<"" | ModLogAction>("");
+  const [selectedActionFilters, setSelectedActionFilters] = useState([
+    ...ALL_MOD_ACTION_FILTER_IDS,
+  ]);
   const [moderatorFilter, setModeratorFilter] = useState<string>("");
   const [limit, setLimit] = useState<number>(PAGE_INCREMENT);
 
   const trimmedModerator = moderatorFilter.trim();
+  const actions = useMemo(
+    () => selectedModLogActions(selectedActionFilters),
+    [selectedActionFilters]
+  );
 
   const { result, entries, retry } = useModLog({
     platform,
     channelId,
     channelSlug,
-    action: actionFilter === "" ? undefined : actionFilter,
+    actions,
     moderatorUsername: trimmedModerator.length > 0 ? trimmedModerator : undefined,
     limit,
     refreshCounter,
   });
 
   const canLoadMore = useMemo(() => entries.length === limit, [entries.length, limit]);
+  const isEmbedded = presentation === "embedded";
 
   return (
-    <section data-testid="channel-mod-log-feed">
-      <h2 className="text-xl font-semibold mb-3 text-white">{t("moderation.modLog")}</h2>
-      <div className="rounded border border-[var(--color-border)] bg-white/5">
-        <div className="flex flex-wrap gap-2 p-2 border-b border-[var(--color-border)]">
-          <select
-            aria-label={t("moderation.filterByAction")}
-            data-testid="modlog-action-filter"
-            value={actionFilter}
-            onChange={(e) => {
-              setActionFilter(e.target.value as "" | ModLogAction);
+    <section
+      data-testid="channel-mod-log-feed"
+      className={
+        isEmbedded
+          ? "flex h-full min-h-0 flex-col"
+          : "overflow-hidden rounded-md border border-[#303034] bg-[#18181b]"
+      }
+    >
+      {!isEmbedded ? (
+        <header className="flex h-10 items-center bg-[#252529] px-3">
+          <h2 className="text-sm font-semibold text-white">{t("moderation.modLog")}</h2>
+        </header>
+      ) : null}
+      <div className={isEmbedded ? "flex min-h-0 flex-1 flex-col" : ""}>
+        <div className="flex flex-wrap items-center gap-2 border-b border-[#303034] bg-[#18181b] p-2">
+          <ModActionFilterMenu
+            platform={platform}
+            selectedIds={selectedActionFilters}
+            onSelectedIdsChange={(selectedIds) => {
+              setSelectedActionFilters(selectedIds);
               setLimit(PAGE_INCREMENT);
             }}
-            className="bg-[var(--color-background-tertiary,#1a1a1a)] text-xs text-white border border-[var(--color-border)] rounded px-2 py-1"
-          >
-            {ACTION_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {t(`moderation.${opt.labelKey}`)}
-              </option>
-            ))}
-          </select>
-          <input
-            type="text"
-            placeholder={t("moderation.moderatorUsername")}
-            data-testid="modlog-moderator-filter"
-            value={moderatorFilter}
-            onChange={(e) => {
-              setModeratorFilter(e.target.value);
+            moderatorFilter={moderatorFilter}
+            onModeratorFilterChange={(value) => {
+              setModeratorFilter(value);
               setLimit(PAGE_INCREMENT);
             }}
-            className="bg-[var(--color-background-tertiary,#1a1a1a)] text-xs text-white border border-[var(--color-border)] rounded px-2 py-1 flex-1 min-w-[150px]"
           />
         </div>
 
-        <div className="p-2 max-h-[400px] overflow-y-auto">
+        <div className={`min-h-0 overflow-y-auto ${isEmbedded ? "flex-1" : "max-h-[400px]"}`}>
           {result.state === "loading" ? (
-            <div className="text-sm text-neutral-400 p-2">{t("moderation.loading")}</div>
+            <div className="p-4 text-xs text-[#adadb8]" role="status">
+              {t("moderation.loading")}
+            </div>
           ) : result.state === "error" ? (
-            <div className="flex items-center justify-between gap-2 p-2 text-sm text-red-300">
+            <div className="flex items-center justify-between gap-2 p-4 text-xs text-[#ffb9b9]">
               <span>{t("moderation.historyNotVerified")}</span>
               {result.retryable ? (
                 <button
                   type="button"
-                  className="rounded px-2 py-1 text-white hover:bg-white/10"
+                  className="h-7 rounded-md bg-[#30263f] px-2 text-xs font-semibold text-[#e5d5ff] hover:bg-[#423052] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#bf94ff]"
                   onClick={retry}
                 >
                   {t("moderation.retry")}
@@ -133,30 +132,37 @@ export function ChannelModLogFeed({
               ) : null}
             </div>
           ) : result.state === "verified-empty" ? (
-            <div className="text-sm text-neutral-400 p-2">{t("moderation.noModLogEntries")}</div>
+            <div className="p-5 text-center text-xs text-[#adadb8]">
+              {t("moderation.noModLogEntries")}
+            </div>
           ) : (
-            <div>
+            <div className="divide-y divide-[#2b2b30]">
               {result.state === "partial" ? (
-                <p className="p-2 text-xs text-amber-200">{t("moderation.observedHistoryOnly")}</p>
+                <p className="bg-[#2b2415] px-3 py-2 text-xs text-[#f4d48d]">
+                  {t("moderation.observedHistoryOnly")}
+                </p>
               ) : null}
-              <ul className="space-y-1">
+              <ul>
                 {entries.map((entry) => (
                   <li
                     key={entry.id}
                     data-testid="modlog-row"
                     data-action={entry.action}
-                    className="text-xs text-neutral-200 border-b border-white/5 py-1 flex flex-wrap gap-2 items-baseline"
+                    className="grid grid-cols-[minmax(5rem,auto)_minmax(5rem,1fr)_minmax(5rem,1fr)] gap-x-3 gap-y-1 px-3 py-2 text-xs text-[#efeff1] sm:grid-cols-[7.5rem_7rem_minmax(7rem,1fr)_minmax(6rem,1fr)]"
                   >
-                    <span className="text-neutral-500">
+                    <time
+                      className="text-[#777780]"
+                      dateTime={new Date(entry.createdAt).toISOString()}
+                    >
                       {formatTimestamp(entry.createdAt, locale)}
-                    </span>
-                    <span className="text-purple-300 font-medium">{entry.moderatorUsername}</span>
-                    <span className="text-yellow-200">{entry.action}</span>
-                    <span className="text-white" data-testid="modlog-target-username">
+                    </time>
+                    <span className="font-semibold text-[#d7c2ff]">{entry.action}</span>
+                    <span className="font-medium text-white" data-testid="modlog-target-username">
                       {entry.targetUsername}
                     </span>
+                    <span className="text-[#adadb8]">{entry.moderatorUsername}</span>
                     {entry.durationSeconds ? (
-                      <span className="text-neutral-400">
+                      <span className="col-span-full text-[#adadb8]">
                         ({formatDuration(entry.durationSeconds, t)})
                       </span>
                     ) : null}
@@ -171,12 +177,12 @@ export function ChannelModLogFeed({
         </div>
 
         {canLoadMore ? (
-          <div className="border-t border-[var(--color-border)] p-2 flex justify-center">
+          <div className="flex justify-center border-t border-[#303034] p-2">
             <button
               type="button"
               data-testid="modlog-load-more"
               onClick={() => setLimit((n) => n + PAGE_INCREMENT)}
-              className="text-xs bg-white/5 hover:bg-white/10 text-white rounded px-3 py-1 border border-[var(--color-border)]"
+              className="h-8 rounded-md border border-[#3d3d43] bg-[#252529] px-3 text-xs font-semibold text-white hover:bg-[#303034] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#bf94ff]"
             >
               {t("moderation.loadMore")}
             </button>

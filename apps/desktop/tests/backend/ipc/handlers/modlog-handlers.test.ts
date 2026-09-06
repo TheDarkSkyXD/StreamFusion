@@ -40,7 +40,22 @@ function getHandler(channel: string): Handler {
 }
 
 function modLogEntry(id: number, action = "ban"): ModLogEntry {
-  return { id, platform: "twitch", channelId: "123", channelSlug: "channel", action, targetUserId: "target", targetUsername: "target", moderatorUserId: "mod", moderatorUsername: "mod", provenance: "twitch-eventsub", providerEventId: null, occurredAt: 100, observedAt: 100, createdAt: 100 };
+  return {
+    id,
+    platform: "twitch",
+    channelId: "123",
+    channelSlug: "channel",
+    action,
+    targetUserId: "target",
+    targetUsername: "target",
+    moderatorUserId: "mod",
+    moderatorUsername: "mod",
+    provenance: "twitch-eventsub",
+    providerEventId: null,
+    occurredAt: 100,
+    observedAt: 100,
+    createdAt: 100,
+  };
 }
 
 beforeEach(() => {
@@ -197,6 +212,58 @@ describe("MODLOG_QUERY", () => {
 
     expect(dbService.queryModLog).toHaveBeenCalledWith(filters);
     expect(result).toEqual({ state: "ready", entries: rows, coverage: "complete" });
+  });
+
+  it("accepts a bounded action list and forwards it to storage", async () => {
+    const filters = {
+      platform: "twitch" as const,
+      channelId: "123",
+      channelSlug: "channel",
+      actions: ["ban", "timeout"],
+      limit: 50,
+    };
+    const rows = [modLogEntry(1, "ban")];
+    vi.mocked(dbService.queryModLog).mockReturnValue(rows);
+    vi.mocked(dbService.getModLogCoverage).mockReturnValue({
+      platform: "twitch",
+      channelId: "123",
+      coverage: "complete",
+      source: "provider-query",
+      coverageStartAt: null,
+      coverageEndAt: 200,
+      observedAt: 200,
+    });
+
+    const handler = getHandler(IPC_CHANNELS.MODLOG_QUERY);
+    const result = await handler(allowedEvent, { filters });
+
+    expect(dbService.queryModLog).toHaveBeenCalledWith(filters);
+    expect(result).toEqual({ state: "ready", entries: rows, coverage: "complete" });
+  });
+
+  it("rejects invalid action list payloads before authorization and storage", async () => {
+    const handler = getHandler(IPC_CHANNELS.MODLOG_QUERY);
+
+    for (const actions of [Array.from({ length: 33 }, () => "ban"), ["ban", ""]]) {
+      const result = await handler(allowedEvent, {
+        filters: {
+          platform: "twitch",
+          channelId: "123",
+          channelSlug: "channel",
+          actions,
+        },
+      });
+
+      expect(result).toEqual({
+        state: "error",
+        entries: [],
+        code: "unverified",
+        retryable: false,
+      });
+    }
+
+    expect(authorizeModerationHistory).not.toHaveBeenCalled();
+    expect(dbService.queryModLog).not.toHaveBeenCalled();
   });
 
   it("returns available records as partial when the persisted observation window is incomplete", async () => {

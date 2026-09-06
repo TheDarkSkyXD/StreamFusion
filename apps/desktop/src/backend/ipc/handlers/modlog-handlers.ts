@@ -9,6 +9,24 @@ import { dbService } from "../../services/database-service";
 import { authorizeModerationHistory } from "../../services/moderation-history-authorization";
 import { isAllowedSender } from "../sender-origin";
 
+const MAX_ACTION_FILTERS = 32;
+const MAX_ACTION_FILTER_LENGTH = 80;
+
+function hasValidActionFilters(filters: ModLogQueryFilters): boolean {
+  if (filters.action !== undefined) {
+    if (typeof filters.action !== "string") return false;
+    if (filters.action.length > MAX_ACTION_FILTER_LENGTH) return false;
+  }
+  if (filters.actions === undefined) return true;
+  if (!Array.isArray(filters.actions) || filters.actions.length > MAX_ACTION_FILTERS) return false;
+  return filters.actions.every(
+    (action) =>
+      typeof action === "string" &&
+      action.trim().length > 0 &&
+      action.length <= MAX_ACTION_FILTER_LENGTH
+  );
+}
+
 export function registerModLogHandlers(): void {
   // ========== Mod Log ==========
   ipcMain.handle(
@@ -93,7 +111,8 @@ export function registerModLogHandlers(): void {
         !filters ||
         (filters.platform !== "twitch" && filters.platform !== "kick") ||
         !filters.channelId?.trim() ||
-        !filters.channelSlug?.trim()
+        !filters.channelSlug?.trim() ||
+        !hasValidActionFilters(filters)
       ) {
         return {
           state: "error",

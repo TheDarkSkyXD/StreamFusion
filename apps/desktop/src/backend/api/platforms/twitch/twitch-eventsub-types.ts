@@ -16,7 +16,12 @@
 // Event types we subscribe to
 // ---------------------------------------------------------------------------
 
-export type TwitchEventSubEventType = "channel.moderate" | "stream.online" | "stream.offline";
+export type TwitchEventSubEventType =
+  | "channel.moderate"
+  | "automod.message.hold"
+  | "automod.message.update"
+  | "stream.online"
+  | "stream.offline";
 
 // ---------------------------------------------------------------------------
 // Connection state
@@ -24,6 +29,14 @@ export type TwitchEventSubEventType = "channel.moderate" | "stream.online" | "st
 
 export type TwitchEventSubConnectionState =
   "idle" | "connecting" | "connected" | "reconnecting" | "error";
+
+export interface TwitchEventSubSubscriptionFailure {
+  eventType: TwitchEventSubEventType;
+  channelId: string;
+  status: number | null;
+  code: "unauthorized" | "forbidden" | "conflict" | "rate-limited" | "unavailable";
+  message: string;
+}
 
 // ---------------------------------------------------------------------------
 // Wire envelope — every message Twitch sends has the same outer shape.
@@ -166,4 +179,19 @@ export interface StreamOfflineEvent {
   broadcaster_user_id: string;
   broadcaster_user_login: string;
   broadcaster_user_name: string;
+}
+
+export interface AutoModMessageHoldEvent {
+  broadcaster_user_id: string;
+  user_id: string;
+  user_login: string;
+  user_name: string;
+  message_id: string;
+  message: { text: string };
+  reason: string;
+  held_at: string;
+}
+
+export interface AutoModMessageUpdateEvent extends AutoModMessageHoldEvent {
+  status: "approved" | "denied" | "expired";
 }

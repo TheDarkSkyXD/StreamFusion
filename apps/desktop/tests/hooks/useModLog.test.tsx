@@ -86,6 +86,7 @@ describe("useModLog", () => {
           ...options(),
           targetUserId: "u1",
           action: "ban",
+          actions: ["ban", "timeout"],
           moderatorUsername: "mod1",
           limit: 5,
         }),
@@ -99,6 +100,7 @@ describe("useModLog", () => {
       channelSlug: "streamer",
       targetUserId: "u1",
       action: "ban",
+      actions: ["ban", "timeout"],
       moderatorUsername: "mod1",
       limit: 5,
     });

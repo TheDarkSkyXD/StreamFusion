@@ -1453,7 +1453,14 @@ export class DatabaseService {
       where.push("target_user_id = ?");
       params.push(filters.targetUserId);
     }
-    if (filters.action) {
+    if (filters.actions !== undefined) {
+      if (filters.actions.length === 0) {
+        where.push("1 = 0");
+      } else {
+        where.push(`action IN (${filters.actions.map(() => "?").join(", ")})`);
+        params.push(...filters.actions);
+      }
+    } else if (filters.action) {
       where.push("action = ?");
       params.push(filters.action);
     }

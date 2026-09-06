@@ -44,6 +44,7 @@ export interface ModLogQueryFilters {
   channelSlug?: string;
   targetUserId?: string;
   action?: string;
+  actions?: readonly string[];
   moderatorUsername?: string;
   limit?: number;
   offset?: number;

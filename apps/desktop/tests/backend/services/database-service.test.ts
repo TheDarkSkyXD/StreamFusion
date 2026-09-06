@@ -473,6 +473,27 @@ describeDb("DatabaseService mod_log helpers", () => {
 
     const modFiltered = svc.queryModLog({ channelId: "c1", moderatorUsername: "modA" });
     expect(modFiltered).toHaveLength(2);
+
+    svc.insertModLog({
+      channelId: "c1",
+      channelSlug: "chan-one",
+      action: "delete",
+      targetUserId: "u4",
+      targetUsername: "dan",
+      moderatorUserId: "m1",
+      moderatorUsername: "modA",
+      createdAt: base + 3_000,
+    });
+
+    const actionListFiltered = svc.queryModLog({
+      channelId: "c1",
+      actions: ["ban", "timeout"],
+      limit: 1,
+    });
+    expect(actionListFiltered.map((r) => r.targetUsername)).toEqual(["bob"]);
+
+    const noActionsFiltered = svc.queryModLog({ channelId: "c1", actions: [] });
+    expect(noActionsFiltered).toHaveLength(0);
   });
 
   it("AE10: sweepModLogRetention deletes entries older than the global retention window while keeping fresher ones", () => {

@@ -362,6 +362,19 @@ describe("TwitchRequestor", () => {
 
       await expect(requestor.request("/streams")).rejects.toThrow("Twitch API error: 418");
     });
+
+    it("preserves non-2xx HTTP status on Twitch API errors", async () => {
+      spyNetRequest(requestor, async () => ({
+        data: { message: "missing required scope" },
+        status: 403,
+        headers: {},
+      }));
+
+      await expect(requestor.request("/streams")).rejects.toMatchObject({
+        message: "missing required scope",
+        status: 403,
+      });
+    });
   });
 
   describe("platform-health instrumentation", () => {

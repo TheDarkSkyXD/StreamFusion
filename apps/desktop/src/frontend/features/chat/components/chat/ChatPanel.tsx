@@ -33,6 +33,8 @@ export interface ChatPanelProps {
   retryBadgeCatalog?: () => void;
   /** Mount the message composer. Home uses a read-only chat rail. */
   showComposer?: boolean;
+  /** Workspace removes platform-owned chrome because the dock owns panel controls. */
+  presentation?: "standalone" | "workspace";
 }
 
 // Memoized: combined with the narrowed connectionStatus selectors in
@@ -50,6 +52,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
   badgeCatalogState,
   retryBadgeCatalog,
   showComposer = true,
+  presentation = "standalone",
 }) {
   useRenderCount("ChatPanel");
   // Kick's official moderation APIs are keyed by broadcaster user_id. The
@@ -78,6 +81,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
           badgeCatalogState={badgeCatalogState}
           retryBadgeCatalog={retryBadgeCatalog}
           showComposer={showComposer}
+          presentation={presentation}
         />
       </Suspense>
     );
@@ -85,7 +89,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = memo(function ChatPanel({
 
   return (
     <Suspense fallback={<ChatPanelLoading />}>
-      <LazyTwitchChat channel={initialChannel} channelId={channelId} showComposer={showComposer} />
+      <LazyTwitchChat
+        channel={initialChannel}
+        channelId={channelId}
+        showComposer={showComposer}
+        presentation={presentation}
+      />
     </Suspense>
   );
 });

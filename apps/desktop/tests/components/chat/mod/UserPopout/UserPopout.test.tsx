@@ -32,7 +32,10 @@ vi.mock("@/features/moderation/data/useModLog", () => ({
   }),
 }));
 
-import { UserPopout, type UserPopoutProps } from "@/features/chat/components/chat/mod/UserPopout/UserPopout";
+import {
+  UserPopout,
+  type UserPopoutProps,
+} from "@/features/chat/components/chat/mod/UserPopout/UserPopout";
 import { useUserProfile } from "@/features/chat/components/chat/mod/UserPopout/useUserProfile";
 import {
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
@@ -88,10 +91,10 @@ beforeEach(() => {
   api.openExternal = vi.fn();
   api.auth.getToken = vi.fn().mockResolvedValue(null);
   api.auth.tokenStatus = vi.fn().mockResolvedValue({
-        platform: "twitch",
-        connected: false,
-        valid: false,
-      });
+    platform: "twitch",
+    connected: false,
+    valid: false,
+  });
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: { writeText: vi.fn().mockResolvedValue(undefined) },
@@ -158,6 +161,7 @@ function renderPopout(
 // Guards: Live matching inserts respect reduced motion and badge catalog states stay independently truthful.
 // Guards: Copy message writes visible text to the clipboard and reports both success and failure with a toast.
 // Guards: Copy message to chat passes exact visible text to the composer action without sending it.
+// Guards: common moderation reconnect excludes the AutoMod scope owned by the AutoMod queue.
 describe("UserPopout", () => {
   it("shows qualified moderation history for platform-confirmed authority without using profile badges", async () => {
     mockedUseUserProfile.mockReturnValue(pendingProfileState());
@@ -307,7 +311,7 @@ describe("UserPopout", () => {
     expect(screen.queryByRole("heading", { name: "Moderation history" })).toBeNull();
   });
 
-  it("shows one locked reconnect entry with every missing Twitch scope", async () => {
+  it("shows one locked reconnect entry with every missing common moderation scope", async () => {
     mockedUseUserProfile.mockReturnValue(pendingProfileState());
     useAuthStore.setState({
       twitchUser: {
@@ -340,7 +344,11 @@ describe("UserPopout", () => {
 
     const state = useReconnectDialogStore.getState();
     expect(state.platform).toBe("twitch");
-    expect(state.missingScopes).toEqual(TWITCH_APP_SCOPES.filter((scope) => scope !== "chat:read"));
+    expect(state.missingScopes).toEqual(
+      TWITCH_APP_SCOPES.filter(
+        (scope) => scope !== "chat:read" && scope !== "moderator:manage:automod"
+      )
+    );
     expect(screen.queryByRole("heading", { name: "Moderation history" })).toBeNull();
   });
 
