@@ -1771,7 +1771,8 @@
     "backendVersion": "Version back-end",
     "playSessionId": "ID de session de lecture",
     "servingId": "ID de diffusion",
-    "liveStreamAlt": "{{channel}} diffusion en direct"
+    "liveStreamAlt": "{{channel}} diffusion en direct",
+    "sharePublicLinkUnavailable": "Le partage n'est pas disponible car ce {{content}} n'a pas de lien public."
   },
   "settings": {
     "general": "Général",

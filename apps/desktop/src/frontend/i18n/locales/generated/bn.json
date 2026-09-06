@@ -1771,7 +1771,8 @@
     "backendVersion": "ব্যাকএন্ড সংস্করণ",
     "playSessionId": "সেশন আইডি খেলুন",
     "servingId": "আইডি পরিবেশন",
-    "liveStreamAlt": "{{channel}} লাইভ স্ট্রিম"
+    "liveStreamAlt": "{{channel}} লাইভ স্ট্রিম",
+    "sharePublicLinkUnavailable": "শেয়ার অনুপলব্ধ কারণ এই {{content}}-এর কোনো সর্বজনীন লিঙ্ক নেই৷"
   },
   "settings": {
     "general": "সাধারণ",

@@ -1771,7 +1771,8 @@
     "backendVersion": "גרסת אחורי",
     "playSessionId": "מזהה סשן משחק",
     "servingId": "תעודה מזהה",
-    "liveStreamAlt": "{{channel}} זרם חי"
+    "liveStreamAlt": "{{channel}} זרם חי",
+    "sharePublicLinkUnavailable": "השיתוף אינו זמין כי ל-{{content}} זה אין קישור ציבורי."
   },
   "settings": {
     "general": "כללי",

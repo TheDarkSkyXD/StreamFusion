@@ -1771,7 +1771,8 @@
     "backendVersion": "Έκδοση Backend",
     "playSessionId": "Αναγνωριστικό περιόδου σύνδεσης",
     "servingId": "Αναγνωριστικό υπηρεσίας",
-    "liveStreamAlt": "Ζωντανή ροή {{channel}}"
+    "liveStreamAlt": "Ζωντανή ροή {{channel}}",
+    "sharePublicLinkUnavailable": "Η κοινή χρήση δεν είναι διαθέσιμη επειδή αυτό το {{content}} δεν έχει δημόσιο σύνδεσμο."
   },
   "settings": {
     "general": "Στρατηγός",

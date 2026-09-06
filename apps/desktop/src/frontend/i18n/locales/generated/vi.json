@@ -1771,7 +1771,8 @@
     "backendVersion": "Phiên bản phụ trợ",
     "playSessionId": "ID phiên phát",
     "servingId": "Mã phục vụ",
-    "liveStreamAlt": "{{channel}} luồng trực tiếp"
+    "liveStreamAlt": "{{channel}} luồng trực tiếp",
+    "sharePublicLinkUnavailable": "Chia sẻ không khả dụng vì {{content}} này không có liên kết công khai."
   },
   "settings": {
     "general": "chung",

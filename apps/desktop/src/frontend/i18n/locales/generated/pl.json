@@ -1771,7 +1771,8 @@
     "backendVersion": "Wersja backendowa",
     "playSessionId": "Odtwórz identyfikator sesji",
     "servingId": "Identyfikator serwowania",
-    "liveStreamAlt": "{{channel}} transmisja na żywo"
+    "liveStreamAlt": "{{channel}} transmisja na żywo",
+    "sharePublicLinkUnavailable": "Udostępnienie jest niedostępne, ponieważ ten element {{content}} nie ma publicznego łącza."
   },
   "settings": {
     "general": "Generał",

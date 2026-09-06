@@ -1771,7 +1771,8 @@
     "backendVersion": "Серверна версія",
     "playSessionId": "Ідентифікатор сеансу відтворення",
     "servingId": "Ідентифікатор обслуговування",
-    "liveStreamAlt": "{{channel}} пряма трансляція"
+    "liveStreamAlt": "{{channel}} пряма трансляція",
+    "sharePublicLinkUnavailable": "Спільний доступ недоступний, оскільки цей {{content}} не має загальнодоступного посилання."
   },
   "settings": {
     "general": "Загальний",

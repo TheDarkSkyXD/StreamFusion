@@ -1771,7 +1771,8 @@
     "backendVersion": "Háttér verzió",
     "playSessionId": "Lejátszási munkamenet azonosítója",
     "servingId": "Kiszolgálási azonosító",
-    "liveStreamAlt": "{{channel}} élő közvetítés"
+    "liveStreamAlt": "{{channel}} élő közvetítés",
+    "sharePublicLinkUnavailable": "A megosztás nem érhető el, mert a(z) {{content}} nem rendelkezik nyilvános hivatkozással."
   },
   "settings": {
     "general": "tábornok",

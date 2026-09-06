@@ -1771,7 +1771,8 @@
     "backendVersion": "Zaledna različica",
     "playSessionId": "ID seje predvajanja",
     "servingId": "ID storitve",
-    "liveStreamAlt": "{{channel}} pretočno predvajanje v živo"
+    "liveStreamAlt": "{{channel}} pretočno predvajanje v živo",
+    "sharePublicLinkUnavailable": "Skupna raba ni na voljo, ker ta {{content}} nima javne povezave."
   },
   "settings": {
     "general": "Splošno",

@@ -1771,7 +1771,8 @@
     "backendVersion": "Versi Bahagian Belakang",
     "playSessionId": "ID Sesi Main",
     "servingId": "ID penyajian",
-    "liveStreamAlt": "{{channel}} strim langsung"
+    "liveStreamAlt": "{{channel}} strim langsung",
+    "sharePublicLinkUnavailable": "Perkongsian tidak tersedia kerana {{content}} ini tidak mempunyai pautan awam."
   },
   "settings": {
     "general": "Umum",

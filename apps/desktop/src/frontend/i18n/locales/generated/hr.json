@@ -1771,7 +1771,8 @@
     "backendVersion": "Pozadinska verzija",
     "playSessionId": "Reproduciraj ID sesije",
     "servingId": "ID posluživanja",
-    "liveStreamAlt": "{{channel}} prijenos uživo"
+    "liveStreamAlt": "{{channel}} prijenos uživo",
+    "sharePublicLinkUnavailable": "Dijeljenje nije dostupno jer ovaj {{content}} nema javnu vezu."
   },
   "settings": {
     "general": "generalno",

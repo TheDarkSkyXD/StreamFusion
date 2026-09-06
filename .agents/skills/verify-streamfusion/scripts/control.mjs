@@ -50,7 +50,7 @@ function parseArguments(argv) {
       continue;
     }
     const value = tokens[index + 1];
-    if (!value || value.startsWith("--")) options[key] = true;
+    if (value === undefined || value.startsWith("--")) options[key] = true;
     else {
       options[key] = value;
       index += 1;

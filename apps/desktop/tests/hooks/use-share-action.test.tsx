@@ -12,6 +12,7 @@ import { useShareAction } from "@/features/playback/data/use-share-action";
 
 // Guards: playable public links copy as plain URLs and visibly confirm success for exactly two seconds
 // Guards: current channel-scoped Kick clip links are accepted as public content links
+// Guards: disabled sharing identifies whether playback or the public content link is unavailable
 // Guards: clipboard failures remain retryable and surface the approved error message
 // Guards: switching content resets Copied immediately and cancels the previous content's timer
 describe("useShareAction", () => {
@@ -64,6 +65,30 @@ describe("useShareAction", () => {
     expect(result.current.canShare).toBe(false);
     await act(async () => result.current.share());
     expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it("explains whether playback or the public link prevents sharing", () => {
+    const { result: unavailableLink } = renderHook(() =>
+      useShareAction({
+        shareUrl: "https://video.example/signed-playback.m3u8",
+        isPlaybackReady: true,
+        contentLabel: "Video",
+      })
+    );
+    const { result: unavailablePlayback } = renderHook(() =>
+      useShareAction({
+        shareUrl: "https://kick.com/video/public-slug",
+        isPlaybackReady: false,
+        contentLabel: "Video",
+      })
+    );
+
+    expect(unavailableLink.current.unavailableTitle).toBe(
+      "Share is unavailable because this Video has no public link."
+    );
+    expect(unavailablePlayback.current.unavailableTitle).toBe(
+      "Share is available when this Video is ready to play."
+    );
   });
 
   it("accepts the current channel-scoped Kick clip URL", async () => {

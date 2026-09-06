@@ -1771,7 +1771,8 @@
     "backendVersion": "Versió de backend",
     "playSessionId": "Identificador de sessió de Play",
     "servingId": "Identificador de servei",
-    "liveStreamAlt": "{{channel}} emissió en directe"
+    "liveStreamAlt": "{{channel}} emissió en directe",
+    "sharePublicLinkUnavailable": "La compartició no està disponible perquè aquest {{content}} no té cap enllaç públic."
   },
   "settings": {
     "general": "General",

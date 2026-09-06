@@ -1771,7 +1771,8 @@
     "backendVersion": "Backend-versjon",
     "playSessionId": "Spill-økt-ID",
     "servingId": "Serverings-ID",
-    "liveStreamAlt": "{{channel}} direktesending"
+    "liveStreamAlt": "{{channel}} direktesending",
+    "sharePublicLinkUnavailable": "Del er utilgjengelig fordi denne {{content}} ikke har noen offentlig kobling."
   },
   "settings": {
     "general": "Generelt",

@@ -1771,7 +1771,8 @@
     "backendVersion": "バックエンドのバージョン",
     "playSessionId": "再生セッションID",
     "servingId": "配信ID",
-    "liveStreamAlt": "{{channel}} ライブ ストリーム"
+    "liveStreamAlt": "{{channel}} ライブ ストリーム",
+    "sharePublicLinkUnavailable": "この {{content}} には公開リンクがないため、共有は利用できません。"
   },
   "settings": {
     "general": "一般",

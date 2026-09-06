@@ -108,7 +108,7 @@ export function SwitchRow({
       description={description}
       note={note}
       icon={icon}
-      control={<Switch checked={checked} onCheckedChange={onChange} />}
+      control={<Switch aria-label={label} checked={checked} onCheckedChange={onChange} />}
     />
   );
 }

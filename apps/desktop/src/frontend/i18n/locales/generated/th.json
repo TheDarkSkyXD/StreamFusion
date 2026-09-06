@@ -1771,7 +1771,8 @@
     "backendVersion": "เวอร์ชันแบ็กเอนด์",
     "playSessionId": "เล่นรหัสเซสชั่น",
     "servingId": "รหัสการให้บริการ",
-    "liveStreamAlt": "{{channel}} สตรีมสด"
+    "liveStreamAlt": "{{channel}} สตรีมสด",
+    "sharePublicLinkUnavailable": "ไม่สามารถแชร์ได้เนื่องจาก {{content}} นี้ไม่มีลิงก์สาธารณะ"
   },
   "settings": {
     "general": "ทั่วไป",

@@ -388,6 +388,9 @@ export function PlayerControls(props: PlayerControlsProps) {
                     size="icon"
                     className="text-white hover:bg-white/20 cursor-pointer"
                     onClick={onToggleTheater}
+                    aria-label={
+                      isTheater ? t("playback.exitTheaterModeT") : t("playback.theaterModeT")
+                    }
                     style={
                       isTheater && theaterActiveColor ? { color: theaterActiveColor } : undefined
                     }
@@ -413,6 +416,9 @@ export function PlayerControls(props: PlayerControlsProps) {
                     size="icon"
                     className="text-white hover:bg-white/20 cursor-pointer"
                     onClick={onToggleFullscreen}
+                    aria-label={
+                      isFullscreen ? t("playback.exitFullscreenF") : t("playback.fullscreenF")
+                    }
                   >
                     {isFullscreen ? (
                       <LuMinimize className="w-6 h-6" strokeWidth={3} />

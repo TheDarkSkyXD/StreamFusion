@@ -1771,7 +1771,8 @@
     "backendVersion": "ബാക്കെൻഡ് പതിപ്പ്",
     "playSessionId": "പ്ലേ സെഷൻ ഐഡി",
     "servingId": "സെർവിംഗ് ഐഡി",
-    "liveStreamAlt": "{{channel}} തത്സമയ സ്ട്രീം"
+    "liveStreamAlt": "{{channel}} തത്സമയ സ്ട്രീം",
+    "sharePublicLinkUnavailable": "ഈ {{content}} എന്നതിന് പൊതു ലിങ്ക് ഇല്ലാത്തതിനാൽ പങ്കിടൽ ലഭ്യമല്ല."
   },
   "settings": {
     "general": "ജനറൽ",

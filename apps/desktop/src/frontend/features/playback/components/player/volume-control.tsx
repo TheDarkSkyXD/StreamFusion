@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { LuVolume1, LuVolume2, LuVolumeX } from "react-icons/lu";
 
 import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from "@shared/auth-types";
@@ -22,6 +23,7 @@ export function VolumeControl({
   onMuteToggle,
   className,
 }: VolumeControlProps) {
+  const { t } = useTranslation();
   const showVolume =
     useAuthStore((s) => s.preferences?.playerControls?.showVolume) ??
     DEFAULT_PLAYER_CONTROLS_PREFERENCES.showVolume;
@@ -63,6 +65,7 @@ export function VolumeControl({
           <Button
             variant="ghost"
             size="icon"
+            aria-label={muted ? t("playback.unmute") : t("playback.mute")}
             className="text-white hover:bg-white/20 rounded-full select-none z-10 cursor-pointer"
             onClick={(e) => {
               e.stopPropagation();

@@ -1771,7 +1771,8 @@
     "backendVersion": "Бацкенд верзија",
     "playSessionId": "ИД сесије играња",
     "servingId": "ИД послуживања",
-    "liveStreamAlt": "{{channel}} стрим уживо"
+    "liveStreamAlt": "{{channel}} стрим уживо",
+    "sharePublicLinkUnavailable": "Дељење није доступно јер овај {{content}} нема јавну везу."
   },
   "settings": {
     "general": "генерал",

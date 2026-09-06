@@ -19,7 +19,50 @@ beforeEach(() => {
 });
 
 // Guards: notification dropdown must render real persisted Live Notifications, never demo mock rows.
+// Guards: Escape closes the dropdown and returns keyboard focus to its trigger.
+// Guards: each notification opens from the keyboard while its dismiss action remains a sibling button.
 describe("NotificationsDropdown", () => {
+  it("closes on Escape and restores focus to the notification trigger", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<NotificationsDropdown />);
+
+    const trigger = screen.getByTitle("Notifications");
+    await user.click(trigger);
+
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(trigger).toHaveAttribute("aria-controls", "notifications-dropdown");
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByText("No new notifications")).not.toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveFocus();
+  });
+
+  it("opens a notification from the keyboard without nesting its dismiss button", async () => {
+    useNotificationStore.getState().addNotification({
+      id: "live-1",
+      platform: "twitch",
+      channelId: "100",
+      channelName: "alpha",
+      channelDisplayName: "Alpha",
+      title: "Alpha stream",
+      createdAt: Date.now(),
+    });
+    const user = userEvent.setup();
+    renderWithProviders(<NotificationsDropdown />);
+
+    await user.click(screen.getByTitle("Notifications"));
+    const notificationAction = screen.getByRole("button", { name: /Alpha.*Alpha stream/i });
+    expect(notificationAction).not.toContainElement(screen.getByTitle("Dismiss"));
+    notificationAction.focus();
+    await user.keyboard("{Enter}");
+
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/stream/$platform/$channel",
+      params: { platform: "twitch", channel: "alpha" },
+    });
+  });
+
   it("shows an empty state instead of mock notification rows when history is empty", async () => {
     renderWithProviders(<NotificationsDropdown />);
 

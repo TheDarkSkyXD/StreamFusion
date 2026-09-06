@@ -1771,7 +1771,8 @@
     "backendVersion": "Backend-version",
     "playSessionId": "Spelsessions-ID",
     "servingId": "Serverings-ID",
-    "liveStreamAlt": "{{channel}} livestream"
+    "liveStreamAlt": "{{channel}} livestream",
+    "sharePublicLinkUnavailable": "Delning är inte tillgänglig eftersom denna {{content}} inte har någon offentlig länk."
   },
   "settings": {
     "general": "Allmänt",

@@ -1771,7 +1771,8 @@
     "backendVersion": "Backend-versie",
     "playSessionId": "Speelsessie-ID",
     "servingId": "Serveer-ID",
-    "liveStreamAlt": "{{channel}} livestream"
+    "liveStreamAlt": "{{channel}} livestream",
+    "sharePublicLinkUnavailable": "Delen is niet beschikbaar omdat deze {{content}} geen openbare link heeft."
   },
   "settings": {
     "general": "Algemeen",

@@ -144,7 +144,7 @@ describe("AutoModQueue", () => {
     });
     renderQueue();
 
-    expect(await screen.findByRole("status")).toHaveTextContent("connection failed");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("connection failed"));
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(api.twitch.eventSub.start).toHaveBeenCalledTimes(2));
     sendState("connected");

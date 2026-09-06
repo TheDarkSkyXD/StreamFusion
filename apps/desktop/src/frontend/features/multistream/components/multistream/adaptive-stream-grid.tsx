@@ -1,9 +1,14 @@
-import { Children, type ReactNode, useEffect, useRef, useState } from "react";
+import { Children, type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 
 const VIDEO_ASPECT_RATIO = 16 / 9;
 const MAX_COLUMNS = 3;
 const MIN_SLOT_HEIGHT_PX = 180;
 const GRID_GAP_PX = 4;
+const FOCUS_RAIL_MIN_HEIGHT_PX = 150;
+
+export type StreamGridPresentation =
+  | { kind: "grid"; visualOrder?: readonly number[] }
+  | { kind: "focus"; focusedIndex: number; visualOrder?: readonly number[] };
 
 export interface GridGeometryInput {
   width: number;
@@ -20,6 +25,16 @@ export interface GridGeometry {
   gridWidthPx: number;
   gridHeightPx: number;
   overflowY: boolean;
+}
+
+interface FocusGridGeometry {
+  stageHeightPx: number;
+  focusedWidthPx: number;
+  focusedHeightPx: number;
+  railHeightPx: number;
+  railFrameWidthPx: number;
+  railFrameHeightPx: number;
+  railColumnWidthPx: number;
 }
 
 function emptyGeometry(): GridGeometry {
@@ -119,6 +134,37 @@ export function selectStreamGridGeometry({
   return scrollingGeometry(safeWidth, safeHeight, safeItemCount, safeGap, maxColumns);
 }
 
+function selectFocusGridGeometry({
+  width,
+  height,
+}: Pick<GridGeometryInput, "width" | "height">): FocusGridGeometry {
+  const safeWidth = Math.max(0, Math.floor(width));
+  const safeHeight = Math.max(0, Math.floor(height));
+  const railHeightPx = Math.min(
+    safeHeight,
+    Math.max(FOCUS_RAIL_MIN_HEIGHT_PX, Math.floor(safeHeight / 4))
+  );
+  const stageHeightPx = Math.max(0, safeHeight - railHeightPx);
+  const focused = selectStreamGridGeometry({
+    width: safeWidth,
+    height: stageHeightPx,
+    itemCount: 1,
+    gapPx: GRID_GAP_PX,
+  });
+  const railFrameHeightPx = Math.max(0, railHeightPx - GRID_GAP_PX * 2 - 1);
+  const railFrameWidthPx = Math.floor(railFrameHeightPx * VIDEO_ASPECT_RATIO);
+
+  return {
+    stageHeightPx,
+    focusedWidthPx: focused.slotWidthPx,
+    focusedHeightPx: focused.slotHeightPx,
+    railHeightPx,
+    railFrameWidthPx,
+    railFrameHeightPx,
+    railColumnWidthPx: railFrameWidthPx + GRID_GAP_PX,
+  };
+}
+
 function sameGeometry(left: GridGeometry | null, right: GridGeometry): boolean {
   return (
     left !== null &&
@@ -132,10 +178,19 @@ function sameGeometry(left: GridGeometry | null, right: GridGeometry): boolean {
   );
 }
 
-export function AspectAwareStreamGrid({ children }: { children: ReactNode }) {
+interface AspectAwareStreamGridProps {
+  children: ReactNode;
+  presentation?: StreamGridPresentation;
+}
+
+export function AspectAwareStreamGrid({
+  children,
+  presentation = { kind: "grid" },
+}: AspectAwareStreamGridProps) {
   const itemCount = Children.count(children);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [geometry, setGeometry] = useState<GridGeometry | null>(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     const container = containerRef.current;
@@ -143,6 +198,10 @@ export function AspectAwareStreamGrid({ children }: { children: ReactNode }) {
 
     const updateGeometry = (width: number, height: number) => {
       if (width <= 0 || height <= 0) return;
+      const nextSize = { width: Math.floor(width), height: Math.floor(height) };
+      setContainerSize((current) =>
+        current.width === nextSize.width && current.height === nextSize.height ? current : nextSize
+      );
       const next = selectStreamGridGeometry({
         width,
         height,
@@ -164,26 +223,103 @@ export function AspectAwareStreamGrid({ children }: { children: ReactNode }) {
   }, [itemCount]);
 
   const fallbackColumns = Math.min(2, Math.max(1, itemCount));
+  const isFocus = presentation.kind === "focus";
+  const focusedIndex = isFocus ? presentation.focusedIndex : -1;
+  const sideCount = Math.max(0, itemCount - 1);
+  const focusGeometry = selectFocusGridGeometry(containerSize);
 
-  return (
-    <div
-      ref={containerRef}
-      className="grid h-full w-full justify-center"
-      style={{
+  const containerStyle: CSSProperties = isFocus
+    ? {
+        alignContent: "stretch",
+        columnGap: 0,
+        gridTemplateColumns: `repeat(${Math.max(1, sideCount)}, ${focusGeometry.railColumnWidthPx}px)`,
+        gridTemplateRows: `${focusGeometry.stageHeightPx}px ${focusGeometry.railHeightPx}px`,
+        justifyContent: "start",
+        overflowX: "auto",
+        overflowY: "hidden",
+      }
+    : {
         alignContent: geometry?.overflowY ? "start" : "center",
         gap: GRID_GAP_PX,
         gridAutoRows: geometry ? `${geometry.slotHeightPx}px` : "auto",
         gridTemplateColumns: geometry
           ? `repeat(${geometry.columns}, ${geometry.slotWidthPx}px)`
           : `repeat(${fallbackColumns}, minmax(0, 1fr))`,
+        justifyContent: "center",
+        overflowX: "hidden",
         overflowY: geometry?.overflowY ? "auto" : "hidden",
-      }}
+      };
+
+  return (
+    <div
+      ref={containerRef}
+      data-layout={presentation.kind}
+      className="relative grid h-full w-full"
+      style={containerStyle}
     >
-      {Children.map(children, (child) => (
-        <div className="h-full w-full" style={{ aspectRatio: VIDEO_ASPECT_RATIO }}>
-          {child}
-        </div>
-      ))}
+      {isFocus && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-[var(--color-border)] bg-[var(--color-background-secondary)]"
+          style={{ height: focusGeometry.railHeightPx }}
+        />
+      )}
+      {Children.map(children, (child, index) => {
+        const visualIndex = presentation.visualOrder?.[index] ?? index;
+        const isFocused = isFocus && visualIndex === focusedIndex;
+        const sideIndex = visualIndex < focusedIndex ? visualIndex : visualIndex - 1;
+        const placementStyle: CSSProperties = isFocus
+          ? isFocused
+            ? {
+                alignItems: "center",
+                background: "black",
+                display: "flex",
+                gridColumn: `1 / span ${Math.max(1, sideCount)}`,
+                gridRow: 1,
+                height: focusGeometry.stageHeightPx,
+                justifyContent: "center",
+                left: 0,
+                order: visualIndex,
+                position: "sticky",
+                width: containerSize.width,
+                zIndex: 1,
+              }
+            : {
+                alignItems: "center",
+                display: "flex",
+                gridColumn: sideIndex + 1,
+                gridRow: 2,
+                height: focusGeometry.railHeightPx,
+                justifyContent: "center",
+                order: visualIndex,
+                padding: `${GRID_GAP_PX}px 0 ${GRID_GAP_PX}px ${GRID_GAP_PX}px`,
+                width: focusGeometry.railColumnWidthPx,
+                zIndex: 1,
+              }
+          : { height: "100%", order: visualIndex, width: "100%" };
+        const frameStyle: CSSProperties = isFocus
+          ? isFocused
+            ? {
+                height: focusGeometry.focusedHeightPx,
+                width: focusGeometry.focusedWidthPx,
+              }
+            : {
+                height: focusGeometry.railFrameHeightPx,
+                width: focusGeometry.railFrameWidthPx,
+              }
+          : { aspectRatio: VIDEO_ASPECT_RATIO, height: "100%", width: "100%" };
+
+        return (
+          <div
+            data-stream-placement={isFocused ? "focused" : isFocus ? "rail" : "grid"}
+            style={placementStyle}
+          >
+            <div className="h-full w-full" style={frameStyle}>
+              {child}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

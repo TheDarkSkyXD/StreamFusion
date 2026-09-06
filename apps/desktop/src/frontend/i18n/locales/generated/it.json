@@ -1771,7 +1771,8 @@
     "backendVersion": "Versione back-end",
     "playSessionId": "Gioca ID sessione",
     "servingId": "Documento d'identità in servizio",
-    "liveStreamAlt": "{{channel}} live streaming"
+    "liveStreamAlt": "{{channel}} live streaming",
+    "sharePublicLinkUnavailable": "La condivisione non è disponibile perché questo {{content}} non ha un collegamento pubblico."
   },
   "settings": {
     "general": "Generale",

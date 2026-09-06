@@ -1771,7 +1771,8 @@
     "backendVersion": "बैकएंड संस्करण",
     "playSessionId": "प्ले सत्र आईडी",
     "servingId": "सर्विंग आईडी",
-    "liveStreamAlt": "{{channel}} लाइव स्ट्रीम"
+    "liveStreamAlt": "{{channel}} लाइव स्ट्रीम",
+    "sharePublicLinkUnavailable": "शेयर अनुपलब्ध है क्योंकि इस {{content}} का कोई सार्वजनिक लिंक नहीं है।"
   },
   "settings": {
     "general": "सामान्य",

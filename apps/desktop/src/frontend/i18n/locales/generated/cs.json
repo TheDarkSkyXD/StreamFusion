@@ -1771,7 +1771,8 @@
     "backendVersion": "Backend verze",
     "playSessionId": "Přehrát ID relace",
     "servingId": "ID zobrazování",
-    "liveStreamAlt": "Živý přenos {{channel}}"
+    "liveStreamAlt": "Živý přenos {{channel}}",
+    "sharePublicLinkUnavailable": "Sdílení je nedostupné, protože toto {{content}} nemá žádný veřejný odkaz."
   },
   "settings": {
     "general": "Generál",

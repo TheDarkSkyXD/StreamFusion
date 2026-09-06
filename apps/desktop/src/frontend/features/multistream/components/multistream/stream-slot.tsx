@@ -21,6 +21,8 @@ import type { RaidSource, RaidTarget } from "@shared/raid-handoff-types";
 
 const VISIBILITY_THRESHOLD = 0.25;
 
+export type StreamSlotPlacementKey = `grid:${number}` | "focused" | `rail:${number}`;
+
 interface StreamSlotProps {
   streamId: string;
   platform: Platform;
@@ -40,6 +42,7 @@ interface StreamSlotProps {
    * mount waits for visibility.
    */
   lazyMount?: boolean;
+  placementKey?: StreamSlotPlacementKey;
 }
 
 export function StreamSlot({
@@ -55,6 +58,7 @@ export function StreamSlot({
   dragHandleProps,
   wcvEnabled = false,
   lazyMount = false,
+  placementKey = "grid:0",
 }: StreamSlotProps) {
   const { t } = useTranslation();
   const toggleMute = useMultiStreamStore((state) => state.toggleMute);
@@ -85,7 +89,7 @@ export function StreamSlot({
     return () => observer.disconnect();
   }, [lazyMount, isVisible]);
 
-  const isMountReady = playbackActive && isVisible;
+  const isMountReady = playbackActive && (!lazyMount || isVisible);
   // Passing an empty identifier short-circuits the playback fetch — both the
   // IPC round-trip and HLS.js init are deferred until the slot is ready.
   const effectiveChannelName = isMountReady ? channelName : "";
@@ -222,7 +226,7 @@ export function StreamSlot({
       window.removeEventListener("scroll", pushBounds, true);
       window.removeEventListener("resize", pushBounds);
     };
-  }, [wcvEnabled, streamId]);
+  }, [wcvEnabled, streamId, placementKey]);
 
   // Retry-affordance overlay subscription. Main fires this after the second
   // slot crash within the 5-min window (slice 06 retry policy).

@@ -1771,7 +1771,8 @@
     "backendVersion": "نسخه Backend",
     "playSessionId": "شناسه جلسه پخش",
     "servingId": "شناسه خدمت",
-    "liveStreamAlt": "{{channel}} جریان مستقیم"
+    "liveStreamAlt": "{{channel}} جریان مستقیم",
+    "sharePublicLinkUnavailable": "اشتراک‌گذاری در دسترس نیست زیرا این {{content}} پیوند عمومی ندارد."
   },
   "settings": {
     "general": "ژنرال",

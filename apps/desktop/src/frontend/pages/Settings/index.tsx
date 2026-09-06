@@ -1887,6 +1887,7 @@ export function SettingsPage() {
                                 <p className="text-sm text-zinc-500 mt-0.5">{description}</p>
                               </div>
                               <Switch
+                                aria-label={label}
                                 checked={Boolean(notifications[field])}
                                 onCheckedChange={(v) => handleNotificationChange(field, v)}
                               />
@@ -2170,6 +2171,7 @@ export function SettingsPage() {
                                 )}
                               </div>
                               <Switch
+                                aria-label={label}
                                 checked={playerControls[field]}
                                 onCheckedChange={(v) => handlePlayerControlToggle(field, v)}
                               />
@@ -2311,6 +2313,7 @@ export function SettingsPage() {
                                 </p>
                               </div>
                               <Switch
+                                aria-label={translateSettings({ key: "settings.lowLatencyMode" })}
                                 checked={buffer.lowLatencyMode}
                                 onCheckedChange={(v) => handleBufferChange("lowLatencyMode", v)}
                               />
@@ -2554,6 +2557,7 @@ export function SettingsPage() {
                           </p>
                         </div>
                         <Switch
+                          aria-label={translateSettings({ key: "settings.enableAdBlocking" })}
                           checked={isPlaylistProxyEnabled ? false : enableAdBlock}
                           onCheckedChange={setEnableAdBlock}
                           disabled={isPlaylistProxyEnabled}
@@ -2862,7 +2866,10 @@ export function SettingsPage() {
                               value={preferences?.predictions?.style ?? "native"}
                               onValueChange={handlePredictionStyleChange}
                             >
-                              <SelectTrigger className="w-[200px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20">
+                              <SelectTrigger
+                                aria-label={translateSettings({ key: "settings.style" })}
+                                className="w-[200px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20"
+                              >
                                 <SelectValue
                                   placeholder={translateSettings({ key: "settings.selectStyle" })}
                                 />
@@ -3212,6 +3219,7 @@ function UpdatesSettingsPanel({
                   </p>
                 </div>
                 <Switch
+                  aria-label={translateSettings({ key: "settings.allowPreReleaseUpdates" })}
                   checked={allowPrerelease}
                   onCheckedChange={setAllowPrerelease}
                   className="data-[state=checked]:!bg-blue-500 data-[state=checked]:!border-blue-500"

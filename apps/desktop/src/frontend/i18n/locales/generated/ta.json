@@ -1771,7 +1771,8 @@
     "backendVersion": "பின்தள பதிப்பு",
     "playSessionId": "ப்ளே செஷன் ஐடி",
     "servingId": "சேவை ஐடி",
-    "liveStreamAlt": "{{channel}} நேரடி ஸ்ட்ரீம்"
+    "liveStreamAlt": "{{channel}} நேரடி ஸ்ட்ரீம்",
+    "sharePublicLinkUnavailable": "இந்த {{content}} இல் பொது இணைப்பு இல்லாததால் பகிர்வு கிடைக்கவில்லை."
   },
   "settings": {
     "general": "பொது",

@@ -1771,7 +1771,8 @@
     "backendVersion": "Backend-Version",
     "playSessionId": "Sitzungs-ID abspielen",
     "servingId": "Dienstausweis",
-    "liveStreamAlt": "{{channel}} Livestream"
+    "liveStreamAlt": "{{channel}} Livestream",
+    "sharePublicLinkUnavailable": "Die Freigabe ist nicht verfügbar, da dieses {{content}} keinen öffentlichen Link hat."
   },
   "settings": {
     "general": "Allgemein",

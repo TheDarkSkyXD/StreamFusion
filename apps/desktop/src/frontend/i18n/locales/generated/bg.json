@@ -1771,7 +1771,8 @@
     "backendVersion": "Бекенд версия",
     "playSessionId": "ID на сесията на възпроизвеждане",
     "servingId": "ID на обслужване",
-    "liveStreamAlt": "{{channel}} поток на живо"
+    "liveStreamAlt": "{{channel}} поток на живо",
+    "sharePublicLinkUnavailable": "Споделянето не е налично, защото този {{content}} няма обществена връзка."
   },
   "settings": {
     "general": "генерал",

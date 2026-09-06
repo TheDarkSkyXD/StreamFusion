@@ -26,6 +26,7 @@ export function NotificationsDropdown() {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = React.useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
   const notifications = useNotificationStore((state) => state.notifications);
   const markAllRead = useNotificationStore((state) => state.markAllRead);
   const dismissNotification = useNotificationStore((state) => state.dismissNotification);
@@ -33,14 +34,28 @@ export function NotificationsDropdown() {
   const unreadCount = notifications.filter((notification) => !notification.readAt).length;
 
   React.useEffect(() => {
+    if (!isOpen) return;
+
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+
+      setIsOpen(false);
+      triggerRef.current?.focus();
+    }
+
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
 
   const openNotification = React.useCallback(
     (notification: (typeof notifications)[number]) => {
@@ -59,7 +74,12 @@ export function NotificationsDropdown() {
   return (
     <div className="relative" ref={dropdownRef}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        ref={triggerRef}
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        aria-label={t("shell.topNav.notifications")}
+        aria-expanded={isOpen}
+        aria-controls="notifications-dropdown"
         className="relative p-2 rounded-full hover:bg-[var(--color-background-secondary)] transition-colors outline-none"
         title={t("shell.topNav.notifications")}
       >
@@ -72,7 +92,10 @@ export function NotificationsDropdown() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-elevated)] shadow-xl p-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div
+          id="notifications-dropdown"
+          className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-elevated)] shadow-xl p-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+        >
           <div className="px-3 py-2 border-b border-[var(--color-border)] mb-1 flex items-center justify-between gap-2 bg-[var(--color-background-elevated)] sticky top-0 z-10">
             <span className="text-sm font-semibold text-white">
               {t("shell.topNav.notifications")}
@@ -103,36 +126,42 @@ export function NotificationsDropdown() {
               notifications.map((notif) => (
                 <div
                   key={notif.id}
-                  onClick={() => openNotification(notif)}
-                  className="group px-3 py-3 hover:bg-[var(--color-background-tertiary)] transition-colors cursor-pointer flex gap-3 border-b border-[var(--color-border)] last:border-0 relative"
+                  className="group relative border-b border-[var(--color-border)] last:border-0"
                 >
-                  <PlatformAvatar
-                    src={notif.channelAvatar}
-                    alt={notif.channelDisplayName}
-                    platform={notif.platform}
-                    size="w-10 h-10"
-                    className="ring-offset-1 ring-offset-[var(--color-background-elevated)]"
-                  />
-                  <div className="flex-1 min-w-0 pr-6">
-                    <p className="text-sm text-white">
-                      <span
-                        className={`font-bold transition-colors ${notif.platform === "twitch" ? "hover:text-[#9146FF]" : "hover:text-[#53FC18]"}`}
-                      >
-                        {notif.channelDisplayName}
-                      </span>{" "}
-                      {t("shell.topNav.liveNow")}
-                    </p>
-                    <div className="text-xs text-white truncate font-medium">{notif.title}</div>
-                    <p className="text-[10px] text-white mt-1">
-                      {formatRelativeTime(notif.createdAt, t)}
-                    </p>
-                  </div>
                   <button
+                    type="button"
+                    onClick={() => openNotification(notif)}
+                    className="flex w-full gap-3 px-3 py-3 pr-9 text-left transition-colors hover:bg-[var(--color-background-tertiary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
+                  >
+                    <PlatformAvatar
+                      src={notif.channelAvatar}
+                      alt={notif.channelDisplayName}
+                      platform={notif.platform}
+                      size="w-10 h-10"
+                      className="ring-offset-1 ring-offset-[var(--color-background-elevated)]"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-white">
+                        <span
+                          className={`font-bold transition-colors ${notif.platform === "twitch" ? "hover:text-[#9146FF]" : "hover:text-[#53FC18]"}`}
+                        >
+                          {notif.channelDisplayName}
+                        </span>{" "}
+                        {t("shell.topNav.liveNow")}
+                      </p>
+                      <div className="truncate text-xs font-medium text-white">{notif.title}</div>
+                      <p className="mt-1 text-[10px] text-white">
+                        {formatRelativeTime(notif.createdAt, t)}
+                      </p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       dismissNotification(notif.id);
                     }}
-                    className="absolute top-2 right-2 text-white hover:bg-[var(--color-background-elevated)] rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-2 right-2 rounded-full p-1 text-white opacity-0 transition-opacity hover:bg-[var(--color-background-elevated)] group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background-elevated)]"
                     title={t("shell.topNav.dismiss")}
                   >
                     <LuX size={14} />

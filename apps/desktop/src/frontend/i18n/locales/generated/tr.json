@@ -1771,7 +1771,8 @@
     "backendVersion": "Arka Uç Sürümü",
     "playSessionId": "Oturum Kimliğini Oynat",
     "servingId": "Sunum kimliği",
-    "liveStreamAlt": "{{channel}} canlı yayın"
+    "liveStreamAlt": "{{channel}} canlı yayın",
+    "sharePublicLinkUnavailable": "Bu {{content}} öğesinin herkese açık bağlantısı olmadığından paylaşım kullanılamıyor."
   },
   "settings": {
     "general": "Genel",

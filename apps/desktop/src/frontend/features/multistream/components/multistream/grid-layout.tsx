@@ -17,9 +17,8 @@ import { useTranslation } from "react-i18next";
 
 import { useMultiStreamStore } from "@/features/multistream/data/multistream-store";
 
-import { AspectAwareStreamGrid } from "./adaptive-stream-grid";
+import { AspectAwareStreamGrid, type StreamGridPresentation } from "./adaptive-stream-grid";
 import { SortableStreamSlot } from "./sortable-stream-slot";
-import { StreamSlot } from "./stream-slot";
 
 export function MultiStreamGrid() {
   const { t } = useTranslation();
@@ -32,6 +31,7 @@ export function MultiStreamGrid() {
   const reorderStreams = useMultiStreamStore((state) => state.reorderStreams);
   const playbackBudget = useMultiStreamStore((state) => state.playbackBudget);
   const [wcvEnabled, setWcvEnabled] = useState<boolean | null>(null);
+  const renderedStreams = streams.toSorted((left, right) => left.id.localeCompare(right.id));
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -40,9 +40,6 @@ export function MultiStreamGrid() {
     })
   );
 
-  // Wrap setFocusedStream so every focus change also tells main to promote
-  // the slot. The slot-controller enforces the focus-singleton invariant
-  // (slice 07 audio routing — only the focused slot is unmuted).
   const focusSlot = useCallback(
     (slotId: string) => {
       setFocusedStream(slotId);
@@ -51,10 +48,6 @@ export function MultiStreamGrid() {
     [setFocusedStream]
   );
 
-  // Slice 06 / slice 07: Ctrl+1..6 focuses the slot at the given grid index.
-  // No-op when the grid is empty or the index doesn't map to a slot. Stops
-  // before reaching modifier-using shortcuts the user already trains on
-  // (Ctrl+W close, Ctrl+R reload, etc. — those use webContents hot-keys).
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (!event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) return;
@@ -69,9 +62,6 @@ export function MultiStreamGrid() {
     return () => window.removeEventListener("keydown", handler);
   }, [streams, focusSlot]);
 
-  // Slice 06: after a host-renderer crash + reload, the host calls main to
-  // re-emit presence snapshots so slot chrome rebuilds. Idempotent — main
-  // just re-fires presence-changed for every live slot.
   useEffect(() => {
     window.electronAPI?.slot?.rebindExistingSlots?.().catch(() => {
       /* main may not have any slots yet; safe to ignore */
@@ -99,16 +89,13 @@ export function MultiStreamGrid() {
   }, []);
 
   function handleDragEnd(event: DragEndEvent) {
+    if (layout === "focus") return;
     const { active, over } = event;
+    if (!over || active.id === over.id) return;
 
-    if (over && active.id !== over.id) {
-      const oldIndex = streams.findIndex((s) => s.id === active.id);
-      const newIndex = streams.findIndex((s) => s.id === over.id);
-
-      if (oldIndex !== -1 && newIndex !== -1) {
-        reorderStreams(oldIndex, newIndex);
-      }
-    }
+    const oldIndex = streams.findIndex((stream) => stream.id === active.id);
+    const newIndex = streams.findIndex((stream) => stream.id === over.id);
+    if (oldIndex !== -1 && newIndex !== -1) reorderStreams(oldIndex, newIndex);
   }
 
   if (streams.length === 0) {
@@ -120,94 +107,65 @@ export function MultiStreamGrid() {
     );
   }
 
-  // Layout Logic
-  let gridClass = "h-full w-full";
+  const focusedStreamIndex = streams.findIndex((stream) => stream.id === focusedStreamId);
+  const isFocusLayout = layout === "focus" && focusedStreamIndex >= 0;
+  const visualOrder = renderedStreams.map((stream) =>
+    streams.findIndex((candidate) => candidate.id === stream.id)
+  );
+  const presentation: StreamGridPresentation = isFocusLayout
+    ? { kind: "focus", focusedIndex: focusedStreamIndex, visualOrder }
+    : { kind: "grid", visualOrder };
+  const sortableSlots = renderedStreams.map((stream, renderIndex) => {
+    const visualIndex = visualOrder[renderIndex];
+    const isFocused = isFocusLayout && visualIndex === focusedStreamIndex;
+    const sideRailIndex = visualIndex < focusedStreamIndex ? visualIndex : visualIndex - 1;
+    const playbackActive = isFocusLayout
+      ? isFocused || sideRailIndex < Math.max(0, playbackBudget - 1)
+      : visualIndex < playbackBudget;
 
-  if (layout === "focus" && focusedStreamId) {
-    // Focus layout handled mainly via logic below
-    gridClass = "flex flex-col h-full w-full";
-  }
-
-  const sortableSlots = streams.map((stream, index) => (
-    <SortableStreamSlot
-      key={stream.id}
-      id={stream.id}
-      platform={stream.platform}
-      channelName={stream.channelName}
-      isMuted={stream.isMuted}
-      onRemove={() => removeStream(stream.id)}
-      onFocus={() => {
-        if (stream.isMuted) {
-          toggleMute(stream.id);
-          streams.forEach((candidate) => {
-            if (candidate.id !== stream.id && !candidate.isMuted) toggleMute(candidate.id);
-          });
+    return (
+      <SortableStreamSlot
+        key={stream.id}
+        id={stream.id}
+        platform={stream.platform}
+        channelName={stream.channelName}
+        isMuted={stream.isMuted}
+        onRemove={() => removeStream(stream.id)}
+        onFocus={() => {
+          if (isFocusLayout) {
+            if (!isFocused) focusSlot(stream.id);
+            return;
+          }
+          if (stream.isMuted) {
+            toggleMute(stream.id);
+            streams.forEach((candidate) => {
+              if (candidate.id !== stream.id && !candidate.isMuted) toggleMute(candidate.id);
+            });
+          }
+        }}
+        isFocused={isFocused}
+        playbackActive={playbackActive}
+        onActivate={() => {
+          if (isFocusLayout) focusSlot(stream.id);
+          else reorderStreams(visualIndex, 0);
+        }}
+        wcvEnabled={wcvEnabled}
+        lazyMount={isFocusLayout && !isFocused}
+        sortableDisabled={isFocusLayout}
+        placementKey={
+          isFocusLayout ? (isFocused ? "focused" : `rail:${sideRailIndex}`) : `grid:${visualIndex}`
         }
-      }}
-      isFocused={false}
-      playbackActive={index < playbackBudget}
-      onActivate={() => reorderStreams(index, 0)}
-      wcvEnabled={wcvEnabled}
-    />
-  ));
-  const focusedStream = streams.find((stream) => stream.id === focusedStreamId);
+      />
+    );
+  });
 
   return (
-    <div className={gridClass}>
-      {layout === "focus" && focusedStreamId ? (
-        // Focus Mode implementation
-        <>
-          {/* Main Focus Stream */}
-          <div className="flex-[3] min-h-0 bg-black">
-            <AspectAwareStreamGrid>
-              {focusedStream && (
-                <StreamSlot
-                  streamId={focusedStream.id}
-                  platform={focusedStream.platform}
-                  channelName={focusedStream.channelName}
-                  isMuted={focusedStream.isMuted}
-                  onRemove={() => removeStream(focusedStream.id)}
-                  onFocus={() => {}}
-                  isFocused={true}
-                  playbackActive
-                  wcvEnabled={wcvEnabled}
-                />
-              )}
-            </AspectAwareStreamGrid>
-          </div>
-          {/* Side Bar for others */}
-          <div className="flex-1 min-h-[150px] flex overflow-x-auto overflow-y-hidden border-t border-[var(--color-border)] bg-[var(--color-background-secondary)] p-1 gap-1">
-            {streams
-              .filter((s) => s.id !== focusedStreamId)
-              .map((stream, sideRailIndex) => (
-                <div key={stream.id} className="aspect-video h-full shrink-0">
-                  <StreamSlot
-                    streamId={stream.id}
-                    platform={stream.platform}
-                    channelName={stream.channelName}
-                    isMuted={stream.isMuted}
-                    onRemove={() => removeStream(stream.id)}
-                    onFocus={() => focusSlot(stream.id)}
-                    isFocused={false}
-                    playbackActive={sideRailIndex < Math.max(0, playbackBudget - 1)}
-                    onActivate={() => focusSlot(stream.id)}
-                    wcvEnabled={wcvEnabled}
-                    // Side rail scrolls horizontally — defer mount of off-screen
-                    // slots until they scroll into view.
-                    lazyMount
-                  />
-                </div>
-              ))}
-          </div>
-        </>
-      ) : (
-        // Grid Mode with wrapped DndContext
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={streams.map((s) => s.id)} strategy={rectSortingStrategy}>
-            <AspectAwareStreamGrid>{sortableSlots}</AspectAwareStreamGrid>
-          </SortableContext>
-        </DndContext>
-      )}
+    <div className="h-full w-full">
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={streams.map((stream) => stream.id)} strategy={rectSortingStrategy}>
+          <AspectAwareStreamGrid presentation={presentation}>{sortableSlots}</AspectAwareStreamGrid>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }

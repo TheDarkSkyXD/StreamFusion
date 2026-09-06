@@ -24,6 +24,7 @@ export function PlayPauseButton({
         <Button
           variant="ghost"
           size="icon"
+          aria-label={isPlaying ? t("playback.pauseSpace") : t("playback.playSpace")}
           className={`text-white hover:bg-white/20 rounded-full select-none cursor-pointer ${className || ""}`}
           onClick={(e) => {
             e.stopPropagation();

@@ -1771,7 +1771,8 @@
     "backendVersion": "Backend version",
     "playSessionId": "Afspilningssession-id",
     "servingId": "Serverings-id",
-    "liveStreamAlt": "{{channel}} livestream"
+    "liveStreamAlt": "{{channel}} livestream",
+    "sharePublicLinkUnavailable": "Del er ikke tilgængelig, fordi denne {{content}} ikke har noget offentligt link."
   },
   "settings": {
     "general": "Generelt",

@@ -1411,7 +1411,7 @@ describe("EmotePickerPopover", () => {
     expect(screen.getByLabelText("reopenChannel0")).toBeInTheDocument();
   });
 
-  it("preloads the next visible native section before slow scrolling reaches it", async () => {
+  it("preloads the next native section within three rows of the viewport", async () => {
     const globalEmotes = Array.from({ length: 100 }, (_, i) =>
       makeEmote({
         id: `slow-global-${i}`,
@@ -1458,6 +1458,16 @@ describe("EmotePickerPopover", () => {
     });
 
     act(() => {
+      fireEvent.scroll(scrollRoot);
+    });
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    });
+
+    expect(within(emojiBody as HTMLElement).queryByLabelText("slowEmoji0")).toBeNull();
+
+    act(() => {
+      scrollRoot.scrollTop = 600;
       fireEvent.scroll(scrollRoot);
     });
     await act(async () => {

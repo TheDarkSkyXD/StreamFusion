@@ -1771,7 +1771,8 @@
     "backendVersion": "백엔드 버전",
     "playSessionId": "플레이 세션 ID",
     "servingId": "제공 ID",
-    "liveStreamAlt": "{{channel}} 실시간 스트림"
+    "liveStreamAlt": "{{channel}} 실시간 스트림",
+    "sharePublicLinkUnavailable": "이 {{content}}에는 공개 링크가 없으므로 공유할 수 없습니다."
   },
   "settings": {
     "general": "일반",

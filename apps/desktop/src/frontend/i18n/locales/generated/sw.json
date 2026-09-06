@@ -1771,7 +1771,8 @@
     "backendVersion": "Toleo la Nyuma",
     "playSessionId": "Kitambulisho cha Kipindi cha Cheza",
     "servingId": "Kitambulisho cha huduma",
-    "liveStreamAlt": "{{channel}} mtiririko wa moja kwa moja"
+    "liveStreamAlt": "{{channel}} mtiririko wa moja kwa moja",
+    "sharePublicLinkUnavailable": "Kushiriki hakupatikani kwa sababu {{content}} hii haina kiungo cha umma."
   },
   "settings": {
     "general": "Mkuu",

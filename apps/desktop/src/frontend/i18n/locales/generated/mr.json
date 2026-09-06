@@ -1771,7 +1771,8 @@
     "backendVersion": "बॅकएंड आवृत्ती",
     "playSessionId": "सत्र आयडी प्ले करा",
     "servingId": "सर्व्हिंग आयडी",
-    "liveStreamAlt": "{{channel}} थेट प्रवाह"
+    "liveStreamAlt": "{{channel}} थेट प्रवाह",
+    "sharePublicLinkUnavailable": "शेअर अनुपलब्ध आहे कारण या {{content}} मध्ये सार्वजनिक दुवा नाही."
   },
   "settings": {
     "general": "सामान्य",

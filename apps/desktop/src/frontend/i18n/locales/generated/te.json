@@ -1771,7 +1771,8 @@
     "backendVersion": "బ్యాకెండ్ వెర్షన్",
     "playSessionId": "సెషన్ IDని ప్లే చేయండి",
     "servingId": "ID అందిస్తోంది",
-    "liveStreamAlt": "{{channel}} ప్రత్యక్ష ప్రసారం"
+    "liveStreamAlt": "{{channel}} ప్రత్యక్ష ప్రసారం",
+    "sharePublicLinkUnavailable": "ఈ {{content}}కి పబ్లిక్ లింక్ లేనందున భాగస్వామ్యం అందుబాటులో లేదు."
   },
   "settings": {
     "general": "జనరల్",

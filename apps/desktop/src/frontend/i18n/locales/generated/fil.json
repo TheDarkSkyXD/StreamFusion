@@ -1771,7 +1771,8 @@
     "backendVersion": "Bersyon ng Backend",
     "playSessionId": "ID ng session ng pag-play",
     "servingId": "Serving ID",
-    "liveStreamAlt": "{{channel}} live stream"
+    "liveStreamAlt": "{{channel}} live stream",
+    "sharePublicLinkUnavailable": "Hindi magagamit ang pagbabahagi dahil ang {{content}} na ito ay walang pampublikong link."
   },
   "settings": {
     "general": "Heneral",

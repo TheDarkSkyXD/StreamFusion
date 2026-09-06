@@ -1771,7 +1771,8 @@
     "backendVersion": "Taustaversio",
     "playSessionId": "Play-istunnon tunnus",
     "servingId": "Käyttötunnus",
-    "liveStreamAlt": "{{channel}} suoratoisto"
+    "liveStreamAlt": "{{channel}} suoratoisto",
+    "sharePublicLinkUnavailable": "Jaa ei ole käytettävissä, koska tällä kohteella {{content}} ei ole julkista linkkiä."
   },
   "settings": {
     "general": "Kenraali",

@@ -46,7 +46,8 @@ export function useShareAction({
   const contentIdentity = `${contentKey ?? ""}\u0000${shareUrl ?? ""}`;
   const [copiedFor, setCopiedFor] = useState<string | null>(null);
   const copiedReset = useManagedTimeout(useCallback(() => setCopiedFor(null), []));
-  const canShare = isPlaybackReady && isVerifiedPublicContentUrl(shareUrl);
+  const hasPublicContentUrl = isVerifiedPublicContentUrl(shareUrl);
+  const canShare = isPlaybackReady && hasPublicContentUrl;
   const copied = copiedFor === contentIdentity;
 
   useEffect(() => {
@@ -75,6 +76,9 @@ export function useShareAction({
     canShare,
     copied,
     share,
-    unavailableTitle: t("playback.shareUnavailable", { content: contentLabel }),
+    unavailableTitle: t(
+      isPlaybackReady ? "playback.sharePublicLinkUnavailable" : "playback.shareUnavailable",
+      { content: contentLabel }
+    ),
   };
 }

@@ -31,16 +31,25 @@ vi.mock("@/features/multistream/data/multistream-store", () => ({
 vi.mock("@/features/multistream/components/multistream/sortable-stream-slot", () => ({
   SortableStreamSlot: ({
     channelName,
+    isFocused,
+    lazyMount,
     playbackActive,
+    sortableDisabled,
     wcvEnabled,
   }: {
     channelName: string;
+    isFocused: boolean;
+    lazyMount?: boolean;
     playbackActive?: boolean;
+    sortableDisabled?: boolean;
     wcvEnabled?: boolean | null;
   }) => (
     <div
       data-testid="sortable-slot"
+      data-focused={String(isFocused)}
+      data-lazy-mount={String(lazyMount)}
       data-playback-active={String(playbackActive)}
+      data-sortable-disabled={String(sortableDisabled)}
       data-wcv-enabled={String(wcvEnabled)}
     >
       {channelName}
@@ -52,10 +61,6 @@ vi.mock("@/features/multistream/components/multistream/adaptive-stream-grid", ()
   AspectAwareStreamGrid: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="aspect-aware-grid">{children}</div>
   ),
-}));
-
-vi.mock("@/features/multistream/components/multistream/stream-slot", () => ({
-  StreamSlot: () => <div data-testid="slot">slot</div>,
 }));
 
 import { MultiStreamGrid } from "@/features/multistream/components/multistream/grid-layout";
@@ -100,7 +105,7 @@ describe("MultiStreamGrid", () => {
     expect(screen.getByTestId("aspect-aware-grid")).toBeInTheDocument();
   });
 
-  // Guards: focus mode constrains the primary stream while retaining the existing aspect-video side rail.
+  // Guards: focus mode keeps every player in the stable sortable tree while marking one focused stage and the rest as lazy rail slots.
   it("keeps the focused stream in the adaptive aspect stage", () => {
     mockState = {
       streams: [
@@ -115,7 +120,11 @@ describe("MultiStreamGrid", () => {
     renderWithProviders(<MultiStreamGrid />);
 
     expect(screen.getByTestId("aspect-aware-grid")).toBeInTheDocument();
-    expect(screen.getAllByTestId("slot")).toHaveLength(2);
+    const slots = screen.getAllByTestId("sortable-slot");
+    expect(slots).toHaveLength(2);
+    expect(slots.map((slot) => slot.dataset.focused)).toEqual(["true", "false"]);
+    expect(slots.map((slot) => slot.dataset.lazyMount)).toEqual(["false", "true"]);
+    expect(slots.map((slot) => slot.dataset.sortableDisabled)).toEqual(["true", "true"]);
   });
 
   it("partial-loading: all N slots mount independently while the playback budget admits decoders", () => {
@@ -134,6 +143,25 @@ describe("MultiStreamGrid", () => {
     expect(
       screen.getAllByTestId("sortable-slot").map((slot) => slot.dataset.playbackActive)
     ).toEqual(["true", "true", "false"]);
+  });
+
+  it("keeps the focused stream active and applies the remaining budget in rail order", () => {
+    mockState = {
+      streams: [
+        { id: "s1", platform: "twitch", channelName: "a" },
+        { id: "s2", platform: "kick", channelName: "b" },
+        { id: "s3", platform: "twitch", channelName: "c" },
+      ],
+      layout: "focus",
+      focusedStreamId: "s3",
+      playbackBudget: 2,
+    };
+
+    renderWithProviders(<MultiStreamGrid />);
+
+    const slots = screen.getAllByTestId("sortable-slot");
+    expect(slots.map((slot) => slot.dataset.playbackActive)).toEqual(["true", "false", "true"]);
+    expect(slots.map((slot) => slot.dataset.lazyMount)).toEqual(["true", "true", "false"]);
   });
 
   it("probes WCV capability once for every mounted slot", async () => {

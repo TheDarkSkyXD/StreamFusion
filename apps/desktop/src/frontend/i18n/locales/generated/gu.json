@@ -1771,7 +1771,8 @@
     "backendVersion": "બેકએન્ડ સંસ્કરણ",
     "playSessionId": "સત્ર ID ચલાવો",
     "servingId": "સેવા આપતા ID",
-    "liveStreamAlt": "{{channel}} લાઇવ સ્ટ્રીમ"
+    "liveStreamAlt": "{{channel}} લાઇવ સ્ટ્રીમ",
+    "sharePublicLinkUnavailable": "શેર અનુપલબ્ધ છે કારણ કે આ {{content}} પાસે કોઈ સાર્વજનિક લિંક નથી."
   },
   "settings": {
     "general": "જનરલ",

@@ -1771,7 +1771,8 @@
     "backendVersion": "后端版本",
     "playSessionId": "播放会话 ID",
     "servingId": "服务ID",
-    "liveStreamAlt": "{{channel}} 直播"
+    "liveStreamAlt": "{{channel}} 直播",
+    "sharePublicLinkUnavailable": "共享不可用，因为此 {{content}} 没有公共链接。"
   },
   "settings": {
     "general": "一般",

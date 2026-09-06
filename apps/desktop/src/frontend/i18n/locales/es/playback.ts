@@ -196,6 +196,8 @@ export const playbackEs = {
     failedToLoadMoreItems: "No se pudieron cargar más elementos. Inténtalo de nuevo.",
     shareUnavailable:
       "Compartir estará disponible cuando este {{content}} esté listo para reproducirse.",
+    sharePublicLinkUnavailable:
+      "No se puede compartir porque este {{content}} no tiene un enlace público.",
     noClipsFound: "No se encontraron clips",
     thumbnailUnavailable: "Miniatura no disponible",
     subONLY: "SOLO SUSCRIPTORES",

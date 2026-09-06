@@ -1771,7 +1771,8 @@
     "backendVersion": "Versi Belakang",
     "playSessionId": "Mainkan ID Sesi",
     "servingId": "ID Penyajian",
-    "liveStreamAlt": "{{channel}} streaming langsung"
+    "liveStreamAlt": "{{channel}} streaming langsung",
+    "sharePublicLinkUnavailable": "Berbagi tidak tersedia karena {{content}} ini tidak memiliki tautan publik."
   },
   "settings": {
     "general": "Umum",

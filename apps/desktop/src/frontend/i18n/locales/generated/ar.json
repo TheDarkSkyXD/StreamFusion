@@ -1771,7 +1771,8 @@
     "backendVersion": "النسخة الخلفية",
     "playSessionId": "تشغيل معرف الجلسة",
     "servingId": "معرف التقديم",
-    "liveStreamAlt": "{{channel}} بث مباشر"
+    "liveStreamAlt": "{{channel}} بث مباشر",
+    "sharePublicLinkUnavailable": "المشاركة غير متاحة لأن هذا {{content}} لا يحتوي على رابط عام."
   },
   "settings": {
     "general": "عام",

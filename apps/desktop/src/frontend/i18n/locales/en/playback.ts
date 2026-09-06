@@ -186,6 +186,7 @@ export const playbackEn = {
     failedToLoadContent: "Failed to load content",
     failedToLoadMoreItems: "Failed to load more items. Please try again.",
     shareUnavailable: "Share is available when this {{content}} is ready to play.",
+    sharePublicLinkUnavailable: "Share is unavailable because this {{content}} has no public link.",
     noClipsFound: "No clips found",
     thumbnailUnavailable: "Thumbnail unavailable",
     subONLY: "SUB ONLY",

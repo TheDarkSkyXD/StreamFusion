@@ -1771,7 +1771,8 @@
     "backendVersion": "Backend versija",
     "playSessionId": "„Play“ seanso ID",
     "servingId": "Aptarnavimo ID",
-    "liveStreamAlt": "{{channel}} tiesioginis srautas"
+    "liveStreamAlt": "{{channel}} tiesioginis srautas",
+    "sharePublicLinkUnavailable": "Bendrinti negalima, nes šis {{content}} neturi viešos nuorodos."
   },
   "settings": {
     "general": "Generolas",

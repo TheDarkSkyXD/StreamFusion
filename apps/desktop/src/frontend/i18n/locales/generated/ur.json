@@ -1771,7 +1771,8 @@
     "backendVersion": "بیک اینڈ ورژن",
     "playSessionId": "پلے سیشن آئی ڈی",
     "servingId": "سرونگ آئی ڈی",
-    "liveStreamAlt": "{{channel}} لائیو سلسلہ"
+    "liveStreamAlt": "{{channel}} لائیو سلسلہ",
+    "sharePublicLinkUnavailable": "اشتراک دستیاب نہیں ہے کیونکہ اس {{content}} کا کوئی عوامی لنک نہیں ہے۔"
   },
   "settings": {
     "general": "جنرل",

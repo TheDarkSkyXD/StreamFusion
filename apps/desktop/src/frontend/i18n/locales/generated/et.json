@@ -1771,7 +1771,8 @@
     "backendVersion": "Taustaversioon",
     "playSessionId": "Play seansi ID",
     "servingId": "Esitamise ID",
-    "liveStreamAlt": "{{channel}} otseülekanne"
+    "liveStreamAlt": "{{channel}} otseülekanne",
+    "sharePublicLinkUnavailable": "Jagamine pole saadaval, kuna sellel {{content}}-l pole avalikku linki."
   },
   "settings": {
     "general": "Kindral",

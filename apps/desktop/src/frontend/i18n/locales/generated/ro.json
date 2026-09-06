@@ -1771,7 +1771,8 @@
     "backendVersion": "Versiunea backend",
     "playSessionId": "ID-ul sesiunii de redare",
     "servingId": "ID de servire",
-    "liveStreamAlt": "{{channel}} stream live"
+    "liveStreamAlt": "{{channel}} stream live",
+    "sharePublicLinkUnavailable": "Distribuirea nu este disponibilă deoarece acest {{content}} nu are niciun link public."
   },
   "settings": {
     "general": "general",

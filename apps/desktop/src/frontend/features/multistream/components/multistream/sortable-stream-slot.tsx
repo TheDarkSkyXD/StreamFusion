@@ -3,7 +3,7 @@ import { CSS } from "@dnd-kit/utilities";
 
 import { Platform } from "@streamfusion/core/platform";
 
-import { StreamSlot } from "./stream-slot";
+import { StreamSlot, type StreamSlotPlacementKey } from "./stream-slot";
 
 interface SortableStreamSlotProps {
   id: string; // The stream ID which will be the drag ID
@@ -16,6 +16,9 @@ interface SortableStreamSlotProps {
   playbackActive?: boolean;
   onActivate?: () => void;
   wcvEnabled?: boolean | null;
+  lazyMount?: boolean;
+  sortableDisabled?: boolean;
+  placementKey?: StreamSlotPlacementKey;
 }
 
 export function SortableStreamSlot({
@@ -29,9 +32,13 @@ export function SortableStreamSlot({
   playbackActive,
   onActivate,
   wcvEnabled,
+  lazyMount,
+  sortableDisabled = false,
+  placementKey,
 }: SortableStreamSlotProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
+    disabled: sortableDisabled,
   });
 
   const style = {
@@ -54,7 +61,9 @@ export function SortableStreamSlot({
         playbackActive={playbackActive}
         onActivate={onActivate}
         wcvEnabled={wcvEnabled}
-        dragHandleProps={{ ...attributes, ...listeners }}
+        lazyMount={lazyMount}
+        placementKey={placementKey}
+        dragHandleProps={sortableDisabled ? undefined : { ...attributes, ...listeners }}
       />
     </div>
   );

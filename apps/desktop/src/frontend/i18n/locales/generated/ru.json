@@ -1771,7 +1771,8 @@
     "backendVersion": "Серверная версия",
     "playSessionId": "Идентификатор сеанса воспроизведения",
     "servingId": "Идентификатор обслуживания",
-    "liveStreamAlt": "{{channel}} прямая трансляция"
+    "liveStreamAlt": "{{channel}} прямая трансляция",
+    "sharePublicLinkUnavailable": "Общий доступ недоступен, поскольку у этого {{content}} нет общедоступной ссылки."
   },
   "settings": {
     "general": "Общий",

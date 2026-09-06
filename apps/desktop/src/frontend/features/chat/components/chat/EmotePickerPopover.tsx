@@ -101,6 +101,16 @@ interface UserEmoteGroup {
   emotes: Emote[];
 }
 
+interface ActiveEmoteTooltip {
+  itemKey: string;
+  name: string;
+  left: number;
+  top: number;
+  placement: "top" | "bottom";
+}
+
+type EmoteTooltipEvent = React.MouseEvent<HTMLDivElement> | React.FocusEvent<HTMLDivElement>;
+
 /** Compute the providers covered by a given scope+platform. */
 function getProvidersForScope(
   scope: EmotePickerScope,
@@ -376,7 +386,7 @@ const ITEM_PITCH_PX = ITEM_SIZE_PX + ITEM_GAP_PX;
 const DEFAULT_GRID_WIDTH_PX = 336;
 const DEFAULT_PICKER_VIEWPORT_PX = 360;
 const OVERSCAN_ROWS = 3;
-const WINDOW_PRELOAD_PX = DEFAULT_PICKER_VIEWPORT_PX;
+const WINDOW_PRELOAD_PX = OVERSCAN_ROWS * ITEM_PITCH_PX;
 const SCROLL_ACTIVE_VIEWPORT_RATIO = 0.35;
 const SCROLL_ACTIVE_MAX_OFFSET_PX = 160;
 const TWITCH_USER_EMOTE_SCOPE = "user:read:emotes";
@@ -454,6 +464,11 @@ function getActiveSubSectionForScroll(
   }
 
   return activeSubSection;
+}
+
+function getEmoteTooltipTarget(target: EventTarget | null): HTMLElement | null {
+  if (!(target instanceof Element)) return null;
+  return target.closest<HTMLElement>("[data-emote-tooltip-key]");
 }
 
 /* ------------------------------------------------------------------------ */
@@ -642,44 +657,42 @@ const EmotePickerItem = memo(function EmotePickerItem({
   );
 
   const ariaLabel = locked ? `${emote.name} — subscriber-only emote` : emote.name;
+  const itemKey = `${emote.provider}-${emote.id}`;
 
   return (
     <div
       className="relative group flex h-10 aspect-square items-center justify-center rounded-[4px] border border-[#515151] bg-transparent p-1 ring-1 ring-inset ring-[#515151] transition-[background-color,border-color,box-shadow] duration-150 ease-in-out hover:bg-white/[0.08] hover:border-[#666666] hover:ring-[#666666]"
+      data-emote-tooltip-key={itemKey}
+      data-emote-tooltip-name={emote.name}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <Tooltip delayDuration={0}>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            onClick={handleClick}
-            aria-label={ariaLabel}
-            aria-disabled={locked ? "true" : undefined}
-            // content-visibility lets the browser skip layout/paint/decode for
-            // emotes scrolled off-screen — the main scroll-jank cost when paging
-            // through a large set. Applied to the image button (not the outer
-            // cell) so the hover "favorite" star, an overflowing sibling, isn't
-            // clipped by paint containment. contain-intrinsic-size reserves the
-            // row height so skipped rows don't collapse and shift the scroll.
-            style={{ contentVisibility: "auto", containIntrinsicSize: "auto 28px" }}
-            className={`flex items-center justify-center w-full h-full ${
-              locked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
-            }`}
+      <button
+        type="button"
+        onClick={handleClick}
+        aria-label={ariaLabel}
+        aria-disabled={locked ? "true" : undefined}
+        // content-visibility lets the browser skip layout/paint/decode for
+        // emotes scrolled off-screen — the main scroll-jank cost when paging
+        // through a large set. Applied to the image button (not the outer
+        // cell) so the hover "favorite" star, an overflowing sibling, isn't
+        // clipped by paint containment. contain-intrinsic-size reserves the
+        // row height so skipped rows don't collapse and shift the scroll.
+        style={{ contentVisibility: "auto", containIntrinsicSize: "auto 28px" }}
+        className={`flex items-center justify-center w-full h-full ${
+          locked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+        }`}
+      >
+        <EmoteImage emote={emote} size="medium" showTooltip={false} lazyLoad={true} />
+        {locked && (
+          <span
+            data-testid="emote-lock-overlay"
+            className="absolute bottom-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-[3px] bg-black/75 text-white shadow-sm ring-1 ring-white/20 pointer-events-none"
           >
-            <EmoteImage emote={emote} size="medium" showTooltip={false} lazyLoad={true} />
-            {locked && (
-              <span
-                data-testid="emote-lock-overlay"
-                className="absolute bottom-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-[3px] bg-black/75 text-white shadow-sm ring-1 ring-white/20 pointer-events-none"
-              >
-                <LockIcon />
-              </span>
-            )}
-          </button>
-        </TooltipTrigger>
-        <TooltipContent>{emote.name}</TooltipContent>
-      </Tooltip>
+            <LockIcon />
+          </span>
+        )}
+      </button>
       {hovered && !locked && (
         <button
           type="button"
@@ -738,6 +751,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
     height: DEFAULT_PICKER_VIEWPORT_PX,
   });
   const [missingTwitchUserEmoteScope, setMissingTwitchUserEmoteScope] = useState(false);
+  const [activeEmoteTooltip, setActiveEmoteTooltip] = useState<ActiveEmoteTooltip | null>(null);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -778,6 +792,35 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
   const loadChannelEmotes = useEmoteStore((state) => state.loadChannelEmotes);
   const openLoadAttemptRef = useRef<string | null>(null);
   const openChannelLoadAttemptRef = useRef<string | null>(null);
+
+  const handleEmoteTooltipEnter = useCallback((event: EmoteTooltipEvent) => {
+    const target = getEmoteTooltipTarget(event.target);
+    if (!target || target === getEmoteTooltipTarget(event.relatedTarget)) return;
+    const itemKey = target.dataset.emoteTooltipKey;
+    const name = target.dataset.emoteTooltipName;
+    if (!itemKey || !name) return;
+
+    const rect = target.getBoundingClientRect();
+    const placement = rect.top >= 48 ? "top" : "bottom";
+    setActiveEmoteTooltip({
+      itemKey,
+      name,
+      left: rect.left + rect.width / 2,
+      top: placement === "top" ? rect.top - 8 : rect.bottom + 8,
+      placement,
+    });
+  }, []);
+
+  const handleEmoteTooltipLeave = useCallback((event: EmoteTooltipEvent) => {
+    const target = getEmoteTooltipTarget(event.target);
+    if (!target || target === getEmoteTooltipTarget(event.relatedTarget)) return;
+    const remainsActive =
+      event.type === "blur" ? target.matches(":hover") : target.contains(document.activeElement);
+    if (remainsActive) return;
+
+    const itemKey = target.dataset.emoteTooltipKey;
+    setActiveEmoteTooltip((current) => (current?.itemKey === itemKey ? null : current));
+  }, []);
 
   // Provider → emotes map. Recompute when manager-backed emote data changes.
   // `emoteRevision` covers force reloads whose Set sizes don't change (for
@@ -823,6 +866,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
     if (!isOpen) {
       openLoadAttemptRef.current = null;
       openChannelLoadAttemptRef.current = null;
+      setActiveEmoteTooltip(null);
       return;
     }
 
@@ -1277,6 +1321,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
   const handleBodyScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
       const el = e.currentTarget;
+      setActiveEmoteTooltip(null);
       setScrollSnapshot({
         top: el.scrollTop,
         height: el.clientHeight || DEFAULT_PICKER_VIEWPORT_PX,
@@ -1425,7 +1470,15 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
       )}
 
       {/* Body */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto" onScroll={handleBodyScroll}>
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto"
+        onMouseOver={handleEmoteTooltipEnter}
+        onMouseOut={handleEmoteTooltipLeave}
+        onFocus={handleEmoteTooltipEnter}
+        onBlur={handleEmoteTooltipLeave}
+        onScroll={handleBodyScroll}
+      >
         <EmoteSection
           sectionId="frequent"
           title={t("chat.frequentlyUsed")}
@@ -1478,6 +1531,24 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
           />
         ))}
       </div>
+      {activeEmoteTooltip &&
+        createPortal(
+          <div
+            role="tooltip"
+            className="pointer-events-none fixed z-[60] max-w-[240px] truncate rounded-md border border-[#303033] bg-[#18181b] px-3 py-1.5 text-sm font-medium text-white shadow-lg"
+            style={{
+              left: activeEmoteTooltip.left,
+              top: activeEmoteTooltip.top,
+              transform:
+                activeEmoteTooltip.placement === "top"
+                  ? "translate(-50%, -100%)"
+                  : "translate(-50%, 0)",
+            }}
+          >
+            {activeEmoteTooltip.name}
+          </div>,
+          document.body
+        )}
     </div>,
     document.body
   );

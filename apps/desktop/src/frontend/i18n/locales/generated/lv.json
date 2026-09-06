@@ -1771,7 +1771,8 @@
     "backendVersion": "Aizmugursistēmas versija",
     "playSessionId": "Play sesijas ID",
     "servingId": "Rādīšanas ID",
-    "liveStreamAlt": "{{channel}} tiešraides straume"
+    "liveStreamAlt": "{{channel}} tiešraides straume",
+    "sharePublicLinkUnavailable": "Kopīgošana nav pieejama, jo šim {{content}} nav publiskas saites."
   },
   "settings": {
     "general": "Ģenerālis",

@@ -2,7 +2,14 @@ import { act } from "@testing-library/react";
 import type { PlayerError } from "@/features/playback/components/player/types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fixtures, renderWithProviders, routerMock, screen } from "../../test-utils";
+import {
+  fixtures,
+  installElectronAPIMock,
+  renderWithProviders,
+  routerMock,
+  screen,
+  waitFor,
+} from "../../test-utils";
 
 vi.mock("@tanstack/react-router", () => routerMock());
 
@@ -20,12 +27,15 @@ vi.mock("@/features/discovery/data/queries/useChannels", () => ({
 }));
 
 vi.mock("@/features/playback/data/useStreamPlayback", () => ({
-  useStreamPlayback: () => ({
-    playback: { url: "https://x.test/playlist.m3u8" },
-    isLoading: false,
-    reload: playerMocks.reload,
-    playbackRevision: playerMocks.playbackRevision,
-  }),
+  useStreamPlayback: (_platform: string, identifier: string) => {
+    playerMocks.playbackIdentifiers.push(identifier);
+    return {
+      playback: identifier ? { url: "https://x.test/playlist.m3u8" } : null,
+      isLoading: false,
+      reload: playerMocks.reload,
+      playbackRevision: playerMocks.playbackRevision,
+    };
+  },
 }));
 
 vi.mock("@/features/playback/data/use-raid-handoff", () => ({
@@ -34,6 +44,7 @@ vi.mock("@/features/playback/data/use-raid-handoff", () => ({
 
 const playerMocks = vi.hoisted(() => ({
   playbackRevision: 1,
+  playbackIdentifiers: [] as string[],
   reload: vi.fn(),
   twitchProps: null as null | {
     className?: string;
@@ -87,6 +98,7 @@ describe("StreamSlot", () => {
   afterEach(() => {
     vi.useRealTimers();
     playerMocks.playbackRevision = 1;
+    playerMocks.playbackIdentifiers.length = 0;
     playerMocks.reload.mockReset();
     playerMocks.twitchProps = null;
     playerMocks.kickProps = null;
@@ -146,6 +158,58 @@ describe("StreamSlot", () => {
     expect(screen.getByText("Playback suspended")).toBeInTheDocument();
     screen.getByRole("button", { name: "Activate stream" }).click();
     expect(onActivate).toHaveBeenCalledTimes(1);
+  });
+
+  // Guards: a rail slot promoted before first intersection starts playback without requiring a remount.
+  it("starts a deferred rail slot when it becomes focused", () => {
+    const props = {
+      streamId: "s7",
+      platform: "twitch" as const,
+      channelName: "ninja",
+      isMuted: true,
+      onRemove: vi.fn(),
+      onFocus: vi.fn(),
+      isFocused: false,
+      playbackActive: true,
+    };
+    const view = renderWithProviders(<StreamSlot {...props} lazyMount />);
+
+    expect(playerMocks.playbackIdentifiers.at(-1)).toBe("");
+    expect(screen.queryByTestId("tw-live-player")).not.toBeInTheDocument();
+
+    view.rerender(<StreamSlot {...props} isFocused lazyMount={false} />);
+
+    expect(playerMocks.playbackIdentifiers.at(-1)).toBe("ninja");
+    expect(screen.getByTestId("tw-live-player")).toBeInTheDocument();
+  });
+
+  // Guards: moving a native-view slot between grid, focus, and rail pushes its new screen bounds without recreating the slot.
+  it("refreshes WCV bounds when the stable slot placement changes", async () => {
+    const api = installElectronAPIMock();
+    api.slot.onRetryAffordance = vi.fn(() => vi.fn());
+    const props = {
+      streamId: "s1",
+      platform: "twitch" as const,
+      channelName: "ninja",
+      isMuted: false,
+      onRemove: vi.fn(),
+      onFocus: vi.fn(),
+      isFocused: false,
+      playbackActive: true,
+      wcvEnabled: true,
+    };
+    const view = renderWithProviders(<StreamSlot {...props} placementKey="grid:0" />);
+
+    await waitFor(() => expect(api.slot.setBounds).toHaveBeenCalledTimes(1));
+    expect(api.slot.createSlot).toHaveBeenCalledTimes(1);
+
+    view.rerender(<StreamSlot {...props} isFocused placementKey="focused" />);
+    await waitFor(() => expect(api.slot.setBounds).toHaveBeenCalledTimes(2));
+
+    view.rerender(<StreamSlot {...props} placementKey="rail:0" />);
+    await waitFor(() => expect(api.slot.setBounds).toHaveBeenCalledTimes(3));
+    expect(api.slot.createSlot).toHaveBeenCalledTimes(1);
+    expect(api.slot.destroySlot).not.toHaveBeenCalled();
   });
 
   // Guards: one multistream slot stops after two failed Twitch source refreshes instead of spinning or refreshing forever in isolation.
