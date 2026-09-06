@@ -18,7 +18,7 @@ Before modifying code in a subdirectory, read its nearest `AGENTS.md` first.
 | ---------------------- | ------------------------------- | ---------------------------------------------------------------------- |
 | `backend/`             | `backend/AGENTS.md`             | Main process, IPC, auth, platform adapters, persistence, and services  |
 | `backend/preload/`     | `backend/preload/AGENTS.md`     | Narrow `contextBridge` surface                                         |
-| `frontend/features/`   | `frontend/features/AGENTS.md`   | Renderer capabilities with `components`, `data`, `routes`, and `utils` |
+| `frontend/features/`   | `frontend/features/AGENTS.md`   | Renderer feature roots; see the nine-folder target and migration rules |
 | `frontend/pages/`      | `frontend/pages/AGENTS.md`      | One folder per route-level page                                        |
 | `frontend/components/` | `frontend/components/AGENTS.md` | Capability-neutral UI primitives and developer tools                   |
 | `frontend/hooks/`      | `frontend/hooks/AGENTS.md`      | Cross-cutting React hooks                                              |

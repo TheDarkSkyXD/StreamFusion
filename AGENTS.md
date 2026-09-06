@@ -40,6 +40,31 @@
 
 Dont open a PR only commit and push to main.
 
+## FEATURE ARCHITECTURE
+
+Every implemented feature owns a `features/<feature>/` root with this structure:
+
+```text
+features/<feature>/
+├── routes/          # Thin route modules and transport entry points
+├── components/      # Feature-specific UI
+├── domain/          # Business rules and workflows
+├── capabilities/    # Provider-neutral ports
+├── adapters/        # Device, Platform, and vendor integrations
+├── data/            # Persistence adapters, schemas, queries, and mappers
+├── utils/           # Small, pure, feature-private helpers
+├── composition/     # Dependency wiring only
+└── tests/           # Feature-owned tests
+```
+
+- Place code by responsibility. Convex, Clerk, Electron, Twitch, and Kick integrations belong behind ports in `adapters/` when used; database-specific implementations belong in `data/`.
+- Keep `domain/` independent of React, routing frameworks, vendor SDKs, and concrete persistence. It depends on application-owned contracts and `capabilities/`.
+- Adapters implement capabilities. Capabilities never import their implementations. `composition/` connects consumers to implementations without business logic.
+- `routes/` parses and validates incoming requests, resolves the actor, invokes workflows, and maps results. Components render UI and collect input.
+- Keep feature-private code and tests inside the feature root. Shared test infrastructure and cross-feature integration tests may remain in workspace test directories.
+- Preserve runtime boundaries. Desktop renderer features cannot import privileged main-process implementations; use the allowlisted preload/IPC bridge.
+- This is the target for new features and feature migrations. Existing layouts are migration work, not evidence that the target is implemented. Update imports, route registration, test discovery, and ESLint boundaries together when migrating a feature.
+
 
 
 ## UI DESIGN
