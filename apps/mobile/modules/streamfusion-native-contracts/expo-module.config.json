@@ -1,0 +1,12 @@
+{
+  "platforms": ["android"],
+  "android": {
+    "modules": [
+      "expo.modules.streamfusionnativecontracts.StreamFusionPlaybackModule",
+      "expo.modules.streamfusionnativecontracts.StreamFusionMediaJobsModule",
+      "expo.modules.streamfusionnativecontracts.StreamFusionCaptionsModule",
+      "expo.modules.streamfusionnativecontracts.StreamFusionDiagnosticsModule",
+      "expo.modules.streamfusionnativecontracts.StreamFusionMaintenanceModule"
+    ]
+  }
+}

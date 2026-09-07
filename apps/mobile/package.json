@@ -17,7 +17,7 @@
     "bundle:android": "expo export --platform android --output-dir dist",
     "build:android:development": "node scripts/build-android-development.mjs",
     "config:android": "expo config --type public --json",
-    "lint": "eslint app/ src/ scripts/ tests/ vendor/ metro.config.js eslint.config.mjs vitest.config.mts --max-warnings=0",
+    "lint": "eslint app/ src/ modules/ scripts/ tests/ vendor/ metro.config.js eslint.config.mjs vitest.config.mts --max-warnings=0",
     "test": "node --test tests/*.test.mjs && vitest run --config vitest.config.mts && node scripts/verify-architecture.mjs",
     "typecheck": "tsc --noEmit"
   },

@@ -2,6 +2,7 @@ import { PLATFORMS } from "@streamfusion/core/platform";
 
 import { createExpoAppLinkSource } from "@mobile/features/shell/adapters/expo-app-link-adapter";
 import { createExpoAppMetadataReader } from "@mobile/features/diagnostics/adapters/expo-app-metadata-reader";
+import { createAndroidCapabilityContractRuntime } from "@mobile/features/native-contracts/composition/android-capability-contract-runtime";
 import { createDevelopmentClientController } from "@mobile/features/diagnostics/domain/development-client-controller";
 import { usePersistenceController } from "@mobile/features/diagnostics/components/persistence-controller";
 import { AppShell } from "@mobile/features/shell/components/app-shell";
@@ -12,8 +13,11 @@ import { createMobileStoreRuntime } from "@mobile/features/storage/composition/s
 import { createVolatilePersistenceProbe } from "@mobile/features/diagnostics/adapters/volatile-persistence-probe";
 import { createFetchRuntimeProbe } from "@mobile/features/diagnostics/adapters/fetch-runtime-probe";
 
+const androidCapabilityRuntime = createAndroidCapabilityContractRuntime();
+
 const developmentClientController = createDevelopmentClientController({
   appMetadata: createExpoAppMetadataReader(),
+  nativeCapabilityContracts: Object.values(androidCapabilityRuntime.contracts),
   runtimeProbes: [createFetchRuntimeProbe(), createVolatilePersistenceProbe()],
   supportedPlatforms: PLATFORMS,
 });
@@ -34,6 +38,7 @@ export function MobileRuntime() {
       activityRepository={persistenceRuntime.productState.activity}
       appLinks={appLinks}
       developmentStatus={developmentClientController.read()}
+      onRunNativeCapabilityProof={androidCapabilityRuntime.runStubProof}
       onPrepareRestorationProof={async (kind) => {
         await persistenceRuntime.productState.shellRestoration.write(
           kind === "corrupt" ? "not-json" : JSON.stringify({ version: 2 }),

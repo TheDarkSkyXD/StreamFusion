@@ -31,6 +31,7 @@ import {
 } from "@mobile/features/activity/components/activity-screen";
 import type { DevelopmentClientViewModel } from "@mobile/features/diagnostics/domain/development-client-controller";
 import type { PersistenceViewModel } from "@mobile/features/diagnostics/components/persistence-controller";
+import { NativeCapabilityStubProofControl } from "@mobile/features/native-contracts/components/native-capability-stub-proof-control";
 
 import { DestinationIcon } from "./destination-icon";
 import {
@@ -64,6 +65,7 @@ export function AppShell({
   appLinks,
   developmentStatus,
   onPrepareRestorationProof,
+  onRunNativeCapabilityProof,
   onRunPersistenceProof,
   persistenceStatus,
   shellRestoration,
@@ -74,6 +76,9 @@ export function AppShell({
   readonly onPrepareRestorationProof: (
     kind: "corrupt" | "unsupported",
   ) => Promise<void>;
+  readonly onRunNativeCapabilityProof: () => Promise<{
+    readonly detail: string;
+  }>;
   readonly onRunPersistenceProof: () => Promise<void>;
   readonly persistenceStatus: PersistenceViewModel;
   readonly shellRestoration: ShellRestorationRepository;
@@ -137,6 +142,7 @@ export function AppShell({
               developmentStatus={developmentStatus}
               dispatch={dispatch}
               onPrepareRestorationProof={onPrepareRestorationProof}
+              onRunNativeCapabilityProof={onRunNativeCapabilityProof}
               onRunPersistenceProof={onRunPersistenceProof}
               persistenceStatus={persistenceStatus}
               state={navigation}
@@ -250,6 +256,7 @@ function ShellScreen({
   developmentStatus,
   dispatch,
   onPrepareRestorationProof,
+  onRunNativeCapabilityProof,
   onRunPersistenceProof,
   persistenceStatus,
   state,
@@ -260,6 +267,9 @@ function ShellScreen({
   readonly onPrepareRestorationProof: (
     kind: "corrupt" | "unsupported",
   ) => Promise<void>;
+  readonly onRunNativeCapabilityProof: () => Promise<{
+    readonly detail: string;
+  }>;
   readonly onRunPersistenceProof: () => Promise<void>;
   readonly persistenceStatus: PersistenceViewModel;
   readonly state: ShellNavigationState;
@@ -313,6 +323,7 @@ function ShellScreen({
       contentContainerStyle={styles.screenContent}
       contentInsetAdjustmentBehavior="automatic"
       ref={scrollView}
+      style={styles.screenScroll}
       testID={`screen-${route.reviewId}`}
     >
       <View style={styles.contentColumn}>
@@ -350,6 +361,11 @@ function ShellScreen({
             {__DEV__ ? (
               <RestorationProofControls
                 onPrepare={onPrepareRestorationProof}
+              />
+            ) : null}
+            {__DEV__ ? (
+              <NativeCapabilityStubProofControl
+                onRun={onRunNativeCapabilityProof}
               />
             ) : null}
             <DevelopmentStatus model={developmentStatus} />
@@ -594,7 +610,7 @@ function DevelopmentStatus({
         {model.runtimeStatus}
       </Text>
       <Text selectable style={styles.cardBody} testID="runtime-layer-status">
-        {`${model.layerStatus} ${model.providerStatus} ${model.version}`}
+        {`${model.layerStatus} ${model.nativeCapabilityStatus} ${model.providerStatus} ${model.version}`}
       </Text>
     </View>
   );
@@ -728,6 +744,10 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: mobileSpacing.medium,
     paddingBottom: mobileSpacing.xLarge,
+  },
+  screenScroll: {
+    flex: 1,
+    minHeight: 0,
   },
   contentColumn: {
     gap: mobileSpacing.large,

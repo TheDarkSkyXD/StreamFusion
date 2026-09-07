@@ -1,0 +1,6 @@
+{
+  "name": "streamfusion-native-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/contracts.ts"
+}

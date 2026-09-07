@@ -20,6 +20,7 @@ describe("Mobile runtime composition", () => {
   it("reports every composed runtime layer ready", () => {
     const controller = createDevelopmentClientController({
       appMetadata,
+      nativeCapabilityContracts: [],
       runtimeProbes: [
         createFetchRuntimeProbe({ fetchImplementation: fetch }),
         createVolatilePersistenceProbe(),
@@ -29,6 +30,8 @@ describe("Mobile runtime composition", () => {
 
     expect(controller.read()).toEqual({
       layerStatus: "2/2 runtime services ready.",
+      nativeCapabilityStatus:
+        "0/0 Android module contracts available. Capability behavior is not enabled by this check.",
       providerStatus: "2 provider contracts ready.",
       runtimeStatus: "Android Expo Go runtime is composed.",
       title: "StreamFusion Mobile",
@@ -49,6 +52,7 @@ describe("Mobile runtime composition", () => {
   it("shows contained runtime failures in the controller state", () => {
     const controller = createDevelopmentClientController({
       appMetadata,
+      nativeCapabilityContracts: [],
       runtimeProbes: [
         createFetchRuntimeProbe({ fetchImplementation: undefined }),
         createVolatilePersistenceProbe(),
