@@ -1,0 +1,12 @@
+[
+  ["category-language-reset-open", "click", "--role", "combobox", "--name", "Language"],
+  ["category-language-reset-up", "key", "ArrowUp"],
+  ["category-language-reset", "key", "Enter"],
+  ["category-tag-empty", "fill", "--role", "textbox", "--name", "Tag", "--value", "zznotag9988"],
+  ["category-tag-clear", "fill", "--role", "textbox", "--name", "Tag", "--value", ""],
+  ["category-kick-cont", "click", "--role", "link", "--name", "Kick"],
+  ["category-twitch-cont", "click", "--role", "link", "--name", "Twitch"],
+  ["category-clips-cont", "click", "--role", "link", "--name", "Clips"],
+  ["category-videos-cont", "click", "--role", "link", "--name", "Videos"],
+  ["category-all-cont", "click", "--role", "link", "--name", "All"]
+]

@@ -1,0 +1,13 @@
+[
+  ["search-channels-cont", "click", "--role", "button", "--name", "Channels"],
+  ["search-kick-cont", "click", "--role", "button", "--name", "Kick"],
+  ["search-twitch-cont", "click", "--role", "button", "--name", "Twitch"],
+  ["search-platform-all-cont", "click", "--role", "button", "--name", "ALL"],
+  ["search-streams-cont", "click", "--role", "button", "--name", "Streams"],
+  ["search-videos-cont", "click", "--role", "button", "--name", "Videos"],
+  ["search-clips-cont", "click", "--role", "button", "--name", "Clips"],
+  ["search-categories-cont", "click", "--role", "button", "--name", "Categories"],
+  ["search-all-cont", "click", "--role", "button", "--name", "All"],
+  ["search-empty-input", "fill", "--role", "textbox", "--name", "Search StreamFusion...", "--value", "zznothing887733"],
+  ["search-empty-submit", "key", "Enter"]
+]

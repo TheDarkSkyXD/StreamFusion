@@ -1,0 +1,37 @@
+{
+  "id": "download-progress-ui-before",
+  "pid": 16644,
+  "port": 49506,
+  "runDir": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\download-progress-worktree\\.scratch\\verify-streamfusion\\runs\\download-progress-ui-before",
+  "runFile": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\download-progress-worktree\\.scratch\\verify-streamfusion\\runs\\download-progress-ui-before\\run.json",
+  "profileDir": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\download-progress-worktree\\.scratch\\verify-streamfusion\\runs\\download-progress-ui-before\\profile",
+  "artifactRoot": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\download-progress-worktree\\.scratch\\verify-streamfusion\\runs\\download-progress-ui-before\\dev-artifacts",
+  "evidenceDir": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\download-progress-worktree\\.scratch\\verify-streamfusion\\evidence\\download-progress-ui-before",
+  "logFile": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\download-progress-worktree\\.scratch\\verify-streamfusion\\evidence\\download-progress-ui-before\\launch.log",
+  "databaseSeed": {
+    "source": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.streamfusion-dev-user-data\\streamfusion.db",
+    "destination": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\download-progress-worktree\\.scratch\\verify-streamfusion\\runs\\download-progress-ui-before\\profile\\streamfusion.db"
+  },
+  "accountStorageSeed": {
+    "source": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.streamfusion-dev-user-data\\streamfusion-storage.json",
+    "destination": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\download-progress-worktree\\.scratch\\verify-streamfusion\\runs\\download-progress-ui-before\\profile\\streamfusion-storage.json",
+    "encryptionState": {
+      "source": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.streamfusion-dev-user-data\\Local State",
+      "destination": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\download-progress-worktree\\.scratch\\verify-streamfusion\\runs\\download-progress-ui-before\\profile\\Local State"
+    },
+    "cookies": null,
+    "cookieSnapshotWarning": "unable to open database file",
+    "authenticatedPlatforms": [
+      "twitch",
+      "kick"
+    ]
+  },
+  "launcher": {
+    "mode": "dev:electron",
+    "command": "npm start",
+    "selection": 1
+  },
+  "packageVersion": "1.0.0-beta.1",
+  "gitRevision": "aa52de6",
+  "launchedAt": "2026-09-05T22:18:52.850Z"
+}

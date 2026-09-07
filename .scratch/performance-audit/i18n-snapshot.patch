@@ -1,0 +1,12 @@
+diff --git a/apps/desktop/scripts/i18n-source-snapshot.generated.json b/apps/desktop/scripts/i18n-source-snapshot.generated.json
+index 9696ca0..1c4384f 100644
+--- a/apps/desktop/scripts/i18n-source-snapshot.generated.json
++++ b/apps/desktop/scripts/i18n-source-snapshot.generated.json
+@@ -1663,6 +1663,7 @@
+   "playback.failedToLoadContent": "Failed to load content",
+   "playback.failedToLoadMoreItems": "Failed to load more items. Please try again.",
+   "playback.shareUnavailable": "Share is available when this {{content}} is ready to play.",
++  "playback.sharePublicLinkUnavailable": "Share is unavailable because this {{content}} has no public link.",
+   "playback.noClipsFound": "No clips found",
+   "playback.thumbnailUnavailable": "Thumbnail unavailable",
+   "playback.subONLY": "SUB ONLY",

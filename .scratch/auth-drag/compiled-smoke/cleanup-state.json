@@ -1,0 +1,20 @@
+{
+  "id": "2026-09-06T19-32-22-893Z",
+  "pid": 17860,
+  "port": 61320,
+  "runDir": "C:\\sf-perf-commit\\.scratch\\verify-streamfusion\\runs\\2026-09-06T19-32-22-893Z",
+  "runFile": "C:\\sf-perf-commit\\.scratch\\verify-streamfusion\\runs\\2026-09-06T19-32-22-893Z\\run.json",
+  "profileDir": "C:\\sf-perf-commit\\.scratch\\verify-streamfusion\\runs\\2026-09-06T19-32-22-893Z\\profile",
+  "artifactRoot": "C:\\sf-perf-commit\\.scratch\\verify-streamfusion\\runs\\2026-09-06T19-32-22-893Z\\dev-artifacts",
+  "evidenceDir": "C:\\sf-perf-commit\\.scratch\\verify-streamfusion\\evidence\\2026-09-06T19-32-22-893Z",
+  "logFile": "C:\\sf-perf-commit\\.scratch\\verify-streamfusion\\evidence\\2026-09-06T19-32-22-893Z\\launch.log",
+  "databaseSeed": null,
+  "accountStorageSeed": null,
+  "launcher": {
+    "mode": "preview",
+    "command": "npm run preview"
+  },
+  "packageVersion": "1.0.0-beta.1",
+  "gitRevision": "e4a520d",
+  "launchedAt": "2026-09-06T19:32:22.923Z"
+}

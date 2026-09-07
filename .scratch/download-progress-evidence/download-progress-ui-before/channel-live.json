@@ -1,0 +1,1159 @@
+{
+  "capturedAt": "2026-09-05T22:21:05.641Z",
+  "title": "StreamFusion",
+  "url": "http://localhost:5174/#/stream/twitch/sodapoppin?tab=home",
+  "text": "StreamFusion\nStreamFusion\nKick degraded\nHome\nFollowing\nCategories\nMultiView\nHistory\nDownloads\nSettings\nFollowing\n672\nsodapoppin\n10.2K\nELDEN RING\nIce Poseidon\n7.7K\nIRL\nLIRIK\n7.1K\nOnimusha: Way of the Sword\nTazo\n1.6K\nSlots & Casino\nCYR\n1.5K\nProject Zomboid\nDansGaming\n1.5K\nSpecial Events\nSheriffEli\n1.2K\nGrand Theft Auto V\nAlveusSanctuary\n1.1K\nAnimals, Aquariums, and Zoos\nnickwhite\n1.1K\nIRL\nCobbruvs\n956\nIRL\nShow More\nLIVE\nsodapoppin\n\nMODDED Eldrin Ring Reforged and Seamless Co-OP w/ babe max difficulty settings not intended for only 2 ppl for max pain !podcast !gamersupps\n\nELDEN RING\nEnglish\nDropsEnabled\nRecord\nUnfollow\n10.2K\n4:15:33\nHome\nVideos\nClips\nStream Videos\nView all\n4:15:14\n515 views\n4 hours ago\nMODDED Eldrin Ring Reforged and Seamless Co-OP w/ babe max difficulty settings not intended for only 2 ppl for max pain !podcast !gamersupps\nJust Chatting\n7:18:30\n189.7K views\nyesterday\nstupid gaming with babe til League tonight with other idiots| !podcast !gamersupps\nJust Chatting\n6:17:10\n130.1K views\n2 days ago\nokay actually beating it. Crimson court final boss, darkest dungeon final boss surely| !podcast !gamersupps\nJust Chatting\n7:12:40\n167.9K views\n3 days ago\nwoahie wowie | !podcast !gamersupps\nJust Chatting\nPopular Clips\nView all\n0:26\n696.5K views\n9 years ago\nMia Khalifa at Sodapoppin's house\nIRL\n0:07\n558.7K views\n8 years ago\nsodapoppin spits on the floor in stockholm\nIRL\n0:27\n458.6K views\nlast year\nSoda's conclusion, play a mage on a basic level\nWorld of Warcraft\n0:22\n448.9K views\n7 years ago\nlick\nJust Chatting\nChat\nPinned by\nStarforgeSystems\nLabor Day PC Sale Now Live! https://starforgepc.com/Soda\niduckbro:ELPERMASSACRE\nrr_jeecy:Poor thing can't go forward alone\nWabblebee:\n THE DART \n THE DART \n THE DART \n THE DART \n THE DART \n THE DART \n THE DART\nkyergjohns:stored input into getting hit CLASSIC\nlvlzeromagikarp:PEPW gettin to the chest will be another journey\nOhmycoub:he saaad\nSystem:Connecting to channel...\nSystem:Connected to the channel\nNew messages\nTitaniumXPlatinum:\nOhmycoub:he lost his fried\nMeuduso1:\nDoNotSlip:\n Soda Elden Ring build\niduckbro:\nltl_wackman:many adds HANDLE IT \nSend a message...\nChat",
+  "elements": [
+    {
+      "role": "button",
+      "name": "Minimize",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Maximize",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Close",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Collapse sidebar",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "link",
+      "name": "StreamFusion",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "textbox",
+      "name": "Search StreamFusion...",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "status",
+      "name": "Kick status: Degraded.",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Notifications",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Open profile menu",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "link",
+      "name": "Home",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Following",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Categories",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "MultiView",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "History",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Downloads",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Settings",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Sync follows",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "link",
+      "name": "sodapoppin10.2KELDEN RING",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "img",
+      "name": "Twitch verified",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Ice Poseidon7.7KIRL",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "LIRIK7.1KOnimusha: Way of the Sword",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "img",
+      "name": "Twitch verified",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Tazo1.6KSlots & Casino",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "CYR1.5KProject Zomboid",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "img",
+      "name": "Twitch verified",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "DansGaming1.5KSpecial Events",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "img",
+      "name": "Twitch verified",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "SheriffEli1.2KGrand Theft Auto V",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "img",
+      "name": "Twitch verified",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "AlveusSanctuary1.1KAnimals, Aquariums, and Zoos",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "img",
+      "name": "Twitch verified",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "nickwhite1.1KIRL",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Cobbruvs956IRL",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Show More",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Settings",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "heading",
+      "name": "sodapoppin",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "img",
+      "name": "Twitch verified",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "ELDEN RING",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Record stream",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Unfollow",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "link",
+      "name": "Home",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Videos",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Clips",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "heading",
+      "name": "Stream Videos",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "View all",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "4:15:14515 views4 hours ago",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "MODDED Eldrin Ring Reforged and Seamless Co-OP w/ babe max difficulty settings not intended for only 2 ppl for max pain !podcast !gamersupps",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "heading",
+      "name": "MODDED Eldrin Ring Reforged and Seamless Co-OP w/ babe max difficulty settings not intended for only 2 ppl for max pain !podcast !gamersupps",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Just Chatting",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "7:18:30189.7K viewsyesterday",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "stupid gaming with babe til League tonight with other idiots| !podcast !gamersupps",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "heading",
+      "name": "stupid gaming with babe til League tonight with other idiots| !podcast !gamersupps",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Just Chatting",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "6:17:10130.1K views2 days ago",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "okay actually beating it. Crimson court final boss, darkest dungeon final boss surely| !podcast !gamersupps",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "heading",
+      "name": "okay actually beating it. Crimson court final boss, darkest dungeon final boss surely| !podcast !gamersupps",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Just Chatting",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "7:12:40167.9K views3 days ago",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "woahie wowie | !podcast !gamersupps",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "heading",
+      "name": "woahie wowie | !podcast !gamersupps",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Just Chatting",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "heading",
+      "name": "Popular Clips",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "View all",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Play clip Mia Khalifa at Sodapoppin's house",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Open clip Mia Khalifa at Sodapoppin's house",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "heading",
+      "name": "Mia Khalifa at Sodapoppin's house",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "IRL",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Play clip sodapoppin spits on the floor in stockholm",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Open clip sodapoppin spits on the floor in stockholm",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "heading",
+      "name": "sodapoppin spits on the floor in stockholm",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "IRL",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Play clip Soda's conclusion, play a mage on a basic level",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Open clip Soda's conclusion, play a mage on a basic level",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "heading",
+      "name": "Soda's conclusion, play a mage on a basic level",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "World of Warcraft",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Play clip lick",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Open clip lick",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "heading",
+      "name": "lick",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Just Chatting",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "heading",
+      "name": "Chat",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Show active chatters",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "StarforgeSystems",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Expand pinned message",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "link",
+      "name": "https://starforgepc.com/Soda",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "iduckbro",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Click to reply",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "presentation",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "rr_jeecy",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Click to reply",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "presentation",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Wabblebee",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Show moon2JOHNSOULS emote details",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Show moon2JOHNSOULS emote details",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Show moon2JOHNSOULS emote details",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Show moon2JOHNSOULS emote details",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Show moon2JOHNSOULS emote details",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Show moon2JOHNSOULS emote details",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Show moon2JOHNSOULS emote details",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Click to reply",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "presentation",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "kyergjohns",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Click to reply",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "presentation",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "lvlzeromagikarp",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Click to reply",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "presentation",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Ohmycoub",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Click to reply",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "presentation",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "System",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "System",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "TitaniumXPlatinum",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Show PEPW emote details",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Click to reply",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "presentation",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Ohmycoub",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Click to reply",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "presentation",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Meuduso1",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Show Kafka emote details",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Click to reply",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "presentation",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "DoNotSlip",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Show CLASSIC emote details",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Click to reply",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "presentation",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "iduckbro",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Show sadE emote details",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Click to reply",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "presentation",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "ltl_wackman",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Show AAAA emote details",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Click to reply",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "presentation",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Use EWCcrush",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Use Yagoo",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Use SipTime",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Use EleGiggle",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Use FeverFighter",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Use WeDidThat",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Use PewPewPew",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Use JinxLUL",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Use FeelsVi",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "textbox",
+      "name": "Send a message...",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Open twitch emote picker",
+      "disabled": false,
+      "selected": null,
+      "pressed": "false",
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Open third-party emote picker",
+      "disabled": false,
+      "selected": null,
+      "pressed": "false",
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Chat settings",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Chat",
+      "disabled": true,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Click to expand · drag to move (Ctrl+Shift+D to hide)",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Open Tanstack query devtools",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    }
+  ]
+}

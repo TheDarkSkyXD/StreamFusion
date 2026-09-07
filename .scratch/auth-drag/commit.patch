@@ -1,0 +1,1297 @@
+diff --git a/.agents/skills/verify-streamfusion/SKILL.md b/.agents/skills/verify-streamfusion/SKILL.md
+index 9d2e769..6ff845d 100644
+--- a/.agents/skills/verify-streamfusion/SKILL.md
++++ b/.agents/skills/verify-streamfusion/SKILL.md
+@@ -41,7 +41,7 @@ node .agents/skills/verify-streamfusion/scripts/control.mjs session --mode previ
+ 
+ Do not attach to a developer's existing port 9222 or 9236 instance. Do not use `electron .`, `electron-vite preview`, or a packaged build for normal feature proof.
+ 
+-The controller creates a WAL-consistent SQLite snapshot of `.streamfusion-dev-user-data/streamfusion.db` and copies the account-bearing Electron state from `.streamfusion-dev-user-data/` into the disposable profile before launch. The account snapshot includes `streamfusion-storage.json`, Chromium's `Local State` encryption key, and, when Chromium is not holding an exclusive lock, a consistent `Network/Cookies` snapshot. A locked cookie database is reported in `accountStorageWarnings` without discarding the account store, encryption state, or database snapshot. This gives verification the user's current local follows, history, preferences, authenticated Twitch and Kick accounts, and usually the Kick website session without allowing local writes to modify the source profile. Pass `--database <path>` or `--storage <path>` to seed from another profile. `--storage` also selects the source profile for encryption state and cookies. A missing artifact starts fresh.
++The controller creates a WAL-consistent SQLite snapshot of `.streamfusion-dev-user-data/streamfusion.db` and copies only preferences, the last active tab, and window bounds from `streamfusion-storage.json`. Credentials, cached account identities, encryption keys, and browser cookies are never copied: rotating a copied refresh token can invalidate the source account's session. Pass `--database <path>` or `--storage <path>` to select another seed source; the same credential exclusion applies. A missing artifact starts fresh. Authenticated verification requires a dedicated test account signed into the disposable instance.
+ 
+ ## Doctor
+ 
+@@ -51,7 +51,7 @@ Run doctor before driving the app and whenever a selector, route, or screenshot
+ node .agents/skills/verify-streamfusion/scripts/control.mjs doctor --run $verifyRun
+ ```
+ 
+-Require `healthy: true`. Doctor checks the recorded launcher PID, the process tree that owns the CDP port, the StreamFusion window title and URL, the preload `electronAPI`, rendered body content, package version, launch revision, uncaught error patterns, and account-token decryption failures in the launch log. Doctor also reports which authenticated Platform entries were present in the copied account store and any non-fatal account snapshot warnings. Authentication is not required for the baseline recipes. A feature that writes account state, follows, chat messages, moderation actions, downloads, or recordings must add its own authenticated precondition.
++Require `healthy: true`. Doctor checks the recorded launcher PID, the process tree that owns the CDP port, the StreamFusion window title and URL, the preload `electronAPI`, rendered body content, package version, launch revision, uncaught error patterns, and account-token decryption failures in the launch log. Seeded runs report no copied authenticated platforms. Authentication is not required for the baseline recipes. A feature that writes account state, follows, chat messages, moderation actions, downloads, or recordings must add its own authenticated precondition.
+ 
+ Inspect the isolated database after doctor succeeds:
+ 
+@@ -106,7 +106,7 @@ Cleanup terminates the recorded launcher process tree by PID, waits for its CDP
+ 
+ ## Isolation
+ 
+-Each launch gets its own CDP port, Electron `userData` directory, and scratch project root. The launch reads the live development database, account store, encryption state, and cookie database once to seed isolated copies. Local database, preference, cookie, and token-refresh writes stay inside the disposable profile. StreamFusion's development compiler still writes shared build output under `apps/desktop/out`, so the controller refuses a second verification run and the common developer CDP ports 9222 and 9236. Close other dev instances before launching. Never reuse a run ID. Account-backed and provider mutation recipes should still use a dedicated test account because OAuth credentials and website cookies can authorize writes to remote Platform state.
++Each launch gets its own CDP port, Electron `userData` directory, and scratch project root. The launch snapshots the live development database and copies only preferences, window bounds, and the last active tab from account storage. It never copies OAuth credentials, account identities, encryption state, or browser cookies, including when `--storage` is supplied. Twitch device-code refresh tokens are single-use; refreshing a copied credential can invalidate the original account. Authenticate a dedicated test account inside the isolated run when a recipe needs authentication. StreamFusion's development compiler still writes shared build output under `apps/desktop/out`, so the controller refuses a second verification run and the common developer CDP ports 9222 and 9236. Close other dev instances before launching. Never reuse a run ID. Account-backed and provider mutation recipes should still use a dedicated test account because OAuth credentials and website cookies can authorize writes to remote Platform state.
+ 
+ ## Helpers
+ 
+diff --git a/.agents/skills/verify-streamfusion/features/README.md b/.agents/skills/verify-streamfusion/features/README.md
+index 3d19ca4..9fd0723 100644
+--- a/.agents/skills/verify-streamfusion/features/README.md
++++ b/.agents/skills/verify-streamfusion/features/README.md
+@@ -7,7 +7,7 @@ This directory is the maintained source for proving StreamFusion's desktop behav
+ - Run commands from the repository root with Node 22 or later and installed desktop dependencies.
+ - Launch a new disposable instance through `verify-streamfusion` and keep `$verifyRun` set to its `run.json` path.
+ - Run `doctor --run $verifyRun` and require `healthy: true`.
+-- Run `database --run $verifyRun --output database.json` and require `healthy: true`. The launch uses a WAL-consistent database snapshot and copies the Electron Store account state when those live development artifacts exist.
++- Run `database --run $verifyRun --output database.json` and require `healthy: true`. The launch uses a WAL-consistent database snapshot and copies non-auth preferences when those live development artifacts exist. Credentials, identities, and browser sessions are never copied.
+ - Never drive an existing developer instance or a run created by another agent.
+ - Start from the Home route unless a feature recipe says otherwise.
+ - Treat Twitch and Kick responses as external state. Record whether the app shows data, an empty state, or a provider error.
+diff --git a/.agents/skills/verify-streamfusion/scripts/account-seed.mjs b/.agents/skills/verify-streamfusion/scripts/account-seed.mjs
+new file mode 100644
+index 0000000..e237d42
+--- /dev/null
++++ b/.agents/skills/verify-streamfusion/scripts/account-seed.mjs
+@@ -0,0 +1,10 @@
++export function createVerificationAccountSeed(stored) {
++  if (!stored || typeof stored !== "object" || Array.isArray(stored)) {
++    throw new Error("Account storage must be an object");
++  }
++  return Object.fromEntries(
++    ["preferences", "lastActiveTab", "windowBounds"]
++      .filter((key) => Object.hasOwn(stored, key))
++      .map((key) => [key, stored[key]]),
++  );
++}
+diff --git a/.agents/skills/verify-streamfusion/scripts/account-seed.test.mjs b/.agents/skills/verify-streamfusion/scripts/account-seed.test.mjs
+new file mode 100644
+index 0000000..f54ac57
+--- /dev/null
++++ b/.agents/skills/verify-streamfusion/scripts/account-seed.test.mjs
+@@ -0,0 +1,35 @@
++import assert from "node:assert/strict";
++import test from "node:test";
++import { createVerificationAccountSeed } from "./account-seed.mjs";
++
++test("verification copies preferences without sharing rotating credentials", () => {
++  const source = {
++    preferences: { theme: "dark" },
++    lastActiveTab: "home",
++    windowBounds: { width: 1400, height: 900 },
++    authTokens: { twitch: { encrypted: "one-use-refresh-credential" } },
++    appTokens: { twitch: { encrypted: "app-credential" } },
++    twitchUser: { id: "1" },
++    kickUser: { id: "2" },
++    twitchFollowWriteToken: { encrypted: "follow-credential" },
++    kickWebBearer: { encrypted: "website-credential" },
++    futureCredential: "must-not-be-copied",
++  };
++  const before = structuredClone(source);
++  assert.deepEqual(createVerificationAccountSeed(source), {
++    preferences: source.preferences,
++    lastActiveTab: source.lastActiveTab,
++    windowBounds: source.windowBounds,
++  });
++  assert.deepEqual(source, before);
++});
++
++test("empty storage remains signed out and invalid storage is rejected", () => {
++  assert.deepEqual(createVerificationAccountSeed({}), {});
++  for (const value of [null, [], "invalid"]) {
++    assert.throws(
++      () => createVerificationAccountSeed(value),
++      /must be an object/,
++    );
++  }
++});
+diff --git a/.agents/skills/verify-streamfusion/scripts/control.mjs b/.agents/skills/verify-streamfusion/scripts/control.mjs
+index 7745e57..e503569 100644
+--- a/.agents/skills/verify-streamfusion/scripts/control.mjs
++++ b/.agents/skills/verify-streamfusion/scripts/control.mjs
+@@ -8,6 +8,7 @@ import path from "node:path";
+ import process from "node:process";
+ import { DatabaseSync } from "node:sqlite";
+ import { fileURLToPath } from "node:url";
++import { createVerificationAccountSeed } from "./account-seed.mjs";
+ 
+ import {
+   createVerificationLaunchPlan,
+@@ -385,25 +386,6 @@ async function seedLiveDatabase(options, profileDir) {
+   return { source, destination };
+ }
+ 
+-async function copyIfPresent(source, destination) {
+-  if (!existsSync(source)) return null;
+-  await mkdir(path.dirname(destination), { recursive: true });
+-  await writeFile(destination, await readFile(source));
+-  return { source, destination };
+-}
+-
+-async function snapshotSqliteIfPresent(source, destination) {
+-  if (!existsSync(source)) return null;
+-  await mkdir(path.dirname(destination), { recursive: true });
+-  const database = new DatabaseSync(source, { readOnly: true });
+-  try {
+-    database.prepare("VACUUM INTO ?").run(destination);
+-  } finally {
+-    database.close();
+-  }
+-  return { source, destination };
+-}
+-
+ async function seedLiveAccountStorage(options, profileDir) {
+   const source = path.resolve(
+     typeof options.storage === "string"
+@@ -414,40 +396,16 @@ async function seedLiveAccountStorage(options, profileDir) {
+ 
+   const serialized = await readFile(source, "utf8");
+   const stored = JSON.parse(serialized);
+-  const authTokens =
+-    stored && typeof stored === "object" && !Array.isArray(stored)
+-      ? stored.authTokens
+-      : null;
+-  const authenticatedPlatforms =
+-    authTokens && typeof authTokens === "object" && !Array.isArray(authTokens)
+-      ? ["twitch", "kick"].filter((platform) => platform in authTokens)
+-      : [];
+-
+   const destination = path.join(profileDir, "streamfusion-storage.json");
+-  await writeFile(destination, serialized, "utf8");
+-  const sourceProfile = path.dirname(source);
+-  const encryptionState = await copyIfPresent(
+-    path.join(sourceProfile, "Local State"),
+-    path.join(profileDir, "Local State"),
++  await writeFile(
++    destination,
++    JSON.stringify(createVerificationAccountSeed(stored)),
++    "utf8",
+   );
+-  let cookies = null;
+-  let cookieSnapshotWarning = null;
+-  try {
+-    cookies = await snapshotSqliteIfPresent(
+-      path.join(sourceProfile, "Network", "Cookies"),
+-      path.join(profileDir, "Network", "Cookies"),
+-    );
+-  } catch (error) {
+-    cookieSnapshotWarning =
+-      error instanceof Error ? error.message : String(error);
+-  }
+   return {
+     source,
+     destination,
+-    encryptionState,
+-    cookies,
+-    cookieSnapshotWarning,
+-    authenticatedPlatforms,
++    authenticatedPlatforms: [],
+   };
+ }
+ 
+@@ -648,7 +606,7 @@ async function doctor(options) {
+     gitRevision: state.gitRevision,
+     authentication: !state.accountStorageSeed
+       ? "No development account store was available; this run started signed out"
+-      : `Seeded development account state for: ${state.accountStorageSeed.authenticatedPlatforms.join(", ") || "no authenticated platforms"}`,
++      : "Seeded development preferences; credentials and browser sessions were not copied",
+     accountStorageWarnings,
+     accountStorageErrors,
+     uncaughtErrors,
+diff --git a/apps/desktop/src/backend/auth/twitch-auth.ts b/apps/desktop/src/backend/auth/twitch-auth.ts
+index 627b39f..085afb5 100644
+--- a/apps/desktop/src/backend/auth/twitch-auth.ts
++++ b/apps/desktop/src/backend/auth/twitch-auth.ts
+@@ -397,6 +397,7 @@ class TwitchAuthService {
+    * Fetch the current authenticated user's information
+    */
+   async fetchCurrentUser(accessToken?: string): Promise<TwitchUser | null> {
++    const explicitAccessToken = accessToken !== undefined;
+     const token = accessToken ?? storageService.getToken(this.platform)?.accessToken;
+ 
+     if (!token) {
+@@ -405,6 +406,8 @@ class TwitchAuthService {
+     }
+ 
+     try {
++      const tokenIsCurrent = (): boolean =>
++        storageService.getToken(this.platform)?.accessToken === token;
+       const config = getOAuthConfig(this.platform);
+       const response = await fetch(`${TWITCH_API_BASE}/users`, {
+         headers: {
+@@ -412,9 +415,13 @@ class TwitchAuthService {
+           "Client-Id": config.clientId,
+         },
+       });
++      if (!tokenIsCurrent()) {
++        logger.debug("Auth:Twitch", "Discarding Twitch user response for a stale token");
++        return null;
++      }
+ 
+       if (!response.ok) {
+-        if (response.status === 401) {
++        if (response.status === 401 && !explicitAccessToken) {
+           logger.debug("Auth:Twitch", "Token expired, attempting refresh");
+           const refreshed = await this.refreshToken();
+           if (refreshed) {
+@@ -432,8 +439,11 @@ class TwitchAuthService {
+ 
+       const apiUser = data.data[0];
+       const user = this.transformUser(apiUser);
++      if (!tokenIsCurrent()) {
++        logger.debug("Auth:Twitch", "Discarding Twitch user fetched for a stale token");
++        return null;
++      }
+ 
+-      // Update stored user data
+       storageService.saveTwitchUser(user);
+ 
+       return user;
+diff --git a/apps/desktop/src/backend/ipc/handlers/auth-handlers.ts b/apps/desktop/src/backend/ipc/handlers/auth-handlers.ts
+index 2b7a624..30b286c 100644
+--- a/apps/desktop/src/backend/ipc/handlers/auth-handlers.ts
++++ b/apps/desktop/src/backend/ipc/handlers/auth-handlers.ts
+@@ -445,6 +445,7 @@ interface PerformTwitchDeviceCodeLoginDependencies extends TwitchDeviceCodeLogin
+   saveToken: (platform: Platform, token: AuthToken) => void;
+   scheduleProactiveRefresh: () => void;
+   fetchCurrentUser: () => Promise<TwitchUser | null>;
++  clearTwitchUser: () => void;
+   saveTwitchUser: (user: TwitchUser) => void;
+   afterAuthenticated: () => Promise<void>;
+   onStatusChange?: (
+@@ -462,6 +463,7 @@ export async function performTwitchDeviceCodeLogin(
+     dependencies,
+     dependencies.onStatusChange
+   );
++  dependencies.clearTwitchUser();
+   dependencies.saveToken("twitch", token);
+   logger.info("Auth:Twitch", "Twitch authentication stage", {
+     stage: "token-persisted",
+@@ -475,9 +477,12 @@ export async function performTwitchDeviceCodeLogin(
+     identityPresent: user !== null,
+     elapsedMs: Date.now() - startedAt,
+   });
+-  if (user) {
+-    dependencies.saveTwitchUser(user);
++  if (!user) {
++    throw new Error(
++      "Twitch authentication succeeded, but account details could not be loaded. Please try again."
++    );
+   }
++  dependencies.saveTwitchUser(user);
+   await dependencies.afterAuthenticated();
+   logger.info("Auth:Twitch", "Twitch authentication stage", {
+     stage: "renderer-notified",
+@@ -486,6 +491,75 @@ export async function performTwitchDeviceCodeLogin(
+   return user;
+ }
+ 
++interface ResolveAuthStatusDependencies {
++  getTwitchUser: () => TwitchUser | null;
++  getTwitchToken: () => AuthToken | null;
++  getKickUser: () => AuthStatus["kick"]["user"];
++  hasUsableToken: (platform: Platform) => boolean;
++  isTokenExpired: (platform: Platform) => boolean;
++  fetchMissingTwitchUser: () => Promise<TwitchUser | null>;
++}
++
++export function createTwitchIdentitySingleFlight(
++  getCurrentAccessToken: () => string | null,
++  fetchCurrentUser: (accessToken: string) => Promise<TwitchUser | null>
++): () => Promise<TwitchUser | null> {
++  let inFlight: { accessToken: string; promise: Promise<TwitchUser | null> } | null = null;
++  return () => {
++    const accessToken = getCurrentAccessToken();
++    if (!accessToken) return Promise.resolve(null);
++    if (!inFlight || inFlight.accessToken !== accessToken) {
++      const requestedAccessToken = accessToken;
++      const promise = fetchCurrentUser(requestedAccessToken)
++        .then((user) => (getCurrentAccessToken() === requestedAccessToken ? user : null))
++        .finally(() => {
++          if (inFlight?.accessToken === requestedAccessToken) {
++            inFlight = null;
++          }
++        });
++      inFlight = { accessToken: requestedAccessToken, promise };
++    }
++    return inFlight.promise;
++  };
++}
++
++export async function resolveAuthStatus(
++  dependencies: ResolveAuthStatusDependencies
++): Promise<AuthStatus> {
++  let twitchUser = dependencies.getTwitchUser();
++  const twitchToken = dependencies.getTwitchToken();
++  const kickUser = dependencies.getKickUser();
++  let twitchHasToken = dependencies.hasUsableToken("twitch");
++  const kickHasToken = dependencies.hasUsableToken("kick");
++  let twitchExpired = !twitchHasToken || dependencies.isTokenExpired("twitch");
++  const kickExpired = !kickHasToken || dependencies.isTokenExpired("kick");
++
++  if (!twitchUser && twitchHasToken && !twitchExpired) {
++    twitchUser = await dependencies.fetchMissingTwitchUser();
++    if (dependencies.getTwitchToken()?.accessToken !== twitchToken?.accessToken) {
++      twitchUser = dependencies.getTwitchUser();
++      twitchHasToken = dependencies.hasUsableToken("twitch");
++      twitchExpired = !twitchHasToken || dependencies.isTokenExpired("twitch");
++    }
++  }
++
++  return {
++    twitch: {
++      connected: !!twitchUser && twitchHasToken && !twitchExpired,
++      user: twitchUser,
++      hasToken: twitchHasToken,
++      isExpired: twitchExpired,
++    },
++    kick: {
++      connected: !!kickUser && kickHasToken && !kickExpired,
++      user: kickUser,
++      hasToken: kickHasToken,
++      isExpired: kickExpired,
++    },
++    isGuest: !twitchUser && !kickUser,
++  };
++}
++
+ export interface AuthHandlerDependencies {
+   readonly followReaders: {
+     readonly twitch: AccountFollowReader<"twitch", UnifiedChannel>;
+@@ -499,6 +573,10 @@ export function registerAuthHandlers(
+ ): void {
+   const authHandlersStartedAt = Date.now();
+   let twitchLoginInFlight: Promise<{ success: boolean; error?: string }> | null = null;
++  const fetchMissingTwitchUserOnce = createTwitchIdentitySingleFlight(
++    () => storageService.getToken("twitch")?.accessToken ?? null,
++    (accessToken) => twitchAuthService.fetchCurrentUser(accessToken)
++  );
+ 
+   function safeSend(channel: string, ...args: unknown[]): void {
+     if (!renderer.send(channel as (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS], ...args)) {
+@@ -801,7 +879,7 @@ export function registerAuthHandlers(
+   });
+ 
+   // ========== Auth - Status ==========
+-  ipcMain.handle(IPC_CHANNELS.AUTH_GET_STATUS, (event): AuthStatus => {
++  ipcMain.handle(IPC_CHANNELS.AUTH_GET_STATUS, async (event): Promise<AuthStatus> => {
+     if (!isAllowedSender(event)) {
+       return {
+         twitch: { connected: false, user: null, hasToken: false, isExpired: true },
+@@ -809,28 +887,14 @@ export function registerAuthHandlers(
+         isGuest: true,
+       };
+     }
+-    const twitchUser = storageService.getTwitchUser();
+-    const kickUser = storageService.getKickUser();
+-    const twitchHasToken = storageService.hasUsableToken("twitch");
+-    const kickHasToken = storageService.hasUsableToken("kick");
+-    const twitchExpired = !twitchHasToken || storageService.isTokenExpired("twitch");
+-    const kickExpired = !kickHasToken || storageService.isTokenExpired("kick");
+-
+-    return {
+-      twitch: {
+-        connected: !!twitchUser && twitchHasToken && !twitchExpired,
+-        user: twitchUser,
+-        hasToken: twitchHasToken,
+-        isExpired: twitchExpired,
+-      },
+-      kick: {
+-        connected: !!kickUser && kickHasToken && !kickExpired,
+-        user: kickUser,
+-        hasToken: kickHasToken,
+-        isExpired: kickExpired,
+-      },
+-      isGuest: !twitchUser && !kickUser,
+-    };
++    return await resolveAuthStatus({
++      getTwitchUser: () => storageService.getTwitchUser(),
++      getTwitchToken: () => storageService.getToken("twitch"),
++      getKickUser: () => storageService.getKickUser(),
++      hasUsableToken: (platform) => storageService.hasUsableToken(platform),
++      isTokenExpired: (platform) => storageService.isTokenExpired(platform),
++      fetchMissingTwitchUser: fetchMissingTwitchUserOnce,
++    });
+   });
+ 
+   ipcMain.handle(IPC_CHANNELS.AUTH_SYNC_FOLLOWS, async (event, payload: unknown) => {
+@@ -1040,7 +1104,11 @@ export function registerAuthHandlers(
+             ),
+           saveToken: (platform, token) => storageService.saveToken(platform, token),
+           scheduleProactiveRefresh: () => twitchAuthService.scheduleProactiveRefresh(),
+-          fetchCurrentUser: () => twitchAuthService.fetchCurrentUser(),
++          fetchCurrentUser: () => {
++            const token = storageService.getToken("twitch");
++            return token ? twitchAuthService.fetchCurrentUser(token.accessToken) : Promise.resolve(null);
++          },
++          clearTwitchUser: () => storageService.clearTwitchUser(),
+           saveTwitchUser: (user) => storageService.saveTwitchUser(user),
+           afterAuthenticated: async () => {
+             reconcileLiveNotificationsAfterFollowSync(syncFollowsOnLogin("twitch"));
+diff --git a/apps/desktop/src/frontend/pages/Mod/channel/workspace/ModWorkspace.tsx b/apps/desktop/src/frontend/pages/Mod/channel/workspace/ModWorkspace.tsx
+index e33d803..b0ea98b 100644
+--- a/apps/desktop/src/frontend/pages/Mod/channel/workspace/ModWorkspace.tsx
++++ b/apps/desktop/src/frontend/pages/Mod/channel/workspace/ModWorkspace.tsx
+@@ -1,4 +1,4 @@
+-import { useEffect, useId, useRef, useState } from "react";
++import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+ import type { CSSProperties, ReactNode } from "react";
+ import { useTranslation } from "react-i18next";
+ import {
+@@ -68,6 +68,21 @@ function loadLayout(
+ }
+ 
+ type Split = ReturnType<typeof layoutRects>["splits"][number];
++type DragTarget = { id: WidgetId | "workspace"; edge: DockEdge };
++
++interface DragGesture {
++  id: WidgetId;
++  x: number;
++  y: number;
++  active: boolean;
++  offsetX: number;
++  offsetY: number;
++  ghostWidth: number;
++}
++
++function dragTransform(gesture: DragGesture, point: { x: number; y: number }) {
++  return `translate3d(${point.x - gesture.offsetX}px, ${point.y - gesture.offsetY}px, 0)`;
++}
+ 
+ function DockSeparator({
+   split,
+@@ -165,10 +180,16 @@ export function ModWorkspace({ platform, storageKey, widgets }: ModWorkspaceProp
+   const [layout, setLayout] = useState<DockLayout>(() => loadLayout(storageKey, platform, widgets));
+   const [resizeRoot, setResizeRoot] = useState<DockNode | null>(null);
+   const [dragging, setDragging] = useState<WidgetId | null>(null);
+-  const [over, setOver] = useState<{ id: WidgetId | "workspace"; edge: DockEdge } | null>(null);
++  const [over, setOver] = useState<DragTarget | null>(null);
++  const overRef = useRef<DragTarget | null>(null);
+   const [announcement, setAnnouncement] = useState("");
+   const [storageError, setStorageError] = useState(false);
+-  const dragGesture = useRef<{ id: WidgetId; x: number; y: number; active: boolean } | null>(null);
++  const dragGesture = useRef<DragGesture | null>(null);
++  const dragGhost = useRef<HTMLDivElement>(null);
++  const dragFrame = useRef<number | null>(null);
++  const pendingDragPoint = useRef<{ x: number; y: number } | null>(null);
++  const dragPoint = useRef<{ x: number; y: number } | null>(null);
++  const pointerCapture = useRef<{ element: HTMLDivElement; pointerId: number } | null>(null);
+   const container = useRef<HTMLDivElement>(null);
+   const [size, setSize] = useState({ width: 0, height: 0 });
+   useEffect(() => {
+@@ -200,6 +221,10 @@ export function ModWorkspace({ platform, storageKey, widgets }: ModWorkspaceProp
+     size.height
+   );
+   const originalGeometry = dragging ? layoutRects(root, size.width, size.height) : geometry;
++  const geometryRef = useRef(geometry);
++  useLayoutEffect(() => {
++    geometryRef.current = geometry;
++  }, [geometry]);
+   const move = (source: WidgetId, target: WidgetId | "workspace", edge: DockEdge) => {
+     if (!canDockWidget(source, target, edge)) return;
+     commit({
+@@ -210,15 +235,38 @@ export function ModWorkspace({ platform, storageKey, widgets }: ModWorkspaceProp
+           : dockWidget(layout.root, source, target, edge),
+     });
+     setDragging(null);
++    overRef.current = null;
+     setOver(null);
+     const title = widgets.find((widget) => widget.id === source)?.title ?? source;
+     setAnnouncement(t("moderation.workspace.moved", { defaultValue: "{{title}} moved", title }));
+   };
+-  const cancelDrag = () => {
+-    dragGesture.current = null;
+-    setDragging(null);
+-    setOver(null);
+-  };
++  const cancelDragFrame = useCallback(() => {
++    if (dragFrame.current !== null) cancelAnimationFrame(dragFrame.current);
++    dragFrame.current = null;
++    pendingDragPoint.current = null;
++  }, []);
++  const releaseDragCapture = useCallback(() => {
++    const capture = pointerCapture.current;
++    pointerCapture.current = null;
++    if (!capture) return;
++    try {
++      capture.element.releasePointerCapture(capture.pointerId);
++    } catch {
++      // Pointer capture can already be released by the browser during cancellation.
++    }
++  }, []);
++  const cancelDrag = useCallback(
++    (releaseCapture = true) => {
++      cancelDragFrame();
++      if (releaseCapture) releaseDragCapture();
++      dragGesture.current = null;
++      dragPoint.current = null;
++      setDragging(null);
++      overRef.current = null;
++      setOver(null);
++    },
++    [cancelDragFrame, releaseDragCapture]
++  );
+   const targetAt = (clientX: number, clientY: number, source: WidgetId) => {
+     const bounds = container.current?.getBoundingClientRect();
+     if (!bounds) return null;
+@@ -230,7 +278,7 @@ export function ModWorkspace({ platform, storageKey, widgets }: ModWorkspaceProp
+     const outerEdge = edges[edgeDistances.indexOf(outerDistance)];
+     if (outerDistance < 32 && canDockWidget(source, "workspace", outerEdge))
+       return { id: "workspace" as const, edge: outerEdge };
+-    const target = geometry.widgets.find(
++    const target = geometryRef.current.widgets.find(
+       (rect) =>
+         rect.id !== source &&
+         x >= rect.x &&
+@@ -252,17 +300,41 @@ export function ModWorkspace({ platform, storageKey, widgets }: ModWorkspaceProp
+             : "bottom";
+     return canDockWidget(source, target.id, edge) ? { id: target.id, edge } : null;
+   };
++  const queueDragFrame = (clientX: number, clientY: number) => {
++    pendingDragPoint.current = { x: clientX, y: clientY };
++    if (dragFrame.current !== null) return;
++    dragFrame.current = requestAnimationFrame(() => {
++      dragFrame.current = null;
++      const point = pendingDragPoint.current;
++      pendingDragPoint.current = null;
++      const gesture = dragGesture.current;
++      if (!point || !gesture?.active) return;
++      dragPoint.current = point;
++      if (dragGhost.current) dragGhost.current.style.transform = dragTransform(gesture, point);
++      const target = targetAt(point.x, point.y, gesture.id);
++      if (overRef.current?.id === target?.id && overRef.current?.edge === target?.edge) return;
++      overRef.current = target;
++      setOver(target);
++    });
++  };
++  useEffect(
++    () => () => {
++      cancelDragFrame();
++      releaseDragCapture();
++    },
++    [cancelDragFrame, releaseDragCapture]
++  );
+   useEffect(() => {
+     if (!dragging) return;
+     const escape = (event: KeyboardEvent) => {
+       if (event.key !== "Escape") return;
+-      dragGesture.current = null;
+-      setDragging(null);
+-      setOver(null);
++      cancelDrag();
+     };
+     window.addEventListener("keydown", escape);
+     return () => window.removeEventListener("keydown", escape);
+-  }, [dragging]);
++  }, [cancelDrag, dragging]);
++
++  const draggedWidget = widgets.find((widget) => widget.id === dragging);
+ 
+   return (
+     <div
+@@ -367,23 +439,23 @@ export function ModWorkspace({ platform, storageKey, widgets }: ModWorkspaceProp
+               gesture.active = true;
+               setDragging(gesture.id);
+             }
+-            const target = targetAt(event.clientX, event.clientY, gesture.id);
+-            setOver((current) =>
+-              current?.id === target?.id && current?.edge === target?.edge ? current : target
+-            );
++            queueDragFrame(event.clientX, event.clientY);
+           }}
+           onPointerUp={(event) => {
+             const gesture = dragGesture.current;
+             if (!gesture) return;
++            cancelDragFrame();
+             const target = gesture.active
+               ? targetAt(event.clientX, event.clientY, gesture.id)
+               : null;
+-            event.currentTarget.releasePointerCapture(event.pointerId);
+             if (target) move(gesture.id, target.id, target.edge);
+             cancelDrag();
+           }}
+-          onPointerCancel={cancelDrag}
+-          onLostPointerCapture={cancelDrag}
++          onPointerCancel={() => cancelDrag()}
++          onLostPointerCapture={() => {
++            pointerCapture.current = null;
++            cancelDrag(false);
++          }}
+         >
+           {widgets
+             .filter((widget) => visible.includes(widget.id))
+@@ -428,13 +500,30 @@ export function ModWorkspace({ platform, storageKey, widgets }: ModWorkspaceProp
+                         )
+                           return;
+                         event.preventDefault();
+-                        container.current?.setPointerCapture(event.pointerId);
++                        const canvas = container.current;
++                        canvas?.setPointerCapture(event.pointerId);
++                        if (canvas)
++                          pointerCapture.current = { element: canvas, pointerId: event.pointerId };
++                        const bounds =
++                          event.currentTarget.parentElement?.parentElement?.getBoundingClientRect() ?? {
++                            left: event.clientX,
++                            top: event.clientY,
++                            width: 240,
++                          };
++                        const ghostWidth = Math.max(200, Math.min(320, bounds.width));
+                         dragGesture.current = {
+                           id: widget.id,
+                           x: event.clientX,
+                           y: event.clientY,
+                           active: false,
++                          offsetX: Math.max(
++                            12,
++                            Math.min(ghostWidth - 12, event.clientX - bounds.left)
++                          ),
++                          offsetY: Math.max(0, Math.min(40, event.clientY - bounds.top)),
++                          ghostWidth,
+                         };
++                        dragPoint.current = { x: event.clientX, y: event.clientY };
+                       }}
+                     >
+                       {widget.icon}
+@@ -586,6 +675,25 @@ export function ModWorkspace({ platform, storageKey, widgets }: ModWorkspaceProp
+             ))}
+         </div>
+       </div>
++      {dragging && dragGesture.current && (
++        <div
++          ref={dragGhost}
++          className="mod-workspace-drag-ghost"
++          data-testid="mod-workspace-drag-ghost"
++          aria-hidden="true"
++          style={{
++            width: dragGesture.current.ghostWidth,
++            transform: dragTransform(
++              dragGesture.current,
++              dragPoint.current ?? { x: dragGesture.current.x, y: dragGesture.current.y }
++            ),
++          }}
++        >
++          <span className="mod-workspace-drag-ghost-icon">{draggedWidget?.icon}</span>
++          <span className="mod-workspace-drag-ghost-title">{draggedWidget?.title ?? dragging}</span>
++          <GripVertical size={14} className="mod-workspace-grip" />
++        </div>
++      )}
+       <span className="sr-only" role="status" aria-live="polite">
+         {announcement}
+       </span>
+diff --git a/apps/desktop/src/frontend/pages/Mod/channel/workspace/mod-workspace.css b/apps/desktop/src/frontend/pages/Mod/channel/workspace/mod-workspace.css
+index a02e65b..4cc7a89 100644
+--- a/apps/desktop/src/frontend/pages/Mod/channel/workspace/mod-workspace.css
++++ b/apps/desktop/src/frontend/pages/Mod/channel/workspace/mod-workspace.css
+@@ -158,6 +158,45 @@
+   border: 2px solid var(--mod-focus);
+   pointer-events: none;
+ }
++.mod-workspace-drag-ghost {
++  position: fixed;
++  top: 0;
++  left: 0;
++  z-index: 1000;
++  display: flex;
++  height: 40px;
++  align-items: center;
++  gap: 8px;
++  padding: 0 10px;
++  overflow: hidden;
++  pointer-events: none;
++  user-select: none;
++  color: var(--mod-focus);
++  background: #252529;
++  border: 1px solid var(--mod-focus);
++  border-radius: 3px;
++  box-shadow:
++    0 4px 16px #0006,
++    0 1px 4px #0005;
++  contain: layout paint style;
++  will-change: transform;
++}
++.mod-workspace-drag-ghost-icon {
++  display: flex;
++  flex: 0 0 auto;
++}
++.mod-workspace-drag-ghost-icon > svg {
++  width: 16px;
++  height: 16px;
++}
++.mod-workspace-drag-ghost-title {
++  min-width: 0;
++  overflow: hidden;
++  font-size: 13px;
++  font-weight: 600;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
+ .mod-workspace-separator {
+   position: absolute;
+   touch-action: none;
+diff --git a/apps/desktop/tests/backend/auth/twitch-auth.test.ts b/apps/desktop/tests/backend/auth/twitch-auth.test.ts
+index 091a408..e02e985 100644
+--- a/apps/desktop/tests/backend/auth/twitch-auth.test.ts
++++ b/apps/desktop/tests/backend/auth/twitch-auth.test.ts
+@@ -333,6 +333,7 @@ describe("fetchCurrentUser", () => {
+   });
+ 
+   it("uses provided accessToken instead of stored one", async () => {
++    storageState.token = { accessToken: "explicit-token" };
+     const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
+       jsonResponse({
+         data: [
+@@ -357,6 +358,107 @@ describe("fetchCurrentUser", () => {
+     expect(headers.Authorization).toBe("Bearer explicit-token");
+   });
+ 
++  it("does not save a fetched user when the Twitch token rotated during the request", async () => {
++    storageState.token = { accessToken: "old-token" };
++    let finishFetch: (response: Response) => void = () => undefined;
++    vi.stubGlobal(
++      "fetch",
++      vi.fn(
++        async () =>
++          await new Promise<Response>((resolve) => {
++            finishFetch = resolve;
++          })
++      )
++    );
++
++    const fetchUser = twitchAuthService.fetchCurrentUser("old-token");
++    storageState.token = { accessToken: "new-token" };
++    finishFetch(
++      jsonResponse({
++        data: [
++          {
++            id: "old-user",
++            login: "old",
++            display_name: "Old",
++            profile_image_url: "",
++            created_at: "",
++            broadcaster_type: "",
++          },
++        ],
++      })
++    );
++
++    await expect(fetchUser).resolves.toBeNull();
++    expect(storageService.saveTwitchUser).not.toHaveBeenCalled();
++    expect(storageState.twitchUser).toBeNull();
++  });
++
++  it("does not save a fetched user when logout clears the Twitch token during the request", async () => {
++    storageState.token = { accessToken: "current-token" };
++    let finishFetch: (response: Response) => void = () => undefined;
++    vi.stubGlobal(
++      "fetch",
++      vi.fn(
++        async () =>
++          await new Promise<Response>((resolve) => {
++            finishFetch = resolve;
++          })
++      )
++    );
++
++    const fetchUser = twitchAuthService.fetchCurrentUser("current-token");
++    storageState.token = null;
++    finishFetch(
++      jsonResponse({
++        data: [
++          {
++            id: "stale-user",
++            login: "stale",
++            display_name: "Stale",
++            profile_image_url: "",
++            created_at: "",
++            broadcaster_type: "",
++          },
++        ],
++      })
++    );
++
++    await expect(fetchUser).resolves.toBeNull();
++    expect(storageService.saveTwitchUser).not.toHaveBeenCalled();
++    expect(storageState.twitchUser).toBeNull();
++  });
++
++  it("does not refresh the current token after an old implicit user fetch returns 401", async () => {
++    storageState.token = {
++      accessToken: "old-token",
++      refreshToken: "old-refresh",
++    };
++    let finishFetch: (response: Response) => void = () => undefined;
++    vi.stubGlobal(
++      "fetch",
++      vi.fn(
++        async () =>
++          await new Promise<Response>((resolve) => {
++            finishFetch = resolve;
++          })
++      )
++    );
++
++    const fetchUser = twitchAuthService.fetchCurrentUser();
++    storageState.token = {
++      accessToken: "new-token",
++      refreshToken: "new-refresh",
++    };
++    finishFetch(jsonResponse({}, false, 401));
++
++    await expect(fetchUser).resolves.toBeNull();
++    expect(refreshTokenMock).not.toHaveBeenCalled();
++    expect(storageState.token).toEqual({
++      accessToken: "new-token",
++      refreshToken: "new-refresh",
++    });
++  });
++
+   it("returns null when API returns empty data array", async () => {
+     storageState.token = { accessToken: "at" };
+     vi.stubGlobal(
+diff --git a/apps/desktop/tests/backend/ipc/handlers/auth-handlers.test.ts b/apps/desktop/tests/backend/ipc/handlers/auth-handlers.test.ts
+index 2e64954..ddd77aa 100644
+--- a/apps/desktop/tests/backend/ipc/handlers/auth-handlers.test.ts
++++ b/apps/desktop/tests/backend/ipc/handlers/auth-handlers.test.ts
+@@ -1,12 +1,14 @@
+ import { describe, expect, it, vi } from "vitest";
+ 
+ import {
++  createTwitchIdentitySingleFlight,
+   FOLLOWS_REFRESH_INTERVAL_MS,
+   KICK_STARTUP_FOLLOW_REFRESH_GRACE_MS,
+   performTwitchDeviceCodeLogin,
+   persistInitialAuthToken,
+   reconcileKickMissingFollowRows,
+   reportKickFollowSyncFailure,
++  resolveAuthStatus,
+   shouldDeferKickStartupFollowRefresh,
+   syncKickFollowsAfterLogin,
+   syncTwitchFollowsAfterLogin,
+@@ -216,20 +218,22 @@ describe("reconcileKickMissingFollowRows", () => {
+ });
+ 
+ describe("performTwitchDeviceCodeLogin", () => {
++  const user = {
++    id: "u1",
++    login: "streamer",
++    displayName: "Streamer",
++    profileImageUrl: "https://example.com/avatar.png",
++    createdAt: "2026-01-01T00:00:00Z",
++    broadcasterType: "" as const,
++  };
++
+   it("runs the direct device flow and persists the authenticated Twitch account", async () => {
+     const token = {
+       accessToken: "at",
+       refreshToken: "rt",
+       authFlow: "device-code" as const,
+     };
+-    const user = {
+-      id: "u1",
+-      login: "streamer",
+-      displayName: "Streamer",
+-      profileImageUrl: "https://example.com/avatar.png",
+-      createdAt: "2026-01-01T00:00:00Z",
+-      broadcasterType: "" as const,
+-    };
++    const clearTwitchUser = vi.fn();
+     const saveToken = vi.fn();
+     const saveTwitchUser = vi.fn();
+     const scheduleProactiveRefresh = vi.fn();
+@@ -253,10 +257,12 @@ describe("performTwitchDeviceCodeLogin", () => {
+       saveToken,
+       scheduleProactiveRefresh,
+       fetchCurrentUser: vi.fn(async () => user),
++      clearTwitchUser,
+       saveTwitchUser,
+       afterAuthenticated,
+     });
+ 
++    expect(clearTwitchUser).toHaveBeenCalledTimes(1);
+     expect(saveToken).toHaveBeenCalledWith("twitch", token);
+     expect(scheduleProactiveRefresh).toHaveBeenCalledTimes(1);
+     expect(saveTwitchUser).toHaveBeenCalledWith(user);
+@@ -271,6 +277,7 @@ describe("performTwitchDeviceCodeLogin", () => {
+       authFlow: "device-code" as const,
+     };
+     const closePopup = vi.fn();
++    const clearTwitchUser = vi.fn();
+     const saveToken = vi.fn(() => {
+       expect(closePopup).toHaveBeenCalledTimes(1);
+     });
+@@ -298,18 +305,207 @@ describe("performTwitchDeviceCodeLogin", () => {
+       saveToken,
+       scheduleProactiveRefresh: vi.fn(),
+       fetchCurrentUser: vi.fn(async () => await userRefresh),
++      clearTwitchUser,
+       saveTwitchUser: vi.fn(),
+       afterAuthenticated,
+     });
+ 
+     await vi.waitFor(() => {
+       expect(closePopup).toHaveBeenCalledTimes(1);
++      expect(clearTwitchUser).toHaveBeenCalledTimes(1);
+       expect(saveToken).toHaveBeenCalledTimes(1);
+     });
+     expect(afterAuthenticated).not.toHaveBeenCalled();
+ 
+     finishUserRefresh(null);
+-    await expect(login).resolves.toBeNull();
++    await expect(login).rejects.toThrow("account details could not be loaded");
++    expect(afterAuthenticated).not.toHaveBeenCalled();
++  });
++
++  it("does not report callback success when Twitch account details fail to load", async () => {
++    const afterAuthenticated = vi.fn(async () => {});
++
++    await expect(
++      performTwitchDeviceCodeLogin({
++        scopes: ["chat:read"],
++        requestDeviceCode: vi.fn(async () => ({
++          deviceCode: "dc",
++          userCode: "ABCD-EFGH",
++          verificationUri: "https://www.twitch.tv/activate?public=true&device-code=ABCD-EFGH",
++          expiresIn: 900,
++          interval: 5,
++        })),
++        openVerificationWindow: vi.fn(async () => ({
++          closed: new Promise<void>(() => undefined),
++          close: vi.fn(),
++          navigate: vi.fn(async () => undefined),
++        })),
++        pollForToken: vi.fn(async () => ({
++          accessToken: "at",
++          refreshToken: "rt",
++          authFlow: "device-code" as const,
++        })),
++        saveToken: vi.fn(),
++        scheduleProactiveRefresh: vi.fn(),
++        fetchCurrentUser: vi.fn(async () => null),
++        clearTwitchUser: vi.fn(),
++        saveTwitchUser: vi.fn(),
++        afterAuthenticated,
++      })
++    ).rejects.toThrow("account details could not be loaded");
++    expect(afterAuthenticated).not.toHaveBeenCalled();
++  });
++});
++
++// Guards: Twitch status recovers a token-present session when account identity is missing after login.
++// Guards: concurrent Twitch status calls share one identity recovery instead of racing duplicate Helix user reads.
++describe("resolveAuthStatus", () => {
++  const twitchUser = {
++    id: "u1",
++    login: "streamer",
++    displayName: "Streamer",
++    profileImageUrl: "https://example.com/avatar.png",
++    createdAt: "2026-01-01T00:00:00Z",
++    broadcasterType: "" as const,
++  };
++
++  it("fetches missing Twitch identity before reporting a usable token as connected", async () => {
++    const status = await resolveAuthStatus({
++      getTwitchUser: () => null,
++      getTwitchToken: () => ({ accessToken: "current" }),
++      getKickUser: () => null,
++      hasUsableToken: (platform) => platform === "twitch",
++      isTokenExpired: () => false,
++      fetchMissingTwitchUser: vi.fn(async () => twitchUser),
++    });
++
++    expect(status.twitch).toEqual({
++      connected: true,
++      user: twitchUser,
++      hasToken: true,
++      isExpired: false,
++    });
++    expect(status.isGuest).toBe(false);
++  });
++
++  it("does not reuse a stale Twitch identity when recovery still cannot load the account", async () => {
++    const status = await resolveAuthStatus({
++      getTwitchUser: () => null,
++      getTwitchToken: () => ({ accessToken: "current" }),
++      getKickUser: () => null,
++      hasUsableToken: (platform) => platform === "twitch",
++      isTokenExpired: () => false,
++      fetchMissingTwitchUser: vi.fn(async () => null),
++    });
++
++    expect(status.twitch).toEqual({
++      connected: false,
++      user: null,
++      hasToken: true,
++      isExpired: false,
++    });
++    expect(status.isGuest).toBe(true);
++  });
++
++  it("does not attempt Twitch identity recovery for expired or missing tokens", async () => {
++    const fetchMissingTwitchUser = vi.fn(async () => twitchUser);
++
++    await resolveAuthStatus({
++      getTwitchUser: () => null,
++      getTwitchToken: () => null,
++      getKickUser: () => null,
++      hasUsableToken: () => false,
++      isTokenExpired: () => true,
++      fetchMissingTwitchUser,
++    });
++
++    expect(fetchMissingTwitchUser).not.toHaveBeenCalled();
++  });
++
++  it("single-flights concurrent missing-user recovery calls", async () => {
++    let resolveRecovery: (value: typeof twitchUser) => void = () => undefined;
++    const recovery = new Promise<typeof twitchUser>((resolve) => {
++      resolveRecovery = resolve;
++    });
++    const fetchCurrentUser = vi.fn(async () => await recovery);
++    const fetchOnce = createTwitchIdentitySingleFlight(() => "current", fetchCurrentUser);
++
++    const first = fetchOnce();
++    const second = fetchOnce();
++    resolveRecovery(twitchUser);
++
++    await expect(Promise.all([first, second])).resolves.toEqual([twitchUser, twitchUser]);
++    expect(fetchCurrentUser).toHaveBeenCalledTimes(1);
++  });
++
++  it("discards an old token recovery result after a new token becomes current", async () => {
++    let currentToken = "old";
++    let resolveOldRecovery: (value: typeof twitchUser) => void = () => undefined;
++    const oldRecovery = new Promise<typeof twitchUser>((resolve) => {
++      resolveOldRecovery = resolve;
++    });
++    const fetchCurrentUser = vi.fn(async (accessToken: string) => {
++      if (accessToken === "old") return await oldRecovery;
++      return { ...twitchUser, id: "u2", login: "new-streamer", displayName: "New Streamer" };
++    });
++    const fetchOnce = createTwitchIdentitySingleFlight(() => currentToken, fetchCurrentUser);
++
++    const oldStatus = resolveAuthStatus({
++      getTwitchUser: () => null,
++      getTwitchToken: () => ({ accessToken: currentToken }),
++      getKickUser: () => null,
++      hasUsableToken: (platform) => platform === "twitch",
++      isTokenExpired: () => false,
++      fetchMissingTwitchUser: fetchOnce,
++    });
++    currentToken = "new";
++    const newStatus = await resolveAuthStatus({
++      getTwitchUser: () => null,
++      getTwitchToken: () => ({ accessToken: currentToken }),
++      getKickUser: () => null,
++      hasUsableToken: (platform) => platform === "twitch",
++      isTokenExpired: () => false,
++      fetchMissingTwitchUser: fetchOnce,
++    });
++    resolveOldRecovery(twitchUser);
++
++    await expect(oldStatus).resolves.toMatchObject({
++      twitch: { connected: false, user: null, hasToken: true, isExpired: false },
++      isGuest: true,
++    });
++    expect(newStatus.twitch.user).toMatchObject({ id: "u2", login: "new-streamer" });
++    expect(fetchCurrentUser).toHaveBeenCalledTimes(2);
++    expect(fetchCurrentUser).toHaveBeenNthCalledWith(1, "old");
++    expect(fetchCurrentUser).toHaveBeenNthCalledWith(2, "new");
++  });
++
++  it("does not revive Twitch status when logout clears the token during identity recovery", async () => {
++    let currentToken: string | null = "current";
++    let resolveRecovery: (value: typeof twitchUser) => void = () => undefined;
++    const recovery = new Promise<typeof twitchUser>((resolve) => {
++      resolveRecovery = resolve;
++    });
++    const fetchOnce = createTwitchIdentitySingleFlight(
++      () => currentToken,
++      vi.fn(async () => await recovery)
++    );
++
++    const status = resolveAuthStatus({
++      getTwitchUser: () => null,
++      getTwitchToken: () => (currentToken ? { accessToken: currentToken } : null),
++      getKickUser: () => null,
++      hasUsableToken: (platform) => platform === "twitch" && currentToken !== null,
++      isTokenExpired: () => false,
++      fetchMissingTwitchUser: fetchOnce,
++    });
++    currentToken = null;
++    resolveRecovery(twitchUser);
++
++    await expect(status).resolves.toEqual({
++      twitch: { connected: false, user: null, hasToken: false, isExpired: true },
++      kick: { connected: false, user: null, hasToken: false, isExpired: true },
++      isGuest: true,
++    });
+   });
+ });
+ 
+diff --git a/apps/desktop/tests/backend/ipc/handlers/auth-security-boundary.test.ts b/apps/desktop/tests/backend/ipc/handlers/auth-security-boundary.test.ts
+index c645eaa..92f4426 100644
+--- a/apps/desktop/tests/backend/ipc/handlers/auth-security-boundary.test.ts
++++ b/apps/desktop/tests/backend/ipc/handlers/auth-security-boundary.test.ts
+@@ -11,9 +11,11 @@ const mocks = vi.hoisted(() => ({
+   hasToken: vi.fn(),
+   isTokenExpired: vi.fn(),
+   saveTwitchUser: vi.fn(),
++  clearTwitchUser: vi.fn(),
+   saveKickUser: vi.fn(),
+   ensureKickToken: vi.fn(),
+   ensureTwitchToken: vi.fn(),
++  fetchTwitchUser: vi.fn(),
+   disposeKickSendWindow: vi.fn(),
+   kickLogout: vi.fn(),
+   twitchLogout: vi.fn(),
+@@ -87,7 +89,7 @@ vi.mock("@backend/auth", () => ({
+     logout: mocks.twitchLogout,
+     refreshToken: mocks.refreshTwitchToken,
+     getValidAccessToken: mocks.getValidTwitchToken,
+-    fetchCurrentUser: vi.fn(),
++    fetchCurrentUser: mocks.fetchTwitchUser,
+   },
+   validateOAuthConfig: vi.fn(() => []),
+ }));
+@@ -110,7 +112,7 @@ vi.mock("@backend/services/storage-service", () => ({
+     isTokenExpired: mocks.isTokenExpired,
+     getTwitchUser: vi.fn(() => null),
+     saveTwitchUser: mocks.saveTwitchUser,
+-    clearTwitchUser: vi.fn(),
++    clearTwitchUser: mocks.clearTwitchUser,
+     getKickUser: vi.fn(() => null),
+     saveKickUser: mocks.saveKickUser,
+     clearKickUser: vi.fn(),
+@@ -146,9 +148,11 @@ beforeEach(() => {
+   mocks.hasToken.mockReset().mockReturnValue(false);
+   mocks.isTokenExpired.mockReset().mockReturnValue(false);
+   mocks.saveTwitchUser.mockReset();
++  mocks.clearTwitchUser.mockReset();
+   mocks.saveKickUser.mockReset();
+   mocks.ensureKickToken.mockReset();
+   mocks.ensureTwitchToken.mockReset().mockResolvedValue(false);
++  mocks.fetchTwitchUser.mockReset().mockResolvedValue(null);
+   mocks.disposeKickSendWindow.mockReset();
+   mocks.kickLogout.mockReset();
+   mocks.twitchLogout.mockReset();
+@@ -268,13 +272,26 @@ describe("auth IPC credential boundary", () => {
+   });
+ 
+   it("collapses concurrent Twitch login requests into one device flow", async () => {
++    const user = {
++      id: "u1",
++      login: "streamer",
++      displayName: "Streamer",
++      profileImageUrl: "https://example.com/avatar.png",
++      createdAt: "2026-01-01T00:00:00Z",
++      broadcasterType: "" as const,
++    };
++    const token = { accessToken: "at", refreshToken: "rt", authFlow: "device-code" as const };
+     let resolveLogin: (() => void) | undefined;
+     mocks.runTwitchDeviceCodeLogin.mockImplementation(
+       () =>
+-        new Promise<void>((resolve) => {
+-          resolveLogin = resolve;
++        new Promise<typeof token>((resolve) => {
++          resolveLogin = () => resolve(token);
+         })
+     );
++    mocks.saveToken.mockImplementation((_platform: unknown, savedToken: unknown) => {
++      mocks.getToken.mockReturnValue(savedToken);
++    });
++    mocks.fetchTwitchUser.mockResolvedValue(user);
+     const openTwitch = handler(IPC_CHANNELS.AUTH_OPEN_TWITCH);
+ 
+     const first = openTwitch(allowedEvent);
+@@ -286,6 +303,8 @@ describe("auth IPC credential boundary", () => {
+       { success: true },
+       { success: true },
+     ]);
++    expect(mocks.clearTwitchUser).toHaveBeenCalledBefore(mocks.saveToken);
++    expect(mocks.saveTwitchUser).toHaveBeenCalledWith(user);
+   });
+ 
+   it("returns Kick credentials only to an allowed sender and never returns Twitch credentials", async () => {
+diff --git a/apps/desktop/tests/pages/Mod/channel/workspace/ModWorkspace.test.tsx b/apps/desktop/tests/pages/Mod/channel/workspace/ModWorkspace.test.tsx
+index 7b08b75..07c9f8c 100644
+--- a/apps/desktop/tests/pages/Mod/channel/workspace/ModWorkspace.test.tsx
++++ b/apps/desktop/tests/pages/Mod/channel/workspace/ModWorkspace.test.tsx
+@@ -72,6 +72,14 @@ describe("ModWorkspace", () => {
+     const handle = source.querySelector('[data-drag-handle="true"]');
+     if (!(handle instanceof HTMLDivElement)) throw new Error(`${sourceTitle} is not draggable`);
+     vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 1200, 800));
++    vi.spyOn(source, "getBoundingClientRect").mockReturnValue(
++      new DOMRect(
++        numericStyle(source, "left"),
++        numericStyle(source, "top"),
++        numericStyle(source, "width"),
++        numericStyle(source, "height")
++      )
++    );
+     return { canvas, source, handle };
+   }
+ 
+@@ -191,6 +199,52 @@ describe("ModWorkspace", () => {
+     expect(mounts.mock.calls.filter(([id]) => id === "chat")).toHaveLength(1);
+   });
+ 
++  it("moves a lightweight drag ghost once per animation frame and cancels pending work", async () => {
++    renderWorkspace();
++    await screen.findAllByRole("separator");
++    const frames = new Map<number, FrameRequestCallback>();
++    let nextFrame = 0;
++    const requestFrame = vi.fn((callback: FrameRequestCallback) => {
++      const frame = ++nextFrame;
++      frames.set(frame, callback);
++      return frame;
++    });
++    const cancelFrame = vi.fn((frame: number) => frames.delete(frame));
++    vi.stubGlobal("requestAnimationFrame", requestFrame);
++    vi.stubGlobal("cancelAnimationFrame", cancelFrame);
++    const { canvas, source, handle } = preparePointerDrag("Chat");
++    const sourceLeft = numericStyle(source, "left");
++
++    fireEvent.pointerDown(handle, { button: 0, clientX: 1050, clientY: 20, pointerId: 17 });
++    fireEvent.pointerMove(canvas, { clientX: 500, clientY: 260, pointerId: 17 });
++    fireEvent.pointerMove(canvas, { clientX: 560, clientY: 280, pointerId: 17 });
++    fireEvent.pointerMove(canvas, { clientX: 620, clientY: 300, pointerId: 17 });
++
++    const ghost = screen.getByTestId("mod-workspace-drag-ghost");
++    expect(ghost).toHaveAttribute("aria-hidden", "true");
++    expect(ghost).toHaveTextContent("Chat");
++    expect(ghost).not.toContainElement(screen.getByTestId("chat-content"));
++    expect(requestFrame).toHaveBeenCalledTimes(1);
++    const firstFrame = frames.get(1);
++    if (!firstFrame) throw new Error("Drag animation frame was not scheduled");
++    frames.delete(1);
++    firstFrame(16);
++
++    expect(ghost).toHaveStyle({
++      transform: `translate3d(${620 - (1050 - sourceLeft)}px, 280px, 0)`,
++    });
++
++    fireEvent.pointerMove(canvas, { clientX: 700, clientY: 320, pointerId: 17 });
++    expect(requestFrame).toHaveBeenCalledTimes(2);
++    fireEvent.keyDown(window, { key: "Escape" });
++
++    expect(cancelFrame).toHaveBeenCalledWith(2);
++    expect(screen.queryByTestId("mod-workspace-drag-ghost")).not.toBeInTheDocument();
++    expect(releasePointerCapture).toHaveBeenCalledWith(17);
++    expect(source).toHaveStyle({ opacity: "1" });
++    expect(localStorage.getItem(storageKey)).toBeNull();
++  });
++
+   it("rejects a top drop for Mod Actions without changing content, geometry, or persistence", async () => {
+     renderWorkspace("kick");
+     await screen.findAllByRole("separator");
+diff --git a/package.json b/package.json
+index d30283b..1ea0d67 100644
+--- a/package.json
++++ b/package.json
+@@ -65,9 +65,9 @@
+     "lint:release-age": "node scripts/validate-lockfile-release-age.mjs",
+     "verify:evidence": "node scripts/verify-evidence.mjs --resume",
+     "test:evidence": "node --test scripts/verify-evidence.test.mjs scripts/verify-core-extraction-complete.test.mjs",
+-    "test": "npm run --workspace @streamfusion/core test && npm run test:evidence && node --test scripts/start-picker.test.mjs .agents/skills/verify-streamfusion/scripts/control-launch-plan.test.mjs && npm run --workspace @streamfusion/mobile test && npm run --workspace @streamfusion/integration-relay test && npm run --workspace streamfusion test && npm run --workspace streamfusion-worker test",
+-    "test:all": "npm run --workspace @streamfusion/core test && npm run test:evidence && node --test scripts/start-picker.test.mjs .agents/skills/verify-streamfusion/scripts/control-launch-plan.test.mjs && npm run --workspace @streamfusion/mobile test && npm run --workspace @streamfusion/integration-relay test && npm run --workspace streamfusion test:all && npm run --workspace streamfusion-worker test",
+-    "test:package-policy": "node --test scripts/start-picker.test.mjs scripts/package-policy.test.mjs scripts/validate-lockfile-release-age.test.mjs .agents/skills/verify-streamfusion/scripts/control-launch-plan.test.mjs",
++    "test": "npm run --workspace @streamfusion/core test && npm run test:evidence && node --test scripts/start-picker.test.mjs .agents/skills/verify-streamfusion/scripts/control-launch-plan.test.mjs .agents/skills/verify-streamfusion/scripts/account-seed.test.mjs && npm run --workspace @streamfusion/mobile test && npm run --workspace @streamfusion/integration-relay test && npm run --workspace streamfusion test && npm run --workspace streamfusion-worker test",
++    "test:all": "npm run --workspace @streamfusion/core test && npm run test:evidence && node --test scripts/start-picker.test.mjs .agents/skills/verify-streamfusion/scripts/control-launch-plan.test.mjs .agents/skills/verify-streamfusion/scripts/account-seed.test.mjs && npm run --workspace @streamfusion/mobile test && npm run --workspace @streamfusion/integration-relay test && npm run --workspace streamfusion test:all && npm run --workspace streamfusion-worker test",
++    "test:package-policy": "node --test scripts/start-picker.test.mjs scripts/package-policy.test.mjs scripts/validate-lockfile-release-age.test.mjs .agents/skills/verify-streamfusion/scripts/control-launch-plan.test.mjs .agents/skills/verify-streamfusion/scripts/account-seed.test.mjs",
+     "test:release-policy": "node --test scripts/release-policy.test.mjs scripts/merge-artifacts.test.mjs scripts/release-workflow.test.mjs",
+     "typecheck": "npm run --workspace @streamfusion/core typecheck && npm run --workspace @streamfusion/mobile typecheck && npm run --workspace @streamfusion/integration-relay typecheck && npm run --workspace streamfusion typecheck && npm run --workspace streamfusion-worker typecheck",
+     "perf:soak": "npm run --workspace streamfusion perf:soak"

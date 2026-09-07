@@ -1,0 +1,26 @@
+{
+  "healthy": true,
+  "databasePath": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\download-progress-worktree\\.scratch\\verify-streamfusion\\runs\\download-progress-ui-before\\profile\\streamfusion.db",
+  "seededFrom": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.streamfusion-dev-user-data\\streamfusion.db",
+  "quickCheck": [
+    "ok"
+  ],
+  "userVersion": 0,
+  "requiredTables": [
+    "key_value",
+    "local_follows",
+    "mod_log",
+    "mod_log_coverage",
+    "pending_follow_writes",
+    "retention_settings"
+  ],
+  "missingTables": [],
+  "rowCounts": {
+    "key_value": 216,
+    "local_follows": 743,
+    "mod_log": 0,
+    "mod_log_coverage": 0,
+    "pending_follow_writes": 0,
+    "retention_settings": 0
+  }
+}

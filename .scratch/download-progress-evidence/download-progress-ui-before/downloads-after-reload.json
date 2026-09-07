@@ -1,0 +1,396 @@
+{
+  "capturedAt": "2026-09-05T22:22:38.088Z",
+  "title": "StreamFusion",
+  "url": "http://localhost:5174/#/downloads",
+  "text": "StreamFusion\nStreamFusion\nKick degraded\nHome\nFollowing\nCategories\nMultiView\nHistory\nDownloads\nSettings\nFollowing\n672\n5hizzle\nOffline\n5tarflower\nOffline\nAbbyApple\nOffline\nABZ\nOffline\nAc7ionMan\nOffline\nAcorn1010\nOffline\nAcoustic\nOffline\nAdamCYounis\nOffline\nadeptthebest\nOffline\nAdinRoss\nOffline\nShow More\nDownloads\n\nTrack clips and videos saved from StreamFusion.\n\nNeeds attention\n1\n\nPaused downloads and items that could not finish.\n\nNight in the Life of a PT Streamer\n\nadrianahlee / Video\n\nPaused\nPaused after StreamFusion restarted\nPaused\n\n8.4 GB\n\nFinished\n2\n\nCompleted and cancelled downloads.\n\nGODDESS 🎀 Good Vibes + Custom Experiences🚨💸👑 !commands\n\nkendal-1 / Video\n\nCompleted\n501 MB of 501 MB\n100%\nmmmm\n\nadrianahlee / Clip\n\nCompleted\n26 MB of 26 MB\n100%\nLIVE\n\nsodapoppin\n\nELDEN RING\n\n10,214 viewers",
+  "elements": [
+    {
+      "role": "button",
+      "name": "Minimize",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Maximize",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Close",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Collapse sidebar",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "link",
+      "name": "StreamFusion",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "textbox",
+      "name": "Search StreamFusion...",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "status",
+      "name": "Kick status: Degraded.",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Notifications",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Open profile menu",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "link",
+      "name": "Home",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Following",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Categories",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "MultiView",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "History",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Downloads",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Settings",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Sync follows",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "link",
+      "name": "5hizzleOffline",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "5tarflowerOffline",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "AbbyAppleOffline",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "ABZOffline",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Ac7ionManOffline",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Acorn1010Offline",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "AcousticOffline",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "AdamCYounisOffline",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "adeptthebestOffline",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "AdinRossOffline",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Show More",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "heading",
+      "name": "Downloads",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "heading",
+      "name": "Needs attention",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "heading",
+      "name": "Night in the Life of a PT Streamer",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "progressbar",
+      "name": "Night in the Life of a PT Streamer",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Remove Night in the Life of a PT Streamer from list",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "heading",
+      "name": "Finished",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "heading",
+      "name": "GODDESS 🎀 Good Vibes + Custom Experiences🚨💸👑 !commands",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "progressbar",
+      "name": "GODDESS 🎀 Good Vibes + Custom Experiences🚨💸👑 !commands",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Open GODDESS 🎀 Good Vibes + Custom Experiences🚨💸👑 !commands",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Show GODDESS 🎀 Good Vibes + Custom Experiences🚨💸👑 !commands in folder",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Delete GODDESS 🎀 Good Vibes + Custom Experiences🚨💸👑 !commands from disk",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Remove GODDESS 🎀 Good Vibes + Custom Experiences🚨💸👑 !commands from list",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "heading",
+      "name": "mmmm",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "progressbar",
+      "name": "mmmm",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Open mmmm",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Show mmmm in folder",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Delete mmmm from disk",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Remove mmmm from list",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Click to expand · drag to move (Ctrl+Shift+D to hide)",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Open Tanstack query devtools",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Restore stream",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Close mini player",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Pause",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    }
+  ]
+}

@@ -1,0 +1,1144 @@
+diff --git a/apps/desktop/src/frontend/components/ui/proxied-image.tsx b/apps/desktop/src/frontend/components/ui/proxied-image.tsx
+index 839ece1..c9400a7 100644
+--- a/apps/desktop/src/frontend/components/ui/proxied-image.tsx
++++ b/apps/desktop/src/frontend/components/ui/proxied-image.tsx
+@@ -151,7 +151,7 @@ export function ProxiedImage({
+     [proxy, src]
+   );
+   const imgRef = useRef<HTMLImageElement | null>(null);
+-  const seenSrcRef = useRef<string | null>(null);
++  const seenSrcRef = useRef<string | null>(resolvedSrc);
+   const [isLoaded, setIsLoaded] = useState(false);
+   const [retryAttempt, setRetryAttempt] = useState(0);
+   const isKickProxy = resolvedSrc?.startsWith(`${KICK_IMAGE_SCHEME}://`) ?? false;
+@@ -180,7 +180,8 @@ export function ProxiedImage({
+   // the animate-pulse placeholder forever (no fresh onLoad would fire to
+   // recover, since the image is already complete).
+   useEffect(() => {
+-    if (seenSrcRef.current !== null && seenSrcRef.current !== resolvedSrc) {
++    if (seenSrcRef.current !== resolvedSrc) {
++      kickRetryTimer.clear();
+       setIsLoaded(false);
+       setRetryAttempt(0);
+       // Re-seed against the skip-list on src change so a previously-broken
+@@ -189,7 +190,7 @@ export function ProxiedImage({
+       setHasError(resolvedSrc !== null && !isKickProxy && brokenUrls.has(resolvedSrc));
+     }
+     seenSrcRef.current = resolvedSrc;
+-  }, [isKickProxy, resolvedSrc]);
++  }, [isKickProxy, kickRetryTimer, resolvedSrc]);
+ 
+   // Kick protocol failures can be transient (the dedicated Electron network
+   // session may time out while the same real CDN object remains healthy).
+@@ -197,12 +198,12 @@ export function ProxiedImage({
+   // it as broken for the entire session. Permanent 4xx responses are already
+   // negative-cached in the main process, so these retries remain cheap.
+   useEffect(() => {
+-    if (!hasError || !isKickProxy) {
++    if (!hasError || !isKickProxy || retryAttempt >= KICK_RETRY_DELAYS_MS.length) {
+       kickRetryTimer.clear();
+       return;
+     }
+ 
+-    const delay = KICK_RETRY_DELAYS_MS[Math.min(retryAttempt, KICK_RETRY_DELAYS_MS.length - 1)];
++    const delay = KICK_RETRY_DELAYS_MS[retryAttempt];
+     kickRetryTimer.start(delay);
+     return kickRetryTimer.clear;
+   }, [hasError, isKickProxy, kickRetryTimer, retryAttempt]);
+diff --git a/apps/desktop/src/frontend/features/chat/components/chat/ChatBadge.tsx b/apps/desktop/src/frontend/features/chat/components/chat/ChatBadge.tsx
+index 1ef1125..9facc8a 100644
+--- a/apps/desktop/src/frontend/features/chat/components/chat/ChatBadge.tsx
++++ b/apps/desktop/src/frontend/features/chat/components/chat/ChatBadge.tsx
+@@ -53,6 +53,7 @@ export const ChatBadge: React.FC<ChatBadgeProps> = memo(({ badge, platform = "ki
+     return src
+       ? {
+           src,
++          originalSrc: badge.imageUrl,
+           title: badge.title || t("chat.badge"),
+           platform: platform === "twitch" ? ("Twitch" as const) : ("Kick" as const),
+         }
+diff --git a/apps/desktop/src/frontend/features/chat/components/chat/tooltips/BadgeTooltip.tsx b/apps/desktop/src/frontend/features/chat/components/chat/tooltips/BadgeTooltip.tsx
+index 31bea47..260923d 100644
+--- a/apps/desktop/src/frontend/features/chat/components/chat/tooltips/BadgeTooltip.tsx
++++ b/apps/desktop/src/frontend/features/chat/components/chat/tooltips/BadgeTooltip.tsx
+@@ -2,12 +2,14 @@ import { useTranslation } from "react-i18next";
+ import type React from "react";
+ import { useLayoutEffect, useRef, useState } from "react";
+ import { createPortal } from "react-dom";
++import { ProxiedImage } from "@/components/ui/proxied-image";
+ 
+ interface BadgeTooltipProps {
+   show: boolean;
+   mousePos: { x: number; y: number } | null;
+   badgeInfo: {
+     src: string;
++    originalSrc?: string;
+     title: string;
+     platform?: string;
+     owner?: { username: string };
+@@ -84,8 +86,8 @@ export const BadgeTooltip: React.FC<BadgeTooltipProps> = ({ show, mousePos, badg
+     >
+       {/* Badge Icon - Large */}
+       <div className="mb-3">
+-        <img
+-          src={badgeInfo.src}
++        <ProxiedImage
++          src={badgeInfo.originalSrc ?? badgeInfo.src}
+           alt={badgeInfo.title}
+           className="w-16 h-16 object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.1)]"
+         />
+diff --git a/apps/desktop/src/frontend/features/discovery/components/search/UnifiedSearchInput.tsx b/apps/desktop/src/frontend/features/discovery/components/search/UnifiedSearchInput.tsx
+index 2ad0e2e..29849b8 100644
+--- a/apps/desktop/src/frontend/features/discovery/components/search/UnifiedSearchInput.tsx
++++ b/apps/desktop/src/frontend/features/discovery/components/search/UnifiedSearchInput.tsx
+@@ -123,17 +123,19 @@ function CategoryItem({
+   const style = { contentVisibility: "auto", containIntrinsicSize: "48px" } as const;
+   const content = (
+     <>
+-      {category.boxArtUrl ? (
+-        <img
+-          src={category.boxArtUrl}
+-          alt={category.name}
+-          className="w-6 h-8 rounded object-cover"
+-        />
+-      ) : (
+-        <div className="w-6 h-8 rounded bg-zinc-700 flex items-center justify-center">
+-          <LuLayoutGrid size={14} className="text-white/50" />
+-        </div>
+-      )}
++      <ProxiedImage
++        src={category.boxArtUrl}
++        alt={category.name}
++        className="w-6 h-8 rounded object-cover"
++        fallback={
++          <div
++            className="w-6 h-8 rounded bg-zinc-700 flex items-center justify-center"
++            data-testid="category-preview-fallback"
++          >
++            <LuLayoutGrid size={14} className="text-white/50" />
++          </div>
++        }
++      />
+       <div className="flex-1 min-w-0">
+         <p className="font-bold text-sm text-[var(--color-foreground)] group-hover:text-[var(--color-storm-primary)] truncate">
+           {category.name}
+diff --git a/apps/desktop/src/frontend/features/settings/data/use-diagnostics-workspace.ts b/apps/desktop/src/frontend/features/settings/data/use-diagnostics-workspace.ts
+index c9060cb..2289311 100644
+--- a/apps/desktop/src/frontend/features/settings/data/use-diagnostics-workspace.ts
++++ b/apps/desktop/src/frontend/features/settings/data/use-diagnostics-workspace.ts
+@@ -46,7 +46,6 @@ export function useDiagnosticsWorkspace(view: DiagnosticsView) {
+         }
+         leaseIdRef.current = reply.value.leaseId;
+         setLeaseId(reply.value.leaseId);
+-        setState({ kind: "ready", snapshot: reply.value.snapshot });
+       });
+ 
+     return () => {
+@@ -60,7 +59,6 @@ export function useDiagnosticsWorkspace(view: DiagnosticsView) {
+   }, []);
+ 
+   useEffect(() => {
+-    const leaseId = leaseIdRef.current;
+     if (!leaseId) return;
+     let cancelled = false;
+     void window.electronAPI.diagnostics.configureLease({ leaseId, view }).then((reply) => {
+@@ -78,7 +76,7 @@ export function useDiagnosticsWorkspace(view: DiagnosticsView) {
+     return () => {
+       cancelled = true;
+     };
+-  }, [view]);
++  }, [leaseId, view]);
+ 
+   const refresh = useCallback(async () => {
+     const leaseId = leaseIdRef.current;
+diff --git a/apps/desktop/src/frontend/pages/Categories/index.tsx b/apps/desktop/src/frontend/pages/Categories/index.tsx
+index c4053a8..f94e3b1 100644
+--- a/apps/desktop/src/frontend/pages/Categories/index.tsx
++++ b/apps/desktop/src/frontend/pages/Categories/index.tsx
+@@ -6,12 +6,14 @@ import { LuRefreshCw, LuSearch, LuTriangleAlert } from "react-icons/lu";
+ import { VirtualizedCategoryGrid } from "@/features/discovery/components/discovery/virtualized-category-grid";
+ import { useInfiniteTopCategories } from "@/features/discovery/data/queries/useCategories";
+ import { useSearchCategories } from "@/features/discovery/data/queries/useSearch";
++import { useDebounce } from "@/hooks/useDebounce";
+ import {
+   filterRankAndDeduplicateCategories,
+   mergeExactCrossPlatformCategories,
+ } from "@/features/discovery/utils/search/category-search-contract";
+ 
+ const MIN_REMOTE_CATEGORY_SEARCH_LENGTH = 2;
++const REMOTE_CATEGORY_SEARCH_DEBOUNCE_MS = 250;
+ 
+ export function CategoriesPage() {
+   const { t } = useTranslation();
+@@ -28,12 +30,19 @@ export function CategoriesPage() {
+   } = useInfiniteTopCategories();
+   const [searchQuery, setSearchQuery] = useState("");
+   const normalizedSearchQuery = searchQuery.trim();
++  const debouncedSearchQuery = useDebounce(
++    normalizedSearchQuery,
++    REMOTE_CATEGORY_SEARCH_DEBOUNCE_MS
++  );
+   const shouldSearchRemotely = normalizedSearchQuery.length >= MIN_REMOTE_CATEGORY_SEARCH_LENGTH;
++  const remoteSearchIsCurrent = debouncedSearchQuery === normalizedSearchQuery;
++  const remoteSearchEnabled = shouldSearchRemotely && remoteSearchIsCurrent;
++  const remoteSearchPending = shouldSearchRemotely && !remoteSearchIsCurrent;
+   const remoteSearch = useSearchCategories(
+-    normalizedSearchQuery,
++    debouncedSearchQuery,
+     undefined,
+     20,
+-    shouldSearchRemotely
++    remoteSearchEnabled
+   );
+ 
+   const localCategories = useMemo(() => {
+@@ -51,22 +60,29 @@ export function CategoriesPage() {
+       ),
+     [normalizedSearchQuery, remoteSearch.data]
+   );
+-  const filteredCategories = shouldSearchRemotely
++  const filteredCategories = remoteSearchEnabled
+     ? remoteSearch.data
+       ? remoteCategories
+       : localCategories
+     : localCategories;
+   const searchIsLoading =
+-    shouldSearchRemotely && remoteSearch.isLoading && localCategories.length === 0;
+-  const searchIsError =
+-    shouldSearchRemotely && remoteSearch.isError && localCategories.length === 0;
+-  const searchHasNextPage = shouldSearchRemotely ? remoteSearch.hasNextPage : hasNextPage;
+-  const searchIsFetchingNextPage = shouldSearchRemotely
+-    ? remoteSearch.isFetchingNextPage
+-    : isFetchingNextPage;
+-  const loadMore = shouldSearchRemotely
+-    ? () => void remoteSearch.fetchNextPage()
+-    : () => void fetchNextPage();
++    remoteSearchEnabled && remoteSearch.isLoading && localCategories.length === 0;
++  const searchIsError = remoteSearchEnabled && remoteSearch.isError && localCategories.length === 0;
++  const searchHasNextPage = remoteSearchPending
++    ? false
++    : remoteSearchEnabled
++      ? remoteSearch.hasNextPage
++      : hasNextPage;
++  const searchIsFetchingNextPage = remoteSearchPending
++    ? false
++    : remoteSearchEnabled
++      ? remoteSearch.isFetchingNextPage
++      : isFetchingNextPage;
++  const loadMore = remoteSearchPending
++    ? () => undefined
++    : remoteSearchEnabled
++      ? () => void remoteSearch.fetchNextPage()
++      : () => void fetchNextPage();
+ 
+   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+     setSearchQuery(e.target.value);
+diff --git a/apps/desktop/src/frontend/pages/Following/following-channel-grid.tsx b/apps/desktop/src/frontend/pages/Following/following-channel-grid.tsx
+new file mode 100644
+index 0000000..55057cb
+--- /dev/null
++++ b/apps/desktop/src/frontend/pages/Following/following-channel-grid.tsx
+@@ -0,0 +1,132 @@
++import {
++  useCallback,
++  useEffect,
++  useMemo,
++  useRef,
++  useState,
++  useSyncExternalStore,
++  type ReactNode,
++} from "react";
++
++const CARD_HEIGHT = 180;
++const GRID_GAP = 16;
++const INITIAL_VISIBLE_CARD_COUNT = 48;
++
++export interface FollowingChannelGridProps<T> {
++  items: readonly T[];
++  getItemKey: (item: T) => string;
++  renderItem: (item: T) => ReactNode;
++}
++
++function getItemsPerRow(width: number): number {
++  if (width < 768) return 3;
++  if (width < 1024) return 5;
++  if (width < 1280) return 6;
++  return 8;
++}
++
++function subscribeToViewport(onStoreChange: () => void): () => void {
++  window.addEventListener("resize", onStoreChange);
++  return () => window.removeEventListener("resize", onStoreChange);
++}
++
++function getViewportItemsPerRow(): number {
++  return getItemsPerRow(window.innerWidth);
++}
++
++function getServerItemsPerRow(): number {
++  return 6;
++}
++
++export function FollowingChannelGrid<T>({
++  items,
++  getItemKey,
++  renderItem,
++}: FollowingChannelGridProps<T>) {
++  const containerRef = useRef<HTMLDivElement>(null);
++  const itemsPerRow = useSyncExternalStore(
++    subscribeToViewport,
++    getViewportItemsPerRow,
++    getServerItemsPerRow
++  );
++  const [visibleRange, setVisibleRange] = useState({
++    start: 0,
++    end: Math.min(items.length, INITIAL_VISIBLE_CARD_COUNT),
++  });
++
++  const updateVisibleRange = useCallback(() => {
++    const container = containerRef.current;
++    if (!container) return;
++
++    const rowHeight = CARD_HEIGHT + GRID_GAP;
++    const viewportRows = Math.max(
++      Math.ceil(container.clientHeight / rowHeight),
++      Math.ceil(INITIAL_VISIBLE_CARD_COUNT / itemsPerRow)
++    );
++    const totalRows = Math.ceil(items.length / itemsPerRow);
++    const startRow = Math.min(
++      Math.floor(container.scrollTop / rowHeight),
++      Math.max(0, totalRows - viewportRows)
++    );
++    const start = Math.max(0, (startRow - 1) * itemsPerRow);
++    const end = Math.min(items.length, (startRow + viewportRows + 1) * itemsPerRow);
++    setVisibleRange((current) =>
++      current.start === start && current.end === end ? current : { start, end }
++    );
++  }, [items.length, itemsPerRow]);
++
++  useEffect(() => {
++    updateVisibleRange();
++  }, [updateVisibleRange]);
++
++  const visibleItems = useMemo(
++    () => items.slice(visibleRange.start, visibleRange.end),
++    [items, visibleRange]
++  );
++  const totalRows = Math.ceil(items.length / itemsPerRow);
++  const startRow = Math.floor(visibleRange.start / itemsPerRow);
++  const rowHeight = CARD_HEIGHT + GRID_GAP;
++
++  const extendRangeForFocus = useCallback(
++    (index: number) => {
++      setVisibleRange((current) => {
++        const padding = itemsPerRow * 2;
++        const start =
++          index <= current.start + padding ? Math.max(0, current.start - padding) : current.start;
++        const end =
++          index >= current.end - padding
++            ? Math.min(items.length, current.end + padding)
++            : current.end;
++        return start === current.start && end === current.end ? current : { start, end };
++      });
++    },
++    [items.length, itemsPerRow]
++  );
++
++  return (
++    <div
++      ref={containerRef}
++      className="min-h-0 flex-1 overflow-y-auto pr-2"
++      style={{ contain: "strict" }}
++      onScroll={updateVisibleRange}
++      data-testid="following-channel-grid"
++    >
++      <div style={{ height: totalRows * rowHeight, position: "relative" }}>
++        <div
++          className="absolute left-0 right-0 grid grid-cols-3 gap-4 pt-2 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8"
++          style={{ top: startRow * rowHeight }}
++        >
++          {visibleItems.map((item, index) => (
++            <div
++              key={getItemKey(item)}
++              className="h-[180px] overflow-hidden"
++              onFocus={() => extendRangeForFocus(visibleRange.start + index)}
++            >
++              {renderItem(item)}
++            </div>
++          ))}
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/apps/desktop/src/frontend/pages/Following/index.tsx b/apps/desktop/src/frontend/pages/Following/index.tsx
+index bad246c..9f8a98f 100644
+--- a/apps/desktop/src/frontend/pages/Following/index.tsx
++++ b/apps/desktop/src/frontend/pages/Following/index.tsx
+@@ -54,6 +54,8 @@ import { useAuthStore } from "@/store/auth-store";
+ import { useFollowStore } from "@/store/follow-store";
+ import { usePipStore } from "@/store/pip-store";
+ 
++import { FollowingChannelGrid } from "./following-channel-grid";
++
+ type FollowingTab = "live" | "videos" | "clips" | "categories" | "channels";
+ type FollowSyncStamp = Readonly<{
+   platform: Extract<Platform, "twitch" | "kick">;
+@@ -447,9 +449,7 @@ export function FollowingPage() {
+     !isLoading;
+   useChannelByUsername(shouldResolveKickSearchSlug ? debouncedSearchQuery : "", "kick");
+ 
+-  const shouldLoadFollowedCategories =
+-    canRenderContent &&
+-    (activeTab === "categories" || liveChannels.some((stream) => Boolean(stream.categoryName)));
++  const shouldLoadFollowedCategories = canRenderContent && activeTab === "categories";
+   const {
+     data: topCategories,
+     isLoading: isLoadingTopCategories,
+@@ -688,11 +688,12 @@ export function FollowingPage() {
+   }, [canRenderContent, liveChannels, topCategories]);
+ 
+   useEffect(() => {
++    if (activeTab !== "categories") return;
+     followedCategories.slice(0, CATEGORY_THUMBNAIL_PRELOAD_LIMIT).forEach((category) => {
+       const thumbnailUrl = getCategoryThumbnailUrl(category);
+       if (thumbnailUrl) preloadCategoryThumbnail(thumbnailUrl);
+     });
+-  }, [followedCategories]);
++  }, [activeTab, followedCategories]);
+ 
+   const getContentChannel = useCallback(
+     (item: FollowedContentItem) => {
+@@ -1043,7 +1044,13 @@ export function FollowingPage() {
+         </div>
+       </div>
+ 
+-      <div ref={contentScrollRef} className="space-y-8 flex-1 overflow-y-auto pr-2 pb-10">
++      <div
++        ref={contentScrollRef}
++        className={cn(
++          "flex-1 min-h-0 pr-2",
++          activeTab === "channels" ? "overflow-hidden" : "space-y-8 overflow-y-auto pb-10"
++        )}
++      >
+         {activeTab === "live" && isLoading ? (
+           <div
+             role="status"
+@@ -1098,16 +1105,19 @@ export function FollowingPage() {
+ 
+             {activeTab === "channels" &&
+               (followedChannels.length > 0 ? (
+-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
++                <div className="flex h-full min-h-0 flex-col gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                   <h2 className="text-xl font-semibold text-white">
+                     {t("discovery.channels")}
+                     <span className="text-sm font-normal text-[var(--color-foreground-muted)] ml-2">
+                       ({followedChannels.length})
+                     </span>
+                   </h2>
+-                  <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4 pt-2">
+-                    {followedChannels.map(renderChannelCard)}
+-                  </div>
++                  <FollowingChannelGrid
++                    key={`${filter}:${searchQuery}`}
++                    items={followedChannels}
++                    getItemKey={({ channel }) => `${channel.platform}-${channel.id}`}
++                    renderItem={renderChannelCard}
++                  />
+                 </div>
+               ) : (
+                 renderEmptyState(
+diff --git a/apps/desktop/src/frontend/pages/History/index.tsx b/apps/desktop/src/frontend/pages/History/index.tsx
+index 3f6b8d8..646889e 100644
+--- a/apps/desktop/src/frontend/pages/History/index.tsx
++++ b/apps/desktop/src/frontend/pages/History/index.tsx
+@@ -9,6 +9,7 @@ import {
+ } from "@/features/playback/components/related-content/types";
+ import { VodProgressBar } from "@/features/playback/components/vod-progress-bar";
+ import { Button } from "@/components/ui/button";
++import { ProxiedImage } from "@/components/ui/proxied-image";
+ import { useChannelByUsername } from "@/features/discovery/data/queries/useChannels";
+ import { useHistoryActions, useHistoryQuery } from "@/features/media-library/data/useHistoryQuery";
+ import { resolveProxiedImageSrc } from "@/lib/proxied-image-url";
+@@ -250,7 +251,7 @@ export function HistoryPage() {
+       ) : (
+         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+           {history.map((item) => {
+-            const thumbnail = resolveProxiedImageSrc(item.thumbnail);
++            const thumbnail = resolveProxiedImageSrc(item.thumbnail) ? item.thumbnail : null;
+             return (
+               <div
+                 key={item.id}
+@@ -258,18 +259,19 @@ export function HistoryPage() {
+               >
+                 {/* Thumbnail Container */}
+                 <div className="relative aspect-video bg-black/50">
+-                  {thumbnail ? (
+-                    <img
+-                      src={thumbnail}
+-                      alt={item.title}
+-                      className="w-full h-full object-cover"
+-                      loading="lazy"
+-                    />
+-                  ) : (
+-                    <div className="w-full h-full flex items-center justify-center bg-zinc-800">
+-                      <LuPlay className="w-8 h-8 text-white/20" />
+-                    </div>
+-                  )}
++                  <ProxiedImage
++                    src={thumbnail}
++                    alt={item.title}
++                    className="w-full h-full object-cover"
++                    fallback={
++                      <div
++                        className="w-full h-full flex items-center justify-center bg-zinc-800"
++                        data-testid="history-thumbnail-fallback"
++                      >
++                        <LuPlay className="w-8 h-8 text-white/20" />
++                      </div>
++                    }
++                  />
+ 
+                   {/* Overlay on hover */}
+                   <div className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+diff --git a/apps/desktop/src/frontend/pages/Settings/diagnostics/DiagnosticsWorkspace.tsx b/apps/desktop/src/frontend/pages/Settings/diagnostics/DiagnosticsWorkspace.tsx
+index 30cfa4c..14174c8 100644
+--- a/apps/desktop/src/frontend/pages/Settings/diagnostics/DiagnosticsWorkspace.tsx
++++ b/apps/desktop/src/frontend/pages/Settings/diagnostics/DiagnosticsWorkspace.tsx
+@@ -812,14 +812,23 @@ function historyRangeDurationMs(range: DiagnosticsHistoryRange): number {
+   return historyRangePreset(range).durationMs;
+ }
+ 
++const historyTimeFormatters = new Map<string, Intl.DateTimeFormat>();
++
+ function formatHistoryTime(timestampMs: number, precise = false): string {
+-  return new Date(timestampMs).toLocaleString(i18n.resolvedLanguage ?? i18n.language, {
+-    month: "short",
+-    day: "numeric",
+-    hour: "numeric",
+-    minute: "2-digit",
+-    ...(precise ? { second: "2-digit" as const } : {}),
+-  });
++  const locale = i18n.resolvedLanguage ?? i18n.language;
++  const formatterKey = `${locale}:${precise ? "precise" : "standard"}`;
++  let formatter = historyTimeFormatters.get(formatterKey);
++  if (!formatter) {
++    formatter = new Intl.DateTimeFormat(locale, {
++      month: "short",
++      day: "numeric",
++      hour: "numeric",
++      minute: "2-digit",
++      ...(precise ? { second: "2-digit" as const } : {}),
++    });
++    historyTimeFormatters.set(formatterKey, formatter);
++  }
++  return formatter.format(timestampMs);
+ }
+ 
+ function formatHistoryInput(timestampMs: number): string {
+diff --git a/apps/desktop/tests/App.live-notification-router.integration.test.tsx b/apps/desktop/tests/App.live-notification-router.integration.test.tsx
+index b7e8b03..3b24ff9 100644
+--- a/apps/desktop/tests/App.live-notification-router.integration.test.tsx
++++ b/apps/desktop/tests/App.live-notification-router.integration.test.tsx
+@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
+ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+ 
+ import type { LiveNotificationPayload } from "@shared/auth-types";
++import { installElectronAPIMock } from "./test-utils";
+ 
+ vi.mock("@/features/auth/components/auth/AuthProvider", () => ({
+   AuthProvider: ({ children }: { children: ReactNode }) => children,
+@@ -73,15 +74,12 @@ let openNotification: ((notification: LiveNotificationPayload) => void) | undefi
+ beforeEach(() => {
+   openNotification = undefined;
+   vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
+-  window.electronAPI = {
+-    notifications: {
+-      onLiveNotification: vi.fn(() => vi.fn()),
+-      onOpenLiveNotification: vi.fn((callback: (notification: LiveNotificationPayload) => void) => {
+-        openNotification = callback;
+-        return vi.fn();
+-      }),
+-    },
+-  } as unknown as typeof window.electronAPI;
++  const api = installElectronAPIMock();
++  api.notifications.onLiveNotification = vi.fn(() => vi.fn());
++  api.notifications.onOpenLiveNotification = vi.fn((callback) => {
++    openNotification = callback;
++    return vi.fn();
++  });
+ });
+ 
+ afterEach(() => {
+@@ -90,7 +88,7 @@ afterEach(() => {
+   vi.restoreAllMocks();
+ });
+ 
+-// Guards: the app-level live-notification bridge owns a valid router and opens the requested Stream without an outside-provider warning.
++// Guards: notification clicks open the requested Stream with the full app bridge and without an outside-provider warning.
+ describe("App live-notification routing", () => {
+   it("opens a Stream when the main process reports a notification click", async () => {
+     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+diff --git a/apps/desktop/tests/components/chat/ChatBadge.test.tsx b/apps/desktop/tests/components/chat/ChatBadge.test.tsx
+index e8f0a78..4d02f11 100644
+--- a/apps/desktop/tests/components/chat/ChatBadge.test.tsx
++++ b/apps/desktop/tests/components/chat/ChatBadge.test.tsx
+@@ -8,6 +8,7 @@ import { renderWithProviders } from "../../test-utils";
+ // Guards: role and cosmetic badges retain deferred loading while subscription badges are prioritized (regression 67fdc95)
+ // Guards: mounted subscription badges load eagerly in virtualized live chat (regression 67fdc95)
+ // Guards: Kick subscription badges use the Electron image proxy in both the row and tooltip (regression 67fdc95)
++// Guards: a failed tooltip badge image renders the badge-title initial instead of a broken image.
+ describe("ChatBadge", () => {
+   it("loading: renders nothing when no imageUrl is provided (badge metadata pending)", () => {
+     const { container } = renderWithProviders(<ChatBadge badge={{ title: "mod" }} />);
+@@ -98,4 +99,20 @@ describe("ChatBadge", () => {
+     // The tooltip portal renders another copy of the badge title and an img.
+     expect(screen.getAllByAltText("Verified").length).toBeGreaterThan(1);
+   });
++
++  it("replaces a failed tooltip image with the badge-title initial", () => {
++    renderWithProviders(
++      <ChatBadge
++        badge={{ imageUrl: "https://x.test/verified.png", title: "Verified" }}
++        platform="twitch"
++      />
++    );
++    fireEvent.mouseEnter(screen.getByAltText("Verified"), { clientX: 10, clientY: 10 });
++
++    const tooltipImage = screen.getAllByAltText("Verified")[1];
++    fireEvent.error(tooltipImage);
++
++    expect(screen.getAllByAltText("Verified")).toHaveLength(1);
++    expect(screen.getByText("V")).toBeInTheDocument();
++  });
+ });
+diff --git a/apps/desktop/tests/components/search/UnifiedSearchInput.test.tsx b/apps/desktop/tests/components/search/UnifiedSearchInput.test.tsx
+index 8c4cd9f..07f2b5f 100644
+--- a/apps/desktop/tests/components/search/UnifiedSearchInput.test.tsx
++++ b/apps/desktop/tests/components/search/UnifiedSearchInput.test.tsx
+@@ -91,10 +91,6 @@ vi.mock("@/features/discovery/data/queries/useCategories", () => ({
+   }),
+ }));
+ 
+-vi.mock("@/components/ui/proxied-image", () => ({
+-  ProxiedImage: ({ alt }: { alt: string }) => <div>{alt}</div>,
+-}));
+-
+ vi.mock("@/features/discovery/routes/search-page", () => ({
+   preloadSearchPage: routeMockState.preloadSearchPage,
+ }));
+@@ -170,6 +166,7 @@ function resetHistoryMock() {
+ // Guards: one-letter autocomplete does not relax substring/fuzzy relevance when the expanded provider page has fewer than five strong Channels candidates.
+ // Guards: search focus delegates page loading to the route preload owner.
+ // Guards: compact follower counts appear exactly once in channel suggestions.
++// Guards: failed category preview images render the category icon fallback instead of a broken image.
+ describe("UnifiedSearchInput", () => {
+   beforeEach(() => {
+     resetSearchMock();
+@@ -585,6 +582,25 @@ describe("UnifiedSearchInput", () => {
+     expect(screen.getByText("GAME 0")).toBeInTheDocument();
+   });
+ 
++  it("shows the category icon fallback when a category preview image fails", () => {
++    searchMockState.categoriesData = {
++      pages: [
++        {
++          data: [{ ...makeCategories(1, "broken")[0], boxArtUrl: "https://cdn.test/broken.jpg" }],
++        },
++      ],
++    };
++
++    renderWithProviders(<UnifiedSearchInput initialValue="broken" />);
++    fireEvent.focus(screen.getByRole("textbox"));
++    fireEvent.click(screen.getByRole("tab", { name: "Categories" }));
++
++    fireEvent.error(screen.getByRole("img", { name: "BROKEN 0" }));
++
++    expect(screen.queryByRole("img", { name: "BROKEN 0" })).not.toBeInTheDocument();
++    expect(screen.getByTestId("category-preview-fallback")).toBeInTheDocument();
++  });
++
+   it("renders a platform partner badge beside verified channel suggestions", () => {
+     searchMockState.channelsData = {
+       pages: [
+diff --git a/apps/desktop/tests/components/ui/proxied-image.test.tsx b/apps/desktop/tests/components/ui/proxied-image.test.tsx
+index fe4b95f..1572472 100644
+--- a/apps/desktop/tests/components/ui/proxied-image.test.tsx
++++ b/apps/desktop/tests/components/ui/proxied-image.test.tsx
+@@ -7,6 +7,8 @@ import { ProxiedImage, _resetProxiedImageBrokenUrls } from "@/components/ui/prox
+ // Guards: Twitch profile avatars must use the custom protocol immediately so upstream CDN 403s do not hit the renderer console.
+ // Guards: proxied image placeholders and errors must render the fallback initial instead of a broken image.
+ // Guards: a transient Kick proxy failure must retry in place so a mounted VOD card can recover without a page refresh.
++// Guards: mounted Kick images stop retrying after the bounded backoff schedule is exhausted.
++// Guards: changing src cancels stale retries and clears the previous source's failure state.
+ describe("ProxiedImage", () => {
+   beforeEach(() => {
+     installElectronAPIMock();
+@@ -170,6 +172,54 @@ describe("ProxiedImage", () => {
+     }
+   });
+ 
++  it("stops retrying a mounted Kick image after the retry schedule is exhausted", async () => {
++    vi.useFakeTimers();
++    try {
++      render(<ProxiedImage src="https://images.kick.com/exhausted.webp" alt="Exhausted" />);
++
++      for (const delay of [1000, 3000, 10_000, 30_000]) {
++        fireEvent.error(screen.getByRole("img", { name: "Exhausted" }));
++        await act(async () => {
++          await vi.advanceTimersByTimeAsync(delay);
++        });
++      }
++
++      const lastImage = screen.getByRole("img", { name: "Exhausted" });
++      expect(lastImage).toHaveAttribute("src", expect.stringContaining("retry=4"));
++      fireEvent.error(lastImage);
++
++      await act(async () => {
++        await vi.advanceTimersByTimeAsync(60_000);
++      });
++
++      expect(screen.queryByRole("img", { name: "Exhausted" })).toBeNull();
++      expect(screen.getByText("E")).toBeInTheDocument();
++    } finally {
++      vi.useRealTimers();
++    }
++  });
++
++  it("recovers with a fresh source without running the previous source retry", async () => {
++    vi.useFakeTimers();
++    try {
++      const { rerender } = render(
++        <ProxiedImage src="https://images.kick.com/old.webp" alt="Changing" />
++      );
++      fireEvent.error(screen.getByRole("img", { name: "Changing" }));
++
++      rerender(<ProxiedImage src="https://images.kick.com/fresh.webp" alt="Changing" />);
++      await act(async () => {
++        await vi.advanceTimersByTimeAsync(1000);
++      });
++
++      const freshImage = screen.getByRole("img", { name: "Changing" });
++      expect(freshImage.getAttribute("src")).not.toContain("retry=");
++      expect(freshImage.getAttribute("src")).toContain("kick-image://image?u=");
++    } finally {
++      vi.useRealTimers();
++    }
++  });
++
+   it("skips the network request and shows the fallback when a URL has already 403d this session", async () => {
+     // First render: image errors, URL gets added to the session-level broken-URL set.
+     const { unmount } = render(<ProxiedImage src="https://cdn.example.com/broken.jpg" alt="Bob" />);
+diff --git a/apps/desktop/tests/hooks/use-diagnostics-workspace.test.tsx b/apps/desktop/tests/hooks/use-diagnostics-workspace.test.tsx
+index 4be6411..006c1c1 100644
+--- a/apps/desktop/tests/hooks/use-diagnostics-workspace.test.tsx
++++ b/apps/desktop/tests/hooks/use-diagnostics-workspace.test.tsx
+@@ -1,10 +1,80 @@
+-import { renderHook, waitFor } from "@testing-library/react";
++import { act, renderHook, waitFor } from "@testing-library/react";
+ import { beforeEach, describe, expect, it, vi } from "vitest";
+ 
+ import { installElectronAPIMock } from "../test-utils";
++import type {
++  DiagnosticSource,
++  DiagnosticSourceStatus,
++  DiagnosticValue,
++  DiagnosticsSnapshot,
++  DiagnosticsView,
++} from "@shared/diagnostics-types";
+ 
+ type DiagnosticsApi = ReturnType<typeof installElectronAPIMock>["diagnostics"];
+ type OpenLeaseRequest = Parameters<DiagnosticsApi["openLease"]>[0];
++type OpenLeaseReply = Awaited<ReturnType<DiagnosticsApi["openLease"]>>;
++type ConfigureLeaseRequest = Parameters<DiagnosticsApi["configureLease"]>[0];
++type ConfigureLeaseReply = Awaited<ReturnType<DiagnosticsApi["configureLease"]>>;
++
++const readyStatus = { kind: "ready", observedAtMs: 0 } as const;
++const sourceStatuses: Readonly<Record<DiagnosticSource, DiagnosticSourceStatus>> = {
++  "electron-processes": readyStatus,
++  "process-io": readyStatus,
++  "host-power": readyStatus,
++  collector: readyStatus,
++  "trace-store": readyStatus,
++  "logical-io": readyStatus,
++  "renderer-performance": readyStatus,
++  "diagnostic-logs": readyStatus,
++  "diagnostic-reports": readyStatus,
++};
++
++function readyValue<T>(source: DiagnosticSource, value: T): DiagnosticValue<T> {
++  return { source, status: readyStatus, value };
++}
++
++function snapshotFor(view: DiagnosticsView): DiagnosticsSnapshot {
++  return {
++    schemaVersion: 1,
++    instanceId: "test-instance",
++    sequence: 1,
++    observedAtMs: 0,
++    view,
++    sourceStatuses,
++    overview: {
++      footprint: {
++        cpuPercent: readyValue("electron-processes", 0),
++        residentMemoryBytes: readyValue("electron-processes", 0),
++        processCount: readyValue("electron-processes", 0),
++        readBytesPerSecond: readyValue("process-io", 0),
++        writeBytesPerSecond: readyValue("process-io", 0),
++        cpuSpeedLimitPercent: readyValue("host-power", 0),
++        collectionDurationMs: readyValue("collector", 0),
++        collectorCpuPercent: readyValue("collector", 0),
++        collectorResidentBytes: readyValue("collector", 0),
++      },
++      host: {
++        powerSource: readyValue("host-power", "external"),
++        lowPowerMode: readyValue("host-power", false),
++        idleSeconds: readyValue("host-power", 0),
++        sessionState: readyValue("host-power", "active"),
++        thermalState: readyValue("host-power", "nominal"),
++      },
++      collection: {
++        sampleIntervalMs: 1_000,
++        retainedSamples: 0,
++        processScanCount: 0,
++        processStarts: 0,
++        processExits: 0,
++        inaccessibleProcessCount: 0,
++        restartCount: 0,
++        droppedDetailCount: 0,
++      },
++      latestFailures: [],
++    },
++    detail: { tab: "overview" },
++  };
++}
+ 
+ vi.mock("@/features/settings/data/diagnostics/renderer-diagnostics-reporter", () => ({
+   startRendererDiagnosticsReporter: vi.fn(() => () => undefined),
+@@ -52,4 +122,113 @@ describe("useDiagnosticsWorkspace", () => {
+     expect(secondId).toBeTruthy();
+     expect(firstId).not.toBe(secondId);
+   });
++
++  it("configures a lease with the latest view when the user switches tabs during opening", async () => {
++    const api = installElectronAPIMock();
++    let resolveOpenLease: ((reply: OpenLeaseReply) => void) | undefined;
++    const openLease = vi.fn(
++      (): Promise<OpenLeaseReply> =>
++        new Promise<OpenLeaseReply>((resolve) => {
++          resolveOpenLease = resolve;
++        })
++    );
++    let resolveConfigureLease: ((reply: ConfigureLeaseReply) => void) | undefined;
++    const configureLease = vi.fn(
++      (_request: ConfigureLeaseRequest): Promise<ConfigureLeaseReply> =>
++        new Promise<ConfigureLeaseReply>((resolve) => {
++          resolveConfigureLease = resolve;
++        })
++    );
++    api.diagnostics = {
++      openLease,
++      configureLease,
++      closeLease: vi.fn(),
++      refresh: vi.fn(),
++      reportRenderer: vi.fn(),
++      reportActivity: vi.fn(),
++      queryResourceHistory: vi.fn(),
++      queryResourceContext: vi.fn(),
++      onSnapshotChanged: vi.fn(() => () => undefined),
++    };
++
++    const { useDiagnosticsWorkspace } =
++      await import("@/features/settings/data/use-diagnostics-workspace");
++    const overview: DiagnosticsView = { tab: "overview", windowMinutes: 15 };
++    const resources: DiagnosticsView = { tab: "resources", windowMinutes: 15 };
++    const { result, rerender } = renderHook(({ view }) => useDiagnosticsWorkspace(view), {
++      initialProps: { view: overview },
++    });
++
++    await waitFor(() => expect(resolveOpenLease).toBeTypeOf("function"));
++    rerender({ view: resources });
++    act(() => {
++      resolveOpenLease?.({
++        kind: "ok",
++        value: { leaseId: "lease-1", snapshot: snapshotFor(overview) },
++      });
++    });
++
++    await waitFor(
++      () =>
++        expect(configureLease).toHaveBeenCalledWith({
++          leaseId: "lease-1",
++          view: { tab: "resources", windowMinutes: 15 },
++        }),
++      { timeout: 200 }
++    );
++    expect(result.current).toMatchObject({ kind: "loading", snapshot: null });
++
++    await act(async () => {
++      resolveConfigureLease?.({ kind: "ok", value: snapshotFor(resources) });
++    });
++    expect(result.current.snapshot?.view).toEqual(resources);
++  });
++
++  it("ignores a stale configure reply after a second tab switch", async () => {
++    const api = installElectronAPIMock();
++    const resources: DiagnosticsView = { tab: "resources", windowMinutes: 15 };
++    const traces: DiagnosticsView = { tab: "traces", windowMinutes: 15 };
++    const openLease = vi.fn(async () => ({
++      kind: "ok" as const,
++      value: { leaseId: "lease-1", snapshot: snapshotFor(resources) },
++    }));
++    const configureResolvers: Array<(reply: ConfigureLeaseReply) => void> = [];
++    const configureLease = vi.fn(
++      (_request: ConfigureLeaseRequest): Promise<ConfigureLeaseReply> =>
++        new Promise<ConfigureLeaseReply>((resolve) => {
++          configureResolvers.push(resolve);
++        })
++    );
++    api.diagnostics = {
++      openLease,
++      configureLease,
++      closeLease: vi.fn(),
++      refresh: vi.fn(),
++      reportRenderer: vi.fn(),
++      reportActivity: vi.fn(),
++      queryResourceHistory: vi.fn(),
++      queryResourceContext: vi.fn(),
++      onSnapshotChanged: vi.fn(() => () => undefined),
++    };
++
++    const { useDiagnosticsWorkspace } =
++      await import("@/features/settings/data/use-diagnostics-workspace");
++    const { result, rerender } = renderHook(({ view }) => useDiagnosticsWorkspace(view), {
++      initialProps: { view: resources },
++    });
++
++    await waitFor(() => expect(configureLease).toHaveBeenCalledTimes(1));
++    rerender({ view: traces });
++    await waitFor(() => expect(configureLease).toHaveBeenCalledTimes(2));
++
++    await act(async () => {
++      configureResolvers[1]?.({ kind: "ok", value: snapshotFor(traces) });
++    });
++    expect(result.current.snapshot?.view).toEqual(traces);
++
++    await act(async () => {
++      configureResolvers[0]?.({ kind: "ok", value: snapshotFor(resources) });
++    });
++    expect(result.current.snapshot?.view).toEqual(traces);
++  });
+ });
+diff --git a/apps/desktop/tests/pages/Categories.test.tsx b/apps/desktop/tests/pages/Categories.test.tsx
+index e480383..eaf83c3 100644
+--- a/apps/desktop/tests/pages/Categories.test.tsx
++++ b/apps/desktop/tests/pages/Categories.test.tsx
+@@ -1,3 +1,4 @@
++import { act } from "@testing-library/react";
+ import { beforeEach, describe, expect, it, vi } from "vitest";
+ 
+ import { fireEvent, fixtures, renderWithProviders, routerMock, screen } from "../test-utils";
+@@ -98,6 +99,7 @@ describe("CategoriesPage", () => {
+     useInfiniteTopCategoriesMock.mockReturnValue({
+       data: [fixtures.category({ id: "c1", name: "Just Chatting" })],
+       isLoading: false,
++      hasNextPage: true,
+     } as ReturnType<typeof useInfiniteTopCategories>);
+ 
+     renderWithProviders(<CategoriesPage />);
+@@ -146,14 +148,44 @@ describe("CategoriesPage", () => {
+       fetchNextPage: vi.fn(),
+     } as unknown as ReturnType<typeof useSearchCategories>);
+ 
++    vi.useFakeTimers();
+     renderWithProviders(<CategoriesPage />);
+     fireEvent.change(screen.getByPlaceholderText(/filter categories/i), {
+       target: { value: "later" },
+     });
+ 
++    act(() => {
++      vi.advanceTimersByTime(250);
++    });
++
+     expect(screen.getByText("Later Match")).toBeInTheDocument();
+     expect(screen.queryByText(/no categories matching/i)).not.toBeInTheDocument();
+     expect(useSearchCategoriesMock).toHaveBeenLastCalledWith("later", undefined, 20, true);
++    vi.useRealTimers();
++  });
++
++  it("keeps local filtering immediate while deferring remote category search", () => {
++    vi.useFakeTimers();
++    useInfiniteTopCategoriesMock.mockReturnValue({
++      data: [fixtures.category({ id: "c1", name: "Just Chatting" })],
++      isLoading: false,
++    } as ReturnType<typeof useInfiniteTopCategories>);
++    renderWithProviders(<CategoriesPage />);
++
++    fireEvent.change(screen.getByPlaceholderText(/filter categories/i), {
++      target: { value: "just" },
++    });
++
++    expect(screen.getByText("Just Chatting")).toBeInTheDocument();
++    expect(useSearchCategoriesMock).toHaveBeenLastCalledWith("", undefined, 20, false);
++    expect(screen.queryByRole("button", { name: /load-more-categories/i })).toBeNull();
++
++    act(() => {
++      vi.advanceTimersByTime(250);
++    });
++
++    expect(useSearchCategoriesMock).toHaveBeenLastCalledWith("just", undefined, 20, true);
++    vi.useRealTimers();
+   });
+ 
+   it("error: shows a retryable failure instead of the generic empty copy", () => {
+diff --git a/apps/desktop/tests/pages/Following.test.tsx b/apps/desktop/tests/pages/Following.test.tsx
+index df3cf23..a4b51c3 100644
+--- a/apps/desktop/tests/pages/Following.test.tsx
++++ b/apps/desktop/tests/pages/Following.test.tsx
+@@ -75,10 +75,7 @@ vi.mock("@/store/auth-store", () => ({
+ 
+ vi.mock("@/store/follow-store", () => ({
+   useFollowStore: <T,>(
+-    selector?: (state: {
+-      localFollows: unknown[];
+-      isHydrated: boolean;
+-    }) => T
++    selector?: (state: { localFollows: unknown[]; isHydrated: boolean }) => T
+   ) => {
+     const state = {
+       localFollows: storeState.localFollows,
+@@ -274,7 +271,8 @@ function createDeferredRefresh() {
+ // Guards: Videos and Clips tab filters are forwarded into followed-content queries
+ // Guards: Videos and Clips tabs limit large followed-content lists behind an infinite-scroll sentinel so the page does not render every card at once
+ // Guards: Categories tab uses the shared category-card grid rather than custom summary cards
+-// Guards: Categories tab warms category data and first-batch thumbnails before tab activation so followed category cards do not cold-load
++// Guards: Categories tab loads its catalog and warms first-batch thumbnails only while that tab is active.
++// Guards: Channels virtualizes large follow lists so opening the tab does not mount every channel card.
+ // Guards: delayed startup keeps live refresh active but defers exact snapshot identity work until auth, follows, and the first paint are ready
+ // Guards: first useful paint derives the deduped cached live count without mounting cards, skeletons, or a false empty state
+ // Guards: Live-tab startup does not prepare the full followed-channel collection for disabled Videos and Clips queries
+@@ -1220,7 +1218,7 @@ describe("FollowingPage", () => {
+     expect(screen.getByTestId("category-grid")).toHaveTextContent("Just Chatting");
+   });
+ 
+-  it("prefetches followed categories and warms category thumbnails before opening the Categories tab", async () => {
++  it("loads followed categories and warms thumbnails when the Categories tab opens", async () => {
+     const preloadedUrls: string[] = [];
+     class MockImage {
+       decoding = "";
+@@ -1268,6 +1266,14 @@ describe("FollowingPage", () => {
+ 
+     renderWithProviders(<FollowingPage />);
+ 
++    expect(useTopCategoriesMock).toHaveBeenLastCalledWith(
++      undefined,
++      expect.objectContaining({ enabled: false })
++    );
++    expect(preloadedUrls).toEqual([]);
++
++    fireEvent.click(screen.getByRole("button", { name: /^categories$/i }));
++
+     expect(useTopCategoriesMock).toHaveBeenLastCalledWith(
+       undefined,
+       expect.objectContaining({ enabled: true })
+@@ -1276,11 +1282,49 @@ describe("FollowingPage", () => {
+       expect(preloadedUrls).toContain("https://static-cdn.jtvnw.net/ttv-boxart/509658-285x380.jpg")
+     );
+ 
+-    fireEvent.click(screen.getByRole("button", { name: /^categories$/i }));
+-
+     expect(screen.getByTestId("category-grid")).toHaveAttribute("data-image-loading", "eager");
+   });
+ 
++  it("virtualizes large followed-channel lists through scrolling, filtering, resize, and keyboard focus", () => {
++    storeState.localFollows = Array.from({ length: 672 }, (_, index) =>
++      fixtures.channel({
++        id: `channel-${index}`,
++        username: `channel${index}`,
++        displayName: `Channel ${index}`,
++      })
++    );
++    useFollowedStreamsMock.mockReturnValue({
++      data: [],
++      isLoading: false,
++    } as unknown as ReturnType<typeof useFollowedStreams>);
++
++    renderWithProviders(<FollowingPage />);
++    fireEvent.click(screen.getByRole("button", { name: /^channels$/i }));
++
++    const grid = screen.getByTestId("following-channel-grid");
++    Object.defineProperty(grid, "clientHeight", { configurable: true, value: 500 });
++    expect(grid).toBeInTheDocument();
++    expect(screen.getAllByText("Channel 0")).not.toHaveLength(0);
++    expect(screen.getAllByRole("heading", { level: 3 }).length).toBeLessThan(672);
++
++    const linksBeforeFocus = grid.querySelectorAll("a");
++    fireEvent.focus(linksBeforeFocus[linksBeforeFocus.length - 1]);
++    expect(grid.querySelectorAll("a").length).toBeGreaterThan(linksBeforeFocus.length);
++
++    grid.scrollTop = 100_000;
++    fireEvent.scroll(grid);
++    expect(screen.getAllByText("Channel 671")).not.toHaveLength(0);
++
++    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1600 });
++    fireEvent(window, new Event("resize"));
++    expect(screen.getAllByText("Channel 671")).not.toHaveLength(0);
++
++    fireEvent.change(screen.getByPlaceholderText(/search followed channels/i), {
++      target: { value: "Channel 0" },
++    });
++    expect(screen.getAllByText("Channel 0")).not.toHaveLength(0);
++  });
++
+   it("shows recent videos from followed channels on the Videos tab", () => {
+     storeState.localFollows = [
+       fixtures.channel({
+diff --git a/apps/desktop/tests/pages/History.test.tsx b/apps/desktop/tests/pages/History.test.tsx
+index a22d636..1460e80 100644
+--- a/apps/desktop/tests/pages/History.test.tsx
++++ b/apps/desktop/tests/pages/History.test.tsx
+@@ -97,6 +97,7 @@ import { HistoryPage } from "@/pages/History";
+ 
+ // Guards: history verifies stale videos/clips before opening, plays clips inline, and opens stream entries on Home by default.
+ // Guards: empty history stays distinct from populated history and clear-all remains confirm-gated.
++// Guards: failed proxied history thumbnails render the play fallback instead of a silent proxy placeholder.
+ describe("HistoryPage", () => {
+   beforeEach(() => {
+     removeFromHistory.mockReset();
+@@ -204,8 +205,7 @@ describe("HistoryPage", () => {
+   });
+ 
+   it("never requests persisted provider thumbnails from their raw CDN URLs", () => {
+-    const twitchProcessingThumbnail =
+-      "https://vod-secure.twitch.tv/_404/404_processing_90x60.png";
++    const twitchProcessingThumbnail = "https://vod-secure.twitch.tv/_404/404_processing_90x60.png";
+     const kickThumbnail =
+       "https://images.kick.com/video_thumbnails/DsuAwCgUc9Bh/lB7LKqQzyR6s/720.webp";
+     mockHistory = [
+@@ -242,6 +242,26 @@ describe("HistoryPage", () => {
+     expect(document.querySelector(`img[src="${kickThumbnail}"]`)).toBeNull();
+   });
+ 
++  it("shows the play fallback when a proxied history thumbnail fails", () => {
++    mockHistory = [
++      {
++        id: "kick-video-broken-thumbnail",
++        originalId: "v-kick",
++        title: "Broken Kick VOD",
++        platform: "kick",
++        type: "video",
++        channelName: "kick-channel",
++        thumbnail: "https://images.kick.com/broken.webp",
++        timestamp: Date.now(),
++      },
++    ];
++
++    renderWithProviders(<HistoryPage />);
++    fireEvent.error(screen.getByRole("img", { name: "Broken Kick VOD" }));
++
++    expect(screen.getByTestId("history-thumbnail-fallback")).toBeInTheDocument();
++  });
++
+   it("opens playable clip history items in the clip dialog", async () => {
+     vi.mocked(window.electronAPI.clips.getByChannel).mockResolvedValue({
+       success: true,

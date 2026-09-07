@@ -1,0 +1,2313 @@
+diff --git a/.agents/skills/verify-streamfusion/scripts/control.mjs b/.agents/skills/verify-streamfusion/scripts/control.mjs
+index e503569..3e81ff7 100644
+--- a/.agents/skills/verify-streamfusion/scripts/control.mjs
++++ b/.agents/skills/verify-streamfusion/scripts/control.mjs
+@@ -50,7 +50,7 @@ function parseArguments(argv) {
+       continue;
+     }
+     const value = tokens[index + 1];
+-    if (!value || value.startsWith("--")) options[key] = true;
++    if (value === undefined || value.startsWith("--")) options[key] = true;
+     else {
+       options[key] = value;
+       index += 1;
+diff --git a/apps/desktop/src/frontend/features/chat/components/chat/EmotePickerPopover.tsx b/apps/desktop/src/frontend/features/chat/components/chat/EmotePickerPopover.tsx
+index 972aeb9..05bee12 100644
+--- a/apps/desktop/src/frontend/features/chat/components/chat/EmotePickerPopover.tsx
++++ b/apps/desktop/src/frontend/features/chat/components/chat/EmotePickerPopover.tsx
+@@ -101,6 +101,16 @@ interface UserEmoteGroup {
+   emotes: Emote[];
+ }
+ 
++interface ActiveEmoteTooltip {
++  itemKey: string;
++  name: string;
++  left: number;
++  top: number;
++  placement: "top" | "bottom";
++}
++
++type EmoteTooltipEvent = React.MouseEvent<HTMLDivElement> | React.FocusEvent<HTMLDivElement>;
++
+ /** Compute the providers covered by a given scope+platform. */
+ function getProvidersForScope(
+   scope: EmotePickerScope,
+@@ -376,7 +386,7 @@ const ITEM_PITCH_PX = ITEM_SIZE_PX + ITEM_GAP_PX;
+ const DEFAULT_GRID_WIDTH_PX = 336;
+ const DEFAULT_PICKER_VIEWPORT_PX = 360;
+ const OVERSCAN_ROWS = 3;
+-const WINDOW_PRELOAD_PX = DEFAULT_PICKER_VIEWPORT_PX;
++const WINDOW_PRELOAD_PX = OVERSCAN_ROWS * ITEM_PITCH_PX;
+ const SCROLL_ACTIVE_VIEWPORT_RATIO = 0.35;
+ const SCROLL_ACTIVE_MAX_OFFSET_PX = 160;
+ const TWITCH_USER_EMOTE_SCOPE = "user:read:emotes";
+@@ -456,6 +466,11 @@ function getActiveSubSectionForScroll(
+   return activeSubSection;
+ }
+ 
++function getEmoteTooltipTarget(target: EventTarget | null): HTMLElement | null {
++  if (!(target instanceof Element)) return null;
++  return target.closest<HTMLElement>("[data-emote-tooltip-key]");
++}
++
+ /* ------------------------------------------------------------------------ */
+ /* Section                                                                  */
+ /* ------------------------------------------------------------------------ */
+@@ -642,44 +657,42 @@ const EmotePickerItem = memo(function EmotePickerItem({
+   );
+ 
+   const ariaLabel = locked ? `${emote.name} — subscriber-only emote` : emote.name;
++  const itemKey = `${emote.provider}-${emote.id}`;
+ 
+   return (
+     <div
+       className="relative group flex h-10 aspect-square items-center justify-center rounded-[4px] border border-[#515151] bg-transparent p-1 ring-1 ring-inset ring-[#515151] transition-[background-color,border-color,box-shadow] duration-150 ease-in-out hover:bg-white/[0.08] hover:border-[#666666] hover:ring-[#666666]"
++      data-emote-tooltip-key={itemKey}
++      data-emote-tooltip-name={emote.name}
+       onMouseEnter={() => setHovered(true)}
+       onMouseLeave={() => setHovered(false)}
+     >
+-      <Tooltip delayDuration={0}>
+-        <TooltipTrigger asChild>
+-          <button
+-            type="button"
+-            onClick={handleClick}
+-            aria-label={ariaLabel}
+-            aria-disabled={locked ? "true" : undefined}
+-            // content-visibility lets the browser skip layout/paint/decode for
+-            // emotes scrolled off-screen — the main scroll-jank cost when paging
+-            // through a large set. Applied to the image button (not the outer
+-            // cell) so the hover "favorite" star, an overflowing sibling, isn't
+-            // clipped by paint containment. contain-intrinsic-size reserves the
+-            // row height so skipped rows don't collapse and shift the scroll.
+-            style={{ contentVisibility: "auto", containIntrinsicSize: "auto 28px" }}
+-            className={`flex items-center justify-center w-full h-full ${
+-              locked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+-            }`}
++      <button
++        type="button"
++        onClick={handleClick}
++        aria-label={ariaLabel}
++        aria-disabled={locked ? "true" : undefined}
++        // content-visibility lets the browser skip layout/paint/decode for
++        // emotes scrolled off-screen — the main scroll-jank cost when paging
++        // through a large set. Applied to the image button (not the outer
++        // cell) so the hover "favorite" star, an overflowing sibling, isn't
++        // clipped by paint containment. contain-intrinsic-size reserves the
++        // row height so skipped rows don't collapse and shift the scroll.
++        style={{ contentVisibility: "auto", containIntrinsicSize: "auto 28px" }}
++        className={`flex items-center justify-center w-full h-full ${
++          locked ? "cursor-not-allowed opacity-60" : "cursor-pointer"
++        }`}
++      >
++        <EmoteImage emote={emote} size="medium" showTooltip={false} lazyLoad={true} />
++        {locked && (
++          <span
++            data-testid="emote-lock-overlay"
++            className="absolute bottom-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-[3px] bg-black/75 text-white shadow-sm ring-1 ring-white/20 pointer-events-none"
+           >
+-            <EmoteImage emote={emote} size="medium" showTooltip={false} lazyLoad={true} />
+-            {locked && (
+-              <span
+-                data-testid="emote-lock-overlay"
+-                className="absolute bottom-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-[3px] bg-black/75 text-white shadow-sm ring-1 ring-white/20 pointer-events-none"
+-              >
+-                <LockIcon />
+-              </span>
+-            )}
+-          </button>
+-        </TooltipTrigger>
+-        <TooltipContent>{emote.name}</TooltipContent>
+-      </Tooltip>
++            <LockIcon />
++          </span>
++        )}
++      </button>
+       {hovered && !locked && (
+         <button
+           type="button"
+@@ -738,6 +751,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
+     height: DEFAULT_PICKER_VIEWPORT_PX,
+   });
+   const [missingTwitchUserEmoteScope, setMissingTwitchUserEmoteScope] = useState(false);
++  const [activeEmoteTooltip, setActiveEmoteTooltip] = useState<ActiveEmoteTooltip | null>(null);
+ 
+   const containerRef = useRef<HTMLDivElement | null>(null);
+   const scrollRef = useRef<HTMLDivElement | null>(null);
+@@ -779,6 +793,35 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
+   const openLoadAttemptRef = useRef<string | null>(null);
+   const openChannelLoadAttemptRef = useRef<string | null>(null);
+ 
++  const handleEmoteTooltipEnter = useCallback((event: EmoteTooltipEvent) => {
++    const target = getEmoteTooltipTarget(event.target);
++    if (!target || target === getEmoteTooltipTarget(event.relatedTarget)) return;
++    const itemKey = target.dataset.emoteTooltipKey;
++    const name = target.dataset.emoteTooltipName;
++    if (!itemKey || !name) return;
++
++    const rect = target.getBoundingClientRect();
++    const placement = rect.top >= 48 ? "top" : "bottom";
++    setActiveEmoteTooltip({
++      itemKey,
++      name,
++      left: rect.left + rect.width / 2,
++      top: placement === "top" ? rect.top - 8 : rect.bottom + 8,
++      placement,
++    });
++  }, []);
++
++  const handleEmoteTooltipLeave = useCallback((event: EmoteTooltipEvent) => {
++    const target = getEmoteTooltipTarget(event.target);
++    if (!target || target === getEmoteTooltipTarget(event.relatedTarget)) return;
++    const remainsActive =
++      event.type === "blur" ? target.matches(":hover") : target.contains(document.activeElement);
++    if (remainsActive) return;
++
++    const itemKey = target.dataset.emoteTooltipKey;
++    setActiveEmoteTooltip((current) => (current?.itemKey === itemKey ? null : current));
++  }, []);
++
+   // Provider → emotes map. Recompute when manager-backed emote data changes.
+   // `emoteRevision` covers force reloads whose Set sizes don't change (for
+   // example: a failed empty global load followed by a successful retry).
+@@ -823,6 +866,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
+     if (!isOpen) {
+       openLoadAttemptRef.current = null;
+       openChannelLoadAttemptRef.current = null;
++      setActiveEmoteTooltip(null);
+       return;
+     }
+ 
+@@ -1277,6 +1321,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
+   const handleBodyScroll = useCallback(
+     (e: React.UIEvent<HTMLDivElement>) => {
+       const el = e.currentTarget;
++      setActiveEmoteTooltip(null);
+       setScrollSnapshot({
+         top: el.scrollTop,
+         height: el.clientHeight || DEFAULT_PICKER_VIEWPORT_PX,
+@@ -1425,7 +1470,15 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
+       )}
+ 
+       {/* Body */}
+-      <div ref={scrollRef} className="flex-1 overflow-y-auto" onScroll={handleBodyScroll}>
++      <div
++        ref={scrollRef}
++        className="flex-1 overflow-y-auto"
++        onMouseOver={handleEmoteTooltipEnter}
++        onMouseOut={handleEmoteTooltipLeave}
++        onFocus={handleEmoteTooltipEnter}
++        onBlur={handleEmoteTooltipLeave}
++        onScroll={handleBodyScroll}
++      >
+         <EmoteSection
+           sectionId="frequent"
+           title={t("chat.frequentlyUsed")}
+@@ -1478,6 +1531,24 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
+           />
+         ))}
+       </div>
++      {activeEmoteTooltip &&
++        createPortal(
++          <div
++            role="tooltip"
++            className="pointer-events-none fixed z-[60] max-w-[240px] truncate rounded-md border border-[#303033] bg-[#18181b] px-3 py-1.5 text-sm font-medium text-white shadow-lg"
++            style={{
++              left: activeEmoteTooltip.left,
++              top: activeEmoteTooltip.top,
++              transform:
++                activeEmoteTooltip.placement === "top"
++                  ? "translate(-50%, -100%)"
++                  : "translate(-50%, 0)",
++            }}
++          >
++            {activeEmoteTooltip.name}
++          </div>,
++          document.body
++        )}
+     </div>,
+     document.body
+   );
+diff --git a/apps/desktop/src/frontend/features/multistream/components/multistream/adaptive-stream-grid.tsx b/apps/desktop/src/frontend/features/multistream/components/multistream/adaptive-stream-grid.tsx
+index eb77ede..6184e78 100644
+--- a/apps/desktop/src/frontend/features/multistream/components/multistream/adaptive-stream-grid.tsx
++++ b/apps/desktop/src/frontend/features/multistream/components/multistream/adaptive-stream-grid.tsx
+@@ -1,9 +1,14 @@
+-import { Children, type ReactNode, useEffect, useRef, useState } from "react";
++import { Children, type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
+ 
+ const VIDEO_ASPECT_RATIO = 16 / 9;
+ const MAX_COLUMNS = 3;
+ const MIN_SLOT_HEIGHT_PX = 180;
+ const GRID_GAP_PX = 4;
++const FOCUS_RAIL_MIN_HEIGHT_PX = 150;
++
++export type StreamGridPresentation =
++  | { kind: "grid"; visualOrder?: readonly number[] }
++  | { kind: "focus"; focusedIndex: number; visualOrder?: readonly number[] };
+ 
+ export interface GridGeometryInput {
+   width: number;
+@@ -22,6 +27,16 @@ export interface GridGeometry {
+   overflowY: boolean;
+ }
+ 
++interface FocusGridGeometry {
++  stageHeightPx: number;
++  focusedWidthPx: number;
++  focusedHeightPx: number;
++  railHeightPx: number;
++  railFrameWidthPx: number;
++  railFrameHeightPx: number;
++  railColumnWidthPx: number;
++}
++
+ function emptyGeometry(): GridGeometry {
+   return {
+     columns: 0,
+@@ -119,6 +134,37 @@ export function selectStreamGridGeometry({
+   return scrollingGeometry(safeWidth, safeHeight, safeItemCount, safeGap, maxColumns);
+ }
+ 
++function selectFocusGridGeometry({
++  width,
++  height,
++}: Pick<GridGeometryInput, "width" | "height">): FocusGridGeometry {
++  const safeWidth = Math.max(0, Math.floor(width));
++  const safeHeight = Math.max(0, Math.floor(height));
++  const railHeightPx = Math.min(
++    safeHeight,
++    Math.max(FOCUS_RAIL_MIN_HEIGHT_PX, Math.floor(safeHeight / 4))
++  );
++  const stageHeightPx = Math.max(0, safeHeight - railHeightPx);
++  const focused = selectStreamGridGeometry({
++    width: safeWidth,
++    height: stageHeightPx,
++    itemCount: 1,
++    gapPx: GRID_GAP_PX,
++  });
++  const railFrameHeightPx = Math.max(0, railHeightPx - GRID_GAP_PX * 2 - 1);
++  const railFrameWidthPx = Math.floor(railFrameHeightPx * VIDEO_ASPECT_RATIO);
++
++  return {
++    stageHeightPx,
++    focusedWidthPx: focused.slotWidthPx,
++    focusedHeightPx: focused.slotHeightPx,
++    railHeightPx,
++    railFrameWidthPx,
++    railFrameHeightPx,
++    railColumnWidthPx: railFrameWidthPx + GRID_GAP_PX,
++  };
++}
++
+ function sameGeometry(left: GridGeometry | null, right: GridGeometry): boolean {
+   return (
+     left !== null &&
+@@ -132,10 +178,19 @@ function sameGeometry(left: GridGeometry | null, right: GridGeometry): boolean {
+   );
+ }
+ 
+-export function AspectAwareStreamGrid({ children }: { children: ReactNode }) {
++interface AspectAwareStreamGridProps {
++  children: ReactNode;
++  presentation?: StreamGridPresentation;
++}
++
++export function AspectAwareStreamGrid({
++  children,
++  presentation = { kind: "grid" },
++}: AspectAwareStreamGridProps) {
+   const itemCount = Children.count(children);
+   const containerRef = useRef<HTMLDivElement | null>(null);
+   const [geometry, setGeometry] = useState<GridGeometry | null>(null);
++  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+ 
+   useEffect(() => {
+     const container = containerRef.current;
+@@ -143,6 +198,10 @@ export function AspectAwareStreamGrid({ children }: { children: ReactNode }) {
+ 
+     const updateGeometry = (width: number, height: number) => {
+       if (width <= 0 || height <= 0) return;
++      const nextSize = { width: Math.floor(width), height: Math.floor(height) };
++      setContainerSize((current) =>
++        current.width === nextSize.width && current.height === nextSize.height ? current : nextSize
++      );
+       const next = selectStreamGridGeometry({
+         width,
+         height,
+@@ -164,26 +223,103 @@ export function AspectAwareStreamGrid({ children }: { children: ReactNode }) {
+   }, [itemCount]);
+ 
+   const fallbackColumns = Math.min(2, Math.max(1, itemCount));
++  const isFocus = presentation.kind === "focus";
++  const focusedIndex = isFocus ? presentation.focusedIndex : -1;
++  const sideCount = Math.max(0, itemCount - 1);
++  const focusGeometry = selectFocusGridGeometry(containerSize);
+ 
+-  return (
+-    <div
+-      ref={containerRef}
+-      className="grid h-full w-full justify-center"
+-      style={{
++  const containerStyle: CSSProperties = isFocus
++    ? {
++        alignContent: "stretch",
++        columnGap: 0,
++        gridTemplateColumns: `repeat(${Math.max(1, sideCount)}, ${focusGeometry.railColumnWidthPx}px)`,
++        gridTemplateRows: `${focusGeometry.stageHeightPx}px ${focusGeometry.railHeightPx}px`,
++        justifyContent: "start",
++        overflowX: "auto",
++        overflowY: "hidden",
++      }
++    : {
+         alignContent: geometry?.overflowY ? "start" : "center",
+         gap: GRID_GAP_PX,
+         gridAutoRows: geometry ? `${geometry.slotHeightPx}px` : "auto",
+         gridTemplateColumns: geometry
+           ? `repeat(${geometry.columns}, ${geometry.slotWidthPx}px)`
+           : `repeat(${fallbackColumns}, minmax(0, 1fr))`,
++        justifyContent: "center",
++        overflowX: "hidden",
+         overflowY: geometry?.overflowY ? "auto" : "hidden",
+-      }}
++      };
++
++  return (
++    <div
++      ref={containerRef}
++      data-layout={presentation.kind}
++      className="relative grid h-full w-full"
++      style={containerStyle}
+     >
+-      {Children.map(children, (child) => (
+-        <div className="h-full w-full" style={{ aspectRatio: VIDEO_ASPECT_RATIO }}>
+-          {child}
+-        </div>
+-      ))}
++      {isFocus && (
++        <div
++          aria-hidden="true"
++          className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-[var(--color-border)] bg-[var(--color-background-secondary)]"
++          style={{ height: focusGeometry.railHeightPx }}
++        />
++      )}
++      {Children.map(children, (child, index) => {
++        const visualIndex = presentation.visualOrder?.[index] ?? index;
++        const isFocused = isFocus && visualIndex === focusedIndex;
++        const sideIndex = visualIndex < focusedIndex ? visualIndex : visualIndex - 1;
++        const placementStyle: CSSProperties = isFocus
++          ? isFocused
++            ? {
++                alignItems: "center",
++                background: "black",
++                display: "flex",
++                gridColumn: `1 / span ${Math.max(1, sideCount)}`,
++                gridRow: 1,
++                height: focusGeometry.stageHeightPx,
++                justifyContent: "center",
++                left: 0,
++                order: visualIndex,
++                position: "sticky",
++                width: containerSize.width,
++                zIndex: 1,
++              }
++            : {
++                alignItems: "center",
++                display: "flex",
++                gridColumn: sideIndex + 1,
++                gridRow: 2,
++                height: focusGeometry.railHeightPx,
++                justifyContent: "center",
++                order: visualIndex,
++                padding: `${GRID_GAP_PX}px 0 ${GRID_GAP_PX}px ${GRID_GAP_PX}px`,
++                width: focusGeometry.railColumnWidthPx,
++                zIndex: 1,
++              }
++          : { height: "100%", order: visualIndex, width: "100%" };
++        const frameStyle: CSSProperties = isFocus
++          ? isFocused
++            ? {
++                height: focusGeometry.focusedHeightPx,
++                width: focusGeometry.focusedWidthPx,
++              }
++            : {
++                height: focusGeometry.railFrameHeightPx,
++                width: focusGeometry.railFrameWidthPx,
++              }
++          : { aspectRatio: VIDEO_ASPECT_RATIO, height: "100%", width: "100%" };
++
++        return (
++          <div
++            data-stream-placement={isFocused ? "focused" : isFocus ? "rail" : "grid"}
++            style={placementStyle}
++          >
++            <div className="h-full w-full" style={frameStyle}>
++              {child}
++            </div>
++          </div>
++        );
++      })}
+     </div>
+   );
+ }
+diff --git a/apps/desktop/src/frontend/features/multistream/components/multistream/grid-layout.tsx b/apps/desktop/src/frontend/features/multistream/components/multistream/grid-layout.tsx
+index 2ec0dfa..72ddb54 100644
+--- a/apps/desktop/src/frontend/features/multistream/components/multistream/grid-layout.tsx
++++ b/apps/desktop/src/frontend/features/multistream/components/multistream/grid-layout.tsx
+@@ -17,9 +17,8 @@ import { useTranslation } from "react-i18next";
+ 
+ import { useMultiStreamStore } from "@/features/multistream/data/multistream-store";
+ 
+-import { AspectAwareStreamGrid } from "./adaptive-stream-grid";
++import { AspectAwareStreamGrid, type StreamGridPresentation } from "./adaptive-stream-grid";
+ import { SortableStreamSlot } from "./sortable-stream-slot";
+-import { StreamSlot } from "./stream-slot";
+ 
+ export function MultiStreamGrid() {
+   const { t } = useTranslation();
+@@ -32,6 +31,7 @@ export function MultiStreamGrid() {
+   const reorderStreams = useMultiStreamStore((state) => state.reorderStreams);
+   const playbackBudget = useMultiStreamStore((state) => state.playbackBudget);
+   const [wcvEnabled, setWcvEnabled] = useState<boolean | null>(null);
++  const renderedStreams = streams.toSorted((left, right) => left.id.localeCompare(right.id));
+ 
+   const sensors = useSensors(
+     useSensor(PointerSensor),
+@@ -40,9 +40,6 @@ export function MultiStreamGrid() {
+     })
+   );
+ 
+-  // Wrap setFocusedStream so every focus change also tells main to promote
+-  // the slot. The slot-controller enforces the focus-singleton invariant
+-  // (slice 07 audio routing — only the focused slot is unmuted).
+   const focusSlot = useCallback(
+     (slotId: string) => {
+       setFocusedStream(slotId);
+@@ -51,10 +48,6 @@ export function MultiStreamGrid() {
+     [setFocusedStream]
+   );
+ 
+-  // Slice 06 / slice 07: Ctrl+1..6 focuses the slot at the given grid index.
+-  // No-op when the grid is empty or the index doesn't map to a slot. Stops
+-  // before reaching modifier-using shortcuts the user already trains on
+-  // (Ctrl+W close, Ctrl+R reload, etc. — those use webContents hot-keys).
+   useEffect(() => {
+     const handler = (event: KeyboardEvent) => {
+       if (!event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) return;
+@@ -69,9 +62,6 @@ export function MultiStreamGrid() {
+     return () => window.removeEventListener("keydown", handler);
+   }, [streams, focusSlot]);
+ 
+-  // Slice 06: after a host-renderer crash + reload, the host calls main to
+-  // re-emit presence snapshots so slot chrome rebuilds. Idempotent — main
+-  // just re-fires presence-changed for every live slot.
+   useEffect(() => {
+     window.electronAPI?.slot?.rebindExistingSlots?.().catch(() => {
+       /* main may not have any slots yet; safe to ignore */
+@@ -99,16 +89,13 @@ export function MultiStreamGrid() {
+   }, []);
+ 
+   function handleDragEnd(event: DragEndEvent) {
++    if (layout === "focus") return;
+     const { active, over } = event;
++    if (!over || active.id === over.id) return;
+ 
+-    if (over && active.id !== over.id) {
+-      const oldIndex = streams.findIndex((s) => s.id === active.id);
+-      const newIndex = streams.findIndex((s) => s.id === over.id);
+-
+-      if (oldIndex !== -1 && newIndex !== -1) {
+-        reorderStreams(oldIndex, newIndex);
+-      }
+-    }
++    const oldIndex = streams.findIndex((stream) => stream.id === active.id);
++    const newIndex = streams.findIndex((stream) => stream.id === over.id);
++    if (oldIndex !== -1 && newIndex !== -1) reorderStreams(oldIndex, newIndex);
+   }
+ 
+   if (streams.length === 0) {
+@@ -120,94 +107,65 @@ export function MultiStreamGrid() {
+     );
+   }
+ 
+-  // Layout Logic
+-  let gridClass = "h-full w-full";
+-
+-  if (layout === "focus" && focusedStreamId) {
+-    // Focus layout handled mainly via logic below
+-    gridClass = "flex flex-col h-full w-full";
+-  }
++  const focusedStreamIndex = streams.findIndex((stream) => stream.id === focusedStreamId);
++  const isFocusLayout = layout === "focus" && focusedStreamIndex >= 0;
++  const visualOrder = renderedStreams.map((stream) =>
++    streams.findIndex((candidate) => candidate.id === stream.id)
++  );
++  const presentation: StreamGridPresentation = isFocusLayout
++    ? { kind: "focus", focusedIndex: focusedStreamIndex, visualOrder }
++    : { kind: "grid", visualOrder };
++  const sortableSlots = renderedStreams.map((stream, renderIndex) => {
++    const visualIndex = visualOrder[renderIndex];
++    const isFocused = isFocusLayout && visualIndex === focusedStreamIndex;
++    const sideRailIndex = visualIndex < focusedStreamIndex ? visualIndex : visualIndex - 1;
++    const playbackActive = isFocusLayout
++      ? isFocused || sideRailIndex < Math.max(0, playbackBudget - 1)
++      : visualIndex < playbackBudget;
+ 
+-  const sortableSlots = streams.map((stream, index) => (
+-    <SortableStreamSlot
+-      key={stream.id}
+-      id={stream.id}
+-      platform={stream.platform}
+-      channelName={stream.channelName}
+-      isMuted={stream.isMuted}
+-      onRemove={() => removeStream(stream.id)}
+-      onFocus={() => {
+-        if (stream.isMuted) {
+-          toggleMute(stream.id);
+-          streams.forEach((candidate) => {
+-            if (candidate.id !== stream.id && !candidate.isMuted) toggleMute(candidate.id);
+-          });
++    return (
++      <SortableStreamSlot
++        key={stream.id}
++        id={stream.id}
++        platform={stream.platform}
++        channelName={stream.channelName}
++        isMuted={stream.isMuted}
++        onRemove={() => removeStream(stream.id)}
++        onFocus={() => {
++          if (isFocusLayout) {
++            if (!isFocused) focusSlot(stream.id);
++            return;
++          }
++          if (stream.isMuted) {
++            toggleMute(stream.id);
++            streams.forEach((candidate) => {
++              if (candidate.id !== stream.id && !candidate.isMuted) toggleMute(candidate.id);
++            });
++          }
++        }}
++        isFocused={isFocused}
++        playbackActive={playbackActive}
++        onActivate={() => {
++          if (isFocusLayout) focusSlot(stream.id);
++          else reorderStreams(visualIndex, 0);
++        }}
++        wcvEnabled={wcvEnabled}
++        lazyMount={isFocusLayout && !isFocused}
++        sortableDisabled={isFocusLayout}
++        placementKey={
++          isFocusLayout ? (isFocused ? "focused" : `rail:${sideRailIndex}`) : `grid:${visualIndex}`
+         }
+-      }}
+-      isFocused={false}
+-      playbackActive={index < playbackBudget}
+-      onActivate={() => reorderStreams(index, 0)}
+-      wcvEnabled={wcvEnabled}
+-    />
+-  ));
+-  const focusedStream = streams.find((stream) => stream.id === focusedStreamId);
++      />
++    );
++  });
+ 
+   return (
+-    <div className={gridClass}>
+-      {layout === "focus" && focusedStreamId ? (
+-        // Focus Mode implementation
+-        <>
+-          {/* Main Focus Stream */}
+-          <div className="flex-[3] min-h-0 bg-black">
+-            <AspectAwareStreamGrid>
+-              {focusedStream && (
+-                <StreamSlot
+-                  streamId={focusedStream.id}
+-                  platform={focusedStream.platform}
+-                  channelName={focusedStream.channelName}
+-                  isMuted={focusedStream.isMuted}
+-                  onRemove={() => removeStream(focusedStream.id)}
+-                  onFocus={() => {}}
+-                  isFocused={true}
+-                  playbackActive
+-                  wcvEnabled={wcvEnabled}
+-                />
+-              )}
+-            </AspectAwareStreamGrid>
+-          </div>
+-          {/* Side Bar for others */}
+-          <div className="flex-1 min-h-[150px] flex overflow-x-auto overflow-y-hidden border-t border-[var(--color-border)] bg-[var(--color-background-secondary)] p-1 gap-1">
+-            {streams
+-              .filter((s) => s.id !== focusedStreamId)
+-              .map((stream, sideRailIndex) => (
+-                <div key={stream.id} className="aspect-video h-full shrink-0">
+-                  <StreamSlot
+-                    streamId={stream.id}
+-                    platform={stream.platform}
+-                    channelName={stream.channelName}
+-                    isMuted={stream.isMuted}
+-                    onRemove={() => removeStream(stream.id)}
+-                    onFocus={() => focusSlot(stream.id)}
+-                    isFocused={false}
+-                    playbackActive={sideRailIndex < Math.max(0, playbackBudget - 1)}
+-                    onActivate={() => focusSlot(stream.id)}
+-                    wcvEnabled={wcvEnabled}
+-                    // Side rail scrolls horizontally — defer mount of off-screen
+-                    // slots until they scroll into view.
+-                    lazyMount
+-                  />
+-                </div>
+-              ))}
+-          </div>
+-        </>
+-      ) : (
+-        // Grid Mode with wrapped DndContext
+-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+-          <SortableContext items={streams.map((s) => s.id)} strategy={rectSortingStrategy}>
+-            <AspectAwareStreamGrid>{sortableSlots}</AspectAwareStreamGrid>
+-          </SortableContext>
+-        </DndContext>
+-      )}
++    <div className="h-full w-full">
++      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
++        <SortableContext items={streams.map((stream) => stream.id)} strategy={rectSortingStrategy}>
++          <AspectAwareStreamGrid presentation={presentation}>{sortableSlots}</AspectAwareStreamGrid>
++        </SortableContext>
++      </DndContext>
+     </div>
+   );
+ }
+diff --git a/apps/desktop/src/frontend/features/multistream/components/multistream/sortable-stream-slot.tsx b/apps/desktop/src/frontend/features/multistream/components/multistream/sortable-stream-slot.tsx
+index ed7ad0c..597f241 100644
+--- a/apps/desktop/src/frontend/features/multistream/components/multistream/sortable-stream-slot.tsx
++++ b/apps/desktop/src/frontend/features/multistream/components/multistream/sortable-stream-slot.tsx
+@@ -3,7 +3,7 @@ import { CSS } from "@dnd-kit/utilities";
+ 
+ import { Platform } from "@streamfusion/core/platform";
+ 
+-import { StreamSlot } from "./stream-slot";
++import { StreamSlot, type StreamSlotPlacementKey } from "./stream-slot";
+ 
+ interface SortableStreamSlotProps {
+   id: string; // The stream ID which will be the drag ID
+@@ -16,6 +16,9 @@ interface SortableStreamSlotProps {
+   playbackActive?: boolean;
+   onActivate?: () => void;
+   wcvEnabled?: boolean | null;
++  lazyMount?: boolean;
++  sortableDisabled?: boolean;
++  placementKey?: StreamSlotPlacementKey;
+ }
+ 
+ export function SortableStreamSlot({
+@@ -29,9 +32,13 @@ export function SortableStreamSlot({
+   playbackActive,
+   onActivate,
+   wcvEnabled,
++  lazyMount,
++  sortableDisabled = false,
++  placementKey,
+ }: SortableStreamSlotProps) {
+   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+     id,
++    disabled: sortableDisabled,
+   });
+ 
+   const style = {
+@@ -54,7 +61,9 @@ export function SortableStreamSlot({
+         playbackActive={playbackActive}
+         onActivate={onActivate}
+         wcvEnabled={wcvEnabled}
+-        dragHandleProps={{ ...attributes, ...listeners }}
++        lazyMount={lazyMount}
++        placementKey={placementKey}
++        dragHandleProps={sortableDisabled ? undefined : { ...attributes, ...listeners }}
+       />
+     </div>
+   );
+diff --git a/apps/desktop/src/frontend/features/multistream/components/multistream/stream-slot.tsx b/apps/desktop/src/frontend/features/multistream/components/multistream/stream-slot.tsx
+index bf82f1f..ba70073 100644
+--- a/apps/desktop/src/frontend/features/multistream/components/multistream/stream-slot.tsx
++++ b/apps/desktop/src/frontend/features/multistream/components/multistream/stream-slot.tsx
+@@ -21,6 +21,8 @@ import type { RaidSource, RaidTarget } from "@shared/raid-handoff-types";
+ 
+ const VISIBILITY_THRESHOLD = 0.25;
+ 
++export type StreamSlotPlacementKey = `grid:${number}` | "focused" | `rail:${number}`;
++
+ interface StreamSlotProps {
+   streamId: string;
+   platform: Platform;
+@@ -40,6 +42,7 @@ interface StreamSlotProps {
+    * mount waits for visibility.
+    */
+   lazyMount?: boolean;
++  placementKey?: StreamSlotPlacementKey;
+ }
+ 
+ export function StreamSlot({
+@@ -55,6 +58,7 @@ export function StreamSlot({
+   dragHandleProps,
+   wcvEnabled = false,
+   lazyMount = false,
++  placementKey = "grid:0",
+ }: StreamSlotProps) {
+   const { t } = useTranslation();
+   const toggleMute = useMultiStreamStore((state) => state.toggleMute);
+@@ -85,7 +89,7 @@ export function StreamSlot({
+     return () => observer.disconnect();
+   }, [lazyMount, isVisible]);
+ 
+-  const isMountReady = playbackActive && isVisible;
++  const isMountReady = playbackActive && (!lazyMount || isVisible);
+   // Passing an empty identifier short-circuits the playback fetch — both the
+   // IPC round-trip and HLS.js init are deferred until the slot is ready.
+   const effectiveChannelName = isMountReady ? channelName : "";
+@@ -222,7 +226,7 @@ export function StreamSlot({
+       window.removeEventListener("scroll", pushBounds, true);
+       window.removeEventListener("resize", pushBounds);
+     };
+-  }, [wcvEnabled, streamId]);
++  }, [wcvEnabled, streamId, placementKey]);
+ 
+   // Retry-affordance overlay subscription. Main fires this after the second
+   // slot crash within the 5-min window (slice 06 retry policy).
+diff --git a/apps/desktop/src/frontend/features/playback/components/player/play-pause-button.tsx b/apps/desktop/src/frontend/features/playback/components/player/play-pause-button.tsx
+index ea9d062..e2f63df 100644
+--- a/apps/desktop/src/frontend/features/playback/components/player/play-pause-button.tsx
++++ b/apps/desktop/src/frontend/features/playback/components/player/play-pause-button.tsx
+@@ -24,6 +24,7 @@ export function PlayPauseButton({
+         <Button
+           variant="ghost"
+           size="icon"
++          aria-label={isPlaying ? t("playback.pauseSpace") : t("playback.playSpace")}
+           className={`text-white hover:bg-white/20 rounded-full select-none cursor-pointer ${className || ""}`}
+           onClick={(e) => {
+             e.stopPropagation();
+diff --git a/apps/desktop/src/frontend/features/playback/components/player/player-controls.tsx b/apps/desktop/src/frontend/features/playback/components/player/player-controls.tsx
+index 6e3c2d9..77c3078 100644
+--- a/apps/desktop/src/frontend/features/playback/components/player/player-controls.tsx
++++ b/apps/desktop/src/frontend/features/playback/components/player/player-controls.tsx
+@@ -388,6 +388,9 @@ export function PlayerControls(props: PlayerControlsProps) {
+                     size="icon"
+                     className="text-white hover:bg-white/20 cursor-pointer"
+                     onClick={onToggleTheater}
++                    aria-label={
++                      isTheater ? t("playback.exitTheaterModeT") : t("playback.theaterModeT")
++                    }
+                     style={
+                       isTheater && theaterActiveColor ? { color: theaterActiveColor } : undefined
+                     }
+@@ -413,6 +416,9 @@ export function PlayerControls(props: PlayerControlsProps) {
+                     size="icon"
+                     className="text-white hover:bg-white/20 cursor-pointer"
+                     onClick={onToggleFullscreen}
++                    aria-label={
++                      isFullscreen ? t("playback.exitFullscreenF") : t("playback.fullscreenF")
++                    }
+                   >
+                     {isFullscreen ? (
+                       <LuMinimize className="w-6 h-6" strokeWidth={3} />
+diff --git a/apps/desktop/src/frontend/features/playback/components/player/volume-control.tsx b/apps/desktop/src/frontend/features/playback/components/player/volume-control.tsx
+index 31a926a..0599319 100644
+--- a/apps/desktop/src/frontend/features/playback/components/player/volume-control.tsx
++++ b/apps/desktop/src/frontend/features/playback/components/player/volume-control.tsx
+@@ -1,4 +1,5 @@
+ import { useRef, useState } from "react";
++import { useTranslation } from "react-i18next";
+ import { LuVolume1, LuVolume2, LuVolumeX } from "react-icons/lu";
+ 
+ import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from "@shared/auth-types";
+@@ -22,6 +23,7 @@ export function VolumeControl({
+   onMuteToggle,
+   className,
+ }: VolumeControlProps) {
++  const { t } = useTranslation();
+   const showVolume =
+     useAuthStore((s) => s.preferences?.playerControls?.showVolume) ??
+     DEFAULT_PLAYER_CONTROLS_PREFERENCES.showVolume;
+@@ -63,6 +65,7 @@ export function VolumeControl({
+           <Button
+             variant="ghost"
+             size="icon"
++            aria-label={muted ? t("playback.unmute") : t("playback.mute")}
+             className="text-white hover:bg-white/20 rounded-full select-none z-10 cursor-pointer"
+             onClick={(e) => {
+               e.stopPropagation();
+diff --git a/apps/desktop/src/frontend/features/playback/data/use-share-action.ts b/apps/desktop/src/frontend/features/playback/data/use-share-action.ts
+index 80499a2..b14d345 100644
+--- a/apps/desktop/src/frontend/features/playback/data/use-share-action.ts
++++ b/apps/desktop/src/frontend/features/playback/data/use-share-action.ts
+@@ -46,7 +46,8 @@ export function useShareAction({
+   const contentIdentity = `${contentKey ?? ""}\u0000${shareUrl ?? ""}`;
+   const [copiedFor, setCopiedFor] = useState<string | null>(null);
+   const copiedReset = useManagedTimeout(useCallback(() => setCopiedFor(null), []));
+-  const canShare = isPlaybackReady && isVerifiedPublicContentUrl(shareUrl);
++  const hasPublicContentUrl = isVerifiedPublicContentUrl(shareUrl);
++  const canShare = isPlaybackReady && hasPublicContentUrl;
+   const copied = copiedFor === contentIdentity;
+ 
+   useEffect(() => {
+@@ -75,6 +76,9 @@ export function useShareAction({
+     canShare,
+     copied,
+     share,
+-    unavailableTitle: t("playback.shareUnavailable", { content: contentLabel }),
++    unavailableTitle: t(
++      isPlaybackReady ? "playback.sharePublicLinkUnavailable" : "playback.shareUnavailable",
++      { content: contentLabel }
++    ),
+   };
+ }
+diff --git a/apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx b/apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx
+index f656278..1fbdb18 100644
+--- a/apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx
++++ b/apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx
+@@ -108,7 +108,7 @@ export function SwitchRow({
+       description={description}
+       note={note}
+       icon={icon}
+-      control={<Switch checked={checked} onCheckedChange={onChange} />}
++      control={<Switch aria-label={label} checked={checked} onCheckedChange={onChange} />}
+     />
+   );
+ }
+diff --git a/apps/desktop/src/frontend/features/shell/components/TopNavBar/NotificationsDropdown.tsx b/apps/desktop/src/frontend/features/shell/components/TopNavBar/NotificationsDropdown.tsx
+index e7daad1..ada2773 100644
+--- a/apps/desktop/src/frontend/features/shell/components/TopNavBar/NotificationsDropdown.tsx
++++ b/apps/desktop/src/frontend/features/shell/components/TopNavBar/NotificationsDropdown.tsx
+@@ -26,6 +26,7 @@ export function NotificationsDropdown() {
+   const navigate = useNavigate();
+   const [isOpen, setIsOpen] = React.useState(false);
+   const dropdownRef = React.useRef<HTMLDivElement>(null);
++  const triggerRef = React.useRef<HTMLButtonElement>(null);
+   const notifications = useNotificationStore((state) => state.notifications);
+   const markAllRead = useNotificationStore((state) => state.markAllRead);
+   const dismissNotification = useNotificationStore((state) => state.dismissNotification);
+@@ -33,14 +34,28 @@ export function NotificationsDropdown() {
+   const unreadCount = notifications.filter((notification) => !notification.readAt).length;
+ 
+   React.useEffect(() => {
++    if (!isOpen) return;
++
+     function handleClickOutside(event: MouseEvent) {
+       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+         setIsOpen(false);
+       }
+     }
++
++    function handleKeyDown(event: KeyboardEvent) {
++      if (event.key !== "Escape") return;
++
++      setIsOpen(false);
++      triggerRef.current?.focus();
++    }
++
+     document.addEventListener("mousedown", handleClickOutside);
+-    return () => document.removeEventListener("mousedown", handleClickOutside);
+-  }, []);
++    document.addEventListener("keydown", handleKeyDown);
++    return () => {
++      document.removeEventListener("mousedown", handleClickOutside);
++      document.removeEventListener("keydown", handleKeyDown);
++    };
++  }, [isOpen]);
+ 
+   const openNotification = React.useCallback(
+     (notification: (typeof notifications)[number]) => {
+@@ -59,7 +74,12 @@ export function NotificationsDropdown() {
+   return (
+     <div className="relative" ref={dropdownRef}>
+       <button
+-        onClick={() => setIsOpen(!isOpen)}
++        ref={triggerRef}
++        type="button"
++        onClick={() => setIsOpen((open) => !open)}
++        aria-label={t("shell.topNav.notifications")}
++        aria-expanded={isOpen}
++        aria-controls="notifications-dropdown"
+         className="relative p-2 rounded-full hover:bg-[var(--color-background-secondary)] transition-colors outline-none"
+         title={t("shell.topNav.notifications")}
+       >
+@@ -72,7 +92,10 @@ export function NotificationsDropdown() {
+       </button>
+ 
+       {isOpen && (
+-        <div className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-elevated)] shadow-xl p-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
++        <div
++          id="notifications-dropdown"
++          className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-elevated)] shadow-xl p-1 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
++        >
+           <div className="px-3 py-2 border-b border-[var(--color-border)] mb-1 flex items-center justify-between gap-2 bg-[var(--color-background-elevated)] sticky top-0 z-10">
+             <span className="text-sm font-semibold text-white">
+               {t("shell.topNav.notifications")}
+@@ -103,36 +126,42 @@ export function NotificationsDropdown() {
+               notifications.map((notif) => (
+                 <div
+                   key={notif.id}
+-                  onClick={() => openNotification(notif)}
+-                  className="group px-3 py-3 hover:bg-[var(--color-background-tertiary)] transition-colors cursor-pointer flex gap-3 border-b border-[var(--color-border)] last:border-0 relative"
++                  className="group relative border-b border-[var(--color-border)] last:border-0"
+                 >
+-                  <PlatformAvatar
+-                    src={notif.channelAvatar}
+-                    alt={notif.channelDisplayName}
+-                    platform={notif.platform}
+-                    size="w-10 h-10"
+-                    className="ring-offset-1 ring-offset-[var(--color-background-elevated)]"
+-                  />
+-                  <div className="flex-1 min-w-0 pr-6">
+-                    <p className="text-sm text-white">
+-                      <span
+-                        className={`font-bold transition-colors ${notif.platform === "twitch" ? "hover:text-[#9146FF]" : "hover:text-[#53FC18]"}`}
+-                      >
+-                        {notif.channelDisplayName}
+-                      </span>{" "}
+-                      {t("shell.topNav.liveNow")}
+-                    </p>
+-                    <div className="text-xs text-white truncate font-medium">{notif.title}</div>
+-                    <p className="text-[10px] text-white mt-1">
+-                      {formatRelativeTime(notif.createdAt, t)}
+-                    </p>
+-                  </div>
+                   <button
++                    type="button"
++                    onClick={() => openNotification(notif)}
++                    className="flex w-full gap-3 px-3 py-3 pr-9 text-left transition-colors hover:bg-[var(--color-background-tertiary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
++                  >
++                    <PlatformAvatar
++                      src={notif.channelAvatar}
++                      alt={notif.channelDisplayName}
++                      platform={notif.platform}
++                      size="w-10 h-10"
++                      className="ring-offset-1 ring-offset-[var(--color-background-elevated)]"
++                    />
++                    <div className="min-w-0 flex-1">
++                      <p className="text-sm text-white">
++                        <span
++                          className={`font-bold transition-colors ${notif.platform === "twitch" ? "hover:text-[#9146FF]" : "hover:text-[#53FC18]"}`}
++                        >
++                          {notif.channelDisplayName}
++                        </span>{" "}
++                        {t("shell.topNav.liveNow")}
++                      </p>
++                      <div className="truncate text-xs font-medium text-white">{notif.title}</div>
++                      <p className="mt-1 text-[10px] text-white">
++                        {formatRelativeTime(notif.createdAt, t)}
++                      </p>
++                    </div>
++                  </button>
++                  <button
++                    type="button"
+                     onClick={(e) => {
+                       e.stopPropagation();
+                       dismissNotification(notif.id);
+                     }}
+-                    className="absolute top-2 right-2 text-white hover:bg-[var(--color-background-elevated)] rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
++                    className="absolute top-2 right-2 rounded-full p-1 text-white opacity-0 transition-opacity hover:bg-[var(--color-background-elevated)] group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background-elevated)]"
+                     title={t("shell.topNav.dismiss")}
+                   >
+                     <LuX size={14} />
+diff --git a/apps/desktop/src/frontend/i18n/locales/en/playback.ts b/apps/desktop/src/frontend/i18n/locales/en/playback.ts
+index edccf2d..1fd86f9 100644
+--- a/apps/desktop/src/frontend/i18n/locales/en/playback.ts
++++ b/apps/desktop/src/frontend/i18n/locales/en/playback.ts
+@@ -186,6 +186,7 @@ export const playbackEn = {
+     failedToLoadContent: "Failed to load content",
+     failedToLoadMoreItems: "Failed to load more items. Please try again.",
+     shareUnavailable: "Share is available when this {{content}} is ready to play.",
++    sharePublicLinkUnavailable: "Share is unavailable because this {{content}} has no public link.",
+     noClipsFound: "No clips found",
+     thumbnailUnavailable: "Thumbnail unavailable",
+     subONLY: "SUB ONLY",
+diff --git a/apps/desktop/src/frontend/i18n/locales/es/playback.ts b/apps/desktop/src/frontend/i18n/locales/es/playback.ts
+index ffe2fe4..6098ef5 100644
+--- a/apps/desktop/src/frontend/i18n/locales/es/playback.ts
++++ b/apps/desktop/src/frontend/i18n/locales/es/playback.ts
+@@ -196,6 +196,8 @@ export const playbackEs = {
+     failedToLoadMoreItems: "No se pudieron cargar más elementos. Inténtalo de nuevo.",
+     shareUnavailable:
+       "Compartir estará disponible cuando este {{content}} esté listo para reproducirse.",
++    sharePublicLinkUnavailable:
++      "No se puede compartir porque este {{content}} no tiene un enlace público.",
+     noClipsFound: "No se encontraron clips",
+     thumbnailUnavailable: "Miniatura no disponible",
+     subONLY: "SOLO SUSCRIPTORES",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/ar.json b/apps/desktop/src/frontend/i18n/locales/generated/ar.json
+index 969ad80..a718060 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/ar.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/ar.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "النسخة الخلفية",
+     "playSessionId": "تشغيل معرف الجلسة",
+     "servingId": "معرف التقديم",
+-    "liveStreamAlt": "{{channel}} بث مباشر"
++    "liveStreamAlt": "{{channel}} بث مباشر",
++    "sharePublicLinkUnavailable": "المشاركة غير متاحة لأن هذا {{content}} لا يحتوي على رابط عام."
+   },
+   "settings": {
+     "general": "عام",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/bg.json b/apps/desktop/src/frontend/i18n/locales/generated/bg.json
+index a8d5704..d6b0ab5 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/bg.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/bg.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Бекенд версия",
+     "playSessionId": "ID на сесията на възпроизвеждане",
+     "servingId": "ID на обслужване",
+-    "liveStreamAlt": "{{channel}} поток на живо"
++    "liveStreamAlt": "{{channel}} поток на живо",
++    "sharePublicLinkUnavailable": "Споделянето не е налично, защото този {{content}} няма обществена връзка."
+   },
+   "settings": {
+     "general": "генерал",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/bn.json b/apps/desktop/src/frontend/i18n/locales/generated/bn.json
+index c307d37..2523f09 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/bn.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/bn.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "ব্যাকএন্ড সংস্করণ",
+     "playSessionId": "সেশন আইডি খেলুন",
+     "servingId": "আইডি পরিবেশন",
+-    "liveStreamAlt": "{{channel}} লাইভ স্ট্রিম"
++    "liveStreamAlt": "{{channel}} লাইভ স্ট্রিম",
++    "sharePublicLinkUnavailable": "শেয়ার অনুপলব্ধ কারণ এই {{content}}-এর কোনো সর্বজনীন লিঙ্ক নেই৷"
+   },
+   "settings": {
+     "general": "সাধারণ",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/ca.json b/apps/desktop/src/frontend/i18n/locales/generated/ca.json
+index b7c2074..153459e 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/ca.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/ca.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Versió de backend",
+     "playSessionId": "Identificador de sessió de Play",
+     "servingId": "Identificador de servei",
+-    "liveStreamAlt": "{{channel}} emissió en directe"
++    "liveStreamAlt": "{{channel}} emissió en directe",
++    "sharePublicLinkUnavailable": "La compartició no està disponible perquè aquest {{content}} no té cap enllaç públic."
+   },
+   "settings": {
+     "general": "General",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/cs.json b/apps/desktop/src/frontend/i18n/locales/generated/cs.json
+index 3a5a9b1..8397d4b 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/cs.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/cs.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Backend verze",
+     "playSessionId": "Přehrát ID relace",
+     "servingId": "ID zobrazování",
+-    "liveStreamAlt": "Živý přenos {{channel}}"
++    "liveStreamAlt": "Živý přenos {{channel}}",
++    "sharePublicLinkUnavailable": "Sdílení je nedostupné, protože toto {{content}} nemá žádný veřejný odkaz."
+   },
+   "settings": {
+     "general": "Generál",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/da.json b/apps/desktop/src/frontend/i18n/locales/generated/da.json
+index 6e34ad8..663b048 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/da.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/da.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Backend version",
+     "playSessionId": "Afspilningssession-id",
+     "servingId": "Serverings-id",
+-    "liveStreamAlt": "{{channel}} livestream"
++    "liveStreamAlt": "{{channel}} livestream",
++    "sharePublicLinkUnavailable": "Del er ikke tilgængelig, fordi denne {{content}} ikke har noget offentligt link."
+   },
+   "settings": {
+     "general": "Generelt",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/de.json b/apps/desktop/src/frontend/i18n/locales/generated/de.json
+index 74d13ba..5cd51b0 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/de.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/de.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Backend-Version",
+     "playSessionId": "Sitzungs-ID abspielen",
+     "servingId": "Dienstausweis",
+-    "liveStreamAlt": "{{channel}} Livestream"
++    "liveStreamAlt": "{{channel}} Livestream",
++    "sharePublicLinkUnavailable": "Die Freigabe ist nicht verfügbar, da dieses {{content}} keinen öffentlichen Link hat."
+   },
+   "settings": {
+     "general": "Allgemein",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/el.json b/apps/desktop/src/frontend/i18n/locales/generated/el.json
+index 9b7a366..c750930 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/el.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/el.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Έκδοση Backend",
+     "playSessionId": "Αναγνωριστικό περιόδου σύνδεσης",
+     "servingId": "Αναγνωριστικό υπηρεσίας",
+-    "liveStreamAlt": "Ζωντανή ροή {{channel}}"
++    "liveStreamAlt": "Ζωντανή ροή {{channel}}",
++    "sharePublicLinkUnavailable": "Η κοινή χρήση δεν είναι διαθέσιμη επειδή αυτό το {{content}} δεν έχει δημόσιο σύνδεσμο."
+   },
+   "settings": {
+     "general": "Στρατηγός",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/et.json b/apps/desktop/src/frontend/i18n/locales/generated/et.json
+index be1c22d..194b93f 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/et.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/et.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Taustaversioon",
+     "playSessionId": "Play seansi ID",
+     "servingId": "Esitamise ID",
+-    "liveStreamAlt": "{{channel}} otseülekanne"
++    "liveStreamAlt": "{{channel}} otseülekanne",
++    "sharePublicLinkUnavailable": "Jagamine pole saadaval, kuna sellel {{content}}-l pole avalikku linki."
+   },
+   "settings": {
+     "general": "Kindral",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/fa.json b/apps/desktop/src/frontend/i18n/locales/generated/fa.json
+index d1e2355..b240939 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/fa.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/fa.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "نسخه Backend",
+     "playSessionId": "شناسه جلسه پخش",
+     "servingId": "شناسه خدمت",
+-    "liveStreamAlt": "{{channel}} جریان مستقیم"
++    "liveStreamAlt": "{{channel}} جریان مستقیم",
++    "sharePublicLinkUnavailable": "اشتراک‌گذاری در دسترس نیست زیرا این {{content}} پیوند عمومی ندارد."
+   },
+   "settings": {
+     "general": "ژنرال",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/fi.json b/apps/desktop/src/frontend/i18n/locales/generated/fi.json
+index 5c00f22..d2d8cf5 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/fi.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/fi.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Taustaversio",
+     "playSessionId": "Play-istunnon tunnus",
+     "servingId": "Käyttötunnus",
+-    "liveStreamAlt": "{{channel}} suoratoisto"
++    "liveStreamAlt": "{{channel}} suoratoisto",
++    "sharePublicLinkUnavailable": "Jaa ei ole käytettävissä, koska tällä kohteella {{content}} ei ole julkista linkkiä."
+   },
+   "settings": {
+     "general": "Kenraali",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/fil.json b/apps/desktop/src/frontend/i18n/locales/generated/fil.json
+index a93ce26..c5a29a3 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/fil.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/fil.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Bersyon ng Backend",
+     "playSessionId": "ID ng session ng pag-play",
+     "servingId": "Serving ID",
+-    "liveStreamAlt": "{{channel}} live stream"
++    "liveStreamAlt": "{{channel}} live stream",
++    "sharePublicLinkUnavailable": "Hindi magagamit ang pagbabahagi dahil ang {{content}} na ito ay walang pampublikong link."
+   },
+   "settings": {
+     "general": "Heneral",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/fr.json b/apps/desktop/src/frontend/i18n/locales/generated/fr.json
+index 079e019..f684e66 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/fr.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/fr.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Version back-end",
+     "playSessionId": "ID de session de lecture",
+     "servingId": "ID de diffusion",
+-    "liveStreamAlt": "{{channel}} diffusion en direct"
++    "liveStreamAlt": "{{channel}} diffusion en direct",
++    "sharePublicLinkUnavailable": "Le partage n'est pas disponible car ce {{content}} n'a pas de lien public."
+   },
+   "settings": {
+     "general": "Général",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/gu.json b/apps/desktop/src/frontend/i18n/locales/generated/gu.json
+index 3cc1e31..6957bc2 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/gu.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/gu.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "બેકએન્ડ સંસ્કરણ",
+     "playSessionId": "સત્ર ID ચલાવો",
+     "servingId": "સેવા આપતા ID",
+-    "liveStreamAlt": "{{channel}} લાઇવ સ્ટ્રીમ"
++    "liveStreamAlt": "{{channel}} લાઇવ સ્ટ્રીમ",
++    "sharePublicLinkUnavailable": "શેર અનુપલબ્ધ છે કારણ કે આ {{content}} પાસે કોઈ સાર્વજનિક લિંક નથી."
+   },
+   "settings": {
+     "general": "જનરલ",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/he.json b/apps/desktop/src/frontend/i18n/locales/generated/he.json
+index e8a58c0..5f15fa4 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/he.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/he.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "גרסת אחורי",
+     "playSessionId": "מזהה סשן משחק",
+     "servingId": "תעודה מזהה",
+-    "liveStreamAlt": "{{channel}} זרם חי"
++    "liveStreamAlt": "{{channel}} זרם חי",
++    "sharePublicLinkUnavailable": "השיתוף אינו זמין כי ל-{{content}} זה אין קישור ציבורי."
+   },
+   "settings": {
+     "general": "כללי",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/hi.json b/apps/desktop/src/frontend/i18n/locales/generated/hi.json
+index 59f04df..5714f2a 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/hi.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/hi.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "बैकएंड संस्करण",
+     "playSessionId": "प्ले सत्र आईडी",
+     "servingId": "सर्विंग आईडी",
+-    "liveStreamAlt": "{{channel}} लाइव स्ट्रीम"
++    "liveStreamAlt": "{{channel}} लाइव स्ट्रीम",
++    "sharePublicLinkUnavailable": "शेयर अनुपलब्ध है क्योंकि इस {{content}} का कोई सार्वजनिक लिंक नहीं है।"
+   },
+   "settings": {
+     "general": "सामान्य",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/hr.json b/apps/desktop/src/frontend/i18n/locales/generated/hr.json
+index a2f77b6..ae1b5d0 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/hr.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/hr.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Pozadinska verzija",
+     "playSessionId": "Reproduciraj ID sesije",
+     "servingId": "ID posluživanja",
+-    "liveStreamAlt": "{{channel}} prijenos uživo"
++    "liveStreamAlt": "{{channel}} prijenos uživo",
++    "sharePublicLinkUnavailable": "Dijeljenje nije dostupno jer ovaj {{content}} nema javnu vezu."
+   },
+   "settings": {
+     "general": "generalno",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/hu.json b/apps/desktop/src/frontend/i18n/locales/generated/hu.json
+index 5b520da..344c708 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/hu.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/hu.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Háttér verzió",
+     "playSessionId": "Lejátszási munkamenet azonosítója",
+     "servingId": "Kiszolgálási azonosító",
+-    "liveStreamAlt": "{{channel}} élő közvetítés"
++    "liveStreamAlt": "{{channel}} élő közvetítés",
++    "sharePublicLinkUnavailable": "A megosztás nem érhető el, mert a(z) {{content}} nem rendelkezik nyilvános hivatkozással."
+   },
+   "settings": {
+     "general": "tábornok",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/id.json b/apps/desktop/src/frontend/i18n/locales/generated/id.json
+index 10649e2..af797e6 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/id.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/id.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Versi Belakang",
+     "playSessionId": "Mainkan ID Sesi",
+     "servingId": "ID Penyajian",
+-    "liveStreamAlt": "{{channel}} streaming langsung"
++    "liveStreamAlt": "{{channel}} streaming langsung",
++    "sharePublicLinkUnavailable": "Berbagi tidak tersedia karena {{content}} ini tidak memiliki tautan publik."
+   },
+   "settings": {
+     "general": "Umum",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/it.json b/apps/desktop/src/frontend/i18n/locales/generated/it.json
+index 31fd164..deb9af3 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/it.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/it.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Versione back-end",
+     "playSessionId": "Gioca ID sessione",
+     "servingId": "Documento d'identità in servizio",
+-    "liveStreamAlt": "{{channel}} live streaming"
++    "liveStreamAlt": "{{channel}} live streaming",
++    "sharePublicLinkUnavailable": "La condivisione non è disponibile perché questo {{content}} non ha un collegamento pubblico."
+   },
+   "settings": {
+     "general": "Generale",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/ja.json b/apps/desktop/src/frontend/i18n/locales/generated/ja.json
+index ad132d9..f096a97 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/ja.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/ja.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "バックエンドのバージョン",
+     "playSessionId": "再生セッションID",
+     "servingId": "配信ID",
+-    "liveStreamAlt": "{{channel}} ライブ ストリーム"
++    "liveStreamAlt": "{{channel}} ライブ ストリーム",
++    "sharePublicLinkUnavailable": "この {{content}} には公開リンクがないため、共有は利用できません。"
+   },
+   "settings": {
+     "general": "一般",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/ko.json b/apps/desktop/src/frontend/i18n/locales/generated/ko.json
+index f68f03d..6f2dd2a 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/ko.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/ko.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "백엔드 버전",
+     "playSessionId": "플레이 세션 ID",
+     "servingId": "제공 ID",
+-    "liveStreamAlt": "{{channel}} 실시간 스트림"
++    "liveStreamAlt": "{{channel}} 실시간 스트림",
++    "sharePublicLinkUnavailable": "이 {{content}}에는 공개 링크가 없으므로 공유할 수 없습니다."
+   },
+   "settings": {
+     "general": "일반",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/lt.json b/apps/desktop/src/frontend/i18n/locales/generated/lt.json
+index b0be9e6..0d92b9e 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/lt.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/lt.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Backend versija",
+     "playSessionId": "„Play“ seanso ID",
+     "servingId": "Aptarnavimo ID",
+-    "liveStreamAlt": "{{channel}} tiesioginis srautas"
++    "liveStreamAlt": "{{channel}} tiesioginis srautas",
++    "sharePublicLinkUnavailable": "Bendrinti negalima, nes šis {{content}} neturi viešos nuorodos."
+   },
+   "settings": {
+     "general": "Generolas",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/lv.json b/apps/desktop/src/frontend/i18n/locales/generated/lv.json
+index 53b57aa..a19f798 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/lv.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/lv.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Aizmugursistēmas versija",
+     "playSessionId": "Play sesijas ID",
+     "servingId": "Rādīšanas ID",
+-    "liveStreamAlt": "{{channel}} tiešraides straume"
++    "liveStreamAlt": "{{channel}} tiešraides straume",
++    "sharePublicLinkUnavailable": "Kopīgošana nav pieejama, jo šim {{content}} nav publiskas saites."
+   },
+   "settings": {
+     "general": "Ģenerālis",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/ml.json b/apps/desktop/src/frontend/i18n/locales/generated/ml.json
+index 65bba6c..b6d96f4 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/ml.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/ml.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "ബാക്കെൻഡ് പതിപ്പ്",
+     "playSessionId": "പ്ലേ സെഷൻ ഐഡി",
+     "servingId": "സെർവിംഗ് ഐഡി",
+-    "liveStreamAlt": "{{channel}} തത്സമയ സ്ട്രീം"
++    "liveStreamAlt": "{{channel}} തത്സമയ സ്ട്രീം",
++    "sharePublicLinkUnavailable": "ഈ {{content}} എന്നതിന് പൊതു ലിങ്ക് ഇല്ലാത്തതിനാൽ പങ്കിടൽ ലഭ്യമല്ല."
+   },
+   "settings": {
+     "general": "ജനറൽ",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/mr.json b/apps/desktop/src/frontend/i18n/locales/generated/mr.json
+index 2354330..eaeac70 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/mr.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/mr.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "बॅकएंड आवृत्ती",
+     "playSessionId": "सत्र आयडी प्ले करा",
+     "servingId": "सर्व्हिंग आयडी",
+-    "liveStreamAlt": "{{channel}} थेट प्रवाह"
++    "liveStreamAlt": "{{channel}} थेट प्रवाह",
++    "sharePublicLinkUnavailable": "शेअर अनुपलब्ध आहे कारण या {{content}} मध्ये सार्वजनिक दुवा नाही."
+   },
+   "settings": {
+     "general": "सामान्य",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/ms.json b/apps/desktop/src/frontend/i18n/locales/generated/ms.json
+index 68a07ed..05b4019 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/ms.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/ms.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Versi Bahagian Belakang",
+     "playSessionId": "ID Sesi Main",
+     "servingId": "ID penyajian",
+-    "liveStreamAlt": "{{channel}} strim langsung"
++    "liveStreamAlt": "{{channel}} strim langsung",
++    "sharePublicLinkUnavailable": "Perkongsian tidak tersedia kerana {{content}} ini tidak mempunyai pautan awam."
+   },
+   "settings": {
+     "general": "Umum",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/nb.json b/apps/desktop/src/frontend/i18n/locales/generated/nb.json
+index faf9301..33fb53c 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/nb.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/nb.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Backend-versjon",
+     "playSessionId": "Spill-økt-ID",
+     "servingId": "Serverings-ID",
+-    "liveStreamAlt": "{{channel}} direktesending"
++    "liveStreamAlt": "{{channel}} direktesending",
++    "sharePublicLinkUnavailable": "Del er utilgjengelig fordi denne {{content}} ikke har noen offentlig kobling."
+   },
+   "settings": {
+     "general": "Generelt",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/nl.json b/apps/desktop/src/frontend/i18n/locales/generated/nl.json
+index 0231984..98ea8cf 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/nl.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/nl.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Backend-versie",
+     "playSessionId": "Speelsessie-ID",
+     "servingId": "Serveer-ID",
+-    "liveStreamAlt": "{{channel}} livestream"
++    "liveStreamAlt": "{{channel}} livestream",
++    "sharePublicLinkUnavailable": "Delen is niet beschikbaar omdat deze {{content}} geen openbare link heeft."
+   },
+   "settings": {
+     "general": "Algemeen",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/pl.json b/apps/desktop/src/frontend/i18n/locales/generated/pl.json
+index 3388396..6369dee 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/pl.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/pl.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Wersja backendowa",
+     "playSessionId": "Odtwórz identyfikator sesji",
+     "servingId": "Identyfikator serwowania",
+-    "liveStreamAlt": "{{channel}} transmisja na żywo"
++    "liveStreamAlt": "{{channel}} transmisja na żywo",
++    "sharePublicLinkUnavailable": "Udostępnienie jest niedostępne, ponieważ ten element {{content}} nie ma publicznego łącza."
+   },
+   "settings": {
+     "general": "Generał",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/pt-BR.json b/apps/desktop/src/frontend/i18n/locales/generated/pt-BR.json
+index 9b27312..71c7277 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/pt-BR.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/pt-BR.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Versão de back-end",
+     "playSessionId": "ID da sessão de reprodução",
+     "servingId": "ID de veiculação",
+-    "liveStreamAlt": "{{channel}} transmissão ao vivo"
++    "liveStreamAlt": "{{channel}} transmissão ao vivo",
++    "sharePublicLinkUnavailable": "O compartilhamento não está disponível porque este {{content}} não tem link público."
+   },
+   "settings": {
+     "general": "Geral",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/pt-PT.json b/apps/desktop/src/frontend/i18n/locales/generated/pt-PT.json
+index c65699e..5ce8861 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/pt-PT.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/pt-PT.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Versão de back-end",
+     "playSessionId": "ID da sessão de reprodução",
+     "servingId": "ID de veiculação",
+-    "liveStreamAlt": "{{channel}} transmissão em direto"
++    "liveStreamAlt": "{{channel}} transmissão em direto",
++    "sharePublicLinkUnavailable": "A partilha não está disponível porque este {{content}} não tem ligação pública."
+   },
+   "settings": {
+     "general": "Geral",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/ro.json b/apps/desktop/src/frontend/i18n/locales/generated/ro.json
+index 5dd73e4..9f4ca90 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/ro.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/ro.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Versiunea backend",
+     "playSessionId": "ID-ul sesiunii de redare",
+     "servingId": "ID de servire",
+-    "liveStreamAlt": "{{channel}} stream live"
++    "liveStreamAlt": "{{channel}} stream live",
++    "sharePublicLinkUnavailable": "Distribuirea nu este disponibilă deoarece acest {{content}} nu are niciun link public."
+   },
+   "settings": {
+     "general": "general",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/ru.json b/apps/desktop/src/frontend/i18n/locales/generated/ru.json
+index f9edb33..dc32291 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/ru.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/ru.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Серверная версия",
+     "playSessionId": "Идентификатор сеанса воспроизведения",
+     "servingId": "Идентификатор обслуживания",
+-    "liveStreamAlt": "{{channel}} прямая трансляция"
++    "liveStreamAlt": "{{channel}} прямая трансляция",
++    "sharePublicLinkUnavailable": "Общий доступ недоступен, поскольку у этого {{content}} нет общедоступной ссылки."
+   },
+   "settings": {
+     "general": "Общий",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/sk.json b/apps/desktop/src/frontend/i18n/locales/generated/sk.json
+index ac2c485..69074e0 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/sk.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/sk.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Backend verzia",
+     "playSessionId": "Prehrať ID relácie",
+     "servingId": "ID zobrazovania",
+-    "liveStreamAlt": "{{channel}} živé vysielanie"
++    "liveStreamAlt": "{{channel}} živé vysielanie",
++    "sharePublicLinkUnavailable": "Zdieľanie je nedostupné, pretože toto {{content}} nemá žiadny verejný odkaz."
+   },
+   "settings": {
+     "general": "generál",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/sl.json b/apps/desktop/src/frontend/i18n/locales/generated/sl.json
+index 754bece..b56889b 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/sl.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/sl.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Zaledna različica",
+     "playSessionId": "ID seje predvajanja",
+     "servingId": "ID storitve",
+-    "liveStreamAlt": "{{channel}} pretočno predvajanje v živo"
++    "liveStreamAlt": "{{channel}} pretočno predvajanje v živo",
++    "sharePublicLinkUnavailable": "Skupna raba ni na voljo, ker ta {{content}} nima javne povezave."
+   },
+   "settings": {
+     "general": "Splošno",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/sr.json b/apps/desktop/src/frontend/i18n/locales/generated/sr.json
+index b9328f3..af749e0 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/sr.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/sr.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Бацкенд верзија",
+     "playSessionId": "ИД сесије играња",
+     "servingId": "ИД послуживања",
+-    "liveStreamAlt": "{{channel}} стрим уживо"
++    "liveStreamAlt": "{{channel}} стрим уживо",
++    "sharePublicLinkUnavailable": "Дељење није доступно јер овај {{content}} нема јавну везу."
+   },
+   "settings": {
+     "general": "генерал",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/sv.json b/apps/desktop/src/frontend/i18n/locales/generated/sv.json
+index e48f508..2697d08 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/sv.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/sv.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Backend-version",
+     "playSessionId": "Spelsessions-ID",
+     "servingId": "Serverings-ID",
+-    "liveStreamAlt": "{{channel}} livestream"
++    "liveStreamAlt": "{{channel}} livestream",
++    "sharePublicLinkUnavailable": "Delning är inte tillgänglig eftersom denna {{content}} inte har någon offentlig länk."
+   },
+   "settings": {
+     "general": "Allmänt",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/sw.json b/apps/desktop/src/frontend/i18n/locales/generated/sw.json
+index ead8752..eea39f7 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/sw.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/sw.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Toleo la Nyuma",
+     "playSessionId": "Kitambulisho cha Kipindi cha Cheza",
+     "servingId": "Kitambulisho cha huduma",
+-    "liveStreamAlt": "{{channel}} mtiririko wa moja kwa moja"
++    "liveStreamAlt": "{{channel}} mtiririko wa moja kwa moja",
++    "sharePublicLinkUnavailable": "Kushiriki hakupatikani kwa sababu {{content}} hii haina kiungo cha umma."
+   },
+   "settings": {
+     "general": "Mkuu",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/ta.json b/apps/desktop/src/frontend/i18n/locales/generated/ta.json
+index 15e715e..aa92619 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/ta.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/ta.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "பின்தள பதிப்பு",
+     "playSessionId": "ப்ளே செஷன் ஐடி",
+     "servingId": "சேவை ஐடி",
+-    "liveStreamAlt": "{{channel}} நேரடி ஸ்ட்ரீம்"
++    "liveStreamAlt": "{{channel}} நேரடி ஸ்ட்ரீம்",
++    "sharePublicLinkUnavailable": "இந்த {{content}} இல் பொது இணைப்பு இல்லாததால் பகிர்வு கிடைக்கவில்லை."
+   },
+   "settings": {
+     "general": "பொது",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/te.json b/apps/desktop/src/frontend/i18n/locales/generated/te.json
+index 1fbfcd5..d6b68d4 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/te.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/te.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "బ్యాకెండ్ వెర్షన్",
+     "playSessionId": "సెషన్ IDని ప్లే చేయండి",
+     "servingId": "ID అందిస్తోంది",
+-    "liveStreamAlt": "{{channel}} ప్రత్యక్ష ప్రసారం"
++    "liveStreamAlt": "{{channel}} ప్రత్యక్ష ప్రసారం",
++    "sharePublicLinkUnavailable": "ఈ {{content}}కి పబ్లిక్ లింక్ లేనందున భాగస్వామ్యం అందుబాటులో లేదు."
+   },
+   "settings": {
+     "general": "జనరల్",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/th.json b/apps/desktop/src/frontend/i18n/locales/generated/th.json
+index c27a075..2893589 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/th.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/th.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "เวอร์ชันแบ็กเอนด์",
+     "playSessionId": "เล่นรหัสเซสชั่น",
+     "servingId": "รหัสการให้บริการ",
+-    "liveStreamAlt": "{{channel}} สตรีมสด"
++    "liveStreamAlt": "{{channel}} สตรีมสด",
++    "sharePublicLinkUnavailable": "ไม่สามารถแชร์ได้เนื่องจาก {{content}} นี้ไม่มีลิงก์สาธารณะ"
+   },
+   "settings": {
+     "general": "ทั่วไป",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/tr.json b/apps/desktop/src/frontend/i18n/locales/generated/tr.json
+index 8de9ed5..d7d1066 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/tr.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/tr.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Arka Uç Sürümü",
+     "playSessionId": "Oturum Kimliğini Oynat",
+     "servingId": "Sunum kimliği",
+-    "liveStreamAlt": "{{channel}} canlı yayın"
++    "liveStreamAlt": "{{channel}} canlı yayın",
++    "sharePublicLinkUnavailable": "Bu {{content}} öğesinin herkese açık bağlantısı olmadığından paylaşım kullanılamıyor."
+   },
+   "settings": {
+     "general": "Genel",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/uk.json b/apps/desktop/src/frontend/i18n/locales/generated/uk.json
+index 59eb756..579ef1d 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/uk.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/uk.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Серверна версія",
+     "playSessionId": "Ідентифікатор сеансу відтворення",
+     "servingId": "Ідентифікатор обслуговування",
+-    "liveStreamAlt": "{{channel}} пряма трансляція"
++    "liveStreamAlt": "{{channel}} пряма трансляція",
++    "sharePublicLinkUnavailable": "Спільний доступ недоступний, оскільки цей {{content}} не має загальнодоступного посилання."
+   },
+   "settings": {
+     "general": "Загальний",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/ur.json b/apps/desktop/src/frontend/i18n/locales/generated/ur.json
+index c34cacc..7a17bce 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/ur.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/ur.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "بیک اینڈ ورژن",
+     "playSessionId": "پلے سیشن آئی ڈی",
+     "servingId": "سرونگ آئی ڈی",
+-    "liveStreamAlt": "{{channel}} لائیو سلسلہ"
++    "liveStreamAlt": "{{channel}} لائیو سلسلہ",
++    "sharePublicLinkUnavailable": "اشتراک دستیاب نہیں ہے کیونکہ اس {{content}} کا کوئی عوامی لنک نہیں ہے۔"
+   },
+   "settings": {
+     "general": "جنرل",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/vi.json b/apps/desktop/src/frontend/i18n/locales/generated/vi.json
+index b3cf5f6..98cff88 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/vi.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/vi.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "Phiên bản phụ trợ",
+     "playSessionId": "ID phiên phát",
+     "servingId": "Mã phục vụ",
+-    "liveStreamAlt": "{{channel}} luồng trực tiếp"
++    "liveStreamAlt": "{{channel}} luồng trực tiếp",
++    "sharePublicLinkUnavailable": "Chia sẻ không khả dụng vì {{content}} này không có liên kết công khai."
+   },
+   "settings": {
+     "general": "chung",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/zh-CN.json b/apps/desktop/src/frontend/i18n/locales/generated/zh-CN.json
+index 832ad19..3e7c494 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/zh-CN.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/zh-CN.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "后端版本",
+     "playSessionId": "播放会话 ID",
+     "servingId": "服务ID",
+-    "liveStreamAlt": "{{channel}} 直播"
++    "liveStreamAlt": "{{channel}} 直播",
++    "sharePublicLinkUnavailable": "共享不可用，因为此 {{content}} 没有公共链接。"
+   },
+   "settings": {
+     "general": "一般",
+diff --git a/apps/desktop/src/frontend/i18n/locales/generated/zh-TW.json b/apps/desktop/src/frontend/i18n/locales/generated/zh-TW.json
+index ec0a393..34e2008 100644
+--- a/apps/desktop/src/frontend/i18n/locales/generated/zh-TW.json
++++ b/apps/desktop/src/frontend/i18n/locales/generated/zh-TW.json
+@@ -1771,7 +1771,8 @@
+     "backendVersion": "後端版本",
+     "playSessionId": "播放會話 ID",
+     "servingId": "服務ID",
+-    "liveStreamAlt": "{{channel}} 直播"
++    "liveStreamAlt": "{{channel}} 直播",
++    "sharePublicLinkUnavailable": "共享不可用，因為此 {{content}} 沒有公共連結。"
+   },
+   "settings": {
+     "general": "一般",
+diff --git a/apps/desktop/src/frontend/pages/Settings/index.tsx b/apps/desktop/src/frontend/pages/Settings/index.tsx
+index 0250a95..3b24bc2 100644
+--- a/apps/desktop/src/frontend/pages/Settings/index.tsx
++++ b/apps/desktop/src/frontend/pages/Settings/index.tsx
+@@ -1887,6 +1887,7 @@ export function SettingsPage() {
+                                 <p className="text-sm text-zinc-500 mt-0.5">{description}</p>
+                               </div>
+                               <Switch
++                                aria-label={label}
+                                 checked={Boolean(notifications[field])}
+                                 onCheckedChange={(v) => handleNotificationChange(field, v)}
+                               />
+@@ -2170,6 +2171,7 @@ export function SettingsPage() {
+                                 )}
+                               </div>
+                               <Switch
++                                aria-label={label}
+                                 checked={playerControls[field]}
+                                 onCheckedChange={(v) => handlePlayerControlToggle(field, v)}
+                               />
+@@ -2311,6 +2313,7 @@ export function SettingsPage() {
+                                 </p>
+                               </div>
+                               <Switch
++                                aria-label={translateSettings({ key: "settings.lowLatencyMode" })}
+                                 checked={buffer.lowLatencyMode}
+                                 onCheckedChange={(v) => handleBufferChange("lowLatencyMode", v)}
+                               />
+@@ -2554,6 +2557,7 @@ export function SettingsPage() {
+                           </p>
+                         </div>
+                         <Switch
++                          aria-label={translateSettings({ key: "settings.enableAdBlocking" })}
+                           checked={isPlaylistProxyEnabled ? false : enableAdBlock}
+                           onCheckedChange={setEnableAdBlock}
+                           disabled={isPlaylistProxyEnabled}
+@@ -2862,7 +2866,10 @@ export function SettingsPage() {
+                               value={preferences?.predictions?.style ?? "native"}
+                               onValueChange={handlePredictionStyleChange}
+                             >
+-                              <SelectTrigger className="w-[200px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20">
++                              <SelectTrigger
++                                aria-label={translateSettings({ key: "settings.style" })}
++                                className="w-[200px] bg-[#18181b] border-[#27272a] text-zinc-200 focus:ring-yellow-500/20"
++                              >
+                                 <SelectValue
+                                   placeholder={translateSettings({ key: "settings.selectStyle" })}
+                                 />
+@@ -3212,6 +3219,7 @@ function UpdatesSettingsPanel({
+                   </p>
+                 </div>
+                 <Switch
++                  aria-label={translateSettings({ key: "settings.allowPreReleaseUpdates" })}
+                   checked={allowPrerelease}
+                   onCheckedChange={setAllowPrerelease}
+                   className="data-[state=checked]:!bg-blue-500 data-[state=checked]:!border-blue-500"
+diff --git a/apps/desktop/tests/components/TopNavBar/NotificationsDropdown.test.tsx b/apps/desktop/tests/components/TopNavBar/NotificationsDropdown.test.tsx
+index 4ae5ac7..a762331 100644
+--- a/apps/desktop/tests/components/TopNavBar/NotificationsDropdown.test.tsx
++++ b/apps/desktop/tests/components/TopNavBar/NotificationsDropdown.test.tsx
+@@ -19,7 +19,50 @@ beforeEach(() => {
+ });
+ 
+ // Guards: notification dropdown must render real persisted Live Notifications, never demo mock rows.
++// Guards: Escape closes the dropdown and returns keyboard focus to its trigger.
++// Guards: each notification opens from the keyboard while its dismiss action remains a sibling button.
+ describe("NotificationsDropdown", () => {
++  it("closes on Escape and restores focus to the notification trigger", async () => {
++    const user = userEvent.setup();
++    renderWithProviders(<NotificationsDropdown />);
++
++    const trigger = screen.getByTitle("Notifications");
++    await user.click(trigger);
++
++    expect(trigger).toHaveAttribute("aria-expanded", "true");
++    expect(trigger).toHaveAttribute("aria-controls", "notifications-dropdown");
++    await user.keyboard("{Escape}");
++
++    expect(screen.queryByText("No new notifications")).not.toBeInTheDocument();
++    expect(trigger).toHaveAttribute("aria-expanded", "false");
++    expect(trigger).toHaveFocus();
++  });
++
++  it("opens a notification from the keyboard without nesting its dismiss button", async () => {
++    useNotificationStore.getState().addNotification({
++      id: "live-1",
++      platform: "twitch",
++      channelId: "100",
++      channelName: "alpha",
++      channelDisplayName: "Alpha",
++      title: "Alpha stream",
++      createdAt: Date.now(),
++    });
++    const user = userEvent.setup();
++    renderWithProviders(<NotificationsDropdown />);
++
++    await user.click(screen.getByTitle("Notifications"));
++    const notificationAction = screen.getByRole("button", { name: /Alpha.*Alpha stream/i });
++    expect(notificationAction).not.toContainElement(screen.getByTitle("Dismiss"));
++    notificationAction.focus();
++    await user.keyboard("{Enter}");
++
++    expect(mockNavigate).toHaveBeenCalledWith({
++      to: "/stream/$platform/$channel",
++      params: { platform: "twitch", channel: "alpha" },
++    });
++  });
++
+   it("shows an empty state instead of mock notification rows when history is empty", async () => {
+     renderWithProviders(<NotificationsDropdown />);
+ 
+diff --git a/apps/desktop/tests/components/chat/EmotePickerPopover.test.tsx b/apps/desktop/tests/components/chat/EmotePickerPopover.test.tsx
+index 272c637..a7b465c 100644
+--- a/apps/desktop/tests/components/chat/EmotePickerPopover.test.tsx
++++ b/apps/desktop/tests/components/chat/EmotePickerPopover.test.tsx
+@@ -1411,7 +1411,7 @@ describe("EmotePickerPopover", () => {
+     expect(screen.getByLabelText("reopenChannel0")).toBeInTheDocument();
+   });
+ 
+-  it("preloads the next visible native section before slow scrolling reaches it", async () => {
++  it("preloads the next native section within three rows of the viewport", async () => {
+     const globalEmotes = Array.from({ length: 100 }, (_, i) =>
+       makeEmote({
+         id: `slow-global-${i}`,
+@@ -1464,6 +1464,16 @@ describe("EmotePickerPopover", () => {
+       await new Promise((resolve) => requestAnimationFrame(resolve));
+     });
+ 
++    expect(within(emojiBody as HTMLElement).queryByLabelText("slowEmoji0")).toBeNull();
++
++    act(() => {
++      scrollRoot.scrollTop = 600;
++      fireEvent.scroll(scrollRoot);
++    });
++    await act(async () => {
++      await new Promise((resolve) => requestAnimationFrame(resolve));
++    });
++
+     expect(within(emojiBody as HTMLElement).getByLabelText("slowEmoji0")).toBeInTheDocument();
+   });
+ 
+diff --git a/apps/desktop/tests/components/multistream/grid-layout-continuity.test.tsx b/apps/desktop/tests/components/multistream/grid-layout-continuity.test.tsx
+new file mode 100644
+index 0000000..18b2545
+--- /dev/null
++++ b/apps/desktop/tests/components/multistream/grid-layout-continuity.test.tsx
+@@ -0,0 +1,198 @@
++import { type HTMLAttributes, useEffect, useState } from "react";
++import { afterEach, describe, expect, it, vi } from "vitest";
++
++import {
++  installElectronAPIMock,
++  renderWithProviders,
++  routerMock,
++  screen,
++  waitFor,
++} from "../../test-utils";
++
++vi.mock("@tanstack/react-router", () => routerMock());
++
++type MockStream = {
++  id: string;
++  platform: "twitch" | "kick";
++  channelName: string;
++  isMuted: boolean;
++};
++
++let mockState: {
++  streams: MockStream[];
++  layout: "grid" | "focus";
++  focusedStreamId: string | null;
++  playbackBudget: number;
++};
++
++vi.mock("@/features/multistream/data/multistream-store", () => ({
++  useMultiStreamStore: (selector: (state: unknown) => unknown) =>
++    selector({
++      ...mockState,
++      removeStream: vi.fn(),
++      setFocusedStream: vi.fn(),
++      toggleMute: vi.fn(),
++      reorderStreams: vi.fn(),
++    }),
++}));
++
++const mountCounts = new Map<string, number>();
++const cleanupCounts = new Map<string, number>();
++
++vi.mock("@/features/multistream/components/multistream/stream-slot", () => ({
++  StreamSlot: ({
++    streamId,
++    dragHandleProps,
++  }: {
++    streamId: string;
++    dragHandleProps?: HTMLAttributes<HTMLButtonElement>;
++  }) => {
++    const [mountId] = useState(() => {
++      const count = (mountCounts.get(streamId) ?? 0) + 1;
++      mountCounts.set(streamId, count);
++      return `${streamId}:${count}`;
++    });
++
++    useEffect(
++      () => () => {
++        cleanupCounts.set(streamId, (cleanupCounts.get(streamId) ?? 0) + 1);
++      },
++      [streamId]
++    );
++
++    return (
++      <div data-testid={`slot-${streamId}`} data-mount-id={mountId}>
++        {dragHandleProps && <button aria-label={`drag-${streamId}`} {...dragHandleProps} />}
++      </div>
++    );
++  },
++}));
++
++import { MultiStreamGrid } from "@/features/multistream/components/multistream/grid-layout";
++
++// Guards: layout changes, focus changes, and grid reordering must retain each active player's mounted DOM and media lifetime.
++// Guards: grid reordering changes visual placement without moving the mounted slot hosts in DOM order.
++describe("MultiStreamGrid playback continuity", () => {
++  afterEach(() => vi.restoreAllMocks());
++
++  it("keeps active stream slots mounted across layout and focus changes", () => {
++    installElectronAPIMock();
++    mountCounts.clear();
++    cleanupCounts.clear();
++    const streams: MockStream[] = [
++      { id: "s1", platform: "twitch", channelName: "alpha", isMuted: false },
++      { id: "s2", platform: "kick", channelName: "beta", isMuted: true },
++    ];
++    mockState = { streams, layout: "grid", focusedStreamId: null, playbackBudget: 2 };
++
++    const view = renderWithProviders(<MultiStreamGrid />);
++    const initialSlots = new Map(
++      streams.map((stream) => [stream.id, screen.getByTestId(`slot-${stream.id}`)])
++    );
++    expect(screen.getAllByRole("button", { name: /^drag-/ })).toHaveLength(2);
++
++    mockState = { streams, layout: "focus", focusedStreamId: "s1", playbackBudget: 2 };
++    view.rerender(<MultiStreamGrid />);
++    expect(screen.queryByRole("button", { name: /^drag-/ })).not.toBeInTheDocument();
++
++    mockState = { streams, layout: "focus", focusedStreamId: "s2", playbackBudget: 2 };
++    view.rerender(<MultiStreamGrid />);
++
++    mockState = { streams, layout: "grid", focusedStreamId: null, playbackBudget: 2 };
++    view.rerender(<MultiStreamGrid />);
++    expect(screen.getAllByRole("button", { name: /^drag-/ })).toHaveLength(2);
++
++    mockState = {
++      streams: [...streams].reverse(),
++      layout: "grid",
++      focusedStreamId: null,
++      playbackBudget: 2,
++    };
++    view.rerender(<MultiStreamGrid />);
++
++    for (const stream of streams) {
++      expect(screen.getByTestId(`slot-${stream.id}`)).toBe(initialSlots.get(stream.id));
++      expect(mountCounts.get(stream.id)).toBe(1);
++      expect(cleanupCounts.get(stream.id) ?? 0).toBe(0);
++    }
++  });
++
++  it("reorders grid placement without reordering the mounted slot hosts", () => {
++    installElectronAPIMock();
++    const streams: MockStream[] = [
++      { id: "s1", platform: "twitch", channelName: "alpha", isMuted: false },
++      { id: "s2", platform: "kick", channelName: "beta", isMuted: true },
++    ];
++    mockState = { streams, layout: "grid", focusedStreamId: null, playbackBudget: 2 };
++
++    const view = renderWithProviders(<MultiStreamGrid />);
++    const layout = view.container.querySelector<HTMLElement>('[data-layout="grid"]');
++
++    mockState = {
++      streams: [...streams].reverse(),
++      layout: "grid",
++      focusedStreamId: null,
++      playbackBudget: 2,
++    };
++    view.rerender(<MultiStreamGrid />);
++
++    const placements = Array.from(
++      layout?.querySelectorAll<HTMLElement>(":scope > [data-stream-placement]") ?? []
++    );
++    expect(
++      placements.map(
++        (placement) => placement.querySelector<HTMLElement>("[data-testid]")?.dataset.testid
++      )
++    ).toEqual(["slot-s1", "slot-s2"]);
++    expect(placements.map((placement) => placement.style.order)).toEqual(["1", "0"]);
++  });
++
++  it("keeps a 16:9 focused stage above a horizontally scrolling rail", async () => {
++    installElectronAPIMock();
++    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
++      bottom: 748,
++      height: 748,
++      left: 0,
++      right: 824,
++      top: 0,
++      width: 824,
++      x: 0,
++      y: 0,
++      toJSON: () => ({}),
++    });
++    mockState = {
++      streams: [
++        { id: "s1", platform: "twitch", channelName: "alpha", isMuted: false },
++        { id: "s2", platform: "kick", channelName: "beta", isMuted: true },
++      ],
++      layout: "focus",
++      focusedStreamId: "s1",
++      playbackBudget: 2,
++    };
++
++    const view = renderWithProviders(<MultiStreamGrid />);
++
++    await waitFor(() => {
++      const layout = view.container.querySelector<HTMLElement>('[data-layout="focus"]');
++      const focused = view.container.querySelector<HTMLElement>(
++        '[data-stream-placement="focused"]'
++      );
++      const rail = view.container.querySelector<HTMLElement>('[data-stream-placement="rail"]');
++      const focusedFrame = focused?.firstElementChild;
++      const railFrame = rail?.firstElementChild;
++      if (!(focusedFrame instanceof HTMLElement) || !(railFrame instanceof HTMLElement)) {
++        throw new Error("Expected focused and rail frames");
++      }
++
++      expect(layout?.style.overflowX).toBe("auto");
++      expect(
++        Number.parseFloat(focusedFrame?.style.width ?? "0") /
++          Number.parseFloat(focusedFrame?.style.height ?? "1")
++      ).toBeCloseTo(16 / 9, 2);
++      expect(
++        Number.parseFloat(railFrame?.style.width ?? "0") /
++          Number.parseFloat(railFrame?.style.height ?? "1")
++      ).toBeCloseTo(16 / 9, 2);
++    });
++  });
++});
+diff --git a/apps/desktop/tests/components/multistream/grid-layout.test.tsx b/apps/desktop/tests/components/multistream/grid-layout.test.tsx
+index cd7b82e..4835350 100644
+--- a/apps/desktop/tests/components/multistream/grid-layout.test.tsx
++++ b/apps/desktop/tests/components/multistream/grid-layout.test.tsx
+@@ -31,16 +31,25 @@ vi.mock("@/features/multistream/data/multistream-store", () => ({
+ vi.mock("@/features/multistream/components/multistream/sortable-stream-slot", () => ({
+   SortableStreamSlot: ({
+     channelName,
++    isFocused,
++    lazyMount,
+     playbackActive,
++    sortableDisabled,
+     wcvEnabled,
+   }: {
+     channelName: string;
++    isFocused: boolean;
++    lazyMount?: boolean;
+     playbackActive?: boolean;
++    sortableDisabled?: boolean;
+     wcvEnabled?: boolean | null;
+   }) => (
+     <div
+       data-testid="sortable-slot"
++      data-focused={String(isFocused)}
++      data-lazy-mount={String(lazyMount)}
+       data-playback-active={String(playbackActive)}
++      data-sortable-disabled={String(sortableDisabled)}
+       data-wcv-enabled={String(wcvEnabled)}
+     >
+       {channelName}
+@@ -54,10 +63,6 @@ vi.mock("@/features/multistream/components/multistream/adaptive-stream-grid", ()
+   ),
+ }));
+ 
+-vi.mock("@/features/multistream/components/multistream/stream-slot", () => ({
+-  StreamSlot: () => <div data-testid="slot">slot</div>,
+-}));
+-
+ import { MultiStreamGrid } from "@/features/multistream/components/multistream/grid-layout";
+ 
+ // Guards: empty state — no streams in the store → render "no active streams" empty card; otherwise the user lands on multistream with no signal anything's there
+@@ -100,7 +105,7 @@ describe("MultiStreamGrid", () => {
+     expect(screen.getByTestId("aspect-aware-grid")).toBeInTheDocument();
+   });
+ 
+-  // Guards: focus mode constrains the primary stream while retaining the existing aspect-video side rail.
++  // Guards: focus mode keeps every player in the stable sortable tree while marking one focused stage and the rest as lazy rail slots.
+   it("keeps the focused stream in the adaptive aspect stage", () => {
+     mockState = {
+       streams: [
+@@ -115,7 +120,11 @@ describe("MultiStreamGrid", () => {
+     renderWithProviders(<MultiStreamGrid />);
+ 
+     expect(screen.getByTestId("aspect-aware-grid")).toBeInTheDocument();
+-    expect(screen.getAllByTestId("slot")).toHaveLength(2);
++    const slots = screen.getAllByTestId("sortable-slot");
++    expect(slots).toHaveLength(2);
++    expect(slots.map((slot) => slot.dataset.focused)).toEqual(["true", "false"]);
++    expect(slots.map((slot) => slot.dataset.lazyMount)).toEqual(["false", "true"]);
++    expect(slots.map((slot) => slot.dataset.sortableDisabled)).toEqual(["true", "true"]);
+   });
+ 
+   it("partial-loading: all N slots mount independently while the playback budget admits decoders", () => {
+@@ -136,6 +145,25 @@ describe("MultiStreamGrid", () => {
+     ).toEqual(["true", "true", "false"]);
+   });
+ 
++  it("keeps the focused stream active and applies the remaining budget in rail order", () => {
++    mockState = {
++      streams: [
++        { id: "s1", platform: "twitch", channelName: "a" },
++        { id: "s2", platform: "kick", channelName: "b" },
++        { id: "s3", platform: "twitch", channelName: "c" },
++      ],
++      layout: "focus",
++      focusedStreamId: "s3",
++      playbackBudget: 2,
++    };
++
++    renderWithProviders(<MultiStreamGrid />);
++
++    const slots = screen.getAllByTestId("sortable-slot");
++    expect(slots.map((slot) => slot.dataset.playbackActive)).toEqual(["true", "false", "true"]);
++    expect(slots.map((slot) => slot.dataset.lazyMount)).toEqual(["true", "true", "false"]);
++  });
++
+   it("probes WCV capability once for every mounted slot", async () => {
+     mockState = {
+       streams: [
+diff --git a/apps/desktop/tests/components/multistream/stream-slot.test.tsx b/apps/desktop/tests/components/multistream/stream-slot.test.tsx
+index 952dd45..6c9ade9 100644
+--- a/apps/desktop/tests/components/multistream/stream-slot.test.tsx
++++ b/apps/desktop/tests/components/multistream/stream-slot.test.tsx
+@@ -2,7 +2,14 @@ import { act } from "@testing-library/react";
+ import type { PlayerError } from "@/features/playback/components/player/types";
+ import { afterEach, describe, expect, it, vi } from "vitest";
+ 
+-import { fixtures, renderWithProviders, routerMock, screen } from "../../test-utils";
++import {
++  fixtures,
++  installElectronAPIMock,
++  renderWithProviders,
++  routerMock,
++  screen,
++  waitFor,
++} from "../../test-utils";
+ 
+ vi.mock("@tanstack/react-router", () => routerMock());
+ 
+@@ -20,12 +27,15 @@ vi.mock("@/features/discovery/data/queries/useChannels", () => ({
+ }));
+ 
+ vi.mock("@/features/playback/data/useStreamPlayback", () => ({
+-  useStreamPlayback: () => ({
+-    playback: { url: "https://x.test/playlist.m3u8" },
+-    isLoading: false,
+-    reload: playerMocks.reload,
+-    playbackRevision: playerMocks.playbackRevision,
+-  }),
++  useStreamPlayback: (_platform: string, identifier: string) => {
++    playerMocks.playbackIdentifiers.push(identifier);
++    return {
++      playback: identifier ? { url: "https://x.test/playlist.m3u8" } : null,
++      isLoading: false,
++      reload: playerMocks.reload,
++      playbackRevision: playerMocks.playbackRevision,
++    };
++  },
+ }));
+ 
+ vi.mock("@/features/playback/data/use-raid-handoff", () => ({
+@@ -34,6 +44,7 @@ vi.mock("@/features/playback/data/use-raid-handoff", () => ({
+ 
+ const playerMocks = vi.hoisted(() => ({
+   playbackRevision: 1,
++  playbackIdentifiers: [] as string[],
+   reload: vi.fn(),
+   twitchProps: null as null | {
+     className?: string;
+@@ -87,6 +98,7 @@ describe("StreamSlot", () => {
+   afterEach(() => {
+     vi.useRealTimers();
+     playerMocks.playbackRevision = 1;
++    playerMocks.playbackIdentifiers.length = 0;
+     playerMocks.reload.mockReset();
+     playerMocks.twitchProps = null;
+     playerMocks.kickProps = null;
+@@ -148,6 +160,58 @@ describe("StreamSlot", () => {
+     expect(onActivate).toHaveBeenCalledTimes(1);
+   });
+ 
++  // Guards: a rail slot promoted before first intersection starts playback without requiring a remount.
++  it("starts a deferred rail slot when it becomes focused", () => {
++    const props = {
++      streamId: "s7",
++      platform: "twitch" as const,
++      channelName: "ninja",
++      isMuted: true,
++      onRemove: vi.fn(),
++      onFocus: vi.fn(),
++      isFocused: false,
++      playbackActive: true,
++    };
++    const view = renderWithProviders(<StreamSlot {...props} lazyMount />);
++
++    expect(playerMocks.playbackIdentifiers.at(-1)).toBe("");
++    expect(screen.queryByTestId("tw-live-player")).not.toBeInTheDocument();
++
++    view.rerender(<StreamSlot {...props} isFocused lazyMount={false} />);
++
++    expect(playerMocks.playbackIdentifiers.at(-1)).toBe("ninja");
++    expect(screen.getByTestId("tw-live-player")).toBeInTheDocument();
++  });
++
++  // Guards: moving a native-view slot between grid, focus, and rail pushes its new screen bounds without recreating the slot.
++  it("refreshes WCV bounds when the stable slot placement changes", async () => {
++    const api = installElectronAPIMock();
++    api.slot.onRetryAffordance = vi.fn(() => vi.fn());
++    const props = {
++      streamId: "s1",
++      platform: "twitch" as const,
++      channelName: "ninja",
++      isMuted: false,
++      onRemove: vi.fn(),
++      onFocus: vi.fn(),
++      isFocused: false,
++      playbackActive: true,
++      wcvEnabled: true,
++    };
++    const view = renderWithProviders(<StreamSlot {...props} placementKey="grid:0" />);
++
++    await waitFor(() => expect(api.slot.setBounds).toHaveBeenCalledTimes(1));
++    expect(api.slot.createSlot).toHaveBeenCalledTimes(1);
++
++    view.rerender(<StreamSlot {...props} isFocused placementKey="focused" />);
++    await waitFor(() => expect(api.slot.setBounds).toHaveBeenCalledTimes(2));
++
++    view.rerender(<StreamSlot {...props} placementKey="rail:0" />);
++    await waitFor(() => expect(api.slot.setBounds).toHaveBeenCalledTimes(3));
++    expect(api.slot.createSlot).toHaveBeenCalledTimes(1);
++    expect(api.slot.destroySlot).not.toHaveBeenCalled();
++  });
++
+   // Guards: one multistream slot stops after two failed Twitch source refreshes instead of spinning or refreshing forever in isolation.
+   it("exhausts Twitch recovery after two playback revisions", async () => {
+     vi.useFakeTimers();
+diff --git a/apps/desktop/tests/hooks/use-share-action.test.tsx b/apps/desktop/tests/hooks/use-share-action.test.tsx
+index 756289c..2c9a10d 100644
+--- a/apps/desktop/tests/hooks/use-share-action.test.tsx
++++ b/apps/desktop/tests/hooks/use-share-action.test.tsx
+@@ -12,6 +12,7 @@ import { useShareAction } from "@/features/playback/data/use-share-action";
+ 
+ // Guards: playable public links copy as plain URLs and visibly confirm success for exactly two seconds
+ // Guards: current channel-scoped Kick clip links are accepted as public content links
++// Guards: disabled sharing identifies whether playback or the public content link is unavailable
+ // Guards: clipboard failures remain retryable and surface the approved error message
+ // Guards: switching content resets Copied immediately and cancels the previous content's timer
+ describe("useShareAction", () => {
+@@ -66,6 +67,30 @@ describe("useShareAction", () => {
+     expect(writeText).not.toHaveBeenCalled();
+   });
+ 
++  it("explains whether playback or the public link prevents sharing", () => {
++    const { result: unavailableLink } = renderHook(() =>
++      useShareAction({
++        shareUrl: "https://video.example/signed-playback.m3u8",
++        isPlaybackReady: true,
++        contentLabel: "Video",
++      })
++    );
++    const { result: unavailablePlayback } = renderHook(() =>
++      useShareAction({
++        shareUrl: "https://kick.com/video/public-slug",
++        isPlaybackReady: false,
++        contentLabel: "Video",
++      })
++    );
++
++    expect(unavailableLink.current.unavailableTitle).toBe(
++      "Share is unavailable because this Video has no public link."
++    );
++    expect(unavailablePlayback.current.unavailableTitle).toBe(
++      "Share is available when this Video is ready to play."
++    );
++  });
++
+   it("accepts the current channel-scoped Kick clip URL", async () => {
+     writeText.mockResolvedValue(undefined);
+     const shareUrl = "https://kick.com/streamer/clips/clip_01KYSZT17PEK9PQJ1PGD3XMVNX";
+diff --git a/apps/desktop/tests/pages/Mod/channel/workspace/AutoModQueue.test.tsx b/apps/desktop/tests/pages/Mod/channel/workspace/AutoModQueue.test.tsx
+index 8737ff7..c0600cc 100644
+--- a/apps/desktop/tests/pages/Mod/channel/workspace/AutoModQueue.test.tsx
++++ b/apps/desktop/tests/pages/Mod/channel/workspace/AutoModQueue.test.tsx
+@@ -144,7 +144,7 @@ describe("AutoModQueue", () => {
+     });
+     renderQueue();
+ 
+-    expect(await screen.findByRole("status")).toHaveTextContent("connection failed");
++    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("connection failed"));
+     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+     await waitFor(() => expect(api.twitch.eventSub.start).toHaveBeenCalledTimes(2));
+     sendState("connected");

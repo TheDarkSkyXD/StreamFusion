@@ -1,0 +1,26 @@
+{
+  "healthy": true,
+  "databasePath": "C:\\sf-perf-commit\\.scratch\\verify-streamfusion\\runs\\2026-09-06T19-32-22-893Z\\profile\\streamfusion.db",
+  "seededFrom": null,
+  "quickCheck": [
+    "ok"
+  ],
+  "userVersion": 0,
+  "requiredTables": [
+    "key_value",
+    "local_follows",
+    "mod_log",
+    "mod_log_coverage",
+    "pending_follow_writes",
+    "retention_settings"
+  ],
+  "missingTables": [],
+  "rowCounts": {
+    "key_value": 0,
+    "local_follows": 0,
+    "mod_log": 0,
+    "mod_log_coverage": 0,
+    "pending_follow_writes": 0,
+    "retention_settings": 0
+  }
+}

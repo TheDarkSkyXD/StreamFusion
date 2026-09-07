@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "verdict": "fail",
+  "startedAt": "2026-09-06T17:42:18.949Z",
+  "endedAt": "2026-09-06T17:42:28.965Z",
+  "options": {
+    "cdpEndpoint": "http://127.0.0.1:51239",
+    "durationMs": 10000,
+    "sampleIntervalMs": 2000,
+    "warmupMs": 0,
+    "routeCycleMs": 0,
+    "routes": [
+      "#/",
+      "#/categories",
+      "#/following",
+      "#/multistream",
+      "#/search?q=xqc",
+      "#/settings?tab=diagnostics"
+    ],
+    "outputPath": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\performance-audit\\multiview-profile-final.json",
+    "traceCapture": {
+      "kind": "always",
+      "outputPath": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\performance-audit\\multiview-profile-final.trace.json",
+      "maxBytes": 67108864
+    },
+    "maxResidentBytes": 1468006400,
+    "maxResidentGrowthBytes": 134217728,
+    "maxHeapGrowthBytes": 67108864,
+    "maxProcessCount": 7,
+    "maxCpuP95Percent": 15,
+    "maxFrameP95Ms": 20,
+    "maxRendererExceptions": 0,
+    "maxRateLimitedResponses": 0
+  },
+  "summary": {
+    "durationMs": 10016,
+    "sampleCount": 2,
+    "stableSampleCount": 2,
+    "residentMemory": {
+      "minBytes": 1405587456,
+      "maxBytes": 1417351168,
+      "growthBytes": 11763712
+    },
+    "rendererHeap": {
+      "minBytes": 89376992,
+      "maxBytes": 92209136,
+      "growthBytes": 2832144
+    },
+    "processCount": {
+      "min": 6,
+      "max": 6
+    },
+    "cpuP95Percent": 9.075447394890913,
+    "frameP95Ms": 3000,
+    "frameSampleTimeoutCount": 2,
+    "rendererExceptionCount": 0,
+    "rateLimitedResponseCount": 0
+  },
+  "failures": [
+    "frame-p95",
+    "frame-sample-timeout"
+  ],
+  "events": [],
+  "samples": [
+    {
+      "observedAtMs": 1788716539027,
+      "route": "#/multistream",
+      "cpuPercent": 9.075447394890913,
+      "residentMemoryBytes": 1405587456,
+      "processCount": 6,
+      "rendererHeapBytes": 89376992,
+      "frameP95Ms": 3000,
+      "frameMaxMs": 3000,
+      "frameSampleTimedOut": true,
+      "visibilityState": "hidden",
+      "videoCount": 2,
+      "playingVideoCount": 1,
+      "domNodeCount": 1164
+    },
+    {
+      "observedAtMs": 1788716544034,
+      "route": "#/multistream",
+      "cpuPercent": 4.404333635220229,
+      "residentMemoryBytes": 1417351168,
+      "processCount": 6,
+      "rendererHeapBytes": 92209136,
+      "frameP95Ms": 3000,
+      "frameMaxMs": 3000,
+      "frameSampleTimedOut": true,
+      "visibilityState": "hidden",
+      "videoCount": 2,
+      "playingVideoCount": 1,
+      "domNodeCount": 1164
+    }
+  ],
+  "traceCapture": {
+    "kind": "saved",
+    "outputPath": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\performance-audit\\multiview-profile-final.trace.json",
+    "bytes": 11323835,
+    "dataLossOccurred": false
+  }
+}

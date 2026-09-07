@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "verdict": "fail",
+  "startedAt": "2026-09-06T17:10:36.534Z",
+  "endedAt": "2026-09-06T17:10:56.538Z",
+  "options": {
+    "cdpEndpoint": "http://127.0.0.1:62953",
+    "durationMs": 20000,
+    "sampleIntervalMs": 2000,
+    "warmupMs": 0,
+    "routeCycleMs": 0,
+    "routes": [
+      "#/",
+      "#/categories",
+      "#/following",
+      "#/multistream",
+      "#/search?q=xqc",
+      "#/settings?tab=diagnostics"
+    ],
+    "outputPath": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\performance-audit\\resources-before.json",
+    "traceCapture": {
+      "kind": "always",
+      "outputPath": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\performance-audit\\resources-before.trace.json",
+      "maxBytes": 67108864
+    },
+    "maxResidentBytes": 1468006400,
+    "maxResidentGrowthBytes": 134217728,
+    "maxHeapGrowthBytes": 67108864,
+    "maxProcessCount": 7,
+    "maxCpuP95Percent": 15,
+    "maxFrameP95Ms": 20,
+    "maxRendererExceptions": 0,
+    "maxRateLimitedResponses": 0
+  },
+  "summary": {
+    "durationMs": 20004,
+    "sampleCount": 7,
+    "stableSampleCount": 7,
+    "residentMemory": {
+      "minBytes": 1016500224,
+      "maxBytes": 1288003584,
+      "growthBytes": 180895744
+    },
+    "rendererHeap": {
+      "minBytes": 69012293,
+      "maxBytes": 92349511,
+      "growthBytes": 13050066
+    },
+    "processCount": {
+      "min": 6,
+      "max": 6
+    },
+    "cpuP95Percent": 64.53709879918006,
+    "frameP95Ms": 166.60000000000582,
+    "frameSampleTimeoutCount": 0,
+    "rendererExceptionCount": 0,
+    "rateLimitedResponseCount": 0
+  },
+  "failures": [
+    "resident-memory-growth",
+    "cpu-p95",
+    "frame-p95"
+  ],
+  "events": [],
+  "samples": [
+    {
+      "observedAtMs": 1788714636565,
+      "route": "#/settings?tab=diagnostics",
+      "cpuPercent": 64.53709879918006,
+      "residentMemoryBytes": 1036763136,
+      "processCount": 6,
+      "rendererHeapBytes": 69012293,
+      "frameP95Ms": 16.79999999998836,
+      "frameMaxMs": 16.800000000017462,
+      "frameSampleTimedOut": false,
+      "visibilityState": "visible",
+      "videoCount": 0,
+      "playingVideoCount": 0,
+      "domNodeCount": 1895
+    },
+    {
+      "observedAtMs": 1788714639260,
+      "route": "#/settings?tab=diagnostics",
+      "cpuPercent": 7.545025058211499,
+      "residentMemoryBytes": 1072766976,
+      "processCount": 6,
+      "rendererHeapBytes": 73482338,
+      "frameP95Ms": 166.60000000000582,
+      "frameMaxMs": 166.79999999998836,
+      "frameSampleTimedOut": false,
+      "visibilityState": "visible",
+      "videoCount": 0,
+      "playingVideoCount": 0,
+      "domNodeCount": 1927
+    },
+    {
+      "observedAtMs": 1788714642241,
+      "route": "#/settings?tab=diagnostics",
+      "cpuPercent": 7.716435909016975,
+      "residentMemoryBytes": 1016500224,
+      "processCount": 6,
+      "rendererHeapBytes": 92349511,
+      "frameP95Ms": 149.89999999999418,
+      "frameMaxMs": 166.70000000001164,
+      "frameSampleTimedOut": false,
+      "visibilityState": "visible",
+      "videoCount": 0,
+      "playingVideoCount": 0,
+      "domNodeCount": 1933
+    },
+    {
+      "observedAtMs": 1788714645254,
+      "route": "#/settings?tab=diagnostics",
+      "cpuPercent": 7.072339456035943,
+      "residentMemoryBytes": 1095458816,
+      "processCount": 6,
+      "rendererHeapBytes": 75678484,
+      "frameP95Ms": 149.89999999999418,
+      "frameMaxMs": 166.69999999998254,
+      "frameSampleTimedOut": false,
+      "visibilityState": "visible",
+      "videoCount": 0,
+      "playingVideoCount": 0,
+      "domNodeCount": 1939
+    },
+    {
+      "observedAtMs": 1788714648271,
+      "route": "#/settings?tab=diagnostics",
+      "cpuPercent": 6.982560647863447,
+      "residentMemoryBytes": 1202208768,
+      "processCount": 6,
+      "rendererHeapBytes": 82657531,
+      "frameP95Ms": 150.10000000000582,
+      "frameMaxMs": 166.60000000000582,
+      "frameSampleTimedOut": false,
+      "visibilityState": "visible",
+      "videoCount": 0,
+      "playingVideoCount": 0,
+      "domNodeCount": 1945
+    },
+    {
+      "observedAtMs": 1788714651315,
+      "route": "#/settings?tab=diagnostics",
+      "cpuPercent": 6.833729739974728,
+      "residentMemoryBytes": 1183318016,
+      "processCount": 6,
+      "rendererHeapBytes": 77611462,
+      "frameP95Ms": 150,
+      "frameMaxMs": 183.40000000002328,
+      "frameSampleTimedOut": false,
+      "visibilityState": "visible",
+      "videoCount": 0,
+      "playingVideoCount": 0,
+      "domNodeCount": 1951
+    },
+    {
+      "observedAtMs": 1788714654352,
+      "route": "#/settings?tab=diagnostics",
+      "cpuPercent": 6.0335084474964855,
+      "residentMemoryBytes": 1288003584,
+      "processCount": 6,
+      "rendererHeapBytes": 90983301,
+      "frameP95Ms": 166.60000000000582,
+      "frameMaxMs": 166.70000000001164,
+      "frameSampleTimedOut": false,
+      "visibilityState": "visible",
+      "videoCount": 0,
+      "playingVideoCount": 0,
+      "domNodeCount": 1957
+    }
+  ],
+  "traceCapture": {
+    "kind": "saved",
+    "outputPath": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\performance-audit\\resources-before.trace.json",
+    "bytes": 38802453,
+    "dataLossOccurred": false
+  }
+}

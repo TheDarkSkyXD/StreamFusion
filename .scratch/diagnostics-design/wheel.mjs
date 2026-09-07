@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const targets = await (await fetch(`http://127.0.0.1:${state.port}/json`)).json();
+const target = targets.find(target => target.type === 'page' && target.title === 'StreamFusion');
+if (!target) throw new Error('Isolated StreamFusion target missing');
+const socket = new WebSocket(target.webSocketDebuggerUrl);
+await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
+const params = { type: 'mouseWheel', x: 1200, y: 700, deltaX: 0, deltaY: Number(process.argv[3]) };
+socket.send(JSON.stringify({ id: 1, method: 'Input.dispatchMouseEvent', params }));
+await new Promise((resolve, reject) => { socket.onmessage = event => { const reply = JSON.parse(event.data); if (reply.id === 1) reply.error ? reject(reply.error) : resolve(); }; });
+socket.close();
+fs.appendFileSync(`${state.evidenceDir}/actions.ndjson`, `${JSON.stringify({ at: new Date().toISOString(), action: 'mouseWheel', params })}\n`);
+console.log(JSON.stringify(params));

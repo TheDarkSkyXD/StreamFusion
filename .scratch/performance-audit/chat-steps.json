@@ -1,0 +1,12 @@
+[
+  ["chat-emotes-bttv", "click", "--role", "button", "--name", "BTTV"],
+  ["chat-emotes-ffz", "click", "--role", "button", "--name", "FFZ"],
+  ["chat-emotes-7tv", "click", "--role", "button", "--name", "7TV"],
+  ["chat-emotes-filter", "fill", "--role", "textbox", "--name", "Search emotes...", "--value", "peepo"],
+  ["chat-emotes-close", "key", "Escape"],
+  ["chat-kick-tab", "click", "--role", "tab", "--name", "trainwreckstv"],
+  ["chat-kick-settings", "click", "--role", "button", "--name", "Chat settings"],
+  ["chat-kick-settings-close", "key", "Escape"],
+  ["chat-merged-again", "click", "--role", "tab", "--name", "Merged"]
+]
+

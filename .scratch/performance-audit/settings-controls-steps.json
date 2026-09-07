@@ -1,0 +1,8 @@
+[
+  ["settings-viewing-controls", "click", "--role", "button", "--name", "Viewing settings section"],
+  ["settings-buffer-controls", "click", "--role", "link", "--name", "Buffer"],
+  ["settings-experience-controls", "click", "--role", "button", "--name", "Experience settings section"],
+  ["settings-notifications-controls", "click", "--role", "link", "--name", "Notifications"],
+  ["settings-predictions-controls", "click", "--role", "link", "--name", "Predictions"],
+  ["settings-chat-controls", "click", "--role", "link", "--name", "Chat"]
+]

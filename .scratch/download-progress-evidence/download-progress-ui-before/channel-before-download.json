@@ -1,0 +1,437 @@
+{
+  "capturedAt": "2026-09-05T22:20:49.507Z",
+  "title": "StreamFusion",
+  "url": "http://localhost:5174/#/stream/twitch/sodapoppin?tab=home",
+  "text": "StreamFusion\nStreamFusion\nChannels\nCategories\nStreams\nKick degraded\nHome\nFollowing\nCategories\nMultiView\nHistory\nDownloads\nSettings\nFollowing\n672\nsodapoppin\n8.6K\nELDEN RING\nIce Poseidon\n7.7K\nIRL\nLIRIK\n7.1K\nOnimusha: Way of the Sword\nTazo\n1.6K\nSlots & Casino\nDansGaming\n1.5K\nSpecial Events\nCYR\n1.5K\nProject Zomboid\nSheriffEli\n1.2K\nGrand Theft Auto V\nAlveusSanctuary\n1.1K\nAnimals, Aquariums, and Zoos\nnickwhite\n1.1K\nIRL\nCobbruvs\n956\nIRL\nShow More\nDownloads\n\nTrack clips and videos saved from StreamFusion.\n\nNeeds attention\n1\n\nPaused downloads and items that could not finish.\n\nNight in the Life of a PT Streamer\n\nadrianahlee / Video\n\nPaused\nPaused after StreamFusion restarted\nProgress unavailable\n\n8.4 GB\n\nFinished\n2\n\nCompleted and cancelled downloads.\n\nGODDESS 🎀 Good Vibes + Custom Experiences🚨💸👑 !commands\n\nkendal-1 / Video\n\nCompleted\n501 MB of 501 MB\n100%\nmmmm\n\nadrianahlee / Clip\n\nCompleted\n26 MB of 26 MB\n100%",
+  "elements": [
+    {
+      "role": "button",
+      "name": "Minimize",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Maximize",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Close",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Collapse sidebar",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "link",
+      "name": "StreamFusion",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "textbox",
+      "name": "Search StreamFusion...",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "tablist",
+      "name": "Search type",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "tab",
+      "name": "Channels",
+      "disabled": false,
+      "selected": "true",
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "tab",
+      "name": "Categories",
+      "disabled": false,
+      "selected": "false",
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "tab",
+      "name": "Streams",
+      "disabled": false,
+      "selected": "false",
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "status",
+      "name": "Kick status: Degraded.",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Notifications",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Open profile menu",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "link",
+      "name": "Home",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Following",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Categories",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "MultiView",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "History",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Downloads",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Settings",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Sync follows",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "link",
+      "name": "sodapoppin8.6KELDEN RING",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "img",
+      "name": "Twitch verified",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Ice Poseidon7.7KIRL",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "LIRIK7.1KOnimusha: Way of the Sword",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "img",
+      "name": "Twitch verified",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Tazo1.6KSlots & Casino",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "DansGaming1.5KSpecial Events",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "img",
+      "name": "Twitch verified",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "CYR1.5KProject Zomboid",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "img",
+      "name": "Twitch verified",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "SheriffEli1.2KGrand Theft Auto V",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "img",
+      "name": "Twitch verified",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "AlveusSanctuary1.1KAnimals, Aquariums, and Zoos",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "img",
+      "name": "Twitch verified",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "nickwhite1.1KIRL",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "link",
+      "name": "Cobbruvs956IRL",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Show More",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "heading",
+      "name": "Downloads",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "heading",
+      "name": "Needs attention",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "heading",
+      "name": "Night in the Life of a PT Streamer",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "progressbar",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Remove Night in the Life of a PT Streamer from list",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "heading",
+      "name": "Finished",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "heading",
+      "name": "GODDESS 🎀 Good Vibes + Custom Experiences🚨💸👑 !commands",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "progressbar",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Open GODDESS 🎀 Good Vibes + Custom Experiences🚨💸👑 !commands",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Show GODDESS 🎀 Good Vibes + Custom Experiences🚨💸👑 !commands in folder",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Delete GODDESS 🎀 Good Vibes + Custom Experiences🚨💸👑 !commands from disk",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Remove GODDESS 🎀 Good Vibes + Custom Experiences🚨💸👑 !commands from list",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "heading",
+      "name": "mmmm",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "progressbar",
+      "name": "",
+      "disabled": false,
+      "selected": null,
+      "pressed": null
+    },
+    {
+      "role": "button",
+      "name": "Open mmmm",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Show mmmm in folder",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Delete mmmm from disk",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Remove mmmm from list",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Click to expand · drag to move (Ctrl+Shift+D to hide)",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    },
+    {
+      "role": "button",
+      "name": "Open Tanstack query devtools",
+      "disabled": false,
+      "selected": null,
+      "pressed": null,
+      "value": ""
+    }
+  ]
+}

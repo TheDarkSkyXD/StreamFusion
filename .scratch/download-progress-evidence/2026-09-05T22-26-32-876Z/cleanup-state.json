@@ -1,0 +1,20 @@
+{
+  "id": "2026-09-05T22-26-32-876Z",
+  "pid": 72320,
+  "port": 51849,
+  "runDir": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\download-progress-worktree\\.scratch\\verify-streamfusion\\runs\\2026-09-05T22-26-32-876Z",
+  "runFile": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\download-progress-worktree\\.scratch\\verify-streamfusion\\runs\\2026-09-05T22-26-32-876Z\\run.json",
+  "profileDir": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\download-progress-worktree\\.scratch\\verify-streamfusion\\runs\\2026-09-05T22-26-32-876Z\\profile",
+  "artifactRoot": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\download-progress-worktree\\.scratch\\verify-streamfusion\\runs\\2026-09-05T22-26-32-876Z\\dev-artifacts",
+  "evidenceDir": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\download-progress-worktree\\.scratch\\verify-streamfusion\\evidence\\2026-09-05T22-26-32-876Z",
+  "logFile": "F:\\My Github Repos\\Open Source Repos\\StreamFusion- kick, twitch desktop app\\StreamFusion\\.scratch\\download-progress-worktree\\.scratch\\verify-streamfusion\\evidence\\2026-09-05T22-26-32-876Z\\launch.log",
+  "databaseSeed": null,
+  "accountStorageSeed": null,
+  "launcher": {
+    "mode": "preview",
+    "command": "npm run preview"
+  },
+  "packageVersion": "1.0.0-beta.1",
+  "gitRevision": "1e6d702",
+  "launchedAt": "2026-09-05T22:26:32.909Z"
+}
