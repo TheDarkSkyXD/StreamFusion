@@ -10,6 +10,7 @@
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 const { createStartEnvironment } = require("./start-dev-lib");
+const { createDevelopmentRun, createElectronViteArguments } = require("./start-dev-run-lib");
 const { prepareBrandedElectronExecutable } = require("./prepare-dev-electron-lib");
 // Resolve via package.json (which IS declared in electron-vite's `exports`
 // map) and rebuild the bin path. Calling
@@ -31,13 +32,23 @@ void createStartEnvironment(process.env)
       electronVersion: require("electron/package.json").version,
       iconPath: path.resolve(__dirname, "../assets/icons/icon.ico"),
     });
-    const child = spawn(process.execPath, [electronViteBin, "dev", ...process.argv.slice(2)], {
-      env,
-      stdio: "inherit",
-    });
-    child.on("exit", (code, signal) => {
-      if (signal) process.kill(process.pid, signal);
-      else process.exit(code ?? 0);
+    const developmentRun = await createDevelopmentRun(path.resolve(__dirname, ".."));
+    const child = spawn(
+      process.execPath,
+      [electronViteBin, ...createElectronViteArguments(process.argv.slice(2), developmentRun)],
+      {
+        env,
+        stdio: "inherit",
+      }
+    );
+    child.on("close", (code, signal) => {
+      developmentRun
+        .cleanup()
+        .catch((error) => console.error("Failed to clean development output:", error))
+        .finally(() => {
+          if (signal) process.kill(process.pid, signal);
+          else process.exit(code ?? 0);
+        });
     });
   })
   .catch((error) => {
