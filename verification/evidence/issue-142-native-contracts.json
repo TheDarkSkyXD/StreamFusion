@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "issue": 142,
+  "ticketId": "B05",
+  "mobileSourceCommit": "bb43172c9686240558c68ec542d0a991016e7041",
+  "observedAt": "2026-09-07T20:16:00.000Z",
+  "result": "pass",
+  "requirements": {
+    "change-gate": {
+      "result": "pass",
+      "observations": [
+        "The final workspace lint and typecheck passed across Core, Mobile, Relay, Desktop, and Worker.",
+        "The final workspace test passed: Core 46, evidence 10, launcher/control 17, Mobile 27 Node and 36 Vitest tests with the architecture proof, Relay 7 plus boundary/environment/secret checks, Desktop 7,725, and Worker 21 with its architecture proof.",
+        "Android export, Relay and Worker dry runs, Desktop parity inventory, registry signature audit, dependency audit, evidence verification, and the isolated signed-out Electron preview smoke hook all passed.",
+        "The architecture proof rejects direct Expo Modules Core, Expo requireNativeModule, React Native NativeModules, TurboModuleRegistry, and namespace bridge imports from components and domain code while permitting adapter access."
+      ]
+    },
+    "native-contract-tests": {
+      "result": "pass",
+      "observations": [
+        "Feature-owned adapter tests cover unsupported results, version and binding failures, thrown calls, malformed success and unsupported envelopes, correlation checks, and invalid diagnostics and APK values.",
+        "The safe proof invokes only end(nonexistent), cancel(nonexistent), stop(nonexistent), readSnapshot, and verify(nonexistent APK); it does not start media, download, install, hand off an APK, recover jobs, or enter picture-in-picture."
+      ]
+    },
+    "api30-device": {
+      "result": "pass",
+      "apiLevel": 30,
+      "observations": [
+        "A literal root npm start interactive option 3 run opened Expo Go in 12.6 seconds and bundled the current candidate. The Diagnostics control returned five contained NATIVE_BINDING_UNAVAILABLE results, one for each contract.",
+        "An independent Mobile MCP development-client check reported SQLCipher ready 4.7.0 and the exact result: 5/5 current Android contract stubs safely returned unsupported.",
+        "Independent Mobile MCP navigation checks confirmed Search, Following, Watch, Activity, More, retained Diagnostics, and visible portrait bottom navigation.",
+        "The reused development APK SHA-256 is aec93041497bf359c68f2b15c16533884111c8fd6cbbf808bfddc7a85fa6d454. Its Expo module configuration, Kotlin module sources, native build inputs, and workspace-resolved Expo 57.0.17, expo-modules-core 57.0.12, React Native 0.86.3, Reanimated 4.5.1, and Worklets 0.10.1 inputs match the preserved artifact source."
+      ]
+    }
+  },
+  "containment": {
+    "expoGo": "All five native bindings are unavailable and surfaced as contained stable failures.",
+    "developmentClient": "All five Kotlin stubs return the typed unsupported result without performing product behavior.",
+    "scope": "B05 establishes module boundaries only; it does not claim playback, media jobs, captions, diagnostics behavior, or maintenance behavior as implemented."
+  },
+  "links": [
+    "https://github.com/TheDarkSkyXD/StreamFusion/issues/142"
+  ]
+}
