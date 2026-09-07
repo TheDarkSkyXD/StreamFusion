@@ -4,15 +4,6 @@ import type {
   DiagnosticsHistorySeries,
 } from "@shared/diagnostics-types";
 
-export function resourceHistoryBarHeight(input: {
-  readonly value: number;
-  readonly max: number;
-  readonly minimumVisiblePercent: number;
-}): number {
-  if (input.value <= 0) return 0;
-  return Math.max(input.minimumVisiblePercent, (input.value / Math.max(1, input.max)) * 100);
-}
-
 export type DiagnosticsHistoryTimelineSlot =
   | { readonly kind: "observed"; readonly bucket: DiagnosticsHistoryBucket }
   | {
@@ -21,6 +12,52 @@ export type DiagnosticsHistoryTimelineSlot =
       readonly endedAtMs: number;
       readonly cause: CollectionGap["cause"] | null;
     };
+
+export const HISTORY_CHART_WIDTH = 1_000;
+export const HISTORY_CHART_BASELINE = 96;
+
+export function historyPointY(value: number, maximum: number): number {
+  return HISTORY_CHART_BASELINE - (value / Math.max(1, maximum)) * 92;
+}
+
+export function historyWavePaths({
+  slots,
+  value,
+  maximum,
+}: {
+  readonly slots: readonly DiagnosticsHistoryTimelineSlot[];
+  readonly value: (bucket: DiagnosticsHistoryBucket) => number;
+  readonly maximum: number;
+}): readonly { readonly line: string; readonly area: string }[] {
+  const paths: { line: string; area: string }[] = [];
+  let run: { firstX: number; lastX: number; lastY: number; line: string } | null = null;
+  const finishRun = (): void => {
+    if (!run) return;
+    paths.push({
+      line: run.line,
+      area: `${run.line} L ${run.lastX} ${HISTORY_CHART_BASELINE} L ${run.firstX} ${HISTORY_CHART_BASELINE} Z`,
+    });
+    run = null;
+  };
+  slots.forEach((slot, index) => {
+    if (slot.kind === "gap") {
+      finishRun();
+      return;
+    }
+    const x = ((index + 0.5) / slots.length) * HISTORY_CHART_WIDTH;
+    const y = historyPointY(value(slot.bucket), maximum);
+    if (!run) {
+      run = { firstX: x, lastX: x, lastY: y, line: `M ${x} ${y}` };
+      return;
+    }
+    const midpointX = (run.lastX + x) / 2;
+    run.line += ` C ${midpointX} ${run.lastY} ${midpointX} ${y} ${x} ${y}`;
+    run.lastX = x;
+    run.lastY = y;
+  });
+  finishRun();
+  return paths;
+}
 
 function historyBucketDurationMs(series: DiagnosticsHistorySeries): number {
   if (series.resolution === "1s") return 1_000;

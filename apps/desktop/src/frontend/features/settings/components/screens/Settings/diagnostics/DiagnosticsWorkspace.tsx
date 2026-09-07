@@ -1,5 +1,13 @@
 import { getDesktopControls } from "@/features/settings/composition/settings-services";
-import { type ComponentType, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ComponentType,
+  type ReactNode,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   LuActivity,
@@ -46,7 +54,13 @@ import type {
   ProcessObservation,
 } from "@shared/diagnostics-types";
 
-import { historyTimelineSlots, resourceHistoryBarHeight } from "./diagnostics-resource-history";
+import {
+  HISTORY_CHART_BASELINE,
+  HISTORY_CHART_WIDTH,
+  historyPointY,
+  historyTimelineSlots,
+  historyWavePaths,
+} from "./diagnostics-resource-history";
 
 function getTabs(): ReadonlyArray<{
   id: DiagnosticsTab;
@@ -853,96 +867,183 @@ function HistoryTimeline({
   history,
   selection,
   onSelect,
-  value,
-  colorClassName,
 }: {
-  readonly heading:
-    "CPU timeline" | "RAM timeline" | "Incident CPU timeline" | "Incident RAM timeline";
+  readonly heading: "Resource timeline" | "Incident resource timeline";
   readonly history: DiagnosticsHistorySeries;
   readonly selection: DiagnosticsHistorySelection | null;
   readonly onSelect: (bucket: DiagnosticsHistoryBucket) => void;
-  readonly value: (bucket: DiagnosticsHistoryBucket) => number;
-  readonly colorClassName: string;
 }) {
+  const chartId = useId();
   const slots = historyTimelineSlots(history);
-  const observed = slots.flatMap((slot) => (slot.kind === "observed" ? [slot.bucket] : []));
-  const maximum = Math.max(1, ...observed.map(value));
-  const cpu = heading.includes("CPU");
-  const unit = cpu ? "% peak" : "RAM peak";
+  const cpuMaximum = Math.max(1, ...history.buckets.map((bucket) => bucket.maximumCpuPercent));
+  const ramMaximum = Math.max(1, ...history.buckets.map((bucket) => bucket.maximumResidentBytes));
+  const metrics = [
+    {
+      key: "cpu",
+      label: "CPU",
+      color: "text-sky-300",
+      maximum: cpuMaximum,
+      value: (bucket: DiagnosticsHistoryBucket) => bucket.maximumCpuPercent,
+    },
+    {
+      key: "ram",
+      label: "RAM",
+      color: "text-amber-200",
+      maximum: ramMaximum,
+      value: (bucket: DiagnosticsHistoryBucket) => bucket.maximumResidentBytes,
+    },
+  ];
   return (
-    <section className="min-w-0" aria-labelledby={`diagnostics-${heading.replace(" ", "-")}`}>
-      <div className="flex items-baseline justify-between gap-3">
+    <section className="min-w-0" aria-labelledby={chartId}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h4
-          id={`diagnostics-${heading.replace(" ", "-")}`}
+          id={chartId}
           className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]"
         >
-          {heading} ({unit})
+          {heading}
         </h4>
-        <span className="text-[11px] tabular-nums text-[var(--color-foreground-secondary)]">
-          {formatHistoryTime(history.requested.startAtMs)} to{" "}
-          {formatHistoryTime(history.requested.endAtMs)}
-        </span>
+        <div className="flex items-center gap-4 text-xs">
+          {metrics.map((metric) => (
+            <span key={metric.key} className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className={cn("h-0.5 w-4 rounded-full bg-current", metric.color)}
+              />
+              {metric.label} peak
+            </span>
+          ))}
+        </div>
       </div>
-      <div className="mt-2 flex justify-between text-[11px] tabular-nums text-[var(--color-foreground-secondary)]">
-        <span>0</span>
-        <span>Scale maximum: {cpu ? `${maximum.toFixed(1)}%` : formatBytes(maximum)}</span>
+      <div className="mt-3 flex justify-between text-[11px] tabular-nums text-[var(--color-foreground-secondary)]">
+        <span>CPU max: {cpuMaximum.toFixed(1)}%</span>
+        <span>RAM max: {formatBytes(ramMaximum)}</span>
       </div>
-      <div className="mt-1 flex h-24 w-full items-end overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-2">
+      <div className="mt-1 h-56 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)] p-2">
         {slots.length === 0 ? (
-          <p className="m-auto text-sm text-[var(--color-foreground-secondary)]">
+          <p className="flex h-full items-center justify-center text-sm text-[var(--color-foreground-secondary)]">
             No recorded samples yet.
           </p>
         ) : (
-          slots.map((slot) => {
-            if (slot.kind === "gap") {
-              const detail = slot.cause
-                ? `Collection gap: ${slot.cause}`
-                : "No retained observation";
-              const label = `${detail}, ${formatHistoryTime(slot.startedAtMs)} to ${formatHistoryTime(slot.endedAtMs)}`;
-              return (
-                <span
-                  key={slot.startedAtMs}
-                  className="h-full min-w-0 flex-1 bg-[repeating-linear-gradient(135deg,transparent,transparent_2px,rgba(163,163,163,0.22)_2px,rgba(163,163,163,0.22)_3px)]"
-                  aria-label={label}
-                  title={label}
-                  role="img"
+          <div className="relative h-full w-full">
+            <svg
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 h-full w-full"
+              viewBox={`0 0 ${HISTORY_CHART_WIDTH} 100`}
+              preserveAspectRatio="none"
+            >
+              {[4, 50, HISTORY_CHART_BASELINE].map((y) => (
+                <line
+                  key={y}
+                  x1="0"
+                  x2={HISTORY_CHART_WIDTH}
+                  y1={y}
+                  y2={y}
+                  stroke="var(--color-border)"
+                  strokeOpacity="0.5"
+                  strokeWidth="1"
+                  vectorEffect="non-scaling-stroke"
                 />
-              );
-            }
-            const { bucket } = slot;
-            const selected =
-              selection?.kind === "bucket" && selection.startedAtMs === bucket.startedAtMs;
-            const height = resourceHistoryBarHeight({
-              value: value(bucket),
-              max: maximum,
-              minimumVisiblePercent: 3,
-            });
-            return (
-              <button
-                key={bucket.startedAtMs}
-                type="button"
-                className={cn(
-                  "flex h-full min-w-0 flex-1 items-end outline-none focus-visible:ring-2 focus-visible:ring-white",
-                  selected && "ring-1 ring-white"
-                )}
-                aria-label={`${heading} peak ${value(bucket).toFixed(1)}, observed ${formatHistoryTime(bucket.startedAtMs, true)} to ${formatHistoryTime(bucket.endedAtMs, true)}`}
-                title={`${formatHistoryTime(bucket.startedAtMs)} · ${cpu ? `${value(bucket).toFixed(1)}%` : formatBytes(value(bucket))} peak · ${historyCoverage(bucket)} coverage`}
-                aria-pressed={selected}
-                data-diagnostics-bucket-start={bucket.startedAtMs}
-                onClick={() => onSelect(bucket)}
-              >
-                <span
-                  className={cn("block w-full rounded-sm", colorClassName)}
-                  style={{ height: `${height}%` }}
-                />
-              </button>
-            );
-          })
+              ))}
+              {metrics.map((metric) => (
+                <g key={metric.key} className={metric.color}>
+                  <defs>
+                    <linearGradient
+                      id={`${chartId}-${metric.key}-fill`}
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop offset="0%" stopColor="currentColor" stopOpacity="0.16" />
+                      <stop offset="100%" stopColor="currentColor" stopOpacity="0.01" />
+                    </linearGradient>
+                  </defs>
+                  {historyWavePaths({ slots, value: metric.value, maximum: metric.maximum }).map(
+                    (path) => (
+                      <g key={path.line}>
+                        <path d={path.area} fill={`url(#${chartId}-${metric.key}-fill)`} />
+                        <path
+                          d={path.line}
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.75"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          vectorEffect="non-scaling-stroke"
+                        />
+                      </g>
+                    )
+                  )}
+                </g>
+              ))}
+            </svg>
+            <div className="absolute inset-0 flex">
+              {slots.map((slot, index) => {
+                if (slot.kind === "gap") {
+                  const detail = slot.cause
+                    ? `Collection gap: ${slot.cause}`
+                    : "No retained observation";
+                  const label = `${detail}, ${formatHistoryTime(slot.startedAtMs)} to ${formatHistoryTime(slot.endedAtMs)}`;
+                  return (
+                    <span
+                      key={slot.startedAtMs}
+                      className="h-full min-w-0 flex-1 bg-[repeating-linear-gradient(135deg,transparent,transparent_3px,rgba(163,163,163,0.08)_3px,rgba(163,163,163,0.08)_4px)]"
+                      aria-label={label}
+                      title={label}
+                      role="img"
+                    />
+                  );
+                }
+                const { bucket } = slot;
+                const selected =
+                  selection?.kind === "bucket" && selection.startedAtMs === bucket.startedAtMs;
+                const isolated =
+                  slots[index - 1]?.kind !== "observed" && slots[index + 1]?.kind !== "observed";
+                return (
+                  <button
+                    key={bucket.startedAtMs}
+                    type="button"
+                    className={cn(
+                      "group relative h-full min-w-0 flex-1 rounded-sm outline-none hover:bg-white/5 focus-visible:bg-white/5 focus-visible:ring-2 focus-visible:ring-white",
+                      selected && "bg-white/5"
+                    )}
+                    aria-label={`${heading}, CPU peak ${bucket.maximumCpuPercent.toFixed(1)}%, RAM peak ${formatBytes(bucket.maximumResidentBytes)}, observed ${formatHistoryTime(bucket.startedAtMs, true)} to ${formatHistoryTime(bucket.endedAtMs, true)}`}
+                    title={`${formatHistoryTime(bucket.startedAtMs)}, CPU ${bucket.maximumCpuPercent.toFixed(1)}% peak, RAM ${formatBytes(bucket.maximumResidentBytes)} peak, ${historyCoverage(bucket)} coverage`}
+                    aria-pressed={selected}
+                    data-diagnostics-bucket-start={bucket.startedAtMs}
+                    onClick={() => onSelect(bucket)}
+                  >
+                    {metrics.map((metric) => (
+                      <span
+                        key={metric.key}
+                        aria-hidden="true"
+                        className={cn(
+                          "pointer-events-none absolute left-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-current opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100",
+                          metric.color,
+                          (selected || isolated) && "opacity-100",
+                          selected && "ring-2 ring-[var(--color-background-secondary)]"
+                        )}
+                        style={{ top: `${historyPointY(metric.value(bucket), metric.maximum)}%` }}
+                      />
+                    ))}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
+      <div className="mt-1 flex justify-between text-[11px] tabular-nums text-[var(--color-foreground-secondary)]">
+        <span>0%</span>
+        <span>0 B</span>
+      </div>
+      <div className="mt-2 flex justify-between gap-3 text-[11px] tabular-nums text-[var(--color-foreground-secondary)]">
+        <span>{formatHistoryTime(history.requested.startAtMs)}</span>
+        <span>{formatHistoryTime(history.requested.endAtMs)}</span>
+      </div>
       <p className="mt-2 text-[11px] text-[var(--color-foreground-secondary)]">
-        Striped columns have no retained observations. Bars show sampled peaks; select one for
-        coverage.
+        Curves connect sampled peaks on separate CPU and RAM scales. Striped gaps have no retained
+        observations. Select a point for coverage.
       </p>
     </section>
   );
@@ -1016,29 +1117,20 @@ function ResourceHistoryDetail({
             {detail.incident ? <span>Incident: {detail.incident.label}</span> : null}
           </div>
           {detail.incident && detail.samples.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {(["cpu", "ram"] as const).map((metric) => (
-                <HistoryTimeline
-                  key={metric}
-                  heading={metric === "cpu" ? "Incident CPU timeline" : "Incident RAM timeline"}
-                  history={{
-                    ...history,
-                    resolution: detail.detailResolution,
-                    requested: {
-                      startAtMs: detail.bucket.startedAtMs,
-                      endAtMs: detail.bucket.endedAtMs,
-                    },
-                    buckets: detail.samples,
-                  }}
-                  selection={selection}
-                  onSelect={onSelect}
-                  value={(bucket) =>
-                    metric === "cpu" ? bucket.maximumCpuPercent : bucket.maximumResidentBytes
-                  }
-                  colorClassName={metric === "cpu" ? "bg-violet-300" : "bg-cyan-300"}
-                />
-              ))}
-            </div>
+            <HistoryTimeline
+              heading="Incident resource timeline"
+              history={{
+                ...history,
+                resolution: detail.detailResolution,
+                requested: {
+                  startAtMs: detail.bucket.startedAtMs,
+                  endAtMs: detail.bucket.endedAtMs,
+                },
+                buckets: detail.samples,
+              }}
+              selection={selection}
+              onSelect={onSelect}
+            />
           ) : null}
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--color-foreground-secondary)]">
@@ -1159,7 +1251,7 @@ function ResourceHistoryDetail({
         </div>
       ) : (
         <p className="mt-4 text-sm text-[var(--color-foreground-secondary)]">
-          Select a timeline bar or incident to inspect recorded evidence.
+          Select a timeline point or incident to inspect recorded evidence.
         </p>
       )}
     </section>
@@ -1329,22 +1421,12 @@ function ResourceHistoryPanel({
               No retained observations in this period.
             </p>
           ) : null}
-          <div className="grid gap-4 p-4 md:grid-cols-2">
+          <div className="p-4">
             <HistoryTimeline
-              heading="CPU timeline"
+              heading="Resource timeline"
               history={series}
               selection={selection}
               onSelect={chooseBucket}
-              value={(bucket) => bucket.maximumCpuPercent}
-              colorClassName="bg-violet-300"
-            />
-            <HistoryTimeline
-              heading="RAM timeline"
-              history={series}
-              selection={selection}
-              onSelect={chooseBucket}
-              value={(bucket) => bucket.maximumResidentBytes}
-              colorClassName="bg-cyan-300"
             />
           </div>
           <div className="border-t border-[var(--color-border)] px-4 py-3 text-xs text-[var(--color-foreground-secondary)]">
