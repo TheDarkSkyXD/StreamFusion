@@ -1258,6 +1258,55 @@ function ResourceHistoryDetail({
   );
 }
 
+function ResourceHistoryStatus({
+  history,
+  live,
+}: {
+  readonly history: ReturnType<typeof useDiagnosticsResourceHistory>["history"];
+  readonly live: boolean;
+}) {
+  const [showDelayedLoading, setShowDelayedLoading] = useState(false);
+  const mode =
+    history.kind === "error"
+      ? "Unavailable"
+      : !history.value
+        ? "Loading"
+        : live
+          ? "Live"
+          : "Paused";
+
+  useEffect(() => {
+    if (history.kind !== "loading") return;
+    const timeout = window.setTimeout(() => setShowDelayedLoading(true), 1_000);
+    return () => {
+      window.clearTimeout(timeout);
+      setShowDelayedLoading(false);
+    };
+  }, [history.kind]);
+
+  return (
+    <span className="inline-flex w-24 items-center gap-2 text-xs font-semibold text-[var(--color-foreground-secondary)]">
+      <span className="flex h-4 w-4 items-center justify-center" aria-hidden>
+        {history.kind === "loading" && showDelayedLoading ? (
+          <LuRefreshCw className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+        ) : (
+          <span
+            className={cn(
+              "h-2 w-2 rounded-full",
+              mode === "Live"
+                ? "bg-cyan-300"
+                : mode === "Unavailable"
+                  ? "bg-amber-300"
+                  : "bg-[var(--color-foreground-secondary)]"
+            )}
+          />
+        )}
+      </span>
+      {mode}
+    </span>
+  );
+}
+
 function ResourceHistoryPanel({
   leaseId,
   snapshot,
@@ -1314,6 +1363,7 @@ function ResourceHistoryPanel({
       eyebrow="Recorded CPU and memory evidence"
       icon={<LuActivity />}
       iconClassName="text-cyan-300"
+      action={<ResourceHistoryStatus history={history} live={live} />}
     >
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border)] p-4">
         <div
@@ -1401,11 +1451,6 @@ function ResourceHistoryPanel({
           </Button>
         </div>
       </div>
-      {history.kind === "loading" && series ? (
-        <p role="status" className="px-4 pt-2 text-xs text-[var(--color-foreground-secondary)]">
-          Updating recorded range…
-        </p>
-      ) : null}
       {history.kind === "error" ? (
         <p
           role="alert"
@@ -1414,110 +1459,125 @@ function ResourceHistoryPanel({
           Unable to load resource history. Diagnostic ID: {history.diagnosticId}
         </p>
       ) : null}
-      {series ? (
-        <>
-          {series.buckets.length === 0 ? (
-            <p className="px-4 pt-4 text-sm text-[var(--color-foreground-secondary)]">
-              No retained observations in this period.
+      <div className="min-h-[36rem]">
+        {series ? (
+          <>
+            {series.buckets.length === 0 ? (
+              <p className="px-4 pt-4 text-sm text-[var(--color-foreground-secondary)]">
+                No retained observations in this period.
+              </p>
+            ) : null}
+            <div className="p-4">
+              <HistoryTimeline
+                heading="Resource timeline"
+                history={series}
+                selection={selection}
+                onSelect={chooseBucket}
+              />
+            </div>
+            <div className="border-t border-[var(--color-border)] px-4 py-3 text-xs text-[var(--color-foreground-secondary)]">
+              Available:{" "}
+              {series.available.oldestAtMs === null
+                ? "No retained data"
+                : formatHistoryTime(series.available.oldestAtMs)}
+              {series.available.newestAtMs === null
+                ? null
+                : ` to ${formatHistoryTime(series.available.newestAtMs)}`}
+              <span className="ml-4">
+                {series.resolution === "1s"
+                  ? "1 second peak buckets"
+                  : series.resolution === "raw"
+                    ? "10s peak buckets"
+                    : series.resolution === "minute"
+                      ? "1 minute summaries"
+                      : `${series.resolution} peak buckets`}{" "}
+                · Collected every 5s (1s in Real time)
+              </span>
+              <span className="ml-4">{formatBytes(series.recorder.databaseBytes)} retained</span>
+              {series.recorder.kind === "ready" ? null : (
+                <span className="ml-4 text-amber-200">
+                  Recorder error: {series.recorder.reason}
+                </span>
+              )}
+            </div>
+            <p className="border-t border-[var(--color-border)] px-4 py-3 text-xs text-[var(--color-foreground-secondary)]">
+              History stays on this device after closing. Recording resumes when reopened. Fine
+              detail 1h · minute summaries 7d · hourly summaries 90d.
             </p>
-          ) : null}
-          <div className="p-4">
-            <HistoryTimeline
-              heading="Resource timeline"
+            {(() => {
+              const closedGaps = series.gaps.filter((gap) => gap.cause === "app-closed");
+              const latestClosedGap = closedGaps.at(-1);
+              return latestClosedGap ? (
+                <p className="border-t border-[var(--color-border)] px-4 py-3 text-xs text-amber-200">
+                  App closed: {formatHistoryTime(latestClosedGap.startedAtMs)} to{" "}
+                  {formatHistoryTime(latestClosedGap.endedAtMs)}
+                  {closedGaps.length > 1 ? ` (${closedGaps.length} closed intervals)` : ""}
+                </p>
+              ) : null;
+            })()}
+            {series.incidents.length > 0 ? (
+              <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] p-4">
+                {series.incidents.map((incident) => {
+                  const timestamp = formatHistoryTime(incident.observedAtMs);
+                  return (
+                    <Button
+                      key={incident.incidentId}
+                      size="sm"
+                      variant="secondary"
+                      aria-label={`Incident ${incident.label} ${timestamp}`}
+                      onClick={() => chooseIncident(incident.incidentId)}
+                    >
+                      {incident.label}
+                      <span className="ml-2 font-normal opacity-70">{timestamp}</span>
+                    </Button>
+                  );
+                })}
+              </div>
+            ) : null}
+            <ResourceHistoryDetail
               history={series}
               selection={selection}
+              context={context}
               onSelect={chooseBucket}
             />
+            {selectedContext ? (
+              <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] px-4 py-3">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => zoomToSelectedPeak(selectedContext.bucket.maximumCpuAtMs)}
+                >
+                  Zoom to CPU peak (1 hour)
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => zoomToSelectedPeak(selectedContext.bucket.maximumResidentAtMs)}
+                >
+                  Zoom to RAM peak (1 hour)
+                </Button>
+              </div>
+            ) : null}
+          </>
+        ) : history.kind === "loading" ? (
+          <div
+            role="status"
+            aria-label="Loading resource history"
+            className="animate-pulse motion-reduce:animate-none"
+          >
+            <div className="p-4">
+              <div className="h-56 rounded-lg border border-[var(--color-border)] bg-[var(--color-background-secondary)]" />
+            </div>
+            <div className="h-10 border-t border-[var(--color-border)] bg-[var(--color-background-secondary)]" />
+            <div className="h-10 border-t border-[var(--color-border)] bg-[var(--color-background-secondary)]" />
+            <div className="h-28 border-t border-[var(--color-border)] bg-[var(--color-background-secondary)]" />
           </div>
-          <div className="border-t border-[var(--color-border)] px-4 py-3 text-xs text-[var(--color-foreground-secondary)]">
-            Available:{" "}
-            {series.available.oldestAtMs === null
-              ? "No retained data"
-              : formatHistoryTime(series.available.oldestAtMs)}
-            {series.available.newestAtMs === null
-              ? null
-              : ` to ${formatHistoryTime(series.available.newestAtMs)}`}
-            <span className="ml-4">
-              {series.resolution === "1s"
-                ? "1 second peak buckets"
-                : series.resolution === "raw"
-                  ? "10s peak buckets"
-                  : series.resolution === "minute"
-                    ? "1 minute summaries"
-                    : `${series.resolution} peak buckets`}{" "}
-              · Collected every 5s (1s in Real time)
-            </span>
-            <span className="ml-4">{formatBytes(series.recorder.databaseBytes)} retained</span>
-            {series.recorder.kind === "ready" ? null : (
-              <span className="ml-4 text-amber-200">Recorder error: {series.recorder.reason}</span>
-            )}
-          </div>
-          <p className="border-t border-[var(--color-border)] px-4 py-3 text-xs text-[var(--color-foreground-secondary)]">
-            History stays on this device after closing. Recording resumes when reopened. Fine detail
-            1h · minute summaries 7d · hourly summaries 90d.
+        ) : (
+          <p className="p-5 text-sm text-[var(--color-foreground-secondary)]">
+            Waiting for resource history.
           </p>
-          {(() => {
-            const closedGaps = series.gaps.filter((gap) => gap.cause === "app-closed");
-            const latestClosedGap = closedGaps.at(-1);
-            return latestClosedGap ? (
-              <p className="border-t border-[var(--color-border)] px-4 py-3 text-xs text-amber-200">
-                App closed: {formatHistoryTime(latestClosedGap.startedAtMs)} to{" "}
-                {formatHistoryTime(latestClosedGap.endedAtMs)}
-                {closedGaps.length > 1 ? ` (${closedGaps.length} closed intervals)` : ""}
-              </p>
-            ) : null;
-          })()}
-          {series.incidents.length > 0 ? (
-            <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] p-4">
-              {series.incidents.map((incident) => {
-                const timestamp = formatHistoryTime(incident.observedAtMs);
-                return (
-                  <Button
-                    key={incident.incidentId}
-                    size="sm"
-                    variant="secondary"
-                    aria-label={`Incident ${incident.label} ${timestamp}`}
-                    onClick={() => chooseIncident(incident.incidentId)}
-                  >
-                    {incident.label}
-                    <span className="ml-2 font-normal opacity-70">{timestamp}</span>
-                  </Button>
-                );
-              })}
-            </div>
-          ) : null}
-          <ResourceHistoryDetail
-            history={series}
-            selection={selection}
-            context={context}
-            onSelect={chooseBucket}
-          />
-          {selectedContext ? (
-            <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] px-4 py-3">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => zoomToSelectedPeak(selectedContext.bucket.maximumCpuAtMs)}
-              >
-                Zoom to CPU peak (1 hour)
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => zoomToSelectedPeak(selectedContext.bucket.maximumResidentAtMs)}
-              >
-                Zoom to RAM peak (1 hour)
-              </Button>
-            </div>
-          ) : null}
-        </>
-      ) : (
-        <p className="p-5 text-sm text-[var(--color-foreground-secondary)]">
-          {history.kind === "loading"
-            ? "Loading resource history…"
-            : "Waiting for resource history."}
-        </p>
-      )}
+        )}
+      </div>
     </Panel>
   );
 }
