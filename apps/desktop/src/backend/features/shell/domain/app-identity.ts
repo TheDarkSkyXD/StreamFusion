@@ -1,4 +1,5 @@
 export const WINDOWS_APP_USER_MODEL_ID = "com.streamfusion.app";
+const WINDOWS_DEVELOPMENT_APP_USER_MODEL_ID = `${WINDOWS_APP_USER_MODEL_ID}.dev`;
 
 interface AppIdentityEnvironment {
   platform: NodeJS.Platform;
@@ -14,13 +15,14 @@ interface WindowIdentityTarget {
   setAppDetails(options: { appId: string; appIconPath: string; appIconIndex: number }): void;
 }
 
-/** Keep the development executable and packaged executable under one identity on Windows. */
 export function configureAppIdentity(
   electronApp: AppIdentityTarget,
   environment: AppIdentityEnvironment
 ): void {
   if (environment.platform === "win32") {
-    electronApp.setAppUserModelId(WINDOWS_APP_USER_MODEL_ID);
+    electronApp.setAppUserModelId(
+      environment.isPackaged ? WINDOWS_APP_USER_MODEL_ID : WINDOWS_DEVELOPMENT_APP_USER_MODEL_ID
+    );
   }
 }
 
@@ -33,7 +35,9 @@ export function configureWindowIdentity(
   if (environment.platform === "win32") {
     window.setIcon(iconPath);
     window.setAppDetails({
-      appId: WINDOWS_APP_USER_MODEL_ID,
+      appId: environment.isPackaged
+        ? WINDOWS_APP_USER_MODEL_ID
+        : WINDOWS_DEVELOPMENT_APP_USER_MODEL_ID,
       // Windows Shell cannot load icon resources through Electron's virtual ASAR filesystem.
       appIconPath: environment.isPackaged ? environment.executablePath : iconPath,
       appIconIndex: 0,

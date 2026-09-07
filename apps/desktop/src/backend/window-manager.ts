@@ -24,6 +24,9 @@ export function resolveAppIconPath(
   mainProcessDirectory: string = __dirname,
   platform: NodeJS.Platform = process.platform
 ): string {
+  if (platform === "win32" && !app.isPackaged && process.env.STREAMFUSION_DEV_ICON_PATH) {
+    return process.env.STREAMFUSION_DEV_ICON_PATH;
+  }
   const filename = platform === "win32" ? "icon.ico" : "icon.png";
   return path.resolve(mainProcessDirectory, "../../assets/icons", filename);
 }

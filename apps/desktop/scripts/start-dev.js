@@ -27,10 +27,11 @@ void createStartEnvironment(process.env)
   .then(async (env) => {
     delete env.ELECTRON_RUN_AS_NODE;
     const electronPath = require("electron");
+    env.STREAMFUSION_DEV_ICON_PATH = path.resolve(__dirname, "../assets/icons/icon.ico");
     env.ELECTRON_EXEC_PATH = await prepareBrandedElectronExecutable({
       electronPath,
       electronVersion: require("electron/package.json").version,
-      iconPath: path.resolve(__dirname, "../assets/icons/icon.ico"),
+      iconPath: env.STREAMFUSION_DEV_ICON_PATH,
     });
     const developmentRun = await createDevelopmentRun(path.resolve(__dirname, ".."));
     const child = spawn(
