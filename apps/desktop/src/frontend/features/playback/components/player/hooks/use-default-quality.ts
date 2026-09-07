@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import { logger } from "@/renderer/logging/logger";
-import { useAuthStore } from "@/store/auth-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 
-import { resolvePreferredQualityId } from "../quality-preference";
-import type { QualityLevel } from "../types";
+import { resolvePreferredQualityId } from "../../../domain/quality-preference";
+import type { QualityLevel } from "../../../capabilities/media-types";
 
 /**
  * Hook to apply the user's default quality preference when quality levels become available.

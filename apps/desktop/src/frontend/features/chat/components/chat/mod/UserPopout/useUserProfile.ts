@@ -1,3 +1,4 @@
+import { getChatProfileReader } from "@/features/chat/composition/chat-profile-reader";
 import { useQueries } from "@tanstack/react-query";
 
 import { i18n } from "@/i18n";
@@ -64,11 +65,11 @@ export function useUserProfile(
         queryKey: ["userProfile", platform, "identity", userId, username, channelSlug],
         queryFn: () =>
           platform === "twitch"
-            ? window.electronAPI.userProfiles.getTwitchIdentity({
+            ? getChatProfileReader().userProfiles.getTwitchIdentity({
                 userId: userId!,
                 username: username!,
               })
-            : window.electronAPI.userProfiles.getKickIdentity({
+            : getChatProfileReader().userProfiles.getKickIdentity({
                 userId: userId!,
                 username: username!,
                 channelSlug: channelSlug!,
@@ -81,11 +82,11 @@ export function useUserProfile(
         queryKey: ["userProfile", platform, "account-created", userId, username, channelSlug],
         queryFn: () =>
           platform === "twitch"
-            ? window.electronAPI.userProfiles.getTwitchAccountCreated({
+            ? getChatProfileReader().userProfiles.getTwitchAccountCreated({
                 userId: userId!,
                 username: username!,
               })
-            : window.electronAPI.userProfiles.getKickAccountCreated({
+            : getChatProfileReader().userProfiles.getKickAccountCreated({
                 userId: userId!,
                 username: username!,
                 channelSlug: channelSlug!,
@@ -98,12 +99,12 @@ export function useUserProfile(
         queryKey: ["userProfile", platform, "follow", channelId, userId, channelSlug],
         queryFn: () =>
           platform === "twitch"
-            ? window.electronAPI.userProfiles.getTwitchFollow({
+            ? getChatProfileReader().userProfiles.getTwitchFollow({
                 broadcasterId: channelId!,
                 userId: userId!,
                 username: username!,
               })
-            : window.electronAPI.userProfiles.getKickFollow({
+            : getChatProfileReader().userProfiles.getKickFollow({
                 userId: userId!,
                 username: username!,
                 channelSlug: channelSlug!,
@@ -116,8 +117,8 @@ export function useUserProfile(
         queryKey: ["userProfile", platform, "channel", username],
         queryFn: () =>
           platform === "twitch"
-            ? window.electronAPI.userProfiles.resolveTwitchChannel({ username: username! })
-            : window.electronAPI.userProfiles.resolveKickChannel({ username: username! }),
+            ? getChatProfileReader().userProfiles.resolveTwitchChannel({ username: username! })
+            : getChatProfileReader().userProfiles.resolveKickChannel({ username: username! }),
         enabled,
         staleTime: PROFILE_TTL_MS,
         retry: false,

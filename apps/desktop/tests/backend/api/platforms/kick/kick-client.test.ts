@@ -1,3 +1,9 @@
+vi.mock("@backend/features/authentication/adapters/kick/account-endpoints", () => ({
+  getUser: vi.fn(),
+}));
+import { kickPlayback } from "@backend/features/playback/composition/kick-playback";
+import { kickAccountReader } from "@backend/features/authentication/composition/kick-account-reader";
+import { kickDiscovery } from "@backend/features/discovery/composition/kick-discovery";
 import Module from "node:module";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -36,7 +42,7 @@ vi.mock("@backend/api/unified/platform-health", () => ({
   recordPlatformLocalNetError: vi.fn(),
 }));
 
-vi.mock("@backend/auth/kick-auth", () => ({
+vi.mock("@backend/features/authentication/adapters/kick/kick-auth", () => ({
   kickAuthService: {
     isAuthenticated: vi.fn(() => true),
     ensureValidToken: vi.fn().mockResolvedValue(undefined),
@@ -60,6 +66,21 @@ vi.mock("@backend/services/storage-service", () => ({
     }),
   },
 }));
+vi.mock("@backend/features/authentication/data/kick-continuity-repository", () => ({
+  kickContinuityRepository: {
+    getKickApiRateLimitState: vi.fn(() =>
+      rateLimitStore.blockedUntil === undefined
+        ? undefined
+        : { blockedUntil: rateLimitStore.blockedUntil }
+    ),
+    saveKickApiRateLimitState: vi.fn((state: { blockedUntil: number }) => {
+      rateLimitStore.blockedUntil = state.blockedUntil;
+    }),
+    clearKickApiRateLimitState: vi.fn(() => {
+      rateLimitStore.blockedUntil = undefined;
+    }),
+  },
+}));
 
 vi.mock("@shared/utils/sleep", () => ({
   sleep: vi.fn(() => Promise.resolve()),
@@ -70,14 +91,14 @@ vi.mock("@backend/services/third-party-cookie-stripper", () => ({
   purgeStoredThirdPartyCookies: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@backend/api/platforms/kick/endpoints/category-endpoints", () => ({
+vi.mock("@backend/features/discovery/adapters/kick/category-endpoints", () => ({
   getTopCategories: vi.fn(),
   searchCategories: vi.fn(),
   getCategoryById: vi.fn(),
   getAllCategories: vi.fn(),
 }));
 
-vi.mock("@backend/api/platforms/kick/endpoints/channel-endpoints", () => ({
+vi.mock("@backend/features/discovery/adapters/kick/channel-endpoints", () => ({
   getChannel: vi.fn(),
   getChannelsBySlugs: vi.fn(),
   getChannelsByBroadcasterIds: vi.fn(),
@@ -90,21 +111,21 @@ vi.mock("@shared/utils/managed-interval", () => ({
   createManagedInterval: vi.fn(),
 }));
 
-vi.mock("@backend/api/platforms/kick/endpoints/clip-endpoints", () => ({
+vi.mock("@backend/features/playback/adapters/kick/clip-endpoints", () => ({
   getClipsByChannelSlug: vi.fn(),
   getClipsByCategorySlug: vi.fn(),
 }));
 
-vi.mock("@backend/api/platforms/kick/endpoints/follow-endpoints", () => ({
+vi.mock("@backend/features/authentication/adapters/kick/follow-endpoints", () => ({
   getAllFollowedChannels: vi.fn().mockResolvedValue({ status: "ok", channels: [] }),
 }));
 
-vi.mock("@backend/api/platforms/kick/endpoints/search-endpoints", () => ({
+vi.mock("@backend/features/discovery/adapters/kick/search-endpoints", () => ({
   searchChannels: vi.fn(),
   search: vi.fn(),
 }));
 
-vi.mock("@backend/api/platforms/kick/endpoints/stream-endpoints", () => ({
+vi.mock("@backend/features/discovery/adapters/kick/stream-endpoints", () => ({
   getStreamBySlug: vi.fn(),
   getStreamsByBroadcasterIds: vi.fn(),
   getPublicStreamBySlug: vi.fn(),
@@ -115,12 +136,12 @@ vi.mock("@backend/api/platforms/kick/endpoints/stream-endpoints", () => ({
   rememberCategorySlug: vi.fn(),
 }));
 
-vi.mock("@backend/api/platforms/kick/endpoints/user-endpoints", () => ({
+vi.mock("@backend/features/discovery/adapters/kick/user-endpoints", () => ({
   getUser: vi.fn(),
   getUsersById: vi.fn(),
 }));
 
-vi.mock("@backend/api/platforms/kick/endpoints/video-endpoints", () => ({
+vi.mock("@backend/features/playback/adapters/kick/video-endpoints", () => ({
   getVideosByChannelSlug: vi.fn(),
 }));
 
@@ -128,7 +149,7 @@ import {
   isPlatformHealthy,
   recordPlatformLocalNetError,
 } from "@backend/api/unified/platform-health";
-import { kickAuthService } from "@backend/auth/kick-auth";
+import { kickAuthService } from "@backend/features/authentication/adapters/kick/kick-auth";
 import { logger } from "@backend/logging/logger";
 
 function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
@@ -143,7 +164,7 @@ function jsonResponse(body: unknown, status = 200, headers: Record<string, strin
 // Guards: canceled Electron requests do not create outage signals or error-log noise.
 // Guards: Kick account-follow reads preserve authority and failure tags through the portable Core port.
 describe("KickClient", () => {
-  let kickClient: typeof import("@backend/api/platforms/kick/kick-client").kickClient;
+  let kickTransport: typeof import("@backend/api/platforms/kick/kick-transport").kickTransport;
 
   beforeEach(async () => {
     vi.resetModules();
@@ -156,7 +177,7 @@ describe("KickClient", () => {
     vi.mocked(kickAuthService.ensureValidToken).mockResolvedValue(true);
     vi.mocked(kickAuthService.refreshToken).mockResolvedValue(null);
     vi.mocked(isPlatformHealthy).mockReturnValue(true);
-    ({ kickClient } = await import("@backend/api/platforms/kick/kick-client"));
+    ({ kickTransport } = await import("@backend/api/platforms/kick/kick-transport"));
   });
 
   afterEach(() => {
@@ -167,13 +188,13 @@ describe("KickClient", () => {
     it("throws when default user-token auth is unavailable", async () => {
       vi.mocked(kickAuthService.isAuthenticated).mockReturnValue(false);
 
-      await expect(kickClient.request("/test")).rejects.toThrow("No Kick user token");
+      await expect(kickTransport.request("/test")).rejects.toThrow("No Kick user token");
     });
 
     it("sends the user bearer directly to api.kick.com without a proxy header", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ result: "ok" }));
 
-      await kickClient.request("/test");
+      await kickTransport.request("/test");
 
       // electronRequest calls net.fetch(url, { method, headers, body, signal })
       const fetchOptions = mockFetch.mock.calls[0][1] as Record<string, unknown>;
@@ -186,21 +207,21 @@ describe("KickClient", () => {
     it("prepends baseUrl for relative endpoints", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ data: "ok" }));
 
-      await kickClient.request("/test-endpoint");
+      await kickTransport.request("/test-endpoint");
 
       const url = mockFetch.mock.calls[0][0] as string;
-      expect(url).toContain(kickClient.baseUrl);
+      expect(url).toContain(kickTransport.baseUrl);
       expect(url).toContain("/test-endpoint");
     });
 
     it("uses the official Kick API base URL", async () => {
-      expect(kickClient.baseUrl).toBe("https://api.kick.com/public/v1");
+      expect(kickTransport.baseUrl).toBe("https://api.kick.com/public/v1");
     });
 
     it("uses absolute URL for endpoints starting with http", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ data: "ok" }));
 
-      await kickClient.request("https://custom.api.com/endpoint");
+      await kickTransport.request("https://custom.api.com/endpoint");
 
       expect(mockFetch.mock.calls[0][0]).toBe("https://custom.api.com/endpoint");
     });
@@ -208,17 +229,18 @@ describe("KickClient", () => {
     it("records a durable cooldown and does not amplify a 429 with a retry", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({}, 429));
 
-      await expect(kickClient.request("/rate-limited")).rejects.toMatchObject({ status: 429 });
+      await expect(kickTransport.request("/rate-limited")).rejects.toMatchObject({ status: 429 });
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(rateLimitStore.blockedUntil).toBeGreaterThan(Date.now());
     });
 
     it("blocks a request after a simulated app restart while the cooldown is active", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({}, 429));
-      await expect(kickClient.request("/first-launch")).rejects.toMatchObject({ status: 429 });
+      await expect(kickTransport.request("/first-launch")).rejects.toMatchObject({ status: 429 });
 
       vi.resetModules();
-      const restartedClient = (await import("@backend/api/platforms/kick/kick-client")).kickClient;
+      const restartedClient = (await import("@backend/api/platforms/kick/kick-transport"))
+        .kickTransport;
 
       await expect(restartedClient.request("/second-launch")).rejects.toMatchObject({
         status: 429,
@@ -231,7 +253,7 @@ describe("KickClient", () => {
         .mockResolvedValueOnce(jsonResponse({}, 502))
         .mockResolvedValueOnce(jsonResponse({ result: "recovered" }));
 
-      const result = await kickClient.request("/server-error");
+      const result = await kickTransport.request("/server-error");
 
       expect(result).toEqual({ result: "recovered" });
     });
@@ -241,7 +263,7 @@ describe("KickClient", () => {
         .mockResolvedValueOnce(new Response("service unavailable", { status: 503 }))
         .mockResolvedValueOnce(jsonResponse({ result: "recovered" }));
 
-      await expect(kickClient.request("/server-error-text")).resolves.toEqual({
+      await expect(kickTransport.request("/server-error-text")).resolves.toEqual({
         result: "recovered",
       });
       expect(mockFetch).toHaveBeenCalledTimes(2);
@@ -253,14 +275,14 @@ describe("KickClient", () => {
         .mockResolvedValueOnce(jsonResponse({}, 500))
         .mockResolvedValueOnce(jsonResponse({ result: "recovered" }));
 
-      await expect(kickClient.request("/channels")).resolves.toEqual({ result: "recovered" });
+      await expect(kickTransport.request("/channels")).resolves.toEqual({ result: "recovered" });
       expect(mockFetch).toHaveBeenCalledTimes(2);
     });
 
     it("throws on 403 without retry", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({}, 403));
 
-      await expect(kickClient.request("/forbidden")).rejects.toThrow("403");
+      await expect(kickTransport.request("/forbidden")).rejects.toThrow("403");
     });
 
     it("attempts one-shot refresh on 401", async () => {
@@ -272,7 +294,7 @@ describe("KickClient", () => {
         .mockResolvedValueOnce(jsonResponse({}, 401))
         .mockResolvedValueOnce(jsonResponse({ result: "refreshed" }));
 
-      const result = await kickClient.request("/needs-refresh");
+      const result = await kickTransport.request("/needs-refresh");
 
       expect(kickAuthService.refreshToken).toHaveBeenCalledTimes(1);
       expect(result).toEqual({ result: "refreshed" });
@@ -283,7 +305,7 @@ describe("KickClient", () => {
 
       mockFetch.mockResolvedValueOnce(jsonResponse({}, 401));
 
-      await expect(kickClient.request("/refresh-fail")).rejects.toThrow("401");
+      await expect(kickTransport.request("/refresh-fail")).rejects.toThrow("401");
     });
 
     it("does not retry 401 more than once (guard against double-refresh)", async () => {
@@ -295,7 +317,7 @@ describe("KickClient", () => {
         .mockResolvedValueOnce(jsonResponse({}, 401))
         .mockResolvedValueOnce(jsonResponse({}, 401));
 
-      await expect(kickClient.request("/double-401")).rejects.toThrow("401");
+      await expect(kickTransport.request("/double-401")).rejects.toThrow("401");
       // refreshToken is called once on the first 401, then on the second 401
       // retriedOn401 is already true so it skips refresh and throws.
       expect(vi.mocked(kickAuthService.refreshToken).mock.calls).toHaveLength(1);
@@ -304,7 +326,7 @@ describe("KickClient", () => {
     it("records net::ERR_* network errors for health tracking", async () => {
       mockFetch.mockRejectedValueOnce(new Error("net::ERR_FAILED"));
 
-      await expect(kickClient.request("/network-fail")).rejects.toThrow();
+      await expect(kickTransport.request("/network-fail")).rejects.toThrow();
 
       expect(recordPlatformLocalNetError).toHaveBeenCalledWith("kick");
     });
@@ -312,7 +334,9 @@ describe("KickClient", () => {
     it("does not treat a canceled request as a Kick outage", async () => {
       mockFetch.mockRejectedValueOnce(new Error("net::ERR_ABORTED"));
 
-      await expect(kickClient.request("/navigation-canceled")).rejects.toThrow("net::ERR_ABORTED");
+      await expect(kickTransport.request("/navigation-canceled")).rejects.toThrow(
+        "net::ERR_ABORTED"
+      );
 
       expect(recordPlatformLocalNetError).not.toHaveBeenCalled();
       expect(logger.debug).toHaveBeenCalledWith("Kick:Client", "Kick API request canceled", {
@@ -329,7 +353,7 @@ describe("KickClient", () => {
       const before = Date.now();
       mockFetch.mockResolvedValueOnce(jsonResponse({}, 429, { "retry-after": "3" }));
 
-      await expect(kickClient.request("/retry-after")).rejects.toMatchObject({ status: 429 });
+      await expect(kickTransport.request("/retry-after")).rejects.toMatchObject({ status: 429 });
       expect(rateLimitStore.blockedUntil).toBeGreaterThanOrEqual(before + 60_000);
       expect(rateLimitStore.blockedUntil).toBeLessThanOrEqual(Date.now() + 60_000);
     });
@@ -338,7 +362,7 @@ describe("KickClient", () => {
       const before = Date.now();
       mockFetch.mockResolvedValueOnce(jsonResponse({}, 429, { "retry-after": "600" }));
 
-      await expect(kickClient.request("/retry-after")).rejects.toMatchObject({ status: 429 });
+      await expect(kickTransport.request("/retry-after")).rejects.toMatchObject({ status: 429 });
       expect(rateLimitStore.blockedUntil).toBeGreaterThanOrEqual(before + 600_000);
       expect(rateLimitStore.blockedUntil).toBeLessThanOrEqual(Date.now() + 600_000);
     });
@@ -348,7 +372,7 @@ describe("KickClient", () => {
       controller.abort();
 
       await expect(
-        kickClient.request("/cancelled", { signal: controller.signal })
+        kickTransport.request("/cancelled", { signal: controller.signal })
       ).rejects.toThrow();
       expect(mockFetch).not.toHaveBeenCalled();
     });
@@ -356,7 +380,7 @@ describe("KickClient", () => {
     it("parses JSON response data", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ users: [{ id: 1, name: "Test" }] }));
 
-      const result = await kickClient.request<{ users: Array<{ id: number; name: string }> }>(
+      const result = await kickTransport.request<{ users: Array<{ id: number; name: string }> }>(
         "/users"
       );
 
@@ -367,7 +391,7 @@ describe("KickClient", () => {
     it("throws on unparseable JSON response", async () => {
       mockFetch.mockResolvedValueOnce(new Response("not json", { status: 200 }));
 
-      await expect(kickClient.request("/bad-json")).rejects.toThrow(
+      await expect(kickTransport.request("/bad-json")).rejects.toThrow(
         "Failed to parse Kick API JSON response"
       );
     });
@@ -376,10 +400,10 @@ describe("KickClient", () => {
   describe("isAuthenticated", () => {
     it("delegates to kickAuthService.isAuthenticated", () => {
       vi.mocked(kickAuthService.isAuthenticated).mockReturnValue(true);
-      expect(kickClient.isAuthenticated()).toBe(true);
+      expect(kickTransport.isAuthenticated()).toBe(true);
 
       vi.mocked(kickAuthService.isAuthenticated).mockReturnValue(false);
-      expect(kickClient.isAuthenticated()).toBe(false);
+      expect(kickTransport.isAuthenticated()).toBe(false);
     });
   });
 
@@ -391,7 +415,7 @@ describe("KickClient", () => {
     ) => Promise<{ buffer: Buffer; statusCode: number; contentType: string }>;
     function installBinaryRequestMock() {
       const mock = vi.fn<BinaryRequest>();
-      if (!Reflect.set(kickClient, "electronRequestBinary", mock)) {
+      if (!Reflect.set(kickTransport, "electronRequestBinary", mock)) {
         throw new Error("Could not install the Kick binary-request test seam");
       }
       return mock;
@@ -400,7 +424,7 @@ describe("KickClient", () => {
       const fakeBytes = { buffer: Buffer.from([1, 2, 3]), contentType: "image/webp" };
       const spy = installBinaryRequestMock().mockResolvedValue({ ...fakeBytes, statusCode: 200 });
 
-      const result = await kickClient.fetchImageBytes("https://files.kick.com/test.webp");
+      const result = await kickTransport.fetchImageBytes("https://files.kick.com/test.webp");
 
       expect(spy).toHaveBeenCalledTimes(1);
       expect(result).not.toBeNull();
@@ -410,10 +434,10 @@ describe("KickClient", () => {
     it("returns null and negative-caches on HTTP 4xx errors", async () => {
       installBinaryRequestMock().mockRejectedValue(new Error("HTTP 403"));
 
-      const result1 = await kickClient.fetchImageBytes("https://files.kick.com/denied.webp");
+      const result1 = await kickTransport.fetchImageBytes("https://files.kick.com/denied.webp");
       expect(result1).toBeNull();
 
-      const result2 = await kickClient.fetchImageBytes("https://files.kick.com/denied.webp");
+      const result2 = await kickTransport.fetchImageBytes("https://files.kick.com/denied.webp");
       expect(result2).toBeNull();
     });
 
@@ -431,8 +455,8 @@ describe("KickClient", () => {
 
       const binarySpy = installBinaryRequestMock().mockReturnValue(innerPromise);
 
-      const p1 = kickClient.fetchImageBytes("https://files.kick.com/shared.webp");
-      const p2 = kickClient.fetchImageBytes("https://files.kick.com/shared.webp");
+      const p1 = kickTransport.fetchImageBytes("https://files.kick.com/shared.webp");
+      const p2 = kickTransport.fetchImageBytes("https://files.kick.com/shared.webp");
 
       resolveInner({ buffer: Buffer.from([1]), contentType: "image/png", statusCode: 200 });
 
@@ -445,7 +469,7 @@ describe("KickClient", () => {
     it("records net::ERR_* errors for non-4xx image failures", async () => {
       installBinaryRequestMock().mockRejectedValue(new Error("net::ERR_FAILED"));
 
-      await kickClient.fetchImageBytes("https://files.kick.com/transient.webp");
+      await kickTransport.fetchImageBytes("https://files.kick.com/transient.webp");
 
       expect(recordPlatformLocalNetError).toHaveBeenCalledWith("kick");
     });
@@ -453,7 +477,7 @@ describe("KickClient", () => {
     it("does not treat a canceled image request as a Kick outage", async () => {
       installBinaryRequestMock().mockRejectedValue(new Error("net::ERR_ABORTED"));
 
-      await kickClient.fetchImageBytes("https://files.kick.com/canceled.webp");
+      await kickTransport.fetchImageBytes("https://files.kick.com/canceled.webp");
 
       expect(recordPlatformLocalNetError).not.toHaveBeenCalled();
     });
@@ -461,13 +485,14 @@ describe("KickClient", () => {
 
   describe("platform property", () => {
     it('has platform set to "kick"', () => {
-      expect(kickClient.platform).toBe("kick");
+      expect(kickDiscovery.platform).toBe("kick");
     });
   });
 
   describe("delegation methods", () => {
     it("getUser delegates to UserEndpoints", async () => {
-      const { getUser } = await import("@backend/api/platforms/kick/endpoints/user-endpoints");
+      const { getUser } =
+        await import("@backend/features/authentication/adapters/kick/account-endpoints");
       vi.mocked(getUser).mockResolvedValueOnce({
         id: 1,
         username: "test",
@@ -476,7 +501,7 @@ describe("KickClient", () => {
         verified: false,
       });
 
-      const result = await kickClient.getUser();
+      const result = await kickAccountReader.getUser();
 
       expect(getUser).toHaveBeenCalled();
       expect(result).toEqual({
@@ -490,7 +515,7 @@ describe("KickClient", () => {
 
     it("getChannel delegates to ChannelEndpoints", async () => {
       const { getChannel } =
-        await import("@backend/api/platforms/kick/endpoints/channel-endpoints");
+        await import("@backend/features/discovery/adapters/kick/channel-endpoints");
       vi.mocked(getChannel).mockResolvedValueOnce({
         id: "100",
         platform: "kick",
@@ -502,14 +527,14 @@ describe("KickClient", () => {
         isPartner: false,
       });
 
-      const result = await kickClient.getChannel("test");
+      const result = await kickDiscovery.getChannel("test");
 
-      expect(getChannel).toHaveBeenCalledWith(kickClient, "test");
+      expect(getChannel).toHaveBeenCalledWith(kickTransport, "test");
     });
 
     it("getChannelsByBroadcasterIds delegates to ChannelEndpoints", async () => {
       const { getChannelsByBroadcasterIds } =
-        await import("@backend/api/platforms/kick/endpoints/channel-endpoints");
+        await import("@backend/features/discovery/adapters/kick/channel-endpoints");
       vi.mocked(getChannelsByBroadcasterIds).mockResolvedValueOnce([
         {
           id: "123",
@@ -523,15 +548,15 @@ describe("KickClient", () => {
         },
       ]);
 
-      const result = await kickClient.getChannelsByBroadcasterIds([123]);
+      const result = await kickDiscovery.getChannelsByBroadcasterIds([123]);
 
-      expect(getChannelsByBroadcasterIds).toHaveBeenCalledWith(kickClient, [123]);
+      expect(getChannelsByBroadcasterIds).toHaveBeenCalledWith(kickTransport, [123]);
       expect(result[0].username).toBe("new-slug");
     });
 
     it("getTopStreams delegates to StreamEndpoints and returns PageResult", async () => {
       const { getTopStreams } =
-        await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
+        await import("@backend/features/discovery/adapters/kick/stream-endpoints");
       vi.mocked(getTopStreams).mockResolvedValueOnce({
         data: [
           {
@@ -553,7 +578,7 @@ describe("KickClient", () => {
         cursor: "next",
       });
 
-      const result = await kickClient.getTopStreams();
+      const result = await kickDiscovery.getTopStreams();
 
       expect(result.data).toHaveLength(1);
       expect(result.cursor).toBe("next");
@@ -561,7 +586,7 @@ describe("KickClient", () => {
 
     it("getFollowedChannels returns channels from FollowEndpoints", async () => {
       const { getAllFollowedChannels } =
-        await import("@backend/api/platforms/kick/endpoints/follow-endpoints");
+        await import("@backend/features/authentication/adapters/kick/follow-endpoints");
       vi.mocked(getAllFollowedChannels).mockResolvedValueOnce({
         status: "ok",
         canPruneAbsent: true,
@@ -579,27 +604,27 @@ describe("KickClient", () => {
         ],
       });
 
-      const result = await kickClient.getFollowedChannels();
+      const result = await kickAccountReader.getFollowedChannels();
 
       expect(result.data).toHaveLength(1);
     });
 
     it("getFollowedChannels returns empty data on error", async () => {
       const { getAllFollowedChannels } =
-        await import("@backend/api/platforms/kick/endpoints/follow-endpoints");
+        await import("@backend/features/authentication/adapters/kick/follow-endpoints");
       vi.mocked(getAllFollowedChannels).mockResolvedValueOnce({
         status: "error",
         reason: "network-error",
       });
 
-      const result = await kickClient.getFollowedChannels();
+      const result = await kickAccountReader.getFollowedChannels();
 
       expect(result.data).toEqual([]);
     });
 
     it("reads account follows through the portable tagged contract", async () => {
       const { getAllFollowedChannels } =
-        await import("@backend/api/platforms/kick/endpoints/follow-endpoints");
+        await import("@backend/features/authentication/adapters/kick/follow-endpoints");
       vi.mocked(getAllFollowedChannels).mockResolvedValueOnce({
         status: "ok",
         canPruneAbsent: false,
@@ -607,7 +632,7 @@ describe("KickClient", () => {
       });
 
       await expect(
-        kickClient.readAccountFollows({ allowInteractiveFallback: true })
+        kickAccountReader.readAccountFollows({ allowInteractiveFallback: true })
       ).resolves.toEqual({ kind: "available", follows: [], authoritative: false });
       expect(getAllFollowedChannels).toHaveBeenCalledWith({
         allowBrowserWindowFallback: true,
@@ -616,13 +641,13 @@ describe("KickClient", () => {
 
     it("tags an unavailable account-follow read without converting it to empty", async () => {
       const { getAllFollowedChannels } =
-        await import("@backend/api/platforms/kick/endpoints/follow-endpoints");
+        await import("@backend/features/authentication/adapters/kick/follow-endpoints");
       vi.mocked(getAllFollowedChannels).mockResolvedValueOnce({
         status: "error",
         reason: "rate-limited",
       });
 
-      await expect(kickClient.readAccountFollows()).resolves.toEqual({
+      await expect(kickAccountReader.readAccountFollows()).resolves.toEqual({
         kind: "unavailable",
         reason: "rate-limited",
       });
@@ -643,7 +668,7 @@ describe("KickClient", () => {
         categoryId: "15",
         categoryName: "Just Chatting",
       };
-      const getVideos = vi.spyOn(kickClient, "getVideos").mockResolvedValueOnce({
+      const getVideos = vi.spyOn(kickPlayback, "getVideos").mockResolvedValueOnce({
         data: [
           {
             id: "video-1",
@@ -667,13 +692,14 @@ describe("KickClient", () => {
             channelName: "streamer",
             channelSlug: "streamer",
             channelAvatar: "https://avatar.jpg",
+            gameId: "15",
             category: "Just Chatting",
             language: "en",
           },
         ],
         cursor: "videos-next",
       });
-      const getClips = vi.spyOn(kickClient, "getClips").mockResolvedValueOnce({
+      const getClips = vi.spyOn(kickPlayback, "getClips").mockResolvedValueOnce({
         data: [
           {
             id: "clip-1",
@@ -696,12 +722,12 @@ describe("KickClient", () => {
         cursor: "clips-next",
       });
 
-      const videos = await kickClient.readChannelVideos(channel, {
+      const videos = await kickPlayback.readChannelVideos(channel, {
         limit: 12,
         cursor: "videos-in",
         sort: "popular",
       });
-      const clips = await kickClient.readChannelClips(channel, {
+      const clips = await kickPlayback.readChannelClips(channel, {
         limit: 8,
         cursor: "clips-in",
         sort: "recent",
@@ -750,10 +776,10 @@ describe("KickClient", () => {
     it("honors channel discovery cancellation before provider transport", async () => {
       const controller = new AbortController();
       controller.abort();
-      const getVideos = vi.spyOn(kickClient, "getVideos");
+      const getVideos = vi.spyOn(kickPlayback, "getVideos");
 
       await expect(
-        kickClient.readChannelVideos(
+        kickPlayback.readChannelVideos(
           {
             id: "channel-1",
             platform: "kick",
@@ -771,10 +797,10 @@ describe("KickClient", () => {
     });
 
     it("returns typed invalid availability for Category Clips without a slug", async () => {
-      const getClipsByCategory = vi.spyOn(kickClient, "getClipsByCategory");
+      const getClipsByCategory = vi.spyOn(kickPlayback, "getClipsByCategory");
 
       await expect(
-        kickClient.readCategoryClips({ id: "15", name: "Just Chatting" })
+        kickPlayback.readCategoryClips({ id: "15", name: "Just Chatting" })
       ).resolves.toEqual({
         kind: "invalid",
         reason: "Kick Category Clips require a category slug",
@@ -784,32 +810,32 @@ describe("KickClient", () => {
 
     it("resolves a normalized channel reference with requested freshness", async () => {
       const { getChannel } =
-        await import("@backend/api/platforms/kick/endpoints/channel-endpoints");
+        await import("@backend/features/discovery/adapters/kick/channel-endpoints");
       vi.mocked(getChannel).mockResolvedValueOnce(null);
 
-      await kickClient.resolveChannel(
+      await kickDiscovery.resolveChannel(
         { kind: "slug", value: "streamer" },
         { freshness: "refresh" }
       );
 
-      expect(getChannel).toHaveBeenCalledWith(kickClient, "streamer", {
+      expect(getChannel).toHaveBeenCalledWith(kickTransport, "streamer", {
         freshChatroomSettings: true,
       });
     });
 
     it("delegates normalized category-stream pagination", async () => {
       const { getStreamsByCategory } =
-        await import("@backend/api/platforms/kick/endpoints/stream-endpoints");
+        await import("@backend/features/discovery/adapters/kick/stream-endpoints");
       vi.mocked(getStreamsByCategory).mockResolvedValueOnce({ data: [] });
 
-      await kickClient.getStreamsByCategory("category-1", {
+      await kickDiscovery.getStreamsByCategory("category-1", {
         limit: 12,
         cursor: "next",
         categoryName: "Game",
         language: "en",
       });
 
-      expect(getStreamsByCategory).toHaveBeenCalledWith(kickClient, "category-1", {
+      expect(getStreamsByCategory).toHaveBeenCalledWith(kickTransport, "category-1", {
         limit: 12,
         cursor: "next",
         categoryName: "Game",
@@ -819,13 +845,13 @@ describe("KickClient", () => {
 
     it("uses channel-only discovery without starting broad search", async () => {
       const { search, searchChannels } =
-        await import("@backend/api/platforms/kick/endpoints/search-endpoints");
+        await import("@backend/features/discovery/adapters/kick/search-endpoints");
       vi.mocked(searchChannels).mockResolvedValueOnce({ data: [] });
 
       await expect(
-        kickClient.searchDiscovery("g", { limit: 8, includeCategories: false })
+        kickDiscovery.searchDiscovery("g", { limit: 8, includeCategories: false })
       ).resolves.toEqual({ channels: [], categories: [], streams: [] });
-      expect(searchChannels).toHaveBeenCalledWith(kickClient, "g", { limit: 8 });
+      expect(searchChannels).toHaveBeenCalledWith(kickTransport, "g", { limit: 8 });
       expect(search).not.toHaveBeenCalled();
     });
   });

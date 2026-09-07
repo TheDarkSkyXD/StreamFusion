@@ -5,9 +5,9 @@ import { useTranslation } from "react-i18next";
 import { IoMdSettings } from "react-icons/io";
 
 import { ProxiedImage } from "@/components/ui/proxied-image";
-import { useAuthStatus, useUserInfo } from "@/features/auth/data/useAuth";
-import { useAuthStore } from "@/store/auth-store";
-import { DisplayLanguageSelect } from "@/components/settings/DisplayLanguageSelect";
+import { useAuthStatus, useUserInfo } from "@/features/auth/components/hooks/useAuth";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
+import { DisplayLanguageSelect } from "@/features/settings/components/settings/DisplayLanguageSelect";
 
 import { PROFILE_AVATAR_GEOMETRY } from "./profile-avatar-geometry";
 

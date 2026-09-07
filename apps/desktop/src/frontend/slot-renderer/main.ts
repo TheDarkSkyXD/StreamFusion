@@ -16,7 +16,7 @@
 
 import Hls from "hls.js";
 
-import type { SlotAPI } from "../../backend/preload/slot";
+import type { SlotAPI } from "@shared/slot-api";
 
 declare global {
   interface Window {

@@ -1,3 +1,4 @@
+import { desktopSnapshotStorage as snapshotStorage } from "../desktop-snapshot-storage";
 import { useEffect, useEffectEvent, useState } from "react";
 
 import { prewarmViewportImages } from "@/lib/viewport-image-prewarm";
@@ -33,7 +34,7 @@ export async function loadPersistedSnapshot<T>({
 }: SnapshotOptions<T>): Promise<T | undefined> {
   if (!enabled) return undefined;
   const identityKey = JSON.stringify(identity);
-  const snapshot = await window.electronAPI.store.get(snapshotKey(slot));
+  const snapshot = await snapshotStorage.get(snapshotKey(slot));
   const now = Date.now();
   if (
     snapshot === null ||
@@ -106,9 +107,9 @@ export async function savePersistedSnapshot<T>(
     savedAt: Date.now(),
     data,
   };
-  await window.electronAPI.store.set(snapshotKey(slot), snapshot);
+  await snapshotStorage.set(snapshotKey(slot), snapshot);
 }
 
 export async function deletePersistedSnapshot(slot: string): Promise<void> {
-  await window.electronAPI.store.delete(snapshotKey(slot));
+  await snapshotStorage.delete(snapshotKey(slot));
 }

@@ -13,8 +13,8 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ModLogAction } from "@backend/services/mod-log-writer";
-import { useModLog } from "@/features/moderation/data/useModLog";
+import type { ModLogAction } from "@shared/mod-action-filters";
+import { useModLog } from "@/features/moderation/components/hooks/useModLog";
 import { Platform } from "@streamfusion/core/platform";
 
 import { useOpenUserPopout } from "../UserPopout/UserPopoutProvider";

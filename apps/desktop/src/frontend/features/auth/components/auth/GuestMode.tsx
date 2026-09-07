@@ -12,7 +12,7 @@ import type { TFunction } from "i18next";
 import { LuLock, LuLogIn, LuUser } from "react-icons/lu";
 import { useTranslation } from "react-i18next";
 
-import { useAuthStore } from "@/store/auth-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 
 // ========== Guest Badge ==========
 

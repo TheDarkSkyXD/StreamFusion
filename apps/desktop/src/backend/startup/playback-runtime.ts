@@ -2,14 +2,14 @@ import { app, type Session, session } from "electron";
 
 import { installNetworkRequestLogger } from "@backend/logging/network-request-logger";
 import { logger } from "@backend/logging/logger";
-import { cosmeticInjectionService } from "@backend/services/cosmetic-injection-service";
-import { networkAdBlockService } from "@backend/services/network-adblock-service";
+import { cosmeticInjectionService } from "@backend/features/playback/adapters/electron/cosmetic-injection-service";
+import { networkAdBlockService } from "@backend/features/playback/adapters/electron/network-adblock-service";
 import {
   purgeStoredThirdPartyCookies,
   registerThirdPartyCookieStripper,
 } from "@backend/services/third-party-cookie-stripper";
-import { twitchManifestProxy } from "@backend/services/twitch-manifest-proxy";
-import { vaftPatternService } from "@backend/services/vaft-pattern-service";
+import { twitchManifestProxy } from "@backend/features/playback/adapters/twitch/twitch-manifest-proxy";
+import { vaftPatternService } from "@backend/features/playback/data/vaft-pattern-service";
 import { registerLoadedFeatureCleanup } from "./loaded-feature-cleanup";
 import type { MainRendererPort } from "@backend/ipc/main-renderer-port";
 

@@ -5,7 +5,7 @@ import { DEFAULT_USER_PREFERENCES } from "@shared/auth-types";
 import { DisplayLanguageSync } from "@/i18n/DisplayLanguageSync";
 import { en, i18n, prepareDisplayLanguage } from "@/i18n";
 import { DISPLAY_LANGUAGE_CATALOG_LOADERS } from "@/i18n/catalog-loaders.generated";
-import { useAuthStore } from "@/store/auth-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 
 // Guards: the renderer waits for a complete locale catalog before exposing the application or changing document metadata.
 // Guards: right-to-left display languages update both i18next and the document direction.

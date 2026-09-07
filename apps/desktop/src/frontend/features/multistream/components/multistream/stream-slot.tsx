@@ -1,3 +1,4 @@
+import { getSlotController } from "@/features/multistream/composition/slot-controller";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -6,17 +7,17 @@ import { LuGripVertical, LuMessageSquare, LuVolume2, LuVolumeX, LuX } from "reac
 import { KickLivePlayer } from "@/features/playback/components/player/kick/kick-live-player";
 import { TwitchLivePlayer } from "@/features/playback/components/player/twitch/twitch-live-player";
 import { RaidHandoffPopup } from "@/features/playback/components/raid-handoff/raid-handoff-popup";
-import { useRaidHandoff } from "@/features/playback/data/use-raid-handoff";
+import { useRaidHandoff } from "@/features/playback/components/hooks/use-raid-handoff";
 import { useTwitchLiveRecovery } from "@/features/playback/components/player/hooks/use-twitch-live-recovery";
-import type { PlayerError } from "@/features/playback/components/player/types";
+import type { PlayerError } from "@/features/playback/capabilities/media-types";
 import { Button } from "@/components/ui/button";
 import { ProxiedImage } from "@/components/ui/proxied-image";
-import { useChannelByUsername } from "@/features/discovery/data/queries/useChannels";
-import { useStreamPlayback } from "@/features/playback/data/useStreamPlayback";
+import { useChannelByUsername } from "@/features/discovery/components/hooks/queries/useChannels";
+import { useStreamPlayback } from "@/features/playback/components/hooks/useStreamPlayback";
 import { cn } from "@/lib/utils";
 import { logger } from "@/renderer/logging/logger";
 import { Platform } from "@streamfusion/core/platform";
-import { useMultiStreamStore } from "@/features/multistream/data/multistream-store";
+import { useMultiStreamStore } from "@/features/multistream/components/state/multistream-store";
 import type { RaidSource, RaidTarget } from "@shared/raid-handoff-types";
 
 const VISIBILITY_THRESHOLD = 0.25;
@@ -173,7 +174,7 @@ export function StreamSlot({
   // hands-off when the flag is off.
   useEffect(() => {
     if (!wcvEnabled || !playbackActive) return;
-    const slot = window.electronAPI?.slot;
+    const slot = getSlotController();
     if (!slot) return;
     slot.createSlot(streamId).catch(() => {
       /* main will log the failure via web-contents-log-forwarder */
@@ -189,7 +190,7 @@ export function StreamSlot({
   useEffect(() => {
     if (!wcvEnabled || !playbackActive) return;
     if (!playback?.url) return;
-    const slot = window.electronAPI?.slot;
+    const slot = getSlotController();
     if (!slot) return;
     slot.loadStream(streamId, { platform, channelName, playbackUrl: playback.url }).catch(() => {
       /* surfaced via the slot's own console + log-forwarder */
@@ -201,7 +202,7 @@ export function StreamSlot({
   useEffect(() => {
     if (!wcvEnabled) return;
     const node = placeholderRef.current;
-    const slot = window.electronAPI?.slot;
+    const slot = getSlotController();
     if (!node || !slot) return;
     const pushBounds = () => {
       const rect = node.getBoundingClientRect();
@@ -232,7 +233,7 @@ export function StreamSlot({
   // slot crash within the 5-min window (slice 06 retry policy).
   useEffect(() => {
     if (!wcvEnabled) return;
-    const slot = window.electronAPI?.slot;
+    const slot = getSlotController();
     if (!slot?.onRetryAffordance) return;
     const unsubscribe = slot.onRetryAffordance(({ slotId: id }) => {
       if (id === streamId) setRetryAffordance(true);
@@ -242,7 +243,7 @@ export function StreamSlot({
 
   const handleRetryClick = () => {
     setRetryAffordance(false);
-    window.electronAPI?.slot?.requestRetry(streamId).catch(() => {
+    getSlotController()?.requestRetry(streamId).catch(() => {
       /* main will surface the failure in its own log */
     });
   };

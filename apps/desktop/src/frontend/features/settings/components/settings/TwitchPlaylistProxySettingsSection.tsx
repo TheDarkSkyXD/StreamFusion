@@ -19,7 +19,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { LuGripVertical, LuPencil, LuPlus, LuRefreshCw, LuTrash2 } from "react-icons/lu";
 
 import { Button } from "@/components/ui/button";
-import { translateSettings } from "@/features/settings/utils/settings-translation";
+import { translateSettings } from "@/features/settings/components/presentation/settings-translation";
 import {
   Dialog,
   DialogContent,
@@ -32,9 +32,9 @@ import { Switch } from "@/components/ui/switch";
 import {
   isTwitchPlaylistProxyTemplate,
   moveTwitchPlaylistProxySource,
-} from "@/features/playback/utils/twitch-playlist-proxy";
-import { useTwitchPlaylistProxyStatuses } from "@/features/settings/data/use-twitch-playlist-proxy-statuses";
-import { useAuthStore } from "@/store/auth-store";
+} from "@/features/playback/adapters/browser/twitch/twitch-playlist-proxy";
+import { useTwitchPlaylistProxyStatuses } from "@/features/settings/components/hooks/use-twitch-playlist-proxy-statuses";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 import {
   DEFAULT_TWITCH_PLAYLIST_PROXY_PREFERENCES,
   type TwitchPlaylistProxySource,

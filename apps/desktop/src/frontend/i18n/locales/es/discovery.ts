@@ -83,6 +83,8 @@ export const discoveryEs = {
       loading: "Cargando {{kind}} de la categoría",
       loadingMedia: "Cargando {{kind}}",
       loadingMore: "Cargando más {{kind}}",
+      loadNextMedia: "Cargar más {{kind}}",
+      kickVideosCoverage: "Los videos de Kick son de canales que están en directo en esta categoría.",
       unavailable: "{{platform}} no está disponible.",
       retryPlatform: "Reintentar {{platform}}",
       streamsUnavailable: "Las transmisiones de {{platform}} no están disponibles temporalmente.",

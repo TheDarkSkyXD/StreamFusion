@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
-import type { RaidHandoffPopupModel } from "@/features/playback/data/use-raid-handoff";
+import type { RaidHandoffPopupModel } from "@/features/playback/components/hooks/use-raid-handoff";
 
 export interface RaidHandoffPopupProps {
   model: RaidHandoffPopupModel;

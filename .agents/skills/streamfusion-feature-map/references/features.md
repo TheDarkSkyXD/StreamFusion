@@ -1,169 +1,111 @@
 # StreamFusion features
 
-This map groups code by user outcome. Paths are repository-relative. Read the linked source and its nearest `AGENTS.md` before editing.
+Locate code by product outcome, then by runtime. Every implemented feature owns
+`routes/`, `components/`, `domain/`, `capabilities/`, `adapters/`, `data/`, `utils/`,
+`composition/`, and `tests/`. Current source and tests prove behavior; this map
+does not imply that every provider supports every listed surface.
 
-Renderer capability code lives under `apps/desktop/src/frontend/features/<feature>/`. Each feature owns `components`, `data`, `routes`, and `utils`. `apps/desktop/src/frontend/routes/router.tsx` composes the feature route exports.
+## Desktop
 
-## Android runtime foundation
+Renderer roots: `apps/desktop/src/frontend/features/<feature>/`.
+Main-process roots: `apps/desktop/src/backend/features/<feature>/`.
+Shared contracts: `apps/desktop/src/shared/`.
 
-The Android Expo entry points delegate to one Mobile composition root. That root injects public core contracts and Mobile-owned transport, adapter, persistence, and native implementations into feature controllers.
+| Outcome | Renderer owner | Main owner | User entry |
+| --- | --- | --- | --- |
+| App navigation, recovery, notifications | `shell` | `shell` | Window chrome and global navigation |
+| Accounts, sign-in, scope consent | `auth` | `authentication` | Account menu and connection dialogs |
+| Browse streams, channels, categories, follows | `discovery` | `discovery` | `/`, `/following`, `/categories`, `/categories/$platform/$categoryId` |
+| Unified search | `discovery` | `discovery` | `/search` and search input |
+| Live, VOD, clip playback, PiP, captions, ad handling | `playback` | `playback` | `/stream/$platform/$channel`, `/video/$platform/$videoId` |
+| Chat, emotes, badges, engagement, message controls | `chat` | `chat` | Chat panels in watch and MultiView |
+| Multiple streams and player slots | `multistream` | `multistream` | `/multistream` and MultiView controls |
+| Downloads, recordings, history | `media-library` | `media-library` | `/downloads`, `/history`, player actions |
+| Moderator workspace, actions, AutoMod, retention | `moderation` | `moderation` | `/mod`, `/mod/twitch/$channel`, `/mod/kick/$channel` |
+| Preferences, updater, health, diagnostics | `settings` | `settings` | `/settings` and settings tabs |
 
-- Routes: `apps/mobile/app/`
-- Composition root: `apps/mobile/src/composition/mobile-runtime.tsx`
-- Feature UI and controllers: `apps/mobile/src/features/`
-- Mobile capabilities and implementations: `apps/mobile/src/capabilities/`, `src/transport/`, `src/adapters/`, `src/persistence/`, and `src/native/`
-- Import enforcement: `apps/mobile/eslint.config.mjs` and `apps/mobile/scripts/verify-architecture.mjs`
-- Runtime contract: `apps/mobile/CONTEXT.md`
+Screens live in their feature's `components/screens/`. Presentation hooks and
+view stores live under `components/`; persistence and cache implementations live
+under `data/`. Feature tests and stories live under `tests/`. Shared test setup,
+runtime contracts, and cross-feature integrations remain in `apps/desktop/tests/`.
 
-## Android product shell and navigation
+`frontend/routes/router.tsx` composes route exports. `backend/main.ts` composes
+the Electron process. The full app's preload remains `backend/preload/index.ts`.
+Isolated player slots have their own narrow preload and shared slot contract.
 
-The Android shell presents the same five destinations through compact bottom navigation or a labeled rail at wider window sizes. Each destination owns an in-session history; lifecycle restoration remains a separate persistence concern.
+Browser-owned chat connections and emote presentation providers belong in renderer
+adapters. Electron networking, credentials, official platform mutations, SQLite,
+FFmpeg, and filesystem operations remain in main. Calls cross the allowlisted
+`window.electronAPI` bridge. Do not restore imports from renderer to backend
+implementations to resolve a type error; use a shared contract or a narrow port.
 
-- Route entry: `apps/mobile/app/index.tsx`
-- Composition root: `apps/mobile/src/composition/mobile-runtime.tsx`
-- Shell UI and navigation state: `apps/mobile/src/features/shell/`
-- Dark Theater primitives: `apps/mobile/src/design/tokens.ts`
-- Tests: `apps/mobile/tests/shell-navigation.test.ts`
+Public browsing and playback do not require a signed-in account. Category media
+crosses the discovery UI's read port into main-process playback adapters. Twitch
+category videos and clips use an anonymous GQL primary for both guest and signed-in
+sessions. Provider errors remain distinct from successful empty pages. Guest chat
+continues receiving messages while its composer and send path remain locked.
 
-## Android encrypted persistence
+Twitch AutoMod receives real held/resolved events. Kick retains its retention
+surface. AutoMod/Retention panels stay pinned; Mod Actions docks beside them.
+Hidden tools open a floating preview; Add to workspace docks the tool only when a
+legal split has enough room. Chat can occupy the full outer-right column.
+An authenticated broadcaster may open their own moderator workspace while remote
+authority checks run. Existing moderation and player `AGENTS.md` files record
+the behavioral invariants in detail.
 
-The Android runtime keeps durable Product state and disposable provider cache state in separate SQLCipher databases. Each database and the pre-migration Product backup has a distinct SecureStore key. Product migration failures and integrity failures preserve quarantine artifacts and recover from the encrypted backup when possible; Cache eviction removes expired entries before enforcing its LRU byte budget.
+Twitch workspace tools use independent role and scope grants. Shield Mode,
+AutoMod policy, blocked terms and Edit Stream Info use the `channel-tools`
+capability. Stream information, poll and prediction management require the
+signed-in broadcaster for Helix calls. Stream information includes title,
+category, tags, language and editable content labels; go-live notifications and
+rerun settings use the native Twitch handoff.
+Activity, Suspicious User Activity, Community, Active Mods, Whispers, Reward
+Requests and channel navigation live in moderation `components/panels/` and use
+the `workspace-panels` capability. Main-process moderation adapters validate the
+current account and map Twitch responses into `shared/moderation-types.ts`.
+The EventSub catalog specifies each event's version, routing condition and grants.
+Feed events are bounded and describe coverage since connection, not historical
+Twitch records. Reward history and decisions are limited to app-created rewards.
+Native Twitch links cover tools and history unavailable through its public API.
 
-- Capability contracts: `apps/mobile/src/capabilities/persistence.ts`
-- Store orchestration and recovery: `apps/mobile/src/persistence/store-runtime.ts`
-- SQLCipher and file lifecycle adapter: `apps/mobile/src/persistence/sqlite-encrypted-driver.ts`
-- Product/Cache schemas: `apps/mobile/src/persistence/migrations.ts`
-- SecureStore and random bridges: `apps/mobile/src/native/expo-secure-secret-store.ts`, `apps/mobile/src/native/expo-secure-random-source.ts`
-- Diagnostics UI: `apps/mobile/src/features/development/persistence-controller.ts`, `apps/mobile/src/features/shell/app-shell.tsx`
-- Tests: `apps/mobile/tests/persistence.test.ts`, `apps/mobile/tests/scaffold.test.mjs`
+## Mobile
 
-## Product shell and navigation
+Roots: `apps/mobile/src/features/`.
 
-The shell owns window chrome, global navigation, route loading, recovery, notifications, and global dialogs.
+- `shell`: navigation, deep-link parsing, restoration, and app UI.
+- `activity`: activity presentation and operations.
+- `diagnostics`: app/device health and persistence diagnostics.
+- `storage`: encrypted Product/Cache stores, migrations, recovery, and native adapters.
 
-- Entry and routes: `apps/desktop/src/frontend/App.tsx`, `apps/desktop/src/frontend/routes/router.tsx`
-- Feature: `apps/desktop/src/frontend/features/shell/`
-- Global state: `apps/desktop/src/frontend/store/app-store.ts`, `notification-store.ts`, `update-store.ts`
-- Main boundary: `apps/desktop/src/backend/ipc/handlers/system-handlers.ts`, `update-handlers.ts`, `connectivity-handlers.ts`
-- Tests: `apps/desktop/tests/App*.test.tsx`, layout and update handler tests
+Expo's `apps/mobile/app/` entries delegate to
+`apps/mobile/src/composition/mobile-runtime.tsx`. Shared design tokens stay under
+`src/design/`. Feature tests live with their owner; platform/tooling contract tests
+remain in `apps/mobile/tests/`.
 
-## Discover streams and channels
+## OAuth worker
 
-Home, Following, Categories, category detail, sidebar follows, and unified Search help users find Twitch and Kick content.
+`apps/worker/src/features/kick-oauth/` owns token exchange, refresh, grant
+validation, rate limiting, and Kick token transport. `apps/worker/src/index.ts`
+is the required Wrangler entry. This worker does not proxy product reads or chat.
 
-- Routes: `/`, `/following`, `/categories`, `/categories/$platform/$categoryId`, `/search`
-- Feature: `apps/desktop/src/frontend/features/discovery/`
-- Sidebar integration: `apps/desktop/src/frontend/features/shell/components/layout/SidebarFollows.tsx`
-- IPC: `category-handlers.ts`, `channel-handlers.ts`, `search-handlers.ts`, `stream-handlers.ts`
-- Platform reads: `apps/desktop/src/backend/api/unified/platform-reader.ts`, `platforms/{twitch,kick}/endpoints/`
-- State: `apps/desktop/src/frontend/store/follow-store.ts`
-- Tests: matching page, query, IPC handler, and Platform endpoint tests under `apps/desktop/tests/`
+## Shared Core
 
-## Watch live streams, videos, and clips
+`packages/core/src/features/` owns shared `activity`, `auth`, `chat`, `content`,
+`discovery`, `follows`, and `reliability` contracts and workflows. Runtimes consume
+declared `@streamfusion/core/<subpath>` exports. They do not deep-import feature
+internals. Platform vocabulary, contract foundations, relay envelopes, and testing
+support remain package-wide infrastructure.
 
-The watch path resolves provider content, plays HLS media, exposes controls, tracks progress, and shows related videos and clips.
+## Integration Relay
 
-- Routes: `/stream/$platform/$channel`, `/video/$platform/$videoId`
-- Feature: `apps/desktop/src/frontend/features/playback/`
-- Players: `apps/desktop/src/frontend/features/playback/components/player/`, with provider branches in `player/twitch/` and `player/kick/`
-- Related content: `apps/desktop/src/frontend/features/playback/components/related-content/`
-- IPC: `stream-handlers.ts`, `video-handlers.ts`
-- Platform resolution: `twitch-stream-resolver.ts`, `kick-stream-resolver.ts`, provider video and clip endpoints
-- State: `volume-store.ts`, `playback-position-store.ts`, `pip-store.ts`, `seek-interval-store.ts`, `adblock-store.ts`
-- Main services: Twitch manifest and playlist services, stream proxy, network ad blocking, VAFT patterns
-- Tests: player, Stream, Video, stream handler, and video handler suites
+The current `apps/integration-relay/` is deployment/protocol infrastructure.
+`src/composition/worker.ts` validates its environment and returns unavailable or
+not-found envelopes. Product endpoints are planned, not implemented feature roots.
 
-## Chat, emotes, and engagement
+## Verification
 
-Each stream can open Platform chat, render badges and third-party emotes, send eligible messages, replay VOD chat, and expose polls, predictions, pins, and room state where supported.
-
-- Feature: `apps/desktop/src/frontend/features/chat/`
-- Core contracts and policy: `@streamfusion/core/chat` owns normalized messages and events, the `ChatConnection` port, and Chat Send Eligibility.
-- Desktop contracts: `apps/desktop/src/shared/chat-types.ts`, `ipc-channels.ts`, `electron-api-types.ts`
-- IPC: `chat-handlers.ts`, `chat-eligibility-handlers.ts`, `chat-replay-handlers.ts`, `kick-chat-handlers.ts`, `twitch-api-handlers.ts`
-- Services: `apps/desktop/src/backend/services/chat/`, `services/emotes/`, `chat-replay-service.ts`
-- Platform capabilities: Twitch Helix polls, predictions, moderation and EventSub. Kick predictions, pin mutations, chat endpoints, and Pusher chat.
-- State: `chat-store.ts`, `room-state-store.ts`, `emote-store.ts`, `chat-cosmetics-store.ts`, `persisted-chat-history.ts`
-- Tests: chat components, hooks, services, IPC handlers, parsers, and capability adapters
-
-## Authentication, follows, and live notifications
-
-Users can authenticate independently with Twitch and Kick, follow channels, retain guest follows, and receive live alerts.
-
-- Feature: `apps/desktop/src/frontend/features/auth/`
-- IPC: `auth-handlers.ts`, `storage-handlers.ts`, `token-status-handlers.ts`, `twitch-api-handlers.ts`
-- Auth core: `apps/desktop/src/backend/auth/`
-- Follow services: Twitch and Kick follow write services, Kick follow identity resolution, and metadata refresh
-- Notification policy: `@streamfusion/core/follows` owns Follow eligibility, preference defaults, restart grace, deduplication inputs, and delivery decisions.
-- Notification adapters: `live-notification-service.ts`, provider notification sources, `use-live-notification-bridge.ts`, and Electron `Notification` presentation
-- State: `auth-store.ts`, `follow-store.ts`, `notification-store.ts`
-- Worker: `apps/worker/src/index.ts` handles Kick token exchange, refresh, and rate limits only
-- Tests: auth, follow, notification, storage, and worker tests
-
-## Multistream
-
-Multistream lets users load, reorder, focus, mute, and remove any number of StreamSlots. A separate PlaybackBudget limits concurrent decoders; overflow slots stay visible but suspended until activated.
-
-- Route: `/multistream`
-- Feature: `apps/desktop/src/frontend/features/multistream/`
-- State: `apps/desktop/src/frontend/features/multistream/data/multistream-store.ts`
-- Main ownership: `apps/desktop/src/backend/api/unified/slot-controller.ts`, `slot-host.ts`, `slot-retry-policy.ts`, and `backend/ipc/handlers/slot-controller-handlers.ts`
-- Contracts: slot IPC channels and preload methods
-- Player integration: StreamSlot presence drives player quality, buffering, audio, and lifecycle
-- Tests: MultiStream page, multistream components and store, slot controller and stream-slot tests
-
-## Downloads, recordings, and history
-
-Users can download clips and videos, record live streams, recover interrupted recordings, and revisit watched content.
-
-- Routes: `/downloads`, `/history`
-- Feature: `apps/desktop/src/frontend/features/media-library/`
-- IPC: `download-handlers.ts`, `stream-recording-handlers.ts`
-- Services: download queue and media services, FFmpeg and direct-file download services, stream recording services and session store
-- State: `history-store.ts`, `download-duplicate-confirmation-store.ts`
-- Tests: Downloads, History, recording UI, download handlers and services, recording handlers and services
-
-## Moderation dashboard
-
-Authenticated moderators can choose a managed channel, review engagement and retention, inspect moderation history, and perform provider-supported moderation actions.
-
-Channel pages are live workspaces with stable video/chat hosts and persisted panel layouts.
-Twitch pins an AutoMod Queue beside Mod Actions; Kick pins Retention. Mod Actions moves
-only left/right of its pinned neighbor, and chat can dock along the full outer right edge.
-Authenticated broadcasters can open their own workspace while individual tool scopes are checked.
-The Mod Actions menu selects Twitch's action categories before database pagination.
-
-- Routes: `/mod`, `/mod/twitch/$channel`, `/mod/kick/$channel`
-- Feature: `apps/desktop/src/frontend/features/moderation/`
-- IPC: `modlog-handlers.ts`, `timeout-moderation-handlers.ts`, `twitch-api-handlers.ts`
-- Platform operations: Twitch Helix moderation modules and Kick mod mutation adapters
-- State: `features/moderation/data/moderated-channels-store.ts`, `store/dev-mod-override-store.ts`
-- Persistence: `mod-log-writer.ts`, moderation authorization and retention services
-- Workspace: `pages/Mod/channel/workspace/`, renderer localStorage `streamfusion:mod-layout:v1:*`
-- AutoMod: main-owned `twitch-eventsub-feed-service.ts` subscribes to real held/resolved events;
-  `AutoModQueue.tsx` manages live rows through the typed Twitch command boundary
-- Tests: Mod page and component suites, moderation hooks, IPC, services, and provider adapters
-
-## Settings, diagnostics, captions, and maintenance
-
-Settings controls appearance and behavior, auth, chat preferences, proxy and ad-blocking options, local captions, logs, updates, diagnostics, bug reports, and destructive storage actions.
-
-Diagnostics → Resources includes local CPU/RAM history for real time, five minutes, 30 minutes, one hour, 24 hours, seven days, 30 days, and 90 days, with fixed historical periods and inline process/activity evidence. Collection continues off-page; persisted minute summaries, 90-day hourly summaries, and bounded fine incident windows survive restart. Reopening resumes collection and shows the closed interval as a gap. CPU/RAM peaks retain their observed timestamps. Gaps and recorder failures are visible; evidence is associated activity, not proof of causation. No export is required to investigate a period.
-
-- Route: `/settings`
-- Feature: `apps/desktop/src/frontend/features/settings/`
-- Developer console: `apps/desktop/src/frontend/components/dev/DeveloperConsole.tsx`
-- IPC: diagnostics, local-caption, log, proxy, ad-block, bug-report, update, storage, and system handlers
-- Main services: `backend/diagnostics/`, `services/captions/`, logging, proxy, ad-block, update, and storage services
-- State: app, auth, chat, update, ad-block, and diagnostic view state
-- Tests: Settings, diagnostics, captions, logging, proxy, ad-block, update, storage, and bug-report suites
-
-## Cross-cutting boundaries
-
-- Renderer to main: `apps/desktop/src/shared/ipc-channels.ts` to shared request and response types to `apps/desktop/src/backend/preload/` to `apps/desktop/src/backend/ipc/`
-- Lazy loading: `apps/desktop/src/backend/preload/ipc-feature-loader.ts` and `apps/desktop/src/backend/ipc/lazy-feature-loader.ts`
-- Platform-neutral reads: `apps/desktop/src/backend/api/unified/`
-- Provider adapters: `apps/desktop/src/backend/api/platforms/twitch/` and `kick/`
-- Persistence: capability-owned Zustand stores live in feature `data/`; cross-cutting renderer stores remain in `src/store/`; `electron-store` and SQLite services remain in main
-- Reliability: recovery boundaries, PlatformHealth, network banners, typed IPC validation, and diagnostics
-- Verification: Vitest projects under `apps/desktop/tests/`, Storybook stories beside UI, Worker tests under `apps/worker/`
+Normal lint enforces feature layers and runtime imports. Desktop
+`npm run architecture:features` checks directory shape and positive/negative import
+proofs. Test discovery includes feature roots with their original environments.
+Use `verify-streamfusion` for actual Electron navigation and runtime evidence;
+type checks and source inventories alone do not prove the app works.

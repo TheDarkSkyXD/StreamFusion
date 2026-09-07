@@ -1,3 +1,9 @@
+import { KickChatConnectionStatus } from "./KickChatConnectionStatus";
+import { getKickChatController } from "@/features/chat/composition/kick-chat-controller";
+import { getChatProfileReader } from "@/features/chat/composition/chat-profile-reader";
+import { getChatHistoryReader } from "@/features/chat/composition/chat-history-reader";
+import { getChatSessionAccess } from "@/features/chat/composition/chat-session-access";
+import type { KickChatController } from "@/features/chat/capabilities/kick-chat-controller";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,30 +14,24 @@ import { toast } from "sonner";
 import { MOD_LOG_QUERY_KEYS } from "@/features/moderation/data/mod-log-query-keys";
 import { useInterval } from "@/hooks/useInterval";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
-import { useStickyDismissedPrediction } from "@/features/chat/data/useStickyDismissedPrediction";
-import { registerChatMessageRoute } from "@/features/chat/data/chat-message-router";
+import { useStickyDismissedPrediction } from "@/features/chat/components/hooks/useStickyDismissedPrediction";
+import { registerChatMessageRoute } from "@/features/chat/components/hooks/use-chat-message-router";
 import { logger } from "@/renderer/logging/logger";
 import { router } from "@/routes/router";
 import type { UnifiedPrediction } from "@shared/chat-types";
-import {
-  banKickUserOfficial,
-  type KickModResult,
-  setKickChatMode,
-  timeoutKickUserOfficial,
-  unbanKickUserOfficial,
-} from "../../../../../../backend/api/platforms/kick/kick-mod-mutations";
-import { kickChatService } from "../../../../../../backend/services/chat/kick-chat";
+import type { KickModerationResult } from "@shared/kick-moderation-types";
+import { kickChatService } from "@/features/chat/composition/kick-chat-runtime";
 import {
   resolveKickSubscriberBadges,
   type SubscriberBadge,
-} from "../../../../../../backend/services/chat/kick-parser";
-import { kickPredictionsService } from "../../../../../../backend/services/chat/kick-predictions-service";
-import { substituteThirdPartyEmotes } from "../../../../../../backend/services/chat/third-party-emote-enrich";
-import { initializeKickEmotes } from "../../../../../../backend/services/emotes";
-import { modLogWriter } from "../../../../../../backend/services/mod-log-writer";
-import { useChatRoomState } from "../../../data/useChatRoomState";
-import { useChatSettingsSync } from "../../../data/useChatSettingsSync";
-import { useIsKickMod } from "../../../../moderation/data/useIsKickMod";
+} from "@/features/chat/adapters/browser/kick-parser";
+import { substituteThirdPartyEmotes } from "@/features/chat/domain/third-party-emote-enrich";
+import { initializeKickEmotes } from "@/features/chat/composition/emote-runtime";
+import { kickPredictionsService } from "@/features/chat/adapters/browser/kick-predictions-service";
+import { modLogWriter } from "@/features/moderation/adapters/electron/mod-log-writer";
+import { useChatRoomState } from "../../hooks/useChatRoomState";
+import { useChatSettingsSync } from "../../hooks/useChatSettingsSync";
+import { useIsKickMod } from "../../../../moderation/components/hooks/useIsKickMod";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../../../../shared/auth-types";
 import type {
   ChatConnectionStatus,
@@ -44,15 +44,15 @@ import type {
   UserNotice,
 } from "../../../../../../shared/chat-types";
 import { ChatHighlightKind } from "@streamfusion/core/chat";
-import { useAuthStore } from "../../../../../store/auth-store";
-import { buildChannelKey, useChatStore } from "../../../../../store/chat-store";
+import { useAuthStore } from "../../../../auth/components/state/auth-store";
+import { buildChannelKey, useChatStore } from "../../state/chat-store";
 import {
   primePersistedChatHistoryIntentAsync,
   savePersistedChatHistory,
-} from "../../../../../store/persisted-chat-history";
-import { useEmoteStore } from "../../../../../store/emote-store";
-import { useModeratedChannelsStore } from "../../../../moderation/data/moderated-channels-store";
-import { useRoomStateStore } from "../../../../../store/room-state-store";
+} from "../../state/persisted-chat-history";
+import { useEmoteStore } from "../../state/emote-store";
+import { useModeratedChannelsStore } from "../../../../moderation/components/state/moderated-channels-store";
+import { useRoomStateStore } from "../../state/room-state-store";
 import { useRenderCount } from "../../../../../components/dev/use-render-count";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../../components/ui/tooltip";
 import { ChatComposerFooter } from "../ChatComposerFooter";
@@ -61,8 +61,8 @@ import type {
   ChatCommandAccess,
   ChatCommandDefinition,
   KickModerationEffect,
-} from "../../../utils/chat-command-registry";
-import { runKickCommandEffect } from "../../../utils/kick-command-session";
+} from "../../commands/chat-command-registry";
+import { runKickCommandEffect } from "../../commands/kick-command-session";
 import { ChatMessageList } from "../ChatMessageList";
 import {
   resolveAccountAgeRequirement,
@@ -158,8 +158,8 @@ async function deleteKickMessageViaKickWebSession(
   chatroomId: number,
   messageId: string,
   t: TFunction
-): Promise<KickModResult> {
-  const result = await window.electronAPI.kickChat.deleteMessage(chatroomId, messageId);
+): Promise<KickModerationResult> {
+  const result = await getKickChatController().kickChat.deleteMessage(chatroomId, messageId);
   return kickWebMutationToKickModResult(result, t);
 }
 
@@ -167,8 +167,8 @@ async function banKickUserViaKickWebSession(
   channelSlug: string,
   username: string,
   t: TFunction
-): Promise<KickModResult> {
-  const result = await window.electronAPI.kickChat.banUser(channelSlug, username);
+): Promise<KickModerationResult> {
+  const result = await getKickChatController().kickChat.banUser(channelSlug, username);
   return kickWebMutationToKickModResult(result, t);
 }
 
@@ -176,8 +176,8 @@ async function unbanKickUserViaKickWebSession(
   channelSlug: string,
   username: string,
   t: TFunction
-): Promise<KickModResult> {
-  const result = await window.electronAPI.kickChat.unbanUser(channelSlug, username);
+): Promise<KickModerationResult> {
+  const result = await getKickChatController().kickChat.unbanUser(channelSlug, username);
   return kickWebMutationToKickModResult(result, t);
 }
 
@@ -186,15 +186,19 @@ async function timeoutKickUserViaKickWebSession(
   username: string,
   duration: number,
   t: TFunction
-): Promise<KickModResult> {
-  const result = await window.electronAPI.kickChat.timeoutUser(channelSlug, username, duration);
+): Promise<KickModerationResult> {
+  const result = await getKickChatController().kickChat.timeoutUser(
+    channelSlug,
+    username,
+    duration
+  );
   return kickWebMutationToKickModResult(result, t);
 }
 
 function kickWebMutationToKickModResult(
-  result: Awaited<ReturnType<typeof window.electronAPI.kickChat.deleteMessage>>,
+  result: Awaited<ReturnType<KickChatController["kickChat"]["deleteMessage"]>>,
   t: TFunction
-): KickModResult {
+): KickModerationResult {
   if (result.ok) return { ok: true };
 
   if (result.kind === "auth-expired") {
@@ -277,6 +281,8 @@ export const KickChat: React.FC<KickChatProps> = ({
   const channelKey = buildChannelKey("kick", channel);
   const recentChattersPanelId = useId();
   const [showRecentChatters, setShowRecentChatters] = useState(false);
+  const [connectionRevision, setConnectionRevision] = useState(0);
+  const [chatStartup, setChatStartup] = useState<"loading" | "ready" | "failed">("loading");
 
   // Emote store — actions only; no render-time data needed here.
   const loadGlobalEmotes = useEmoteStore((state) => state.loadGlobalEmotes);
@@ -338,7 +344,7 @@ export const KickChat: React.FC<KickChatProps> = ({
   const viewerAccountCreatedQuery = useQuery({
     queryKey: ["userProfile", "kick", "account-created", kickUser?.id, kickUser?.slug, channel],
     queryFn: () =>
-      window.electronAPI.userProfiles.getKickAccountCreated({
+      getChatProfileReader().userProfiles.getKickAccountCreated({
         userId: String(kickUser!.id),
         username: kickUser!.slug,
         channelSlug: channel,
@@ -422,15 +428,12 @@ export const KickChat: React.FC<KickChatProps> = ({
         sendAction: (message) =>
           kickChatService.sendMessage(channel, `*${message}*`, kickUser ?? undefined),
         moderate: async (effect: KickModerationEffect) => {
-          const token = await window.electronAPI.auth.getToken("kick");
-          if (!token?.accessToken) throw new Error("Sign in to Kick to use this command");
-
           const broadcasterUserId = Number(kickUserId ?? channelId);
           if (!Number.isSafeInteger(broadcasterUserId) || broadcasterUserId < 1) {
             throw new Error("Could not resolve this Kick channel's broadcaster identity");
           }
 
-          const target = await window.electronAPI.userProfiles.resolveKickChannel({
+          const target = await getChatProfileReader().userProfiles.resolveKickChannel({
             username: effect.targetLogin,
           });
           if (target.state !== "known") {
@@ -441,26 +444,23 @@ export const KickChat: React.FC<KickChatProps> = ({
             throw new Error(`Kick returned an invalid identity for @${effect.targetLogin}`);
           }
 
-          let result: KickModResult;
+          let result: KickModerationResult;
           switch (effect.action) {
             case "ban":
-              result = await banKickUserOfficial({
-                accessToken: token.accessToken,
+              result = await getKickChatController().kickChat.moderateBan({
                 broadcasterUserId,
                 userId,
                 ...(effect.reason ? { reason: effect.reason } : {}),
               });
               break;
             case "unban":
-              result = await unbanKickUserOfficial({
-                accessToken: token.accessToken,
+              result = await getKickChatController().kickChat.moderateUnban({
                 broadcasterUserId,
                 userId,
               });
               break;
             case "timeout":
-              result = await timeoutKickUserOfficial({
-                accessToken: token.accessToken,
+              result = await getKickChatController().kickChat.moderateTimeout({
                 broadcasterUserId,
                 userId,
                 duration: effect.durationMinutes,
@@ -489,7 +489,7 @@ export const KickChat: React.FC<KickChatProps> = ({
     async (options: { isCancelled?: () => boolean } = {}) => {
       if (!channel || !kickUser) return;
       try {
-        const result = await window.electronAPI.kickChat.getViewerRole(channel);
+        const result = await getKickChatController().kickChat.getViewerRole(channel);
         if (options.isCancelled?.()) return;
         if (!result.ok) {
           setKickAuthorityResult(channel, {
@@ -647,7 +647,7 @@ export const KickChat: React.FC<KickChatProps> = ({
       }
 
       try {
-        const result = await window.electronAPI.kickChat.pinMessage({
+        const result = await getKickChatController().kickChat.pinMessage({
           channelSlug: channel,
           messageId: message.id,
           chatroomId,
@@ -717,6 +717,7 @@ export const KickChat: React.FC<KickChatProps> = ({
     // Use mounted flag for cleanup with React Strict Mode
     let isMounted = true;
     let sessionGate: ChatMessageGate<ChatMessage> | null = null;
+    setChatStartup("loading");
 
     const connect = async () => {
       try {
@@ -748,7 +749,7 @@ export const KickChat: React.FC<KickChatProps> = ({
               })()
             : Promise.resolve(false);
 
-        const kickToken = await window.electronAPI.auth.getToken("kick");
+        const kickToken = await getChatSessionAccess().auth.getToken("kick");
 
         if (!isMounted) return;
 
@@ -856,6 +857,7 @@ export const KickChat: React.FC<KickChatProps> = ({
           await decorationReady;
           if (!isMounted) return;
           if (liveMessageGateRef.current === gate) gate.open();
+          setChatStartup("ready");
 
           // U1 — wire the predictions service in. Fires a REST seed for any
           // active/recent prediction, subscribes to predictions-channel-{N}
@@ -876,6 +878,7 @@ export const KickChat: React.FC<KickChatProps> = ({
         }
       } catch (error) {
         if (isMounted) {
+          setChatStartup("failed");
           logger.error("UI:Chat:Kick", "failed to connect Kick chat", {
             error: error instanceof Error ? error.message : String(error),
           });
@@ -938,6 +941,7 @@ export const KickChat: React.FC<KickChatProps> = ({
     kickChannelId,
     chatroomId,
     kickUserId,
+    connectionRevision,
     loadGlobalEmotes,
     loadChannelEmotes,
     setActiveChannel,
@@ -1340,6 +1344,11 @@ export const KickChat: React.FC<KickChatProps> = ({
   // pin dialogs stay outside the tab so they overlay regardless of tab.
   const chatBody = (
     <div className="flex flex-col h-full w-full">
+      <KickChatConnectionStatus
+        channel={channel}
+        startup={chatStartup}
+        retry={() => setConnectionRevision((revision) => revision + 1)}
+      />
       {/* Prediction Banner (U6) — read-only viewer widget. Fed by U4 in
           production (TBD) and by ChatSimTool dev injection today. */}
       {showPredictions && activePrediction && (
@@ -1404,7 +1413,7 @@ export const KickChat: React.FC<KickChatProps> = ({
               isMod
                 ? async () => {
                     try {
-                      const result = await window.electronAPI.kickChat.unpinMessage(channel);
+                      const result = await getKickChatController().kickChat.unpinMessage(channel);
                       if (result.ok) {
                         // Optimistic clear. The PinnedMessageDeletedEvent
                         // from Pusher will fire shortly after Kick processes
@@ -1473,7 +1482,7 @@ export const KickChat: React.FC<KickChatProps> = ({
             viewerCanBypassRoomModes={isMod}
             viewerAccountAgeRequirement={viewerAccountAgeRequirement}
             checkSubscriberEligibility={(request) =>
-              window.electronAPI.chat.checkSubscriberEligibility(request)
+              getChatHistoryReader().chat.checkSubscriberEligibility(request)
             }
             showModViewLink={isAuthenticated && isMod}
             onSendEligibilityChange={handleSendEligibilityChange}
@@ -1513,7 +1522,7 @@ export const KickChat: React.FC<KickChatProps> = ({
             ) : null}
           </div>
         ) : (
-          <div className="relative min-h-0 flex-1">
+          <div className="relative flex min-h-0 flex-1 flex-col">
             <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between flex-shrink-0">
               <h2 className="font-semibold flex items-center gap-2">
                 <span className="text-white">{t("chat.chat")}</span>
@@ -1665,31 +1674,23 @@ export const KickChat: React.FC<KickChatProps> = ({
                         toast.success(t("chat.clearedLocalChat"));
                         return;
                       }
-                      let result: KickModResult;
+                      let result: KickModerationResult;
                       if (action.kind === "stripChatMode") {
-                        const token = await window.electronAPI.auth.getToken("kick");
-                        if (!token?.accessToken) {
-                          setPendingModAction(null);
-                          toast.error(t("chat.signInToKickToTakeThisAction"));
-                          return;
-                        }
                         const turnOn = !action.currentlyActive;
                         const seconds =
                           (extraData as { durationSeconds?: number } | undefined)
                             ?.durationSeconds ?? 30;
                         if (action.modeKind === "slow-mode") {
-                          result = await setKickChatMode({
+                          result = await getKickChatController().kickChat.setMode({
                             channelSlug: channel,
-                            accessToken: token.accessToken,
                             update: {
                               slowMode: { enabled: turnOn, seconds: turnOn ? seconds : 0 },
                             },
                           });
                         } else if (action.modeKind === "followers-only") {
                           const minutes = Math.max(0, Math.floor(seconds / 60));
-                          result = await setKickChatMode({
+                          result = await getKickChatController().kickChat.setMode({
                             channelSlug: channel,
-                            accessToken: token.accessToken,
                             update: {
                               followersOnly: {
                                 enabled: turnOn,
@@ -1698,15 +1699,13 @@ export const KickChat: React.FC<KickChatProps> = ({
                             },
                           });
                         } else if (action.modeKind === "subscribers-only") {
-                          result = await setKickChatMode({
+                          result = await getKickChatController().kickChat.setMode({
                             channelSlug: channel,
-                            accessToken: token.accessToken,
                             update: { subscribersOnly: { enabled: turnOn } },
                           });
                         } else {
-                          result = await setKickChatMode({
+                          result = await getKickChatController().kickChat.setMode({
                             channelSlug: channel,
-                            accessToken: token.accessToken,
                             update: { emoteOnly: { enabled: turnOn } },
                           });
                         }
@@ -1735,7 +1734,7 @@ export const KickChat: React.FC<KickChatProps> = ({
                         }
                       } else if (action.kind === "messageScoped") {
                         const username = action.message.username;
-                        let messageResult: KickModResult;
+                        let messageResult: KickModerationResult;
                         switch (action.actionType) {
                           case "ban":
                             messageResult = await banKickUserViaKickWebSession(

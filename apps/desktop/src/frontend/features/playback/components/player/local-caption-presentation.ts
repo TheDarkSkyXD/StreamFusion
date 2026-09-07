@@ -1,6 +1,6 @@
 import type { LocalCaptionResult } from "@shared/local-caption-types";
 
-import type { TimedTextCue } from "./types";
+import type { TimedTextCue } from "../../capabilities/media-types";
 
 const MAX_WORD_HISTORY_SECONDS = 30;
 const MAX_WORD_FUTURE_SECONDS = 1;

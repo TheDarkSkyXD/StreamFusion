@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { useAuthStore } from "@/store/auth-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 
 export function TwitchSessionExpiryNotifier() {
   const { t } = useTranslation();

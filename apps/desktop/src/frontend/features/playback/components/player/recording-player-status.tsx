@@ -1,4 +1,4 @@
-import { useStreamRecordingState } from "@/features/media-library/data/use-stream-recording-state";
+import { useStreamRecordingState } from "@/features/media-library/components/hooks/use-stream-recording-state";
 import { useTranslation } from "react-i18next";
 import {
   formatCapturedDuration,

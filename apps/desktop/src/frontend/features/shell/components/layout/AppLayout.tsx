@@ -15,11 +15,11 @@ import { IoMdSettings } from "react-icons/io";
 import { PersistentPlayerShell } from "@/features/playback/components/player/persistent-player-shell";
 import { RecordingOutcomeBridge } from "@/features/media-library/components/recording/recording-completion-notice";
 import { RecoveryBoundary } from "@/features/shell/components/recovery/RecoveryBoundary";
-import { useNetworkStatus } from "@/features/settings/data/useNetworkStatus";
-import { StreamRecordingProvider } from "@/features/media-library/data/use-stream-recording-state";
+import { useNetworkStatus } from "@/features/settings/components/hooks/useNetworkStatus";
+import { StreamRecordingProvider } from "@/features/media-library/components/hooks/use-stream-recording-state";
 import { cn } from "@/lib/utils";
-import { useAppStore } from "@/store/app-store";
-import { usePipStore } from "@/store/pip-store";
+import { useAppStore } from "@/features/shell/components/state/app-store";
+import { usePipStore } from "@/features/playback/components/state/pip-store";
 
 import { TopNavBar } from "../TopNavBar";
 

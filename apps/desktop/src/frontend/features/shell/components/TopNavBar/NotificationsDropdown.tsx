@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { LuBell, LuCheckCheck, LuX } from "react-icons/lu";
 
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
-import { useNotificationStore } from "@/store/notification-store";
+import { useNotificationStore } from "@/features/shell/components/state/notification-store";
 
 function formatRelativeTime(timestamp: number, t: TFunction): string {
   const elapsedMs = Math.max(0, Date.now() - timestamp);

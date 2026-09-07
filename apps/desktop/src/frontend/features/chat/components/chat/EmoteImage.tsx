@@ -12,7 +12,7 @@
 
 import type React from "react";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
-import type { Emote } from "../../../../../backend/services/emotes/emote-types";
+import type { Emote } from "@/features/chat/capabilities/emote-types";
 import { useOfficialEmoteImageSource } from "./official-emote-image-source";
 import { EmoteTooltip } from "./tooltips/EmoteTooltip";
 

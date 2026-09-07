@@ -1,3 +1,4 @@
+import { getChatModerationController } from "@/features/chat/composition/chat-moderation-controller";
 /**
  * U26 — Engagement → Polls section.
  *
@@ -16,10 +17,10 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { modLogWriter } from "@backend/services/mod-log-writer";
-import { useHelixPoll } from "@/hooks/useHelixPoll";
+import { modLogWriter } from "@/features/moderation/adapters/electron/mod-log-writer";
+import { useHelixPoll } from "@/features/moderation/components/hooks/useHelixPoll";
 import type { TwitchPoll } from "@shared/twitch-api-types";
-import { useAuthStore } from "@/store/auth-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 
 import { ModActionConfirmDialog } from "../ModActionConfirmDialog";
 
@@ -51,7 +52,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
   const twitchUser = useAuthStore((s) => s.twitchUser);
 
   const fetcher = useCallback(async (): Promise<{ data: TwitchPoll[] } | null> => {
-    const result = await window.electronAPI.twitch.execute({
+    const result = await getChatModerationController().twitch.execute({
       operation: "get-polls",
       broadcasterId: channelId,
     });
@@ -95,7 +96,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
     }
     setBusy(true);
     try {
-      const result = await window.electronAPI.twitch.execute({
+      const result = await getChatModerationController().twitch.execute({
         operation: "create-poll",
         broadcasterId: channelId,
         title,
@@ -132,7 +133,7 @@ export function EngagementPolls({ channelId }: EngagementPollsProps) {
     if (!pending || !current) return;
     setBusy(true);
     try {
-      const result = await window.electronAPI.twitch.execute({
+      const result = await getChatModerationController().twitch.execute({
         operation: "end-poll",
         broadcasterId: channelId,
         pollId: current.id,

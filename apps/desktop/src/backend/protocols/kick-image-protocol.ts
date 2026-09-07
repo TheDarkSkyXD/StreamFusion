@@ -8,7 +8,7 @@
  * URL format: kick-image://image?u=<base64url-encoded-original-url>
  *
  * The renderer encodes a Kick CDN URL and sets it on <img src>. The browser
- * fetches via this protocol, which calls kickClient.fetchImageBytes() with the
+ * fetches via this protocol, which calls kickTransport.fetchImageBytes() with the
  * correct Referer/Origin/User-Agent headers to bypass Kick's hotlinking
  * protection.
  */
@@ -67,8 +67,8 @@ export function registerKickImageProtocol(): void {
       return placeholderResponse();
     }
 
-    const { kickClient } = await import("../api/platforms/kick/kick-client");
-    const result = await kickClient.fetchImageBytes(originalUrl);
+    const { kickTransport } = await import("@backend/api/platforms/kick/kick-transport");
+    const result = await kickTransport.fetchImageBytes(originalUrl);
     if (!result) {
       return placeholderResponse();
     }

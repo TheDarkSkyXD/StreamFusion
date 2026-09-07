@@ -1,3 +1,4 @@
+import { getChatSessionAccess } from "@/features/chat/composition/chat-session-access";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 /**
@@ -18,9 +19,9 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
-import type { Emote, EmoteProvider } from "../../../../../backend/services/emotes/emote-types";
+import type { Emote, EmoteProvider } from "@/features/chat/capabilities/emote-types";
 import { useManagedTimeout } from "../../../../hooks/useManagedTimeout";
-import { getEmoteViewerScopeKey, useEmoteStore } from "../../../../store/emote-store";
+import { getEmoteViewerScopeKey, useEmoteStore } from "../state/emote-store";
 import { KickIcon } from "../../../../components/icons/PlatformIcons";
 import { ProxiedImage } from "../../../../components/ui/proxied-image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
@@ -840,7 +841,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
 
   const refreshTwitchUserEmoteScopeStatus =
     useCallback(async (): Promise<TwitchUserEmoteScopeStatus> => {
-      const tokenStatus = window.electronAPI?.auth?.tokenStatus;
+      const tokenStatus = getChatSessionAccess()?.auth?.tokenStatus;
       if (!tokenStatus) {
         setMissingTwitchUserEmoteScope(false);
         return "unknown";
@@ -1276,7 +1277,7 @@ export const EmotePickerPopover: React.FC<EmotePickerPopoverProps> = ({
   );
 
   const handleReconnectTwitch = useCallback(() => {
-    void window.electronAPI.auth
+    void getChatSessionAccess().auth
       .openTwitchLogin()
       .then(async () => {
         const scopeStatus = await refreshTwitchUserEmoteScopeStatus();

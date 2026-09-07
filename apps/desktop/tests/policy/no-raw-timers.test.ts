@@ -30,7 +30,7 @@ const SANCTIONED_FILES = new Set<string>([
   // auto-dismiss setTimeout with an inline `// timer-allowlist: <reason>`
   // marker (or migrate it to useTimeout from @/hooks/useTimeout, since
   // SP2's hook is now available) and remove this entry.
-  "frontend/pages/Settings/index.tsx",
+  "frontend/features/settings/components/screens/Settings/index.tsx",
 ]);
 
 const TIMER_CALL = /\b(setTimeout|setInterval)\s*\(/;
@@ -40,7 +40,7 @@ function walk(dir: string): string[] {
   const out: string[] = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
+    if (entry.isDirectory() && entry.name !== "tests") {
       out.push(...walk(full));
     } else if (/\.(ts|tsx)$/.test(entry.name)) {
       out.push(full);

@@ -1,3 +1,4 @@
+import { getPlaybackMediaReader } from "@/features/playback/composition/playback-media-reader";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import React, { useCallback, useEffect, useState } from "react";
@@ -227,7 +228,7 @@ export function RelatedContent({
       setHasMoreClips(true);
 
       try {
-        const api = window.electronAPI;
+        const api = getPlaybackMediaReader();
         if (!api) return;
 
         const targetTab = activeTab || "home";
@@ -339,7 +340,7 @@ export function RelatedContent({
 
     setIsFetchingMore(true);
     try {
-      const api = window.electronAPI;
+      const api = getPlaybackMediaReader();
       if (!api) {
         logger.error("Stream:Related", "API not available for loading more items");
         return;
@@ -507,7 +508,7 @@ export function RelatedContent({
       setClipError(null);
 
       try {
-        const api = window.electronAPI;
+        const api = getPlaybackMediaReader();
         if (!api) {
           throw new Error("Electron API not found");
         }

@@ -29,7 +29,9 @@ import {
   validateVideoSearch,
 } from "@/features/playback/routes";
 import { SettingsPage, validateSettingsSearch } from "@/features/settings/routes";
-import { APP_SHELL_ROUTE_ID, AppLayout, RecoveryBoundary } from "@/features/shell";
+import { APP_SHELL_ROUTE_ID } from "@/features/shell/routes";
+import { AppLayout } from "@/features/shell/components/layout/AppLayout";
+import { RecoveryBoundary } from "@/features/shell/components/recovery/RecoveryBoundary";
 
 const PageLoader = () => {
   const { t } = useTranslation();

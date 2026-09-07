@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react"
 
 import { createCancellableSleep, type CancellableSleep } from "@shared/utils/sleep";
 
-import type { PlayerError } from "../types";
+import type { PlayerError } from "../../../capabilities/media-types";
 
 const MAX_AUTOMATIC_REFRESHES = 2;
 const RETRY_DELAY_BASE_MS = 1_500;

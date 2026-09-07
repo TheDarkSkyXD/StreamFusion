@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LocalFollow } from "@shared/auth-types";
-import { Platform } from "@streamfusion/core/platform";
 import { IPC_CHANNELS } from "@shared/ipc-channels";
+import { Platform } from "@streamfusion/core/platform";
 import { createIsolatedDatabaseTestLifecycle } from "../../../helpers/database-test-lifecycle";
 
 // Capture ipcMain.handle registrations so we can invoke the FOLLOWS_ADD
@@ -13,8 +13,8 @@ vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
 }));
 
-vi.mock("@backend/services/storage-service", () => ({
-  storageService: {
+vi.mock("@backend/features/authentication/data/authentication-repository", () => ({
+  authenticationRepository: {
     hasToken: vi.fn(),
     addLocalFollow: vi.fn(),
     getActiveFollowsByPlatform: vi.fn(),
@@ -25,9 +25,9 @@ vi.mock("@backend/services/storage-service", () => ({
 
 import { app, ipcMain } from "electron";
 
-import { registerStorageHandlers } from "@backend/ipc/handlers/storage-handlers";
+import { authenticationRepository } from "@backend/features/authentication/data/authentication-repository";
+import { registerFollowRoutes } from "@backend/features/authentication/routes/follow-routes";
 import { dbService } from "@backend/services/database-service";
-import { storageService } from "@backend/services/storage-service";
 
 type AddArgs = { follow: Omit<LocalFollow, "id" | "followedAt"> };
 type Handler = (event: unknown, args?: unknown) => unknown;
@@ -58,8 +58,8 @@ function makeFollow(platform: Platform): AddArgs["follow"] {
 beforeEach(() => {
   vi.clearAllMocks();
   databaseLifecycle.initialize();
-  vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([]);
-  vi.mocked(storageService.getLocalFollowsByPlatform).mockReturnValue([]);
+  vi.mocked(authenticationRepository.getActiveFollowsByPlatform).mockReturnValue([]);
+  vi.mocked(authenticationRepository.getLocalFollowsByPlatform).mockReturnValue([]);
 });
 
 afterEach(() => {
@@ -70,59 +70,63 @@ afterEach(() => {
 // Guards: rejected account-follow details stay behind the IPC boundary and return only a diagnostic ID.
 describe("storage-handlers FOLLOWS_ADD — per-platform source routing", () => {
   it("signed in to Twitch -> rejects local add instead of creating a fake account follow", () => {
-    vi.mocked(storageService.hasToken).mockImplementation((p: Platform) => p === "twitch");
-    registerStorageHandlers();
+    vi.mocked(authenticationRepository.hasToken).mockImplementation(
+      (p: Platform) => p === "twitch"
+    );
+    registerFollowRoutes();
 
     const follow = makeFollow("twitch");
     expect(() => getHandler(IPC_CHANNELS.FOLLOWS_ADD)({}, { follow })).toThrow(
       "IPC request failed"
     );
 
-    expect(storageService.hasToken).toHaveBeenCalledWith("twitch");
-    expect(storageService.addLocalFollow).not.toHaveBeenCalled();
+    expect(authenticationRepository.hasToken).toHaveBeenCalledWith("twitch");
+    expect(authenticationRepository.addLocalFollow).not.toHaveBeenCalled();
   });
 
   it("signed in to Kick -> rejects local add instead of creating a fake account follow", () => {
-    vi.mocked(storageService.hasToken).mockImplementation((p: Platform) => p === "kick");
-    registerStorageHandlers();
+    vi.mocked(authenticationRepository.hasToken).mockImplementation((p: Platform) => p === "kick");
+    registerFollowRoutes();
 
     const follow = makeFollow("kick");
     expect(() => getHandler(IPC_CHANNELS.FOLLOWS_ADD)({}, { follow })).toThrow(
       "IPC request failed"
     );
 
-    expect(storageService.addLocalFollow).not.toHaveBeenCalled();
+    expect(authenticationRepository.addLocalFollow).not.toHaveBeenCalled();
   });
 
   it("signed out of the channel's platform → writes source='guest'", () => {
-    vi.mocked(storageService.hasToken).mockReturnValue(false);
-    registerStorageHandlers();
+    vi.mocked(authenticationRepository.hasToken).mockReturnValue(false);
+    registerFollowRoutes();
 
     const follow = makeFollow("kick");
     getHandler(IPC_CHANNELS.FOLLOWS_ADD)({}, { follow });
 
-    expect(storageService.addLocalFollow).toHaveBeenCalledWith(follow, "guest");
+    expect(authenticationRepository.addLocalFollow).toHaveBeenCalledWith(follow, "guest");
   });
 
   it("routes per the channel's OWN platform: signed in to Twitch only, following a Kick channel → 'guest'", () => {
     // hasToken true for twitch, false for kick. A Kick follow must be 'guest'
     // because the routing checks follow.platform, not "any signed-in platform".
-    vi.mocked(storageService.hasToken).mockImplementation((p: Platform) => p === "twitch");
-    registerStorageHandlers();
+    vi.mocked(authenticationRepository.hasToken).mockImplementation(
+      (p: Platform) => p === "twitch"
+    );
+    registerFollowRoutes();
 
     const kickFollow = makeFollow("kick");
     getHandler(IPC_CHANNELS.FOLLOWS_ADD)({}, { follow: kickFollow });
-    expect(storageService.addLocalFollow).toHaveBeenCalledWith(kickFollow, "guest");
+    expect(authenticationRepository.addLocalFollow).toHaveBeenCalledWith(kickFollow, "guest");
 
     const twitchFollow = makeFollow("twitch");
     expect(() => getHandler(IPC_CHANNELS.FOLLOWS_ADD)({}, { follow: twitchFollow })).toThrow(
       "IPC request failed"
     );
-    expect(storageService.addLocalFollow).toHaveBeenCalledOnce();
+    expect(authenticationRepository.addLocalFollow).toHaveBeenCalledOnce();
   });
 
   it("returns whatever addLocalFollow returns (pass-through)", () => {
-    vi.mocked(storageService.hasToken).mockReturnValue(false);
+    vi.mocked(authenticationRepository.hasToken).mockReturnValue(false);
     const row = {
       id: "x",
       platform: "kick",
@@ -133,8 +137,8 @@ describe("storage-handlers FOLLOWS_ADD — per-platform source routing", () => {
       followedAt: "t",
       source: "guest",
     } as LocalFollow;
-    vi.mocked(storageService.addLocalFollow).mockReturnValue(row);
-    registerStorageHandlers();
+    vi.mocked(authenticationRepository.addLocalFollow).mockReturnValue(row);
+    registerFollowRoutes();
 
     const result = getHandler(IPC_CHANNELS.FOLLOWS_ADD)({}, { follow: makeFollow("kick") });
     expect(result).toBe(row);
@@ -166,11 +170,13 @@ describe("storage-handlers follow reads", () => {
       source: "guest",
     } as LocalFollow;
 
-    vi.mocked(storageService.getActiveFollowsByPlatform).mockImplementation((platform) => {
-      if (platform === "twitch") return [twitchFollow];
-      return [kickFollow];
-    });
-    registerStorageHandlers();
+    vi.mocked(authenticationRepository.getActiveFollowsByPlatform).mockImplementation(
+      (platform) => {
+        if (platform === "twitch") return [twitchFollow];
+        return [kickFollow];
+      }
+    );
+    registerFollowRoutes();
 
     const result = getHandler(IPC_CHANNELS.FOLLOWS_GET_ALL)({});
 
@@ -179,7 +185,7 @@ describe("storage-handlers follow reads", () => {
       "twitchy",
       "kick-channel",
     ]);
-    expect(storageService.getActiveFollowsByPlatform).toHaveBeenCalledTimes(2);
+    expect(authenticationRepository.getActiveFollowsByPlatform).toHaveBeenCalledTimes(2);
   });
 
   it("returns one platform from the same local read boundary", () => {
@@ -193,13 +199,13 @@ describe("storage-handlers follow reads", () => {
       followedAt: "2026-01-01T00:00:00.000Z",
       source: "kick",
     } as LocalFollow;
-    vi.mocked(storageService.getActiveFollowsByPlatform).mockReturnValue([kickFollow]);
-    registerStorageHandlers();
+    vi.mocked(authenticationRepository.getActiveFollowsByPlatform).mockReturnValue([kickFollow]);
+    registerFollowRoutes();
 
     const result = getHandler(IPC_CHANNELS.FOLLOWS_GET_BY_PLATFORM)({}, { platform: "kick" });
 
     expect(result).not.toBeInstanceOf(Promise);
     expect(result).toEqual([kickFollow]);
-    expect(storageService.getActiveFollowsByPlatform).toHaveBeenCalledOnce();
+    expect(authenticationRepository.getActiveFollowsByPlatform).toHaveBeenCalledOnce();
   });
 });

@@ -1,77 +1,33 @@
-# BACKEND (Main Process)
+# Backend (Electron main process)
 
-**Read this file before modifying code in this directory.**
+Read this file before modifying backend code. The main process owns privileged Electron work, IPC registration, provider credentials, persistence, and runtime bootstrap. It never owns renderer components, browser-safe socket lifecycles, React state, or page routing.
 
-## Purpose
+## Feature layout
 
-Owns the Electron main process: IPC handler registration, OAuth flows, token management, window lifecycle, and service orchestration. Does NOT own: renderer components, React hooks, Zustand stores, or page routing.
+Feature-owned main-process code lives in `features/<feature>/`:
 
-## OVERVIEW
-
-Electron main process: IPC handlers, platform APIs, auth, persistence.
-
-## STRUCTURE
-
-```
-backend/
-├── ipc-handlers.ts          # Registers all IPC handlers
-├── window-manager.ts        # BrowserWindow creation
-├── ipc/handlers/            # Modular handlers by domain
-│   ├── auth-handlers.ts     # Token ops, OAuth callbacks
-│   ├── stream-handlers.ts   # Live stream resolution
-│   ├── video-handlers.ts    # VODs, clips (largest file)
-│   ├── search-handlers.ts   # Unified search
-│   ├── category-handlers.ts # Browse categories
-│   └── storage-handlers.ts  # Preferences
-├── auth/                    # OAuth implementations
-│   ├── twitch-auth.ts       # Twitch OAuth2
-│   ├── kick-auth.ts         # Kick OAuth2
-│   ├── device-code-flow.ts  # Twitch DCF (TV-style)
-│   └── protocol-handler.ts  # streamfusion:// handler
-├── api/                     # Platform clients
-│   └── platforms/           # (see platforms/AGENTS.md)
-└── services/
-    ├── storage-service.ts   # electron-store wrapper
-    └── database-service.ts  # SQLite (better-sqlite3)
+```text
+routes/          thin IPC and transport entry points
+components/      feature UI, empty in the main process
+domain/          pure workflows and feature policy
+capabilities/    provider-neutral ports
+adapters/        Electron, Node, and provider implementations
+data/            feature persistence queries and mappers
+utils/           feature-private pure helpers
+composition/     dependency wiring only
+tests/           feature-owned tests
 ```
 
-## WHERE TO LOOK
+Keep the existing `main/`, `preload/`, `startup/`, `ipc/`, `api/`, `services/`, and `utility/` paths only for runtime roots or genuinely cross-feature infrastructure. Do not add feature behavior back to their flat legacy directories.
 
-| Task              | File                           | Notes                         |
-| ----------------- | ------------------------------ | ----------------------------- |
-| New IPC operation | `ipc/handlers/*.ts`            | Group by domain               |
-| Token storage     | `services/storage-service.ts`  | Uses `safeStorage` encryption |
-| Local follows     | `services/database-service.ts` | SQLite schema                 |
-| Window settings   | `window-manager.ts`            | frame:false, contextIsolation |
+## IPC and process boundaries
 
-## CONVENTIONS
+Routes parse payloads, validate sender origin for privileged operations, call a workflow, and map its result. Put channel constants and cross-process contracts in `shared/`; renderer callers use the allowlisted preload bridge. Never import a main adapter into frontend code, and never import a browser-safe frontend service into backend code.
 
-### Handler Registration
+Use `MainRendererPort` for main-to-renderer notifications. Keep `WebContentsView` slot bridges narrow. `shared/` must not import Electron, backend, or frontend modules.
 
-```typescript
-export function registerXxxHandlers(mainWindow: BrowserWindow): void {
-  ipcMain.handle(IPC_CHANNELS.XXX, async (_event, payload) => {
-    // ...
-  });
-}
-```
+## Persistence and providers
 
-### Platform Branching
+SQLite and electron-store drivers remain shared infrastructure. Feature repositories own SQL, keys, serializers, and mappers in their `data/` directories. Provider adapters implement feature capabilities; domain modules never depend on Electron, a provider SDK, or concrete persistence.
 
-Handlers use `if (platform === 'twitch') {} else {}` pattern. Consider refactoring to strategy pattern.
-
-### Error Handling
-
-Return `{ success: false, error: { code, message } }` for failures.
-
-## ANTI-PATTERNS
-
-- **video-handlers.ts** (660 lines) - High complexity, candidate for splitting
-- **search-handlers.ts** - Duplicated verification logic for Twitch/Kick
-- Kick client mixes transport with business logic (God Object)
-
-## NOTES
-
-- Handlers are registered once in `registerIpcHandlers(mainWindow)`
-- All handlers use `ipcMain.handle` (invoke pattern, not send/on)
-- Token refresh handled transparently in requestors
+Keep OAuth tokens and secrets in main. The only raw-token exception is the explicitly allowlisted Twitch IRC/Hermes bridge. Do not return credentials through general IPC APIs.

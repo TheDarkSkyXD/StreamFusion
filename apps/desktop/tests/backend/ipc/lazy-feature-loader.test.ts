@@ -1,8 +1,8 @@
 import { EventEmitter } from "node:events";
 
+import type { MainRendererPort } from "@backend/ipc/main-renderer-port";
 import type { BrowserWindow, WebContents } from "electron";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { MainRendererPort } from "@backend/ipc/main-renderer-port";
 
 const disposeLocalCaptionRuntime = vi.hoisted(() => vi.fn());
 const ensurePlaybackRuntime = vi.hoisted(() => vi.fn());
@@ -23,8 +23,8 @@ const resumePendingWrites = vi.hoisted(() => vi.fn());
 const scheduleKickRefresh = vi.hoisted(() => vi.fn());
 const scheduleTwitchRefresh = vi.hoisted(() => vi.fn());
 const powerMonitor = vi.hoisted(() => ({ on: vi.fn(), removeListener: vi.fn() }));
-const twitchClient = vi.hoisted(() => ({ platform: "twitch" as const }));
-const kickClient = vi.hoisted(() => ({ platform: "kick" as const }));
+const twitchDiscovery = vi.hoisted(() => ({ platform: "twitch" as const }));
+const kickDiscovery = vi.hoisted(() => ({ platform: "kick" as const }));
 
 vi.mock("electron", () => ({ powerMonitor }));
 vi.mock("@backend/logging/log-paths", () => ({ getBugReportsDir: () => "bug-reports" }));
@@ -34,46 +34,74 @@ vi.mock("@backend/logging/logger", () => ({
 vi.mock("@backend/services/storage-service", () => ({
   storageService: { getPreferences: () => ({ proxy: { enabled: false } }) },
 }));
+vi.mock("@backend/features/settings/data/preferences-repository", () => ({
+  preferencesRepository: { getPreferences: () => ({ proxy: { enabled: false } }) },
+}));
 vi.mock("@backend/startup/playback-runtime", () => ({ ensurePlaybackRuntime }));
-vi.mock("@backend/services/captions/local-caption-runtime", () => ({
+vi.mock("@backend/features/playback/composition/local-caption-runtime", () => ({
   disposeLocalCaptionRuntime,
   getLocalCaptionRuntime,
 }));
-vi.mock("@backend/ipc/handlers/auth-handlers", () => ({ registerAuthHandlers }));
-vi.mock("@backend/auth/auth-window", () => ({
+vi.mock("@backend/features/authentication/routes/auth-routes", () => ({ registerAuthHandlers }));
+vi.mock("@backend/features/authentication/adapters/electron/auth-window", () => ({
   authWindowManager: { closeAllAuthWindows: vi.fn() },
 }));
-vi.mock("@backend/auth/kick-auth", () => ({
+vi.mock("@backend/features/authentication/adapters/kick/kick-auth", () => ({
   kickAuthService: { onSystemResume: vi.fn(), scheduleProactiveRefresh: scheduleKickRefresh },
 }));
-vi.mock("@backend/auth/twitch-auth", () => ({
+vi.mock("@backend/features/authentication/adapters/twitch/twitch-auth", () => ({
   twitchAuthService: { onSystemResume: vi.fn(), scheduleProactiveRefresh: scheduleTwitchRefresh },
 }));
-vi.mock("@backend/services/kick-follow-write-service", () => ({
+vi.mock("@backend/features/authentication/adapters/kick/kick-follow-write-service", () => ({
   kickFollowWriteService: { resumePendingWrites },
 }));
-vi.mock("@backend/ipc/handlers/storage-handlers", () => ({ attachKickFollowWriteService }));
-vi.mock("@backend/ipc/handlers/adblock-handlers", () => ({ registerAdBlockHandlers }));
-vi.mock("@backend/ipc/handlers/category-handlers", () => ({ registerCategoryHandlers }));
-vi.mock("@backend/ipc/handlers/connectivity-handlers", () => ({
+vi.mock("@backend/features/authentication/routes/follow-routes", () => ({
+  attachKickFollowWriteService,
+  registerFollowRoutes: vi.fn(),
+}));
+vi.mock("@backend/features/playback/routes/adblock-routes", () => ({ registerAdBlockHandlers }));
+vi.mock("@backend/features/discovery/routes/category-routes", () => ({ registerCategoryHandlers }));
+vi.mock("@backend/features/shell/routes/connectivity-routes", () => ({
   registerConnectivityHandlers,
 }));
-vi.mock("@backend/ipc/handlers/download-handlers", () => ({ registerDownloadHandlers }));
-vi.mock("@backend/ipc/handlers/local-caption-handlers", () => ({
+vi.mock("@backend/features/media-library/routes/download-routes", () => ({
+  registerDownloadHandlers,
+}));
+vi.mock("@backend/features/playback/routes/local-caption-routes", () => ({
   registerLocalCaptionHandlers,
 }));
-vi.mock("@backend/ipc/handlers/search-handlers", () => ({ registerSearchHandlers }));
-vi.mock("@backend/ipc/handlers/stream-handlers", () => ({ registerStreamHandlers }));
-vi.mock("@backend/ipc/handlers/video-handlers", () => ({ registerVideoHandlers }));
-vi.mock("@backend/services/kick-follow-metadata-refresh", () => ({
+vi.mock("@backend/features/discovery/routes/search-routes", () => ({ registerSearchHandlers }));
+vi.mock("@backend/features/discovery/routes/stream-routes", () => ({ registerStreamHandlers }));
+vi.mock("@backend/features/playback/routes/video-routes", () => ({ registerVideoHandlers }));
+vi.mock("@backend/features/authentication/adapters/kick/kick-follow-metadata-refresh", () => ({
   startKickFollowMetadataRefresh,
   stopKickFollowMetadataRefresh,
 }));
-vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({ twitchClient }));
-vi.mock("@backend/api/platforms/kick/kick-client", () => ({ kickClient }));
+vi.mock("@backend/features/discovery/composition/twitch-discovery", () => ({
+  twitchDiscovery: twitchDiscovery,
+}));
+vi.mock("@backend/features/authentication/composition/twitch-account-reader", () => ({
+  twitchAccountReader: twitchDiscovery,
+}));
+vi.mock("@backend/features/playback/composition/twitch-playback", () => ({
+  twitchPlayback: twitchDiscovery,
+}));
+vi.mock("@backend/api/platforms/twitch/twitch-transport", () => ({
+  twitchTransport: twitchDiscovery,
+}));
+vi.mock("@backend/features/discovery/composition/kick-discovery", () => ({
+  kickDiscovery: kickDiscovery,
+}));
+vi.mock("@backend/features/authentication/composition/kick-account-reader", () => ({
+  kickAccountReader: kickDiscovery,
+}));
+vi.mock("@backend/features/playback/composition/kick-playback", () => ({
+  kickPlayback: kickDiscovery,
+}));
+vi.mock("@backend/api/platforms/kick/kick-transport", () => ({ kickTransport: kickDiscovery }));
 
-import { isIpcFeature, loadIpcFeature } from "@backend/ipc/lazy-feature-loader";
 import { registerFeatureRollback } from "@backend/ipc/feature-registration-transaction";
+import { isIpcFeature, loadIpcFeature } from "@backend/ipc/lazy-feature-loader";
 import { logger } from "@backend/logging/logger";
 import { runLoadedFeatureCleanups } from "@backend/startup/loaded-feature-cleanup";
 import { IPC_FEATURES } from "@shared/ipc-channels";
@@ -119,7 +147,7 @@ describe("lazy IPC feature loader", () => {
     await loadIpcFeature(IPC_FEATURES.CATEGORIES, featureContext);
     expect(registerCategoryHandlers).toHaveBeenCalledOnce();
     expect(registerCategoryHandlers).toHaveBeenCalledWith({
-      readers: { twitch: twitchClient, kick: kickClient },
+      readers: { twitch: twitchDiscovery, kick: kickDiscovery },
     });
   });
 
@@ -127,9 +155,9 @@ describe("lazy IPC feature loader", () => {
     await loadIpcFeature(IPC_FEATURES.STREAMS, featureContext);
 
     expect(registerStreamHandlers).toHaveBeenCalledWith({
-      readers: { twitch: twitchClient, kick: kickClient },
-      followedReaders: { twitch: twitchClient, kick: kickClient },
-      categoryReaders: { twitch: twitchClient, kick: kickClient },
+      readers: { twitch: twitchDiscovery, kick: kickDiscovery },
+      followedReaders: { twitch: twitchDiscovery, kick: kickDiscovery },
+      categoryReaders: { twitch: twitchDiscovery, kick: kickDiscovery },
     });
     expect(startKickFollowMetadataRefresh).toHaveBeenCalledOnce();
   });
@@ -138,7 +166,7 @@ describe("lazy IPC feature loader", () => {
     await loadIpcFeature(IPC_FEATURES.AUTH, featureContext);
 
     expect(registerAuthHandlers).toHaveBeenCalledWith(featureContext.renderer, {
-      followReaders: { twitch: twitchClient, kick: kickClient },
+      followReaders: { twitch: twitchDiscovery, kick: kickDiscovery },
     });
     expect(attachKickFollowWriteService).toHaveBeenCalledWith(
       expect.anything(),
@@ -150,7 +178,8 @@ describe("lazy IPC feature loader", () => {
     await loadIpcFeature(IPC_FEATURES.SEARCH, featureContext);
 
     expect(registerSearchHandlers).toHaveBeenCalledWith({
-      readers: { twitch: twitchClient, kick: kickClient },
+      contentReaders: { twitch: twitchDiscovery, kick: kickDiscovery },
+      readers: { twitch: twitchDiscovery, kick: kickDiscovery },
     });
   });
 
@@ -158,7 +187,7 @@ describe("lazy IPC feature loader", () => {
     await loadIpcFeature(IPC_FEATURES.VIDEOS, featureContext);
 
     expect(registerVideoHandlers).toHaveBeenCalledWith({
-      readers: { twitch: twitchClient, kick: kickClient },
+      readers: { twitch: twitchDiscovery, kick: kickDiscovery },
     });
   });
 

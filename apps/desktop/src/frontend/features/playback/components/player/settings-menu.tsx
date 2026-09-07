@@ -19,13 +19,13 @@ import type {
   LocalCaptionModelState,
   LocalCaptionRecognizerPhase,
 } from "@shared/local-caption-types";
-import { useAuthStore } from "@/store/auth-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 
 import { Button } from "../../../../components/ui/button";
 import { Switch } from "../../../../components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 
-import { LOCAL_LIVE_CAPTION_TRACK, type QualityLevel, type TimedTextTrack } from "./types";
+import { LOCAL_LIVE_CAPTION_TRACK, type QualityLevel, type TimedTextTrack } from "../../capabilities/media-types";
 
 export interface SettingsMenuProps {
   qualities: QualityLevel[];

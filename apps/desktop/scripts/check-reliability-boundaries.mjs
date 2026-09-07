@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const desktopRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const ipcRoot = join(desktopRoot, "src", "backend", "ipc");
+const featureRoot = join(desktopRoot, "src", "backend", "features");
 const contractRoot = join(desktopRoot, "src", "shared", "ipc-contracts");
 
 function listFiles(directory) {
@@ -28,11 +29,13 @@ let directHandles = 0;
 let trustedRoutes = 0;
 let guardedLegacyRoutes = 0;
 
-for (const path of listFiles(ipcRoot).filter((path) => extname(path) === ".ts")) {
+for (const path of [...listFiles(ipcRoot), ...listFiles(featureRoot)].filter(
+  (path) => extname(path) === ".ts" && !/[\\/]tests[\\/]/.test(path)
+)) {
   const name = relative(desktopRoot, path).replaceAll("\\", "/");
   const source = sourceWithoutComments(path);
   trustedRoutes += count(source, /\bregistry\s*\.\s*handle\s*\(/g);
-  if (name.startsWith("src/backend/ipc/handlers/")) {
+  if (name.startsWith("src/backend/ipc/handlers/") || /^src\/backend\/features\/[^/]+\/routes\//.test(name)) {
     guardedLegacyRoutes += count(source, /\bipcMain\s*\.\s*handle\s*\(/g);
   }
 

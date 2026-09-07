@@ -5,9 +5,7 @@ import { channelsMatch } from "@streamfusion/core/platform";
 import { Platform } from "@streamfusion/core/platform";
 
 import { measureCacheInvalidationDispatch } from "./cache-performance";
-import { CHANNEL_KEYS } from "./useChannels";
-import { FOLLOWED_CONTENT_KEYS } from "./useFollowedContent";
-import { STREAM_KEYS } from "./useStreams";
+import { DISCOVERY_CACHE_KEYS } from "./query-keys";
 
 type CacheInvalidationClient = Pick<QueryClient, "invalidateQueries" | "removeQueries">;
 type AuthoritativeFollowCacheClient = Pick<
@@ -60,13 +58,13 @@ function filterFollowedStreamCache(
 }
 
 function invalidateFollowedStreams(client: CacheInvalidationClient, platform: Platform): void {
-  client.invalidateQueries({ queryKey: STREAM_KEYS.followed(platform) });
-  client.invalidateQueries({ queryKey: STREAM_KEYS.followed() });
+  client.invalidateQueries({ queryKey: DISCOVERY_CACHE_KEYS.streams.followed(platform) });
+  client.invalidateQueries({ queryKey: DISCOVERY_CACHE_KEYS.streams.followed() });
 }
 
 function removeFollowedStreams(client: CacheInvalidationClient, platform: Platform): void {
-  client.removeQueries({ queryKey: STREAM_KEYS.followed(platform) });
-  client.removeQueries({ queryKey: STREAM_KEYS.followed() });
+  client.removeQueries({ queryKey: DISCOVERY_CACHE_KEYS.streams.followed(platform) });
+  client.removeQueries({ queryKey: DISCOVERY_CACHE_KEYS.streams.followed() });
 }
 
 export function invalidateFollowCachesAfterMutation(
@@ -74,9 +72,9 @@ export function invalidateFollowCachesAfterMutation(
   platform: Platform
 ): void {
   measureCacheInvalidationDispatch(`follow-mutation:${platform}`, () => {
-    client.invalidateQueries({ queryKey: CHANNEL_KEYS.followed(platform) });
+    client.invalidateQueries({ queryKey: DISCOVERY_CACHE_KEYS.channels.followed(platform) });
     invalidateFollowedStreams(client, platform);
-    client.invalidateQueries({ queryKey: FOLLOWED_CONTENT_KEYS.all });
+    client.invalidateQueries({ queryKey: DISCOVERY_CACHE_KEYS.followedContent });
   });
 }
 
@@ -85,8 +83,8 @@ export function applyAuthoritativeFollowCaches(
   platform: Platform,
   authoritativeChannels: readonly UnifiedChannel[]
 ): void {
-  client.setQueryData(CHANNEL_KEYS.followed(platform), authoritativeChannels);
-  client.setQueriesData({ queryKey: [...STREAM_KEYS.all, "followed"] }, (cached) =>
+  client.setQueryData(DISCOVERY_CACHE_KEYS.channels.followed(platform), authoritativeChannels);
+  client.setQueriesData({ queryKey: [...DISCOVERY_CACHE_KEYS.streams.all, "followed"] }, (cached) =>
     filterFollowedStreamCache(cached, platform, authoritativeChannels)
   );
   invalidateFollowCachesAfterMutation(client, platform);
@@ -97,9 +95,9 @@ export function removePlatformAccountCaches(
   platform: Platform
 ): void {
   measureCacheInvalidationDispatch(`account-cache-remove:${platform}`, () => {
-    client.removeQueries({ queryKey: CHANNEL_KEYS.followed(platform) });
+    client.removeQueries({ queryKey: DISCOVERY_CACHE_KEYS.channels.followed(platform) });
     removeFollowedStreams(client, platform);
-    client.removeQueries({ queryKey: FOLLOWED_CONTENT_KEYS.all });
+    client.removeQueries({ queryKey: DISCOVERY_CACHE_KEYS.followedContent });
   });
 }
 
@@ -109,10 +107,10 @@ export function invalidatePlatformRecoveryCaches(
 ): void {
   measureCacheInvalidationDispatch(`platform-recovery:${platform}`, () => {
     client.invalidateQueries({
-      queryKey: STREAM_KEYS.all,
+      queryKey: DISCOVERY_CACHE_KEYS.streams.all,
       predicate: (query) => {
         const key = query.queryKey;
-        if (key[0] !== STREAM_KEYS.all[0]) return false;
+        if (key[0] !== DISCOVERY_CACHE_KEYS.streams.all[0]) return false;
         return key.includes(platform) || key.includes(undefined);
       },
     });

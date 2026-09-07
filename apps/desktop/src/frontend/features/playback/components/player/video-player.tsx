@@ -14,7 +14,7 @@ import { usePlayerKeyboard } from "./hooks/use-player-keyboard";
 import { useResumePlayback } from "./hooks/use-resume-playback";
 import { useVolume } from "./hooks/use-volume";
 import { PlayerControls } from "./player-controls";
-import type { PlayerError, QualityLevel } from "./types";
+import type { PlayerError, QualityLevel } from "../../capabilities/media-types";
 
 export interface VideoPlayerProps {
   streamUrl: string;

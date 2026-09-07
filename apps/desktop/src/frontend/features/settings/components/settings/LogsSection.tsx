@@ -1,3 +1,4 @@
+import { getLogReader } from "@/features/settings/composition/settings-services";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -15,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useInterval } from "@/hooks/useInterval";
 import { cn } from "@/lib/utils";
-import { translateSettings } from "@/features/settings/utils/settings-translation";
+import { translateSettings } from "@/features/settings/components/presentation/settings-translation";
 
 type LogFile = "main" | "noise" | "network";
 type LogLevel = "all" | "debug" | "info" | "warn" | "error";
@@ -250,7 +251,7 @@ export function LogsSection() {
   // Initial path probe: also drives whether the noise file is selectable.
   useEffect(() => {
     let cancelled = false;
-    const api = window.electronAPI?.logs;
+    const api = getLogReader();
     if (!api) return;
     void api
       .getCurrentPath()
@@ -282,7 +283,7 @@ export function LogsSection() {
   }, []);
 
   const fetchTail = useCallback(async () => {
-    const api = window.electronAPI?.logs;
+    const api = getLogReader();
     if (!api) return;
     setLoading(true);
     try {
@@ -347,7 +348,7 @@ export function LogsSection() {
   const canUseTableView = file === "network";
 
   const handleOpenFolder = useCallback(async () => {
-    const api = window.electronAPI?.logs;
+    const api = getLogReader();
     if (!api) return;
     try {
       const result = await api.openFolder();

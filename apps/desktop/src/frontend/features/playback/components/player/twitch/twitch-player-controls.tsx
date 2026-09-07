@@ -8,7 +8,7 @@ import { Button } from "../../../../../components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../../components/ui/tooltip";
 import { PlayPauseButton } from "../play-pause-button";
 import { SettingsMenu } from "../settings-menu";
-import type { QualityLevel } from "../types";
+import type { QualityLevel } from "../../../capabilities/media-types";
 import { VolumeControl } from "../volume-control";
 
 import { TwitchProgressBar } from "./twitch-progress-bar";

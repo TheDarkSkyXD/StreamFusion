@@ -1,9 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { LuMessageSquareText, LuX } from "react-icons/lu";
-import type { ChatReplayPlaybackStore } from "../../data/chat-replay-playback-store";
-import { useChatReplayPlaybackSnapshot } from "../../data/chat-replay-playback-store";
-import { useChatReplay } from "../../data/use-chat-replay";
+import type { ChatReplayPlaybackStore } from "../state/chat-replay-playback-store";
+import { useChatReplayPlaybackSnapshot } from "../state/chat-replay-playback-store";
+import { useChatReplay } from "../hooks/use-chat-replay";
 import { Platform } from "@streamfusion/core/platform";
 import type { ChatReplayWindowRequest } from "../../../../../shared/chat-replay-types";
 import { ChatReplayRail } from "./chat-replay-rail";

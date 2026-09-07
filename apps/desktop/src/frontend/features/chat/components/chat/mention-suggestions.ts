@@ -1,6 +1,6 @@
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
-import { buildChannelKey, useChatStore } from "../../../../store/chat-store";
-import { getMentionRange, type MentionRange } from "../../utils/mention-completion";
+import { buildChannelKey, useChatStore } from "../state/chat-store";
+import { getMentionRange, type MentionRange } from "../../domain/commands/mention-completion";
 
 export interface RecentChatter {
   readonly userId: string;

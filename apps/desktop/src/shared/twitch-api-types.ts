@@ -1,3 +1,4 @@
+import type { ModerationReadCommand } from "./moderation-types";
 export interface ResolvedTwitchChannel {
   id: string;
   login: string;
@@ -141,6 +142,7 @@ export interface TwitchSlashCommandReceipt {
 }
 
 export type TwitchApiCommand =
+  | ModerationReadCommand
   | {
       operation: "execute-slash-command";
       channel: { id: string; login: string };
@@ -269,5 +271,8 @@ export type TwitchApiResult<T = unknown> =
   | {
       ok: false;
       kind?: string;
-      error: { code: "unauthorized" | "invalid-input" | "unavailable"; message: string };
+      error: {
+        code: "unauthorized" | "invalid-input" | "unavailable" | "forbidden" | "missing-scope";
+        message: string;
+      };
     };

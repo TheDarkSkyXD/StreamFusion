@@ -1,7 +1,14 @@
+import type {
+  UnifiedCategory,
+  UnifiedChannel,
+  UnifiedClip,
+  UnifiedStream,
+  UnifiedVideo,
+} from "./platform-types";
 import type { Platform } from "@streamfusion/core/platform";
 import type {
-  SearchIntent,
   ProgressiveDiscoveryEndReason as StreamSearchEndReason,
+  SearchIntent,
 } from "@streamfusion/core/discovery";
 
 export interface SearchAllRequest extends SearchIntent {
@@ -77,7 +84,12 @@ export interface SearchStreamsResponse<TStream = unknown> {
 }
 
 export type SearchPlatformStatus =
-  "loading" | "retrying" | "exhausted" | "limited" | "failed" | "cancelled";
+  | "loading"
+  | "retrying"
+  | "exhausted"
+  | "limited"
+  | "failed"
+  | "cancelled";
 
 export interface SearchPlatformError {
   platform: Platform;
@@ -93,4 +105,13 @@ export interface SearchPlatformEnvelope<TData> {
   retryable: boolean;
   error: SearchPlatformError | null;
   data: TData;
+}
+
+/** Cross-process response shape for unified discovery search. */
+export interface SearchResultCollection {
+  channels: UnifiedChannel[];
+  categories: UnifiedCategory[];
+  streams: UnifiedStream[];
+  videos: UnifiedVideo[];
+  clips: UnifiedClip[];
 }

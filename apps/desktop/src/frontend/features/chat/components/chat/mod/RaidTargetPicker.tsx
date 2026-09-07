@@ -1,3 +1,4 @@
+import { getChatHistoryStorage } from "@/features/chat/composition/chat-history-storage";
 /**
  * RaidTargetPicker
  *
@@ -14,7 +15,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useFollowStore } from "@/store/follow-store";
+import { useFollowStore } from "@/features/discovery/components/state/follow-store";
 
 export interface RaidTarget {
   broadcasterId: string;
@@ -63,7 +64,7 @@ export function RaidTargetPicker({ selfBroadcasterId, disabled, onChange }: Raid
     let cancelled = false;
     (async () => {
       try {
-        const stored = await window.electronAPI.store.get(recentRaidsKey(selfBroadcasterId));
+        const stored = await getChatHistoryStorage().store.get(recentRaidsKey(selfBroadcasterId));
         if (!cancelled) {
           setRecent(raidTargetsFromStored(stored).slice(0, RECENT_LIMIT));
         }
@@ -191,9 +192,9 @@ export async function appendRecentRaid(
 ): Promise<void> {
   try {
     const key = recentRaidsKey(selfBroadcasterId);
-    const existing = raidTargetsFromStored(await window.electronAPI.store.get(key));
+    const existing = raidTargetsFromStored(await getChatHistoryStorage().store.get(key));
     const deduped = [target, ...existing.filter((t) => t.broadcasterId !== target.broadcasterId)];
-    await window.electronAPI.store.set(key, deduped.slice(0, RECENT_LIMIT));
+    await getChatHistoryStorage().store.set(key, deduped.slice(0, RECENT_LIMIT));
   } catch {
     // Best-effort — recent-raids is a convenience surface, not load-bearing.
   }

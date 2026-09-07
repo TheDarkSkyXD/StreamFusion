@@ -4,13 +4,14 @@ import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { UnifiedStream } from "@shared/platform-types";
+import { discoveryReader } from "@/features/discovery/composition/discovery-reader";
 import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
 import { Card, CardContent } from "@/components/ui/card";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { getQueryCacheOptions } from "@/features/discovery/data/queries/cache-policy";
-import { CHANNEL_KEYS } from "@/features/discovery/data/queries/useChannels";
-import { STREAM_KEYS } from "@/features/discovery/data/queries/useStreams";
+import { CHANNEL_KEYS } from "@/features/discovery/components/hooks/queries/useChannels";
+import { STREAM_KEYS } from "@/features/discovery/components/hooks/queries/useStreams";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { cn, formatLanguageLabel, formatViewerCount, uniqueTagLabels } from "@/lib/utils";
 import { preloadStreamExperience } from "@/features/playback/routes/stream-route-preload";
@@ -46,7 +47,7 @@ export const StreamCard = React.memo(
         queryClient.prefetchQuery({
           queryKey: CHANNEL_KEYS.byUsername(stream.channelName, stream.platform),
           queryFn: async () => {
-            const response = await window.electronAPI.channels.getByUsername({
+            const response = await discoveryReader.channels.getByUsername({
               username: stream.channelName,
               platform: stream.platform,
             });
@@ -59,7 +60,7 @@ export const StreamCard = React.memo(
         queryClient.prefetchQuery({
           queryKey: STREAM_KEYS.byChannel(stream.channelName, stream.platform),
           queryFn: async () => {
-            const response = await window.electronAPI.streams.getByChannel({
+            const response = await discoveryReader.streams.getByChannel({
               username: stream.channelName,
               platform: stream.platform,
             });

@@ -11,8 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useStreamRecordingActions } from "@/features/media-library/data/use-stream-recording-actions";
-import { useStreamRecordingState } from "@/features/media-library/data/use-stream-recording-state";
+import { useStreamRecordingActions } from "@/features/media-library/components/hooks/use-stream-recording-actions";
+import { useStreamRecordingState } from "@/features/media-library/components/hooks/use-stream-recording-state";
 import { formatCapturedDuration } from "@/features/media-library/utils/stream-recording-presentation";
 import type { StreamRecordingRecoveryActionResult } from "@shared/stream-recording-types";
 

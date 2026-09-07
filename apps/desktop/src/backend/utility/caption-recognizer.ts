@@ -2,7 +2,7 @@ import path from "node:path";
 
 import type { LocalCaptionPcmChunk } from "@shared/local-caption-types";
 
-import { LocalCaptionRecognizer } from "../services/captions/local-caption-recognizer";
+import { LocalCaptionRecognizer } from "../features/playback/domain/local-caption-recognizer";
 
 interface ParentPort {
   on(event: "message", listener: (event: { data: UtilityInput }) => void): void;

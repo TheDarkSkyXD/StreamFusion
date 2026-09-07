@@ -14,10 +14,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ProxiedImage } from "@/components/ui/proxied-image";
-import { useKickAuth, useTwitchAuth } from "@/features/auth/data/useAuth";
+import { useKickAuth, useTwitchAuth } from "@/features/auth/components/hooks/useAuth";
 import type { PlatformUser } from "@shared/auth-types";
 import { Platform } from "@streamfusion/core/platform";
-import type { TwitchAuthPhase } from "@/store/auth-store";
+import type { TwitchAuthPhase } from "@/features/auth/components/state/auth-store";
 
 function twitchLoadingLabel(phase: TwitchAuthPhase, t: TFunction): string {
   switch (phase) {

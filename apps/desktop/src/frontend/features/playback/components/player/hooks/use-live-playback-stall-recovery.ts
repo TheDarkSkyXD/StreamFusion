@@ -4,12 +4,13 @@ import { useTranslation } from "react-i18next";
 
 import { useInterval } from "@/hooks/useInterval";
 import { logger } from "@/renderer/logging/logger";
+import type { PlaybackRecoveryObserver } from "../../../capabilities/playback-recovery";
 
 import {
   LivePlaybackStallController,
   type LivePlaybackStallAction,
 } from "../live-playback-stall-controller";
-import type { PlayerError } from "../types";
+import type { PlayerError } from "../../../capabilities/media-types";
 
 interface UseLivePlaybackStallRecoveryOptions {
   sourceKey: string;
@@ -24,11 +25,6 @@ interface UseLivePlaybackStallRecoveryOptions {
   shouldSuppress?: () => boolean;
 }
 
-interface LivePlaybackStallRecovery {
-  noteFragmentLoaded: () => void;
-  noteManifestParsed: () => void;
-  noteNetworkError: () => void;
-}
 
 interface LivePlaybackStallMessages {
   decoderStalled: string;
@@ -58,7 +54,7 @@ export function useLivePlaybackStallRecovery({
   onHlsInstanceRef,
   isActiveRef,
   shouldSuppress,
-}: UseLivePlaybackStallRecoveryOptions): LivePlaybackStallRecovery {
+}: UseLivePlaybackStallRecoveryOptions): PlaybackRecoveryObserver {
   const { t } = useTranslation();
   const messages = useMemo<LivePlaybackStallMessages>(
     () => ({

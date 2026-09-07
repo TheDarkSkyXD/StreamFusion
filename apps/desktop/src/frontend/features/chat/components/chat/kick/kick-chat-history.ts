@@ -1,3 +1,4 @@
+import { getChatHistoryReader } from "@/features/chat/composition/chat-history-reader";
 /**
  * Kick chat-history seeding
  *
@@ -16,20 +17,20 @@
  */
 
 import { logger } from "@/renderer/logging/logger";
-import { kickPinToNormalized } from "../../../../../../backend/services/chat/kick-chat";
+import { kickPinToNormalized } from "@/features/chat/adapters/browser/kick-chat";
 import {
   type KickChatMessageEvent,
   parseKickChatMessage,
   type SubscriberBadge,
-} from "../../../../../../backend/services/chat/kick-parser";
+} from "@/features/chat/adapters/browser/kick-parser";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../../../../shared/auth-types";
 import type {
   ChatMessage,
   KickPinnedMessage,
   NormalizedPinnedMessage,
 } from "../../../../../../shared/chat-types";
-import { useAuthStore } from "../../../../../store/auth-store";
-import { buildChannelKey } from "../../../../../store/chat-store";
+import { useAuthStore } from "../../../../auth/components/state/auth-store";
+import { buildChannelKey } from "../../state/chat-store";
 import { resolveChatDisplayPreferences } from "../chat-display-preferences";
 
 export interface SeedKickChatHistoryParams {
@@ -80,7 +81,7 @@ export async function seedKickChatHistory(
       : DEFAULT_CHAT_DISPLAY_PREFERENCES.recentMessagesLimit;
 
   try {
-    const result = await window.electronAPI.chat.getKickHistory({
+    const result = await getChatHistoryReader().chat.getKickHistory({
       channelId,
       channelSlug: channel,
     });

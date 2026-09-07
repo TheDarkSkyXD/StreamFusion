@@ -1,3 +1,4 @@
+import type { ModerationEventSubType } from "@shared/moderation-types";
 /**
  * Preload Script
  *
@@ -11,20 +12,24 @@ import { contextBridge, ipcRenderer } from "electron";
 
 import { createFeatureAwareIpc } from "./ipc-feature-loader";
 
+import type { KickSendResult } from "@shared/kick-chat-types";
 import type {
-  KickPinMutationResult,
-  KickPinPayload,
-} from "../api/platforms/kick/kick-pin-mutations";
+  KickChatModeRequest,
+  KickModerationResult,
+  KickOfficialModerationTarget,
+  KickOfficialTimeoutTarget,
+} from "@shared/kick-moderation-types";
 import type {
   KickChannelViewerRoleResult,
-  KickSendResult,
+  KickPinMutationResult,
+  KickPinPayload,
   KickWebApiMutationResult,
-} from "../api/platforms/kick/kick-send-window";
+} from "@shared/kick-web-api-types";
 import type {
   PlatformHealth,
   PlatformHealthEvent,
   StatusPageDetail,
-} from "../api/unified/platform-health";
+} from "@shared/platform-health-types";
 import type {
   UnifiedCategory,
   UnifiedChannel,
@@ -39,7 +44,7 @@ import type {
 } from "../../shared/ipc-contracts/user-profile-contracts";
 import type { EmoteIpcResponse, FfzRoomRequest } from "../../shared/ipc-contracts/emote-contracts";
 import { diagnosticsSnapshotChangedSchema } from "../../shared/ipc-contracts/diagnostics-contracts";
-import type { SearchResultCollection } from "../../frontend/features/discovery/utils/search/search-result-validation";
+import type { SearchResultCollection } from "@shared/search-types";
 import type {
   AccountFollowWriteRequest,
   AccountFollowWriteResult,
@@ -480,7 +485,7 @@ const electronAPI = {
         feedId: string;
         userId: string;
         channelId: string;
-        eventTypes?: Array<"channel.moderate" | "automod.message.hold" | "automod.message.update">;
+        eventTypes?: ModerationEventSubType[];
       }): Promise<TwitchApiResult> => invokeIpc(IPC_CHANNELS.TWITCH_EVENTSUB_START, params),
       stop: (feedId: string): Promise<boolean> =>
         invokeIpc(IPC_CHANNELS.TWITCH_EVENTSUB_STOP, { feedId }),
@@ -1100,6 +1105,15 @@ const electronAPI = {
       invokeIpc(IPC_CHANNELS.KICK_CHAT_PIN_MESSAGE, payload),
     unpinMessage: (channelSlug: string): Promise<KickPinMutationResult> =>
       invokeIpc(IPC_CHANNELS.KICK_CHAT_UNPIN_MESSAGE, { channelSlug }),
+    moderateBan: (payload: KickOfficialModerationTarget): Promise<KickModerationResult> =>
+      invokeIpc(IPC_CHANNELS.KICK_CHAT_MODERATE_BAN, payload),
+    moderateTimeout: (payload: KickOfficialTimeoutTarget): Promise<KickModerationResult> =>
+      invokeIpc(IPC_CHANNELS.KICK_CHAT_MODERATE_TIMEOUT, payload),
+    moderateUnban: (
+      payload: Omit<KickOfficialModerationTarget, "reason">
+    ): Promise<KickModerationResult> => invokeIpc(IPC_CHANNELS.KICK_CHAT_MODERATE_UNBAN, payload),
+    setMode: (payload: KickChatModeRequest): Promise<KickModerationResult> =>
+      invokeIpc(IPC_CHANNELS.KICK_CHAT_SET_MODE, payload),
     disposeSendWindow: (): Promise<void> => invokeIpc(IPC_CHANNELS.KICK_CHAT_DISPOSE_SEND_WINDOW),
   },
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { useNetworkStatus } from "@/features/settings/data/useNetworkStatus";
+import { useNetworkStatus } from "@/features/settings/components/hooks/useNetworkStatus";
 
 export function usePlayerNetworkRecovery(hasError: boolean, recover: () => void): void {
   const { recoveryCount } = useNetworkStatus();

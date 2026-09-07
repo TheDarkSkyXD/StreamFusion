@@ -1,6 +1,7 @@
 import { forwardRef, useMemo } from "react";
 
-import { type HlsConfigOverrides, HlsPlayer, type HlsPlayerProps } from "../hls-player";
+import { HlsPlayer, type HlsPlayerProps } from "../hls-player";
+import type { HlsConfigOverrides } from "../../../adapters/browser/hls-playback-session";
 
 import { resolveKickHlsConfig } from "./kick-hls-config";
 

@@ -13,9 +13,7 @@ Each feature owns one folder under `features/`. Follow the nine-folder feature a
 - `utils/` owns small, pure, feature-private helpers.
 - `composition/` wires dependencies without business logic.
 - `tests/` owns feature tests. Include these paths in test discovery when migrating.
-- `index.ts` is the route-facing public entry point when the feature registers pages.
-
-The existing four-folder features, hooks/stores under `data/`, and screens under `src/frontend/pages/<PageName>/` are the current implementation, not the target layout. Move them by responsibility during a feature migration, update callers, and remove obsolete paths together.
+- Keep route registration in `frontend/routes/router.tsx`; route-facing modules import the owning feature directly. Do not add a feature-root compatibility barrel.
 
 The renderer features are `auth`, `chat`, `discovery`, `media-library`, `moderation`, `multistream`, `playback`, `settings`, and `shell`.
 
@@ -30,4 +28,4 @@ The renderer features are `auth`, `chat`, `discovery`, `media-library`, `moderat
 
 ## Verification
 
-Run `npm run architecture:features` to verify the current three-root layout, feature layout, and one allowed plus one forbidden dependency edge. The current checks do not prove adoption of the nine-folder target. A feature migration must update the layout checks, layer import boundaries, and test discovery in the same change, then prove allowed and forbidden imports through aliases and relative paths.
+Run `npm run architecture:features` after changing feature placement or dependencies. It verifies the three runtime roots, all feature layers, and allowed/forbidden dependency edges.

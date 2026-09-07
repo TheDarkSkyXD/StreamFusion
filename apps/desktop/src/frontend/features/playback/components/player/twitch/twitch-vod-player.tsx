@@ -8,7 +8,7 @@ import { useSeekPreview } from "@/features/playback/components/player/hooks/use-
 import { TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { logger } from "@/renderer/logging/logger";
 import { resolveProxiedImageSrc } from "@/lib/proxied-image-url";
-import { useSeekIntervalStore } from "@/store/seek-interval-store";
+import { useSeekIntervalStore } from "@/features/playback/components/state/seek-interval-store";
 
 import { useDefaultQuality } from "../hooks/use-default-quality";
 import { useFullscreen } from "../hooks/use-fullscreen";
@@ -18,7 +18,7 @@ import { usePlayerKeyboard } from "../hooks/use-player-keyboard";
 import { useResumePlayback } from "../hooks/use-resume-playback";
 import { useTimedText } from "../hooks/use-timed-text";
 import { useVolume } from "../hooks/use-volume";
-import type { PlayerError, QualityLevel } from "../types";
+import type { PlayerError, QualityLevel } from "../../../capabilities/media-types";
 import { CaptionOverlay } from "../caption-overlay";
 import type { VideoPlaybackSnapshot } from "@shared/chat-replay-types";
 

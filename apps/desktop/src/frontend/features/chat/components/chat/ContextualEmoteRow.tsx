@@ -1,9 +1,9 @@
 import { useTranslation } from "react-i18next";
 import type React from "react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import type { Emote, EmoteProvider } from "../../../../../backend/services/emotes/emote-types";
+import type { Emote, EmoteProvider } from "@/features/chat/capabilities/emote-types";
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
-import { useEmoteStore } from "../../../../store/emote-store";
+import { useEmoteStore } from "../state/emote-store";
 import { EmoteImage } from "./EmoteImage";
 import { getContextualEmoteMatch } from "./contextual-emote-mode";
 

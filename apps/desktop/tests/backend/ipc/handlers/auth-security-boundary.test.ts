@@ -51,18 +51,16 @@ vi.mock("@shared/utils/managed-interval", () => ({
   }),
 }));
 
-vi.mock("@backend/api/platforms/kick/endpoints/follow-endpoints", () => ({
+vi.mock("@backend/features/authentication/adapters/kick/follow-endpoints", () => ({
   getAllFollowedChannels: mocks.getKickFollows,
   writeKickAccountFollow: mocks.writeKickFollow,
 }));
 
-vi.mock("@backend/api/platforms/twitch/twitch-client", () => ({
-  twitchClient: {
-    getAllFollowedChannels: mocks.getTwitchFollows,
-  },
+vi.mock("@backend/features/authentication/composition/twitch-account-reader", () => ({
+  twitchAccountReader: { getAllFollowedChannels: mocks.getTwitchFollows },
 }));
 
-vi.mock("@backend/auth", () => ({
+vi.mock("@backend/features/authentication/composition/auth-runtime", () => ({
   authWindowManager: {
     openAuthWindow: vi.fn(),
     closeAuthWindow: vi.fn(),
@@ -94,11 +92,11 @@ vi.mock("@backend/auth", () => ({
   validateOAuthConfig: vi.fn(() => []),
 }));
 
-vi.mock("@backend/auth/device-code-flow", () => ({
+vi.mock("@backend/features/authentication/adapters/twitch/device-code-flow", () => ({
   runTwitchDeviceCodeLogin: mocks.runTwitchDeviceCodeLogin,
 }));
 
-vi.mock("@backend/auth/twitch-device-auth-window", () => ({
+vi.mock("@backend/features/authentication/adapters/electron/twitch-device-auth-window", () => ({
   twitchDeviceAuthWindow: { open: mocks.openTwitchDeviceAuthWindow },
 }));
 
@@ -119,16 +117,33 @@ vi.mock("@backend/services/storage-service", () => ({
     upsertSyncedFollows: mocks.upsertSyncedFollows,
   },
 }));
+vi.mock("@backend/features/authentication/data/authentication-repository", () => ({
+  authenticationRepository: {
+    getToken: mocks.getToken,
+    saveToken: mocks.saveToken,
+    clearToken: mocks.clearToken,
+    clearAllTokens: vi.fn(),
+    hasToken: mocks.hasToken,
+    isTokenExpired: mocks.isTokenExpired,
+    getTwitchUser: vi.fn(() => null),
+    saveTwitchUser: mocks.saveTwitchUser,
+    clearTwitchUser: mocks.clearTwitchUser,
+    getKickUser: vi.fn(() => null),
+    saveKickUser: mocks.saveKickUser,
+    clearKickUser: vi.fn(),
+    upsertSyncedFollows: mocks.upsertSyncedFollows,
+  },
+}));
 
-vi.mock("@backend/services/live-notification-service", () => ({
+vi.mock("@backend/features/authentication/adapters/electron/live-notification-service", () => ({
   liveNotificationService: { reconcileSilently: vi.fn() },
 }));
 
-vi.mock("@backend/api/platforms/kick/kick-send-window", () => ({
+vi.mock("@backend/features/chat/adapters/kick/kick-send-window", () => ({
   disposeSendWindow: mocks.disposeKickSendWindow,
 }));
 
-import { registerAuthHandlers } from "@backend/ipc/handlers/auth-handlers";
+import { registerAuthHandlers } from "@backend/features/authentication/routes/auth-routes";
 import { createMainRendererPortMock } from "../../../helpers/main-renderer-port-mock";
 
 const allowedEvent = { senderFrame: { url: "file:///app/index.html" } };

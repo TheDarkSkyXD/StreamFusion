@@ -2,12 +2,12 @@ import { useTranslation } from "react-i18next";
 import type React from "react";
 import { lazy, memo, Suspense, useEffect } from "react";
 
-import { ensureEmoteProvidersInitialized } from "../../../../../backend/services/emotes";
+import { ensureEmoteProvidersInitialized } from "@/features/chat/composition/emote-runtime";
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { useRenderCount } from "../../../../components/dev/use-render-count";
 import { loadKickChatComponent, loadTwitchChatComponent } from "./platform-chat-loader";
 
-import type { SubscriberBadge } from "@backend/services/chat/kick-parser";
+import type { SubscriberBadge } from "@/features/chat/adapters/browser/kick-parser";
 
 const LazyKickChat = lazy(loadKickChatComponent);
 const LazyTwitchChat = lazy(loadTwitchChatComponent);

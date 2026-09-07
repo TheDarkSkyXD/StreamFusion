@@ -6,7 +6,7 @@ import {
   SelectValue,
 } from "../../../../components/ui/select";
 
-import type { QualityLevel } from "./types";
+import type { QualityLevel } from "../../capabilities/media-types";
 import { useTranslation } from "react-i18next";
 
 export interface QualitySelectorProps {

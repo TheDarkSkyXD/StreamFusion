@@ -1,3 +1,4 @@
+import { getChatPresentationServices } from "@/features/chat/composition/chat-presentation-services";
 import { useTranslation } from "react-i18next";
 /**
  * Shared pinned-message banner used by both Twitch and Kick chats.
@@ -294,7 +295,7 @@ const PinnedFragment: React.FC<{ fragment: ContentFragment; platform: "twitch" |
             href={fragment.url}
             onClick={(e) => {
               e.preventDefault();
-              window.electronAPI?.openExternal?.(fragment.url);
+              getChatPresentationServices()?.openExternal?.(fragment.url);
             }}
             className="text-blue-400 hover:underline break-all cursor-pointer"
           >

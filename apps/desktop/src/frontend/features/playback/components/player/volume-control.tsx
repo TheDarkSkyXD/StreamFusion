@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { LuVolume1, LuVolume2, LuVolumeX } from "react-icons/lu";
 
 import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from "@shared/auth-types";
-import { useAuthStore } from "@/store/auth-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 
 import { Button } from "../../../../components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";

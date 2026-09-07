@@ -1,9 +1,9 @@
 import { useTranslation } from "react-i18next";
 import type React from "react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Emote } from "../../../../../backend/services/emotes/emote-types";
+import type { Emote } from "@/features/chat/capabilities/emote-types";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../../../shared/auth-types";
-import { useAuthStore } from "../../../../store/auth-store";
+import { useAuthStore } from "../../../auth/components/state/auth-store";
 import { useOfficialEmoteImageSource } from "./official-emote-image-source";
 import { EmoteTooltip } from "./tooltips/EmoteTooltip";
 

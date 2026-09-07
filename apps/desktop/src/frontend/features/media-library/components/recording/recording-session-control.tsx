@@ -3,8 +3,8 @@ import { LuPause, LuPlay } from "react-icons/lu";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { useStreamRecordingActions } from "@/features/media-library/data/use-stream-recording-actions";
-import { useStreamRecordingState } from "@/features/media-library/data/use-stream-recording-state";
+import { useStreamRecordingActions } from "@/features/media-library/components/hooks/use-stream-recording-actions";
+import { useStreamRecordingState } from "@/features/media-library/components/hooks/use-stream-recording-state";
 import type { StreamRecordingStatus } from "@shared/stream-recording-types";
 import { RecordingStopControl } from "./recording-stop-control";
 

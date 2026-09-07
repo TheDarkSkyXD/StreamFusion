@@ -4,9 +4,9 @@ import { BsChevronDown, BsPeople, BsSearch, BsShieldFill, BsX } from "react-icon
 
 import type { ChatKnownUser, ChatKnownUserRole } from "../../../../../shared/chat-types";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../../../shared/auth-types";
-import { resolveChatUsernameColor } from "../../utils/chat-visuals";
-import { useAuthStore } from "../../../../store/auth-store";
-import { useChatStore } from "../../../../store/chat-store";
+import { resolveChatUsernameColor } from "../presentation/chat-visuals";
+import { useAuthStore } from "../../../auth/components/state/auth-store";
+import { useChatStore } from "../state/chat-store";
 import { ProxiedImage } from "../../../../components/ui/proxied-image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 import { ChatBadge as ProviderBadge } from "./ChatBadge";

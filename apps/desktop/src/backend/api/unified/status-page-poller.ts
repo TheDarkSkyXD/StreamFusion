@@ -5,9 +5,9 @@ import {
   onPlatformHealthChanged,
   recordStatusPageSignal,
   STATUS_PAGE_POLL_INTERVAL_MS,
-  type StatusPageDetail,
   type StatusPageSignal,
 } from "./platform-health";
+import type { StatusPageDetail } from "@shared/platform-health-types";
 
 const API_COMPONENT_PATTERN = /api|helix|gql|eventsub/i;
 

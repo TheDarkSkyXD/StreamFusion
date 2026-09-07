@@ -1,10 +1,11 @@
+import { getChatPresentationServices } from "@/features/chat/composition/chat-presentation-services";
 import { useTranslation } from "react-i18next";
 import { Ban, Check, Clock3, Trash2, TriangleAlert } from "lucide-react";
 import type React from "react";
 import { memo, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { formatChatTimestamp } from "@/features/chat/utils/chat-visuals";
-import { getChatDensityPresentation } from "@/features/chat/utils/chat-density-presentation";
+import { formatChatTimestamp } from "@/features/chat/components/presentation/chat-visuals";
+import { getChatDensityPresentation } from "@/features/chat/components/presentation/chat-density-presentation";
 import {
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
   type DeletedMessageDisplayMode,
@@ -16,9 +17,9 @@ import type {
 } from "../../../../../shared/chat-types";
 import { ChatHighlightKind, ContentFragment } from "@streamfusion/core/chat";
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
-import { useAuthStore } from "../../../../store/auth-store";
-import { useChatCosmeticsStore } from "../../../../store/chat-cosmetics-store";
-import { useChatDisplay } from "../../../settings/data/use-chat-display";
+import { useAuthStore } from "../../../auth/components/state/auth-store";
+import { useChatCosmeticsStore } from "../state/chat-cosmetics-store";
+import { useChatDisplay } from "../../../settings/components/hooks/use-chat-display";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 import { BitsHighlight } from "./BitsHighlight";
 import { ChatBadge } from "./ChatBadge";
@@ -1143,7 +1144,7 @@ const MessageFragment: React.FC<{
           href={fragment.url}
           onClick={(e) => {
             e.preventDefault();
-            window.electronAPI.openExternal(fragment.url);
+            getChatPresentationServices()?.openExternal(fragment.url);
           }}
           className="max-w-full text-blue-400 hover:underline break-all [overflow-wrap:anywhere] cursor-pointer"
         >

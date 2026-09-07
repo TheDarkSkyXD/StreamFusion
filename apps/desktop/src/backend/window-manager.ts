@@ -10,8 +10,8 @@ import path from "node:path";
 import { app, BrowserWindow, globalShortcut, screen, shell } from "electron";
 
 import { logger } from "@backend/logging/logger";
-import { configureWindowIdentity } from "./app-identity";
-import { installContextMenu } from "./context-menu";
+import { configureWindowIdentity } from "./features/shell/domain/app-identity";
+import { installContextMenu } from "./features/shell/adapters/electron/context-menu";
 import { forwardWebContentsConsole } from "./logging/web-contents-log-forwarder";
 
 /**
@@ -215,6 +215,7 @@ class WindowManager {
     configureWindowIdentity(this.mainWindow, appIconPath, {
       platform: process.platform,
       isPackaged: app.isPackaged,
+      executablePath: process.execPath,
     });
 
     installContextMenu(this.mainWindow.webContents);

@@ -1,3 +1,4 @@
+import { preferencesRepository } from "@backend/features/settings/data/preferences-repository";
 /**
  * StreamFusion - Main Process Entry Point
  *
@@ -12,10 +13,27 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 
+import { nativeText } from "@shared/i18n/native-copy.generated";
+import { setMainLogSink } from "@shared/utils/cross-logger";
 import { app, BrowserWindow, dialog, globalShortcut, protocol, session } from "electron";
-import { installApplicationMenu } from "./application-menu";
-import { configureAppIdentity } from "./app-identity";
-import { protocolHandler } from "./auth/protocol-handler";
+import { IPC_CHANNELS } from "../shared/ipc-channels";
+import { protocolHandler } from "./features/authentication/adapters/electron/protocol-handler";
+import { moderationDataRepository } from "./features/moderation/data/moderation-data-repository";
+import { attachCertVerifyDiagToAllSessions } from "./features/settings/adapters/electron/cert-verify-diagnostics";
+import { diagnosticsObservability } from "./features/settings/adapters/node/diagnostics-observability";
+import { diagnosticsRuntime } from "./features/settings/composition/diagnostics-runtime-singleton";
+import { installApplicationMenu } from "./features/shell/adapters/electron/application-menu";
+import { installRendererCrashRecovery } from "./features/shell/adapters/electron/renderer-crash-recovery";
+import { openStartupRecoveryWindow } from "./features/shell/adapters/electron/startup-recovery-window";
+import { resolveUserDataPath } from "./features/shell/adapters/electron/user-data-path";
+import {
+  markCleanShutdown,
+  markSessionStarted,
+  wasCleanShutdown,
+} from "./features/shell/data/shutdown-marker";
+import { configureAppIdentity } from "./features/shell/domain/app-identity";
+import { getPlatformCrashBackoffDecision } from "./features/shell/domain/platform-crash-backoff-policy";
+import { beginStartupSession } from "./features/shell/domain/startup-session-policy";
 import { createDesktopIpcRuntime } from "./ipc-handlers";
 import { startChromiumLogTailer, type StopChromiumLogTailer } from "./logging/chromium-log-tailer";
 import { installConsoleIntercept } from "./logging/console-intercept";
@@ -37,8 +55,6 @@ import {
   shutdownNetworkLogger,
 } from "./logging/network-logger";
 import { initNoiseLogger, shutdownNoiseLogger } from "./logging/noise-logger";
-import { diagnosticsRuntime } from "./diagnostics/diagnostics-runtime-singleton";
-import { diagnosticsObservability } from "./diagnostics/diagnostics-observability";
 import { redactObject } from "./logging/redactor";
 import { pruneLogs } from "./logging/rotation";
 import { KICK_IMAGE_SCHEME, registerKickImageProtocol } from "./protocols/kick-image-protocol";
@@ -51,25 +67,15 @@ import {
   registerTwitchImageProtocol,
   TWITCH_IMAGE_SCHEME,
 } from "./protocols/twitch-image-protocol";
-import { installRendererCrashRecovery } from "./recovery/renderer-crash-recovery";
-import { getPlatformCrashBackoffDecision } from "./recovery/platform-crash-backoff-policy";
-import { attachCertVerifyDiagToAllSessions } from "./services/cert-verify-diagnostics";
+import { resolveDebuggingPolicy } from "./runtime-mode";
 import { dbService } from "./services/database-service";
 import { storageService } from "./services/storage-service";
-import { markCleanShutdown, markSessionStarted, wasCleanShutdown } from "./shutdown-marker";
 import { startPrimaryInstance } from "./startup/start-primary-instance";
-import { openStartupRecoveryWindow } from "./startup/startup-recovery-window";
-import { beginStartupSession } from "./startup/startup-session-policy";
-import { windowManager } from "./window-manager";
-import { setMainLogSink } from "@shared/utils/cross-logger";
-import { nativeText } from "@shared/i18n/native-copy.generated";
 import {
   pruneStaleChromiumDiskCaches,
   resolveChromiumDiskCachePath,
 } from "./utility/chromium-cache-path";
-import { resolveUserDataPath } from "./utility/user-data-path";
-import { resolveDebuggingPolicy } from "./runtime-mode";
-import { IPC_CHANNELS } from "../shared/ipc-channels";
+import { windowManager } from "./window-manager";
 
 const ipcRuntime = createDesktopIpcRuntime();
 
@@ -399,10 +405,11 @@ async function initializeReady(): Promise<void> {
   // MUST be called after app path configuration and before IPC handlers
   try {
     dbService.initialize();
+    moderationDataRepository.initialize();
     storageService.initialize();
-    let applicationMenuLanguage = storageService.getPreferences().language;
+    let applicationMenuLanguage = preferencesRepository.getPreferences().language;
     installApplicationMenu();
-    storageService.onPreferencesChanged((preferences) => {
+    preferencesRepository.onPreferencesChanged((preferences) => {
       if (preferences.language === applicationMenuLanguage) return;
       applicationMenuLanguage = preferences.language;
       installApplicationMenu();
@@ -424,7 +431,7 @@ async function initializeReady(): Promise<void> {
   // logger's meta shape — preferences is a typed record but its concrete keys
   // are statically known, which is not assignable to Record<string, unknown>.
   try {
-    const preferences = storageService.getPreferences();
+    const preferences = preferencesRepository.getPreferences();
     const redacted = redactObject(preferences) as unknown as Record<string, unknown>;
     logger.info("Main", "Settings dump", redacted);
   } catch (error) {

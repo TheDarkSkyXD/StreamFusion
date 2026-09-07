@@ -9,7 +9,8 @@
         "smoke": "node scripts/smoke.mjs",
         "dev": "wrangler dev",
         "start": "wrangler dev",
-        "test": "vitest run",
+        "lint": "eslint src/ scripts/ eslint.config.mjs vitest.config.mts --max-warnings=0",
+        "test": "vitest run && node scripts/verify-architecture.mjs",
         "typecheck": "tsc --noEmit",
         "types": "wrangler types"
     },

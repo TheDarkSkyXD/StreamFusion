@@ -28,7 +28,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useInterval } from "@/hooks/useInterval";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import type { UnifiedPrediction, UnifiedPredictionOutcome } from "@shared/chat-types";
-import { useAuthStore } from "@/store/auth-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 
 const ENDED_AUTO_DISMISS_MS = 60_000;

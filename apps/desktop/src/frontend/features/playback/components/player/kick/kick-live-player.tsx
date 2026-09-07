@@ -9,7 +9,7 @@ import { logger } from "@/renderer/logging/logger";
 
 import { useDefaultQuality } from "../hooks/use-default-quality";
 import { useDockedPlayerConfig } from "../persistent-player-shell";
-import { qualityLevelToPreference } from "../quality-preference";
+import { qualityLevelToPreference } from "../../../domain/quality-preference";
 import { useFullscreen } from "../hooks/use-fullscreen";
 import { useLocalLiveCaptions } from "../hooks/use-local-live-captions";
 import { usePictureInPicture } from "../hooks/use-picture-in-picture";
@@ -23,7 +23,7 @@ import {
   LOCAL_LIVE_CAPTION_TRACK,
   type PlayerError,
   type QualityLevel,
-} from "../types";
+} from "../../../capabilities/media-types";
 
 import { KickHlsPlayer } from "./kick-hls-player";
 import { KickLivePlayerControls } from "./kick-live-player-controls";

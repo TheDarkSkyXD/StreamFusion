@@ -13,8 +13,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { RecordingSessionControls } from "@/features/media-library/components/recording/recording-session-control";
-import { useStreamRecordingActions } from "@/features/media-library/data/use-stream-recording-actions";
-import { useStreamRecordingState } from "@/features/media-library/data/use-stream-recording-state";
+import { useStreamRecordingActions } from "@/features/media-library/components/hooks/use-stream-recording-actions";
+import { useStreamRecordingState } from "@/features/media-library/components/hooks/use-stream-recording-state";
 import {
   formatCapturedDuration,
   RECORDING_PHASE_LABEL_KEYS,

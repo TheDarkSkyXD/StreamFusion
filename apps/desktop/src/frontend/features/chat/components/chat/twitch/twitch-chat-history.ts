@@ -1,3 +1,4 @@
+import { getChatHistoryReader } from "@/features/chat/composition/chat-history-reader";
 /**
  * Twitch chat-history seeding
  *
@@ -16,13 +17,13 @@
  */
 
 import { logger } from "@/renderer/logging/logger";
-import { badgeResolver } from "../../../../../../backend/services/chat/badge-resolver";
-import { parseRawTwitchIrcLine } from "../../../../../../backend/services/chat/twitch-irc-parser";
-import { parseTwitchMessage } from "../../../../../../backend/services/chat/twitch-parser";
+import { badgeResolver } from "@shared/../frontend/features/chat/adapters/browser/badge-resolver";
+import { parseRawTwitchIrcLine } from "@/features/chat/domain/twitch-irc-parser";
+import { parseTwitchMessage } from "@/features/chat/domain/twitch-parser";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../../../../shared/auth-types";
 import type { ChatMessage } from "../../../../../../shared/chat-types";
-import { useAuthStore } from "../../../../../store/auth-store";
-import { buildChannelKey } from "../../../../../store/chat-store";
+import { useAuthStore } from "../../../../auth/components/state/auth-store";
+import { buildChannelKey } from "../../state/chat-store";
 import { resolveChatDisplayPreferences } from "../chat-display-preferences";
 
 export interface SeedTwitchChatHistoryParams {
@@ -55,7 +56,7 @@ export async function seedTwitchChatHistory(params: SeedTwitchChatHistoryParams)
       : DEFAULT_CHAT_DISPLAY_PREFERENCES.recentMessagesLimit;
 
   try {
-    const result = await window.electronAPI.chat.getTwitchHistory({ channel });
+    const result = await getChatHistoryReader().chat.getTwitchHistory({ channel });
     if (!isMounted()) return;
     if (!result.success || !result.data) return;
 

@@ -1,3 +1,4 @@
+import type { ModerationEventSubType } from "./moderation-types";
 /**
  * IPC Channel Definitions
  *
@@ -275,6 +276,10 @@ export const IPC_CHANNELS = {
   KICK_CHAT_GET_VIEWER_ROLE: "kick-chat:get-viewer-role",
   KICK_CHAT_PIN_MESSAGE: "kick-chat:pin-message",
   KICK_CHAT_UNPIN_MESSAGE: "kick-chat:unpin-message",
+  KICK_CHAT_MODERATE_BAN: "kick-chat:moderate-ban",
+  KICK_CHAT_MODERATE_TIMEOUT: "kick-chat:moderate-timeout",
+  KICK_CHAT_MODERATE_UNBAN: "kick-chat:moderate-unban",
+  KICK_CHAT_SET_MODE: "kick-chat:set-mode",
   KICK_CHAT_DISPOSE_SEND_WINDOW: "kick-chat:dispose-send-window",
 
   // ========== Network Ad Blocking ==========
@@ -525,7 +530,7 @@ export interface IpcPayloads {
     feedId: string;
     userId: string;
     channelId: string;
-    eventTypes?: Array<"channel.moderate" | "automod.message.hold" | "automod.message.update">;
+    eventTypes?: ModerationEventSubType[];
   };
   [IPC_CHANNELS.TWITCH_EVENTSUB_STOP]: { feedId: string };
   [IPC_CHANNELS.AUTH_GET_TOKEN]: { platform: "kick" };
@@ -662,6 +667,13 @@ export interface IpcPayloads {
   [IPC_CHANNELS.KICK_CHAT_UNPIN_MESSAGE]: {
     channelSlug: string;
   };
+  [IPC_CHANNELS.KICK_CHAT_MODERATE_BAN]: import("./kick-moderation-types").KickOfficialModerationTarget;
+  [IPC_CHANNELS.KICK_CHAT_MODERATE_TIMEOUT]: import("./kick-moderation-types").KickOfficialTimeoutTarget;
+  [IPC_CHANNELS.KICK_CHAT_MODERATE_UNBAN]: Omit<
+    import("./kick-moderation-types").KickOfficialModerationTarget,
+    "reason"
+  >;
+  [IPC_CHANNELS.KICK_CHAT_SET_MODE]: import("./kick-moderation-types").KickChatModeRequest;
   [IPC_CHANNELS.MODERATION_TIMEOUT_SNAPSHOT]: TimeoutActionBinding;
   [IPC_CHANNELS.MODERATION_TIMEOUT_SUBMIT]: TimeoutSubmitInput;
 

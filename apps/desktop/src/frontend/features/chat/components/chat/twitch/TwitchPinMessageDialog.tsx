@@ -1,3 +1,5 @@
+import { getChatPresentationServices } from "@/features/chat/composition/chat-presentation-services";
+import { getChatProfileReader } from "@/features/chat/composition/chat-profile-reader";
 import { useTranslation } from "react-i18next";
 /**
  * TwitchPinMessageDialog
@@ -117,7 +119,7 @@ function PinDialogMessageFragment({
           href={fragment.url}
           onClick={(event) => {
             event.preventDefault();
-            window.electronAPI?.openExternal?.(fragment.url);
+            getChatPresentationServices()?.openExternal?.(fragment.url);
           }}
           className="break-all text-[#8ab4ff] hover:underline"
         >
@@ -194,8 +196,8 @@ export function TwitchPinMessageDialog({
     let cancelled = false;
     void (async () => {
       try {
-        if (!window.electronAPI?.channels?.getByUsername) return;
-        const result = (await window.electronAPI.channels.getByUsername({
+        if (!getChatProfileReader()?.channels?.getByUsername) return;
+        const result = (await getChatProfileReader().channels.getByUsername({
           platform: "twitch",
           username: message.username,
         })) as ChannelLookupResult;

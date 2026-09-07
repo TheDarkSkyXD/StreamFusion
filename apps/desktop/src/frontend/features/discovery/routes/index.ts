@@ -8,16 +8,16 @@ export function validateSearchQuery(search: Record<string, unknown>): { q: strin
 }
 
 export const HomePage = createPreloadableRoute(() =>
-  import("../../../pages/Home").then((module) => ({ default: module.HomePage }))
+  import("../components/screens/Home").then((module) => ({ default: module.HomePage }))
 ).Component;
 export const FollowingPage = createPreloadableRoute(() =>
-  import("../../../pages/Following").then((module) => ({ default: module.FollowingPage }))
+  import("../components/screens/Following").then((module) => ({ default: module.FollowingPage }))
 ).Component;
 export const CategoriesPage = createPreloadableRoute(() =>
-  import("../../../pages/Categories").then((module) => ({ default: module.CategoriesPage }))
+  import("../components/screens/Categories").then((module) => ({ default: module.CategoriesPage }))
 ).Component;
 export const CategoryDetailPage = createPreloadableRoute(() =>
-  import("../../../pages/CategoryDetail").then((module) => ({
+  import("../components/screens/CategoryDetail").then((module) => ({
     default: module.CategoryDetailPage,
   }))
 ).Component;

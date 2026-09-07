@@ -1,8 +1,8 @@
 import {
   preloadChatService,
   shutdownLoadedChatServices,
-} from "@backend/services/chat/chat-service-loader";
-import { registerAppShutdownTask } from "@/features/shell/utils/app-shutdown-registry";
+} from "@/features/chat/composition/chat-service-loader";
+import { registerAppShutdownTask } from "@/features/shell/composition/app-shutdown-registry";
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 
 let kickChatComponentPromise:

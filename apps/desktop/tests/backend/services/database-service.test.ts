@@ -1,3 +1,7 @@
+import {
+  FollowRepository,
+  importLegacyFollows,
+} from "@backend/features/authentication/data/follow-repository";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -10,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // on the native Electron-targeted binary. The previous SQLITE_AVAILABLE
 // skip pattern is therefore unnecessary.
 
-// Guards: DatabaseService schema + migrations against the node:sqlite-shim — initialization, the local-follows schema, and any ON CONFLICT / named-param SQL paths must round-trip on the shim exactly as they do against native better-sqlite3 (parity covered by `tests/helpers/better-sqlite3-shim.test.ts`).
+// Guards: DatabaseService schema + migrations against the node:sqlite-shim â€” initialization, the local-follows schema, and any ON CONFLICT / named-param SQL paths must round-trip on the shim exactly as they do against native better-sqlite3 (parity covered by `tests/helpers/better-sqlite3-shim.test.ts`).
 
 // Guards: each platform/source collection persists at most one row per case-insensitive channel slug, including databases created before that invariant existed.
 const describeDb = describe;
@@ -27,6 +31,13 @@ vi.mock("electron", () => ({
 
 // Import after the mock is in place.
 import { DatabaseService } from "@backend/services/database-service";
+import { ModerationDataRepository } from "@backend/features/moderation/data/moderation-data-repository";
+
+function moderationData(service: DatabaseService): ModerationDataRepository {
+  const repository = new ModerationDataRepository(() => service.getConnection());
+  repository.initialize();
+  return repository;
+}
 
 function makeTmpDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "streamfusion-dbtest-"));
@@ -42,11 +53,40 @@ afterEach(() => {
   try {
     fs.rmSync(currentTmpDir, { recursive: true, force: true });
   } catch {
-    // ignore — Windows may hold a file briefly
+    // ignore â€” Windows may hold a file briefly
   }
 });
 
 describeDb("DatabaseService schema", () => {
+  // Guards: a failed feature migration rolls back both its follow rows and the shared key-value changes.
+  it("rolls back all persistence owners when a feature migration fails", () => {
+    const service = new DatabaseService();
+    service.initialize();
+    service.set("legacy-key", { retained: true });
+    const follows = new FollowRepository(service);
+
+    expect(() =>
+      service.migrateKeyValues(
+        {
+          entries: [{ key: "renderer-store:new", value: { imported: true } }],
+          deleteKeys: ["legacy-key"],
+        },
+        () => {
+          follows.addFollow({
+            platform: "kick",
+            channelId: "123",
+            channelName: "streamer",
+          });
+          throw new Error("feature migration failed");
+        }
+      )
+    ).toThrow("feature migration failed");
+
+    expect(service.getJson("legacy-key")).toEqual({ kind: "value", value: { retained: true } });
+    expect(service.getJson("renderer-store:new")).toEqual({ kind: "missing" });
+    expect(follows.getAllFollows()).toEqual([]);
+  });
+
   // Guards: key-value reads cannot invent a return type and reject values that fail the caller's boundary parser.
   it("returns only key-value data accepted by its parser", () => {
     const svc = new DatabaseService();
@@ -83,7 +123,7 @@ describeDb("DatabaseService schema", () => {
     svc.set("renderer-store:existing", { owner: "sqlite" });
     svc.set("authTokens", { leaked: true });
     svc.set("renderer-store:preferences", { leaked: true });
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         id: "existing-follow",
         platform: "kick",
@@ -94,35 +134,39 @@ describeDb("DatabaseService schema", () => {
       "guest"
     );
 
-    svc.migrateKeyValues({
-      entries: [
-        { key: "renderer-store:existing", value: { owner: "json" } },
-        { key: "operational:downloadQueue", value: { jobs: [] } },
-      ],
-      deleteKeys: ["authTokens", "renderer-store:preferences"],
-      legacyFollows: [
-        {
-          id: "legacy-follow",
-          platform: "kick",
-          channelId: "123",
-          channelName: "streamer",
-          displayName: "Streamer",
-          profileImage: "",
-          followedAt: "2025-01-01T00:00:00.000Z",
-          source: "guest",
-        },
-        {
-          id: "existing-follow",
-          platform: "kick",
-          channelId: "456",
-          channelName: "current-streamer",
-          displayName: "Stale Streamer",
-          profileImage: "",
-          followedAt: "2024-01-01T00:00:00.000Z",
-          source: "guest",
-        },
-      ],
-    });
+    svc.migrateKeyValues(
+      {
+        entries: [
+          { key: "renderer-store:existing", value: { owner: "json" } },
+          { key: "operational:downloadQueue", value: { jobs: [] } },
+        ],
+        deleteKeys: ["authTokens", "renderer-store:preferences"],
+      },
+      () => {
+        importLegacyFollows(svc.getConnection(), [
+          {
+            id: "legacy-follow",
+            platform: "kick",
+            channelId: "123",
+            channelName: "streamer",
+            displayName: "Streamer",
+            profileImage: "",
+            followedAt: "2025-01-01T00:00:00.000Z",
+            source: "guest",
+          },
+          {
+            id: "existing-follow",
+            platform: "kick",
+            channelId: "456",
+            channelName: "current-streamer",
+            displayName: "Stale Streamer",
+            profileImage: "",
+            followedAt: "2024-01-01T00:00:00.000Z",
+            source: "guest",
+          },
+        ]);
+      }
+    );
 
     expect(svc.getJson("renderer-store:existing")).toEqual({
       kind: "value",
@@ -134,7 +178,7 @@ describeDb("DatabaseService schema", () => {
     });
     expect(svc.getJson("authTokens")).toEqual({ kind: "missing" });
     expect(svc.getJson("renderer-store:preferences")).toEqual({ kind: "missing" });
-    expect(svc.getAllFollows()).toEqual(
+    expect(new FollowRepository(svc).getAllFollows()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: "legacy-follow", channelId: "123", source: "guest" }),
         expect.objectContaining({
@@ -149,6 +193,7 @@ describeDb("DatabaseService schema", () => {
   it("creates mod_log and retention_settings on first initialize() and is idempotent on a second call", () => {
     const svc = new DatabaseService();
     svc.initialize();
+    moderationData(svc);
     // Second call must not throw or duplicate any state.
     expect(() => svc.initialize()).not.toThrow();
 
@@ -197,6 +242,7 @@ describeDb("DatabaseService schema", () => {
 
     const svc = new DatabaseService();
     svc.initialize();
+    moderationData(svc);
 
     // Guards: a validated pre-migration recovery copy exists before schema changes touch an existing database.
     expect(fs.existsSync(`${dbPath}.pre-migration.bak`)).toBe(true);
@@ -204,10 +250,10 @@ describeDb("DatabaseService schema", () => {
     // Existing key_value content survives.
     expect(svc.get("greeting", (value) => (typeof value === "string" ? value : null))).toBe("hi");
 
-    // Existing follows survive — the row's data is preserved, but the
+    // Existing follows survive â€” the row's data is preserved, but the
     // 2026-05-29 source-collapse migration retags 'account' to the platform
     // name ('twitch' here).
-    const follows = svc.getAllFollows();
+    const follows = new FollowRepository(svc).getAllFollows();
     expect(follows).toHaveLength(1);
     expect(follows[0]).toMatchObject({
       platform: "twitch",
@@ -277,7 +323,7 @@ describeDb("DatabaseService schema", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toEqual([
       expect.objectContaining({ channelId: "88415342", channelName: "CxCinema" }),
     ]);
     const raw = new Database(dbPath, { readonly: true });
@@ -320,14 +366,14 @@ describeDb("DatabaseService schema", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    expect(svc.queryModLog({ channelId: "c1" })[0]).toMatchObject({
+    expect(moderationData(svc).query({ channelId: "c1" })[0]).toMatchObject({
       platform: null,
       provenance: "legacy-unattributed",
       providerEventId: null,
       occurredAt: 1_700_000_000_000,
       observedAt: 1_700_000_000_000,
     });
-    expect(svc.queryModLog({ platform: "twitch", channelId: "c1" })).toHaveLength(0);
+    expect(moderationData(svc).query({ platform: "twitch", channelId: "c1" })).toHaveLength(0);
   });
 });
 
@@ -336,7 +382,7 @@ describeDb("DatabaseService mod_log helpers", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.insertModLog({
+    moderationData(svc).insert({
       platform: "twitch",
       channelId: "c1",
       channelSlug: "chan-one",
@@ -353,7 +399,7 @@ describeDb("DatabaseService mod_log helpers", () => {
       observedAt: 1_700_000_001_500,
     });
 
-    expect(svc.queryModLog({ platform: "twitch", channelId: "c1" })[0]).toMatchObject({
+    expect(moderationData(svc).query({ platform: "twitch", channelId: "c1" })[0]).toMatchObject({
       platform: "twitch",
       provenance: "twitch-eventsub",
       providerEventId: "eventsub-message-123",
@@ -382,11 +428,11 @@ describeDb("DatabaseService mod_log helpers", () => {
       observedAt: 1_700_000_001_500,
     };
 
-    const firstId = svc.insertModLog(entry);
-    const secondId = svc.insertModLog(entry);
+    const firstId = moderationData(svc).insert(entry);
+    const secondId = moderationData(svc).insert(entry);
 
     expect(secondId).toBe(firstId);
-    expect(svc.queryModLog({ platform: "twitch", channelId: "c1" })).toHaveLength(1);
+    expect(moderationData(svc).query({ platform: "twitch", channelId: "c1" })).toHaveLength(1);
   });
 
   it("round-trips and updates channel history coverage without changing its observation window", () => {
@@ -402,27 +448,27 @@ describeDb("DatabaseService mod_log helpers", () => {
       observedAt: 1_700_000_005_500,
     };
 
-    svc.setModLogCoverage(partialCoverage);
-    expect(svc.getModLogCoverage("kick", "c1")).toEqual(partialCoverage);
+    moderationData(svc).setCoverage(partialCoverage);
+    expect(moderationData(svc).getCoverage("kick", "c1")).toEqual(partialCoverage);
 
-    svc.setModLogCoverage({
+    moderationData(svc).setCoverage({
       ...partialCoverage,
       coverage: "complete",
       source: "streamfusion-confirmed",
     });
-    expect(svc.getModLogCoverage("kick", "c1")).toEqual({
+    expect(moderationData(svc).getCoverage("kick", "c1")).toEqual({
       ...partialCoverage,
       coverage: "complete",
       source: "streamfusion-confirmed",
     });
   });
 
-  it("round-trips insertModLog → queryModLog with newest-first deterministic ordering", () => {
+  it("round-trips insertModLog â†’ queryModLog with newest-first deterministic ordering", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
     const base = 1_700_000_000_000;
-    svc.insertModLog({
+    moderationData(svc).insert({
       channelId: "c1",
       channelSlug: "chan-one",
       action: "timeout",
@@ -434,7 +480,7 @@ describeDb("DatabaseService mod_log helpers", () => {
       reason: "spam",
       createdAt: base,
     });
-    svc.insertModLog({
+    moderationData(svc).insert({
       channelId: "c1",
       channelSlug: "chan-one",
       action: "ban",
@@ -446,8 +492,8 @@ describeDb("DatabaseService mod_log helpers", () => {
       reason: null,
       createdAt: base + 1_000,
     });
-    // Different channel — should not appear in c1 query results.
-    svc.insertModLog({
+    // Different channel â€” should not appear in c1 query results.
+    moderationData(svc).insert({
       channelId: "c2",
       channelSlug: "chan-two",
       action: "ban",
@@ -458,23 +504,23 @@ describeDb("DatabaseService mod_log helpers", () => {
       createdAt: base + 2_000,
     });
 
-    const rows = svc.queryModLog({ channelId: "c1" });
+    const rows = moderationData(svc).query({ channelId: "c1" });
     expect(rows.map((r) => r.targetUsername)).toEqual(["bob", "alice"]);
     expect(rows[0].durationSeconds).toBeNull();
     expect(rows[1].durationSeconds).toBe(600);
 
-    const targetFiltered = svc.queryModLog({ channelId: "c1", targetUserId: "u1" });
+    const targetFiltered = moderationData(svc).query({ channelId: "c1", targetUserId: "u1" });
     expect(targetFiltered).toHaveLength(1);
     expect(targetFiltered[0].targetUsername).toBe("alice");
 
-    const actionFiltered = svc.queryModLog({ channelId: "c1", action: "ban" });
+    const actionFiltered = moderationData(svc).query({ channelId: "c1", action: "ban" });
     expect(actionFiltered).toHaveLength(1);
     expect(actionFiltered[0].targetUserId).toBe("u2");
 
-    const modFiltered = svc.queryModLog({ channelId: "c1", moderatorUsername: "modA" });
+    const modFiltered = moderationData(svc).query({ channelId: "c1", moderatorUsername: "modA" });
     expect(modFiltered).toHaveLength(2);
 
-    svc.insertModLog({
+    moderationData(svc).insert({
       channelId: "c1",
       channelSlug: "chan-one",
       action: "delete",
@@ -485,14 +531,14 @@ describeDb("DatabaseService mod_log helpers", () => {
       createdAt: base + 3_000,
     });
 
-    const actionListFiltered = svc.queryModLog({
+    const actionListFiltered = moderationData(svc).query({
       channelId: "c1",
       actions: ["ban", "timeout"],
       limit: 1,
     });
     expect(actionListFiltered.map((r) => r.targetUsername)).toEqual(["bob"]);
 
-    const noActionsFiltered = svc.queryModLog({ channelId: "c1", actions: [] });
+    const noActionsFiltered = moderationData(svc).query({ channelId: "c1", actions: [] });
     expect(noActionsFiltered).toHaveLength(0);
   });
 
@@ -505,7 +551,7 @@ describeDb("DatabaseService mod_log helpers", () => {
 
     // 5 entries spanning 40 days back.
     for (let i = 0; i < 5; i++) {
-      svc.insertModLog({
+      moderationData(svc).insert({
         channelId: "c1",
         channelSlug: "chan-one",
         action: "timeout",
@@ -517,13 +563,13 @@ describeDb("DatabaseService mod_log helpers", () => {
       });
     }
 
-    svc.setRetentionSetting("global", 30);
+    moderationData(svc).setRetention("global", 30);
 
-    const deleted = svc.sweepModLogRetention(now);
+    const deleted = moderationData(svc).sweepRetention(now);
     // Only the 40d-old entry is strictly older than 30 days.
     expect(deleted).toBe(1);
 
-    const remaining = svc.queryModLog({ channelId: "c1", limit: 100 });
+    const remaining = moderationData(svc).query({ channelId: "c1", limit: 100 });
     expect(remaining).toHaveLength(4);
     expect(remaining.map((r) => r.targetUserId)).toEqual(["u0", "u1", "u2", "u3"]);
   });
@@ -537,7 +583,7 @@ describeDb("DatabaseService mod_log helpers", () => {
 
     // Channel c1: keep an entry 20 days old. Channel-specific 10-day window
     // should remove it; global 60-day window would have kept it.
-    svc.insertModLog({
+    moderationData(svc).insert({
       channelId: "c1",
       channelSlug: "chan-one",
       action: "timeout",
@@ -549,7 +595,7 @@ describeDb("DatabaseService mod_log helpers", () => {
     });
     // Channel c2: keep an entry 40 days old. Global 60-day window keeps it
     // (no channel-specific override).
-    svc.insertModLog({
+    moderationData(svc).insert({
       channelId: "c2",
       channelSlug: "chan-two",
       action: "ban",
@@ -560,20 +606,20 @@ describeDb("DatabaseService mod_log helpers", () => {
       createdAt: now - 40 * day,
     });
 
-    svc.setRetentionSetting("global", 60);
-    svc.setRetentionSetting("channel:c1", 10);
+    moderationData(svc).setRetention("global", 60);
+    moderationData(svc).setRetention("channel:c1", 10);
 
-    const deleted = svc.sweepModLogRetention(now);
+    const deleted = moderationData(svc).sweepRetention(now);
     expect(deleted).toBe(1);
-    expect(svc.queryModLog({ channelId: "c1" })).toHaveLength(0);
-    expect(svc.queryModLog({ channelId: "c2" })).toHaveLength(1);
+    expect(moderationData(svc).query({ channelId: "c1" })).toHaveLength(0);
+    expect(moderationData(svc).query({ channelId: "c2" })).toHaveLength(1);
   });
 
   it("sweepModLogRetention with retention_days = NULL (forever) deletes nothing", () => {
     const svc = new DatabaseService();
     svc.initialize();
     const now = 2_000_000_000_000;
-    svc.insertModLog({
+    moderationData(svc).insert({
       channelId: "c1",
       channelSlug: "chan-one",
       action: "ban",
@@ -583,22 +629,22 @@ describeDb("DatabaseService mod_log helpers", () => {
       moderatorUsername: "modA",
       createdAt: now - 9999 * 86_400_000,
     });
-    svc.setRetentionSetting("global", null);
-    expect(svc.sweepModLogRetention(now)).toBe(0);
-    expect(svc.queryModLog({ channelId: "c1" })).toHaveLength(1);
+    moderationData(svc).setRetention("global", null);
+    expect(moderationData(svc).sweepRetention(now)).toBe(0);
+    expect(moderationData(svc).query({ channelId: "c1" })).toHaveLength(1);
   });
 });
 
 describeDb("DatabaseService follow-row safety", () => {
   // Guards: any direct follow writer preserves a resolved Kick broadcaster ID when later metadata has only the slug fallback.
-  it("addFollow with empty channelId falls back to slug — two slug-only follows do NOT collide on UNIQUE(platform, channel_id, source)", () => {
+  it("addFollow with empty channelId falls back to slug â€” two slug-only follows do NOT collide on UNIQUE(platform, channel_id, source)", () => {
     // Regression guard for the kick-DOM-scrape collision: before the fix
     // two slug-only follows both wrote channel_id="" and the second silently
     // replaced the first via INSERT OR REPLACE (only one row survived).
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "",
@@ -608,7 +654,7 @@ describeDb("DatabaseService follow-row safety", () => {
       },
       "kick"
     );
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "",
@@ -619,7 +665,7 @@ describeDb("DatabaseService follow-row safety", () => {
       "kick"
     );
 
-    const rows = svc.getFollowsByPlatformAndSource("kick", "kick");
+    const rows = new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick");
     expect(rows).toHaveLength(2);
     expect(rows.map((r) => r.channelId).sort()).toEqual(["chickenandy", "summit1g"]);
   });
@@ -628,7 +674,7 @@ describeDb("DatabaseService follow-row safety", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    const original = svc.addFollow(
+    const original = new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "88415342",
@@ -638,7 +684,7 @@ describeDb("DatabaseService follow-row safety", () => {
       },
       "kick"
     );
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "cxcinema",
@@ -649,7 +695,7 @@ describeDb("DatabaseService follow-row safety", () => {
       "kick"
     );
 
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toEqual([
       expect.objectContaining({
         id: original.id,
         channelId: "88415342",
@@ -663,7 +709,7 @@ describeDb("DatabaseService follow-row safety", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    const follow = svc.addFollow(
+    const follow = new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "avataronly",
@@ -675,7 +721,7 @@ describeDb("DatabaseService follow-row safety", () => {
     );
 
     expect(follow.channelId).toBe("99112233");
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toEqual([
       expect.objectContaining({ channelId: "99112233", channelName: "avataronly" }),
     ]);
   });
@@ -683,7 +729,7 @@ describeDb("DatabaseService follow-row safety", () => {
   it("rejects a duplicate case-variant slug even when a writer bypasses addFollow", () => {
     const svc = new DatabaseService();
     svc.initialize();
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "88415342",
@@ -715,7 +761,7 @@ describeDb("DatabaseService follow-row safety", () => {
     ).toThrow();
     raw.close();
 
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(1);
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(1);
   });
 
   it("rejects a follow without a usable channel slug", () => {
@@ -723,7 +769,7 @@ describeDb("DatabaseService follow-row safety", () => {
     svc.initialize();
 
     expect(() =>
-      svc.addFollow(
+      new FollowRepository(svc).addFollow(
         {
           platform: "kick",
           channelId: "123",
@@ -734,7 +780,7 @@ describeDb("DatabaseService follow-row safety", () => {
         "kick"
       )
     ).toThrow("Follow channel name must not be empty");
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(0);
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(0);
   });
 
   it("rejects an account follow whose source does not match its platform", () => {
@@ -742,7 +788,7 @@ describeDb("DatabaseService follow-row safety", () => {
     svc.initialize();
 
     expect(() =>
-      svc.addFollow(
+      new FollowRepository(svc).addFollow(
         {
           platform: "kick",
           channelId: "123",
@@ -753,7 +799,7 @@ describeDb("DatabaseService follow-row safety", () => {
         "twitch"
       )
     ).toThrow("Follow source twitch must match platform kick");
-    expect(svc.getAllFollows()).toHaveLength(0);
+    expect(new FollowRepository(svc).getAllFollows()).toHaveLength(0);
   });
 });
 
@@ -762,7 +808,7 @@ describeDb("DatabaseService platform-source follows", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "411439",
@@ -773,19 +819,21 @@ describeDb("DatabaseService platform-source follows", () => {
       "kick"
     );
 
-    const kickRows = svc.getFollowsByPlatformAndSource("kick", "kick");
+    const kickRows = new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick");
     expect(kickRows).toHaveLength(1);
     expect(kickRows[0]).toMatchObject({ channelId: "411439", source: "kick" });
 
     // The same row must NOT leak into the guest bucket.
-    expect(svc.getFollowsByPlatformAndSource("kick", "guest")).toHaveLength(0);
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "guest")).toHaveLength(
+      0
+    );
   });
 
   it("clearFollowsByPlatformAndSource('kick') wipes kick-source rows but leaves guest intact", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "1",
@@ -795,7 +843,7 @@ describeDb("DatabaseService platform-source follows", () => {
       },
       "kick"
     );
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "2",
@@ -806,23 +854,25 @@ describeDb("DatabaseService platform-source follows", () => {
       "guest"
     );
 
-    svc.clearFollowsByPlatformAndSource("kick", "kick");
+    new FollowRepository(svc).clearFollowsByPlatformAndSource("kick", "kick");
 
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(0);
-    expect(svc.getFollowsByPlatformAndSource("kick", "guest").map((r) => r.channelId)).toEqual([
-      "2",
-    ]);
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(0);
+    expect(
+      new FollowRepository(svc)
+        .getFollowsByPlatformAndSource("kick", "guest")
+        .map((r) => r.channelId)
+    ).toEqual(["2"]);
   });
 
-  it("source values are isolated per platform — a kick row stays out of the twitch bucket and vice versa", () => {
+  it("source values are isolated per platform â€” a kick row stays out of the twitch bucket and vice versa", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       { platform: "kick", channelId: "1", channelName: "k1", displayName: "K1", profileImage: "" },
       "kick"
     );
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "twitch",
         channelId: "2",
@@ -833,16 +883,24 @@ describeDb("DatabaseService platform-source follows", () => {
       "twitch"
     );
 
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick").map((r) => r.channelId)).toEqual([
-      "1",
-    ]);
-    expect(svc.getFollowsByPlatformAndSource("twitch", "twitch").map((r) => r.channelId)).toEqual([
-      "2",
-    ]);
-    // Cross-platform query returns nothing — the (platform, source) filter
+    expect(
+      new FollowRepository(svc)
+        .getFollowsByPlatformAndSource("kick", "kick")
+        .map((r) => r.channelId)
+    ).toEqual(["1"]);
+    expect(
+      new FollowRepository(svc)
+        .getFollowsByPlatformAndSource("twitch", "twitch")
+        .map((r) => r.channelId)
+    ).toEqual(["2"]);
+    // Cross-platform query returns nothing â€” the (platform, source) filter
     // composes both columns.
-    expect(svc.getFollowsByPlatformAndSource("kick", "twitch")).toHaveLength(0);
-    expect(svc.getFollowsByPlatformAndSource("twitch", "kick")).toHaveLength(0);
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "twitch")).toHaveLength(
+      0
+    );
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("twitch", "kick")).toHaveLength(
+      0
+    );
   });
 });
 
@@ -865,13 +923,13 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    const result = svc.upsertSyncedFollows("kick", [
+    const result = new FollowRepository(svc).upsertSyncedFollows("kick", [
       fetched("111", "alice"),
       fetched("222", "bob"),
     ]);
 
     expect(result).toEqual({ accountCount: 2, pendingCount: 0, addedCount: 2, removedCount: 0 });
-    const rows = svc.getFollowsByPlatformAndSource("kick", "kick");
+    const rows = new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick");
     expect(rows.map((r) => r.channelId).sort()).toEqual(["111", "222"]);
   });
 
@@ -898,12 +956,12 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     };
     const batch = reverse ? [stable, slugOnly] : [slugOnly, stable];
 
-    const first = svc.upsertSyncedFollows("kick", batch);
-    const second = svc.upsertSyncedFollows("kick", [...batch].reverse());
+    const first = new FollowRepository(svc).upsertSyncedFollows("kick", batch);
+    const second = new FollowRepository(svc).upsertSyncedFollows("kick", [...batch].reverse());
 
     expect(first).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 1, removedCount: 0 });
     expect(second).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 0, removedCount: 0 });
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toEqual([
       expect.objectContaining({ channelId: "88415342", channelName: "cxcinema" }),
     ]);
   });
@@ -911,10 +969,10 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
   it("rejects malformed sync rows before changing stored follows", () => {
     const svc = new DatabaseService();
     svc.initialize();
-    svc.addFollow(fetched("111", "alice"), "kick");
+    new FollowRepository(svc).addFollow(fetched("111", "alice"), "kick");
 
     expect(() =>
-      svc.upsertSyncedFollows("kick", [
+      new FollowRepository(svc).upsertSyncedFollows("kick", [
         fetched("222", "bob"),
         {
           platform: "twitch",
@@ -926,22 +984,25 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       ])
     ).toThrow("Sync row platform must match kick");
 
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toEqual([
       expect.objectContaining({ channelId: "111", channelName: "alice" }),
     ]);
-    expect(svc.getFollowsByPlatform("twitch")).toHaveLength(0);
+    expect(new FollowRepository(svc).getFollowsByPlatform("twitch")).toHaveLength(0);
   });
 
   it("rejects a blank slug in a sync batch before changing stored follows", () => {
     const svc = new DatabaseService();
     svc.initialize();
-    svc.addFollow(fetched("111", "alice"), "kick");
+    new FollowRepository(svc).addFollow(fetched("111", "alice"), "kick");
 
     expect(() =>
-      svc.upsertSyncedFollows("kick", [fetched("222", "bob"), fetched("333", "   ")])
+      new FollowRepository(svc).upsertSyncedFollows("kick", [
+        fetched("222", "bob"),
+        fetched("333", "   "),
+      ])
     ).toThrow("Synced follow channel name must not be empty");
 
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toEqual([
       expect.objectContaining({ channelId: "111", channelName: "alice" }),
     ]);
   });
@@ -949,10 +1010,10 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
   it("rejects conflicting stable IDs for one slug before changing stored follows", () => {
     const svc = new DatabaseService();
     svc.initialize();
-    svc.addFollow(fetched("111", "alice"), "kick");
+    new FollowRepository(svc).addFollow(fetched("111", "alice"), "kick");
 
     expect(() =>
-      svc.upsertSyncedFollows("kick", [
+      new FollowRepository(svc).upsertSyncedFollows("kick", [
         {
           ...fetched("222", "shared"),
           profileImage: "https://files.kick.com/images/user/222/profile_image/current.webp",
@@ -964,7 +1025,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       ])
     ).toThrow("Conflicting stable channel identities for kick:shared");
 
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toEqual([
       expect.objectContaining({ channelId: "111", channelName: "alice" }),
     ]);
   });
@@ -975,8 +1036,8 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
 
     // A kick row already in DB (e.g. user clicked Follow in-app while signed in,
     // OR a prior sync imported it and a later sync no longer sees it because
-    // the user unfollowed externally — additive sync preserves it either way).
-    svc.addFollow(
+    // the user unfollowed externally â€” additive sync preserves it either way).
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "411439",
@@ -987,11 +1048,11 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       "kick"
     );
 
-    const result = svc.upsertSyncedFollows("kick", [fetched("999", "other")]);
+    const result = new FollowRepository(svc).upsertSyncedFollows("kick", [fetched("999", "other")]);
 
     // Only the fetched row survives after authoritative reconciliation.
     expect(result).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 1, removedCount: 1 });
-    const rows = svc.getFollowsByPlatformAndSource("kick", "kick");
+    const rows = new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick");
     expect(rows.map((r) => r.channelId)).toEqual(["999"]);
   });
 
@@ -999,7 +1060,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "411439",
@@ -1010,12 +1071,16 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       "kick"
     );
 
-    const result = svc.upsertSyncedFollows("kick", [fetched("999", "other")], {
-      pruneAbsent: false,
-    });
+    const result = new FollowRepository(svc).upsertSyncedFollows(
+      "kick",
+      [fetched("999", "other")],
+      {
+        pruneAbsent: false,
+      }
+    );
 
     expect(result).toEqual({ accountCount: 2, pendingCount: 0, addedCount: 1, removedCount: 0 });
-    const rows = svc.getFollowsByPlatformAndSource("kick", "kick");
+    const rows = new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick");
     expect(rows.map((r) => r.channelId).sort()).toEqual(["411439", "999"]);
   });
 
@@ -1023,7 +1088,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "88415342",
@@ -1033,7 +1098,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       },
       "kick"
     );
-    const result = svc.upsertSyncedFollows(
+    const result = new FollowRepository(svc).upsertSyncedFollows(
       "kick",
       [
         {
@@ -1048,7 +1113,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     );
 
     expect(result).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 0, removedCount: 0 });
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toEqual([
       expect.objectContaining({ channelId: "88415342", channelName: "cxcinema" }),
     ]);
   });
@@ -1080,7 +1145,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       "2026-01-02T00:00:00.000Z"
     );
     raw.close();
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "unrelated",
@@ -1091,7 +1156,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       "kick"
     );
 
-    const result = svc.upsertSyncedFollows(
+    const result = new FollowRepository(svc).upsertSyncedFollows(
       "kick",
       [
         {
@@ -1106,7 +1171,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     );
 
     expect(result).toEqual({ accountCount: 2, pendingCount: 0, addedCount: 0, removedCount: 2 });
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual(
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           channelId: "110821336",
@@ -1122,7 +1187,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "legacy-channel-a",
@@ -1133,7 +1198,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       "kick"
     );
 
-    const result = svc.upsertSyncedFollows("kick", [
+    const result = new FollowRepository(svc).upsertSyncedFollows("kick", [
       {
         platform: "kick",
         channelId: "222",
@@ -1144,7 +1209,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     ]);
 
     expect(result).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 1, removedCount: 1 });
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toEqual([
       expect.objectContaining({
         channelId: "222",
         channelName: "sharedslug",
@@ -1157,7 +1222,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "110821336",
@@ -1168,7 +1233,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       "kick"
     );
 
-    const result = svc.upsertSyncedFollows(
+    const result = new FollowRepository(svc).upsertSyncedFollows(
       "kick",
       [
         {
@@ -1183,7 +1248,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     );
 
     expect(result).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 0, removedCount: 0 });
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toEqual([
       expect.objectContaining({
         channelId: "110821336",
         channelName: "current-channel",
@@ -1198,7 +1263,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "twitch",
         channelId: "12345",
@@ -1209,10 +1274,12 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       "twitch"
     );
 
-    const result = svc.upsertSyncedFollows("twitch", []);
+    const result = new FollowRepository(svc).upsertSyncedFollows("twitch", []);
 
     expect(result).toEqual({ accountCount: 0, pendingCount: 0, addedCount: 0, removedCount: 1 });
-    expect(svc.getFollowsByPlatformAndSource("twitch", "twitch")).toHaveLength(0);
+    expect(
+      new FollowRepository(svc).getFollowsByPlatformAndSource("twitch", "twitch")
+    ).toHaveLength(0);
   });
 
   it("re-fetching the same channels updates metadata in place and reports addedCount=0 (no-op sync gate)", () => {
@@ -1222,7 +1289,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "111",
@@ -1232,7 +1299,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       },
       "kick"
     );
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "222",
@@ -1243,7 +1310,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       "kick"
     );
 
-    const result = svc.upsertSyncedFollows("kick", [
+    const result = new FollowRepository(svc).upsertSyncedFollows("kick", [
       {
         platform: "kick",
         channelId: "111",
@@ -1262,7 +1329,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
 
     expect(result).toEqual({ accountCount: 2, pendingCount: 0, addedCount: 0, removedCount: 0 });
     // Metadata still flushed to DB.
-    const rows = svc.getFollowsByPlatformAndSource("kick", "kick");
+    const rows = new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick");
     const alice = rows.find((r) => r.channelId === "111");
     expect(alice?.displayName).toBe("Alice (new banner)");
   });
@@ -1271,7 +1338,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "411439",
@@ -1281,7 +1348,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       },
       "kick"
     );
-    const guest = svc.addFollow(
+    const guest = new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "guest-kick",
@@ -1291,7 +1358,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       },
       "guest"
     );
-    const twitch = svc.addFollow(
+    const twitch = new FollowRepository(svc).addFollow(
       {
         platform: "twitch",
         channelId: "twitch-1",
@@ -1301,14 +1368,14 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       },
       "twitch"
     );
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "legacy-kick-id",
       slug: "SUMMIT1G",
       action: "unfollow",
     });
 
-    const result = svc.upsertSyncedFollows(
+    const result = new FollowRepository(svc).upsertSyncedFollows(
       "kick",
       [
         {
@@ -1320,7 +1387,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     );
 
     expect(result).toEqual({ accountCount: 1, pendingCount: 1, addedCount: 0, removedCount: 0 });
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toEqual([
       expect.objectContaining({
         channelId: "411439",
         channelName: "summit1g",
@@ -1328,15 +1395,19 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
         profileImage: "https://example.com/refreshed.jpg",
       }),
     ]);
-    expect(svc.getPendingFollowWritesByPlatform("kick")).toEqual([
+    expect(new FollowRepository(svc).getPendingFollowWritesByPlatform("kick")).toEqual([
       expect.objectContaining({
         channelId: "legacy-kick-id",
         slug: "SUMMIT1G",
         action: "unfollow",
       }),
     ]);
-    expect(svc.getFollowsByPlatformAndSource("kick", "guest")).toEqual([guest]);
-    expect(svc.getFollowsByPlatformAndSource("twitch", "twitch")).toEqual([twitch]);
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "guest")).toEqual([
+      guest,
+    ]);
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("twitch", "twitch")).toEqual([
+      twitch,
+    ]);
   });
 
   it("keeps a dual-id pending unfollow while adopting the fresh same-slug row", () => {
@@ -1347,27 +1418,29 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "999",
       slug: "ramees",
       action: "unfollow",
     });
 
-    const result = svc.upsertSyncedFollows("kick", [fetched("12345", "ramees")]);
+    const result = new FollowRepository(svc).upsertSyncedFollows("kick", [
+      fetched("12345", "ramees"),
+    ]);
 
     expect(result).toEqual({ accountCount: 1, pendingCount: 1, addedCount: 1, removedCount: 0 });
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toEqual([
       expect.objectContaining({ channelId: "12345", channelName: "ramees" }),
     ]);
-    expect(svc.getPendingFollowWritesByPlatform("kick")).toHaveLength(1);
+    expect(new FollowRepository(svc).getPendingFollowWritesByPlatform("kick")).toHaveLength(1);
   });
 
   it("clears pending follow when fetched list confirms the push landed externally", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "999",
@@ -1377,41 +1450,43 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       },
       "kick"
     );
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "999",
       slug: "ramees",
       action: "follow",
     });
 
-    const result = svc.upsertSyncedFollows("kick", [fetched("999", "ramees")]);
+    const result = new FollowRepository(svc).upsertSyncedFollows("kick", [
+      fetched("999", "ramees"),
+    ]);
 
     expect(result).toEqual({ accountCount: 1, pendingCount: 0, addedCount: 0, removedCount: 0 });
-    expect(svc.getPendingFollowWritesByPlatform("kick")).toHaveLength(0);
+    expect(new FollowRepository(svc).getPendingFollowWritesByPlatform("kick")).toHaveLength(0);
   });
 
   it("clears pending unfollow when channel NOT in fetched (unfollow landed externally)", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "411439",
       slug: "summit1g",
       action: "unfollow",
     });
 
-    const result = svc.upsertSyncedFollows("kick", []);
+    const result = new FollowRepository(svc).upsertSyncedFollows("kick", []);
 
     expect(result).toEqual({ accountCount: 0, pendingCount: 0, addedCount: 0, removedCount: 0 });
-    expect(svc.getPendingFollowWritesByPlatform("kick")).toHaveLength(0);
+    expect(new FollowRepository(svc).getPendingFollowWritesByPlatform("kick")).toHaveLength(0);
   });
 
   // Guards: target-specific Kick unfollow confirmation removes the account row and pending tombstone in one database transaction.
   it("atomically confirms a target-specific Kick unfollow", () => {
     const svc = new DatabaseService();
     svc.initialize();
-    const follow = svc.addFollow(
+    const follow = new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "411439",
@@ -1421,7 +1496,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       },
       "kick"
     );
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "411439",
       slug: "blame",
@@ -1429,28 +1504,28 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     });
 
     expect(
-      svc.confirmKickUnfollow({
+      new FollowRepository(svc).confirmKickUnfollow({
         channelId: "411439",
         slug: "blame",
         localFollowId: follow.id,
       })
     ).toBe(true);
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toEqual([]);
-    expect(svc.getPendingFollowWritesByPlatform("kick")).toEqual([]);
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toEqual([]);
+    expect(new FollowRepository(svc).getPendingFollowWritesByPlatform("kick")).toEqual([]);
   });
 
   // Guards: target-specific Kick follow confirmation adds the account row and removes the pending tombstone in one database transaction.
   it("atomically confirms a target-specific Kick follow", () => {
     const svc = new DatabaseService();
     svc.initialize();
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "411439",
       slug: "blame",
       action: "follow",
     });
 
-    const follow = svc.confirmKickFollow({
+    const follow = new FollowRepository(svc).confirmKickFollow({
       platform: "kick",
       channelId: "411439",
       channelName: "blame",
@@ -1459,15 +1534,15 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     });
 
     expect(follow).toMatchObject({ channelId: "411439", channelName: "blame", source: "kick" });
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(1);
-    expect(svc.getPendingFollowWritesByPlatform("kick")).toEqual([]);
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(1);
+    expect(new FollowRepository(svc).getPendingFollowWritesByPlatform("kick")).toEqual([]);
   });
 
-  it("platforms are isolated — twitch sync does not touch kick rows or pending writes", () => {
+  it("platforms are isolated â€” twitch sync does not touch kick rows or pending writes", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "twitch",
         channelId: "12345",
@@ -1477,7 +1552,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       },
       "twitch"
     );
-    svc.addFollow(
+    new FollowRepository(svc).addFollow(
       {
         platform: "kick",
         channelId: "999",
@@ -1487,34 +1562,36 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       },
       "kick"
     );
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "999",
       slug: "ramees",
       action: "follow",
     });
 
-    const result = svc.upsertSyncedFollows("twitch", []);
+    const result = new FollowRepository(svc).upsertSyncedFollows("twitch", []);
 
     // twitch alice was absent from the authoritative Twitch list. Kick row +
     // pending write remain untouched because sync is scoped by platform.
     expect(result).toEqual({ accountCount: 0, pendingCount: 0, addedCount: 0, removedCount: 1 });
-    expect(svc.getFollowsByPlatformAndSource("twitch", "twitch")).toHaveLength(0);
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(1);
-    expect(svc.getPendingFollowWritesByPlatform("kick")).toHaveLength(1);
+    expect(
+      new FollowRepository(svc).getFollowsByPlatformAndSource("twitch", "twitch")
+    ).toHaveLength(0);
+    expect(new FollowRepository(svc).getFollowsByPlatformAndSource("kick", "kick")).toHaveLength(1);
+    expect(new FollowRepository(svc).getPendingFollowWritesByPlatform("kick")).toHaveLength(1);
   });
 
   it("co-existing pending follow + pending unfollow for different channels on the same platform", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "999",
       slug: "ramees",
       action: "follow",
     });
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "411439",
       slug: "summit1g",
@@ -1522,7 +1599,9 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     });
 
     // Platform shows summit1g (unfollow didn't land), no ramees (follow didn't land).
-    const result = svc.upsertSyncedFollows("kick", [fetched("411439", "summit1g")]);
+    const result = new FollowRepository(svc).upsertSyncedFollows("kick", [
+      fetched("411439", "summit1g"),
+    ]);
 
     // Fresh sync still owns confirmed state: summit1g is adopted while both
     // unresolved intents remain.
@@ -1537,7 +1616,7 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
     svc.initialize();
 
     for (const id of ["1", "2", "3", "4", "5"]) {
-      svc.addFollow(
+      new FollowRepository(svc).addFollow(
         {
           platform: "kick",
           channelId: id,
@@ -1549,13 +1628,15 @@ describeDb("DatabaseService upsertSyncedFollows", () => {
       );
     }
 
-    const result = svc.upsertSyncedFollows("kick", [fetched("1", "c1")]);
+    const result = new FollowRepository(svc).upsertSyncedFollows("kick", [fetched("1", "c1")]);
 
     expect(result.removedCount).toBe(4);
     expect(result.accountCount).toBe(1);
-    expect(svc.getFollowsByPlatformAndSource("kick", "kick").map((r) => r.channelId)).toEqual([
-      "1",
-    ]);
+    expect(
+      new FollowRepository(svc)
+        .getFollowsByPlatformAndSource("kick", "kick")
+        .map((r) => r.channelId)
+    ).toEqual(["1"]);
   });
 });
 
@@ -1564,17 +1645,17 @@ describeDb("DatabaseService retention_settings helpers", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    expect(svc.getRetentionSetting("global")).toBeUndefined();
+    expect(moderationData(svc).getRetention("global")).toBeUndefined();
 
-    svc.setRetentionSetting("global", 14);
-    expect(svc.getRetentionSetting("global")).toBe(14);
+    moderationData(svc).setRetention("global", 14);
+    expect(moderationData(svc).getRetention("global")).toBe(14);
 
     // Upsert overwrites.
-    svc.setRetentionSetting("global", null);
-    expect(svc.getRetentionSetting("global")).toBeNull();
+    moderationData(svc).setRetention("global", null);
+    expect(moderationData(svc).getRetention("global")).toBeNull();
 
-    svc.setRetentionSetting("channel:abc", 7);
-    expect(svc.getRetentionSetting("channel:abc")).toBe(7);
+    moderationData(svc).setRetention("channel:abc", 7);
+    expect(moderationData(svc).getRetention("channel:abc")).toBe(7);
   });
 });
 
@@ -1585,7 +1666,7 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
     svc.initialize();
     const now = new Date("2026-07-04T03:20:00.000Z");
 
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "12345",
       slug: "ramees",
@@ -1593,7 +1674,7 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
       now,
     });
 
-    expect(svc.getAllPendingFollowWrites()[0]).toMatchObject({
+    expect(new FollowRepository(svc).getAllPendingFollowWrites()[0]).toMatchObject({
       status: "pending",
       createdAt: "2026-07-04T03:20:00.000Z",
       attemptedAt: "2026-07-04T03:20:00.000Z",
@@ -1630,7 +1711,7 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    expect(svc.getAllPendingFollowWrites()[0]).toMatchObject({
+    expect(new FollowRepository(svc).getAllPendingFollowWrites()[0]).toMatchObject({
       status: "pending",
       createdAt: "2026-07-04T03:20:00.000Z",
       attemptedAt: "2026-07-04T03:20:00.000Z",
@@ -1644,7 +1725,7 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
   it("updates retry state through the dual-id bridge", () => {
     const svc = new DatabaseService();
     svc.initialize();
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "12345",
       slug: "ramees",
@@ -1652,7 +1733,7 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
       now: new Date("2026-07-04T03:20:00.000Z"),
     });
 
-    const updated = svc.updatePendingFollowWriteState({
+    const updated = new FollowRepository(svc).updatePendingFollowWriteState({
       platform: "kick",
       channelId: "ramees",
       slug: "ramees",
@@ -1665,7 +1746,7 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
     });
 
     expect(updated).toBe(true);
-    expect(svc.getAllPendingFollowWrites()[0]).toMatchObject({
+    expect(new FollowRepository(svc).getAllPendingFollowWrites()[0]).toMatchObject({
       status: "retrying",
       attemptedAt: "2026-07-04T03:20:01.000Z",
       nextAttemptAt: "2026-07-04T03:20:03.000Z",
@@ -1678,7 +1759,7 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "twitch",
       channelId: "12345",
       slug: "somechannel",
@@ -1686,7 +1767,7 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
       lastError: "integrity check failed",
     });
 
-    const rows = svc.getAllPendingFollowWrites();
+    const rows = new FollowRepository(svc).getAllPendingFollowWrites();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       platform: "twitch",
@@ -1699,23 +1780,23 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
     expect(rows[0].attemptedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/); // ISO-8601 prefix
   });
 
-  it("addPendingFollowWrite UPSERTs on duplicate (platform, channel_id, action) — updates attempted_at and last_error, no duplicate row", async () => {
+  it("addPendingFollowWrite UPSERTs on duplicate (platform, channel_id, action) â€” updates attempted_at and last_error, no duplicate row", async () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "999",
       slug: "ramees",
       action: "follow",
       lastError: "first attempt",
     });
-    const firstRow = svc.getAllPendingFollowWrites()[0];
+    const firstRow = new FollowRepository(svc).getAllPendingFollowWrites()[0];
 
     // Ensure the timestamp would actually advance.
     await new Promise((r) => setTimeout(r, 20));
 
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "999",
       slug: "ramees",
@@ -1723,7 +1804,7 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
       lastError: "second attempt",
     });
 
-    const rows = svc.getAllPendingFollowWrites();
+    const rows = new FollowRepository(svc).getAllPendingFollowWrites();
     expect(rows).toHaveLength(1);
     expect(rows[0].id).toBe(firstRow.id);
     expect(rows[0].lastError).toBe("second attempt");
@@ -1734,20 +1815,20 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "999",
       slug: "ramees",
       action: "follow",
     });
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "999",
       slug: "ramees",
       action: "unfollow",
     });
 
-    const rows = svc.getAllPendingFollowWrites();
+    const rows = new FollowRepository(svc).getAllPendingFollowWrites();
     expect(rows).toHaveLength(2);
     expect(rows.map((r) => r.action).sort()).toEqual(["follow", "unfollow"]);
   });
@@ -1756,20 +1837,20 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "twitch",
       channelId: "12345",
       slug: "alice",
       action: "follow",
     });
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "twitch",
       channelId: "12345",
       slug: "alice",
       action: "unfollow",
     });
 
-    const removed = svc.removePendingFollowWrite({
+    const removed = new FollowRepository(svc).removePendingFollowWrite({
       platform: "twitch",
       channelId: "12345",
       slug: "alice",
@@ -1777,7 +1858,7 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
     });
     expect(removed).toBe(true);
 
-    const remaining = svc.getAllPendingFollowWrites();
+    const remaining = new FollowRepository(svc).getAllPendingFollowWrites();
     expect(remaining).toHaveLength(1);
     expect(remaining[0].action).toBe("unfollow");
   });
@@ -1788,7 +1869,7 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
     svc.initialize();
 
     // Pending row inserted with the numeric user_id Kick returned at sync time.
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "12345",
       slug: "ramees",
@@ -1797,45 +1878,45 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
 
     // Retry path hydrates from a different source and passes slug as channelId.
     // The cleanup must still find the row via the slug bridge.
-    const removed = svc.removePendingFollowWrite({
+    const removed = new FollowRepository(svc).removePendingFollowWrite({
       platform: "kick",
       channelId: "ramees",
       slug: "ramees",
       action: "follow",
     });
     expect(removed).toBe(true);
-    expect(svc.getAllPendingFollowWrites()).toHaveLength(0);
+    expect(new FollowRepository(svc).getAllPendingFollowWrites()).toHaveLength(0);
   });
 
   it("getPendingFollowWritesByPlatform returns only rows for the requested platform, ordered by attempted_at ascending", async () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "twitch",
       channelId: "100",
       slug: "twitchA",
       action: "follow",
     });
     await new Promise((r) => setTimeout(r, 20));
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "kick",
       channelId: "200",
       slug: "kickA",
       action: "follow",
     });
     await new Promise((r) => setTimeout(r, 20));
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "twitch",
       channelId: "101",
       slug: "twitchB",
       action: "unfollow",
     });
 
-    const twitchRows = svc.getPendingFollowWritesByPlatform("twitch");
+    const twitchRows = new FollowRepository(svc).getPendingFollowWritesByPlatform("twitch");
     expect(twitchRows.map((r) => r.slug)).toEqual(["twitchA", "twitchB"]);
 
-    const kickRows = svc.getPendingFollowWritesByPlatform("kick");
+    const kickRows = new FollowRepository(svc).getPendingFollowWritesByPlatform("kick");
     expect(kickRows.map((r) => r.slug)).toEqual(["kickA"]);
   });
 
@@ -1844,11 +1925,11 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
     svc.initialize();
 
     expect(() =>
-      svc.addPendingFollowWrite({
+      new FollowRepository(svc).addPendingFollowWrite({
         platform: "twitch",
         channelId: "1",
         slug: "foo",
-        // @ts-expect-error — deliberately violating the type to exercise the CHECK constraint
+        // @ts-expect-error â€” deliberately violating the type to exercise the CHECK constraint
         action: "subscribe",
       })
     ).toThrow();
@@ -1858,7 +1939,7 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
     const svc = new DatabaseService();
     svc.initialize();
 
-    const removed = svc.removePendingFollowWrite({
+    const removed = new FollowRepository(svc).removePendingFollowWrite({
       platform: "twitch",
       channelId: "nope",
       slug: "nope",
@@ -1870,17 +1951,17 @@ describeDb("DatabaseService pending_follow_writes helpers", () => {
   it("pending_follow_writes table is created on a fresh DB, and survives reopen", () => {
     const svc = new DatabaseService();
     svc.initialize();
-    svc.addPendingFollowWrite({
+    new FollowRepository(svc).addPendingFollowWrite({
       platform: "twitch",
       channelId: "1",
       slug: "a",
       action: "follow",
     });
 
-    // Re-instantiate against the same path — simulates an app restart.
+    // Re-instantiate against the same path â€” simulates an app restart.
     const svc2 = new DatabaseService();
     svc2.initialize();
-    const rows = svc2.getAllPendingFollowWrites();
+    const rows = new FollowRepository(svc2).getAllPendingFollowWrites();
     expect(rows).toHaveLength(1);
     expect(rows[0].slug).toBe("a");
   });

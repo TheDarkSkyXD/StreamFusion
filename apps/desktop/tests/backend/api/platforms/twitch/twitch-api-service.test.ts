@@ -447,7 +447,7 @@ describe("Twitch API service", () => {
       "/moderation/suspicious_users?broadcaster_id=100&moderator_id=200",
       {
         method: "POST",
-        body: JSON.stringify({ user_id: "300", low_trust_status: "ACTIVE_MONITORING" }),
+        body: JSON.stringify({ user_id: "300", status: "ACTIVE_MONITORING" }),
       }
     );
   });

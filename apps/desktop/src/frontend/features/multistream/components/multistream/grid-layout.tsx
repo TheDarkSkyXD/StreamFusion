@@ -1,3 +1,4 @@
+import { getSlotController } from "@/features/multistream/composition/slot-controller";
 import {
   closestCenter,
   DndContext,
@@ -15,7 +16,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useMultiStreamStore } from "@/features/multistream/data/multistream-store";
+import { useMultiStreamStore } from "@/features/multistream/components/state/multistream-store";
 
 import { AspectAwareStreamGrid, type StreamGridPresentation } from "./adaptive-stream-grid";
 import { SortableStreamSlot } from "./sortable-stream-slot";
@@ -43,7 +44,7 @@ export function MultiStreamGrid() {
   const focusSlot = useCallback(
     (slotId: string) => {
       setFocusedStream(slotId);
-      window.electronAPI?.slot?.requestFocus(slotId).catch(() => {});
+      getSlotController()?.requestFocus(slotId).catch(() => {});
     },
     [setFocusedStream]
   );
@@ -63,14 +64,14 @@ export function MultiStreamGrid() {
   }, [streams, focusSlot]);
 
   useEffect(() => {
-    window.electronAPI?.slot?.rebindExistingSlots?.().catch(() => {
+    getSlotController()?.rebindExistingSlots?.().catch(() => {
       /* main may not have any slots yet; safe to ignore */
     });
   }, []);
 
   useEffect(() => {
     let cancelled = false;
-    const slot = window.electronAPI?.slot;
+    const slot = getSlotController();
     if (!slot?.isWcvEnabled) {
       setWcvEnabled(false);
       return;

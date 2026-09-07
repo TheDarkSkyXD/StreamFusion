@@ -11,8 +11,8 @@ import {
   type Clip,
   type Stream,
   type Video,
-} from "../content/index.ts";
-import type { ChatMessage } from "../chat/index.ts";
+} from "../features/content/domain/index.ts";
+import type { ChatMessage } from "../features/chat/domain/index.ts";
 
 export const platformFixtures = {
   twitch: "twitch",

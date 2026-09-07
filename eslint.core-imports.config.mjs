@@ -124,6 +124,7 @@ export default tseslint.config(
   },
   {
     files: productionFiles,
+    ignores: ["packages/core/src/features/**/tests/**"],
     rules: {
       "streamfusion/core-import-boundary": ["error", { allowTesting: false }],
     },

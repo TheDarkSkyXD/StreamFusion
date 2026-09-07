@@ -10,12 +10,12 @@ import { TwitchHlsPlayer } from "@/features/playback/components/player/twitch/tw
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInterval } from "@/hooks/useInterval";
-import { useStreamPlayback } from "@/features/playback/data/useStreamPlayback";
+import { useStreamPlayback } from "@/features/playback/components/hooks/useStreamPlayback";
 import { cn, formatLanguageLabel, formatViewerCount, uniqueTagLabels } from "@/lib/utils";
-import { useAdBlockStore } from "@/store/adblock-store";
-import { useAppStore } from "@/store/app-store";
-import { usePipStore } from "@/store/pip-store";
-import { useVolumeStore } from "@/store/volume-store";
+import { useAdBlockStore } from "@/features/playback/components/state/adblock-store";
+import { useAppStore } from "@/features/shell/components/state/app-store";
+import { usePipStore } from "@/features/playback/components/state/pip-store";
+import { useVolumeStore } from "@/features/playback/components/state/volume-store";
 
 interface FeaturedStreamProps {
   stream?: UnifiedStream;

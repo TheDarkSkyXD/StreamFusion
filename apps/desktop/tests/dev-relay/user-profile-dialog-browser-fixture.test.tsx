@@ -7,9 +7,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { createBrowserElectronApi } from "@/dev-relay/browser-electron-api";
 import { applyModerationBrowserFixture } from "@/dev-relay/moderation-browser-fixtures";
 import type { ChatMessage } from "@shared/chat-types";
-import { useAuthStore } from "@/store/auth-store";
-import { buildChannelKey, useChatStore } from "@/store/chat-store";
-import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
+import { buildChannelKey, useChatStore } from "@/features/chat/components/state/chat-store";
+import { useDevModOverrideStore } from "@/features/moderation/components/state/dev-mod-override-store";
 
 let fixtureClient: QueryClient | undefined;
 

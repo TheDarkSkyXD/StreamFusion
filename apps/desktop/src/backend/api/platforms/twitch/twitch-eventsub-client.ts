@@ -1,3 +1,8 @@
+import {
+  TWITCH_EVENTSUB_CATALOG,
+  eventSubCondition,
+  eventSubRoutingId,
+} from "./twitch-eventsub-catalog";
 /**
  * Twitch EventSub WebSocket client.
  *
@@ -88,25 +93,6 @@ export interface TwitchEventSubClientOptions {
 /** Key used by both the local routing map and the refcount map. */
 function pairKey(eventType: TwitchEventSubEventType, channelId: string): string {
   return `${eventType}::${channelId}`;
-}
-
-function subscriptionVersion(eventType: TwitchEventSubEventType): string {
-  return eventType === "channel.moderate" || eventType.startsWith("automod.message.") ? "2" : "1";
-}
-
-function subscriptionCondition(
-  eventType: TwitchEventSubEventType,
-  channelId: string,
-  broadcasterUserId: string
-): Record<string, string> {
-  if (eventType === "channel.moderate" || eventType.startsWith("automod.message.")) {
-    return {
-      broadcaster_user_id: channelId,
-      moderator_user_id: broadcasterUserId,
-    };
-  }
-
-  return { broadcaster_user_id: channelId };
 }
 
 function subscriptionFailure(
@@ -650,10 +636,7 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
 
   private onNotification(payload: NotificationPayload<unknown>): void {
     const sub = payload.subscription;
-    const channelId =
-      typeof sub.condition?.broadcaster_user_id === "string"
-        ? (sub.condition.broadcaster_user_id as string)
-        : null;
+    const channelId = eventSubRoutingId(sub.type, sub.condition);
     if (!channelId) {
       logger.warn("Twitch:EventSub", "notification without broadcaster_user_id", { subId: sub.id });
       return;
@@ -680,7 +663,10 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
   private onRevocation(payload: RevocationPayload): void {
     const subId = payload.subscription.id;
     const indexedPair = this.subIdToPair.get(subId);
-    const broadcasterUserId = payload.subscription.condition.broadcaster_user_id;
+    const broadcasterUserId = eventSubRoutingId(
+      payload.subscription.type,
+      payload.subscription.condition
+    );
     const payloadPair =
       typeof broadcasterUserId === "string"
         ? { eventType: payload.subscription.type, channelId: broadcasterUserId }
@@ -710,11 +696,11 @@ class TwitchEventSubClientImpl implements TwitchEventSubClient {
     if (!this.sessionId) return;
     if (entry.posting || entry.subscriptionId || entry.terminalFailureStatus) return;
     entry.posting = true;
-    const version = subscriptionVersion(entry.eventType);
+    const version = TWITCH_EVENTSUB_CATALOG[entry.eventType].version;
     const body = {
       type: entry.eventType,
       version,
-      condition: subscriptionCondition(entry.eventType, entry.channelId, this.broadcasterUserId),
+      condition: eventSubCondition(entry.eventType, entry.channelId, this.broadcasterUserId),
       transport: {
         method: "websocket" as const,
         session_id: this.sessionId,

@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { UnifiedChannel } from "@shared/platform-types";
 import type { LocalFollow } from "@shared/auth-types";
 import type { AuthStatus } from "@shared/ipc-channels";
-import { useAuthStore } from "@/store/auth-store";
-import { useFollowStore } from "@/store/follow-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
+import { useFollowStore } from "@/features/discovery/components/state/follow-store";
 
 import { installElectronAPIMock } from "../test-utils";
 

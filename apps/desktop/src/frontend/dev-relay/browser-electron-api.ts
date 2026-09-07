@@ -1,7 +1,8 @@
 import { rewriteDevBrowserPlaybackValue } from "@/lib/dev-browser-media-url";
-import type { ElectronAPI } from "@backend/preload";
 import { getModerationBrowserFixture } from "./moderation-browser-fixtures";
 import { getUserProfileFixture } from "./user-profile-fixtures";
+
+type ElectronAPI = Window["electronAPI"];
 
 export interface BrowserRelayClient {
   call(path: readonly string[], args: readonly unknown[]): Promise<unknown>;

@@ -9,9 +9,14 @@
  */
 
 import { logger } from "@shared/utils/cross-logger";
+import type {
+  PlatformHealth,
+  PlatformHealthEvent,
+  StatusPageDetail,
+} from "@shared/platform-health-types";
 import { Platform } from "@streamfusion/core/platform";
 
-export type PlatformHealth = "healthy" | "degraded" | "down";
+export type { PlatformHealth, PlatformHealthEvent, StatusPageDetail } from "@shared/platform-health-types";
 
 export type PlatformFailureClass = "timeout" | "server-5xx" | "net-error";
 export type PlatformCrashReason =
@@ -33,28 +38,12 @@ export const STATUS_PAGE_POLL_INTERVAL_MS = 60_000;
 
 export type StatusPageSignal = "confirmed-outage" | "all-clear" | "no-signal";
 
-export interface StatusPageDetail {
-  summary: string;
-  headline?: string;
-  impact?: string;
-}
-
 /** Rolling window for net::ERR_* burst detection. */
 export const ERROR_BURST_WINDOW_MS = 2_000;
 /** Number of net::ERR_* errors within the burst window to trip `down`. */
 export const ERROR_BURST_THRESHOLD = 3;
 /** Duration (ms) the `down` state persists after the last triggering error. */
 export const DOWN_DURATION_MS = 3_000;
-
-export interface PlatformHealthEvent {
-  platform: Platform;
-  status: PlatformHealth;
-  startedAt: number;
-  sampleSize: number;
-  failureRate: number;
-  source: "internal" | "status-page";
-  statusPageDetail?: StatusPageDetail;
-}
 
 type Outcome = { ts: number; failed: boolean };
 

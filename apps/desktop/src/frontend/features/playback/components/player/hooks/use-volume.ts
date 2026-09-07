@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
-import { useVolumeStore } from "../../../../../store/volume-store";
+import { useVolumeStore } from "../../state/volume-store";
 
 interface UseVolumeOptions {
   videoRef: React.RefObject<HTMLVideoElement>;

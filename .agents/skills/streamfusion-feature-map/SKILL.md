@@ -17,10 +17,12 @@ Use this skill to find the complete path for a StreamFusion feature before editi
 
 ## Placement rules
 
-- Put pages and route composition in `apps/desktop/src/pages/` and `apps/desktop/src/routes/router.tsx`.
-- Put reusable UI in `apps/desktop/src/components/`. Use the existing feature subdirectory.
-- Put renderer orchestration and server-state reads in `apps/desktop/src/hooks/`.
-- Put durable renderer state in `apps/desktop/src/store/`. Do not duplicate server state already owned by TanStack Query.
+- Each implemented feature owns `routes`, `components`, `domain`, `capabilities`, `adapters`, `data`, `utils`, `composition`, and `tests` under its runtime's `features/<feature>/` root.
+- Desktop feature roots live separately under `src/frontend/features/` and `src/backend/features/`. Preserve the Electron process boundary.
+- Put screens, presentation hooks, and view state in the owning feature's `components/`. Keep route registration in `src/frontend/routes/router.tsx`.
+- Keep business rules in `domain/`, provider-neutral ports in `capabilities/`, concrete integrations in `adapters/`, persistence in `data/`, and dependency wiring in `composition/`.
+- Put feature tests in that feature's `tests/`; retain only shared test infrastructure and cross-feature integrations in workspace test directories.
+- Shared UI primitives, runtime bootstrap, translation infrastructure, and shared contracts remain outside feature roots when they have no single feature owner.
 - Cross the Electron boundary only through `electronAPI`, shared contracts, preload, and a registered IPC handler.
 - Put provider-neutral reads behind `IPlatformReader`. Put Twitch-only or Kick-only behavior behind a narrow capability interface or the provider adapter.
 - Put filesystem, database, network, FFmpeg, Electron, and credential work in the main process.

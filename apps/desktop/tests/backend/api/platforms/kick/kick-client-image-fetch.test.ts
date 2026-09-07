@@ -10,7 +10,7 @@
 // because they have their own retry budgets and benefit from the brief
 // back-off).
 //
-// Strategy: stub `electronRequestBinary` on the kickClient singleton via
+// Strategy: stub `electronRequestBinary` on the kickTransport singleton via
 // vi.spyOn so the assertion measures the actual contract — "fetchImageBytes
 // reached its network boundary even though the gate would have blocked it" —
 // without depending on Electron's net/session module shape or vitest's
@@ -29,20 +29,24 @@ vi.mock("@backend/api/unified/platform-health", () => ({
   recordPlatformLocalNetError: vi.fn(),
 }));
 
-vi.mock("@backend/auth/kick-auth", () => ({
+vi.mock("@backend/features/authentication/adapters/kick/kick-auth", () => ({
   kickAuthService: { getAccessToken: () => null },
 }));
 
-describe("kickClient.fetchImageBytes — network-down gate", () => {
+describe("kickTransport.fetchImageBytes — network-down gate", () => {
   // Guards: fetchImageBytes must reach its network boundary even when isPlatformHealthy() is false; one-shot image fetches that short-circuit leave the caller latched on the error fallback until remount (regression: this PR).
 
   // Guards: a transient first-attempt timeout must retry the same real Kick image URL before the protocol reports the thumbnail unavailable.
-  let kickClient: typeof import("@backend/api/platforms/kick/kick-client").kickClient;
-  type BinaryRequest = (url: string, headers: Record<string, string>, timeoutMs?: number) => Promise<{ buffer: Buffer; statusCode: number; contentType: string }>;
+  let kickTransport: typeof import("@backend/api/platforms/kick/kick-transport").kickTransport;
+  type BinaryRequest = (
+    url: string,
+    headers: Record<string, string>,
+    timeoutMs?: number
+  ) => Promise<{ buffer: Buffer; statusCode: number; contentType: string }>;
 
   function installBinaryRequestMock() {
     const mock = vi.fn<BinaryRequest>();
-    if (!Reflect.set(kickClient, "electronRequestBinary", mock)) {
+    if (!Reflect.set(kickTransport, "electronRequestBinary", mock)) {
       throw new Error("Could not install the Kick binary-request test seam");
     }
     return mock;
@@ -50,7 +54,7 @@ describe("kickClient.fetchImageBytes — network-down gate", () => {
 
   beforeEach(async () => {
     vi.resetModules();
-    ({ kickClient } = await import("@backend/api/platforms/kick/kick-client"));
+    ({ kickTransport } = await import("@backend/api/platforms/kick/kick-transport"));
   });
 
   afterEach(() => {
@@ -70,7 +74,7 @@ describe("kickClient.fetchImageBytes — network-down gate", () => {
     const fakeBytes = { buffer: Buffer.from([1, 2, 3, 4]), contentType: "image/webp" };
     const spy = installBinaryRequestMock().mockResolvedValue({ ...fakeBytes, statusCode: 200 });
 
-    const result = await kickClient.fetchImageBytes("https://files.kick.com/images/test.webp");
+    const result = await kickTransport.fetchImageBytes("https://files.kick.com/images/test.webp");
 
     // Direct contract: the binary fetch was attempted (gate bypassed) AND
     // the result flows back to the caller as bytes (not null). Pre-fix, the
@@ -93,7 +97,7 @@ describe("kickClient.fetchImageBytes — network-down gate", () => {
       .mockResolvedValueOnce({ ...fakeBytes, statusCode: 200 });
 
     const url = "https://images.kick.com/video_thumbnails/channel/video/720.webp";
-    const result = await kickClient.fetchImageBytes(url);
+    const result = await kickTransport.fetchImageBytes(url);
 
     expect(spy).toHaveBeenNthCalledWith(1, url, expect.any(Object), 3000);
     expect(spy).toHaveBeenNthCalledWith(2, url, expect.any(Object), 8000);

@@ -27,12 +27,12 @@ describe("Kick CDN session initialization", () => {
   });
 
   it("shares one initialization across concurrent image requests", async () => {
-    const { kickClient } = await import("@backend/api/platforms/kick/kick-client");
+    const { kickTransport } = await import("@backend/api/platforms/kick/kick-transport");
     const getCdnSession = (
-      kickClient as unknown as {
+      kickTransport as unknown as {
         getCdnSession: () => Promise<unknown>;
       }
-    ).getCdnSession.bind(kickClient);
+    ).getCdnSession.bind(kickTransport);
 
     const sessions = await Promise.all(Array.from({ length: 50 }, () => getCdnSession()));
 
@@ -44,12 +44,12 @@ describe("Kick CDN session initialization", () => {
 
   it("allows a later initialization attempt after setup fails", async () => {
     setProxy.mockRejectedValueOnce(new Error("proxy setup failed"));
-    const { kickClient } = await import("@backend/api/platforms/kick/kick-client");
+    const { kickTransport } = await import("@backend/api/platforms/kick/kick-transport");
     const getCdnSession = (
-      kickClient as unknown as {
+      kickTransport as unknown as {
         getCdnSession: () => Promise<unknown>;
       }
-    ).getCdnSession.bind(kickClient);
+    ).getCdnSession.bind(kickTransport);
 
     await expect(getCdnSession()).rejects.toThrow("proxy setup failed");
     await expect(getCdnSession()).resolves.toBeDefined();

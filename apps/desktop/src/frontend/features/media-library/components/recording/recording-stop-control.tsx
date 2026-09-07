@@ -12,8 +12,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { useStreamRecordingActions } from "@/features/media-library/data/use-stream-recording-actions";
-import { useStreamRecordingState } from "@/features/media-library/data/use-stream-recording-state";
+import { useStreamRecordingActions } from "@/features/media-library/components/hooks/use-stream-recording-actions";
+import { useStreamRecordingState } from "@/features/media-library/components/hooks/use-stream-recording-state";
 
 const STOP_CONTROL_CLASS =
   "bg-slate-600 text-white hover:bg-slate-500 motion-reduce:transition-none";

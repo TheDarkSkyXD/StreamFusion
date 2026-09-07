@@ -21,20 +21,18 @@
 | Platform API clients | `apps/desktop/src/backend/api/platforms/AGENTS.md` |
 | Kick API endpoints | `apps/desktop/src/backend/api/platforms/kick/AGENTS.md` |
 | Twitch API endpoints | `apps/desktop/src/backend/api/platforms/twitch/AGENTS.md` |
-| Auth module | `apps/desktop/src/backend/auth/AGENTS.md` |
+| Auth module | `apps/desktop/src/backend/features/authentication/AGENTS.md` |
 | IPC handlers | `apps/desktop/src/backend/ipc/AGENTS.md` |
-| Chat backend services | `apps/desktop/src/backend/services/chat/AGENTS.md` |
-| Emote backend services | `apps/desktop/src/backend/services/emotes/AGENTS.md` |
-| UI components | `apps/desktop/src/components/AGENTS.md` |
-| Chat UI components | `apps/desktop/src/components/chat/AGENTS.md` |
-| Player components | `apps/desktop/src/components/player/AGENTS.md` |
-| Stream browsing components | `apps/desktop/src/components/stream/AGENTS.md` |
-| React hooks | `apps/desktop/src/hooks/AGENTS.md` |
-| Pages | `apps/desktop/src/pages/AGENTS.md` |
-| Mod dashboard pages | `apps/desktop/src/pages/Mod/AGENTS.md` |
-| Preload bridge | `apps/desktop/src/preload/AGENTS.md` |
+| Chat and emote backend services | `apps/desktop/src/backend/features/chat/AGENTS.md` |
+| UI components | `apps/desktop/src/frontend/components/AGENTS.md` |
+| Chat UI components | `apps/desktop/src/frontend/features/chat/components/chat/AGENTS.md` |
+| Player components | `apps/desktop/src/frontend/features/playback/components/player/AGENTS.md` |
+| Stream browsing and feature screens | `apps/desktop/src/frontend/features/AGENTS.md` |
+| Shared React hooks | `apps/desktop/src/frontend/hooks/AGENTS.md` |
+| Mod dashboard pages | `apps/desktop/src/frontend/features/moderation/components/screens/Mod/AGENTS.md` |
+| Preload bridge | `apps/desktop/src/backend/preload/AGENTS.md` |
 | Shared IPC contracts | `apps/desktop/src/shared/AGENTS.md` |
-| Zustand stores | `apps/desktop/src/store/AGENTS.md` |
+| Feature state | `apps/desktop/src/frontend/features/AGENTS.md` |
 | Tests | `apps/desktop/tests/AGENTS.md` |
 
 

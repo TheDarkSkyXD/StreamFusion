@@ -17,16 +17,16 @@ const loggerMock = vi.hoisted(() => ({
 
 vi.mock("@backend/logging/logger", () => ({ logger: loggerMock }));
 vi.mock("electron", () => ({ app: { isPackaged: true } }));
-vi.mock("@backend/ipc/handlers/app-handlers", () => ({
+vi.mock("@backend/features/shell/routes/app-routes", () => ({
   registerAppHandlers: registrars.app,
 }));
-vi.mock("@backend/ipc/handlers/log-handlers", () => ({
+vi.mock("@backend/features/settings/routes/log-routes", () => ({
   registerLogHandlers: registrars.logs,
 }));
 vi.mock("@backend/ipc/handlers/storage-handlers", () => ({
   registerStorageHandlers: registrars.storage,
 }));
-vi.mock("@backend/ipc/handlers/system-handlers", () => ({
+vi.mock("@backend/features/shell/routes/system-routes", () => ({
   registerSystemHandlers: registrars.system,
 }));
 vi.mock("@backend/ipc/lazy-feature-loader", () => ({

@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Owns the HLS.js video player stack: platform-specific player wrappers (Kick/Twitch), playback controls, quality selection, PiP, and theater mode. Does NOT own: chat UI, stream metadata, or backend video URL resolution.
+Owns player presentation: platform wrappers, controls, quality selection, PiP, and theater mode. HLS engine sessions and provider loaders live in `../../adapters/browser/`; playback source resolution uses `../../capabilities/playback-source.ts`. Chat UI and backend URL resolution have separate feature owners.
 
 ## OVERVIEW
 
@@ -14,7 +14,7 @@ Video playback system: HLS.js core, platform wrappers, performance optimizations
 
 ```
 player/
-├── hls-player.tsx            # Core HLS.js wrapper (478 lines)
+├── hls-player.tsx            # HLS presentation wrapper
 ├── video-player.tsx          # Generic orchestrator
 ├── performance-enhanced-player.tsx  # Adaptive quality + throttling
 ├── player-controls.tsx       # Shared control layout
@@ -40,14 +40,13 @@ player/
 │   ├── use-player-keyboard.ts   # Hotkeys (F, Space, M)
 │   ├── use-fullscreen.ts
 │   └── use-picture-in-picture.ts
-└── types.ts                  # QualityLevel, PlayerProps
 ```
 
 ## WHERE TO LOOK
 
 | Task                  | Location                        |
 | --------------------- | ------------------------------- |
-| HLS config tuning     | `hls-player.tsx` lines 128-168  |
+| HLS config tuning     | `../../adapters/browser/hls-playback-session.ts` and `hls-buffer-config.ts` |
 | Add keyboard shortcut | `hooks/use-player-keyboard.ts`  |
 | Memory leaks          | `hooks/use-video-lifecycle.ts`  |
 | Quality switching     | `hooks/use-adaptive-quality.ts` |
@@ -57,7 +56,7 @@ player/
 
 ### Architecture Layers
 
-1. **Engine**: `HlsPlayer` - raw HLS.js + video element
+1. **Engine**: browser HLS session adapters own loading, media events, recovery, and cleanup.
 2. **Orchestrator**: `video-player.tsx` - state coordination
 3. **Platform**: `kick/*.tsx`, `twitch/*.tsx` - branded controls
 4. **Optimization**: `PerformanceEnhancedPlayer` - HOC wrapper
@@ -72,7 +71,7 @@ Use `useRef` for video element access; avoid state for high-frequency updates.
 
 ## ANTI-PATTERNS
 
-- **hls-player.tsx**: Single 400-line useEffect - hard to maintain
+- Keep source-session setup and teardown in the HLS adapter rather than growing a component effect.
 - Manual heartbeat interval for stream death detection
 
 ## NOTES
@@ -89,4 +88,4 @@ The player keeps **two** independent freshness watchdogs. Do not merge them; the
 - **Input watchdog (`heartbeatDelay`, 5s tick):** updates `lastFragLoadedTimeRef` on every `FRAG_LOADED`. Detects "fragments stopped arriving" → STREAM_OFFLINE / NO_FRAGMENTS.
 - **Output watchdog (`stallWatchdogDelay`, 2s tick, prefix `[HLS-stall-w7d3]`):** updates `lastTimeAdvancedAtRef` on every `currentTime` advance. Detects "decoder hung even though fragments still flow" (Chromium media stack quirk, common on long Kick sessions). After 8s of no advance, escalates: `nudge → startLoad(-1) → recoverMediaError() → fatal DECODER_STALL` (the last rung routes through `KickLivePlayer`'s `shouldRefresh` auto-retry → fresh playback URL + remount).
 
-If you add a new player wrapper, both watchdogs come for free via `HlsPlayer`. If you swap out the engine, **port both patterns** — input-only detection masks decoder hangs and the user just sees a frozen frame with no error. Regression-tested in `tests/components/player/hls-player-stall-watchdog.test.tsx`.
+If you add a new player wrapper, both watchdogs come for free via `HlsPlayer`. If you swap out the engine, **port both patterns** — input-only detection masks decoder hangs and the user just sees a frozen frame with no error. Regression-tested in `../../tests/components/player/hls-player-stall-watchdog.test.tsx`. Shared player types live in `../../capabilities/media-types.ts`.

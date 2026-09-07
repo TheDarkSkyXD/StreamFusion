@@ -1,10 +1,10 @@
-import { storageService } from "@backend/services/storage-service";
+import { kickContinuityRepository } from "@backend/features/authentication/data/kick-continuity-repository";
 
 const DEFAULT_COOLDOWN_MS = 60_000;
 const MAX_COOLDOWN_MS = 60 * 60_000;
 
 type RateLimitStorage = Pick<
-  typeof storageService,
+  typeof kickContinuityRepository,
   "clearKickApiRateLimitState" | "getKickApiRateLimitState" | "saveKickApiRateLimitState"
 >;
 
@@ -45,4 +45,4 @@ export class KickRateLimitGuard {
   }
 }
 
-export const kickRateLimitGuard = new KickRateLimitGuard(storageService);
+export const kickRateLimitGuard = new KickRateLimitGuard(kickContinuityRepository);

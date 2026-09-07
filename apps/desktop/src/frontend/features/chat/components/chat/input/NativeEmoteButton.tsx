@@ -16,10 +16,10 @@
 import type React from "react";
 import { useCallback, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import type { Emote } from "../../../../../../backend/services/emotes/emote-types";
-import { useChannelByUsername } from "../../../../discovery/data/queries/useChannels";
+import type { Emote } from "@/features/chat/capabilities/emote-types";
+import { useChannelByUsername } from "../../../../discovery/components/hooks/queries/useChannels";
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
-import { useEmoteStore } from "../../../../../store/emote-store";
+import { useEmoteStore } from "../../state/emote-store";
 import { KickEmoteIcon, TwitchIcon } from "../../../../../components/icons/PlatformIcons";
 import { EmotePickerPopover } from "../EmotePickerPopover";
 

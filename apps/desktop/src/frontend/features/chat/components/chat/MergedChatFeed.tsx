@@ -3,10 +3,10 @@ import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
 import { useRenderCount } from "@/components/dev/use-render-count";
-import { useChatStore } from "@/store/chat-store";
+import { useChatStore } from "@/features/chat/components/state/chat-store";
 
-import type { MergedChatMessage, MultiChatChannel } from "../../data/multi-chat-feed";
-import { mergeChatMessageBuckets } from "../../data/multi-chat-feed";
+import type { MergedChatMessage, MultiChatChannel } from "../state/multi-chat-feed";
+import { mergeChatMessageBuckets } from "../state/multi-chat-feed";
 import { ChatMessage } from "./ChatMessage";
 
 const PLATFORM_ACCENT = {

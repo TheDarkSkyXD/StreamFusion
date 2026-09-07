@@ -11,5 +11,5 @@ export function validateSettingsSearch(search: Record<string, unknown>): {
 }
 
 export const SettingsPage = createPreloadableRoute(() =>
-  import("../../../pages/Settings").then((module) => ({ default: module.SettingsPage }))
+  import("../components/screens/Settings").then((module) => ({ default: module.SettingsPage }))
 ).Component;

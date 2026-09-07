@@ -1,4 +1,4 @@
-import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
+import { useDevModOverrideStore } from "@/features/moderation/components/state/dev-mod-override-store";
 
 import { selectedModerationDevelopmentFixture } from "./moderation-browser-fixture-contract";
 

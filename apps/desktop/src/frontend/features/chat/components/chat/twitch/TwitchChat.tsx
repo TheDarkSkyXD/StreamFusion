@@ -1,37 +1,40 @@
+import { getChatModerationController } from "@/features/chat/composition/chat-moderation-controller";
+import { getChatPresentationServices } from "@/features/chat/composition/chat-presentation-services";
+import { getChatHistoryReader } from "@/features/chat/composition/chat-history-reader";
+import { getChatSessionAccess } from "@/features/chat/composition/chat-session-access";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import type React from "react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { BsChevronDown, BsX } from "react-icons/bs";
 import { toast } from "sonner";
-import { SevenTvCosmeticsClient } from "@backend/services/chat/seven-tv-cosmetics-client";
-import { TwitchHermesClient } from "@backend/services/chat/twitch-hermes-client";
-import { useStickyDismissedPrediction } from "@/features/chat/data/useStickyDismissedPrediction";
-import { registerChatMessageRoute } from "@/features/chat/data/chat-message-router";
+import { SevenTvCosmeticsClient } from "@/features/chat/adapters/browser/seven-tv-cosmetics-client";
+import { TwitchHermesClient } from "@/features/chat/adapters/browser/twitch-hermes-client";
+import { useStickyDismissedPrediction } from "@/features/chat/components/hooks/useStickyDismissedPrediction";
+import { registerChatMessageRoute } from "@/features/chat/components/hooks/use-chat-message-router";
 import { logger } from "@/renderer/logging/logger";
-import { unwrapIpcReply } from "@/lib/ipc-reply";
 import { router } from "@/routes/router";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@shared/auth-types";
 import type { UnifiedPrediction } from "@shared/chat-types";
 import type { TwitchChannelModeratePayload } from "@shared/twitch-api-types";
-import { substituteThirdPartyEmotes } from "../../../../../../backend/services/chat/third-party-emote-enrich";
-import { twitchChatService } from "../../../../../../backend/services/chat/twitch-chat";
+import { substituteThirdPartyEmotes } from "@/features/chat/domain/third-party-emote-enrich";
+import { twitchChatService } from "@/features/chat/composition/twitch-chat-runtime";
 import {
   startTwitchPinPolling,
   stopTwitchPinPolling,
-} from "../../../../../../backend/services/chat/twitch-pin-poller";
-import { initializeTwitchEmotes } from "../../../../../../backend/services/emotes";
-import { modLogWriter } from "../../../../../../backend/services/mod-log-writer";
+} from "@/features/chat/adapters/browser/twitch-pin-poller";
+import { initializeTwitchEmotes } from "@/features/chat/composition/emote-runtime";
+import { modLogWriter } from "@/features/moderation/adapters/electron/mod-log-writer";
 import { MOD_LOG_QUERY_KEYS } from "../../../../moderation/data/mod-log-query-keys";
-import { useChatRoomState } from "../../../data/useChatRoomState";
-import { useChatSettingsSync } from "../../../data/useChatSettingsSync";
+import { useChatRoomState } from "../../hooks/useChatRoomState";
+import { useChatSettingsSync } from "../../hooks/useChatSettingsSync";
 import { useInterval } from "../../../../../hooks/useInterval";
 import {
   useHasActualTwitchModAuthority,
   useIsTwitchMod,
-} from "../../../../moderation/data/useIsTwitchMod";
+} from "../../../../moderation/components/hooks/useIsTwitchMod";
 import { useManagedTimeout } from "../../../../../hooks/useManagedTimeout";
-import { useRequireModScopes } from "../../../../auth/data/useRequireModScopes";
+import { useRequireModScopes } from "../../../../auth/components/hooks/useRequireModScopes";
 import type {
   ChatConnectionStatus,
   ChatMessage,
@@ -45,13 +48,13 @@ import type {
   UserNotice,
 } from "../../../../../../shared/chat-types";
 import { ChatHighlightKind } from "@streamfusion/core/chat";
-import { useAuthStore } from "../../../../../store/auth-store";
-import { useChatCosmeticsStore } from "../../../../../store/chat-cosmetics-store";
-import { buildChannelKey, useChatStore } from "../../../../../store/chat-store";
-import { useDevModOverrideStore } from "../../../../../store/dev-mod-override-store";
-import { useEmoteStore } from "../../../../../store/emote-store";
-import { useModeratedChannelsStore } from "../../../../moderation/data/moderated-channels-store";
-import { useRoomStateStore } from "../../../../../store/room-state-store";
+import { useAuthStore } from "../../../../auth/components/state/auth-store";
+import { useChatCosmeticsStore } from "../../state/chat-cosmetics-store";
+import { buildChannelKey, useChatStore } from "../../state/chat-store";
+import { useDevModOverrideStore } from "../../../../moderation/components/state/dev-mod-override-store";
+import { useEmoteStore } from "../../state/emote-store";
+import { useModeratedChannelsStore } from "../../../../moderation/components/state/moderated-channels-store";
+import { useRoomStateStore } from "../../state/room-state-store";
 import { useRenderCount } from "../../../../../components/dev/use-render-count";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../../components/ui/tooltip";
 import { ChatComposerFooter } from "../ChatComposerFooter";
@@ -59,8 +62,8 @@ import { ChatInput, type ChatInputHandle } from "../ChatInput";
 import type {
   ChatCommandAccess,
   ChatCommandDefinition,
-} from "../../../utils/chat-command-registry";
-import { runTwitchCommandEffect } from "../../../utils/twitch-command-session";
+} from "../../commands/chat-command-registry";
+import { runTwitchCommandEffect } from "../../commands/twitch-command-session";
 import { ChatMessageList } from "../ChatMessageList";
 import { type ChatSendEligibility, resolveChatSendEligibility } from "@streamfusion/core/chat";
 import { type ChatPanelTabId, ChatPanelTabs } from "../mod/ChatPanelTabs";
@@ -116,12 +119,6 @@ type PendingTwitchModAction =
 
 const DEFAULT_TWITCH_PIN_DURATION_SECONDS = 30 * 60;
 const TWITCH_BADGE_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-
-function normalizeCosmeticUrl(url: string): string {
-  if (url.startsWith("//")) return `https:${url}`;
-  if (/^https?:\/\//i.test(url)) return url;
-  return `https://${url}`;
-}
 
 function getNoticeHighlightKind(type: UserNotice["type"]): ChatHighlightKind {
   switch (type) {
@@ -357,7 +354,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
         throw new Error(`/${command.name} is not available in this Twitch chat`);
       }
       if (!channelId) throw new Error("Twitch channel identity is unavailable");
-      const tokenStatus = await window.electronAPI.auth.tokenStatus("twitch");
+      const tokenStatus = await getChatSessionAccess().auth.tokenStatus("twitch");
       return runTwitchCommandEffect(command, args, {
         channel: { id: channelId, login: channel },
         role: commandAccess.role,
@@ -367,10 +364,13 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
           await twitchChatService.leaveChannel(channel);
           setDisconnectedChannel(channel.toLowerCase());
         },
-        executeApi: (apiCommand) => window.electronAPI.twitch.execute(apiCommand),
+        executeApi: (apiCommand) => getChatModerationController().twitch.execute(apiCommand),
         readChannelMembers: (list) => {
           const operation = list === "moderators" ? "get-moderators" : "get-vips";
-          return window.electronAPI.twitch.execute({ operation, broadcasterId: channelId });
+          return getChatModerationController().twitch.execute({
+            operation,
+            broadcasterId: channelId,
+          });
         },
         openEngagement: () => setActivePanelTab("engagement"),
         requestReconnect: (missingScopes) => {
@@ -435,7 +435,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
 
     let cancelled = false;
     const feedId = `chat-moderation:${channelId}:${twitchUser.id}`;
-    const unsubscribeEvent = window.electronAPI.twitch.eventSub.onEvent((message) => {
+    const unsubscribeEvent = getChatModerationController().twitch.eventSub.onEvent((message) => {
       if (message.feedId !== feedId) return;
       const payload = message.payload as TwitchChannelModeratePayload;
       void modLogWriter
@@ -469,7 +469,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
 
     void (async () => {
       try {
-        const result = await window.electronAPI.twitch.eventSub.start({
+        const result = await getChatModerationController().twitch.eventSub.start({
           feedId,
           userId: twitchUser.id,
           channelId,
@@ -485,7 +485,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
     return () => {
       cancelled = true;
       unsubscribeEvent();
-      void window.electronAPI.twitch.eventSub.stop(feedId);
+      void getChatModerationController().twitch.eventSub.stop(feedId);
     };
   }, [
     channelId,
@@ -508,7 +508,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
       }
 
       const runDelete = () =>
-        window.electronAPI.twitch.execute({
+        getChatModerationController().twitch.execute({
           operation: "delete-chat-message",
           broadcasterId: channelId,
           moderatorId: twitchUser.id,
@@ -599,28 +599,14 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
     if (!enableBttvBadges) return;
     const store = useChatCosmeticsStore.getState();
     if (!store.beginGlobalProviderLoad("bttv")) return;
-    const getBttvBadges = window.electronAPI.emotes.bttv.getBadges;
-    if (typeof getBttvBadges !== "function") {
+    const services = getChatPresentationServices();
+    if (!services) {
       store.failGlobalProviderLoad("bttv");
       return;
     }
-    void getBttvBadges()
-      .then(unwrapIpcReply)
-      .then((catalog) => {
-        store.setGlobalProviderBadges(
-          "bttv",
-          catalog.map((entry) => ({
-            userId: entry.providerId,
-            badge: {
-              id: `bttv:${entry.providerId}`,
-              provider: "bttv" as const,
-              providerId: entry.providerId,
-              title: entry.badge.description || t("chat.betterTTVBadge"),
-              imageUrl: normalizeCosmeticUrl(entry.badge.svg),
-            },
-          }))
-        );
-      })
+    void services
+      .getGlobalBadges("bttv", t("chat.betterTTVBadge"))
+      .then((assignments) => store.setGlobalProviderBadges("bttv", assignments))
       .catch(() => store.failGlobalProviderLoad("bttv"));
   }, [enableBttvBadges, t]);
 
@@ -628,34 +614,14 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
     if (!enableFfzBadges) return;
     const store = useChatCosmeticsStore.getState();
     if (!store.beginGlobalProviderLoad("ffz")) return;
-    const getFfzBadges = window.electronAPI.emotes.ffz.getBadges;
-    if (typeof getFfzBadges !== "function") {
+    const services = getChatPresentationServices();
+    if (!services) {
       store.failGlobalProviderLoad("ffz");
       return;
     }
-    void getFfzBadges()
-      .then(unwrapIpcReply)
-      .then((catalog) => {
-        const definitions = new Map(catalog.badges.map((badge) => [String(badge.id), badge]));
-        const assignments = Object.entries(catalog.users).flatMap(([badgeId, userIds]) => {
-          const badge = definitions.get(badgeId);
-          if (!badge) return [];
-          return userIds.map((userId) => ({
-            userId: String(userId),
-            badge: {
-              id: `ffz:${badgeId}`,
-              provider: "ffz" as const,
-              providerId: badgeId,
-              title: badge.title || t("chat.frankerFaceZBadge"),
-              imageUrl: normalizeCosmeticUrl(badge.urls["4"] ?? badge.urls["2"] ?? badge.urls["1"]),
-              slot: badge.slot,
-              replaces: badge.replaces,
-              color: badge.color,
-            },
-          }));
-        });
-        store.setGlobalProviderBadges("ffz", assignments);
-      })
+    void services
+      .getGlobalBadges("ffz", t("chat.frankerFaceZBadge"))
+      .then((assignments) => store.setGlobalProviderBadges("ffz", assignments))
       .catch(() => store.failGlobalProviderLoad("ffz"));
   }, [enableFfzBadges, t]);
 
@@ -666,35 +632,18 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
       store.setFfzRoleBadges(channelId, {});
       return;
     }
+    const services = getChatPresentationServices();
+    if (!services) return;
     let active = true;
-    const getFfzRoom = window.electronAPI.emotes.ffz.getRoom;
-    if (typeof getFfzRoom === "function") {
-      void getFfzRoom({ kind: "name", name: channel })
-        .then(unwrapIpcReply)
-        .then((room) => {
-          if (!active) return;
-          const roleBadge = (
-            role: "moderator" | "vip",
-            urls?: { "1": string; "2"?: string; "4"?: string } | null
-          ) =>
-            urls
-              ? {
-                  id: `ffz:room-${role}`,
-                  provider: "ffz" as const,
-                  providerId: `room-${role}`,
-                  title: t("chat.frankerFaceZValue0", {
-                    value0: role === "vip" ? "VIP" : "Moderator",
-                  }),
-                  imageUrl: normalizeCosmeticUrl(urls["4"] ?? urls["2"] ?? urls["1"]),
-                }
-              : undefined;
-          store.setFfzRoleBadges(channelId, {
-            moderator: roleBadge("moderator", room?.room.mod_urls),
-            vip: roleBadge("vip", room?.room.vip_badge),
-          });
-        })
-        .catch(() => undefined);
-    }
+    void services
+      .getChannelRoleBadges(channel, {
+        moderator: t("chat.frankerFaceZValue0", { value0: "Moderator" }),
+        vip: t("chat.frankerFaceZValue0", { value0: "VIP" }),
+      })
+      .then((badges) => {
+        if (active) store.setFfzRoleBadges(channelId, badges);
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };
@@ -760,8 +709,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
         // 5 minutes of expiry). Bypasses the stale-token-from-storage gap
         // where idle sessions try to connect IRC with an expired token and
         // get "Login unsuccessful".
-        const accessToken = await window.electronAPI.auth.getValidTwitchToken();
-        const twitchUser = await window.electronAPI.auth.getTwitchUser();
+        const accessToken = await getChatSessionAccess().auth.getValidTwitchToken();
+        const twitchUser = await getChatSessionAccess().auth.getTwitchUser();
 
         // Check if component is still mounted after async calls
         if (!isMounted) return;
@@ -774,7 +723,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
             // Re-fetch a fresh token before every reconnect so Twitch IRC's
             // OAuth-expiry-triggered disconnects don't trap us in a loop of
             // "Login unsuccessful" with the original stale token.
-            tokenFetcher: () => window.electronAPI.auth.getValidTwitchToken(),
+            tokenFetcher: () => getChatSessionAccess().auth.getValidTwitchToken(),
           });
 
           // Check if connection was successful (might be aborted by Strict Mode cleanup)
@@ -970,8 +919,8 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
 
         const [accessToken, twitchUser] = isAuthenticated
           ? await Promise.all([
-              window.electronAPI.auth.getValidTwitchToken(),
-              window.electronAPI.auth.getTwitchUser(),
+              getChatSessionAccess().auth.getValidTwitchToken(),
+              getChatSessionAccess().auth.getTwitchUser(),
             ])
           : [null, null];
         if (cancelled) return;
@@ -980,7 +929,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
           await twitchChatService.connect({
             accessToken,
             user: twitchUser,
-            tokenFetcher: () => window.electronAPI.auth.getValidTwitchToken(),
+            tokenFetcher: () => getChatSessionAccess().auth.getValidTwitchToken(),
           });
         } else {
           await twitchChatService.connect({
@@ -1355,7 +1304,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
       const messageId = message.id;
       const runPin = async () => {
         if (!channelId || !twitchUser?.id) return null;
-        return window.electronAPI.twitch.execute({
+        return getChatModerationController().twitch.execute({
           operation: "pin-message",
           broadcasterId: channelId,
           moderatorId: twitchUser.id,
@@ -1479,7 +1428,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                     setPinMenuBusy(true);
                     const runUnpin = async () => {
                       if (!twitchUser?.id || !channelId) return null;
-                      return window.electronAPI.twitch.execute({
+                      return getChatModerationController().twitch.execute({
                         operation: "unpin-message",
                         broadcasterId: channelId,
                         moderatorId: twitchUser.id,
@@ -1526,7 +1475,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                     setPinMenuBusy(true);
                     const runUpdatePin = async () => {
                       if (!twitchUser?.id || !channelId) return null;
-                      return window.electronAPI.twitch.execute({
+                      return getChatModerationController().twitch.execute({
                         operation: "update-pin",
                         broadcasterId: channelId,
                         moderatorId: twitchUser.id,
@@ -1676,7 +1625,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
             onAuthRequired={() => loginTwitch()}
             viewerCanBypassRoomModes={isMod}
             checkSubscriberEligibility={(request) =>
-              window.electronAPI.chat.checkSubscriberEligibility(request)
+              getChatHistoryReader().chat.checkSubscriberEligibility(request)
             }
             showModViewLink={isAuthenticated && isMod}
             onSendEligibilityChange={handleSendEligibilityChange}
@@ -1716,7 +1665,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
             ) : null}
           </div>
         ) : (
-          <div className="relative min-h-0 flex-1">
+          <div className="relative flex min-h-0 flex-1 flex-col">
             <div className="p-3 border-b border-[var(--color-border)] flex items-center justify-between flex-shrink-0">
               <h2 className="font-semibold flex items-center gap-2">
                 <span className="text-white">{t("chat.chat")}</span>
@@ -1973,7 +1922,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                       };
                       switch (action.actionType) {
                         case "ban":
-                          return window.electronAPI.twitch.execute({
+                          return getChatModerationController().twitch.execute({
                             operation: "ban-user",
                             ...ctx,
                             userId: action.message.userId,
@@ -1983,7 +1932,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                         case "warn": {
                           const reason =
                             (extraData as { reason?: string } | undefined)?.reason ?? warnReason;
-                          return window.electronAPI.twitch.execute({
+                          return getChatModerationController().twitch.execute({
                             operation: "warn-user",
                             ...ctx,
                             userId: action.message.userId,
@@ -1991,13 +1940,13 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                           });
                         }
                         case "unban":
-                          return window.electronAPI.twitch.execute({
+                          return getChatModerationController().twitch.execute({
                             operation: "unban-user",
                             ...ctx,
                             userId: action.message.userId,
                           });
                         case "delete":
-                          return window.electronAPI.twitch.execute({
+                          return getChatModerationController().twitch.execute({
                             operation: "delete-chat-message",
                             ...ctx,
                             messageId: action.message.id,
@@ -2013,7 +1962,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                       if (action.kind === "strip") {
                         switch (action.actionType) {
                           case "clear":
-                            return window.electronAPI.twitch.execute({
+                            return getChatModerationController().twitch.execute({
                               operation: "clear-chat",
                               ...ctx,
                             });
@@ -2028,32 +1977,32 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                                 },
                               };
                             }
-                            return window.electronAPI.twitch.execute({
+                            return getChatModerationController().twitch.execute({
                               operation: "start-raid",
                               fromBroadcasterId: channelId,
                               toBroadcasterId: target.broadcasterId,
                             });
                           }
                           case "commercial":
-                            return window.electronAPI.twitch.execute({
+                            return getChatModerationController().twitch.execute({
                               operation: "run-commercial",
                               broadcasterId: channelId,
                               length: 60,
                             });
                           case "shield":
-                            return window.electronAPI.twitch.execute({
+                            return getChatModerationController().twitch.execute({
                               operation: "set-shield-mode",
                               ...ctx,
                               active: true,
                             });
                           case "shieldOff":
-                            return window.electronAPI.twitch.execute({
+                            return getChatModerationController().twitch.execute({
                               operation: "set-shield-mode",
                               ...ctx,
                               active: false,
                             });
                           case "uniqueChat":
-                            return window.electronAPI.twitch.execute({
+                            return getChatModerationController().twitch.execute({
                               operation: "update-chat-settings",
                               ...ctx,
                               settings: {
@@ -2070,7 +2019,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                               ? ((extraData as { durationSeconds?: number } | undefined)
                                   ?.durationSeconds ?? 30)
                               : undefined;
-                            return window.electronAPI.twitch.execute({
+                            return getChatModerationController().twitch.execute({
                               operation: "update-chat-settings",
                               ...ctx,
                               settings: {
@@ -2088,7 +2037,7 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                             const minutes = turnOn
                               ? Math.max(0, Math.floor((seconds ?? 600) / 60))
                               : undefined;
-                            return window.electronAPI.twitch.execute({
+                            return getChatModerationController().twitch.execute({
                               operation: "update-chat-settings",
                               ...ctx,
                               settings: {
@@ -2098,13 +2047,13 @@ export const TwitchChat: React.FC<TwitchChatProps> = ({
                             });
                           }
                           case "subscribers-only":
-                            return window.electronAPI.twitch.execute({
+                            return getChatModerationController().twitch.execute({
                               operation: "update-chat-settings",
                               ...ctx,
                               settings: { subscriber_mode: turnOn },
                             });
                           case "emote-only":
-                            return window.electronAPI.twitch.execute({
+                            return getChatModerationController().twitch.execute({
                               operation: "update-chat-settings",
                               ...ctx,
                               settings: { emote_mode: turnOn },

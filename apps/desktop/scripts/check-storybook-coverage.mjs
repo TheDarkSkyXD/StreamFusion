@@ -99,7 +99,15 @@ function validateExclusions(exclusions, sourcePaths, coveredPaths) {
 }
 
 function toExpectedStoryPath(sourcePath) {
-  return `${sourcePath.slice(0, -COMPONENT_SUFFIX.length)}${STORY_SUFFIX}`;
+  return `${sourcePath.slice(0, -COMPONENT_SUFFIX.length)}${STORY_SUFFIX}`
+    .replace(/(features\/[^/]+)\/components\/screens\//, "$1/tests/stories/pages/")
+    .replace(/(features\/[^/]+)\/components\//, "$1/tests/stories/");
+}
+
+function storyComponentPath(storyPath) {
+  return `${storyPath.slice(0, -STORY_SUFFIX.length)}${COMPONENT_SUFFIX}`
+    .replace(/(features\/[^/]+)\/tests\/stories\/pages\//, "$1/components/screens/")
+    .replace(/(features\/[^/]+)\/tests\/stories\//, "$1/components/");
 }
 
 /**
@@ -123,16 +131,16 @@ export async function buildCoverageReport({
   const relativeFiles = files.map((filePath) =>
     normalizeRelativePath(path.relative(rootDirectory, filePath))
   );
-  const sourcePaths = new Set(relativeFiles.filter((filePath) => !filePath.endsWith(STORY_SUFFIX)));
+  const sourcePaths = new Set(relativeFiles.filter((filePath) => !filePath.endsWith(STORY_SUFFIX) && !filePath.includes("/tests/") && !/\.test\.tsx$/.test(filePath)));
   const storyPaths = relativeFiles.filter((filePath) => filePath.endsWith(STORY_SUFFIX));
   const coveredPaths = new Set(
     storyPaths
-      .map((storyPath) => `${storyPath.slice(0, -STORY_SUFFIX.length)}${COMPONENT_SUFFIX}`)
+      .map(storyComponentPath)
       .filter((sourcePath) => sourcePaths.has(sourcePath))
   );
   const orphanStories = storyPaths
     .filter((storyPath) => {
-      const sourcePath = `${storyPath.slice(0, -STORY_SUFFIX.length)}${COMPONENT_SUFFIX}`;
+      const sourcePath = storyComponentPath(storyPath);
       return !sourcePaths.has(sourcePath);
     })
     .sort();

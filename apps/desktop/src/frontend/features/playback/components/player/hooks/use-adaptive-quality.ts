@@ -20,7 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useInterval } from "@/hooks/useInterval";
 import { logger } from "@/renderer/logging/logger";
 
-import type { QualityLevel } from "../types";
+import type { QualityLevel } from "../../../capabilities/media-types";
 
 // Network Information API types (not in default TypeScript lib)
 interface NetworkInformation extends EventTarget {

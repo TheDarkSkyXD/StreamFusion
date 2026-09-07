@@ -4,6 +4,17 @@ import { basename, dirname, extname, join, relative, resolve, sep } from "node:p
 import process from "node:process";
 import ts from "typescript";
 
+/**
+ * @typedef {"route" | "renderer-feature" | "ipc-feature" | "ipc-handler" | "platform-endpoint" | "state-store"} FactKind
+ * @typedef {{ id: string, kind: FactKind, sourcePath: string, symbol: string }} DiscoveredFact
+ * @typedef {{ id: string, area: string, outcome: string, entry: string[], renderer: string[], electronBoundary: string[], mainProcess: string[], platformBranches: string[], state: string[], persistence: string[], verification: string[] }} Capability
+ * @typedef {{ factId: string, reason: string }} IgnoredFact
+ * @typedef {{ schemaVersion: number, capabilities: Capability[], ignoredFacts: IgnoredFact[] }} ManualLedger
+ * @typedef {{ schemaVersion: number, facts: DiscoveredFact[], capabilities: Capability[], ignoredFacts: IgnoredFact[] }} DesktopParityInventory
+ * @typedef {{ repositoryRoot?: string, manualPath?: string, manualLedger?: ManualLedger, checkReportPath?: string, writeReportPath?: string }} BuildInventoryOptions
+ * @typedef {{ inventory: DesktopParityInventory, markdown: string }} BuildInventoryResult
+ */
+
 const scriptPath = fileURLToPath(import.meta.url);
 const scriptDirectory = dirname(scriptPath);
 const defaultRepositoryRoot = resolve(scriptDirectory, "..", "..", "..");
@@ -16,6 +27,14 @@ const factKinds = new Set([
   "state-store",
 ]);
 const sourceInventoryCache = new Map();
+const routeFactAliases = new Map([["timeout-routes", "timeout-moderation-handlers"]]);
+const migratedStateStoreLocations = new Map([
+  ["category-language-preference-store", "features/discovery/data/category-language-preference-store"],
+  ["chat-replay-playback-store", "features/chat/data/chat-replay-playback-store"],
+  ["moderated-channels-store", "features/moderation/data/moderated-channels-store"],
+  ["multistream-store", "features/multistream/data/multistream-store"],
+  ["network-status-store", "hooks/network-status-store"],
+]);
 
 function toSourcePath(repositoryRoot, absolutePath) {
   return relative(repositoryRoot, absolutePath).split(sep).join("/");
@@ -37,6 +56,31 @@ function walkFiles(directory) {
     .sort((left, right) => left.localeCompare(right));
 }
 
+function isFeatureImplementation(path) {
+  const sourcePath = path.split(sep).join("/");
+  return (
+    /\.[cm]?[jt]sx?$/.test(sourcePath) &&
+    !sourcePath.includes("/tests/") &&
+    !/\.(?:test|spec|stories)\.[cm]?[jt]sx?$/.test(sourcePath)
+  );
+}
+
+function routeFactId(path) {
+  const routeName = basename(path, ".ts");
+  const handlerName = routeFactAliases.get(routeName) ?? routeName.replace(/-routes$/, "-handlers");
+  return `ipc-handler:${handlerName}`;
+}
+
+function stateStoreFactId(sourcePath) {
+  const name = basename(sourcePath, extname(sourcePath));
+  const migratedLocation = migratedStateStoreLocations.get(name);
+  if (migratedLocation) return `state-store:${migratedLocation}`;
+  if (sourcePath.startsWith("apps/desktop/src/frontend/features/"))
+    return `state-store:store/${name}`;
+  return `state-store:${sourcePath.replace("apps/desktop/src/frontend/", "").replace(/\.tsx?$/, "")}`;
+}
+
+/** @param {DiscoveredFact[]} facts @param {DiscoveredFact} fact */
 function addFact(facts, fact) {
   if (!factKinds.has(fact.kind)) {
     throw new Error(`Unsupported discovered fact kind: ${fact.kind}`);
@@ -166,6 +210,20 @@ function discoverFacts(repositoryRoot) {
     });
   }
 
+  for (const path of walkFiles(join(backendRoot, "features")).filter(
+    (candidate) =>
+      isFeatureImplementation(candidate) &&
+      /[\\/]routes[\\/][^\\/]+-routes\.ts$/.test(candidate)
+  )) {
+    const name = basename(path);
+    addFact(facts, {
+      id: routeFactId(path),
+      kind: "ipc-handler",
+      sourcePath: toSourcePath(repositoryRoot, path),
+      symbol: name,
+    });
+  }
+
   for (const platform of ["twitch", "kick"]) {
     const endpointsDirectory = join(backendRoot, `api/platforms/${platform}/endpoints`);
     for (const path of walkFiles(endpointsDirectory)) {
@@ -180,16 +238,37 @@ function discoverFacts(repositoryRoot) {
     }
   }
 
-  const isStoreModule = (path) => /store[^/]*\.tsx?$/.test(basename(path));
+  for (const path of walkFiles(join(backendRoot, "features")).filter(
+    (candidate) =>
+      isFeatureImplementation(candidate) &&
+      /[\\/]adapters[\\/](twitch|kick)[\\/][^\\/]+-endpoints\.ts$/.test(candidate)
+  )) {
+    const sourcePath = toSourcePath(repositoryRoot, path);
+    const match = sourcePath.match(/\/adapters\/(twitch|kick)\//);
+    if (!match) continue;
+    const name = basename(path, ".ts");
+    addFact(facts, {
+      id: `platform-endpoint:${match[1]}:${name}`,
+      kind: "platform-endpoint",
+      sourcePath,
+      symbol: name,
+    });
+  }
+
+  const isStoreModule = (path) => /(?:^|-)store\.tsx?$/.test(basename(path));
   const storePaths = [
     ...walkFiles(join(frontendRoot, "store")).filter((path) => /\.tsx?$/.test(path)),
-    ...walkFiles(join(frontendRoot, "features")).filter(isStoreModule),
+    ...walkFiles(join(frontendRoot, "features")).filter(
+      (path) =>
+        isFeatureImplementation(path) &&
+        (isStoreModule(path) || /[\\/]components[\\/]state[\\/][^\\/]+\.tsx?$/.test(path))
+    ),
     ...walkFiles(join(frontendRoot, "hooks")).filter(isStoreModule),
   ];
   for (const path of [...new Set(storePaths)].sort((left, right) => left.localeCompare(right))) {
     const sourcePath = toSourcePath(repositoryRoot, path);
     addFact(facts, {
-      id: `state-store:${sourcePath.replace("apps/desktop/src/frontend/", "").replace(/\.tsx?$/, "")}`,
+      id: stateStoreFactId(sourcePath),
       kind: "state-store",
       sourcePath,
       symbol: basename(path, extname(path)),
@@ -400,6 +479,7 @@ function markdownFor(inventory) {
   return lines.join("\n");
 }
 
+/** @param {BuildInventoryOptions} [options] @returns {BuildInventoryResult} */
 export function buildInventory(options = {}) {
   const repositoryRoot = resolve(options.repositoryRoot ?? defaultRepositoryRoot);
   const manualPath = resolve(

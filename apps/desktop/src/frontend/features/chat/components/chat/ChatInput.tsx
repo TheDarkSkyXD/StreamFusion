@@ -1,3 +1,4 @@
+import { getChatPresentationServices } from "@/features/chat/composition/chat-presentation-services";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 /**
@@ -37,10 +38,10 @@ import {
   getLoadedTwitchChatModule,
   loadKickChatModule,
   loadTwitchChatModule,
-} from "../../../../../backend/services/chat/chat-service-loader";
-import type { KickChatSendError } from "../../../../../backend/services/chat/kick-chat";
-import type { Emote } from "../../../../../backend/services/emotes/emote-types";
-import { useChatRoomState } from "../../data/useChatRoomState";
+} from "@/features/chat/composition/chat-service-loader";
+import type { KickChatSendError } from "@/features/chat/adapters/browser/kick-chat";
+import type { Emote } from "@/features/chat/capabilities/emote-types";
+import { useChatRoomState } from "../hooks/useChatRoomState";
 import { channelsMatch } from "@streamfusion/core/platform";
 import type {
   ChatMessage,
@@ -51,10 +52,10 @@ import type {
 } from "../../../../../shared/chat-types";
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { ContentFragment, ReplyInfo } from "@streamfusion/core/chat";
-import { useAuthStore } from "../../../../store/auth-store";
-import { useEmoteStore } from "../../../../store/emote-store";
-import { useFollowStore } from "../../../../store/follow-store";
-import { useChatDisplay } from "../../../settings/data/use-chat-display";
+import { useAuthStore } from "../../../auth/components/state/auth-store";
+import { useEmoteStore } from "../state/emote-store";
+import { useFollowStore } from "../../../discovery/components/state/follow-store";
+import { useChatDisplay } from "../../../settings/components/hooks/use-chat-display";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
 import {
   TWITCH_CHAT_ACTION_TOOLTIP_ARROW_CLASS,
@@ -84,8 +85,8 @@ import {
   type ChatCommandAccess,
   type CommandSuggestion,
   type TextRange,
-} from "../../utils/chat-command-registry";
-import type { ChatCommandOutcome, ChatCommandResult } from "../../utils/chat-command-outcome";
+} from "../commands/chat-command-registry";
+import type { ChatCommandOutcome, ChatCommandResult } from "../../domain/commands/chat-command-outcome";
 
 // ========== Types ==========
 
@@ -1401,7 +1402,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
     const handleOpenChannelPage = useCallback(async () => {
       const openAction =
         onOpenChannelPage?.(platform, channel) ??
-        window.electronAPI?.openExternal?.(getChannelUrl(platform, channel));
+        getChatPresentationServices()?.openExternal?.(getChannelUrl(platform, channel));
       try {
         await openAction;
       } finally {
@@ -1430,7 +1431,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(
 
     const handleVerifyTwitchAccount = useCallback(async () => {
       try {
-        await window.electronAPI?.openExternal?.(TWITCH_SECURITY_URL);
+        await getChatPresentationServices()?.openExternal?.(TWITCH_SECURITY_URL);
       } finally {
         editorRef.current?.focus();
       }

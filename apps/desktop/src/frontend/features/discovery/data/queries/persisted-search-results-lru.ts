@@ -1,3 +1,4 @@
+import { desktopSnapshotStorage as snapshotStorage } from "../desktop-snapshot-storage";
 import { useEffect, useSyncExternalStore } from "react";
 
 import type {
@@ -15,7 +16,7 @@ import {
   isValidUnifiedStream,
   isValidUnifiedVideo,
   type SearchResultCollection,
-} from "@/features/discovery/utils/search/search-result-validation";
+} from "@/features/discovery/domain/search/search-result-validation";
 import { Platform } from "@streamfusion/core/platform";
 
 export interface PersistedSearchResultEntry {
@@ -216,7 +217,7 @@ function publish(values: PersistedSearchResultEntry[]): void {
 export function hydratePersistedSearchResultsLru(): Promise<void> {
   if (hydrated) return Promise.resolve();
   if (hydrationPromise) return hydrationPromise;
-  hydrationPromise = window.electronAPI.store
+  hydrationPromise = snapshotStorage
     .get(STORE_KEY)
     .then((stored) => {
       const now = Date.now();
@@ -297,7 +298,7 @@ export function savePersistedSearchResult(
         { query: normalized, platform, limit, savedAt: Date.now(), data },
         ...entries.values(),
       ]);
-      await window.electronAPI.store.set(STORE_KEY, { version: 1, entries: next });
+      await snapshotStorage.set(STORE_KEY, { version: 1, entries: next });
       publish(next);
       return true;
     });

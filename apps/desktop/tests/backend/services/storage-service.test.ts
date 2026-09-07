@@ -1,3 +1,12 @@
+import { followedStreamCache } from "@backend/features/discovery/data/followed-stream-cache";
+import { authenticationRepository } from "@backend/features/authentication/data/authentication-repository";
+import { followRepository } from "@backend/features/authentication/data/follow-repository";
+import { kickContinuityRepository } from "@backend/features/authentication/data/kick-continuity-repository";
+import { mediaLibraryPersistence } from "@backend/features/media-library/data/media-library-persistence";
+import {
+  PreferencesRepository,
+  preferencesRepository,
+} from "@backend/features/settings/data/preferences-repository";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const persistence = vi.hoisted(() => ({
@@ -62,6 +71,32 @@ vi.mock("@backend/services/database-service", () => ({
     getJson: vi.fn(),
     delete: vi.fn(),
     migrateKeyValues: vi.fn(),
+    transaction: <T>(operation: () => T): T => operation(),
+    getConnection: vi.fn(),
+    clearKeyValue: vi.fn(),
+    clearFollows: vi.fn(),
+    addFollow: vi.fn(),
+    getAllFollows: vi.fn(),
+    getFollowsByPlatformAndSource: vi.fn(),
+    upsertSyncedFollows: vi.fn(),
+    updatePendingFollowWriteState: vi.fn(),
+  },
+}));
+vi.mock("@backend/features/authentication/data/follow-repository", () => ({
+  importLegacyFollows: vi.fn((_database: unknown, follows: LocalFollow[]) => {
+    for (const follow of follows) {
+      if (!persistence.sqliteFollows.some(({ id }) => id === follow.id))
+        persistence.sqliteFollows.push(follow);
+    }
+  }),
+  followRepository: {
+    get: vi.fn(),
+    set: vi.fn(),
+    getJson: vi.fn(),
+    delete: vi.fn(),
+    migrateKeyValues: vi.fn(),
+    transaction: <T>(operation: () => T): T => operation(),
+    getConnection: vi.fn(),
     clearKeyValue: vi.fn(),
     clearFollows: vi.fn(),
     addFollow: vi.fn(),
@@ -72,19 +107,19 @@ vi.mock("@backend/services/database-service", () => ({
   },
 }));
 
+import { createStreamRecordingSessionStore } from "@backend/features/media-library/data/stream-recording-session-store";
 import { dbService } from "@backend/services/database-service";
 import { StorageService, storageService } from "@backend/services/storage-service";
-import { safeStorage } from "electron";
-import { createStreamRecordingSessionStore } from "@backend/services/stream-recording-session-store";
+import type { LocalFollow } from "@shared/auth-types";
 import {
   DEFAULT_BUFFER_PREFERENCES,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
   DEFAULT_USER_PREFERENCES,
 } from "@shared/auth-types";
-import { DEFAULT_LIVE_NOTIFICATION_PREFERENCES as DEFAULT_NOTIFICATION_PREFERENCES } from "@streamfusion/core/follows";
 import type { DownloadQueueSnapshot } from "@shared/download-types";
 import type { StreamRecordingJournalV2 } from "@shared/stream-recording-types";
-import type { LocalFollow } from "@shared/auth-types";
+import { DEFAULT_LIVE_NOTIFICATION_PREFERENCES as DEFAULT_NOTIFICATION_PREFERENCES } from "@streamfusion/core/follows";
+import { safeStorage } from "electron";
 
 const kickPlatformRows: LocalFollow[] = [
   {
@@ -122,10 +157,10 @@ beforeEach(() => {
   persistence.sqlite.clear();
   persistence.sqliteFollows = [];
   rowsBySource = { guest: [], kick: [], twitch: [] };
-  vi.mocked(dbService.getFollowsByPlatformAndSource).mockImplementation(
+  vi.mocked(followRepository.getFollowsByPlatformAndSource).mockImplementation(
     (_p, source) => rowsBySource[source] ?? []
   );
-  vi.spyOn(storageService, "getKickUser").mockReturnValue({
+  vi.spyOn(authenticationRepository, "getKickUser").mockReturnValue({
     id: 1,
     username: "viewer-a",
     slug: "viewer-a",
@@ -149,26 +184,22 @@ beforeEach(() => {
     persistence.sqlite.delete(key);
   });
   vi.mocked(dbService.migrateKeyValues).mockImplementation(
-    ({ entries, deleteKeys, legacyFollows = [] }) => {
+    ({ entries, deleteKeys }, migrateRelated) => {
       for (const { key, value } of entries) {
         if (!persistence.sqlite.has(key)) persistence.sqlite.set(key, value);
       }
       for (const key of deleteKeys) persistence.sqlite.delete(key);
-      for (const follow of legacyFollows) {
-        if (!persistence.sqliteFollows.some(({ id }) => id === follow.id)) {
-          persistence.sqliteFollows.push(follow);
-        }
-      }
+      migrateRelated?.();
     }
   );
-  vi.mocked(dbService.upsertSyncedFollows).mockReturnValue({
+  vi.mocked(followRepository.upsertSyncedFollows).mockReturnValue({
     accountCount: 0,
     pendingCount: 0,
     addedCount: 0,
     removedCount: 0,
   });
-  vi.mocked(dbService.getAllFollows).mockReturnValue([]);
-  vi.mocked(dbService.addFollow).mockImplementation((follow, source) => ({
+  vi.mocked(followRepository.getAllFollows).mockReturnValue([]);
+  vi.mocked(followRepository.addFollow).mockImplementation((follow, source) => ({
     id: follow.id ?? `${follow.platform}:${follow.channelId}`,
     platform: follow.platform,
     channelId: follow.channelId,
@@ -185,67 +216,70 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("storageService.getActiveFollowsByPlatform — token-aware platform/guest gating", () => {
+describe("authenticationRepository.getActiveFollowsByPlatform — token-aware platform/guest gating", () => {
   it("no token: returns guest follows ONLY (platform-tagged rows stay hidden)", () => {
     // The token check is the source of truth for "is the user signed in?".
     // A silent token loss (revoked at runtime, expired credentials) must NOT
     // continue returning the platform-tagged rows that belong to the dead session.
-    vi.spyOn(storageService, "hasToken").mockReturnValue(false);
+    vi.spyOn(authenticationRepository, "hasToken").mockReturnValue(false);
     rowsBySource = { guest: kickGuestRows, kick: kickPlatformRows, twitch: [] };
 
-    const result = storageService.getActiveFollowsByPlatform("kick");
+    const result = authenticationRepository.getActiveFollowsByPlatform("kick");
 
     expect(result).toEqual(kickGuestRows);
-    expect(dbService.getFollowsByPlatformAndSource).toHaveBeenCalledWith("kick", "guest");
+    expect(followRepository.getFollowsByPlatformAndSource).toHaveBeenCalledWith("kick", "guest");
     // dbService must NOT be asked for platform-tagged rows in the no-token branch.
-    expect(dbService.getFollowsByPlatformAndSource).not.toHaveBeenCalledWith("kick", "kick");
+    expect(followRepository.getFollowsByPlatformAndSource).not.toHaveBeenCalledWith("kick", "kick");
   });
 
   it("token + platform-tagged rows present: returns platform-tagged rows", () => {
-    vi.spyOn(storageService, "hasToken").mockReturnValue(true);
+    vi.spyOn(authenticationRepository, "hasToken").mockReturnValue(true);
     rowsBySource = { guest: kickGuestRows, kick: kickPlatformRows, twitch: [] };
 
-    const result = storageService.getActiveFollowsByPlatform("kick");
+    const result = authenticationRepository.getActiveFollowsByPlatform("kick");
 
     expect(result).toEqual(kickPlatformRows);
-    expect(dbService.getFollowsByPlatformAndSource).toHaveBeenCalledWith("kick", "kick");
+    expect(followRepository.getFollowsByPlatformAndSource).toHaveBeenCalledWith("kick", "kick");
   });
 
   it("token + unverified Kick account rows: returns [] instead of stale source=kick rows", () => {
-    vi.spyOn(storageService, "hasToken").mockReturnValue(true);
+    vi.spyOn(authenticationRepository, "hasToken").mockReturnValue(true);
     vi.mocked(dbService.get).mockReturnValue(null);
     rowsBySource = { guest: kickGuestRows, kick: kickPlatformRows, twitch: [] };
 
-    const result = storageService.getActiveFollowsByPlatform("kick");
+    const result = authenticationRepository.getActiveFollowsByPlatform("kick");
 
     expect(result).toEqual([]);
-    expect(dbService.getFollowsByPlatformAndSource).not.toHaveBeenCalledWith("kick", "kick");
+    expect(followRepository.getFollowsByPlatformAndSource).not.toHaveBeenCalledWith("kick", "kick");
   });
 
   it("token + no platform-tagged rows yet: returns [] instead of guest follows", () => {
     // Signed-in account views must not surface guest/local follows as though
     // the platform account follows them.
-    vi.spyOn(storageService, "hasToken").mockReturnValue(true);
+    vi.spyOn(authenticationRepository, "hasToken").mockReturnValue(true);
     rowsBySource = { guest: kickGuestRows, kick: [], twitch: [] };
 
-    const result = storageService.getActiveFollowsByPlatform("kick");
+    const result = authenticationRepository.getActiveFollowsByPlatform("kick");
 
     expect(result).toEqual([]);
-    expect(dbService.getFollowsByPlatformAndSource).toHaveBeenCalledWith("kick", "kick");
-    expect(dbService.getFollowsByPlatformAndSource).not.toHaveBeenCalledWith("kick", "guest");
+    expect(followRepository.getFollowsByPlatformAndSource).toHaveBeenCalledWith("kick", "kick");
+    expect(followRepository.getFollowsByPlatformAndSource).not.toHaveBeenCalledWith(
+      "kick",
+      "guest"
+    );
   });
 
   it("token + neither platform-tagged nor guest rows: returns []", () => {
-    vi.spyOn(storageService, "hasToken").mockReturnValue(true);
+    vi.spyOn(authenticationRepository, "hasToken").mockReturnValue(true);
     rowsBySource = { guest: [], kick: [], twitch: [] };
 
-    const result = storageService.getActiveFollowsByPlatform("kick");
+    const result = authenticationRepository.getActiveFollowsByPlatform("kick");
 
     expect(result).toEqual([]);
   });
 
   it("scopes the per-platform lookup — twitch query reads twitch buckets, not kick", () => {
-    vi.spyOn(storageService, "hasToken").mockReturnValue(true);
+    vi.spyOn(authenticationRepository, "hasToken").mockReturnValue(true);
     const twitchRows: LocalFollow[] = [
       {
         id: "tx",
@@ -260,32 +294,35 @@ describe("storageService.getActiveFollowsByPlatform — token-aware platform/gue
     ];
     rowsBySource = { guest: kickGuestRows, kick: kickPlatformRows, twitch: twitchRows };
 
-    const result = storageService.getActiveFollowsByPlatform("twitch");
+    const result = authenticationRepository.getActiveFollowsByPlatform("twitch");
 
     expect(result).toEqual(twitchRows);
-    expect(dbService.getFollowsByPlatformAndSource).toHaveBeenCalledWith("twitch", "twitch");
-    expect(dbService.getFollowsByPlatformAndSource).not.toHaveBeenCalledWith("twitch", "kick");
+    expect(followRepository.getFollowsByPlatformAndSource).toHaveBeenCalledWith("twitch", "twitch");
+    expect(followRepository.getFollowsByPlatformAndSource).not.toHaveBeenCalledWith(
+      "twitch",
+      "kick"
+    );
   });
 
   it("marks Kick account follows verified after a successful sync", () => {
-    storageService.upsertSyncedFollows("kick", []);
+    authenticationRepository.upsertSyncedFollows("kick", []);
 
     expect(dbService.set).toHaveBeenCalledWith("kick-account-follows-verified-v3", "1:viewer-a");
   });
 
   it("does not trust the obsolete v2 marker", () => {
-    vi.spyOn(storageService, "hasToken").mockReturnValue(true);
+    vi.spyOn(authenticationRepository, "hasToken").mockReturnValue(true);
     vi.mocked(dbService.get).mockImplementation((key) =>
       key === "kick-account-follows-verified-v2" ? true : null
     );
     rowsBySource = { guest: [], kick: kickPlatformRows, twitch: [] };
 
-    expect(storageService.getActiveFollowsByPlatform("kick")).toEqual([]);
+    expect(authenticationRepository.getActiveFollowsByPlatform("kick")).toEqual([]);
   });
 
   it("does not expose v3 rows verified for a different Kick account", () => {
-    vi.spyOn(storageService, "hasToken").mockReturnValue(true);
-    vi.spyOn(storageService, "getKickUser").mockReturnValue({
+    vi.spyOn(authenticationRepository, "hasToken").mockReturnValue(true);
+    vi.spyOn(authenticationRepository, "getKickUser").mockReturnValue({
       id: 2,
       username: "viewer-b",
       slug: "viewer-b",
@@ -295,12 +332,12 @@ describe("storageService.getActiveFollowsByPlatform — token-aware platform/gue
     vi.mocked(dbService.get).mockReturnValue("1:viewer-a");
     rowsBySource = { guest: [], kick: kickPlatformRows, twitch: [] };
 
-    expect(storageService.getActiveFollowsByPlatform("kick")).toEqual([]);
+    expect(authenticationRepository.getActiveFollowsByPlatform("kick")).toEqual([]);
   });
 });
 
 // Guards: follow metadata repair must preserve account-vs-guest source when rewriting stale Kick rows.
-describe("storageService.updateLocalFollow", () => {
+describe("authenticationRepository.updateLocalFollow", () => {
   it("passes the current row source through to the DB upsert", () => {
     const current: LocalFollow = {
       id: "kick-account-row",
@@ -312,14 +349,14 @@ describe("storageService.updateLocalFollow", () => {
       followedAt: "2026-01-01T00:00:00.000Z",
       source: "kick",
     };
-    vi.mocked(dbService.getAllFollows).mockReturnValue([current]);
+    vi.mocked(followRepository.getAllFollows).mockReturnValue([current]);
 
-    const result = storageService.updateLocalFollow("kick-account-row", {
+    const result = authenticationRepository.updateLocalFollow("kick-account-row", {
       channelId: "123",
       channelName: "new-slug",
     });
 
-    expect(dbService.addFollow).toHaveBeenCalledWith(
+    expect(followRepository.addFollow).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "kick-account-row",
         channelId: "123",
@@ -335,9 +372,9 @@ describe("storageService.updateLocalFollow", () => {
 // Guards: pending retry-state changes remain SQLite-owned behind the StorageService facade.
 describe("storageService pending follow writes", () => {
   it("delegates retry-state updates to DatabaseService", () => {
-    vi.mocked(dbService.updatePendingFollowWriteState).mockReturnValue(true);
+    vi.mocked(followRepository.updatePendingFollowWriteState).mockReturnValue(true);
 
-    const result = storageService.updatePendingFollowWriteState({
+    const result = authenticationRepository.updatePendingFollowWriteState({
       platform: "kick",
       channelId: "ramees",
       slug: "ramees",
@@ -350,7 +387,7 @@ describe("storageService pending follow writes", () => {
     });
 
     expect(result).toBe(true);
-    expect(dbService.updatePendingFollowWriteState).toHaveBeenCalledWith({
+    expect(followRepository.updatePendingFollowWriteState).toHaveBeenCalledWith({
       platform: "kick",
       channelId: "ramees",
       slug: "ramees",
@@ -372,59 +409,59 @@ describe("storageService Twitch follow-write token", () => {
       accessToken: "follow-write-token",
       scope: ["user_follows_edit"],
     };
-    storageService.saveToken("twitch", normalToken);
+    authenticationRepository.saveToken("twitch", normalToken);
 
-    storageService.saveTwitchFollowWriteToken(followWriteToken);
+    authenticationRepository.saveTwitchFollowWriteToken(followWriteToken);
 
-    expect(storageService.getTwitchFollowWriteToken()).toEqual(followWriteToken);
-    expect(storageService.getToken("twitch")).toEqual(normalToken);
+    expect(authenticationRepository.getTwitchFollowWriteToken()).toEqual(followWriteToken);
+    expect(authenticationRepository.getToken("twitch")).toEqual(normalToken);
     expect(vi.mocked(safeStorage.encryptString)).toHaveBeenCalledWith(
       JSON.stringify(followWriteToken)
     );
 
-    storageService.clearTwitchFollowWriteToken();
+    authenticationRepository.clearTwitchFollowWriteToken();
 
-    expect(storageService.getTwitchFollowWriteToken()).toBeNull();
-    expect(storageService.getToken("twitch")).toEqual(normalToken);
-    storageService.clearToken("twitch");
+    expect(authenticationRepository.getTwitchFollowWriteToken()).toBeNull();
+    expect(authenticationRepository.getToken("twitch")).toEqual(normalToken);
+    authenticationRepository.clearToken("twitch");
   });
 
   it("removes the dedicated credential when all tokens are cleared", () => {
-    storageService.saveTwitchFollowWriteToken({
+    authenticationRepository.saveTwitchFollowWriteToken({
       accessToken: "follow-write-token",
       scope: ["user_follows_edit"],
     });
 
-    storageService.clearAllTokens();
+    authenticationRepository.clearAllTokens();
 
-    expect(storageService.getTwitchFollowWriteToken()).toBeNull();
+    expect(authenticationRepository.getTwitchFollowWriteToken()).toBeNull();
   });
 });
 
 // Guards: Kick's page-context bearer survives process restarts and OAuth-only invalidation in its own encrypted envelope.
 describe("storageService Kick web bearer", () => {
   it("round-trips securely and is independent from OAuth token clearing", () => {
-    storageService.saveKickWebBearer("Bearer 123|restartproof");
+    authenticationRepository.saveKickWebBearer("Bearer 123|restartproof");
 
-    expect(storageService.getKickWebBearer()).toBe("Bearer 123|restartproof");
+    expect(authenticationRepository.getKickWebBearer()).toBe("Bearer 123|restartproof");
     expect(vi.mocked(safeStorage.encryptString)).toHaveBeenCalledWith("Bearer 123|restartproof");
 
-    storageService.clearToken("twitch");
-    expect(storageService.getKickWebBearer()).toBe("Bearer 123|restartproof");
+    authenticationRepository.clearToken("twitch");
+    expect(authenticationRepository.getKickWebBearer()).toBe("Bearer 123|restartproof");
 
-    storageService.clearToken("kick");
-    expect(storageService.getKickWebBearer()).toBe("Bearer 123|restartproof");
+    authenticationRepository.clearToken("kick");
+    expect(authenticationRepository.getKickWebBearer()).toBe("Bearer 123|restartproof");
 
-    storageService.clearKickWebBearer();
-    expect(storageService.getKickWebBearer()).toBeNull();
+    authenticationRepository.clearKickWebBearer();
+    expect(authenticationRepository.getKickWebBearer()).toBeNull();
   });
 
   it("is removed by the explicit clear-all operation", () => {
-    storageService.saveKickWebBearer("Bearer 123|restartproof");
+    authenticationRepository.saveKickWebBearer("Bearer 123|restartproof");
 
-    storageService.clearAllTokens();
+    authenticationRepository.clearAllTokens();
 
-    expect(storageService.getKickWebBearer()).toBeNull();
+    expect(authenticationRepository.getKickWebBearer()).toBeNull();
   });
 });
 
@@ -432,27 +469,27 @@ describe("storageService Kick web bearer", () => {
 // Guards: main-process consumers are notified when display-language preferences change.
 describe("storageService display-language preferences", () => {
   it("persists a regional display language", () => {
-    storageService.updatePreferences({ language: "pt-PT" });
+    preferencesRepository.updatePreferences({ language: "pt-PT" });
 
-    expect(storageService.getPreferences().language).toBe("pt-PT");
+    expect(preferencesRepository.getPreferences().language).toBe("pt-PT");
   });
 
   it("notifies and can unsubscribe preference consumers", () => {
     const listener = vi.fn();
-    const unsubscribe = storageService.onPreferencesChanged(listener);
+    const unsubscribe = preferencesRepository.onPreferencesChanged(listener);
 
-    storageService.updatePreferences({ language: "es" });
+    preferencesRepository.updatePreferences({ language: "es" });
     expect(listener).toHaveBeenCalledWith(expect.objectContaining({ language: "es" }));
 
     unsubscribe();
-    storageService.updatePreferences({ language: "en" });
+    preferencesRepository.updatePreferences({ language: "en" });
     expect(listener).toHaveBeenCalledTimes(1);
   });
 });
 
-describe("storageService.getPreferences - buffer defaults migration", () => {
+describe("preferencesRepository.getPreferences - buffer defaults migration", () => {
   it("migrates the exact legacy latency-first buffer defaults to the stable defaults", () => {
-    storageService.updatePreferences({
+    preferencesRepository.updatePreferences({
       ...DEFAULT_USER_PREFERENCES,
       buffer: {
         lowLatencyMode: true,
@@ -462,7 +499,7 @@ describe("storageService.getPreferences - buffer defaults migration", () => {
       },
     });
 
-    expect(storageService.getPreferences().buffer).toEqual(DEFAULT_BUFFER_PREFERENCES);
+    expect(preferencesRepository.getPreferences().buffer).toEqual(DEFAULT_BUFFER_PREFERENCES);
   });
 
   it("preserves custom user buffer settings", () => {
@@ -472,18 +509,18 @@ describe("storageService.getPreferences - buffer defaults migration", () => {
       maxBufferLengthSec: 20,
       maxMaxBufferLengthSec: 45,
     };
-    storageService.updatePreferences({
+    preferencesRepository.updatePreferences({
       ...DEFAULT_USER_PREFERENCES,
       buffer: customBuffer,
     });
 
-    expect(storageService.getPreferences().buffer).toEqual(customBuffer);
+    expect(preferencesRepository.getPreferences().buffer).toEqual(customBuffer);
   });
 });
 
-describe("storageService.getPreferences - notification defaults migration", () => {
+describe("preferencesRepository.getPreferences - notification defaults migration", () => {
   it("hydrates new nested notification fields for installs with the legacy notification group", () => {
-    storageService.updatePreferences({
+    preferencesRepository.updatePreferences({
       ...DEFAULT_USER_PREFERENCES,
       notifications: {
         enabled: false,
@@ -493,7 +530,7 @@ describe("storageService.getPreferences - notification defaults migration", () =
       },
     } as typeof DEFAULT_USER_PREFERENCES);
 
-    expect(storageService.getPreferences().notifications).toEqual({
+    expect(preferencesRepository.getPreferences().notifications).toEqual({
       ...DEFAULT_NOTIFICATION_PREFERENCES,
       enabled: false,
       sound: false,
@@ -503,9 +540,9 @@ describe("storageService.getPreferences - notification defaults migration", () =
 });
 
 // Guards: legacy chat display choices must survive newly added display preferences during hydration.
-describe("storageService.getPreferences - chat display defaults migration", () => {
+describe("preferencesRepository.getPreferences - chat display defaults migration", () => {
   it("preserves legacy chat display choices while hydrating newly added fields", () => {
-    storageService.updatePreferences({
+    preferencesRepository.updatePreferences({
       ...DEFAULT_USER_PREFERENCES,
       chatDisplay: {
         boldUsernames: true,
@@ -514,7 +551,7 @@ describe("storageService.getPreferences - chat display defaults migration", () =
       },
     } as typeof DEFAULT_USER_PREFERENCES);
 
-    expect(storageService.getPreferences().chatDisplay).toEqual({
+    expect(preferencesRepository.getPreferences().chatDisplay).toEqual({
       ...DEFAULT_CHAT_DISPLAY_PREFERENCES,
       boldUsernames: true,
       timestamps: true,
@@ -523,7 +560,7 @@ describe("storageService.getPreferences - chat display defaults migration", () =
   });
 
   it("preserves explicitly disabled newly added toggles", () => {
-    storageService.updatePreferences({
+    preferencesRepository.updatePreferences({
       ...DEFAULT_USER_PREFERENCES,
       chatDisplay: {
         hoverSmooth: false,
@@ -531,7 +568,7 @@ describe("storageService.getPreferences - chat display defaults migration", () =
       },
     } as typeof DEFAULT_USER_PREFERENCES);
 
-    expect(storageService.getPreferences().chatDisplay).toEqual({
+    expect(preferencesRepository.getPreferences().chatDisplay).toEqual({
       ...DEFAULT_CHAT_DISPLAY_PREFERENCES,
       hoverSmooth: false,
       quickEmotes: false,
@@ -560,27 +597,27 @@ describe("storageService download queue persistence", () => {
       ],
     };
 
-    storageService.saveDownloadQueue(snapshot);
+    mediaLibraryPersistence.saveDownloadQueue(snapshot);
 
-    expect(storageService.getDownloadQueue()).toEqual(snapshot);
+    expect(mediaLibraryPersistence.getDownloadQueue()).toEqual(snapshot);
   });
 });
 
 // Guards: the last selected clip or VOD folder persists through the main-owned storage contract.
 describe("storageService download directory persistence", () => {
   it("saves and reloads the last selected download directory", () => {
-    expect(storageService.getLastDownloadDirectory()).toBeNull();
+    expect(mediaLibraryPersistence.getLastDownloadDirectory()).toBeNull();
 
-    storageService.saveLastDownloadDirectory("D:/Media");
+    mediaLibraryPersistence.saveLastDownloadDirectory("D:/Media");
 
-    expect(storageService.getLastDownloadDirectory()).toBe("D:/Media");
+    expect(mediaLibraryPersistence.getLastDownloadDirectory()).toBe("D:/Media");
   });
 });
 
 // Guards: Recording startup can hydrate an empty V2 journal and persist later session state.
 describe("storageService Stream Recording journal persistence", () => {
   it("provides the default V2 journal and round-trips an active session", () => {
-    const sessionStore = createStreamRecordingSessionStore({ storage: storageService });
+    const sessionStore = createStreamRecordingSessionStore({ storage: mediaLibraryPersistence });
 
     expect(sessionStore.getJournal()).toEqual({
       version: 2,
@@ -607,9 +644,9 @@ describe("storageService Stream Recording journal persistence", () => {
       },
     };
 
-    storageService.saveStreamRecordingJournal(journal);
+    mediaLibraryPersistence.saveStreamRecordingJournal(journal);
 
-    expect(storageService.getStreamRecordingJournal()).toEqual(journal);
+    expect(mediaLibraryPersistence.getStreamRecordingJournal()).toEqual(journal);
   });
 });
 
@@ -632,10 +669,10 @@ describe("storageService persistence ownership", () => {
       session: null,
     };
 
-    storageService.saveKickApiRateLimitState({ blockedUntil: 1234 });
-    storageService.saveKickFollowedStreamsCache({ cachedAt: 5678, streams: [] });
-    storageService.saveDownloadQueue(downloadQueue);
-    storageService.saveStreamRecordingJournal(recordingJournal);
+    kickContinuityRepository.saveKickApiRateLimitState({ blockedUntil: 1234 });
+    followedStreamCache.saveKickFollowedStreamsCache({ cachedAt: 5678, streams: [] });
+    mediaLibraryPersistence.saveDownloadQueue(downloadQueue);
+    mediaLibraryPersistence.saveStreamRecordingJournal(recordingJournal);
 
     expect(dbService.set).toHaveBeenCalledWith("operational:kickApiRateLimit", {
       blockedUntil: 1234,
@@ -773,6 +810,6 @@ describe("storageService persistence ownership", () => {
     expect(() => service.initialize()).toThrow("database busy");
     expect(() => service.initialize()).not.toThrow();
     expect(dbService.migrateKeyValues).toHaveBeenCalledTimes(2);
-    expect(service.getPreferences()).toEqual(DEFAULT_USER_PREFERENCES);
+    expect(new PreferencesRepository(service).getPreferences()).toEqual(DEFAULT_USER_PREFERENCES);
   });
 });

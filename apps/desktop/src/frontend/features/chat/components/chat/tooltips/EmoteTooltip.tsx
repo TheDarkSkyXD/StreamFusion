@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import type React from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { Emote } from "../../../../../../backend/services/emotes/emote-types";
+import type { Emote } from "@/features/chat/capabilities/emote-types";
 
 interface EmoteTooltipProps {
   show: boolean;

@@ -1,3 +1,4 @@
+import { desktopSnapshotStorage as snapshotStorage } from "../desktop-snapshot-storage";
 import type { InfiniteData } from "@tanstack/react-query";
 import { useEffect, useSyncExternalStore } from "react";
 
@@ -14,7 +15,7 @@ import {
   normalizeUnifiedChannel,
   normalizeUnifiedClip,
   normalizeUnifiedVideo,
-} from "@/features/discovery/utils/search/search-result-validation";
+} from "@/features/discovery/domain/search/search-result-validation";
 import { Platform } from "@streamfusion/core/platform";
 
 export type PersistedSearchKind = "categories" | "channels" | "clips" | "videos";
@@ -162,7 +163,7 @@ export function hydratePersistedSearchLru(): Promise<void> {
   if (hydrated) return Promise.resolve();
   if (hydrationPromise) return hydrationPromise;
 
-  hydrationPromise = window.electronAPI.store
+  hydrationPromise = snapshotStorage
     .get(STORE_KEY)
     .then((stored) => {
       const now = Date.now();
@@ -261,7 +262,7 @@ export function savePersistedSearchPage<T extends PersistedSearchItem>(
           )
         );
         publish(bounded);
-        await window.electronAPI.store.set(STORE_KEY, { version: 1, entries: bounded });
+        await snapshotStorage.set(STORE_KEY, { version: 1, entries: bounded });
         return;
       }
       const nextEntry: PersistedSearchEntry = {
@@ -290,7 +291,7 @@ export function savePersistedSearchPage<T extends PersistedSearchItem>(
       ];
       const bounded = boundedEntries(next);
       publish(bounded);
-      await window.electronAPI.store.set(STORE_KEY, { version: 1, entries: bounded });
+      await snapshotStorage.set(STORE_KEY, { version: 1, entries: bounded });
     });
   return persistQueue;
 }

@@ -1,3 +1,4 @@
+import { getChatPresentationServices } from "@/features/chat/composition/chat-presentation-services";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Check,
@@ -29,17 +30,17 @@ import {
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MOD_LOG_QUERY_KEYS } from "@/features/moderation/data/mod-log-query-keys";
-import { useModerationAuthority } from "@/features/moderation/data/useModerationAuthority";
+import { useModerationAuthority } from "@/features/moderation/components/hooks/useModerationAuthority";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "@shared/auth-types";
 import type { ChatMessage } from "@shared/chat-types";
-import { useAuthStore } from "@/store/auth-store";
-import { buildChannelKey, useChatStore } from "@/store/chat-store";
-import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
+import { buildChannelKey, useChatStore } from "@/features/chat/components/state/chat-store";
+import { useReconnectDialogStore } from "@/features/auth/components/state/reconnect-dialog-store";
 import {
   reconcileSelectedMessage,
   selectLatestAuthoredMessage,
   selectRecentUserMessages,
-} from "@/store/user-popout-chat-context";
+} from "@/features/chat/components/state/user-popout-chat-context";
 import { StateAwareTimeoutAction } from "./StateAwareTimeoutAction";
 import { UserModHistory } from "./UserModHistory";
 import { UserProfileHeader } from "./UserProfileHeader";
@@ -589,7 +590,7 @@ export function UserPopout({
                     displayName: externalDisplayName,
                     platform: platformLabel,
                   })}
-                  onClick={() => void window.electronAPI.openExternal(externalUrl)}
+                  onClick={() => void getChatPresentationServices()?.openExternal(externalUrl)}
                 >
                   <ExternalLink className="h-4 w-4" aria-hidden />
                 </button>

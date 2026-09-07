@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type React from "react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 
-import { useBrowseSnapshotBootstrap } from "@/features/discovery/data/queries/browse-snapshot-bootstrap";
+import { useBrowseSnapshotBootstrap } from "@/features/discovery/components/hooks/queries/browse-snapshot-bootstrap";
 import { configureConfirmedConnectivity } from "./query-connectivity";
 
 // Lazy load ReactQueryDevtools only in development to avoid bundling in production

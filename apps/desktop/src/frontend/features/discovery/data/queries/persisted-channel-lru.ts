@@ -1,3 +1,4 @@
+import { desktopSnapshotStorage as snapshotStorage } from "../desktop-snapshot-storage";
 import type { UnifiedChannel } from "@shared/platform-types";
 import { Platform } from "@streamfusion/core/platform";
 
@@ -115,7 +116,7 @@ export function hydratePersistedChannelLru(): Promise<void> {
   if (hydrated) return Promise.resolve();
   if (hydrationPromise) return hydrationPromise;
 
-  hydrationPromise = window.electronAPI.store
+  hydrationPromise = snapshotStorage
     .get(STORE_KEY)
     .then((stored) => {
       const now = Date.now();
@@ -173,7 +174,7 @@ export function savePersistedChannelMetadata(channel: UnifiedChannel): Promise<v
       ];
       const bounded = boundedEntries(next);
       publish(bounded);
-      await window.electronAPI.store.set(STORE_KEY, { version: 1, entries: bounded });
+      await snapshotStorage.set(STORE_KEY, { version: 1, entries: bounded });
     });
   return persistQueue;
 }

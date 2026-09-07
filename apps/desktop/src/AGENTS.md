@@ -19,10 +19,9 @@ Before modifying code in a subdirectory, read its nearest `AGENTS.md` first.
 | `backend/`             | `backend/AGENTS.md`             | Main process, IPC, auth, platform adapters, persistence, and services  |
 | `backend/preload/`     | `backend/preload/AGENTS.md`     | Narrow `contextBridge` surface                                         |
 | `frontend/features/`   | `frontend/features/AGENTS.md`   | Renderer feature roots; see the nine-folder target and migration rules |
-| `frontend/pages/`      | `frontend/pages/AGENTS.md`      | One folder per route-level page                                        |
+| `backend/features/`    | `backend/AGENTS.md`            | Main-owned feature routes, workflows, adapters, persistence, and tests |
 | `frontend/components/` | `frontend/components/AGENTS.md` | Capability-neutral UI primitives and developer tools                   |
 | `frontend/hooks/`      | `frontend/hooks/AGENTS.md`      | Cross-cutting React hooks                                              |
-| `frontend/store/`      | `frontend/store/AGENTS.md`      | Cross-cutting Zustand state                                            |
 | `frontend/routes/`     | _(none)_                        | TanStack Router composition and shared route infrastructure            |
 | `shared/`              | `shared/AGENTS.md`              | IPC contracts and process-neutral types                                |
 
@@ -36,3 +35,5 @@ Before modifying code in a subdirectory, read its nearest `AGENTS.md` first.
 - V8 heap limits, development `userData` isolation, and `webSecurity: false` are intentional runtime constraints.
 - Register privileged URL schemes in `backend/main.ts` before `app.ready`.
 - Initialize emote providers lazily on first chat use, not in `frontend/App.tsx` or at module load.
+- Feature screens, presentation hooks, and view state belong in the feature's `components/`; pure workflows and ports belong in `domain/` and `capabilities/`.
+- Feature-owned tests live in `features/<feature>/tests/` and follow `../tests/AGENTS.md` relative to this source root. Shared fixtures and cross-feature runtime tests remain in the desktop test directory.

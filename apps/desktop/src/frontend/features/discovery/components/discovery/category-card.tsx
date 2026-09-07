@@ -4,10 +4,11 @@ import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { UnifiedCategory } from "@shared/platform-types";
+import { discoveryReader } from "@/features/discovery/composition/discovery-reader";
 import { Card, CardContent } from "@/components/ui/card";
 import { ProxiedImage } from "@/components/ui/proxied-image";
-import { useCategoryMetadata } from "@/features/discovery/data/queries/useCategories";
-import { STREAM_KEYS } from "@/features/discovery/data/queries/useStreams";
+import { useCategoryMetadata } from "@/features/discovery/components/hooks/queries/useCategories";
+import { STREAM_KEYS } from "@/features/discovery/components/hooks/queries/useStreams";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { formatViewerCount, uniqueTagLabels } from "@/lib/utils";
 
@@ -39,7 +40,7 @@ export const CategoryCard = React.memo(
         queryClient.prefetchQuery({
           queryKey: STREAM_KEYS.byCategory(category.id, category.platform),
           queryFn: async () => {
-            const response = await window.electronAPI.streams.getByCategory({
+            const response = await discoveryReader.streams.getByCategory({
               categoryId: category.id,
               platform: category.platform,
               limit: 20,
@@ -54,7 +55,7 @@ export const CategoryCard = React.memo(
     const handlePointerMove = useCallback(() => {
       if (pointerIntentStartedRef.current) return;
       pointerIntentStartedRef.current = true;
-      void import("@/pages/CategoryDetail");
+      void import("@/features/discovery/components/screens/CategoryDetail");
       prefetchTimer.start(HOVER_PREFETCH_DELAY_MS);
     }, [prefetchTimer]);
 
@@ -64,7 +65,7 @@ export const CategoryCard = React.memo(
     }, [prefetchTimer]);
 
     const handleFocus = useCallback(() => {
-      void import("@/pages/CategoryDetail");
+      void import("@/features/discovery/components/screens/CategoryDetail");
       prefetchTimer.start(0);
     }, [prefetchTimer]);
 

@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useAuthStore } from "@/store/auth-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 import {
   DEFAULT_DISPLAY_LANGUAGE,
   getDisplayLanguage,

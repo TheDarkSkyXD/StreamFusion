@@ -4,13 +4,13 @@ import { AuthProvider } from "@/features/auth/components/auth/AuthProvider";
 import { RecoveryBoundary } from "@/features/shell/components/recovery/RecoveryBoundary";
 import { ToastRoot } from "@/features/shell/components/ToastRoot";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useAppShutdown } from "@/features/shell/data/use-app-shutdown";
-import { useLiveNotificationBridge } from "@/features/auth/data/use-live-notification-bridge";
+import { useAppShutdown } from "@/features/shell/components/hooks/use-app-shutdown";
+import { useLiveNotificationBridge } from "@/features/auth/components/hooks/use-live-notification-bridge";
 import { QueryProvider } from "@/providers/query-provider";
 import { router } from "@/routes/router";
-import { useDownloadDuplicateConfirmationStore } from "@/store/download-duplicate-confirmation-store";
+import { useDownloadDuplicateConfirmationStore } from "@/features/media-library/components/state/download-duplicate-confirmation-store";
 import { DisplayLanguageSync } from "@/i18n/DisplayLanguageSync";
-import { useRendererActivityReporter } from "@/features/settings/data/diagnostics/renderer-activity-reporter";
+import { useRendererActivityReporter } from "@/features/settings/components/hooks/use-renderer-activity-reporter";
 
 const DeveloperConsole = import.meta.env.DEV
   ? lazy(() =>

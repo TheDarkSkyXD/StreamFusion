@@ -5,7 +5,7 @@ import { LuMaximize, LuMinimize, LuRotateCcw, LuRotateCw } from "react-icons/lu"
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { formatDuration } from "@/lib/utils";
 import { DEFAULT_PLAYER_CONTROLS_PREFERENCES } from "@shared/auth-types";
-import { useAuthStore } from "@/store/auth-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 
 import { Button } from "../../../../components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/ui/tooltip";
@@ -13,7 +13,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../../../../components/
 import { PlayPauseButton } from "./play-pause-button";
 import { ProgressBar } from "./progress-bar";
 import { SettingsMenu, type SettingsMenuProps } from "./settings-menu";
-import type { QualityLevel } from "./types";
+import type { QualityLevel } from "../../capabilities/media-types";
 import { VolumeControl } from "./volume-control";
 
 const TheaterOutlineIcon = ({ className }: { className?: string }) => (

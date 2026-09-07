@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveUserDataPath } from "@backend/utility/user-data-path";
+import { resolveUserDataPath } from "@backend/features/shell/adapters/electron/user-data-path";
 
 // Guards: explicit launch profiles override the automatic development and packaged locations
 // Guards: development automation can isolate state after Electron consumes its user-data switch

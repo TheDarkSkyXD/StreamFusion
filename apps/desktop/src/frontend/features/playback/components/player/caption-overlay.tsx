@@ -2,9 +2,9 @@ import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 
 import { DEFAULT_CAPTION_PREFERENCES } from "@shared/auth-types";
-import { useAuthStore } from "@/store/auth-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 
-import type { TimedTextCue } from "./types";
+import type { TimedTextCue } from "../../capabilities/media-types";
 
 const CONTROL_SAFE_BOTTOM = "clamp(5rem, 12%, 8rem)";
 const ACTIVE_WORD_STYLE: CSSProperties = {

@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { Emote } from "@backend/services/emotes/emote-types";
+import type { Emote } from "@/features/chat/capabilities/emote-types";
 import {
   Select,
   SelectContent,
@@ -15,11 +15,11 @@ import {
   formatChatTimestamp,
   getSevenTvPaintStyle,
   resolveChatUsernameColor,
-} from "@/features/chat/utils/chat-visuals";
-import { getChatDensityPresentation } from "@/features/chat/utils/chat-density-presentation";
-import { notifySettingsSaved } from "@/features/settings/utils/settings-toast";
-import { translateSettings } from "@/features/settings/utils/settings-translation";
-import { useChatDisplay } from "@/features/settings/data/use-chat-display";
+} from "@/features/chat/components/presentation/chat-visuals";
+import { getChatDensityPresentation } from "@/features/chat/components/presentation/chat-density-presentation";
+import { notifySettingsSaved } from "@/features/settings/components/presentation/settings-toast";
+import { translateSettings } from "@/features/settings/components/presentation/settings-translation";
+import { useChatDisplay } from "@/features/settings/components/hooks/use-chat-display";
 import { cn } from "@/lib/utils";
 import {
   type ChatDisplayPreferences,
@@ -29,9 +29,9 @@ import {
   type ModerationHighlightStyle,
 } from "@shared/auth-types";
 import type { SevenTvPaint } from "@shared/chat-types";
-import { useAuthStore } from "@/store/auth-store";
-import { useChatCosmeticsStore } from "@/store/chat-cosmetics-store";
-import { useEmoteStore } from "@/store/emote-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
+import { useChatCosmeticsStore } from "@/features/chat/components/state/chat-cosmetics-store";
+import { useEmoteStore } from "@/features/chat/components/state/emote-store";
 import {
   CHAT_PREVIEW_FALLBACK_EMOTES,
   CHAT_PREVIEW_OVERLAY_EMOTE_URL,

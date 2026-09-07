@@ -1,16 +1,16 @@
 import { PLATFORMS } from "@streamfusion/core/platform";
 
-import { createExpoAppLinkSource } from "@mobile/adapters/expo-app-link-adapter";
-import { createExpoAppMetadataReader } from "@mobile/adapters/expo-app-metadata-reader";
-import { createDevelopmentClientController } from "@mobile/features/development/development-client-controller";
-import { usePersistenceController } from "@mobile/features/development/persistence-controller";
-import { AppShell } from "@mobile/features/shell/app-shell";
-import { createExpoSecureRandomSource } from "@mobile/native/expo-secure-random-source";
-import { createExpoSecureSecretStore } from "@mobile/native/expo-secure-secret-store";
-import { createSqliteEncryptedDatabaseDriver } from "@mobile/persistence/sqlite-encrypted-driver";
-import { createMobileStoreRuntime } from "@mobile/persistence/store-runtime";
-import { createVolatilePersistenceProbe } from "@mobile/persistence/volatile-runtime-probe";
-import { createFetchRuntimeProbe } from "@mobile/transport/fetch-runtime-probe";
+import { createExpoAppLinkSource } from "@mobile/features/shell/adapters/expo-app-link-adapter";
+import { createExpoAppMetadataReader } from "@mobile/features/diagnostics/adapters/expo-app-metadata-reader";
+import { createDevelopmentClientController } from "@mobile/features/diagnostics/domain/development-client-controller";
+import { usePersistenceController } from "@mobile/features/diagnostics/components/persistence-controller";
+import { AppShell } from "@mobile/features/shell/components/app-shell";
+import { createExpoSecureRandomSource } from "@mobile/features/storage/adapters/expo-secure-random-source";
+import { createExpoSecureSecretStore } from "@mobile/features/storage/adapters/expo-secure-secret-store";
+import { createSqliteEncryptedDatabaseDriver } from "@mobile/features/storage/adapters/sqlite-encrypted-driver";
+import { createMobileStoreRuntime } from "@mobile/features/storage/composition/store-runtime";
+import { createVolatilePersistenceProbe } from "@mobile/features/diagnostics/adapters/volatile-persistence-probe";
+import { createFetchRuntimeProbe } from "@mobile/features/diagnostics/adapters/fetch-runtime-probe";
 
 const developmentClientController = createDevelopmentClientController({
   appMetadata: createExpoAppMetadataReader(),

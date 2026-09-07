@@ -13,9 +13,9 @@ import { TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { useManagedTimeout } from "@/hooks/useManagedTimeout";
 import { formatDuration } from "@/lib/utils";
 import { logger } from "@/renderer/logging/logger";
-import { useVolumeStore } from "@/store/volume-store";
+import { useVolumeStore } from "@/features/playback/components/state/volume-store";
 
-import { resolveHlsVodBufferConfig } from "../player/hls-buffer-config";
+import { resolveHlsVodBufferConfig } from "../../adapters/browser/hls-buffer-config";
 import type { ClipPlayerProps } from "./types";
 
 /**

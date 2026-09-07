@@ -25,7 +25,7 @@ import type {
 import {
   firstValidKickBroadcasterUserId,
   getKickBroadcasterUserIdFromAvatar,
-} from "@/lib/kick-channel-identity";
+} from "@shared/utils/kick-channel-identity";
 
 /**
  * Transform official Kick API user to unified user

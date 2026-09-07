@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useKickAuth, useTwitchAuth } from "@/features/auth/data/useAuth";
+import { useKickAuth, useTwitchAuth } from "@/features/auth/components/hooks/useAuth";
 
 interface LoginDialogProps {
   open: boolean;

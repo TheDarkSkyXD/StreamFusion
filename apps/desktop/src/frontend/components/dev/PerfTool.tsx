@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 
 import type { ChatMessage } from "../../../shared/chat-types";
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
-import { buildChannelKey, useChatStore } from "../../store/chat-store";
+import { buildChannelKey, useChatStore } from "../../features/chat/components/state/chat-store";
 
 import { getActiveIntervalCount, installIntervalTracker } from "./interval-tracker";
 import { DEBUG_TOKENS } from "./tokens";

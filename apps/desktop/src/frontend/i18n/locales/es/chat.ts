@@ -3,6 +3,13 @@ import type { TranslationShape } from "../schema";
 
 export const chatEs = {
   chat: {
+    kickConnection: {
+      connecting: "Conectando al chat de Kick…",
+      reconnecting: "El chat de Kick no está disponible. Reconectando…",
+      loading: "Cargando el chat reciente de Kick…",
+      failed: "No se pudo conectar al chat de Kick.",
+      retry: "Reintentar chat",
+    },
     badge: "Insignia",
     showValue0EmoteDetails: "Mostrar los detalles del emote {{value0}}",
     value0Value1Notice: "Aviso de {{value0}} {{value1}}",

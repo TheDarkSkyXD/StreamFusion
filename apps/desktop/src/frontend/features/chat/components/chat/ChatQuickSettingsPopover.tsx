@@ -12,17 +12,17 @@ import {
   LuX,
 } from "react-icons/lu";
 
-import { useChatDisplay } from "@/features/settings/data/use-chat-display";
+import { useChatDisplay } from "@/features/settings/components/hooks/use-chat-display";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Switch } from "@/components/ui/switch";
-import { getChatDensityPresentation } from "@/features/chat/utils/chat-density-presentation";
+import { getChatDensityPresentation } from "@/features/chat/components/presentation/chat-density-presentation";
 import {
   type ChatDensity,
   type ChatPauseMode,
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
 } from "@shared/auth-types";
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
-import { useAuthStore } from "@/store/auth-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 
 /**
  * Quick chat-settings popover (U7). Opened from the chat settings gear on BOTH

@@ -1,3 +1,4 @@
+import { getLocalCaptionController } from "@/features/playback/composition/local-caption-controller";
 import type { RefObject } from "react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -7,11 +8,11 @@ import {
   type LocalCaptionModelState,
   type LocalCaptionRecognizerPhase,
 } from "@shared/local-caption-types";
-import { useAuthStore } from "@/store/auth-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 
 import { LocalAudioCaptureController } from "../local-audio-capture";
 import { advanceLocalCaptionCue, applyLocalCaptionResult } from "../local-caption-presentation";
-import type { TimedTextCue } from "../types";
+import type { TimedTextCue } from "../../../capabilities/media-types";
 
 type LocalCaptionPhase = "off" | "install-required" | LocalCaptionRecognizerPhase;
 const LOCAL_CAPTION_MODEL_ID = "zipformer-en-20m-2023-02-17";
@@ -143,7 +144,7 @@ export function useLocalLiveCaptions({
   }, [allowLocalCaptions, captionPreferences, deactivate, modelState.phase]);
 
   useEffect(() => {
-    const api = window.electronAPI?.localCaptions;
+    const api = getLocalCaptionController()?.localCaptions;
     if (!api) return;
     let disposed = false;
     void api.getModelState().then((state) => {
@@ -204,7 +205,7 @@ export function useLocalLiveCaptions({
     ) {
       return;
     }
-    const api = window.electronAPI?.localCaptions;
+    const api = getLocalCaptionController()?.localCaptions;
     const video = videoRef.current;
     if (!api || !video) return;
     let disposed = false;
@@ -412,7 +413,7 @@ export function useLocalLiveCaptions({
   }, [activeCues, selected, videoRef]);
 
   const downloadModel = useCallback(async () => {
-    const result = await window.electronAPI.localCaptions.downloadModel();
+    const result = await getLocalCaptionController().localCaptions.downloadModel();
     if (result.state) setModelState(result.state);
     if (!result.success) {
       setError(result.error ?? translateRef.current("playback.captionModelDownloadFailed"));
@@ -421,12 +422,12 @@ export function useLocalLiveCaptions({
   }, []);
 
   const cancelModelDownload = useCallback(async () => {
-    await window.electronAPI.localCaptions.cancelModelDownload();
+    await getLocalCaptionController().localCaptions.cancelModelDownload();
   }, []);
 
   const removeModel = useCallback(async () => {
     deactivate();
-    const result = await window.electronAPI.localCaptions.removeModel();
+    const result = await getLocalCaptionController().localCaptions.removeModel();
     if (result.state) setModelState(result.state);
     if (!result.success) {
       setError(result.error ?? translateRef.current("playback.captionModelRemovalFailed"));

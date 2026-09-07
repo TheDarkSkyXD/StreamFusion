@@ -1,6 +1,6 @@
 import { onlineManager, type QueryClient } from "@tanstack/react-query";
 
-import { networkStatusStore, type NetworkStatusStore } from "@/hooks/network-status-store";
+import { networkStatusStore, type NetworkStatusStore } from "@/features/settings/components/hooks/network-status-store";
 
 export function configureConfirmedConnectivity(
   client: QueryClient,

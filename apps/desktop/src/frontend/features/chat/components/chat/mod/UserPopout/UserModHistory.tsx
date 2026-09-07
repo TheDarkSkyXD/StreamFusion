@@ -11,7 +11,7 @@ import { AlertCircle, RefreshCw } from "lucide-react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
-import { useModLog } from "@/features/moderation/data/useModLog";
+import { useModLog } from "@/features/moderation/components/hooks/useModLog";
 import { Platform } from "@streamfusion/core/platform";
 
 interface UserModHistoryProps {

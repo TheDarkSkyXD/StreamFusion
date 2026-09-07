@@ -18,7 +18,7 @@ const mockIsAuthenticated = vi.fn();
 const mockRefreshToken = vi.fn();
 const mockGetAccessToken = vi.fn();
 
-vi.mock("@backend/auth/twitch-auth", () => ({
+vi.mock("@backend/features/authentication/adapters/twitch/twitch-auth", () => ({
   twitchAuthService: {
     getValidAccessToken: (...args: unknown[]) => mockGetValidAccessToken(...args),
     isAuthenticated: (...args: unknown[]) => mockIsAuthenticated(...args),
@@ -27,7 +27,7 @@ vi.mock("@backend/auth/twitch-auth", () => ({
   },
 }));
 
-vi.mock("@backend/auth/oauth-config", () => ({
+vi.mock("@backend/features/authentication/adapters/oauth/oauth-config", () => ({
   getOAuthConfig: () => ({ clientId: "test-client-id" }),
 }));
 

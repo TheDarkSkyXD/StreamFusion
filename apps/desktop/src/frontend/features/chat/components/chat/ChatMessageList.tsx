@@ -14,9 +14,9 @@ import { useManagedTimeout } from "../../../../hooks/useManagedTimeout";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../../../shared/auth-types";
 import type { ChatMessage as ChatMessageType } from "../../../../../shared/chat-types";
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
-import { useChatStore } from "../../../../store/chat-store";
+import { useChatStore } from "../state/chat-store";
 import { useRenderCount } from "../../../../components/dev/use-render-count";
-import { useChatDisplay } from "../../../settings/data/use-chat-display";
+import { useChatDisplay } from "../../../settings/components/hooks/use-chat-display";
 import { ChatMessage } from "./ChatMessage";
 import type { UsernameChannelContext } from "./Username";
 

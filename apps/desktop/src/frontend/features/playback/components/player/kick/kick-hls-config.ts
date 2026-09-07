@@ -1,4 +1,4 @@
-import type { HlsConfigOverrides } from "../hls-player";
+import type { HlsConfigOverrides } from "../../../adapters/browser/hls-playback-session";
 
 import { createKickClipPlaylistLoader, isKickClipPlaylistUrl } from "./kick-clip-loader";
 

@@ -1,7 +1,7 @@
 import {
   parseCategoryLanguage,
   type CategoryLanguage,
-} from "@/features/discovery/data/category-language-preference-store";
+} from "@/features/discovery/components/state/category-language-preference-store";
 
 export type CategoryContentTab = "live" | "clips" | "videos";
 export type CategoryPlatformScope = "all" | "twitch" | "kick";

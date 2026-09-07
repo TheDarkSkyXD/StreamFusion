@@ -22,14 +22,14 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { ProxiedImage } from "@/components/ui/proxied-image";
-import { useLiveFavoriteStreams } from "@/features/discovery/data/queries/useLiveFavoriteStreams";
-import { STREAM_KEYS } from "@/features/discovery/data/queries/useStreams";
+import { useLiveFavoriteStreams } from "@/features/discovery/components/hooks/queries/useLiveFavoriteStreams";
+import { STREAM_KEYS } from "@/features/discovery/components/hooks/queries/useStreams";
 import { cn } from "@/lib/utils";
 import { Platform } from "@streamfusion/core/platform";
 import {
   type FavoriteStreamRef,
   useMultiStreamStore,
-} from "@/features/multistream/data/multistream-store";
+} from "@/features/multistream/components/state/multistream-store";
 
 type DialogTab = "search" | "favorites";
 

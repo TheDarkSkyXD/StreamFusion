@@ -5,8 +5,8 @@ import {
 } from "@backend/reliability/bounded-response-body";
 import { sleep } from "@shared/utils/sleep";
 import { net } from "electron";
-import { getOAuthConfig } from "../../../auth/oauth-config";
-import { twitchAuthService } from "../../../auth/twitch-auth";
+import { getOAuthConfig } from "../../../features/authentication/adapters/oauth/oauth-config";
+import { twitchAuthService } from "../../../features/authentication/adapters/twitch/twitch-auth";
 import type { PlatformFailureClass } from "../../unified/platform-health";
 import { recordPlatformFailure, recordPlatformSuccess } from "../../unified/platform-health";
 import { TWITCH_API_BASE, type TwitchClientError } from "./twitch-types";

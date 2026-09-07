@@ -13,8 +13,9 @@ import {
 import { logger } from "@/renderer/logging/logger";
 import type { authEn } from "@/i18n/locales/en/auth";
 import { KICK_APP_SCOPES, TWITCH_APP_SCOPES } from "@shared/auth-types";
-import { useAuthStore } from "@/store/auth-store";
-import { useReconnectDialogStore } from "@/store/reconnect-dialog-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
+import { useReconnectDialogStore } from "@/features/auth/components/state/reconnect-dialog-store";
+import { getSessionInspector } from "@/features/auth/composition/session-inspector";
 
 type ScopeDescriptionKey =
   `auth.scopeDescriptions.${keyof typeof authEn.auth.scopeDescriptions & string}`;
@@ -80,7 +81,8 @@ export function ReconnectForModDialog() {
       await (platform === "twitch" ? loginTwitch() : loginKick());
       setPhase("revalidating");
 
-      const status = await window.electronAPI.auth.tokenStatus(platform);
+      const status = await getSessionInspector()?.tokenStatus(platform);
+      if (!status) throw new Error("Session inspector unavailable");
       if (!status.connected || !status.valid) {
         throw new Error(`${platformLabel} did not return a valid connected session`);
       }

@@ -25,6 +25,8 @@ const coreElements = [
   "core-use-case",
   "core-public",
   "core-testing",
+  "core-feature-capability",
+  "core-feature-domain",
 ];
 const runtimeImportRestrictions = [
   ...new Set(
@@ -111,6 +113,16 @@ export default tseslint.config(
           pattern: "src/testing",
           partialMatch: false,
         },
+        {
+          type: "core-feature-capability",
+          pattern: "src/features/*/capabilities",
+          partialMatch: false,
+        },
+        {
+          type: "core-feature-domain",
+          pattern: "src/features/*/domain",
+          partialMatch: false,
+        },
       ],
     },
     rules: {
@@ -164,6 +176,8 @@ export default tseslint.config(
                         "core-use-case",
                         "core-capability",
                         "core-foundation",
+                        "core-feature-capability",
+                        "core-feature-domain",
                       ],
                     },
                   },
@@ -174,6 +188,35 @@ export default tseslint.config(
               from: { element: { type: "core-testing" } },
               allow: {
                 to: { element: { types: { anyOf: coreElements } } },
+              },
+            },
+            {
+              from: { element: { type: "core-feature-capability" } },
+              allow: {
+                to: {
+                  element: {
+                    types: {
+                      anyOf: ["core-feature-capability", "core-foundation"],
+                    },
+                  },
+                },
+              },
+            },
+            {
+              from: { element: { type: "core-feature-domain" } },
+              allow: {
+                to: {
+                  element: {
+                    types: {
+                      anyOf: [
+                        "core-feature-domain",
+                        "core-feature-capability",
+                        "core-foundation",
+                        "core-public",
+                      ],
+                    },
+                  },
+                },
               },
             },
           ],

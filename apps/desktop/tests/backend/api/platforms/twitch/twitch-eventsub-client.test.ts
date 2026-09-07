@@ -293,6 +293,58 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("TwitchEventSubClient — connection + subscription lifecycle", () => {
+  it("posts follow v2 and dispatches raid/whisper notifications without a broadcaster condition", async () => {
+    const client = getClient();
+    const raid = vi.fn();
+    const whisper = vi.fn();
+    client.subscribe("channel.follow", "chan-1", vi.fn());
+    client.subscribe("channel.raid", "chan-1", raid);
+    client.subscribe("user.whisper.message", SELF_ID, whisper);
+    const ws = MockWebSocket.instances[0]!;
+    ws._open();
+    ws._emit(welcomeEnvelope("sess-new-tools", 10));
+    await flushMicrotasks();
+    expect(fetchCalls.map((call) => call.body)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "channel.follow",
+          version: "2",
+          condition: { broadcaster_user_id: "chan-1", moderator_user_id: SELF_ID },
+        }),
+        expect.objectContaining({
+          type: "channel.raid",
+          condition: { to_broadcaster_user_id: "chan-1" },
+        }),
+        expect.objectContaining({ type: "user.whisper.message", condition: { user_id: SELF_ID } }),
+      ])
+    );
+    const raidEnvelope = notificationEnvelope("raid-sub", "channel.raid", "chan-1", {
+      viewers: 50,
+    });
+    const whisperEnvelope = notificationEnvelope("whisper-sub", "user.whisper.message", SELF_ID, {
+      whisper: { text: "hello" },
+    });
+    ws._emit({
+      ...raidEnvelope,
+      payload: {
+        ...raidEnvelope.payload,
+        subscription: {
+          ...raidEnvelope.payload.subscription,
+          condition: { to_broadcaster_user_id: "chan-1" },
+        },
+      },
+    });
+    ws._emit({
+      ...whisperEnvelope,
+      payload: {
+        ...whisperEnvelope.payload,
+        subscription: { ...whisperEnvelope.payload.subscription, condition: { user_id: SELF_ID } },
+      },
+    });
+    expect(raid).toHaveBeenCalledOnce();
+    expect(whisper).toHaveBeenCalledOnce();
+  });
+
   it("first subscribe opens the WS and waits for session_welcome before POSTing", async () => {
     const client = getClient();
     client.subscribe("channel.moderate", "chan-1", () => {});

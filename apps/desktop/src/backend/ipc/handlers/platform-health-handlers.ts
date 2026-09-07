@@ -6,15 +6,13 @@
 
 import { trustedIpcMain as ipcMain } from "../trusted-ipc-main";
 import { IPC_CHANNELS } from "../../../shared/ipc-channels";
-import { clearKickStreamFailureCache } from "../../api/platforms/kick/endpoints/stream-endpoints";
+import { clearKickStreamFailureCache } from "../../features/discovery/adapters/kick/stream-endpoints";
 import {
   getPlatformHealth,
   getPlatformStatusPageDetail,
   onPlatformHealthChanged,
-  type PlatformHealth,
-  type PlatformHealthEvent,
-  type StatusPageDetail,
 } from "../../api/unified/platform-health";
+import type { PlatformHealth, PlatformHealthEvent, StatusPageDetail } from "@shared/platform-health-types";
 import { logger } from "../../logging/logger";
 import type { MainRendererPort } from "../main-renderer-port";
 import { registerLoadedFeatureCleanup } from "../../startup/loaded-feature-cleanup";

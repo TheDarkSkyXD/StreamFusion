@@ -13,17 +13,17 @@ import {
 import { TWITCH_COLORS } from "@/assets/platforms/twitch";
 import { Button } from "@/components/ui/button";
 import { TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
-import { useAdElementObserver } from "@/features/playback/data/use-ad-element-observer";
-import { isTwitchPlaylistProxyMode } from "@/features/playback/utils/twitch-playlist-proxy";
+import { useAdElementObserver } from "@/features/playback/components/hooks/use-ad-element-observer";
+import { isTwitchPlaylistProxyMode } from "@/features/playback/adapters/browser/twitch/twitch-playlist-proxy";
 import { createCancellableSleep, type CancellableSleep } from "@shared/utils/sleep";
 import { logger } from "@/renderer/logging/logger";
 import type { AdBlockStatus } from "@shared/adblock-types";
-import { useAdBlockStore } from "@/store/adblock-store";
-import { useAuthStore } from "@/store/auth-store";
+import { useAdBlockStore } from "@/features/playback/components/state/adblock-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 
 import { useDefaultQuality } from "../hooks/use-default-quality";
 import { useDockedPlayerConfig } from "../persistent-player-shell";
-import { qualityLevelToPreference } from "../quality-preference";
+import { qualityLevelToPreference } from "../../../domain/quality-preference";
 import { useFullscreen } from "../hooks/use-fullscreen";
 import { useLocalLiveCaptions } from "../hooks/use-local-live-captions";
 import { usePictureInPicture } from "../hooks/use-picture-in-picture";
@@ -32,7 +32,7 @@ import { usePlayerNetworkRecovery } from "../hooks/use-player-network-recovery";
 import { useTimedText } from "../hooks/use-timed-text";
 import { useVolume } from "../hooks/use-volume";
 import { CaptionOverlay } from "../caption-overlay";
-import { LOCAL_LIVE_CAPTION_TRACK, type PlayerError, type QualityLevel } from "../types";
+import { LOCAL_LIVE_CAPTION_TRACK, type PlayerError, type QualityLevel } from "../../../capabilities/media-types";
 
 import { AdBlockFallbackOverlay } from "./ad-block-fallback-overlay";
 import { TwitchHlsPlayer } from "./twitch-hls-player";

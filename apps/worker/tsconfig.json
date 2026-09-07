@@ -13,7 +13,8 @@
     "resolveJsonModule": true,
     "isolatedModules": true
   },
-  "include": ["src/**/*.ts"],
+    "include": ["src/**/*.ts"],
+    "exclude": ["src/features/**/tests/**"],
   "references": [
     {
       "path": "../../packages/core"

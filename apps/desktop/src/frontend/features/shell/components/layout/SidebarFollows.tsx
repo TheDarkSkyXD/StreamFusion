@@ -8,15 +8,15 @@ import type { UnifiedChannel, UnifiedStream } from "@shared/platform-types";
 import { StreamVerifiedBadge } from "@/features/discovery/components/stream/stream-verified-badge";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useFollowedChannels } from "@/features/discovery/data/queries/useChannels";
-import { useFollowedStreams } from "@/features/discovery/data/queries/useStreams";
+import { useFollowedChannels } from "@/features/discovery/components/hooks/queries/useChannels";
+import { useFollowedStreams } from "@/features/discovery/components/hooks/queries/useStreams";
 import { dedupeChannelsByIdentity, dedupeStreamsByChannelIdentity } from "@/lib/id-utils";
 import { getChannelKey, getChannelNameKey, getStreamKey } from "@streamfusion/core/platform";
 import { cn, formatViewerCount } from "@/lib/utils";
 import { Platform } from "@streamfusion/core/platform";
-import { useAuthStore } from "@/store/auth-store";
-import { useFollowStore } from "@/store/follow-store";
-import { usePipStore } from "@/store/pip-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
+import { useFollowStore } from "@/features/discovery/components/state/follow-store";
+import { usePipStore } from "@/features/playback/components/state/pip-store";
 
 import { ScrollArea } from "../../../../components/ui/scroll-area";
 

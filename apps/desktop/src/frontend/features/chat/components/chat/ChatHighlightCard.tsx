@@ -1,9 +1,9 @@
 import type React from "react";
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
-import type { chatEn } from "@/i18n/locales/en/chat";
+import type { ParseKeys } from "i18next";
 
-type ChatTranslationKey = `chat.${keyof typeof chatEn.chat}`;
+type ChatTranslationKey = Extract<ParseKeys, `chat.${string}`>;
 
 type ChatHighlightCardProps = {
   children: React.ReactNode;

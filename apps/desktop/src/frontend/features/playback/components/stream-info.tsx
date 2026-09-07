@@ -4,12 +4,12 @@ import React, { useEffect, useState } from "react";
 import { LuClock, LuUsers } from "react-icons/lu";
 
 import type { UnifiedChannel, UnifiedStream } from "@shared/platform-types";
-import { FollowButton } from "@/components/ui/follow-button";
+import { FollowButton } from "@/features/discovery/components/ui/follow-button";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useUnifiedCategoryLink } from "@/features/discovery/data/queries/useCategories";
-import { useUserInfo } from "@/features/auth/data/useAuth";
+import { useUnifiedCategoryLink } from "@/features/discovery/components/hooks/queries/useCategories";
+import { useUserInfo } from "@/features/auth/components/hooks/useAuth";
 import { useInterval } from "@/hooks/useInterval";
 import {
   formatLanguageLabel,

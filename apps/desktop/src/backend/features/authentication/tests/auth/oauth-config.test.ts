@@ -1,0 +1,196 @@
+import { describe, expect, it, vi } from "vitest";
+
+import {
+  buildAuthorizationUrl,
+  KICK_OAUTH_CONFIG,
+  TWITCH_OAUTH_CONFIG,
+  WORKER_BASE_URL,
+} from "@backend/features/authentication/adapters/oauth/oauth-config";
+import { TWITCH_APP_CLIENT_ID, TWITCH_APP_SCOPES } from "@shared/auth-types";
+
+describe("Twitch public-client configuration", () => {
+  it("uses StreamFusion's bundled public client ID without runtime configuration", () => {
+    expect(TWITCH_APP_CLIENT_ID).toBe("blckgzwqbwms1gmz9l4dup88k7kqk5");
+    expect(TWITCH_OAUTH_CONFIG.clientId).toBe(TWITCH_APP_CLIENT_ID);
+    expect(TWITCH_OAUTH_CONFIG.clientSecret).toBe("");
+  });
+});
+
+describe("WORKER_BASE_URL", () => {
+  it("defaults to the deployed StreamFusion Worker", () => {
+    expect(WORKER_BASE_URL).toBe("https://streamfusion.leveluptogetherbiz.workers.dev");
+    expect(TWITCH_OAUTH_CONFIG.tokenEndpoint).toBe("https://id.twitch.tv/oauth2/token");
+    expect(KICK_OAUTH_CONFIG.tokenEndpoint).toBe(`${WORKER_BASE_URL}/auth/kick/token`);
+  });
+
+  it("contains no Twitch Worker auth endpoint", () => {
+    expect("appTokenEndpoint" in TWITCH_OAUTH_CONFIG).toBe(false);
+    expect(TWITCH_OAUTH_CONFIG.tokenEndpoint).not.toContain(WORKER_BASE_URL);
+  });
+
+  it("can be overridden for local Worker verification", async () => {
+    vi.resetModules();
+    vi.stubEnv("STREAMFUSION_WORKER_BASE_URL", "http://localhost:8787");
+
+    const config = await import("@backend/features/authentication/adapters/oauth/oauth-config");
+
+    expect(config.WORKER_BASE_URL).toBe("http://localhost:8787");
+    expect(config.TWITCH_OAUTH_CONFIG.tokenEndpoint).toBe("https://id.twitch.tv/oauth2/token");
+    expect(config.KICK_OAUTH_CONFIG.tokenEndpoint).toBe("http://localhost:8787/auth/kick/token");
+  });
+});
+
+// Guards: Twitch IRC chat-scope regression — `chat:read` + `chat:edit` MUST stay in `TWITCH_OAUTH_CONFIG.scopes`. Dropping either breaks tmi.js authentication with the user-invisible "Login unsuccessful" failure (the `twitch-irc-missing-chat-scopes-2026-05-19` bug class). The second `describe` exists specifically because the Helix-side `moderator:manage:chat_messages` scope is NOT accepted by IRC, so the test pins the IRC requirements separately from the broader Helix scope set.
+// Guards: channel-management scope set includes each shipped feature, including AutoMod queue decisions, including settings, stream information, and live feed reads; unused chat-read grants stay absent.
+// Guards: no duplicate scopes — Twitch silently accepts duplicates but the dedupe test surfaces the bug at audit time when someone has copy-pasted a scope while adding a feature.
+
+// The eleven scopes the channel-management console plan adds in one batch
+// (U4's nine plus the two unban-requests scopes from the moderators/VIPs/
+// unban-requests follow-up). Kept here as a literal so the test would catch
+// a partial drop (e.g., someone removing one to "tidy up" before review).
+const REQUIRED_NEW_SCOPES = [
+  "moderator:manage:banned_users",
+  "moderator:manage:shield_mode",
+  "channel:manage:raids",
+  "channel:manage:moderators",
+  "channel:manage:vips",
+  "channel:manage:predictions",
+  "channel:manage:polls",
+  "channel:edit:commercial",
+  "user:manage:whispers",
+  "moderator:read:unban_requests",
+  "moderator:manage:unban_requests",
+] as const;
+
+const UNUSED_SCOPES = ["moderator:read:chat_messages"] as const;
+
+describe("TWITCH_OAUTH_CONFIG scopes (U4 — channel-management console batch)", () => {
+  it("uses the shared full app scope set as the single source of truth", () => {
+    expect(TWITCH_OAUTH_CONFIG.scopes).toEqual([...TWITCH_APP_SCOPES]);
+  });
+
+  it("includes all eleven new console scopes", () => {
+    for (const scope of REQUIRED_NEW_SCOPES) {
+      expect(TWITCH_OAUTH_CONFIG.scopes).toContain(scope);
+    }
+  });
+
+  it("preserves the prior scopes that already shipped (pin + mod-channels + base)", () => {
+    expect(TWITCH_OAUTH_CONFIG.scopes).toEqual(
+      expect.arrayContaining([
+        "user:read:email",
+        "user:read:follows",
+        "user:read:subscriptions",
+        "user:read:moderated_channels",
+        "moderator:manage:chat_messages",
+      ])
+    );
+  });
+
+  it("contains no duplicate scopes", () => {
+    const set = new Set(TWITCH_OAUTH_CONFIG.scopes);
+    expect(set.size).toBe(TWITCH_OAUTH_CONFIG.scopes.length);
+  });
+
+  it("includes shipped Mod View grants without requesting unused chat-read scopes", () => {
+    expect(TWITCH_OAUTH_CONFIG.scopes).toEqual(
+      expect.arrayContaining([
+        "moderator:manage:automod",
+        "moderator:read:automod_settings",
+        "moderator:manage:automod_settings",
+        "moderator:manage:blocked_terms",
+        "moderator:read:shield_mode",
+        "moderator:read:chatters",
+        "moderator:read:suspicious_users",
+        "channel:read:subscriptions",
+        "bits:read",
+        "channel:read:redemptions",
+        "channel:manage:redemptions",
+        "user:read:whispers",
+        "moderation:read",
+        "channel:manage:broadcast",
+      ])
+    );
+    for (const scope of UNUSED_SCOPES) {
+      expect(TWITCH_OAUTH_CONFIG.scopes).not.toContain(scope);
+    }
+  });
+});
+
+// Twitch IRC (tmi.js) authenticates via PASS oauth:<token>/NICK <login>. The
+// token must carry chat:read to read messages and chat:edit to send them; any
+// other scope (including moderator:manage:chat_messages, which only unlocks the
+// Helix delete endpoint) is not accepted by IRC. Dropping either of these
+// breaks authenticated chat connection with "Login unsuccessful".
+describe("TWITCH_OAUTH_CONFIG scopes (IRC chat — tmi.js)", () => {
+  it("includes chat:read so tmi.js can authenticate and read messages", () => {
+    expect(TWITCH_OAUTH_CONFIG.scopes).toContain("chat:read");
+  });
+
+  it("includes chat:edit so tmi.js can send messages and replies", () => {
+    expect(TWITCH_OAUTH_CONFIG.scopes).toContain("chat:edit");
+  });
+});
+
+// Guards: Twitch reconnect for subscribed-channel emotes must request the
+// user-emote scope and force the consent screen for already-signed-in users.
+describe("TWITCH OAuth authorization URL (scope upgrades)", () => {
+  it("requests user:read:emotes so subscribed-channel emotes can load", () => {
+    expect(TWITCH_OAUTH_CONFIG.scopes).toContain("user:read:emotes");
+  });
+
+  it("forces Twitch consent without requiring the user to log out and back in", () => {
+    const url = new URL(
+      buildAuthorizationUrl({
+        platform: "twitch",
+        redirectUri: "http://localhost:8765/auth/twitch/callback",
+        pkce: {
+          codeVerifier: "verifier",
+          codeChallenge: "challenge",
+          codeChallengeMethod: "S256",
+        },
+        state: "state",
+      })
+    );
+
+    expect(url.searchParams.get("force_verify")).toBe("true");
+    expect(url.searchParams.get("scope")?.split(" ")).toEqual([...TWITCH_APP_SCOPES]);
+  });
+});
+
+// Guards: Kick's official POST /public/v1/chat requires chat:write. Keep it in
+// the canonical grant while the website-session adapter remains available for
+// delivery compatibility.
+describe("KICK_OAUTH_CONFIG scopes (chat send)", () => {
+  it("requests chat:write for official user chat delivery", () => {
+    expect(KICK_OAUTH_CONFIG.scopes).toContain("chat:write");
+  });
+
+  it("preserves the prior base scopes (user:read + channel:read)", () => {
+    expect(KICK_OAUTH_CONFIG.scopes).toEqual(expect.arrayContaining(["user:read", "channel:read"]));
+  });
+
+  it("uses the exact canonical Kick scope set including event subscriptions", () => {
+    expect(KICK_OAUTH_CONFIG.scopes).toEqual([
+      "user:read",
+      "channel:read",
+      "chat:write",
+      "moderation:chat_message:manage",
+      "moderation:ban",
+      "events:subscribe",
+    ]);
+  });
+
+  it("requests chat-message moderation so Kick mods and owners can delete chat messages", () => {
+    expect(KICK_OAUTH_CONFIG.scopes).toContain("moderation:chat_message:manage");
+  });
+
+  it("requests ban moderation so Kick mods and owners can ban, timeout, unban, and remove timeouts", () => {
+    expect(KICK_OAUTH_CONFIG.scopes).toContain("moderation:ban");
+  });
+
+  it("contains no duplicate scopes", () => {
+    const set = new Set(KICK_OAUTH_CONFIG.scopes);
+    expect(set.size).toBe(KICK_OAUTH_CONFIG.scopes.length);
+  });
+});

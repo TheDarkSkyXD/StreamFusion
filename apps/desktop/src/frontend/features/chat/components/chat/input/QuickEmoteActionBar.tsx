@@ -2,9 +2,9 @@ import { useTranslation } from "react-i18next";
 import type React from "react";
 import { memo, useCallback, useLayoutEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
-import type { Emote, EmoteProvider } from "../../../../../../backend/services/emotes/emote-types";
+import type { Emote, EmoteProvider } from "@/features/chat/capabilities/emote-types";
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
-import { getEmoteViewerScopeKey, useEmoteStore } from "../../../../../store/emote-store";
+import { getEmoteViewerScopeKey, useEmoteStore } from "../../state/emote-store";
 import { EmoteImage } from "../EmoteImage";
 
 const MAX_QUICK_EMOTES = 9;

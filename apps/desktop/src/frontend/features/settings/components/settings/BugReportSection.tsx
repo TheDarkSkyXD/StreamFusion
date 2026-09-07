@@ -1,3 +1,7 @@
+import {
+  getLogReader,
+  getBugReportWriter,
+} from "@/features/settings/composition/settings-services";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LuBug, LuCopy, LuFolderOpen } from "react-icons/lu";
@@ -5,7 +9,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { translateSettings } from "@/features/settings/utils/settings-translation";
+import { translateSettings } from "@/features/settings/components/presentation/settings-translation";
 
 const MIN_DESCRIPTION_LENGTH = 10;
 const RECENT_REPORTS_LIMIT = 5;
@@ -31,7 +35,7 @@ export function BugReportSection() {
   // off and disable it (sending true would silently no-op on the backend).
   useEffect(() => {
     let cancelled = false;
-    const logs = window.electronAPI?.logs;
+    const logs = getLogReader();
     if (!logs?.getNoisePath) return;
     void logs
       .getNoisePath()
@@ -53,7 +57,7 @@ export function BugReportSection() {
   }, []);
 
   const refreshRecent = useCallback(async () => {
-    const api = window.electronAPI?.bugReports;
+    const api = getBugReportWriter();
     if (!api?.list) return;
     try {
       const list = await api.list();
@@ -70,7 +74,7 @@ export function BugReportSection() {
   const canSubmit = !submitting && description.trim().length >= MIN_DESCRIPTION_LENGTH;
 
   const handleSubmit = useCallback(async () => {
-    const api = window.electronAPI?.bugReports;
+    const api = getBugReportWriter();
     if (!api?.write) {
       toast.error(translateSettings({ key: "settings.bugReportIpcIsNotAvailable" }));
       return;
@@ -107,7 +111,7 @@ export function BugReportSection() {
   }, [description, includeMainLog, includeNoiseLog, noiseAvailable, refreshRecent]);
 
   const handleOpenFolder = useCallback(async () => {
-    const api = window.electronAPI?.bugReports;
+    const api = getBugReportWriter();
     if (!api?.openFolder) {
       toast.error(translateSettings({ key: "settings.bugReportIpcIsNotAvailable" }));
       return;

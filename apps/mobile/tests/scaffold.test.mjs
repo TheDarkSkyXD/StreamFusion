@@ -71,7 +71,7 @@ test("the Android build enables SQLCipher and excludes all app data from backup"
 
 test("SQLCipher is proven in memory before a persistent database is opened", () => {
   const driverSource = readFileSync(
-    "src/persistence/sqlite-encrypted-driver.ts",
+    "src/features/storage/adapters/sqlite-encrypted-driver.ts",
     "utf8",
   );
   const probe = driverSource.indexOf('openDatabaseAsync(":memory:"');

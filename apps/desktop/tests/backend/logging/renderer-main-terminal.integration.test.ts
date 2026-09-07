@@ -69,7 +69,7 @@ describe("renderer LOG_WRITE terminal integration", () => {
     const { installConsoleIntercept } = await import("@backend/logging/console-intercept");
     const { installNativeStderrIntercept } =
       await import("@backend/logging/native-stderr-intercept");
-    const { registerLogHandlers } = await import("@backend/ipc/handlers/log-handlers");
+    const { registerLogHandlers } = await import("@backend/features/settings/routes/log-routes");
 
     initLogger({
       logsDir: tmpDir,

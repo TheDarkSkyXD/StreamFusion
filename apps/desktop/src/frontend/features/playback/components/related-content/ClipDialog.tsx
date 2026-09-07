@@ -1,3 +1,4 @@
+import { getPlaybackMediaReader } from "@/features/playback/composition/playback-media-reader";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useState } from "react";
@@ -17,13 +18,13 @@ import { KickVodPlayer } from "@/features/playback/components/player/kick/kick-v
 import { TwitchVodPlayer } from "@/features/playback/components/player/twitch/twitch-vod-player";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { FollowButton } from "@/components/ui/follow-button";
+import { FollowButton } from "@/features/discovery/components/ui/follow-button";
 import { KickLoadingSpinner, TwitchLoadingSpinner } from "@/components/ui/loading-spinner";
 import { PlatformAvatar } from "@/components/ui/platform-avatar";
 import { VisuallyHidden } from "@/components/ui/visually-hidden";
-import { useHistoryActions } from "@/features/media-library/data/useHistoryQuery";
-import { useDownloadActions } from "@/features/media-library/data/use-download-actions";
-import { useShareAction } from "@/features/playback/data/use-share-action";
+import { useHistoryActions } from "@/features/media-library/components/hooks/useHistoryQuery";
+import { useDownloadActions } from "@/features/media-library/components/hooks/use-download-actions";
+import { useShareAction } from "@/features/playback/components/hooks/use-share-action";
 import { logger } from "@/renderer/logging/logger";
 import { Platform } from "@streamfusion/core/platform";
 
@@ -223,7 +224,7 @@ export function ClipDialog({
     setVodLookupError(null);
 
     try {
-      const api = window.electronAPI;
+      const api = getPlaybackMediaReader();
       if (!api?.videos?.getByLivestreamId) {
         setVodLookupError("VOD lookup not available");
         return;

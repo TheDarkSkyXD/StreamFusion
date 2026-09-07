@@ -1,3 +1,4 @@
+import { getChatModerationController } from "@/features/chat/composition/chat-moderation-controller";
 import { AlertCircle, CheckCircle2, Clock3, RefreshCw } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -88,7 +89,7 @@ export function StateAwareTimeoutAction({
     [action, channelId, channelSlug, platform, selectedMessageId, targetUserId, targetUsername]
   );
   const readSnapshot = useCallback(async (): Promise<TimeoutSnapshotResult> => {
-    const moderationApi = window.electronAPI?.moderation;
+    const moderationApi = getChatModerationController()?.moderation;
     if (!moderationApi) return { state: "unavailable", reason: "unverifiable" };
     try {
       return await moderationApi.createTimeoutSnapshot(snapshotRequest);
@@ -198,7 +199,7 @@ export function StateAwareTimeoutAction({
     onPendingChangeRef.current(true);
     const bindingGeneration = bindingGenerationRef.current;
     try {
-      const result = await window.electronAPI.moderation.submitTimeout({
+      const result = await getChatModerationController().moderation.submitTimeout({
         snapshotId: activeSnapshot.snapshotId,
         duration,
         ...(reason.trim() ? { reason: reason.trim() } : {}),

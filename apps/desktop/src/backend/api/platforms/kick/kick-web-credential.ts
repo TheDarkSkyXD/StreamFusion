@@ -1,6 +1,6 @@
 import type { OnBeforeSendHeadersListenerDetails, Session } from "electron";
 
-import { storageService } from "@backend/services/storage-service";
+import { authenticationRepository } from "@backend/features/authentication/data/authentication-repository";
 
 type BearerListener = (bearer: string) => void;
 
@@ -21,7 +21,7 @@ export function persistKickWebBearerCandidate(value: string): string | null {
   const bearer = normalizeKickWebBearer(value);
   if (!bearer) return null;
   if (lastPersistedBearer !== bearer) {
-    storageService.saveKickWebBearer(bearer);
+    authenticationRepository.saveKickWebBearer(bearer);
     lastPersistedBearer = bearer;
   }
   return bearer;
@@ -57,11 +57,11 @@ export function installKickWebBearerCapture(
 }
 
 export function readPersistedKickWebBearer(): string | null {
-  const bearer = storageService.getKickWebBearer();
+  const bearer = authenticationRepository.getKickWebBearer();
   return bearer && isKickWebBearer(bearer) ? bearer : null;
 }
 
 export function clearPersistedKickWebBearer(): void {
-  storageService.clearKickWebBearer();
+  authenticationRepository.clearKickWebBearer();
   lastPersistedBearer = null;
 }

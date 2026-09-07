@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { seedChatSubsystemStoryStores } from "../../features/chat/components/chat/chat-subsystem-story-fixtures";
+import { seedChatSubsystemStoryStores } from "../../features/chat/tests/stories/chat/chat-subsystem-story-fixtures";
 import { DeveloperConsole } from "./DeveloperConsole";
 
 const meta = {

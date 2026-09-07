@@ -13,6 +13,7 @@ async function sourceFiles(directory) {
   const files = await Promise.all(
     entries.map((entry) => {
       const path = join(directory, entry.name);
+      if (entry.isDirectory() && ["tests", "__tests__", "fixtures", "__fixtures__"].includes(entry.name)) return [];
       return entry.isDirectory() ? sourceFiles(path) : extname(entry.name) === ".ts" ? [path] : [];
     })
   );

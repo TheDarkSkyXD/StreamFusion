@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useEffect, useRef } from "react";
-import type { CommandSuggestion } from "../../utils/chat-command-registry";
+import type { CommandSuggestion } from "../commands/chat-command-registry";
 
 interface CommandAutocompleteProps {
   readonly commands: readonly CommandSuggestion[];

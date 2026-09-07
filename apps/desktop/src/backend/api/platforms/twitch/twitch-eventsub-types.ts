@@ -1,3 +1,4 @@
+import type { ModerationFeedEventType } from "@shared/moderation-types";
 /**
  * Twitch EventSub WebSocket — shared types.
  *
@@ -17,6 +18,7 @@
 // ---------------------------------------------------------------------------
 
 export type TwitchEventSubEventType =
+  | ModerationFeedEventType
   | "channel.moderate"
   | "automod.message.hold"
   | "automod.message.update"

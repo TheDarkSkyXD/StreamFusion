@@ -1,4 +1,4 @@
-import type { TimedTextError } from "./types";
+import type { TimedTextError } from "../../capabilities/media-types";
 import { useTranslation } from "react-i18next";
 
 interface CaptionErrorNoticeProps {

@@ -7,9 +7,10 @@ import reactHooks from "eslint-plugin-react-hooks";
 import unusedImports from "eslint-plugin-unused-imports";
 import globals from "globals";
 import tseslint from "typescript-eslint";
+import { featureArchitecturePlugin } from "./scripts/feature-architecture.mjs";
 
 const sourceFiles = ["src/**/*.{js,mjs,cjs,jsx,ts,tsx}"];
-const testFiles = ["tests/**/*.{js,mjs,cjs,jsx,ts,tsx}"];
+const testFiles = ["tests/**/*.{js,mjs,cjs,jsx,ts,tsx}", "src/**/features/*/tests/**/*.{js,mjs,cjs,jsx,ts,tsx}"];
 const configFiles = ["*.config.{js,mjs,cjs,jsx,ts,tsx}"];
 const lintFiles = [...sourceFiles, ...testFiles, ...configFiles];
 const typedSourceFiles = ["src/**/*.{ts,tsx}"];
@@ -40,18 +41,23 @@ const coreImportRestrictionPatterns = [
   },
 ];
 const rendererFeatureDependencies = {
-  auth: ["moderation"],
-  chat: ["auth", "discovery", "moderation", "settings", "shell"],
-  discovery: ["chat", "multistream", "playback"],
+  auth: ["discovery", "moderation", "settings", "shell"],
+  chat: ["auth", "discovery", "moderation", "playback", "settings", "shell"],
+  discovery: ["auth", "chat", "multistream", "playback", "shell"],
   "media-library": ["discovery", "playback"],
-  moderation: ["discovery", "shell"],
+  moderation: ["auth", "chat", "discovery", "playback", "shell"],
   multistream: ["chat", "discovery", "playback", "settings"],
-  playback: ["auth", "chat", "discovery", "media-library", "settings"],
-  settings: ["auth", "chat", "discovery", "multistream", "playback"],
-  shell: ["auth", "discovery", "media-library", "multistream", "playback", "settings"],
+  playback: ["auth", "chat", "discovery", "media-library", "settings", "shell"],
+  settings: ["auth", "chat", "discovery", "multistream", "playback", "shell"],
+  shell: ["auth", "chat", "discovery", "media-library", "multistream", "playback", "settings"],
 };
 
 export default tseslint.config(
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    plugins: { "feature-architecture": featureArchitecturePlugin },
+    rules: { "feature-architecture/dependencies": "error" },
+  },
   {
     ignores: [
       "node_modules/**",
@@ -217,6 +223,7 @@ export default tseslint.config(
   },
   {
     files: ["src/frontend/**/*.{ts,tsx}"],
+    ignores: testFiles,
     rules: {
       // Renderer code consumes contracts only through the typed window.electronAPI facade.
       "no-restricted-imports": [
@@ -243,6 +250,7 @@ export default tseslint.config(
   },
   {
     files: ["src/backend/**/*.{ts,tsx}"],
+    ignores: testFiles,
     rules: {
       "no-restricted-imports": [
         "error",
@@ -270,6 +278,7 @@ export default tseslint.config(
   },
   {
     files: ["src/frontend/features/**/*.{ts,tsx}"],
+    ignores: testFiles,
     plugins: {
       boundaries,
     },

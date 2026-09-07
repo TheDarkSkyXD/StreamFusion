@@ -10,7 +10,7 @@ import { LuCopy, LuMinus, LuSquare, LuX } from "react-icons/lu";
 import { useTranslation } from "react-i18next";
 
 import streamFusionLogo from "@/assets/brand/streamfusion-logo.png";
-import { useWindowControls } from "@/hooks";
+import { useWindowControls } from "@/features/settings/components/hooks/useElectron";
 import { cn } from "@/lib/utils";
 
 interface TitleBarProps {

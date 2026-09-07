@@ -1,11 +1,11 @@
 import type React from "react";
-import { getSevenTvPaintStyle, resolveChatUsernameColor } from "@/features/chat/utils/chat-visuals";
+import { getSevenTvPaintStyle, resolveChatUsernameColor } from "@/features/chat/components/presentation/chat-visuals";
 import { logger } from "@/renderer/logging/logger";
 import { DEFAULT_CHAT_DISPLAY_PREFERENCES } from "../../../../../shared/auth-types";
 import type { ChatMessage } from "../../../../../shared/chat-types";
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
-import { useAuthStore } from "../../../../store/auth-store";
-import { useChatCosmeticsStore } from "../../../../store/chat-cosmetics-store";
+import { useAuthStore } from "../../../auth/components/state/auth-store";
+import { useChatCosmeticsStore } from "../state/chat-cosmetics-store";
 import { useOpenUserPopout } from "./mod/UserPopout/UserPopoutProvider";
 
 /** Deterministic readable color for users who never picked one. Hashes the

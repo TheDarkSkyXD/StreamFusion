@@ -5,8 +5,13 @@
       "id": "home-live-discovery",
       "area": "Discovery",
       "outcome": "Browse live streams, channel cards, and current platform availability from Home.",
-      "entry": ["/"],
-      "renderer": ["renderer-feature:discovery", "route:/"],
+      "entry": [
+        "/"
+      ],
+      "renderer": [
+        "renderer-feature:discovery",
+        "route:/"
+      ],
       "electronBoundary": [
         "ipc-feature:streams",
         "ipc-feature:channels",
@@ -27,14 +32,16 @@
         "platform-endpoint:twitch:user-endpoints",
         "platform-endpoint:kick:user-endpoints"
       ],
-      "state": ["state-store:hooks/network-status-store"],
+      "state": [
+        "state-store:hooks/network-status-store"
+      ],
       "persistence": [],
       "verification": [
-        "apps/desktop/tests/pages/Home.test.tsx",
-        "apps/desktop/tests/hooks/queries/useStreams.test.tsx",
+        "apps/desktop/src/frontend/features/discovery/tests/pages/Home.test.tsx",
+        "apps/desktop/src/frontend/features/discovery/tests/hooks/queries/useStreams.test.tsx",
         "apps/desktop/tests/backend/ipc/lazy-feature-loader.test.ts",
-        "apps/desktop/tests/backend/ipc/handlers/stream-handlers.test.ts",
-        "apps/desktop/tests/backend/ipc/handlers/channel-handlers.test.ts",
+        "apps/desktop/src/backend/features/discovery/tests/ipc/handlers/stream-handlers.test.ts",
+        "apps/desktop/src/backend/features/discovery/tests/ipc/handlers/channel-handlers.test.ts",
         "apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts",
         "apps/desktop/tests/backend/api/platforms/kick/kick-client.test.ts"
       ]
@@ -43,8 +50,15 @@
       "id": "followed-streams-and-sync",
       "area": "Discovery",
       "outcome": "See followed live streams, follow channels, and synchronize account follows into the local list.",
-      "entry": ["/following", "Follow controls"],
-      "renderer": ["renderer-feature:discovery", "route:/following", "renderer-feature:auth"],
+      "entry": [
+        "/following",
+        "Follow controls"
+      ],
+      "renderer": [
+        "renderer-feature:discovery",
+        "route:/following",
+        "renderer-feature:auth"
+      ],
       "electronBoundary": [
         "ipc-feature:auth",
         "ipc-feature:channels",
@@ -53,27 +67,33 @@
       ],
       "mainProcess": [
         "ipc-handler:auth-handlers",
+        "ipc-handler:follow-handlers",
         "ipc-handler:channel-handlers",
         "ipc-handler:storage-handlers",
         "ipc-handler:stream-handlers"
       ],
       "platformBranches": [
         "platform-endpoint:twitch:follow-endpoints",
-        "platform-endpoint:kick:follow-endpoints"
+        "platform-endpoint:kick:follow-endpoints",
+        "platform-endpoint:twitch:account-endpoints"
       ],
-      "state": ["state-store:store/follow-store"],
-      "persistence": ["apps/desktop/src/backend/services/storage-service.ts"],
+      "state": [
+        "state-store:store/follow-store"
+      ],
+      "persistence": [
+        "apps/desktop/src/backend/services/storage-service.ts"
+      ],
       "verification": [
-        "packages/core/tests/follows.test.mjs",
-        "apps/desktop/tests/pages/Following.test.tsx",
-        "apps/desktop/tests/hooks/queries/useLiveFavoriteStreams.test.tsx",
-        "apps/desktop/tests/store/follow-store.test.ts",
-        "apps/desktop/tests/backend/ipc/handlers/auth-handlers.test.ts",
+        "packages/core/src/features/follows/tests/follows.test.mjs",
+        "apps/desktop/src/frontend/features/discovery/tests/pages/Following.test.tsx",
+        "apps/desktop/src/frontend/features/discovery/tests/hooks/queries/useLiveFavoriteStreams.test.tsx",
+        "apps/desktop/src/frontend/features/discovery/tests/store/follow-store.test.ts",
+        "apps/desktop/src/backend/features/authentication/tests/ipc/handlers/auth-handlers.test.ts",
         "apps/desktop/tests/backend/ipc/handlers/auth-security-boundary.test.ts",
-        "apps/desktop/tests/backend/ipc/handlers/channel-handlers.test.ts",
+        "apps/desktop/src/backend/features/discovery/tests/ipc/handlers/channel-handlers.test.ts",
         "apps/desktop/tests/backend/ipc/handlers/storage-handlers.test.ts",
         "apps/desktop/tests/backend/services/storage-service.test.ts",
-        "apps/desktop/tests/backend/ipc/handlers/stream-handlers.test.ts",
+        "apps/desktop/src/backend/features/discovery/tests/ipc/handlers/stream-handlers.test.ts",
         "apps/desktop/tests/backend/ipc/lazy-feature-loader.test.ts",
         "apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts",
         "apps/desktop/tests/backend/api/platforms/kick/kick-client.test.ts"
@@ -83,30 +103,41 @@
       "id": "category-discovery",
       "area": "Discovery",
       "outcome": "Browse categories and inspect category-specific streams, videos, and clips.",
-      "entry": ["/categories", "/categories/$platform/$categoryId"],
+      "entry": [
+        "/categories",
+        "/categories/$platform/$categoryId"
+      ],
       "renderer": [
         "renderer-feature:discovery",
         "route:/categories",
         "route:/categories/$platform/$categoryId"
       ],
-      "electronBoundary": ["ipc-feature:categories", "ipc-feature:videos"],
-      "mainProcess": ["ipc-handler:category-handlers", "ipc-handler:video-handlers"],
+      "electronBoundary": [
+        "ipc-feature:categories",
+        "ipc-feature:videos"
+      ],
+      "mainProcess": [
+        "ipc-handler:category-handlers",
+        "ipc-handler:video-handlers"
+      ],
       "platformBranches": [
         "platform-endpoint:twitch:category-endpoints",
         "platform-endpoint:kick:category-endpoints"
       ],
-      "state": ["state-store:features/discovery/data/category-language-preference-store"],
+      "state": [
+        "state-store:features/discovery/data/category-language-preference-store"
+      ],
       "persistence": [
-        "apps/desktop/src/frontend/features/discovery/data/category-language-preference-store.ts"
+        "apps/desktop/src/frontend/features/discovery/components/state/category-language-preference-store.ts"
       ],
       "verification": [
-        "apps/desktop/tests/pages/Categories.test.tsx",
-        "apps/desktop/tests/pages/CategoryDetail.test.tsx",
-        "apps/desktop/tests/store/category-language-preference-store.test.ts",
+        "apps/desktop/src/frontend/features/discovery/tests/pages/Categories.test.tsx",
+        "apps/desktop/src/frontend/features/discovery/tests/pages/CategoryDetail.test.tsx",
+        "apps/desktop/src/frontend/features/discovery/tests/components/state/category-language-preference-store.test.ts",
         "apps/desktop/tests/backend/ipc/lazy-feature-loader.test.ts",
-        "apps/desktop/tests/backend/ipc/handlers/category-handlers.test.ts",
-        "apps/desktop/tests/backend/ipc/video-handlers.test.ts",
-        "apps/desktop/tests/backend/ipc/handlers/stream-handlers.test.ts",
+        "apps/desktop/src/backend/features/discovery/tests/ipc/handlers/category-handlers.test.ts",
+        "apps/desktop/src/backend/features/playback/tests/ipc/video-handlers.test.ts",
+        "apps/desktop/src/backend/features/discovery/tests/ipc/handlers/stream-handlers.test.ts",
         "apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts",
         "apps/desktop/tests/backend/api/platforms/kick/kick-client.test.ts"
       ]
@@ -115,10 +146,20 @@
       "id": "search",
       "area": "Discovery",
       "outcome": "Search channels, streams, videos, clips, and categories across supported platforms.",
-      "entry": ["/search", "Top navigation search"],
-      "renderer": ["renderer-feature:discovery", "route:/search"],
-      "electronBoundary": ["ipc-feature:search"],
-      "mainProcess": ["ipc-handler:search-handlers"],
+      "entry": [
+        "/search",
+        "Top navigation search"
+      ],
+      "renderer": [
+        "renderer-feature:discovery",
+        "route:/search"
+      ],
+      "electronBoundary": [
+        "ipc-feature:search"
+      ],
+      "mainProcess": [
+        "ipc-handler:search-handlers"
+      ],
       "platformBranches": [
         "platform-endpoint:twitch:search-endpoints",
         "platform-endpoint:kick:search-endpoints"
@@ -126,11 +167,11 @@
       "state": [],
       "persistence": [],
       "verification": [
-        "apps/desktop/tests/pages/SearchResults.test.tsx",
-        "apps/desktop/tests/components/TopNavBar/SearchBar.router.integration.test.tsx",
+        "apps/desktop/src/frontend/features/discovery/tests/pages/SearchResults.test.tsx",
+        "apps/desktop/src/frontend/features/shell/tests/components/TopNavBar/SearchBar.router.integration.test.tsx",
         "apps/desktop/tests/backend/ipc/lazy-feature-loader.test.ts",
-        "apps/desktop/tests/backend/ipc/handlers/search-handlers.test.ts",
-        "apps/desktop/tests/backend/search/focused-search-sources.test.ts",
+        "apps/desktop/src/backend/features/discovery/tests/ipc/handlers/search-handlers.test.ts",
+        "apps/desktop/src/backend/features/discovery/tests/search/focused-search-sources.test.ts",
         "apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts",
         "apps/desktop/tests/backend/api/platforms/kick/kick-client.test.ts"
       ]
@@ -139,54 +180,92 @@
       "id": "platform-account-auth",
       "area": "Accounts",
       "outcome": "Connect, validate, refresh, and disconnect Twitch and Kick accounts.",
-      "entry": ["Settings account controls", "Login dialog"],
-      "renderer": ["renderer-feature:auth"],
-      "electronBoundary": ["ipc-feature:auth", "ipc-feature:token-status"],
-      "mainProcess": ["ipc-handler:auth-handlers", "ipc-handler:token-status-handlers"],
-      "platformBranches": [],
-      "state": ["state-store:store/auth-store"],
-      "persistence": ["apps/desktop/src/backend/services/storage-service.ts"],
+      "entry": [
+        "Settings account controls",
+        "Login dialog"
+      ],
+      "renderer": [
+        "renderer-feature:auth"
+      ],
+      "electronBoundary": [
+        "ipc-feature:auth",
+        "ipc-feature:token-status"
+      ],
+      "mainProcess": [
+        "ipc-handler:auth-handlers",
+        "ipc-handler:token-status-handlers"
+      ],
+      "platformBranches": [
+        "platform-endpoint:twitch:account-endpoints",
+        "platform-endpoint:kick:account-endpoints"
+      ],
+      "state": [
+        "state-store:store/auth-store"
+      ],
+      "persistence": [
+        "apps/desktop/src/backend/services/storage-service.ts"
+      ],
       "verification": [
-        "packages/core/tests/auth.test.mjs",
-        "apps/desktop/tests/backend/auth/device-code-flow.test.ts",
-        "apps/desktop/tests/backend/auth/kick-auth.test.ts",
-        "apps/desktop/tests/backend/auth/token-exchange.test.ts",
-        "apps/desktop/tests/backend/auth/token-status.test.ts",
-        "apps/desktop/tests/backend/auth/twitch-auth.test.ts",
-        "apps/desktop/tests/backend/auth/twitch-auth-refresh.test.ts",
-        "apps/desktop/tests/backend/ipc/handlers/auth-handlers.test.ts",
+        "packages/core/src/features/auth/tests/auth.test.mjs",
+        "apps/desktop/src/backend/features/authentication/tests/auth/device-code-flow.test.ts",
+        "apps/desktop/src/backend/features/authentication/tests/auth/kick-auth.test.ts",
+        "apps/desktop/src/backend/features/authentication/tests/auth/token-exchange.test.ts",
+        "apps/desktop/src/backend/features/authentication/tests/auth/token-status.test.ts",
+        "apps/desktop/src/backend/features/authentication/tests/auth/twitch-auth.test.ts",
+        "apps/desktop/src/backend/features/authentication/tests/auth/twitch-auth-refresh.test.ts",
+        "apps/desktop/src/backend/features/authentication/tests/ipc/handlers/auth-handlers.test.ts",
         "apps/desktop/tests/backend/ipc/handlers/auth-security-boundary.test.ts",
-        "apps/desktop/tests/backend/ipc/handlers/token-status-handlers.test.ts",
-        "apps/desktop/tests/services/twitch-auth-restart.integration.test.ts",
-        "apps/desktop/tests/hooks/useAuth.test.tsx",
-        "apps/desktop/tests/components/auth/LoginDialog.test.tsx",
-        "apps/worker/tests/index.test.ts"
+        "apps/desktop/src/backend/features/authentication/tests/ipc/handlers/token-status-handlers.test.ts",
+        "apps/desktop/src/backend/features/authentication/tests/adapters/twitch/twitch-auth-restart.integration.test.ts",
+        "apps/desktop/src/frontend/features/auth/tests/hooks/useAuth.test.tsx",
+        "apps/desktop/src/frontend/features/auth/tests/components/auth/LoginDialog.test.tsx",
+        "apps/worker/src/features/kick-oauth/tests/worker.test.ts"
       ]
     },
     {
       "id": "live-playback",
       "area": "Playback",
       "outcome": "Open and watch live Twitch and Kick streams.",
-      "entry": ["/stream/$platform/$channel"],
-      "renderer": ["renderer-feature:playback", "route:/stream/$platform/$channel"],
-      "electronBoundary": ["ipc-feature:playback"],
-      "mainProcess": [],
+      "entry": [
+        "/stream/$platform/$channel"
+      ],
+      "renderer": [
+        "renderer-feature:playback",
+        "route:/stream/$platform/$channel"
+      ],
+      "electronBoundary": [
+        "ipc-feature:playback"
+      ],
+      "mainProcess": [
+        "ipc-handler:stream-playback-handlers"
+      ],
       "platformBranches": [],
-      "state": ["state-store:store/reconnect-dialog-store"],
+      "state": [
+        "state-store:store/reconnect-dialog-store"
+      ],
       "persistence": [],
       "verification": [
-        "apps/desktop/tests/pages/Stream.test.tsx",
-        "apps/desktop/tests/hooks/useStreamPlayback.network-recovery.test.tsx"
+        "apps/desktop/src/frontend/features/playback/tests/pages/Stream.test.tsx",
+        "apps/desktop/src/frontend/features/playback/tests/hooks/useStreamPlayback.network-recovery.test.tsx"
       ]
     },
     {
       "id": "vod-and-clip-playback",
       "area": "Playback",
       "outcome": "Open and seek Twitch and Kick VODs and clips.",
-      "entry": ["/video/$platform/$videoId"],
-      "renderer": ["renderer-feature:playback", "route:/video/$platform/$videoId"],
-      "electronBoundary": ["ipc-feature:videos"],
-      "mainProcess": ["ipc-handler:video-handlers"],
+      "entry": [
+        "/video/$platform/$videoId"
+      ],
+      "renderer": [
+        "renderer-feature:playback",
+        "route:/video/$platform/$videoId"
+      ],
+      "electronBoundary": [
+        "ipc-feature:videos"
+      ],
+      "mainProcess": [
+        "ipc-handler:video-handlers"
+      ],
       "platformBranches": [
         "platform-endpoint:twitch:video-endpoints",
         "platform-endpoint:kick:video-endpoints",
@@ -197,11 +276,13 @@
         "state-store:store/playback-position-store",
         "state-store:store/seek-interval-store"
       ],
-      "persistence": ["apps/desktop/src/backend/services/storage-service.ts"],
+      "persistence": [
+        "apps/desktop/src/backend/services/storage-service.ts"
+      ],
       "verification": [
-        "apps/desktop/tests/pages/Video.test.tsx",
-        "apps/desktop/tests/components/player/vod-seek-controls.test.tsx",
-        "apps/desktop/tests/backend/ipc/video-handlers.test.ts",
+        "apps/desktop/src/frontend/features/playback/tests/pages/Video.test.tsx",
+        "apps/desktop/src/frontend/features/playback/tests/components/player/vod-seek-controls.test.tsx",
+        "apps/desktop/src/backend/features/playback/tests/ipc/video-handlers.test.ts",
         "apps/desktop/tests/backend/api/platforms/twitch/twitch-client.test.ts",
         "apps/desktop/tests/backend/api/platforms/kick/kick-client.test.ts"
       ]
@@ -210,72 +291,124 @@
       "id": "player-controls-and-pip",
       "area": "Playback",
       "outcome": "Control playback quality, volume, fullscreen, mini player, and picture-in-picture behavior.",
-      "entry": ["Live and VOD player controls"],
-      "renderer": ["renderer-feature:playback"],
-      "electronBoundary": ["ipc-feature:slots"],
-      "mainProcess": ["ipc-handler:slot-controller-handlers"],
+      "entry": [
+        "Live and VOD player controls"
+      ],
+      "renderer": [
+        "renderer-feature:playback"
+      ],
+      "electronBoundary": [
+        "ipc-feature:slots"
+      ],
+      "mainProcess": [
+        "ipc-handler:slot-controller-handlers"
+      ],
       "platformBranches": [],
-      "state": ["state-store:store/pip-store", "state-store:store/volume-store"],
-      "persistence": ["apps/desktop/src/backend/services/storage-service.ts"],
+      "state": [
+        "state-store:store/pip-store",
+        "state-store:store/volume-store"
+      ],
+      "persistence": [
+        "apps/desktop/src/backend/services/storage-service.ts"
+      ],
       "verification": [
-        "apps/desktop/tests/components/player/player-controls.test.tsx",
-        "apps/desktop/tests/components/player/hooks/use-picture-in-picture.test.ts"
+        "apps/desktop/src/frontend/features/playback/tests/components/player/player-controls.test.tsx",
+        "apps/desktop/src/frontend/features/playback/tests/components/player/hooks/use-picture-in-picture.test.ts"
       ]
     },
     {
       "id": "stream-recording",
       "area": "Playback",
       "outcome": "Record a live stream, recover interrupted recording work, and open completed files.",
-      "entry": ["Live player recording controls"],
-      "renderer": ["renderer-feature:playback"],
-      "electronBoundary": ["ipc-feature:stream-recording"],
-      "mainProcess": ["ipc-handler:stream-recording-handlers"],
+      "entry": [
+        "Live player recording controls"
+      ],
+      "renderer": [
+        "renderer-feature:playback"
+      ],
+      "electronBoundary": [
+        "ipc-feature:stream-recording"
+      ],
+      "mainProcess": [
+        "ipc-handler:stream-recording-handlers"
+      ],
       "platformBranches": [],
       "state": [],
-      "persistence": ["apps/desktop/src/backend/services/stream-recording-session-store.ts"],
+      "persistence": [
+        "apps/desktop/src/backend/features/media-library/data/stream-recording-session-store.ts"
+      ],
       "verification": [
-        "apps/desktop/tests/components/recording/stream-recording-control.test.tsx",
-        "apps/desktop/tests/backend/services/stream-recording-recovery.test.ts"
+        "apps/desktop/src/frontend/features/media-library/tests/components/recording/stream-recording-control.test.tsx",
+        "apps/desktop/src/backend/features/media-library/tests/services/stream-recording-recovery.test.ts"
       ]
     },
     {
       "id": "local-captions",
       "area": "Playback",
       "outcome": "Download a local caption model and show live captions for supported playback.",
-      "entry": ["Player caption controls", "Settings caption controls"],
-      "renderer": ["renderer-feature:playback", "renderer-feature:settings"],
-      "electronBoundary": ["ipc-feature:local-captions"],
-      "mainProcess": ["ipc-handler:local-caption-handlers"],
+      "entry": [
+        "Player caption controls",
+        "Settings caption controls"
+      ],
+      "renderer": [
+        "renderer-feature:playback",
+        "renderer-feature:settings"
+      ],
+      "electronBoundary": [
+        "ipc-feature:local-captions"
+      ],
+      "mainProcess": [
+        "ipc-handler:local-caption-handlers"
+      ],
       "platformBranches": [],
       "state": [],
-      "persistence": ["apps/desktop/src/backend/services/captions/caption-model-store.ts"],
+      "persistence": [
+        "apps/desktop/src/backend/features/playback/data/caption-model-store.ts"
+      ],
       "verification": [
-        "apps/desktop/tests/components/player/local-caption-presentation.test.tsx",
-        "apps/desktop/tests/backend/services/captions/caption-model-store.test.ts"
+        "apps/desktop/src/frontend/features/playback/tests/components/player/local-caption-presentation.test.tsx",
+        "apps/desktop/src/backend/features/playback/tests/services/captions/caption-model-store.test.ts"
       ]
     },
     {
       "id": "ad-blocking",
       "area": "Playback",
       "outcome": "Block supported ads and retain safe stream playback when ad handling changes.",
-      "entry": ["Player and Settings ad-block controls"],
-      "renderer": ["renderer-feature:playback", "renderer-feature:settings"],
-      "electronBoundary": ["ipc-feature:adblock"],
-      "mainProcess": ["ipc-handler:adblock-handlers"],
+      "entry": [
+        "Player and Settings ad-block controls"
+      ],
+      "renderer": [
+        "renderer-feature:playback",
+        "renderer-feature:settings"
+      ],
+      "electronBoundary": [
+        "ipc-feature:adblock"
+      ],
+      "mainProcess": [
+        "ipc-handler:adblock-handlers"
+      ],
       "platformBranches": [],
-      "state": ["state-store:store/adblock-store"],
-      "persistence": ["apps/desktop/src/backend/services/storage-service.ts"],
+      "state": [
+        "state-store:store/adblock-store"
+      ],
+      "persistence": [
+        "apps/desktop/src/backend/services/storage-service.ts"
+      ],
       "verification": [
-        "apps/desktop/tests/adblock/integration.test.ts",
-        "apps/desktop/tests/components/player/twitch/twitch-live-player-adblock-indicator.test.tsx"
+        "apps/desktop/src/frontend/features/playback/tests/components/player/twitch/integration.test.ts",
+        "apps/desktop/src/frontend/features/playback/tests/components/player/twitch/twitch-live-player-adblock-indicator.test.tsx"
       ]
     },
     {
       "id": "live-chat",
       "area": "Chat",
       "outcome": "Read and send Twitch and Kick live chat messages with room state and subscriber eligibility.",
-      "entry": ["Stream chat panel"],
-      "renderer": ["renderer-feature:chat"],
+      "entry": [
+        "Stream chat panel"
+      ],
+      "renderer": [
+        "renderer-feature:chat"
+      ],
       "electronBoundary": [
         "ipc-feature:chat",
         "ipc-feature:chat-eligibility",
@@ -292,57 +425,89 @@
       ],
       "state": [
         "state-store:store/chat-store",
+        "state-store:store/multi-chat-feed",
         "state-store:store/room-state-store",
         "state-store:store/persisted-chat-history",
-        "state-store:store/user-popout-chat-context"
+        "state-store:store/user-popout-chat-context",
+        "state-store:store/chat-channel-lifecycle"
       ],
-      "persistence": ["apps/desktop/src/backend/services/storage-service.ts"],
+      "persistence": [
+        "apps/desktop/src/backend/services/storage-service.ts"
+      ],
       "verification": [
-        "packages/core/tests/chat.test.mjs",
-        "apps/desktop/tests/components/chat/ChatPanel.test.tsx",
-        "apps/desktop/tests/components/chat/KickChat.test.tsx",
-        "apps/desktop/tests/backend/services/chat/twitch-chat.test.ts",
-        "apps/desktop/tests/backend/services/chat/kick-chat.test.ts"
+        "packages/core/src/features/chat/tests/chat.test.mjs",
+        "apps/desktop/src/frontend/features/chat/tests/components/chat/ChatPanel.test.tsx",
+        "apps/desktop/src/frontend/features/chat/tests/components/chat/KickChat.test.tsx",
+        "apps/desktop/src/frontend/features/chat/tests/services/chat/twitch-chat.test.ts",
+        "apps/desktop/src/frontend/features/chat/tests/services/chat/kick-chat.test.ts"
       ]
     },
     {
       "id": "emotes-and-cosmetics",
       "area": "Chat",
       "outcome": "Load, render, and configure platform and third-party emotes and cosmetics.",
-      "entry": ["Chat panel and emote picker"],
-      "renderer": ["renderer-feature:chat"],
-      "electronBoundary": ["ipc-feature:emotes"],
-      "mainProcess": ["ipc-handler:emote-handlers"],
+      "entry": [
+        "Chat panel and emote picker"
+      ],
+      "renderer": [
+        "renderer-feature:chat"
+      ],
+      "electronBoundary": [
+        "ipc-feature:emotes"
+      ],
+      "mainProcess": [
+        "ipc-handler:emote-handlers"
+      ],
       "platformBranches": [],
-      "state": ["state-store:store/emote-store", "state-store:store/chat-cosmetics-store"],
-      "persistence": ["apps/desktop/src/backend/services/storage-service.ts"],
+      "state": [
+        "state-store:store/emote-store",
+        "state-store:store/chat-cosmetics-store"
+      ],
+      "persistence": [
+        "apps/desktop/src/backend/services/storage-service.ts"
+      ],
       "verification": [
-        "packages/core/tests/chat.test.mjs",
-        "apps/desktop/tests/components/chat/EmotePickerPopover.test.tsx",
-        "apps/desktop/tests/backend/services/emotes/emote-manager.test.ts"
+        "packages/core/src/features/chat/tests/chat.test.mjs",
+        "apps/desktop/src/frontend/features/chat/tests/components/chat/EmotePickerPopover.test.tsx",
+        "apps/desktop/src/frontend/features/chat/tests/services/emotes/emote-manager.test.ts"
       ]
     },
     {
       "id": "chat-replay",
       "area": "Chat",
       "outcome": "Replay available Twitch and Kick chat alongside on-demand video.",
-      "entry": ["Video chat replay controls"],
-      "renderer": ["renderer-feature:chat", "renderer-feature:playback"],
-      "electronBoundary": ["ipc-feature:chat-replay"],
-      "mainProcess": ["ipc-handler:chat-replay-handlers"],
+      "entry": [
+        "Video chat replay controls"
+      ],
+      "renderer": [
+        "renderer-feature:chat",
+        "renderer-feature:playback"
+      ],
+      "electronBoundary": [
+        "ipc-feature:chat-replay"
+      ],
+      "mainProcess": [
+        "ipc-handler:chat-replay-handlers"
+      ],
       "platformBranches": [],
-      "state": ["state-store:features/chat/data/chat-replay-playback-store"],
+      "state": [
+        "state-store:features/chat/data/chat-replay-playback-store"
+      ],
       "persistence": [],
       "verification": [
-        "apps/desktop/tests/components/chat-replay/chat-replay-session.test.tsx",
-        "apps/desktop/tests/backend/services/chat-replay-service.test.ts"
+        "apps/desktop/src/frontend/features/chat/tests/components/chat-replay/chat-replay-session.test.tsx",
+        "apps/desktop/src/backend/features/playback/tests/services/chat-replay-service.test.ts"
       ]
     },
     {
       "id": "moderation",
       "area": "Moderation",
       "outcome": "Manage moderated channels, users, timeouts, and local moderation logs.",
-      "entry": ["/mod", "/mod/twitch/$channel", "/mod/kick/$channel"],
+      "entry": [
+        "/mod",
+        "/mod/twitch/$channel",
+        "/mod/kick/$channel"
+      ],
       "renderer": [
         "renderer-feature:moderation",
         "route:/mod",
@@ -357,139 +522,234 @@
       "mainProcess": [
         "ipc-handler:modlog-handlers",
         "ipc-handler:timeout-moderation-handlers",
+        "ipc-handler:twitch-eventsub-handlers",
         "ipc-handler:twitch-api-handlers"
       ],
-      "platformBranches": [],
+      "platformBranches": [
+        "platform-endpoint:twitch:user-block-endpoints"
+      ],
       "state": [
         "state-store:store/dev-mod-override-store",
         "state-store:features/moderation/data/moderated-channels-store"
       ],
-      "persistence": ["apps/desktop/src/backend/services/storage-service.ts"],
+      "persistence": [
+        "apps/desktop/src/backend/services/storage-service.ts"
+      ],
       "verification": [
-        "apps/desktop/tests/pages/Mod/index.test.tsx",
-        "apps/desktop/tests/pages/Mod/channel/ModChannelPage.test.tsx"
+        "apps/desktop/src/frontend/features/moderation/tests/pages/Mod/index.test.tsx",
+        "apps/desktop/src/frontend/features/moderation/tests/pages/Mod/channel/ModChannelPage.test.tsx"
       ]
     },
     {
       "id": "multistream",
       "area": "Multi-stream",
       "outcome": "Build and manage a multi-stream viewing layout.",
-      "entry": ["/multistream"],
-      "renderer": ["renderer-feature:multistream", "route:/multistream"],
+      "entry": [
+        "/multistream"
+      ],
+      "renderer": [
+        "renderer-feature:multistream",
+        "route:/multistream"
+      ],
       "electronBoundary": [],
       "mainProcess": [],
       "platformBranches": [],
-      "state": ["state-store:features/multistream/data/multistream-store"],
-      "persistence": ["apps/desktop/src/backend/services/storage-service.ts"],
+      "state": [
+        "state-store:features/multistream/data/multistream-store"
+      ],
+      "persistence": [
+        "apps/desktop/src/backend/services/storage-service.ts"
+      ],
       "verification": [
-        "apps/desktop/tests/pages/MultiStream.test.tsx",
-        "apps/desktop/tests/components/multistream/add-stream-dialog.test.tsx"
+        "apps/desktop/src/frontend/features/multistream/tests/pages/MultiStream.test.tsx",
+        "apps/desktop/src/frontend/features/multistream/tests/components/multistream/add-stream-dialog.test.tsx"
       ]
     },
     {
       "id": "watch-history",
       "area": "Media library",
       "outcome": "Review and manage local watch history.",
-      "entry": ["/history"],
-      "renderer": ["renderer-feature:media-library", "route:/history"],
+      "entry": [
+        "/history"
+      ],
+      "renderer": [
+        "renderer-feature:media-library",
+        "route:/history"
+      ],
       "electronBoundary": [],
       "mainProcess": [],
       "platformBranches": [],
-      "state": ["state-store:store/history-store"],
-      "persistence": ["apps/desktop/src/backend/services/storage-service.ts"],
+      "state": [
+        "state-store:store/history-store"
+      ],
+      "persistence": [
+        "apps/desktop/src/backend/services/storage-service.ts"
+      ],
       "verification": [
-        "apps/desktop/tests/pages/History.test.tsx",
-        "apps/desktop/tests/hooks/queries/useHistoryQuery.test.tsx"
+        "apps/desktop/src/frontend/features/media-library/tests/pages/History.test.tsx",
+        "apps/desktop/src/frontend/features/media-library/tests/hooks/queries/useHistoryQuery.test.tsx"
       ]
     },
     {
       "id": "downloads",
       "area": "Media library",
       "outcome": "Download, retry, remove, reveal, and open local video and clip files.",
-      "entry": ["/downloads"],
-      "renderer": ["renderer-feature:media-library", "route:/downloads"],
-      "electronBoundary": ["ipc-feature:downloads"],
-      "mainProcess": ["ipc-handler:download-handlers"],
+      "entry": [
+        "/downloads"
+      ],
+      "renderer": [
+        "renderer-feature:media-library",
+        "route:/downloads"
+      ],
+      "electronBoundary": [
+        "ipc-feature:downloads"
+      ],
+      "mainProcess": [
+        "ipc-handler:download-handlers"
+      ],
       "platformBranches": [],
-      "state": ["state-store:store/download-duplicate-confirmation-store"],
-      "persistence": ["apps/desktop/src/backend/services/download-queue-service.ts"],
+      "state": [
+        "state-store:store/download-duplicate-confirmation-store"
+      ],
+      "persistence": [
+        "apps/desktop/src/backend/features/media-library/domain/download-queue-service.ts"
+      ],
       "verification": [
-        "apps/desktop/tests/pages/Downloads.test.tsx",
-        "apps/desktop/tests/pages/Downloads.delete-dialog.test.tsx"
+        "apps/desktop/src/frontend/features/media-library/tests/pages/Downloads.test.tsx",
+        "apps/desktop/src/frontend/features/media-library/tests/pages/Downloads.delete-dialog.test.tsx"
       ]
     },
     {
       "id": "general-chat-and-theme-preferences",
       "area": "Settings",
       "outcome": "Configure general behavior, chat behavior, and theme preferences.",
-      "entry": ["/settings"],
-      "renderer": ["renderer-feature:settings", "route:/settings"],
-      "electronBoundary": ["ipc-feature:storage", "ipc-feature:system"],
-      "mainProcess": ["ipc-handler:storage-handlers", "ipc-handler:system-handlers"],
+      "entry": [
+        "/settings"
+      ],
+      "renderer": [
+        "renderer-feature:settings",
+        "route:/settings"
+      ],
+      "electronBoundary": [
+        "ipc-feature:storage",
+        "ipc-feature:system"
+      ],
+      "mainProcess": [
+        "ipc-handler:storage-handlers",
+        "ipc-handler:system-handlers",
+        "ipc-handler:preferences-handlers"
+      ],
       "platformBranches": [],
-      "state": ["state-store:store/app-store"],
-      "persistence": ["apps/desktop/src/backend/services/storage-service.ts"],
+      "state": [
+        "state-store:store/app-store"
+      ],
+      "persistence": [
+        "apps/desktop/src/backend/services/storage-service.ts"
+      ],
       "verification": [
-        "apps/desktop/tests/pages/Settings.test.tsx",
-        "apps/desktop/tests/components/settings/ChatSettingsSection.test.tsx"
+        "apps/desktop/src/frontend/features/settings/tests/pages/Settings.test.tsx",
+        "apps/desktop/src/frontend/features/settings/tests/components/settings/ChatSettingsSection.test.tsx"
       ]
     },
     {
       "id": "proxy-and-connectivity",
       "area": "Settings",
       "outcome": "Configure a stream proxy and understand connection state.",
-      "entry": ["Settings proxy controls", "Connection status"],
-      "renderer": ["renderer-feature:settings"],
-      "electronBoundary": ["ipc-feature:proxy", "ipc-feature:connectivity"],
-      "mainProcess": ["ipc-handler:proxy-handlers", "ipc-handler:connectivity-handlers"],
+      "entry": [
+        "Settings proxy controls",
+        "Connection status"
+      ],
+      "renderer": [
+        "renderer-feature:settings"
+      ],
+      "electronBoundary": [
+        "ipc-feature:proxy",
+        "ipc-feature:connectivity"
+      ],
+      "mainProcess": [
+        "ipc-handler:proxy-handlers",
+        "ipc-handler:connectivity-handlers"
+      ],
       "platformBranches": [],
-      "state": ["state-store:hooks/network-status-store"],
-      "persistence": ["apps/desktop/src/backend/services/storage-service.ts"],
+      "state": [
+        "state-store:hooks/network-status-store"
+      ],
+      "persistence": [
+        "apps/desktop/src/backend/services/storage-service.ts"
+      ],
       "verification": [
-        "apps/desktop/tests/backend/ipc/handlers/proxy-handlers.test.ts",
-        "apps/desktop/tests/backend/ipc/handlers/connectivity-handlers.test.ts"
+        "apps/desktop/src/backend/features/settings/tests/ipc/handlers/proxy-handlers.test.ts",
+        "apps/desktop/src/backend/features/shell/tests/ipc/handlers/connectivity-handlers.test.ts"
       ]
     },
     {
       "id": "notifications",
       "area": "Notifications",
       "outcome": "Receive live notifications and open the matching stream from the notification action.",
-      "entry": ["Notification preferences", "Desktop live notification"],
-      "renderer": ["renderer-feature:shell"],
-      "electronBoundary": ["ipc-feature:notifications"],
+      "entry": [
+        "Notification preferences",
+        "Desktop live notification"
+      ],
+      "renderer": [
+        "renderer-feature:shell"
+      ],
+      "electronBoundary": [
+        "ipc-feature:notifications"
+      ],
       "mainProcess": [],
       "platformBranches": [],
-      "state": ["state-store:store/notification-store"],
-      "persistence": ["apps/desktop/src/backend/services/storage-service.ts"],
+      "state": [
+        "state-store:store/notification-store"
+      ],
+      "persistence": [
+        "apps/desktop/src/backend/services/storage-service.ts"
+      ],
       "verification": [
-        "packages/core/tests/notifications.test.mjs",
-        "apps/desktop/tests/App.live-notification-router.integration.test.tsx",
-        "apps/desktop/tests/hooks/use-live-notification-bridge.test.tsx",
-        "apps/desktop/tests/backend/services/live-notification-service.test.ts"
+        "packages/core/src/features/follows/tests/notifications.test.mjs",
+        "apps/desktop/src/frontend/features/auth/tests/App.live-notification-router.integration.test.tsx",
+        "apps/desktop/src/frontend/features/auth/tests/hooks/use-live-notification-bridge.test.tsx",
+        "apps/desktop/src/backend/features/authentication/tests/services/live-notification-service.test.ts"
       ]
     },
     {
       "id": "app-updates",
       "area": "Updates",
       "outcome": "Check, download, and install desktop application updates.",
-      "entry": ["Settings update controls"],
-      "renderer": ["renderer-feature:settings"],
-      "electronBoundary": ["ipc-feature:updates"],
-      "mainProcess": ["ipc-handler:update-handlers"],
+      "entry": [
+        "Settings update controls"
+      ],
+      "renderer": [
+        "renderer-feature:settings"
+      ],
+      "electronBoundary": [
+        "ipc-feature:updates"
+      ],
+      "mainProcess": [
+        "ipc-handler:update-handlers"
+      ],
       "platformBranches": [],
-      "state": ["state-store:store/update-store"],
-      "persistence": ["apps/desktop/src/backend/services/storage-service.ts"],
+      "state": [
+        "state-store:store/update-store"
+      ],
+      "persistence": [
+        "apps/desktop/src/backend/services/storage-service.ts"
+      ],
       "verification": [
-        "apps/desktop/tests/backend/ipc/handlers/update-handlers.test.ts",
-        "apps/desktop/tests/backend/services/update-service.test.ts"
+        "apps/desktop/src/backend/features/settings/tests/ipc/handlers/update-handlers.test.ts",
+        "apps/desktop/src/backend/features/settings/tests/services/update-service.test.ts"
       ]
     },
     {
       "id": "diagnostics-logs-and-bug-reports",
       "area": "Support",
       "outcome": "Inspect diagnostics and logs, then create a bug report with relevant evidence.",
-      "entry": ["Settings diagnostics workspace", "Bug report controls"],
-      "renderer": ["renderer-feature:settings"],
+      "entry": [
+        "Settings diagnostics workspace",
+        "Bug report controls"
+      ],
+      "renderer": [
+        "renderer-feature:settings"
+      ],
       "electronBoundary": [
         "ipc-feature:diagnostics",
         "ipc-feature:logs",
@@ -502,25 +762,35 @@
       ],
       "platformBranches": [],
       "state": [],
-      "persistence": ["apps/desktop/src/backend/logging/log-paths.ts"],
+      "persistence": [
+        "apps/desktop/src/backend/logging/log-paths.ts"
+      ],
       "verification": [
-        "apps/desktop/tests/pages/Settings/diagnostics-workspace.test.tsx",
-        "apps/desktop/tests/backend/ipc/handlers/bug-report-handlers.test.ts"
+        "apps/desktop/src/frontend/features/settings/tests/pages/Settings/diagnostics-workspace.test.tsx",
+        "apps/desktop/src/backend/features/settings/tests/ipc/handlers/bug-report-handlers.test.ts"
       ]
     },
     {
       "id": "app-shell-and-navigation",
       "area": "App shell",
       "outcome": "Navigate the desktop layout, sidebar, window controls, and recovery surfaces.",
-      "entry": ["Application shell"],
-      "renderer": ["renderer-feature:shell"],
-      "electronBoundary": ["ipc-feature:app"],
-      "mainProcess": ["ipc-handler:app-handlers"],
+      "entry": [
+        "Application shell"
+      ],
+      "renderer": [
+        "renderer-feature:shell"
+      ],
+      "electronBoundary": [
+        "ipc-feature:app"
+      ],
+      "mainProcess": [
+        "ipc-handler:app-handlers"
+      ],
       "platformBranches": [],
       "state": [],
       "persistence": [],
       "verification": [
-        "apps/desktop/tests/components/layout/AppLayout.test.tsx",
+        "apps/desktop/src/frontend/features/shell/tests/components/layout/AppLayout.test.tsx",
         "apps/desktop/tests/e2e/playbooks/00b-sidebar-navigation.playbook.md"
       ]
     }

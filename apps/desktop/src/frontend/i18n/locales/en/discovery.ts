@@ -79,6 +79,8 @@ export const discoveryEn = {
       loading: "Loading category {{kind}}",
       loadingMedia: "Loading {{kind}}",
       loadingMore: "Loading more {{kind}}",
+      loadNextMedia: "Load more {{kind}}",
+      kickVideosCoverage: "Kick videos are from channels currently live in this category.",
       unavailable: "{{platform}} is unavailable.",
       retryPlatform: "Retry {{platform}}",
       streamsUnavailable: "{{platform}} streams are temporarily unavailable.",

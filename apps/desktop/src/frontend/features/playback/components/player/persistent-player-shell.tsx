@@ -1,7 +1,7 @@
 import type React from "react";
 import { createContext, useCallback, useContext, useState } from "react";
 
-import type { PlayerError } from "./types";
+import type { PlayerError } from "../../capabilities/media-types";
 
 export interface DockedLivePlayerConfig {
   muted: boolean;

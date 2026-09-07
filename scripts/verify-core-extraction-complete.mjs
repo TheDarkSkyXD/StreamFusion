@@ -23,13 +23,13 @@ const publicSubpaths = [
 
 const contractSuites = {
   platform: "packages/core/tests/platform.test.mjs",
-  content: "packages/core/tests/content.test.mjs",
-  discovery: "packages/core/tests/discovery.test.mjs",
-  follows: "packages/core/tests/follows.test.mjs",
-  auth: "packages/core/tests/auth.test.mjs",
-  chat: "packages/core/tests/chat.test.mjs",
-  activity: "packages/core/tests/activity.test.mjs",
-  reliability: "packages/core/tests/reliability.test.mjs",
+  content: "packages/core/src/features/content/tests/content.test.mjs",
+  discovery: "packages/core/src/features/discovery/tests/discovery.test.mjs",
+  follows: "packages/core/src/features/follows/tests/follows.test.mjs",
+  auth: "packages/core/src/features/auth/tests/auth.test.mjs",
+  chat: "packages/core/src/features/chat/tests/chat.test.mjs",
+  activity: "packages/core/src/features/activity/tests/activity.test.mjs",
+  reliability: "packages/core/src/features/reliability/tests/reliability.test.mjs",
   relay: "apps/integration-relay/tests/envelopes.test.ts",
 };
 

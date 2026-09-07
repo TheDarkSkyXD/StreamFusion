@@ -16,19 +16,19 @@ vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn() },
 }));
 
-vi.mock("@backend/services/storage-service", () => ({
-  storageService: {
+vi.mock("@backend/features/authentication/data/authentication-repository", () => ({
+  authenticationRepository: {
     hasToken: vi.fn(() => true),
     getActiveFollowsByPlatform: vi.fn(() => []),
     getPendingFollowWritesByPlatform: vi.fn(() => []),
   },
 }));
 
-vi.mock("@backend/services/kick-follow-write-service", () => ({
+vi.mock("@backend/features/authentication/adapters/kick/kick-follow-write-service", () => ({
   kickFollowWriteService: { enqueue, onAccountWriteChanged },
 }));
 
-vi.mock("@backend/services/twitch-follow-write-service", () => ({
+vi.mock("@backend/features/authentication/adapters/twitch/twitch-follow-write-service", () => ({
   twitchFollowWriteService: { write: writeTwitch },
 }));
 
@@ -38,11 +38,11 @@ vi.mock("@backend/logging/logger", () => ({
 
 import { ipcMain } from "electron";
 
+import { authenticationRepository } from "@backend/features/authentication/data/authentication-repository";
 import {
   attachKickFollowWriteService,
-  registerStorageHandlers,
-} from "@backend/ipc/handlers/storage-handlers";
-import { storageService } from "@backend/services/storage-service";
+  registerFollowRoutes,
+} from "@backend/features/authentication/routes/follow-routes";
 import { createMainRendererPortMock } from "../../../helpers/main-renderer-port-mock";
 
 type Handler = (event: unknown, args?: unknown) => unknown;
@@ -75,12 +75,12 @@ describe("storage-handlers Kick account write origin", () => {
     vi.clearAllMocks();
     enqueue.mockResolvedValue({ status: "confirmed", action: "unfollow" });
     writeTwitch.mockResolvedValue({ status: "confirmed", activeFollows: [] });
-    vi.mocked(storageService.hasToken).mockReturnValue(true);
-    vi.mocked(storageService.getPendingFollowWritesByPlatform).mockReturnValue([]);
+    vi.mocked(authenticationRepository.hasToken).mockReturnValue(true);
+    vi.mocked(authenticationRepository.getPendingFollowWritesByPlatform).mockReturnValue([]);
   });
 
   it("returns sanitized persisted writes only to the authenticated application renderer", () => {
-    vi.mocked(storageService.getPendingFollowWritesByPlatform).mockReturnValue([
+    vi.mocked(authenticationRepository.getPendingFollowWritesByPlatform).mockReturnValue([
       {
         id: 73,
         platform: "kick",
@@ -96,7 +96,7 @@ describe("storage-handlers Kick account write origin", () => {
         lastError: "not-confirmed",
       },
     ]);
-    registerStorageHandlers();
+    registerFollowRoutes();
     const handler = getHandler(IPC_CHANNELS.FOLLOWS_GET_ACCOUNT_WRITES);
 
     expect(handler({ senderFrame: { url: "file:///streamfusion/index.html" } })).toEqual([
@@ -119,13 +119,13 @@ describe("storage-handlers Kick account write origin", () => {
 
     expect(handler({ senderFrame: { url: "https://evil.example.com/embed" } })).toEqual([]);
 
-    vi.mocked(storageService.hasToken).mockReturnValue(false);
+    vi.mocked(authenticationRepository.hasToken).mockReturnValue(false);
     expect(handler({ senderFrame: { url: "file:///streamfusion/index.html" } })).toEqual([]);
-    expect(storageService.getPendingFollowWritesByPlatform).toHaveBeenCalledTimes(1);
+    expect(authenticationRepository.getPendingFollowWritesByPlatform).toHaveBeenCalledTimes(1);
   });
 
   it("benignly rejects an unexpected sender without calling the Kick write service", async () => {
-    registerStorageHandlers();
+    registerFollowRoutes();
 
     const result = await getHandler(IPC_CHANNELS.FOLLOWS_WRITE_ACCOUNT)(
       { senderFrame: { url: "https://evil.example.com/embed" } },
@@ -141,7 +141,7 @@ describe("storage-handlers Kick account write origin", () => {
   });
 
   it("benignly rejects malformed account writes before authentication or service access", async () => {
-    registerStorageHandlers();
+    registerFollowRoutes();
     const handler = getHandler(IPC_CHANNELS.FOLLOWS_WRITE_ACCOUNT);
     const allowedSender = { senderFrame: { url: "file:///streamfusion/index.html" } };
     const malformedRequests: unknown[] = [
@@ -170,7 +170,7 @@ describe("storage-handlers Kick account write origin", () => {
         error: "Rejected: invalid Kick account follow request.",
       }))
     );
-    expect(storageService.hasToken).not.toHaveBeenCalled();
+    expect(authenticationRepository.hasToken).not.toHaveBeenCalled();
     expect(enqueue).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
   });
@@ -186,7 +186,7 @@ describe("storage-handlers Kick account write origin", () => {
         profileImage: "https://static.example/avatar.png",
       },
     };
-    registerStorageHandlers();
+    registerFollowRoutes();
 
     const result = await getHandler(IPC_CHANNELS.FOLLOWS_WRITE_ACCOUNT)(
       { senderFrame: { url: "file:///streamfusion/index.html" } },
@@ -222,7 +222,7 @@ describe("storage-handlers Kick account write origin", () => {
       },
       activeFollows: [],
     };
-    registerStorageHandlers(createMainRendererPortMock(mainWindow));
+    registerFollowRoutes(createMainRendererPortMock(mainWindow));
     attachKickFollowWriteService({
       onAccountWriteChanged,
     } as unknown as Parameters<typeof attachKickFollowWriteService>[0]);
@@ -264,7 +264,7 @@ describe("storage-handlers Kick account write origin", () => {
       reason: "retry-expired",
     };
 
-    registerStorageHandlers(createMainRendererPortMock(mainWindow));
+    registerFollowRoutes(createMainRendererPortMock(mainWindow));
     attachKickFollowWriteService({
       onAccountWriteChanged,
     } as unknown as Parameters<typeof attachKickFollowWriteService>[0]);

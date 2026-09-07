@@ -1,0 +1,105 @@
+import { existsSync } from "node:fs";
+
+import { dialog } from "electron";
+
+import type { ClipDownloadRequest } from "@shared/download-types";
+import { TwitchStreamResolver } from "../../playback/adapters/twitch/twitch-stream-resolver";
+import { type ClipDownloadService, createClipDownloadService } from "../domain/clip-download-service";
+import { downloadDirectFile } from "../adapters/node/direct-file-download-service";
+import { assertAllowedRendererMediaUrl } from "../domain/download-media-source";
+import { getAvailableDestinationPath } from "../adapters/node/download-paths";
+import { getNativeText } from "../../../services/native-copy";
+import type { DownloadQueueService } from "../domain/download-queue-service";
+import { chooseDefaultDownloadSavePath } from "../adapters/electron/download-save-dialog";
+import { downloadHlsWithFfmpeg, resolveFfmpegPath } from "../adapters/ffmpeg/ffmpeg-download-service";
+import type { MainRendererPort } from "@backend/ipc/main-renderer-port";
+import {
+  decodeTwitchClipMediaUrl,
+  TWITCH_CLIP_MEDIA_SCHEME,
+} from "../../../protocols/twitch-clip-media-url";
+
+const twitchResolver = new TwitchStreamResolver();
+let clipDownloadService: ClipDownloadService | null = null;
+
+interface ClipPlaybackResolver {
+  getClipPlaybackUrl(clipId: string): Promise<{
+    url: string;
+    format: string;
+    durationSeconds?: number | null;
+    qualities?: Array<{ quality: string; url: string }>;
+  }>;
+}
+
+export async function resolveDefaultClipPlayback(
+  request: ClipDownloadRequest,
+  twitch: ClipPlaybackResolver = twitchResolver
+) {
+  if (request.platform === "twitch") {
+    return twitch.getClipPlaybackUrl(request.clipId);
+  }
+
+  if (!request.clipUrl) {
+    throw new Error("Clip URL required for Kick clip download");
+  }
+
+  const url = assertAllowedRendererMediaUrl({
+    platform: "kick",
+    kind: "clip",
+    url: request.clipUrl,
+  });
+  return {
+    url,
+    format: new URL(url).pathname.toLowerCase().endsWith(".m3u8") ? "hls" : "mp4",
+  };
+}
+
+export function getDefaultClipDownloadService(
+  renderer: MainRendererPort,
+  queue: DownloadQueueService
+): ClipDownloadService {
+  if (clipDownloadService) return clipDownloadService;
+
+  clipDownloadService = createClipDownloadService({
+    queue,
+    resolvePlayback: resolveDefaultClipPlayback,
+    chooseQuality: async (qualities) => {
+      const mainWindow = renderer.current();
+      if (!mainWindow) return null;
+      const result = await dialog.showMessageBox(mainWindow, {
+        type: "question",
+        title: getNativeText("chooseClipQuality"),
+        message: getNativeText("chooseClipQuality"),
+        buttons: [...qualities.map((quality) => quality.quality), getNativeText("cancel")],
+        defaultId: 0,
+        cancelId: qualities.length,
+      });
+      return result.response >= qualities.length ? null : qualities[result.response];
+    },
+    chooseSavePath: (request, extension) => {
+      const mainWindow = renderer.current();
+      if (!mainWindow) return Promise.resolve(null);
+      return chooseDefaultDownloadSavePath(mainWindow, {
+        dialogTitle: getNativeText("saveClip"),
+        channelName: request.channelName,
+        title: request.title,
+        extension,
+        videoFilterName: getNativeText("mp4Video"),
+      });
+    },
+    getAvailablePath: (requestedPath) => getAvailableDestinationPath(requestedPath, existsSync),
+    downloadFile: downloadDirectFile,
+    resolveFfmpegPath,
+    downloadHls: downloadHlsWithFfmpeg,
+    normalizeMediaUrl: (url) => {
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== `${TWITCH_CLIP_MEDIA_SCHEME}:`) return url;
+        return decodeTwitchClipMediaUrl(parsed.searchParams.get("u") ?? "") ?? url;
+      } catch {
+        return url;
+      }
+    },
+  });
+
+  return clipDownloadService;
+}

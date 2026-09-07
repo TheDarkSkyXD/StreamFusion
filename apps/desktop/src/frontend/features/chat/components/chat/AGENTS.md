@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Owns all chat UI: message rendering, compose input, emote/mention autocomplete, badge rendering, pinned messages, prediction banners, mod tooling, and poll widgets. Does NOT own WebSocket/IRC connections (`backend/services/chat/`), emote fetching (`backend/services/emotes/` + `store/emote-store`), platform API calls (`backend/api/platforms/`), or global state stores (`store/`).
+Owns all chat UI: message rendering, compose input, emote/mention autocomplete, badge rendering, pinned messages, prediction banners, mod tooling, and poll widgets. Browser transports and emote integrations belong in this feature’s `adapters/`; main-owned HTTP and credential integrations belong in backend features. View stores live under `components/state/`, and pure message rules live in `domain/`.
 
 ## Entry Points
 
@@ -30,7 +30,7 @@ Owns all chat UI: message rendering, compose input, emote/mention autocomplete, 
 
 **Adding a new message type:** Add to `ContentFragment` union, handle in `ChatMessage` render switch, update `serializeMessage()` if the type affects wire format.
 
-**Adding mod tooling:** Place dialogs/pickers in `mod/`; expose from the mod strip. Keep backend calls inside `KickChat.tsx` or `TwitchChat.tsx` event handlers, not in shared components.
+**Adding mod tooling:** Place dialogs/pickers in `mod/`; expose from the mod strip. The orchestrators invoke typed feature capabilities wired by composition. Keep provider and preload operations in adapters.
 
 **Emote substitution:** Call `substituteThirdPartyEmotes` with `includeNative: true` for Twitch, default (false) for Kick. Read emote store imperatively via `getState()` inside effects — never as a reactive selector.
 
@@ -38,7 +38,7 @@ Owns all chat UI: message rendering, compose input, emote/mention autocomplete, 
 
 ## Anti-patterns
 
-- Never import from `backend/api/` or `backend/services/` in shared components (`ChatMessage`, `ChatBadge`, etc.) — only in `KickChat.tsx` and `TwitchChat.tsx`
+- Never import backend implementations in renderer components, including `KickChat.tsx` and `TwitchChat.tsx`.
 - Never use `useEmoteStore((s) => s.getAllEmotes())` as a reactive selector — causes an infinite render loop; use `getState()` imperatively inside effects
 - Never encode platform logic inside `ChatMessage` or `ChatMessageList` — they receive `platform` as a prop only
 - No Send button — Enter-to-send is the only input path
@@ -54,7 +54,7 @@ Owns all chat UI: message rendering, compose input, emote/mention autocomplete, 
 
 ## Related Context
 
-- `store/AGENTS.md` — global state stores (messages, emotes, auth)
-- `backend/services/chat/AGENTS.md` — WebSocket/IRC connection layer
-- `backend/services/emotes/AGENTS.md` — emote fetching and caching
-- `backend/api/platforms/AGENTS.md` — platform REST API calls
+- `../../../AGENTS.md` — renderer feature responsibility boundaries
+- `../state/` — chat and emote view state
+- `../../adapters/browser/` — browser chat transports and emote providers
+- `../../capabilities/` — provider-neutral operation contracts

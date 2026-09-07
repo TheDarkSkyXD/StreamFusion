@@ -2,10 +2,10 @@ import React from "react";
 
 import { ReconnectForModDialog } from "@/features/auth/components/auth/ReconnectForModDialog";
 import { TwitchSessionExpiryNotifier } from "@/features/auth/components/auth/twitch/TwitchSessionExpiryNotifier";
-import { useAuthInitialize } from "@/features/auth/data/useAuth";
-import { useAuthStore } from "@/store/auth-store";
-import { useFollowStore } from "@/store/follow-store";
-import { useModeratedChannelsStore } from "@/features/moderation/data/moderated-channels-store";
+import { useAuthInitialize } from "@/features/auth/components/hooks/useAuth";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
+import { useFollowStore } from "@/features/discovery/components/state/follow-store";
+import { useModeratedChannelsStore } from "@/features/moderation/components/state/moderated-channels-store";
 
 interface AuthProviderProps {
   children: React.ReactNode;

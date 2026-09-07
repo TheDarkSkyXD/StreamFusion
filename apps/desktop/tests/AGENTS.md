@@ -7,27 +7,15 @@ The audit it grew out of: [`docs/plans/2026-05-19-001-refactor-test-suite-audit-
 
 ## STRUCTURE
 
-```
-tests/
-├── adblock/              # Twitch adblock unit + integration tests
-├── backend/              # Main-process tests (services, API clients, auth)
-│   ├── api/platforms/    # Twitch/Kick HTTP + GQL client tests
-│   ├── auth/             # OAuth config, refresh flow
-│   └── services/         # chat, emotes, database, mod-log, manifests
-├── components/           # React component tests (vitest + RTL)
-├── helpers/              # Test helpers (better-sqlite3-shim, etc.)
-├── hooks/                # React hook tests
-├── lib/                  # Pure-function tests (id-utils, formatters)
-├── pages/                # Top-level page tests
-├── services/             # Cross-area integration tests (cookie stripper, etc.)
-├── shared/               # Shared-type/contract tests
-├── store/                # Zustand store tests
-├── e2e/                  # Playbook-driven E2E (see e2e/README.md)
-├── test-utils.tsx        # renderWithProviders, installElectronAPIMock, fixtures
-├── setup-node.ts         # logger boundary mocks shared by both projects
-├── setup.ts              # jsdom polyfills (matchMedia, media methods, etc.)
-└── AGENTS.md             # ← you are here
-```
+Feature unit, component, route, and service tests live with their owning runtime:
+`src/{frontend,backend}/features/<feature>/tests/`. Feature fixtures and Storybook
+stories live there too. Test location does not change its execution environment:
+the Node/jsdom projects in `vitest.config.ts` preserve explicit DOM exceptions.
+
+This directory retains shared test setup, helpers, policy/build-script checks,
+shared-contract tests, and cross-feature or cross-process integration tests.
+Use `setup-node.ts`, `setup.ts`, and `test-utils.tsx` for shared infrastructure.
+E2E instructions remain in `tests/e2e/README.md`.
 
 ## RUNNING
 
@@ -231,10 +219,10 @@ Record the check-evidence in the audit log entry for each file, even when the ve
 ## ADDING A NEW TEST
 
 ### File location
-- Mirror the source path: a test for `src/backend/services/foo/bar.ts` lives at `tests/backend/services/foo/bar.test.ts`.
-- Hooks: `tests/hooks/<hook-name>.test.tsx`.
-- Pure functions: `tests/lib/<file>.test.ts`.
-- Cross-area integrations (e.g., a request going through the cookie-stripper): `tests/services/<feature>.integration.test.ts`.
+- Feature-owned tests live under `src/{backend,frontend}/features/<feature>/tests/`. These conventions apply there too.
+- Keep shared setup, fixtures, runtime transport contracts, and cross-feature integrations in the desktop `tests/` directory.
+- Preserve the test's Node, DOM, or system project when relocating it. A `.ts` extension does not imply a Node-only environment.
+- Stories live under the owning feature's `tests/stories/`; production code must never import tests or stories.
 
 ### Imports + helpers
 - Render React with `renderWithProviders` from `tests/test-utils.tsx` (it wires the router, react-query, and any context the components need).

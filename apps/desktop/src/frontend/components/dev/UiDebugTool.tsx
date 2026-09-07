@@ -1,7 +1,7 @@
 import type React from "react";
 import { useTranslation } from "react-i18next";
 
-import { setNetworkStatusOverrideForDebug } from "@/features/settings/data/useNetworkStatus";
+import { setNetworkStatusOverrideForDebug } from "@/features/settings/components/hooks/useNetworkStatus";
 
 import { DEBUG_TOKENS } from "./tokens";
 

@@ -2,10 +2,7 @@ import type {
   ActiveStreamRecordingPhase,
   StreamRecordingLifecycleState,
 } from "@shared/stream-recording-types";
-import type { mediaLibraryEn } from "@/i18n/locales/en/mediaLibrary";
-
-type MediaLibraryTranslationKey =
-  `mediaLibrary.${keyof typeof mediaLibraryEn.mediaLibrary & string}`;
+type MediaLibraryTranslationKey = `mediaLibrary.${string}`;
 
 export const RECORDING_PHASE_LABEL_KEYS = {
   preparing: "mediaLibrary.recordingPhasePreparing",

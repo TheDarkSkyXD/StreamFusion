@@ -14,8 +14,8 @@ import { useTranslation } from "react-i18next";
 
 import type React from "react";
 import { useCallback, useRef } from "react";
-import type { Emote } from "../../../../../../backend/services/emotes/emote-types";
-import { useChannelByUsername } from "../../../../discovery/data/queries/useChannels";
+import type { Emote } from "@/features/chat/capabilities/emote-types";
+import { useChannelByUsername } from "../../../../discovery/components/hooks/queries/useChannels";
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
 import { SevenTVIcon } from "../../../../../components/icons/PlatformIcons";
 import { EmotePickerPopover } from "../EmotePickerPopover";

@@ -34,7 +34,7 @@ import { type ThrottleAction, useBackgroundThrottle } from "./hooks/use-backgrou
 import { useVideoLifecycle } from "./hooks/use-video-lifecycle";
 import { KickLivePlayer } from "./kick/kick-live-player";
 import { TwitchLivePlayer } from "./twitch/twitch-live-player";
-import type { PlayerError, QualityLevel } from "./types";
+import type { PlayerError, QualityLevel } from "../../capabilities/media-types";
 
 export interface PerformanceEnhancedPlayerProps {
   /** Streaming platform */

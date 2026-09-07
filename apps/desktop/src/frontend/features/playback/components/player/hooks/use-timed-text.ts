@@ -3,9 +3,9 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { useTranslation } from "react-i18next";
 
 import { type CaptionPreferences, DEFAULT_CAPTION_PREFERENCES } from "@shared/auth-types";
-import { useAuthStore } from "@/store/auth-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 
-import type { TimedTextCue, TimedTextError, TimedTextTrack } from "../types";
+import type { TimedTextCue, TimedTextError, TimedTextTrack } from "../../../capabilities/media-types";
 
 type HlsSubtitleTrack = Hls["subtitleTracks"][number];
 

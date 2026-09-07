@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { LuTriangleAlert, LuX } from "react-icons/lu";
 
-import type { ChatCommandResult } from "../../utils/chat-command-outcome";
+import type { ChatCommandResult } from "../../domain/commands/chat-command-outcome";
 
 export function CommandResultCard({
   result,

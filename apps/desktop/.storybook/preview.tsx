@@ -8,8 +8,25 @@ import { type ReactNode, useEffect, useState } from "react";
 import { sb } from "storybook/test";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-sb.mock(import("../src/frontend/features/playback/components/player/kick/index.ts"), { spy: true });
-sb.mock(import("../src/frontend/features/playback/components/player/twitch/index.ts"), { spy: true });
+sb.mock(
+  import("../src/frontend/features/playback/components/player/kick/kick-live-player.tsx"),
+  { spy: true }
+);
+sb.mock(
+  import("../src/frontend/features/playback/components/player/kick/kick-vod-player.tsx"),
+  { spy: true }
+);
+sb.mock(
+  import("../src/frontend/features/playback/components/player/twitch/twitch-live-player.tsx"),
+  { spy: true }
+);
+sb.mock(
+  import("../src/frontend/features/playback/components/player/twitch/twitch-vod-player.tsx"),
+  { spy: true }
+);
+sb.mock(import("../src/frontend/features/chat/components/chat/ChatPanel.tsx"), {
+  spy: true,
+});
 
 function StoryProviders({ children }: { children: ReactNode }) {
   const [queryClient] = useState(

@@ -7,16 +7,16 @@ import { LuHistory, LuLayoutGrid, LuSearch, LuSparkles, LuStar, LuUser, LuX } fr
 import type { UnifiedCategory, UnifiedChannel } from "@shared/platform-types";
 import { StreamVerifiedBadge } from "@/features/discovery/components/stream/stream-verified-badge";
 import { ProxiedImage } from "@/components/ui/proxied-image";
-import { useUnifiedCategoryLink } from "@/features/discovery/data/queries/useCategories";
+import { useUnifiedCategoryLink } from "@/features/discovery/components/hooks/queries/useCategories";
 import {
   useSearchCategories,
   useSearchChannels,
-} from "@/features/discovery/data/queries/useSearch";
+} from "@/features/discovery/components/hooks/queries/useSearch";
 import { useDebounce } from "@/hooks/useDebounce";
 import {
   type SearchHistoryScope,
   useSearchHistory,
-} from "@/features/discovery/data/useSearchHistory";
+} from "@/features/discovery/components/hooks/useSearchHistory";
 import { cn, formatCompactNumber, normalizeCategoryName, pickWinner } from "@/lib/utils";
 import { isExactChannelSearchMatch, rankSearchChannels } from "@streamfusion/core/discovery";
 import { preloadSearchPage } from "@/features/discovery/routes/search-page";

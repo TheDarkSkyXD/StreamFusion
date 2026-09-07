@@ -15,18 +15,18 @@ import { useTwitchLiveRecovery } from "@/features/playback/components/player/hoo
 import { OfflineOverlay } from "@/features/playback/components/player/offline-overlay";
 import { useDockedPlayerConfig } from "@/features/playback/components/player/persistent-player-shell";
 import { TwitchLivePlayer } from "@/features/playback/components/player/twitch/twitch-live-player";
-import type { PlayerError } from "@/features/playback/components/player/types";
+import type { PlayerError } from "@/features/playback/capabilities/media-types";
 import { Button } from "@/components/ui/button";
 import { ProxiedImage } from "@/components/ui/proxied-image";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useStreamByChannel } from "@/features/discovery/data/queries/useStreams";
-import { useStreamPlayback } from "@/features/playback/data/useStreamPlayback";
+import { useStreamByChannel } from "@/features/discovery/components/hooks/queries/useStreams";
+import { useStreamPlayback } from "@/features/playback/components/hooks/useStreamPlayback";
 import { cn } from "@/lib/utils";
 import { logger } from "@/renderer/logging/logger";
 import { Platform } from "@streamfusion/core/platform";
-import { useAdBlockStore } from "@/store/adblock-store";
-import { usePipStore } from "@/store/pip-store";
-import { useVolumeStore } from "@/store/volume-store";
+import { useAdBlockStore } from "@/features/playback/components/state/adblock-store";
+import { usePipStore } from "@/features/playback/components/state/pip-store";
+import { useVolumeStore } from "@/features/playback/components/state/volume-store";
 
 // Mini player dimensions
 const MINI_PLAYER_WIDTH = 400;

@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 
 import { Button } from "@/components/ui/button";
-import { useStreamRecordingActions } from "@/features/media-library/data/use-stream-recording-actions";
-import { useStreamRecordingState } from "@/features/media-library/data/use-stream-recording-state";
+import { useStreamRecordingActions } from "@/features/media-library/components/hooks/use-stream-recording-actions";
+import { useStreamRecordingState } from "@/features/media-library/components/hooks/use-stream-recording-state";
 import type { StreamRecordingNotice } from "@shared/stream-recording-types";
 
 function outcomeCopy(

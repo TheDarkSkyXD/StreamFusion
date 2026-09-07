@@ -1,3 +1,4 @@
+import { getChatPresentationServices } from "@/features/chat/composition/chat-presentation-services";
 import { ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -56,7 +57,7 @@ export function UserPopoutFooter({
       <button
         type="button"
         className="inline-flex h-9 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-        onClick={() => window.electronAPI.openExternal(externalUrl)}
+        onClick={() => getChatPresentationServices()?.openExternal(externalUrl)}
         aria-label={t("chatModeration.openExternalProfileButton")}
         data-testid="user-popout-footer-external"
       >

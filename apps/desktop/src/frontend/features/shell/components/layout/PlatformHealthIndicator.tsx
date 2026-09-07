@@ -2,8 +2,10 @@ import { WifiOff } from "lucide-react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
-import type { PlatformHealth } from "@backend/api/unified/platform-health";
-import { usePlatformHealth } from "@/features/settings/data/usePlatformHealth";
+import {
+  type PlatformHealth,
+  usePlatformHealth,
+} from "@/features/settings/components/hooks/usePlatformHealth";
 
 export function PlatformHealthIndicator() {
   const { t } = useTranslation();

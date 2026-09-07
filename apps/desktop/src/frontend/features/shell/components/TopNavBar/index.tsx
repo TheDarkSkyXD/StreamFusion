@@ -8,7 +8,7 @@ import { ProfileDropdown } from "@/features/auth/components/auth/ProfileDropdown
 import { PlatformHealthIndicator } from "@/features/shell/components/layout/PlatformHealthIndicator";
 import { RecordingGlobalIndicator } from "@/features/media-library/components/recording/recording-global-indicator";
 import { cn } from "@/lib/utils";
-import { useAppStore } from "@/store/app-store";
+import { useAppStore } from "@/features/shell/components/state/app-store";
 
 import { NotificationsDropdown } from "./NotificationsDropdown";
 import { SearchBar } from "./SearchBar";

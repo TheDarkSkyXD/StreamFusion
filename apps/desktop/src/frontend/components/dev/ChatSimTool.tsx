@@ -11,9 +11,10 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { kickChatService, kickPinToNormalized } from "../../../backend/services/chat/kick-chat";
-import { twitchChatService } from "../../../backend/services/chat/twitch-chat";
-import { simulateRaidHandoffForDev } from "../../../backend/services/chat/raid-handoff-source";
+import { kickPinToNormalized } from "@/features/chat/adapters/browser/kick-chat";
+import { kickChatService } from "@/features/chat/composition/kick-chat-runtime";
+import { twitchChatService } from "@/features/chat/composition/twitch-chat-runtime";
+import { simulateRaidHandoffForDev } from "@/features/playback/adapters/browser/raid-handoff-source";
 import type { ModerationHighlightStyle, UserPreferences } from "../../../shared/auth-types";
 import {
   DEFAULT_CHAT_DISPLAY_PREFERENCES,
@@ -28,10 +29,10 @@ import type {
 } from "../../../shared/chat-types";
 import { ChatHighlightKind } from "@streamfusion/core/chat";
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
-import { useAuthStore } from "../../store/auth-store";
-import { buildChannelKey, useChatStore } from "../../store/chat-store";
-import { useDevModOverrideStore } from "../../store/dev-mod-override-store";
-import { useReconnectDialogStore } from "../../store/reconnect-dialog-store";
+import { useAuthStore } from "../../features/auth/components/state/auth-store";
+import { buildChannelKey, useChatStore } from "../../features/chat/components/state/chat-store";
+import { useDevModOverrideStore } from "../../features/moderation/components/state/dev-mod-override-store";
+import { useReconnectDialogStore } from "../../features/auth/components/state/reconnect-dialog-store";
 
 import { DEBUG_TOKENS } from "./tokens";
 

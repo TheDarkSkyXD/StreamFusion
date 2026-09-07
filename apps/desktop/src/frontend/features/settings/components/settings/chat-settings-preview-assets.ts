@@ -1,5 +1,5 @@
-import { translateSettingsForLanguage } from "@/features/settings/utils/settings-translation";
-import type { Emote } from "@backend/services/emotes/emote-types";
+import { translateSettingsForLanguage } from "@/features/settings/components/presentation/settings-translation";
+import type { Emote } from "@/features/chat/capabilities/emote-types";
 import type { ChatCosmeticBadge, ChatCosmeticProvider } from "@shared/chat-types";
 
 const svgDataUrl = (body: string) =>

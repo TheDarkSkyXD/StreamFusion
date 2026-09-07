@@ -2,9 +2,9 @@ import { useTranslation } from "react-i18next";
 import type React from "react";
 import { memo } from "react";
 import { Platform as ChatPlatform } from "@streamfusion/core/platform";
-import type { chatEn } from "@/i18n/locales/en/chat";
+import type { ParseKeys } from "i18next";
 
-type ChatTranslationKey = `chat.${keyof typeof chatEn.chat}`;
+type ChatTranslationKey = Extract<ParseKeys, `chat.${string}`>;
 
 type ChatEventHighlightCardProps = {
   children: React.ReactNode;

@@ -1,5 +1,12 @@
 export const chatEn = {
   chat: {
+    kickConnection: {
+      connecting: "Connecting to Kick chat…",
+      reconnecting: "Kick chat is unavailable. Reconnecting…",
+      loading: "Loading recent Kick chat…",
+      failed: "Could not connect to Kick chat.",
+      retry: "Retry chat",
+    },
     badge: "Badge",
     showValue0EmoteDetails: "Show {{value0}} emote details",
     value0Value1Notice: "{{value0}} {{value1}} notice",

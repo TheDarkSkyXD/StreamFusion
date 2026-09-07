@@ -1,3 +1,4 @@
+import { getChatModerationController } from "@/features/chat/composition/chat-moderation-controller";
 /**
  * U25 — Engagement → Predictions section.
  *
@@ -19,10 +20,10 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { modLogWriter } from "@backend/services/mod-log-writer";
-import { useHelixPoll } from "@/hooks/useHelixPoll";
+import { modLogWriter } from "@/features/moderation/adapters/electron/mod-log-writer";
+import { useHelixPoll } from "@/features/moderation/components/hooks/useHelixPoll";
 import type { TwitchPrediction } from "@shared/twitch-api-types";
-import { useAuthStore } from "@/store/auth-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
 
 import { ModActionConfirmDialog } from "../ModActionConfirmDialog";
 
@@ -63,7 +64,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
   const twitchUser = useAuthStore((s) => s.twitchUser);
 
   const fetcher = useCallback(async (): Promise<{ data: TwitchPrediction[] } | null> => {
-    const result = await window.electronAPI.twitch.execute({
+    const result = await getChatModerationController().twitch.execute({
       operation: "get-predictions",
       broadcasterId: channelId,
     });
@@ -110,7 +111,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
     }
     setBusy(true);
     try {
-      const result = await window.electronAPI.twitch.execute({
+      const result = await getChatModerationController().twitch.execute({
         operation: "create-prediction",
         broadcasterId: channelId,
         title,
@@ -156,7 +157,7 @@ export function EngagementPredictions({ channelId }: EngagementPredictionsProps)
       } else {
         logAction = "prediction-resolve";
       }
-      const result = await window.electronAPI.twitch.execute({
+      const result = await getChatModerationController().twitch.execute({
         operation: "end-prediction",
         broadcasterId: channelId,
         predictionId: current.id,

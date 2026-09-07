@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useDownloadDuplicateConfirmationStore } from "@/store/download-duplicate-confirmation-store";
+import { useDownloadDuplicateConfirmationStore } from "@/features/media-library/components/state/download-duplicate-confirmation-store";
 
 export function DownloadDuplicateConfirmationDialog() {
   const { t } = useTranslation();

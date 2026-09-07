@@ -5,5 +5,5 @@ export * from "./stream-page";
 export * from "./stream-route-preload";
 
 export const VideoPage = createPreloadableRoute(() =>
-  import("../../../pages/Video").then((module) => ({ default: module.VideoPage }))
+  import("../components/screens/Video").then((module) => ({ default: module.VideoPage }))
 ).Component;

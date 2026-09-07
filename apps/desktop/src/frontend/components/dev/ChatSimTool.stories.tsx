@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 
-import { seedChatSubsystemStoryStores } from "../../features/chat/components/chat/chat-subsystem-story-fixtures";
+import { seedChatSubsystemStoryStores } from "../../features/chat/tests/stories/chat/chat-subsystem-story-fixtures";
 import { ChatSimTool } from "./ChatSimTool";
 
 const meta = {

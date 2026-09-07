@@ -3,7 +3,7 @@ import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { useStreamRecordingState } from "@/features/media-library/data/use-stream-recording-state";
+import { useStreamRecordingState } from "@/features/media-library/components/hooks/use-stream-recording-state";
 import {
   formatCapturedDuration,
   RECORDING_PHASE_LABEL_KEYS,

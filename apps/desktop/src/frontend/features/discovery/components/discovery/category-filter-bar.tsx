@@ -19,6 +19,7 @@ interface Props {
   sortOrder: "desc" | "asc";
   onSortOrderChange: (v: "desc" | "asc") => void;
   showViewerSort?: boolean;
+  showTag?: boolean;
   compact?: boolean;
 }
 
@@ -33,6 +34,7 @@ export function CategoryFilterBar({
   sortOrder,
   onSortOrderChange,
   showViewerSort = true,
+  showTag = true,
   compact = false,
 }: Props) {
   const { i18n, t } = useTranslation();
@@ -73,23 +75,25 @@ export function CategoryFilterBar({
         </SelectContent>
       </Select>
 
-      <div className={`relative ${compact ? "w-36" : "min-w-[160px]"}`}>
-        <LuSearch
-          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-foreground-muted)] pointer-events-none"
-          aria-hidden="true"
-        />
-        <input
-          aria-label={t("discovery.tag")}
-          type="text"
-          value={tagInput}
-          onChange={(e) => {
-            setTagInput(e.target.value);
-            onTagQueryChange(e.target.value);
-          }}
-          placeholder={t("discovery.searchTags")}
-          className={`${compact ? "h-8 pl-8 pr-2.5 text-xs" : "h-9 pl-9 pr-3 text-sm"} w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background-tertiary)] shadow-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500`}
-        />
-      </div>
+      {showTag && (
+        <div className={`relative ${compact ? "w-36" : "min-w-[160px]"}`}>
+          <LuSearch
+            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-foreground-muted)] pointer-events-none"
+            aria-hidden="true"
+          />
+          <input
+            aria-label={t("discovery.tag")}
+            type="text"
+            value={tagInput}
+            onChange={(e) => {
+              setTagInput(e.target.value);
+              onTagQueryChange(e.target.value);
+            }}
+            placeholder={t("discovery.searchTags")}
+            className={`${compact ? "h-8 pl-8 pr-2.5 text-xs" : "h-9 pl-9 pr-3 text-sm"} w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background-tertiary)] shadow-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500`}
+          />
+        </div>
+      )}
 
       {showViewerSort && (
         <Select value={sortOrder} onValueChange={(v) => onSortOrderChange(v as "desc" | "asc")}>

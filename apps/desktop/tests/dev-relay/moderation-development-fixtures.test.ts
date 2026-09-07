@@ -5,8 +5,8 @@ import {
   getModerationBrowserFixture,
   selectedModerationDevelopmentFixture,
 } from "@/dev-relay/moderation-browser-fixtures";
-import { useAuthStore } from "@/store/auth-store";
-import { useDevModOverrideStore } from "@/store/dev-mod-override-store";
+import { useAuthStore } from "@/features/auth/components/state/auth-store";
+import { useDevModOverrideStore } from "@/features/moderation/components/state/dev-mod-override-store";
 
 beforeEach(() => {
   useAuthStore.setState({ twitchUser: null, twitchConnected: false, isGuest: true });
