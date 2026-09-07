@@ -9,12 +9,14 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const appMock = vi.hoisted(() => ({ isPackaged: false, getPath: () => "" }));
 
 // Electron's `app` reads `__dirname`-style paths at import time; the test
 // environment doesn't have a real Electron runtime so stub it shallowly.
 vi.mock("electron", () => ({
-  app: { isPackaged: false, getPath: () => "" },
+  app: appMock,
   BrowserWindow: class {},
   globalShortcut: { register: () => undefined, unregister: () => undefined },
   screen: {
@@ -30,14 +32,45 @@ import {
   shouldAutoOpenDevTools,
 } from "@backend/window-manager";
 
-// Guards: Windows development launches must use StreamFusion's real ICO instead of Electron's fallback icon
+// Guards: Windows taskbar artwork must survive cleanup of any isolated development build.
+// Guards: packaged launches cannot use an inherited development icon override.
 describe("resolveAppIconPath", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    appMock.isPackaged = false;
+  });
+
   it("resolves the real Windows icon from the built main-process directory", () => {
     const builtMainDirectory = path.resolve(__dirname, "../../out/main");
     const iconPath = resolveAppIconPath(builtMainDirectory, "win32");
 
     expect(path.basename(iconPath)).toBe("icon.ico");
     expect(existsSync(iconPath)).toBe(true);
+  });
+
+  it("uses the persistent source icon across isolated development builds", () => {
+    const sourceIcon = path.resolve(__dirname, "../../assets/icons/icon.ico");
+    vi.stubEnv("STREAMFUSION_DEV_ICON_PATH", sourceIcon);
+
+    for (const run of ["first", "second"]) {
+      const mainDirectory = path.resolve(__dirname, `../../.cache/dev-runs/${run}/app/out/main`);
+      expect(resolveAppIconPath(mainDirectory, "win32")).toBe(sourceIcon);
+    }
+    expect(existsSync(sourceIcon)).toBe(true);
+  });
+
+  it("ignores development artwork for a packaged application", () => {
+    appMock.isPackaged = true;
+    vi.stubEnv("STREAMFUSION_DEV_ICON_PATH", "C:\\old-checkout\\icon.ico");
+    const mainDirectory = path.resolve("C:/StreamFusion/resources/app.asar/out/main");
+    expect(resolveAppIconPath(mainDirectory, "win32")).toBe(
+      path.resolve(mainDirectory, "../../assets/icons/icon.ico")
+    );
+  });
+
+  it("keeps PNG artwork on other platforms even with a Windows development override", () => {
+    vi.stubEnv("STREAMFUSION_DEV_ICON_PATH", "C:\\checkout\\icon.ico");
+    expect(path.basename(resolveAppIconPath("/app/out/main", "linux"))).toBe("icon.png");
   });
 });
 

@@ -12,7 +12,7 @@ const packageJson = JSON.parse(
   readFileSync(path.resolve(__dirname, "../../../../../package.json"), "utf8")
 ) as { build?: { appId?: string; icon?: string; files?: string[] } };
 
-// Guards: Windows must identify the dev Electron process as StreamFusion so the taskbar does not retain Electron's fallback identity
+// Guards: development windows cannot inherit packaged or legacy Electron taskbar group artwork.
 describe("configureAppIdentity", () => {
   it("sets the app ID for a packaged Windows launch", () => {
     const setAppUserModelId = vi.fn();
@@ -23,12 +23,12 @@ describe("configureAppIdentity", () => {
     expect(setAppUserModelId).toHaveBeenCalledWith(packageJson.build?.appId);
   });
 
-  it("identifies development and compiled previews independently of electron.exe", () => {
+  it("separates development and compiled previews from the packaged taskbar group", () => {
     const setAppUserModelId = vi.fn();
 
     configureAppIdentity({ setAppUserModelId }, { platform: "win32", isPackaged: false });
 
-    expect(setAppUserModelId).toHaveBeenCalledExactlyOnceWith(packageJson.build?.appId);
+    expect(setAppUserModelId).toHaveBeenCalledExactlyOnceWith(`${packageJson.build?.appId}.dev`);
   });
 });
 
@@ -47,11 +47,35 @@ describe("configureWindowIdentity", () => {
     expect(setIcon).toHaveBeenCalledOnce();
     expect(setIcon).toHaveBeenCalledWith(iconPath);
     expect(setAppDetails).toHaveBeenCalledExactlyOnceWith({
-      appId: packageJson.build?.appId,
+      appId: `${packageJson.build?.appId}.dev`,
       appIconPath: iconPath,
       appIconIndex: 0,
     });
   });
+
+  it.each([false, true])(
+    "keeps process and window grouping consistent when packaged=%s",
+    (isPackaged) => {
+      const setAppUserModelId = vi.fn();
+      const setAppDetails = vi.fn();
+      const environment = {
+        platform: "win32" as const,
+        isPackaged,
+        executablePath: "C:\\StreamFusion\\StreamFusion.exe",
+      };
+
+      configureAppIdentity({ setAppUserModelId }, environment);
+      configureWindowIdentity(
+        { setAppDetails, setIcon: vi.fn() },
+        "C:\\StreamFusion\\icon.ico",
+        environment
+      );
+
+      const appId = isPackaged ? packageJson.build?.appId : `${packageJson.build?.appId}.dev`;
+      expect(setAppUserModelId).toHaveBeenCalledExactlyOnceWith(appId);
+      expect(setAppDetails).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ appId }));
+    }
+  );
 
   it("uses the packaged executable's embedded icon rather than a virtual ASAR path", () => {
     const setAppDetails = vi.fn();
