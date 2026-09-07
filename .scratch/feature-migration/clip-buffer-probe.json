@@ -1,0 +1,4 @@
+[
+ {"method":"Runtime.evaluate","params":{"expression":"Array.from(document.querySelectorAll('video')).map(v=>({time:v.currentTime,paused:v.paused,ready:v.readyState,network:v.networkState,duration:v.duration,buffered:Array.from({length:v.buffered.length},(_,i)=>[v.buffered.start(i),v.buffered.end(i)]),seekable:Array.from({length:v.seekable.length},(_,i)=>[v.seekable.start(i),v.seekable.end(i)]),quality:v.getVideoPlaybackQuality(),error:v.error?{code:v.error.code,message:v.error.message}:null}))","returnByValue":true}},
+ {"method":"Runtime.evaluate","params":{"expression":"performance.getEntriesByType('resource').filter(e=>e.name.startsWith('twitch-clip-media:')).map(e=>({duration:e.duration,transfer:e.transferSize,encoded:e.encodedBodySize,decoded:e.decodedBodySize,responseStatus:e.responseStatus}))","returnByValue":true}}
+]

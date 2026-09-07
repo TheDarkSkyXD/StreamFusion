@@ -1,0 +1,4 @@
+[
+ {"wait":"Array.from(document.querySelectorAll('a')).some(a=>a.getAttribute('href')?.includes('/categories/twitch/'))","timeout":20000},
+ {"method":"Runtime.evaluate","params":{"expression":"Array.from(document.querySelectorAll('a')).filter(a=>a.getAttribute('href')?.includes('/categories/')).map(a=>({text:a.textContent,href:a.getAttribute('href')}))","returnByValue":true}}
+]

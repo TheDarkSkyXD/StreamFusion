@@ -1,0 +1,231 @@
+{
+  "moves": [
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/emotes/twitch-user-emotes.integration.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/emotes/twitch-user-emotes.integration.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/emotes/twitch-emotes.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/emotes/twitch-emotes.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/emotes/kick-emotes.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/emotes/kick-emotes.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/emotes/7tv-emotes.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/emotes/7tv-emotes.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/emotes/ffz-emotes.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/emotes/ffz-emotes.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/emotes/emote-manager.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/emotes/emote-manager.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/emotes/bttv-emotes.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/emotes/bttv-emotes.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/twitch-roomstate.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/twitch-roomstate.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/twitch-pin-poller.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/twitch-pin-poller.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/twitch-parser.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/twitch-parser.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/twitch-irc-parser.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/twitch-irc-parser.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/twitch-hermes-client.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/twitch-hermes-client.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/kick-chat-pin.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/kick-chat-pin.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/raid-handoff-parsers.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/raid-handoff-parsers.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/kick-predictions-service.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/kick-predictions-service.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/seven-tv-cosmetics-client.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/seven-tv-cosmetics-client.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/twitch-chat.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/twitch-chat.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/third-party-emote-enrich.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/third-party-emote-enrich.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/badge-resolver.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/badge-resolver.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/kick-roomstate.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/kick-roomstate.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/kick-prediction-normalizer.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/kick-prediction-normalizer.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/chat-parser-emotes.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/chat-parser-emotes.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/kick-chat.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/kick-chat.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/kick-parser.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/kick-parser.test.ts"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/api/platforms/kick/kick-predictions.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/api/platforms/kick/kick-predictions.test.ts"
+    }
+  ],
+  "environments": [
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/emotes/twitch-user-emotes.integration.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/emotes/twitch-user-emotes.integration.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/emotes/twitch-emotes.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/emotes/twitch-emotes.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/emotes/kick-emotes.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/emotes/kick-emotes.test.ts",
+      "project": "dom"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/emotes/7tv-emotes.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/emotes/7tv-emotes.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/emotes/ffz-emotes.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/emotes/ffz-emotes.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/emotes/emote-manager.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/emotes/emote-manager.test.ts",
+      "project": "dom"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/emotes/bttv-emotes.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/emotes/bttv-emotes.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/twitch-roomstate.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/twitch-roomstate.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/twitch-pin-poller.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/twitch-pin-poller.test.ts",
+      "project": "dom"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/twitch-parser.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/twitch-parser.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/twitch-irc-parser.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/twitch-irc-parser.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/twitch-hermes-client.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/twitch-hermes-client.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/kick-chat-pin.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/kick-chat-pin.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/raid-handoff-parsers.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/raid-handoff-parsers.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/kick-predictions-service.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/kick-predictions-service.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/seven-tv-cosmetics-client.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/seven-tv-cosmetics-client.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/twitch-chat.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/twitch-chat.test.ts",
+      "project": "dom"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/third-party-emote-enrich.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/third-party-emote-enrich.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/badge-resolver.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/badge-resolver.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/kick-roomstate.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/kick-roomstate.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/kick-prediction-normalizer.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/kick-prediction-normalizer.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/chat-parser-emotes.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/chat-parser-emotes.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/kick-chat.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/kick-chat.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/services/chat/kick-parser.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/services/chat/kick-parser.test.ts",
+      "project": "node"
+    },
+    {
+      "from": "apps/desktop/src/backend/features/chat/tests/api/platforms/kick/kick-predictions.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/api/platforms/kick/kick-predictions.test.ts",
+      "project": "node"
+    }
+  ]
+}

@@ -1,0 +1,238 @@
+{
+  "saveToken": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "getToken": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "saveTwitchFollowWriteToken": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "getTwitchFollowWriteToken": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "clearTwitchFollowWriteToken": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "saveKickWebBearer": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "getKickWebBearer": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "clearKickWebBearer": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "hasToken": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "hasUsableToken": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "isTokenExpired": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "clearToken": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "clearAllTokens": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "saveAppToken": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "getAppToken": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "isAppTokenExpired": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "saveTwitchUser": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "getTwitchUser": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "clearTwitchUser": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "saveKickUser": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "getKickUser": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "clearKickUser": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "getLocalFollows": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "getLocalFollowsByPlatform": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "getActiveFollowsByPlatform": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "getGuestFollowsByPlatform": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "invalidateKickAccountFollows": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "areKickAccountFollowsVerified": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "addLocalFollow": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "removeLocalFollow": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "updateLocalFollow": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "isFollowing": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "importLocalFollows": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "clearAccountFollows": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "upsertSyncedFollows": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "clearLocalFollowsByPlatform": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "clearLocalFollows": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "addPendingFollowWrite": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "updatePendingFollowWriteState": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "removePendingFollowWrite": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "confirmKickUnfollow": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "confirmKickFollow": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "getAllPendingFollowWrites": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "getPendingFollowWritesByPlatform": [
+    "authenticationRepository",
+    "@backend/features/authentication/data/authentication-repository"
+  ],
+  "getPreferences": [
+    "preferencesRepository",
+    "@backend/features/settings/data/preferences-repository"
+  ],
+  "updatePreferences": [
+    "preferencesRepository",
+    "@backend/features/settings/data/preferences-repository"
+  ],
+  "onPreferencesChanged": [
+    "preferencesRepository",
+    "@backend/features/settings/data/preferences-repository"
+  ],
+  "resetPreferences": [
+    "preferencesRepository",
+    "@backend/features/settings/data/preferences-repository"
+  ],
+  "getKickApiRateLimitState": [
+    "kickContinuityRepository",
+    "@backend/features/authentication/data/kick-continuity-repository"
+  ],
+  "saveKickApiRateLimitState": [
+    "kickContinuityRepository",
+    "@backend/features/authentication/data/kick-continuity-repository"
+  ],
+  "clearKickApiRateLimitState": [
+    "kickContinuityRepository",
+    "@backend/features/authentication/data/kick-continuity-repository"
+  ],
+  "getKickFollowedStreamsCache": [
+    "kickContinuityRepository",
+    "@backend/features/authentication/data/kick-continuity-repository"
+  ],
+  "saveKickFollowedStreamsCache": [
+    "kickContinuityRepository",
+    "@backend/features/authentication/data/kick-continuity-repository"
+  ],
+  "getDownloadQueue": [
+    "mediaLibraryPersistence",
+    "@backend/features/media-library/data/media-library-persistence"
+  ],
+  "saveDownloadQueue": [
+    "mediaLibraryPersistence",
+    "@backend/features/media-library/data/media-library-persistence"
+  ],
+  "getLastDownloadDirectory": [
+    "mediaLibraryPersistence",
+    "@backend/features/media-library/data/media-library-persistence"
+  ],
+  "saveLastDownloadDirectory": [
+    "mediaLibraryPersistence",
+    "@backend/features/media-library/data/media-library-persistence"
+  ],
+  "getStreamRecordingJournal": [
+    "mediaLibraryPersistence",
+    "@backend/features/media-library/data/media-library-persistence"
+  ],
+  "saveStreamRecordingJournal": [
+    "mediaLibraryPersistence",
+    "@backend/features/media-library/data/media-library-persistence"
+  ]
+}

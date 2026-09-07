@@ -1,0 +1,149 @@
+[
+    {
+        "handle":  71552,
+        "title":  "StreamFusion",
+        "visible":  true,
+        "icons":  [
+                      {
+                          "kind":  0,
+                          "handle":  71643
+                      },
+                      {
+                          "kind":  1,
+                          "handle":  137139
+                      },
+                      {
+                          "kind":  2,
+                          "handle":  71643
+                      }
+                  ],
+        "classSmall":  1906513,
+        "classBig":  1906513
+    },
+    {
+        "handle":  71856,
+        "title":  "",
+        "visible":  false,
+        "icons":  [
+                      {
+                          "kind":  0,
+                          "handle":  0
+                      },
+                      {
+                          "kind":  1,
+                          "handle":  0
+                      },
+                      {
+                          "kind":  2,
+                          "handle":  0
+                      }
+                  ],
+        "classSmall":  0,
+        "classBig":  0
+    },
+    {
+        "handle":  464758,
+        "title":  "",
+        "visible":  false,
+        "icons":  [
+                      {
+                          "kind":  0,
+                          "handle":  0
+                      },
+                      {
+                          "kind":  1,
+                          "handle":  0
+                      },
+                      {
+                          "kind":  2,
+                          "handle":  0
+                      }
+                  ],
+        "classSmall":  0,
+        "classBig":  0
+    },
+    {
+        "handle":  1118798,
+        "title":  "",
+        "visible":  false,
+        "icons":  [
+                      {
+                          "kind":  0,
+                          "handle":  0
+                      },
+                      {
+                          "kind":  1,
+                          "handle":  0
+                      },
+                      {
+                          "kind":  2,
+                          "handle":  0
+                      }
+                  ],
+        "classSmall":  0,
+        "classBig":  0
+    },
+    {
+        "handle":  1119854,
+        "title":  "",
+        "visible":  false,
+        "icons":  [
+                      {
+                          "kind":  0,
+                          "handle":  0
+                      },
+                      {
+                          "kind":  1,
+                          "handle":  0
+                      },
+                      {
+                          "kind":  2,
+                          "handle":  0
+                      }
+                  ],
+        "classSmall":  0,
+        "classBig":  0
+    },
+    {
+        "handle":  1578598,
+        "title":  "MSCTFIME UI",
+        "visible":  false,
+        "icons":  [
+                      {
+                          "kind":  0,
+                          "handle":  0
+                      },
+                      {
+                          "kind":  1,
+                          "handle":  0
+                      },
+                      {
+                          "kind":  2,
+                          "handle":  0
+                      }
+                  ],
+        "classSmall":  10688205,
+        "classBig":  65579
+    },
+    {
+        "handle":  399158,
+        "title":  "Default IME",
+        "visible":  false,
+        "icons":  [
+                      {
+                          "kind":  0,
+                          "handle":  0
+                      },
+                      {
+                          "kind":  1,
+                          "handle":  0
+                      },
+                      {
+                          "kind":  2,
+                          "handle":  0
+                      }
+                  ],
+        "classSmall":  0,
+        "classBig":  0
+    }
+]

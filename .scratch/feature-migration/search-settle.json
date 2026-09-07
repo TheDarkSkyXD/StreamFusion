@@ -1,0 +1,1 @@
+[{"wait":"location.hash.includes('/search')&&Array.from(document.querySelectorAll('button')).some(e=>e.textContent.trim()===\"Categories\"&&e.className.includes('font-bold'))&&!document.querySelector('div.animate-pulse')","timeout":20000}]

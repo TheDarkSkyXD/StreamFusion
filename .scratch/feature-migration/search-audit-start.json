@@ -1,0 +1,8 @@
+[
+ ["fill","--role","textbox","--name","Search StreamFusion...","--value","bobross"],
+ ["press","--role","textbox","--name","Search StreamFusion...","--key","Enter"],
+ ["wait","--hash","/search"],
+ ["wait","--text","Search Results"],
+ ["snapshot","--output","search-audit-entry.json"],
+ ["screenshot","--output","search-audit-entry.png"]
+]

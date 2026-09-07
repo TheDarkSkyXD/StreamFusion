@@ -1,0 +1,20 @@
+[
+ ["evaluate","--expression","JSON.stringify(Array.from(document.querySelectorAll('video')).map(v => ({readyState:v.readyState,time:v.currentTime,width:v.videoWidth,paused:v.paused})))"],
+ ["click","--role","button","--name","Mute"],
+ ["element","--role","button","--name","Unmute"],
+ ["click","--role","button","--name","Show chat"],
+ ["snapshot","--output","multistream-chat.json"],
+ ["screenshot","--output","multistream-chat.png"],
+ ["click","--role","link","--name","History"],
+ ["click","--role","link","--name","MultiView"],
+ ["wait","--text","BobRoss"],
+ ["snapshot","--output","multistream-restored.json"],
+ ["screenshot","--output","multistream-restored.png"],
+ ["click","--role","button","--name","Remove stream"],
+ ["wait","--text","No active streams"],
+ ["element","--role","button","--name","Focus Layout"],
+ ["click","--role","link","--name","Settings"],
+ ["wait","--text","Personalize your StreamFusion experience","--hash","/settings"],
+ ["snapshot","--output","settings-entry.json"],
+ ["screenshot","--output","settings-entry.png"]
+]

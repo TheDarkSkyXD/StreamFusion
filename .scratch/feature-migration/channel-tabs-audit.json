@@ -1,0 +1,12 @@
+[
+ ["click","--role","button","--name","Hide active chatters"],
+ ["click","--role","link","--name","Videos"],
+ ["snapshot","--output","stream-twitch-videos.json"],
+ ["screenshot","--output","stream-twitch-videos.png"],
+ ["click","--role","link","--name","Clips"],
+ ["snapshot","--output","stream-twitch-clips.json"],
+ ["screenshot","--output","stream-twitch-clips.png"],
+ ["evaluate","--expression","location.hash = '#/stream/kick/trainwreckstv'"],
+ ["wait","--hash","/stream/kick/trainwreckstv"],
+ ["snapshot","--output","stream-kick-loading.json"]
+]

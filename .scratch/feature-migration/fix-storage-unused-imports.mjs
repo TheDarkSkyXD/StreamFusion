@@ -1,0 +1,2 @@
+import fs from 'node:fs';import path from 'node:path';import {ESLint} from '../../node_modules/eslint/lib/api.js';
+const eslint=new ESLint({cwd:path.resolve('apps/desktop'),fix:true});const files=['apps/desktop/src/backend/features/settings/data/persistent-store-schema.ts','apps/desktop/src/backend/services/storage-service.ts','apps/desktop/tests/backend/services/storage-service.test.ts'];const results=await eslint.lintFiles(files.map(f=>path.resolve(f)));await ESLint.outputFixes(results);

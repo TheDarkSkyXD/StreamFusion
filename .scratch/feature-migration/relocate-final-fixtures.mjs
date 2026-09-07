@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import {execFileSync} from 'node:child_process';
+import {prepareRelocation} from '../../scripts/relocate-feature-files.mjs';
+const base='apps/desktop/src/frontend/features/';
+const files=execFileSync('git',['ls-files','--cached','--others','--exclude-standard','-z','apps/desktop/src','apps/desktop/tests']).toString().split('\0').filter(f=>f&&fs.existsSync(f));
+const moves=files.filter(file=>file.startsWith(base)&&/\/components\/.*story-fixtures\.ts$/.test(file)).map(from=>({from,to:from.replace('/components/screens/','/tests/stories/pages/').replace('/components/','/tests/stories/')}));
+const result=prepareRelocation(process.cwd(),moves,files);
+result.apply();
+const manifest='.scratch/feature-migration/final-fixture-moves.json';
+const previous=fs.existsSync(manifest)?JSON.parse(fs.readFileSync(manifest,'utf8')).moves:[];
+fs.writeFileSync(manifest,JSON.stringify({moves:[...previous,...moves]},null,2)+'\n');
+console.log({moves:result.moves.length,repairs:result.changes.length});

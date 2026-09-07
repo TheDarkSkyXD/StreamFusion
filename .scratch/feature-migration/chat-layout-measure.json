@@ -1,0 +1,4 @@
+[
+ ["evaluate","--expression","JSON.stringify((() => { const rail = document.querySelector('[data-testid=stream-chat-rail]'); const login = Array.from(rail.querySelectorAll('button')).find(b => b.textContent.includes('Log in to chat')); const box = e => { const r=e.getBoundingClientRect(); return {tag:e.tagName,classes:e.className,display:getComputedStyle(e).display,top:r.top,bottom:r.bottom,height:r.height}; }; return {rail:box(rail),composer:box(login),ancestors:Array.from((function*(){let e=login;while(e&&e!==rail){yield e;e=e.parentElement;}})()).map(box),composerAtBottom:login.getBoundingClientRect().top>rail.getBoundingClientRect().top+rail.clientHeight/2}; })())"],
+ ["screenshot","--output","chat-height-before.png"]
+]

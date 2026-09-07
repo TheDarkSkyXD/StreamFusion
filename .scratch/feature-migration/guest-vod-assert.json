@@ -1,0 +1,1 @@
+[{"method":"Runtime.evaluate","params":{"expression":"({visibility:document.visibilityState,media:[...document.querySelectorAll('video')].map(v=>({time:v.currentTime,paused:v.paused,ready:v.readyState,error:v.error?.message})),chat:document.body.innerText.slice(-700)})","returnByValue":true}}]

@@ -1,0 +1,15 @@
+[
+ ["click","--role","button","--name","Mute"],
+ ["element","--role","button","--name","Unmute"],
+ ["click","--role","tab","--name","Merged"],
+ ["snapshot","--output","compiled-multi-merged.json"],
+ ["click","--role","tab","--name","bobross"],
+ ["click","--role","link","--name","History"],
+ ["click","--role","link","--name","MultiView"],
+ ["snapshot","--output","compiled-multi-restored.json"],
+ ["click","--role","button","--name","Remove stream"],
+ ["wait","--text","No active streams"],
+ ["snapshot","--output","compiled-multi-removed.json"],
+ ["screenshot","--output","compiled-multi-removed.png"],
+ ["evaluate","--expression","Array.from(document.querySelectorAll('[data-diagnostics-stream-slot]')).length"]
+]

@@ -1,0 +1,3 @@
+[
+ ["evaluate","--expression","Array.from(document.images).map(i=>({alt:i.alt,src:i.currentSrc||i.src,complete:i.complete,width:i.naturalWidth,visible:i.getBoundingClientRect().width>0})).filter(i=>i.visible&&(!i.width||i.src.includes('kick')))"]
+]

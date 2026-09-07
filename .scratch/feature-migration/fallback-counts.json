@@ -1,0 +1,44 @@
+{
+  "apps/integration-relay/src": {
+    "files": 2,
+    "matchingFiles": 0,
+    "matchingLines": 0,
+    "identifierOccurrences": 0,
+    "matchingIdentifierFiles": 0
+  },
+  "packages/core/src": {
+    "files": 27,
+    "matchingFiles": 1,
+    "matchingLines": 1,
+    "identifierOccurrences": 1,
+    "matchingIdentifierFiles": 1
+  },
+  "apps/mobile/app": {
+    "files": 3,
+    "matchingFiles": 0,
+    "matchingLines": 0,
+    "identifierOccurrences": 0,
+    "matchingIdentifierFiles": 0
+  },
+  "apps/worker/src": {
+    "files": 8,
+    "matchingFiles": 0,
+    "matchingLines": 0,
+    "identifierOccurrences": 0,
+    "matchingIdentifierFiles": 0
+  },
+  "apps/desktop/src": {
+    "files": 927,
+    "matchingFiles": 177,
+    "matchingLines": 680,
+    "identifierOccurrences": 516,
+    "matchingIdentifierFiles": 103
+  },
+  "apps/mobile/src": {
+    "files": 30,
+    "matchingFiles": 3,
+    "matchingLines": 20,
+    "identifierOccurrences": 4,
+    "matchingIdentifierFiles": 1
+  }
+}

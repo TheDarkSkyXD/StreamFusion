@@ -1,0 +1,11 @@
+[
+ ["press","--role","button","--name","Chat settings","--key","Escape"],
+ ["click","--role","button","--name","Show active chatters"],
+ ["snapshot","--output","twitch-active-chatters.json"],
+ ["screenshot","--output","twitch-active-chatters.png"],
+ ["click","--role","button","--name","Show active chatters"],
+ ["snapshot","--output","twitch-tabs-source.json"],
+ ["evaluate","--expression","location.hash = '#/stream/kick/trainwreckstv'"],
+ ["wait","--hash","/stream/kick/trainwreckstv"],
+ ["snapshot","--output","stream-kick-loading.json"]
+]

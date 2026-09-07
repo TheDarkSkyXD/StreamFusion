@@ -1,0 +1,5 @@
+[
+ {"method":"Input.dispatchMouseEvent","params":{"type":"mousePressed","button":"left","clickCount":1,"x":1297,"y":227}},
+ {"method":"Input.dispatchMouseEvent","params":{"type":"mouseReleased","button":"left","clickCount":1,"x":1297,"y":227}},
+ {"wait":"!document.querySelector('[role=dialog]')"}
+]

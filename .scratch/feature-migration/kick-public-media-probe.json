@@ -1,0 +1,128 @@
+[
+  {
+    "url": "https://kick.com/api/v2/categories/grand-theft-auto-v/clips?cursor=0&limit=20&sort=view&time=all",
+    "status": 200,
+    "contentType": "application/json",
+    "bytes": 22065,
+    "shape": [
+      "clips",
+      "nextCursor"
+    ],
+    "count": 20,
+    "nextCursor": "clip_01HY165PA5SP9ZQX9SD723PMMC",
+    "firstKeys": [
+      "id",
+      "livestream_id",
+      "category_id",
+      "channel_id",
+      "user_id",
+      "title",
+      "clip_url",
+      "thumbnail_url",
+      "privacy",
+      "likes",
+      "liked",
+      "views",
+      "duration",
+      "started_at",
+      "created_at",
+      "vod_starts_at",
+      "is_mature",
+      "video_url",
+      "view_count",
+      "likes_count",
+      "category",
+      "creator",
+      "channel"
+    ]
+  },
+  {
+    "url": "https://kick.com/api/v2/channels/xqc/videos?cursor=0&limit=20&sort=date",
+    "status": 200,
+    "contentType": "application/json",
+    "bytes": 53153,
+    "shape": "array",
+    "count": 20,
+    "nextCursor": null,
+    "firstKeys": [
+      "id",
+      "slug",
+      "channel_id",
+      "created_at",
+      "session_title",
+      "is_live",
+      "risk_level_id",
+      "start_time",
+      "source",
+      "twitch_channel",
+      "duration",
+      "language",
+      "is_mature",
+      "viewer_count",
+      "tags",
+      "thumbnail",
+      "views",
+      "video",
+      "categories"
+    ]
+  },
+  {
+    "url": "https://kick.com/api/v2/channels/xqc/clips?cursor=0&limit=20&sort=date",
+    "status": 200,
+    "contentType": "application/json",
+    "bytes": 20198,
+    "shape": [
+      "clips",
+      "nextCursor"
+    ],
+    "count": 20,
+    "nextCursor": "{\"view\":0,\"id\":\"clip_01M1TMSY2MP50HDZ3KJQ9TFSVY\"}",
+    "firstKeys": [
+      "id",
+      "livestream_id",
+      "category_id",
+      "channel_id",
+      "user_id",
+      "title",
+      "clip_url",
+      "thumbnail_url",
+      "privacy",
+      "likes",
+      "liked",
+      "views",
+      "duration",
+      "started_at",
+      "created_at",
+      "vod_starts_at",
+      "is_mature",
+      "video_url",
+      "view_count",
+      "likes_count",
+      "category",
+      "creator",
+      "channel"
+    ]
+  },
+  {
+    "url": "https://kick.com/category/grand-theft-auto-v",
+    "status": 200,
+    "contentType": "text/html; charset=utf-8",
+    "bytes": 658135,
+    "categoryTabLinks": [
+      "https://kick.com/category/grand-theft-auto-v",
+      "/category/grand-theft-auto-v",
+      "/category/grand-theft-auto-v/clips"
+    ]
+  },
+  {
+    "url": "https://api.kick.com/swagger/doc.yaml",
+    "status": 200,
+    "contentType": "text/plain; charset=utf-8",
+    "bytes": 71553,
+    "mediaPaths": [
+      "  /public/v1/categories:",
+      "  /public/v1/categories/{category_id}:",
+      "  /public/v2/categories:"
+    ]
+  }
+]

@@ -1,0 +1,5 @@
+[
+ ["evaluate","--expression","location.hash='/stream/twitch/bobross'"],
+ ["wait","--text","Art","--timeout","20000"],
+ ["evaluate","--expression","Array.from(document.querySelectorAll('a')).filter(a=>a.getAttribute('href')?.includes('/categories/')).map(a=>({text:a.textContent,href:a.getAttribute('href')}))"]
+]

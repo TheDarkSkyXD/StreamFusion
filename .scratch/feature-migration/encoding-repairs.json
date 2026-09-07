@@ -1,0 +1,50 @@
+[
+  {
+    "file": "apps/desktop/src/frontend/features/chat/components/chat/ChatInput.tsx",
+    "lines": 12,
+    "examples": [
+      "   *  resolved yet â€” InfoBanner and both EmotePickerPopovers degrade gracefully",
+      "   *  and contaminate cross-channel state â€” see code review R9). */"
+    ]
+  },
+  {
+    "file": "apps/desktop/src/frontend/features/chat/components/chat/kick/KickChat.tsx",
+    "lines": 24,
+    "examples": [
+      "  // Chat store â€” subscribe only to fields read in render; actions have stable refs.",
+      "  // Emote store â€” actions only; no render-time data needed here."
+    ]
+  },
+  {
+    "file": "apps/desktop/src/frontend/features/chat/components/chat/twitch/TwitchChat.tsx",
+    "lines": 26,
+    "examples": [
+      "/** U13/U15 â€” widened mod-action state. `messageScoped` covers U11's hover",
+      "  // Chat store â€” subscribe only to fields read in render; actions have stable refs."
+    ]
+  },
+  {
+    "file": "apps/desktop/src/frontend/features/auth/components/state/auth-store.ts",
+    "lines": 8,
+    "examples": [
+      "   * populated so the UI can show \"<displayName> â€” Reconnect\" instead of",
+      "        // The listener is intentionally never unregistered â€” it lives for the app lifetime."
+    ]
+  },
+  {
+    "file": "apps/desktop/src/frontend/features/chat/tests/components/chat/KickChat.test.tsx",
+    "lines": 13,
+    "examples": [
+      "// U11 â€” capture ChatMessageList callbacks so tests can simulate toolbar clicks.",
+      "// Guards: loading state â€” canSend stays false while the Pusher connection is in 'disconnected' state and the kick token is still resolving, so the chat input doesn't accept input bound for the void"
+    ]
+  },
+  {
+    "file": "apps/desktop/src/frontend/features/chat/tests/components/chat/TwitchChat.test.tsx",
+    "lines": 14,
+    "examples": [
+      "// U11 â€” capture the latest ChatMessageList props so tests can simulate a",
+      "  // and `canSend` becomes `undefined && bool === undefined` â€” which masks"
+    ]
+  }
+]

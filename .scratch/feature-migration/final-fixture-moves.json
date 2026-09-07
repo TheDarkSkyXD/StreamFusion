@@ -1,0 +1,44 @@
+{
+  "moves": [
+    {
+      "from": "apps/desktop/src/frontend/features/multistream/components/multistream/multistream-story-fixtures.ts",
+      "to": "apps/desktop/src/frontend/features/multistream/tests/stories/multistream/multistream-story-fixtures.ts"
+    },
+    {
+      "from": "apps/desktop/src/frontend/features/media-library/components/recording/recording-story-fixtures.ts",
+      "to": "apps/desktop/src/frontend/features/media-library/tests/stories/recording/recording-story-fixtures.ts"
+    },
+    {
+      "from": "apps/desktop/src/frontend/features/discovery/components/screens/Following/story-fixtures.ts",
+      "to": "apps/desktop/src/frontend/features/discovery/tests/stories/pages/Following/story-fixtures.ts"
+    },
+    {
+      "from": "apps/desktop/src/frontend/features/discovery/components/screens/Home/story-fixtures.ts",
+      "to": "apps/desktop/src/frontend/features/discovery/tests/stories/pages/Home/story-fixtures.ts"
+    },
+    {
+      "from": "apps/desktop/src/frontend/features/discovery/components/screens/SearchResults/story-fixtures.ts",
+      "to": "apps/desktop/src/frontend/features/discovery/tests/stories/pages/SearchResults/story-fixtures.ts"
+    },
+    {
+      "from": "apps/desktop/src/frontend/features/chat/components/chat-replay/chat-replay-story-fixtures.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/stories/chat-replay/chat-replay-story-fixtures.ts"
+    },
+    {
+      "from": "apps/desktop/src/frontend/features/chat/components/chat/chat-story-fixtures.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/stories/chat/chat-story-fixtures.ts"
+    },
+    {
+      "from": "apps/desktop/src/frontend/features/chat/components/chat/chat-subsystem-story-fixtures.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/stories/chat/chat-subsystem-story-fixtures.ts"
+    },
+    {
+      "from": "apps/desktop/src/frontend/features/playback/components/player/player-story-fixtures.ts",
+      "to": "apps/desktop/src/frontend/features/playback/tests/stories/player/player-story-fixtures.ts"
+    },
+    {
+      "from": "apps/desktop/src/frontend/features/playback/components/related-content/related-content-story-fixtures.ts",
+      "to": "apps/desktop/src/frontend/features/playback/tests/stories/related-content/related-content-story-fixtures.ts"
+    }
+  ]
+}

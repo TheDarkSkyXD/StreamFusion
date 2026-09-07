@@ -1,0 +1,1 @@
+[{"method":"Runtime.evaluate","params":{"expression":"[...document.images].filter(i=>{const r=i.getBoundingClientRect();return r.bottom>0&&r.top<innerHeight&&r.width>0}).map(i=>({alt:i.alt,loaded:i.complete,width:i.naturalWidth,host:i.currentSrc?new URL(i.currentSrc).host:'',top:Math.round(i.getBoundingClientRect().top)}))","returnByValue":true}}]

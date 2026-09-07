@@ -1,0 +1,5 @@
+[
+ ["evaluate","--expression","Array.from(document.querySelectorAll('video')).map(v=>({time:v.currentTime,paused:v.paused,ready:v.readyState,width:v.videoWidth,height:v.videoHeight,error:v.error?.code,src:v.currentSrc?new URL(v.currentSrc).origin:null}))"],
+ ["snapshot","--output","clip-playback-current.json"],
+ ["screenshot","--output","clip-playback-current.png"]
+]

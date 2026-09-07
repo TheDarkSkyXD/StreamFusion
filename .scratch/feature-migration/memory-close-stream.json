@@ -1,0 +1,6 @@
+[
+ ["click","--role","link","--name","Settings"],
+ ["wait","--hash","/settings","--text","Personalize your StreamFusion experience"],
+ ["evaluate","--expression","JSON.stringify({url:location.hash,heap:performance.memory?{used:performance.memory.usedJSHeapSize,total:performance.memory.totalJSHeapSize}:null,domNodes:document.querySelectorAll('*').length,images:document.images.length,videos:document.querySelectorAll('video').length})"],
+ ["snapshot","--output","settings-memory-idle.json"]
+]

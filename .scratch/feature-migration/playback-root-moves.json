@@ -1,0 +1,39 @@
+{
+  "moves": [
+    {
+      "from": "apps/desktop/src/frontend/features/playback/components/player/types.ts",
+      "to": "apps/desktop/src/frontend/features/playback/capabilities/media-types.ts",
+      "feature": "playback"
+    },
+    {
+      "from": "apps/desktop/src/frontend/features/playback/components/player/quality-preference.ts",
+      "to": "apps/desktop/src/frontend/features/playback/domain/quality-preference.ts",
+      "feature": "playback"
+    },
+    {
+      "from": "apps/desktop/src/frontend/features/playback/components/player/hls-buffer-config.ts",
+      "to": "apps/desktop/src/frontend/features/playback/adapters/browser/hls-buffer-config.ts",
+      "feature": "playback"
+    },
+    {
+      "from": "apps/desktop/src/frontend/features/playback/components/player/twitch/twitch-adblock-loader.ts",
+      "to": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-adblock-loader.ts",
+      "feature": "playback"
+    },
+    {
+      "from": "apps/desktop/src/frontend/features/playback/components/player/twitch/twitch-adblock-service.ts",
+      "to": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-adblock-service.ts",
+      "feature": "playback"
+    },
+    {
+      "from": "apps/desktop/src/frontend/features/playback/components/player/twitch/twitch-adblock-device-id.ts",
+      "to": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-adblock-device-id.ts",
+      "feature": "playback"
+    },
+    {
+      "from": "apps/desktop/src/frontend/features/playback/components/player/twitch/playback-advanced-config.ts",
+      "to": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/playback-advanced-config.ts",
+      "feature": "playback"
+    }
+  ]
+}

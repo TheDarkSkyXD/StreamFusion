@@ -1,0 +1,255 @@
+{
+  "assignments": [
+    {
+      "name": "classifyGqlErrorForHealth",
+      "owner": "transport"
+    },
+    {
+      "name": "GQL_ENDPOINT",
+      "owner": "transport"
+    },
+    {
+      "name": "GQL_CLIENT_ID",
+      "owner": "transport"
+    },
+    {
+      "name": "MAX_QUERIES_PER_REQUEST",
+      "owner": "transport"
+    },
+    {
+      "name": "MAX_CATEGORY_VIEWER_COUNT_IDS",
+      "owner": "discovery"
+    },
+    {
+      "name": "GQL_REQUEST_TIMEOUT_MS",
+      "owner": "transport"
+    },
+    {
+      "name": "GqlQuery",
+      "owner": "transport"
+    },
+    {
+      "name": "GqlResponses",
+      "owner": "transport"
+    },
+    {
+      "name": "ValidGqlEnvelope",
+      "owner": "transport"
+    },
+    {
+      "name": "isGqlError",
+      "owner": "transport"
+    },
+    {
+      "name": "hasValidGqlEnvelope",
+      "owner": "transport"
+    },
+    {
+      "name": "gqlRequest",
+      "owner": "transport"
+    },
+    {
+      "name": "sendPersistedQuery",
+      "owner": "transport"
+    },
+    {
+      "name": "extractLoginFromPreviewUrl",
+      "owner": "discovery"
+    },
+    {
+      "name": "transformGqlStream",
+      "owner": "discovery"
+    },
+    {
+      "name": "onlyRoutableStreams",
+      "owner": "discovery"
+    },
+    {
+      "name": "enrichRecoveredStreamMetadata",
+      "owner": "discovery"
+    },
+    {
+      "name": "gameSlugCache",
+      "owner": "discovery"
+    },
+    {
+      "name": "resolveGameSlugById",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlGetGameMetadata",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlGetGameStreamsBySlug",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlGetStreamsByGameId",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlGetStreamsByGameIdRaw",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlGetTopStreams",
+      "owner": "discovery"
+    },
+    {
+      "name": "STREAM_TAGS_AND_LANGUAGE_QUERY",
+      "owner": "discovery"
+    },
+    {
+      "name": "StreamTagsAndLanguageData",
+      "owner": "discovery"
+    },
+    {
+      "name": "getRawTagsAndLanguageQuery",
+      "owner": "discovery"
+    },
+    {
+      "name": "extractTagsAndLanguage",
+      "owner": "discovery"
+    },
+    {
+      "name": "getTagsAndLanguageByLogins",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlGetStreamByLogin",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlGetStreamsByLogins",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlGetTopCategories",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlGetAllTopCategories",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlGetCategoryById",
+      "owner": "discovery"
+    },
+    {
+      "name": "CategoryViewerCountGame",
+      "owner": "discovery"
+    },
+    {
+      "name": "isCategoryViewerCountGame",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlGetCategoryViewerCountsByIds",
+      "owner": "discovery"
+    },
+    {
+      "name": "isIntegrityRejectionError",
+      "owner": "discovery"
+    },
+    {
+      "name": "processGqlSearchErrors",
+      "owner": "discovery"
+    },
+    {
+      "name": "SearchChannelEdgeItem",
+      "owner": "discovery"
+    },
+    {
+      "name": "transformSearchChannel",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlSearchChannelsLoadMore",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlSearchChannels",
+      "owner": "discovery"
+    },
+    {
+      "name": "buildPaginatedResult",
+      "owner": "discovery"
+    },
+    {
+      "name": "SearchGameEdgeItem",
+      "owner": "discovery"
+    },
+    {
+      "name": "transformSearchGame",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlSearchCategoriesLoadMore",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlSearchCategories",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlGetChannelByLogin",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlGetVideosByChannel",
+      "owner": "playback"
+    },
+    {
+      "name": "gqlGetClipsByChannel",
+      "owner": "playback"
+    },
+    {
+      "name": "gqlGetPlaybackAccessToken",
+      "owner": "playback"
+    },
+    {
+      "name": "gqlGetVodAccessToken",
+      "owner": "playback"
+    },
+    {
+      "name": "gqlGetClipAccessToken",
+      "owner": "playback"
+    },
+    {
+      "name": "gqlGetVideoMetadata",
+      "owner": "playback"
+    },
+    {
+      "name": "gqlIsChannelLive",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlGetFollowerCount",
+      "owner": "discovery"
+    },
+    {
+      "name": "gqlFetchGamesForVideos",
+      "owner": "playback"
+    }
+  ],
+  "deletedUnusedFunctions": [
+    "gqlGetChannelsByLogins",
+    "gqlGetUserIdByLogin"
+  ],
+  "paths": {
+    "transport": "apps/desktop/src/backend/api/platforms/twitch/twitch-gql-client.ts",
+    "discovery": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-gql-discovery.ts",
+    "playback": "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-gql-playback.ts"
+  },
+  "testPaths": {
+    "transport": "apps/desktop/tests/backend/api/platforms/twitch/twitch-gql-client.test.ts",
+    "discovery": "apps/desktop/src/backend/features/discovery/tests/api/platforms/twitch/twitch-gql-discovery.test.ts",
+    "playback": "apps/desktop/src/backend/features/playback/tests/api/platforms/twitch/twitch-gql-playback.test.ts"
+  },
+  "suiteCounts": {
+    "transport": 5,
+    "discovery": 17,
+    "playback": 7
+  }
+}

@@ -1,0 +1,6 @@
+[
+ ["evaluate","--expression","({active:document.activeElement?.outerHTML?.slice(0,500),inputs:Array.from(document.querySelectorAll('[role=dialog] input')).map(e=>({placeholder:e.placeholder,value:e.value,rect:{x:e.getBoundingClientRect().x,y:e.getBoundingClientRect().y,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height}})),tabs:Array.from(document.querySelectorAll('[role=tab]')).map(e=>({name:e.textContent,selected:e.getAttribute('aria-selected')}))})"],
+ ["click","--role","textbox","--name","Search live Twitch and Kick channels..."],
+ ["snapshot","--output","compiled-multi-search-focused.json"],
+ ["screenshot","--output","compiled-multi-search-focused.png"]
+]

@@ -1,0 +1,14 @@
+diff --git a/apps/desktop/src/backend/features/shell/domain/app-identity.ts b/apps/desktop/src/backend/features/shell/domain/app-identity.ts
+index fcd2c9a..38f9e6c 100644
+--- a/apps/desktop/src/backend/features/shell/domain/app-identity.ts
++++ b/apps/desktop/src/backend/features/shell/domain/app-identity.ts
+@@ -32,9 +32,6 @@ export function configureWindowIdentity(
+ ): void {
+   if (environment.platform === "win32") {
+     window.setIcon(iconPath);
+-  }
+-
+-  if (environment.platform === "win32") {
+     window.setAppDetails({
+       appId: WINDOWS_APP_USER_MODEL_ID,
+       // Windows Shell cannot load icon resources through Electron's virtual ASAR filesystem.

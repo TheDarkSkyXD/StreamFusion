@@ -1,0 +1,1 @@
+[{"wait":"Array.from(document.images).filter(i=>{const r=i.getBoundingClientRect();return r.width>0&&r.height>0&&r.top<innerHeight&&r.bottom>84&&r.right>224}).every(i=>i.complete)","timeout":20000}]

@@ -1,0 +1,6 @@
+[
+ ["evaluate","--expression","({slots:Array.from(document.querySelectorAll('[data-diagnostics-stream-slot]')).map(e=>({id:e.getAttribute('data-diagnostics-stream-slot'),text:e.innerText,rect:{x:e.getBoundingClientRect().x,y:e.getBoundingClientRect().y,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height}})),videos:Array.from(document.querySelectorAll('video')).map(v=>({time:v.currentTime,ready:v.readyState,width:v.videoWidth,paused:v.paused})),visibility:document.visibilityState})"],
+ ["click","--role","button","--name","Show chat"],
+ ["snapshot","--output","compiled-multi-chat.json"],
+ ["screenshot","--output","compiled-multi-chat.png"]
+]

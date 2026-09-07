@@ -1,0 +1,29 @@
+{
+  "moves": [
+    {"from":"packages/core/src/activity/index.ts","to":"packages/core/src/features/activity/domain/index.ts"},
+    {"from":"packages/core/src/auth/index.ts","to":"packages/core/src/features/auth/domain/index.ts"},
+    {"from":"packages/core/src/capabilities/auth.ts","to":"packages/core/src/features/auth/capabilities/auth.ts"},
+    {"from":"packages/core/src/use-cases/oauth2-session.ts","to":"packages/core/src/features/auth/domain/oauth2-session.ts"},
+    {"from":"packages/core/src/chat/index.ts","to":"packages/core/src/features/chat/domain/index.ts"},
+    {"from":"packages/core/src/capabilities/chat.ts","to":"packages/core/src/features/chat/capabilities/chat.ts"},
+    {"from":"packages/core/src/use-cases/chat-send-policy.ts","to":"packages/core/src/features/chat/domain/chat-send-policy.ts"},
+    {"from":"packages/core/src/content/index.ts","to":"packages/core/src/features/content/domain/index.ts"},
+    {"from":"packages/core/src/discovery/index.ts","to":"packages/core/src/features/discovery/domain/index.ts"},
+    {"from":"packages/core/src/capabilities/discovery.ts","to":"packages/core/src/features/discovery/capabilities/discovery.ts"},
+    {"from":"packages/core/src/use-cases/discovery-rules.ts","to":"packages/core/src/features/discovery/domain/discovery-rules.ts"},
+    {"from":"packages/core/src/use-cases/progressive-discovery.ts","to":"packages/core/src/features/discovery/domain/progressive-discovery.ts"},
+    {"from":"packages/core/src/follows/index.ts","to":"packages/core/src/features/follows/domain/index.ts"},
+    {"from":"packages/core/src/capabilities/follows.ts","to":"packages/core/src/features/follows/capabilities/follows.ts"},
+    {"from":"packages/core/src/use-cases/follow-policy.ts","to":"packages/core/src/features/follows/domain/follow-policy.ts"},
+    {"from":"packages/core/src/use-cases/live-notification-policy.ts","to":"packages/core/src/features/follows/domain/live-notification-policy.ts"},
+    {"from":"packages/core/src/reliability/index.ts","to":"packages/core/src/features/reliability/domain/index.ts"},
+    {"from":"packages/core/tests/activity.test.mjs","to":"packages/core/src/features/activity/tests/activity.test.mjs"},
+    {"from":"packages/core/tests/auth.test.mjs","to":"packages/core/src/features/auth/tests/auth.test.mjs"},
+    {"from":"packages/core/tests/chat.test.mjs","to":"packages/core/src/features/chat/tests/chat.test.mjs"},
+    {"from":"packages/core/tests/content.test.mjs","to":"packages/core/src/features/content/tests/content.test.mjs"},
+    {"from":"packages/core/tests/discovery.test.mjs","to":"packages/core/src/features/discovery/tests/discovery.test.mjs"},
+    {"from":"packages/core/tests/follows.test.mjs","to":"packages/core/src/features/follows/tests/follows.test.mjs"},
+    {"from":"packages/core/tests/notifications.test.mjs","to":"packages/core/src/features/follows/tests/notifications.test.mjs"},
+    {"from":"packages/core/tests/reliability.test.mjs","to":"packages/core/src/features/reliability/tests/reliability.test.mjs"}
+  ]
+}

@@ -1,0 +1,5 @@
+[
+ ["click","--role","button","--name","Chat settings"],
+ ["snapshot","--output","twitch-chat-settings.json"],
+ ["screenshot","--output","twitch-chat-settings.png"]
+]

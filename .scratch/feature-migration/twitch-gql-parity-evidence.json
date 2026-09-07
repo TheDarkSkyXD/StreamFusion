@@ -1,0 +1,13 @@
+{
+  "unchangedDeclarations": 58,
+  "unchangedSuites": 29,
+  "removedUnusedFunctions": [
+    "gqlGetChannelsByLogins",
+    "gqlGetUserIdByLogin"
+  ],
+  "transportExports": [
+    "MAX_QUERIES_PER_REQUEST",
+    "gqlRequest",
+    "sendPersistedQuery"
+  ]
+}

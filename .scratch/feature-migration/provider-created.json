@@ -1,0 +1,19 @@
+[
+  "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-discovery-reader.ts",
+  "apps/desktop/src/backend/features/discovery/composition/twitch-discovery.ts",
+  "apps/desktop/src/backend/features/authentication/adapters/twitch/twitch-account-reader.ts",
+  "apps/desktop/src/backend/features/authentication/composition/twitch-account-reader.ts",
+  "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-playback-reader.ts",
+  "apps/desktop/src/backend/features/playback/composition/twitch-playback.ts",
+  "apps/desktop/src/backend/features/discovery/adapters/kick/kick-discovery-reader.ts",
+  "apps/desktop/src/backend/features/discovery/composition/kick-discovery.ts",
+  "apps/desktop/src/backend/features/authentication/adapters/kick/kick-account-reader.ts",
+  "apps/desktop/src/backend/features/authentication/composition/kick-account-reader.ts",
+  "apps/desktop/src/backend/features/playback/adapters/kick/kick-playback-reader.ts",
+  "apps/desktop/src/backend/features/playback/composition/kick-playback.ts",
+  "apps/desktop/src/backend/api/platforms/kick/kick-transport.ts",
+  "apps/desktop/src/backend/features/authentication/adapters/twitch/account-endpoints.ts",
+  "apps/desktop/src/backend/features/discovery/adapters/twitch/user-endpoints.ts",
+  "apps/desktop/src/backend/features/authentication/adapters/kick/account-endpoints.ts",
+  "apps/desktop/src/backend/features/discovery/adapters/kick/user-endpoints.ts"
+]

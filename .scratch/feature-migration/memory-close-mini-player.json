@@ -1,0 +1,4 @@
+[
+ ["click","--role","button","--name","Close mini player"],
+ ["evaluate","--expression","JSON.stringify({url:location.hash,videos:document.querySelectorAll('video').length,images:document.images.length,heap:performance.memory.usedJSHeapSize})"]
+]

@@ -1,0 +1,6 @@
+[
+ ["evaluate","--expression","location.hash='/stream/kick/trainwreckstv'"],
+ ["wait","--hash","/stream/kick/trainwreckstv"],
+ ["wait","--text","Trainwreckstv","--timeout","30000"],
+ ["snapshot","--output","compiled-kick-before.json"]
+]

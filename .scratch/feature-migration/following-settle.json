@@ -1,0 +1,1 @@
+[{"wait":"Array.from(document.querySelectorAll('button')).some(e=>e.textContent.trim()===\"Channels\"&&e.className.includes('after:bg-white'))&&!document.querySelector('div.animate-pulse')","timeout":20000}]

@@ -1,0 +1,10 @@
+[
+ ["click","--role","tab","--name","Favorites"],
+ ["snapshot","--output","multistream-favorites.json"],
+ ["screenshot","--output","multistream-favorites.png"],
+ ["click","--role","tab","--name","Search"],
+ ["fill","--role","textbox","--name","Search live Twitch and Kick channels...","--value","BobRoss"],
+ ["wait","--text","BobRoss","--timeout","30000"],
+ ["snapshot","--output","multistream-search.json"],
+ ["screenshot","--output","multistream-search.png"]
+]

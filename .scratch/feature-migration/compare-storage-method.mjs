@@ -1,0 +1,3 @@
+import fs from 'node:fs';import ts from '../../node_modules/typescript/lib/typescript.js';
+function method(file,name){const text=fs.readFileSync(file,'utf8');const ast=ts.createSourceFile(file,text,ts.ScriptTarget.Latest,true);for(const s of ast.statements)if(ts.isClassDeclaration(s))for(const m of s.members)if(m.name?.getText(ast)===name)return m.body.getText(ast);}
+const a=method('.scratch/feature-migration/database-before.ts','addFollow'),b=method('apps/desktop/src/backend/features/authentication/data/follow-repository.ts','addFollow');fs.writeFileSync('.scratch/feature-migration/method-old.txt',a);fs.writeFileSync('.scratch/feature-migration/method-new.txt',b);

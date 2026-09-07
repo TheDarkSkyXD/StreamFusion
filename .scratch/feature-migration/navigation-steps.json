@@ -1,0 +1,23 @@
+[
+ ["click","--role","link","--name","Following"],
+ ["wait","--text","Following","--hash","/following"],
+ ["snapshot","--output","following.json"],
+ ["screenshot","--output","following.png"],
+ ["click","--role","link","--name","History"],
+ ["wait","--text","Watch History","--hash","/history"],
+ ["snapshot","--output","history.json"],
+ ["screenshot","--output","history.png"],
+ ["click","--role","link","--name","Downloads"],
+ ["wait","--text","Downloads","--hash","/downloads"],
+ ["snapshot","--output","downloads.json"],
+ ["screenshot","--output","downloads.png"],
+ ["click","--role","link","--name","MultiView"],
+ ["wait","--text","MultiStream","--hash","/multistream"],
+ ["snapshot","--output","multistream-before.json"],
+ ["screenshot","--output","multistream-before.png"],
+ ["element","--role","button","--name","Focus Layout"],
+ ["click","--role","button","--name","Add Stream"],
+ ["wait","--text","Add Stream to Layout"],
+ ["snapshot","--output","multistream-dialog.json"],
+ ["screenshot","--output","multistream-dialog.png"]
+]

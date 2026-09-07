@@ -1,0 +1,17 @@
+[
+ ["click","--role","button","--name","General settings section"],
+ ["snapshot","--output","settings-general.json"],
+ ["screenshot","--output","settings-general.png"],
+ ["click","--role","button","--name","Experience settings section"],
+ ["snapshot","--output","settings-experience.json"],
+ ["screenshot","--output","settings-experience.png"],
+ ["click","--role","button","--name","Accounts & Network settings section"],
+ ["snapshot","--output","settings-accounts.json"],
+ ["screenshot","--output","settings-accounts.png"],
+ ["click","--role","link","--name","Integrations"],
+ ["snapshot","--output","settings-integrations.json"],
+ ["screenshot","--output","settings-integrations.png"],
+ ["click","--role","button","--name","System & Support settings section"],
+ ["snapshot","--output","settings-system.json"],
+ ["screenshot","--output","settings-system.png"]
+]

@@ -1,0 +1,4 @@
+[
+ {"method":"Browser.getWindowForTarget"},
+ {"method":"Runtime.evaluate","params":{"expression":"({visibility:document.visibilityState,focused:document.hasFocus(),text:document.querySelector('[role=dialog]')?.innerText})","returnByValue":true}}
+]

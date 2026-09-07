@@ -1,0 +1,26 @@
+[
+  {
+    "from": "apps/desktop/src/backend/features/discovery/adapters/kick/follow-endpoints.ts",
+    "to": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts"
+  },
+  {
+    "from": "apps/desktop/src/backend/features/discovery/adapters/twitch/follow-endpoints.ts",
+    "to": "apps/desktop/src/backend/features/authentication/adapters/twitch/follow-endpoints.ts"
+  },
+  {
+    "from": "apps/desktop/src/backend/features/discovery/utils/kick-follow-grid-predicate.ts",
+    "to": "apps/desktop/src/backend/features/authentication/utils/kick-follow-grid-predicate.ts"
+  },
+  {
+    "from": "apps/desktop/src/backend/features/discovery/tests/api/platforms/kick/follow-endpoints.test.ts",
+    "to": "apps/desktop/src/backend/features/authentication/tests/api/platforms/kick/follow-endpoints.test.ts"
+  },
+  {
+    "from": "apps/desktop/src/backend/features/discovery/tests/api/platforms/twitch/follow-endpoints.test.ts",
+    "to": "apps/desktop/src/backend/features/authentication/tests/api/platforms/twitch/follow-endpoints.test.ts"
+  },
+  {
+    "from": "apps/desktop/src/backend/features/discovery/tests/api/platforms/kick/follow-grid-predicate.test.ts",
+    "to": "apps/desktop/src/backend/features/authentication/tests/api/platforms/kick/follow-grid-predicate.test.ts"
+  }
+]

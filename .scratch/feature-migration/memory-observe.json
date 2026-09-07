@@ -1,0 +1,5 @@
+[
+ ["evaluate","--expression","JSON.stringify({url:location.hash,heap:performance.memory?{used:performance.memory.usedJSHeapSize,total:performance.memory.totalJSHeapSize,limit:performance.memory.jsHeapSizeLimit}:null,domNodes:document.querySelectorAll('*').length,images:document.images.length,videos:Array.from(document.querySelectorAll('video')).map(v=>({paused:v.paused,readyState:v.readyState,width:v.videoWidth,height:v.videoHeight,buffered:Array.from({length:v.buffered.length},(_,i)=>[v.buffered.start(i),v.buffered.end(i)]),time:v.currentTime}))})"],
+ ["snapshot","--output","memory-baseline-page.json"],
+ ["screenshot","--output","stream-kick-after.png"]
+]

@@ -1,0 +1,4 @@
+[
+ {"method":"Page.bringToFront"},
+ {"method":"Runtime.evaluate","params":{"expression":"({visibility:document.visibilityState,focused:document.hasFocus()})","returnByValue":true}}
+]

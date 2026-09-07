@@ -1,0 +1,74 @@
+{
+    const channelName = (follow.channelName || follow.username || "").trim();
+    if (!channelName) {
+      throw new Error("Follow channel name must not be empty");
+    }
+    if (source !== "guest" && source !== follow.platform) {
+      throw new Error(`Follow source ${source} must match platform ${follow.platform}`);
+    }
+
+    // Every writer converges here. Prefer a current canonical Kick identity,
+    // then a previously resolved one for this slug, and use the slug only
+    // when neither source can prove a stable broadcaster ID.
+    const slugFallback = normalizedFollowSlug(channelName);
+    const requestedChannelId = follow.channelId.trim() || slugFallback;
+    const existingRow = this.database
+      .prepare(
+        `SELECT * FROM local_follows
+         WHERE platform = ? AND source = ? AND lower(trim(channel_name)) = ?
+         LIMIT 1`
+      )
+      .get(follow.platform, source, slugFallback);
+    const existingFollow = existingRow ? this.mapFollowFromDb(existingRow) : null;
+    const existingStableKickIdentity =
+      follow.platform === "kick" && existingFollow
+        ? getStableKickFollowIdentity(existingFollow)
+        : null;
+    const requestedStableKickIdentity =
+      follow.platform === "kick"
+        ? getStableKickFollowIdentity({
+            channelId: requestedChannelId,
+            profileImage: follow.profileImage || follow.avatarUrl,
+          })
+        : null;
+    const effectiveChannelId =
+      follow.platform === "kick"
+        ? (requestedStableKickIdentity ?? existingStableKickIdentity ?? requestedChannelId)
+        : requestedChannelId;
+    const id =
+      follow.id ??
+      existingFollow?.id ??
+      `${follow.platform}-${source}-${effectiveChannelId}-${Date.now()}`;
+    const followedAt = follow.followedAt ?? existingFollow?.followedAt ?? new Date().toISOString();
+
+    const stmt = this.database.prepare(`
+      INSERT OR REPLACE INTO local_follows (id, platform, channel_id, channel_name, display_name, profile_image, followed_at, source)
+      VALUES (@id, @platform, @channelId, @channelName, @displayName, @profileImage, @followedAt, @source)
+    `);
+
+    stmt.run({
+      id,
+      platform: follow.platform,
+      channelId: effectiveChannelId,
+      channelName,
+      displayName: follow.displayName ?? "",
+      // Default to "" not undefined â€” better-sqlite3 accepts undefined as
+      // NULL but the test-time node:sqlite shim rejects it. The DB column
+      // is nullable; we still coerce to "" for consistency with the rest
+      // of the row shape (rows always come back as strings).
+      profileImage: follow.profileImage || follow.avatarUrl || "",
+      followedAt,
+      source,
+    });
+
+    return {
+      id,
+      platform: follow.platform,
+      channelId: effectiveChannelId,
+      channelName,
+      displayName: follow.displayName ?? "",
+      profileImage: follow.profileImage || follow.avatarUrl || "",
+      followedAt,
+      source,
+    };
+  }

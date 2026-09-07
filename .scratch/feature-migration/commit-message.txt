@@ -1,0 +1,16 @@
+refactor: organize features and repair desktop workflows
+
+Move implemented features into runtime-local ownership roots and enforce
+dependency direction while preserving public exports and Electron boundaries.
+
+Repair guest category media, read-only chat layout, Windows taskbar identity,
+player listener cleanup and bounded image preloads. Remove dead provider retry
+wrappers and insecure new credential writes; retain safe legacy account reads.
+
+Extend the moderation workspace with permission-scoped Twitch tools, bounded
+event feeds and floating previews that dock only into valid panel layouts.
+
+Validation: complete workspace tests, types, lint and production build; 7722
+desktop tests before the final isolated icon/focus fixes; focused regressions
+for those fixes; Windows recording/encryption contracts; compiled guest media,
+filters, pagination, playback, read-only chat and taskbar visual proof.

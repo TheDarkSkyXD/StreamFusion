@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "scope": {
+    "apps/mobile": {
+      "sourceFiles": 30,
+      "routeFiles": 3,
+      "testFiles": 8,
+      "implementedFeatures": ["shell", "activity", "diagnostics", "storage"],
+      "bootstrapOrShared": ["app", "src/composition/mobile-runtime.tsx", "src/design/tokens.ts", "scripts", "vendor"]
+    },
+    "apps/worker": {
+      "sourceFiles": 1,
+      "testFiles": 1,
+      "implementedFeatures": ["kick-oauth"],
+      "bootstrapOrShared": ["src/index.ts (Wrangler entry facade)", "wrangler.jsonc", "scripts"]
+    },
+    "apps/integration-relay": {
+      "sourceFiles": 2,
+      "testFiles": 2,
+      "implementedFeatures": [],
+      "bootstrapOrShared": ["src/composition/worker.ts", "src/transport/not-found.ts", "wrangler.jsonc", "scripts"]
+    },
+    "packages/core": {
+      "sourceFiles": 21,
+      "testFiles": 10,
+      "implementedSharedFeatureModules": ["activity", "auth", "chat", "content", "discovery", "follows", "reliability"],
+      "sharedInfrastructure": ["platform", "relay", "foundations", "testing"]
+    }
+  },
+  "moves": [
+    {"from":"apps/mobile/src/features/shell/app-shell.tsx","to":"apps/mobile/src/features/shell/components/app-shell.tsx","feature":"shell","layer":"components","reason":"Mobile shell presentation and user-input owner."},
+    {"from":"apps/mobile/src/features/shell/destination-icon.tsx","to":"apps/mobile/src/features/shell/components/destination-icon.tsx","feature":"shell","layer":"components","reason":"Shell-only icon presentation."},
+    {"from":"apps/mobile/src/features/shell/shell-lifecycle-controller.ts","to":"apps/mobile/src/features/shell/components/shell-lifecycle-controller.ts","feature":"shell","layer":"components","reason":"React lifecycle orchestration for the shell UI."},
+    {"from":"apps/mobile/src/features/shell/shell-navigation.ts","to":"apps/mobile/src/features/shell/domain/shell-navigation.ts","feature":"shell","layer":"domain","reason":"Pure shell navigation, restoration, and history policy."},
+    {"from":"apps/mobile/src/capabilities/app-links.ts","to":"apps/mobile/src/features/shell/capabilities/app-links.ts","feature":"shell","layer":"capabilities","reason":"Shell-owned deep-link input port."},
+    {"from":"apps/mobile/src/adapters/expo-app-link-adapter.ts","to":"apps/mobile/src/features/shell/adapters/expo-app-link-adapter.ts","feature":"shell","layer":"adapters","reason":"Expo Linking adapter for the shell port."},
+    {"from":"apps/mobile/src/native/expo-app-link-source.ts","to":"apps/mobile/src/features/shell/adapters/expo-app-link-source.ts","feature":"shell","layer":"adapters","reason":"Restricted Expo Linking bridge; keep the framework import behind the feature adapter."},
+    {"from":"apps/mobile/src/transport/app-link-parser.ts","to":"apps/mobile/src/features/shell/domain/app-link-parser.ts","feature":"shell","layer":"domain","reason":"Allowlisted deep-link parsing is shell navigation policy."},
+    {"from":"apps/mobile/tests/app-links.test.ts","to":"apps/mobile/src/features/shell/tests/app-links.test.ts","feature":"shell","layer":"tests","reason":"Covers deep-link parsing and shell startup ordering."},
+    {"from":"apps/mobile/tests/shell-navigation.test.ts","to":"apps/mobile/src/features/shell/tests/shell-navigation.test.ts","feature":"shell","layer":"tests","reason":"Covers shell navigation and restoration policy."},
+
+    {"from":"apps/mobile/src/features/activity/activity-controller.ts","to":"apps/mobile/src/features/activity/components/activity-controller.ts","feature":"activity","layer":"components","reason":"React controller for Activity presentation."},
+    {"from":"apps/mobile/src/features/activity/activity-operations.ts","to":"apps/mobile/src/features/activity/domain/activity-operations.ts","feature":"activity","layer":"domain","reason":"Retry-safe Activity mutation workflow."},
+    {"from":"apps/mobile/src/features/activity/activity-screen.tsx","to":"apps/mobile/src/features/activity/components/activity-screen.tsx","feature":"activity","layer":"components","reason":"Activity screen rendering and input collection."},
+
+    {"from":"apps/mobile/src/features/development/development-client-controller.ts","to":"apps/mobile/src/features/diagnostics/domain/development-client-controller.ts","feature":"diagnostics","layer":"domain","reason":"Builds the visible runtime-readiness diagnostic model without framework access."},
+    {"from":"apps/mobile/src/features/development/persistence-controller.ts","to":"apps/mobile/src/features/diagnostics/components/persistence-controller.ts","feature":"diagnostics","layer":"components","reason":"React state and view-model adapter for the storage diagnostic panel."},
+    {"from":"apps/mobile/src/capabilities/app-metadata.ts","to":"apps/mobile/src/features/diagnostics/capabilities/app-metadata.ts","feature":"diagnostics","layer":"capabilities","reason":"Diagnostics-owned application metadata port."},
+    {"from":"apps/mobile/src/capabilities/runtime-readiness.ts","to":"apps/mobile/src/features/diagnostics/capabilities/runtime-readiness.ts","feature":"diagnostics","layer":"capabilities","reason":"Diagnostics-owned runtime-probe port."},
+    {"from":"apps/mobile/src/adapters/expo-app-metadata-reader.ts","to":"apps/mobile/src/features/diagnostics/adapters/expo-app-metadata-reader.ts","feature":"diagnostics","layer":"adapters","reason":"Expo metadata adapter."},
+    {"from":"apps/mobile/src/native/expo-constants-bridge.ts","to":"apps/mobile/src/features/diagnostics/adapters/expo-constants-bridge.ts","feature":"diagnostics","layer":"adapters","reason":"Restricted Expo Constants bridge used only by diagnostics."},
+    {"from":"apps/mobile/src/transport/fetch-runtime-probe.ts","to":"apps/mobile/src/features/diagnostics/adapters/fetch-runtime-probe.ts","feature":"diagnostics","layer":"adapters","reason":"Concrete platform transport-readiness probe."},
+    {"from":"apps/mobile/src/persistence/volatile-runtime-probe.ts","to":"apps/mobile/src/features/diagnostics/adapters/volatile-persistence-probe.ts","feature":"diagnostics","layer":"adapters","reason":"Concrete persistence-readiness probe; it is not the Product Store."},
+    {"from":"apps/mobile/tests/runtime-composition.test.ts","to":"apps/mobile/src/features/diagnostics/tests/runtime-composition.test.ts","feature":"diagnostics","layer":"tests","reason":"Covers diagnostic runtime probes and their user-visible model."},
+
+    {"from":"apps/mobile/src/capabilities/persistence.ts","to":"apps/mobile/src/features/storage/capabilities/persistence.ts","feature":"storage","layer":"capabilities","reason":"Product/Cache Store ports exported to Shell, Activity, and Diagnostics."},
+    {"from":"apps/mobile/src/native/expo-secure-random-source.ts","to":"apps/mobile/src/features/storage/adapters/expo-secure-random-source.ts","feature":"storage","layer":"adapters","reason":"Expo Crypto implementation of the storage random port."},
+    {"from":"apps/mobile/src/native/expo-secure-secret-store.ts","to":"apps/mobile/src/features/storage/adapters/expo-secure-secret-store.ts","feature":"storage","layer":"adapters","reason":"Expo SecureStore implementation of the storage secret port."},
+    {"from":"apps/mobile/src/persistence/cache-store.ts","to":"apps/mobile/src/features/storage/data/cache-store.ts","feature":"storage","layer":"data","reason":"Cache database repository."},
+    {"from":"apps/mobile/src/persistence/database-contracts.ts","to":"apps/mobile/src/features/storage/data/database-contracts.ts","feature":"storage","layer":"data","reason":"Database persistence contracts and values."},
+    {"from":"apps/mobile/src/persistence/migrations.ts","to":"apps/mobile/src/features/storage/data/migrations.ts","feature":"storage","layer":"data","reason":"Product and Cache schema migrations."},
+    {"from":"apps/mobile/src/persistence/product-store.ts","to":"apps/mobile/src/features/storage/data/product-store.ts","feature":"storage","layer":"data","reason":"Durable Product Store repository."},
+    {"from":"apps/mobile/src/persistence/sqlite-encrypted-driver.ts","to":"apps/mobile/src/features/storage/adapters/sqlite-encrypted-driver.ts","feature":"storage","layer":"adapters","reason":"Expo SQLite/SQLCipher concrete driver."},
+    {"from":"apps/mobile/src/persistence/store-runtime.ts","to":"apps/mobile/src/features/storage/composition/store-runtime.ts","feature":"storage","layer":"composition","reason":"Wires storage ports, adapters, migrations, recovery, and repositories."},
+    {"from":"apps/mobile/tests/persistence.test.ts","to":"apps/mobile/src/features/storage/tests/persistence.test.ts","feature":"storage","layer":"tests","reason":"Storage behavior, migrations, cache policy, and recovery coverage after extracting the Activity-only case below."},
+
+    {"from":"apps/worker/src/index.ts","to":"apps/worker/src/features/kick-oauth/routes/worker.ts","feature":"kick-oauth","layer":"routes","reason":"Current Worker entry implements the complete Kick token/refresh HTTP boundary; leave a new thin src/index.ts facade for Wrangler."},
+    {"from":"apps/worker/tests/index.test.ts","to":"apps/worker/src/features/kick-oauth/tests/worker.test.ts","feature":"kick-oauth","layer":"tests","reason":"Complete token exchange, refresh, validation, rate-limit, and error-sanitization coverage."},
+
+    {"from":"packages/core/src/activity/index.ts","to":"packages/core/src/features/activity/domain/index.ts","feature":"activity","layer":"domain","reason":"Shared Activity contracts and behavior; retain the public src/activity/index.ts export facade."},
+    {"from":"packages/core/src/auth/index.ts","to":"packages/core/src/features/auth/domain/index.ts","feature":"auth","layer":"domain","reason":"Shared OAuth session contract facade; retain the public src/auth/index.ts export facade."},
+    {"from":"packages/core/src/capabilities/auth.ts","to":"packages/core/src/features/auth/capabilities/auth.ts","feature":"auth","layer":"capabilities","reason":"OAuth credential-store and refresh ports."},
+    {"from":"packages/core/src/use-cases/oauth2-session.ts","to":"packages/core/src/features/auth/domain/oauth2-session.ts","feature":"auth","layer":"domain","reason":"OAuth refresh and auth-loss workflow."},
+    {"from":"packages/core/src/chat/index.ts","to":"packages/core/src/features/chat/domain/index.ts","feature":"chat","layer":"domain","reason":"Shared chat contracts and policy exports; retain the public facade."},
+    {"from":"packages/core/src/capabilities/chat.ts","to":"packages/core/src/features/chat/capabilities/chat.ts","feature":"chat","layer":"capabilities","reason":"Provider-neutral chat connection port."},
+    {"from":"packages/core/src/use-cases/chat-send-policy.ts","to":"packages/core/src/features/chat/domain/chat-send-policy.ts","feature":"chat","layer":"domain","reason":"Shared chat send eligibility workflow."},
+    {"from":"packages/core/src/content/index.ts","to":"packages/core/src/features/content/domain/index.ts","feature":"content","layer":"domain","reason":"Shared content contracts; retain the public facade."},
+    {"from":"packages/core/src/discovery/index.ts","to":"packages/core/src/features/discovery/domain/index.ts","feature":"discovery","layer":"domain","reason":"Shared discovery contracts and behavior exports; retain the public facade."},
+    {"from":"packages/core/src/capabilities/discovery.ts","to":"packages/core/src/features/discovery/capabilities/discovery.ts","feature":"discovery","layer":"capabilities","reason":"Discovery page/source ports."},
+    {"from":"packages/core/src/use-cases/discovery-rules.ts","to":"packages/core/src/features/discovery/domain/discovery-rules.ts","feature":"discovery","layer":"domain","reason":"Discovery normalization and ranking rules."},
+    {"from":"packages/core/src/use-cases/progressive-discovery.ts","to":"packages/core/src/features/discovery/domain/progressive-discovery.ts","feature":"discovery","layer":"domain","reason":"Bounded progressive page traversal workflow."},
+    {"from":"packages/core/src/follows/index.ts","to":"packages/core/src/features/follows/domain/index.ts","feature":"follows","layer":"domain","reason":"Shared follows and notification policy exports; retain the public facade."},
+    {"from":"packages/core/src/capabilities/follows.ts","to":"packages/core/src/features/follows/capabilities/follows.ts","feature":"follows","layer":"capabilities","reason":"Provider-neutral follow readers."},
+    {"from":"packages/core/src/use-cases/follow-policy.ts","to":"packages/core/src/features/follows/domain/follow-policy.ts","feature":"follows","layer":"domain","reason":"Follow-source and reconciliation policy."},
+    {"from":"packages/core/src/use-cases/live-notification-policy.ts","to":"packages/core/src/features/follows/domain/live-notification-policy.ts","feature":"follows","layer":"domain","reason":"Follow-driven live-notification policy."},
+    {"from":"packages/core/src/reliability/index.ts","to":"packages/core/src/features/reliability/domain/index.ts","feature":"reliability","layer":"domain","reason":"Shared error/reliability contracts; retain the public facade."},
+    {"from":"packages/core/tests/activity.test.mjs","to":"packages/core/src/features/activity/tests/activity.test.mjs","feature":"activity","layer":"tests","reason":"Activity shared-contract tests."},
+    {"from":"packages/core/tests/auth.test.mjs","to":"packages/core/src/features/auth/tests/auth.test.mjs","feature":"auth","layer":"tests","reason":"OAuth session workflow tests."},
+    {"from":"packages/core/tests/chat.test.mjs","to":"packages/core/src/features/chat/tests/chat.test.mjs","feature":"chat","layer":"tests","reason":"Chat policy tests."},
+    {"from":"packages/core/tests/content.test.mjs","to":"packages/core/src/features/content/tests/content.test.mjs","feature":"content","layer":"tests","reason":"Content contract tests."},
+    {"from":"packages/core/tests/discovery.test.mjs","to":"packages/core/src/features/discovery/tests/discovery.test.mjs","feature":"discovery","layer":"tests","reason":"Discovery rules and progressive traversal tests."},
+    {"from":"packages/core/tests/follows.test.mjs","to":"packages/core/src/features/follows/tests/follows.test.mjs","feature":"follows","layer":"tests","reason":"Follow policy tests."},
+    {"from":"packages/core/tests/notifications.test.mjs","to":"packages/core/src/features/follows/tests/notifications.test.mjs","feature":"follows","layer":"tests","reason":"Live-notification policy tests."},
+    {"from":"packages/core/tests/reliability.test.mjs","to":"packages/core/src/features/reliability/tests/reliability.test.mjs","feature":"reliability","layer":"tests","reason":"Reliability contract tests."}
+  ],
+  "retained": [
+    {"path":"apps/mobile/app/_layout.tsx","reason":"Required Expo Router layout declaration; remains a framework entry."},
+    {"path":"apps/mobile/app/index.tsx","reason":"Required Expo Router default route; remains a thin delegate to the mobile composition root."},
+    {"path":"apps/mobile/app/+native-intent.ts","reason":"Required Expo Router native-intent hook; it intentionally has no product behavior."},
+    {"path":"apps/mobile/src/composition/mobile-runtime.tsx","reason":"Cross-feature application composition root. It must remain the only concrete wiring point and import feature composition/public APIs."},
+    {"path":"apps/mobile/src/design/tokens.ts","reason":"Shared mobile design system, not feature-owned policy."},
+    {"path":"apps/mobile/tests/scaffold.test.mjs","reason":"Expo/router scaffolding contract test."},
+    {"path":"apps/mobile/tests/query-string-compat.test.mjs","reason":"Vendored Metro/Expo compatibility test."},
+    {"path":"apps/mobile/tests/run-android.test.mjs","reason":"Android launch-script test."},
+    {"path":"apps/mobile/tests/start-expo-go.test.mjs","reason":"Expo Go launch-script test."},
+    {"path":"apps/worker/src/index.ts","reason":"Recreated after relocation as the required thin Wrangler main facade delegating to kick-oauth composition."},
+    {"path":"apps/worker/wrangler.jsonc","reason":"Wrangler entry/configuration remains runtime bootstrap; main stays src/index.ts."},
+    {"path":"apps/integration-relay/src/composition/worker.ts","reason":"Current relay deployment baseline only validates environment and returns unavailable/not-found; it does not implement a product integration feature."},
+    {"path":"apps/integration-relay/src/transport/not-found.ts","reason":"Shared protocol response helper for the intentionally endpoint-free relay baseline."},
+    {"path":"apps/integration-relay/tests/worker.test.ts","reason":"Proves planned relay endpoints are absent and invalid environment fails closed."},
+    {"path":"apps/integration-relay/tests/envelopes.test.ts","reason":"Tests shared Relay envelope compatibility, not a relay product feature."},
+    {"path":"apps/integration-relay/wrangler.jsonc","reason":"Required environment-isolated Worker bootstrap; main remains src/composition/worker.ts until a real relay feature exists."},
+    {"path":"packages/core/src/platform/index.ts","reason":"Cross-feature provider identity/value vocabulary."},
+    {"path":"packages/core/src/relay/index.ts","reason":"Versioned shared relay protocol. Keep shared until a real relay capability owns a feature root; do not manufacture one from planned responsibilities."},
+    {"path":"packages/core/src/foundations/contract-schema.ts","reason":"Shared serialization and schema primitives."},
+    {"path":"packages/core/src/testing/index.ts","reason":"Package-wide test support, excluded from production feature ownership."},
+    {"path":"packages/core/tests/platform.test.mjs","reason":"Shared platform vocabulary test."},
+    {"path":"packages/core/tests/public-boundary.test.mjs","reason":"Package export/deep-import boundary test."}
+  ],
+  "splits": [
+    {
+      "from":"apps/mobile/tests/persistence.test.ts",
+      "extractTo":"apps/mobile/src/features/activity/tests/activity-operations.test.ts",
+      "members":["contains rejected Activity mutations for retryable UI state"],
+      "reason":"The extracted case solely covers Activity domain operations; retain the storage assertions in the storage feature test."
+    },
+    {
+      "from":"apps/worker/src/index.ts",
+      "targets":[
+        "apps/worker/src/features/kick-oauth/routes/kick-oauth-router.ts",
+        "apps/worker/src/features/kick-oauth/domain/kick-grant.ts",
+        "apps/worker/src/features/kick-oauth/capabilities/rate-limiter.ts",
+        "apps/worker/src/features/kick-oauth/adapters/cloudflare-rate-limit.ts",
+        "apps/worker/src/features/kick-oauth/adapters/kick-token-client.ts",
+        "apps/worker/src/features/kick-oauth/utils/sha256.ts",
+        "apps/worker/src/features/kick-oauth/composition/create-kick-oauth-worker.ts"
+      ],
+      "reason":"The single current entry mixes HTTP dispatch, request validation, Cloudflare rate-limit binding use, Kick upstream transport, sanitization, hashing, and construction. Split by responsibility while retaining src/index.ts as a one-line Worker facade."
+    },
+    {
+      "from":"packages/core/src/{activity,auth,chat,content,discovery,follows,reliability}/index.ts",
+      "targets":["packages/core/src/features/<feature>/domain/index.ts","packages/core/src/<feature>/index.ts"],
+      "reason":"Move implementation to the feature root but retain each existing package export subpath as a compatibility facade; package consumers must not deep-import feature internals."
+    }
+  ],
+  "toolingUpdates": [
+    {"path":"apps/mobile/eslint.config.mjs","change":"Replace the flat mobile layer element patterns and architecture-policy paths with feature-aware paths under src/features/*/{routes,components,domain,capabilities,adapters,data,utils,composition}; preserve the app-to-composition-only rule."},
+    {"path":"apps/mobile/scripts/verify-architecture.mjs","change":"Rewrite temporary proof targets and import cases for the nine feature layers; update the test proof path from tests/ to src/features/<feature>/tests/."},
+    {"path":"apps/mobile/vitest.config.mts","change":"Change include from tests/**/*.test.ts to src/features/**/tests/**/*.test.ts, and add the retained cross-feature tests only if they remain in tests/."},
+    {"path":"apps/mobile/package.json","change":"Update lint inputs and test discovery if retained and feature-owned test roots are both present."},
+    {"path":"apps/mobile/tsconfig.json","change":"src glob already includes feature roots; add retained tests to include only if TypeScript checking of tests is intended."},
+    {"path":"apps/worker/vitest.config.mts","change":"Change include from tests/**/*.test.ts to src/features/**/tests/**/*.test.ts."},
+    {"path":"apps/worker/tsconfig.json","change":"src/**/*.ts already includes the feature root; no glob change is required."},
+    {"path":"apps/worker/wrangler.jsonc","change":"Keep main as src/index.ts; do not point Wrangler at a feature implementation."},
+    {"path":"apps/integration-relay/eslint.config.mjs","change":"No feature-path rewrite now. Keep composition/transport baseline rules until an implemented relay feature exists."},
+    {"path":"apps/integration-relay/scripts/verify-architecture.mjs","change":"No relocation now; its two baseline element paths remain correct."},
+    {"path":"apps/integration-relay/scripts/verify-environments.mjs","change":"No relocation now; it must continue asserting src/composition/worker.ts as Wrangler main."},
+    {"path":"apps/integration-relay/vitest.config.mts","change":"No discovery change now because relay tests remain bootstrap/protocol tests."},
+    {"path":"packages/core/eslint.config.mjs","change":"Replace flat foundation/capability/use-case/public element patterns with feature-layer patterns and separate package-export facades; update toolingFiles test glob to feature-owned tests plus retained package tests."},
+    {"path":"packages/core/scripts/verify-architecture.mjs","change":"Rewrite temporary proof directories and allowed/forbidden import proofs around feature roots plus public facades."},
+    {"path":"packages/core/package.json","change":"Change node --test tests/*.test.mjs to include src/features/*/tests/*.test.mjs and retained tests/*.test.mjs."}
+  ]
+}

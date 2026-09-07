@@ -1,0 +1,12 @@
+{
+  "moves": [
+    {
+      "from": "apps/desktop/src/frontend/features/auth/composition/live-notification-bridge.ts",
+      "to": "apps/desktop/src/frontend/features/auth/components/hooks/use-live-notification-bridge.ts"
+    },
+    {
+      "from": "apps/desktop/src/frontend/features/shell/composition/app-shutdown.ts",
+      "to": "apps/desktop/src/frontend/features/shell/components/hooks/use-app-shutdown.ts"
+    }
+  ]
+}

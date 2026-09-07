@@ -1,0 +1,96 @@
+*** Begin Patch
+*** Update File: apps/desktop/scripts/desktop-parity-inventory.mjs
+@@
+ const factKinds = new Set([
+@@
+ ]);
+ const sourceInventoryCache = new Map();
++const routeFactAliases = new Map([["timeout-routes", "timeout-moderation-handlers"]]);
+@@
+ function walkFiles(directory) {
+@@
+ }
++
++function isFeatureImplementation(path) {
++  const sourcePath = path.split(sep).join("/");
++  return (
++    /\.[cm]?[jt]sx?$/.test(sourcePath) &&
++    !sourcePath.includes("/tests/") &&
++    !/\.(?:test|spec|stories)\.[cm]?[jt]sx?$/.test(sourcePath)
++  );
++}
++
++function routeFactId(path) {
++  const routeName = basename(path, ".ts");
++  const handlerName = routeFactAliases.get(routeName) ?? routeName.replace(/-routes$/, "-handlers");
++  return `ipc-handler:${handlerName}`;
++}
+@@
+-  const handlersDirectory = join(backendRoot, "ipc/handlers");
+-  for (const path of walkFiles(handlersDirectory)) {
++  const handlersDirectory = join(backendRoot, "ipc/handlers");
++  for (const path of walkFiles(handlersDirectory)) {
+     const name = basename(path);
+     if (!name.endsWith("-handlers.ts")) continue;
+@@
+   }
++
++  for (const path of walkFiles(join(backendRoot, "features")).filter(
++    (candidate) => isFeatureImplementation(candidate) && /[\\/]routes[\\/][^\\/]+-routes\.ts$/.test(candidate)
++  )) {
++    const name = basename(path);
++    addFact(facts, {
++      id: routeFactId(path),
++      kind: "ipc-handler",
++      sourcePath: toSourcePath(repositoryRoot, path),
++      symbol: name,
++    });
++  }
+ 
+   for (const platform of ["twitch", "kick"]) {
+@@
+       });
+     }
+   }
++
++  for (const path of walkFiles(join(backendRoot, "features")).filter(
++    (candidate) => isFeatureImplementation(candidate) && /[\\/]adapters[\\/](twitch|kick)[\\/][^\\/]+-endpoints\.ts$/.test(candidate)
++  )) {
++    const sourcePath = toSourcePath(repositoryRoot, path);
++    const match = sourcePath.match(/\/adapters\/(twitch|kick)\//);
++    if (!match) continue;
++    const name = basename(path, ".ts");
++    addFact(facts, {
++      id: `platform-endpoint:${match[1]}:${name}`,
++      kind: "platform-endpoint",
++      sourcePath,
++      symbol: name,
++    });
++  }
+*** Update File: apps/desktop/tests/scripts/desktop-parity-inventory.test.ts
+@@
+   it("builds deterministic inventory from the real Desktop source", () => {
+@@
+     expect(first.inventory.facts.length).toBeGreaterThan(50);
+   });
++
++  it("keeps capability fact IDs stable when routes and endpoints live in feature roots", () => {
++    const { inventory } = buildInventory({ repositoryRoot });
++    const facts = new Map(inventory.facts.map((fact) => [fact.id, fact]));
++
++    expect(facts.get("ipc-handler:chat-handlers")?.sourcePath).toBe(
++      "apps/desktop/src/backend/features/chat/routes/chat-routes.ts"
++    );
++    expect(facts.get("ipc-handler:timeout-moderation-handlers")?.sourcePath).toBe(
++      "apps/desktop/src/backend/features/moderation/routes/timeout-routes.ts"
++    );
++    expect(facts.get("platform-endpoint:kick:search-endpoints")?.sourcePath).toBe(
++      "apps/desktop/src/backend/features/discovery/adapters/kick/search-endpoints.ts"
++    );
++    expect(
++      inventory.facts.some(
++        (fact) => fact.sourcePath.includes("/tests/") || /\.(?:test|stories)\./.test(fact.sourcePath)
++      )
++    ).toBe(false);
++  });
+*** End Patch

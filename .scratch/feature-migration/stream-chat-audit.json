@@ -1,0 +1,6 @@
+[
+ ["evaluate","--expression","location.hash = '#/stream/twitch/bobross'"],
+ ["wait","--hash","/stream/twitch/bobross"],
+ ["snapshot","--output","stream-twitch-before.json"],
+ ["screenshot","--output","stream-twitch-before.png"]
+]

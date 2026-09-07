@@ -1,0 +1,2009 @@
+{
+  "queries": [
+    {
+      "query": "query CategoryVideos($id: ID!, $first: Int!, $after: Cursor, $sort: VideoSort, $languages: [String!]) {\n  game(id: $id) {\n    id name\n    videos(first: $first, after: $after, sort: $sort, languages: $languages) {\n      edges { cursor node {\n        id title lengthSeconds viewCount publishedAt previewThumbnailURL(width: 320, height: 180)\n        status broadcastType language\n        owner { id login displayName profileImageURL(width: 70) }\n        game { id name }\n      } }\n      pageInfo { hasNextPage endCursor }\n    }\n  }\n}",
+      "variables": {
+        "id": "509660",
+        "first": 60,
+        "after": null,
+        "sort": "TIME",
+        "filter": "ALL_TIME",
+        "languages": []
+      }
+    },
+    {
+      "query": "query CategoryClips($id: ID!, $first: Int!, $after: Cursor, $filter: ClipsFilter, $languages: [Language!]) {\n  game(id: $id) {\n    id name\n    clips(first: $first, after: $after, criteria: { filter: $filter, languages: $languages }) {\n      edges { cursor node {\n        slug title durationSeconds viewCount createdAt thumbnailURL language\n        broadcaster { id login displayName profileImageURL(width: 70) }\n        curator { displayName }\n        game { id name }\n      } }\n      pageInfo { hasNextPage endCursor }\n    }\n  }\n}",
+      "variables": {
+        "id": "509660",
+        "first": 20,
+        "after": null,
+        "sort": "TIME",
+        "filter": "ALL_TIME",
+        "languages": []
+      }
+    }
+  ],
+  "status": 200,
+  "body": [
+    {
+      "data": {
+        "game": {
+          "id": "509660",
+          "name": "Art",
+          "videos": {
+            "edges": [
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867399827",
+                  "title": "Modular Video Synthesis (stereoscopic) — sublingualism.com",
+                  "lengthSeconds": 1,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:41:01Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1371562449",
+                    "login": "sublinguist",
+                    "displayName": "sublinguist",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/f5e144ec-5bd2-4c0f-bfe0-f247e1df3891-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867399274",
+                  "title": "Modular Video Synthesis (stereoscopic) — sublingualism.com",
+                  "lengthSeconds": 13,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:40:12Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d2nvs31859zcd8/71f6d91c2148d2abf636_sublinguist_319135929687_1788741608//thumb/thumb0-320x180.jpg",
+                  "status": "RECORDED",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1371562449",
+                    "login": "sublinguist",
+                    "displayName": "sublinguist",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/f5e144ec-5bd2-4c0f-bfe0-f247e1df3891-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867399132",
+                  "title": "Baby Making Time",
+                  "lengthSeconds": 60,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:40:02Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "275115995",
+                    "login": "stealthy_mouse",
+                    "displayName": "Stealthy_Mouse",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/5c87b24f-7cf7-438e-ad3a-bfad7cae0721-profile_image-70x70.jpeg"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867398482",
+                  "title": "Cozy art stream - Water pokemon scene for a mysterious puzzle",
+                  "lengthSeconds": 113,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:39:09Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1476181649",
+                    "login": "purplyjojo",
+                    "displayName": "purplyjojo",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/9840b3d1-753c-4d46-918f-3ddf5c5749e4-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867398248",
+                  "title": "¯\\_(ツ)_/¯",
+                  "lengthSeconds": 131,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:38:51Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "89666296",
+                    "login": "emendo_",
+                    "displayName": "Emendo_",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/4453fb99-734a-4362-aa5c-d8378df567bc-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867397230",
+                  "title": "Sunday Soothies: Doodling Daphne then playing some games!!! | [CC]💬 Enabled | 18+ | @runner1226",
+                  "lengthSeconds": 218,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:37:24Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "144905633",
+                    "login": "runner1226",
+                    "displayName": "runner1226",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/adc162f2-6f66-4700-b783-ba917bd60879-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867397093",
+                  "title": "Late Stream oopsies [Drawing]",
+                  "lengthSeconds": 228,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:37:14Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "165888915",
+                    "login": "lupusbunni",
+                    "displayName": "LupusBunni",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/89293ad6-b1d4-4ecc-b778-dd2a4d11ecf6-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867396946",
+                  "title": "Modular Video Synthesis (stereoscopic) — sublingualism.com",
+                  "lengthSeconds": 23,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:37:03Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d2nvs31859zcd8/69272527c45d1493bbbf_sublinguist_319135893207_1788741418//thumb/thumb0-320x180.jpg",
+                  "status": "RECORDED",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1371562449",
+                    "login": "sublinguist",
+                    "displayName": "sublinguist",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/f5e144ec-5bd2-4c0f-bfe0-f247e1df3891-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867396783",
+                  "title": "new streamer, be gentle",
+                  "lengthSeconds": 255,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:36:47Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "23684286",
+                    "login": "jhanson_art",
+                    "displayName": "JHanson_Art",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/aeb7c42049cafb6c-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867396065",
+                  "title": "【巫喵】9/7 薛丁格的畫圖~｜!DC !賭 !貓草",
+                  "lengthSeconds": 315,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:35:47Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "zh",
+                  "owner": {
+                    "id": "28233785",
+                    "login": "meowlich_n",
+                    "displayName": "巫喵王肉球",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/b7163962-b61c-466b-8ed1-e66efbd058e3-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867395507",
+                  "title": "dibujando y chismeando me meo",
+                  "lengthSeconds": 362,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:35:00Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "es",
+                  "owner": {
+                    "id": "427380079",
+                    "login": "neoastralstudio",
+                    "displayName": "neoastralstudio",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/48a6343e-e8e2-47c2-9eb3-1e7ca0d33e26-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867395343",
+                  "title": "Van Gogh for life",
+                  "lengthSeconds": 375,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:34:47Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "720223990",
+                    "login": "chamillyon",
+                    "displayName": "chamillyon",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/4857bfd9-2b27-4e4a-8371-afd48a4c21c7-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867395227",
+                  "title": "朝のお絵かき配信",
+                  "lengthSeconds": 386,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:34:36Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "ja",
+                  "owner": {
+                    "id": "113718723",
+                    "login": "ch_ebiten",
+                    "displayName": "えびてーん",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/424f861b-e779-4550-a425-0345903ae514-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867395075",
+                  "title": "Drawing once again...",
+                  "lengthSeconds": 399,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:34:23Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "996909537",
+                    "login": "goblinp1nk",
+                    "displayName": "GoblinP1nk",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/bb725835-1843-4361-953c-bc3c90ca0d00-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867394878",
+                  "title": "⭐ ART TIME ⭐ Working on Coms/Doodling",
+                  "lengthSeconds": 414,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:34:08Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "144039228",
+                    "login": "dimensionheist",
+                    "displayName": "dimensionheist",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/c38a0c2a-05d2-47bd-a548-ed9166279401-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867394483",
+                  "title": "ダイジェスト：ぬるっとお絵描き配信ー",
+                  "lengthSeconds": 8761,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:33:36Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d2nvs31859zcd8/87963ba843b52d0c8bc1_scoop0article_90660409675_1430375689/thumb/custom-24706b14-5190-4120-aa8d-bedd810e4550-320x180.png",
+                  "status": "RECORDED",
+                  "broadcastType": "HIGHLIGHT",
+                  "language": "ja",
+                  "owner": {
+                    "id": "1523198450",
+                    "login": "scoop0article",
+                    "displayName": "エビ天丼パフェ",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/9ea1890e-f9d1-40ee-83d2-7e5e79bd38bc-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867394115",
+                  "title": "Stacking Donuts, Don't Ask Where | 18+ | !hiccup",
+                  "lengthSeconds": 475,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:33:07Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "125213054",
+                    "login": "elladritch",
+                    "displayName": "Elladritch",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/0e290cb0-91d5-4dbe-bb17-643636f58100-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867393761",
+                  "title": "Modular Video Synthesis (stereoscopic) — sublingualism.com",
+                  "lengthSeconds": 18,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:32:39Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d2nvs31859zcd8/6988af256893d806806e_sublinguist_319135836503_1788741154//thumb/thumb0-320x180.jpg",
+                  "status": "RECORDED",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1371562449",
+                    "login": "sublinguist",
+                    "displayName": "sublinguist",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/f5e144ec-5bd2-4c0f-bfe0-f247e1df3891-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867393397",
+                  "title": "Getting those bills paid! Workin' on Art commissions!",
+                  "lengthSeconds": 532,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:32:10Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "100700678",
+                    "login": "lonelionart",
+                    "displayName": "LoneLionART",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/016a7675-0728-47b5-b486-176369a5670c-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867392932",
+                  "title": "ダイジェスト：ぬるっと朝お絵描き配信ー",
+                  "lengthSeconds": 12607,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:31:32Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d2nvs31859zcd8/1e48cf98edb677f43432_scoop0article_69454239827_2192687595/thumb/custom-82a13f88-9714-45fd-9894-69ea901b2ee5-320x180.png",
+                  "status": "RECORDED",
+                  "broadcastType": "HIGHLIGHT",
+                  "language": "ja",
+                  "owner": {
+                    "id": "1523198450",
+                    "login": "scoop0article",
+                    "displayName": "エビ天丼パフェ",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/9ea1890e-f9d1-40ee-83d2-7e5e79bd38bc-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867392803",
+                  "title": "Miku and maybe Comms! || Art",
+                  "lengthSeconds": 580,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:31:22Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "110993340",
+                    "login": "zm_art",
+                    "displayName": "ZM_Art",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/14221f7b-aa57-4e6e-ba02-ed35020211a7-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867392462",
+                  "title": "[18+] I haven't drawn in ages... | sleepy sketches | !lurk",
+                  "lengthSeconds": 606,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:30:56Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1133238435",
+                    "login": "seraphic_tv",
+                    "displayName": "seraphic_tv",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/5308f43b-75b3-4d48-986c-b133cae715b8-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867392272",
+                  "title": "Modular Video Synthesis (stereoscopic) — sublingualism.com",
+                  "lengthSeconds": 10,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:30:41Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d2nvs31859zcd8/be46d7111dd571230858_sublinguist_319135813975_1788741037//thumb/thumb0-320x180.jpg",
+                  "status": "RECORDED",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1371562449",
+                    "login": "sublinguist",
+                    "displayName": "sublinguist",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/f5e144ec-5bd2-4c0f-bfe0-f247e1df3891-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867391806",
+                  "title": "Dwawing tiem",
+                  "lengthSeconds": 651,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:30:11Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "624692703",
+                    "login": "andreanoart",
+                    "displayName": "AndreaNOart",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/bb1a3394-2606-4d92-bc51-7c5590b0d7e6-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867391780",
+                  "title": "cacota",
+                  "lengthSeconds": 653,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:30:09Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "es",
+                  "owner": {
+                    "id": "164360539",
+                    "login": "mogeckko",
+                    "displayName": "mogeckko",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/89cb906f-785e-41f2-92e5-1655b50654af-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867391691",
+                  "title": "[ART] drawing drawing drawing drawing drawing drawing drawing | !cons",
+                  "lengthSeconds": 660,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:30:02Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "119068633",
+                    "login": "luusan_",
+                    "displayName": "luusan_",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/14b4b26b-0739-407b-807b-9335051f8d64-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867391276",
+                  "title": "Modular Video Synthesis (stereoscopic) — sublingualism.com",
+                  "lengthSeconds": 21,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:29:28Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d2nvs31859zcd8/beac7bd1c9aeb2d78e33_sublinguist_319135796311_1788740964//thumb/thumb0-320x180.jpg",
+                  "status": "RECORDED",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1371562449",
+                    "login": "sublinguist",
+                    "displayName": "sublinguist",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/f5e144ec-5bd2-4c0f-bfe0-f247e1df3891-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867391188",
+                  "title": "impromptu late short stream",
+                  "lengthSeconds": 700,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:29:22Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "90057798",
+                    "login": "chewylr",
+                    "displayName": "ChewyLR",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/0198c0d1-ec9b-44b1-a675-e61fb21a7abc-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867391120",
+                  "title": "Doodling (comms and other) [NO MIC]",
+                  "lengthSeconds": 706,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:29:16Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "66008098",
+                    "login": "veune_",
+                    "displayName": "Veune_",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/75109a0a-28ca-44ae-80c2-cc7f15b0875c-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867391071",
+                  "title": "記念イラスト描くぞー✊",
+                  "lengthSeconds": 710,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:29:12Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "ja",
+                  "owner": {
+                    "id": "1207366120",
+                    "login": "teeyoo7000",
+                    "displayName": "てーよー_",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/d5ed6004-2f73-40fd-b5b4-ba241c532b52-profile_image-70x70.jpeg"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867390988",
+                  "title": "smol chill art | then more blood of dawnwalker 🐸",
+                  "lengthSeconds": 717,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:29:05Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "89239387",
+                    "login": "jihi",
+                    "displayName": "Jihi",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/b5e3923c-6bd0-44c9-8397-f996e43f6bbe-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867390561",
+                  "title": "Modular Video Synthesis (stereoscopic) — sublingualism.com",
+                  "lengthSeconds": 32,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:28:30Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d2nvs31859zcd8/b94738d29326c978f873_sublinguist_319135781975_1788740906//thumb/thumb0-320x180.jpg",
+                  "status": "RECORDED",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1371562449",
+                    "login": "sublinguist",
+                    "displayName": "sublinguist",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/f5e144ec-5bd2-4c0f-bfe0-f247e1df3891-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867389950",
+                  "title": "[PTBR/ENG] Desenhando... tipo... tá na categoria =v='",
+                  "lengthSeconds": 800,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:27:42Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "pt",
+                  "owner": {
+                    "id": "625238875",
+                    "login": "volktrot",
+                    "displayName": "Volktrot",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/d0361ea4-c87f-402d-b73b-4dac8163611f-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867389818",
+                  "title": "【ご依頼/Live2D】作業しましょうね～",
+                  "lengthSeconds": 811,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:27:31Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "ja",
+                  "owner": {
+                    "id": "781709932",
+                    "login": "tetomi27",
+                    "displayName": "てとみ",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/b69de701-d41c-4c5f-996e-94947fdfd33a-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867389807",
+                  "title": "Good bye for now! Last stream before hiatus",
+                  "lengthSeconds": 812,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:27:30Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "38698931",
+                    "login": "yoonjelly",
+                    "displayName": "yoonjelly",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/22f05a1d-bb27-40db-89a6-12a9c6e14c48-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867389179",
+                  "title": "sketching emotes ^^",
+                  "lengthSeconds": 861,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:26:41Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "649597574",
+                    "login": "lazyelfkuri",
+                    "displayName": "LazyElfKuri",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/d27b2646-013c-42a5-ab35-4fd5c45ca291-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867388408",
+                  "title": "Still alive. NCR IS A SCAM Company (Giveaway! Details in bio)",
+                  "lengthSeconds": 924,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:25:38Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "67197080",
+                    "login": "whatherohay",
+                    "displayName": "WhaTheRohay",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/6c36b913-273a-400b-a5d0-8ccfd8c122e5-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867388037",
+                  "title": "Modular Video Synthesis (stereoscopic) — sublingualism.com",
+                  "lengthSeconds": 10,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:25:05Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d2nvs31859zcd8/a09c442693cf08b7f031_sublinguist_319135737175_1788740700//thumb/thumb0-320x180.jpg",
+                  "status": "RECORDED",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1371562449",
+                    "login": "sublinguist",
+                    "displayName": "sublinguist",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/f5e144ec-5bd2-4c0f-bfe0-f247e1df3891-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867387539",
+                  "title": "Modular Video Synthesis (stereoscopic) — sublingualism.com",
+                  "lengthSeconds": 12,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:24:21Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d2nvs31859zcd8/7407e2b6835d4200015f_sublinguist_319135728599_1788740656//thumb/thumb0-320x180.jpg",
+                  "status": "RECORDED",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1371562449",
+                    "login": "sublinguist",
+                    "displayName": "sublinguist",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/f5e144ec-5bd2-4c0f-bfe0-f247e1df3891-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867386739",
+                  "title": "[9/5] - Got a new camera. Now I can move.",
+                  "lengthSeconds": 1065,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:23:17Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "107857201",
+                    "login": "antomicteal",
+                    "displayName": "AntomicTeal",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/62b09a79-56f7-44eb-95ad-179cc573c33f-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867386278",
+                  "title": "ᓚ₍ ^•⩊•^₎ Blending props | !youtube !clip FREE props !vgen",
+                  "lengthSeconds": 20,
+                  "viewCount": 1,
+                  "publishedAt": "2026-09-07T00:22:38Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d1m7jfoe9zdc1j/cd1a0c71ac1a6ff15a5c_cony23art_318902790389_1788740549//thumb/thumb0-320x180.jpg",
+                  "status": "RECORDED",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "138373269",
+                    "login": "cony23art",
+                    "displayName": "Cony23Art",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/3800adca-c512-4508-919a-8c795967e0f2-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867385517",
+                  "title": "Towi Arts! Working on channel point redeems! (18+)",
+                  "lengthSeconds": 1168,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:21:34Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "58648222",
+                    "login": "niiofox",
+                    "displayName": "NiioFox",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/1e05444b-9f74-4255-afb8-7ba28013be4e-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867384911",
+                  "title": "Modular Video Synthesis (stereoscopic) — sublingualism.com",
+                  "lengthSeconds": 10,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:20:47Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d2nvs31859zcd8/b5d504e5ff084d95f586_sublinguist_319135679191_1788740443//thumb/thumb0-320x180.jpg",
+                  "status": "RECORDED",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1371562449",
+                    "login": "sublinguist",
+                    "displayName": "sublinguist",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/f5e144ec-5bd2-4c0f-bfe0-f247e1df3891-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867384761",
+                  "title": "ずっと放置してた作業する(たわのエンドロール)",
+                  "lengthSeconds": 53,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:20:37Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d3vd9lfkzbru3h/3cc912979ab21f3e0326_chiwa1550_316422748658_1788740432//thumb/thumb0-320x180.jpg",
+                  "status": "RECORDED",
+                  "broadcastType": "ARCHIVE",
+                  "language": "ja",
+                  "owner": {
+                    "id": "1072871842",
+                    "login": "chiwa1550",
+                    "displayName": "えび好きのちわさん",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/a8adea8d-77dc-4b92-9aa6-38dbb536b0b1-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867384358",
+                  "title": "Modular Video Synthesis (stereoscopic) — sublingualism.com",
+                  "lengthSeconds": 25,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:20:06Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d2nvs31859zcd8/41adac19750bc6058985_sublinguist_319135669847_1788740401//thumb/thumb0-320x180.jpg",
+                  "status": "RECORDED",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1371562449",
+                    "login": "sublinguist",
+                    "displayName": "sublinguist",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/f5e144ec-5bd2-4c0f-bfe0-f247e1df3891-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867383954",
+                  "title": "NPP DRAWING STREAM JOIN UP!!!!",
+                  "lengthSeconds": 1287,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:19:35Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1532052387",
+                    "login": "nonproductiveproductions",
+                    "displayName": "nonproductiveproductions",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/497423a8-8bce-4b5b-96f4-05f051a6def9-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867383142",
+                  "title": "Drawing BIRBS!!!",
+                  "lengthSeconds": 1358,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:18:24Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "519124586",
+                    "login": "magikfiresy",
+                    "displayName": "MagikfireSY",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/19ed6f6b-35a0-4a1b-889b-83116f8a9067-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867382771",
+                  "title": "Back at the Chatter Requests!",
+                  "lengthSeconds": 1391,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:17:51Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "558541647",
+                    "login": "milcca36",
+                    "displayName": "Milcca36",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/b4016606-6087-4b75-8a14-f908715c0cb6-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867382468",
+                  "title": "[mic broke] 3D commissions work timee ~  !comms !socials",
+                  "lengthSeconds": 1416,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:17:26Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "110209630",
+                    "login": "eliavah",
+                    "displayName": "eliavah",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/2e0f52ab-5ff2-4bd6-a2ab-13c8493655e0-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867382396",
+                  "title": "ORENJIPERSON'S PIXELART STREAM",
+                  "lengthSeconds": 1423,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:17:19Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "125463249",
+                    "login": "orenjiperson",
+                    "displayName": "OrenjiPerson",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/527ae3ab-dd82-4cc7-94c0-b42b6a5d7dfe-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867382182",
+                  "title": "Animating",
+                  "lengthSeconds": 1440,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:17:02Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "476585796",
+                    "login": "horribles1ght",
+                    "displayName": "horribles1ght",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/6378b213-d1bc-4123-a91c-7525e65edaff-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867381609",
+                  "title": "Drawing Pikmin",
+                  "lengthSeconds": 1484,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:16:18Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1434796980",
+                    "login": "dailydoseofpikmin",
+                    "displayName": "dailydoseofpikmin",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/a42f4fcf-cd72-4ef1-a7b2-175954a765ba-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867381439",
+                  "title": "Hi",
+                  "lengthSeconds": 390,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:16:04Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d3vd9lfkzbru3h/ef5d7dec7d4f77e519bc_tefo2712_316412648433_1788740159//thumb/thumb0-320x180.jpg",
+                  "status": "RECORDED",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1533704487",
+                    "login": "tefo2712",
+                    "displayName": "tefo2712",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/2d1a7eb6-e4bc-4938-8a5c-0563d1e86a89-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867381224",
+                  "title": "🔮 FREE AURA READINGS! 🔮 Channel Redeem to join! 🌈 | !clip !kofi | @sariberryvt",
+                  "lengthSeconds": 1519,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:15:43Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1090716167",
+                    "login": "sariberryvt",
+                    "displayName": "SariBerryVT",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/abcf18d7-9c20-42be-b4a8-5e225f51f898-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867381115",
+                  "title": "anatomy practice while chiln to music",
+                  "lengthSeconds": 1528,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:15:34Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "547118182",
+                    "login": "mrx_o0",
+                    "displayName": "mrx_o0",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/23a0e44b-b0bd-49b3-8416-a3cea1b79a22-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867380897",
+                  "title": "Noche de ANIMACION",
+                  "lengthSeconds": 1545,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:15:17Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "es",
+                  "owner": {
+                    "id": "233833269",
+                    "login": "rastro_live",
+                    "displayName": "rastro_live",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/7fb939d2-e4e7-4497-a9e6-cb6a13d693c1-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867380483",
+                  "title": "Modular Video Synthesis (stereoscopic) — sublingualism.com",
+                  "lengthSeconds": 10,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:14:45Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d2nvs31859zcd8/5dcd7af7afc6ccb7fb35_sublinguist_319135601239_1788740080//thumb/thumb0-320x180.jpg",
+                  "status": "RECORDED",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1371562449",
+                    "login": "sublinguist",
+                    "displayName": "sublinguist",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/f5e144ec-5bd2-4c0f-bfe0-f247e1df3891-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867380386",
+                  "title": "Missy Painting",
+                  "lengthSeconds": 1586,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:14:36Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "864630414",
+                    "login": "missyvr",
+                    "displayName": "MissyVR",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/4d8dcc84-fdf8-4fe1-94db-cb02ad9e581e-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867380122",
+                  "title": "Modular Video Synthesis (stereoscopic) — sublingualism.com",
+                  "lengthSeconds": 10,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:14:16Z",
+                  "previewThumbnailURL": "https://static-cdn.jtvnw.net/cf_vods/d2nvs31859zcd8/06ba3e891ad25d2d91ef_sublinguist_319135595351_1788740052//thumb/thumb0-320x180.jpg",
+                  "status": "RECORDED",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "1371562449",
+                    "login": "sublinguist",
+                    "displayName": "sublinguist",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/f5e144ec-5bd2-4c0f-bfe0-f247e1df3891-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "2867379823|0|2026-09-07T00:13:53Z|0",
+                "node": {
+                  "id": "2867379823",
+                  "title": "[18+] I LOVE LUKE !!!!!!11111111 tears of themis art | mic OFF",
+                  "lengthSeconds": 1629,
+                  "viewCount": 0,
+                  "publishedAt": "2026-09-07T00:13:53Z",
+                  "previewThumbnailURL": "https://vod-secure.twitch.tv/_404/404_processing_320x180.png",
+                  "status": "RECORDING",
+                  "broadcastType": "ARCHIVE",
+                  "language": "en",
+                  "owner": {
+                    "id": "125965235",
+                    "login": "jianrouvt",
+                    "displayName": "jianrouVT",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/45f91c22-8c0c-4196-9d5e-bbcf0205f530-profile_image-70x70.png"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "endCursor": null
+            }
+          }
+        }
+      },
+      "extensions": {
+        "durationMilliseconds": 191,
+        "requestID": "01M1WMZDFZSFAH4TZJXA6MPEB5"
+      }
+    },
+    {
+      "data": {
+        "game": {
+          "id": "509660",
+          "name": "Art",
+          "clips": {
+            "edges": [
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "AttractiveBeautifulMonitorVoteYea-AG_E0DCbCK8nymot",
+                  "title": "double threat",
+                  "durationSeconds": 7,
+                  "viewCount": 1388290,
+                  "createdAt": "2024-05-13T02:31:20Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/9377a532-18fe-4c0f-a8db-82a71a405dab/landscape/thumb/thumb-0000000000-1920x1080.jpg",
+                  "language": "EN",
+                  "broadcaster": {
+                    "id": "125387632",
+                    "login": "amouranth",
+                    "displayName": "AMOURANTH",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/7f349bf3-ada7-4486-a0f1-a6e055b68fca-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "PufferPantz"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "FlaccidDeafButterDancingBaby",
+                  "title": "Twitch Censorship Rules",
+                  "durationSeconds": 22,
+                  "viewCount": 528012,
+                  "createdAt": "2019-10-27T13:22:20Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/48a40665-f0ff-4379-bdf8-f9bb858eb0f1/landscape/thumb/thumb-0000000000-1280x720.jpg",
+                  "language": "EN",
+                  "broadcaster": {
+                    "id": "138675906",
+                    "login": "innervisionart",
+                    "displayName": "InnerVisionArt",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/3ab15a35-c181-45d1-9cf2-b4256d083878-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "CassWArt"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "CarefulRamshackleTofuHassaanChop",
+                  "title": "Tattun's \"SCIENCE\" experiment",
+                  "durationSeconds": 59,
+                  "viewCount": 271737,
+                  "createdAt": "2019-11-05T04:26:11Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/5b09137f-ed78-429b-94b8-023af28103a5/landscape/thumb/thumb-0000000000-1920x1080.jpg",
+                  "language": "JA",
+                  "broadcaster": {
+                    "id": "178995638",
+                    "login": "studio_trigger",
+                    "displayName": "Studio_TRIGGER",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/12cc398a-f776-40f3-ad37-504fdfff1e69-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "ArtMark88_"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "BrightIntelligentMushroomDxAbomb-osEfJJ98FJJaHdQN",
+                  "title": "Welcome raiders!",
+                  "durationSeconds": 27,
+                  "viewCount": 250354,
+                  "createdAt": "2022-10-28T17:25:51Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/9c6d58e3-dd5b-4a03-ae4c-b3e82d1355e2/landscape/thumb/thumb-0000000000-1920x1080.jpg",
+                  "language": "EN",
+                  "broadcaster": {
+                    "id": "136953836",
+                    "login": "julieee22",
+                    "displayName": "julieee22",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/05dd7cfe-3752-4585-a6b2-a8085859cb58-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "warshipcaptain2"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "DirtyKindWaspTTours",
+                  "title": "monkaHmm",
+                  "durationSeconds": 44,
+                  "viewCount": 245598,
+                  "createdAt": "2019-11-11T02:02:08Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/ac26b37f-8b2a-4667-9206-0bb439ed2bea/landscape/thumb/thumb-0000000000-1920x1080.jpg",
+                  "language": "EN",
+                  "broadcaster": {
+                    "id": "31106024",
+                    "login": "lilypichu",
+                    "displayName": "lilypichu",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/2c1676ee-7807-4d49-9674-8e8234328cce-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "d441070"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "DreamyDependableButterPartyTime",
+                  "title": "ggx",
+                  "durationSeconds": 49,
+                  "viewCount": 227994,
+                  "createdAt": "2018-11-19T07:02:52Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/22d5a308-1f9c-47b4-b730-bd55643aec5b/landscape/thumb/thumb-0000000000-1920x1080.jpg",
+                  "language": "EN",
+                  "broadcaster": {
+                    "id": "31106024",
+                    "login": "lilypichu",
+                    "displayName": "lilypichu",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/2c1676ee-7807-4d49-9674-8e8234328cce-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "Chim0t0fu"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "CredulousTawdryGrassMcaT",
+                  "title": "Mizkif walks into Lrobb's room",
+                  "durationSeconds": 16,
+                  "viewCount": 212970,
+                  "createdAt": "2019-03-26T23:57:43Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/5846af01-12bf-4b74-b42c-a3dff3e10432/landscape/thumb/thumb-0000000000-1280x720.jpg",
+                  "language": "EN",
+                  "broadcaster": {
+                    "id": "235493907",
+                    "login": "mariebx",
+                    "displayName": "mariebx",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/3ac65e0a-2bb0-4899-9c04-57d17fe67478-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "wowee420"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "PhilanthropicRoundYogurtHassanChop-6wnkVM9rPSNdhL9H",
+                  "title": "Frame Skizze",
+                  "durationSeconds": 12,
+                  "viewCount": 199615,
+                  "createdAt": "2025-03-09T12:56:51Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/7e327386-2940-40b1-ba9d-2e48feffd545/landscape/thumb/thumb-0000000000-1920x1080.jpg",
+                  "language": "DE",
+                  "broadcaster": {
+                    "id": "815109919",
+                    "login": "framekid",
+                    "displayName": "FRAMEKID",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/7db41294-8b73-4415-9f42-8caf113d8345-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "FRAMEKID"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "FunCourteousChinchillaCmonBruh",
+                  "title": "MIZKIF TAKES A PEEK",
+                  "durationSeconds": 40,
+                  "viewCount": 182412,
+                  "createdAt": "2019-03-27T00:11:46Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/6f573515-1d5f-4468-abb2-c1b5a151bf2e/landscape/thumb/thumb-0000000000-1280x720.jpg",
+                  "language": "EN",
+                  "broadcaster": {
+                    "id": "235493907",
+                    "login": "mariebx",
+                    "displayName": "mariebx",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/3ac65e0a-2bb0-4899-9c04-57d17fe67478-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "LedriTheThane"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "CloudyNastyPoultryShadyLulu",
+                  "title": "Greek testing Lily's patience",
+                  "durationSeconds": 60,
+                  "viewCount": 166762,
+                  "createdAt": "2018-11-18T00:09:01Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/c540bfda-5d96-42ae-a672-aa74f12d58ba/landscape/thumb/thumb-0000000000-1920x1080.jpg",
+                  "language": "EN",
+                  "broadcaster": {
+                    "id": "31106024",
+                    "login": "lilypichu",
+                    "displayName": "lilypichu",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/2c1676ee-7807-4d49-9674-8e8234328cce-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "brucke0"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "AggressiveResourcefulGoblinFeelsBadMan",
+                  "title": "Bob keeps his wireless mic on going to the toilet..",
+                  "durationSeconds": 42,
+                  "viewCount": 157570,
+                  "createdAt": "2019-03-10T18:21:54Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/1b623334-2904-4582-b7e0-4b804e2f6455/landscape/thumb/thumb-0000000000-1280x720.jpg",
+                  "language": "EN",
+                  "broadcaster": {
+                    "id": "105458682",
+                    "login": "bobross",
+                    "displayName": "BobRoss",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/bobross-profile_image-0b9dd167a9bb16b5-70x70.jpeg"
+                  },
+                  "curator": {
+                    "displayName": "Nyacide"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "SmokyCorrectLionBloodTrail",
+                  "title": "How’s Facebook?",
+                  "durationSeconds": 34,
+                  "viewCount": 152081,
+                  "createdAt": "2019-11-23T19:26:20Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/2f988218-a7e3-4c17-83e3-c7bc15519db2/landscape/thumb/thumb-0000000000-1920x1080.jpg",
+                  "language": "EN",
+                  "broadcaster": {
+                    "id": "31106024",
+                    "login": "lilypichu",
+                    "displayName": "lilypichu",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/2c1676ee-7807-4d49-9674-8e8234328cce-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "ferriswirl2"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "AnimatedWonderfulOwlBCouch-7yPFPXhnGNwz07L7",
+                  "title": "Moo Deng the Baby Pygmy Hippo",
+                  "durationSeconds": 25,
+                  "viewCount": 150038,
+                  "createdAt": "2024-09-27T05:45:34Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/b693412c-c37d-4bc7-a3bc-0c06eb54ddec/landscape/thumb/thumb-0000000000-1280x720.jpg",
+                  "language": "EN",
+                  "broadcaster": {
+                    "id": "524192970",
+                    "login": "sharpballoons",
+                    "displayName": "SharpBalloons",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/2d2e7a2f-2286-4908-9163-11ffdd6991eb-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "Sepheryn"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "DifferentModernRaisinArgieB8-aaVQCxhqdobrF7yA",
+                  "title": "Жопа прозрела",
+                  "durationSeconds": 16,
+                  "viewCount": 133648,
+                  "createdAt": "2022-06-12T12:32:33Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/4a3d58a5-4837-4c48-a559-5bc8cb42c16b/landscape/thumb/thumb-0000000000-1920x1080.jpg",
+                  "language": "RU",
+                  "broadcaster": {
+                    "id": "477619817",
+                    "login": "nedrugaya",
+                    "displayName": "nedrugaya",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/6e509688-e220-43ce-b403-3d57394ebc94-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "ZloyNaggez"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "GoodExuberantPineappleCoolStoryBro",
+                  "title": "Finger count",
+                  "durationSeconds": 30,
+                  "viewCount": 127293,
+                  "createdAt": "2019-04-18T20:11:34Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/a2e843bd-1b99-4917-aa70-8be85e256fa1/landscape/thumb/thumb-0000000000-1280x720.jpg",
+                  "language": "EN",
+                  "broadcaster": {
+                    "id": "279277006",
+                    "login": "polydactyl66",
+                    "displayName": "Polydactyl66",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/124fe243-f941-4b73-a3c4-cfe4dd0f6118-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "ABigguy"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "CourageousHilariousCobraNononoCat",
+                  "title": "you've heard of elf on the shelf now get ready for",
+                  "durationSeconds": 59,
+                  "viewCount": 123476,
+                  "createdAt": "2020-08-24T23:11:26Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/4c5aa89a-35de-40ed-96b0-75e6c0890d5f/landscape/thumb/thumb-0000000000-768x432.jpg",
+                  "language": "RU",
+                  "broadcaster": {
+                    "id": "567660334",
+                    "login": "affffricaa",
+                    "displayName": "affffricaa",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/aa5cae14-6351-46ed-93fd-d4a2777994e3-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "Roloregular"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "MoralBrightTildeRuleFive-6CxuGHXNZhJzGrl8",
+                  "title": "got stuck KEKW",
+                  "durationSeconds": 12,
+                  "viewCount": 122588,
+                  "createdAt": "2022-09-29T09:11:02Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/4c7dad28-88ad-442b-b941-4934c0ffab0c/landscape/thumb/thumb-0000000000-1920x1080.jpg",
+                  "language": "EN",
+                  "broadcaster": {
+                    "id": "196211954",
+                    "login": "canniny",
+                    "displayName": "Canniny",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/c241895c-e658-4b35-9fe6-f46fcc0bc665-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "WingNow"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "FriendlyPricklyCrowNerfBlueBlaster-rvEPzCCiG4BKwH5v",
+                  "title": "meat canyon working on xqc",
+                  "durationSeconds": 20,
+                  "viewCount": 117871,
+                  "createdAt": "2023-08-18T18:05:03Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/6d9d1ec5-8e9e-4c04-8631-71dcaa2f3e17/landscape/thumb/thumb-0000000000-1920x1080.jpg",
+                  "language": "EN",
+                  "broadcaster": {
+                    "id": "142768936",
+                    "login": "meatcanyon",
+                    "displayName": "meatcanyon",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/86f4b520-af31-4033-a84c-602a58b13c7b-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "sergioisbananas"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": null,
+                "node": {
+                  "slug": "YummyGiantMarjoramWutFace",
+                  "title": "LUL",
+                  "durationSeconds": 22,
+                  "viewCount": 113954,
+                  "createdAt": "2018-11-17T03:41:57Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/b54f376a-9eb1-4d0a-ac29-31405756a02a/landscape/thumb/thumb-0000000000-1920x1080.jpg",
+                  "language": "EN",
+                  "broadcaster": {
+                    "id": "31106024",
+                    "login": "lilypichu",
+                    "displayName": "lilypichu",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/2c1676ee-7807-4d49-9674-8e8234328cce-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "deep1906"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              },
+              {
+                "cursor": "MjA=",
+                "node": {
+                  "slug": "TalentedBlitheLionBuddhaBar-nZNN9RbFrdhPVrg1",
+                  "title": "dfadadsadasdasdasdasdasdads",
+                  "durationSeconds": 59,
+                  "viewCount": 112728,
+                  "createdAt": "2022-01-23T04:33:27Z",
+                  "thumbnailURL": "https://static-cdn.jtvnw.net/twitch-video-assets/twitch-vap-video-assets-prod-us-west-2/35471c79-b797-4fa6-a40b-0d2f2979e6fa/landscape/thumb/thumb-0000000000-1920x1080.jpg",
+                  "language": "EN",
+                  "broadcaster": {
+                    "id": "79792848",
+                    "login": "squchan",
+                    "displayName": "SquChan",
+                    "profileImageURL": "https://static-cdn.jtvnw.net/jtv_user_pictures/73593009-1b1f-42e6-b321-70fda7630983-profile_image-70x70.png"
+                  },
+                  "curator": {
+                    "displayName": "whip33"
+                  },
+                  "game": {
+                    "id": "509660",
+                    "name": "Art"
+                  }
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "endCursor": "MjA="
+            }
+          }
+        }
+      },
+      "extensions": {
+        "durationMilliseconds": 190,
+        "requestID": "01M1WMZDFZSFAH4TZJXA6MPEB5"
+      }
+    }
+  ]
+}

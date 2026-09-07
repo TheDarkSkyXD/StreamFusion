@@ -1,0 +1,3507 @@
+[
+  {
+    "path": "packages/core/src/features/follows/capabilities/follows.ts",
+    "line": 2,
+    "text": "  readonly allowInteractiveFallback?: boolean;"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 21,
+    "text": "  const fallback = primary === incoming ? existing : incoming;"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 24,
+    "text": "    id: primary.id || fallback.id,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 25,
+    "text": "    username: primary.username || fallback.username,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 26,
+    "text": "    displayName: primary.displayName || fallback.displayName,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 27,
+    "text": "    avatarUrl: primary.avatarUrl || fallback.avatarUrl,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 28,
+    "text": "    bannerUrl: primary.bannerUrl || fallback.bannerUrl,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 29,
+    "text": "    bio: primary.bio || fallback.bio,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 30,
+    "text": "    isLive: Boolean(primary.isLive || fallback.isLive),"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 31,
+    "text": "    isVerified: Boolean(primary.isVerified || fallback.isVerified),"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 32,
+    "text": "    isPartner: Boolean(primary.isPartner || fallback.isPartner),"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 33,
+    "text": "    kickUserId: primary.kickUserId || fallback.kickUserId,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 65,
+    "text": "  const fallback = incomingIsRicher ? existing : incoming;"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 67,
+    "text": "    ...fallback,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 69,
+    "text": "    id: primary.id || fallback.id,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 70,
+    "text": "    channelId: primary.channelId || fallback.channelId,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 71,
+    "text": "    channelName: primary.channelName || fallback.channelName,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 72,
+    "text": "    channelDisplayName: primary.channelDisplayName || fallback.channelDisplayName,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 73,
+    "text": "    channelAvatar: primary.channelAvatar || fallback.channelAvatar,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 74,
+    "text": "    channelIsVerified: Boolean(primary.channelIsVerified || fallback.channelIsVerified),"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 75,
+    "text": "    title: primary.title || fallback.title,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 76,
+    "text": "    viewerCount: Math.max(primary.viewerCount || 0, fallback.viewerCount || 0),"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 77,
+    "text": "    thumbnailUrl: primary.thumbnailUrl || fallback.thumbnailUrl,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 78,
+    "text": "    isLive: Boolean(primary.isLive || fallback.isLive),"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 79,
+    "text": "    startedAt: primary.startedAt || fallback.startedAt,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 80,
+    "text": "    language: primary.language || fallback.language,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 84,
+    "text": "        : Array.isArray(fallback.tags) && fallback.tags.length > 0"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 85,
+    "text": "          ? fallback.tags"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 87,
+    "text": "    categoryId: primary.categoryId || fallback.categoryId,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/stream-identity.ts",
+    "line": 88,
+    "text": "    categoryName: primary.categoryName || fallback.categoryName,"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/cross-logger.ts",
+    "line": 68,
+    "text": "function consoleFallback("
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/cross-logger.ts",
+    "line": 89,
+    "text": "      consoleFallback(level, tag, message, meta);"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/cross-logger.ts",
+    "line": 100,
+    "text": "      consoleFallback(level, tag, message, meta);"
+  },
+  {
+    "path": "apps/desktop/src/shared/utils/cross-logger.ts",
+    "line": 104,
+    "text": "  consoleFallback(level, tag, message, meta);"
+  },
+  {
+    "path": "apps/desktop/src/shared/user-profile-types.ts",
+    "line": 5,
+    "text": "      source: \"official\" | \"first-party-fallback\" | \"chat-event\";"
+  },
+  {
+    "path": "apps/desktop/src/shared/user-profile-types.ts",
+    "line": 7,
+    "text": "  | { state: \"negative\"; source: \"official\" | \"first-party-fallback\" }"
+  },
+  {
+    "path": "apps/desktop/src/shared/stream-recording-types.ts",
+    "line": 51,
+    "text": "      usedFallback: boolean;"
+  },
+  {
+    "path": "apps/desktop/src/shared/stream-recording-types.ts",
+    "line": 59,
+    "text": "      usedFallback: boolean;"
+  },
+  {
+    "path": "apps/desktop/src/shared/stream-recording-types.ts",
+    "line": 92,
+    "text": "  usedFallback?: boolean;"
+  },
+  {
+    "path": "apps/desktop/src/shared/stream-recording-types.ts",
+    "line": 124,
+    "text": "  usedFallback?: boolean;"
+  },
+  {
+    "path": "apps/desktop/src/shared/ipc-contracts/user-profile-contracts.ts",
+    "line": 28,
+    "text": "const profileSourceSchema = z.enum([\"official\", \"first-party-fallback\", \"chat-event\"]);"
+  },
+  {
+    "path": "apps/desktop/src/shared/ipc-contracts/user-profile-contracts.ts",
+    "line": 29,
+    "text": "const negativeSourceSchema = z.enum([\"official\", \"first-party-fallback\"]);"
+  },
+  {
+    "path": "apps/desktop/src/shared/ipc-channels.ts",
+    "line": 46,
+    "text": "   * three-second force-close only as a fallback for an unresponsive renderer."
+  },
+  {
+    "path": "apps/desktop/src/shared/chat-types.ts",
+    "line": 478,
+    "text": "   * Channel slug fallback for the multiview filter. Kick exposes two numeric"
+  },
+  {
+    "path": "apps/desktop/src/shared/auth-types.ts",
+    "line": 503,
+    "text": "/** A user-configured Twitch playlist proxy source. Array order is fallback order. */"
+  },
+  {
+    "path": "apps/desktop/src/shared/auth-types.ts",
+    "line": 635,
+    "text": "   * the fallback player type. Device-id randomize is a separate action (it is"
+  },
+  {
+    "path": "apps/desktop/src/shared/adblock-types.ts",
+    "line": 47,
+    "text": "  // Fallback mode tracking"
+  },
+  {
+    "path": "apps/desktop/src/shared/adblock-types.ts",
+    "line": 48,
+    "text": "  isUsingFallbackMode: boolean;"
+  },
+  {
+    "path": "apps/desktop/src/shared/adblock-types.ts",
+    "line": 71,
+    "text": "  /** Default fallback player type */"
+  },
+  {
+    "path": "apps/desktop/src/shared/adblock-types.ts",
+    "line": 72,
+    "text": "  fallbackPlayerType: PlayerType;"
+  },
+  {
+    "path": "apps/desktop/src/shared/adblock-types.ts",
+    "line": 133,
+    "text": "  /** True when all backup player types failed and using fallback overlay */"
+  },
+  {
+    "path": "apps/desktop/src/shared/adblock-types.ts",
+    "line": 134,
+    "text": "  isUsingFallbackMode: boolean;"
+  },
+  {
+    "path": "apps/desktop/src/shared/adblock-types.ts",
+    "line": 165,
+    "text": "  /** Fallback player type */"
+  },
+  {
+    "path": "apps/desktop/src/shared/adblock-types.ts",
+    "line": 166,
+    "text": "  fallbackPlayerType: PlayerType;"
+  },
+  {
+    "path": "apps/desktop/src/shared/adblock-types.ts",
+    "line": 218,
+    "text": "    fallbackPlayerType: \"embed\","
+  },
+  {
+    "path": "apps/desktop/src/shared/adblock-types.ts",
+    "line": 235,
+    "text": "  fallbackPlayerType: \"embed\","
+  },
+  {
+    "path": "apps/desktop/src/shared/adblock-types.ts",
+    "line": 275,
+    "text": "    isUsingFallbackMode: false,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/hooks/useAfterFirstPaint.ts",
+    "line": 12,
+    "text": "    const fallbackId = window.setTimeout(releaseDeferredContent, 250);"
+  },
+  {
+    "path": "apps/desktop/src/frontend/hooks/useAfterFirstPaint.ts",
+    "line": 15,
+    "text": "      window.clearTimeout(fallbackId);"
+  },
+  {
+    "path": "apps/mobile/src/features/shell/components/shell-lifecycle-controller.ts",
+    "line": 23,
+    "text": "  | \"fallback-corrupt\""
+  },
+  {
+    "path": "apps/mobile/src/features/shell/components/shell-lifecycle-controller.ts",
+    "line": 24,
+    "text": "  | \"fallback-unsupported\""
+  },
+  {
+    "path": "apps/mobile/src/features/shell/components/shell-lifecycle-controller.ts",
+    "line": 121,
+    "text": "                ? \"fallback-corrupt\""
+  },
+  {
+    "path": "apps/mobile/src/features/shell/components/shell-lifecycle-controller.ts",
+    "line": 122,
+    "text": "                : \"fallback-unsupported\";"
+  },
+  {
+    "path": "apps/mobile/src/features/shell/components/shell-lifecycle-controller.ts",
+    "line": 123,
+    "text": "          if (restored.kind === \"fallback\") await options.restoration.clear();"
+  },
+  {
+    "path": "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "line": 161,
+    "text": "    status !== \"fallback-corrupt\" &&"
+  },
+  {
+    "path": "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "line": 162,
+    "text": "    status !== \"fallback-unsupported\" &&"
+  },
+  {
+    "path": "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "line": 171,
+    "text": "      testID=\"navigation-restoration-fallback\""
+  },
+  {
+    "path": "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "line": 174,
+    "text": "        {status === \"fallback-corrupt\""
+  },
+  {
+    "path": "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "line": 176,
+    "text": "          : status === \"fallback-unsupported\""
+  },
+  {
+    "path": "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "line": 439,
+    "text": "      setDetail(\"Navigation fallback proof could not be prepared. Try again.\");"
+  },
+  {
+    "path": "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "line": 446,
+    "text": "        NAVIGATION FALLBACK CHECKS"
+  },
+  {
+    "path": "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "line": 455,
+    "text": "          accessibilityLabel={`Prepare ${kind} navigation fallback`}"
+  },
+  {
+    "path": "apps/mobile/src/features/shell/components/app-shell.tsx",
+    "line": 467,
+    "text": "            {`Prepare ${kind} fallback`}"
+  },
+  {
+    "path": "apps/mobile/src/features/shell/domain/shell-navigation.ts",
+    "line": 77,
+    "text": "      readonly kind: \"fallback\";"
+  },
+  {
+    "path": "apps/mobile/src/features/shell/domain/shell-navigation.ts",
+    "line": 488,
+    "text": "    return fallback(\"corrupt\");"
+  },
+  {
+    "path": "apps/mobile/src/features/shell/domain/shell-navigation.ts",
+    "line": 495,
+    "text": "    return fallback(\"unsupported\");"
+  },
+  {
+    "path": "apps/mobile/src/features/shell/domain/shell-navigation.ts",
+    "line": 509,
+    "text": "    return fallback(\"corrupt\");"
+  },
+  {
+    "path": "apps/mobile/src/features/shell/domain/shell-navigation.ts",
+    "line": 527,
+    "text": "function fallback(reason: \"corrupt\" | \"unsupported\"): ShellRestorationResult {"
+  },
+  {
+    "path": "apps/mobile/src/features/shell/domain/shell-navigation.ts",
+    "line": 529,
+    "text": "    kind: \"fallback\","
+  },
+  {
+    "path": "apps/desktop/src/frontend/slot-renderer/main.ts",
+    "line": 70,
+    "text": "    // Safari native HLS fallback."
+  },
+  {
+    "path": "apps/desktop/src/frontend/slot-renderer/main.ts",
+    "line": 112,
+    "text": "  // (slice 06 wires the resolver). Until then, fall back to a sentinel"
+  },
+  {
+    "path": "apps/desktop/src/frontend/App.tsx",
+    "line": 50,
+    "text": "                <Suspense fallback={null}>"
+  },
+  {
+    "path": "apps/desktop/src/frontend/App.tsx",
+    "line": 71,
+    "text": "    <Suspense fallback={null}>"
+  },
+  {
+    "path": "apps/desktop/src/frontend/routes/router.tsx",
+    "line": 58,
+    "text": "      <Suspense fallback={<PageLoader />}>"
+  },
+  {
+    "path": "apps/desktop/src/backend/window-manager.ts",
+    "line": 20,
+    "text": " * does not fall back to Electron's executable icon in the taskbar; other"
+  },
+  {
+    "path": "apps/desktop/src/frontend/renderer/logging/logger.ts",
+    "line": 11,
+    "text": " *      not (yet) populated `window.electronAPI`. We fall back to"
+  },
+  {
+    "path": "apps/desktop/src/frontend/renderer/logging/logger.ts",
+    "line": 14,
+    "text": " *      wedged). Same fallback — we never propagate the throw out of a log"
+  },
+  {
+    "path": "apps/desktop/src/frontend/renderer/logging/logger.ts",
+    "line": 52,
+    "text": "function consoleFallback("
+  },
+  {
+    "path": "apps/desktop/src/frontend/renderer/logging/logger.ts",
+    "line": 70,
+    "text": "    consoleFallback(level, tag, message, meta);"
+  },
+  {
+    "path": "apps/desktop/src/frontend/renderer/logging/logger.ts",
+    "line": 78,
+    "text": "    consoleFallback(level, tag, message, meta);"
+  },
+  {
+    "path": "apps/desktop/src/frontend/renderer/logging/console-intercept.ts",
+    "line": 13,
+    "text": " *     fallback for circular references."
+  },
+  {
+    "path": "apps/desktop/src/frontend/renderer/logging/console-intercept.ts",
+    "line": 63,
+    "text": "    // Circular reference or other JSON failure — fall back to the JS default."
+  },
+  {
+    "path": "apps/desktop/src/backend/ipc/register-trusted-ipc-handler.ts",
+    "line": 87,
+    "text": "    throw new Error(`Invalid fallback response for IPC channel ${channel}`);"
+  },
+  {
+    "path": "apps/desktop/src/backend/api/unified/status-page-poller.ts",
+    "line": 57,
+    "text": "    // Unit tests and non-Electron tooling fall back to Node's fetch."
+  },
+  {
+    "path": "apps/desktop/src/backend/api/unified/platform-health.ts",
+    "line": 260,
+    "text": " * has expired, fall back to whatever the failure-rate signal says."
+  },
+  {
+    "path": "apps/desktop/src/frontend/providers/query-provider.tsx",
+    "line": 180,
+    "text": "        <Suspense fallback={null}>"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/domain/kick-prediction-normalizer.ts",
+    "line": 89,
+    "text": "  /** Channel slug fallback for the multiview filter. Sidesteps the dual-ID"
+  },
+  {
+    "path": "apps/desktop/src/frontend/components/ui/proxied-image.tsx",
+    "line": 15,
+    "text": " *    fallback initial."
+  },
+  {
+    "path": "apps/desktop/src/frontend/components/ui/proxied-image.tsx",
+    "line": 84,
+    "text": "// small and we don't want to false-fallback them."
+  },
+  {
+    "path": "apps/desktop/src/frontend/components/ui/proxied-image.tsx",
+    "line": 103,
+    "text": "  fallback?: React.ReactNode;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/components/ui/proxied-image.tsx",
+    "line": 104,
+    "text": "  fallbackClassName?: string;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/components/ui/proxied-image.tsx",
+    "line": 136,
+    "text": "  fallback,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/components/ui/proxied-image.tsx",
+    "line": 137,
+    "text": "  fallbackClassName = \"\","
+  },
+  {
+    "path": "apps/desktop/src/frontend/components/ui/proxied-image.tsx",
+    "line": 164,
+    "text": "  // in this session goes straight to the fallback path without re-issuing a"
+  },
+  {
+    "path": "apps/desktop/src/frontend/components/ui/proxied-image.tsx",
+    "line": 238,
+    "text": "    if (fallback) return <>{fallback}</>;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/components/ui/proxied-image.tsx",
+    "line": 244,
+    "text": "          fallbackClassName || className"
+  },
+  {
+    "path": "apps/desktop/src/frontend/components/ui/platform-avatar.tsx",
+    "line": 47,
+    "text": "          fallback={"
+  },
+  {
+    "path": "apps/desktop/src/backend/protocols/twitch-image-protocol.ts",
+    "line": 16,
+    "text": " * the fallback initial."
+  },
+  {
+    "path": "apps/desktop/src/backend/protocols/twitch-image-protocol.ts",
+    "line": 28,
+    "text": "// as \"upstream failed, paint the fallback.\" Twitch never serves 1×1 avatars,"
+  },
+  {
+    "path": "apps/desktop/src/backend/api/platforms/twitch/twitch-transformers.ts",
+    "line": 235,
+    "text": "    channelName: clip.broadcaster_name, // Fallback as login is not available in clip object"
+  },
+  {
+    "path": "apps/desktop/src/backend/preload/index.ts",
+    "line": 315,
+    "text": "   * unresponsive-renderer fallback."
+  },
+  {
+    "path": "apps/desktop/src/backend/preload/index.ts",
+    "line": 1005,
+    "text": "     * history\" and fall back to live-only."
+  },
+  {
+    "path": "apps/desktop/src/backend/main.ts",
+    "line": 194,
+    "text": "    fallbackLogsPath: app.getPath(\"logs\"),"
+  },
+  {
+    "path": "apps/desktop/src/backend/main.ts",
+    "line": 312,
+    "text": "// ERR_QUIC_PROTOCOL_ERROR, forcing a slow per-image TCP fallback and spamming"
+  },
+  {
+    "path": "apps/desktop/src/backend/main.ts",
+    "line": 368,
+    "text": "      nativeText(app.getLocale(), \"startupRecoveryFallback\", { diagnosticId })"
+  },
+  {
+    "path": "apps/desktop/src/backend/api/platforms/kick/kick-hidden-browser-window.ts",
+    "line": 9,
+    "text": " * Keeping this invariant at the window boundary protects every hidden API fallback."
+  },
+  {
+    "path": "apps/desktop/src/backend/logging/log-paths.ts",
+    "line": 13,
+    "text": " *     silently fail or break code signing — fall back to app.getPath('logs')."
+  },
+  {
+    "path": "apps/desktop/src/backend/logging/log-paths.ts",
+    "line": 36,
+    "text": "   * `app.getPath('logs')` — used as the fallback location on mac/linux prod"
+  },
+  {
+    "path": "apps/desktop/src/backend/logging/log-paths.ts",
+    "line": 39,
+    "text": "  fallbackLogsPath: string;"
+  },
+  {
+    "path": "apps/desktop/src/backend/logging/log-paths.ts",
+    "line": 72,
+    "text": "  // fallback path keeps the dev/win invariant that bug-reports is a sibling"
+  },
+  {
+    "path": "apps/desktop/src/backend/logging/log-paths.ts",
+    "line": 74,
+    "text": "  const fallbackParent = platformPath.dirname(opts.fallbackLogsPath);"
+  },
+  {
+    "path": "apps/desktop/src/backend/logging/log-paths.ts",
+    "line": 76,
+    "text": "    logsDir: opts.fallbackLogsPath,"
+  },
+  {
+    "path": "apps/desktop/src/backend/logging/log-paths.ts",
+    "line": 77,
+    "text": "    bugReportsDir: platformPath.join(fallbackParent, \"bug-reports\"),"
+  },
+  {
+    "path": "apps/desktop/src/backend/logging/log-paths.ts",
+    "line": 78,
+    "text": "    telemetryDir: platformPath.join(fallbackParent, \"stream health telemetry\"),"
+  },
+  {
+    "path": "apps/desktop/src/backend/logging/console-intercept.ts",
+    "line": 8,
+    "text": " *      initialized yet), we fall back to the original so the line is not"
+  },
+  {
+    "path": "apps/desktop/src/backend/logging/console-intercept.ts",
+    "line": 94,
+    "text": "        // Logger failed (most often: not yet initialized). Fall back to the"
+  },
+  {
+    "path": "apps/desktop/src/backend/logging/rotation.ts",
+    "line": 74,
+    "text": "      // Don't have the structured logger yet — fall back to console.warn so"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/state/persisted-chat-history.ts",
+    "line": 259,
+    "text": " * Best-effort cold-start fallback for hover intent. The synchronous helper"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/presentation/chat-visuals.ts",
+    "line": 70,
+    "text": "  fallbackColor: string"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/presentation/chat-visuals.ts",
+    "line": 104,
+    "text": "    backgroundColor: fallbackColor,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat-replay/chat-replay-rail.tsx",
+    "line": 255,
+    "text": "                            fallback={"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat-replay/chat-replay-rail.tsx",
+    "line": 305,
+    "text": "                          fallback={"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/shell/components/recovery/RecoveryBoundary.tsx",
+    "line": 27,
+    "text": "function RecoveryFallback({"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/shell/components/recovery/RecoveryBoundary.tsx",
+    "line": 119,
+    "text": "      <RecoveryFallback"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/state/auth-store.ts",
+    "line": 295,
+    "text": "          // the storage-handlers `activeFollows` fallback (no-token → guest"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/state/auth-store.ts",
+    "line": 332,
+    "text": "        // Avoid opening Kick's full website fallback during every cold start."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/capabilities/chat-presentation-services.ts",
+    "line": 16,
+    "text": "    fallbackTitle: string"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/shell/components/layout/AppLayout.tsx",
+    "line": 152,
+    "text": "              <Suspense fallback={null}>"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/hooks/useRequireModScopes.ts",
+    "line": 20,
+    "text": " * pass no args fall back to the two pin-path scopes."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/ChatEmote.tsx",
+    "line": 159,
+    "text": "    // otherwise fall back to the original (animated) URL — never fake a freeze."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/ChatInput.tsx",
+    "line": 310,
+    "text": " *  EmoteNode.getTextContent). Twitch native emotes and 7TV/BTTV/FFZ fall back"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/ChatInput.tsx",
+    "line": 2402,
+    "text": "                  fallback={"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/ChatMessage.tsx",
+    "line": 632,
+    "text": "      const fallbackDeletedMessages ="
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/ChatMessage.tsx",
+    "line": 638,
+    "text": "      const visibleDeletedMessages = fallbackDeletedMessages.filter((entry) => entry.trim());"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/electron/chat-presentation-services.ts",
+    "line": 12,
+    "text": "  async getGlobalBadges(provider, fallbackTitle) {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/electron/chat-presentation-services.ts",
+    "line": 21,
+    "text": "          title: entry.badge.description || fallbackTitle,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/electron/chat-presentation-services.ts",
+    "line": 38,
+    "text": "          title: badge.title || fallbackTitle,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/auth/ProfileDropdown.tsx",
+    "line": 63,
+    "text": "          fallback={"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/auth/ProfileDropdown.tsx",
+    "line": 80,
+    "text": "          fallback={"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/auth/ProfileDropdown.tsx",
+    "line": 111,
+    "text": "  const fallbackElement = ("
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/auth/ProfileDropdown.tsx",
+    "line": 121,
+    "text": "  // specific profile-image objects — ProxiedImage's onError → fallback path"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/auth/ProfileDropdown.tsx",
+    "line": 129,
+    "text": "        fallback={fallbackElement}"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/auth/ProfileDropdown.tsx",
+    "line": 343,
+    "text": "                          fallback={"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/auth/ProfileDropdown.tsx",
+    "line": 408,
+    "text": "                          fallback={"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/auth/GuestMode.tsx",
+    "line": 256,
+    "text": "  fallback?: React.ReactNode;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/auth/GuestMode.tsx",
+    "line": 263,
+    "text": "function FeatureGate({ feature, children, fallback, showPrompt = true }: FeatureGateProps) {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/auth/GuestMode.tsx",
+    "line": 270,
+    "text": "  if (fallback) {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/auth/GuestMode.tsx",
+    "line": 271,
+    "text": "    return <>{fallback}</>;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/auth/AccountConnect.tsx",
+    "line": 140,
+    "text": "            // Custom fallback with platform color"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/auth/AccountConnect.tsx",
+    "line": 141,
+    "text": "            const fallbackElement = ("
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/auth/components/auth/AccountConnect.tsx",
+    "line": 159,
+    "text": "                  fallback={fallbackElement}"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/shell/adapters/electron/startup-recovery-window.ts",
+    "line": 59,
+    "text": "        nativeText(app.getLocale(), \"startupRecoveryFallback\", { diagnosticId })"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/browser/badge-resolver.ts",
+    "line": 312,
+    "text": "    // Fall back to global badges"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/browser/badge-resolver.ts",
+    "line": 396,
+    "text": "      throw new Error(\"No authenticated Twitch badge fallback is available\");"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/browser/badge-resolver.ts",
+    "line": 426,
+    "text": "      throw new Error(\"No authenticated Twitch badge fallback is available\");"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/browser/badge-resolver.ts",
+    "line": 430,
+    "text": "      throw new Error(\"Authenticated Twitch global badge fallback was empty\");"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/browser/badge-resolver.ts",
+    "line": 524,
+    "text": "   * Persisted-query fallback mirrored from Xtra's `ChatList_Badges` path."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/browser/kick-predictions-service.ts",
+    "line": 50,
+    "text": "   *  fallback on the normalized payload. */"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/browser/kick-chat.ts",
+    "line": 150,
+    "text": "  // include channel-specific subscriber-tier data, so we fall back to the"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/browser/twitch-chat.ts",
+    "line": 53,
+    "text": "   * Returns null to fall back to anonymous reconnection."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/browser/twitch-chat.ts",
+    "line": 711,
+    "text": "    // arriving from other clients. Fall back to globaluserstate (set on"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/browser/twitch-hermes-client.ts",
+    "line": 441,
+    "text": "    // filters can fall back to channelId matching unchanged."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/browser/twitch-pin-poller.ts",
+    "line": 347,
+    "text": " * deleted while the pin is still active), we fall back to pinnedBy as the"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/browser/twitch-pin-poller.ts",
+    "line": 354,
+    "text": " * hardcoded fallbacks needed."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/browser/twitch-pin-poller.ts",
+    "line": 435,
+    "text": "    // and optimistic reconciliation. Fall back to the pin record id only if"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/adapters/browser/emotes/kick-emotes.ts",
+    "line": 204,
+    "text": "    // Method 2: Fallback to v1 channels API"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/media-library/components/hooks/use-stream-recording-state.tsx",
+    "line": 100,
+    "text": "const fallbackStore = createStreamRecordingStore();"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/media-library/components/hooks/use-stream-recording-state.tsx",
+    "line": 204,
+    "text": "  const store = useContext(StreamRecordingContext) ?? fallbackStore;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/EmotePickerPopover.tsx",
+    "line": 191,
+    "text": "    fallback={<div className=\"w-6 h-6 rounded-[3px] bg-white/10\" />}"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/EmoteImage.tsx",
+    "line": 115,
+    "text": "      // Fallback for broken images - show emote code"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/DeletedMessageHighlight.tsx",
+    "line": 36,
+    "text": "  fallback: string,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/DeletedMessageHighlight.tsx",
+    "line": 39,
+    "text": "  if (!timestamp) return fallback;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/DeletedMessageHighlight.tsx",
+    "line": 114,
+    "text": "    const fallbackModeratorUsername = moderatorUsername?.trim();"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/DeletedMessageHighlight.tsx",
+    "line": 117,
+    "text": "      (fallbackModeratorUsername"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/DeletedMessageHighlight.tsx",
+    "line": 119,
+    "text": "            userId: fallbackModeratorUsername,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/DeletedMessageHighlight.tsx",
+    "line": 120,
+    "text": "            username: fallbackModeratorUsername,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/DeletedMessageHighlight.tsx",
+    "line": 121,
+    "text": "            displayName: fallbackModeratorUsername,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/ContextualEmoteRow.tsx",
+    "line": 49,
+    "text": "  fallback?: React.ReactNode;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/ContextualEmoteRow.tsx",
+    "line": 62,
+    "text": "  fallback = null,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/ContextualEmoteRow.tsx",
+    "line": 149,
+    "text": "  if (!match.explicit && !isLoading && suggestions.length === 0) return fallback;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/ChatQuickSettingsPopover.tsx",
+    "line": 837,
+    "text": "function getStopValue(index: number, stops: number[], fallback: number) {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/ChatQuickSettingsPopover.tsx",
+    "line": 839,
+    "text": "  return stops[Math.min(Math.max(roundedIndex, 0), stops.length - 1)] ?? fallback;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/ChatPanel.tsx",
+    "line": 72,
+    "text": "      <Suspense fallback={<ChatPanelLoading />}>"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/ChatPanel.tsx",
+    "line": 91,
+    "text": "    <Suspense fallback={<ChatPanelLoading />}>"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/MentionAutocomplete.tsx",
+    "line": 228,
+    "text": "        fallback={"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/media-library/components/screens/History/index.tsx",
+    "line": 266,
+    "text": "                    fallback={"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/media-library/components/screens/History/index.tsx",
+    "line": 269,
+    "text": "                        data-testid=\"history-thumbnail-fallback\""
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/media-library/components/screens/History/index.tsx",
+    "line": 371,
+    "text": "        <Suspense fallback={null}>"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/official-emote-image-source.ts",
+    "line": 26,
+    "text": "export function getSevenTvIpv4FallbackUrl(sourceUrl: string): string | null {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/official-emote-image-source.ts",
+    "line": 75,
+    "text": "      const fallbackUrl = activeAttempt.retried"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/official-emote-image-source.ts",
+    "line": 77,
+    "text": "        : getSevenTvIpv4FallbackUrl(activeAttempt.originalUrl);"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/official-emote-image-source.ts",
+    "line": 78,
+    "text": "      if (fallbackUrl) {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/official-emote-image-source.ts",
+    "line": 81,
+    "text": "          sourceUrl: fallbackUrl,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/media-library/components/screens/Downloads/index.tsx",
+    "line": 245,
+    "text": "          fallback={<LuFileVideo className=\"size-full p-7 text-[var(--color-foreground-muted)]\" />}"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/kick/KickChat.tsx",
+    "line": 392,
+    "text": "  // `channelId ?? String(chatroomId)` fallback the mod-strip writes under."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/kick/kick-chat-history.ts",
+    "line": 58,
+    "text": " * rather than throwing, so the caller can fall back to live-only."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/media-library/components/recording/recording-completion-notice.tsx",
+    "line": 16,
+    "text": "      title: notice.usedFallback"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/media-library/components/recording/recording-completion-notice.tsx",
+    "line": 17,
+    "text": "        ? t(\"mediaLibrary.recordingSavedFallback\")"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/RecentChattersPanel.tsx",
+    "line": 470,
+    "text": "                        fallback={"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/PredictionBanner.tsx",
+    "line": 732,
+    "text": " * channel-points / KCP fallback."
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/utils.ts",
+    "line": 203,
+    "text": "  // Final robustness check: if still invalid after UTC fallback, return safe default"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 21,
+    "text": "  const fallback = primary === incoming ? existing : incoming;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 25,
+    "text": "    id: primary.id || fallback.id,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 26,
+    "text": "    username: primary.username || fallback.username,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 27,
+    "text": "    displayName: primary.displayName || fallback.displayName,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 28,
+    "text": "    avatarUrl: primary.avatarUrl || fallback.avatarUrl,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 29,
+    "text": "    bannerUrl: primary.bannerUrl || fallback.bannerUrl,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 30,
+    "text": "    bio: primary.bio || fallback.bio,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 31,
+    "text": "    isLive: Boolean(primary.isLive || fallback.isLive),"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 32,
+    "text": "    isVerified: Boolean(primary.isVerified || fallback.isVerified),"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 33,
+    "text": "    isPartner: Boolean(primary.isPartner || fallback.isPartner),"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 34,
+    "text": "    kickUserId: primary.kickUserId || fallback.kickUserId,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 77,
+    "text": "  const fallback = incomingIsRicher ? existing : incoming;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 80,
+    "text": "    ...fallback,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 82,
+    "text": "    id: primary.id || fallback.id,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 83,
+    "text": "    channelId: primary.channelId || fallback.channelId,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 84,
+    "text": "    channelName: primary.channelName || fallback.channelName,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 85,
+    "text": "    channelDisplayName: primary.channelDisplayName || fallback.channelDisplayName,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 86,
+    "text": "    channelAvatar: primary.channelAvatar || fallback.channelAvatar,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 87,
+    "text": "    channelIsVerified: Boolean(primary.channelIsVerified || fallback.channelIsVerified),"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 88,
+    "text": "    title: primary.title || fallback.title,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 89,
+    "text": "    viewerCount: Math.max(primary.viewerCount || 0, fallback.viewerCount || 0),"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 90,
+    "text": "    thumbnailUrl: primary.thumbnailUrl || fallback.thumbnailUrl,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 91,
+    "text": "    isLive: Boolean(primary.isLive || fallback.isLive),"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 92,
+    "text": "    startedAt: primary.startedAt || fallback.startedAt,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 93,
+    "text": "    language: primary.language || fallback.language,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 97,
+    "text": "        : Array.isArray(fallback.tags)"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 98,
+    "text": "          ? fallback.tags"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 100,
+    "text": "    categoryId: primary.categoryId || fallback.categoryId,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/lib/id-utils.ts",
+    "line": 101,
+    "text": "    categoryName: primary.categoryName || fallback.categoryName,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/mod/RaidTargetPicker.tsx",
+    "line": 72,
+    "text": "        // Ignore — empty list is the right fallback."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/twitch/twitch-chat-history.ts",
+    "line": 43,
+    "text": " * throwing, so the caller can fall back to live-only."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/twitch/TwitchPinMessageDialog.tsx",
+    "line": 209,
+    "text": "        // The fallback initial remains visible if avatar lookup is unavailable."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/twitch/TwitchPinMessageDialog.tsx",
+    "line": 245,
+    "text": "              fallbackClassName=\"h-8 w-8 shrink-0 rounded-full text-sm\""
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/state/update-store.ts",
+    "line": 115,
+    "text": "          // Validate status and fall back to 'error' if invalid"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/TwitchPlaylistProxySettingsSection.tsx",
+    "line": 169,
+    "text": "              key: \"settings.fromTheFallbackOrderItWillNoLongerBeTriedDuringTwitchPlayback\","
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/LogsSection.tsx",
+    "line": 101,
+    "text": "function stringValue(value: unknown, fallback = \"\"): string {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/LogsSection.tsx",
+    "line": 102,
+    "text": "  return typeof value === \"string\" && value.trim() !== \"\" ? value : fallback;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx",
+    "line": 36,
+    "text": "  CHAT_PREVIEW_FALLBACK_EMOTES,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx",
+    "line": 38,
+    "text": "  getChatPreviewFallbackBadges,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx",
+    "line": 485,
+    "text": "          <SampleEmote emote={CHAT_PREVIEW_FALLBACK_EMOTES[\"7tv\"]} size={cd.emoteSizePx} />"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx",
+    "line": 512,
+    "text": "    \"7tv\": loadedEmotes.get(\"7tv\")?.[0] ?? CHAT_PREVIEW_FALLBACK_EMOTES[\"7tv\"],"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx",
+    "line": 513,
+    "text": "    bttv: loadedEmotes.get(\"bttv\")?.[0] ?? CHAT_PREVIEW_FALLBACK_EMOTES.bttv,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx",
+    "line": 514,
+    "text": "    ffz: loadedEmotes.get(\"ffz\")?.[0] ?? CHAT_PREVIEW_FALLBACK_EMOTES.ffz,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx",
+    "line": 518,
+    "text": "    const fallbackBadges = getChatPreviewFallbackBadges(translationLanguage);"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx",
+    "line": 520,
+    "text": "      \"7tv\": loaded.find((badge) => badge.provider === \"7tv\") ?? fallbackBadges[\"7tv\"],"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx",
+    "line": 521,
+    "text": "      bttv: loaded.find((badge) => badge.provider === \"bttv\") ?? fallbackBadges.bttv,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx",
+    "line": 522,
+    "text": "      ffz: loaded.find((badge) => badge.provider === \"ffz\") ?? fallbackBadges.ffz,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx",
+    "line": 525,
+    "text": "  const fallbackColor = resolveChatUsernameColor({"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx",
+    "line": 533,
+    "text": "    ? (getSevenTvPaintStyle(SAMPLE_PAINT, fallbackColor) ?? { color: fallbackColor })"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/ChatSettingsSection.tsx",
+    "line": 534,
+    "text": "    : { color: fallbackColor };"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/chat-settings-preview-assets.ts",
+    "line": 28,
+    "text": "export const CHAT_PREVIEW_FALLBACK_EMOTES: Record<\"7tv\" | \"bttv\" | \"ffz\", Emote> = {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/settings/chat-settings-preview-assets.ts",
+    "line": 56,
+    "text": "export function getChatPreviewFallbackBadges("
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/mod/UserPopout/UserProfileHeader.tsx",
+    "line": 15,
+    "text": "  fallbackUsername: string;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/mod/UserPopout/UserProfileHeader.tsx",
+    "line": 79,
+    "text": "function AvatarFallback({ displayName }: { displayName: string }) {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/mod/UserPopout/UserProfileHeader.tsx",
+    "line": 261,
+    "text": "  fallbackUsername,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/mod/UserPopout/UserProfileHeader.tsx",
+    "line": 273,
+    "text": "  const username = knownIdentity?.username ?? fallbackUsername;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/mod/UserPopout/UserProfileHeader.tsx",
+    "line": 274,
+    "text": "  const displayName = knownIdentity?.displayName ?? fallbackUsername;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/mod/UserPopout/UserProfileHeader.tsx",
+    "line": 283,
+    "text": "            fallback={<AvatarFallback displayName={displayName} />}"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/mod/UserPopout/UserProfileHeader.tsx",
+    "line": 286,
+    "text": "          <AvatarFallback displayName={displayName} />"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/chat/components/chat/mod/UserPopout/UserPopout.tsx",
+    "line": 298,
+    "text": "            fallbackUsername={username}"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/capabilities/media-types.ts",
+    "line": 62,
+    "text": "    fallbackHighlight: boolean;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/screens/Settings/index.tsx",
+    "line": 768,
+    "text": "      keywords: [\"playlist\", \"fallback\", \"ad block\", \"ad blocker\"],"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/screens/Settings/index.tsx",
+    "line": 944,
+    "text": "  // Dev-only tabs requested in prod fall back to the default (\"playback\") so a"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/screens/Settings/index.tsx",
+    "line": 1303,
+    "text": "        /* advisory only — fall back to the prefs hint already in state */"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/settings/components/screens/Settings/index.tsx",
+    "line": 3014,
+    "text": "                  fallback={"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/stream-info.tsx",
+    "line": 162,
+    "text": "            {/* Prefer the current title, with channel metadata as a live-data fallback. */}"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/stream-info.tsx",
+    "line": 167,
+    "text": "              {/* Prefer the current category, with the channel's last known category as fallback. */}"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/stream/stream-card.tsx",
+    "line": 149,
+    "text": "              fallback={"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/settings/routes/bug-report-routes.ts",
+    "line": 72,
+    "text": "function asString(value: unknown, fallback = \"\"): string {"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/settings/routes/bug-report-routes.ts",
+    "line": 73,
+    "text": "  return typeof value === \"string\" ? value : fallback;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch-hls-session.ts",
+    "line": 67,
+    "text": "    status.isUsingFallbackMode ||"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch-hls-session.ts",
+    "line": 456,
+    "text": "      // - levelSwitchError: Quality switch issue, will fallback"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/state/follow-store.ts",
+    "line": 33,
+    "text": "  // Prefer canonical id; fall back to slug so an empty-id synthesized channel"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/state/follow-store.ts",
+    "line": 460,
+    "text": "    // Try the canonical key first; fall back to a slug-only lookup for the"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/state/follow-store.ts",
+    "line": 490,
+    "text": "  // empty channelId (synthesized-fallback case from the VOD page — user"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/state/follow-store.ts",
+    "line": 535,
+    "text": "        // followChannel) instead of leaving the row to fall back to \"guest\"."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/search/UnifiedSearchInput.tsx",
+    "line": 130,
+    "text": "        fallback={"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/search/UnifiedSearchInput.tsx",
+    "line": 133,
+    "text": "            data-testid=\"category-preview-fallback\""
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/search/UnifiedSearchInput.tsx",
+    "line": 190,
+    "text": "  const avatarFallback = ("
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/search/UnifiedSearchInput.tsx",
+    "line": 208,
+    "text": "            fallback={avatarFallback}"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/search/UnifiedSearchInput.tsx",
+    "line": 211,
+    "text": "          avatarFallback"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Video/index.tsx",
+    "line": 284,
+    "text": "          // Fallback: fetch presentation data independently from direct playback."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Video/index.tsx",
+    "line": 420,
+    "text": "  // Use fetched data or passed data or fallbacks"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Video/index.tsx",
+    "line": 433,
+    "text": "  // fallback when a VOD route does not include the channel avatar."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Video/index.tsx",
+    "line": 587,
+    "text": "  const channelAvatarFallback = visibleChannelName.slice(0, 1).toUpperCase() || \"?\";"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Video/index.tsx",
+    "line": 692,
+    "text": "                      {channelAvatarFallback}"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Video/index.tsx",
+    "line": 709,
+    "text": "                  {channelAvatarFallback}"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-rendition-continuity.ts",
+    "line": 44,
+    "text": " * at or above the preferred 480p fallback floor. A genuine 360p rendition is"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-rendition-continuity.ts",
+    "line": 51,
+    "text": "  minimumFallbackHeight = 480"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-rendition-continuity.ts",
+    "line": 55,
+    "text": "    targetHeight >= minimumFallbackHeight ? keepTwitchRenditionResolution(candidates, target) : [];"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-rendition-continuity.ts",
+    "line": 56,
+    "text": "  const fallbackPool = candidates.filter("
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-rendition-continuity.ts",
+    "line": 58,
+    "text": "      resolutionHeight(candidate.resolution) >= minimumFallbackHeight &&"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-rendition-continuity.ts",
+    "line": 63,
+    "text": "    return height >= 360 && height < minimumFallbackHeight;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-rendition-continuity.ts",
+    "line": 66,
+    "text": "  const nearestFallbackHeight ="
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-rendition-continuity.ts",
+    "line": 67,
+    "text": "    fallbackPool.length > 0"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-rendition-continuity.ts",
+    "line": 68,
+    "text": "      ? Math.min(...fallbackPool.map((candidate) => resolutionHeight(candidate.resolution)))"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-rendition-continuity.ts",
+    "line": 70,
+    "text": "  const fallback = fallbackPool.filter("
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-rendition-continuity.ts",
+    "line": 71,
+    "text": "    (candidate) => resolutionHeight(candidate.resolution) === nearestFallbackHeight"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-rendition-continuity.ts",
+    "line": 82,
+    "text": "  return [...exact, ...fallback, ...emergency];"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-adblock-service.ts",
+    "line": 91,
+    "text": "const missingResolutionFallbackLoggedChannels = new Set<string>();"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-adblock-service.ts",
+    "line": 353,
+    "text": "    isUsingFallbackMode: streamInfo?.isUsingFallbackMode ?? false,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-adblock-service.ts",
+    "line": 382,
+    "text": "    missingResolutionFallbackLoggedChannels.delete(lowerName);"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-adblock-service.ts",
+    "line": 651,
+    "text": "        streamInfo.isUsingFallbackMode = false;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-adblock-service.ts",
+    "line": 684,
+    "text": "      streamInfo.isUsingFallbackMode = false;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-adblock-service.ts",
+    "line": 700,
+    "text": "      if (!missingResolutionFallbackLoggedChannels.has(streamInfo.channelName)) {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-adblock-service.ts",
+    "line": 701,
+    "text": "        missingResolutionFallbackLoggedChannels.add(streamInfo.channelName);"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-adblock-service.ts",
+    "line": 739,
+    "text": "      streamInfo.isUsingFallbackMode = false;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-adblock-service.ts",
+    "line": 745,
+    "text": "      streamInfo.isUsingFallbackMode = true;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-adblock-service.ts",
+    "line": 824,
+    "text": "    streamInfo.isUsingFallbackMode = false;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-adblock-service.ts",
+    "line": 1047,
+    "text": "      // below 480p is raised to the preferred fallback floor. A clean 360p"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-adblock-service.ts",
+    "line": 1680,
+    "text": "    isUsingFallbackMode: streamInfo.isUsingFallbackMode,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/twitch-adblock-service.ts",
+    "line": 1786,
+    "text": "  missingResolutionFallbackLoggedChannels.clear();"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/playback-advanced-config.ts",
+    "line": 20,
+    "text": " * - `playerType` → `fallbackPlayerType` + prepended onto `backupPlayerTypes`"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/playback-advanced-config.ts",
+    "line": 78,
+    "text": "  // playerType → fallbackPlayerType + prepended backupPlayerTypes. \"default\""
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/twitch/playback-advanced-config.ts",
+    "line": 82,
+    "text": "    overrides.fallbackPlayerType = chosen;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/hls-playback-session.ts",
+    "line": 514,
+    "text": "        logger.debug(\"Player:HLS\", \"proxy/server error, triggering fallback\", { statusCode });"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/hls-playback-session.ts",
+    "line": 768,
+    "text": "          // Fallback: Single source"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/hls-buffer-config.ts",
+    "line": 62,
+    "text": "function positiveOr(value: unknown, fallback: number): number {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/adapters/browser/hls-buffer-config.ts",
+    "line": 63,
+    "text": "  return typeof value === \"number\" && Number.isFinite(value) && value > 0 ? value : fallback;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/settings/composition/diagnostics-runtime.ts",
+    "line": 170,
+    "text": "  const fallback ="
+  },
+  {
+    "path": "apps/desktop/src/backend/features/settings/composition/diagnostics-runtime.ts",
+    "line": 180,
+    "text": "  if (!metric.name) return fallback;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/settings/composition/diagnostics-runtime.ts",
+    "line": 181,
+    "text": "  return SAFE_ELECTRON_PROCESS_NAMES.has(metric.name) ? metric.name : fallback;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Stream/index.tsx",
+    "line": 92,
+    "text": "  const channelDisplayIsLoginFallback = channelDisplay.length === 0 || channelDisplay === login;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Stream/index.tsx",
+    "line": 94,
+    "text": "  if (streamMatchesChannel && channelDisplayIsLoginFallback) {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Stream/index.tsx",
+    "line": 359,
+    "text": "  // Helper to trigger proxy fallback"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Stream/index.tsx",
+    "line": 360,
+    "text": "  const triggerProxyFallback = useCallback(() => {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Stream/index.tsx",
+    "line": 361,
+    "text": "    logger.debug(\"Page:Stream\", \"triggering fallback to direct stream\");"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Stream/index.tsx",
+    "line": 570,
+    "text": "        triggerProxyFallback();"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Stream/index.tsx",
+    "line": 571,
+    "text": "        return; // Don't show error, let fallback attempt"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Stream/index.tsx",
+    "line": 578,
+    "text": "        // If we were using proxy and got a network/offline error, try fallback to direct"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Stream/index.tsx",
+    "line": 580,
+    "text": "          triggerProxyFallback();"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Stream/index.tsx",
+    "line": 581,
+    "text": "          return; // Don't show error yet, let fallback attempt"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Stream/index.tsx",
+    "line": 590,
+    "text": "        // Also try fallback for other network errors when using proxy"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Stream/index.tsx",
+    "line": 592,
+    "text": "          triggerProxyFallback();"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Stream/index.tsx",
+    "line": 604,
+    "text": "      triggerProxyFallback,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Stream/index.tsx",
+    "line": 830,
+    "text": "              <Suspense fallback={null}>"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Stream/index.tsx",
+    "line": 952,
+    "text": "              <Suspense fallback={null}>"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/screens/Stream/index.tsx",
+    "line": 981,
+    "text": "            <Suspense fallback={null}>"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/screens/SearchResults/index.tsx",
+    "line": 897,
+    "text": "        <React.Suspense fallback={null}>"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/related-content/VideoCard.tsx",
+    "line": 117,
+    "text": "            fallback={<ThumbnailUnavailable />}"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/related-content/index.tsx",
+    "line": 530,
+    "text": "          // For Twitch, we'll fall back to iframe embed"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/related-content/index.tsx",
+    "line": 541,
+    "text": "        // For Twitch, we'll fall back to iframe embed"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/related-content/ClipDialog.tsx",
+    "line": 239,
+    "text": "        // Use channelData as fallback for avatar since VOD API may not have it"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/screens/Following/index.tsx",
+    "line": 350,
+    "text": "        // Ensure stream has avatar if missing (fallback to channel avatar)"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/screens/Following/index.tsx",
+    "line": 1260,
+    "text": "        <Suspense fallback={null}>"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/settings/adapters/electron/update-service.ts",
+    "line": 59,
+    "text": " * Exported for direct unit testing of the clamp/fallback (no side effects)."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/settings/adapters/electron/stream-proxy-service.ts",
+    "line": 59,
+    "text": " * token encrypt path in storage-service (safeStorage with a base64 fallback"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/settings/adapters/electron/stream-proxy-service.ts",
+    "line": 72,
+    "text": "    // Fallback mirrors storage-service: less secure, but keeps dev working."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/settings/adapters/electron/stream-proxy-service.ts",
+    "line": 75,
+    "text": "      \"safeStorage unavailable, using base64 fallback for credentials\""
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/discovery/category-card.tsx",
+    "line": 93,
+    "text": "              fallback={"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/twitch/twitch-live-player.tsx",
+    "line": 37,
+    "text": "import { AdBlockFallbackOverlay } from \"./ad-block-fallback-overlay\";"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/twitch/twitch-live-player.tsx",
+    "line": 298,
+    "text": "    // Track mute state before fallback mode for restoration"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/twitch/twitch-live-player.tsx",
+    "line": 299,
+    "text": "    const _preFallbackMuteRef = useRef<boolean>(false);"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/twitch/twitch-live-player.tsx",
+    "line": 500,
+    "text": "        adBlockStatus.isUsingFallbackMode);"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/twitch/twitch-live-player.tsx",
+    "line": 657,
+    "text": "        {/* Ad-Block Fallback Overlay - Full screen when all backup types failed */}"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/twitch/twitch-live-player.tsx",
+    "line": 659,
+    "text": "          <AdBlockFallbackOverlay status={adBlockStatus} channelName={channelName} />"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/twitch/twitch-hls-player.tsx",
+    "line": 225,
+    "text": "            isUsingFallbackMode: status.isUsingFallbackMode,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/twitch/twitch-hls-player.tsx",
+    "line": 413,
+    "text": "          (status.isShowingAd || status.isStrippingSegments || status.isUsingFallbackMode)"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/twitch/twitch-hls-player.tsx",
+    "line": 523,
+    "text": "          isUsingFallbackMode: false,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/twitch/ad-block-fallback-overlay.tsx",
+    "line": 3,
+    "text": "interface AdBlockFallbackOverlayProps {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/twitch/ad-block-fallback-overlay.tsx",
+    "line": 16,
+    "text": "export function AdBlockFallbackOverlay(_props: AdBlockFallbackOverlayProps) {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/offline-overlay.tsx",
+    "line": 50,
+    "text": "            fallback={<div className=\"absolute inset-0 bg-[var(--color-background-secondary)]\" />}"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/mini-player.tsx",
+    "line": 753,
+    "text": "                    fallback={<div className=\"w-6 h-6 rounded-full bg-white/10\" />}"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/local-caption-presentation.ts",
+    "line": 140,
+    "text": "      fallbackHighlight: !validWordTiming && !result.isFinal,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/kick/uptime-readout.tsx",
+    "line": 61,
+    "text": "        // Fallback: assume seekable.end == \"now\" (uptime)."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/kick/uptime-readout.tsx",
+    "line": 73,
+    "text": "      // No startedAt — fall back to the video element's own clock."
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/kick/kick-live-player.tsx",
+    "line": 274,
+    "text": "            // Fallback calculations"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/moderation/adapters/kick/kick-mod-mutations.ts",
+    "line": 11,
+    "text": " * caller has the required stable IDs. Legacy v2 web routes remain as fallback"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/moderation/adapters/kick/kick-mod-mutations.ts",
+    "line": 93,
+    "text": "async function withOfficialFallback("
+  },
+  {
+    "path": "apps/desktop/src/backend/features/moderation/adapters/kick/kick-mod-mutations.ts",
+    "line": 182,
+    "text": "  return withOfficialFallback("
+  },
+  {
+    "path": "apps/desktop/src/backend/features/moderation/adapters/kick/kick-mod-mutations.ts",
+    "line": 264,
+    "text": "  return withOfficialFallback("
+  },
+  {
+    "path": "apps/desktop/src/backend/features/moderation/adapters/kick/kick-mod-mutations.ts",
+    "line": 328,
+    "text": "  return withOfficialFallback("
+  },
+  {
+    "path": "apps/desktop/src/backend/features/moderation/adapters/kick/kick-mod-mutations.ts",
+    "line": 347,
+    "text": "  return withOfficialFallback("
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/hooks/queries/useSearch.ts",
+    "line": 928,
+    "text": "  const fallback = persisted"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/hooks/queries/useSearch.ts",
+    "line": 937,
+    "text": "  if (!current) return fallback;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/hooks/queries/useSearch.ts",
+    "line": 938,
+    "text": "  if (!fallback || !isHydrating) return current;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/hooks/queries/useSearch.ts",
+    "line": 941,
+    "text": "    channels: current.channels.length > 0 ? current.channels : fallback.channels,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/hooks/queries/useSearch.ts",
+    "line": 942,
+    "text": "    categories: current.categories.length > 0 ? current.categories : fallback.categories,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/hooks/queries/useSearch.ts",
+    "line": 943,
+    "text": "    streams: current.streams.length > 0 ? current.streams : fallback.streams,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/hooks/queries/useSearch.ts",
+    "line": 944,
+    "text": "    videos: current.videos.length > 0 ? current.videos : fallback.videos,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/hooks/queries/useSearch.ts",
+    "line": 945,
+    "text": "    clips: current.clips.length > 0 ? current.clips : fallback.clips,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/hooks/queries/useFollowedContent.ts",
+    "line": 98,
+    "text": "function asString(value: unknown, fallback = \"\"): string {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/hooks/queries/useFollowedContent.ts",
+    "line": 101,
+    "text": "  return fallback;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/hooks/queries/useCategories.ts",
+    "line": 582,
+    "text": " * CategoryDetailPage's fallback search so a visit in either direction primes"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/discovery/components/hooks/queries/browse-snapshot-bootstrap.ts",
+    "line": 243,
+    "text": "          // Category rows are a stale-while-revalidate fallback. Ten minutes was"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/multistream/components/multistream/stream-slot.tsx",
+    "line": 393,
+    "text": "                  fallback={<div className=\"w-12 h-12 rounded-full mb-3 bg-white/10\" />}"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/multistream/components/multistream/stream-slot.tsx",
+    "line": 458,
+    "text": "                      fallback={"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/multistream/components/multistream/stream-slot.tsx",
+    "line": 485,
+    "text": "                        fallback={<div className=\"w-16 h-16 rounded-full bg-white/10 shadow-xl\" />}"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/multistream/components/multistream/add-stream-dialog.tsx",
+    "line": 292,
+    "text": "                          fallbackClassName=\"h-10 w-10 shrink-0 rounded-full text-sm\""
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/multistream/components/multistream/adaptive-stream-grid.tsx",
+    "line": 225,
+    "text": "  const fallbackColumns = Math.min(2, Math.max(1, itemCount));"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/multistream/components/multistream/adaptive-stream-grid.tsx",
+    "line": 247,
+    "text": "          : `repeat(${fallbackColumns}, minmax(0, 1fr))`,"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/hooks/use-adaptive-quality.ts",
+    "line": 151,
+    "text": "      // Fall back to effectiveType if available"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/hooks/use-adaptive-quality.ts",
+    "line": 202,
+    "text": "      // Fallback to lowest quality if nothing matches"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/caption-overlay.tsx",
+    "line": 92,
+    "text": "  if (!local.wordTimingValid && !local.fallbackHighlight) return cue.text;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/caption-overlay.tsx",
+    "line": 96,
+    "text": "  if (local.fallbackHighlight) {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/caption-overlay.tsx",
+    "line": 136,
+    "text": "  const fallbackCues = cues.filter((cue) => cueLayout(cue) === null);"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/caption-overlay.tsx",
+    "line": 147,
+    "text": "        {fallbackCues.length > 0 && ("
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/caption-overlay.tsx",
+    "line": 152,
+    "text": "            {fallbackCues.map((cue) => ("
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/caption-overlay.tsx",
+    "line": 156,
+    "text": "                data-caption-layout=\"fallback\""
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/hooks/use-video-lifecycle.ts",
+    "line": 200,
+    "text": "          // Fallback: try again soon"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/hooks/use-on-demand-seek-recovery.ts",
+    "line": 65,
+    "text": "  const fallbackSeekedGenerationRef = useRef<number | null>(null);"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/hooks/use-on-demand-seek-recovery.ts",
+    "line": 182,
+    "text": "      fallbackSeekedGenerationRef.current = null;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/hooks/use-on-demand-seek-recovery.ts",
+    "line": 239,
+    "text": "      fallbackSeekedGenerationRef.current = activeGenerationRef.current;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/hooks/use-on-demand-seek-recovery.ts",
+    "line": 287,
+    "text": "        fallbackSeekedGenerationRef.current !== generation ||"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/player/hooks/use-on-demand-seek-recovery.ts",
+    "line": 356,
+    "text": "      fallbackSeekedGenerationRef.current = null;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/hooks/useStreamPlayback.ts",
+    "line": 338,
+    "text": "  /** Retry loading the stream without proxy (fallback to direct) */"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/hooks/useStreamPlayback.ts",
+    "line": 357,
+    "text": "  // Track if we're using proxy to enable fallback"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/hooks/useStreamPlayback.ts",
+    "line": 359,
+    "text": "  // Force disable proxy for fallback"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/playback/components/hooks/useStreamPlayback.ts",
+    "line": 548,
+    "text": "    logger.debug(\"Hook:StreamPlayback\", \"retrying without proxy (fallback to direct)\");"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/chat/adapters/twitch/twitch-helix-chat-settings.ts",
+    "line": 138,
+    "text": " * otherwise fall back to manual composition."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/chat/adapters/twitch/twitch-badge-catalog-provider.ts",
+    "line": 99,
+    "text": "    } catch { /* Helix is the authenticated fallback. */ }"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/chat/adapters/twitch/twitch-badge-catalog-provider.ts",
+    "line": 103,
+    "text": "    } catch { /* Helix is the authenticated fallback. */ }"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/chat/adapters/twitch/twitch-badge-catalog-provider.ts",
+    "line": 122,
+    "text": "    } catch { /* Helix is the authenticated fallback. */ }"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/chat/adapters/twitch/twitch-badge-catalog-provider.ts",
+    "line": 126,
+    "text": "    } catch { /* Helix is the authenticated fallback. */ }"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/chat/adapters/twitch/twitch-badge-catalog-provider.ts",
+    "line": 147,
+    "text": "    if (!credentials.accessToken || !credentials.clientId) throw new Error(\"No Twitch credentials for badge fallback\");"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/moderation/components/hooks/useIsKickMod.ts",
+    "line": 32,
+    "text": "  // and username as a defensive fallback — Kick slugs are normally identical"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/chat/adapters/kick/kick-send-window.ts",
+    "line": 738,
+    "text": "  logger.debug(\"Kick:SendWindow\", \"Kick web API GET phase\", { phase: \"renderer-fallback\" });"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/chat/adapters/kick/kick-send-window.ts",
+    "line": 1083,
+    "text": "// Guards: direct session reads are the fast path; renderer creation remains a compatibility fallback for Kick security challenges."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/chat/adapters/kick/kick-send-window.ts",
+    "line": 1092,
+    "text": "  const securityFallback ="
+  },
+  {
+    "path": "apps/desktop/src/backend/features/chat/adapters/kick/kick-send-window.ts",
+    "line": 1097,
+    "text": "  if (securityFallback) return null;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/chat/adapters/kick/kick-channel-emotes-service.ts",
+    "line": 166,
+    "text": " * can carry older `emotes` / `chatroom.emotes` arrays as a fallback."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/chat/adapters/kick/chat-endpoints.ts",
+    "line": 7,
+    "text": " * channel page remains as a compatibility fallback when Kick requires browser"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/chat/routes/chat-routes.ts",
+    "line": 332,
+    "text": "            logger.debug(\"IPC:Chat\", \"Twitch Helix mention enrichment failed; using GQL fallback\", {"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/chat/routes/chat-routes.ts",
+    "line": 399,
+    "text": "              \"Kick official mention enrichment failed; using public fallback\","
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/data/vaft-pattern-service.ts",
+    "line": 259,
+    "text": "      // Extract fallback player type"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/data/vaft-pattern-service.ts",
+    "line": 260,
+    "text": "      const fallbackMatch = script.match(/FallbackPlayerType\\s*=\\s*['\"]([^'\"]+)['\"]/);"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/data/vaft-pattern-service.ts",
+    "line": 261,
+    "text": "      const fallbackPlayerType = (fallbackMatch?.[1] as PlayerType) || \"embed\";"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/data/vaft-pattern-service.ts",
+    "line": 276,
+    "text": "        fallbackPlayerType,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-service.ts",
+    "line": 375,
+    "text": "          usedFallback: session.usedFallback ?? session.outputFormat === \"ts\","
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-service.ts",
+    "line": 397,
+    "text": "                usedFallback: intent.usedFallback,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-service.ts",
+    "line": 416,
+    "text": "          usedFallback: result.usedFallback,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-service.ts",
+    "line": 465,
+    "text": "          usedFallback: result.usedFallback,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-service.ts",
+    "line": 753,
+    "text": "        typeof latest.usedFallback === \"boolean\""
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-service.ts",
+    "line": 759,
+    "text": "              usedFallback: latest.usedFallback,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-service.ts",
+    "line": 784,
+    "text": "          usedFallback: exhaustion.usedFallback,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-service.ts",
+    "line": 819,
+    "text": "                usedFallback: intent.usedFallback,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-service.ts",
+    "line": 842,
+    "text": "        usedFallback: result.usedFallback,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-service.ts",
+    "line": 850,
+    "text": "          usedFallback: result.usedFallback,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-service.ts",
+    "line": 872,
+    "text": "            usedFallback: result.usedFallback,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-service.ts",
+    "line": 918,
+    "text": "                    usedFallback: undefined,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-service.ts",
+    "line": 1284,
+    "text": "        typeof session.usedFallback === \"boolean\""
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-service.ts",
+    "line": 1289,
+    "text": "              usedFallback: session.usedFallback,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-service.ts",
+    "line": 1298,
+    "text": "              usedFallback: session.recoveryExhaustion.usedFallback,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-service.ts",
+    "line": 1308,
+    "text": "            output.usedFallback"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-outcome-coordinator.ts",
+    "line": 58,
+    "text": "  function actionError(error: unknown, fallback: string): { success: false; error: string } {"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/domain/stream-recording-outcome-coordinator.ts",
+    "line": 59,
+    "text": "    return { success: false, error: error instanceof Error ? error.message : fallback };"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/twitch/twitch-follow-write-credential.ts",
+    "line": 79,
+    "text": "async function responseError(response: Response, fallback: string): Promise<Error> {"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/twitch/twitch-follow-write-credential.ts",
+    "line": 81,
+    "text": "  return new Error(body.error_description || body.message || body.error || fallback);"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/capabilities/stream-recording-lifecycle.ts",
+    "line": 9,
+    "text": "  usedFallback: boolean;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/capabilities/stream-recording-lifecycle.ts",
+    "line": 22,
+    "text": "    usedFallback: boolean;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/capabilities/stream-recording-lifecycle.ts",
+    "line": 56,
+    "text": "    usedFallback: boolean"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/moderation/components/screens/Mod/channel/workspace/ModWorkspace.tsx",
+    "line": 55,
+    "text": "  const fallback = parseLayout("
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/moderation/components/screens/Mod/channel/workspace/ModWorkspace.tsx",
+    "line": 64,
+    "text": "      fallback"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/moderation/components/screens/Mod/channel/workspace/ModWorkspace.tsx",
+    "line": 67,
+    "text": "    return fallback;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/moderation/components/screens/Mod/channel/workspace/ModLivePanels.tsx",
+    "line": 64,
+    "text": "      <Suspense fallback={<PanelState>{t(\"moderation.loading\")}</PanelState>}>"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/moderation/components/screens/Mod/channel/workspace/ModLivePanels.tsx",
+    "line": 108,
+    "text": "      <Suspense fallback={<PanelState>{t(\"chat.loadingChat\")}</PanelState>}>"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/moderation/components/screens/Mod/channel/workspace/ModLivePanels.tsx",
+    "line": 138,
+    "text": "      <Suspense fallback={<PanelState>{t(\"chat.loadingChat\")}</PanelState>}>"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/moderation/components/screens/Mod/channel/workspace/dock-layout.ts",
+    "line": 263,
+    "text": "function normalizedFallback(fallback: DockLayout, available: readonly WidgetId[]): DockLayout {"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/moderation/components/screens/Mod/channel/workspace/dock-layout.ts",
+    "line": 264,
+    "text": "  const root = parseNode(fallback.root, available, new Set<WidgetId>(), 0);"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/moderation/components/screens/Mod/channel/workspace/dock-layout.ts",
+    "line": 266,
+    "text": "    throw new Error(\"Dock layout fallback must include an available root\");"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/moderation/components/screens/Mod/channel/workspace/dock-layout.ts",
+    "line": 268,
+    "text": "  return { version: 1, locked: fallback.locked, root };"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/moderation/components/screens/Mod/channel/workspace/dock-layout.ts",
+    "line": 283,
+    "text": "  fallback: DockLayout"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/moderation/components/screens/Mod/channel/workspace/dock-layout.ts",
+    "line": 285,
+    "text": "  const safeFallback = normalizedFallback(fallback, available);"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/moderation/components/screens/Mod/channel/workspace/dock-layout.ts",
+    "line": 287,
+    "text": "    return safeFallback;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/moderation/components/screens/Mod/channel/workspace/dock-layout.ts",
+    "line": 295,
+    "text": "    return safeFallback;"
+  },
+  {
+    "path": "apps/desktop/src/frontend/features/moderation/components/screens/Mod/channel/workspace/dock-layout.ts",
+    "line": 302,
+    "text": "    return safeFallback;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/data/stream-recording-session-store.ts",
+    "line": 111,
+    "text": "    typeof value.usedFallback !== \"boolean\" ||"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/data/stream-recording-session-store.ts",
+    "line": 113,
+    "text": "    !isOwnedRecordingOutput(destinationPath, outputPath, value.outputFormat, value.usedFallback) ||"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/data/stream-recording-session-store.ts",
+    "line": 123,
+    "text": "    usedFallback: value.usedFallback,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/data/stream-recording-session-store.ts",
+    "line": 299,
+    "text": "  if (typeof value.usedFallback === \"boolean\") session.usedFallback = value.usedFallback;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/data/stream-recording-session-store.ts",
+    "line": 300,
+    "text": "  else if (value.usedFallback !== undefined) return null;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/data/stream-recording-session-store.ts",
+    "line": 305,
+    "text": "      typeof session.usedFallback !== \"boolean\" ||"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/data/stream-recording-session-store.ts",
+    "line": 310,
+    "text": "        session.usedFallback"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/routes/video-routes.ts",
+    "line": 399,
+    "text": "            const fallback = await twitchPlayback.getClipsByChannel(channelLogin, {"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/routes/video-routes.ts",
+    "line": 403,
+    "text": "            twitchClips = fallback.data;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/routes/video-routes.ts",
+    "line": 404,
+    "text": "            outputCursor = fallback.cursor;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/routes/video-routes.ts",
+    "line": 996,
+    "text": "          // Apply client-side sorting (as fallback since Kick API may not reliably sort by views)"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/oauth/token-exchange.ts",
+    "line": 401,
+    "text": "      // timestamp. Fall back to the stored expiry when absent."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/oauth/token-exchange.ts",
+    "line": 440,
+    "text": "      // No expiry from the API surface — fall back to the stored token expiry."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/oauth/oauth-config.ts",
+    "line": 40,
+    "text": "// ========== Protocol Configuration (for fallback/future use) =========="
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-rendition-continuity.ts",
+    "line": 44,
+    "text": " * at or above the preferred 480p fallback floor. A genuine 360p rendition is"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-rendition-continuity.ts",
+    "line": 51,
+    "text": "  minimumFallbackHeight = 480"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-rendition-continuity.ts",
+    "line": 55,
+    "text": "    targetHeight >= minimumFallbackHeight ? keepTwitchRenditionResolution(candidates, target) : [];"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-rendition-continuity.ts",
+    "line": 56,
+    "text": "  const fallbackPool = candidates.filter("
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-rendition-continuity.ts",
+    "line": 58,
+    "text": "      resolutionHeight(candidate.resolution) >= minimumFallbackHeight &&"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-rendition-continuity.ts",
+    "line": 63,
+    "text": "    return height >= 360 && height < minimumFallbackHeight;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-rendition-continuity.ts",
+    "line": 66,
+    "text": "  const nearestFallbackHeight ="
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-rendition-continuity.ts",
+    "line": 67,
+    "text": "    fallbackPool.length > 0"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-rendition-continuity.ts",
+    "line": 68,
+    "text": "      ? Math.min(...fallbackPool.map((candidate) => resolutionHeight(candidate.resolution)))"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-rendition-continuity.ts",
+    "line": 70,
+    "text": "  const fallback = fallbackPool.filter("
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-rendition-continuity.ts",
+    "line": 71,
+    "text": "    (candidate) => resolutionHeight(candidate.resolution) === nearestFallbackHeight"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-rendition-continuity.ts",
+    "line": 82,
+    "text": "  return [...exact, ...fallback, ...emergency];"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-manifest-proxy.ts",
+    "line": 471,
+    "text": "      // Fallback to defaults if service not initialized"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-manifest-proxy.ts",
+    "line": 802,
+    "text": "          // Minimal retries - we have multiple player types as fallback"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/twitch/twitch-gql-playback.ts",
+    "line": 110,
+    "text": "      // clips.twitch.tv/embed?clip=... fallback both key off the slug. Helix"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/domain/caption-preference-normalizer.ts",
+    "line": 32,
+    "text": "function validNumberInRange(value: unknown, minimum: number, maximum: number, fallback: number) {"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/domain/caption-preference-normalizer.ts",
+    "line": 35,
+    "text": "    : fallback;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/kick/kick-chat-replay-source.ts",
+    "line": 76,
+    "text": "      // The persistent BrowserWindow path below is the compatibility fallback"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/playback/adapters/kick/video-endpoints.ts",
+    "line": 126,
+    "text": "            // current-time fallback. Channel last-live metadata may only use"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 15,
+    "text": "  usedFallback: boolean;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 40,
+    "text": "    usedFallback: boolean;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 46,
+    "text": "const LINK_FALLBACK_CODES = new Set([\"EPERM\", \"EACCES\", \"EXDEV\", \"EOPNOTSUPP\", \"ENOSYS\"]);"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 62,
+    "text": "      if (!code || !LINK_FALLBACK_CODES.has(code)) throw error;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 148,
+    "text": "  usedFallback,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 158,
+    "text": "  usedFallback: boolean;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 164,
+    "text": "    await beforeCommit?.({ outputPath, format, usedFallback, artifactIdentity });"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 188,
+    "text": "      const fallbackPath = replaceExtension(destinationPath, \".ts\");"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 189,
+    "text": "      const tsTempPath = `${fallbackPath}.streamfusion-${nonce}.finalizing.ts`;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 219,
+    "text": "            usedFallback: false,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 225,
+    "text": "            usedFallback: false,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 249,
+    "text": "              outputPath: fallbackPath,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 253,
+    "text": "              usedFallback: true,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 257,
+    "text": "              outputPath: fallbackPath,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 259,
+    "text": "              usedFallback: true,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 263,
+    "text": "          } catch (fallbackError) {"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-section-finalizer.ts",
+    "line": 265,
+    "text": "              [mp4Error, fallbackError],"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-paths.ts",
+    "line": 71,
+    "text": "  usedFallback: boolean"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/stream-recording-paths.ts",
+    "line": 73,
+    "text": "  if (usedFallback !== (format === \"ts\")) return false;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/download-paths.ts",
+    "line": 6,
+    "text": "function sanitizeFilenamePart(value: string, fallback: string): string {"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/download-paths.ts",
+    "line": 8,
+    "text": "  if (!cleaned || RESERVED_DOS_NAMES.test(cleaned)) return fallback;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/node/download-paths.ts",
+    "line": 9,
+    "text": "  return cleaned.slice(0, 120).trim() || fallback;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/electron/download-save-dialog.ts",
+    "line": 17,
+    "text": "  getFallbackDirectory: () => string;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/electron/download-save-dialog.ts",
+    "line": 34,
+    "text": "      : dependencies.getFallbackDirectory();"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/electron/download-save-dialog.ts",
+    "line": 54,
+    "text": "    getFallbackDirectory: () => app.getPath(\"downloads\"),"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/ffmpeg/ffmpeg-download-service.ts",
+    "line": 248,
+    "text": "    const fallbackPath = destinationPath.replace(/\\.[^.\\\\/]+$/, \".ts\");"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/ffmpeg/ffmpeg-download-service.ts",
+    "line": 251,
+    "text": "      args: buildArgs(inputUrl, fallbackPath),"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/media-library/adapters/ffmpeg/ffmpeg-download-service.ts",
+    "line": 257,
+    "text": "    return resultFor(fallbackPath, \"ts\");"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/data/authentication-repository.ts",
+    "line": 70,
+    "text": "      // Fallback: Store as base64 (less secure, but works in dev)"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/data/authentication-repository.ts",
+    "line": 71,
+    "text": "      logger.warn(\"Service:Storage\", \"safeStorage not available, using base64 fallback\");"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/data/authentication-repository.ts",
+    "line": 104,
+    "text": "    // defensively fall back to the old base64 representation."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/kick-follow-identity-service.ts",
+    "line": 344,
+    "text": "  fallbackSlugs: string[];"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/kick-follow-identity-service.ts",
+    "line": 352,
+    "text": " * a public status fallback instead of being silently classified as offline."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/kick-follow-identity-service.ts",
+    "line": 360,
+    "text": "  const fallbackSlugs: string[] = [];"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/kick-follow-identity-service.ts",
+    "line": 377,
+    "text": "    if (parsedId === null) fallbackSlugs.push(slug);"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/kick-follow-identity-service.ts",
+    "line": 383,
+    "text": "    fallbackSlugs: uniqueByLowercase(fallbackSlugs),"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/kick-auth.ts",
+    "line": 50,
+    "text": " * the follow-endpoints BrowserWindow fallback reads them from. Preserves the"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/kick-account-reader.ts",
+    "line": 42,
+    "text": "      allowBrowserWindowFallback: options.allowInteractiveFallback === true,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 110,
+    "text": "  allowBrowserWindowFallback?: boolean;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 255,
+    "text": "// fallback behavior; an authoritative settlement must not inherit a weaker"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 257,
+    "text": "const _inFlightByFallback = new Map<boolean, Promise<FollowedChannelsResult>>();"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 277,
+    "text": "  const allowBrowserWindowFallback = options.allowBrowserWindowFallback === true;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 278,
+    "text": "  const existing = _inFlightByFallback.get(allowBrowserWindowFallback);"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 281,
+    "text": "    if (_inFlightByFallback.get(allowBrowserWindowFallback) === request) {"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 282,
+    "text": "      _inFlightByFallback.delete(allowBrowserWindowFallback);"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 285,
+    "text": "  _inFlightByFallback.set(allowBrowserWindowFallback, request);"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 325,
+    "text": "  if (!options.allowBrowserWindowFallback) return bearerResult;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 328,
+    "text": "  // for this account/session, fall back to the cookie-auth BrowserWindow path."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 331,
+    "text": "    \"Using BrowserWindow cookie-auth fallback for followed channels\","
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 563,
+    "text": "      \"Kick v2 followed-channels returned a Cloudflare challenge page. The endpoint likely requires session cookies from a kick.com browser context; a BrowserWindow fallback is needed.\""
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 921,
+    "text": " * Cookie-auth fallback path: open a hidden BrowserWindow in the DEFAULT"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 936,
+    "text": "  logger.debug(\"Kick:Endpoints:Follow\", \"BrowserWindow fallback: acquiring window slot\");"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 938,
+    "text": "  logger.debug(\"Kick:Endpoints:Follow\", \"BrowserWindow fallback: slot acquired, creating window\");"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 963,
+    "text": "      \"BrowserWindow fallback: kick.com cookies before scrape\","
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 981,
+    "text": "      \"BrowserWindow fallback: fetching followed-channels URL via page context with XSRF header\","
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 1001,
+    "text": "      \"BrowserWindow fallback: navigating to followed-channels page for DOM-scrape extraction\","
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 1012,
+    "text": "      logger.debug(\"Kick:Endpoints:Follow\", \"BrowserWindow fallback: /following page loaded\");"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 1025,
+    "text": "          \"BrowserWindow fallback: redirect abort settled on a ready Kick document\""
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 1030,
+    "text": "          `BrowserWindow fallback: /following navigation failed: ${err instanceof Error ? err.message : String(err)}`"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 1042,
+    "text": "        ? \"BrowserWindow fallback SUCCESS: fetched followed channels through page API\""
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 1058,
+    "text": "      \"BrowserWindow fallback: waiting for /following grid to render\""
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 1081,
+    "text": "      _warnOnce(\"parse-error\", `BrowserWindow fallback: DOM scrape threw: ${String(err)}`);"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 1122,
+    "text": "        `BrowserWindow fallback: DOM scrape result was not JSON: ${scrapeResult.slice(0, 200)}`"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 1127,
+    "text": "    logger.debug(\"Kick:Endpoints:Follow\", \"BrowserWindow fallback: scraped result\", {"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 1163,
+    "text": "      \"BrowserWindow fallback SUCCESS: scraped followed channels from /following DOM\","
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/adapters/kick/follow-endpoints.ts",
+    "line": 1170,
+    "text": "      `BrowserWindow fallback unexpected error: ${err instanceof Error ? err.message : String(err)}`"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/data/follow-repository.ts",
+    "line": 413,
+    "text": "    const slugFallback = normalizedFollowSlug(channelName);"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/data/follow-repository.ts",
+    "line": 414,
+    "text": "    const requestedChannelId = follow.channelId.trim() || slugFallback;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/data/follow-repository.ts",
+    "line": 421,
+    "text": "      .get(follow.platform, source, slugFallback);"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/composition/auth-runtime.ts",
+    "line": 41,
+    "text": "// Protocol Handler (for custom protocol - fallback)"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/user-endpoints.ts",
+    "line": 162,
+    "text": " * Legacy/internal fallback for ordinary chatters:"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 160,
+    "text": " * Used as a fallback when we know a category name from the other platform but"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 176,
+    "text": "const DISPLAY_NAME_CACHE_TTL = 1000 * 60 * 60; // 60 minutes — streamer renames are rare, fewer net.request fallbacks"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 523,
+    "text": "    const fallback = await getPublicStreamBySlug(stream.channelName);"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 525,
+    "text": "      fallback?.platform === \"kick\" &&"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 526,
+    "text": "      fallback.isLive &&"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 527,
+    "text": "      fallback.channelName.trim().toLowerCase() === stream.channelName.trim().toLowerCase();"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 529,
+    "text": "    const fallbackStartedAt = fallback?.startedAt ? Date.parse(fallback.startedAt) : Number.NaN;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 532,
+    "text": "      Number.isFinite(fallbackStartedAt) &&"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 533,
+    "text": "      officialStartedAt === fallbackStartedAt;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 538,
+    "text": "          needsViewerCount && Number.isFinite(fallback.viewerCount) && fallback.viewerCount > 0"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 539,
+    "text": "            ? fallback.viewerCount"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 542,
+    "text": "          needsThumbnail && fallback.thumbnailUrl.trim()"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 543,
+    "text": "            ? fallback.thumbnailUrl"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 803,
+    "text": " * channel payload as a compatibility fallback for no-auth/API-degraded cases."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 1037,
+    "text": "      // didn't supply one, fall back to the response's own (ULID) category id."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 1074,
+    "text": "      // path so we at least try the legacy fallback."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 1230,
+    "text": "      // Legacy API returns files.kick.com/... URLs which may return 403 but still useful as fallback"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 1315,
+    "text": "    // Final fallback: filter the dump client-side (the public endpoints return"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 1377,
+    "text": "    // The anonymous fallback has no compatible cursor contract. Never replay"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 1425,
+    "text": "        logger.warn(\"Kick:Endpoints:Stream\", \"Official API top streams failed, trying fallback\");"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 1429,
+    "text": "    // Fallback to public API"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 1451,
+    "text": " * `categoryName` (optional) enables a slug-guess fallback: when the id-based"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 1463,
+    "text": "  const getSlugFallback = async (): Promise<PaginatedResult<UnifiedStream>> => {"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 1481,
+    "text": "  if (!categoryId) return getSlugFallback();"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 1499,
+    "text": "    if (!response.ok) return getSlugFallback();"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 1501,
+    "text": "    if (!isRecord(body) || !isRecord(body.data)) return getSlugFallback();"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 1545,
+    "text": "    return streams.length > 0 || !options.categoryName ? result : getSlugFallback();"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/stream-endpoints.ts",
+    "line": 1551,
+    "text": "    return getSlugFallback();"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/search-endpoints.ts",
+    "line": 421,
+    "text": "            // exact slug match, the UI will show a letter fallback."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/search-endpoints.ts",
+    "line": 514,
+    "text": "        \"Failed to fetch live stream pages for search fallback\","
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/routes/auth-routes.ts",
+    "line": 100,
+    "text": " *     Trusted Kick results may prune absent rows; uncertain fallback results"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/routes/auth-routes.ts",
+    "line": 422,
+    "text": "  allowKickBrowserWindowFallback?: boolean;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/routes/auth-routes.ts",
+    "line": 427,
+    "text": "  return platform === \"kick\" ? { allowKickBrowserWindowFallback: true } : {};"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/routes/auth-routes.ts",
+    "line": 570,
+    "text": "            allowInteractiveFallback: options.allowKickBrowserWindowFallback === true,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/authentication/routes/auth-routes.ts",
+    "line": 965,
+    "text": "          allowKickBrowserWindowFallback: true,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 15,
+    "text": "const FALLBACK_COALESCE_MS = 1000;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 18,
+    "text": "const fallbackSnapshots = new Map<"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 23,
+    "text": "function readFallback("
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 29,
+    "text": "  if (options.fresh) fallbackSnapshots.delete(key);"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 30,
+    "text": "  const cached = fallbackSnapshots.get(key);"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 33,
+    "text": "  fallbackSnapshots.set(key, { expiresAt: Date.now() + FALLBACK_COALESCE_MS, promise });"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 38,
+    "text": "  fallbackSnapshots.clear();"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 76,
+    "text": "    const fallback = await readFallback(channelSlug, username, { viewerId: userId });"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 78,
+    "text": "      fallback &&"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 79,
+    "text": "      fallback.userId === userId &&"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 80,
+    "text": "      fallback.username.toLowerCase() === username.toLowerCase()"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 84,
+    "text": "        source: \"first-party-fallback\","
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 86,
+    "text": "          userId: fallback.userId,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 87,
+    "text": "          username: fallback.username,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 88,
+    "text": "          displayName: fallback.displayName,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 89,
+    "text": "          avatarUrl: fallback.avatarUrl,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 108,
+    "text": "    const fallback = await readFallback(channelSlug, username, { viewerId: userId });"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 110,
+    "text": "      fallback?.userId === userId &&"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 111,
+    "text": "      fallback.username.toLowerCase() === username.toLowerCase() &&"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 112,
+    "text": "      fallback.createdAt &&"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 113,
+    "text": "      ISO_TIMESTAMP_PATTERN.test(fallback.createdAt) &&"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 114,
+    "text": "      Number.isFinite(Date.parse(fallback.createdAt))"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 118,
+    "text": "        source: \"first-party-fallback\","
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 119,
+    "text": "        value: fallback.createdAt,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 134,
+    "text": "    const fallback = await readFallback(channelSlug, username, { viewerId: userId });"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 136,
+    "text": "      fallback?.userId === userId &&"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 137,
+    "text": "      fallback.username.toLowerCase() === username.toLowerCase() &&"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 138,
+    "text": "      fallback.followingSince &&"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 139,
+    "text": "      ISO_TIMESTAMP_PATTERN.test(fallback.followingSince) &&"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 140,
+    "text": "      Number.isFinite(Date.parse(fallback.followingSince))"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 144,
+    "text": "        source: \"first-party-fallback\","
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 145,
+    "text": "        value: fallback.followingSince,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 149,
+    "text": "    // A fallback failure cannot prove a negative relationship."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 174,
+    "text": "    const fallback = await readFallback(channelSlug, username, { ...options, viewerId: userId });"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 176,
+    "text": "      !fallback ||"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 177,
+    "text": "      fallback.userId !== userId ||"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 178,
+    "text": "      fallback.username.toLowerCase() !== username.toLowerCase()"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 182,
+    "text": "    if (fallback.followingSince === null) return \"not-followed\";"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 184,
+    "text": "      fallback.followingSince &&"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 185,
+    "text": "      ISO_TIMESTAMP_PATTERN.test(fallback.followingSince) &&"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/kick-public-profile-reader.ts",
+    "line": 186,
+    "text": "      Number.isFinite(Date.parse(fallback.followingSince))"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/channel-endpoints.ts",
+    "line": 159,
+    "text": "      \"Completed VOD last-live fallback failed; keeping channel metadata\","
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/channel-endpoints.ts",
+    "line": 569,
+    "text": "const KICK_CHANNEL_FALLBACK_BATCH_SIZE = 10;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/channel-endpoints.ts",
+    "line": 583,
+    "text": "      if (!isKickServerError(error) || ids.length <= KICK_CHANNEL_FALLBACK_BATCH_SIZE) {"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/channel-endpoints.ts",
+    "line": 594,
+    "text": "        let fallbackIndex = 0;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/channel-endpoints.ts",
+    "line": 595,
+    "text": "        fallbackIndex < ids.length;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/channel-endpoints.ts",
+    "line": 596,
+    "text": "        fallbackIndex += KICK_CHANNEL_FALLBACK_BATCH_SIZE"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/channel-endpoints.ts",
+    "line": 598,
+    "text": "        const fallbackIds = ids.slice("
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/channel-endpoints.ts",
+    "line": 599,
+    "text": "          fallbackIndex,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/channel-endpoints.ts",
+    "line": 600,
+    "text": "          fallbackIndex + KICK_CHANNEL_FALLBACK_BATCH_SIZE"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/channel-endpoints.ts",
+    "line": 603,
+    "text": "          channels.push(...(await requestChannelsByBroadcasterIds(client, fallbackIds)));"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/channel-endpoints.ts",
+    "line": 604,
+    "text": "        } catch (fallbackError) {"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/channel-endpoints.ts",
+    "line": 605,
+    "text": "          if (!isKickServerError(fallbackError)) {"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/channel-endpoints.ts",
+    "line": 606,
+    "text": "            throw fallbackError;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/channel-endpoints.ts",
+    "line": 609,
+    "text": "            batchSize: fallbackIds.length,"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/channel-endpoints.ts",
+    "line": 755,
+    "text": " * fallback for Cloudflare/WAF challenges that require page runtime state."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/channel-endpoints.ts",
+    "line": 1017,
+    "text": "        // Fall back to src/url"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/category-endpoints.ts",
+    "line": 176,
+    "text": "    logger.warn(\"Kick:Endpoints:Category\", \"Public Kick category search fallback failed\", {"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/kick/category-endpoints.ts",
+    "line": 316,
+    "text": " * authenticated fallback for inactive direct links."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-discovery-reader.ts",
+    "line": 165,
+    "text": "    // Fallback: Use GQL with user IDs converted to logins"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-gql-discovery.ts",
+    "line": 48,
+    "text": "  const fallbackLogin = extractLoginFromPreviewUrl(thumbnailUrl);"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-gql-discovery.ts",
+    "line": 49,
+    "text": "  const channelName = broadcaster?.login || fallbackLogin;"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-gql-discovery.ts",
+    "line": 255,
+    "text": " * Fallback: the raw `game(id:).streams` query (hits the ~100-stream wall but"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-gql-discovery.ts",
+    "line": 279,
+    "text": " * Raw-query fallback for {@link gqlGetStreamsByGameId}. Works for the first"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-public-profile-reader.ts",
+    "line": 20,
+    "text": "const fallbackIdentitySchema = z.object({"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-public-profile-reader.ts",
+    "line": 34,
+    "text": "const fallbackFollowSchema = z.object({"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-public-profile-reader.ts",
+    "line": 64,
+    "text": "  if (!response.ok) throw new Error(`Twitch profile fallback failed: ${response.status}`);"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-public-profile-reader.ts",
+    "line": 68,
+    "text": "async function readFallbackIdentity("
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-public-profile-reader.ts",
+    "line": 73,
+    "text": "    const parsed = fallbackIdentitySchema.safeParse("
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-public-profile-reader.ts",
+    "line": 88,
+    "text": "      source: \"first-party-fallback\","
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-public-profile-reader.ts",
+    "line": 121,
+    "text": "      // Continue to the isolated public fallback."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-public-profile-reader.ts",
+    "line": 124,
+    "text": "  return readFallbackIdentity(userId, username);"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-public-profile-reader.ts",
+    "line": 142,
+    "text": "      // Continue to the isolated, schema-validated first-party fallback."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-public-profile-reader.ts",
+    "line": 147,
+    "text": "    const parsed = fallbackIdentitySchema.safeParse("
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-public-profile-reader.ts",
+    "line": 166,
+    "text": "      source: \"first-party-fallback\","
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-public-profile-reader.ts",
+    "line": 180,
+    "text": "    const parsed = fallbackFollowSchema.safeParse("
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-public-profile-reader.ts",
+    "line": 195,
+    "text": "      return { state: \"negative\", source: \"first-party-fallback\" };"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-public-profile-reader.ts",
+    "line": 202,
+    "text": "      source: \"first-party-fallback\","
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-public-profile-reader.ts",
+    "line": 255,
+    "text": "      // Continue to isolated first-party fallback."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/adapters/twitch/twitch-public-profile-reader.ts",
+    "line": 263,
+    "text": "          source: \"first-party-fallback\","
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/routes/stream-routes.ts",
+    "line": 236,
+    "text": "   * `categoryName` (optional) lets the Kick lookup fall back to a slug-based"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/discovery/routes/stream-routes.ts",
+    "line": 552,
+    "text": "              ? statusTargets.fallbackSlugs"
+  },
+  {
+    "path": "apps/desktop/src/backend/features/multistream/routes/slot-controller-routes.ts",
+    "line": 143,
+    "text": "      // WCV (or fall-back host renderer) consumes."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/multistream/routes/slot-controller-routes.ts",
+    "line": 180,
+    "text": "      // Fall back to the host renderer when there's no per-slot WCV."
+  },
+  {
+    "path": "apps/desktop/src/backend/features/multistream/adapters/electron/slot-controller.ts",
+    "line": 14,
+    "text": " * events to it. Flag defaults to OFF — the renderer-path fall-back is the"
+  }
+]

@@ -1,0 +1,404 @@
+{
+  "schemaVersion": 1,
+  "audit": {
+    "currentCentralTests": 150,
+    "outsideLegacyBackend": 93,
+    "legacyBackend": 57,
+    "source": "current workspace after concurrent feature test moves",
+    "frontendEnvironment": "dom",
+    "legacyBackendEnvironment": "node",
+    "frontendFeatureEnvironment": "dom",
+    "backendFeatureEnvironment": "node"
+  },
+  "moves": [
+    {
+      "from": "apps/desktop/tests/store/multistream-store.test.ts",
+      "to": "apps/desktop/src/frontend/features/multistream/tests/components/state/multistream-store.test.ts",
+      "feature": "multistream",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/store/moderated-channels-store.test.ts",
+      "to": "apps/desktop/src/frontend/features/moderation/tests/components/state/moderated-channels-store.test.ts",
+      "feature": "moderation",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/store/category-language-preference-store.test.ts",
+      "to": "apps/desktop/src/frontend/features/discovery/tests/components/state/category-language-preference-store.test.ts",
+      "feature": "discovery",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/search/search-result-validation.clips.test.ts",
+      "to": "apps/desktop/src/frontend/features/discovery/tests/domain/search-result-validation.clips.test.ts",
+      "feature": "discovery",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/components/ToastRootPlacement.test.tsx",
+      "to": "apps/desktop/src/frontend/features/shell/tests/components/ToastRootPlacement.test.tsx",
+      "feature": "shell",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/components/ToastRoot.test.tsx",
+      "to": "apps/desktop/src/frontend/features/shell/tests/components/ToastRoot.test.tsx",
+      "feature": "shell",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/components/LiveNotificationToast.test.tsx",
+      "to": "apps/desktop/src/frontend/features/auth/tests/components/LiveNotificationToast.test.tsx",
+      "feature": "auth",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/components/related-content-types.test.ts",
+      "to": "apps/desktop/src/frontend/features/playback/tests/domain/related-content-types.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/ipc-contracts/emote-contracts.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/routes/emote-contracts.test.ts",
+      "feature": "chat",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/shared/mod-action-filters.test.ts",
+      "to": "apps/desktop/src/frontend/features/moderation/tests/domain/mod-action-filters.test.ts",
+      "feature": "moderation",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/shared/chat-types.test.ts",
+      "to": "apps/desktop/src/frontend/features/chat/tests/domain/chat-types.test.ts",
+      "feature": "chat",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/shared/auth-types.test.ts",
+      "to": "apps/desktop/src/frontend/features/auth/tests/domain/auth-types.test.ts",
+      "feature": "auth",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/shared/stream-recording-ipc-contract.test.ts",
+      "to": "apps/desktop/src/backend/features/media-library/tests/routes/stream-recording-ipc-contract.test.ts",
+      "feature": "media-library",
+      "currentProject": "dom",
+      "proposedProject": "node",
+      "reason": "The contract is specific to stream recording; it currently inherits DOM despite containing no DOM API use.",
+      "environmentDecision": "Currently inherits DOM from tests/**. No static DOM API use was found; make this Node move explicit, or add it to backendDomTests to preserve DOM."
+    },
+    {
+      "from": "apps/desktop/tests/services/twitch-auth-restart.integration.test.ts",
+      "to": "apps/desktop/src/backend/features/authentication/tests/adapters/twitch/twitch-auth-restart.integration.test.ts",
+      "feature": "authentication",
+      "currentProject": "dom",
+      "proposedProject": "node",
+      "reason": "The integration targets Twitch authentication persistence and restart behavior; it currently inherits DOM despite containing no DOM API use.",
+      "environmentDecision": "Currently inherits DOM from tests/**. No static DOM API use was found; make this Node move explicit, or add it to backendDomTests to preserve DOM."
+    },
+    {
+      "from": "apps/desktop/tests/backend/ipc/handlers/platform-health-handlers.test.ts",
+      "to": "apps/desktop/src/backend/features/discovery/tests/routes/platform-health-handlers.test.ts",
+      "feature": "discovery",
+      "currentProject": "node",
+      "proposedProject": "node",
+      "reason": "It exercises Platform Health IPC and the Discovery Kick stream adapter.",
+      "environmentDecision": "Node membership is preserved by the backend feature-test glob."
+    },
+    {
+      "from": "apps/desktop/tests/adblock/network-adblock-service.test.ts",
+      "to": "apps/desktop/src/backend/features/playback/tests/adapters/electron/network-adblock-service.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "node",
+      "reason": "It tests the Playback Electron adapter; it currently inherits DOM despite containing no DOM API use.",
+      "environmentDecision": "Currently inherits DOM from tests/**. No static DOM API use was found; make this Node move explicit, or add it to backendDomTests to preserve DOM."
+    },
+    {
+      "from": "apps/desktop/tests/adblock/cosmetic-injection-service.test.ts",
+      "to": "apps/desktop/src/backend/features/playback/tests/adapters/electron/cosmetic-injection-service.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "node",
+      "reason": "It tests the Playback Electron adapter; it currently inherits DOM despite containing no DOM API use.",
+      "environmentDecision": "Currently inherits DOM from tests/**. No static DOM API use was found; make this Node move explicit, or add it to backendDomTests to preserve DOM."
+    },
+    {
+      "from": "apps/desktop/tests/preload/user-profiles.test.ts",
+      "to": "apps/desktop/src/backend/features/discovery/tests/adapters/electron/preload/user-profiles.test.ts",
+      "feature": "discovery",
+      "currentProject": "dom",
+      "proposedProject": "node",
+      "reason": "The exported preload surface covers Discovery user-profile channels.",
+      "environmentDecision": "Currently inherits DOM from tests/**. No static DOM API use was found; make this Node move explicit, or add it to backendDomTests to preserve DOM."
+    },
+    {
+      "from": "apps/desktop/tests/preload/timeout-moderation.test.ts",
+      "to": "apps/desktop/src/backend/features/moderation/tests/adapters/electron/preload/timeout-moderation.test.ts",
+      "feature": "moderation",
+      "currentProject": "dom",
+      "proposedProject": "node",
+      "reason": "The exported preload surface covers Moderation timeout channels.",
+      "environmentDecision": "Currently inherits DOM from tests/**. No static DOM API use was found; make this Node move explicit, or add it to backendDomTests to preserve DOM."
+    },
+    {
+      "from": "apps/desktop/tests/preload/stream-recording.test.ts",
+      "to": "apps/desktop/src/backend/features/media-library/tests/adapters/electron/preload/stream-recording.test.ts",
+      "feature": "media-library",
+      "currentProject": "dom",
+      "proposedProject": "node",
+      "reason": "The exported preload surface covers Media Library recording channels.",
+      "environmentDecision": "Currently inherits DOM from tests/**. No static DOM API use was found; make this Node move explicit, or add it to backendDomTests to preserve DOM."
+    },
+    {
+      "from": "apps/desktop/tests/preload/downloads.test.ts",
+      "to": "apps/desktop/src/backend/features/media-library/tests/adapters/electron/preload/downloads.test.ts",
+      "feature": "media-library",
+      "currentProject": "dom",
+      "proposedProject": "node",
+      "reason": "The exported preload surface covers Media Library download channels.",
+      "environmentDecision": "Currently inherits DOM from tests/**. No static DOM API use was found; make this Node move explicit, or add it to backendDomTests to preserve DOM."
+    },
+    {
+      "from": "apps/desktop/tests/preload/local-captions.test.ts",
+      "to": "apps/desktop/src/backend/features/playback/tests/adapters/electron/preload/local-captions.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "node",
+      "reason": "The exported preload surface covers Playback caption channels.",
+      "environmentDecision": "Currently inherits DOM from tests/**. No static DOM API use was found; make this Node move explicit, or add it to backendDomTests to preserve DOM."
+    },
+    {
+      "from": "apps/desktop/tests/preload/category-media.test.ts",
+      "to": "apps/desktop/src/backend/features/discovery/tests/adapters/electron/preload/category-media.test.ts",
+      "feature": "discovery",
+      "currentProject": "dom",
+      "proposedProject": "node",
+      "reason": "The exported preload surface covers Discovery category video and clip channels.",
+      "environmentDecision": "Currently inherits DOM from tests/**. No static DOM API use was found; make this Node move explicit, or add it to backendDomTests to preserve DOM."
+    },
+    {
+      "from": "apps/desktop/tests/adblock/twitch-rendition-continuity.test.ts",
+      "to": "apps/desktop/src/frontend/features/playback/tests/components/player/twitch/twitch-rendition-continuity.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/adblock/twitch-playlist-ad-detection.test.ts",
+      "to": "apps/desktop/src/frontend/features/playback/tests/components/player/twitch/twitch-playlist-ad-detection.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/adblock/segment-stripping.test.ts",
+      "to": "apps/desktop/src/frontend/features/playback/tests/components/player/twitch/segment-stripping.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/adblock/playback-advanced-overrides.test.ts",
+      "to": "apps/desktop/src/frontend/features/playback/tests/components/player/twitch/playback-advanced-overrides.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/adblock/parent-domains-stripping.test.ts",
+      "to": "apps/desktop/src/frontend/features/playback/tests/components/player/twitch/parent-domains-stripping.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/adblock/m3u8-parsing.test.ts",
+      "to": "apps/desktop/src/frontend/features/playback/tests/components/player/twitch/m3u8-parsing.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/adblock/integration.test.ts",
+      "to": "apps/desktop/src/frontend/features/playback/tests/components/player/twitch/integration.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/adblock/hevc-handling.test.ts",
+      "to": "apps/desktop/src/frontend/features/playback/tests/components/player/twitch/hevc-handling.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/adblock/backup-stream-flow.test.ts",
+      "to": "apps/desktop/src/frontend/features/playback/tests/components/player/twitch/backup-stream-flow.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/adblock/adblock-types.test.ts",
+      "to": "apps/desktop/src/frontend/features/playback/tests/components/player/twitch/adblock-types.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/adblock/adblock-store.test.ts",
+      "to": "apps/desktop/src/frontend/features/playback/tests/components/player/twitch/adblock-store.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/adblock/adblock-service.test.ts",
+      "to": "apps/desktop/src/frontend/features/playback/tests/components/player/twitch/adblock-service.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    },
+    {
+      "from": "apps/desktop/tests/adblock/adblock-loader.test.ts",
+      "to": "apps/desktop/src/frontend/features/playback/tests/components/player/twitch/adblock-loader.test.ts",
+      "feature": "playback",
+      "currentProject": "dom",
+      "proposedProject": "dom",
+      "reason": "Single-feature renderer behavior; the feature-root glob preserves its current DOM project."
+    }
+  ],
+  "retained": [
+    {
+      "paths": [
+        "apps/desktop/tests/store/follow-mode-preservation.integration.test.ts"
+      ],
+      "reason": "Auth plus Discovery integration; retain as a cross-feature test."
+    },
+    {
+      "paths": [
+        "apps/desktop/tests/shared/slot-presence-config.test.ts",
+        "apps/desktop/tests/shared/native-copy.test.ts",
+        "apps/desktop/tests/shared/ipc-wiring-coverage.test.ts",
+        "apps/desktop/tests/shared/display-language.test.ts",
+        "apps/desktop/tests/shared/core-content-chat-contract.test.ts",
+        "apps/desktop/tests/shared/browser-event-emitter.test.ts"
+      ],
+      "reason": "Shared contracts, app infrastructure, or cross-feature coverage."
+    },
+    {
+      "paths": [
+        "apps/desktop/tests/preload/index.test.ts",
+        "apps/desktop/tests/preload/ipc-feature-loader.test.ts",
+        "apps/desktop/tests/preload/twitch-api.test.ts"
+      ],
+      "reason": "Aggregate or cross-feature preload surface coverage."
+    },
+    {
+      "paths": [
+        "apps/desktop/tests/hooks/*.test.tsx",
+        "apps/desktop/tests/lib/*.test.ts",
+        "apps/desktop/tests/components/ui/*.test.tsx",
+        "apps/desktop/tests/scripts/*.test.ts",
+        "apps/desktop/tests/policy/*.test.ts",
+        "apps/desktop/tests/config/*.test.ts",
+        "apps/desktop/tests/helpers/*.test.ts"
+      ],
+      "reason": "Shared primitives, test helpers, policy, or tooling."
+    },
+    {
+      "paths": [
+        "apps/desktop/tests/dev-relay/*.test.ts",
+        "apps/desktop/tests/dev-relay/*.test.tsx",
+        "apps/desktop/tests/backend/dev-relay/*.test.ts"
+      ],
+      "reason": "Development-relay infrastructure; fixture consumers span multiple features."
+    },
+    {
+      "paths": [
+        "apps/desktop/tests/backend/ipc/*.test.ts",
+        "apps/desktop/tests/backend/ipc/handlers/wrap-handler.test.ts",
+        "apps/desktop/tests/backend/ipc/handlers/storage-handlers*.test.ts",
+        "apps/desktop/tests/backend/ipc/handlers/auth-security-boundary.test.ts",
+        "apps/desktop/tests/backend/services/storage-service.test.ts",
+        "apps/desktop/tests/backend/services/database-service.test.ts",
+        "apps/desktop/tests/backend/services/http-client.test.ts",
+        "apps/desktop/tests/backend/services/app-network.test.ts"
+      ],
+      "reason": "Shared IPC, persistence, and transport infrastructure; some exercise several feature adapters."
+    },
+    {
+      "paths": [
+        "apps/desktop/tests/backend/api/platforms/**/*.test.ts",
+        "apps/desktop/tests/backend/api/unified/*.test.ts",
+        "apps/desktop/tests/backend/logging/*.test.ts",
+        "apps/desktop/tests/backend/reliability/*.test.ts",
+        "apps/desktop/tests/backend/protocols/*.test.ts",
+        "apps/desktop/tests/backend/window-manager.test.ts",
+        "apps/desktop/tests/backend/startup/*.test.ts",
+        "apps/desktop/tests/backend/runtime-mode.test.ts",
+        "apps/desktop/tests/backend/services/web-contents-ready.test.ts"
+      ],
+      "reason": "Platform transport, runtime bootstrap, logging, reliability, and protocol infrastructure remain shared."
+    },
+    {
+      "paths": [
+        "apps/desktop/tests/frontend/i18n/DisplayLanguageSync.test.tsx",
+        "apps/desktop/tests/renderer/**/*.test.ts",
+        "apps/desktop/tests/security/*.test.ts",
+        "apps/desktop/tests/services/third-party-cookie-stripper*.test.ts",
+        "apps/desktop/tests/ipc-contracts/*.test.ts"
+      ],
+      "reason": "Renderer infrastructure, security policy, or shared service/contract coverage."
+    }
+  ],
+  "notes": [
+    "useHelixPoll is already feature-owned at apps/desktop/src/frontend/features/moderation/tests/hooks/useHelixPoll.test.tsx.",
+    "No standalone central test for src/backend/preload/slot.ts exists. Its compatibility facade delegates to the Multistream adapter.",
+    "All current frontend feature tests remain in Vitest DOM. No current frontend feature test basename originated under HEAD apps/desktop/tests/backend/.",
+    "twitch-playlist-ad-detection.test.ts has a moved-file fixture path that must be rebased as part of any move."
+  ]
+}

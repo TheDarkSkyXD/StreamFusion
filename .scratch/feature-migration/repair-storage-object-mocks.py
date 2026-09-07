@@ -1,0 +1,3 @@
+from pathlib import Path
+for name,repo,module in [('chat/tests/api/platforms/kick/kick-send-window.test.ts','authenticationRepository','authentication/data/authentication-repository'),('chat/tests/services/chat/subscriber-eligibility.test.ts','authenticationRepository','authentication/data/authentication-repository'),('shell/tests/ipc/handlers/system-handlers.test.ts','preferencesRepository','settings/data/preferences-repository')]:
+ p=Path('apps/desktop/src/backend/features')/name;t=p.read_text().replace('@backend/services/storage-service','@backend/features/'+module).replace('storageService: ',repo+': ');p.write_text(t)

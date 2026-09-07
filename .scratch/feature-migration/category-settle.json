@@ -1,0 +1,1 @@
+[{"wait":"location.hash.includes('tab=clips')&&!document.querySelector('div.animate-pulse')","timeout":20000}]

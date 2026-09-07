@@ -1,0 +1,19 @@
+unit	decision	evidence	status
+ownership	Use runtime-local feature roots; preserve Electron and public package boundaries	docs/architecture/feature-roots.md	implemented
+relocation	Use a collision-safe AST import relocator; preserve semantic string literals	scripts/relocate-feature-files.test.mjs	passed
+test-discovery	Move feature tests with owners and retain Node/DOM/system project membership	central-test-ownership-applied.json; desktop-tests-current.json	630 deterministic files discovered
+HLS	Separate source sessions from React presentation without changing effect dependencies	../review-playback-extraction.md; focused review 65 tests	passed
+settings	Use application-owned ports; resolve the installed desktop bridge at call time	settings-gateways-tests.log	103 tests passed
+encoding	Restore only exact baseline Unicode lines after detecting chat emote sentinel corruption	encoding-repairs.json; regression-repairs-verified.log	97 lines restored; 162 tests passed
+chat-cleanup	Restore dropped channel eviction through an injected lifecycle port	focused lifecycle tests and combined desktop suite	passed
+recordings	Keep lifecycle orchestration in domain; inject Node finalization/probing/filesystem operations	../other-runtimes-recorder-typecheck.log	149 deterministic and 2 system tests passed
+architecture	Enforce layer direction and test isolation in normal lint with negative proofs	root-lint-complete.log	19 proofs passed
+integration	Run all runtime type checks after relocation	root-types-verified.log	passed before final data extraction
+data-ownership	Extract feature repositories from shared database and encrypted storage drivers	storage parity and 567 focused tests	passed
+provider-ownership	Separate Twitch command routes and shared provider transports from feature endpoints	268 GQL and transport tests; combined checks	passed
+media-memory	Release HLS level listeners and bound pending image preloads	media-retention-evidence.md	75 focused assertions passed; no native memory percentage claimed
+moderation	Use permission-scoped tools, bounded event feeds and explicit preview-to-dock interaction	mod-dock-preview-completion.md and tool reports	implemented and fixture verified; no real account mutations
+fallbacks	Remove dead retry wrappers, false-empty batch success and insecure new credential writes	fallback-removal-status.md	focused tests and independent review passed
+guest-media	Use verified anonymous category reads and keep guest chat read-only	guest-audit-progress.md; final-verification.md	compiled Videos/Clips, filters and pagination passed
+taskbar	Set Windows Shell identity and icon for unpackaged launches	askbar-icon-fix.md	actual taskbar logo and native properties verified
+delivery	Commit in a clean worktree to run the real hook while preserving user telemetry and scratch	final-verification.md	67e281e pushed to main; remote SHA verified

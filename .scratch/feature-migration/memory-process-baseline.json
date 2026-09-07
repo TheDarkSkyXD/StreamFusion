@@ -1,0 +1,107 @@
+﻿[
+    {
+        "pid":  29388,
+        "name":  "node",
+        "role":  "",
+        "workingSetMB":  62.1,
+        "privateMB":  61.4
+    },
+    {
+        "pid":  1068,
+        "name":  "cmd",
+        "role":  "",
+        "workingSetMB":  4.9,
+        "privateMB":  2.6
+    },
+    {
+        "pid":  18752,
+        "name":  "conhost",
+        "role":  "",
+        "workingSetMB":  16,
+        "privateMB":  6.9
+    },
+    {
+        "pid":  20512,
+        "name":  "node",
+        "role":  "",
+        "workingSetMB":  62.2,
+        "privateMB":  61.1
+    },
+    {
+        "pid":  27672,
+        "name":  "cmd",
+        "role":  "",
+        "workingSetMB":  5.2,
+        "privateMB":  2.8
+    },
+    {
+        "pid":  31288,
+        "name":  "node",
+        "role":  "",
+        "workingSetMB":  53.8,
+        "privateMB":  21.4
+    },
+    {
+        "pid":  26932,
+        "name":  "node",
+        "role":  "",
+        "workingSetMB":  55.8,
+        "privateMB":  55.6
+    },
+    {
+        "pid":  30700,
+        "name":  "node",
+        "role":  "",
+        "workingSetMB":  384.6,
+        "privateMB":  424.1
+    },
+    {
+        "pid":  21856,
+        "name":  "esbuild",
+        "role":  "",
+        "workingSetMB":  13.4,
+        "privateMB":  18.5
+    },
+    {
+        "pid":  30796,
+        "name":  "esbuild",
+        "role":  "",
+        "workingSetMB":  33.3,
+        "privateMB":  69.8
+    },
+    {
+        "pid":  27240,
+        "name":  "electron",
+        "role":  "",
+        "workingSetMB":  179.8,
+        "privateMB":  146.8
+    },
+    {
+        "pid":  27684,
+        "name":  "electron",
+        "role":  "gpu-process",
+        "workingSetMB":  292.4,
+        "privateMB":  349.6
+    },
+    {
+        "pid":  4788,
+        "name":  "electron",
+        "role":  "utility",
+        "workingSetMB":  53.6,
+        "privateMB":  16.7
+    },
+    {
+        "pid":  6016,
+        "name":  "electron",
+        "role":  "renderer",
+        "workingSetMB":  713.2,
+        "privateMB":  645.5
+    },
+    {
+        "pid":  2140,
+        "name":  "electron",
+        "role":  "utility",
+        "workingSetMB":  94.9,
+        "privateMB":  10.7
+    }
+]
