@@ -1030,7 +1030,7 @@ paths:
         POST https://id.kick.com/oauth/token
         ?grant_type=authorization_code
         &client_id=88STyxwAAtoENitgyo19l25v
-        &client_secret=dD0vE4xQNtNubyDwk45UXNFhftyrIrTWpqpAw_ZL71L--A0W
+        &client_secret=EXAMPLE_NOT_A_CREDENTIAL
         &code=KrPx-1uqXmq6haTWG8I8F1VMutnA6AQANY-fB9aBa-j1nXCH
 
         Or refreshing a token
@@ -1038,17 +1038,17 @@ paths:
         POST https://id.kick.com/oauth/token
         ?grant_type=refresh_token
         &client_id=88STyxwAAtoENitgyo19l25v
-        &client_secret=dD0vE4xQNtNubyDwk45UXNFhftyrIrTWpqpAw_ZL71L--A0W
+        &client_secret=EXAMPLE_NOT_A_CREDENTIAL
         &redirect_uri=https://www.client-app.com/oauth/callback
-        &refresh_token=KrPx-1uqXmq6haTWG8I8F1VMutnA6AQANY-fB9aBa-j1nXCH
+        &refresh_token=EXAMPLE_NOT_A_CREDENTIAL
 
         The response here will be a json object with the access_token, token_type, expires_in, refresh_token, refresh_expires_in, and scope
 
         {
-        "access_token": "2YotnFZFEjr1zCsicMWpAA",
+        "access_token": "EXAMPLE_NOT_A_CREDENTIAL",
         "token_type": "Bearer",
         "expires_in": 7200,
-        "refresh_token": "tGzv3JOkF0XG5Qx2TlKWIA",
+        "refresh_token": "EXAMPLE_NOT_A_CREDENTIAL",
         "refresh_expires_in": 2592000
         }
 
