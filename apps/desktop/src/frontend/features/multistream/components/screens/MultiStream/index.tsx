@@ -8,6 +8,7 @@ import { ChatPanel } from "@/features/chat/components/chat/ChatPanel";
 import { MergedChatFeed } from "@/features/chat/components/chat/MergedChatFeed";
 import { createMultiChatChannel } from "@/features/chat/components/state/multi-chat-feed";
 import { useMultiChatSessions } from "@/features/chat/components/hooks/use-multi-chat-sessions";
+import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
 import { AddStreamDialog } from "@/features/multistream/components/multistream/add-stream-dialog";
 import { MultiStreamGrid } from "@/features/multistream/components/multistream/grid-layout";
 import { useChatDisplay } from "@/features/settings/components/hooks/use-chat-display";
@@ -165,10 +166,7 @@ export function MultiStreamPage() {
             <div className="border-b border-[var(--color-border)] px-2 pt-2">
               <div className="flex items-center justify-between gap-2 px-1 pb-2">
                 <h2 className="font-semibold text-sm">{t("multistream.multiChat")}</h2>
-                <span
-                  className="text-[11px] text-[var(--color-foreground-muted)]"
-                  aria-live="polite"
-                >
+                <span className="text-xs text-[var(--color-foreground-muted)]" aria-live="polite">
                   {multiChatSessions.isLoading
                     ? t("multistream.connecting")
                     : multiChatSessions.failedChannels.length > 0
@@ -190,14 +188,16 @@ export function MultiStreamPage() {
                   onClick={() => setMultiChatView("merged")}
                   className={
                     multiChatView === "merged"
-                      ? "shrink-0 rounded-md bg-[var(--color-primary)] px-2.5 py-1.5 text-xs font-semibold text-[var(--color-primary-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
-                      : "shrink-0 rounded-md px-2.5 py-1.5 text-xs font-medium text-[var(--color-foreground-muted)] hover:bg-[var(--color-background-tertiary)] hover:text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+                      ? "inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-background-tertiary)] px-2.5 py-1.5 text-xs font-semibold text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+                      : "inline-flex shrink-0 items-center gap-1.5 rounded-md border border-transparent px-2.5 py-1.5 text-xs font-medium text-[var(--color-foreground-muted)] hover:bg-[var(--color-background-tertiary)] hover:text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
                   }
                 >
+                  <LuMessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
                   {t("multistream.merged")}
                 </button>
                 {chatTabs.map(({ streamId, channel }) => {
                   const isSelected = multiChatView === "tabs" && activeChatStream?.id === streamId;
+                  const PlatformIcon = channel.platform === "twitch" ? TwitchIcon : KickIcon;
                   return (
                     <button
                       key={channel.key}
@@ -205,13 +205,22 @@ export function MultiStreamPage() {
                       role="tab"
                       aria-selected={isSelected}
                       onClick={() => selectChannelTab(channel.key)}
+                      title={channel.label}
                       className={
                         isSelected
-                          ? "shrink-0 rounded-md bg-[var(--color-background-tertiary)] px-2.5 py-1.5 text-xs font-semibold text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
-                          : "shrink-0 rounded-md px-2.5 py-1.5 text-xs font-medium text-[var(--color-foreground-muted)] hover:bg-[var(--color-background-tertiary)] hover:text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+                          ? "inline-flex max-w-40 shrink-0 items-center gap-1.5 rounded-md bg-[var(--color-background-tertiary)] px-2.5 py-1.5 text-xs font-semibold text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
+                          : "inline-flex max-w-40 shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-[var(--color-foreground-muted)] hover:bg-[var(--color-background-tertiary)] hover:text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
                       }
                     >
-                      {channel.label}
+                      <span className="shrink-0" aria-hidden="true">
+                        <PlatformIcon
+                          size={12}
+                          className={
+                            channel.platform === "twitch" ? "text-[#a970ff]" : "text-[#53fc18]"
+                          }
+                        />
+                      </span>
+                      <span className="truncate">{channel.label}</span>
                     </button>
                   );
                 })}

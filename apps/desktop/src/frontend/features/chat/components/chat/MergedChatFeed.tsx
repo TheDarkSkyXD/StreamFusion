@@ -1,17 +1,19 @@
 import { useTranslation } from "react-i18next";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { ArrowDown, MessagesSquare } from "lucide-react";
 
 import { useRenderCount } from "@/components/dev/use-render-count";
+import { KickIcon, TwitchIcon } from "@/components/icons/PlatformIcons";
 import { useChatStore } from "@/features/chat/components/state/chat-store";
 
 import type { MergedChatMessage, MultiChatChannel } from "../state/multi-chat-feed";
 import { mergeChatMessageBuckets } from "../state/multi-chat-feed";
 import { ChatMessage } from "./ChatMessage";
 
-const PLATFORM_ACCENT = {
-  twitch: "#a970ff",
-  kick: "#53fc18",
+const PLATFORM_ICON = {
+  twitch: TwitchIcon,
+  kick: KickIcon,
 } as const;
 
 interface MergedChatFeedProps {
@@ -34,24 +36,31 @@ export const MergedChatFeed = memo(function MergedChatFeed({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const computeItemKey = useCallback((_index: number, entry: MergedChatMessage) => entry.key, []);
   const itemContent = useCallback(
-    (_index: number, entry: MergedChatMessage) => (
-      <div className="border-b border-[color:var(--color-border)]/55 pb-1">
-        <button
-          type="button"
-          onClick={() => onSelectChannel(entry.channelKey)}
-          className="mx-2 mt-1 inline-flex h-5 max-w-[calc(100%-1rem)] items-center gap-1.5 rounded px-1.5 text-[11px] font-semibold text-[var(--color-foreground-muted)] hover:bg-[var(--color-background-tertiary)] hover:text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
-          aria-label={t("chat.openValue0Chat", { value0: entry.channelLabel })}
-        >
-          <span
-            className="h-1.5 w-1.5 shrink-0 rounded-full"
-            style={{ backgroundColor: PLATFORM_ACCENT[entry.message.platform] }}
-            aria-hidden="true"
-          />
-          <span className="truncate">{entry.channelLabel}</span>
-        </button>
-        <ChatMessage message={entry.message} embedded />
-      </div>
-    ),
+    (_index: number, entry: MergedChatMessage) => {
+      const PlatformIcon = PLATFORM_ICON[entry.message.platform];
+
+      return (
+        <div className="mx-1 rounded-md py-1 transition-colors hover:bg-[var(--color-background-tertiary)] motion-reduce:transition-none">
+          <button
+            type="button"
+            onClick={() => onSelectChannel(entry.channelKey)}
+            className="mx-1 inline-flex h-5 max-w-[calc(100%-0.5rem)] items-center gap-1.5 rounded px-1.5 text-xs font-semibold tracking-[0.025em] text-[var(--color-foreground-muted)] transition-colors hover:bg-[var(--color-background-secondary)] hover:text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] motion-reduce:transition-none"
+            aria-label={t("chat.openValue0Chat", { value0: entry.channelLabel })}
+          >
+            <span className="shrink-0" aria-hidden="true">
+              <PlatformIcon
+                size={12}
+                className={
+                  entry.message.platform === "twitch" ? "text-[#a970ff]" : "text-[#53fc18]"
+                }
+              />
+            </span>
+            <span className="truncate">{entry.channelLabel}</span>
+          </button>
+          <ChatMessage message={entry.message} embedded />
+        </div>
+      );
+    },
     [onSelectChannel, t]
   );
   const scrollToBottom = useCallback(() => {
@@ -64,8 +73,11 @@ export const MergedChatFeed = memo(function MergedChatFeed({
 
   if (messages.length === 0) {
     return (
-      <div className="flex h-full min-h-0 items-center justify-center px-5 text-center text-sm text-[var(--color-foreground-muted)]">
-        {t("chat.messagesFromEveryOpenStreamWillAppearHere")}
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-3 px-8 text-center text-sm text-[var(--color-foreground-muted)]">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-background-tertiary)] text-[var(--color-foreground-secondary)]">
+          <MessagesSquare className="h-5 w-5" aria-hidden="true" />
+        </div>
+        <p className="max-w-56 leading-5">{t("chat.messagesFromEveryOpenStreamWillAppearHere")}</p>
       </div>
     );
   }
@@ -95,23 +107,9 @@ export const MergedChatFeed = memo(function MergedChatFeed({
             aria-label={t("chat.scrollToLiveChatPausedDueToScrollValue0", {
               value0: t("chat.newMessages"),
             })}
-            className="pointer-events-auto inline-flex max-w-full min-w-0 items-center justify-center gap-[5px] rounded-full border border-white/20 bg-[#2d2d2d] px-[18px] py-1.5 text-xs font-semibold whitespace-nowrap text-white shadow-lg transition-colors hover:bg-[#2d2d2d]/90 focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#2d2d2d] focus-visible:outline-none motion-reduce:transition-none"
+            className="pointer-events-auto inline-flex max-w-full min-w-0 items-center justify-center gap-[5px] rounded-full border border-[var(--color-border)] bg-[var(--color-background-tertiary)] px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-[var(--color-foreground)] transition-colors hover:bg-[var(--color-background-secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background)] motion-reduce:transition-none"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              aria-hidden="true"
-              data-icon="arrow-down"
-            >
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="m11 13.586-2.293-2.293-1.414 1.414L12 17.414l4.707-4.707-1.414-1.414L13 13.586V6h-2v7.586Z"
-              />
-            </svg>
+            <ArrowDown className="h-4 w-4" aria-hidden="true" />
             <span>{t("chat.chatPausedDueToScroll")}</span>
           </button>
         </div>

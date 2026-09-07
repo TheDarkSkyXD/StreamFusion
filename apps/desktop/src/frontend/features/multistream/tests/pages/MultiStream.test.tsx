@@ -236,7 +236,6 @@ describe("MultiStreamPage", () => {
     expect(screen.queryByTestId("chat-panel")).not.toBeInTheDocument();
     const mergedTab = screen.getByRole("tab", { name: "Merged" });
     expect(mergedTab).toHaveAttribute("aria-selected", "true");
-    expect(mergedTab).toHaveClass("text-[var(--color-primary-foreground)]");
 
     fireEvent.click(screen.getByRole("tab", { name: "Cinna" }));
     expect(setChatStream).toHaveBeenCalledWith("kick-cinna");
