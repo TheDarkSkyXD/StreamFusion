@@ -50,6 +50,7 @@ export interface ExpoCaptionsBinding {
 
 export interface ExpoDiagnosticsBinding {
   readonly getContractVersion: () => number;
+  readonly queueDevelopmentResourceSnapshotFailure: () => Promise<unknown>;
   readonly readResourceSnapshot: () => Promise<unknown>;
 }
 

@@ -42,9 +42,43 @@ const captionsBinding: ExpoCaptionsBinding = {
   startFocusedCaptionSession: unsupported,
   stopFocusedCaptionSession: unsupported,
 };
+const diagnosticsSnapshot = {
+  decoders: [],
+  memory: {
+    availableBytes: 1_024,
+    lowMemory: false,
+    runtimeFreeBytes: 512,
+    runtimeMaxBytes: 2_048,
+    runtimeTotalBytes: 1_024,
+    thresholdBytes: 256,
+    totalBytes: 4_096,
+  },
+  observedAtEpochMs: 1_700_000_000_000,
+  runtime: {
+    apiLevel: 30,
+    applicationId: "com.thedarkskyxd.streamfusion.dev",
+    executionEnvironment: "emulator",
+    formFactor: {
+      automotive: false,
+      pc: false,
+      touchscreen: true,
+      television: false,
+      uiModeType: 1,
+      watch: false,
+    },
+    supportedAbis: ["x86_64"],
+    versionCode: 1,
+  },
+  storage: { availableBytes: 1_024, totalBytes: 4_096 },
+  thermal: { kind: "observed", state: "none" },
+} as const;
 const diagnosticsBinding: ExpoDiagnosticsBinding = {
-  getContractVersion: () => 1,
-  readResourceSnapshot: unsupported,
+  getContractVersion: () => 3,
+  queueDevelopmentResourceSnapshotFailure: async () => ({
+    kind: "completed",
+    value: { queued: true },
+  }),
+  readResourceSnapshot: async () => ({ kind: "completed", value: diagnosticsSnapshot }),
 };
 const maintenanceBinding: ExpoMaintenanceBinding = {
   getContractVersion: () => 1,
@@ -57,7 +91,7 @@ function reader<TBinding>(binding: TBinding): ExpoBindingReader<TBinding> {
 }
 
 describe("Android capability module contracts", () => {
-  it("keeps each capability's typed unsupported operation contained", async () => {
+  it("keeps unimplemented capabilities contained while diagnostics measures resources", async () => {
     const contracts = {
       captions: createAndroidCaptionsContractPort(reader(captionsBinding)),
       diagnostics: createAndroidDiagnosticsContractPort(reader(diagnosticsBinding)),
@@ -68,7 +102,7 @@ describe("Android capability module contracts", () => {
 
     expect(Object.values(contracts).map((port) => port.readiness())).toEqual([
       { capability: "captions", contractVersion: 1, kind: "ready" },
-      { capability: "diagnostics", contractVersion: 1, kind: "ready" },
+      { capability: "diagnostics", contractVersion: 3, kind: "ready" },
       { capability: "maintenance", contractVersion: 1, kind: "ready" },
       { capability: "media-jobs", contractVersion: 1, kind: "ready" },
       { capability: "playback", contractVersion: 1, kind: "ready" },
@@ -76,7 +110,7 @@ describe("Android capability module contracts", () => {
     await expect(contracts.playback.enterPictureInPicture("watch-1")).resolves.toMatchObject({ kind: "unsupported", failure: { code: "NATIVE_OPERATION_UNSUPPORTED" } });
     await expect(contracts.mediaJobs.recoverJobs()).resolves.toMatchObject({ kind: "unsupported", failure: { code: "NATIVE_OPERATION_UNSUPPORTED" } });
     await expect(contracts.captions.installEnglishModel({ modelId: "english-v1" })).resolves.toMatchObject({ kind: "unsupported", failure: { code: "NATIVE_OPERATION_UNSUPPORTED" } });
-    await expect(contracts.diagnostics.readResourceSnapshot()).resolves.toMatchObject({ kind: "unsupported", failure: { code: "NATIVE_OPERATION_UNSUPPORTED" } });
+    await expect(contracts.diagnostics.readResourceSnapshot()).resolves.toMatchObject({ kind: "completed", value: { thermal: { state: "none" } } });
     await expect(contracts.maintenance.verifyDownloadedApk({ artifactUri: "file:///data/update.apk", expectedApplicationId: "com.thedarkskyxd.streamfusion", expectedSha256: "a".repeat(64), expectedSignerSha256: "b".repeat(64), minimumVersionCode: 2 })).resolves.toMatchObject({ kind: "unsupported", failure: { code: "NATIVE_OPERATION_UNSUPPORTED" } });
   });
 
@@ -124,7 +158,7 @@ describe("Android capability module contracts", () => {
           ...diagnosticsBinding,
           readResourceSnapshot: async () => ({ kind: "completed", value: { availableStorageBytes: -1 } }),
         }),
-      ).readResourceSnapshot(),
+    ).readResourceSnapshot(),
     ).resolves.toMatchObject({
       failure: { code: "NATIVE_RESULT_INVALID" },
       kind: "unavailable",
@@ -140,6 +174,27 @@ describe("Android capability module contracts", () => {
     ).resolves.toMatchObject({
       failure: { code: "NATIVE_RESULT_INVALID" },
       kind: "unavailable",
+    });
+
+    await expect(
+      createAndroidDiagnosticsContractPort(reader(diagnosticsBinding))
+        .queueDevelopmentResourceSnapshotFailure(),
+    ).resolves.toEqual({ kind: "completed", value: { queued: true } });
+
+    await expect(
+      createAndroidDiagnosticsContractPort(
+        reader({
+          ...diagnosticsBinding,
+          queueDevelopmentResourceSnapshotFailure: async () => ({
+            code: "NATIVE_OPERATION_UNSUPPORTED",
+            diagnostic: "Development proof is unavailable in release builds.",
+            kind: "unsupported",
+          }),
+        }),
+      ).queueDevelopmentResourceSnapshotFailure(),
+    ).resolves.toMatchObject({
+      failure: { code: "NATIVE_OPERATION_UNSUPPORTED" },
+      kind: "unsupported",
     });
 
   });
@@ -159,7 +214,7 @@ describe("Android capability module contracts", () => {
     }));
     const diagnostics = createAndroidDiagnosticsContractPort(reader({
       ...diagnosticsBinding,
-      readResourceSnapshot: async () => ({ kind: "completed", value: { availableStorageBytes: 1024, observedAtEpochMs: 1_700_000_000_000, thermalState: "nominal" } }),
+      readResourceSnapshot: async () => ({ kind: "completed", value: diagnosticsSnapshot }),
     }));
     const maintenance = createAndroidMaintenanceContractPort(reader({
       ...maintenanceBinding,
@@ -169,7 +224,7 @@ describe("Android capability module contracts", () => {
     await expect(playback.startFocusedSession({ sessionId: "watch-1", sourceUri: "https://example.test/live.m3u8" })).resolves.toMatchObject({ kind: "completed", value: { sessionId: "watch-1" } });
     await expect(mediaJobs.startRecoverableJob({ jobId: "job-1", kind: "download", sourceUri: "https://example.test/video.mp4" })).resolves.toMatchObject({ kind: "completed", value: { jobId: "job-1" } });
     await expect(captions.installEnglishModel({ modelId: "english-v1" })).resolves.toMatchObject({ kind: "completed", value: { installed: true } });
-    await expect(diagnostics.readResourceSnapshot()).resolves.toMatchObject({ kind: "completed", value: { thermalState: "nominal" } });
+    await expect(diagnostics.readResourceSnapshot()).resolves.toMatchObject({ kind: "completed", value: { thermal: { state: "none" } } });
     await expect(maintenance.verifyDownloadedApk({ artifactUri: "file:///data/update.apk", expectedApplicationId: "com.thedarkskyxd.streamfusion", expectedSha256: "a".repeat(64), expectedSignerSha256: "b".repeat(64), minimumVersionCode: 2 })).resolves.toMatchObject({ kind: "completed", value: { versionCode: 2 } });
 
     await expect(
@@ -208,9 +263,8 @@ describe("Android capability module contracts", () => {
           readResourceSnapshot: async () => ({
             kind: "completed",
             value: {
-              availableStorageBytes: -1,
-              observedAtEpochMs: 1_700_000_000_000,
-              thermalState: "nominal",
+              ...diagnosticsSnapshot,
+              memory: { ...diagnosticsSnapshot.memory, availableBytes: -1 },
             },
           }),
         }),
@@ -255,7 +309,7 @@ describe("Android capability module contracts", () => {
     };
     const proof = createAndroidCapabilityStubProof({
       captions: createAndroidCaptionsContractPort(reader({ ...captionsBinding, installEnglishModel: unsafe, removeEnglishModel: unsafe, startFocusedCaptionSession: unsafe, stopFocusedCaptionSession: async () => { calls.push("captions.stop"); return unsupported(); } })),
-      diagnostics: createAndroidDiagnosticsContractPort(reader({ ...diagnosticsBinding, readResourceSnapshot: async () => { calls.push("diagnostics.snapshot"); return unsupported(); } })),
+      diagnostics: createAndroidDiagnosticsContractPort(reader({ ...diagnosticsBinding, readResourceSnapshot: async () => { calls.push("diagnostics.snapshot"); return { kind: "completed", value: diagnosticsSnapshot }; } })),
       maintenance: createAndroidMaintenanceContractPort(reader({ ...maintenanceBinding, handoffVerifiedApk: unsafe, verifyDownloadedApk: async () => { calls.push("maintenance.verify"); return unsupported(); } })),
       mediaJobs: createAndroidMediaJobsContractPort(reader({ ...mediaJobsBinding, cancelRecoverableJob: async () => { calls.push("media.cancel"); return unsupported(); }, recoverJobs: unsafe, startRecoverableJob: unsafe })),
       playback: createAndroidPlaybackContractPort(reader({ ...playbackBinding, endFocusedSession: async () => { calls.push("playback.end"); return unsupported(); }, enterPictureInPicture: unsafe, startFocusedSession: unsafe })),
@@ -266,8 +320,8 @@ describe("Android capability module contracts", () => {
       "playback.end",
       "media.cancel",
       "captions.stop",
-      "diagnostics.snapshot",
       "maintenance.verify",
+      "diagnostics.snapshot",
     ]);
   });
 });

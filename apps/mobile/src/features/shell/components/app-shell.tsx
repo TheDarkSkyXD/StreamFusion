@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { AppLinkSource } from "@mobile/features/shell/capabilities/app-links";
+import type { CapabilityProfileViewModel } from "@mobile/features/capability-profile/components/capability-profile-runtime-controller";
 import type {
   ActivityRepository,
   ShellRestorationRepository,
@@ -32,6 +33,9 @@ import {
 import type { DevelopmentClientViewModel } from "@mobile/features/diagnostics/domain/development-client-controller";
 import type { PersistenceViewModel } from "@mobile/features/diagnostics/components/persistence-controller";
 import { NativeCapabilityStubProofControl } from "@mobile/features/native-contracts/components/native-capability-stub-proof-control";
+import { CapabilityProfilePanel } from "@mobile/features/capability-profile/components/capability-profile-panel";
+import { DevelopmentResourceFailureProofControl } from "@mobile/features/capability-profile/components/development-resource-failure-proof-control";
+import type { RuntimeObservationDevelopmentProofResult } from "@mobile/features/capability-profile/capabilities/capability-profile";
 
 import { DestinationIcon } from "./destination-icon";
 import {
@@ -63,6 +67,9 @@ const previewRoutes: Readonly<
 export function AppShell({
   activityRepository,
   appLinks,
+  capabilityProfile,
+  onRetryCapabilityProfile,
+  onRunCapabilityProfileDevelopmentProof,
   developmentStatus,
   onPrepareRestorationProof,
   onRunNativeCapabilityProof,
@@ -72,6 +79,9 @@ export function AppShell({
 }: {
   readonly activityRepository: ActivityRepository;
   readonly appLinks: AppLinkSource;
+  readonly capabilityProfile: CapabilityProfileViewModel;
+  readonly onRetryCapabilityProfile: () => void;
+  readonly onRunCapabilityProfileDevelopmentProof: () => Promise<RuntimeObservationDevelopmentProofResult>;
   readonly developmentStatus: DevelopmentClientViewModel;
   readonly onPrepareRestorationProof: (
     kind: "corrupt" | "unsupported",
@@ -136,12 +146,20 @@ export function AppShell({
           {placement === "rail" ? navigationView : null}
           <View style={styles.workspace}>
             <ShellHeader dispatch={dispatch} state={navigation} />
-            <RestorationNotice status={lifecycle.status} />
+            <RestorationNotice
+              developmentDiagnostic={
+                __DEV__ ? persistenceStatus.developmentDiagnostic : null
+              }
+              status={lifecycle.status}
+            />
             <ShellScreen
               activity={activity}
+              capabilityProfile={capabilityProfile}
               developmentStatus={developmentStatus}
               dispatch={dispatch}
               onPrepareRestorationProof={onPrepareRestorationProof}
+              onRetryCapabilityProfile={onRetryCapabilityProfile}
+              onRunCapabilityProfileDevelopmentProof={onRunCapabilityProfileDevelopmentProof}
               onRunNativeCapabilityProof={onRunNativeCapabilityProof}
               onRunPersistenceProof={onRunPersistenceProof}
               persistenceStatus={persistenceStatus}
@@ -159,8 +177,10 @@ export function AppShell({
 }
 
 function RestorationNotice({
+  developmentDiagnostic,
   status,
 }: {
+  readonly developmentDiagnostic: string | null;
   readonly status: ShellLifecycleStatus;
 }) {
   if (
@@ -185,6 +205,15 @@ function RestorationNotice({
               ? "Navigation changes could not be saved. Your next change will retry."
               : "Saved navigation is unavailable. You can keep using the app."}
       </Text>
+      {developmentDiagnostic ? (
+        <Text
+          selectable
+          style={styles.cardBody}
+          testID="development-persistence-startup-diagnostic"
+        >
+          Development storage diagnostic: {developmentDiagnostic}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -253,20 +282,26 @@ function ShellHeader({
 
 function ShellScreen({
   activity,
+  capabilityProfile,
   developmentStatus,
   dispatch,
   onPrepareRestorationProof,
+  onRetryCapabilityProfile,
+  onRunCapabilityProfileDevelopmentProof,
   onRunNativeCapabilityProof,
   onRunPersistenceProof,
   persistenceStatus,
   state,
 }: {
   readonly activity: ReturnType<typeof useActivityController>;
+  readonly capabilityProfile: CapabilityProfileViewModel;
   readonly developmentStatus: DevelopmentClientViewModel;
   readonly dispatch: (action: ShellNavigationAction) => void;
   readonly onPrepareRestorationProof: (
     kind: "corrupt" | "unsupported",
   ) => Promise<void>;
+  readonly onRetryCapabilityProfile: () => void;
+  readonly onRunCapabilityProfileDevelopmentProof: () => Promise<RuntimeObservationDevelopmentProofResult>;
   readonly onRunNativeCapabilityProof: () => Promise<{
     readonly detail: string;
   }>;
@@ -351,6 +386,16 @@ function ShellScreen({
         )}
         {route.id === "more/diagnostics" ? (
           <>
+            <CapabilityProfilePanel
+              model={capabilityProfile}
+              onRetry={onRetryCapabilityProfile}
+            />
+            {__DEV__ ? (
+              <DevelopmentResourceFailureProofControl
+                onQueue={onRunCapabilityProfileDevelopmentProof}
+                onRetry={onRetryCapabilityProfile}
+              />
+            ) : null}
             <PersistenceStatus
               model={persistenceStatus}
               onRunProof={async () => {

@@ -24,7 +24,7 @@ export type AndroidNativeFailure =
 export type AndroidCapabilityReadiness =
   | {
       readonly capability: AndroidCapabilityId;
-      readonly contractVersion: 1;
+      readonly contractVersion: 1 | 2 | 3;
       readonly kind: "ready";
     }
   | {
@@ -131,13 +131,78 @@ export interface AndroidCaptionsContractPort extends AndroidCapabilityContractPo
   ): Promise<AndroidNativeOperationResult<CaptionSessionState>>;
 }
 
+export type AndroidExecutionEnvironment = "emulator" | "physical" | "unknown";
+
+export type AndroidThermalState =
+  | "none"
+  | "light"
+  | "moderate"
+  | "severe"
+  | "critical"
+  | "emergency"
+  | "shutdown";
+
+export interface AndroidDecoderObservation {
+  readonly hardwareAccelerated: boolean;
+  readonly mimeTypes: readonly string[];
+  readonly name: string;
+  readonly softwareOnly: boolean;
+}
+
+export interface AndroidRuntimeIdentity {
+  readonly apiLevel: number;
+  readonly applicationId: string;
+  readonly formFactor: AndroidFormFactorObservation;
+  readonly executionEnvironment: AndroidExecutionEnvironment;
+  readonly supportedAbis: readonly string[];
+  readonly versionCode: number;
+}
+
+export interface AndroidFormFactorObservation {
+  readonly automotive: boolean;
+  readonly pc: boolean;
+  readonly touchscreen: boolean;
+  readonly television: boolean;
+  readonly uiModeType: number;
+  readonly watch: boolean;
+}
+
+export interface AndroidMemoryObservation {
+  readonly availableBytes: number;
+  readonly lowMemory: boolean;
+  readonly runtimeFreeBytes: number;
+  readonly runtimeMaxBytes: number;
+  readonly runtimeTotalBytes: number;
+  readonly thresholdBytes: number;
+  readonly totalBytes: number;
+}
+
+export interface AndroidStorageObservation {
+  readonly availableBytes: number;
+  readonly totalBytes: number;
+}
+
+export type AndroidThermalObservation =
+  | { readonly kind: "observed"; readonly state: AndroidThermalState }
+  | { readonly detail: string; readonly kind: "unavailable" };
+
 export interface AndroidResourceSnapshot {
-  readonly availableStorageBytes: number;
+  readonly decoders: readonly AndroidDecoderObservation[];
+  readonly memory: AndroidMemoryObservation;
   readonly observedAtEpochMs: number;
-  readonly thermalState: "nominal" | "light" | "moderate" | "severe" | "critical";
+  readonly runtime: AndroidRuntimeIdentity;
+  readonly storage: AndroidStorageObservation;
+  readonly thermal: AndroidThermalObservation;
+}
+
+export interface AndroidDevelopmentResourceSnapshotFailureQueue {
+  readonly queued: true;
 }
 
 export interface AndroidDiagnosticsContractPort extends AndroidCapabilityContractPort {
+  queueDevelopmentResourceSnapshotFailure(): Promise<
+    AndroidNativeOperationResult<AndroidDevelopmentResourceSnapshotFailureQueue>
+  >;
   readResourceSnapshot(): Promise<AndroidNativeOperationResult<AndroidResourceSnapshot>>;
 }
 

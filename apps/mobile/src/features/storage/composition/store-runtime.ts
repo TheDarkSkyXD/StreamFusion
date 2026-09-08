@@ -2,6 +2,7 @@ import type {
   MobilePersistenceRuntime,
   PersistenceProofResult,
   PersistenceRuntimeState,
+  PersistenceStartupDiagnostic,
   SecureRandomSource,
   SecureSecretStore,
 } from "@mobile/features/storage/capabilities/persistence";
@@ -22,6 +23,33 @@ import {
 import { ProductStore } from "../data/product-store";
 
 const keyPattern = /^[a-f0-9]{64}$/u;
+
+type PersistenceStartupCause = PersistenceStartupDiagnostic["cause"];
+
+class StoreStartupError extends Error {
+  constructor(readonly diagnostic: PersistenceStartupDiagnostic) {
+    super("The encrypted store could not start.");
+    this.name = "StoreStartupError";
+  }
+}
+
+function startupDiagnostic(
+  cause: PersistenceStartupCause,
+): PersistenceStartupDiagnostic {
+  return { category: "storage-startup", cause };
+}
+
+function startupFailureState(error: unknown): PersistenceRuntimeState {
+  return {
+    kind: "unavailable",
+    reason: "storage-initialization-failed",
+    diagnostic:
+      error instanceof StoreStartupError
+        ? error.diagnostic
+        : startupDiagnostic("unknown"),
+    message: "Encrypted storage could not start.",
+  };
+}
 
 interface OpenStoreSet {
   readonly cache: CacheStore;
@@ -246,6 +274,7 @@ export function createMobileStoreRuntime(
       return {
         kind: "unavailable",
         reason: "secure-store-unavailable",
+        diagnostic: startupDiagnostic("secure-store-availability"),
         message: "SecureStore is unavailable. No Product data was written.",
       };
     }
@@ -258,11 +287,14 @@ export function createMobileStoreRuntime(
       mayDiscardDatabase: false,
       randomKey,
       secretStore: options.secretStore,
+    }).catch(() => {
+      throw new StoreStartupError(startupDiagnostic("product-key"));
     });
     if (productKey.kind === "missing") {
       return {
         kind: "recovery-required",
         reason: "product-key-missing",
+        diagnostic: startupDiagnostic("product-key"),
         artifact: storeNames.product,
         message:
           "The Product Store key is missing. The encrypted file was preserved for recovery.",
@@ -277,6 +309,8 @@ export function createMobileStoreRuntime(
       mayDiscardDatabase: true,
       randomKey,
       secretStore: options.secretStore,
+    }).catch(() => {
+      throw new StoreStartupError(startupDiagnostic("backup-key"));
     });
     if (backupKey.kind === "missing")
       throw new Error("Backup keys may always be recreated.");
@@ -306,6 +340,7 @@ export function createMobileStoreRuntime(
         return {
           kind: "unavailable",
           reason: "sqlcipher-unavailable",
+          diagnostic: startupDiagnostic("product-open"),
           message:
             "Encrypted storage needs the StreamFusion development client. No Product data was written.",
         };
@@ -314,12 +349,13 @@ export function createMobileStoreRuntime(
         return {
           kind: "recovery-required",
           reason: "product-store-unrecoverable",
+          diagnostic: startupDiagnostic("product-open"),
           artifact: error.artifact,
           message:
             "The Product Store was quarantined. Export the recovery artifact before an explicit reset.",
         };
       }
-      throw error;
+      throw new StoreStartupError(startupDiagnostic("product-open"));
     }
 
     const cacheDatabaseExisted = options.databaseDriver.exists(
@@ -331,6 +367,8 @@ export function createMobileStoreRuntime(
       mayDiscardDatabase: true,
       randomKey,
       secretStore: options.secretStore,
+    }).catch(() => {
+      throw new StoreStartupError(startupDiagnostic("cache-key"));
     });
     if (cacheKey.kind === "missing")
       throw new Error("Cache keys may always be recreated.");
@@ -368,17 +406,18 @@ export function createMobileStoreRuntime(
         return {
           kind: "unavailable",
           reason: "sqlcipher-unavailable",
+          diagnostic: startupDiagnostic("cache-open"),
           message:
             "Encrypted storage needs the StreamFusion development client. No Product data was written.",
         };
       }
-      throw error;
+      throw new StoreStartupError(startupDiagnostic("cache-open"));
     }
   }
 
   async function initialize(): Promise<PersistenceRuntimeState> {
     if (stores) return readyState(stores);
-    const opened = await openStores();
+    const opened = await openStores().catch(startupFailureState);
     if ("kind" in opened) return opened;
     stores = opened;
     return readyState(opened);
@@ -386,6 +425,26 @@ export function createMobileStoreRuntime(
 
   return {
     productState: {
+      capabilityProfile: {
+        async read() {
+          return (
+            (
+              await (
+                await requireProductStore()
+              ).getSetting("capability-profile.v1")
+            )?.value ?? null
+          );
+        },
+        async write(value, observedAtEpochMs) {
+          await (
+            await requireProductStore()
+          ).setSetting({
+            key: "capability-profile.v1",
+            updatedAt: observedAtEpochMs,
+            value,
+          });
+        },
+      },
       activity: {
         async list(filter) {
           return (await requireProductStore()).listActivity(filter);

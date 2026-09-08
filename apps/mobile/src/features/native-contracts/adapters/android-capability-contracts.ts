@@ -2,13 +2,21 @@ import type {
   AndroidCaptionsContractPort,
   AndroidCapabilityId,
   AndroidCapabilityReadiness,
+  AndroidDecoderObservation,
+  AndroidDevelopmentResourceSnapshotFailureQueue,
   AndroidDiagnosticsContractPort,
+  AndroidExecutionEnvironment,
+  AndroidFormFactorObservation,
   AndroidMaintenanceContractPort,
+  AndroidMemoryObservation,
   AndroidMediaJobsContractPort,
   AndroidNativeFailure,
   AndroidNativeOperationResult,
   AndroidPlaybackContractPort,
   AndroidResourceSnapshot,
+  AndroidRuntimeIdentity,
+  AndroidStorageObservation,
+  AndroidThermalState,
   CaptionModelState,
   CaptionSessionState,
   MediaJobState,
@@ -37,6 +45,10 @@ type BindingResolution<TBinding> =
 
 function describe(capability: AndroidCapabilityId): string {
   return capability.replaceAll("-", " ");
+}
+
+function expectedContractVersion(capability: AndroidCapabilityId): 1 | 3 {
+  return capability === "diagnostics" ? 3 : 1;
 }
 
 function resolveBinding<TBinding extends { readonly getContractVersion: () => number }>(
@@ -78,7 +90,8 @@ function resolveBinding<TBinding extends { readonly getContractVersion: () => nu
       },
     };
   }
-  if (version !== 1) {
+  const expectedVersion = expectedContractVersion(capability);
+  if (version !== expectedVersion) {
     return {
       kind: "unavailable",
       failure: {
@@ -96,7 +109,7 @@ function readiness<TBinding extends { readonly getContractVersion: () => number 
 ): AndroidCapabilityReadiness {
   const resolution = resolveBinding(capability, reader);
   return resolution.kind === "available"
-    ? { capability, contractVersion: 1, kind: "ready" }
+    ? { capability, contractVersion: expectedContractVersion(capability), kind: "ready" }
     : { capability, kind: "unavailable", failure: resolution.failure };
 }
 
@@ -208,13 +221,139 @@ function captionSessionState(value: unknown): CaptionSessionState | undefined {
 
 function resourceSnapshot(value: unknown): AndroidResourceSnapshot | undefined {
   const snapshot = object(value);
-  const thermal = snapshot?.thermalState;
-  return snapshot && typeof snapshot.availableStorageBytes === "number" &&
-    typeof snapshot.observedAtEpochMs === "number" &&
-    Number.isFinite(snapshot.availableStorageBytes) && snapshot.availableStorageBytes >= 0 &&
-    Number.isFinite(snapshot.observedAtEpochMs) && snapshot.observedAtEpochMs >= 0 &&
-    (thermal === "nominal" || thermal === "light" || thermal === "moderate" || thermal === "severe" || thermal === "critical")
-    ? { availableStorageBytes: snapshot.availableStorageBytes, observedAtEpochMs: snapshot.observedAtEpochMs, thermalState: thermal }
+  const observedAtEpochMs = numberAtLeast(snapshot?.observedAtEpochMs, 0);
+  const thermal = thermalObservation(snapshot?.thermal);
+  const memory = memoryObservation(snapshot?.memory);
+  const storage = storageObservation(snapshot?.storage);
+  const runtime = runtimeIdentity(snapshot?.runtime);
+  const decoders = decoderObservations(snapshot?.decoders);
+  return snapshot && observedAtEpochMs !== undefined && thermal && memory && storage &&
+    runtime && decoders
+    ? { decoders, memory, observedAtEpochMs, runtime, storage, thermal }
+    : undefined;
+}
+
+function developmentResourceSnapshotFailureQueue(
+  value: unknown,
+): AndroidDevelopmentResourceSnapshotFailureQueue | undefined {
+  const queue = object(value);
+  return queue?.queued === true ? { queued: true } : undefined;
+}
+
+function numberAtLeast(value: unknown, minimum: number): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= minimum
+    ? value
+    : undefined;
+}
+
+function thermal(value: unknown): AndroidThermalState | undefined {
+  return value === "none" || value === "light" || value === "moderate" ||
+    value === "severe" || value === "critical" || value === "emergency" ||
+    value === "shutdown"
+    ? value
+    : undefined;
+}
+
+function thermalObservation(value: unknown): AndroidResourceSnapshot["thermal"] | undefined {
+  const observation = object(value);
+  const state = observation ? thermal(observation.state) : undefined;
+  if (observation?.kind === "observed" && state) return { kind: "observed", state };
+  const detail = observation ? nonEmptyString(observation.detail) : undefined;
+  return observation?.kind === "unavailable" && detail
+    ? { detail, kind: "unavailable" }
+    : undefined;
+}
+
+function executionEnvironment(value: unknown): AndroidExecutionEnvironment | undefined {
+  return value === "emulator" || value === "physical" || value === "unknown"
+    ? value
+    : undefined;
+}
+
+function stringArray(value: unknown): readonly string[] | undefined {
+  return Array.isArray(value) && value.every((item) => nonEmptyString(item) !== undefined)
+    ? value
+    : undefined;
+}
+
+function decoderObservations(value: unknown): readonly AndroidDecoderObservation[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const decoders = value.map((candidate) => {
+    const decoder = object(candidate);
+    const name = decoder ? nonEmptyString(decoder.name) : undefined;
+    const mimeTypes = decoder ? stringArray(decoder.mimeTypes) : undefined;
+    return decoder && name && mimeTypes &&
+      typeof decoder.hardwareAccelerated === "boolean" &&
+      typeof decoder.softwareOnly === "boolean"
+      ? { hardwareAccelerated: decoder.hardwareAccelerated, mimeTypes, name, softwareOnly: decoder.softwareOnly }
+      : undefined;
+  });
+  return decoders.every(
+    (decoder): decoder is AndroidDecoderObservation => decoder !== undefined,
+  )
+    ? decoders
+    : undefined;
+}
+
+function memoryObservation(value: unknown): AndroidMemoryObservation | undefined {
+  const memory = object(value);
+  if (!memory) return undefined;
+  const availableBytes = numberAtLeast(memory.availableBytes, 0);
+  const runtimeFreeBytes = numberAtLeast(memory.runtimeFreeBytes, 0);
+  const runtimeMaxBytes = numberAtLeast(memory.runtimeMaxBytes, 0);
+  const runtimeTotalBytes = numberAtLeast(memory.runtimeTotalBytes, 0);
+  const thresholdBytes = numberAtLeast(memory.thresholdBytes, 0);
+  const totalBytes = numberAtLeast(memory.totalBytes, 0);
+  return availableBytes !== undefined && runtimeFreeBytes !== undefined &&
+    runtimeMaxBytes !== undefined && runtimeTotalBytes !== undefined &&
+    thresholdBytes !== undefined && totalBytes !== undefined &&
+    typeof memory.lowMemory === "boolean"
+    ? { availableBytes, lowMemory: memory.lowMemory, runtimeFreeBytes, runtimeMaxBytes, runtimeTotalBytes, thresholdBytes, totalBytes }
+    : undefined;
+}
+
+function storageObservation(value: unknown): AndroidStorageObservation | undefined {
+  const storage = object(value);
+  const availableBytes = storage ? numberAtLeast(storage.availableBytes, 0) : undefined;
+  const totalBytes = storage ? numberAtLeast(storage.totalBytes, 0) : undefined;
+  return storage && availableBytes !== undefined && totalBytes !== undefined
+    ? { availableBytes, totalBytes }
+    : undefined;
+}
+
+function runtimeIdentity(value: unknown): AndroidRuntimeIdentity | undefined {
+  const runtime = object(value);
+  const applicationId = runtime ? nonEmptyString(runtime.applicationId) : undefined;
+  const apiLevel = runtime ? numberAtLeast(runtime.apiLevel, 1) : undefined;
+  const versionCode = runtime ? numberAtLeast(runtime.versionCode, 0) : undefined;
+  const supportedAbis = runtime ? stringArray(runtime.supportedAbis) : undefined;
+  const environment = runtime
+    ? executionEnvironment(runtime.executionEnvironment)
+    : undefined;
+  const formFactor = runtime ? formFactorObservation(runtime.formFactor) : undefined;
+  return runtime && applicationId && apiLevel !== undefined &&
+    versionCode !== undefined && supportedAbis && environment && formFactor
+    ? { apiLevel, applicationId, executionEnvironment: environment, formFactor, supportedAbis, versionCode }
+    : undefined;
+}
+
+function formFactorObservation(value: unknown): AndroidFormFactorObservation | undefined {
+  const formFactor = object(value);
+  const uiModeType = formFactor ? numberAtLeast(formFactor.uiModeType, 0) : undefined;
+  return formFactor && uiModeType !== undefined &&
+    typeof formFactor.automotive === "boolean" &&
+    typeof formFactor.pc === "boolean" &&
+    typeof formFactor.touchscreen === "boolean" &&
+    typeof formFactor.television === "boolean" &&
+    typeof formFactor.watch === "boolean"
+    ? {
+        automotive: formFactor.automotive,
+        pc: formFactor.pc,
+        touchscreen: formFactor.touchscreen,
+        television: formFactor.television,
+        uiModeType,
+        watch: formFactor.watch,
+      }
     : undefined;
 }
 
@@ -298,6 +437,13 @@ export function createAndroidCaptionsContractPort(reader: ExpoBindingReader<Expo
 export function createAndroidDiagnosticsContractPort(reader: ExpoBindingReader<ExpoDiagnosticsBinding>): AndroidDiagnosticsContractPort {
   return {
     readiness: () => readiness("diagnostics", reader),
+    queueDevelopmentResourceSnapshotFailure: () =>
+      invoke(
+        "diagnostics",
+        reader,
+        (binding) => binding.queueDevelopmentResourceSnapshotFailure(),
+        developmentResourceSnapshotFailureQueue,
+      ),
     readResourceSnapshot: () => invoke("diagnostics", reader, (binding) => binding.readResourceSnapshot(), resourceSnapshot),
   };
 }

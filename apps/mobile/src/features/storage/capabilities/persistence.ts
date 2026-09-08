@@ -7,7 +7,20 @@ export type PersistenceUnavailableReason =
   | "secure-store-unavailable"
   | "sqlcipher-unavailable"
   | "product-key-missing"
-  | "product-store-unrecoverable";
+  | "product-store-unrecoverable"
+  | "storage-initialization-failed";
+
+export type PersistenceStartupDiagnostic = {
+  readonly category: "storage-startup";
+  readonly cause:
+    | "secure-store-availability"
+    | "product-key"
+    | "backup-key"
+    | "product-open"
+    | "cache-key"
+    | "cache-open"
+    | "unknown";
+};
 
 export type PersistenceRuntimeState =
   | { readonly kind: "initializing" }
@@ -22,12 +35,14 @@ export type PersistenceRuntimeState =
       readonly kind: "unavailable";
       readonly reason: PersistenceUnavailableReason;
       readonly message: string;
+      readonly diagnostic?: PersistenceStartupDiagnostic;
     }
   | {
       readonly kind: "recovery-required";
       readonly reason: "product-key-missing" | "product-store-unrecoverable";
       readonly artifact: string;
       readonly message: string;
+      readonly diagnostic?: PersistenceStartupDiagnostic;
     };
 
 export interface PersistenceProofResult {
@@ -71,8 +86,14 @@ export interface ShellRestorationRepository {
   write(value: string, updatedAt: number): Promise<void>;
 }
 
+export interface CapabilityProfileSnapshotStore {
+  read(): Promise<string | null>;
+  write(value: string, observedAtEpochMs: number): Promise<void>;
+}
+
 export interface MobileProductState {
   readonly activity: ActivityRepository;
+  readonly capabilityProfile: CapabilityProfileSnapshotStore;
   readonly shellRestoration: ShellRestorationRepository;
 }
 

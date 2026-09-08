@@ -381,6 +381,37 @@ describe("encrypted store policy", () => {
     expect(deleted.some((name) => name.endsWith("product.db"))).toBe(true);
   });
 
+  it("returns a sanitized startup diagnostic when opening the Product Store rejects", async () => {
+    const driver: EncryptedDatabaseDriver = {
+      backup: async () => undefined,
+      containsBytes: async () => false,
+      corrupt: async () => undefined,
+      delete: async () => undefined,
+      deleteQuarantines: async () => undefined,
+      exists: () => false,
+      open: async () => {
+        throw new Error("raw storage error must not reach presentation");
+      },
+      quarantine: async () => "artifact",
+      restore: async () => undefined,
+    };
+    await expect(
+      createMobileStoreRuntime({
+        backupExcluded: true,
+        databaseDriver: driver,
+        random,
+        secretStore: memorySecrets(),
+      }).initialize(),
+    ).resolves.toMatchObject({
+      kind: "unavailable",
+      reason: "storage-initialization-failed",
+      diagnostic: {
+        category: "storage-startup",
+        cause: "product-open",
+      },
+    });
+  });
+
   it("shows native proof results only from a ready runtime", () => {
     const allPassed = {
       backupExcluded: true,

@@ -8,55 +8,59 @@ import {
   mobileSpacing,
 } from "@mobile/design/tokens";
 
-export function NativeCapabilityStubProofControl({
-  onRun,
+import type { RuntimeObservationDevelopmentProofResult } from "../capabilities/capability-profile";
+
+export function DevelopmentResourceFailureProofControl({
+  onQueue,
+  onRetry,
 }: {
-  readonly onRun: () => Promise<{ readonly detail: string }>;
+  readonly onQueue: () => Promise<RuntimeObservationDevelopmentProofResult>;
+  readonly onRetry: () => void;
 }) {
   const [detail, setDetail] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
-
   const run = async () => {
     setRunning(true);
     try {
-      setDetail((await onRun()).detail);
+      const result = await onQueue();
+      if (result.kind === "queued") {
+        onRetry();
+        setDetail("The next native resource read will fail once. This proves unavailable measurement handling only.");
+      } else {
+        setDetail(result.detail);
+      }
     } catch {
-      setDetail("Android contract stub check could not complete. Retry.");
+      setDetail("Development failure proof could not be queued. Try again.");
     } finally {
       setRunning(false);
     }
   };
-
   return (
-    <View style={styles.panel} testID="native-capability-stub-proof">
+    <View style={styles.panel} testID="development-resource-failure-proof">
       <Text selectable style={styles.label}>
-        ANDROID CONTRACT STUBS
+        DEVELOPMENT FAILURE PROOF
       </Text>
       <Text selectable style={styles.body}>
-        Runs safe stop, cancel, and nonexistent-artifact checks, then reads the measured diagnostics snapshot.
+        Queues one real native bridge failure. It never simulates resource pressure, capacity, or qualification.
       </Text>
       {detail ? (
-        <Text
-          selectable
-          style={styles.body}
-          testID="native-capability-stub-proof-result"
-        >
+        <Text selectable style={styles.body} testID="development-resource-failure-proof-result">
           {detail}
         </Text>
       ) : null}
       <Pressable
-        accessibilityHint="Runs safe current Android contract stub checks"
-        accessibilityLabel="Run Android contract stub checks"
+        accessibilityHint="Queues one native resource measurement failure for development proof"
+        accessibilityLabel="Run unavailable measurement proof"
         accessibilityRole="button"
         accessibilityState={{ disabled: running }}
         android_ripple={{ color: mobileColors.surfaceRaised }}
         disabled={running}
         onPress={() => void run()}
         style={({ pressed }) => [styles.button, pressed ? styles.pressed : null]}
-        testID="run-native-capability-stub-proof"
+        testID="run-development-resource-failure-proof"
       >
         <Text selectable style={styles.buttonLabel}>
-          {running ? "Running checks" : "Run Android contract stub checks"}
+          {running ? "Queuing proof" : "Run unavailable measurement proof"}
         </Text>
       </Pressable>
     </View>
@@ -67,13 +71,14 @@ const styles = StyleSheet.create({
   body: { color: mobileColors.textSecondary, lineHeight: 20 },
   button: {
     alignItems: "center",
+    alignSelf: "flex-start",
     backgroundColor: mobileColors.surfaceRaised,
     borderColor: mobileColors.border,
     borderRadius: mobileRadii.medium,
     borderWidth: 1,
+    justifyContent: "center",
     minHeight: mobileSizing.minimumTouchTarget,
     paddingHorizontal: mobileSpacing.medium,
-    paddingVertical: mobileSpacing.small,
   },
   buttonLabel: { color: mobileColors.textPrimary, fontWeight: "700" },
   label: { color: mobileColors.textSecondary, fontSize: 12, fontWeight: "700" },

@@ -75,6 +75,7 @@ Roots: `apps/mobile/src/features/`.
 - `shell`: navigation, deep-link parsing, restoration, and app UI.
 - `activity`: activity presentation and operations.
 - `diagnostics`: app/device health and persistence diagnostics.
+- `capability-profile`: measured Android resource facts, pending workload admission, and visible runtime degradation policy.
 - `native-contracts`: typed Android capability ports, Expo adapters, safe proof control, and Kotlin Expo modules.
 - `storage`: encrypted Product/Cache stores, migrations, recovery, and native adapters.
 

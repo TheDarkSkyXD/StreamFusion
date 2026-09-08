@@ -30,6 +30,7 @@ interface NativeCaptionsModule {
 
 interface NativeDiagnosticsModule {
   getContractVersion(): number;
+  queueDevelopmentResourceSnapshotFailure(): Promise<unknown>;
   readResourceSnapshot(): Promise<unknown>;
 }
 

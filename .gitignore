@@ -13,6 +13,7 @@ logs
 /.scratch/perf-profile-*/
 /apps/desktop/.scratch-icon-package/
 /artifacts/mobile-evidence/
+/apps/mobile/modules/streamfusion-native-contracts/android/build/
 /packages/core/src/**/architecture-proof-*.ts
 /.tmp-*.png
 /.claude/settings.local.json

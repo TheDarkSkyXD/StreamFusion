@@ -8,6 +8,7 @@ import type {
 
 export interface PersistenceViewModel {
   readonly canRunProof: boolean;
+  readonly developmentDiagnostic: string | null;
   readonly detail: string;
   readonly proofDetail: string | null;
   readonly proofRunning: boolean;
@@ -23,6 +24,7 @@ export function persistenceViewModel(
   if (state.kind === "initializing") {
     return {
       canRunProof: false,
+      developmentDiagnostic: null,
       detail: "Opening the encrypted Product and Cache Stores.",
       proofDetail: null,
       proofRunning,
@@ -34,6 +36,7 @@ export function persistenceViewModel(
       proof !== null && Object.values(proof).every((result) => result);
     return {
       canRunProof: true,
+      developmentDiagnostic: null,
       detail: `${state.cipherVersion}. Product schema ${state.productSchemaVersion}. Cache schema ${state.cacheSchemaVersion}.`,
       proofDetail: proofFailed
         ? "The isolated native storage proof could not complete. Temporary proof data was removed."
@@ -50,6 +53,9 @@ export function persistenceViewModel(
   }
   return {
     canRunProof: false,
+    developmentDiagnostic: state.diagnostic
+      ? `${state.diagnostic.category}/${state.diagnostic.cause}`
+      : null,
     detail: state.message,
     proofDetail:
       state.kind === "recovery-required"
@@ -85,9 +91,10 @@ export function usePersistenceController(runtime: MobilePersistenceRuntime): {
         if (active)
           setState({
             kind: "unavailable",
-            reason: "product-store-unrecoverable",
+            reason: "storage-initialization-failed",
+            diagnostic: { category: "storage-startup", cause: "unknown" },
             message:
-              "Encrypted storage could not start. No Product data was changed.",
+              "Encrypted storage could not start.",
           });
       });
     return () => {

@@ -7,6 +7,9 @@ import { ESLint } from "eslint";
 const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const cases = [
   ["src/features/shell/capabilities/proof.ts", "export const proof = true;\n", true],
+  ["src/features/shell/components/proof.ts", "export const proof = true;\n", true],
+  ["src/features/shell/routes/proof.ts", 'import "../components/proof";\n', true],
+  ["src/features/shell/routes/proof-forbidden.ts", 'import "../adapters/proof";\n', false],
   ["src/features/shell/domain/proof.ts", 'import "../capabilities/proof";\n', true],
   ["src/features/shell/domain/proof-forbidden.ts", 'import "../adapters/proof";\n', false],
   ["src/features/shell/adapters/proof.ts", "export const proof = true;\n", true],

@@ -3,6 +3,8 @@ import { PLATFORMS } from "@streamfusion/core/platform";
 import { createExpoAppLinkSource } from "@mobile/features/shell/adapters/expo-app-link-adapter";
 import { createExpoAppMetadataReader } from "@mobile/features/diagnostics/adapters/expo-app-metadata-reader";
 import { createAndroidCapabilityContractRuntime } from "@mobile/features/native-contracts/composition/android-capability-contract-runtime";
+import { createCapabilityProfileRuntime } from "@mobile/features/capability-profile/composition/capability-profile-runtime";
+import { useCapabilityProfileController } from "@mobile/features/capability-profile/components/use-capability-profile-controller";
 import { createDevelopmentClientController } from "@mobile/features/diagnostics/domain/development-client-controller";
 import { usePersistenceController } from "@mobile/features/diagnostics/components/persistence-controller";
 import { AppShell } from "@mobile/features/shell/components/app-shell";
@@ -31,12 +33,22 @@ const persistenceRuntime = createMobileStoreRuntime({
 
 const appLinks = createExpoAppLinkSource();
 
+const capabilityProfileRuntime = createCapabilityProfileRuntime({
+  diagnostics: androidCapabilityRuntime.contracts.diagnostics,
+  store: persistenceRuntime.productState.capabilityProfile,
+});
+
 export function MobileRuntime() {
   const persistence = usePersistenceController(persistenceRuntime);
+  const capabilityProfile = useCapabilityProfileController(capabilityProfileRuntime);
   return (
     <AppShell
       activityRepository={persistenceRuntime.productState.activity}
       appLinks={appLinks}
+      capabilityProfile={capabilityProfile.model}
+      onRetryCapabilityProfile={capabilityProfile.retry}
+      onRunCapabilityProfileDevelopmentProof={() =>
+        capabilityProfileRuntime.developmentProof.queueNextNativeReadFailure()}
       developmentStatus={developmentClientController.read()}
       onRunNativeCapabilityProof={androidCapabilityRuntime.runStubProof}
       onPrepareRestorationProof={async (kind) => {

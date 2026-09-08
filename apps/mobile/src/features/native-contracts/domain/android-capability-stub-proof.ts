@@ -5,7 +5,7 @@ import type {
 
 export type AndroidCapabilityStubProofResult =
   | {
-      readonly detail: "5/5 current Android contract stubs safely returned unsupported.";
+      readonly detail: "4/4 current Android contract stubs safely returned unsupported. Diagnostics returned a measured resource snapshot.";
       readonly kind: "safe-stubs";
     }
   | { readonly detail: string; readonly kind: "contained" };
@@ -15,7 +15,6 @@ const proofCapabilities = [
   "playback",
   "media jobs",
   "captions",
-  "diagnostics",
   "maintenance",
 ] as const;
 
@@ -42,7 +41,6 @@ export function createAndroidCapabilityStubProof(
         ports.playback.endFocusedSession(proofId),
         ports.mediaJobs.cancelRecoverableJob(proofId),
         ports.captions.stopFocusedCaptionSession(proofId),
-        ports.diagnostics.readResourceSnapshot(),
         ports.maintenance.verifyDownloadedApk({
           artifactUri: "file:///data/local/tmp/streamfusion-contract-proof.apk",
           expectedApplicationId: "com.thedarkskyxd.streamfusion.contractproof",
@@ -59,13 +57,20 @@ export function createAndroidCapabilityStubProof(
           ),
         )
         .filter((failure): failure is string => failure !== undefined);
+      const diagnostics = await ports.diagnostics.readResourceSnapshot();
       return failures.length === 0
+        && diagnostics.kind === "completed"
         ? {
             detail:
-              "5/5 current Android contract stubs safely returned unsupported.",
+              "4/4 current Android contract stubs safely returned unsupported. Diagnostics returned a measured resource snapshot.",
             kind: "safe-stubs",
           }
-        : { detail: failures.join(" "), kind: "contained" };
+        : {
+            detail: diagnostics.kind === "completed"
+              ? failures.join(" ")
+              : `${failures.join(" ")} Diagnostics returned ${diagnostics.failure.code}.`,
+            kind: "contained",
+          };
     },
   };
 }
