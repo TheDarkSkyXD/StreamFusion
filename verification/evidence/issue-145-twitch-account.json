@@ -69,7 +69,7 @@
     },
     {
       "path": "verification/evidence/issue-145/issue145-pending-controls-font2-20260908.png",
-      "sha256": "d7efd61d451eb2684c062854b2a109b5eb34e88864ffeefd081b8398ef8eb33ed",
+      "sha256": "d7efd61d451eb2684c062854b2a109b5eb34e88864ffefd081b8398ef8eb33ed",
       "observedAt": "2026-09-08T15:04:31.598Z",
       "scope": "Explicit non-live fixture pending controls at font scale 2.0 from task HEAD 8e64baf before the Copy-feedback correction. The exact whole dirty runtime tree was not retained; the visible panel and composition match blobs 3cf41fd8c85e0b51780c3973c4f4e685f41c41d2 and a0acbe7ecbc9a9d6904af154dc43a3be18712125."
     },
