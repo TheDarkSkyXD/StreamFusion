@@ -341,9 +341,9 @@ describe("chromium-log-tailer — noise demotion", () => {
     const certAuthorityErr =
       "[26712:0607/155145.309:ERROR:ssl_client_socket_impl.cc(877)] handshake failed; returned -1, SSL error code 1, net_error -202";
     await fsp.appendFile(filePath, `${certAuthorityErr}\n`, "utf8");
-    await pause();
-
-    expect(logger.error).toHaveBeenCalledWith("Chromium", certAuthorityErr);
+    await vi.waitFor(() => {
+      expect(logger.error).toHaveBeenCalledWith("Chromium", certAuthorityErr);
+    });
     expect(logger.debug).not.toHaveBeenCalledWith("Chromium", certAuthorityErr);
   });
 
