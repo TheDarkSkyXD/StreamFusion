@@ -148,7 +148,10 @@ describe("Android capability module contracts", () => {
         sourceUri: "https://example.test/live.m3u8",
       }),
     ).resolves.toMatchObject({
-      failure: { code: "NATIVE_INVOCATION_FAILED" },
+      failure: {
+        code: "NATIVE_INVOCATION_FAILED",
+        diagnostic: "playback Android work did not complete. Try this capability again.",
+      },
       kind: "unavailable",
     });
 

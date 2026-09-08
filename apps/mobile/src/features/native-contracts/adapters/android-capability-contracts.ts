@@ -164,7 +164,7 @@ async function invoke<TBinding extends { readonly getContractVersion: () => numb
       kind: "unavailable",
       failure: {
         code: "NATIVE_INVOCATION_FAILED",
-        diagnostic: `${describe(capability)} Android work did not complete. Retry this capability after reopening StreamFusion.`,
+        diagnostic: `${describe(capability)} Android work did not complete. Try this capability again.`,
       },
     };
   }
